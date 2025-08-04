@@ -12,6 +12,9 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && prettier --check .",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
+		"db:generate": "diesel migration generate --migration-dir src-tauri/migrations --config-file src-tauri/diesel.toml",
+		"db:migrate": "diesel migration run --migration-dir src-tauri/migrations --config-file src-tauri/diesel.toml",
+		"db:reset": "diesel database reset --migration-dir src-tauri/migrations --config-file src-tauri/diesel.toml",
 		"tauri": "tauri"
 	},
 	"dependencies": {
