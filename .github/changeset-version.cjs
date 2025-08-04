@@ -1,5 +1,6 @@
 // credits https://github.com/t3-oss/create-t3-app/blob/next/.github/changeset-version.js
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { execSync } = require('node:child_process');
 
 // this script is used by the `release.yaml` workflow to update the version of the packages being released.
@@ -9,4 +10,4 @@ const { execSync } = require('node:child_process');
 // see https://github.com/changesets/changesets/issues/421.
 execSync('pnpm changeset version');
 execSync('pnpm install --lockfile-only');
-execSync('cd system && cargo update');
+execSync('cd src-tauri && cargo update');
