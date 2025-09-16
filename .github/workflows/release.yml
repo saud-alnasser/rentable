@@ -32,7 +32,7 @@ jobs:
       - name: '🔼 update rust'
         run: rustup update ${{ matrix.toolchain }} && rustup default stable
 
-      - name: '💿 restore/save cargo cache '
+      - name: '💿 cargo cache'
         uses: actions/cache@v4
         with:
           path: |
@@ -41,13 +41,18 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             ./src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-main-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-main-
 
-      - name: '📦 install dependencies'
-        run: |
-          pnpm install --frozen-lockfile 
-          sudo apt-get update  
-          sudo apt-get install -y libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev librsvg2-dev
+      - name: '📦 install apt packages'
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev librsvg2-dev
+          version: 1.0
+
+      - name: '📦 install pnpm packages'
+        run: pnpm install --frozen-lockfile
 
       - name: '🔎 check'
         run: pnpm check
