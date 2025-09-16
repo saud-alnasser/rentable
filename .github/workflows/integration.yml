@@ -19,7 +19,7 @@ jobs:
           fetch-depth: 0
 
       - name: '📝 lint pull-request title'
-        uses: amannn/action-semantic-pull-request@v5
+        uses: amannn/action-semantic-pull-request@v6
 
       - name: '🛠️ setup pnpm'
         uses: pnpm/action-setup@v4
