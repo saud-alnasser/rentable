@@ -28,7 +28,7 @@
 		"@eslint/js": "^9.18.0",
 		"@fontsource/fira-mono": "^5.0.0",
 		"@internationalized/date": "^3.8.2",
-		"@lucide/svelte": "^0.544.0",
+		"@lucide/svelte": "^0.563.0",
 		"@neoconfetti/svelte": "^2.0.0",
 		"@sveltejs/adapter-static": "^3.0.8",
 		"@sveltejs/kit": "^2.22.0",
@@ -46,12 +46,12 @@
 		"eslint-plugin-svelte": "^3.0.0",
 		"formsnap": "^2.0.1",
 		"globals": "^17.0.0",
-		"layerchart": "2.0.0-next.38",
+		"layerchart": "2.0.0-next.44",
 		"mode-watcher": "^1.1.0",
 		"paneforge": "^1.0.2",
 		"prettier": "^3.4.2",
 		"prettier-plugin-svelte": "^3.3.3",
-		"prettier-plugin-tailwindcss": "^0.6.11",
+		"prettier-plugin-tailwindcss": "^0.7.0",
 		"svelte": "^5.25.0",
 		"svelte-check": "^4.0.0",
 		"svelte-sonner": "^1.0.5",
@@ -75,5 +75,5 @@
 		"node": "^24.0.0",
 		"pnpm": ">=10.0.0"
 	},
-	"packageManager": "pnpm@10.16.1"
+	"packageManager": "pnpm@10.28.2"
 }
