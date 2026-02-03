@@ -10,4 +10,4 @@ const { execSync } = require('node:child_process');
 // see https://github.com/changesets/changesets/issues/421.
 execSync('pnpm changeset version');
 execSync('pnpm install --lockfile-only');
-execSync('cd src-tauri && cargo update');
+execSync('cd tauri && cargo update');

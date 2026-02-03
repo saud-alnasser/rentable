@@ -1,4 +1,4 @@
 build
 **/*.md
 pnpm-lock.yaml
-src-tauri/**
+tauri/**
