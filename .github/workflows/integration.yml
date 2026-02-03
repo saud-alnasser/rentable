@@ -41,7 +41,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            ./src-tauri/target
+            ./tauri/target
           key: ${{ runner.os }}-cargo-pr-${{ github.head_ref || github.ref_name }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-pr-${{ github.head_ref || github.ref_name }}-
