@@ -51,7 +51,7 @@ jobs:
 
               - type: 'continuous_integration'
                 nouns: ['ci']
-                labels: ['⚙️ type: tools']
+                labels: ['🔧 type: tools']
 
               - type: 'testing'
                 nouns: ['test']
