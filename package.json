@@ -12,14 +12,15 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && prettier --check .",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
-		"db:generate": "diesel migration generate --migration-dir tauri/migrations --config-file tauri/diesel.toml",
-		"db:migrate": "diesel migration run --migration-dir tauri/migrations --config-file tauri/diesel.toml",
-		"db:reset": "diesel database reset --migration-dir tauri/migrations --config-file tauri/diesel.toml",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "drizzle-kit migrate",
+		"db:studio": "drizzle-kit studio",
 		"tauri": "tauri"
 	},
 	"dependencies": {
 		"@tauri-apps/api": "^2",
-		"@tauri-apps/plugin-opener": "^2"
+		"@tauri-apps/plugin-opener": "^2",
+		"drizzle-orm": "^0.45.1"
 	},
 	"devDependencies": {
 		"@changesets/changelog-github": "^0.5.1",
@@ -40,6 +41,7 @@
 		"@tauri-apps/cli": "^2",
 		"bits-ui": "^2.9.1",
 		"clsx": "^2.1.1",
+		"drizzle-kit": "^0.31.8",
 		"embla-carousel-svelte": "^8.6.0",
 		"eslint": "^9.18.0",
 		"eslint-config-prettier": "^10.0.1",

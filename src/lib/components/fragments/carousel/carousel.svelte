@@ -1,11 +1,11 @@
 <script lang="ts">
+	import { cn, type WithElementRef } from '$lib/utils.js';
 	import {
 		type CarouselAPI,
 		type CarouselProps,
 		type EmblaContext,
 		setEmblaContext
 	} from './context.js';
-	import { cn, type WithElementRef } from '$lib/utils.js';
 
 	let {
 		ref = $bindable(null),
@@ -22,11 +22,14 @@
 		api: undefined,
 		scrollPrev,
 		scrollNext,
+		// svelte-ignore state_referenced_locally
 		orientation,
 		canScrollNext: false,
 		canScrollPrev: false,
 		handleKeyDown,
+		// svelte-ignore state_referenced_locally
 		options: opts,
+		// svelte-ignore state_referenced_locally
 		plugins,
 		onInit,
 		scrollSnaps: [],
