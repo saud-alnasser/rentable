@@ -34,11 +34,11 @@ importers:
         specifier: ^5.0.0
         version: 5.2.7
       '@internationalized/date':
-        specifier: ^3.8.2
+        specifier: ^3.10.0
         version: 3.10.1
       '@lucide/svelte':
-        specifier: ^0.563.0
-        version: 0.563.1(svelte@5.49.1)
+        specifier: ^0.561.0
+        version: 0.561.0(svelte@5.49.1)
       '@neoconfetti/svelte':
         specifier: ^2.0.0
         version: 2.2.2(svelte@5.49.1)
@@ -67,7 +67,7 @@ importers:
         specifier: ^2
         version: 2.10.0
       bits-ui:
-        specifier: ^2.9.1
+        specifier: ^2.14.4
         version: 2.15.5(@internationalized/date@3.10.1)(@sveltejs/kit@2.50.2(@sveltejs/vite-plugin-svelte@6.2.4(svelte@5.49.1)(vite@7.3.1(jiti@2.6.1)(lightningcss@1.30.2)))(svelte@5.49.1)(typescript@5.9.3)(vite@7.3.1(jiti@2.6.1)(lightningcss@1.30.2)))(svelte@5.49.1)
       clsx:
         specifier: ^2.1.1
@@ -94,8 +94,8 @@ importers:
         specifier: ^17.0.0
         version: 17.3.0
       layerchart:
-        specifier: 2.0.0-next.44
-        version: 2.0.0-next.44(svelte@5.49.1)
+        specifier: 2.0.0-next.43
+        version: 2.0.0-next.43(svelte@5.49.1)
       mode-watcher:
         specifier: ^1.1.0
         version: 1.1.0(svelte@5.49.1)
@@ -118,16 +118,16 @@ importers:
         specifier: ^4.0.0
         version: 4.3.6(picomatch@4.0.3)(svelte@5.49.1)(typescript@5.9.3)
       svelte-sonner:
-        specifier: ^1.0.5
+        specifier: ^1.0.7
         version: 1.0.7(svelte@5.49.1)
       sveltekit-superforms:
-        specifier: ^2.27.1
+        specifier: ^2.28.1
         version: 2.29.1(@sveltejs/kit@2.50.2(@sveltejs/vite-plugin-svelte@6.2.4(svelte@5.49.1)(vite@7.3.1(jiti@2.6.1)(lightningcss@1.30.2)))(svelte@5.49.1)(typescript@5.9.3)(vite@7.3.1(jiti@2.6.1)(lightningcss@1.30.2)))(@types/json-schema@7.0.15)(svelte@5.49.1)(typescript@5.9.3)
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.4.0
       tailwind-variants:
-        specifier: ^3.0.0
+        specifier: ^3.2.2
         version: 3.2.2(tailwind-merge@3.4.0)(tailwindcss@4.1.18)
       tailwindcss:
         specifier: ^4.0.0
@@ -811,8 +811,8 @@ packages:
   '@layerstack/utils@2.0.0-next.14':
     resolution: {integrity: sha512-1I2CS0Cwgs53W35qVg1eBdYhB/CiPvL3s0XE61b8jWkTHxgjBF65yYNgXjW74kv7WI7GsJcWMNBufPd0rnu9kA==}
 
-  '@lucide/svelte@0.563.1':
-    resolution: {integrity: sha512-Kt+MbnE5D9RsuI/csmf7M+HWxALe57x3A0DhQ8pPnnUpneh7zuldrYjlT+veWtk+tVnp5doQtaAAxLujzIlhBw==}
+  '@lucide/svelte@0.561.0':
+    resolution: {integrity: sha512-vofKV2UFVrKE6I4ewKJ3dfCXSV6iP6nWVmiM83MLjsU91EeJcEg7LoWUABLp/aOTxj1HQNbJD1f3g3L0JQgH9A==}
     peerDependencies:
       svelte: ^5
 
@@ -2049,8 +2049,8 @@ packages:
   known-css-properties@0.37.0:
     resolution: {integrity: sha512-JCDrsP4Z1Sb9JwG0aJ8Eo2r7k4Ou5MwmThS/6lcIe1ICyb7UBJKGRIUUdqc2ASdE/42lgz6zFUnzAIhtXnBVrQ==}
 
-  layerchart@2.0.0-next.44:
-    resolution: {integrity: sha512-ivFNjkwjGWbYMw45xr98O1BjUuAtAa1QqvQ1j22ww/UKe+Z72cUiZBoXXbG4bBtok+YJNmEPgSF3Oky2DUkWkg==}
+  layerchart@2.0.0-next.43:
+    resolution: {integrity: sha512-1Ywm38NdzHWKwgaAHq3EcqshIgsq+pylntSnVWAVazXUk/NsxPcxdpR3tMt3ySjWV0ZPBBgLs78sdVf7FTgd+g==}
     peerDependencies:
       svelte: ^5.0.0
 
@@ -3400,7 +3400,7 @@ snapshots:
       d3-time-format: 4.1.0
       lodash-es: 4.17.21
 
-  '@lucide/svelte@0.563.1(svelte@5.49.1)':
+  '@lucide/svelte@0.561.0(svelte@5.49.1)':
     dependencies:
       svelte: 5.49.1
 
@@ -4536,7 +4536,7 @@ snapshots:
 
   known-css-properties@0.37.0: {}
 
-  layerchart@2.0.0-next.44(svelte@5.49.1):
+  layerchart@2.0.0-next.43(svelte@5.49.1):
     dependencies:
       '@dagrejs/dagre': 1.1.5
       '@layerstack/svelte-actions': 1.0.1-next.14
