@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { invoke } from '@tauri-apps/api/core';
+	import { app } from '$lib/app';
 	import { onMount } from 'svelte';
 	import '../app.css';
 
-	onMount(() => invoke('show_window'));
+	onMount(() => app.window.show());
 
 	let { children } = $props();
 </script>
