@@ -1,13 +1,12 @@
 <script lang="ts">
-	import { app } from '$lib/app';
+	import api from '$lib/api/mod';
 
 	let name = $state('');
 	let greetMsg = $state('');
 
 	async function greet(event: Event) {
 		event.preventDefault();
-		// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-		greetMsg = await app.example.greet(name);
+		greetMsg = await api.example.greet(name);
 	}
 </script>
 

@@ -43,6 +43,7 @@
 		"Stylesheet",
 		"superforms",
 		"tauri",
+		"treeify",
 		"vaul",
 		"vite"
 	]

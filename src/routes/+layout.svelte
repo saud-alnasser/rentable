@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { app } from '$lib/app';
+	import api from '$lib/api/mod';
 	import { onMount } from 'svelte';
 	import '../app.css';
 
-	onMount(() => app.window.show());
+	onMount(() => api.window.show());
 
 	let { children } = $props();
 </script>

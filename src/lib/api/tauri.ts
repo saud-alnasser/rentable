@@ -1,6 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
 
-export const app = {
+/**
+ * any tauri commands that are available to the API.
+ */
+export const tauri = {
 	example: {
 		greet: (name: string) => invoke<string>('greet', { name })
 	},

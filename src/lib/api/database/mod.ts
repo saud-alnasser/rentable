@@ -18,6 +18,7 @@ type Row = {
 
 export const db = drizzle(
 	async (sql, params, method) => {
+		// tauri command called directly for fast queries instead of wrapped in function in tauri object
 		const rows = await invoke<Row[]>('db_execute_single_sql', { query: { sql, params } });
 
 		/**
@@ -30,6 +31,7 @@ export const db = drizzle(
 		return map(rows, method);
 	},
 	async (queries: Query[]) => {
+		// tauri command called directly for fast queries instead of wrapped in function in tauri object
 		const batch = await invoke<Row[][]>('db_execute_batch_sql', { queries });
 
 		/**
