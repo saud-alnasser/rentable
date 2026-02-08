@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { cn } from '$lib/utils.js';
 	import { Textarea } from '$lib/components/fragments/textarea/index.js';
+	import { cn } from '$lib/utils/tailwind.js';
 	import type { ComponentProps } from 'svelte';
 
 	let {

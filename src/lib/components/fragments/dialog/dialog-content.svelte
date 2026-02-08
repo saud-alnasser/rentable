@@ -1,11 +1,10 @@
 <script lang="ts">
-	import { Dialog as DialogPrimitive } from 'bits-ui';
-	import DialogPortal from './dialog-portal.svelte';
+	import { cn, type WithoutChildrenOrChild } from '$lib/utils/tailwind.js';
 	import XIcon from '@lucide/svelte/icons/x';
-	import type { Snippet } from 'svelte';
+	import { Dialog as DialogPrimitive } from 'bits-ui';
+	import type { ComponentProps, Snippet } from 'svelte';
+	import DialogPortal from './dialog-portal.svelte';
 	import * as Dialog from './index.js';
-	import { cn, type WithoutChildrenOrChild } from '$lib/utils.js';
-	import type { ComponentProps } from 'svelte';
 
 	let {
 		ref = $bindable(null),

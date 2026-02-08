@@ -1,9 +1,9 @@
 <script lang="ts">
+	import { cn, type WithoutChild, type WithoutChildrenOrChild } from '$lib/utils/tailwind.js';
 	import { AlertDialog as AlertDialogPrimitive } from 'bits-ui';
-	import AlertDialogPortal from './alert-dialog-portal.svelte';
-	import AlertDialogOverlay from './alert-dialog-overlay.svelte';
-	import { cn, type WithoutChild, type WithoutChildrenOrChild } from '$lib/utils.js';
 	import type { ComponentProps } from 'svelte';
+	import AlertDialogOverlay from './alert-dialog-overlay.svelte';
+	import AlertDialogPortal from './alert-dialog-portal.svelte';
 
 	let {
 		ref = $bindable(null),

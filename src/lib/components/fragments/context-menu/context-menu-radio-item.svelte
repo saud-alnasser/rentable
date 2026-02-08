@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { ContextMenu as ContextMenuPrimitive } from 'bits-ui';
+	import { cn, type WithoutChild } from '$lib/utils/tailwind.js';
 	import CircleIcon from '@lucide/svelte/icons/circle';
-	import { cn, type WithoutChild } from '$lib/utils.js';
+	import { ContextMenu as ContextMenuPrimitive } from 'bits-ui';
 
 	let {
 		ref = $bindable(null),

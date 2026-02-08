@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { cn, type WithElementRef } from '$lib/utils.js';
 	import { Skeleton } from '$lib/components/fragments/skeleton/index.js';
+	import { cn, type WithElementRef } from '$lib/utils/tailwind.js';
 	import type { HTMLAttributes } from 'svelte/elements';
 
 	let {

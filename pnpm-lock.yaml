@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@tabler/icons-svelte':
+        specifier: ^3.36.1
+        version: 3.36.1(svelte@5.49.1)
       '@tauri-apps/api':
         specifier: ^2
         version: 2.10.1
@@ -43,8 +46,8 @@ importers:
         specifier: ^3.10.0
         version: 3.10.1
       '@lucide/svelte':
-        specifier: ^0.561.0
-        version: 0.561.0(svelte@5.49.1)
+        specifier: ^0.563.1
+        version: 0.563.1(svelte@5.49.1)
       '@neoconfetti/svelte':
         specifier: ^2.0.0
         version: 2.2.2(svelte@5.49.1)
@@ -817,8 +820,8 @@ packages:
   '@layerstack/utils@2.0.0-next.14':
     resolution: {integrity: sha512-1I2CS0Cwgs53W35qVg1eBdYhB/CiPvL3s0XE61b8jWkTHxgjBF65yYNgXjW74kv7WI7GsJcWMNBufPd0rnu9kA==}
 
-  '@lucide/svelte@0.561.0':
-    resolution: {integrity: sha512-vofKV2UFVrKE6I4ewKJ3dfCXSV6iP6nWVmiM83MLjsU91EeJcEg7LoWUABLp/aOTxj1HQNbJD1f3g3L0JQgH9A==}
+  '@lucide/svelte@0.563.1':
+    resolution: {integrity: sha512-Kt+MbnE5D9RsuI/csmf7M+HWxALe57x3A0DhQ8pPnnUpneh7zuldrYjlT+veWtk+tVnp5doQtaAAxLujzIlhBw==}
     peerDependencies:
       svelte: ^5
 
@@ -1044,6 +1047,14 @@ packages:
 
   '@swc/helpers@0.5.18':
     resolution: {integrity: sha512-TXTnIcNJQEKwThMMqBXsZ4VGAza6bvN4pa41Rkqoio6QBKMvo+5lexeTMScGCIxtzgQJzElcvIltani+adC5PQ==}
+
+  '@tabler/icons-svelte@3.36.1':
+    resolution: {integrity: sha512-f48RDkXJr7dMbbWHho81rR91QiPleHTlOwJUM5uFhTqo7dXH4mNZxJo3tksQNmlIauh7PqoS3i+RY7YlZxg5yg==}
+    peerDependencies:
+      svelte: '>=3 <6 || >=5.0.0-next.0'
+
+  '@tabler/icons@3.36.1':
+    resolution: {integrity: sha512-f4Jg3Fof/Vru5ioix/UO4GX+sdDsF9wQo47FbtvG+utIYYVQ/QVAC0QYgcBbAjQGfbdOh2CCf0BgiFOF9Ixtjw==}
 
   '@tailwindcss/forms@0.5.11':
     resolution: {integrity: sha512-h9wegbZDPurxG22xZSoWtdzc41/OlNEUQERNqI/0fOwa2aVlWGu7C35E/x6LDyD3lgtztFSSjKZyuVM0hxhbgA==}
@@ -3411,7 +3422,7 @@ snapshots:
       d3-time-format: 4.1.0
       lodash-es: 4.17.21
 
-  '@lucide/svelte@0.561.0(svelte@5.49.1)':
+  '@lucide/svelte@0.563.1(svelte@5.49.1)':
     dependencies:
       svelte: 5.49.1
 
@@ -3589,6 +3600,13 @@ snapshots:
   '@swc/helpers@0.5.18':
     dependencies:
       tslib: 2.8.1
+
+  '@tabler/icons-svelte@3.36.1(svelte@5.49.1)':
+    dependencies:
+      '@tabler/icons': 3.36.1
+      svelte: 5.49.1
+
+  '@tabler/icons@3.36.1': {}
 
   '@tailwindcss/forms@0.5.11(tailwindcss@4.1.18)':
     dependencies:
