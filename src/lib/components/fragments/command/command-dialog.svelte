@@ -1,9 +1,9 @@
 <script lang="ts">
+	import * as Dialog from '$lib/components/fragments/dialog/index.js';
+	import type { WithoutChildrenOrChild } from '$lib/utils/tailwind.js';
 	import type { Command as CommandPrimitive, Dialog as DialogPrimitive } from 'bits-ui';
 	import type { Snippet } from 'svelte';
 	import Command from './command.svelte';
-	import * as Dialog from '$lib/components/fragments/dialog/index.js';
-	import type { WithoutChildrenOrChild } from '$lib/utils.js';
 
 	let {
 		open = $bindable(false),

@@ -1,8 +1,8 @@
 <script lang="ts">
+	import { cn, type WithoutChildrenOrChild } from '$lib/utils/tailwind.js';
 	import { LinkPreview as HoverCardPrimitive } from 'bits-ui';
-	import { cn, type WithoutChildrenOrChild } from '$lib/utils.js';
-	import HoverCardPortal from './hover-card-portal.svelte';
 	import type { ComponentProps } from 'svelte';
+	import HoverCardPortal from './hover-card-portal.svelte';
 
 	let {
 		ref = $bindable(null),

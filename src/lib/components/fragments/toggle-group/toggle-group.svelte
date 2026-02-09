@@ -20,7 +20,7 @@
 
 <!-- svelte-ignore state_referenced_locally -->
 <script lang="ts">
-	import { cn } from '$lib/utils.js';
+	import { cn } from '$lib/utils/tailwind.js';
 	import { ToggleGroup as ToggleGroupPrimitive } from 'bits-ui';
 
 	let {

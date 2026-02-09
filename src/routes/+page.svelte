@@ -1,5 +1,6 @@
 <script lang="ts">
 	import api from '$lib/api/mod';
+	import { toast } from 'svelte-sonner';
 
 	let name = $state('');
 	let greetMsg = $state('');
@@ -10,7 +11,7 @@
 	}
 </script>
 
-<main class="container-custom h-screen gap-3">
+<div class="container-custom gap-3">
 	<h1>Welcome to Tauri + Svelte</h1>
 
 	<div class="flex justify-center gap-3">
@@ -28,10 +29,15 @@
 
 	<form class="flex justify-center gap-3" onsubmit={greet}>
 		<input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-		<button type="submit">Greet</button>
+		<button
+			type="submit"
+			onclick={() => {
+				toast('hello ' + name);
+			}}>Greet</button
+		>
 	</form>
 	<p>{greetMsg}</p>
-</main>
+</div>
 
 <style>
 	.logo.vite:hover {
