@@ -4,7 +4,7 @@ pub mod state;
 
 use state::AppState;
 use std::path::PathBuf;
-use std::{fs, sync::Arc};
+use std::sync::Arc;
 use tauri::Manager;
 #[cfg(not(debug_assertions))]
 use tauri::path::BaseDirectory;
@@ -20,27 +20,28 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
-            let db_dir = {
-                let scope = app.fs_scope();
-                let app_data_directory = app.path().app_data_dir()?;
-                scope.allow_directory(&app_data_directory, true)?;
+            let db_dir: PathBuf = if cfg!(debug_assertions) {
+                let dir = std::env::current_dir()?;
+                std::fs::create_dir_all(&dir)?;
+                dir
+            } else {
+                let app_data_dir = app.path().app_data_dir()?;
+                app.fs_scope().allow_directory(&app_data_dir, true)?;
+                std::fs::create_dir_all(&app_data_dir)?;
+                app_data_dir
+            };
 
-                let db_dir = &app_data_directory.display().to_string();
-                fs::create_dir_all(format!("{}", db_dir))?;
-
-                Ok(PathBuf::from(db_dir))
-            }
-            .unwrap_or_else(|err: tauri::Error| panic!("{}", err));
-
-            #[cfg(not(debug_assertions))]
-            let migration_dir = app.path().resolve("migrations", BaseDirectory::Resource)?;
-            #[cfg(debug_assertions)]
-            let migration_dir = PathBuf::new().join("migrations");
+            let migration_dir: PathBuf = if cfg!(debug_assertions) {
+                PathBuf::from("migrations")
+            } else {
+                app.path()
+                    .resolve("migrations", tauri::path::BaseDirectory::Resource)?
+            };
 
             let app_state = AppState {
                 db: Arc::new(RwLock::new(None)),
-                db_dir: db_dir,
-                migration_dir: migration_dir,
+                db_dir,
+                migration_dir,
             };
 
             app.manage(app_state);

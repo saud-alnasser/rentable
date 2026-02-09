@@ -13,5 +13,5 @@ vite.config.ts.timestamp-*
 node_modules
 build
 .env
-*.db
+*.db*
 gen

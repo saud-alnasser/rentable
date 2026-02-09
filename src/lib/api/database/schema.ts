@@ -1,5 +1,7 @@
+import { regex } from '$lib/api/regex';
 import { relations } from 'drizzle-orm';
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import z from 'zod';
 
 // tables
 
@@ -10,11 +12,22 @@ export const tenant = sqliteTable('tenant', {
 	phone: text('phone').unique().notNull()
 });
 
+export const TenantSchema = z.object({
+	id: z.number(),
+	name: z.string(),
+	nationalId: z.string().regex(regex.iqama, 'iqama must start with 1 or 2; and be 10 digits long'),
+	phone: z.string().regex(regex.phone, 'phone must start with +966; and be 10 digits long')
+});
+
+export type Tenant = z.infer<typeof TenantSchema>;
+
 export const complex = sqliteTable('complex', {
 	id: integer('id').primaryKey().unique(),
 	name: text('name').unique().notNull(),
 	location: text('location').notNull()
 });
+
+export type Complex = typeof complex.$inferSelect;
 
 export const unit = sqliteTable('unit', {
 	id: integer('id').primaryKey().unique(),
@@ -22,6 +35,8 @@ export const unit = sqliteTable('unit', {
 	status: text('status', { enum: ['occupied', 'vacant'] }).notNull(),
 	complexId: integer('complex_id').notNull()
 });
+
+export type Unit = typeof unit.$inferSelect;
 
 export const contract = sqliteTable('contract', {
 	id: integer('id').primaryKey().unique(),
@@ -34,12 +49,16 @@ export const contract = sqliteTable('contract', {
 	tenantId: integer('tenant_id').notNull()
 });
 
+export type Contract = typeof contract.$inferSelect;
+
 export const payment = sqliteTable('payment', {
 	id: integer('id').primaryKey().unique(),
 	date: integer('date', { mode: 'timestamp_ms' }).notNull(),
 	amount: real('amount').notNull(),
 	contractId: integer('contract_id').notNull()
 });
+
+export type Payment = typeof payment.$inferSelect;
 
 export const contractUnit = sqliteTable('contract_unit', {
 	contractId: integer('contract_id').notNull(),
