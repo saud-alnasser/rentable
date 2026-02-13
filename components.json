@@ -5,10 +5,10 @@
 		"baseColor": "zinc"
 	},
 	"aliases": {
-		"components": "$lib/components",
-		"utils": "$lib/utils/tailwind",
-		"ui": "$lib/components/fragments",
-		"hooks": "$lib/hooks",
+		"components": "$lib/common/components",
+		"utils": "$lib/common/utils/tailwind",
+		"ui": "$lib/common/components/fragments",
+		"hooks": "$lib/common/hooks",
 		"lib": "$lib"
 	},
 	"typescript": true,

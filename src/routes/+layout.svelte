@@ -1,27 +1,36 @@
 <script lang="ts">
 	import api from '$lib/api/mod';
-	import SidebarBreadcrumb from '$lib/components/design/sidebar-breadcrumb.svelte';
-	import SidebarLinks from '$lib/components/design/sidebar-links.svelte';
-	import { SidebarInset, SidebarProvider } from '$lib/components/fragments/sidebar';
-	import SonnerProvider from '$lib/components/providers/sonner-provider.svelte';
+	import SidebarBreadcrumb from '$lib/common/components/blocks/sidebar-breadcrumb.svelte';
+	import SidebarLinks from '$lib/common/components/blocks/sidebar-links.svelte';
+	import { SidebarInset, SidebarProvider } from '$lib/common/components/fragments/sidebar';
+	import SonnerProvider from '$lib/common/components/providers/sonner-provider.svelte';
+	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { onMount } from 'svelte';
 	import '../app.css';
 
-	onMount(() => api.window.show());
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: {
+				refetchOnWindowFocus: false
+			}
+		}
+	});
+
+	onMount(() => api.database.connect().then(() => api.window.show()));
 
 	let { children } = $props();
 </script>
 
-<SonnerProvider>
-	<SidebarProvider>
-		<SidebarLinks />
-		<SidebarInset>
-			<SidebarBreadcrumb />
-			<div class="flex flex-1 flex-col">
-				<main class="@container/main flex flex-1 flex-col gap-3">
+<QueryClientProvider client={queryClient}>
+	<SonnerProvider>
+		<SidebarProvider class="flex h-screen overflow-hidden">
+			<SidebarLinks />
+			<SidebarInset class="flex flex-1 flex-col overflow-hidden">
+				<SidebarBreadcrumb />
+				<main class="app-scroll @container/main flex flex-1 flex-col gap-3 overflow-y-auto p-4">
 					{@render children?.()}
 				</main>
-			</div>
-		</SidebarInset>
-	</SidebarProvider>
-</SonnerProvider>
+			</SidebarInset>
+		</SidebarProvider>
+	</SonnerProvider>
+</QueryClientProvider>

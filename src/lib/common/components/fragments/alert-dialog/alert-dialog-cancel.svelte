@@ -1,0 +1,18 @@
+<script lang="ts">
+	import { buttonVariants } from '$lib/common/components/fragments/button/index.js';
+	import { cn } from '$lib/common/utils/tailwind.js';
+	import { AlertDialog as AlertDialogPrimitive } from 'bits-ui';
+
+	let {
+		ref = $bindable(null),
+		class: className,
+		...restProps
+	}: AlertDialogPrimitive.CancelProps = $props();
+</script>
+
+<AlertDialogPrimitive.Cancel
+	bind:ref
+	data-slot="alert-dialog-cancel"
+	class={cn(buttonVariants({ variant: 'outline' }), className)}
+	{...restProps}
+/>

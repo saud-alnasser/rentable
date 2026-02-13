@@ -1,0 +1,17 @@
+<script lang="ts">
+	import { cn } from '$lib/common/utils/tailwind.js';
+	import { Menubar as MenubarPrimitive } from 'bits-ui';
+
+	let {
+		ref = $bindable(null),
+		class: className,
+		...restProps
+	}: MenubarPrimitive.SeparatorProps = $props();
+</script>
+
+<MenubarPrimitive.Separator
+	bind:ref
+	data-slot="menubar-separator"
+	class={cn('-mx-1 my-1 h-px bg-border', className)}
+	{...restProps}
+/>

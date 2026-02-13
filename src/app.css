@@ -119,3 +119,35 @@
 		@apply bg-background text-foreground;
 	}
 }
+
+/* ===================================== */
+/* Lock window scrolling (Desktop mode)  */
+/* ===================================== */
+
+html,
+body {
+	height: 100%;
+	overflow: hidden;
+}
+
+/* ===================================== */
+/* App Scrollbar Styling                 */
+/* ===================================== */
+
+.app-scroll::-webkit-scrollbar {
+	width: 5px;
+	height: 5px;
+}
+
+.app-scroll::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.app-scroll::-webkit-scrollbar-thumb {
+	background: var(--color-border);
+	border-radius: 9999px;
+}
+
+.app-scroll::-webkit-scrollbar-thumb:hover {
+	background: var(--color-muted-foreground);
+}
