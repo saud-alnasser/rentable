@@ -1,5 +1,13 @@
 # rentable
 
+## 0.3.0
+
+### Minor Changes
+
+- [#31](https://github.com/saud-alnasser/rentable/pull/31) [`6de3bca`](https://github.com/saud-alnasser/rentable/commit/6de3bcaecd4cd90ddaa8d7318b9870d4dfe588a7) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - allow users to view, create, update and delete tenants
+
+- [#31](https://github.com/saud-alnasser/rentable/pull/31) [`6de3bca`](https://github.com/saud-alnasser/rentable/commit/6de3bcaecd4cd90ddaa8d7318b9870d4dfe588a7) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - add custom scrollbar aligned with the content area
+
 ## 0.2.0
 
 ### Minor Changes
