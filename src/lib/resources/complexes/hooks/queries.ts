@@ -7,28 +7,33 @@ import {
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 
 export const keys = {
-	all: ['tenants'],
-	get: (id: number) => ['tenants', id]
-} as const;
+	all: ['complexes'],
+	get: (id: number) => ['complexes', id],
+	getUnits: (complexId: number) => ['complexes', 'units', complexId]
+};
 
-export function useFetchTenants() {
+export function useFetchComplexes() {
 	return createQuery(() => ({
 		queryKey: keys.all,
-		queryFn: () => api.tenant.getMany({})
+		queryFn: () => api.complex.getMany({})
 	}));
 }
 
-export function useFetchTenant(id: number) {
-	return createQuery(() => ({
-		queryKey: keys.get(id),
-		queryFn: () => api.tenant.get({ id })
-	}));
+export function useFetchComplex(id: () => number) {
+	return createQuery(() => {
+		const freshId = id();
+
+		return {
+			queryKey: keys.get(freshId),
+			queryFn: () => api.complex.get({ id: freshId })
+		};
+	});
 }
 
-export function useCreateTenant(
+export function useCreateComplex(
 	opts: MutationOptions = {
 		toast: {
-			success: 'tenant created successfully!',
+			success: 'complex created successfully!',
 			error: false,
 			unexpected: 'unexpected error occurred!'
 		}
@@ -37,7 +42,7 @@ export function useCreateTenant(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.tenant.create>[0]) => api.tenant.create(data),
+		mutationFn: (data: Parameters<typeof api.complex.create>[0]) => api.complex.create(data),
 		onSuccess: () => {
 			client.invalidateQueries({ queryKey: keys.all });
 
@@ -47,10 +52,10 @@ export function useCreateTenant(
 	}));
 }
 
-export function useUpdateTenant(
+export function useUpdateComplex(
 	opts: MutationOptions = {
 		toast: {
-			success: 'tenant updated successfully!',
+			success: 'complex updated successfully!',
 			error: false,
 			unexpected: 'unexpected error occurred!'
 		}
@@ -59,7 +64,7 @@ export function useUpdateTenant(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.tenant.update>[0]) => api.tenant.update(data),
+		mutationFn: (values: Parameters<typeof api.complex.update>[0]) => api.complex.update(values),
 		onSuccess: () => {
 			client.invalidateQueries({ queryKey: keys.all });
 
@@ -69,10 +74,10 @@ export function useUpdateTenant(
 	}));
 }
 
-export function useDeleteTenant(
+export function useDeleteComplex(
 	opts: MutationOptions = {
 		toast: {
-			success: 'tenant deleted successfully!',
+			success: 'complex deleted successfully!',
 			error: false,
 			unexpected: 'unexpected error occurred!'
 		}
@@ -81,29 +86,7 @@ export function useDeleteTenant(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: (id: number) => api.tenant.delete({ id }),
-		onSuccess: () => {
-			client.invalidateQueries({ queryKey: keys.all });
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useDeleteTenants(
-	opts: MutationOptions = {
-		toast: {
-			success: 'tenants deleted successfully!',
-			error: false,
-			unexpected: 'unexpected error occurred!'
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (ids: number[]) => api.tenant.deleteMany({ ids }),
+		mutationFn: (id: number) => api.complex.delete({ id }),
 		onSuccess: () => {
 			client.invalidateQueries({ queryKey: keys.all });
 

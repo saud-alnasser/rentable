@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
@@ -6,5 +7,8 @@ export default defineConfig({
 	out: './tauri/migrations',
 	verbose: false,
 	strict: true,
-	casing: 'snake_case'
+	casing: 'snake_case',
+	dbCredentials: {
+		url: process.env.DATABASE_URL!
+	}
 });

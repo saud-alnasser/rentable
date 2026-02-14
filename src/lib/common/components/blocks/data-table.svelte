@@ -7,6 +7,7 @@
 	import * as Select from '$lib/common/components/fragments/select';
 	import * as Table from '$lib/common/components/fragments/table';
 	import * as Tooltip from '$lib/common/components/fragments/tooltip';
+	import { cn } from '$lib/common/utils/tailwind';
 	import { DragDropProvider } from '@dnd-kit-svelte/svelte';
 	import { useSortable } from '@dnd-kit-svelte/svelte/sortable';
 	import { RestrictToVerticalAxis } from '@dnd-kit/abstract/modifiers';
@@ -49,6 +50,8 @@
 	let globalFilter = $state('');
 	let columnVisibility = $state<VisibilityState>({});
 	let rowSelection = $state<RowSelectionState>({});
+	let hasDragColumn = $derived(columns.some((col) => col.id === 'drag'));
+	let hasSelectColumn = $derived(columns.some((col) => col.id === 'select'));
 
 	const table = createSvelteTable({
 		get data() {
@@ -181,12 +184,20 @@
 </div>
 <div class="overflow-hidden rounded-lg border">
 	<DragDropProvider modifiers={[RestrictToVerticalAxis]} onDragEnd={(e) => (data = move(data, e))}>
-		<Table.Root>
+		<Table.Root class="w-full table-fixed">
 			<Table.Header class="sticky top-0 z-10 bg-muted">
 				{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
 					<Table.Row>
 						{#each headerGroup.headers as header (header.id)}
-							<Table.Head colspan={header.colSpan}>
+							<Table.Head
+								colspan={header.colSpan}
+								class={cn(
+									'px-3.5',
+									header.column.id === 'actions' ? 'w-24' : '',
+									header.column.id === 'select' ? 'w-8' : '',
+									header.column.id === 'drag' ? 'w-8' : ''
+								)}
+							>
 								{#if !header.isPlaceholder}
 									<FlexRender
 										content={header.column.columnDef.header}
@@ -220,12 +231,16 @@
 		</Table.Root>
 	</DragDropProvider>
 </div>
-<div class="flex items-center justify-between px-4">
-	<div class="hidden flex-1 text-sm text-muted-foreground lg:flex">
-		{table.getFilteredSelectedRowModel().rows.length} of
-		{table.getFilteredRowModel().rows.length} row(s) selected.
-	</div>
-	<div class="flex w-full items-center gap-8 lg:w-fit">
+<div class={cn('flex items-center px-4', hasSelectColumn ? 'justify-between' : 'justify-start')}>
+	{#if hasSelectColumn}
+		<div class="hidden flex-1 text-sm text-muted-foreground lg:flex">
+			{table.getFilteredSelectedRowModel().rows.length} of
+			{table.getFilteredRowModel().rows.length} row(s) selected.
+		</div>
+	{/if}
+	<div
+		class={cn('flex w-full items-center gap-8', hasSelectColumn ? 'lg:w-fit' : 'justify-between')}
+	>
 		<div class="hidden items-center gap-2 lg:flex">
 			<Label for="rows-per-page" class="text-sm font-medium">Rows per page</Label>
 			<Select.Root
@@ -246,70 +261,83 @@
 				</Select.Content>
 			</Select.Root>
 		</div>
-		<div class="flex w-fit items-center justify-center text-sm font-medium">
-			Page {table.getState().pagination.pageIndex + (table.getPageCount() >= 1 ? 1 : 0)} of
-			{table.getPageCount()}
-		</div>
-		<div class="ms-auto flex items-center gap-2 lg:ms-0">
-			<Button
-				variant="outline"
-				class="hidden h-8 w-8 p-0 lg:flex"
-				onclick={() => table.setPageIndex(0)}
-				disabled={!table.getCanPreviousPage()}
-			>
-				<span class="sr-only">Go to first page</span>
-				<IconChevronsLeft />
-			</Button>
-			<Button
-				variant="outline"
-				class="size-8"
-				size="icon"
-				onclick={() => table.previousPage()}
-				disabled={!table.getCanPreviousPage()}
-			>
-				<span class="sr-only">Go to previous page</span>
-				<IconChevronLeft />
-			</Button>
-			<Button
-				variant="outline"
-				class="size-8"
-				size="icon"
-				onclick={() => table.nextPage()}
-				disabled={!table.getCanNextPage()}
-			>
-				<span class="sr-only">Go to next page</span>
-				<IconChevronRight />
-			</Button>
-			<Button
-				variant="outline"
-				class="hidden size-8 lg:flex"
-				size="icon"
-				onclick={() => table.setPageIndex(table.getPageCount() - 1)}
-				disabled={!table.getCanNextPage()}
-			>
-				<span class="sr-only">Go to last page</span>
-				<IconChevronsRight />
-			</Button>
+		<div class="flex items-center gap-6 lg:w-fit">
+			<div class="flex w-fit items-center justify-center text-sm font-medium">
+				Page {table.getState().pagination.pageIndex + (table.getPageCount() >= 1 ? 1 : 0)} of
+				{table.getPageCount()}
+			</div>
+			<div class="ms-auto flex items-center gap-2 lg:ms-0">
+				<Button
+					variant="outline"
+					class="hidden h-8 w-8 p-0 lg:flex"
+					onclick={() => table.setPageIndex(0)}
+					disabled={!table.getCanPreviousPage()}
+				>
+					<span class="sr-only">Go to first page</span>
+					<IconChevronsLeft />
+				</Button>
+				<Button
+					variant="outline"
+					class="size-8"
+					size="icon"
+					onclick={() => table.previousPage()}
+					disabled={!table.getCanPreviousPage()}
+				>
+					<span class="sr-only">Go to previous page</span>
+					<IconChevronLeft />
+				</Button>
+				<Button
+					variant="outline"
+					class="size-8"
+					size="icon"
+					onclick={() => table.nextPage()}
+					disabled={!table.getCanNextPage()}
+				>
+					<span class="sr-only">Go to next page</span>
+					<IconChevronRight />
+				</Button>
+				<Button
+					variant="outline"
+					class="hidden size-8 lg:flex"
+					size="icon"
+					onclick={() => table.setPageIndex(table.getPageCount() - 1)}
+					disabled={!table.getCanNextPage()}
+				>
+					<span class="sr-only">Go to last page</span>
+					<IconChevronsRight />
+				</Button>
+			</div>
 		</div>
 	</div>
 </div>
 
 {#snippet DraggableRow({ row, index }: { row: Row<TData>; index: number })}
-	{@const { ref, isDragging, handleRef } = useSortable({
-		id: row.original.id,
-		index: () => index
-	})}
+	{@const sortable = hasDragColumn
+		? useSortable({
+				id: row.original.id,
+				index: () => index
+			})
+		: null}
 
 	<Table.Row
 		data-state={row.getIsSelected() && 'selected'}
-		data-dragging={isDragging.current}
-		class="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
-		{@attach ref}
+		data-dragging={sortable?.isDragging.current}
+		class={cn(
+			'relative z-0',
+			hasDragColumn ? 'data-[dragging=true]:z-10 data-[dragging=true]:opacity-80' : ''
+		)}
+		{@attach sortable?.ref}
 	>
 		{#each row.getVisibleCells() as cell (cell.id)}
-			<Table.Cell>
+			<Table.Cell
+				class={cn(
+					'px-3.5',
+					cell.column.id === 'select' ? 'w-8' : '',
+					cell.column.id === 'drag' ? 'w-8' : ''
+				)}
+			>
 				<FlexRender
-					attach={handleRef}
+					attach={hasDragColumn && cell.column.id === 'drag' ? sortable?.handleRef : undefined}
 					content={cell.column.columnDef.cell}
 					context={cell.getContext()}
 				/>

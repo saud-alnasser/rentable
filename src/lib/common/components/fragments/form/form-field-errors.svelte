@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Callout } from '$lib/common/components/fragments/callout';
 	import { cn, type WithoutChild } from '$lib/common/utils/tailwind.js';
 	import * as FormPrimitive from 'formsnap';
 
@@ -21,10 +22,12 @@
 	{#snippet children({ errors, errorProps })}
 		{#if childrenProp}
 			{@render childrenProp({ errors, errorProps })}
-		{:else}
-			{#each errors as error (error)}
-				<div {...errorProps} class={cn(errorClasses)}>{error}</div>
-			{/each}
+		{:else if errors.length > 0}
+			<Callout variant="error">
+				{#each errors as error (error)}
+					<div {...errorProps} class={cn(errorClasses)}>{error}</div>
+				{/each}
+			</Callout>
 		{/if}
 	{/snippet}
 </FormPrimitive.FieldErrors>

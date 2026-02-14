@@ -55,8 +55,9 @@
 					actions: [
 						{
 							label: `delete (${selected.length})`,
-							onclick: () => {
+							onclick: async () => {
 								selectedIds = selected.map((r) => r.original.id);
+								tenant = undefined;
 								isDeleteDialogOpen = true;
 							}
 						}
@@ -75,8 +76,9 @@
 						},
 						{
 							label: 'delete',
-							onclick: () => {
+							onclick: async () => {
 								tenant = row.original;
+								selectedIds = [];
 								isDeleteDialogOpen = true;
 							}
 						}
@@ -104,6 +106,7 @@
 		isTenantFormOpen = true;
 	}}
 />
+
 <TenantForm
 	open={isTenantFormOpen}
 	onOpenChange={(isOpen) => {
@@ -112,16 +115,24 @@
 	}}
 	value={tenant}
 />
+
 <DeleteDialog
 	open={isDeleteDialogOpen}
-	onOpenChange={(isOpen) => (isDeleteDialogOpen = isOpen)}
-	onDelete={() => {
-		if (selectedIds.length > 0) {
-			deleteManyMutation.mutate(selectedIds);
-			selectedIds = [];
-		} else if (tenant) {
-			deleteMutation.mutate(tenant.id);
+	onOpenChange={(isOpen) => {
+		isDeleteDialogOpen = isOpen;
+		if (!isOpen) {
 			tenant = undefined;
+			selectedIds = [];
+		}
+	}}
+	onSubmit={async () => {
+		if (selectedIds.length > 0) {
+			await deleteManyMutation.mutateAsync(selectedIds);
+			return;
+		}
+
+		if (tenant) {
+			await deleteMutation.mutateAsync(tenant.id);
 		}
 	}}
 />
