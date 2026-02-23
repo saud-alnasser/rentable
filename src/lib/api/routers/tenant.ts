@@ -2,7 +2,7 @@ import * as s from '$lib/api/database/schema';
 import { TenantSchema } from '$lib/api/database/schema';
 import { procedure, router } from '$lib/api/trpc';
 import { TRPCError } from '@trpc/server';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import z from 'zod';
 
 export default router({
@@ -91,28 +91,6 @@ export default router({
 			}
 
 			return await ctx.db.delete(s.tenant).where(eq(s.tenant.id, input.id)).returning().get();
-		}),
-
-	deleteMany: procedure.public
-		.input(z.object({ ids: z.array(TenantSchema.shape.id) }))
-		.mutation(async ({ input, ctx }) => {
-			if (input.ids.length === 0) return [];
-
-			const contracts = await ctx.db
-				.select({ tenantId: s.contract.tenantId })
-				.from(s.contract)
-				.where(inArray(s.contract.tenantId, input.ids));
-
-			const blockedIds = Array.from(new Set(contracts.map((c) => c.tenantId)));
-
-			if (blockedIds.length > 0) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: `cannot delete ${blockedIds.length} tenant(s) with associated contracts`
-				});
-			}
-
-			return await ctx.db.delete(s.tenant).where(inArray(s.tenant.id, input.ids)).returning().all();
 		}),
 
 	get: procedure.public.input(TenantSchema.partial()).query(async ({ input, ctx }) => {
