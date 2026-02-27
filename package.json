@@ -21,8 +21,8 @@
 	},
 	"dependencies": {
 		"@dnd-kit-svelte/svelte": "^0.1.6",
-		"@dnd-kit/abstract": "^0.3.0",
-		"@dnd-kit/helpers": "^0.3.0",
+		"@dnd-kit/abstract": "^0.2.4",
+		"@dnd-kit/helpers": "^0.2.4",
 		"@tabler/icons-svelte": "^3.36.1",
 		"@tanstack/svelte-query": "^6.0.18",
 		"@tauri-apps/api": "^2",
