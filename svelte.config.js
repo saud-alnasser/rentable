@@ -8,7 +8,13 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 const config = {
 	preprocess: vitePreprocess(),
 	kit: {
-		adapter: adapter()
+		adapter: adapter({
+			strict: false,
+			fallback: 'index.html'
+		}),
+		prerender: {
+			handleUnseenRoutes: 'ignore'
+		}
 	}
 };
 

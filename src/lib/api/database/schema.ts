@@ -1,7 +1,7 @@
-import { regex } from '$lib/api/regex';
 import { relations } from 'drizzle-orm';
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import z from 'zod';
+import { regex } from '../regex';
 
 // tables
 
@@ -27,7 +27,13 @@ export const complex = sqliteTable('complex', {
 	location: text('location').notNull()
 });
 
-export type Complex = typeof complex.$inferSelect;
+export const ComplexSchema = z.object({
+	id: z.number(),
+	name: z.string(),
+	location: z.string()
+});
+
+export type Complex = z.infer<typeof ComplexSchema>;
 
 export const unit = sqliteTable('unit', {
 	id: integer('id').primaryKey().unique(),
@@ -36,7 +42,14 @@ export const unit = sqliteTable('unit', {
 	complexId: integer('complex_id').notNull()
 });
 
-export type Unit = typeof unit.$inferSelect;
+export const UnitSchema = z.object({
+	id: z.number(),
+	name: z.string(),
+	status: z.enum(['occupied', 'vacant']),
+	complexId: z.number()
+});
+
+export type Unit = z.infer<typeof UnitSchema>;
 
 export const contract = sqliteTable('contract', {
 	id: integer('id').primaryKey().unique(),
@@ -49,7 +62,18 @@ export const contract = sqliteTable('contract', {
 	tenantId: integer('tenant_id').notNull()
 });
 
-export type Contract = typeof contract.$inferSelect;
+export const ContractSchema = z.object({
+	id: z.number(),
+	govId: z.string(),
+	status: z.enum(['active', 'terminated', 'expired', 'defaulted']),
+	start: z.number(),
+	end: z.number(),
+	interval: z.enum(['1m', '3m', '6m', '12m']),
+	cost: z.number(),
+	tenantId: z.number()
+});
+
+export type Contract = z.infer<typeof ContractSchema>;
 
 export const payment = sqliteTable('payment', {
 	id: integer('id').primaryKey().unique(),
@@ -58,12 +82,26 @@ export const payment = sqliteTable('payment', {
 	contractId: integer('contract_id').notNull()
 });
 
-export type Payment = typeof payment.$inferSelect;
+export const PaymentSchema = z.object({
+	id: z.number(),
+	date: z.number(),
+	amount: z.number(),
+	contractId: z.number()
+});
+
+export type Payment = z.infer<typeof PaymentSchema>;
 
 export const contractUnit = sqliteTable('contract_unit', {
 	contractId: integer('contract_id').notNull(),
 	unitId: integer('unit_id').notNull()
 });
+
+export const ContractUnitSchema = z.object({
+	contractId: z.number(),
+	unitId: z.number()
+});
+
+export type ContractUnit = z.infer<typeof ContractUnitSchema>;
 
 // relations
 

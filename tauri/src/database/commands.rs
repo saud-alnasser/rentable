@@ -57,7 +57,7 @@ pub async fn db_connect(app_state: tauri::State<'_, AppState>) -> Result<(), Str
         let db_lock = app_state.db.read().await;
 
         if db_lock.is_some() {
-            return Err(String::from("database is already initialized."));
+            return Ok(());
         }
     }
 

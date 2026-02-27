@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { Pathname } from '$app/types';
 	import * as Sidebar from '$lib/common/components/fragments/sidebar';
-	import type { Icon } from '@tabler/icons-svelte';
+	import { type Icon } from '@tabler/icons-svelte';
+	import Home2Icon from '@tabler/icons-svelte/icons/home-2';
 	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
 	import SettingsIcon from '@tabler/icons-svelte/icons/settings';
 	import UserIcon from '@tabler/icons-svelte/icons/user';
@@ -22,6 +23,11 @@
 				label: 'tenants',
 				icon: UserIcon,
 				url: '/tenants'
+			},
+			{
+				label: 'complexes',
+				icon: Home2Icon,
+				url: '/complexes'
 			}
 		],
 		tail: [

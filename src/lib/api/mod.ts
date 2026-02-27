@@ -1,3 +1,4 @@
+import complex from './routers/complex';
 import database from './routers/database';
 import example from './routers/example';
 import tenant from './routers/tenant';
@@ -8,6 +9,7 @@ export default caller(
 	router({
 		database,
 		tenant,
+		complex,
 		example,
 		window
 	})

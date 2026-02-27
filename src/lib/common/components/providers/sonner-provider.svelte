@@ -3,6 +3,6 @@
 	let { children } = $props();
 </script>
 
-<Toaster />
+<Toaster duration={1500} />
 
 {@render children?.()}
