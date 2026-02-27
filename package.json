@@ -21,8 +21,8 @@
 	},
 	"dependencies": {
 		"@dnd-kit-svelte/svelte": "^0.1.6",
-		"@dnd-kit/abstract": "^0.2.4",
-		"@dnd-kit/helpers": "^0.2.4",
+		"@dnd-kit/abstract": "^0.3.0",
+		"@dnd-kit/helpers": "^0.3.0",
 		"@tabler/icons-svelte": "^3.36.1",
 		"@tanstack/svelte-query": "^6.0.18",
 		"@tauri-apps/api": "^2",
@@ -39,7 +39,7 @@
 		"@faker-js/faker": "^10.3.0",
 		"@fontsource/fira-mono": "^5.0.0",
 		"@internationalized/date": "^3.10.0",
-		"@lucide/svelte": "^0.564.0",
+		"@lucide/svelte": "^0.575.0",
 		"@neoconfetti/svelte": "^2.0.0",
 		"@sveltejs/adapter-static": "^3.0.8",
 		"@sveltejs/kit": "^2.22.0",
@@ -61,7 +61,7 @@
 		"eslint-plugin-svelte": "^3.0.0",
 		"formsnap": "^2.0.1",
 		"globals": "^17.0.0",
-		"layerchart": "2.0.0-next.44",
+		"layerchart": "2.0.0-next.46",
 		"mode-watcher": "^1.1.0",
 		"paneforge": "^1.0.2",
 		"prettier": "^3.4.2",
@@ -92,5 +92,5 @@
 		"node": "^24.0.0",
 		"pnpm": ">=10.0.0"
 	},
-	"packageManager": "pnpm@10.29.3"
+	"packageManager": "pnpm@10.30.3"
 }
