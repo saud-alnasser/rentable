@@ -90,25 +90,3 @@ export function useDeleteTenant(
 		onError: (e) => onMutationError(opts, e)
 	}));
 }
-
-export function useDeleteTenants(
-	opts: MutationOptions = {
-		toast: {
-			success: 'tenants deleted successfully!',
-			error: false,
-			unexpected: 'unexpected error occurred!'
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (ids: number[]) => api.tenant.deleteMany({ ids }),
-		onSuccess: () => {
-			client.invalidateQueries({ queryKey: keys.all });
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
