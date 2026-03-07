@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Skeleton } from '$lib/common/components/fragments/skeleton';
 	import { cn } from '$lib/common/utils/tailwind';
-	import { useFetchUnits } from '$lib/resources/units/hooks/queries';
+	import { useFetchUnits } from '$lib/resources/complexes/hooks/queries';
 	import type { HTMLAttributes } from 'svelte/elements';
 
 	type DataTableAsyncCellProps = {

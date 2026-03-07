@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import type { Complex } from '$lib/api/database/schema';
 	import DataTableActionsDropdown from '$lib/common/components/blocks/data-table-actions-dropdown.svelte';
 	import DataTable from '$lib/common/components/blocks/data-table.svelte';
@@ -34,7 +35,7 @@
 						{
 							label: 'units management',
 							onclick: () => {
-								goto(`/complexes/units/${row.original.id}`);
+								goto(resolve(`/complexes/units/${row.original.id}`));
 							}
 						},
 						{

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import * as Breadcrumb from '$lib/common/components/fragments/breadcrumb';
 	import { Separator } from '$lib/common/components/fragments/separator';
 	import * as Sidebar from '$lib/common/components/fragments/sidebar';
 	import { regex } from '$lib/common/utils/regex';
-	import * as Breadcrumb from '../fragments/breadcrumb';
 
 	function isDynamic(segment: string) {
 		return regex.identifier.numeric.test(segment) || regex.identifier.uuid.test(segment);
@@ -37,7 +37,7 @@
 		{/if}
 		<Breadcrumb.Root>
 			<Breadcrumb.List>
-				{#each crumbs() as crumb, index}
+				{#each crumbs() as crumb, index (crumb.path)}
 					<Breadcrumb.Item>
 						{#if crumb.isLast}
 							<Breadcrumb.Page>{crumb.label}</Breadcrumb.Page>

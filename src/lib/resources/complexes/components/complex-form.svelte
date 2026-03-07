@@ -5,12 +5,12 @@
 	import * as Form from '$lib/common/components/fragments/form';
 	import { Input } from '$lib/common/components/fragments/input';
 	import { Label } from '$lib/common/components/fragments/label';
+	import { useCreateComplex, useUpdateComplex } from '$lib/resources/complexes/hooks/queries';
 	import { TRPCError } from '@trpc/server';
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
-	import { useCreateComplex, useUpdateComplex } from '../hooks/queries';
 
 	const ComplexFormSchema = ComplexSchema.partial({ id: true });
 	const CreateMutation = useCreateComplex();

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { ButtonVariant } from '$lib/common/components/fragments/button';
 	import { Button } from '$lib/common/components/fragments/button';
 	import { Callout } from '$lib/common/components/fragments/callout';
 	import * as Dialog from '$lib/common/components/fragments/dialog';
@@ -9,13 +10,19 @@
 		onOpenChange,
 		onSubmit,
 		title = 'confirmation',
-		description = 'are you sure you want to delete this record(s)?'
+		description = 'are you sure you want to delete this record(s)?',
+		confirmLabel = 'delete',
+		confirmLoadingLabel = 'deleting...',
+		confirmVariant = 'destructive'
 	}: {
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
 		onSubmit: () => Promise<void> | void;
 		title?: string;
 		description?: string;
+		confirmLabel?: string;
+		confirmLoadingLabel?: string;
+		confirmVariant?: ButtonVariant;
 		error?: string | null;
 	} = $props();
 
@@ -78,15 +85,15 @@
 			</Button>
 
 			<Button
-				variant="destructive"
+				variant={confirmVariant}
 				disabled={isSubmitting || hasError}
 				onclick={submit}
 				class="flex-1"
 			>
 				{#if isSubmitting}
-					deleting...
+					{confirmLoadingLabel}
 				{:else}
-					delete
+					{confirmLabel}
 				{/if}
 			</Button>
 		</section>

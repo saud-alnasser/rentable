@@ -5,7 +5,7 @@
 	import * as Form from '$lib/common/components/fragments/form';
 	import { Input } from '$lib/common/components/fragments/input';
 	import { Label } from '$lib/common/components/fragments/label';
-	import { useCreateUnit, useUpdateUnit } from '$lib/resources/units/hooks/queries';
+	import { useCreateUnit, useUpdateUnit } from '$lib/resources/complexes/hooks/queries';
 	import { TRPCError } from '@trpc/server';
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
