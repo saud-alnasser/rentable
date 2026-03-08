@@ -51,6 +51,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::greet,
             commands::window_show,
+            commands::window_minimize,
+            commands::window_toggle_maximize,
+            commands::window_start_dragging,
+            commands::window_close,
             database::commands::db_execute_single_sql,
             database::commands::db_execute_batch_sql,
             database::commands::db_does_exist,
