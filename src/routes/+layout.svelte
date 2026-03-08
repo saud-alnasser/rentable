@@ -15,7 +15,15 @@
 		}
 	});
 
-	onMount(() => api.database.connect().then(() => api.window.show()));
+	onMount(() => {
+		void api.database.connect().then(async () => {
+			try {
+				await api.state.sync();
+			} finally {
+				await api.window.show();
+			}
+		});
+	});
 
 	let { children } = $props();
 </script>

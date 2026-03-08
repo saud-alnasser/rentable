@@ -2,6 +2,7 @@ import complex from './routers/complex';
 import contract from './routers/contract';
 import database from './routers/database';
 import example from './routers/example';
+import state from './routers/state';
 import tenant from './routers/tenant';
 import window from './routers/window';
 import { caller, context, router } from './trpc';
@@ -9,6 +10,7 @@ import { caller, context, router } from './trpc';
 export default caller(
 	router({
 		database,
+		state,
 		tenant,
 		complex,
 		contract,

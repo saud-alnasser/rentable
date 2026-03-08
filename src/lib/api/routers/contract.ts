@@ -29,6 +29,7 @@ import {
 	isContractIncludedInDashboardPortfolio,
 	shouldIncludeDashboardFollowUp
 } from '$lib/api/utils/dashboard';
+import { sync, type DbClient } from '$lib/api/utils/sync';
 import { TRPCError } from '@trpc/server';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import z from 'zod';
@@ -178,7 +179,6 @@ async function ensureAssignedUnitsDoNotOverlap(
 
 type DbContract = typeof s.contract.$inferSelect;
 type DbPayment = typeof s.payment.$inferSelect;
-type DbClient = typeof import('$lib/api/database/mod').db;
 type SerializedContract = Omit<Contract, 'govId'> & {
 	govId: string;
 	tenantName?: string;
@@ -292,57 +292,6 @@ function getDerivedUnitStatuses(
 	return new Map(
 		unitIds.map((unitId) => [unitId, deriveUnitStatus(assignmentsByUnitId.get(unitId) ?? [])])
 	);
-}
-async function syncStatusesForDashboard(db: DbClient, now = Date.now()) {
-	const contracts = await db.select().from(s.contract);
-	const contractIds = contracts.map((contract) => contract.id);
-	const payments = contractIds.length
-		? await db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-		: [];
-	const paymentsByContractId = groupPaymentsByContractId(payments);
-
-	for (const contract of contracts) {
-		const nextStatus = deriveContractStatus(
-			contract,
-			paymentsByContractId.get(contract.id) ?? [],
-			now
-		);
-
-		if (nextStatus !== contract.status) {
-			await db.update(s.contract).set({ status: nextStatus }).where(eq(s.contract.id, contract.id));
-		}
-	}
-
-	const units = await db.select().from(s.unit);
-	const unitIds = units.map((unit) => unit.id);
-
-	if (unitIds.length === 0) {
-		return;
-	}
-
-	const assignments = await db
-		.select({
-			unitId: s.contractUnit.unitId,
-			contractId: s.contract.id,
-			status: s.contract.status,
-			start: s.contract.start,
-			end: s.contract.end,
-			interval: s.contract.interval,
-			cost: s.contract.cost
-		})
-		.from(s.contractUnit)
-		.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
-		.where(inArray(s.contractUnit.unitId, unitIds));
-
-	const statusByUnitId = getDerivedUnitStatuses(unitIds, assignments, paymentsByContractId);
-
-	for (const unit of units) {
-		const nextStatus = statusByUnitId.get(unit.id) ?? 'vacant';
-
-		if (nextStatus !== unit.status) {
-			await db.update(s.unit).set({ status: nextStatus }).where(eq(s.unit.id, unit.id));
-		}
-	}
 }
 
 function serializeContract(
@@ -466,6 +415,8 @@ export default router({
 			.returning()
 			.get();
 
+		await sync(ctx.db);
+
 		return serializeContract(created);
 	}),
 
@@ -557,6 +508,8 @@ export default router({
 			.returning()
 			.get();
 
+		await sync(ctx.db);
+
 		return serializeContract(updated);
 	}),
 
@@ -596,6 +549,8 @@ export default router({
 				.where(eq(s.contract.id, input.id))
 				.returning()
 				.get();
+
+			await sync(ctx.db);
 
 			return serializeContract(terminated);
 		}),
@@ -638,6 +593,8 @@ export default router({
 				.where(eq(s.contract.id, input.id))
 				.returning()
 				.get();
+
+			await sync(ctx.db);
 
 			return serializeContract(restored);
 		}),
@@ -690,7 +647,6 @@ export default router({
 
 	dashboard: procedure.public.query(async ({ ctx }): Promise<DashboardData> => {
 		const now = Date.now();
-		await syncStatusesForDashboard(ctx.db, now);
 		const today = toUtcDay(now);
 		const month = getCurrentMonthBounds(now);
 		const upcomingWindowEnd = addUtcDays(today, 30);
@@ -1181,6 +1137,8 @@ export default router({
 				groupPaymentsByContractId(assignmentPayments)
 			);
 
+			await sync(ctx.db);
+
 			return assignedUnits.map((unit) => ({
 				...unit,
 				status: assignedStatusByUnitId.get(unit.id) ?? 'vacant'
@@ -1232,6 +1190,8 @@ export default router({
 						eq(s.contractUnit.unitId, input.unitId)
 					)
 				);
+
+			await sync(ctx.db);
 
 			return {
 				contractId: input.contractId,
@@ -1288,6 +1248,8 @@ export default router({
 					.returning()
 					.get();
 
+				await sync(ctx.db);
+
 				return serializePayment(created);
 			}),
 
@@ -1339,6 +1301,8 @@ export default router({
 					.returning()
 					.get();
 
+				await sync(ctx.db);
+
 				return serializePayment(updated);
 			}),
 
@@ -1375,6 +1339,8 @@ export default router({
 					.where(eq(s.payment.id, input.id))
 					.returning()
 					.get();
+
+				await sync(ctx.db);
 
 				return deleted ? serializePayment(deleted) : deleted;
 			})
