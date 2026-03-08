@@ -8,7 +8,11 @@ export const tauri = {
 		greet: (name: string) => invoke<string>('greet', { name })
 	},
 	window: {
-		show: () => invoke<void>('window_show')
+		show: () => invoke<void>('window_show'),
+		minimize: () => invoke<void>('window_minimize'),
+		toggleMaximize: () => invoke<void>('window_toggle_maximize'),
+		startDragging: () => invoke<void>('window_start_dragging'),
+		close: () => invoke<void>('window_close')
 	},
 	db: {
 		exists: () => invoke<boolean>('db_does_exist'),

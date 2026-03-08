@@ -14,7 +14,9 @@
 				"title": "rentable",
 				"height": 824,
 				"width": 1124,
-				"resizable": false,
+				"resizable": true,
+				"decorations": false,
+				"transparent": true,
 				"visible": false
 			}
 		],
