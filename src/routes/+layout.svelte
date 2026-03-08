@@ -1,8 +1,7 @@
 <script lang="ts">
 	import api from '$lib/api/mod';
-	import SidebarBreadcrumb from '$lib/common/components/blocks/sidebar-breadcrumb.svelte';
-	import SidebarLinks from '$lib/common/components/blocks/sidebar-links.svelte';
-	import { SidebarInset, SidebarProvider } from '$lib/common/components/fragments/sidebar';
+	import Navbar from '$lib/common/components/blocks/navbar.svelte';
+	import { TooltipProvider } from '$lib/common/components/fragments/tooltip';
 	import SonnerProvider from '$lib/common/components/providers/sonner-provider.svelte';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { onMount } from 'svelte';
@@ -23,14 +22,18 @@
 
 <QueryClientProvider client={queryClient}>
 	<SonnerProvider>
-		<SidebarProvider class="flex h-screen overflow-hidden">
-			<SidebarLinks />
-			<SidebarInset class="flex flex-1 flex-col overflow-hidden">
-				<SidebarBreadcrumb />
-				<main class="app-scroll @container/main flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+		<TooltipProvider>
+			<div class="relative flex h-screen flex-col overflow-hidden bg-background">
+				<header>
+					<Navbar />
+				</header>
+
+				<main
+					class="app-scroll @container/main flex flex-1 flex-col gap-3 overflow-y-auto p-4 pb-28"
+				>
 					{@render children?.()}
 				</main>
-			</SidebarInset>
-		</SidebarProvider>
+			</div>
+		</TooltipProvider>
 	</SonnerProvider>
 </QueryClientProvider>
