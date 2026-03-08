@@ -13,7 +13,7 @@
 
 <span
 	class={cn(
-		'relative flex rounded-md border border-input shadow-xs has-focus:border-ring has-focus:ring-[3px] has-focus:ring-ring/50',
+		"relative flex h-8 items-center rounded-md border border-input bg-transparent px-3 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none select-none has-focus:border-ring has-focus:ring-[3px] has-focus:ring-ring/50 dark:bg-input/30 dark:hover:bg-input/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
 		className
 	)}
 >
@@ -35,10 +35,7 @@
 					</option>
 				{/each}
 			</select>
-			<span
-				class="flex h-8 items-center gap-1 rounded-md ps-2 pe-1 text-sm font-medium select-none [&>svg]:size-3.5 [&>svg]:text-muted-foreground"
-				aria-hidden="true"
-			>
+			<span class="flex w-full items-center justify-between gap-2" aria-hidden="true">
 				{yearItems.find((item) => item.value === value)?.label || selectedYearItem.label}
 				<ChevronDownIcon class="size-4" />
 			</span>

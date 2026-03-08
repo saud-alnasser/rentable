@@ -6,8 +6,11 @@
 	import { Badge } from '$lib/common/components/fragments/badge';
 	import { renderComponent, renderSnippet } from '$lib/common/components/fragments/data-table';
 	import { Skeleton } from '$lib/common/components/fragments/skeleton';
-	import { useFetchComplex } from '$lib/resources/complexes/hooks/queries';
-	import { useDeleteUnit, useFetchUnits } from '$lib/resources/units/hooks/queries';
+	import {
+		useDeleteUnit,
+		useFetchComplex,
+		useFetchUnits
+	} from '$lib/resources/complexes/hooks/queries';
 	import type { ColumnDef } from '@tanstack/table-core';
 	import UnitForm from './unit-form.svelte';
 

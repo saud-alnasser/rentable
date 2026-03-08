@@ -6,23 +6,56 @@ import {
 } from '$lib/common/utils/queries';
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 
+type FetchTenantsParams = {
+	search?: string;
+	limit?: number;
+	enabled?: boolean;
+};
+
+type FetchTenantParams = {
+	id: number | undefined;
+	enabled?: boolean;
+};
+
 export const keys = {
 	all: ['tenants'],
-	get: (id: number) => ['tenants', id]
+	get: (id: number) => ['tenants', 'detail', id],
+	getMany: (search?: string, limit?: number) => ['tenants', 'list', search ?? '', limit ?? 'all']
 } as const;
 
-export function useFetchTenants() {
-	return createQuery(() => ({
-		queryKey: keys.all,
-		queryFn: () => api.tenant.getMany({})
-	}));
+export function useFetchTenants(params: () => FetchTenantsParams = () => ({})) {
+	return createQuery(() => {
+		const { search, limit, enabled = true } = params();
+		const trimmedSearch = search?.trim();
+
+		return {
+			queryKey: trimmedSearch || limit ? keys.getMany(trimmedSearch, limit) : keys.all,
+			enabled,
+			placeholderData: (previousData: Awaited<ReturnType<typeof api.tenant.getMany>> | undefined) =>
+				previousData,
+			queryFn: () =>
+				api.tenant.getMany({
+					search: trimmedSearch || undefined,
+					limit
+				})
+		};
+	});
 }
 
-export function useFetchTenant(id: number) {
-	return createQuery(() => ({
-		queryKey: keys.get(id),
-		queryFn: () => api.tenant.get({ id })
-	}));
+export function useFetchTenant(params: () => FetchTenantParams) {
+	return createQuery(() => {
+		const { id, enabled = true } = params();
+
+		return {
+			queryKey: keys.get(id ?? 0),
+			enabled: enabled && Boolean(id),
+			queryFn: async () => {
+				if (!id) return undefined;
+
+				return api.tenant.get({ id });
+			}
+		};
+	});
 }
 
 export function useCreateTenant(
@@ -40,6 +73,7 @@ export function useCreateTenant(
 		mutationFn: (data: Parameters<typeof api.tenant.create>[0]) => api.tenant.create(data),
 		onSuccess: () => {
 			client.invalidateQueries({ queryKey: keys.all });
+			client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
 
 			onMutationSuccess(opts);
 		},
@@ -62,6 +96,7 @@ export function useUpdateTenant(
 		mutationFn: (data: Parameters<typeof api.tenant.update>[0]) => api.tenant.update(data),
 		onSuccess: () => {
 			client.invalidateQueries({ queryKey: keys.all });
+			client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
 
 			onMutationSuccess(opts);
 		},
@@ -84,6 +119,7 @@ export function useDeleteTenant(
 		mutationFn: (id: number) => api.tenant.delete({ id }),
 		onSuccess: () => {
 			client.invalidateQueries({ queryKey: keys.all });
+			client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
 
 			onMutationSuccess(opts);
 		},

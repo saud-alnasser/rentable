@@ -1,9 +1,109 @@
 import * as s from '$lib/api/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/api/database/schema';
 import { procedure, router } from '$lib/api/trpc';
+import { deriveUnitStatus } from '$lib/api/utils/contract-status';
 import { TRPCError } from '@trpc/server';
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import z from 'zod';
+
+type DbPayment = typeof s.payment.$inferSelect;
+
+type ContractAssignmentRow = {
+	unitId: number;
+	contractId: number;
+	status: (typeof s.contract.$inferSelect)['status'];
+	start: (typeof s.contract.$inferSelect)['start'];
+	end: (typeof s.contract.$inferSelect)['end'];
+	interval: (typeof s.contract.$inferSelect)['interval'];
+	cost: (typeof s.contract.$inferSelect)['cost'];
+};
+
+function groupPaymentsByContractId(payments: DbPayment[]) {
+	const paymentsByContractId = new Map<number, DbPayment[]>();
+
+	for (const payment of payments) {
+		paymentsByContractId.set(payment.contractId, [
+			...(paymentsByContractId.get(payment.contractId) ?? []),
+			payment
+		]);
+	}
+
+	return paymentsByContractId;
+}
+
+function getDerivedUnitStatuses(
+	unitIds: number[],
+	assignments: ContractAssignmentRow[],
+	paymentsByContractId: Map<number, DbPayment[]>
+) {
+	const assignmentsByUnitId = new Map<
+		number,
+		Array<{
+			contract: Pick<ContractAssignmentRow, 'status' | 'start' | 'end' | 'interval' | 'cost'>;
+			payments: DbPayment[];
+		}>
+	>();
+
+	for (const assignment of assignments) {
+		assignmentsByUnitId.set(assignment.unitId, [
+			...(assignmentsByUnitId.get(assignment.unitId) ?? []),
+			{
+				contract: {
+					status: assignment.status,
+					start: assignment.start,
+					end: assignment.end,
+					interval: assignment.interval,
+					cost: assignment.cost
+				},
+				payments: paymentsByContractId.get(assignment.contractId) ?? []
+			}
+		]);
+	}
+
+	return new Map(
+		unitIds.map((unitId) => [unitId, deriveUnitStatus(assignmentsByUnitId.get(unitId) ?? [])])
+	);
+}
+
+async function getUnitsWithDerivedStatus(
+	ctx: { db: typeof import('$lib/api/database/mod').db },
+	units: (typeof s.unit.$inferSelect)[]
+) {
+	const unitIds = units.map((unit) => unit.id);
+
+	if (unitIds.length === 0) {
+		return units;
+	}
+
+	const assignments: ContractAssignmentRow[] = await ctx.db
+		.select({
+			unitId: s.contractUnit.unitId,
+			contractId: s.contract.id,
+			status: s.contract.status,
+			start: s.contract.start,
+			end: s.contract.end,
+			interval: s.contract.interval,
+			cost: s.contract.cost
+		})
+		.from(s.contractUnit)
+		.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
+		.where(inArray(s.contractUnit.unitId, unitIds));
+
+	const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
+	const payments = contractIds.length
+		? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
+		: [];
+	const statusByUnitId = getDerivedUnitStatuses(
+		unitIds,
+		assignments,
+		groupPaymentsByContractId(payments)
+	);
+
+	return units.map((unit) => ({
+		...unit,
+		status: statusByUnitId.get(unit.id) ?? 'vacant'
+	}));
+}
 
 export default router({
 	create: procedure.public
@@ -22,7 +122,9 @@ export default router({
 				});
 			}
 
-			return await ctx.db.insert(s.complex).values(input).returning().get();
+			const created = await ctx.db.insert(s.complex).values(input).returning().get();
+
+			return created;
 		}),
 
 	update: procedure.public
@@ -41,12 +143,14 @@ export default router({
 				});
 			}
 
-			return await ctx.db
+			const updated = await ctx.db
 				.update(s.complex)
 				.set({ name: input.name, location: input.location })
 				.where(eq(s.complex.id, input.id))
 				.returning()
 				.get();
+
+			return updated;
 		}),
 
 	delete: procedure.public
@@ -61,7 +165,13 @@ export default router({
 				});
 			}
 
-			return await ctx.db.delete(s.complex).where(eq(s.complex.id, input.id)).returning().get();
+			const deleted = await ctx.db
+				.delete(s.complex)
+				.where(eq(s.complex.id, input.id))
+				.returning()
+				.get();
+
+			return deleted;
 		}),
 
 	get: procedure.public.input(ComplexSchema.pick({ id: true })).query(async ({ input, ctx }) => {
@@ -85,13 +195,20 @@ export default router({
 
 	units: {
 		get: procedure.public.input(UnitSchema.pick({ id: true })).query(async ({ input, ctx }) => {
-			return await ctx.db.select().from(s.unit).where(eq(s.unit.id, input.id));
+			const units = await ctx.db.select().from(s.unit).where(eq(s.unit.id, input.id));
+
+			return await getUnitsWithDerivedStatus(ctx, units);
 		}),
 
 		getMany: procedure.public
 			.input(UnitSchema.pick({ complexId: true }))
 			.query(async ({ input, ctx }) => {
-				return await ctx.db.select().from(s.unit).where(eq(s.unit.complexId, input.complexId));
+				const units = await ctx.db
+					.select()
+					.from(s.unit)
+					.where(eq(s.unit.complexId, input.complexId));
+
+				return await getUnitsWithDerivedStatus(ctx, units);
 			}),
 
 		create: procedure.public
@@ -110,7 +227,7 @@ export default router({
 					});
 				}
 
-				return await ctx.db
+				const created = await ctx.db
 					.insert(s.unit)
 					.values({
 						...input,
@@ -118,6 +235,8 @@ export default router({
 					})
 					.returning()
 					.get();
+
+				return created;
 			}),
 
 		update: procedure.public
@@ -136,12 +255,14 @@ export default router({
 					});
 				}
 
-				return await ctx.db
+				const updated = await ctx.db
 					.update(s.unit)
 					.set({ name: input.name })
 					.where(eq(s.unit.id, input.id))
 					.returning()
 					.get();
+
+				return updated;
 			}),
 
 		delete: procedure.public
@@ -159,7 +280,13 @@ export default router({
 					});
 				}
 
-				return await ctx.db.delete(s.unit).where(eq(s.unit.id, input.id)).returning().get();
+				const deleted = await ctx.db
+					.delete(s.unit)
+					.where(eq(s.unit.id, input.id))
+					.returning()
+					.get();
+
+				return deleted;
 			})
 	}
 });

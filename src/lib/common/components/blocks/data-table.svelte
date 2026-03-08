@@ -39,7 +39,7 @@
 		columns: ColumnDef<TData, TValue>[];
 		data: TData[];
 		isLoading?: boolean;
-		onCreate: () => Promise<void> | void;
+		onCreate?: () => Promise<void> | void;
 	};
 
 	let { data, columns, isLoading = false, onCreate }: DataTableProps<TData, TValue> = $props();
@@ -170,16 +170,18 @@
 				</DropdownMenu.Content>
 			</DropdownMenu.Root>
 		</div>
-		<div>
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					<Button variant="outline" size="sm" onclick={() => onCreate()}>
-						<IconPlus />
-					</Button>
-				</Tooltip.Trigger>
-				<Tooltip.Content class="capitalize" side="top">new record</Tooltip.Content>
-			</Tooltip.Root>
-		</div>
+		{#if onCreate}
+			<div>
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						<Button variant="outline" size="sm" onclick={() => onCreate()}>
+							<IconPlus />
+						</Button>
+					</Tooltip.Trigger>
+					<Tooltip.Content class="capitalize" side="top">new record</Tooltip.Content>
+				</Tooltip.Root>
+			</div>
+		{/if}
 	</div>
 </div>
 <div class="overflow-hidden rounded-lg border">

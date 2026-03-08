@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import type { Pathname } from '$app/types';
 	import * as Sidebar from '$lib/common/components/fragments/sidebar';
 	import { type Icon } from '@tabler/icons-svelte';
+	import ContractIcon from '@tabler/icons-svelte/icons/contract';
 	import Home2Icon from '@tabler/icons-svelte/icons/home-2';
 	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
 	import SettingsIcon from '@tabler/icons-svelte/icons/settings';
@@ -28,6 +30,11 @@
 				label: 'complexes',
 				icon: Home2Icon,
 				url: '/complexes'
+			},
+			{
+				label: 'contracts',
+				icon: ContractIcon,
+				url: '/contracts'
 			}
 		],
 		tail: [
@@ -52,7 +59,7 @@
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton tooltipContent={items.head.label}>
 					{#snippet child({ props })}
-						<a href={items.head.url} {...props}>
+						<a href={resolve(items.head.url)} {...props}>
 							<items.head.icon />
 							<span class="text-base font-semibold capitalize">{items.head.label}</span>
 						</a>
@@ -62,11 +69,11 @@
 		</Sidebar.Menu>
 	</Sidebar.Header>
 	<Sidebar.Content>
-		{#each items.middle as item}
+		{#each items.middle as item (item.label)}
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton tooltipContent={item.label}>
 					{#snippet child({ props })}
-						<a href={item.url} {...props}>
+						<a href={resolve(item.url)} {...props}>
 							<item.icon />
 							<span class="text-base font-semibold capitalize">{item.label}</span>
 						</a>
@@ -77,11 +84,11 @@
 	</Sidebar.Content>
 	<Sidebar.Footer>
 		<Sidebar.Menu>
-			{#each items.tail as item}
+			{#each items.tail as item (item.label)}
 				<Sidebar.MenuItem>
 					<Sidebar.MenuButton tooltipContent={item.label}>
 						{#snippet child({ props })}
-							<a href={item.url} {...props}>
+							<a href={resolve(item.url)} {...props}>
 								<item.icon />
 								<span class="text-base font-semibold capitalize">{item.label}</span>
 							</a>

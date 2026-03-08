@@ -54,7 +54,9 @@ export type Unit = z.infer<typeof UnitSchema>;
 export const contract = sqliteTable('contract', {
 	id: integer('id').primaryKey().unique(),
 	govId: text('gov_id').unique(),
-	status: text('status', { enum: ['active', 'terminated', 'expired', 'defaulted'] }).notNull(),
+	status: text('status', {
+		enum: ['scheduled', 'active', 'terminated', 'fulfilled', 'expired', 'defaulted']
+	}).notNull(),
 	start: integer('start_date', { mode: 'timestamp_ms' }).notNull(),
 	end: integer('end_date', { mode: 'timestamp_ms' }).notNull(),
 	interval: text('interval_in_months', { enum: ['1m', '3m', '6m', '12m'] }).notNull(),
@@ -64,8 +66,8 @@ export const contract = sqliteTable('contract', {
 
 export const ContractSchema = z.object({
 	id: z.number(),
-	govId: z.string(),
-	status: z.enum(['active', 'terminated', 'expired', 'defaulted']),
+	govId: z.string().optional(),
+	status: z.enum(['scheduled', 'active', 'terminated', 'fulfilled', 'expired', 'defaulted']),
 	start: z.number(),
 	end: z.number(),
 	interval: z.enum(['1m', '3m', '6m', '12m']),

@@ -2,7 +2,7 @@ import * as s from '$lib/api/database/schema';
 import { TenantSchema } from '$lib/api/database/schema';
 import { procedure, router } from '$lib/api/trpc';
 import { TRPCError } from '@trpc/server';
-import { eq, sql } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import z from 'zod';
 
 export default router({
@@ -35,7 +35,9 @@ export default router({
 				});
 			}
 
-			return await ctx.db.insert(s.tenant).values(input).returning().get();
+			const created = await ctx.db.insert(s.tenant).values(input).returning().get();
+
+			return created;
 		}),
 
 	update: procedure.public
@@ -67,12 +69,14 @@ export default router({
 				});
 			}
 
-			return await ctx.db
+			const updated = await ctx.db
 				.update(s.tenant)
 				.set({ name: input.name, nationalId: input.nationalId, phone: input.phone })
 				.where(eq(s.tenant.id, input.id))
 				.returning()
 				.get();
+
+			return updated;
 		}),
 
 	delete: procedure.public
@@ -90,7 +94,13 @@ export default router({
 				});
 			}
 
-			return await ctx.db.delete(s.tenant).where(eq(s.tenant.id, input.id)).returning().get();
+			const deleted = await ctx.db
+				.delete(s.tenant)
+				.where(eq(s.tenant.id, input.id))
+				.returning()
+				.get();
+
+			return deleted;
 		}),
 
 	get: procedure.public.input(TenantSchema.partial()).query(async ({ input, ctx }) => {
@@ -122,17 +132,29 @@ export default router({
 	}),
 
 	getMany: procedure.public
-		.input(z.object({ search: z.string().optional() }))
+		.input(
+			z.object({
+				search: z.string().optional(),
+				limit: z.number().int().positive().max(50).optional()
+			})
+		)
 		.query(async ({ input, ctx }) => {
-			if (input.search) {
-				return await ctx.db
+			const search = input.search?.trim();
+
+			if (search) {
+				const query = ctx.db
 					.select()
 					.from(s.tenant)
 					.where(
-						sql`${s.tenant.nationalId} LIKE %${input.search}% OR ${s.tenant.phone} LIKE %${input.search}% OR ${s.tenant.name} LIKE %${input.search}%`
-					);
+						sql`${s.tenant.nationalId} LIKE %${search}% OR ${s.tenant.phone} LIKE %${search}% OR ${s.tenant.name} LIKE %${search}%`
+					)
+					.orderBy(asc(s.tenant.name), asc(s.tenant.id));
+
+				return input.limit ? await query.limit(input.limit) : await query;
 			}
 
-			return await ctx.db.select().from(s.tenant);
+			const query = ctx.db.select().from(s.tenant).orderBy(asc(s.tenant.name), asc(s.tenant.id));
+
+			return input.limit ? await query.limit(input.limit) : await query;
 		})
 });

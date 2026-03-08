@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import UnitsTable from '$lib/resources/units/components/units-table.svelte';
+	import UnitsTable from '$lib/resources/complexes/components/units-table.svelte';
 
 	const complexId = Number(page.params.id);
 </script>

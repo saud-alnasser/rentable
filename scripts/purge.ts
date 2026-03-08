@@ -10,12 +10,12 @@ const db = drizzle({ client: sqlite });
 
 const purge = async () => {
 	db.transaction((tx) => {
+		tx.delete(s.payment).execute();
+		tx.delete(s.contractUnit).execute();
+		tx.delete(s.contract).execute();
+		tx.delete(s.unit).execute();
 		tx.delete(s.tenant).execute();
 		tx.delete(s.complex).execute();
-		tx.delete(s.contractUnit).execute();
-		tx.delete(s.unit).execute();
-		tx.delete(s.contract).execute();
-		tx.delete(s.payment).execute();
 	});
 };
 
