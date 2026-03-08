@@ -12,8 +12,9 @@
 		"windows": [
 			{
 				"title": "rentable",
-				"minHeight": 800,
-				"minWidth": 1100,
+				"height": 824,
+				"width": 1124,
+				"resizable": false,
 				"visible": false
 			}
 		],

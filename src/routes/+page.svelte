@@ -12,7 +12,7 @@
 		CardTitle
 	} from '$lib/common/components/fragments/card';
 	import { Progress } from '$lib/common/components/fragments/progress';
-	import { Skeleton } from '$lib/common/components/fragments/skeleton';
+	import { Spinner } from '$lib/common/components/fragments/spinner';
 	import { useFetchContractDashboard } from '$lib/resources/contracts/hooks/queries';
 
 	type DashboardData = Awaited<ReturnType<typeof api.contract.dashboard>>;
@@ -154,205 +154,207 @@
 	];
 </script>
 
-<div class="flex flex-col gap-5 p-1">
-	<div class="flex flex-col gap-1">
-		<h1 class="text-3xl font-semibold tracking-tight">Dashboard</h1>
-		<p class="text-sm text-muted-foreground">
-			track contract health, payment performance, and occupancy after status synchronization.
-		</p>
-		{#if dashboardQuery.data}
-			<p class="text-xs text-muted-foreground">
-				last synchronized {formatDateTime(dashboardQuery.data.generatedAt)}
-			</p>
-		{/if}
+{#if dashboardQuery.isLoading}
+	<div class="flex min-h-full flex-1 items-center justify-center p-1">
+		<div class="flex flex-col items-center gap-3">
+			<Spinner class="size-8 text-muted-foreground" />
+			<p class="text-sm text-muted-foreground">loading dashboard...</p>
+		</div>
 	</div>
-
-	{#if dashboardQuery.isLoading}
-		<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-			{#each Array.from({ length: 3 }, (_, index) => index) as index (index)}
-				<Skeleton class="h-32 w-full rounded-xl" />
-			{/each}
+{:else}
+	<div class="flex flex-col gap-5 p-1">
+		<div class="flex flex-col gap-1">
+			<h1 class="text-3xl font-semibold tracking-tight">Dashboard</h1>
+			<p class="text-sm text-muted-foreground">
+				track contract health, payment performance, and occupancy after status synchronization.
+			</p>
+			{#if dashboardQuery.data}
+				<p class="text-xs text-muted-foreground">
+					last synchronized {formatDateTime(dashboardQuery.data.generatedAt)}
+				</p>
+			{/if}
 		</div>
 
-		<Skeleton class="h-96 w-full rounded-xl" />
-	{:else if dashboardQuery.data}
-		<div class="grid gap-4 xl:grid-cols-3">
-			{#each getSummarySections(dashboardQuery.data) as section (section.title)}
-				<Card class="gap-4 overflow-hidden">
-					<CardHeader class="gap-3">
-						<CardTitle class="capitalize">{section.title}</CardTitle>
-						<CardDescription>{section.description}</CardDescription>
-					</CardHeader>
-					<CardContent class="space-y-4">
-						<div class={`rounded-xl border p-4 ${section.heroClass}`}>
-							<p class="text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
-								{section.heroLabel}
-							</p>
-							<div class="mt-3 flex flex-wrap items-end justify-between gap-3">
-								<p class="text-3xl font-semibold tracking-tight">{section.heroValue}</p>
-								<p class="max-w-[16rem] text-sm text-muted-foreground">
-									{section.heroHint}
+		{#if dashboardQuery.data}
+			<div class="grid gap-4 xl:grid-cols-3">
+				{#each getSummarySections(dashboardQuery.data) as section (section.title)}
+					<Card class="gap-4 overflow-hidden">
+						<CardHeader class="gap-3">
+							<CardTitle class="capitalize">{section.title}</CardTitle>
+							<CardDescription>{section.description}</CardDescription>
+						</CardHeader>
+						<CardContent class="space-y-4">
+							<div class={`rounded-xl border p-4 ${section.heroClass}`}>
+								<p class="text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
+									{section.heroLabel}
 								</p>
-							</div>
-						</div>
-
-						<div class="grid gap-3 sm:grid-cols-2">
-							{#each section.stats as stat (stat.label)}
-								<div class="rounded-lg border bg-muted/15 p-3">
-									<p class="text-xs tracking-wide text-muted-foreground uppercase">
-										{stat.label}
+								<div class="mt-3 flex flex-wrap items-end justify-between gap-3">
+									<p class="text-3xl font-semibold tracking-tight">{section.heroValue}</p>
+									<p class="max-w-[16rem] text-sm text-muted-foreground">
+										{section.heroHint}
 									</p>
-									<p class="mt-1 text-base font-semibold">{stat.value}</p>
+								</div>
+							</div>
+
+							<div class="grid gap-3 sm:grid-cols-2">
+								{#each section.stats as stat (stat.label)}
+									<div class="rounded-lg border bg-muted/15 p-3">
+										<p class="text-xs tracking-wide text-muted-foreground uppercase">
+											{stat.label}
+										</p>
+										<p class="mt-1 text-base font-semibold">{stat.value}</p>
+									</div>
+								{/each}
+							</div>
+						</CardContent>
+					</Card>
+				{/each}
+			</div>
+
+			<Card class="gap-4 overflow-hidden">
+				<CardHeader class="gap-3">
+					<div class="flex flex-wrap items-start justify-between gap-3">
+						<div class="space-y-1">
+							<CardTitle>payments requiring follow-up in {dashboardQuery.data.monthLabel}</CardTitle
+							>
+							<CardDescription>
+								contracts with a scheduled due on or before today this month, or an overdue
+								defaulted balance that still needs follow-up.
+							</CardDescription>
+						</div>
+						<div
+							class="rounded-full border bg-muted/15 px-3 py-1 text-xs font-medium text-muted-foreground"
+						>
+							{dashboardQuery.data.followUps.length} open follow-up{dashboardQuery.data.followUps
+								.length === 1
+								? ''
+								: 's'}
+						</div>
+					</div>
+				</CardHeader>
+				<CardContent>
+					{#if dashboardQuery.data.followUps.length === 0}
+						<p class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+							no payment follow-up is needed right now.
+						</p>
+					{:else}
+						<div class="space-y-4">
+							{#each dashboardQuery.data.followUps as item (item.contractId)}
+								{@const progress = getFollowUpProgress(item)}
+								<div class="rounded-xl border bg-muted/10 p-4">
+									<div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+										<div class="space-y-4">
+											<div class="flex flex-row justify-between gap-3">
+												<div class="flex flex-wrap items-center gap-2">
+													<p class="text-base font-medium">{item.tenantName}</p>
+													<Badge variant={statusVariants[item.status]}>
+														{item.status}
+													</Badge>
+													{#if hasActiveOverdueFollowUp(item)}
+														<Badge variant="destructive">overdue</Badge>
+													{/if}
+													{#if item.govId}
+														<Badge variant="outline">{item.govId}</Badge>
+													{/if}
+												</div>
+
+												<div class="flex items-start justify-between gap-3">
+													<a
+														href={resolve(`/contracts/payments/${item.contractId}`)}
+														class="inline-flex rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+													>
+														open payments
+													</a>
+												</div>
+											</div>
+
+											<div class="grid gap-3 sm:grid-cols-3">
+												<div class="rounded-lg border bg-background/70 p-3">
+													<p class="text-xs tracking-wide text-muted-foreground uppercase">phone</p>
+													<p class="mt-1 text-sm font-medium text-foreground">{item.tenantPhone}</p>
+												</div>
+												<div class="rounded-lg border bg-background/70 p-3">
+													<p class="text-xs tracking-wide text-muted-foreground uppercase">cycle</p>
+													<p class="mt-1 text-sm font-medium text-foreground capitalize">
+														{intervalLabels[item.interval]}
+													</p>
+												</div>
+												<div class="rounded-lg border bg-background/70 p-3">
+													<p class="text-xs tracking-wide text-muted-foreground uppercase">
+														contract ends
+													</p>
+													<p class="mt-1 text-sm font-medium text-foreground">
+														{formatDate(item.contractEnd)}
+													</p>
+												</div>
+											</div>
+										</div>
+
+										<div class="rounded-xl border bg-background/70 p-4">
+											<div class="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+												<div class="rounded-lg border bg-muted/15 p-3">
+													<p class="text-xs tracking-wide text-muted-foreground uppercase">
+														{followUpAmountLabel}
+													</p>
+													<p class="mt-1 text-sm font-semibold text-foreground">
+														{formatCurrency(getFollowUpTotalBalance(item))} SAR
+													</p>
+												</div>
+												<div class="rounded-lg border bg-muted/15 p-3">
+													<p class="text-xs tracking-wide text-muted-foreground uppercase">
+														received this month
+													</p>
+													<p class="mt-1 text-sm font-semibold text-foreground">
+														{formatCurrency(item.collectedThisMonth)} SAR
+													</p>
+												</div>
+												<div class="rounded-lg border bg-muted/15 p-3">
+													<p class="text-xs tracking-wide text-muted-foreground uppercase">
+														{followUpRemainingLabel}
+													</p>
+													<p class="mt-1 text-sm font-semibold text-foreground">
+														{formatCurrency(progress.remainingAmount)} SAR
+													</p>
+												</div>
+											</div>
+
+											<div class="mt-4 rounded-lg border bg-muted/15 p-3">
+												<div class="flex items-center justify-between gap-3 text-sm">
+													<span class="font-medium">{followUpProgressLabel}</span>
+													<span class="text-muted-foreground">
+														{formatCurrency(progress.coveredAmount)} / {formatCurrency(
+															progress.coveredAmount + progress.remainingAmount
+														)} SAR
+													</span>
+												</div>
+
+												<Progress
+													value={progress.coveredAmount}
+													max={Math.max(progress.coveredAmount + progress.remainingAmount, 1)}
+													class="mt-2 h-3 bg-emerald-500/15 **:data-[slot=progress-indicator]:bg-emerald-600"
+												/>
+
+												<div
+													class="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground"
+												>
+													<span>{getFollowUpProgressSummary(progress.rate)}</span>
+													<span>{formatCurrency(progress.remainingAmount)} SAR remaining</span>
+												</div>
+											</div>
+										</div>
+									</div>
 								</div>
 							{/each}
 						</div>
-					</CardContent>
-				</Card>
-			{/each}
-		</div>
-
-		<Card class="gap-4 overflow-hidden">
-			<CardHeader class="gap-3">
-				<div class="flex flex-wrap items-start justify-between gap-3">
-					<div class="space-y-1">
-						<CardTitle>payments requiring follow-up in {dashboardQuery.data.monthLabel}</CardTitle>
-						<CardDescription>
-							contracts with a scheduled due on or before today this month, or an overdue defaulted
-							balance that still needs follow-up.
-						</CardDescription>
-					</div>
-					<div
-						class="rounded-full border bg-muted/15 px-3 py-1 text-xs font-medium text-muted-foreground"
-					>
-						{dashboardQuery.data.followUps.length} open follow-up{dashboardQuery.data.followUps
-							.length === 1
-							? ''
-							: 's'}
-					</div>
-				</div>
-			</CardHeader>
-			<CardContent>
-				{#if dashboardQuery.data.followUps.length === 0}
-					<p class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-						no payment follow-up is needed right now.
-					</p>
-				{:else}
-					<div class="space-y-4">
-						{#each dashboardQuery.data.followUps as item (item.contractId)}
-							{@const progress = getFollowUpProgress(item)}
-							<div class="rounded-xl border bg-muted/10 p-4">
-								<div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-									<div class="space-y-4">
-										<div class="flex flex-row justify-between gap-3">
-											<div class="flex flex-wrap items-center gap-2">
-												<p class="text-base font-medium">{item.tenantName}</p>
-												<Badge variant={statusVariants[item.status]}>
-													{item.status}
-												</Badge>
-												{#if hasActiveOverdueFollowUp(item)}
-													<Badge variant="destructive">overdue</Badge>
-												{/if}
-												{#if item.govId}
-													<Badge variant="outline">{item.govId}</Badge>
-												{/if}
-											</div>
-
-											<div class="flex items-start justify-between gap-3">
-												<a
-													href={resolve(`/contracts/payments/${item.contractId}`)}
-													class="inline-flex rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-												>
-													open payments
-												</a>
-											</div>
-										</div>
-
-										<div class="grid gap-3 sm:grid-cols-3">
-											<div class="rounded-lg border bg-background/70 p-3">
-												<p class="text-xs tracking-wide text-muted-foreground uppercase">phone</p>
-												<p class="mt-1 text-sm font-medium text-foreground">{item.tenantPhone}</p>
-											</div>
-											<div class="rounded-lg border bg-background/70 p-3">
-												<p class="text-xs tracking-wide text-muted-foreground uppercase">cycle</p>
-												<p class="mt-1 text-sm font-medium text-foreground capitalize">
-													{intervalLabels[item.interval]}
-												</p>
-											</div>
-											<div class="rounded-lg border bg-background/70 p-3">
-												<p class="text-xs tracking-wide text-muted-foreground uppercase">
-													contract ends
-												</p>
-												<p class="mt-1 text-sm font-medium text-foreground">
-													{formatDate(item.contractEnd)}
-												</p>
-											</div>
-										</div>
-									</div>
-
-									<div class="rounded-xl border bg-background/70 p-4">
-										<div class="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
-											<div class="rounded-lg border bg-muted/15 p-3">
-												<p class="text-xs tracking-wide text-muted-foreground uppercase">
-													{followUpAmountLabel}
-												</p>
-												<p class="mt-1 text-sm font-semibold text-foreground">
-													{formatCurrency(getFollowUpTotalBalance(item))} SAR
-												</p>
-											</div>
-											<div class="rounded-lg border bg-muted/15 p-3">
-												<p class="text-xs tracking-wide text-muted-foreground uppercase">
-													received this month
-												</p>
-												<p class="mt-1 text-sm font-semibold text-foreground">
-													{formatCurrency(item.collectedThisMonth)} SAR
-												</p>
-											</div>
-											<div class="rounded-lg border bg-muted/15 p-3">
-												<p class="text-xs tracking-wide text-muted-foreground uppercase">
-													{followUpRemainingLabel}
-												</p>
-												<p class="mt-1 text-sm font-semibold text-foreground">
-													{formatCurrency(progress.remainingAmount)} SAR
-												</p>
-											</div>
-										</div>
-
-										<div class="mt-4 rounded-lg border bg-muted/15 p-3">
-											<div class="flex items-center justify-between gap-3 text-sm">
-												<span class="font-medium">{followUpProgressLabel}</span>
-												<span class="text-muted-foreground">
-													{formatCurrency(progress.coveredAmount)} / {formatCurrency(
-														progress.coveredAmount + progress.remainingAmount
-													)} SAR
-												</span>
-											</div>
-
-											<Progress
-												value={progress.coveredAmount}
-												max={Math.max(progress.coveredAmount + progress.remainingAmount, 1)}
-												class="mt-2 h-3 bg-emerald-500/15 **:data-[slot=progress-indicator]:bg-emerald-600"
-											/>
-
-											<div
-												class="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground"
-											>
-												<span>{getFollowUpProgressSummary(progress.rate)}</span>
-												<span>{formatCurrency(progress.remainingAmount)} SAR remaining</span>
-											</div>
-										</div>
-									</div>
-								</div>
-							</div>
-						{/each}
-					</div>
-				{/if}
-			</CardContent>
-		</Card>
-	{:else}
-		<Card>
-			<CardContent class="pt-6">
-				<p class="text-sm text-muted-foreground">dashboard data is unavailable right now.</p>
-			</CardContent>
-		</Card>
-	{/if}
-</div>
+					{/if}
+				</CardContent>
+			</Card>
+		{:else}
+			<Card>
+				<CardContent class="pt-6">
+					<p class="text-sm text-muted-foreground">dashboard data is unavailable right now.</p>
+				</CardContent>
+			</Card>
+		{/if}
+	</div>
+{/if}
