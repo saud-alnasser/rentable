@@ -38,7 +38,7 @@ pub async fn db_execute_batch_sql(
 
 #[tauri::command]
 pub async fn db_does_exist(app_state: tauri::State<'_, AppState>) -> Result<bool, String> {
-    Ok(app_state.db_dir.join(Database::DB_NAME).exists())
+    Ok(Database::path_in(&app_state.db_dir).exists())
 }
 
 #[tauri::command]
