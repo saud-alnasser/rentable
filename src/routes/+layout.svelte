@@ -33,7 +33,7 @@
 	<SonnerProvider>
 		<TooltipProvider>
 			<div
-				class="relative flex h-screen min-h-0 w-screen min-w-0 flex-col overflow-hidden border border-border/60 bg-background/95"
+				class="relative flex h-screen min-h-0 w-screen min-w-0 flex-col overflow-hidden border border-border/60 bg-background"
 			>
 				<header class="shrink-0">
 					<WindowControls />

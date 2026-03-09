@@ -116,8 +116,7 @@
 		@apply border-border outline-ring/50;
 	}
 	body {
-		@apply text-foreground;
-		background: transparent;
+		@apply bg-background text-foreground;
 	}
 }
 
@@ -129,7 +128,7 @@ html,
 body {
 	height: 100%;
 	overflow: hidden;
-	background: transparent;
+	background: var(--color-background);
 }
 
 /* ===================================== */
