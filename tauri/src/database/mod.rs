@@ -6,7 +6,7 @@ use sqlx::{
     Pool, Sqlite,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
 };
-use std::{path::PathBuf, str::FromStr};
+use std::path::{Path, PathBuf};
 
 pub struct Database {
     pool: Option<Pool<Sqlite>>,
@@ -20,19 +20,23 @@ impl Database {
         Database { pool: None, db_dir }
     }
 
-    pub async fn connect(&mut self) -> Result<(), String> {
-        let db_url = self.db_dir.join(Self::DB_NAME);
+    pub fn path_in(db_dir: &Path) -> PathBuf {
+        db_dir.join(Self::DB_NAME)
+    }
 
-        let connect_options = SqliteConnectOptions::from_str(
-            db_url
-                .to_str()
-                .ok_or("failed to work with invalid database path")?,
-        )
-        .map_err(|e| e.to_string())?
-        .pragma("journal_mode", "WAL")
-        .pragma("synchronous", "NORMAL")
-        .pragma("busy_timeout", "5000")
-        .create_if_missing(true);
+    fn db_path(&self) -> PathBuf {
+        Self::path_in(&self.db_dir)
+    }
+
+    pub async fn connect(&mut self) -> Result<(), String> {
+        let db_path = self.db_path();
+
+        let connect_options = SqliteConnectOptions::new()
+            .filename(&db_path)
+            .pragma("journal_mode", "WAL")
+            .pragma("synchronous", "NORMAL")
+            .pragma("busy_timeout", "5000")
+            .create_if_missing(true);
 
         let pool = SqlitePoolOptions::new()
             .connect_with(connect_options)

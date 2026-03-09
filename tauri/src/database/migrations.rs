@@ -32,12 +32,14 @@ pub async fn run(pool: &Pool<Sqlite>, migrations_dir: &PathBuf) -> Result<(), St
 
     for file in migration_files {
         let file_name = file.clone();
-        let sql = fs::read_to_string(format!(
-            "{}/{}",
-            migrations_dir.to_string_lossy().to_string(),
-            file
-        ))
-        .map_err(|e| format!("failed to read migration {}: {}", file, e))?;
+        let migration_path = migrations_dir.join(&file);
+        let sql = fs::read_to_string(&migration_path).map_err(|e| {
+            format!(
+                "failed to read migration {}: {}",
+                migration_path.display(),
+                e
+            )
+        })?;
 
         if is_migration_applied(pool, &file_name).await? {
             continue;
@@ -70,7 +72,7 @@ fn get_migration_files(migrations_dir: &PathBuf) -> Result<Vec<String>, String> 
     if !path.exists() {
         return Err(format!(
             "migration folder not found: {}",
-            migrations_dir.to_string_lossy().to_string()
+            migrations_dir.display()
         ));
     }
 
