@@ -10,6 +10,7 @@ import {
 	deriveContractStatus,
 	deriveUnitStatus,
 	getExpectedAmountBy,
+	getIntervalDays,
 	getIntervalMonths
 } from '../src/lib/api/utils/contract-status';
 
@@ -73,14 +74,8 @@ function addUtcDays(value: Date, days: number) {
 	return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate() + days));
 }
 
-function addUtcMonths(value: Date, months: number) {
-	return new Date(
-		Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + months, value.getUTCDate())
-	);
-}
-
 function getContractEnd(start: Date, interval: s.Contract['interval'], cycleCount: number) {
-	return addUtcDays(addUtcMonths(start, getIntervalMonths(interval) * cycleCount), -1);
+	return addUtcDays(start, getIntervalDays(interval) * cycleCount - 1);
 }
 
 function rangesOverlap(startA: Date, endA: Date, startB: Date, endB: Date) {
@@ -91,9 +86,9 @@ function rangesOverlap(startA: Date, endA: Date, startB: Date, endB: Date) {
 }
 
 function getPaymentDates(start: Date, interval: s.Contract['interval'], count: number) {
-	const intervalMonths = getIntervalMonths(interval);
+	const intervalDays = getIntervalDays(interval);
 
-	return Array.from({ length: count }, (_, index) => addUtcMonths(start, intervalMonths * index));
+	return Array.from({ length: count }, (_, index) => addUtcDays(start, intervalDays * index));
 }
 
 function buildContractSeed(
