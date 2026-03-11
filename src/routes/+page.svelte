@@ -65,6 +65,7 @@
 
 	const getFollowUpProgressSummary = (rate: number) =>
 		`${Math.round(rate)}% of the due balance covered to date`;
+	const formatNoticeWindow = (days: number) => `${days} day${days === 1 ? '' : 's'}`;
 
 	type SummaryStat = {
 		label: string;
@@ -86,16 +87,15 @@
 	const getSummarySections = (data: DashboardData): SummarySection[] => [
 		{
 			title: 'contracts',
-			description:
-				'status health across the current portfolio, with terminated contracts tracked separately.',
+			description: `status health across the current portfolio, with ending soon based on the configured ${formatNoticeWindow(data.endingSoonNoticeDays)} notice window.`,
 			heroLabel: 'current portfolio size',
 			heroValue: String(data.summary.contracts.total),
-			heroHint: `${data.summary.contracts.active} active • ${data.summary.contracts.endingSoon} ending soon`,
+			heroHint: `${data.summary.contracts.active} active • ${data.summary.contracts.endingSoon} ending within ${formatNoticeWindow(data.endingSoonNoticeDays)}`,
 			heroClass: 'border-sky-500/20 bg-sky-500/10',
 			stats: [
 				{
 					label: 'active',
-					value: `${data.summary.contracts.active} • ${data.summary.contracts.endingSoon} ending soon`
+					value: `${data.summary.contracts.active} • ${data.summary.contracts.endingSoon} ending within ${formatNoticeWindow(data.endingSoonNoticeDays)}`
 				},
 				{ label: 'scheduled', value: String(data.summary.contracts.scheduled) },
 				{ label: 'fulfilled', value: String(data.summary.contracts.fulfilled) },
