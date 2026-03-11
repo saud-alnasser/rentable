@@ -155,7 +155,7 @@ jobs:
         run: pnpm check
 
       - name: '🚀 build and publish signed updater artifacts'
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@v0.6.1
         with:
           tagName: ${{ needs.changesets.outputs.release_tag }}
           releaseName: 'rentable ${{ needs.changesets.outputs.release_tag }}'
