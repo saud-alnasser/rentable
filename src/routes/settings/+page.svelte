@@ -33,7 +33,7 @@
 	const deleteBackupMutation = useDeleteBackup();
 	const restoreBackupMutation = useRestoreBackup();
 
-	let endingSoonNoticeDaysValue = $state('');
+	let endingSoonNoticeDaysValue = $state<number | ''>('');
 	let databasePathValue = $state('');
 	let isDeleteBackupDialogOpen = $state(false);
 	let backupToDelete = $state<string | null>(null);
@@ -58,11 +58,16 @@
 			restoreBackupMutation.isPending
 	);
 
+	const getEndingSoonNoticeDaysInputValue = () =>
+		typeof endingSoonNoticeDaysValue === 'number'
+			? String(endingSoonNoticeDaysValue)
+			: endingSoonNoticeDaysValue.trim();
+
 	const hasEndingSoonChange = $derived.by(() => {
 		const settings = settingsQuery.data;
 
 		return settings
-			? endingSoonNoticeDaysValue.trim() !== String(settings.endingSoonNoticeDays)
+			? getEndingSoonNoticeDaysInputValue() !== String(settings.endingSoonNoticeDays)
 			: false;
 	});
 
@@ -98,7 +103,7 @@
 			return;
 		}
 
-		endingSoonNoticeDaysValue = String(settings.endingSoonNoticeDays);
+		endingSoonNoticeDaysValue = settings.endingSoonNoticeDays;
 		databasePathValue = settings.usingDefaultDatabasePath ? '' : settings.currentDatabasePath;
 	});
 

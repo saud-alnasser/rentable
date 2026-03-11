@@ -235,6 +235,7 @@ type DashboardFollowUp = {
 type DashboardData = {
 	generatedAt: number;
 	monthLabel: string;
+	endingSoonNoticeDays: number;
 	summary: DashboardSummary;
 	followUps: DashboardFollowUp[];
 };
@@ -812,6 +813,7 @@ export default router({
 		return {
 			generatedAt: now,
 			monthLabel: month.label,
+			endingSoonNoticeDays: settings.endingSoonNoticeDays,
 			summary,
 			followUps
 		};
