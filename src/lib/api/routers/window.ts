@@ -16,5 +16,8 @@ export default router({
 	}),
 	close: procedure.public.mutation(async () => {
 		await tauri.window.close();
+	}),
+	restart: procedure.public.mutation(async () => {
+		await tauri.window.restart();
 	})
 });

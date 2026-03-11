@@ -27,6 +27,7 @@
 	"bundle": {
 		"resources": ["migrations"],
 		"active": true,
+		"createUpdaterArtifacts": true,
 		"targets": "all",
 		"icon": [
 			"icons/32x32.png",
@@ -35,5 +36,16 @@
 			"icons/icon.icns",
 			"icons/icon.ico"
 		]
+	},
+	"plugins": {
+		"updater": {
+			"endpoints": [
+				"https://github.com/saud-alnasser/rentable/releases/latest/download/latest.json"
+			],
+			"pubkey": "dW51cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU3QkQ2NkM4MTNBRTYyNkYKUldSdllxNFR5R2E5NTRiWWlUZVgvNGlmZkk3ZXg0WGpWaVhjZlZrY0lvMGdpNlp4clp3YlVMNUQK",
+			"windows": {
+				"installMode": "passive"
+			}
+		}
 	}
 }

@@ -2,23 +2,34 @@ name: '🚀 release'
 
 on:
   push:
-    branches: ['main']
+    tags:
+      - 'v*.*.*'
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+  TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
 
 jobs:
-  release:
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+          - platform: windows-latest
+          - platform: macos-latest
+
+    runs-on: ${{ matrix.platform }}
 
     steps:
       - name: '☁️ checkout repository'
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
       - name: '🛠️ setup pnpm'
         uses: pnpm/action-setup@v4
@@ -29,23 +40,11 @@ jobs:
           node-version: 24
           cache: 'pnpm'
 
-      - name: '🔼 update rust'
-        run: rustup update ${{ matrix.toolchain }} && rustup default stable
+      - name: '🦀 install rust stable'
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: '💿 cargo cache'
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            ./tauri/target
-          key: ${{ runner.os }}-cargo-main-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-main-
-
-      - name: 📦 install apt packages
+      - name: '📦 install apt packages'
+        if: matrix.platform == 'ubuntu-22.04'
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           packages: |
@@ -70,14 +69,14 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: '🔎 check'
+        if: matrix.platform == 'ubuntu-22.04'
         run: pnpm check
 
-      - name: '📦 build'
-        run: pnpm tauri build
-
-      - name: '🚀 release'
-        uses: changesets/action@v1
+      - name: '🚀 build and publish signed updater artifacts'
+        uses: tauri-apps/tauri-action@v1
         with:
-          title: 'chore: version package'
-          commit: 'chore: version package'
-          version: node .github/changeset-version.cjs
+          tagName: __VERSION__
+          releaseName: 'rentable v__VERSION__'
+          generateReleaseNotes: true
+          uploadUpdaterJson: true
+          tauriScript: pnpm tauri
