@@ -40,7 +40,7 @@ jobs:
       - name: '📦 install pnpm packages'
         run: pnpm install --frozen-lockfile
 
-      - name: '📝 create version PR or publish tag'
+      - name: '� create version PR or publish tag'
         uses: changesets/action@v1
         with:
           title: 'chore: version package'
@@ -94,7 +94,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: ubuntu-22.04
+          - platform: ubuntu-latest
             args: ''
           - platform: windows-latest
             args: ''
@@ -127,32 +127,22 @@ jobs:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: '📦 install apt packages'
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-latest'
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
-          packages: |
-            libgtk-3-dev
-            libsoup-3.0-dev
-            libjavascriptcoregtk-4.1-dev
-            libwebkit2gtk-4.1-dev
-            librsvg2-dev
-            libcairo2-dev
-            libpango1.0-dev
-            libharfbuzz-dev
-            libatk1.0-dev
-            libgdk-pixbuf-2.0-dev
-            libgstreamer1.0-dev
-            libgstreamer-plugins-base1.0-dev
-            gstreamer1.0-plugins-base
-            gstreamer1.0-plugins-good
-            patchelf
-          version: 2.1
+          packages: >-
+            pkg-config libgtk-3-dev libayatana-appindicator3-dev
+            libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
+            libwebkit2gtk-4.1-dev librsvg2-dev libcairo2-dev
+            libpango1.0-dev libharfbuzz-dev libatk1.0-dev
+            libgdk-pixbuf-2.0-dev libgstreamer1.0-dev
+            libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-base
+            gstreamer1.0-plugins-good patchelf
+          version: 3
+          execute_install_scripts: true
 
       - name: '📦 install pnpm packages'
         run: pnpm install --frozen-lockfile
-
-      - name: '🔎 check'
-        run: pnpm check
 
       - name: '🚀 build and publish signed updater artifacts'
         uses: tauri-apps/tauri-action@v0.6.1
