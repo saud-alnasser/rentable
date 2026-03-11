@@ -2,19 +2,92 @@ name: '🚀 release'
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches: ['main']
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
   TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-  TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
 
 jobs:
-  publish-tauri:
+  changesets:
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.detect.outputs.should_publish }}
+      release_tag: ${{ steps.detect.outputs.release_tag }}
+
+    steps:
+      - name: '☁️ checkout repository'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: '🛠️ setup pnpm'
+        uses: pnpm/action-setup@v4
+
+      - name: '🔧 setup node'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: '📦 install pnpm packages'
+        run: pnpm install --frozen-lockfile
+
+      - name: '📝 create version PR or publish tag'
+        uses: changesets/action@v1
+        with:
+          title: 'chore: version package'
+          commit: 'chore: version package'
+          version: node .github/changeset-version.cjs
+          publish: node .github/changeset-tag.cjs
+
+      - name: '🔎 detect latest tag needing artifacts'
+        id: detect
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('node:child_process');
+
+            execSync('git fetch --tags --force', { stdio: 'inherit' });
+
+            const latestVersionTag = execSync("git tag --list 'v*.*.*' --sort=-version:refname | head -n 1", {
+              encoding: 'utf8',
+              shell: '/bin/bash',
+            }).trim();
+
+            if (!latestVersionTag) {
+              core.info('No version tags found. Skipping artifacts job.');
+              core.setOutput('should_publish', 'false');
+              core.setOutput('release_tag', '');
+              return;
+            }
+
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+
+            const releaseForLatestTag = releases.find((release) => release.tag_name === latestVersionTag);
+            const latestArtifactTag = releaseForLatestTag?.tag_name ?? '';
+            const shouldPublish = latestArtifactTag !== latestVersionTag;
+
+            core.info(`Latest version tag: ${latestVersionTag}`);
+            core.info(`Latest artifact tag: ${latestArtifactTag || '(none)'}`);
+
+            core.setOutput('should_publish', shouldPublish ? 'true' : 'false');
+            core.setOutput('release_tag', latestVersionTag);
+
+  artifacts:
+    needs: changesets
+    if: needs.changesets.outputs.should_publish == 'true'
     permissions:
       contents: write
     strategy:
@@ -22,14 +95,21 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-22.04
+            args: ''
           - platform: windows-latest
-          - platform: macos-latest
+            args: ''
+          - platform: macos-latest # for intel based macs
+            args: '--target x86_64-apple-darwin'
+          - platform: macos-latest # for arm based macs
+            args: '--target aarch64-apple-darwin'
 
     runs-on: ${{ matrix.platform }}
 
     steps:
       - name: '☁️ checkout repository'
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.changesets.outputs.release_tag }}
 
       - name: '🛠️ setup pnpm'
         uses: pnpm/action-setup@v4
@@ -42,6 +122,9 @@ jobs:
 
       - name: '🦀 install rust stable'
         uses: dtolnay/rust-toolchain@stable
+        with:
+          # those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: '📦 install apt packages'
         if: matrix.platform == 'ubuntu-22.04'
@@ -69,14 +152,16 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: '🔎 check'
-        if: matrix.platform == 'ubuntu-22.04'
         run: pnpm check
 
       - name: '🚀 build and publish signed updater artifacts'
         uses: tauri-apps/tauri-action@v1
         with:
-          tagName: __VERSION__
-          releaseName: 'rentable v__VERSION__'
+          tagName: ${{ needs.changesets.outputs.release_tag }}
+          releaseName: 'rentable ${{ needs.changesets.outputs.release_tag }}'
           generateReleaseNotes: true
           uploadUpdaterJson: true
           tauriScript: pnpm tauri
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
