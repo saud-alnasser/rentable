@@ -1,5 +1,11 @@
 # rentable
 
+## 0.4.2
+
+### Patch Changes
+
+- [#54](https://github.com/saud-alnasser/rentable/pull/54) [`ffbeb85`](https://github.com/saud-alnasser/rentable/commit/ffbeb85b2ecd43e66293e05c9200a75d2d1c965e) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - added checking status in update settings
+
 ## 0.4.1
 
 ### Patch Changes
