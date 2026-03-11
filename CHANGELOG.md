@@ -1,5 +1,11 @@
 # rentable
 
+## 0.4.1
+
+### Patch Changes
+
+- [#49](https://github.com/saud-alnasser/rentable/pull/49) [`abf57ab`](https://github.com/saud-alnasser/rentable/commit/abf57ab20f07dfefe9c0413edd256232c82a3c70) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - fixed ending soon window settings to make changes
+
 ## 0.4.0
 
 ### Minor Changes
