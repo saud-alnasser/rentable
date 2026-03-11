@@ -144,7 +144,7 @@ test('deriveContractStatus returns expired after the end date when fully paid', 
 			{
 				status: 'active',
 				start: new Date('2026-01-01T00:00:00.000Z'),
-				end: new Date('2026-01-31T00:00:00.000Z'),
+				end: new Date('2026-01-30T00:00:00.000Z'),
 				interval: '1m',
 				cost: 1000
 			},
@@ -166,7 +166,7 @@ test('deriveContractStatus returns defaulted after the end date when underpaid',
 			{
 				status: 'active',
 				start: new Date('2026-01-01T00:00:00.000Z'),
-				end: new Date('2026-01-31T00:00:00.000Z'),
+				end: new Date('2026-01-30T00:00:00.000Z'),
 				interval: '1m',
 				cost: 1000
 			},
@@ -202,20 +202,20 @@ test('getContractPaymentSummary returns paid and expected amounts for the contra
 	);
 });
 
-test('getContractPaymentSummary keeps near-whole cycle totals aligned with validation', () => {
+test('getContractPaymentSummary keeps fixed 30-day cycle totals aligned with validation', () => {
 	assert.deepEqual(
 		getContractPaymentSummary(
 			{
 				status: 'active',
-				start: new Date('2026-01-10T00:00:00.000Z'),
-				end: new Date('2028-01-10T00:00:00.000Z'),
+				start: new Date('2026-01-01T00:00:00.000Z'),
+				end: new Date('2027-12-21T00:00:00.000Z'),
 				interval: '12m',
 				cost: 1000
 			},
 			[
 				{
 					amount: 500,
-					date: new Date('2026-01-10T00:00:00.000Z')
+					date: new Date('2026-01-01T00:00:00.000Z')
 				}
 			]
 		),
@@ -302,25 +302,25 @@ test('hasSatisfiedContractPaymentRequirement locks by required amount, not payme
 	assert.equal(hasSatisfiedContractPaymentRequirement(999.99, 1000), false);
 });
 
-test('hasValidContractPeriodForInterval accepts arbitrary start dates once the minimum monthly span is met', () => {
+test('hasValidContractPeriodForInterval accepts exact 30-day monthly periods on arbitrary start dates', () => {
 	assert.equal(
 		hasValidContractPeriodForInterval({
-			start: new Date('2026-01-12T00:00:00.000Z'),
-			end: new Date('2026-02-08T00:00:00.000Z'),
+			start: new Date('2026-03-10T00:00:00.000Z'),
+			end: new Date('2026-04-08T00:00:00.000Z'),
 			interval: '1m'
 		}),
 		true
 	);
 });
 
-test('hasValidContractPeriodForInterval accepts flexible periods that extend beyond exact cycle boundaries', () => {
+test('hasValidContractPeriodForInterval rejects periods that are not a whole number of fixed 30-day cycles', () => {
 	assert.equal(
 		hasValidContractPeriodForInterval({
-			start: new Date('2026-01-10T00:00:00.000Z'),
-			end: new Date('2026-02-20T00:00:00.000Z'),
+			start: new Date('2026-03-10T00:00:00.000Z'),
+			end: new Date('2026-04-09T00:00:00.000Z'),
 			interval: '1m'
 		}),
-		true
+		false
 	);
 	assert.equal(
 		hasValidContractPeriodForInterval({
@@ -328,7 +328,7 @@ test('hasValidContractPeriodForInterval accepts flexible periods that extend bey
 			end: new Date('2026-04-15T00:00:00.000Z'),
 			interval: '3m'
 		}),
-		true
+		false
 	);
 });
 
@@ -336,14 +336,14 @@ test('hasValidContractPeriodForInterval accepts longer annual terms on non-first
 	assert.equal(
 		hasValidContractPeriodForInterval({
 			start: new Date('2026-01-12T00:00:00.000Z'),
-			end: new Date('2027-01-10T00:00:00.000Z'),
+			end: new Date('2027-01-06T00:00:00.000Z'),
 			interval: '12m'
 		}),
 		true
 	);
 });
 
-test('hasValidContractPeriodForInterval rejects periods shorter than the interval minimum', () => {
+test('hasValidContractPeriodForInterval rejects periods shorter than the selected interval cycle', () => {
 	assert.equal(
 		hasValidContractPeriodForInterval({
 			start: new Date('2026-01-12T00:00:00.000Z'),
@@ -364,8 +364,8 @@ test('hasValidContractPeriodForInterval rejects periods shorter than the interva
 
 	assert.equal(
 		hasValidContractPeriodForInterval({
-			start: new Date('2026-01-10T00:00:00.000Z'),
-			end: new Date('2026-12-10T00:00:00.000Z'),
+			start: new Date('2026-01-01T00:00:00.000Z'),
+			end: new Date('2026-12-25T00:00:00.000Z'),
 			interval: '12m'
 		}),
 		false

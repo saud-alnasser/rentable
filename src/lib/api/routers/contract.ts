@@ -81,7 +81,7 @@ function ensureValidContractPeriod(input: Pick<Contract, 'start' | 'end' | 'inte
 	if (!hasValidContractPeriodForInterval(input)) {
 		throw new TRPCError({
 			code: 'BAD_REQUEST',
-			message: `contract period must be at least ${getMinimumContractPeriodDays(input.interval)} days for a ${intervalLabels[input.interval]} payment cycle`
+			message: `contract period must be a whole number of ${getMinimumContractPeriodDays(input.interval)}-day ${intervalLabels[input.interval]} cycles`
 		});
 	}
 }
