@@ -1,13 +1,14 @@
 pub mod commands;
 pub mod database;
+pub mod settings;
 pub mod state;
 
+use database::Database;
+use settings::SettingsState;
 use state::AppState;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Manager;
-#[cfg(not(debug_assertions))]
-use tauri::path::BaseDirectory;
 use tauri_plugin_fs::FsExt;
 use tokio::sync::RwLock;
 
@@ -20,16 +21,23 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
+            let app_data_dir = app.path().app_data_dir()?;
+            app.fs_scope().allow_directory(&app_data_dir, true)?;
+            std::fs::create_dir_all(&app_data_dir)?;
+
             let db_dir: PathBuf = if cfg!(debug_assertions) {
-                let dir = std::env::current_dir()?;
-                std::fs::create_dir_all(&dir)?;
-                dir
+                let current_dir = std::env::current_dir()?;
+                std::fs::create_dir_all(&current_dir)?;
+                current_dir
             } else {
-                let app_data_dir = app.path().app_data_dir()?;
-                app.fs_scope().allow_directory(&app_data_dir, true)?;
-                std::fs::create_dir_all(&app_data_dir)?;
-                app_data_dir
+                app_data_dir.clone()
             };
+
+            let default_db_path = Database::default_path_in(&db_dir);
+            let settings_path = app_data_dir.join("settings.json");
+            let backup_dir = app_data_dir.join("backups");
+            let settings_state = SettingsState::load(settings_path, backup_dir)?;
+            let active_db_path = settings_state.resolved_database_path(&default_db_path);
 
             let migration_dir: PathBuf = if cfg!(debug_assertions) {
                 PathBuf::from("migrations")
@@ -40,8 +48,11 @@ pub fn run() {
 
             let app_state = AppState {
                 db: Arc::new(RwLock::new(None)),
-                db_dir,
+                default_db_path,
+                active_db_path: Arc::new(RwLock::new(active_db_path)),
                 migration_dir,
+                settings: Arc::new(RwLock::new(settings_state)),
+                version: env!("CARGO_PKG_VERSION"),
             };
 
             app.manage(app_state);
@@ -62,6 +73,14 @@ pub fn run() {
             database::commands::db_connect,
             database::commands::db_disconnect,
             database::commands::db_purge,
+            settings::settings_get,
+            settings::settings_set_ending_soon_notice_days,
+            settings::settings_set_database_path,
+            settings::settings_reset_database_path,
+            settings::settings_create_backup,
+            settings::settings_delete_backup,
+            settings::settings_restore_backup,
+            settings::settings_mark_synced,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
