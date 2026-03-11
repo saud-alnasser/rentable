@@ -22,7 +22,7 @@
 		useSetDatabasePath,
 		useSetEndingSoonNoticeDays
 	} from '$lib/resources/settings/hooks/queries';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
 	const settingsQuery = useFetchSettings();
@@ -105,10 +105,6 @@
 
 		endingSoonNoticeDaysValue = settings.endingSoonNoticeDays;
 		databasePathValue = settings.usingDefaultDatabasePath ? '' : settings.currentDatabasePath;
-	});
-
-	onMount(() => {
-		void checkForUpdates();
 	});
 
 	onDestroy(() => {
@@ -564,13 +560,18 @@
 							</Button>
 
 							{#if availableUpdate}
-								<Button onclick={() => void installUpdate()} disabled={isInstallingUpdate}>
+								<Button
+									onclick={() => void installUpdate()}
+									disabled={isInstallingUpdate || isCheckingForUpdate}
+								>
 									{isInstallingUpdate ? 'installing update...' : 'download & install'}
 								</Button>
 							{/if}
 						</div>
 
-						{#if updateCheckError}
+						{#if isCheckingForUpdate}
+							<Callout variant="info">checking for update...</Callout>
+						{:else if updateCheckError}
 							<Callout variant="error">{updateCheckError}</Callout>
 						{:else if availableUpdate}
 							<Callout variant="info">
