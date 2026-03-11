@@ -2,7 +2,7 @@ import type { Contract } from '$lib/api/database/schema';
 
 type DateLike = Date | number;
 
-const DASHBOARD_ENDING_SOON_NOTICE_DAYS = 60;
+export const DEFAULT_DASHBOARD_ENDING_SOON_NOTICE_DAYS = 60;
 
 function toUtcDay(value: DateLike) {
 	const date = value instanceof Date ? value : new Date(value);
@@ -66,7 +66,8 @@ export function shouldIncludeDashboardFollowUp(
 export function isContractEndingSoon(
 	status: Contract['status'],
 	contractEnd: DateLike,
-	now: DateLike = Date.now()
+	now: DateLike = Date.now(),
+	noticeWindowDays: number = DEFAULT_DASHBOARD_ENDING_SOON_NOTICE_DAYS
 ) {
 	if (status !== 'active' && status !== 'fulfilled') {
 		return false;
@@ -74,9 +75,10 @@ export function isContractEndingSoon(
 
 	const today = toUtcDay(now);
 	const end = toUtcDay(contractEnd);
+	const normalizedNoticeWindowDays = Math.max(Math.floor(noticeWindowDays), 0);
 
 	return (
 		end.getTime() >= today.getTime() &&
-		end.getTime() <= addUtcDays(today, DASHBOARD_ENDING_SOON_NOTICE_DAYS).getTime()
+		end.getTime() <= addUtcDays(today, normalizedNoticeWindowDays).getTime()
 	);
 }

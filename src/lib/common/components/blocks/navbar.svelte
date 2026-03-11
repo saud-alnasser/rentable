@@ -10,6 +10,7 @@
 	import ContractIcon from '@tabler/icons-svelte/icons/contract';
 	import Home2Icon from '@tabler/icons-svelte/icons/home-2';
 	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
+	import SettingsIcon from '@tabler/icons-svelte/icons/settings';
 	import UserIcon from '@tabler/icons-svelte/icons/user';
 
 	type Item = { label: string; icon: Icon; url: Pathname };
@@ -34,6 +35,11 @@
 			label: 'contracts',
 			icon: ContractIcon,
 			url: '/contracts'
+		},
+		{
+			label: 'settings',
+			icon: SettingsIcon,
+			url: '/settings'
 		}
 	];
 

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+	DEFAULT_DASHBOARD_ENDING_SOON_NOTICE_DAYS,
 	getCollectionProgress,
 	getDashboardFollowUpAmount,
 	getDashboardRate,
@@ -48,12 +49,18 @@ test('dashboard portfolio helper excludes terminated contracts from the live por
 	assert.equal(isContractIncludedInDashboardPortfolio('terminated'), false);
 });
 
-test('ending soon helper uses a fixed 60-day window for active and fulfilled contracts', () => {
+test('ending soon helper uses the default notice window and supports custom overrides', () => {
 	const now = new Date('2026-01-01T00:00:00.000Z');
 
+	assert.equal(DEFAULT_DASHBOARD_ENDING_SOON_NOTICE_DAYS, 60);
 	assert.equal(isContractEndingSoon('active', new Date('2026-03-02T00:00:00.000Z'), now), true);
 	assert.equal(isContractEndingSoon('fulfilled', new Date('2026-02-15T00:00:00.000Z'), now), true);
 	assert.equal(isContractEndingSoon('active', new Date('2026-03-03T00:00:00.000Z'), now), false);
+	assert.equal(isContractEndingSoon('active', new Date('2026-01-31T00:00:00.000Z'), now, 30), true);
+	assert.equal(
+		isContractEndingSoon('active', new Date('2026-02-01T00:00:00.000Z'), now, 30),
+		false
+	);
 	assert.equal(isContractEndingSoon('defaulted', new Date('2026-02-15T00:00:00.000Z'), now), false);
 	assert.equal(isContractEndingSoon('active', new Date('2025-12-31T00:00:00.000Z'), now), false);
 });

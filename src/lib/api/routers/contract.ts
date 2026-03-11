@@ -5,6 +5,7 @@ import {
 	type Contract,
 	type Payment
 } from '$lib/api/database/schema';
+import { tauri } from '$lib/api/tauri';
 import { procedure, router } from '$lib/api/trpc';
 import {
 	canManuallyTerminateContractStatus,
@@ -650,6 +651,7 @@ export default router({
 		const now = Date.now();
 		const today = toUtcDay(now);
 		const month = getCurrentMonthBounds(now);
+		const settings = await tauri.settings.get();
 
 		const contracts = await ctx.db
 			.select({
@@ -728,7 +730,12 @@ export default router({
 			);
 
 		const endingSoonContracts = contexts.filter(({ contract, serializedContract }) =>
-			isContractEndingSoon(serializedContract.status, contract.end, now)
+			isContractEndingSoon(
+				serializedContract.status,
+				contract.end,
+				now,
+				settings.endingSoonNoticeDays
+			)
 		);
 		const portfolioContexts = contexts.filter(({ serializedContract }) =>
 			isContractIncludedInDashboardPortfolio(serializedContract.status)
