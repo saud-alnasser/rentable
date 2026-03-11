@@ -30,6 +30,12 @@ export default router({
 	createBackup: procedure.public.mutation(async (): Promise<SettingsSnapshot> => {
 		return tauri.settings.createBackup();
 	}),
+	proceedFailedUpdate: procedure.public.mutation(async (): Promise<SettingsSnapshot> => {
+		return tauri.settings.proceedFailedUpdate();
+	}),
+	rollbackFailedUpdate: procedure.public.mutation(async (): Promise<SettingsSnapshot> => {
+		return tauri.settings.rollbackFailedUpdate();
+	}),
 	deleteBackup: procedure.public
 		.input(
 			z.object({

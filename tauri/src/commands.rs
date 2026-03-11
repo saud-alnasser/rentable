@@ -31,3 +31,8 @@ pub fn window_start_dragging(window: tauri::Window) -> Result<(), String> {
 pub fn window_close(window: tauri::Window) -> Result<(), String> {
     window.close().map_err(|error| error.to_string())
 }
+
+#[tauri::command]
+pub fn window_restart(app: tauri::AppHandle) -> Result<(), String> {
+    app.restart();
+}

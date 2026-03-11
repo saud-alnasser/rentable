@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { tauri, type AvailableUpdate, type UpdaterDownloadEvent } from '$lib/api/tauri';
 	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
 	import { Button } from '$lib/common/components/fragments/button';
+	import { Callout } from '$lib/common/components/fragments/callout';
 	import {
 		Card,
 		CardContent,
@@ -20,6 +22,7 @@
 		useSetDatabasePath,
 		useSetEndingSoonNoticeDays
 	} from '$lib/resources/settings/hooks/queries';
+	import { onDestroy, onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
 	const settingsQuery = useFetchSettings();
@@ -34,6 +37,15 @@
 	let databasePathValue = $state('');
 	let isDeleteBackupDialogOpen = $state(false);
 	let backupToDelete = $state<string | null>(null);
+	let isCheckingForUpdate = $state(false);
+	let hasCheckedForUpdate = $state(false);
+	let availableUpdate = $state<AvailableUpdate | null>(null);
+	let updateCheckError = $state<string | null>(null);
+	let isInstallingUpdate = $state(false);
+	let updateInstallError = $state<string | null>(null);
+	let updateInstallComplete = $state(false);
+	let updateDownloadedBytes = $state(0);
+	let updateContentLength = $state<number | null>(null);
 
 	const isSavingDatabasePath = $derived.by(
 		() => setDatabasePathMutation.isPending || resetDatabasePathMutation.isPending
@@ -67,6 +79,14 @@
 			: !settings.usingDefaultDatabasePath;
 	});
 
+	const updateProgressPercent = $derived.by(() => {
+		if (!updateContentLength || updateContentLength <= 0) {
+			return null;
+		}
+
+		return Math.min(100, Math.round((updateDownloadedBytes / updateContentLength) * 100));
+	});
+
 	$effect(() => {
 		const settings = settingsQuery.data;
 		const isMutating =
@@ -82,6 +102,16 @@
 		databasePathValue = settings.usingDefaultDatabasePath ? '' : settings.currentDatabasePath;
 	});
 
+	onMount(() => {
+		void checkForUpdates();
+	});
+
+	onDestroy(() => {
+		if (availableUpdate) {
+			void availableUpdate.close();
+		}
+	});
+
 	function formatTimestamp(value: number | null | undefined) {
 		if (!value) {
 			return 'never';
@@ -94,7 +124,148 @@
 	}
 
 	function getErrorMessage(error: unknown) {
-		return error instanceof Error ? error.message : 'unexpected error occurred!';
+		if (error instanceof Error && error.message.trim()) {
+			return error.message;
+		}
+
+		if (typeof error === 'string' && error.trim()) {
+			return error;
+		}
+
+		if (error && typeof error === 'object' && 'message' in error) {
+			const message = error.message;
+
+			if (typeof message === 'string' && message.trim()) {
+				return message;
+			}
+		}
+
+		return 'unexpected error occurred!';
+	}
+
+	function logUpdaterError(action: string, error: unknown) {
+		if (import.meta.env.DEV) {
+			console.error(`[updater] ${action} failed`, error);
+		}
+	}
+
+	function formatReleaseDate(value: string | null | undefined) {
+		if (!value) {
+			return 'unknown';
+		}
+
+		const date = new Date(value);
+
+		return Number.isNaN(date.valueOf())
+			? value
+			: new Intl.DateTimeFormat('en-GB', {
+					dateStyle: 'medium',
+					timeStyle: 'short'
+				}).format(date);
+	}
+
+	function formatBytes(value: number | null | undefined) {
+		if (!value || value <= 0) {
+			return null;
+		}
+
+		const units = ['B', 'KB', 'MB', 'GB'];
+		let size = value;
+		let unitIndex = 0;
+
+		while (size >= 1024 && unitIndex < units.length - 1) {
+			size /= 1024;
+			unitIndex += 1;
+		}
+
+		return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+	}
+
+	async function closeAvailableUpdate() {
+		if (!availableUpdate) {
+			return;
+		}
+
+		try {
+			await availableUpdate.close();
+		} catch {}
+	}
+
+	async function checkForUpdates() {
+		if (isCheckingForUpdate || isInstallingUpdate) {
+			return;
+		}
+
+		isCheckingForUpdate = true;
+		updateCheckError = null;
+		updateInstallError = null;
+		updateInstallComplete = false;
+		updateDownloadedBytes = 0;
+		updateContentLength = null;
+
+		try {
+			const update = await tauri.updater.check();
+
+			await closeAvailableUpdate();
+			availableUpdate = update;
+			hasCheckedForUpdate = true;
+		} catch (error) {
+			logUpdaterError('check for updates', error);
+			updateCheckError = getErrorMessage(error);
+			hasCheckedForUpdate = true;
+		}
+
+		isCheckingForUpdate = false;
+	}
+
+	async function installUpdate() {
+		const update = availableUpdate;
+
+		if (!update || isInstallingUpdate) {
+			return;
+		}
+
+		isInstallingUpdate = true;
+		updateInstallError = null;
+		updateInstallComplete = false;
+		updateDownloadedBytes = 0;
+		updateContentLength = null;
+
+		try {
+			await update.downloadAndInstall((event: UpdaterDownloadEvent) => {
+				switch (event.event) {
+					case 'Started':
+						updateContentLength = event.data.contentLength ?? null;
+						updateDownloadedBytes = 0;
+						break;
+					case 'Progress':
+						updateDownloadedBytes += event.data.chunkLength;
+						break;
+					case 'Finished':
+						if (updateContentLength) {
+							updateDownloadedBytes = updateContentLength;
+						}
+						break;
+				}
+			});
+
+			updateInstallComplete = true;
+			availableUpdate = null;
+			await update.close();
+		} catch (error) {
+			logUpdaterError('install update', error);
+			updateInstallError = getErrorMessage(error);
+		}
+
+		isInstallingUpdate = false;
+	}
+
+	async function restartApp() {
+		try {
+			await tauri.window.restart();
+		} catch (error) {
+			toast.error(getErrorMessage(error));
+		}
 	}
 
 	async function saveEndingSoonNoticeDays() {
@@ -164,7 +335,7 @@
 	<div class="flex flex-col gap-1">
 		<h1 class="text-3xl font-semibold tracking-tight">Settings</h1>
 		<p class="text-sm text-muted-foreground">
-			manage the ending-soon notice window, database path, backups, and app metadata.
+			manage the ending-soon notice window, app updates, database path, backups, and app metadata.
 		</p>
 	</div>
 
@@ -364,47 +535,158 @@
 				</Card>
 			</div>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>about</CardTitle>
-					<CardDescription>current app metadata and recent sync/backup timestamps.</CardDescription>
-				</CardHeader>
-				<CardContent class="space-y-3">
-					<div class="rounded-lg border bg-muted/15 p-3">
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">app version</p>
-						<p class="mt-1 text-base font-semibold">{settingsQuery.data.version}</p>
-					</div>
+			<div class="space-y-4">
+				<Card>
+					<CardHeader>
+						<CardTitle>app updates</CardTitle>
+						<CardDescription>
+							check GitHub Releases for a newer signed build. if startup later fails after an
+							update, rentable will offer rollback to the protected pre-update backup.
+						</CardDescription>
+					</CardHeader>
+					<CardContent class="space-y-4">
+						<div class="rounded-lg border bg-muted/15 p-3">
+							<p class="text-xs tracking-wide text-muted-foreground uppercase">current version</p>
+							<p class="mt-1 text-base font-semibold">{settingsQuery.data.version}</p>
+						</div>
 
-					<div class="rounded-lg border bg-muted/15 p-3">
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">last sync time</p>
-						<p class="mt-1 text-base font-semibold">
-							{formatTimestamp(settingsQuery.data.lastSyncAt)}
-						</p>
-					</div>
+						<div class="flex flex-wrap gap-3">
+							<Button
+								onclick={() => void checkForUpdates()}
+								disabled={isCheckingForUpdate || isInstallingUpdate}
+							>
+								{isCheckingForUpdate ? 'checking for updates...' : 'check for updates'}
+							</Button>
 
-					<div class="rounded-lg border bg-muted/15 p-3">
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">last backup time</p>
-						<p class="mt-1 text-base font-semibold">
-							{formatTimestamp(settingsQuery.data.lastBackupAt)}
-						</p>
-					</div>
+							{#if availableUpdate}
+								<Button onclick={() => void installUpdate()} disabled={isInstallingUpdate}>
+									{isInstallingUpdate ? 'installing update...' : 'download & install'}
+								</Button>
+							{/if}
+						</div>
 
-					<div class="rounded-lg border bg-muted/15 p-3">
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">backup count</p>
-						<p class="mt-1 text-base font-semibold">{settingsQuery.data.backups.length}</p>
-					</div>
+						{#if updateCheckError}
+							<Callout variant="error">{updateCheckError}</Callout>
+						{:else if availableUpdate}
+							<Callout variant="info">
+								update v{availableUpdate.version} is available.
+							</Callout>
+						{:else if hasCheckedForUpdate}
+							<Callout variant="success">you’re already on the latest release.</Callout>
+						{/if}
 
-					{#if settingsQuery.data.usingDefaultDatabasePath}
-						<p class="text-sm text-muted-foreground">
-							the app is currently using the default database path.
-						</p>
-					{:else}
-						<p class="text-sm text-muted-foreground">
-							the app is currently using a custom database path override.
-						</p>
-					{/if}
-				</CardContent>
-			</Card>
+						{#if availableUpdate}
+							<div class="space-y-3 rounded-lg border bg-muted/10 p-3">
+								<div class="grid gap-3 sm:grid-cols-2">
+									<div>
+										<p class="text-xs tracking-wide text-muted-foreground uppercase">
+											available version
+										</p>
+										<p class="mt-1 font-semibold">v{availableUpdate.version}</p>
+									</div>
+									<div>
+										<p class="text-xs tracking-wide text-muted-foreground uppercase">
+											release date
+										</p>
+										<p class="mt-1 font-semibold">{formatReleaseDate(availableUpdate.date)}</p>
+									</div>
+								</div>
+
+								{#if availableUpdate.body}
+									<div class="space-y-2 border-t pt-3">
+										<p class="text-xs tracking-wide text-muted-foreground uppercase">
+											release notes
+										</p>
+										<p class="text-sm whitespace-pre-wrap text-muted-foreground">
+											{availableUpdate.body}
+										</p>
+									</div>
+								{/if}
+							</div>
+						{/if}
+
+						{#if isInstallingUpdate}
+							<Callout variant="info">
+								downloading update
+								{#if formatBytes(updateDownloadedBytes)}
+									({formatBytes(updateDownloadedBytes)}
+									{#if formatBytes(updateContentLength)}
+										/ {formatBytes(updateContentLength)}{/if})
+								{/if}
+								{#if updateProgressPercent !== null}
+									· {updateProgressPercent}%
+								{/if}
+							</Callout>
+
+							{#if updateProgressPercent !== null}
+								<div class="h-2 overflow-hidden rounded-full bg-muted">
+									<div
+										class="h-full bg-primary transition-[width]"
+										style={`width: ${updateProgressPercent}%`}
+									></div>
+								</div>
+							{/if}
+						{/if}
+
+						{#if updateInstallError}
+							<Callout variant="error">{updateInstallError}</Callout>
+						{/if}
+
+						{#if updateInstallComplete}
+							<Callout variant="success">
+								the update has been installed. on Windows the app may close automatically during
+								installation; otherwise restart rentable to finish switching versions.
+							</Callout>
+
+							<Button onclick={() => void restartApp()}>restart app</Button>
+						{/if}
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle>about</CardTitle>
+						<CardDescription
+							>current app metadata and recent sync/backup timestamps.</CardDescription
+						>
+					</CardHeader>
+					<CardContent class="space-y-3">
+						<div class="rounded-lg border bg-muted/15 p-3">
+							<p class="text-xs tracking-wide text-muted-foreground uppercase">app version</p>
+							<p class="mt-1 text-base font-semibold">{settingsQuery.data.version}</p>
+						</div>
+
+						<div class="rounded-lg border bg-muted/15 p-3">
+							<p class="text-xs tracking-wide text-muted-foreground uppercase">last sync time</p>
+							<p class="mt-1 text-base font-semibold">
+								{formatTimestamp(settingsQuery.data.lastSyncAt)}
+							</p>
+						</div>
+
+						<div class="rounded-lg border bg-muted/15 p-3">
+							<p class="text-xs tracking-wide text-muted-foreground uppercase">last backup time</p>
+							<p class="mt-1 text-base font-semibold">
+								{formatTimestamp(settingsQuery.data.lastBackupAt)}
+							</p>
+						</div>
+
+						<div class="rounded-lg border bg-muted/15 p-3">
+							<p class="text-xs tracking-wide text-muted-foreground uppercase">backup count</p>
+							<p class="mt-1 text-base font-semibold">{settingsQuery.data.backups.length}</p>
+						</div>
+
+						{#if settingsQuery.data.usingDefaultDatabasePath}
+							<p class="text-sm text-muted-foreground">
+								the app is currently using the default database path.
+							</p>
+						{:else}
+							<p class="text-sm text-muted-foreground">
+								the app is currently using a custom database path override.
+							</p>
+						{/if}
+					</CardContent>
+				</Card>
+			</div>
 		</div>
 	{/if}
 </div>

@@ -128,6 +128,50 @@ export function useCreateBackup(
 	}));
 }
 
+export function useProceedFailedUpdate(
+	opts: MutationOptions = {
+		toast: {
+			success: 'startup recovery cleared. retrying the current version is now allowed.',
+			error: true,
+			unexpected: 'unexpected error occurred!'
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: () => api.settings.proceedFailedUpdate(),
+		onSuccess: async () => {
+			await invalidateSettingsAndAppData(client);
+
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+export function useRollbackFailedUpdate(
+	opts: MutationOptions = {
+		toast: {
+			success: 'protected update backup restored successfully!',
+			error: true,
+			unexpected: 'unexpected error occurred!'
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: () => api.settings.rollbackFailedUpdate(),
+		onSuccess: async () => {
+			await invalidateSettingsAndAppData(client);
+
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
 export function useDeleteBackup(
 	opts: MutationOptions = {
 		toast: {

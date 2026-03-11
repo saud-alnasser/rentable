@@ -17,9 +17,18 @@ pub fn run() {
     #[cfg(debug_assertions)]
     dotenvy::dotenv().ok();
 
+    let mut updater_plugin = tauri_plugin_updater::Builder::new();
+
+    if let Some(public_key) =
+        option_env!("TAURI_UPDATER_PUBLIC_KEY").filter(|value| !value.trim().is_empty())
+    {
+        updater_plugin = updater_plugin.pubkey(public_key);
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(updater_plugin.build())
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             app.fs_scope().allow_directory(&app_data_dir, true)?;
@@ -66,6 +75,7 @@ pub fn run() {
             commands::window_toggle_maximize,
             commands::window_start_dragging,
             commands::window_close,
+            commands::window_restart,
             database::commands::db_execute_single_sql,
             database::commands::db_execute_batch_sql,
             database::commands::db_does_exist,
@@ -80,6 +90,8 @@ pub fn run() {
             settings::settings_create_backup,
             settings::settings_delete_backup,
             settings::settings_restore_backup,
+            settings::settings_proceed_failed_update,
+            settings::settings_rollback_failed_update,
             settings::settings_mark_synced,
         ])
         .run(tauri::generate_context!())

@@ -7,6 +7,7 @@ use std::{
 };
 
 pub const DEFAULT_ENDING_SOON_NOTICE_DAYS: u16 = 60;
+const RELEASES_BASE_URL: &str = "https://github.com/saud-alnasser/rentable/releases";
 
 fn default_ending_soon_notice_days() -> u16 {
     DEFAULT_ENDING_SOON_NOTICE_DAYS
@@ -30,6 +31,16 @@ fn update_backup_name(version: &str, timestamp: i64) -> String {
 
 fn manual_backup_name(timestamp: i64) -> String {
     format!("backup-{}.db", timestamp)
+}
+
+fn release_url_for_version(version: Option<&str>) -> String {
+    match version
+        .map(normalize_version)
+        .filter(|value| !value.is_empty())
+    {
+        Some(version) => format!("{RELEASES_BASE_URL}/tag/v{version}"),
+        None => RELEASES_BASE_URL.to_string(),
+    }
 }
 
 fn parse_update_backup_name(name: &str) -> Option<(&str, &str)> {
@@ -147,6 +158,54 @@ async fn snapshot(app_state: &AppState) -> Result<SettingsSnapshot, String> {
     settings.snapshot(app_state, &current_database_path)
 }
 
+async fn replace_active_database_from_backup(
+    app_state: &AppState,
+    backup_path: &Path,
+) -> Result<(), String> {
+    let active_db_path = app_state.active_db_path.read().await.clone();
+    let db = {
+        let mut db_state = app_state.db.write().await;
+
+        db_state.take()
+    };
+
+    if let Some(db) = db {
+        db.disconnect().await;
+    }
+
+    Database::purge_path(&active_db_path)?;
+
+    if let Some(parent) = active_db_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+
+    fs::copy(backup_path, &active_db_path).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum UpdateRecoveryStatus {
+    #[default]
+    Pending,
+    RolledBack,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedUpdateRecovery {
+    pub failed_version: String,
+    #[serde(default)]
+    pub previous_version: Option<String>,
+    pub backup_name: String,
+    pub error: String,
+    #[serde(default)]
+    pub status: UpdateRecoveryStatus,
+    #[serde(default)]
+    pub detected_at: i64,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PersistedSettings {
@@ -160,6 +219,8 @@ pub struct PersistedSettings {
     pub last_sync_at: Option<i64>,
     #[serde(default)]
     pub last_backup_at: Option<i64>,
+    #[serde(default)]
+    pub update_recovery: Option<PersistedUpdateRecovery>,
 }
 
 impl Default for PersistedSettings {
@@ -170,6 +231,7 @@ impl Default for PersistedSettings {
             last_app_version: None,
             last_sync_at: None,
             last_backup_at: None,
+            update_recovery: None,
         }
     }
 }
@@ -185,6 +247,24 @@ impl PersistedSettings {
             .as_deref()
             .map(normalize_version)
             .filter(|value| !value.is_empty());
+
+        if let Some(recovery) = self.update_recovery.as_mut() {
+            recovery.failed_version = normalize_version(&recovery.failed_version);
+            recovery.previous_version = recovery
+                .previous_version
+                .as_deref()
+                .map(normalize_version)
+                .filter(|value| !value.is_empty());
+            recovery.backup_name = recovery.backup_name.trim().to_string();
+            recovery.error = recovery.error.trim().to_string();
+
+            if recovery.failed_version.is_empty()
+                || recovery.backup_name.is_empty()
+                || recovery.error.is_empty()
+            {
+                self.update_recovery = None;
+            }
+        }
     }
 }
 
@@ -266,8 +346,90 @@ impl SettingsState {
         ))))
     }
 
+    pub fn update_backup_name_for_version(&self, version: &str) -> Result<Option<String>, String> {
+        Ok(list_backups(&self.backup_dir)?
+            .into_iter()
+            .find(|backup| {
+                backup.is_protected && is_update_backup_for_version(&backup.name, version)
+            })
+            .map(|backup| backup.name))
+    }
+
     pub fn record_backup_created(&mut self, timestamp: i64) -> Result<(), String> {
         self.data.last_backup_at = Some(timestamp);
+        self.save()
+    }
+
+    pub fn record_update_failure(
+        &mut self,
+        failed_version: &str,
+        previous_version: Option<String>,
+        backup_name: &str,
+        error: &str,
+    ) -> Result<(), String> {
+        let failed_version = normalize_version(failed_version);
+        let backup_name = backup_name.trim();
+        let error = error.trim();
+
+        if failed_version.is_empty() || backup_name.is_empty() || error.is_empty() {
+            return Err(
+                "cannot record update recovery without a failed version, backup, and error"
+                    .to_string(),
+            );
+        }
+
+        self.data.update_recovery = Some(PersistedUpdateRecovery {
+            failed_version,
+            previous_version: previous_version
+                .as_deref()
+                .map(normalize_version)
+                .filter(|value| !value.is_empty()),
+            backup_name: backup_name.to_string(),
+            error: error.to_string(),
+            status: UpdateRecoveryStatus::Pending,
+            detected_at: now_millis(),
+        });
+
+        self.save()
+    }
+
+    pub fn clear_update_recovery(&mut self) -> Result<(), String> {
+        if self.data.update_recovery.is_none() {
+            return Ok(());
+        }
+
+        self.data.update_recovery = None;
+        self.save()
+    }
+
+    pub fn current_update_recovery(
+        &self,
+        current_version: &str,
+    ) -> Option<PersistedUpdateRecovery> {
+        let recovery = self.data.update_recovery.clone()?;
+
+        if recovery.failed_version != normalize_version(current_version) {
+            return None;
+        }
+
+        Some(recovery)
+    }
+
+    pub fn mark_update_recovery_rolled_back(
+        &mut self,
+        current_version: &str,
+    ) -> Result<(), String> {
+        let recovery = self
+            .data
+            .update_recovery
+            .as_mut()
+            .ok_or("no failed update recovery is available".to_string())?;
+
+        if recovery.failed_version != normalize_version(current_version) {
+            return Err("no failed update recovery is available for this app version".to_string());
+        }
+
+        recovery.status = UpdateRecoveryStatus::RolledBack;
         self.save()
     }
 
@@ -279,6 +441,8 @@ impl SettingsState {
         } else {
             self.data.last_app_version = Some(normalized_version);
         }
+
+        self.data.update_recovery = None;
 
         self.save()
     }
@@ -297,7 +461,25 @@ impl SettingsState {
                 == app_state.default_db_path.as_path(),
             last_sync_at: self.data.last_sync_at,
             last_backup_at: self.data.last_backup_at,
+            update_recovery: self.current_update_recovery_snapshot(app_state.version),
             backups: list_backups(&self.backup_dir)?,
+        })
+    }
+
+    fn current_update_recovery_snapshot(
+        &self,
+        current_version: &str,
+    ) -> Option<UpdateRecoverySnapshot> {
+        let recovery = self.current_update_recovery(current_version)?;
+
+        Some(UpdateRecoverySnapshot {
+            failed_version: recovery.failed_version,
+            previous_version: recovery.previous_version.clone(),
+            backup_name: recovery.backup_name,
+            error: recovery.error,
+            status: recovery.status,
+            detected_at: recovery.detected_at,
+            previous_release_url: release_url_for_version(recovery.previous_version.as_deref()),
         })
     }
 }
@@ -320,7 +502,20 @@ pub struct SettingsSnapshot {
     pub using_default_database_path: bool,
     pub last_sync_at: Option<i64>,
     pub last_backup_at: Option<i64>,
+    pub update_recovery: Option<UpdateRecoverySnapshot>,
     pub backups: Vec<BackupEntry>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateRecoverySnapshot {
+    pub failed_version: String,
+    pub previous_version: Option<String>,
+    pub backup_name: String,
+    pub error: String,
+    pub status: UpdateRecoveryStatus,
+    pub detected_at: i64,
+    pub previous_release_url: String,
 }
 
 #[tauri::command]
@@ -427,32 +622,53 @@ pub async fn settings_restore_backup(
     app_state: tauri::State<'_, AppState>,
     name: String,
 ) -> Result<SettingsSnapshot, String> {
-    let active_db_path = app_state.active_db_path.read().await.clone();
     let backup_path = {
         let settings = app_state.settings.read().await;
 
         resolve_backup_path(&settings.backup_dir, &name)?
     };
 
-    let db = {
-        let mut db_state = app_state.db.write().await;
-
-        db_state.take()
-    };
-
-    if let Some(db) = db {
-        db.disconnect().await;
-    }
-
-    Database::purge_path(&active_db_path)?;
-
-    if let Some(parent) = active_db_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-
-    fs::copy(&backup_path, &active_db_path).map_err(|e| e.to_string())?;
+    replace_active_database_from_backup(app_state.inner(), &backup_path).await?;
 
     reconnect_database(app_state.inner()).await?;
+
+    snapshot(app_state.inner()).await
+}
+
+#[tauri::command]
+pub async fn settings_proceed_failed_update(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<SettingsSnapshot, String> {
+    {
+        let mut settings = app_state.settings.write().await;
+        settings.clear_update_recovery()?;
+    }
+
+    snapshot(app_state.inner()).await
+}
+
+#[tauri::command]
+pub async fn settings_rollback_failed_update(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<SettingsSnapshot, String> {
+    let recovery = {
+        let settings = app_state.settings.read().await;
+        settings
+            .current_update_recovery(app_state.version)
+            .ok_or("no failed update recovery is available".to_string())?
+    };
+
+    let backup_path = {
+        let settings = app_state.settings.read().await;
+        resolve_backup_path(&settings.backup_dir, &recovery.backup_name)?
+    };
+
+    replace_active_database_from_backup(app_state.inner(), &backup_path).await?;
+
+    {
+        let mut settings = app_state.settings.write().await;
+        settings.mark_update_recovery_rolled_back(app_state.version)?;
+    }
 
     snapshot(app_state.inner()).await
 }
@@ -500,7 +716,7 @@ pub async fn settings_mark_synced(
 mod tests {
     use super::{
         is_protected_backup_name, is_update_backup_for_version, manual_backup_name,
-        update_backup_name,
+        release_url_for_version, update_backup_name,
     };
 
     #[test]
@@ -528,5 +744,17 @@ mod tests {
             "backup-v0.3.0-update-34242.db",
             "0.4.0"
         ));
+    }
+
+    #[test]
+    fn release_urls_point_to_tagged_versions() {
+        assert_eq!(
+            release_url_for_version(Some("v0.2.0")),
+            "https://github.com/saud-alnasser/rentable/releases/tag/v0.2.0"
+        );
+        assert_eq!(
+            release_url_for_version(None),
+            "https://github.com/saud-alnasser/rentable/releases"
+        );
     }
 }
