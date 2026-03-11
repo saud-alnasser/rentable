@@ -26,6 +26,7 @@ import {
 	getDashboardFollowUpAmount,
 	getDashboardRate,
 	getOccupancyRate,
+	isContractEndingSoon,
 	isContractIncludedInDashboardPortfolio,
 	shouldIncludeDashboardFollowUp
 } from '$lib/api/utils/dashboard';
@@ -649,7 +650,6 @@ export default router({
 		const now = Date.now();
 		const today = toUtcDay(now);
 		const month = getCurrentMonthBounds(now);
-		const upcomingWindowEnd = addUtcDays(today, 30);
 
 		const contracts = await ctx.db
 			.select({
@@ -727,17 +727,9 @@ export default router({
 					left.tenantName.localeCompare(right.tenantName)
 			);
 
-		const endingSoonContracts = contexts.filter(({ contract, serializedContract }) => {
-			const status = serializedContract.status;
-			const contractEnd = toUtcDay(contract.end).getTime();
-			const todayTime = today.getTime();
-
-			return (
-				(status === 'active' || status === 'fulfilled') &&
-				contractEnd >= todayTime &&
-				contractEnd <= upcomingWindowEnd.getTime()
-			);
-		});
+		const endingSoonContracts = contexts.filter(({ contract, serializedContract }) =>
+			isContractEndingSoon(serializedContract.status, contract.end, now)
+		);
 		const portfolioContexts = contexts.filter(({ serializedContract }) =>
 			isContractIncludedInDashboardPortfolio(serializedContract.status)
 		);

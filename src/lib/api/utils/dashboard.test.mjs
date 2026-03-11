@@ -6,6 +6,7 @@ import {
 	getDashboardFollowUpAmount,
 	getDashboardRate,
 	getOccupancyRate,
+	isContractEndingSoon,
 	isContractIncludedInDashboardPortfolio,
 	shouldIncludeDashboardFollowUp
 } from './dashboard.ts';
@@ -45,4 +46,14 @@ test('dashboard portfolio helper excludes terminated contracts from the live por
 	assert.equal(isContractIncludedInDashboardPortfolio('active'), true);
 	assert.equal(isContractIncludedInDashboardPortfolio('defaulted'), true);
 	assert.equal(isContractIncludedInDashboardPortfolio('terminated'), false);
+});
+
+test('ending soon helper uses a fixed 60-day window for active and fulfilled contracts', () => {
+	const now = new Date('2026-01-01T00:00:00.000Z');
+
+	assert.equal(isContractEndingSoon('active', new Date('2026-03-02T00:00:00.000Z'), now), true);
+	assert.equal(isContractEndingSoon('fulfilled', new Date('2026-02-15T00:00:00.000Z'), now), true);
+	assert.equal(isContractEndingSoon('active', new Date('2026-03-03T00:00:00.000Z'), now), false);
+	assert.equal(isContractEndingSoon('defaulted', new Date('2026-02-15T00:00:00.000Z'), now), false);
+	assert.equal(isContractEndingSoon('active', new Date('2025-12-31T00:00:00.000Z'), now), false);
 });
