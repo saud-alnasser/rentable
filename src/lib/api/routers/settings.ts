@@ -53,5 +53,14 @@ export default router({
 		)
 		.mutation(async ({ input }): Promise<SettingsSnapshot> => {
 			return tauri.settings.restoreBackup(input.name);
+		}),
+	setLocale: procedure.public
+		.input(
+			z.object({
+				locale: z.string().trim().min(1)
+			})
+		)
+		.mutation(async ({ input }): Promise<SettingsSnapshot> => {
+			return tauri.settings.setLocale(input.locale);
 		})
 });

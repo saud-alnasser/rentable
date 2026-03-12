@@ -8,6 +8,7 @@
 	import { Label } from '$lib/common/components/fragments/label';
 	import * as Popover from '$lib/common/components/fragments/popover';
 	import { cn } from '$lib/common/utils/tailwind.js';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreatePayment, useUpdatePayment } from '$lib/resources/contracts/hooks/queries';
 	import {
 		DateFormatter,
@@ -20,16 +21,16 @@
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
-	import z from 'zod';
+	import { z } from 'zod';
 
 	const PaymentFormSchema = z.object({
-		date: z.string().min(1, 'payment date is required'),
+		date: z.string().min(1, $LL.contracts.form.paymentDateRequired()),
 		amount: z
 			.string()
 			.trim()
-			.min(1, 'payment amount is required')
+			.min(1, $LL.contracts.form.paymentAmountRequired())
 			.refine((value) => Number.isFinite(Number(value)) && Number(value) > 0, {
-				message: 'payment amount must be greater than zero'
+				message: $LL.contracts.form.paymentAmountGreaterThanZero()
 			})
 	});
 
@@ -66,7 +67,7 @@
 		}
 	};
 	const formatCalendarDate = (value: CalendarDate | undefined) =>
-		value ? dateFormatter.format(value.toDate(getLocalTimeZone())) : 'pick a date';
+		value ? dateFormatter.format(value.toDate(getLocalTimeZone())) : $LL.contracts.form.pickDate();
 
 	const getInitialForm = (payment?: Payment): PaymentForm =>
 		payment
@@ -113,10 +114,10 @@
 				} catch (e) {
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 						if (e.message.includes('amount')) {
-							setError(form, 'amount', 'payment amount must be greater than zero');
+							setError(form, 'amount', $LL.contracts.form.paymentAmountGreaterThanZero());
 						}
 					} else {
-						toast.error('unexpected error occurred!');
+						toast.error($LL.common.messages.unexpectedError());
 					}
 				}
 			}
@@ -143,7 +144,7 @@
 		<form method="POST" use:enhance class="flex flex-col gap-4">
 			<Form.Field form={superform} name="date">
 				<Form.Control>
-					<Label>Payment date</Label>
+					<Label>{$LL.common.labels.paymentDate()}</Label>
 					<input type="hidden" name="date" value={$form.date} />
 					<Popover.Root>
 						<Popover.Trigger>
@@ -178,7 +179,7 @@
 
 			<Form.Field form={superform} name="amount">
 				<Form.Control>
-					<Label>Amount</Label>
+					<Label>{$LL.common.labels.amount()}</Label>
 					<Input
 						type="number"
 						min="0.01"
@@ -197,7 +198,13 @@
 			</Form.Field>
 
 			<Button type="submit" disabled={isPending} class="capitalize">
-				{isEditMode ? (isPending ? 'saving...' : 'save') : isPending ? 'creating...' : 'create'}
+				{isEditMode
+					? isPending
+						? $LL.common.actions.saving()
+						: $LL.common.actions.save()
+					: isPending
+						? $LL.common.actions.creating()
+						: $LL.common.actions.create()}
 			</Button>
 		</form>
 	</Dialog.Content>

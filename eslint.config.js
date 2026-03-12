@@ -36,5 +36,11 @@ export default ts.config(
 				svelteConfig
 			}
 		}
+	},
+	{
+		files: ['src/lib/i18n/i18n-*.ts'],
+		rules: {
+			'eslint-comments/no-unused-disable': 'off'
+		}
 	}
 );

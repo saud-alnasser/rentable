@@ -15,6 +15,11 @@
 	import { Spinner } from '$lib/common/components/fragments/spinner';
 	import { TooltipProvider } from '$lib/common/components/fragments/tooltip';
 	import SonnerProvider from '$lib/common/components/providers/sonner-provider.svelte';
+	import LL, { locale, setLocale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
+	import type { Locales } from '$lib/i18n/i18n-types';
+	import { baseLocale, locales } from '$lib/i18n/i18n-util';
+	import { loadLocaleAsync } from '$lib/i18n/i18n-util.async';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { onMount } from 'svelte';
 	import '../app.css';
@@ -29,6 +34,7 @@
 
 	type StartupState = 'loading' | 'ready' | 'error' | 'recovery' | 'rolledBackLocked';
 
+	let isI18nReady = $state(false);
 	let startupState = $state<StartupState>('loading');
 	let startupError = $state<string | null>(null);
 	let startupRecovery = $state<UpdateRecovery | null>(null);
@@ -36,12 +42,12 @@
 	let isRecoveryActionPending = $state(false);
 
 	function getErrorMessage(error: unknown) {
-		return error instanceof Error ? error.message : 'failed to start the app.';
+		return error instanceof Error ? error.message : $LL.layout.startup.failedToStartFallback();
 	}
 
 	function formatTimestamp(value: number | null | undefined) {
 		if (!value) {
-			return 'unknown';
+			return $LL.common.messages.unknown();
 		}
 
 		return new Intl.DateTimeFormat('en-GB', {
@@ -83,6 +89,17 @@
 		recoveryActionError = null;
 
 		try {
+			const settings = await api.settings.get();
+			const locale = (settings.locale ?? baseLocale) as Locales;
+
+			for (const locale of locales) {
+				await loadLocaleAsync(locale);
+			}
+
+			setLocale(locale);
+
+			isI18nReady = true;
+
 			await api.window.show();
 
 			if (applyRecoveryState(await getStartupRecovery())) {
@@ -141,7 +158,7 @@
 			const recovery = settings.updateRecovery;
 
 			if (!recovery || recovery.status !== 'rolledBack') {
-				throw new Error('rollback completed but the recovery snapshot was not updated.');
+				throw new Error($LL.layout.startup.recoverySnapshotNotUpdated());
 			}
 
 			startupRecovery = recovery;
@@ -154,169 +171,183 @@
 	}
 
 	onMount(() => {
-		void startApp();
+		startApp();
 	});
 
 	let { children } = $props();
 </script>
 
-<QueryClientProvider client={queryClient}>
-	<SonnerProvider>
-		<TooltipProvider>
-			<div
-				class="relative flex h-screen min-h-0 w-screen min-w-0 flex-col overflow-hidden border border-border/60 bg-background"
-			>
-				<header class="shrink-0">
-					<WindowControls />
-				</header>
-
-				<main
-					class="app-scroll @container/main flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 pb-28"
+{#if isI18nReady}
+	<QueryClientProvider client={queryClient}>
+		<SonnerProvider>
+			<TooltipProvider>
+				<div
+					lang={$locale}
+					dir={localesMetadata[$locale].direction}
+					class="relative flex h-screen min-h-0 w-screen min-w-0 flex-col overflow-hidden border border-border/60 bg-background"
 				>
-					{#if startupState === 'loading'}
-						<div class="flex min-h-full flex-1 items-center justify-center p-1">
-							<div class="flex flex-col items-center gap-3">
-								<Spinner class="size-8 text-muted-foreground" />
-								<p class="text-sm text-muted-foreground">loading app...</p>
+					<header class="shrink-0">
+						<WindowControls />
+					</header>
+
+					<main
+						class="app-scroll @container/main flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 pb-28"
+					>
+						{#if startupState === 'loading'}
+							<div class="flex min-h-full flex-1 items-center justify-center p-1">
+								<div class="flex flex-col items-center gap-3">
+									<Spinner class="size-8 text-muted-foreground" />
+									<p class="text-sm text-muted-foreground">{$LL.common.messages.loadingApp()}</p>
+								</div>
 							</div>
-						</div>
-					{:else if startupState === 'recovery' && startupRecovery}
-						<div class="flex min-h-full flex-1 items-center justify-center p-1">
-							<Card class="w-full max-w-2xl gap-4">
-								<CardHeader>
-									<CardTitle>update recovery required</CardTitle>
-									<CardDescription>
-										rentable failed to finish starting after updating to v{startupRecovery.failedVersion}.
-										choose whether to restore the protected pre-update backup or retry startup.
-									</CardDescription>
-								</CardHeader>
-								<CardContent class="space-y-4">
-									<Callout variant="error">{startupRecovery.error}</Callout>
+						{:else if startupState === 'recovery' && startupRecovery}
+							<div class="flex min-h-full flex-1 items-center justify-center p-1">
+								<Card class="w-full max-w-2xl gap-4">
+									<CardHeader>
+										<CardTitle>{$LL.layout.startup.recoveryRequiredTitle()}</CardTitle>
+										<CardDescription>
+											{$LL.layout.startup.recoveryDescription({
+												version: startupRecovery.failedVersion
+											})}
+										</CardDescription>
+									</CardHeader>
+									<CardContent class="space-y-4">
+										<Callout variant="error">{startupRecovery.error}</Callout>
 
-									<div class="grid gap-3 sm:grid-cols-2">
-										<div class="rounded-lg border bg-muted/15 p-3">
-											<p class="text-xs tracking-wide text-muted-foreground uppercase">backup</p>
-											<p class="mt-1 font-medium break-all">{startupRecovery.backupName}</p>
+										<div class="grid gap-3 sm:grid-cols-2">
+											<div class="rounded-lg border bg-muted/15 p-3">
+												<p class="text-xs tracking-wide text-muted-foreground uppercase">
+													{$LL.layout.startup.startupRecoveryBackup()}
+												</p>
+												<p class="mt-1 font-medium break-all">{startupRecovery.backupName}</p>
+											</div>
+											<div class="rounded-lg border bg-muted/15 p-3">
+												<p class="text-xs tracking-wide text-muted-foreground uppercase">
+													{$LL.layout.startup.previousVersion()}
+												</p>
+												<p class="mt-1 font-medium">
+													{startupRecovery.previousVersion ?? $LL.common.messages.unknown()}
+												</p>
+											</div>
 										</div>
-										<div class="rounded-lg border bg-muted/15 p-3">
-											<p class="text-xs tracking-wide text-muted-foreground uppercase">
-												previous version
-											</p>
-											<p class="mt-1 font-medium">
-												{startupRecovery.previousVersion ?? 'unknown'}
-											</p>
+
+										<p class="text-sm text-muted-foreground">
+											{$LL.layout.startup.recoveryDetails({
+												detectedAt: formatTimestamp(startupRecovery.detectedAt)
+											})}
+										</p>
+
+										{#if recoveryActionError}
+											<Callout variant="warning">{recoveryActionError}</Callout>
+										{/if}
+
+										<div class="flex flex-wrap gap-3">
+											<Button
+												variant="destructive"
+												onclick={() => void rollbackFailedUpdate()}
+												disabled={isRecoveryActionPending}
+											>
+												{isRecoveryActionPending
+													? $LL.common.actions.rollingBack()
+													: $LL.common.actions.rollback()}
+											</Button>
+											<Button
+												variant="outline"
+												onclick={() => void proceedFailedUpdate()}
+												disabled={isRecoveryActionPending}
+											>
+												{isRecoveryActionPending
+													? $LL.common.actions.working()
+													: $LL.common.actions.proceed()}
+											</Button>
 										</div>
-									</div>
+									</CardContent>
+								</Card>
+							</div>
+						{:else if startupState === 'rolledBackLocked' && startupRecovery}
+							<div class="flex min-h-full flex-1 items-center justify-center p-1">
+								<Card class="w-full max-w-2xl gap-4">
+									<CardHeader>
+										<CardTitle>{$LL.layout.startup.rolledBackTitle()}</CardTitle>
+										<CardDescription>
+											{$LL.layout.startup.rolledBackDescription()}
+										</CardDescription>
+									</CardHeader>
+									<CardContent class="space-y-4">
+										<Callout variant="warning">{startupRecovery.error}</Callout>
 
-									<p class="text-sm text-muted-foreground">
-										detected {formatTimestamp(startupRecovery.detectedAt)}. rollback restores the
-										protected database backup and locks the app so you can reinstall the previous
-										release. proceed clears recovery and retries startup with the current version.
-									</p>
+										<div class="grid gap-3 sm:grid-cols-2">
+											<div class="rounded-lg border bg-muted/15 p-3">
+												<p class="text-xs tracking-wide text-muted-foreground uppercase">
+													{$LL.layout.startup.restoredBackup()}
+												</p>
+												<p class="mt-1 font-medium break-all">{startupRecovery.backupName}</p>
+											</div>
+											<div class="rounded-lg border bg-muted/15 p-3">
+												<p class="text-xs tracking-wide text-muted-foreground uppercase">
+													{$LL.layout.startup.previousVersion()}
+												</p>
+												<p class="mt-1 font-medium">
+													{startupRecovery.previousVersion ?? $LL.common.messages.unknown()}
+												</p>
+											</div>
+										</div>
 
-									{#if recoveryActionError}
-										<Callout variant="warning">{recoveryActionError}</Callout>
-									{/if}
+										<p class="text-sm text-muted-foreground">
+											{$LL.layout.startup.rolledBackDetails()}
+										</p>
 
-									<div class="flex flex-wrap gap-3">
-										<Button
-											variant="destructive"
-											onclick={() => void rollbackFailedUpdate()}
-											disabled={isRecoveryActionPending}
+										{#if recoveryActionError}
+											<Callout variant="warning">{recoveryActionError}</Callout>
+										{/if}
+
+										<div class="flex flex-wrap gap-3">
+											<Button
+												variant="outline"
+												onclick={() => {
+													const previousReleaseUrl = startupRecovery?.previousReleaseUrl;
+
+													if (previousReleaseUrl) {
+														void tauri.opener.openUrl(previousReleaseUrl);
+													}
+												}}
+												disabled={!startupRecovery?.previousReleaseUrl}
+											>
+												{$LL.common.actions.openPreviousRelease()}
+											</Button>
+										</div>
+									</CardContent>
+								</Card>
+							</div>
+						{:else if startupState === 'error'}
+							<div class="flex min-h-full flex-1 items-center justify-center p-1">
+								<Card class="w-full max-w-lg gap-4">
+									<CardHeader>
+										<CardTitle>{$LL.layout.startup.failedToStartTitle()}</CardTitle>
+										<CardDescription>
+											{$LL.layout.startup.failedToStartDescription()}
+										</CardDescription>
+									</CardHeader>
+									<CardContent class="space-y-4">
+										<p class="text-sm text-muted-foreground">{startupError}</p>
+										<Button onclick={() => void startApp()}
+											>{$LL.common.actions.retryStartup()}</Button
 										>
-											{isRecoveryActionPending ? 'rolling back...' : 'rollback'}
-										</Button>
-										<Button
-											variant="outline"
-											onclick={() => void proceedFailedUpdate()}
-											disabled={isRecoveryActionPending}
-										>
-											{isRecoveryActionPending ? 'working...' : 'proceed'}
-										</Button>
-									</div>
-								</CardContent>
-							</Card>
-						</div>
-					{:else if startupState === 'rolledBackLocked' && startupRecovery}
-						<div class="flex min-h-full flex-1 items-center justify-center p-1">
-							<Card class="w-full max-w-2xl gap-4">
-								<CardHeader>
-									<CardTitle>update rolled back</CardTitle>
-									<CardDescription>
-										the protected database backup has been restored and the app is locked until you
-										reinstall the previous release.
-									</CardDescription>
-								</CardHeader>
-								<CardContent class="space-y-4">
-									<Callout variant="warning">{startupRecovery.error}</Callout>
+									</CardContent>
+								</Card>
+							</div>
+						{:else}
+							{@render children?.()}
+						{/if}
+					</main>
 
-									<div class="grid gap-3 sm:grid-cols-2">
-										<div class="rounded-lg border bg-muted/15 p-3">
-											<p class="text-xs tracking-wide text-muted-foreground uppercase">
-												restored backup
-											</p>
-											<p class="mt-1 font-medium break-all">{startupRecovery.backupName}</p>
-										</div>
-										<div class="rounded-lg border bg-muted/15 p-3">
-											<p class="text-xs tracking-wide text-muted-foreground uppercase">
-												previous version
-											</p>
-											<p class="mt-1 font-medium">
-												{startupRecovery.previousVersion ?? 'unknown'}
-											</p>
-										</div>
-									</div>
-
-									<p class="text-sm text-muted-foreground">
-										open the previous GitHub release, reinstall it, then launch rentable again.
-									</p>
-
-									{#if recoveryActionError}
-										<Callout variant="warning">{recoveryActionError}</Callout>
-									{/if}
-
-									<div class="flex flex-wrap gap-3">
-										<Button
-											variant="outline"
-											onclick={() => {
-												const previousReleaseUrl = startupRecovery?.previousReleaseUrl;
-
-												if (previousReleaseUrl) {
-													void tauri.opener.openUrl(previousReleaseUrl);
-												}
-											}}
-											disabled={!startupRecovery?.previousReleaseUrl}
-										>
-											open previous release
-										</Button>
-									</div>
-								</CardContent>
-							</Card>
-						</div>
-					{:else if startupState === 'error'}
-						<div class="flex min-h-full flex-1 items-center justify-center p-1">
-							<Card class="w-full max-w-lg gap-4">
-								<CardHeader>
-									<CardTitle>failed to start the app</CardTitle>
-									<CardDescription>
-										there was a problem connecting the database or running startup sync.
-									</CardDescription>
-								</CardHeader>
-								<CardContent class="space-y-4">
-									<p class="text-sm text-muted-foreground">{startupError}</p>
-									<Button onclick={() => void startApp()}>retry startup</Button>
-								</CardContent>
-							</Card>
-						</div>
-					{:else}
-						{@render children?.()}
+					{#if startupState === 'ready'}
+						<Navbar />
 					{/if}
-				</main>
-
-				{#if startupState === 'ready'}
-					<Navbar />
-				{/if}
-			</div>
-		</TooltipProvider>
-	</SonnerProvider>
-</QueryClientProvider>
+				</div>
+			</TooltipProvider>
+		</SonnerProvider>
+	</QueryClientProvider>
+{:else}
+	<div class="flex h-screen items-center justify-center"></div>
+{/if}

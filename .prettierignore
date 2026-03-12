@@ -10,3 +10,6 @@ bun.lockb
 
 build
 tauri/target
+
+# i18n
+src/lib/i18n/i18n-*.ts

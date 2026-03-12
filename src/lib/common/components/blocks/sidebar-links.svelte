@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import type { Pathname } from '$app/types';
 	import * as Sidebar from '$lib/common/components/fragments/sidebar';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import { type Icon } from '@tabler/icons-svelte';
 	import ContractIcon from '@tabler/icons-svelte/icons/contract';
 	import Home2Icon from '@tabler/icons-svelte/icons/home-2';
@@ -16,32 +17,32 @@
 
 	const items: Items = {
 		head: {
-			label: 'rentable',
+			label: $LL.app.name(),
 			icon: InnerShadowTopIcon,
 			url: '/'
 		},
 		middle: [
 			{
-				label: 'tenants',
+				label: $LL.common.nav.tenants(),
 				icon: UserIcon,
 				url: '/tenants'
 			},
 			{
-				label: 'complexes',
+				label: $LL.common.nav.complexes(),
 				icon: Home2Icon,
 				url: '/complexes'
 			},
 			{
-				label: 'contracts',
+				label: $LL.common.nav.contracts(),
 				icon: ContractIcon,
 				url: '/contracts'
 			}
 		],
 		tail: [
 			{
-				label: 'settings',
+				label: $LL.common.nav.settings(),
 				icon: SettingsIcon,
-				url: '/'
+				url: '/settings'
 			}
 		]
 	};

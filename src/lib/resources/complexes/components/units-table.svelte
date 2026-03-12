@@ -6,6 +6,7 @@
 	import { Badge } from '$lib/common/components/fragments/badge';
 	import { renderComponent, renderSnippet } from '$lib/common/components/fragments/data-table';
 	import { Skeleton } from '$lib/common/components/fragments/skeleton';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import {
 		useDeleteUnit,
 		useFetchComplex,
@@ -14,14 +15,14 @@
 	import type { ColumnDef } from '@tanstack/table-core';
 	import UnitForm from './unit-form.svelte';
 
-	let columns: ColumnDef<Unit>[] = [
+	let columns = $derived.by((): ColumnDef<Unit>[] => [
 		{
 			accessorKey: 'name',
-			header: 'name'
+			header: $LL.common.labels.name()
 		},
 		{
 			accessorKey: 'status',
-			header: 'status',
+			header: $LL.common.labels.status(),
 			cell: ({ row }) => {
 				return renderSnippet(StatusBadge, { status: row.original.status });
 			}
@@ -32,14 +33,14 @@
 				return renderComponent(DataTableActionsDropdown, {
 					actions: [
 						{
-							label: 'edit',
+							label: $LL.common.actions.edit(),
 							onclick: () => {
 								unit = row.original;
 								isUnitFormOpen = true;
 							}
 						},
 						{
-							label: 'delete',
+							label: $LL.common.actions.delete(),
 							onclick: async () => {
 								unit = row.original;
 								isDeleteDialogOpen = true;
@@ -49,7 +50,7 @@
 				});
 			}
 		}
-	];
+	]);
 
 	let { complexId }: { complexId: number } = $props();
 
@@ -105,6 +106,6 @@
 
 {#snippet StatusBadge({ status }: { status: Unit['status'] })}
 	<Badge variant={status === 'vacant' ? 'secondary' : 'default'} class="capitalize">
-		{status}
+		{$LL.common.status[status]()}
 	</Badge>
 {/snippet}

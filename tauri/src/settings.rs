@@ -221,6 +221,8 @@ pub struct PersistedSettings {
     pub last_backup_at: Option<i64>,
     #[serde(default)]
     pub update_recovery: Option<PersistedUpdateRecovery>,
+    #[serde(default)]
+    pub locale: Option<String>,
 }
 
 impl Default for PersistedSettings {
@@ -232,6 +234,7 @@ impl Default for PersistedSettings {
             last_sync_at: None,
             last_backup_at: None,
             update_recovery: None,
+            locale: None,
         }
     }
 }
@@ -463,6 +466,7 @@ impl SettingsState {
             last_backup_at: self.data.last_backup_at,
             update_recovery: self.current_update_recovery_snapshot(app_state.version),
             backups: list_backups(&self.backup_dir)?,
+            locale: self.data.locale.clone(),
         })
     }
 
@@ -504,6 +508,7 @@ pub struct SettingsSnapshot {
     pub last_backup_at: Option<i64>,
     pub update_recovery: Option<UpdateRecoverySnapshot>,
     pub backups: Vec<BackupEntry>,
+    pub locale: Option<String>,
 }
 
 #[derive(Clone, Serialize)]
@@ -706,6 +711,20 @@ pub async fn settings_mark_synced(
     {
         let mut settings = app_state.settings.write().await;
         settings.data.last_sync_at = Some(timestamp.unwrap_or_else(now_millis));
+        settings.save()?;
+    }
+
+    snapshot(app_state.inner()).await
+}
+
+#[tauri::command]
+pub async fn settings_set_locale(
+    app_state: tauri::State<'_, AppState>,
+    locale: String,
+) -> Result<SettingsSnapshot, String> {
+    {
+        let mut settings = app_state.settings.write().await;
+        settings.data.locale = Some(locale);
         settings.save()?;
     }
 

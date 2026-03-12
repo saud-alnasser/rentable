@@ -1,7 +1,7 @@
-pub mod commands;
 pub mod database;
 pub mod settings;
 pub mod state;
+pub mod window;
 
 use database::Database;
 use settings::SettingsState;
@@ -69,13 +69,12 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::greet,
-            commands::window_show,
-            commands::window_minimize,
-            commands::window_toggle_maximize,
-            commands::window_start_dragging,
-            commands::window_close,
-            commands::window_restart,
+            window::window_show,
+            window::window_minimize,
+            window::window_toggle_maximize,
+            window::window_start_dragging,
+            window::window_close,
+            window::window_restart,
             database::commands::db_execute_single_sql,
             database::commands::db_execute_batch_sql,
             database::commands::db_does_exist,
@@ -93,6 +92,7 @@ pub fn run() {
             settings::settings_proceed_failed_update,
             settings::settings_rollback_failed_update,
             settings::settings_mark_synced,
+            settings::settings_set_locale,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

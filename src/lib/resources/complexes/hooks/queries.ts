@@ -4,7 +4,9 @@ import {
 	onMutationSuccess,
 	type MutationOptions
 } from '$lib/common/utils/queries';
+import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import { get } from 'svelte/store';
 
 export const keys = {
 	all: ['complexes'],
@@ -59,9 +61,9 @@ export function useFetchUnits(complexId: () => number) {
 export function useCreateComplex(
 	opts: MutationOptions = {
 		toast: {
-			success: 'complex created successfully!',
+			success: () => get(LL).complexes.hooks.createSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -82,9 +84,9 @@ export function useCreateComplex(
 export function useUpdateComplex(
 	opts: MutationOptions = {
 		toast: {
-			success: 'complex updated successfully!',
+			success: () => get(LL).complexes.hooks.updateSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -105,9 +107,9 @@ export function useUpdateComplex(
 export function useDeleteComplex(
 	opts: MutationOptions = {
 		toast: {
-			success: 'complex deleted successfully!',
+			success: () => get(LL).complexes.hooks.deleteSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -128,9 +130,9 @@ export function useDeleteComplex(
 export function useCreateUnit(
 	opts: MutationOptions = {
 		toast: {
-			success: 'unit created successfully!',
+			success: () => get(LL).complexes.hooks.unitCreateSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -153,9 +155,9 @@ export function useCreateUnit(
 export function useUpdateUnit(
 	opts: MutationOptions = {
 		toast: {
-			success: 'unit updated successfully!',
+			success: () => get(LL).complexes.hooks.unitUpdateSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -178,9 +180,9 @@ export function useUpdateUnit(
 export function useDeleteUnit(
 	opts: MutationOptions = {
 		toast: {
-			success: 'unit deleted successfully!',
+			success: () => get(LL).complexes.hooks.unitDeleteSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {

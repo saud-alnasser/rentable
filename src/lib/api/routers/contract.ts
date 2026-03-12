@@ -340,9 +340,9 @@ function toUtcDay(value: Date | number) {
 	return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
-function addUtcDays(value: Date, days: number) {
-	return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate() + days));
-}
+// function addUtcDays(value: Date, days: number) {
+// 	return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate() + days));
+// }
 
 function getCurrentMonthBounds(now = Date.now()) {
 	const today = toUtcDay(now);

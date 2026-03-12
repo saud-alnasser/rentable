@@ -4,7 +4,9 @@ import {
 	onMutationSuccess,
 	type MutationOptions
 } from '$lib/common/utils/queries';
+import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import { get } from 'svelte/store';
 
 export const keys = {
 	all: ['contracts'],
@@ -49,9 +51,9 @@ export function useFetchContract(id: () => number) {
 export function useCreateContract(
 	opts: MutationOptions = {
 		toast: {
-			success: 'contract created successfully!',
+			success: () => get(LL).contracts.hooks.createSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -72,9 +74,9 @@ export function useCreateContract(
 export function useUpdateContract(
 	opts: MutationOptions = {
 		toast: {
-			success: 'contract updated successfully!',
+			success: () => get(LL).contracts.hooks.updateSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -96,9 +98,9 @@ export function useUpdateContract(
 export function useDeleteContract(
 	opts: MutationOptions = {
 		toast: {
-			success: 'contract deleted successfully!',
+			success: () => get(LL).contracts.hooks.deleteSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -122,9 +124,9 @@ export function useDeleteContract(
 export function useTerminateContract(
 	opts: MutationOptions = {
 		toast: {
-			success: 'contract terminated successfully!',
+			success: () => get(LL).contracts.hooks.terminateSuccess(),
 			error: true,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -146,9 +148,9 @@ export function useTerminateContract(
 export function useUnterminateContract(
 	opts: MutationOptions = {
 		toast: {
-			success: 'contract restored successfully!',
+			success: () => get(LL).contracts.hooks.restoreSuccess(),
 			error: true,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -199,9 +201,9 @@ export function useFetchVacantContractUnits(
 export function useAssignContractUnits(
 	opts: MutationOptions = {
 		toast: {
-			success: 'units added to contract successfully!',
+			success: () => get(LL).contracts.hooks.assignUnitsSuccess(),
 			error: true,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -227,9 +229,9 @@ export function useAssignContractUnits(
 export function useRemoveContractUnit(
 	opts: MutationOptions = {
 		toast: {
-			success: 'unit removed from contract successfully!',
+			success: () => get(LL).contracts.hooks.removeUnitSuccess(),
 			error: true,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -268,9 +270,9 @@ export function useFetchContractPayments(contractId: () => number) {
 export function useCreatePayment(
 	opts: MutationOptions = {
 		toast: {
-			success: 'payment created successfully!',
+			success: () => get(LL).contracts.hooks.createPaymentSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -294,9 +296,9 @@ export function useCreatePayment(
 export function useUpdatePayment(
 	opts: MutationOptions = {
 		toast: {
-			success: 'payment updated successfully!',
+			success: () => get(LL).contracts.hooks.updatePaymentSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -320,9 +322,9 @@ export function useUpdatePayment(
 export function useDeletePayment(
 	opts: MutationOptions = {
 		toast: {
-			success: 'payment deleted successfully!',
+			success: () => get(LL).contracts.hooks.deletePaymentSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button, type Props } from '$lib/common/components/fragments/button/index.js';
 	import { cn } from '$lib/common/utils/tailwind.js';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import type { WithoutChildren } from 'bits-ui';
 	import { getEmblaContext } from './context.js';
@@ -34,5 +35,5 @@
 	{...restProps}
 >
 	<ArrowRightIcon class="size-4" />
-	<span class="sr-only">Next slide</span>
+	<span class="sr-only">{$LL.common.ui.nextSlide()}</span>
 </Button>

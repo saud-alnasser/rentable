@@ -1,18 +1,23 @@
 <script lang="ts">
 	import { TenantSchema, type Tenant } from '$lib/api/database/schema';
+	import { regex } from '$lib/api/regex';
 	import { Button } from '$lib/common/components/fragments/button';
 	import * as Dialog from '$lib/common/components/fragments/dialog';
 	import * as Form from '$lib/common/components/fragments/form';
 	import { Input } from '$lib/common/components/fragments/input';
 	import { Label } from '$lib/common/components/fragments/label';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateTenant, useUpdateTenant } from '$lib/resources/tenants/hooks/queries';
 	import { TRPCError } from '@trpc/server';
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
-	import z from 'zod';
+	import { z } from 'zod';
 
-	const TenantFormSchema = TenantSchema.partial({ id: true });
+	const TenantFormSchema = TenantSchema.extend({
+		nationalId: z.string().regex(regex.iqama, $LL.tenants.form.invalidNationalId()),
+		phone: z.string().regex(regex.phone, $LL.tenants.form.invalidPhone())
+	}).partial({ id: true });
 	const CreateMutation = useCreateTenant();
 	const UpdateMutation = useUpdateTenant();
 
@@ -58,12 +63,12 @@
 				} catch (e) {
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 						if (e.message.includes('national id')) {
-							setError(form, 'nationalId', 'national id is associated with a registered tenant');
+							setError(form, 'nationalId', $LL.tenants.form.duplicateNationalId());
 						} else if (e.message.includes('phone')) {
-							setError(form, 'phone', 'phone is associated with a registered tenant');
+							setError(form, 'phone', $LL.tenants.form.duplicatePhone());
 						}
 					} else {
-						toast.error('unexpected error occurred!');
+						toast.error($LL.common.messages.unexpectedError());
 					}
 				}
 			}
@@ -88,10 +93,10 @@
 		<form method="POST" use:enhance class="flex flex-col gap-4">
 			<Form.Field form={superform} name="nationalId">
 				<Form.Control>
-					<Label>National ID</Label>
+					<Label>{$LL.common.labels.nationalId()}</Label>
 					<Input
 						bind:value={$form.nationalId}
-						placeholder="National ID"
+						placeholder={$LL.common.labels.nationalId()}
 						aria-invalid={$errors.nationalId ? 'true' : undefined}
 						{...$constraints.nationalId}
 					/>
@@ -102,10 +107,10 @@
 
 			<Form.Field form={superform} name="name">
 				<Form.Control>
-					<Label>Name</Label>
+					<Label>{$LL.common.labels.name()}</Label>
 					<Input
 						bind:value={$form.name}
-						placeholder="Name"
+						placeholder={$LL.common.labels.name()}
 						aria-invalid={$errors.name ? 'true' : undefined}
 						{...$constraints.name}
 					/>
@@ -116,10 +121,10 @@
 
 			<Form.Field form={superform} name="phone">
 				<Form.Control>
-					<Label>Phone</Label>
+					<Label>{$LL.common.labels.phone()}</Label>
 					<Input
 						bind:value={$form.phone}
-						placeholder="Phone (+966...)"
+						placeholder={$LL.tenants.form.phonePlaceholder()}
 						aria-invalid={$errors.phone ? 'true' : undefined}
 						{...$constraints.phone}
 					/>
@@ -133,7 +138,7 @@
 				disabled={CreateMutation.isPending || UpdateMutation.isPending}
 				class="capitalize"
 			>
-				{value?.id ? 'update' : 'create'}
+				{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
 			</Button>
 		</form>
 	</Dialog.Content>

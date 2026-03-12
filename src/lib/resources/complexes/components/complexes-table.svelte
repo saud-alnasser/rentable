@@ -6,23 +6,24 @@
 	import DataTable from '$lib/common/components/blocks/data-table.svelte';
 	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
 	import { renderComponent } from '$lib/common/components/fragments/data-table';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import ComplexesTableUnitsCount from '$lib/resources/complexes/components/complexes-table-units-count.svelte';
 	import { useDeleteComplex, useFetchComplexes } from '$lib/resources/complexes/hooks/queries';
 	import type { ColumnDef } from '@tanstack/table-core';
 	import ComplexForm from './complex-form.svelte';
 
-	let columns: ColumnDef<Complex>[] = [
+	let columns = $derived.by((): ColumnDef<Complex>[] => [
 		{
 			accessorKey: 'name',
-			header: 'name'
+			header: $LL.common.labels.name()
 		},
 		{
 			accessorKey: 'location',
-			header: 'location'
+			header: $LL.common.labels.location()
 		},
 		{
 			id: 'units',
-			header: 'units',
+			header: $LL.common.labels.units(),
 			cell: ({ row }) => {
 				return renderComponent(ComplexesTableUnitsCount, { complexId: row.original.id });
 			}
@@ -33,20 +34,20 @@
 				renderComponent(DataTableActionsDropdown, {
 					actions: [
 						{
-							label: 'units management',
+							label: $LL.complexes.units.management(),
 							onclick: () => {
 								goto(resolve(`/complexes/units/${row.original.id}`));
 							}
 						},
 						{
-							label: 'edit',
+							label: $LL.common.actions.edit(),
 							onclick: () => {
 								complex = row.original;
 								isComplexFormOpen = true;
 							}
 						},
 						{
-							label: 'delete',
+							label: $LL.common.actions.delete(),
 							onclick: () => {
 								complex = row.original;
 								isDeleteDialogOpen = true;
@@ -55,7 +56,7 @@
 					]
 				})
 		}
-	];
+	]);
 
 	const fetchQuery = useFetchComplexes();
 	const deleteMutation = useDeleteComplex();

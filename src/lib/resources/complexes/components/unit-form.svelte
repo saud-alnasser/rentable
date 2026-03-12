@@ -5,6 +5,7 @@
 	import * as Form from '$lib/common/components/fragments/form';
 	import { Input } from '$lib/common/components/fragments/input';
 	import { Label } from '$lib/common/components/fragments/label';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateUnit, useUpdateUnit } from '$lib/resources/complexes/hooks/queries';
 	import { TRPCError } from '@trpc/server';
 	import { toast } from 'svelte-sonner';
@@ -60,10 +61,10 @@
 				} catch (e) {
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 						if (e.message.includes('name')) {
-							setError(form, 'name', 'name is associated with a unit in the same complex');
+							setError(form, 'name', $LL.complexes.units.duplicateName());
 						}
 					} else {
-						toast.error('unexpected error occurred!');
+						toast.error($LL.common.messages.unexpectedError());
 					}
 				}
 			}
@@ -88,10 +89,10 @@
 		<form method="POST" use:enhance class="flex flex-col gap-4">
 			<Form.Field form={superform} name="name">
 				<Form.Control>
-					<Label>Name</Label>
+					<Label>{$LL.common.labels.name()}</Label>
 					<Input
 						bind:value={$form.name}
-						placeholder="Name"
+						placeholder={$LL.common.labels.name()}
 						aria-invalid={$errors.name ? 'true' : undefined}
 						{...$constraints.name}
 					/>
@@ -105,7 +106,7 @@
 				disabled={CreateMutation.isPending || UpdateMutation.isPending}
 				class="capitalize"
 			>
-				{value?.id ? 'update' : 'create'}
+				{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
 			</Button>
 		</form>
 	</Dialog.Content>

@@ -4,7 +4,9 @@ import {
 	onMutationSuccess,
 	type MutationOptions
 } from '$lib/common/utils/queries';
+import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import { get } from 'svelte/store';
 
 type FetchTenantsParams = {
 	search?: string;
@@ -61,9 +63,9 @@ export function useFetchTenant(params: () => FetchTenantParams) {
 export function useCreateTenant(
 	opts: MutationOptions = {
 		toast: {
-			success: 'tenant created successfully!',
+			success: () => get(LL).tenants.hooks.createSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -84,9 +86,9 @@ export function useCreateTenant(
 export function useUpdateTenant(
 	opts: MutationOptions = {
 		toast: {
-			success: 'tenant updated successfully!',
+			success: () => get(LL).tenants.hooks.updateSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -107,9 +109,9 @@ export function useUpdateTenant(
 export function useDeleteTenant(
 	opts: MutationOptions = {
 		toast: {
-			success: 'tenant deleted successfully!',
+			success: () => get(LL).tenants.hooks.deleteSuccess(),
 			error: false,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {

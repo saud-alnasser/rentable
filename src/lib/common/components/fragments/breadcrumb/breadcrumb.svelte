@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { WithElementRef } from '$lib/common/utils/tailwind.js';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
 
 	let {
@@ -14,7 +15,7 @@
 	bind:this={ref}
 	data-slot="breadcrumb"
 	class={className}
-	aria-label="breadcrumb"
+	aria-label={$LL.common.ui.breadcrumb()}
 	{...restProps}
 >
 	{@render children?.()}
