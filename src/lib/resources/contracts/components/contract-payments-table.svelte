@@ -7,6 +7,7 @@
 	import { renderComponent, renderSnippet } from '$lib/common/components/fragments/data-table';
 	import { Progress } from '$lib/common/components/fragments/progress';
 	import { Skeleton } from '$lib/common/components/fragments/skeleton';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import {
 		useDeletePayment,
 		useFetchContract,
@@ -41,7 +42,9 @@
 	const getPaymentsTitle = () => {
 		const contractLabel = getContractLabel();
 
-		return contractLabel ? `Payments for ${contractLabel}` : 'Payments';
+		return contractLabel
+			? $LL.contracts.payments.titleFor({ govId: contractLabel })
+			: $LL.contracts.payments.title();
 	};
 
 	let isTerminated = $derived(contractQuery.data?.status === 'terminated');
@@ -75,23 +78,23 @@
 
 	const getLockSummary = () => {
 		if (isTerminated) {
-			return 'This contract is terminated and locked. Payment records are read-only.';
+			return $LL.contracts.payments.terminatedSummary();
 		}
 
 		if (hasSatisfiedRequiredAmount) {
-			return 'This contract has been fully paid. You can edit or delete payments, but you cannot add more.';
+			return $LL.contracts.payments.fullyPaidSummary();
 		}
 
-		return 'Track contract payments and add new payment records from the table.';
+		return $LL.contracts.payments.trackSummary();
 	};
 
 	const getLockNotice = () => {
 		if (isTerminated) {
-			return 'Terminated contracts are locked. You can review payment history here, but you cannot add, edit, or delete payments until the contract is unterminated.';
+			return $LL.contracts.payments.terminatedNotice();
 		}
 
 		if (hasSatisfiedRequiredAmount) {
-			return 'This contract has already reached its required total payment amount. You can still edit or delete payments if needed, but you cannot add more until the paid total drops below the required amount.';
+			return $LL.contracts.payments.fullyPaidNotice();
 		}
 
 		return undefined;
@@ -100,12 +103,12 @@
 	let columns = $derived.by((): ColumnDef<Payment>[] => [
 		{
 			accessorKey: 'date',
-			header: 'payment date',
+			header: $LL.common.labels.paymentDate(),
 			cell: ({ row }) => renderSnippet(DateCell, { value: row.original.date })
 		},
 		{
 			accessorKey: 'amount',
-			header: 'amount',
+			header: $LL.common.labels.amount(),
 			cell: ({ row }) => renderSnippet(AmountCell, { value: row.original.amount })
 		},
 		...(!isDeleteLocked
@@ -116,14 +119,14 @@
 							renderComponent(DataTableActionsDropdown, {
 								actions: [
 									{
-										label: 'edit',
+										label: $LL.common.actions.edit(),
 										onclick: () => {
 											payment = row.original;
 											isPaymentFormOpen = true;
 										}
 									},
 									{
-										label: 'delete',
+										label: $LL.common.actions.delete(),
 										onclick: () => {
 											payment = row.original;
 											isDeleteDialogOpen = true;
@@ -151,12 +154,12 @@
 {#if contractQuery.data}
 	<div class="mb-4 rounded-md border bg-card p-4">
 		<div class="mb-2 flex items-center justify-between gap-3 text-sm">
-			<span class="font-medium">payment fulfillment</span>
+			<span class="font-medium">{$LL.common.labels.paymentFulfillment()}</span>
 			<span class="text-muted-foreground">
 				{formatCurrency(paymentProgress.paidAmount)} / {formatCurrency(
 					paymentProgress.expectedAmount
 				)}
-				SAR
+				{$LL.common.messages.sar()}
 			</span>
 		</div>
 
@@ -167,8 +170,16 @@
 		/>
 
 		<div class="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-			<span>{Math.round(paymentProgress.progressPercent)}% fulfilled</span>
-			<span>{formatCurrency(paymentProgress.remainingAmount)} SAR remaining</span>
+			<span
+				>{$LL.contracts.payments.percentFulfilled({
+					percent: String(Math.round(paymentProgress.progressPercent))
+				})}</span
+			>
+			<span
+				>{$LL.contracts.payments.remaining({
+					amount: formatCurrency(paymentProgress.remainingAmount)
+				})}</span
+			>
 		</div>
 	</div>
 {/if}
@@ -223,6 +234,6 @@
 {#snippet AmountCell({ value }: { value: number })}
 	<div class="flex flex-row gap-1">
 		<span>{value}</span>
-		<span>SAR</span>
+		<span>{$LL.common.messages.sar()}</span>
 	</div>
 {/snippet}

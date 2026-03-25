@@ -13,6 +13,7 @@
 	} from '$lib/common/components/fragments/card';
 	import { Progress } from '$lib/common/components/fragments/progress';
 	import { Spinner } from '$lib/common/components/fragments/spinner';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useFetchContractDashboard } from '$lib/resources/contracts/hooks/queries';
 
 	type DashboardData = Awaited<ReturnType<typeof api.contract.dashboard>>;
@@ -42,10 +43,13 @@
 		terminated: 'outline'
 	};
 
-	const intervalLabels: Record<Contract['interval'], string> = {
+	const intervalLabels: Record<
+		Contract['interval'],
+		'monthly' | 'quarterly' | 'semiAnnual' | 'annual'
+	> = {
 		'1m': 'monthly',
 		'3m': 'quarterly',
-		'6m': 'semi-annual',
+		'6m': 'semiAnnual',
 		'12m': 'annual'
 	};
 
@@ -59,13 +63,14 @@
 	const hasActiveOverdueFollowUp = (item: DashboardData['followUps'][number]) =>
 		item.status === 'active' && item.outstandingAmount > item.dueNowAmount;
 
-	const followUpAmountLabel = 'due balance';
-	const followUpRemainingLabel = 'remaining due balance';
-	const followUpProgressLabel = 'due balance covered to date';
+	const followUpAmountLabel = $LL.common.labels.dueBalance();
+	const followUpRemainingLabel = $LL.common.labels.remainingDueBalance();
+	const followUpProgressLabel = $LL.common.labels.dueBalanceCoveredToDate();
 
 	const getFollowUpProgressSummary = (rate: number) =>
-		`${Math.round(rate)}% of the due balance covered to date`;
-	const formatNoticeWindow = (days: number) => `${days} day${days === 1 ? '' : 's'}`;
+		$LL.dashboard.followUps.progressSummary({ percent: Math.round(rate) });
+	const formatNoticeWindow = (days: number) =>
+		days === 1 ? $LL.common.time.day({ count: days }) : $LL.common.time.days({ count: days });
 
 	type SummaryStat = {
 		label: string;
@@ -86,67 +91,92 @@
 
 	const getSummarySections = (data: DashboardData): SummarySection[] => [
 		{
-			title: 'contracts',
-			description: `status health across the current portfolio, with ending soon based on the configured ${formatNoticeWindow(data.endingSoonNoticeDays)} notice window.`,
-			heroLabel: 'current portfolio size',
+			title: $LL.dashboard.sections.contracts.title(),
+			description: $LL.dashboard.sections.contracts.description({
+				noticeWindow: formatNoticeWindow(data.endingSoonNoticeDays)
+			}),
+			heroLabel: $LL.dashboard.sections.contracts.heroLabel(),
 			heroValue: String(data.summary.contracts.total),
-			heroHint: `${data.summary.contracts.active} active • ${data.summary.contracts.endingSoon} ending within ${formatNoticeWindow(data.endingSoonNoticeDays)}`,
+			heroHint: $LL.dashboard.sections.contracts.heroHint({
+				active: data.summary.contracts.active,
+				endingSoon: data.summary.contracts.endingSoon,
+				noticeWindow: formatNoticeWindow(data.endingSoonNoticeDays)
+			}),
 			heroClass: 'border-sky-500/20 bg-sky-500/10',
 			stats: [
 				{
-					label: 'active',
-					value: `${data.summary.contracts.active} • ${data.summary.contracts.endingSoon} ending within ${formatNoticeWindow(data.endingSoonNoticeDays)}`
+					label: $LL.common.status.active(),
+					value: $LL.dashboard.stats.activeEndingWithin({
+						active: data.summary.contracts.active,
+						endingSoon: data.summary.contracts.endingSoon,
+						noticeWindow: formatNoticeWindow(data.endingSoonNoticeDays)
+					})
 				},
-				{ label: 'scheduled', value: String(data.summary.contracts.scheduled) },
-				{ label: 'fulfilled', value: String(data.summary.contracts.fulfilled) },
-				{ label: 'expired', value: String(data.summary.contracts.expired) },
-				{ label: 'defaulted', value: String(data.summary.contracts.defaulted) },
-				{ label: 'terminated', value: String(data.summary.contracts.terminated) }
+				{ label: $LL.common.status.scheduled(), value: String(data.summary.contracts.scheduled) },
+				{ label: $LL.common.status.fulfilled(), value: String(data.summary.contracts.fulfilled) },
+				{ label: $LL.common.status.expired(), value: String(data.summary.contracts.expired) },
+				{ label: $LL.common.status.defaulted(), value: String(data.summary.contracts.defaulted) },
+				{ label: $LL.common.status.terminated(), value: String(data.summary.contracts.terminated) }
 			]
 		},
 		{
-			title: 'money',
-			description: `scheduled dues for ${data.monthLabel}, payments received this month, and overall contract balances.`,
-			heroLabel: 'outstanding now',
-			heroValue: `${formatCurrency(data.summary.money.outstandingNow)} SAR`,
-			heroHint: `${data.summary.money.monthlyCollectionRate}% of the due for ${data.monthLabel} is covered`,
+			title: $LL.dashboard.sections.money.title(),
+			description: $LL.dashboard.sections.money.description({ monthLabel: data.monthLabel }),
+			heroLabel: $LL.dashboard.sections.money.heroLabel(),
+			heroValue: `${formatCurrency(data.summary.money.outstandingNow)} ${$LL.common.messages.sar()}`,
+			heroHint: $LL.dashboard.sections.money.heroHint({
+				rate: data.summary.money.monthlyCollectionRate,
+				monthLabel: data.monthLabel
+			}),
 			heroClass: 'border-emerald-500/20 bg-emerald-500/10',
 			stats: [
 				{
-					label: 'due this month',
-					value: `${formatCurrency(data.summary.money.dueThisMonth)} SAR`
+					label: $LL.dashboard.stats.dueThisMonth(),
+					value: `${formatCurrency(data.summary.money.dueThisMonth)} ${$LL.common.messages.sar()}`
 				},
 				{
-					label: 'received this month',
-					value: `${formatCurrency(data.summary.money.collectedThisMonth)} SAR`
+					label: $LL.dashboard.stats.receivedThisMonth(),
+					value: `${formatCurrency(data.summary.money.collectedThisMonth)} ${$LL.common.messages.sar()}`
 				},
 				{
-					label: 'still due this month',
-					value: `${formatCurrency(data.summary.money.remainingThisMonth)} SAR`
+					label: $LL.dashboard.stats.stillDueThisMonth(),
+					value: `${formatCurrency(data.summary.money.remainingThisMonth)} ${$LL.common.messages.sar()}`
 				},
 				{
-					label: 'overall collection rate',
+					label: $LL.dashboard.stats.overallCollectionRate(),
 					value: `${data.summary.money.overallCollectionRate}%`
 				},
 				{
-					label: 'total expected amount',
-					value: `${formatCurrency(data.summary.money.totalExpectedAmount)} SAR`
+					label: $LL.dashboard.stats.totalExpectedAmount(),
+					value: `${formatCurrency(data.summary.money.totalExpectedAmount)} ${$LL.common.messages.sar()}`
 				}
 			]
 		},
 		{
-			title: 'occupancy',
-			description: 'stored unit statuses after dashboard synchronization.',
-			heroLabel: 'occupancy rate',
+			title: $LL.dashboard.sections.occupancy.title(),
+			description: $LL.dashboard.sections.occupancy.description(),
+			heroLabel: $LL.dashboard.sections.occupancy.heroLabel(),
 			heroValue: `${data.summary.occupancy.occupancyRate}%`,
-			heroHint: `${data.summary.occupancy.occupiedUnits} occupied out of ${data.summary.occupancy.totalUnits} units`,
+			heroHint: $LL.dashboard.sections.occupancy.heroHint({
+				occupied: data.summary.occupancy.occupiedUnits,
+				total: data.summary.occupancy.totalUnits
+			}),
 			heroClass: 'border-violet-500/20 bg-violet-500/10',
 			stats: [
-				{ label: 'total units', value: String(data.summary.occupancy.totalUnits) },
-				{ label: 'occupied units', value: String(data.summary.occupancy.occupiedUnits) },
-				{ label: 'vacant units', value: String(data.summary.occupancy.vacantUnits) },
 				{
-					label: 'vacancy rate',
+					label: $LL.dashboard.stats.totalUnits(),
+					value: String(data.summary.occupancy.totalUnits)
+				},
+				{
+					label: $LL.dashboard.stats.occupiedUnits(),
+					value: String(data.summary.occupancy.occupiedUnits)
+				},
+				{
+					label: $LL.dashboard.stats.vacantUnits(),
+					value: String(data.summary.occupancy.vacantUnits)
+				},
+				{
+					label: $LL.dashboard.stats.vacancyRate(),
 					value: `${data.summary.occupancy.vacancyRate}%`
 				}
 			]
@@ -158,26 +188,28 @@
 	<div class="flex min-h-full flex-1 items-center justify-center p-1">
 		<div class="flex flex-col items-center gap-3">
 			<Spinner class="size-8 text-muted-foreground" />
-			<p class="text-sm text-muted-foreground">loading dashboard...</p>
+			<p class="text-sm text-muted-foreground">{$LL.common.messages.loadingDashboard()}</p>
 		</div>
 	</div>
 {:else}
 	<div class="flex flex-col gap-5 p-1">
 		<div class="flex flex-col gap-1">
-			<h1 class="text-3xl font-semibold tracking-tight">Dashboard</h1>
+			<h1 class="text-3xl font-semibold tracking-tight">{$LL.dashboard.title()}</h1>
 			<p class="text-sm text-muted-foreground">
-				track contract health, payment performance, and occupancy after status synchronization.
+				{$LL.dashboard.description()}
 			</p>
 			{#if dashboardQuery.data}
 				<p class="text-xs text-muted-foreground">
-					last synchronized {formatDateTime(dashboardQuery.data.generatedAt)}
+					{$LL.dashboard.lastSynchronized({
+						value: formatDateTime(dashboardQuery.data.generatedAt)
+					})}
 				</p>
 			{/if}
 		</div>
 
 		{#if dashboardQuery.data}
 			<div class="grid gap-4 xl:grid-cols-3">
-				{#each getSummarySections(dashboardQuery.data) as section (section.title)}
+				{#each getSummarySections(dashboardQuery.data) as section (`${section.title}-${section.heroLabel}-${section.heroValue}`)}
 					<Card class="gap-4 overflow-hidden">
 						<CardHeader class="gap-3">
 							<CardTitle class="capitalize">{section.title}</CardTitle>
@@ -197,7 +229,7 @@
 							</div>
 
 							<div class="grid gap-3 sm:grid-cols-2">
-								{#each section.stats as stat (stat.label)}
+								{#each section.stats as stat (`${stat.label}-${stat.value}`)}
 									<div class="rounded-lg border bg-muted/15 p-3">
 										<p class="text-xs tracking-wide text-muted-foreground uppercase">
 											{stat.label}
@@ -215,27 +247,30 @@
 				<CardHeader class="gap-3">
 					<div class="flex flex-wrap items-start justify-between gap-3">
 						<div class="space-y-1">
-							<CardTitle>payments requiring follow-up in {dashboardQuery.data.monthLabel}</CardTitle
+							<CardTitle
+								>{$LL.dashboard.followUps.title({
+									monthLabel: dashboardQuery.data.monthLabel
+								})}</CardTitle
 							>
 							<CardDescription>
-								contracts with a scheduled due on or before today this month, or an overdue
-								defaulted balance that still needs follow-up.
+								{$LL.dashboard.followUps.description()}
 							</CardDescription>
 						</div>
 						<div
 							class="rounded-full border bg-muted/15 px-3 py-1 text-xs font-medium text-muted-foreground"
 						>
-							{dashboardQuery.data.followUps.length} open follow-up{dashboardQuery.data.followUps
-								.length === 1
-								? ''
-								: 's'}
+							{dashboardQuery.data.followUps.length === 1
+								? $LL.dashboard.followUps.countOne({ count: 1 })
+								: $LL.dashboard.followUps.countOther({
+										count: dashboardQuery.data.followUps.length
+									})}
 						</div>
 					</div>
 				</CardHeader>
 				<CardContent>
 					{#if dashboardQuery.data.followUps.length === 0}
 						<p class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-							no payment follow-up is needed right now.
+							{$LL.dashboard.followUps.empty()}
 						</p>
 					{:else}
 						<div class="space-y-4">
@@ -248,10 +283,10 @@
 												<div class="flex flex-wrap items-center gap-2">
 													<p class="text-base font-medium">{item.tenantName}</p>
 													<Badge variant={statusVariants[item.status]}>
-														{item.status}
+														{$LL.common.status[item.status]()}
 													</Badge>
 													{#if hasActiveOverdueFollowUp(item)}
-														<Badge variant="destructive">overdue</Badge>
+														<Badge variant="destructive">{$LL.common.status.overdue()}</Badge>
 													{/if}
 													{#if item.govId}
 														<Badge variant="outline">{item.govId}</Badge>
@@ -263,25 +298,29 @@
 														href={resolve(`/contracts/payments/${item.contractId}`)}
 														class="inline-flex rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
 													>
-														open payments
+														{$LL.common.actions.openPayments()}
 													</a>
 												</div>
 											</div>
 
 											<div class="grid gap-3 sm:grid-cols-3">
 												<div class="rounded-lg border bg-background/70 p-3">
-													<p class="text-xs tracking-wide text-muted-foreground uppercase">phone</p>
+													<p class="text-xs tracking-wide text-muted-foreground uppercase">
+														{$LL.common.labels.phone()}
+													</p>
 													<p class="mt-1 text-sm font-medium text-foreground">{item.tenantPhone}</p>
 												</div>
 												<div class="rounded-lg border bg-background/70 p-3">
-													<p class="text-xs tracking-wide text-muted-foreground uppercase">cycle</p>
+													<p class="text-xs tracking-wide text-muted-foreground uppercase">
+														{$LL.common.labels.cycle()}
+													</p>
 													<p class="mt-1 text-sm font-medium text-foreground capitalize">
-														{intervalLabels[item.interval]}
+														{$LL.contracts.intervals[intervalLabels[item.interval]]()}
 													</p>
 												</div>
 												<div class="rounded-lg border bg-background/70 p-3">
 													<p class="text-xs tracking-wide text-muted-foreground uppercase">
-														contract ends
+														{$LL.common.labels.contractEnds()}
 													</p>
 													<p class="mt-1 text-sm font-medium text-foreground">
 														{formatDate(item.contractEnd)}
@@ -297,15 +336,17 @@
 														{followUpAmountLabel}
 													</p>
 													<p class="mt-1 text-sm font-semibold text-foreground">
-														{formatCurrency(getFollowUpTotalBalance(item))} SAR
+														{formatCurrency(getFollowUpTotalBalance(item))}
+														{$LL.common.messages.sar()}
 													</p>
 												</div>
 												<div class="rounded-lg border bg-muted/15 p-3">
 													<p class="text-xs tracking-wide text-muted-foreground uppercase">
-														received this month
+														{$LL.dashboard.stats.receivedThisMonth()}
 													</p>
 													<p class="mt-1 text-sm font-semibold text-foreground">
-														{formatCurrency(item.collectedThisMonth)} SAR
+														{formatCurrency(item.collectedThisMonth)}
+														{$LL.common.messages.sar()}
 													</p>
 												</div>
 												<div class="rounded-lg border bg-muted/15 p-3">
@@ -313,7 +354,8 @@
 														{followUpRemainingLabel}
 													</p>
 													<p class="mt-1 text-sm font-semibold text-foreground">
-														{formatCurrency(progress.remainingAmount)} SAR
+														{formatCurrency(progress.remainingAmount)}
+														{$LL.common.messages.sar()}
 													</p>
 												</div>
 											</div>
@@ -324,7 +366,8 @@
 													<span class="text-muted-foreground">
 														{formatCurrency(progress.coveredAmount)} / {formatCurrency(
 															progress.coveredAmount + progress.remainingAmount
-														)} SAR
+														)}
+														{$LL.common.messages.sar()}
 													</span>
 												</div>
 
@@ -338,7 +381,11 @@
 													class="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground"
 												>
 													<span>{getFollowUpProgressSummary(progress.rate)}</span>
-													<span>{formatCurrency(progress.remainingAmount)} SAR remaining</span>
+													<span
+														>{$LL.dashboard.followUps.remaining({
+															amount: formatCurrency(progress.remainingAmount)
+														})}</span
+													>
 												</div>
 											</div>
 										</div>
@@ -352,7 +399,7 @@
 		{:else}
 			<Card>
 				<CardContent class="pt-6">
-					<p class="text-sm text-muted-foreground">dashboard data is unavailable right now.</p>
+					<p class="text-sm text-muted-foreground">{$LL.dashboard.followUps.unavailable()}</p>
 				</CardContent>
 			</Card>
 		{/if}

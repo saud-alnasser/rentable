@@ -8,6 +8,8 @@
 	import * as Table from '$lib/common/components/fragments/table';
 	import * as Tooltip from '$lib/common/components/fragments/tooltip';
 	import { cn } from '$lib/common/utils/tailwind';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { DragDropProvider } from '@dnd-kit-svelte/svelte';
 	import { useSortable } from '@dnd-kit-svelte/svelte/sortable';
 	import { RestrictToVerticalAxis } from '@dnd-kit/abstract/modifiers';
@@ -133,7 +135,7 @@
 
 <div class="flex items-center justify-between gap-2 py-4">
 	<Input
-		placeholder="search..."
+		placeholder={$LL.common.table.searchPlaceholder()}
 		value={globalFilter}
 		oninput={(e) => {
 			globalFilter = e.currentTarget.value;
@@ -151,7 +153,9 @@
 									<IconLayoutColumns />
 								</Button>
 							</Tooltip.Trigger>
-							<Tooltip.Content class="capitalize" side="top">customize columns</Tooltip.Content>
+							<Tooltip.Content class="capitalize" side="top"
+								>{$LL.common.actions.customizeColumns()}</Tooltip.Content
+							>
 						</Tooltip.Root>
 					{/snippet}
 				</DropdownMenu.Trigger>
@@ -178,7 +182,9 @@
 							<IconPlus />
 						</Button>
 					</Tooltip.Trigger>
-					<Tooltip.Content class="capitalize" side="top">new record</Tooltip.Content>
+					<Tooltip.Content class="capitalize" side="top"
+						>{$LL.common.actions.newRecord()}</Tooltip.Content
+					>
 				</Tooltip.Root>
 			</div>
 		{/if}
@@ -226,7 +232,9 @@
 					{/each}
 				{:else}
 					<Table.Row>
-						<Table.Cell colspan={columns.length} class="h-24 text-center">No results.</Table.Cell>
+						<Table.Cell colspan={columns.length} class="h-24 text-center"
+							>{$LL.common.messages.noResults()}</Table.Cell
+						>
 					</Table.Row>
 				{/if}
 			</Table.Body>
@@ -236,15 +244,18 @@
 <div class={cn('flex items-center px-4', hasSelectColumn ? 'justify-between' : 'justify-start')}>
 	{#if hasSelectColumn}
 		<div class="hidden flex-1 text-sm text-muted-foreground lg:flex">
-			{table.getFilteredSelectedRowModel().rows.length} of
-			{table.getFilteredRowModel().rows.length} row(s) selected.
+			{$LL.common.table.rowsSelected({
+				selected: table.getFilteredSelectedRowModel().rows.length,
+				total: table.getFilteredRowModel().rows.length
+			})}
 		</div>
 	{/if}
 	<div
 		class={cn('flex w-full items-center gap-8', hasSelectColumn ? 'lg:w-fit' : 'justify-between')}
 	>
 		<div class="hidden items-center gap-2 lg:flex">
-			<Label for="rows-per-page" class="text-sm font-medium">Rows per page</Label>
+			<Label for="rows-per-page" class="text-sm font-medium">{$LL.common.table.rowsPerPage()}</Label
+			>
 			<Select.Root
 				type="single"
 				bind:value={
@@ -265,18 +276,20 @@
 		</div>
 		<div class="flex items-center gap-6 lg:w-fit">
 			<div class="flex w-fit items-center justify-center text-sm font-medium">
-				Page {table.getState().pagination.pageIndex + (table.getPageCount() >= 1 ? 1 : 0)} of
-				{table.getPageCount()}
+				{$LL.common.table.pageOf({
+					page: table.getState().pagination.pageIndex + (table.getPageCount() >= 1 ? 1 : 0),
+					count: table.getPageCount()
+				})}
 			</div>
-			<div class="ms-auto flex items-center gap-2 lg:ms-0">
+			<div class="ms-auto flex items-center gap-2 lg:ms-0" dir={localesMetadata[$locale].direction}>
 				<Button
 					variant="outline"
 					class="hidden h-8 w-8 p-0 lg:flex"
 					onclick={() => table.setPageIndex(0)}
 					disabled={!table.getCanPreviousPage()}
 				>
-					<span class="sr-only">Go to first page</span>
-					<IconChevronsLeft />
+					<span class="sr-only">{$LL.common.table.goToFirstPage()}</span>
+					<IconChevronsLeft class="rtl:rotate-180" />
 				</Button>
 				<Button
 					variant="outline"
@@ -285,8 +298,8 @@
 					onclick={() => table.previousPage()}
 					disabled={!table.getCanPreviousPage()}
 				>
-					<span class="sr-only">Go to previous page</span>
-					<IconChevronLeft />
+					<span class="sr-only">{$LL.common.table.goToPreviousPage()}</span>
+					<IconChevronLeft class="rtl:rotate-180" />
 				</Button>
 				<Button
 					variant="outline"
@@ -295,8 +308,8 @@
 					onclick={() => table.nextPage()}
 					disabled={!table.getCanNextPage()}
 				>
-					<span class="sr-only">Go to next page</span>
-					<IconChevronRight />
+					<span class="sr-only">{$LL.common.table.goToNextPage()}</span>
+					<IconChevronRight class="rtl:rotate-180" />
 				</Button>
 				<Button
 					variant="outline"
@@ -305,8 +318,8 @@
 					onclick={() => table.setPageIndex(table.getPageCount() - 1)}
 					disabled={!table.getCanNextPage()}
 				>
-					<span class="sr-only">Go to last page</span>
-					<IconChevronsRight />
+					<span class="sr-only">{$LL.common.table.goToLastPage()}</span>
+					<IconChevronsRight class="rtl:rotate-180" />
 				</Button>
 			</div>
 		</div>

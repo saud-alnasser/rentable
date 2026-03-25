@@ -3,6 +3,9 @@
 	import { Label } from '$lib/common/components/fragments/label';
 	import * as Select from '$lib/common/components/fragments/select';
 	import { Skeleton } from '$lib/common/components/fragments/skeleton';
+	import * as Table from '$lib/common/components/fragments/table';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { useFetchComplexes } from '$lib/resources/complexes/hooks/queries';
 	import {
 		useAssignContractUnits,
@@ -49,32 +52,34 @@
 	};
 
 	const formatContractTitle = () => {
-		if (contractQuery.isLoading) return 'Loading contract...';
+		if (contractQuery.isLoading) return $LL.contracts.units.loadingContract();
 
 		const contractLabel = getContractLabel();
 
-		return contractLabel ? `Units for ${contractLabel}` : 'Units';
+		return contractLabel
+			? $LL.contracts.units.unitsFor({ govId: contractLabel })
+			: $LL.contracts.units.unitsTitle();
 	};
 
 	const getLockSummary = () => {
 		if (isTerminated) {
-			return 'This contract is terminated and locked. Unit assignments are read-only.';
+			return $LL.contracts.units.lockSummaryTerminated();
 		}
 
 		if (hasRegisteredPayments) {
-			return 'This contract has registered payments. Unit assignments are locked.';
+			return $LL.contracts.units.lockSummaryHasPayments();
 		}
 
-		return 'Assign available units by complex, then manage the units already linked to this contract.';
+		return $LL.contracts.units.lockSummaryDefault();
 	};
 
 	const getLockNotice = () => {
 		if (isTerminated) {
-			return 'Terminated contracts are locked. You can review linked units here, but you cannot assign or remove units until the contract is unterminated.';
+			return $LL.contracts.units.lockNoticeTerminated();
 		}
 
 		if (hasRegisteredPayments) {
-			return 'Contracts with registered payments are locked. You can review linked units here, but you cannot assign or remove units after payments have been recorded.';
+			return $LL.contracts.units.lockNoticeHasPayments();
 		}
 
 		return undefined;
@@ -108,7 +113,7 @@
 	});
 </script>
 
-<div class="flex flex-col gap-4">
+<div class="flex flex-col gap-4" dir={localesMetadata[$locale].direction}>
 	{#if contractQuery.isLoading}
 		<Skeleton class="h-10 w-full" />
 	{:else}
@@ -130,20 +135,21 @@
 		{#if !isLocked}
 			<section class="rounded-lg border p-4">
 				<div class="mb-4 space-y-1">
-					<h2 class="font-semibold">Available units</h2>
+					<h2 class="font-semibold">{$LL.contracts.units.availableTitle()}</h2>
 					<p class="text-sm text-muted-foreground">
-						Choose a complex to show units that are available for this contract timeframe. Units
-						linked to overlapping contracts are excluded.
+						{$LL.contracts.units.availableDescription()}
 					</p>
 				</div>
 
 				<div class="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
 					<div class="space-y-2">
-						<Label>Complex</Label>
+						<Label>{$LL.common.labels.complex()}</Label>
 						<Select.Root type="single" bind:value={selectedComplexId}>
 							<Select.Trigger class="w-full" disabled={complexesQuery.isLoading || isLocked}>
 								{selectedComplex?.name ||
-									(complexesQuery.isLoading ? 'loading complexes...' : 'select complex')}
+									(complexesQuery.isLoading
+										? $LL.common.messages.loadingComplexes()
+										: $LL.contracts.units.selectComplexPlaceholder())}
 							</Select.Trigger>
 							<Select.Content>
 								{#each complexesQuery.data ?? [] as complex (complex.id)}
@@ -161,19 +167,21 @@
 							assignMutation.isPending}
 						class="capitalize"
 					>
-						{assignMutation.isPending ? 'assigning...' : 'assign selected'}
+						{assignMutation.isPending
+							? $LL.common.actions.assigning()
+							: $LL.common.actions.assignSelected()}
 					</Button>
 				</div>
 
 				{#if !selectedComplexNumber}
 					<p class="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-						Select a complex to load available units.
+						{$LL.contracts.units.selectComplex()}
 					</p>
 				{:else if vacantUnitsQuery.isLoading}
 					<Skeleton class="h-40 w-full" />
 				{:else if (vacantUnitsQuery.data?.length ?? 0) === 0}
 					<p class="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-						No units are available for this contract timeframe in the selected complex.
+						{$LL.contracts.units.noAvailableUnits()}
 					</p>
 				{:else}
 					<div class="grid gap-2">
@@ -198,11 +206,11 @@
 
 		<section class="rounded-lg border p-4">
 			<div class="mb-4 space-y-1">
-				<h2 class="font-semibold">Assigned units</h2>
+				<h2 class="font-semibold">{$LL.contracts.units.assignedTitle()}</h2>
 				<p class="text-sm text-muted-foreground">
 					{isLocked
-						? 'Review the units currently linked to this contract.'
-						: 'Remove a unit from this contract when it should no longer be linked to it.'}
+						? $LL.contracts.units.assignedDescriptionLocked()
+						: $LL.contracts.units.assignedDescriptionEditable()}
 				</p>
 			</div>
 
@@ -210,44 +218,44 @@
 				<Skeleton class="h-40 w-full" />
 			{:else if (assignedUnitsQuery.data?.length ?? 0) === 0}
 				<p class="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-					No units are assigned to this contract yet.
+					{$LL.contracts.units.noAssignedUnits()}
 				</p>
 			{:else}
 				<div class="overflow-hidden rounded-md border">
-					<table class="w-full text-sm">
-						<thead class="bg-muted text-left">
-							<tr>
-								<th class="px-4 py-3 font-medium">Unit</th>
-								<th class="px-4 py-3 font-medium">Complex</th>
+					<Table.Root class="w-full" dir={localesMetadata[$locale].direction}>
+						<Table.Header>
+							<Table.Row>
+								<Table.Head class="px-4 py-3 text-start">{$LL.common.labels.unit()}</Table.Head>
+								<Table.Head class="px-4 py-3 text-start">{$LL.common.labels.complex()}</Table.Head>
 								{#if !isLocked}
-									<th class="px-4 py-3 text-right font-medium">Action</th>
+									<Table.Head class="px-4 py-3 text-end">{$LL.common.labels.action()}</Table.Head>
 								{/if}
-							</tr>
-						</thead>
-						<tbody>
+							</Table.Row>
+						</Table.Header>
+
+						<Table.Body>
 							{#each assignedUnitsQuery.data ?? [] as unit (unit.id)}
-								<tr class="border-t">
-									<td class="px-4 py-3">{unit.name}</td>
-									<td class="px-4 py-3">{unit.complexName}</td>
+								<Table.Row class="border-t">
+									<Table.Cell class="px-4 py-3 text-start">{unit.name}</Table.Cell>
+									<Table.Cell class="px-4 py-3 text-start">{unit.complexName}</Table.Cell>
 									{#if !isLocked}
-										<td class="px-4 py-3 text-right">
+										<Table.Cell class="px-4 py-3 text-end">
 											<Button
 												variant="destructive"
 												disabled={isLocked || removeMutation.isPending}
 												onclick={async () => {
 													if (isLocked) return;
-
 													await removeMutation.mutateAsync({ contractId, unitId: unit.id });
 												}}
 											>
-												remove
+												{$LL.common.actions.remove()}
 											</Button>
-										</td>
+										</Table.Cell>
 									{/if}
-								</tr>
+								</Table.Row>
 							{/each}
-						</tbody>
-					</table>
+						</Table.Body>
+					</Table.Root>
 				</div>
 			{/if}
 		</section>

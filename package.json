@@ -17,7 +17,8 @@
 		"db:studio": "drizzle-kit studio",
 		"db:seed": "tsx ./scripts/seed.ts",
 		"db:purge": "tsx ./scripts/purge.ts",
-		"tauri": "node ./scripts/tauri-with-env.mjs"
+		"tauri": "node ./scripts/tauri-with-env.mjs",
+		"i18n": "typesafe-i18n"
 	},
 	"dependencies": {
 		"@dnd-kit-svelte/svelte": "^0.1.6",
@@ -30,6 +31,7 @@
 		"@tauri-apps/plugin-updater": "^2.10.0",
 		"@trpc/server": "^11.9.0",
 		"drizzle-orm": "^0.45.1",
+		"typesafe-i18n": "^5.27.1",
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
@@ -85,7 +87,7 @@
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [
-			"better-sqlite3",
+			"es5-ext",
 			"esbuild"
 		]
 	},

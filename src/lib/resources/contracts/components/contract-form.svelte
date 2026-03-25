@@ -13,6 +13,7 @@
 	} from '$lib/common/components/fragments/range-calendar';
 	import * as Select from '$lib/common/components/fragments/select';
 	import { cn } from '$lib/common/utils/tailwind.js';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateContract, useUpdateContract } from '$lib/resources/contracts/hooks/queries';
 	import { useFetchTenant, useFetchTenants } from '$lib/resources/tenants/hooks/queries';
 	import {
@@ -31,20 +32,40 @@
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
-	import z from 'zod';
+	import { z } from 'zod';
 
 	const intervals = [
-		{ value: '1m', label: 'monthly' },
-		{ value: '3m', label: 'quarterly' },
-		{ value: '6m', label: 'semi-annual' },
-		{ value: '12m', label: 'annual' }
+		{
+			value: '1m',
+			get label() {
+				return $LL.contracts.intervals.monthly();
+			}
+		},
+		{
+			value: '3m',
+			get label() {
+				return $LL.contracts.intervals.quarterly();
+			}
+		},
+		{
+			value: '6m',
+			get label() {
+				return $LL.contracts.intervals.semiAnnual();
+			}
+		},
+		{
+			value: '12m',
+			get label() {
+				return $LL.contracts.intervals.annual();
+			}
+		}
 	] as const;
 
-	const intervalLabels: Record<Contract['interval'], string> = {
-		'1m': 'monthly',
-		'3m': 'quarterly',
-		'6m': 'semi-annual',
-		'12m': 'annual'
+	const intervalLabels: Record<Contract['interval'], () => string> = {
+		'1m': $LL.contracts.intervals.monthly,
+		'3m': $LL.contracts.intervals.quarterly,
+		'6m': $LL.contracts.intervals.semiAnnual,
+		'12m': $LL.contracts.intervals.annual
 	};
 
 	const MAX_VISIBLE_TENANTS = 20;
@@ -52,17 +73,17 @@
 	const ContractFormSchema = z.object({
 		id: z.number().optional(),
 		govId: z.string().trim().optional().default(''),
-		tenantId: z.string().min(1, 'tenant is required'),
+		tenantId: z.string().min(1, $LL.contracts.form.tenantRequired()),
 		interval: ContractSchema.shape.interval,
 		cost: z
 			.string()
 			.trim()
-			.min(1, 'cost is required')
+			.min(1, $LL.contracts.form.costRequired())
 			.refine((value) => Number.isFinite(Number(value)) && Number(value) > 0, {
-				message: 'cost must be greater than zero'
+				message: $LL.contracts.form.costGreaterThanZero()
 			}),
-		start: z.string().min(1, 'start date is required'),
-		end: z.string().min(1, 'end date is required')
+		start: z.string().min(1, $LL.contracts.form.startDateRequired()),
+		end: z.string().min(1, $LL.contracts.form.endDateRequired())
 	});
 
 	type ContractForm = z.infer<typeof ContractFormSchema>;
@@ -106,12 +127,12 @@
 		}
 	};
 	const formatCalendarDate = (value: CalendarDate | undefined) =>
-		value ? dateFormatter.format(value.toDate(getLocalTimeZone())) : 'pick a date';
+		value ? dateFormatter.format(value.toDate(getLocalTimeZone())) : $LL.contracts.form.pickDate();
 	const formatDateRange = (value: DateRange | undefined) => {
-		if (!value?.start && !value?.end) return 'pick a date range';
+		if (!value?.start && !value?.end) return $LL.contracts.form.pickDateRange();
 		if (value.start && !value.end)
-			return `${formatCalendarDate(value.start as CalendarDate)} - end date`;
-		if (!value.start || !value.end) return 'pick a date range';
+			return `${formatCalendarDate(value.start as CalendarDate)} - ${$LL.contracts.form.endDateShort()}`;
+		if (!value.start || !value.end) return $LL.contracts.form.pickDateRange();
 
 		return `${formatCalendarDate(value.start as CalendarDate)} - ${formatCalendarDate(value.end as CalendarDate)}`;
 	};
@@ -195,20 +216,20 @@
 				} catch (e) {
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 						if (e.message.includes('government id')) {
-							setError(form, 'govId', 'government id is associated with another contract');
+							setError(form, 'govId', $LL.contracts.form.duplicateGovernmentId());
 						} else if (e.message.includes('end date')) {
-							setError(form, 'end', 'end date must be after start date');
+							setError(form, 'end', $LL.contracts.form.endDateAfterStart());
 						} else if (e.message.includes('payment cycle')) {
 							setError(form, 'end', e.message);
 						} else if (e.message.includes('cost')) {
-							setError(form, 'cost', 'cost per payment must be greater than zero');
+							setError(form, 'cost', $LL.contracts.form.costPerPaymentGreaterThanZero());
 						} else if (e.message.includes('tenant')) {
-							setError(form, 'tenantId', 'please select a valid tenant');
+							setError(form, 'tenantId', $LL.contracts.form.invalidTenant());
 						} else {
 							toast.error(e.message);
 						}
 					} else {
-						toast.error('unexpected error occurred!');
+						toast.error($LL.common.messages.unexpectedError());
 					}
 				}
 			}
@@ -448,10 +469,10 @@
 		<form method="POST" use:enhance class="grid gap-4 md:grid-cols-2">
 			<Form.Field form={superform} name="govId">
 				<Form.Control>
-					<Label>Government ID (optional)</Label>
+					<Label>{$LL.common.labels.governmentIdOptional()}</Label>
 					<Input
 						bind:value={$form.govId}
-						placeholder="Government ID (optional)"
+						placeholder={$LL.common.labels.governmentIdOptional()}
 						aria-invalid={$errors.govId ? 'true' : undefined}
 						{...$constraints.govId}
 					/>
@@ -462,7 +483,7 @@
 
 			<Form.Field form={superform} name="tenantId">
 				<Form.Control>
-					<Label>Tenant</Label>
+					<Label>{$LL.common.labels.tenant()}</Label>
 					<Popover.Root bind:open={isTenantPickerOpen}>
 						<Popover.Trigger>
 							{#snippet child({ props })}
@@ -478,8 +499,8 @@
 									<span class="min-w-0 flex-1 truncate text-left">
 										{selectedTenant?.name ||
 											(selectedTenantQuery.isLoading
-												? 'loading tenant...'
-												: 'search and select tenant')}
+												? $LL.contracts.form.loadingTenant()
+												: $LL.contracts.form.searchAndSelectTenant())}
 									</span>
 									<ChevronDownIcon class="size-4 shrink-0 opacity-50" />
 								</Button>
@@ -490,17 +511,21 @@
 							<Command.Root class="w-full" shouldFilter={false}>
 								<Command.Input
 									bind:value={tenantSearch}
-									placeholder="search tenant by name, id or phone..."
+									placeholder={$LL.contracts.form.searchTenantPlaceholder()}
 								/>
 								<Command.List>
 									{#if !hasTenantSearch}
 										<div class="p-3 text-sm text-muted-foreground">
-											Start typing to search tenants by name, ID, or phone.
+											{$LL.contracts.form.startTypingTenantSearch()}
 										</div>
 									{:else if isTenantResultsLoading && tenantOptions.length === 0}
-										<div class="p-3 text-sm text-muted-foreground">Loading tenants...</div>
+										<div class="p-3 text-sm text-muted-foreground">
+											{$LL.contracts.form.loadingTenants()}
+										</div>
 									{:else if tenantOptions.length === 0}
-										<div class="p-3 text-sm text-muted-foreground">No tenant found.</div>
+										<div class="p-3 text-sm text-muted-foreground">
+											{$LL.contracts.form.noTenantFound()}
+										</div>
 									{:else}
 										<Command.Group>
 											{#each tenantOptions as tenant (tenant.id)}
@@ -537,10 +562,10 @@
 
 			<Form.Field form={superform} name="interval">
 				<Form.Control>
-					<Label>Payment cycle</Label>
+					<Label>{$LL.common.labels.cycle()}</Label>
 					<Select.Root type="single" bind:value={$form.interval}>
 						<Select.Trigger class="w-full" aria-invalid={$errors.interval ? 'true' : undefined}>
-							{intervalLabels[$form.interval]}
+							{intervalLabels[$form.interval]()}
 						</Select.Trigger>
 						<Select.Content>
 							{#each intervals as interval (interval.value)}
@@ -555,7 +580,7 @@
 
 			<Form.Field form={superform} name="cost">
 				<Form.Control>
-					<Label>Cost per payment</Label>
+					<Label>{$LL.common.labels.costPerPayment()}</Label>
 					<Input
 						type="number"
 						min="0.01"
@@ -576,7 +601,7 @@
 			<div class="md:col-span-2">
 				<Form.Field form={superform} name="start">
 					<Form.Control>
-						<Label>Contract period</Label>
+						<Label>{$LL.common.labels.contractPeriod()}</Label>
 						<input type="hidden" name="start" value={$form.start} />
 						<input type="hidden" name="end" value={$form.end} />
 						<Popover.Root>
@@ -639,7 +664,7 @@
 				disabled={CreateMutation.isPending || UpdateMutation.isPending}
 				class="capitalize md:col-span-2"
 			>
-				{value?.id ? 'update' : 'create'}
+				{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
 			</Button>
 		</form>
 	</Dialog.Content>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { buttonVariants } from '$lib/common/components/fragments/button/index.js';
 	import { cn } from '$lib/common/utils/tailwind.js';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Pagination as PaginationPrimitive } from 'bits-ui';
 
@@ -13,13 +14,13 @@
 </script>
 
 {#snippet Fallback()}
-	<span>Next</span>
+	<span>{$LL.common.ui.next()}</span>
 	<ChevronRightIcon class="size-4" />
 {/snippet}
 
 <PaginationPrimitive.NextButton
 	bind:ref
-	aria-label="Go to next page"
+	aria-label={$LL.common.table.goToNextPage()}
 	class={cn(
 		buttonVariants({
 			size: 'default',

@@ -47,7 +47,13 @@
 		"tabler",
 		"tauri",
 		"treeify",
+		"typesafe",
+		"unterminate",
+		"untermnate",
 		"vaul",
-		"vite"
-	]
+		"vite",
+		"العربية"
+	],
+	"i18n-ally.localesPaths": ["src/lib/i18n", "src/lib/i18n/messages"],
+	"prettier.ignorePath": ".prettierignore"
 }

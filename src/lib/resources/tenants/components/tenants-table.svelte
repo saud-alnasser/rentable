@@ -4,22 +4,23 @@
 	import DataTable from '$lib/common/components/blocks/data-table.svelte';
 	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
 	import { renderComponent } from '$lib/common/components/fragments/data-table';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useDeleteTenant, useFetchTenants } from '$lib/resources/tenants/hooks/queries';
 	import type { ColumnDef } from '@tanstack/table-core';
 	import TenantForm from './tenant-form.svelte';
 
-	let columns: ColumnDef<Tenant>[] = [
+	let columns = $derived.by((): ColumnDef<Tenant>[] => [
 		{
 			accessorKey: 'nationalId',
-			header: 'national id'
+			header: $LL.common.labels.nationalId()
 		},
 		{
 			accessorKey: 'name',
-			header: 'name'
+			header: $LL.common.labels.name()
 		},
 		{
 			accessorKey: 'phone',
-			header: 'phone'
+			header: $LL.common.labels.phone()
 		},
 		{
 			id: 'actions',
@@ -27,14 +28,14 @@
 				renderComponent(DataTableActionsDropdown, {
 					actions: [
 						{
-							label: 'edit',
+							label: $LL.common.actions.edit(),
 							onclick: () => {
 								tenant = row.original;
 								isTenantFormOpen = true;
 							}
 						},
 						{
-							label: 'delete',
+							label: $LL.common.actions.delete(),
 							onclick: async () => {
 								tenant = row.original;
 								isDeleteDialogOpen = true;
@@ -43,7 +44,7 @@
 					]
 				})
 		}
-	];
+	]);
 
 	const fetchQuery = useFetchTenants();
 	const deleteMutation = useDeleteTenant();

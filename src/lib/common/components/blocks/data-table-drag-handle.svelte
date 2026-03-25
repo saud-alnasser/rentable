@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/common/components/fragments/button';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import { IconGripVertical } from '@tabler/icons-svelte';
 	import { type Attachment } from 'svelte/attachments';
 
@@ -13,5 +14,5 @@
 	class="size-7 text-muted-foreground hover:bg-transparent"
 >
 	<IconGripVertical class="size-3 text-muted-foreground" />
-	<span class="sr-only">Drag to reorder</span>
+	<span class="sr-only">{$LL.common.actions.dragToReorder()}</span>
 </Button>

@@ -2,3 +2,7 @@ build
 **/*.md
 pnpm-lock.yaml
 tauri/**
+
+# i18n
+
+src/lib/i18n/i18n-*.ts

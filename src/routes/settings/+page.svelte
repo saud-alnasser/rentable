@@ -1,4 +1,5 @@
 <script lang="ts">
+	import api from '$lib/api/mod';
 	import { tauri, type AvailableUpdate, type UpdaterDownloadEvent } from '$lib/api/tauri';
 	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
 	import { Button } from '$lib/common/components/fragments/button';
@@ -12,7 +13,12 @@
 	} from '$lib/common/components/fragments/card';
 	import { Input } from '$lib/common/components/fragments/input';
 	import { Label } from '$lib/common/components/fragments/label';
+	import * as Select from '$lib/common/components/fragments/select';
 	import { Spinner } from '$lib/common/components/fragments/spinner';
+	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
+	import type { Locales } from '$lib/i18n/i18n-types';
+	import { locales } from '$lib/i18n/i18n-util';
 	import {
 		useCreateBackup,
 		useDeleteBackup,
@@ -115,7 +121,7 @@
 
 	function formatTimestamp(value: number | null | undefined) {
 		if (!value) {
-			return 'never';
+			return $LL.common.messages.never();
 		}
 
 		return new Intl.DateTimeFormat('en-GB', {
@@ -141,7 +147,7 @@
 			}
 		}
 
-		return 'unexpected error occurred!';
+		return $LL.common.messages.unexpectedError();
 	}
 
 	function logUpdaterError(action: string, error: unknown) {
@@ -152,7 +158,7 @@
 
 	function formatReleaseDate(value: string | null | undefined) {
 		if (!value) {
-			return 'unknown';
+			return $LL.common.messages.unknown();
 		}
 
 		const date = new Date(value);
@@ -189,7 +195,9 @@
 
 		try {
 			await availableUpdate.close();
-		} catch {}
+		} catch {
+			/* ignore */
+		}
 	}
 
 	async function checkForUpdates() {
@@ -273,13 +281,15 @@
 		const days = Number(endingSoonNoticeDaysValue);
 
 		if (!Number.isInteger(days) || days <= 0) {
-			toast.error('ending soon notice window must be greater than zero');
+			toast.error($LL.settings.endingSoonInvalid());
 			return;
 		}
 
 		try {
 			await setEndingSoonNoticeDaysMutation.mutateAsync({ days });
-		} catch {}
+		} catch {
+			/* ignore */
+		}
 	}
 
 	async function saveDatabasePath() {
@@ -292,7 +302,9 @@
 			}
 
 			await setDatabasePathMutation.mutateAsync({ path: trimmedPath });
-		} catch {}
+		} catch {
+			/* ignore */
+		}
 	}
 
 	async function resetDatabasePath() {
@@ -300,19 +312,25 @@
 
 		try {
 			await resetDatabasePathMutation.mutateAsync();
-		} catch {}
+		} catch {
+			/* ignore */
+		}
 	}
 
 	async function createBackup() {
 		try {
 			await createBackupMutation.mutateAsync();
-		} catch {}
+		} catch {
+			/* ignore */
+		}
 	}
 
 	async function restoreBackup(name: string) {
 		try {
 			await restoreBackupMutation.mutateAsync({ name });
-		} catch {}
+		} catch {
+			/* ignore */
+		}
 	}
 
 	function openDeleteBackupDialog(name: string) {
@@ -328,15 +346,17 @@
 		try {
 			await deleteBackupMutation.mutateAsync({ name: backupToDelete });
 			backupToDelete = null;
-		} catch {}
+		} catch {
+			/* ignore */
+		}
 	}
 </script>
 
 <div class="flex flex-col gap-5 p-1">
 	<div class="flex flex-col gap-1">
-		<h1 class="text-3xl font-semibold tracking-tight">Settings</h1>
+		<h1 class="text-3xl font-semibold tracking-tight">{$LL.settings.title()}</h1>
 		<p class="text-sm text-muted-foreground">
-			manage the ending-soon notice window, app updates, database path, backups, and app metadata.
+			{$LL.settings.description()}
 		</p>
 	</div>
 
@@ -344,20 +364,20 @@
 		<div class="flex min-h-full flex-1 items-center justify-center p-1">
 			<div class="flex flex-col items-center gap-3">
 				<Spinner class="size-8 text-muted-foreground" />
-				<p class="text-sm text-muted-foreground">loading settings...</p>
+				<p class="text-sm text-muted-foreground">{$LL.common.messages.loadingSettings()}</p>
 			</div>
 		</div>
 	{:else if settingsQuery.error}
 		<Card class="max-w-2xl">
 			<CardHeader>
-				<CardTitle>settings are unavailable right now</CardTitle>
+				<CardTitle>{$LL.settings.loadErrorTitle()}</CardTitle>
 				<CardDescription>
-					there was a problem loading the current settings snapshot.
+					{$LL.settings.loadErrorDescription()}
 				</CardDescription>
 			</CardHeader>
 			<CardContent class="space-y-4">
 				<p class="text-sm text-muted-foreground">{getErrorMessage(settingsQuery.error)}</p>
-				<Button onclick={() => void settingsQuery.refetch()}>retry</Button>
+				<Button onclick={() => void settingsQuery.refetch()}>{$LL.common.actions.retry()}</Button>
 			</CardContent>
 		</Card>
 	{:else if settingsQuery.data}
@@ -365,14 +385,14 @@
 			<div class="space-y-4">
 				<Card>
 					<CardHeader>
-						<CardTitle>ending soon notice window</CardTitle>
+						<CardTitle>{$LL.settings.endingSoonTitle()}</CardTitle>
 						<CardDescription>
-							choose how many days before contract end the dashboard should count as ending soon.
+							{$LL.settings.endingSoonDescription()}
 						</CardDescription>
 					</CardHeader>
 					<CardContent class="space-y-4">
 						<div class="space-y-2">
-							<Label for="ending-soon-notice-days">notice window (days)</Label>
+							<Label for="ending-soon-notice-days">{$LL.common.labels.noticeWindowDays()}</Label>
 							<Input
 								id="ending-soon-notice-days"
 								type="number"
@@ -387,13 +407,14 @@
 								onclick={() => void saveEndingSoonNoticeDays()}
 								disabled={setEndingSoonNoticeDaysMutation.isPending || !hasEndingSoonChange}
 							>
-								{setEndingSoonNoticeDaysMutation.isPending ? 'saving...' : 'save window'}
+								{setEndingSoonNoticeDaysMutation.isPending
+									? $LL.common.actions.saving()
+									: $LL.common.actions.saveWindow()}
 							</Button>
 							<p class="text-sm text-muted-foreground">
-								current value: {settingsQuery.data.endingSoonNoticeDays} day{settingsQuery.data
-									.endingSoonNoticeDays === 1
-									? ''
-									: 's'}
+								{$LL.common.labels.currentValue()}: {settingsQuery.data.endingSoonNoticeDays === 1
+									? $LL.common.time.day({ count: settingsQuery.data.endingSoonNoticeDays })
+									: $LL.common.time.days({ count: settingsQuery.data.endingSoonNoticeDays })}
 							</p>
 						</div>
 					</CardContent>
@@ -401,23 +422,22 @@
 
 				<Card>
 					<CardHeader>
-						<CardTitle>database path and backups</CardTitle>
+						<CardTitle>{$LL.settings.databaseTitle()}</CardTitle>
 						<CardDescription>
-							switch the active database, fall back to the default path, create backups, and restore
-							a previous backup.
+							{$LL.settings.databaseDescription()}
 						</CardDescription>
 					</CardHeader>
 					<CardContent class="space-y-6">
 						<div class="space-y-3">
 							<div class="space-y-2">
-								<Label>current database path</Label>
+								<Label>{$LL.common.labels.currentDatabasePath()}</Label>
 								<p class="rounded-lg border bg-muted/15 px-3 py-2 font-mono text-xs break-all">
 									{settingsQuery.data.currentDatabasePath}
 								</p>
 							</div>
 
 							<div class="space-y-2">
-								<Label>default database path</Label>
+								<Label>{$LL.common.labels.defaultDatabasePath()}</Label>
 								<p
 									class="rounded-lg border bg-muted/15 px-3 py-2 font-mono text-xs break-all text-muted-foreground"
 								>
@@ -426,15 +446,16 @@
 							</div>
 
 							<div class="space-y-2">
-								<Label for="database-path-override">custom database path override</Label>
+								<Label for="database-path-override"
+									>{$LL.common.labels.customDatabasePathOverride()}</Label
+								>
 								<Input
 									id="database-path-override"
 									bind:value={databasePathValue}
-									placeholder="leave empty to use the default database path"
+									placeholder={$LL.settings.pathOverridePlaceholder()}
 								/>
 								<p class="text-sm text-muted-foreground">
-									leaving this empty uses the default path above. saving reconnects immediately, and
-									startup will run migrations again on the selected database path.
+									{$LL.settings.pathOverrideDescription()}
 								</p>
 							</div>
 
@@ -443,14 +464,16 @@
 									onclick={() => void saveDatabasePath()}
 									disabled={isSavingDatabasePath || !hasDatabasePathChange}
 								>
-									{isSavingDatabasePath ? 'saving...' : 'save database path'}
+									{isSavingDatabasePath
+										? $LL.common.actions.saving()
+										: $LL.common.actions.saveDatabasePath()}
 								</Button>
 								<Button
 									variant="outline"
 									onclick={() => void resetDatabasePath()}
 									disabled={isSavingDatabasePath || settingsQuery.data.usingDefaultDatabasePath}
 								>
-									use default path
+									{$LL.common.actions.useDefaultPath()}
 								</Button>
 							</div>
 						</div>
@@ -458,35 +481,36 @@
 						<div class="space-y-3 border-t pt-6">
 							<div class="flex flex-wrap items-center justify-between gap-3">
 								<div>
-									<h2 class="text-base font-semibold">create backup</h2>
+									<h2 class="text-base font-semibold">{$LL.settings.createBackupTitle()}</h2>
 									<p class="text-sm text-muted-foreground">
-										backups are stored in the app backup directory and can be restored below.
-										protected update backups are created automatically before app migrations.
+										{$LL.settings.createBackupDescription()}
 									</p>
 								</div>
 								<Button onclick={() => void createBackup()} disabled={isManagingBackups}>
-									{createBackupMutation.isPending ? 'creating backup...' : 'create backup'}
+									{createBackupMutation.isPending
+										? $LL.common.actions.creatingBackup()
+										: $LL.common.actions.createBackup()}
 								</Button>
 							</div>
 
 							<div class="space-y-3">
-								<h2 class="text-base font-semibold">restore backup</h2>
+								<h2 class="text-base font-semibold">{$LL.settings.restoreBackupTitle()}</h2>
 								{#if settingsQuery.data.backups.length === 0}
 									<p class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-										no backups are available yet.
+										{$LL.settings.noBackups()}
 									</p>
 								{:else}
 									<div class="space-y-3">
-										{#each settingsQuery.data.backups as backup (backup.name)}
+										{#each settingsQuery.data.backups as backup (`${backup.name}-${backup.createdAt}`)}
 											<div
 												class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/10 p-3"
 											>
 												<div class="min-w-0 space-y-1">
 													<p class="font-medium break-all">{backup.name}</p>
 													<p class="text-sm text-muted-foreground">
-														created {formatTimestamp(backup.createdAt)}
+														{$LL.settings.createdAt({ value: formatTimestamp(backup.createdAt) })}
 														{#if backup.isProtected}
-															· protected update backup
+															· {$LL.settings.protectedUpdateBackup()}
 														{/if}
 													</p>
 												</div>
@@ -496,7 +520,9 @@
 														onclick={() => void restoreBackup(backup.name)}
 														disabled={isManagingBackups}
 													>
-														{restoreBackupMutation.isPending ? 'restoring...' : 'restore'}
+														{restoreBackupMutation.isPending
+															? $LL.common.actions.restoring()
+															: $LL.common.actions.restore()}
 													</Button>
 													{#if !backup.isProtected}
 														<Button
@@ -504,7 +530,7 @@
 															onclick={() => openDeleteBackupDialog(backup.name)}
 															disabled={isManagingBackups}
 														>
-															delete
+															{$LL.common.actions.delete()}
 														</Button>
 													{/if}
 												</div>
@@ -523,12 +549,12 @@
 										backupToDelete = null;
 									}
 								}}
-								title="delete backup"
+								title={$LL.settings.deleteBackupTitle()}
 								description={backupToDelete
-									? `are you sure you want to delete "${backupToDelete}"? this cannot be undone.`
-									: 'are you sure you want to delete this backup? this cannot be undone.'}
-								confirmLabel="delete"
-								confirmLoadingLabel="deleting..."
+									? $LL.settings.deleteBackupNamedDescription({ name: backupToDelete })
+									: $LL.settings.deleteBackupDescription()}
+								confirmLabel={$LL.common.actions.delete()}
+								confirmLoadingLabel={$LL.common.actions.deleting()}
 								onSubmit={deleteBackup}
 							/>
 						</div>
@@ -539,15 +565,52 @@
 			<div class="space-y-4">
 				<Card>
 					<CardHeader>
-						<CardTitle>app updates</CardTitle>
+						<CardTitle>{$LL.settings.localeTitle()}</CardTitle>
 						<CardDescription>
-							check GitHub Releases for a newer signed build. if startup later fails after an
-							update, rentable will offer rollback to the protected pre-update backup.
+							{$LL.settings.localeDescription()}
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div class="space-y-2">
+							<Label for="app-locale">{$LL.settings.localeLabel()}</Label>
+							<Select.Root
+								type="single"
+								value={$locale}
+								onValueChange={async (v) => {
+									if (!v) return;
+									const next = v as Locales;
+									if (next === $locale) return;
+									setLocale(next);
+									await api.settings.setLocale({ locale: next });
+								}}
+							>
+								<Select.Trigger id="app-locale" class="w-full capitalize">
+									{localesMetadata[$locale].label}
+								</Select.Trigger>
+								<Select.Content>
+									{#each locales as loc (loc)}
+										<Select.Item value={loc} label={localesMetadata[loc].label} class="capitalize">
+											{localesMetadata[loc].label}
+										</Select.Item>
+									{/each}
+								</Select.Content>
+							</Select.Root>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle>{$LL.settings.updatesTitle()}</CardTitle>
+						<CardDescription>
+							{$LL.settings.updatesDescription()}
 						</CardDescription>
 					</CardHeader>
 					<CardContent class="space-y-4">
 						<div class="rounded-lg border bg-muted/15 p-3">
-							<p class="text-xs tracking-wide text-muted-foreground uppercase">current version</p>
+							<p class="text-xs tracking-wide text-muted-foreground uppercase">
+								{$LL.common.labels.currentVersion()}
+							</p>
 							<p class="mt-1 text-base font-semibold">{settingsQuery.data.version}</p>
 						</div>
 
@@ -556,7 +619,9 @@
 								onclick={() => void checkForUpdates()}
 								disabled={isCheckingForUpdate || isInstallingUpdate}
 							>
-								{isCheckingForUpdate ? 'checking for updates...' : 'check for updates'}
+								{isCheckingForUpdate
+									? $LL.common.actions.checkingForUpdates()
+									: $LL.common.actions.checkForUpdates()}
 							</Button>
 
 							{#if availableUpdate}
@@ -564,21 +629,23 @@
 									onclick={() => void installUpdate()}
 									disabled={isInstallingUpdate || isCheckingForUpdate}
 								>
-									{isInstallingUpdate ? 'installing update...' : 'download & install'}
+									{isInstallingUpdate
+										? $LL.common.actions.installingUpdate()
+										: $LL.common.actions.downloadAndInstall()}
 								</Button>
 							{/if}
 						</div>
 
 						{#if isCheckingForUpdate}
-							<Callout variant="info">checking for update...</Callout>
+							<Callout variant="info">{$LL.settings.updatesChecking()}</Callout>
 						{:else if updateCheckError}
 							<Callout variant="error">{updateCheckError}</Callout>
 						{:else if availableUpdate}
 							<Callout variant="info">
-								update v{availableUpdate.version} is available.
+								{$LL.settings.releaseAvailable({ version: availableUpdate.version })}
 							</Callout>
 						{:else if hasCheckedForUpdate}
-							<Callout variant="success">you’re already on the latest release.</Callout>
+							<Callout variant="success">{$LL.settings.latestRelease()}</Callout>
 						{/if}
 
 						{#if availableUpdate}
@@ -586,13 +653,13 @@
 								<div class="grid gap-3 sm:grid-cols-2">
 									<div>
 										<p class="text-xs tracking-wide text-muted-foreground uppercase">
-											available version
+											{$LL.common.labels.availableVersion()}
 										</p>
 										<p class="mt-1 font-semibold">v{availableUpdate.version}</p>
 									</div>
 									<div>
 										<p class="text-xs tracking-wide text-muted-foreground uppercase">
-											release date
+											{$LL.common.labels.releaseDate()}
 										</p>
 										<p class="mt-1 font-semibold">{formatReleaseDate(availableUpdate.date)}</p>
 									</div>
@@ -601,7 +668,7 @@
 								{#if availableUpdate.body}
 									<div class="space-y-2 border-t pt-3">
 										<p class="text-xs tracking-wide text-muted-foreground uppercase">
-											release notes
+											{$LL.common.labels.releaseNotes()}
 										</p>
 										<p class="text-sm whitespace-pre-wrap text-muted-foreground">
 											{availableUpdate.body}
@@ -613,7 +680,7 @@
 
 						{#if isInstallingUpdate}
 							<Callout variant="info">
-								downloading update
+								{$LL.settings.downloadingUpdate()}
 								{#if formatBytes(updateDownloadedBytes)}
 									({formatBytes(updateDownloadedBytes)}
 									{#if formatBytes(updateContentLength)}
@@ -640,54 +707,59 @@
 
 						{#if updateInstallComplete}
 							<Callout variant="success">
-								the update has been installed. on Windows the app may close automatically during
-								installation; otherwise restart rentable to finish switching versions.
+								{$LL.settings.restartNotice()}
 							</Callout>
 
-							<Button onclick={() => void restartApp()}>restart app</Button>
+							<Button onclick={() => void restartApp()}>{$LL.common.actions.restartApp()}</Button>
 						{/if}
 					</CardContent>
 				</Card>
 
 				<Card>
 					<CardHeader>
-						<CardTitle>about</CardTitle>
-						<CardDescription
-							>current app metadata and recent sync/backup timestamps.</CardDescription
-						>
+						<CardTitle>{$LL.settings.aboutTitle()}</CardTitle>
+						<CardDescription>{$LL.settings.aboutDescription()}</CardDescription>
 					</CardHeader>
 					<CardContent class="space-y-3">
 						<div class="rounded-lg border bg-muted/15 p-3">
-							<p class="text-xs tracking-wide text-muted-foreground uppercase">app version</p>
+							<p class="text-xs tracking-wide text-muted-foreground uppercase">
+								{$LL.common.labels.appVersion()}
+							</p>
 							<p class="mt-1 text-base font-semibold">{settingsQuery.data.version}</p>
 						</div>
 
 						<div class="rounded-lg border bg-muted/15 p-3">
-							<p class="text-xs tracking-wide text-muted-foreground uppercase">last sync time</p>
+							<p class="text-xs tracking-wide text-muted-foreground uppercase">
+								{$LL.common.labels.lastSyncTime()}
+							</p>
 							<p class="mt-1 text-base font-semibold">
 								{formatTimestamp(settingsQuery.data.lastSyncAt)}
 							</p>
 						</div>
 
 						<div class="rounded-lg border bg-muted/15 p-3">
-							<p class="text-xs tracking-wide text-muted-foreground uppercase">last backup time</p>
+							<p class="text-xs tracking-wide text-muted-foreground uppercase">
+								{$LL.common.labels.lastBackupTime()}
+							</p>
 							<p class="mt-1 text-base font-semibold">
 								{formatTimestamp(settingsQuery.data.lastBackupAt)}
 							</p>
 						</div>
 
 						<div class="rounded-lg border bg-muted/15 p-3">
-							<p class="text-xs tracking-wide text-muted-foreground uppercase">backup count</p>
+							<p class="text-xs tracking-wide text-muted-foreground uppercase">
+								{$LL.common.labels.backupCount()}
+							</p>
 							<p class="mt-1 text-base font-semibold">{settingsQuery.data.backups.length}</p>
 						</div>
 
 						{#if settingsQuery.data.usingDefaultDatabasePath}
 							<p class="text-sm text-muted-foreground">
-								the app is currently using the default database path.
+								{$LL.settings.usingDefaultDatabasePath()}
 							</p>
 						{:else}
 							<p class="text-sm text-muted-foreground">
-								the app is currently using a custom database path override.
+								{$LL.settings.usingCustomDatabasePath()}
 							</p>
 						{/if}
 					</CardContent>

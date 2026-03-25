@@ -4,6 +4,28 @@
 	import { Separator } from '$lib/common/components/fragments/separator';
 	import * as Sidebar from '$lib/common/components/fragments/sidebar';
 	import { regex } from '$lib/common/utils/regex';
+	import { LL } from '$lib/i18n/i18n-svelte';
+
+	function localizeSegment(segment: string) {
+		switch (segment) {
+			case 'complexes':
+				return $LL.common.nav.complexes();
+			case 'contracts':
+				return $LL.common.nav.contracts();
+			case 'dashboard':
+				return $LL.common.nav.dashboard();
+			case 'payments':
+				return $LL.common.nav.payments();
+			case 'settings':
+				return $LL.common.nav.settings();
+			case 'tenants':
+				return $LL.common.nav.tenants();
+			case 'units':
+				return $LL.common.nav.units();
+			default:
+				return segment;
+		}
+	}
 
 	function isDynamic(segment: string) {
 		return regex.identifier.numeric.test(segment) || regex.identifier.uuid.test(segment);
@@ -20,7 +42,7 @@
 
 				if (isDynamic(segment)) return null;
 
-				return { label: segment, path };
+				return { label: localizeSegment(segment), path };
 			})
 			.filter(Boolean)
 			.map((crumb, index, arr) => ({ ...crumb, isLast: index === arr.length - 1 }));

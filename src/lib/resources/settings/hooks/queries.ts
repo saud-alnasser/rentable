@@ -4,7 +4,9 @@ import {
 	onMutationSuccess,
 	type MutationOptions
 } from '$lib/common/utils/queries';
+import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import { get } from 'svelte/store';
 
 export const keys = {
 	all: ['settings']
@@ -29,9 +31,9 @@ export function useFetchSettings() {
 export function useSetEndingSoonNoticeDays(
 	opts: MutationOptions = {
 		toast: {
-			success: 'ending soon notice window updated successfully!',
+			success: () => get(LL).settingsHooks.endingSoonUpdated(),
 			error: true,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -55,9 +57,9 @@ export function useSetEndingSoonNoticeDays(
 export function useSetDatabasePath(
 	opts: MutationOptions = {
 		toast: {
-			success: 'database path updated successfully!',
+			success: () => get(LL).settingsHooks.databasePathUpdated(),
 			error: true,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -82,9 +84,9 @@ export function useSetDatabasePath(
 export function useResetDatabasePath(
 	opts: MutationOptions = {
 		toast: {
-			success: 'database path reset to default successfully!',
+			success: () => get(LL).settingsHooks.databasePathReset(),
 			error: true,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -109,9 +111,9 @@ export function useResetDatabasePath(
 export function useCreateBackup(
 	opts: MutationOptions = {
 		toast: {
-			success: 'backup created successfully!',
+			success: () => get(LL).settingsHooks.backupCreated(),
 			error: true,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -131,9 +133,9 @@ export function useCreateBackup(
 export function useProceedFailedUpdate(
 	opts: MutationOptions = {
 		toast: {
-			success: 'startup recovery cleared. retrying the current version is now allowed.',
+			success: () => get(LL).settingsHooks.startupRecoveryCleared(),
 			error: true,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -153,9 +155,9 @@ export function useProceedFailedUpdate(
 export function useRollbackFailedUpdate(
 	opts: MutationOptions = {
 		toast: {
-			success: 'protected update backup restored successfully!',
+			success: () => get(LL).settingsHooks.rollbackRestored(),
 			error: true,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -175,9 +177,9 @@ export function useRollbackFailedUpdate(
 export function useDeleteBackup(
 	opts: MutationOptions = {
 		toast: {
-			success: 'backup deleted successfully!',
+			success: () => get(LL).settingsHooks.backupDeleted(),
 			error: true,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {
@@ -198,9 +200,9 @@ export function useDeleteBackup(
 export function useRestoreBackup(
 	opts: MutationOptions = {
 		toast: {
-			success: 'backup restored successfully!',
+			success: () => get(LL).settingsHooks.backupRestored(),
 			error: true,
-			unexpected: 'unexpected error occurred!'
+			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
 	}
 ) {

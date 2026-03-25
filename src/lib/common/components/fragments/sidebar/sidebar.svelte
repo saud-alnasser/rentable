@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Sheet from '$lib/common/components/fragments/sheet/index.js';
 	import { cn, type WithElementRef } from '$lib/common/utils/tailwind.js';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
 	import { SIDEBAR_WIDTH_MOBILE } from './constants.js';
 	import { useSidebar } from './context.svelte.js';
@@ -44,8 +45,8 @@
 			{side}
 		>
 			<Sheet.Header class="sr-only">
-				<Sheet.Title>Sidebar</Sheet.Title>
-				<Sheet.Description>Displays the mobile sidebar.</Sheet.Description>
+				<Sheet.Title>{$LL.common.ui.sidebar()}</Sheet.Title>
+				<Sheet.Description>{$LL.common.ui.mobileSidebarDescription()}</Sheet.Description>
 			</Sheet.Header>
 			<div class="flex h-full w-full flex-col">
 				{@render children?.()}

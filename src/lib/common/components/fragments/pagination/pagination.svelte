@@ -2,6 +2,7 @@
 	import { Pagination as PaginationPrimitive } from 'bits-ui';
 
 	import { cn } from '$lib/common/utils/tailwind.js';
+	import { LL } from '$lib/i18n/i18n-svelte';
 
 	let {
 		ref = $bindable(null),
@@ -18,7 +19,7 @@
 	bind:ref
 	bind:page
 	role="navigation"
-	aria-label="pagination"
+	aria-label={$LL.common.ui.pagination()}
 	data-slot="pagination"
 	class={cn('mx-auto flex w-full justify-center', className)}
 	{count}

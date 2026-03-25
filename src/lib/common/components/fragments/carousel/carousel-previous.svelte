@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button, type Props } from '$lib/common/components/fragments/button/index.js';
 	import { cn } from '$lib/common/utils/tailwind.js';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import type { WithoutChildren } from 'bits-ui';
 	import { getEmblaContext } from './context.js';
@@ -34,5 +35,5 @@
 	bind:ref
 >
 	<ArrowLeftIcon class="size-4" />
-	<span class="sr-only">Previous slide</span>
+	<span class="sr-only">{$LL.common.ui.previousSlide()}</span>
 </Button>

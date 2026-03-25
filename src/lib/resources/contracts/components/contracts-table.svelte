@@ -13,6 +13,7 @@
 	import { Badge } from '$lib/common/components/fragments/badge';
 	import { renderComponent, renderSnippet } from '$lib/common/components/fragments/data-table';
 	import * as Tooltip from '$lib/common/components/fragments/tooltip';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import {
 		useDeleteContract,
 		useFetchContracts,
@@ -24,11 +25,11 @@
 
 	type ContractRow = Awaited<ReturnType<typeof api.contract.getMany>>[number];
 
-	const intervalLabels: Record<Contract['interval'], string> = {
-		'1m': 'monthly',
-		'3m': 'quarterly',
-		'6m': 'semi-annual',
-		'12m': 'annual'
+	const intervalLabels: Record<Contract['interval'], () => string> = {
+		'1m': $LL.contracts.intervals.monthly,
+		'3m': $LL.contracts.intervals.quarterly,
+		'6m': $LL.contracts.intervals.semiAnnual,
+		'12m': $LL.contracts.intervals.annual
 	};
 
 	const statusVariants: Record<
@@ -43,13 +44,13 @@
 		defaulted: 'destructive'
 	};
 
-	const statusDescriptions: Record<Contract['status'], string> = {
-		scheduled: 'scheduled; starts in the future',
-		active: 'active; payments on track',
-		terminated: 'manually terminated; locked for changes',
-		fulfilled: 'active; paid in full',
-		expired: 'ended; paid in full',
-		defaulted: 'ended; not paid in full'
+	const statusDescriptions: Record<Contract['status'], () => string> = {
+		scheduled: $LL.contracts.statusDescriptions.scheduled,
+		active: $LL.contracts.statusDescriptions.active,
+		terminated: $LL.contracts.statusDescriptions.terminated,
+		fulfilled: $LL.contracts.statusDescriptions.fulfilled,
+		expired: $LL.contracts.statusDescriptions.expired,
+		defaulted: $LL.contracts.statusDescriptions.defaulted
 	};
 
 	const formatDate = (value: number) =>
@@ -65,44 +66,52 @@
 	const terminateMutation = useTerminateContract();
 	const unterminateMutation = useUnterminateContract();
 
-	let columns: ColumnDef<ContractRow>[] = [
+	let columns = $derived.by((): ColumnDef<ContractRow>[] => [
 		{
 			accessorKey: 'govId',
-			header: () => renderSnippet(ContractHeader, { label: 'gov id', className: 'pe-4' }),
+			header: () =>
+				renderSnippet(ContractHeader, {
+					label: $LL.common.labels.governmentId(),
+					className: 'pe-4'
+				}),
 			cell: ({ row }) => renderSnippet(GovIdCell, { value: row.original.govId ?? '' })
 		},
 		{
 			id: 'tenant',
-			accessorFn: (row) => row.tenantName ?? `tenant #${row.tenantId}`,
-			header: () => renderSnippet(ContractHeader, { label: 'tenant', className: 'ps-2' }),
+			accessorFn: (row) =>
+				row.tenantName ?? $LL.contracts.table.tenantFallback({ tenantId: String(row.tenantId) }),
+			header: () =>
+				renderSnippet(ContractHeader, { label: $LL.common.labels.tenant(), className: 'ps-2' }),
 			cell: ({ row }) =>
 				renderSnippet(TenantName, {
-					tenantName: row.original.tenantName ?? `tenant #${row.original.tenantId}`
+					tenantName:
+						row.original.tenantName ??
+						$LL.contracts.table.tenantFallback({ tenantId: String(row.original.tenantId) })
 				})
 		},
 		{
 			accessorKey: 'start',
-			header: 'start',
+			header: $LL.common.labels.start(),
 			cell: ({ row }) => renderSnippet(DateCell, { value: row.original.start })
 		},
 		{
 			accessorKey: 'end',
-			header: 'end',
+			header: $LL.common.labels.end(),
 			cell: ({ row }) => renderSnippet(DateCell, { value: row.original.end })
 		},
 		{
 			accessorKey: 'status',
-			header: 'status',
+			header: $LL.common.labels.status(),
 			cell: ({ row }) => renderSnippet(StatusBadge, { status: row.original.status })
 		},
 		{
 			accessorKey: 'interval',
-			header: 'cycle',
-			cell: ({ row }) => intervalLabels[row.original.interval]
+			header: $LL.common.labels.cycle(),
+			cell: ({ row }) => intervalLabels[row.original.interval]()
 		},
 		{
 			accessorKey: 'cost',
-			header: 'payment',
+			header: $LL.common.labels.payment(),
 			cell: ({ row }) => renderSnippet(CurrencyCell, { value: row.original.cost })
 		},
 		{
@@ -115,7 +124,7 @@
 						...(!isTerminated
 							? [
 									{
-										label: 'edit',
+										label: $LL.common.actions.edit(),
 										onclick: () => {
 											contract = row.original;
 											isContractFormOpen = true;
@@ -124,13 +133,13 @@
 								]
 							: []),
 						{
-							label: 'units management',
+							label: $LL.contracts.table.unitsManagement(),
 							onclick: () => {
 								goto(resolve(`/contracts/units/${row.original.id}`));
 							}
 						},
 						{
-							label: 'payments management',
+							label: $LL.contracts.table.paymentsManagement(),
 							onclick: () => {
 								goto(resolve(`/contracts/payments/${row.original.id}`));
 							}
@@ -138,7 +147,7 @@
 						...(canManuallyTerminateContractStatus(row.original.status)
 							? [
 									{
-										label: 'terminate',
+										label: $LL.common.actions.terminate(),
 										onclick: () => {
 											contract = row.original;
 											isTerminateDialogOpen = true;
@@ -149,7 +158,7 @@
 						...(canUnterminateContractStatus(row.original.status)
 							? [
 									{
-										label: 'unterminate',
+										label: $LL.common.actions.unterminate(),
 										onclick: () => {
 											contract = row.original;
 											isUnterminateDialogOpen = true;
@@ -158,7 +167,7 @@
 								]
 							: []),
 						{
-							label: 'delete',
+							label: $LL.common.actions.delete(),
 							onclick: () => {
 								contract = row.original;
 								isDeleteDialogOpen = true;
@@ -168,7 +177,7 @@
 				});
 			}
 		}
-	];
+	]);
 
 	let contract = $state<Contract | undefined>(undefined);
 	let isContractFormOpen = $state(false);
@@ -219,10 +228,10 @@
 			contract = undefined;
 		}
 	}}
-	title="terminate contract"
-	description="are you sure you want to manually terminate this contract? this only works for active or past contracts."
-	confirmLabel="terminate"
-	confirmLoadingLabel="terminating..."
+	title={$LL.contracts.table.terminateTitle()}
+	description={$LL.contracts.table.terminateDescription()}
+	confirmLabel={$LL.common.actions.terminate()}
+	confirmLoadingLabel={$LL.common.actions.terminating()}
 	onSubmit={async () => {
 		if (contract) {
 			await terminateMutation.mutateAsync(contract.id);
@@ -238,10 +247,10 @@
 			contract = undefined;
 		}
 	}}
-	title="restore contract"
-	description="are you sure you want to remove the manual termination from this contract?"
-	confirmLabel="unterminate"
-	confirmLoadingLabel="restoring..."
+	title={$LL.contracts.table.restoreTitle()}
+	description={$LL.contracts.table.restoreDescription()}
+	confirmLabel={$LL.common.actions.unterminate()}
+	confirmLoadingLabel={$LL.common.actions.restoring()}
 	confirmVariant="default"
 	onSubmit={async () => {
 		if (contract) {
@@ -271,7 +280,7 @@
 {#snippet CurrencyCell({ value }: { value: number })}
 	<div class="flex flex-row gap-1">
 		<span>{formatCurrency(value)}</span>
-		<span>SAR</span>
+		<span>{$LL.common.messages.sar()}</span>
 	</div>
 {/snippet}
 
@@ -281,13 +290,13 @@
 			{#snippet child({ props })}
 				<span {...props} class="inline-flex">
 					<Badge variant={statusVariants[status]} class="capitalize">
-						{status}
+						{$LL.common.status[status]()}
 					</Badge>
 				</span>
 			{/snippet}
 		</Tooltip.Trigger>
 		<Tooltip.Content class="max-w-60" side="top">
-			{statusDescriptions[status]}
+			{statusDescriptions[status]()}
 		</Tooltip.Content>
 	</Tooltip.Root>
 {/snippet}

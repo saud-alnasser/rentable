@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Dialog from '$lib/common/components/fragments/dialog/index.js';
 	import type { WithoutChildrenOrChild } from '$lib/common/utils/tailwind.js';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { Command as CommandPrimitive, Dialog as DialogPrimitive } from 'bits-ui';
 	import type { Snippet } from 'svelte';
 	import Command from './command.svelte';
@@ -9,8 +10,8 @@
 		open = $bindable(false),
 		ref = $bindable(null),
 		value = $bindable(''),
-		title = 'Command Palette',
-		description = 'Search for a command to run',
+		title = $LL.common.ui.commandPalette(),
+		description = $LL.common.ui.commandPaletteDescription(),
 		portalProps,
 		children,
 		...restProps

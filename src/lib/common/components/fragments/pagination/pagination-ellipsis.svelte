@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { cn, type WithElementRef, type WithoutChildren } from '$lib/common/utils/tailwind.js';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import type { HTMLAttributes } from 'svelte/elements';
 
@@ -18,5 +19,5 @@
 	{...restProps}
 >
 	<EllipsisIcon class="size-4" />
-	<span class="sr-only">More pages</span>
+	<span class="sr-only">{$LL.common.ui.morePages()}</span>
 </span>

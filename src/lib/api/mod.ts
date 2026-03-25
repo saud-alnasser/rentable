@@ -1,7 +1,6 @@
 import complex from './routers/complex';
 import contract from './routers/contract';
 import database from './routers/database';
-import example from './routers/example';
 import settings from './routers/settings';
 import state from './routers/state';
 import tenant from './routers/tenant';
@@ -16,7 +15,6 @@ export default caller(
 		tenant,
 		complex,
 		contract,
-		example,
 		window
 	})
 )(await context());

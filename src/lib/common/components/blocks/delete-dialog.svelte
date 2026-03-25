@@ -3,16 +3,17 @@
 	import { Button } from '$lib/common/components/fragments/button';
 	import { Callout } from '$lib/common/components/fragments/callout';
 	import * as Dialog from '$lib/common/components/fragments/dialog';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import { TRPCError } from '@trpc/server';
 
 	let {
 		open,
 		onOpenChange,
 		onSubmit,
-		title = 'confirmation',
-		description = 'are you sure you want to delete this record(s)?',
-		confirmLabel = 'delete',
-		confirmLoadingLabel = 'deleting...',
+		title = $LL.common.deleteDialog.title(),
+		description = $LL.common.deleteDialog.description(),
+		confirmLabel = $LL.common.actions.delete(),
+		confirmLoadingLabel = $LL.common.actions.deleting(),
 		confirmVariant = 'destructive'
 	}: {
 		open: boolean;
@@ -23,12 +24,11 @@
 		confirmLabel?: string;
 		confirmLoadingLabel?: string;
 		confirmVariant?: ButtonVariant;
-		error?: string | null;
 	} = $props();
 
 	let isSubmitting = $state(false);
 	let error = $state<string | null>(null);
-	let hasError = $state(false);
+	let hasError = $derived(Boolean(error));
 
 	async function submit() {
 		isSubmitting = true;
@@ -37,7 +37,8 @@
 			await onSubmit();
 			onOpenChange(false);
 		} catch (e) {
-			const message = e instanceof Error && e.message ? e.message : 'unexpected error occurred!';
+			const message =
+				e instanceof Error && e.message ? e.message : $LL.common.messages.unexpectedError();
 
 			if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 				error = message;
@@ -51,13 +52,8 @@
 		if (!open) {
 			isSubmitting = false;
 			error = null;
-			hasError = false;
 			return;
 		}
-	});
-
-	$effect(() => {
-		hasError = Boolean(error);
 	});
 </script>
 
@@ -81,7 +77,7 @@
 				onclick={() => onOpenChange(false)}
 				class="flex-1"
 			>
-				cancel
+				{$LL.common.actions.cancel()}
 			</Button>
 
 			<Button

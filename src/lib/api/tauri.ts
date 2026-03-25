@@ -42,6 +42,7 @@ export type SettingsSnapshot = {
 	lastBackupAt: number | null;
 	updateRecovery: UpdateRecovery | null;
 	backups: BackupEntry[];
+	locale: string | null;
 };
 
 function mapUpdate(update: TauriUpdate): AvailableUpdate {
@@ -60,9 +61,6 @@ function mapUpdate(update: TauriUpdate): AvailableUpdate {
  * any tauri commands that are available to the API.
  */
 export const tauri = {
-	example: {
-		greet: (name: string) => invoke<string>('greet', { name })
-	},
 	window: {
 		show: () => invoke<void>('window_show'),
 		minimize: () => invoke<void>('window_minimize'),
@@ -101,6 +99,7 @@ export const tauri = {
 		proceedFailedUpdate: () => invoke<SettingsSnapshot>('settings_proceed_failed_update'),
 		rollbackFailedUpdate: () => invoke<SettingsSnapshot>('settings_rollback_failed_update'),
 		markSynced: (timestamp?: number) =>
-			invoke<SettingsSnapshot>('settings_mark_synced', { timestamp: timestamp ?? null })
+			invoke<SettingsSnapshot>('settings_mark_synced', { timestamp: timestamp ?? null }),
+		setLocale: (locale: string) => invoke<SettingsSnapshot>('settings_set_locale', { locale })
 	}
 };
