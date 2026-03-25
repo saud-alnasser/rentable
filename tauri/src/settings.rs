@@ -23,7 +23,7 @@ fn normalize_version(version: &str) -> String {
 
 fn update_backup_name(version: &str, timestamp: i64) -> String {
     format!(
-        "backup-v{}-update-{}.db",
+        "backup-v{}-pre-update-{}.db",
         normalize_version(version),
         timestamp
     )
@@ -45,7 +45,7 @@ fn release_url_for_version(version: Option<&str>) -> String {
 
 fn parse_update_backup_name(name: &str) -> Option<(&str, &str)> {
     let rest = name.strip_prefix("backup-v")?.strip_suffix(".db")?;
-    let (version, timestamp) = rest.split_once("-update-")?;
+    let (version, timestamp) = rest.split_once("-pre-update-")?;
 
     if version.is_empty() || timestamp.is_empty() || !timestamp.chars().all(|c| c.is_ascii_digit())
     {
@@ -742,7 +742,7 @@ mod tests {
     fn update_backup_names_are_marked_protected() {
         let name = update_backup_name("0.3.0", 34242);
 
-        assert_eq!(name, "backup-v0.3.0-update-34242.db");
+        assert_eq!(name, "backup-v0.3.0-pre-update-34242.db");
         assert!(is_protected_backup_name(&name));
     }
 
@@ -750,17 +750,19 @@ mod tests {
     fn protected_backup_detection_rejects_non_update_names() {
         assert_eq!(manual_backup_name(34242), "backup-34242.db");
         assert!(!is_protected_backup_name("backup-34242.db"));
-        assert!(!is_protected_backup_name("backup-v0.3.0-update-latest.db"));
+        assert!(!is_protected_backup_name(
+            "backup-v0.3.0-pre-update-latest.db"
+        ));
     }
 
     #[test]
     fn protected_backup_version_matching_uses_normalized_versions() {
         assert!(is_update_backup_for_version(
-            "backup-v0.3.0-update-34242.db",
+            "backup-v0.3.0-pre-update-34242.db",
             "v0.3.0"
         ));
         assert!(!is_update_backup_for_version(
-            "backup-v0.3.0-update-34242.db",
+            "backup-v0.3.0-pre-update-34242.db",
             "0.4.0"
         ));
     }
