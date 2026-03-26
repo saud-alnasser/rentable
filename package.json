@@ -1,7 +1,7 @@
 {
 	"private": true,
 	"name": "rentable",
-	"version": "0.5.0",
+	"version": "0.5.1",
 	"description": "a rents payment tracker",
 	"type": "module",
 	"scripts": {
