@@ -73,11 +73,13 @@
 		days === 1 ? $LL.common.time.day({ count: days }) : $LL.common.time.days({ count: days });
 
 	type SummaryStat = {
+		id: string;
 		label: string;
 		value: string;
 	};
 
 	type SummarySection = {
+		id: string;
 		title: string;
 		description: string;
 		heroLabel: string;
@@ -91,6 +93,7 @@
 
 	const getSummarySections = (data: DashboardData): SummarySection[] => [
 		{
+			id: 'contracts',
 			title: $LL.dashboard.sections.contracts.title(),
 			description: $LL.dashboard.sections.contracts.description({
 				noticeWindow: formatNoticeWindow(data.endingSoonNoticeDays)
@@ -105,6 +108,7 @@
 			heroClass: 'border-sky-500/20 bg-sky-500/10',
 			stats: [
 				{
+					id: 'active',
 					label: $LL.common.status.active(),
 					value: $LL.dashboard.stats.activeEndingWithin({
 						active: data.summary.contracts.active,
@@ -112,14 +116,35 @@
 						noticeWindow: formatNoticeWindow(data.endingSoonNoticeDays)
 					})
 				},
-				{ label: $LL.common.status.scheduled(), value: String(data.summary.contracts.scheduled) },
-				{ label: $LL.common.status.fulfilled(), value: String(data.summary.contracts.fulfilled) },
-				{ label: $LL.common.status.expired(), value: String(data.summary.contracts.expired) },
-				{ label: $LL.common.status.defaulted(), value: String(data.summary.contracts.defaulted) },
-				{ label: $LL.common.status.terminated(), value: String(data.summary.contracts.terminated) }
+				{
+					id: 'scheduled',
+					label: $LL.common.status.scheduled(),
+					value: String(data.summary.contracts.scheduled)
+				},
+				{
+					id: 'fulfilled',
+					label: $LL.common.status.fulfilled(),
+					value: String(data.summary.contracts.fulfilled)
+				},
+				{
+					id: 'expired',
+					label: $LL.common.status.expired(),
+					value: String(data.summary.contracts.expired)
+				},
+				{
+					id: 'defaulted',
+					label: $LL.common.status.defaulted(),
+					value: String(data.summary.contracts.defaulted)
+				},
+				{
+					id: 'terminated',
+					label: $LL.common.status.terminated(),
+					value: String(data.summary.contracts.terminated)
+				}
 			]
 		},
 		{
+			id: 'money',
 			title: $LL.dashboard.sections.money.title(),
 			description: $LL.dashboard.sections.money.description({ monthLabel: data.monthLabel }),
 			heroLabel: $LL.dashboard.sections.money.heroLabel(),
@@ -131,28 +156,34 @@
 			heroClass: 'border-emerald-500/20 bg-emerald-500/10',
 			stats: [
 				{
+					id: 'dueThisMonth',
 					label: $LL.dashboard.stats.dueThisMonth(),
 					value: `${formatCurrency(data.summary.money.dueThisMonth)} ${$LL.common.messages.sar()}`
 				},
 				{
+					id: 'receivedThisMonth',
 					label: $LL.dashboard.stats.receivedThisMonth(),
 					value: `${formatCurrency(data.summary.money.collectedThisMonth)} ${$LL.common.messages.sar()}`
 				},
 				{
+					id: 'stillDueThisMonth',
 					label: $LL.dashboard.stats.stillDueThisMonth(),
 					value: `${formatCurrency(data.summary.money.remainingThisMonth)} ${$LL.common.messages.sar()}`
 				},
 				{
+					id: 'overallCollectionRate',
 					label: $LL.dashboard.stats.overallCollectionRate(),
 					value: `${data.summary.money.overallCollectionRate}%`
 				},
 				{
+					id: 'totalExpectedAmount',
 					label: $LL.dashboard.stats.totalExpectedAmount(),
 					value: `${formatCurrency(data.summary.money.totalExpectedAmount)} ${$LL.common.messages.sar()}`
 				}
 			]
 		},
 		{
+			id: 'occupancy',
 			title: $LL.dashboard.sections.occupancy.title(),
 			description: $LL.dashboard.sections.occupancy.description(),
 			heroLabel: $LL.dashboard.sections.occupancy.heroLabel(),
@@ -164,18 +195,22 @@
 			heroClass: 'border-violet-500/20 bg-violet-500/10',
 			stats: [
 				{
+					id: 'totalUnits',
 					label: $LL.dashboard.stats.totalUnits(),
 					value: String(data.summary.occupancy.totalUnits)
 				},
 				{
+					id: 'occupiedUnits',
 					label: $LL.dashboard.stats.occupiedUnits(),
 					value: String(data.summary.occupancy.occupiedUnits)
 				},
 				{
+					id: 'vacantUnits',
 					label: $LL.dashboard.stats.vacantUnits(),
 					value: String(data.summary.occupancy.vacantUnits)
 				},
 				{
+					id: 'vacancyRate',
 					label: $LL.dashboard.stats.vacancyRate(),
 					value: `${data.summary.occupancy.vacancyRate}%`
 				}
@@ -209,7 +244,7 @@
 
 		{#if dashboardQuery.data}
 			<div class="grid gap-4 xl:grid-cols-3">
-				{#each getSummarySections(dashboardQuery.data) as section (`${section.title}-${section.heroLabel}-${section.heroValue}`)}
+				{#each getSummarySections(dashboardQuery.data) as section (section.id)}
 					<Card class="gap-4 overflow-hidden">
 						<CardHeader class="gap-3">
 							<CardTitle class="capitalize">{section.title}</CardTitle>
@@ -229,7 +264,7 @@
 							</div>
 
 							<div class="grid gap-3 sm:grid-cols-2">
-								{#each section.stats as stat (`${stat.label}-${stat.value}`)}
+								{#each section.stats as stat (stat.id)}
 									<div class="rounded-lg border bg-muted/15 p-3">
 										<p class="text-xs tracking-wide text-muted-foreground uppercase">
 											{stat.label}
