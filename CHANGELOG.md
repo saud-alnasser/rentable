@@ -1,5 +1,13 @@
 # rentable
 
+## 0.5.1
+
+### Patch Changes
+
+- [#62](https://github.com/saud-alnasser/rentable/pull/62) [`d44b263`](https://github.com/saud-alnasser/rentable/commit/d44b263c654a86fa9723316fd3b5eb6e7738a421) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - renamed pre-update backup db filename to include better postfix
+
+- [#63](https://github.com/saud-alnasser/rentable/pull/63) [`e4dcc73`](https://github.com/saud-alnasser/rentable/commit/e4dcc73ddd6c1431a93e0f4e4f19280573dc779f) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - make list keys unique in dashboard page lists
+
 ## 0.5.0
 
 ### Minor Changes
