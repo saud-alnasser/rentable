@@ -22,6 +22,7 @@
 	import {
 		useCreateBackup,
 		useDeleteBackup,
+		useFetchBackups,
 		useFetchSettings,
 		useResetDatabasePath,
 		useRestoreBackup,
@@ -32,12 +33,15 @@
 	import { toast } from 'svelte-sonner';
 
 	const settingsQuery = useFetchSettings();
+	const backupsQuery = useFetchBackups();
 	const setEndingSoonNoticeDaysMutation = useSetEndingSoonNoticeDays();
 	const setDatabasePathMutation = useSetDatabasePath();
 	const resetDatabasePathMutation = useResetDatabasePath();
 	const createBackupMutation = useCreateBackup();
 	const deleteBackupMutation = useDeleteBackup();
 	const restoreBackupMutation = useRestoreBackup();
+
+	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
 
 	let endingSoonNoticeDaysValue = $state<number | ''>('');
 	let databasePathValue = $state('');
@@ -77,6 +81,17 @@
 			: false;
 	});
 
+	const getCurrentDatabasePath = (settings: AppSettings) =>
+		settings.activeDatabasePath ?? settings.defaultDatabasePath;
+
+	const isUsingDefaultDatabasePath = (settings: AppSettings) =>
+		settings.activeDatabasePath === null ||
+		settings.activeDatabasePath === settings.defaultDatabasePath;
+
+	const canDeleteBackup = (filename: string) =>
+		backupsQuery.data?.some((backup) => backup.filename === filename && !backup.isProtected) ??
+		false;
+
 	const hasDatabasePathChange = $derived.by(() => {
 		const settings = settingsQuery.data;
 		const trimmedPath = databasePathValue.trim();
@@ -86,9 +101,11 @@
 		}
 
 		return trimmedPath
-			? trimmedPath !== settings.currentDatabasePath
-			: !settings.usingDefaultDatabasePath;
+			? trimmedPath !== getCurrentDatabasePath(settings)
+			: !isUsingDefaultDatabasePath(settings);
 	});
+
+	const lastBackupAt = $derived.by(() => backupsQuery.data?.[0]?.createdAt ?? null);
 
 	const updateProgressPercent = $derived.by(() => {
 		if (!updateContentLength || updateContentLength <= 0) {
@@ -110,7 +127,9 @@
 		}
 
 		endingSoonNoticeDaysValue = settings.endingSoonNoticeDays;
-		databasePathValue = settings.usingDefaultDatabasePath ? '' : settings.currentDatabasePath;
+		databasePathValue = isUsingDefaultDatabasePath(settings)
+			? ''
+			: getCurrentDatabasePath(settings);
 	});
 
 	onDestroy(() => {
@@ -213,7 +232,7 @@
 		updateContentLength = null;
 
 		try {
-			const update = await tauri.updater.check();
+			const update = await tauri.update.check();
 
 			await closeAvailableUpdate();
 			availableUpdate = update;
@@ -241,6 +260,8 @@
 		updateContentLength = null;
 
 		try {
+			await api.app.update.prepare({ targetVersion: update.version });
+
 			await update.downloadAndInstall((event: UpdaterDownloadEvent) => {
 				switch (event.event) {
 					case 'Started':
@@ -327,24 +348,28 @@
 
 	async function restoreBackup(name: string) {
 		try {
-			await restoreBackupMutation.mutateAsync({ name });
+			await restoreBackupMutation.mutateAsync({ filename: name });
 		} catch {
 			/* ignore */
 		}
 	}
 
 	function openDeleteBackupDialog(name: string) {
+		if (!canDeleteBackup(name)) {
+			return;
+		}
+
 		backupToDelete = name;
 		isDeleteBackupDialogOpen = true;
 	}
 
 	async function deleteBackup() {
-		if (!backupToDelete) {
+		if (!backupToDelete || !canDeleteBackup(backupToDelete)) {
 			return;
 		}
 
 		try {
-			await deleteBackupMutation.mutateAsync({ name: backupToDelete });
+			await deleteBackupMutation.mutateAsync({ filename: backupToDelete });
 			backupToDelete = null;
 		} catch {
 			/* ignore */
@@ -360,14 +385,14 @@
 		</p>
 	</div>
 
-	{#if settingsQuery.isLoading}
+	{#if (settingsQuery.isLoading && !settingsQuery.data) || (backupsQuery.isLoading && !backupsQuery.data)}
 		<div class="flex min-h-full flex-1 items-center justify-center p-1">
 			<div class="flex flex-col items-center gap-3">
 				<Spinner class="size-8 text-muted-foreground" />
 				<p class="text-sm text-muted-foreground">{$LL.common.messages.loadingSettings()}</p>
 			</div>
 		</div>
-	{:else if settingsQuery.error}
+	{:else if settingsQuery.error || backupsQuery.error}
 		<Card class="max-w-2xl">
 			<CardHeader>
 				<CardTitle>{$LL.settings.loadErrorTitle()}</CardTitle>
@@ -376,11 +401,20 @@
 				</CardDescription>
 			</CardHeader>
 			<CardContent class="space-y-4">
-				<p class="text-sm text-muted-foreground">{getErrorMessage(settingsQuery.error)}</p>
-				<Button onclick={() => void settingsQuery.refetch()}>{$LL.common.actions.retry()}</Button>
+				<p class="text-sm text-muted-foreground">
+					{getErrorMessage(settingsQuery.error ?? backupsQuery.error)}
+				</p>
+				<Button
+					onclick={() => {
+						void settingsQuery.refetch();
+						void backupsQuery.refetch();
+					}}
+				>
+					{$LL.common.actions.retry()}
+				</Button>
 			</CardContent>
 		</Card>
-	{:else if settingsQuery.data}
+	{:else if settingsQuery.data && backupsQuery.data}
 		<div class="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
 			<div class="space-y-4">
 				<Card>
@@ -432,7 +466,7 @@
 							<div class="space-y-2">
 								<Label>{$LL.common.labels.currentDatabasePath()}</Label>
 								<p class="rounded-lg border bg-muted/15 px-3 py-2 font-mono text-xs break-all">
-									{settingsQuery.data.currentDatabasePath}
+									{getCurrentDatabasePath(settingsQuery.data)}
 								</p>
 							</div>
 
@@ -471,7 +505,7 @@
 								<Button
 									variant="outline"
 									onclick={() => void resetDatabasePath()}
-									disabled={isSavingDatabasePath || settingsQuery.data.usingDefaultDatabasePath}
+									disabled={isSavingDatabasePath || isUsingDefaultDatabasePath(settingsQuery.data)}
 								>
 									{$LL.common.actions.useDefaultPath()}
 								</Button>
@@ -495,18 +529,18 @@
 
 							<div class="space-y-3">
 								<h2 class="text-base font-semibold">{$LL.settings.restoreBackupTitle()}</h2>
-								{#if settingsQuery.data.backups.length === 0}
+								{#if backupsQuery.data.length === 0}
 									<p class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
 										{$LL.settings.noBackups()}
 									</p>
 								{:else}
 									<div class="space-y-3">
-										{#each settingsQuery.data.backups as backup (`${backup.name}-${backup.createdAt}`)}
+										{#each backupsQuery.data as backup (`${backup.filename}-${backup.createdAt}`)}
 											<div
 												class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/10 p-3"
 											>
 												<div class="min-w-0 space-y-1">
-													<p class="font-medium break-all">{backup.name}</p>
+													<p class="font-medium break-all">{backup.filename}</p>
 													<p class="text-sm text-muted-foreground">
 														{$LL.settings.createdAt({ value: formatTimestamp(backup.createdAt) })}
 														{#if backup.isProtected}
@@ -517,7 +551,7 @@
 												<div class="flex flex-wrap items-center gap-2">
 													<Button
 														variant="outline"
-														onclick={() => void restoreBackup(backup.name)}
+														onclick={() => void restoreBackup(backup.filename)}
 														disabled={isManagingBackups}
 													>
 														{restoreBackupMutation.isPending
@@ -527,7 +561,7 @@
 													{#if !backup.isProtected}
 														<Button
 															variant="destructive"
-															onclick={() => openDeleteBackupDialog(backup.name)}
+															onclick={() => openDeleteBackupDialog(backup.filename)}
 															disabled={isManagingBackups}
 														>
 															{$LL.common.actions.delete()}
@@ -580,8 +614,16 @@
 									if (!v) return;
 									const next = v as Locales;
 									if (next === $locale) return;
+									const previousLocale = $locale;
 									setLocale(next);
-									await api.settings.setLocale({ locale: next });
+
+									try {
+										await api.app.settings.set({ locale: next });
+										await settingsQuery.refetch();
+									} catch (error) {
+										setLocale(previousLocale);
+										toast.error(getErrorMessage(error));
+									}
 								}}
 							>
 								<Select.Trigger id="app-locale" class="w-full capitalize">
@@ -730,19 +772,10 @@
 
 						<div class="rounded-lg border bg-muted/15 p-3">
 							<p class="text-xs tracking-wide text-muted-foreground uppercase">
-								{$LL.common.labels.lastSyncTime()}
-							</p>
-							<p class="mt-1 text-base font-semibold">
-								{formatTimestamp(settingsQuery.data.lastSyncAt)}
-							</p>
-						</div>
-
-						<div class="rounded-lg border bg-muted/15 p-3">
-							<p class="text-xs tracking-wide text-muted-foreground uppercase">
 								{$LL.common.labels.lastBackupTime()}
 							</p>
 							<p class="mt-1 text-base font-semibold">
-								{formatTimestamp(settingsQuery.data.lastBackupAt)}
+								{formatTimestamp(lastBackupAt)}
 							</p>
 						</div>
 
@@ -750,10 +783,10 @@
 							<p class="text-xs tracking-wide text-muted-foreground uppercase">
 								{$LL.common.labels.backupCount()}
 							</p>
-							<p class="mt-1 text-base font-semibold">{settingsQuery.data.backups.length}</p>
+							<p class="mt-1 text-base font-semibold">{backupsQuery.data.length}</p>
 						</div>
 
-						{#if settingsQuery.data.usingDefaultDatabasePath}
+						{#if isUsingDefaultDatabasePath(settingsQuery.data)}
 							<p class="text-sm text-muted-foreground">
 								{$LL.settings.usingDefaultDatabasePath()}
 							</p>

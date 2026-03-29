@@ -9,12 +9,15 @@ import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-qu
 import { get } from 'svelte/store';
 
 export const keys = {
-	all: ['settings']
+	all: ['settings'],
+	settings: ['settings', 'data'],
+	backups: ['settings', 'backups']
 } as const;
 
 async function invalidateSettingsAndAppData(client: ReturnType<typeof useQueryClient>) {
 	await Promise.all([
-		client.invalidateQueries({ queryKey: keys.all }),
+		client.invalidateQueries({ queryKey: keys.settings }),
+		client.invalidateQueries({ queryKey: keys.backups }),
 		client.invalidateQueries({ queryKey: ['contracts'] }),
 		client.invalidateQueries({ queryKey: ['tenants'] }),
 		client.invalidateQueries({ queryKey: ['complexes'] })
@@ -23,8 +26,15 @@ async function invalidateSettingsAndAppData(client: ReturnType<typeof useQueryCl
 
 export function useFetchSettings() {
 	return createQuery(() => ({
-		queryKey: keys.all,
-		queryFn: () => api.settings.get()
+		queryKey: keys.settings,
+		queryFn: () => api.app.settings.get()
+	}));
+}
+
+export function useFetchBackups() {
+	return createQuery(() => ({
+		queryKey: keys.backups,
+		queryFn: () => api.app.backup.list()
 	}));
 }
 
@@ -40,11 +50,13 @@ export function useSetEndingSoonNoticeDays(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.settings.setEndingSoonNoticeDays>[0]) =>
-			api.settings.setEndingSoonNoticeDays(data),
-		onSuccess: async () => {
+		mutationFn: ({ days }: { days: number }) =>
+			api.app.settings.set({ endingSoonNoticeDays: days }),
+		onSuccess: async (settings) => {
+			client.setQueryData(keys.settings, settings);
+
 			await Promise.all([
-				client.invalidateQueries({ queryKey: keys.all }),
+				client.invalidateQueries({ queryKey: keys.settings }),
 				client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] })
 			]);
 
@@ -66,13 +78,15 @@ export function useSetDatabasePath(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: async (data: Parameters<typeof api.settings.setDatabasePath>[0]) => {
-			const result = await api.settings.setDatabasePath(data);
-			await api.state.sync();
+		mutationFn: async ({ path }: { path: string }) => {
+			const result = await api.app.settings.set({ databasePath: path });
+			await api.app.state.sync();
 
 			return result;
 		},
-		onSuccess: async () => {
+		onSuccess: async (settings) => {
+			client.setQueryData(keys.settings, settings);
+
 			await invalidateSettingsAndAppData(client);
 
 			onMutationSuccess(opts);
@@ -94,12 +108,14 @@ export function useResetDatabasePath(
 
 	return createMutation(() => ({
 		mutationFn: async () => {
-			const result = await api.settings.resetDatabasePath();
-			await api.state.sync();
+			const result = await api.app.settings.set({ databasePath: '' });
+			await api.app.state.sync();
 
 			return result;
 		},
-		onSuccess: async () => {
+		onSuccess: async (settings) => {
+			client.setQueryData(keys.settings, settings);
+
 			await invalidateSettingsAndAppData(client);
 
 			onMutationSuccess(opts);
@@ -120,53 +136,9 @@ export function useCreateBackup(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: () => api.settings.createBackup(),
+		mutationFn: () => api.app.backup.create(),
 		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.all });
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useProceedFailedUpdate(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).settingsHooks.startupRecoveryCleared(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => api.settings.proceedFailedUpdate(),
-		onSuccess: async () => {
-			await invalidateSettingsAndAppData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useRollbackFailedUpdate(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).settingsHooks.rollbackRestored(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => api.settings.rollbackFailedUpdate(),
-		onSuccess: async () => {
-			await invalidateSettingsAndAppData(client);
+			await client.invalidateQueries({ queryKey: keys.backups });
 
 			onMutationSuccess(opts);
 		},
@@ -186,10 +158,9 @@ export function useDeleteBackup(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.settings.deleteBackup>[0]) =>
-			api.settings.deleteBackup(data),
+		mutationFn: ({ filename }: { filename: string }) => api.app.backup.delete({ filename }),
 		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.all });
+			await client.invalidateQueries({ queryKey: keys.backups });
 
 			onMutationSuccess(opts);
 		},
@@ -209,9 +180,9 @@ export function useRestoreBackup(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: async (data: Parameters<typeof api.settings.restoreBackup>[0]) => {
-			const result = await api.settings.restoreBackup(data);
-			await api.state.sync();
+		mutationFn: async ({ filename }: { filename: string }) => {
+			const result = await api.app.backup.restore({ filename });
+			await api.app.state.sync();
 
 			return result;
 		},

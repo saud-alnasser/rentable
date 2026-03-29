@@ -1,23 +1,35 @@
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl as openExternalUrl } from '@tauri-apps/plugin-opener';
-import { check, type DownloadEvent, Update as TauriUpdate } from '@tauri-apps/plugin-updater';
+import { check, type DownloadEvent, type Update as TauriUpdate } from '@tauri-apps/plugin-updater';
 
-export type BackupEntry = {
-	isProtected: boolean;
-	name: string;
-	createdAt: number;
+export type Settings = {
+	endingSoonNoticeDays: number;
+	activeDatabasePath: string | null;
+	defaultDatabasePath: string;
+	locale: string | null;
+	version: string;
 };
 
-export type UpdateRecoveryStatus = 'pending' | 'rolledBack';
+export type SettingsChangeset = {
+	endingSoonNoticeDays?: number;
+	databasePath?: string;
+	locale?: string;
+};
 
-export type UpdateRecovery = {
-	failedVersion: string;
-	previousVersion: string | null;
-	backupName: string;
-	error: string;
-	status: UpdateRecoveryStatus;
-	detectedAt: number;
-	previousReleaseUrl: string;
+export type BackupEntry = {
+	filename: string;
+	isProtected: boolean;
+	createdAt: number;
+	version: string;
+};
+
+export type Recovery = {
+	targetVersion: string;
+	backupVersion: string;
+	backupFilename: string;
+	updateError: string | null;
+	status: 'pending' | 'applied' | 'obsolete';
+	backupReleaseUrl: string;
 };
 
 export type AvailableUpdate = {
@@ -31,19 +43,6 @@ export type AvailableUpdate = {
 };
 
 export type UpdaterDownloadEvent = DownloadEvent;
-
-export type SettingsSnapshot = {
-	version: string;
-	endingSoonNoticeDays: number;
-	currentDatabasePath: string;
-	defaultDatabasePath: string;
-	usingDefaultDatabasePath: boolean;
-	lastSyncAt: number | null;
-	lastBackupAt: number | null;
-	updateRecovery: UpdateRecovery | null;
-	backups: BackupEntry[];
-	locale: string | null;
-};
 
 function mapUpdate(update: TauriUpdate): AvailableUpdate {
 	return {
@@ -61,45 +60,34 @@ function mapUpdate(update: TauriUpdate): AvailableUpdate {
  * any tauri commands that are available to the API.
  */
 export const tauri = {
+	bootstrap: () => invoke<Recovery>('bootstrap'),
 	window: {
 		show: () => invoke<void>('window_show'),
 		minimize: () => invoke<void>('window_minimize'),
-		toggleMaximize: () => invoke<void>('window_toggle_maximize'),
-		startDragging: () => invoke<void>('window_start_dragging'),
+		maximize: () => invoke<void>('window_maximize'),
+		drag: () => invoke<void>('window_drag'),
 		close: () => invoke<void>('window_close'),
 		restart: () => invoke<void>('window_restart')
 	},
 	opener: {
 		openUrl: (url: string) => openExternalUrl(url)
 	},
-	updater: {
+	update: {
+		prepare: (targetVersion: string) => invoke<Recovery>('update_prepare', { targetVersion }),
 		check: async () => {
 			const update = await check();
 
 			return update ? mapUpdate(update) : null;
 		}
 	},
-	db: {
-		exists: () => invoke<boolean>('db_does_exist'),
-		ready: () => invoke<boolean>('db_is_ready'),
-		connect: () => invoke<void>('db_connect'),
-		disconnect: () => invoke<void>('db_disconnect'),
-		purge: () => invoke<void>('db_purge')
-	},
 	settings: {
-		get: () => invoke<SettingsSnapshot>('settings_get'),
-		setEndingSoonNoticeDays: (days: number) =>
-			invoke<SettingsSnapshot>('settings_set_ending_soon_notice_days', { days }),
-		setDatabasePath: (path?: string) =>
-			invoke<SettingsSnapshot>('settings_set_database_path', { path: path ?? null }),
-		resetDatabasePath: () => invoke<SettingsSnapshot>('settings_reset_database_path'),
-		createBackup: () => invoke<SettingsSnapshot>('settings_create_backup'),
-		deleteBackup: (name: string) => invoke<SettingsSnapshot>('settings_delete_backup', { name }),
-		restoreBackup: (name: string) => invoke<SettingsSnapshot>('settings_restore_backup', { name }),
-		proceedFailedUpdate: () => invoke<SettingsSnapshot>('settings_proceed_failed_update'),
-		rollbackFailedUpdate: () => invoke<SettingsSnapshot>('settings_rollback_failed_update'),
-		markSynced: (timestamp?: number) =>
-			invoke<SettingsSnapshot>('settings_mark_synced', { timestamp: timestamp ?? null }),
-		setLocale: (locale: string) => invoke<SettingsSnapshot>('settings_set_locale', { locale })
+		get: () => invoke<Settings>('settings_get'),
+		set: (changeset: SettingsChangeset) => invoke<Settings>('settings_set', { changeset })
+	},
+	backup: {
+		list: () => invoke<BackupEntry[]>('backup_list'),
+		create: () => invoke<BackupEntry>('backup_create'),
+		delete: (filename: string) => invoke<void>('backup_delete', { filename }),
+		restore: (filename: string) => invoke<void>('backup_restore', { filename })
 	}
 };

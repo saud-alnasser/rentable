@@ -1,20 +1,14 @@
+import app from './routers/app';
 import complex from './routers/complex';
 import contract from './routers/contract';
-import database from './routers/database';
-import settings from './routers/settings';
-import state from './routers/state';
 import tenant from './routers/tenant';
-import window from './routers/window';
 import { caller, context, router } from './trpc';
 
 export default caller(
 	router({
-		database,
-		settings,
-		state,
+		app,
 		tenant,
 		complex,
-		contract,
-		window
+		contract
 	})
 )(await context());

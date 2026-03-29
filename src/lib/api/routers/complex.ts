@@ -242,11 +242,15 @@ export default router({
 		update: procedure.public
 			.input(UnitSchema.partial({ name: true, status: true }))
 			.mutation(async ({ input, ctx }) => {
-				const isNameUsed = await ctx.db
-					.select()
-					.from(s.unit)
-					.where(sql`${s.unit.name} = ${input.name} AND ${s.unit.complexId} == ${input.complexId}`)
-					.get();
+				const isNameUsed = input.name
+					? await ctx.db
+							.select()
+							.from(s.unit)
+							.where(
+								sql`${s.unit.name} = ${input.name} AND ${s.unit.complexId} == ${input.complexId} AND ${s.unit.id} != ${input.id}`
+							)
+							.get()
+					: null;
 
 				if (isNameUsed) {
 					throw new TRPCError({
@@ -257,7 +261,10 @@ export default router({
 
 				const updated = await ctx.db
 					.update(s.unit)
-					.set({ name: input.name })
+					.set({
+						...(input.name !== undefined ? { name: input.name } : {}),
+						...(input.status !== undefined ? { status: input.status } : {})
+					})
 					.where(eq(s.unit.id, input.id))
 					.returning()
 					.get();

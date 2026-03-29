@@ -11,7 +11,7 @@
 			return;
 		}
 
-		void api.window.startDragging();
+		void api.app.window.drag();
 	}
 
 	function stopEventPropagation(event: MouseEvent) {
@@ -22,7 +22,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	onmousedown={startDragging}
-	ondblclick={() => void api.window.toggleMaximize()}
+	ondblclick={() => void api.app.window.maximize()}
 	class="flex cursor-grab items-center gap-2 border-b border-border/60 bg-background/70 px-3 py-3 backdrop-blur-xl select-none active:cursor-grabbing"
 >
 	<div class="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5">
@@ -42,7 +42,7 @@
 			size="icon-sm"
 			class="rounded-full border border-transparent text-muted-foreground hover:border-border/60 hover:bg-background/80 hover:text-foreground"
 			aria-label={$LL.common.window.minimize()}
-			onclick={() => void api.window.minimize()}
+			onclick={() => void api.app.window.minimize()}
 		>
 			<MinusIcon class="size-4" />
 		</Button>
@@ -52,7 +52,7 @@
 			size="icon-sm"
 			class="rounded-full border border-transparent text-muted-foreground hover:border-border/60 hover:bg-background/80 hover:text-foreground"
 			aria-label={$LL.common.window.toggleMaximize()}
-			onclick={() => void api.window.toggleMaximize()}
+			onclick={() => void api.app.window.maximize()}
 		>
 			<SquareIcon class="size-3.5" />
 		</Button>
@@ -62,7 +62,7 @@
 			size="icon-sm"
 			class="rounded-full border border-transparent text-muted-foreground hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
 			aria-label={$LL.common.window.close()}
-			onclick={() => void api.window.close()}
+			onclick={() => void api.app.window.close()}
 		>
 			<XIcon class="size-4" />
 		</Button>
