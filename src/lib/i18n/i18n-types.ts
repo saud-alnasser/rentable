@@ -1217,7 +1217,7 @@ type RootTranslation = {
 			 */
 			titleFor: RequiredParams<'govId'>
 			/**
-			 * t​r​a​c​k​ ​c​o​n​t​r​a​c​t​ ​p​a​y​m​e​n​t​s​ ​a​n​d​ ​a​d​d​ ​n​e​w​ ​p​a​y​m​e​n​t​ ​r​e​c​o​r​d​s​ ​f​r​o​m​ ​t​h​e​ ​t​a​b​l​e​.
+			 * t​r​a​c​k​ ​c​o​n​t​r​a​c​t​ ​p​a​y​m​e​n​t​s​ ​a​n​d​ ​a​d​d​ ​n​e​w​ ​p​a​y​m​e​n​t​ ​r​e​c​o​r​d​s​ ​h​e​r​e​.
 			 */
 			trackSummary: string
 		}
@@ -2558,7 +2558,7 @@ export type TranslationFunctions = {
 			 */
 			titleFor: (arg: { govId: unknown }) => LocalizedString
 			/**
-			 * track contract payments and add new payment records from the table.
+			 * track contract payments and add new payment records here.
 			 */
 			trackSummary: () => LocalizedString
 		}

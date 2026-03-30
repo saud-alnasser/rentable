@@ -184,6 +184,7 @@ type DbPayment = typeof s.payment.$inferSelect;
 type SerializedContract = Omit<Contract, 'govId'> & {
 	govId: string;
 	tenantName?: string;
+	tenantPhone?: string;
 	paidAmount: number;
 	expectedAmount: number;
 };
@@ -300,7 +301,8 @@ function getDerivedUnitStatuses(
 function serializeContract(
 	record: DbContract,
 	paymentsByContractId: Map<number, DbPayment[]> = new Map(),
-	tenantName?: string
+	tenantName?: string,
+	tenantPhone?: string
 ): SerializedContract {
 	const payments = paymentsByContractId.get(record.id) ?? [];
 	const { paidAmount, expectedAmount } = getContractPaymentSummary(record, payments);
@@ -318,8 +320,12 @@ function serializeContract(
 		expectedAmount
 	};
 
-	if (tenantName) {
+	if (tenantName !== undefined) {
 		serializedContract.tenantName = tenantName;
+	}
+
+	if (tenantPhone !== undefined) {
+		serializedContract.tenantPhone = tenantPhone;
 	}
 
 	return serializedContract;
@@ -869,7 +875,8 @@ export default router({
 			const contracts = await ctx.db
 				.select({
 					contract: s.contract,
-					tenantName: s.tenant.name
+					tenantName: s.tenant.name,
+					tenantPhone: s.tenant.phone
 				})
 				.from(s.contract)
 				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id));
@@ -878,8 +885,8 @@ export default router({
 				? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
 				: [];
 			const paymentsByContractId = groupPaymentsByContractId(payments);
-			const serializedContracts = contracts.map(({ contract, tenantName }) =>
-				serializeContract(contract, paymentsByContractId, tenantName)
+			const serializedContracts = contracts.map(({ contract, tenantName, tenantPhone }) =>
+				serializeContract(contract, paymentsByContractId, tenantName, tenantPhone)
 			);
 
 			if (!input.search) {
@@ -892,7 +899,8 @@ export default router({
 				(contract) =>
 					(contract.govId ?? '').toLowerCase().includes(search) ||
 					contract.status.toLowerCase().includes(search) ||
-					contract.tenantName?.toLowerCase().includes(search)
+					contract.tenantName?.toLowerCase().includes(search) ||
+					contract.tenantPhone?.toLowerCase().includes(search)
 			);
 		}),
 

@@ -407,7 +407,7 @@ const en = {
 			terminatedSummary: 'this contract is terminated and locked. payment records are read-only.',
 			title: 'payments',
 			titleFor: 'payments for {govId}',
-			trackSummary: 'track contract payments and add new payment records from the table.'
+			trackSummary: 'track contract payments and add new payment records here.'
 		},
 
 		statusDescriptions: {
