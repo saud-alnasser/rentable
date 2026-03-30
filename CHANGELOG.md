@@ -1,5 +1,13 @@
 # rentable
 
+## 0.6.0
+
+### Minor Changes
+
+- [#68](https://github.com/saud-alnasser/rentable/pull/68) [`bc4f39d`](https://github.com/saud-alnasser/rentable/commit/bc4f39dcd34bcb099647d121dc3593bc6b4acc8d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - overhauled data-view ui
+
+- [#67](https://github.com/saud-alnasser/rentable/pull/67) [`4a9373d`](https://github.com/saud-alnasser/rentable/commit/4a9373de14eae24ba1681aa49e3a01f8ed74259d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - overhauled tauri backend
+
 ## 0.5.1
 
 ### Patch Changes
