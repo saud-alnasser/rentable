@@ -603,15 +603,15 @@ type RootTranslation = {
 			 */
 			previousVersion: string
 			/**
-			 * r​e​n​t​a​b​l​e​ ​f​a​i​l​e​d​ ​t​o​ ​f​i​n​i​s​h​ ​s​t​a​r​t​i​n​g​ ​a​f​t​e​r​ ​u​p​d​a​t​i​n​g​ ​t​o​ ​v​{​v​e​r​s​i​o​n​}​.​ ​c​h​o​o​s​e​ ​w​h​e​t​h​e​r​ ​t​o​ ​r​e​s​t​o​r​e​ ​t​h​e​ ​p​r​o​t​e​c​t​e​d​ ​p​r​e​-​u​p​d​a​t​e​ ​b​a​c​k​u​p​ ​o​r​ ​r​e​t​r​y​ ​s​t​a​r​t​u​p​.
+			 * r​e​n​t​a​b​l​e​ ​d​e​t​e​c​t​e​d​ ​u​p​d​a​t​e​ ​r​e​c​o​v​e​r​y​ ​w​h​i​l​e​ ​s​t​a​r​t​i​n​g​ ​v​{​v​e​r​s​i​o​n​}​.​ ​r​e​t​r​y​ ​s​t​a​r​t​u​p​,​ ​o​r​ ​o​p​e​n​ ​t​h​e​ ​p​r​e​v​i​o​u​s​ ​r​e​l​e​a​s​e​ ​i​f​ ​y​o​u​ ​n​e​e​d​ ​t​o​ ​r​e​i​n​s​t​a​l​l​ ​i​t​.
 			 * @param {unknown} version
 			 */
 			recoveryDescription: RequiredParams<'version'>
 			/**
-			 * d​e​t​e​c​t​e​d​ ​{​d​e​t​e​c​t​e​d​A​t​}​.​ ​r​o​l​l​b​a​c​k​ ​r​e​s​t​o​r​e​s​ ​t​h​e​ ​p​r​o​t​e​c​t​e​d​ ​d​a​t​a​b​a​s​e​ ​b​a​c​k​u​p​ ​a​n​d​ ​l​o​c​k​s​ ​t​h​e​ ​a​p​p​ ​s​o​ ​y​o​u​ ​c​a​n​ ​r​e​i​n​s​t​a​l​l​ ​t​h​e​ ​p​r​e​v​i​o​u​s​ ​r​e​l​e​a​s​e​.​ ​p​r​o​c​e​e​d​ ​c​l​e​a​r​s​ ​r​e​c​o​v​e​r​y​ ​a​n​d​ ​r​e​t​r​i​e​s​ ​s​t​a​r​t​u​p​ ​w​i​t​h​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​v​e​r​s​i​o​n​.
-			 * @param {unknown} detectedAt
+			 * t​h​e​ ​p​r​o​t​e​c​t​e​d​ ​b​a​c​k​u​p​ ​w​a​s​ ​c​r​e​a​t​e​d​ ​f​r​o​m​ ​v​{​b​a​c​k​u​p​V​e​r​s​i​o​n​}​.​ ​i​f​ ​s​t​a​r​t​u​p​ ​s​t​i​l​l​ ​f​a​i​l​s​,​ ​r​e​i​n​s​t​a​l​l​ ​t​h​e​ ​p​r​e​v​i​o​u​s​ ​r​e​l​e​a​s​e​ ​b​e​f​o​r​e​ ​o​p​e​n​i​n​g​ ​r​e​n​t​a​b​l​e​ ​a​g​a​i​n​.
+			 * @param {unknown} backupVersion
 			 */
-			recoveryDetails: RequiredParams<'detectedAt'>
+			recoveryDetails: RequiredParams<'backupVersion'>
 			/**
 			 * u​p​d​a​t​e​ ​r​e​c​o​v​e​r​y​ ​r​e​q​u​i​r​e​d
 			 */
@@ -1970,13 +1970,13 @@ export type TranslationFunctions = {
 			 */
 			previousVersion: () => LocalizedString
 			/**
-			 * rentable failed to finish starting after updating to v{version}. choose whether to restore the protected pre-update backup or retry startup.
+			 * rentable detected update recovery while starting v{version}. retry startup, or open the previous release if you need to reinstall it.
 			 */
 			recoveryDescription: (arg: { version: unknown }) => LocalizedString
 			/**
-			 * detected {detectedAt}. rollback restores the protected database backup and locks the app so you can reinstall the previous release. proceed clears recovery and retries startup with the current version.
+			 * the protected backup was created from v{backupVersion}. if startup still fails, reinstall the previous release before opening rentable again.
 			 */
-			recoveryDetails: (arg: { detectedAt: unknown }) => LocalizedString
+			recoveryDetails: (arg: { backupVersion: unknown }) => LocalizedString
 			/**
 			 * update recovery required
 			 */

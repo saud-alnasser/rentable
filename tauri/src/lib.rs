@@ -1,16 +1,26 @@
+pub mod backup;
+pub mod bootstrap;
 pub mod database;
+pub mod persisted;
 pub mod settings;
 pub mod state;
+pub mod timestamp;
+pub mod update;
 pub mod window;
 
 use database::Database;
-use settings::SettingsState;
 use state::AppState;
+use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Manager, async_runtime};
 use tauri_plugin_fs::FsExt;
 use tokio::sync::RwLock;
+
+use crate::backup::Backup;
+use crate::persisted::Persisted;
+use crate::settings::Settings;
+use crate::update::Update;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -30,69 +40,94 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(updater_plugin.build())
         .setup(|app| {
-            let app_data_dir = app.path().app_data_dir()?;
-            app.fs_scope().allow_directory(&app_data_dir, true)?;
-            std::fs::create_dir_all(&app_data_dir)?;
+            let data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("failed to get app data dir");
+
+            app.fs_scope()
+                .allow_directory(&data_dir, true)
+                .expect("failed to allow directory");
+
+            std::fs::create_dir_all(&data_dir).expect("failed to create directory");
 
             let db_dir: PathBuf = if cfg!(debug_assertions) {
-                let current_dir = std::env::current_dir()?;
-                std::fs::create_dir_all(&current_dir)?;
+                let current_dir = std::env::current_dir().expect("failed to get current dir");
+                std::fs::create_dir_all(&current_dir).expect("failed to create directory");
                 current_dir
             } else {
-                app_data_dir.clone()
+                data_dir.clone()
             };
 
-            let default_db_path = Database::default_path_in(&db_dir);
-            let settings_path = app_data_dir.join("settings.json");
-            let backup_dir = app_data_dir.join("backups");
-            let settings_state = SettingsState::load(settings_path, backup_dir)?;
-            let active_db_path = settings_state.resolved_database_path(&default_db_path);
+            let handle = app.handle();
 
-            let migration_dir: PathBuf = if cfg!(debug_assertions) {
-                PathBuf::from("migrations")
-            } else {
-                app.path()
-                    .resolve("migrations", tauri::path::BaseDirectory::Resource)?
-            };
+            async_runtime::block_on(async move {
+                let mut settings = Persisted::<Settings>::load(data_dir.join(Settings::FILENAME))
+                    .expect("failed to load settings");
 
-            let app_state = AppState {
-                db: Arc::new(RwLock::new(None)),
-                default_db_path,
-                active_db_path: Arc::new(RwLock::new(active_db_path)),
-                migration_dir,
-                settings: Arc::new(RwLock::new(settings_state)),
-                version: env!("CARGO_PKG_VERSION"),
-            };
+                settings.default_database_path = db_dir.join(Database::FILENAME);
+                settings.backup_dir = data_dir.join(Backup::BACKUP_DIRECTORY);
+                settings.recovery_path = data_dir.join(Update::FILENAME);
+                settings.version = env!("CARGO_PKG_VERSION").to_string();
 
-            app.manage(app_state);
+                if settings.active_database_path.is_none() {
+                    settings.active_database_path = Some(settings.default_database_path.clone());
+                }
+
+                settings.migration_dir = if cfg!(debug_assertions) {
+                    PathBuf::from("migrations")
+                } else {
+                    handle
+                        .path()
+                        .resolve("migrations", tauri::path::BaseDirectory::Resource)
+                        .expect("failed to resolve migrations")
+                };
+
+                settings.commit().expect("failed to commit settings");
+
+                let settings = Arc::new(RwLock::new(settings));
+
+                let db = Arc::new(RwLock::new(Database::new(settings.clone())));
+
+                let backup = Arc::new(RwLock::new(
+                    Backup::new(db.clone(), settings.clone())
+                        .await
+                        .expect("failed to create backup manager"),
+                ));
+
+                let update = Arc::new(RwLock::new(
+                    Update::new(backup.clone(), settings.clone())
+                        .await
+                        .expect("failed to create update manager"),
+                ));
+
+                handle.manage(AppState {
+                    db,
+                    settings,
+                    backup,
+                    update,
+                });
+            });
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             window::window_show,
             window::window_minimize,
-            window::window_toggle_maximize,
-            window::window_start_dragging,
+            window::window_maximize,
+            window::window_drag,
             window::window_close,
             window::window_restart,
             database::commands::db_execute_single_sql,
             database::commands::db_execute_batch_sql,
-            database::commands::db_does_exist,
-            database::commands::db_is_ready,
-            database::commands::db_connect,
-            database::commands::db_disconnect,
-            database::commands::db_purge,
             settings::settings_get,
-            settings::settings_set_ending_soon_notice_days,
-            settings::settings_set_database_path,
-            settings::settings_reset_database_path,
-            settings::settings_create_backup,
-            settings::settings_delete_backup,
-            settings::settings_restore_backup,
-            settings::settings_proceed_failed_update,
-            settings::settings_rollback_failed_update,
-            settings::settings_mark_synced,
-            settings::settings_set_locale,
+            settings::settings_set,
+            backup::backup_list,
+            backup::backup_create,
+            backup::backup_restore,
+            backup::backup_delete,
+            update::update_prepare,
+            bootstrap::bootstrap,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

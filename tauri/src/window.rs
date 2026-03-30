@@ -9,7 +9,7 @@ pub fn window_minimize(window: tauri::Window) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn window_toggle_maximize(window: tauri::Window) -> Result<(), String> {
+pub fn window_maximize(window: tauri::Window) -> Result<(), String> {
     if window.is_maximized().map_err(|error| error.to_string())? {
         window.unmaximize().map_err(|error| error.to_string())
     } else {
@@ -18,7 +18,7 @@ pub fn window_toggle_maximize(window: tauri::Window) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn window_start_dragging(window: tauri::Window) -> Result<(), String> {
+pub fn window_drag(window: tauri::Window) -> Result<(), String> {
     window.start_dragging().map_err(|error| error.to_string())
 }
 

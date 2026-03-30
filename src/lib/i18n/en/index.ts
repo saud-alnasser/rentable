@@ -178,9 +178,9 @@ const en = {
 			failedToStartTitle: 'failed to start the app',
 			previousVersion: 'previous version',
 			recoveryDescription:
-				'rentable failed to finish starting after updating to v{version}. choose whether to restore the protected pre-update backup or retry startup.',
+				'rentable detected update recovery while starting v{version}. retry startup, or open the previous release if you need to reinstall it.',
 			recoveryDetails:
-				'detected {detectedAt}. rollback restores the protected database backup and locks the app so you can reinstall the previous release. proceed clears recovery and retries startup with the current version.',
+				'the protected backup was created from v{backupVersion}. if startup still fails, reinstall the previous release before opening rentable again.',
 			recoveryRequiredTitle: 'update recovery required',
 			recoverySnapshotNotUpdated: 'rollback completed but the recovery snapshot was not updated.',
 			restoredBackup: 'restored backup',

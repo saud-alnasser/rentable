@@ -1,6 +1,6 @@
 <script lang="ts">
 	import api from '$lib/api/mod';
-	import { tauri, type UpdateRecovery } from '$lib/api/tauri';
+	import { tauri, type Recovery } from '$lib/api/tauri';
 	import Navbar from '$lib/common/components/blocks/navbar.svelte';
 	import WindowControls from '$lib/common/components/blocks/window-controls.svelte';
 	import { Button } from '$lib/common/components/fragments/button';
@@ -27,146 +27,104 @@
 	const queryClient = new QueryClient({
 		defaultOptions: {
 			queries: {
+				retry: false,
 				refetchOnWindowFocus: false
 			}
 		}
 	});
 
-	type StartupState = 'loading' | 'ready' | 'error' | 'recovery' | 'rolledBackLocked';
+	type StartupState = 'loading' | 'ready' | 'error' | 'recovery';
 
 	let isI18nReady = $state(false);
 	let startupState = $state<StartupState>('loading');
 	let startupError = $state<string | null>(null);
-	let startupRecovery = $state<UpdateRecovery | null>(null);
-	let recoveryActionError = $state<string | null>(null);
-	let isRecoveryActionPending = $state(false);
+	let startupRecovery = $state<Recovery | null>(null);
 
 	function getErrorMessage(error: unknown) {
-		return error instanceof Error ? error.message : $LL.layout.startup.failedToStartFallback();
-	}
-
-	function formatTimestamp(value: number | null | undefined) {
-		if (!value) {
-			return $LL.common.messages.unknown();
+		if (error instanceof Error && error.message.trim()) {
+			return error.message;
 		}
 
-		return new Intl.DateTimeFormat('en-GB', {
-			dateStyle: 'medium',
-			timeStyle: 'short'
-		}).format(new Date(value));
+		if (typeof error === 'string' && error.trim()) {
+			return error;
+		}
+
+		if (error && typeof error === 'object' && 'message' in error) {
+			const message = error.message;
+
+			if (typeof message === 'string' && message.trim()) {
+				return message;
+			}
+		}
+
+		return $LL.layout.startup.failedToStartFallback();
 	}
 
-	function applyRecoveryState(recovery: UpdateRecovery | null) {
-		startupRecovery = recovery;
-
+	function hasRecoveryData(recovery: Recovery | null) {
 		if (!recovery) {
 			return false;
 		}
 
-		startupState = recovery.status === 'rolledBack' ? 'rolledBackLocked' : 'recovery';
-
-		return true;
+		return (
+			recovery.targetVersion.trim().length > 0 ||
+			recovery.backupVersion.trim().length > 0 ||
+			recovery.backupFilename.trim().length > 0 ||
+			recovery.backupReleaseUrl.trim().length > 0 ||
+			recovery.updateError !== null
+		);
 	}
 
-	async function getStartupRecovery() {
-		const settings = await api.settings.get();
-
-		return settings.updateRecovery;
-	}
-
-	async function tryGetStartupRecovery() {
-		try {
-			return await getStartupRecovery();
-		} catch {
-			return null;
+	function applyRecoveryState(recovery: Recovery) {
+		if (!hasRecoveryData(recovery)) {
+			startupRecovery = null;
+			return false;
 		}
+
+		if (recovery.status === 'pending') {
+			startupRecovery = recovery;
+			startupState = 'recovery';
+			return true;
+		}
+
+		startupRecovery = null;
+
+		return false;
 	}
 
 	async function startApp() {
 		startupState = 'loading';
 		startupError = null;
 		startupRecovery = null;
-		recoveryActionError = null;
 
 		try {
-			const settings = await api.settings.get();
-			const locale = (settings.locale ?? baseLocale) as Locales;
+			const settings = await api.app.settings.get();
+			const nextLocale = (settings.locale ?? baseLocale) as Locales;
 
 			for (const locale of locales) {
 				await loadLocaleAsync(locale);
 			}
 
-			setLocale(locale);
+			setLocale(nextLocale);
 
 			isI18nReady = true;
 
-			await api.window.show();
+			const recovery = await api.app.bootstrap();
 
-			if (applyRecoveryState(await getStartupRecovery())) {
+			if (applyRecoveryState(recovery)) {
+				await api.app.window.show();
 				return;
 			}
 
-			await api.database.connect();
-			await api.state.sync();
-
-			if (applyRecoveryState(await getStartupRecovery())) {
-				return;
-			}
+			await api.app.state.sync();
 
 			startupRecovery = null;
 			startupState = 'ready';
+			await api.app.window.show();
 		} catch (error) {
-			if (applyRecoveryState(await tryGetStartupRecovery())) {
-				return;
-			}
-
 			startupRecovery = null;
 			startupState = 'error';
 			startupError = getErrorMessage(error);
-		}
-	}
-
-	async function proceedFailedUpdate() {
-		if (!startupRecovery || isRecoveryActionPending) {
-			return;
-		}
-
-		isRecoveryActionPending = true;
-		recoveryActionError = null;
-
-		try {
-			await api.settings.proceedFailedUpdate();
-			startupRecovery = null;
-			await startApp();
-		} catch (error) {
-			recoveryActionError = getErrorMessage(error);
-		} finally {
-			isRecoveryActionPending = false;
-		}
-	}
-
-	async function rollbackFailedUpdate() {
-		if (!startupRecovery || isRecoveryActionPending) {
-			return;
-		}
-
-		isRecoveryActionPending = true;
-		recoveryActionError = null;
-
-		try {
-			const settings = await api.settings.rollbackFailedUpdate();
-			const recovery = settings.updateRecovery;
-
-			if (!recovery || recovery.status !== 'rolledBack') {
-				throw new Error($LL.layout.startup.recoverySnapshotNotUpdated());
-			}
-
-			startupRecovery = recovery;
-			startupState = 'rolledBackLocked';
-		} catch (error) {
-			recoveryActionError = getErrorMessage(error);
-		} finally {
-			isRecoveryActionPending = false;
+			await api.app.window.show();
 		}
 	}
 
@@ -207,111 +165,53 @@
 										<CardTitle>{$LL.layout.startup.recoveryRequiredTitle()}</CardTitle>
 										<CardDescription>
 											{$LL.layout.startup.recoveryDescription({
-												version: startupRecovery.failedVersion
+												version: startupRecovery.targetVersion || $LL.common.messages.unknown()
 											})}
 										</CardDescription>
 									</CardHeader>
 									<CardContent class="space-y-4">
-										<Callout variant="error">{startupRecovery.error}</Callout>
+										{#if startupRecovery.updateError}
+											<Callout variant="error">{startupRecovery.updateError}</Callout>
+										{/if}
 
 										<div class="grid gap-3 sm:grid-cols-2">
 											<div class="rounded-lg border bg-muted/15 p-3">
 												<p class="text-xs tracking-wide text-muted-foreground uppercase">
 													{$LL.layout.startup.startupRecoveryBackup()}
 												</p>
-												<p class="mt-1 font-medium break-all">{startupRecovery.backupName}</p>
+												<p class="mt-1 font-medium break-all">{startupRecovery.backupFilename}</p>
 											</div>
 											<div class="rounded-lg border bg-muted/15 p-3">
 												<p class="text-xs tracking-wide text-muted-foreground uppercase">
 													{$LL.layout.startup.previousVersion()}
 												</p>
 												<p class="mt-1 font-medium">
-													{startupRecovery.previousVersion ?? $LL.common.messages.unknown()}
+													{startupRecovery.backupVersion || $LL.common.messages.unknown()}
 												</p>
 											</div>
 										</div>
 
 										<p class="text-sm text-muted-foreground">
 											{$LL.layout.startup.recoveryDetails({
-												detectedAt: formatTimestamp(startupRecovery.detectedAt)
+												backupVersion:
+													startupRecovery.backupVersion || $LL.common.messages.unknown()
 											})}
 										</p>
 
-										{#if recoveryActionError}
-											<Callout variant="warning">{recoveryActionError}</Callout>
-										{/if}
-
 										<div class="flex flex-wrap gap-3">
-											<Button
-												variant="destructive"
-												onclick={() => void rollbackFailedUpdate()}
-												disabled={isRecoveryActionPending}
-											>
-												{isRecoveryActionPending
-													? $LL.common.actions.rollingBack()
-													: $LL.common.actions.rollback()}
+											<Button onclick={() => void startApp()}>
+												{$LL.common.actions.retryStartup()}
 											</Button>
-											<Button
-												variant="outline"
-												onclick={() => void proceedFailedUpdate()}
-												disabled={isRecoveryActionPending}
-											>
-												{isRecoveryActionPending
-													? $LL.common.actions.working()
-													: $LL.common.actions.proceed()}
-											</Button>
-										</div>
-									</CardContent>
-								</Card>
-							</div>
-						{:else if startupState === 'rolledBackLocked' && startupRecovery}
-							<div class="flex min-h-full flex-1 items-center justify-center p-1">
-								<Card class="w-full max-w-2xl gap-4">
-									<CardHeader>
-										<CardTitle>{$LL.layout.startup.rolledBackTitle()}</CardTitle>
-										<CardDescription>
-											{$LL.layout.startup.rolledBackDescription()}
-										</CardDescription>
-									</CardHeader>
-									<CardContent class="space-y-4">
-										<Callout variant="warning">{startupRecovery.error}</Callout>
-
-										<div class="grid gap-3 sm:grid-cols-2">
-											<div class="rounded-lg border bg-muted/15 p-3">
-												<p class="text-xs tracking-wide text-muted-foreground uppercase">
-													{$LL.layout.startup.restoredBackup()}
-												</p>
-												<p class="mt-1 font-medium break-all">{startupRecovery.backupName}</p>
-											</div>
-											<div class="rounded-lg border bg-muted/15 p-3">
-												<p class="text-xs tracking-wide text-muted-foreground uppercase">
-													{$LL.layout.startup.previousVersion()}
-												</p>
-												<p class="mt-1 font-medium">
-													{startupRecovery.previousVersion ?? $LL.common.messages.unknown()}
-												</p>
-											</div>
-										</div>
-
-										<p class="text-sm text-muted-foreground">
-											{$LL.layout.startup.rolledBackDetails()}
-										</p>
-
-										{#if recoveryActionError}
-											<Callout variant="warning">{recoveryActionError}</Callout>
-										{/if}
-
-										<div class="flex flex-wrap gap-3">
 											<Button
 												variant="outline"
 												onclick={() => {
-													const previousReleaseUrl = startupRecovery?.previousReleaseUrl;
+													const backupReleaseUrl = startupRecovery?.backupReleaseUrl;
 
-													if (previousReleaseUrl) {
-														void tauri.opener.openUrl(previousReleaseUrl);
+													if (backupReleaseUrl) {
+														void tauri.opener.openUrl(backupReleaseUrl);
 													}
 												}}
-												disabled={!startupRecovery?.previousReleaseUrl}
+												disabled={!startupRecovery.backupReleaseUrl}
 											>
 												{$LL.common.actions.openPreviousRelease()}
 											</Button>
