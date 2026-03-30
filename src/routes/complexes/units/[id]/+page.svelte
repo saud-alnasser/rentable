@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import UnitsTable from '$lib/resources/complexes/components/units-table.svelte';
+	import UnitsDataView from '$lib/resources/complexes/components/units-data-view.svelte';
 
 	const complexId = Number(page.params.id);
 </script>
 
 <div class="flex flex-col gap-3 p-5">
-	<UnitsTable {complexId} />
+	<UnitsDataView {complexId} />
 </div>
