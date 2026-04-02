@@ -344,9 +344,14 @@ const ar = {
 
 	contracts: {
 		form: {
+			startDate: 'تاريخ البداية',
+			calculatedEndDate: 'تاريخ النهاية المحسوب',
+			calculatedEndDateHint: 'يتم تحديثه تلقائياً حسب الدورة وتاريخ البداية وعدد الدورات.',
 			costGreaterThanZero: 'يجب أن تكون التكلفة أكبر من صفر.',
 			costPerPaymentGreaterThanZero: 'يجب أن تكون تكلفة الدفعة أكبر من صفر.',
 			costRequired: 'التكلفة مطلوبة.',
+			cyclesGreaterThanZero: 'يجب أن يكون عدد الدورات أكبر من صفر.',
+			cyclesRequired: 'عدد الدورات مطلوب.',
 			duplicateGovernmentId: 'رقم الهوية مرتبط بعقد آخر.',
 			endDateAfterStart: 'يجب أن يكون تاريخ النهاية بعد البداية.',
 			endDateRequired: 'تاريخ النهاية مطلوب.',
@@ -355,11 +360,14 @@ const ar = {
 			loadingTenant: 'جاري تحميل المستأجر...',
 			loadingTenants: 'جاري تحميل المستأجرين...',
 			noTenantFound: 'لم يتم العثور على مستأجر.',
+			numberOfCycles: 'عدد الدورات',
 			paymentAmountGreaterThanZero: 'يجب أن يكون مبلغ الدفع أكبر من صفر',
 			paymentAmountRequired: 'مبلغ الدفع مطلوب',
 			paymentDateRequired: 'تاريخ الدفع مطلوب',
 			pickDate: 'اختر تاريخ',
 			pickDateRange: 'اختر نطاق تاريخ',
+			periodMustMatchWholeCycles:
+				'يجب أن تكون مدة العقد عدداً صحيحاً من دورات {interval} البالغة {days} يوماً.',
 			searchAndSelectTenant: 'ابحث واختر مستأجر',
 			searchTenantPlaceholder: 'ابحث عن مستأجر بالاسم أو الهوية أو الهاتف...',
 			startDateRequired: 'تاريخ البداية مطلوب.',

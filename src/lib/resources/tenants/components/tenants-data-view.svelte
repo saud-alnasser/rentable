@@ -13,6 +13,8 @@
 	} from '$lib/common/components/fragments/card';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useDeleteTenant, useInfiniteTenants } from '$lib/resources/tenants/hooks/queries';
+	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import TenantForm from './tenant-form.svelte';
 
 	let search = $state('');
@@ -55,7 +57,7 @@
 	}}
 >
 	{#snippet item(record: Tenant)}
-		<Card class="gap-0 overflow-hidden">
+		<Card class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
 			<CardHeader class="gap-3 border-b pb-4">
 				<div class="flex min-w-0 items-center gap-3">
 					<div
@@ -70,16 +72,21 @@
 				</div>
 				<CardAction>
 					<DataTableActionsDropdown
+						menuLabel={null}
 						actions={[
 							{
 								label: $LL.common.actions.edit(),
+								icon: SquarePenIcon,
 								onclick: () => {
 									tenant = record;
 									isTenantFormOpen = true;
 								}
 							},
+							{ type: 'separator' as const },
 							{
 								label: $LL.common.actions.delete(),
+								icon: Trash2Icon,
+								variant: 'destructive' as const,
 								onclick: () => {
 									tenant = record;
 									isDeleteDialogOpen = true;
@@ -90,13 +97,13 @@
 				</CardAction>
 			</CardHeader>
 			<CardContent class="grid gap-3 pt-4 sm:grid-cols-2 xl:grid-cols-3">
-				<div class="rounded-lg border bg-muted/10 p-4">
+				<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">
 						{$LL.common.labels.nationalId()}
 					</p>
 					<p class="mt-2 text-sm font-medium">{record.nationalId}</p>
 				</div>
-				<div class="rounded-lg border bg-muted/10 p-4">
+				<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">
 						{$LL.common.labels.phone()}
 					</p>

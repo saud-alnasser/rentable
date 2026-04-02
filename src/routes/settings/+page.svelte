@@ -40,6 +40,11 @@
 	const createBackupMutation = useCreateBackup();
 	const deleteBackupMutation = useDeleteBackup();
 	const restoreBackupMutation = useRestoreBackup();
+	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
+	const settingsInsetPanelClass =
+		'rounded-[1.25rem] border border-border/70 bg-background/60 p-4 shadow-sm backdrop-blur-md';
+	const settingsSubtlePanelClass =
+		'rounded-xl border border-primary/10 bg-accent/35 p-3 backdrop-blur-sm';
 
 	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
 
@@ -393,14 +398,14 @@
 			</div>
 		</div>
 	{:else if settingsQuery.error || backupsQuery.error}
-		<Card class="max-w-2xl">
-			<CardHeader>
+		<Card class={`max-w-2xl ${settingsCardClass}`}>
+			<CardHeader class="gap-3 border-b border-border/50 pb-5">
 				<CardTitle>{$LL.settings.loadErrorTitle()}</CardTitle>
 				<CardDescription>
 					{$LL.settings.loadErrorDescription()}
 				</CardDescription>
 			</CardHeader>
-			<CardContent class="space-y-4">
+			<CardContent class="space-y-4 pt-5">
 				<p class="text-sm text-muted-foreground">
 					{getErrorMessage(settingsQuery.error ?? backupsQuery.error)}
 				</p>
@@ -417,15 +422,15 @@
 	{:else if settingsQuery.data && backupsQuery.data}
 		<div class="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
 			<div class="space-y-4">
-				<Card>
-					<CardHeader>
+				<Card class={settingsCardClass}>
+					<CardHeader class="gap-3 border-b border-border/50 pb-5">
 						<CardTitle>{$LL.settings.endingSoonTitle()}</CardTitle>
 						<CardDescription>
 							{$LL.settings.endingSoonDescription()}
 						</CardDescription>
 					</CardHeader>
-					<CardContent class="space-y-4">
-						<div class="space-y-2">
+					<CardContent class="space-y-4 pt-5">
+						<div class={`${settingsInsetPanelClass} space-y-2`}>
 							<Label for="ending-soon-notice-days">{$LL.common.labels.noticeWindowDays()}</Label>
 							<Input
 								id="ending-soon-notice-days"
@@ -454,32 +459,34 @@
 					</CardContent>
 				</Card>
 
-				<Card>
-					<CardHeader>
+				<Card class={settingsCardClass}>
+					<CardHeader class="gap-3 border-b border-border/50 pb-5">
 						<CardTitle>{$LL.settings.databaseTitle()}</CardTitle>
 						<CardDescription>
 							{$LL.settings.databaseDescription()}
 						</CardDescription>
 					</CardHeader>
-					<CardContent class="space-y-6">
+					<CardContent class="space-y-6 pt-5">
 						<div class="space-y-3">
-							<div class="space-y-2">
+							<div class={`${settingsInsetPanelClass} space-y-2`}>
 								<Label>{$LL.common.labels.currentDatabasePath()}</Label>
-								<p class="rounded-lg border bg-muted/15 px-3 py-2 font-mono text-xs break-all">
+								<p
+									class="rounded-lg border border-border/60 bg-muted/12 px-3 py-2 font-mono text-xs break-all"
+								>
 									{getCurrentDatabasePath(settingsQuery.data)}
 								</p>
 							</div>
 
-							<div class="space-y-2">
+							<div class={`${settingsInsetPanelClass} space-y-2`}>
 								<Label>{$LL.common.labels.defaultDatabasePath()}</Label>
 								<p
-									class="rounded-lg border bg-muted/15 px-3 py-2 font-mono text-xs break-all text-muted-foreground"
+									class="rounded-lg border border-border/60 bg-muted/12 px-3 py-2 font-mono text-xs break-all text-muted-foreground"
 								>
 									{settingsQuery.data.defaultDatabasePath}
 								</p>
 							</div>
 
-							<div class="space-y-2">
+							<div class={`${settingsInsetPanelClass} space-y-2`}>
 								<Label for="database-path-override"
 									>{$LL.common.labels.customDatabasePathOverride()}</Label
 								>
@@ -512,7 +519,7 @@
 							</div>
 						</div>
 
-						<div class="space-y-3 border-t pt-6">
+						<div class="space-y-3 border-t border-border/50 pt-6">
 							<div class="flex flex-wrap items-center justify-between gap-3">
 								<div>
 									<h2 class="text-base font-semibold">{$LL.settings.createBackupTitle()}</h2>
@@ -530,14 +537,16 @@
 							<div class="space-y-3">
 								<h2 class="text-base font-semibold">{$LL.settings.restoreBackupTitle()}</h2>
 								{#if backupsQuery.data.length === 0}
-									<p class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+									<p
+										class="rounded-xl border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground"
+									>
 										{$LL.settings.noBackups()}
 									</p>
 								{:else}
 									<div class="space-y-3">
 										{#each backupsQuery.data as backup (`${backup.filename}-${backup.createdAt}`)}
 											<div
-												class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/10 p-3"
+												class={`flex flex-wrap items-center justify-between gap-3 ${settingsSubtlePanelClass}`}
 											>
 												<div class="min-w-0 space-y-1">
 													<p class="font-medium break-all">{backup.filename}</p>
@@ -597,15 +606,15 @@
 			</div>
 
 			<div class="space-y-4">
-				<Card>
-					<CardHeader>
+				<Card class={settingsCardClass}>
+					<CardHeader class="gap-3 border-b border-border/50 pb-5">
 						<CardTitle>{$LL.settings.localeTitle()}</CardTitle>
 						<CardDescription>
 							{$LL.settings.localeDescription()}
 						</CardDescription>
 					</CardHeader>
-					<CardContent>
-						<div class="space-y-2">
+					<CardContent class="pt-5">
+						<div class={`${settingsInsetPanelClass} space-y-2`}>
 							<Label for="app-locale">{$LL.settings.localeLabel()}</Label>
 							<Select.Root
 								type="single"
@@ -641,15 +650,15 @@
 					</CardContent>
 				</Card>
 
-				<Card>
-					<CardHeader>
+				<Card class={settingsCardClass}>
+					<CardHeader class="gap-3 border-b border-border/50 pb-5">
 						<CardTitle>{$LL.settings.updatesTitle()}</CardTitle>
 						<CardDescription>
 							{$LL.settings.updatesDescription()}
 						</CardDescription>
 					</CardHeader>
-					<CardContent class="space-y-4">
-						<div class="rounded-lg border bg-muted/15 p-3">
+					<CardContent class="space-y-4 pt-5">
+						<div class={settingsSubtlePanelClass}>
 							<p class="text-xs tracking-wide text-muted-foreground uppercase">
 								{$LL.common.labels.currentVersion()}
 							</p>
@@ -691,7 +700,7 @@
 						{/if}
 
 						{#if availableUpdate}
-							<div class="space-y-3 rounded-lg border bg-muted/10 p-3">
+							<div class={`space-y-3 ${settingsSubtlePanelClass}`}>
 								<div class="grid gap-3 sm:grid-cols-2">
 									<div>
 										<p class="text-xs tracking-wide text-muted-foreground uppercase">
@@ -708,7 +717,7 @@
 								</div>
 
 								{#if availableUpdate.body}
-									<div class="space-y-2 border-t pt-3">
+									<div class="space-y-2 border-t border-border/50 pt-3">
 										<p class="text-xs tracking-wide text-muted-foreground uppercase">
 											{$LL.common.labels.releaseNotes()}
 										</p>
@@ -757,20 +766,20 @@
 					</CardContent>
 				</Card>
 
-				<Card>
-					<CardHeader>
+				<Card class={settingsCardClass}>
+					<CardHeader class="gap-3 border-b border-border/50 pb-5">
 						<CardTitle>{$LL.settings.aboutTitle()}</CardTitle>
 						<CardDescription>{$LL.settings.aboutDescription()}</CardDescription>
 					</CardHeader>
-					<CardContent class="space-y-3">
-						<div class="rounded-lg border bg-muted/15 p-3">
+					<CardContent class="space-y-3 pt-5">
+						<div class={settingsSubtlePanelClass}>
 							<p class="text-xs tracking-wide text-muted-foreground uppercase">
 								{$LL.common.labels.appVersion()}
 							</p>
 							<p class="mt-1 text-base font-semibold">{settingsQuery.data.version}</p>
 						</div>
 
-						<div class="rounded-lg border bg-muted/15 p-3">
+						<div class={settingsSubtlePanelClass}>
 							<p class="text-xs tracking-wide text-muted-foreground uppercase">
 								{$LL.common.labels.lastBackupTime()}
 							</p>
@@ -779,7 +788,7 @@
 							</p>
 						</div>
 
-						<div class="rounded-lg border bg-muted/15 p-3">
+						<div class={settingsSubtlePanelClass}>
 							<p class="text-xs tracking-wide text-muted-foreground uppercase">
 								{$LL.common.labels.backupCount()}
 							</p>

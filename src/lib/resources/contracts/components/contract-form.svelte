@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { ContractSchema, type Contract } from '$lib/api/database/schema';
+	import {
+		getMinimumContractPeriodDays,
+		hasValidContractPeriodForInterval
+	} from '$lib/api/utils/contract-status';
 	import { Button } from '$lib/common/components/fragments/button';
+	import * as Calendar from '$lib/common/components/fragments/calendar';
 	import * as Command from '$lib/common/components/fragments/command';
 	import * as Dialog from '$lib/common/components/fragments/dialog';
 	import * as Form from '$lib/common/components/fragments/form';
 	import { Input } from '$lib/common/components/fragments/input';
-	import { Label } from '$lib/common/components/fragments/label';
 	import * as Popover from '$lib/common/components/fragments/popover';
-	import {
-		RangeCalendar,
-		Day as RangeCalendarDay
-	} from '$lib/common/components/fragments/range-calendar';
 	import * as Select from '$lib/common/components/fragments/select';
 	import { cn } from '$lib/common/utils/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -19,16 +19,12 @@
 	import {
 		DateFormatter,
 		getLocalTimeZone,
-		isSameDay,
 		parseDate,
-		type CalendarDate,
-		type DateValue
+		type CalendarDate
 	} from '@internationalized/date';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import { TRPCError } from '@trpc/server';
-	import type { DateRange } from 'bits-ui';
-	import { tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
@@ -69,6 +65,7 @@
 	};
 
 	const MAX_VISIBLE_TENANTS = 20;
+	const UTC_DAY_MS = 24 * 60 * 60 * 1000;
 
 	const ContractFormSchema = z.object({
 		id: z.number().optional(),
@@ -81,6 +78,13 @@
 			.min(1, $LL.contracts.form.costRequired())
 			.refine((value) => Number.isFinite(Number(value)) && Number(value) > 0, {
 				message: $LL.contracts.form.costGreaterThanZero()
+			}),
+		cycles: z
+			.string()
+			.trim()
+			.min(1, $LL.contracts.form.cyclesRequired())
+			.refine((value) => Number.isInteger(Number(value)) && Number(value) > 0, {
+				message: $LL.contracts.form.cyclesGreaterThanZero()
 			}),
 		start: z.string().min(1, $LL.contracts.form.startDateRequired()),
 		end: z.string().min(1, $LL.contracts.form.endDateRequired())
@@ -107,6 +111,7 @@
 		tenantId: '',
 		interval: '1m',
 		cost: '',
+		cycles: '1',
 		start: '',
 		end: ''
 	});
@@ -116,6 +121,16 @@
 		const [year, month, day] = value.split('-').map(Number);
 		return Date.UTC(year, month - 1, day);
 	};
+	const addDaysToDateValue = (value: CalendarDate, days: number): CalendarDate => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const nextValue = new Date(parseDateInput(value.toString()));
+		nextValue.setUTCDate(nextValue.getUTCDate() + days);
+
+		return parseDate(formatDateInput(nextValue.getTime()));
+	};
+	const getInclusiveDayCount = (start: CalendarDate, end: CalendarDate) =>
+		Math.floor((parseDateInput(end.toString()) - parseDateInput(start.toString())) / UTC_DAY_MS) +
+		1;
 	const dateFormatter = new DateFormatter('en-GB', { dateStyle: 'medium' });
 	const parseCalendarDate = (value: string): CalendarDate | undefined => {
 		if (!value) return undefined;
@@ -128,16 +143,53 @@
 	};
 	const formatCalendarDate = (value: CalendarDate | undefined) =>
 		value ? dateFormatter.format(value.toDate(getLocalTimeZone())) : $LL.contracts.form.pickDate();
-	const formatDateRange = (value: DateRange | undefined) => {
-		if (!value?.start && !value?.end) return $LL.contracts.form.pickDateRange();
-		if (value.start && !value.end)
-			return `${formatCalendarDate(value.start as CalendarDate)} - ${$LL.contracts.form.endDateShort()}`;
-		if (!value.start || !value.end) return $LL.contracts.form.pickDateRange();
+	const getContractPeriodValidationMessage = (interval: Contract['interval']) =>
+		$LL.contracts.form.periodMustMatchWholeCycles({
+			days: getMinimumContractPeriodDays(interval),
+			interval: intervalLabels[interval]()
+		});
+	const parseCycleCount = (value: string) => {
+		const parsedValue = Number(value);
 
-		return `${formatCalendarDate(value.start as CalendarDate)} - ${formatCalendarDate(value.end as CalendarDate)}`;
+		if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
+			return undefined;
+		}
+
+		return parsedValue;
 	};
+	const getCycleCountForContract = (
+		start: CalendarDate | undefined,
+		end: CalendarDate | undefined,
+		interval: Contract['interval']
+	) => {
+		if (!start || !end) return '1';
 
-	type SelectedRangeBoundary = 'start' | 'end';
+		const intervalDayCount = getMinimumContractPeriodDays(interval);
+		const inclusiveDayCount = getInclusiveDayCount(start, end);
+
+		if (inclusiveDayCount < intervalDayCount) {
+			return '1';
+		}
+
+		const cycleCount = inclusiveDayCount / intervalDayCount;
+
+		return Number.isInteger(cycleCount)
+			? String(cycleCount)
+			: String(Math.max(Math.ceil(cycleCount), 1));
+	};
+	const getCalculatedEndDate = (
+		start: CalendarDate | undefined,
+		interval: Contract['interval'],
+		cycles: string
+	) => {
+		const cycleCount = parseCycleCount(cycles);
+
+		if (!start || !cycleCount) {
+			return undefined;
+		}
+
+		return addDaysToDateValue(start, getMinimumContractPeriodDays(interval) * cycleCount - 1);
+	};
 
 	const toFormValue = (contract: Contract): ContractForm => ({
 		id: contract.id,
@@ -145,22 +197,14 @@
 		tenantId: contract.tenantId.toString(),
 		interval: contract.interval,
 		cost: contract.cost.toString(),
+		cycles: getCycleCountForContract(
+			parseDate(formatDateInput(contract.start)),
+			parseDate(formatDateInput(contract.end)),
+			contract.interval
+		),
 		start: formatDateInput(contract.start),
 		end: formatDateInput(contract.end)
 	});
-
-	const normalizeDateRange = (value: DateRange | undefined): DateRange | undefined => {
-		if (!value?.start || !value?.end) return value;
-
-		if (value.start.compare(value.end) <= 0) {
-			return value;
-		}
-
-		return {
-			start: value.end,
-			end: value.start
-		};
-	};
 
 	const toPayload = (form: ContractForm) => ({
 		...(() => {
@@ -189,6 +233,11 @@
 				if (!form.valid) return;
 
 				const payload = toPayload(form.data);
+
+				if (!hasValidContractPeriodForInterval(payload)) {
+					setError(form, 'end', getContractPeriodValidationMessage(form.data.interval));
+					return;
+				}
 
 				if (value && form.data.id) {
 					const normalizedCurrentGovId = value.govId || undefined;
@@ -219,8 +268,8 @@
 							setError(form, 'govId', $LL.contracts.form.duplicateGovernmentId());
 						} else if (e.message.includes('end date')) {
 							setError(form, 'end', $LL.contracts.form.endDateAfterStart());
-						} else if (e.message.includes('payment cycle')) {
-							setError(form, 'end', e.message);
+						} else if (e.message.includes('contract period')) {
+							setError(form, 'end', getContractPeriodValidationMessage(form.data.interval));
 						} else if (e.message.includes('cost')) {
 							setError(form, 'cost', $LL.contracts.form.costPerPaymentGreaterThanZero());
 						} else if (e.message.includes('tenant')) {
@@ -238,10 +287,7 @@
 
 	let isTenantPickerOpen = $state(false);
 	let tenantSearch = $state('');
-	let dateRangeValue = $state<DateRange | undefined>(undefined);
-	let dateRangePlaceholder = $state<DateValue | undefined>(undefined);
-	let selectedRangeBoundary = $state<SelectedRangeBoundary | undefined>(undefined);
-	let dateRangePlaceholderSyncToken = $state(0);
+	let contractStartDateValue = $state<CalendarDate | undefined>(undefined);
 	let lastHydratedFormKey = $state<string | undefined>(undefined);
 	let normalizedTenantSearch = $derived.by(() => tenantSearch.trim().toLowerCase());
 	let hasTenantSearch = $derived.by(() => normalizedTenantSearch.length > 0);
@@ -285,121 +331,6 @@
 		tenantSearch = '';
 	};
 
-	const clearRangeSelection = () => {
-		selectedRangeBoundary = undefined;
-	};
-
-	const syncDateRangePlaceholder = async (nextPlaceholder: DateValue | undefined) => {
-		const syncToken = ++dateRangePlaceholderSyncToken;
-		await tick();
-
-		if (syncToken !== dateRangePlaceholderSyncToken) {
-			return;
-		}
-
-		if (!nextPlaceholder) {
-			dateRangePlaceholder = undefined;
-			return;
-		}
-
-		if (!dateRangePlaceholder || !isSameDay(dateRangePlaceholder, nextPlaceholder)) {
-			dateRangePlaceholder = nextPlaceholder;
-		}
-	};
-
-	const setDateRangeValue = (value: DateRange | undefined, latestSetEdge?: DateValue) => {
-		const normalizedValue = normalizeDateRange(value);
-		const nextPlaceholder = latestSetEdge ?? normalizedValue?.end ?? normalizedValue?.start;
-		dateRangeValue = normalizedValue;
-		dateRangePlaceholder = nextPlaceholder;
-		void syncDateRangePlaceholder(nextPlaceholder);
-	};
-
-	const applyNoRangeRule = (day: DateValue) => {
-		const currentStart = dateRangeValue?.start;
-
-		if (!currentStart || dateRangeValue?.end) {
-			setDateRangeValue({ start: day, end: undefined }, day);
-			return;
-		}
-
-		if (day.compare(currentStart) < 0) {
-			setDateRangeValue({ start: day, end: currentStart }, day);
-			return;
-		}
-
-		setDateRangeValue({ start: currentStart, end: day }, day);
-	};
-
-	const moveSelectedRangeBoundary = (boundary: SelectedRangeBoundary, day: DateValue) => {
-		const currentStart = dateRangeValue?.start;
-		const currentEnd = dateRangeValue?.end;
-
-		if (!currentStart || !currentEnd) {
-			clearRangeSelection();
-			applyNoRangeRule(day);
-			return;
-		}
-
-		if (boundary === 'start') {
-			if (currentEnd.compare(day) < 0) {
-				setDateRangeValue({ start: currentEnd, end: day }, day);
-			} else {
-				setDateRangeValue({ start: day, end: currentEnd }, day);
-			}
-		} else if (day.compare(currentStart) < 0) {
-			setDateRangeValue({ start: day, end: currentStart }, day);
-		} else {
-			setDateRangeValue({ start: currentStart, end: day }, day);
-		}
-
-		clearRangeSelection();
-	};
-
-	const isSelectedBoundaryDay = (boundary: SelectedRangeBoundary, day: DateValue) => {
-		const boundaryValue = boundary === 'start' ? dateRangeValue?.start : dateRangeValue?.end;
-		return boundaryValue ? isSameDay(boundaryValue, day) : false;
-	};
-
-	const handleContractPeriodDayClick = (event: MouseEvent, day: DateValue) => {
-		event.preventDefault();
-
-		const currentStart = dateRangeValue?.start;
-		const currentEnd = dateRangeValue?.end;
-		const clickedStart = currentStart ? isSameDay(currentStart, day) : false;
-		const clickedEnd = currentEnd ? isSameDay(currentEnd, day) : false;
-
-		if (!currentStart) {
-			clearRangeSelection();
-			setDateRangeValue({ start: day, end: undefined }, day);
-			return;
-		}
-
-		if (!currentEnd) {
-			clearRangeSelection();
-			applyNoRangeRule(day);
-			return;
-		}
-
-		if (selectedRangeBoundary) {
-			moveSelectedRangeBoundary(selectedRangeBoundary, day);
-			return;
-		}
-
-		if (clickedStart) {
-			selectedRangeBoundary = 'start';
-			return;
-		}
-
-		if (clickedEnd) {
-			selectedRangeBoundary = 'end';
-			return;
-		}
-
-		clearRangeSelection();
-		setDateRangeValue({ start: day, end: undefined }, day);
-	};
-
 	let selectedTenant = $derived.by(() => {
 		if (!$form.tenantId) return undefined;
 
@@ -413,6 +344,10 @@
 	let isTenantResultsLoading = $derived.by(
 		() => hasTenantSearch && tenantsQuery.isLoading && (tenantsQuery.data ?? []).length === 0
 	);
+	let calculatedEndDate = $derived.by(() =>
+		getCalculatedEndDate(contractStartDateValue, $form.interval, $form.cycles)
+	);
+	let calculatedEndDateValue = $derived.by(() => calculatedEndDate?.toString() ?? '');
 
 	$effect(() => {
 		if (!open) {
@@ -430,28 +365,22 @@
 		}
 
 		const nextFormValue = value ? toFormValue(value) : getInitialForm();
-		const nextStart = parseCalendarDate(nextFormValue.start);
-		const nextEnd = parseCalendarDate(nextFormValue.end);
-		setDateRangeValue(
-			{
-				start: nextStart,
-				end: nextEnd
-			},
-			nextEnd ?? nextStart
-		);
-		clearRangeSelection();
+		contractStartDateValue = parseCalendarDate(nextFormValue.start);
 		form.set(nextFormValue);
 		lastHydratedFormKey = currentFormKey;
 	});
 
 	$effect(() => {
-		$form.start = dateRangeValue?.start?.toString() ?? '';
-		$form.end = dateRangeValue?.end?.toString() ?? '';
+		const nextStartValue = contractStartDateValue?.toString() ?? '';
+
+		if ($form.start !== nextStartValue) {
+			$form.start = nextStartValue;
+		}
 	});
 
 	$effect(() => {
-		if (!dateRangeValue?.start || !dateRangeValue?.end) {
-			clearRangeSelection();
+		if ($form.end !== calculatedEndDateValue) {
+			$form.end = calculatedEndDateValue;
 		}
 	});
 
@@ -465,207 +394,243 @@
 </script>
 
 <Dialog.Root bind:open {onOpenChange}>
-	<Dialog.Content class="w-full max-w-xl">
-		<form method="POST" use:enhance class="grid gap-4 md:grid-cols-2">
-			<Form.Field form={superform} name="govId">
-				<Form.Control>
-					<Label>{$LL.common.labels.governmentIdOptional()}</Label>
-					<Input
-						bind:value={$form.govId}
-						placeholder={$LL.common.labels.governmentIdOptional()}
-						aria-invalid={$errors.govId ? 'true' : undefined}
-						{...$constraints.govId}
-					/>
-				</Form.Control>
-				<Form.Description />
-				<Form.FieldErrors />
-			</Form.Field>
+	<Dialog.Content class="w-full sm:max-w-2xl">
+		<form method="POST" use:enhance class="flex min-h-0 flex-col">
+			<Dialog.Header>
+				<Dialog.Title class="capitalize">{$LL.common.nav.contracts()}</Dialog.Title>
+			</Dialog.Header>
 
-			<Form.Field form={superform} name="tenantId">
-				<Form.Control>
-					<Label>{$LL.common.labels.tenant()}</Label>
-					<Popover.Root bind:open={isTenantPickerOpen}>
-						<Popover.Trigger>
-							{#snippet child({ props })}
-								<Button
-									{...props}
-									variant="outline"
-									class={cn(
-										'w-full justify-between font-normal',
-										!selectedTenant && 'text-muted-foreground'
-									)}
-									aria-invalid={$errors.tenantId ? 'true' : undefined}
-								>
-									<span class="min-w-0 flex-1 truncate text-left">
-										{selectedTenant?.name ||
-											(selectedTenantQuery.isLoading
-												? $LL.contracts.form.loadingTenant()
-												: $LL.contracts.form.searchAndSelectTenant())}
-									</span>
-									<ChevronDownIcon class="size-4 shrink-0 opacity-50" />
-								</Button>
-							{/snippet}
-						</Popover.Trigger>
-
-						<Popover.Content class="w-(--bits-popover-anchor-width) p-0" align="start">
-							<Command.Root class="w-full" shouldFilter={false}>
-								<Command.Input
-									bind:value={tenantSearch}
-									placeholder={$LL.contracts.form.searchTenantPlaceholder()}
-								/>
-								<Command.List>
-									{#if !hasTenantSearch}
-										<div class="p-3 text-sm text-muted-foreground">
-											{$LL.contracts.form.startTypingTenantSearch()}
-										</div>
-									{:else if isTenantResultsLoading && tenantOptions.length === 0}
-										<div class="p-3 text-sm text-muted-foreground">
-											{$LL.contracts.form.loadingTenants()}
-										</div>
-									{:else if tenantOptions.length === 0}
-										<div class="p-3 text-sm text-muted-foreground">
-											{$LL.contracts.form.noTenantFound()}
-										</div>
-									{:else}
-										<Command.Group>
-											{#each tenantOptions as tenant (tenant.id)}
-												<Command.Item
-													value={tenant.tenantId}
-													onSelect={() => selectTenant(tenant.tenantId)}
-												>
-													<div class="flex min-w-0 flex-1 flex-col text-left">
-														<span class="truncate">{tenant.name}</span>
-														{#if tenant.details}
-															<span class="truncate text-xs text-muted-foreground">
-																{tenant.details}
-															</span>
-														{/if}
-													</div>
-													<CheckIcon
-														class={cn(
-															'ms-auto size-4',
-															$form.tenantId === tenant.tenantId ? 'opacity-100' : 'opacity-0'
-														)}
-													/>
-												</Command.Item>
-											{/each}
-										</Command.Group>
-									{/if}
-								</Command.List>
-							</Command.Root>
-						</Popover.Content>
-					</Popover.Root>
-				</Form.Control>
-				<Form.Description />
-				<Form.FieldErrors />
-			</Form.Field>
-
-			<Form.Field form={superform} name="interval">
-				<Form.Control>
-					<Label>{$LL.common.labels.cycle()}</Label>
-					<Select.Root type="single" bind:value={$form.interval}>
-						<Select.Trigger class="w-full" aria-invalid={$errors.interval ? 'true' : undefined}>
-							{intervalLabels[$form.interval]()}
-						</Select.Trigger>
-						<Select.Content>
-							{#each intervals as interval (interval.value)}
-								<Select.Item value={interval.value} label={interval.label} />
-							{/each}
-						</Select.Content>
-					</Select.Root>
-				</Form.Control>
-				<Form.Description />
-				<Form.FieldErrors />
-			</Form.Field>
-
-			<Form.Field form={superform} name="cost">
-				<Form.Control>
-					<Label>{$LL.common.labels.costPerPayment()}</Label>
-					<Input
-						type="number"
-						min="0.01"
-						step="0.01"
-						value={$form.cost}
-						oninput={(event) => {
-							$form.cost = event.currentTarget.value;
-						}}
-						placeholder="0.00"
-						aria-invalid={$errors.cost ? 'true' : undefined}
-						{...$constraints.cost}
-					/>
-				</Form.Control>
-				<Form.Description />
-				<Form.FieldErrors />
-			</Form.Field>
-
-			<div class="md:col-span-2">
-				<Form.Field form={superform} name="start">
-					<Form.Control>
-						<Label>{$LL.common.labels.contractPeriod()}</Label>
-						<input type="hidden" name="start" value={$form.start} />
-						<input type="hidden" name="end" value={$form.end} />
-						<Popover.Root>
-							<Popover.Trigger>
-								{#snippet child({ props })}
-									<Button
-										{...props}
-										type="button"
-										variant="outline"
-										class={cn(
-											'w-full justify-between font-normal',
-											!dateRangeValue?.start && !dateRangeValue?.end && 'text-muted-foreground'
-										)}
-										aria-invalid={$errors.start || $errors.end ? 'true' : undefined}
-									>
-										<span class="truncate text-left">{formatDateRange(dateRangeValue)}</span>
-										<ChevronDownIcon class="size-4 opacity-50" />
-									</Button>
-								{/snippet}
-							</Popover.Trigger>
-							<Popover.Content
-								class="w-auto p-0"
-								side="bottom"
-								align="start"
-								avoidCollisions={false}
-							>
-								<RangeCalendar
-									value={dateRangeValue}
-									bind:placeholder={dateRangePlaceholder}
-									captionLayout="dropdown"
-								>
-									{#snippet day({ day, outsideMonth })}
-										<RangeCalendarDay
-											onclick={(event) => handleContractPeriodDayClick(event, day)}
-											class={cn(
-												selectedRangeBoundary &&
-													isSelectedBoundaryDay(selectedRangeBoundary, day) &&
-													'ring-2 ring-ring ring-offset-2 ring-offset-background',
-												outsideMonth && 'opacity-60'
-											)}
-										/>
-									{/snippet}
-								</RangeCalendar>
-							</Popover.Content>
-						</Popover.Root>
-					</Form.Control>
-					<Form.Description />
-					<Form.FieldErrors />
-				</Form.Field>
-
-				{#if $errors.end}
-					<Form.Field form={superform} name="end">
-						<Form.FieldErrors />
+			<div class="min-h-0 overflow-y-auto px-6 py-5">
+				<div
+					class="grid gap-4 rounded-2xl border border-border/60 bg-card/25 p-4 backdrop-blur-sm md:grid-cols-2 md:p-5"
+				>
+					<Form.Field form={superform} name="govId">
+						<Form.Control>
+							<Form.Label>{$LL.common.labels.governmentIdOptional()}</Form.Label>
+							<Input
+								bind:value={$form.govId}
+								placeholder={$LL.common.labels.governmentIdOptional()}
+								aria-invalid={$errors.govId ? 'true' : undefined}
+								{...$constraints.govId}
+							/>
+						</Form.Control>
+						<Form.Description />
 					</Form.Field>
-				{/if}
+
+					<Form.Field form={superform} name="tenantId">
+						<Form.Control>
+							<Form.Label>{$LL.common.labels.tenant()}</Form.Label>
+							<Popover.Root bind:open={isTenantPickerOpen}>
+								<Popover.Trigger>
+									{#snippet child({ props })}
+										<Button
+											{...props}
+											variant="outline"
+											class={cn(
+												'w-full justify-between border-border/60 bg-background/80 font-normal shadow-sm',
+												!selectedTenant && 'text-muted-foreground'
+											)}
+											aria-invalid={$errors.tenantId ? 'true' : undefined}
+										>
+											<span class="min-w-0 flex-1 truncate text-left">
+												{selectedTenant?.name ||
+													(selectedTenantQuery.isLoading
+														? $LL.contracts.form.loadingTenant()
+														: $LL.contracts.form.searchAndSelectTenant())}
+											</span>
+											<ChevronDownIcon class="size-4 shrink-0 opacity-50" />
+										</Button>
+									{/snippet}
+								</Popover.Trigger>
+
+								<Popover.Content class="w-(--bits-popover-anchor-width) p-0" align="start">
+									<Command.Root class="w-full" shouldFilter={false}>
+										<Command.Input
+											bind:value={tenantSearch}
+											placeholder={$LL.contracts.form.searchTenantPlaceholder()}
+										/>
+										<Command.List>
+											{#if !hasTenantSearch}
+												<div class="p-3 text-sm text-muted-foreground">
+													{$LL.contracts.form.startTypingTenantSearch()}
+												</div>
+											{:else if isTenantResultsLoading && tenantOptions.length === 0}
+												<div class="p-3 text-sm text-muted-foreground">
+													{$LL.contracts.form.loadingTenants()}
+												</div>
+											{:else if tenantOptions.length === 0}
+												<div class="p-3 text-sm text-muted-foreground">
+													{$LL.contracts.form.noTenantFound()}
+												</div>
+											{:else}
+												<Command.Group>
+													{#each tenantOptions as tenant (tenant.id)}
+														<Command.Item
+															value={tenant.tenantId}
+															onSelect={() => selectTenant(tenant.tenantId)}
+														>
+															<div class="flex min-w-0 flex-1 flex-col text-left">
+																<span class="truncate">{tenant.name}</span>
+																{#if tenant.details}
+																	<span class="truncate text-xs text-muted-foreground">
+																		{tenant.details}
+																	</span>
+																{/if}
+															</div>
+															<CheckIcon
+																class={cn(
+																	'ms-auto size-4',
+																	$form.tenantId === tenant.tenantId ? 'opacity-100' : 'opacity-0'
+																)}
+															/>
+														</Command.Item>
+													{/each}
+												</Command.Group>
+											{/if}
+										</Command.List>
+									</Command.Root>
+								</Popover.Content>
+							</Popover.Root>
+						</Form.Control>
+						<Form.Description />
+					</Form.Field>
+
+					<div class="md:col-span-2">
+						<div
+							class="grid gap-4 rounded-[1.35rem] border border-border/50 bg-background/28 p-4 md:grid-cols-2"
+						>
+							<Form.Field form={superform} name="interval">
+								<Form.Control>
+									<Form.Label>{$LL.common.labels.cycle()}</Form.Label>
+									<Select.Root type="single" bind:value={$form.interval}>
+										<Select.Trigger
+											class="w-full"
+											aria-invalid={$errors.interval ? 'true' : undefined}
+										>
+											{intervalLabels[$form.interval]()}
+										</Select.Trigger>
+										<Select.Content>
+											{#each intervals as interval (interval.value)}
+												<Select.Item value={interval.value} label={interval.label} />
+											{/each}
+										</Select.Content>
+									</Select.Root>
+								</Form.Control>
+								<Form.Description />
+							</Form.Field>
+
+							<Form.Field form={superform} name="start">
+								<Form.Control>
+									<Form.Label>{$LL.contracts.form.startDate()}</Form.Label>
+									<input type="hidden" name="start" value={$form.start} />
+									<Popover.Root>
+										<Popover.Trigger>
+											{#snippet child({ props })}
+												<Button
+													{...props}
+													type="button"
+													variant="outline"
+													class={cn(
+														'w-full justify-between border-border/60 bg-background/58 font-normal shadow-none',
+														!contractStartDateValue && 'text-muted-foreground'
+													)}
+													aria-invalid={$errors.start ? 'true' : undefined}
+												>
+													<span>{formatCalendarDate(contractStartDateValue)}</span>
+													<ChevronDownIcon class="size-4 opacity-50" />
+												</Button>
+											{/snippet}
+										</Popover.Trigger>
+										<Popover.Content class="w-auto p-0" align="start" collisionPadding={16}>
+											<Calendar.Calendar
+												type="single"
+												bind:value={contractStartDateValue}
+												captionLayout="dropdown"
+											/>
+										</Popover.Content>
+									</Popover.Root>
+								</Form.Control>
+								<Form.Description />
+							</Form.Field>
+
+							<Form.Field form={superform} name="cycles">
+								<Form.Control>
+									<Form.Label>{$LL.contracts.form.numberOfCycles()}</Form.Label>
+									<Input
+										type="number"
+										min="1"
+										step="1"
+										value={$form.cycles}
+										oninput={(event) => {
+											$form.cycles = event.currentTarget.value;
+										}}
+										placeholder="1"
+										aria-invalid={$errors.cycles ? 'true' : undefined}
+										{...$constraints.cycles}
+									/>
+								</Form.Control>
+								<Form.Description />
+							</Form.Field>
+
+							<Form.Field form={superform} name="end">
+								<Form.Control>
+									<Form.Label>{$LL.contracts.form.calculatedEndDate()}</Form.Label>
+									<input type="hidden" name="end" value={$form.end} />
+									<Input
+										value={calculatedEndDate ? formatCalendarDate(calculatedEndDate) : ''}
+										placeholder={$LL.contracts.form.pickDate()}
+										readonly
+										aria-invalid={$errors.end ? 'true' : undefined}
+										class="cursor-default bg-background/36 text-foreground/90 hover:bg-background/36"
+									/>
+								</Form.Control>
+								<Form.Description>
+									{$LL.contracts.form.calculatedEndDateHint()}
+								</Form.Description>
+							</Form.Field>
+						</div>
+					</div>
+
+					<Form.Field form={superform} name="cost" class="md:col-span-2">
+						<Form.Control>
+							<Form.Label>{$LL.common.labels.costPerPayment()}</Form.Label>
+							<Input
+								type="number"
+								min="0.01"
+								step="0.01"
+								value={$form.cost}
+								oninput={(event) => {
+									$form.cost = event.currentTarget.value;
+								}}
+								placeholder="0.00"
+								aria-invalid={$errors.cost ? 'true' : undefined}
+								{...$constraints.cost}
+							/>
+						</Form.Control>
+						<Form.Description />
+					</Form.Field>
+				</div>
+
+				<Form.ErrorsSummary errors={$errors} class="mt-4" />
 			</div>
 
-			<Button
-				type="submit"
-				disabled={CreateMutation.isPending || UpdateMutation.isPending}
-				class="capitalize md:col-span-2"
-			>
-				{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
-			</Button>
+			<Dialog.Footer>
+				<Button
+					type="button"
+					variant="outline"
+					disabled={CreateMutation.isPending || UpdateMutation.isPending}
+					onclick={() => onOpenChange(false)}
+				>
+					{$LL.common.actions.cancel()}
+				</Button>
+				<Button
+					type="submit"
+					disabled={CreateMutation.isPending || UpdateMutation.isPending}
+					class="capitalize"
+				>
+					{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
+				</Button>
+			</Dialog.Footer>
 		</form>
 	</Dialog.Content>
 </Dialog.Root>

@@ -352,9 +352,15 @@ const en = {
 
 	contracts: {
 		form: {
+			startDate: 'start date',
+			calculatedEndDate: 'end date',
+			calculatedEndDateHint:
+				'updated automatically from the selected cycle, start date, and number of cycles.',
 			costGreaterThanZero: 'cost must be greater than zero.',
 			costPerPaymentGreaterThanZero: 'cost per payment must be greater than zero.',
 			costRequired: 'cost is required.',
+			cyclesGreaterThanZero: 'number of cycles must be greater than zero.',
+			cyclesRequired: 'number of cycles is required.',
 			duplicateGovernmentId: 'government id is associated with another contract.',
 			endDateAfterStart: 'end date must be after start date.',
 			endDateRequired: 'end date is required.',
@@ -363,11 +369,14 @@ const en = {
 			loadingTenant: 'loading tenant...',
 			loadingTenants: 'loading tenants...',
 			noTenantFound: 'no tenant found.',
+			numberOfCycles: 'number of cycles',
 			paymentAmountGreaterThanZero: 'payment amount must be greater than zero',
 			paymentAmountRequired: 'payment amount is required',
 			paymentDateRequired: 'payment date is required',
 			pickDate: 'pick a date',
 			pickDateRange: 'pick a date range',
+			periodMustMatchWholeCycles:
+				'contract period must be a whole number of {days}-day {interval} cycles.',
 			searchAndSelectTenant: 'search and select tenant',
 			searchTenantPlaceholder: 'search tenant by name, id or phone...',
 			startDateRequired: 'start date is required.',

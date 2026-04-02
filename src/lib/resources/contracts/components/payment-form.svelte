@@ -5,7 +5,6 @@
 	import * as Dialog from '$lib/common/components/fragments/dialog';
 	import * as Form from '$lib/common/components/fragments/form';
 	import { Input } from '$lib/common/components/fragments/input';
-	import { Label } from '$lib/common/components/fragments/label';
 	import * as Popover from '$lib/common/components/fragments/popover';
 	import { cn } from '$lib/common/utils/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -140,72 +139,92 @@
 </script>
 
 <Dialog.Root bind:open {onOpenChange}>
-	<Dialog.Content class="w-full max-w-sm">
-		<form method="POST" use:enhance class="flex flex-col gap-4">
-			<Form.Field form={superform} name="date">
-				<Form.Control>
-					<Label>{$LL.common.labels.paymentDate()}</Label>
-					<input type="hidden" name="date" value={$form.date} />
-					<Popover.Root>
-						<Popover.Trigger>
-							{#snippet child({ props })}
-								<Button
-									{...props}
-									type="button"
-									variant="outline"
-									class={cn(
-										'w-full justify-between font-normal',
-										!paymentDateValue && 'text-muted-foreground'
-									)}
-									aria-invalid={$errors.date ? 'true' : undefined}
-								>
-									<span>{formatCalendarDate(paymentDateValue)}</span>
-									<ChevronDownIcon class="size-4 opacity-50" />
-								</Button>
-							{/snippet}
-						</Popover.Trigger>
-						<Popover.Content class="w-auto p-0" align="start">
-							<Calendar.Calendar
-								type="single"
-								bind:value={paymentDateValue}
-								captionLayout="dropdown"
+	<Dialog.Content class="w-full sm:max-w-md">
+		<form method="POST" use:enhance class="flex flex-col">
+			<Dialog.Header>
+				<Dialog.Title class="capitalize">{$LL.common.labels.payment()}</Dialog.Title>
+			</Dialog.Header>
+
+			<div class="px-6 py-5">
+				<div
+					class="flex flex-col gap-4 rounded-2xl border border-border/60 bg-card/25 p-4 backdrop-blur-sm"
+				>
+					<Form.Field form={superform} name="date">
+						<Form.Control>
+							<Form.Label>{$LL.common.labels.paymentDate()}</Form.Label>
+							<input type="hidden" name="date" value={$form.date} />
+							<Popover.Root>
+								<Popover.Trigger>
+									{#snippet child({ props })}
+										<Button
+											{...props}
+											type="button"
+											variant="outline"
+											class={cn(
+												'w-full justify-between border-border/60 bg-background/58 font-normal shadow-none',
+												!paymentDateValue && 'text-muted-foreground'
+											)}
+											aria-invalid={$errors.date ? 'true' : undefined}
+										>
+											<span>{formatCalendarDate(paymentDateValue)}</span>
+											<ChevronDownIcon class="size-4 opacity-50" />
+										</Button>
+									{/snippet}
+								</Popover.Trigger>
+								<Popover.Content class="w-auto p-0" align="start">
+									<Calendar.Calendar
+										type="single"
+										bind:value={paymentDateValue}
+										captionLayout="dropdown"
+									/>
+								</Popover.Content>
+							</Popover.Root>
+						</Form.Control>
+						<Form.Description />
+					</Form.Field>
+
+					<Form.Field form={superform} name="amount">
+						<Form.Control>
+							<Form.Label>{$LL.common.labels.amount()}</Form.Label>
+							<Input
+								type="number"
+								min="0.01"
+								step="0.01"
+								value={$form.amount}
+								oninput={(event) => {
+									$form.amount = event.currentTarget.value;
+								}}
+								placeholder="0.00"
+								aria-invalid={$errors.amount ? 'true' : undefined}
+								{...$constraints.amount}
 							/>
-						</Popover.Content>
-					</Popover.Root>
-				</Form.Control>
-				<Form.Description />
-				<Form.FieldErrors />
-			</Form.Field>
+						</Form.Control>
+						<Form.Description />
+					</Form.Field>
+				</div>
 
-			<Form.Field form={superform} name="amount">
-				<Form.Control>
-					<Label>{$LL.common.labels.amount()}</Label>
-					<Input
-						type="number"
-						min="0.01"
-						step="0.01"
-						value={$form.amount}
-						oninput={(event) => {
-							$form.amount = event.currentTarget.value;
-						}}
-						placeholder="0.00"
-						aria-invalid={$errors.amount ? 'true' : undefined}
-						{...$constraints.amount}
-					/>
-				</Form.Control>
-				<Form.Description />
-				<Form.FieldErrors />
-			</Form.Field>
+				<Form.ErrorsSummary errors={$errors} class="mt-4" />
+			</div>
 
-			<Button type="submit" disabled={isPending} class="capitalize">
-				{isEditMode
-					? isPending
-						? $LL.common.actions.saving()
-						: $LL.common.actions.save()
-					: isPending
-						? $LL.common.actions.creating()
-						: $LL.common.actions.create()}
-			</Button>
+			<Dialog.Footer>
+				<Button
+					type="button"
+					variant="outline"
+					disabled={isPending}
+					onclick={() => onOpenChange(false)}
+				>
+					{$LL.common.actions.cancel()}
+				</Button>
+				<Button type="submit" disabled={isPending} class="capitalize">
+					{isEditMode
+						? isPending
+							? $LL.common.actions.saving()
+							: $LL.common.actions.save()
+						: isPending
+							? $LL.common.actions.creating()
+							: $LL.common.actions.create()}
+				</Button>
+			</Dialog.Footer>
 		</form>
 	</Dialog.Content>
 </Dialog.Root>

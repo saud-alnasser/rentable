@@ -27,6 +27,12 @@
 		useTerminateContract,
 		useUnterminateContract
 	} from '$lib/resources/contracts/hooks/queries';
+	import BanIcon from '@lucide/svelte/icons/ban';
+	import Building2Icon from '@lucide/svelte/icons/building-2';
+	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
+	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import WalletIcon from '@lucide/svelte/icons/wallet';
 	import ContractForm from './contract-form.svelte';
 
 	type ContractRow = Awaited<ReturnType<typeof api.contract.getPaginated>>['items'][number];
@@ -133,7 +139,7 @@
 >
 	{#snippet item(record: ContractRow)}
 		{@const paymentProgress = getPaymentProgress(record)}
-		<Card class="gap-0 overflow-hidden">
+		<Card class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
 			<CardHeader class="gap-4 border-b pb-4">
 				<div class="min-w-0 space-y-2">
 					<CardTitle class="truncate">{getContractTitle(record)}</CardTitle>
@@ -154,30 +160,38 @@
 				</div>
 				<CardAction>
 					<DataTableActionsDropdown
+						menuLabel={null}
 						actions={[
 							...(record.status !== 'terminated'
 								? [
 										{
 											label: $LL.common.actions.edit(),
+											icon: SquarePenIcon,
 											onclick: () => {
 												contract = record;
 												isContractFormOpen = true;
 											}
-										}
+										},
+										{ type: 'separator' as const }
 									]
 								: []),
 							{
 								label: $LL.contracts.table.unitsManagement(),
+								icon: Building2Icon,
 								onclick: () => goto(resolve(`/contracts/units/${record.id}`))
 							},
 							{
 								label: $LL.contracts.table.paymentsManagement(),
+								icon: WalletIcon,
 								onclick: () => goto(resolve(`/contracts/payments/${record.id}`))
 							},
 							...(canManuallyTerminateContractStatus(record.status)
 								? [
+										{ type: 'separator' as const },
 										{
 											label: $LL.common.actions.terminate(),
+											icon: BanIcon,
+											variant: 'destructive' as const,
 											onclick: () => {
 												contract = record;
 												isTerminateDialogOpen = true;
@@ -187,8 +201,10 @@
 								: []),
 							...(canUnterminateContractStatus(record.status)
 								? [
+										{ type: 'separator' as const },
 										{
 											label: $LL.common.actions.unterminate(),
+											icon: RotateCcwIcon,
 											onclick: () => {
 												contract = record;
 												isUnterminateDialogOpen = true;
@@ -196,8 +212,11 @@
 										}
 									]
 								: []),
+							{ type: 'separator' as const },
 							{
 								label: $LL.common.actions.delete(),
+								icon: Trash2Icon,
+								variant: 'destructive' as const,
 								onclick: () => {
 									contract = record;
 									isDeleteDialogOpen = true;
@@ -208,7 +227,9 @@
 				</CardAction>
 			</CardHeader>
 			<CardContent class="grid gap-3 pt-4 sm:grid-cols-2 xl:grid-cols-2">
-				<div class="rounded-lg border bg-muted/10 p-4 sm:col-span-2 xl:col-span-2">
+				<div
+					class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm sm:col-span-2 xl:col-span-2"
+				>
 					<div class="flex items-center justify-between gap-3 text-sm">
 						<div>
 							<p class="text-xs tracking-wide text-muted-foreground uppercase">
@@ -238,7 +259,7 @@
 						})}
 					</p>
 				</div>
-				<div class="rounded-lg border bg-muted/10 p-4">
+				<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">
 						{$LL.common.labels.governmentId()}
 					</p>
@@ -246,7 +267,7 @@
 						{getDisplayGovId(record) || $LL.common.messages.unknown()}
 					</p>
 				</div>
-				<div class="rounded-lg border bg-muted/10 p-4">
+				<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">
 						{$LL.common.labels.phone()}
 					</p>
@@ -254,13 +275,13 @@
 						{getDisplayTenantPhone(record) || $LL.common.messages.unknown()}
 					</p>
 				</div>
-				<div class="rounded-lg border bg-muted/10 p-4">
+				<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">
 						{$LL.common.labels.cycle()}
 					</p>
 					<p class="mt-2 text-sm font-medium">{intervalLabels[record.interval]()}</p>
 				</div>
-				<div class="rounded-lg border bg-muted/10 p-4">
+				<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">
 						{$LL.common.labels.payment()}
 					</p>
@@ -269,13 +290,13 @@
 						{$LL.common.messages.sar()}
 					</p>
 				</div>
-				<div class="rounded-lg border bg-muted/10 p-4">
+				<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">
 						{$LL.common.labels.start()}
 					</p>
 					<p class="mt-2 text-sm font-medium">{formatDate(record.start)}</p>
 				</div>
-				<div class="rounded-lg border bg-muted/10 p-4">
+				<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">
 						{$LL.common.labels.end()}
 					</p>
