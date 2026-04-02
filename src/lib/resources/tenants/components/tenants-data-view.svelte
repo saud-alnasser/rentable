@@ -12,10 +12,12 @@
 		CardTitle
 	} from '$lib/common/components/fragments/card';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { useDeleteTenant, useFetchTenants } from '$lib/resources/tenants/hooks/queries';
+	import { useDeleteTenant, useInfiniteTenants } from '$lib/resources/tenants/hooks/queries';
 	import TenantForm from './tenant-form.svelte';
 
-	const fetchQuery = useFetchTenants();
+	let search = $state('');
+
+	const fetchQuery = useInfiniteTenants(() => ({ search }));
 	const deleteMutation = useDeleteTenant();
 
 	let isTenantFormOpen = $state(false);
@@ -24,6 +26,9 @@
 
 	const getSearchValue = (record: Tenant) =>
 		[record.name, record.phone, record.nationalId].filter(Boolean).join(' ');
+	let tenants = $derived.by(
+		() => fetchQuery.data?.pages.flatMap((page: { items: Tenant[] }) => page.items) ?? []
+	);
 
 	const getTenantInitials = (name: string) =>
 		name
@@ -35,10 +40,15 @@
 </script>
 
 <DataView
-	data={fetchQuery.data ?? []}
+	data={tenants}
 	isLoading={fetchQuery.isLoading}
 	isFetching={fetchQuery.isFetching}
+	hasNextPage={fetchQuery.hasNextPage}
+	isFetchingNextPage={fetchQuery.isFetchingNextPage}
+	fetchNextPage={() => fetchQuery.fetchNextPage()}
+	bind:searchValue={search}
 	{getSearchValue}
+	virtualItemHeight={220}
 	onCreate={() => {
 		tenant = undefined;
 		isTenantFormOpen = true;

@@ -5,16 +5,34 @@ import {
 	type MutationOptions
 } from '$lib/common/utils/queries';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import {
+	createInfiniteQuery,
+	createMutation,
+	createQuery,
+	useQueryClient,
+	type InfiniteData
+} from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
+
+const DATA_VIEW_PAGE_SIZE = 24;
+type InfiniteComplexesPage = Awaited<ReturnType<typeof api.complex.getPaginated>>;
+type InfiniteUnitsPage = Awaited<ReturnType<typeof api.complex.units.getPaginated>>;
 
 export const keys = {
 	all: ['complexes'],
 	get: (id: number) => ['complexes', id],
+	dataView: (search?: string) => ['complexes', 'data-view', search ?? ''],
 	units: {
 		all: ['complexes', 'units'],
 		get: (id: number) => ['complexes', 'units', 'detail', id],
-		getMany: (complexId: number) => ['complexes', 'units', complexId]
+		getMany: (complexId: number) => ['complexes', 'units', complexId],
+		dataView: (complexId: number, search?: string) => [
+			'complexes',
+			'units',
+			'data-view',
+			complexId,
+			search ?? ''
+		]
 	}
 } as const;
 
@@ -23,6 +41,30 @@ export function useFetchComplexes() {
 		queryKey: keys.all,
 		queryFn: () => api.complex.getMany({})
 	}));
+}
+
+export function useInfiniteComplexes(search: () => string = () => '') {
+	return createInfiniteQuery<
+		InfiniteComplexesPage,
+		Error,
+		InfiniteData<InfiniteComplexesPage>,
+		ReturnType<typeof keys.dataView>,
+		number
+	>(() => {
+		const trimmedSearch = search().trim();
+
+		return {
+			queryKey: keys.dataView(trimmedSearch),
+			initialPageParam: 0,
+			getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+			queryFn: ({ pageParam }) =>
+				api.complex.getPaginated({
+					search: trimmedSearch || undefined,
+					limit: DATA_VIEW_PAGE_SIZE,
+					offset: typeof pageParam === 'number' ? pageParam : 0
+				})
+		};
+	});
 }
 
 export function useFetchComplex(id: () => number) {
@@ -54,6 +96,32 @@ export function useFetchUnits(complexId: () => number) {
 		return {
 			queryKey: keys.units.getMany(id),
 			queryFn: () => api.complex.units.getMany({ complexId: id })
+		};
+	});
+}
+
+export function useInfiniteUnits(params: () => { complexId: number; search?: string }) {
+	return createInfiniteQuery<
+		InfiniteUnitsPage,
+		Error,
+		InfiniteData<InfiniteUnitsPage>,
+		ReturnType<typeof keys.units.dataView>,
+		number
+	>(() => {
+		const { complexId, search } = params();
+		const trimmedSearch = search?.trim();
+
+		return {
+			queryKey: keys.units.dataView(complexId, trimmedSearch),
+			initialPageParam: 0,
+			getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+			queryFn: ({ pageParam }) =>
+				api.complex.units.getPaginated({
+					complexId,
+					search: trimmedSearch || undefined,
+					limit: DATA_VIEW_PAGE_SIZE,
+					offset: typeof pageParam === 'number' ? pageParam : 0
+				})
 		};
 	});
 }

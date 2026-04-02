@@ -18,7 +18,7 @@
 	import {
 		useDeletePayment,
 		useFetchContract,
-		useFetchContractPayments
+		useInfiniteContractPayments
 	} from '$lib/resources/contracts/hooks/queries';
 	import PaymentForm from './payment-form.svelte';
 
@@ -31,9 +31,10 @@
 		new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value);
 
 	let { contractId }: { contractId: number } = $props();
+	let search = $state('');
 
 	const contractQuery = useFetchContract(() => contractId);
-	const paymentsQuery = useFetchContractPayments(() => contractId);
+	const paymentsQuery = useInfiniteContractPayments(() => ({ contractId, search }));
 	const deleteMutation = useDeletePayment();
 
 	let payment = $state<Payment | undefined>(undefined);
@@ -83,6 +84,9 @@
 				: undefined;
 	const getSearchValue = (record: Payment) =>
 		[String(record.amount), formatDate(record.date)].join(' ');
+	let payments = $derived.by(
+		() => paymentsQuery.data?.pages.flatMap((page: { items: Payment[] }) => page.items) ?? []
+	);
 </script>
 
 {#if contractQuery.isLoading}
@@ -138,10 +142,15 @@
 {/if}
 
 <DataView
-	data={paymentsQuery.data ?? []}
+	data={payments}
 	isLoading={paymentsQuery.isLoading}
 	isFetching={paymentsQuery.isFetching}
+	hasNextPage={paymentsQuery.hasNextPage}
+	isFetchingNextPage={paymentsQuery.isFetchingNextPage}
+	fetchNextPage={() => paymentsQuery.fetchNextPage()}
+	bind:searchValue={search}
 	{getSearchValue}
+	virtualItemHeight={240}
 	onCreate={isAddLocked
 		? undefined
 		: () => {

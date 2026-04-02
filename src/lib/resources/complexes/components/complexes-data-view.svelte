@@ -15,10 +15,12 @@
 	} from '$lib/common/components/fragments/card';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import ComplexesTableUnitsCount from '$lib/resources/complexes/components/complexes-table-units-count.svelte';
-	import { useDeleteComplex, useFetchComplexes } from '$lib/resources/complexes/hooks/queries';
+	import { useDeleteComplex, useInfiniteComplexes } from '$lib/resources/complexes/hooks/queries';
 	import ComplexForm from './complex-form.svelte';
 
-	const fetchQuery = useFetchComplexes();
+	let search = $state('');
+
+	const fetchQuery = useInfiniteComplexes(() => search);
 	const deleteMutation = useDeleteComplex();
 
 	let complex = $state<Complex | undefined>(undefined);
@@ -27,13 +29,21 @@
 
 	const getSearchValue = (record: Complex) =>
 		[record.name, record.location].filter(Boolean).join(' ');
+	let complexes = $derived.by(
+		() => fetchQuery.data?.pages.flatMap((page: { items: Complex[] }) => page.items) ?? []
+	);
 </script>
 
 <DataView
-	data={fetchQuery.data ?? []}
+	data={complexes}
 	isLoading={fetchQuery.isLoading}
 	isFetching={fetchQuery.isFetching}
+	hasNextPage={fetchQuery.hasNextPage}
+	isFetchingNextPage={fetchQuery.isFetchingNextPage}
+	fetchNextPage={() => fetchQuery.fetchNextPage()}
+	bind:searchValue={search}
 	{getSearchValue}
+	virtualItemHeight={260}
 	onCreate={() => {
 		complex = undefined;
 		isComplexFormOpen = true;
