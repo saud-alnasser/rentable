@@ -1,5 +1,13 @@
 # rentable
 
+## 0.7.0
+
+### Minor Changes
+
+- [#70](https://github.com/saud-alnasser/rentable/pull/70) [`c625922`](https://github.com/saud-alnasser/rentable/commit/c625922249b7964098f3dc7b6988d3bb2f7ebe46) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - optimized data-view with virtualization
+
+- [#71](https://github.com/saud-alnasser/rentable/pull/71) [`b5efb94`](https://github.com/saud-alnasser/rentable/commit/b5efb948c780304c0133ef3a76ea1829fc743513) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - redesigned the application's visual interface with a modern, glass-morphism inspired design system
+
 ## 0.6.0
 
 ### Minor Changes
