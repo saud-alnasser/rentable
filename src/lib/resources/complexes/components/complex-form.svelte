@@ -4,7 +4,6 @@
 	import * as Dialog from '$lib/common/components/fragments/dialog';
 	import * as Form from '$lib/common/components/fragments/form';
 	import { Input } from '$lib/common/components/fragments/input';
-	import { Label } from '$lib/common/components/fragments/label';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateComplex, useUpdateComplex } from '$lib/resources/complexes/hooks/queries';
 	import { TRPCError } from '@trpc/server';
@@ -80,43 +79,63 @@
 </script>
 
 <Dialog.Root bind:open {onOpenChange}>
-	<Dialog.Content class="w-full max-w-sm">
-		<form method="POST" use:enhance class="flex flex-col gap-4">
-			<Form.Field form={superform} name="name">
-				<Form.Control>
-					<Label>{$LL.common.labels.name()}</Label>
-					<Input
-						bind:value={$form.name}
-						placeholder={$LL.common.labels.name()}
-						aria-invalid={$errors.name ? 'true' : undefined}
-						{...$constraints.name}
-					/>
-				</Form.Control>
-				<Form.Description />
-				<Form.FieldErrors />
-			</Form.Field>
+	<Dialog.Content class="w-full sm:max-w-md">
+		<form method="POST" use:enhance class="flex flex-col">
+			<Dialog.Header>
+				<Dialog.Title class="capitalize">{$LL.common.labels.complex()}</Dialog.Title>
+			</Dialog.Header>
 
-			<Form.Field form={superform} name="location">
-				<Form.Control>
-					<Label>{$LL.common.labels.location()}</Label>
-					<Input
-						bind:value={$form.location}
-						placeholder={$LL.common.labels.location()}
-						aria-invalid={$errors.location ? 'true' : undefined}
-						{...$constraints.location}
-					/>
-				</Form.Control>
-				<Form.Description />
-				<Form.FieldErrors />
-			</Form.Field>
+			<div class="px-6 py-5">
+				<div
+					class="flex flex-col gap-4 rounded-2xl border border-border/60 bg-card/25 p-4 backdrop-blur-sm"
+				>
+					<Form.Field form={superform} name="name">
+						<Form.Control>
+							<Form.Label>{$LL.common.labels.name()}</Form.Label>
+							<Input
+								bind:value={$form.name}
+								placeholder={$LL.common.labels.name()}
+								aria-invalid={$errors.name ? 'true' : undefined}
+								{...$constraints.name}
+							/>
+						</Form.Control>
+						<Form.Description />
+					</Form.Field>
 
-			<Button
-				type="submit"
-				disabled={CreateMutation.isPending || UpdateMutation.isPending}
-				class="capitalize"
-			>
-				{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
-			</Button>
+					<Form.Field form={superform} name="location">
+						<Form.Control>
+							<Form.Label>{$LL.common.labels.location()}</Form.Label>
+							<Input
+								bind:value={$form.location}
+								placeholder={$LL.common.labels.location()}
+								aria-invalid={$errors.location ? 'true' : undefined}
+								{...$constraints.location}
+							/>
+						</Form.Control>
+						<Form.Description />
+					</Form.Field>
+				</div>
+
+				<Form.ErrorsSummary errors={$errors} class="mt-4" />
+			</div>
+
+			<Dialog.Footer>
+				<Button
+					type="button"
+					variant="outline"
+					disabled={CreateMutation.isPending || UpdateMutation.isPending}
+					onclick={() => onOpenChange(false)}
+				>
+					{$LL.common.actions.cancel()}
+				</Button>
+				<Button
+					type="submit"
+					disabled={CreateMutation.isPending || UpdateMutation.isPending}
+					class="capitalize"
+				>
+					{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
+				</Button>
+			</Dialog.Footer>
 		</form>
 	</Dialog.Content>
 </Dialog.Root>

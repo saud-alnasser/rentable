@@ -5,6 +5,6 @@
 	const complexId = Number(page.params.id);
 </script>
 
-<div class="flex flex-col gap-3 p-5">
+<div class="flex min-h-0 flex-1 flex-col gap-3 p-5">
 	<UnitsDataView {complexId} />
 </div>

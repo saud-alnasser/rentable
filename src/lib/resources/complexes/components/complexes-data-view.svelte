@@ -16,6 +16,9 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import ComplexesTableUnitsCount from '$lib/resources/complexes/components/complexes-table-units-count.svelte';
 	import { useDeleteComplex, useInfiniteComplexes } from '$lib/resources/complexes/hooks/queries';
+	import Building2Icon from '@lucide/svelte/icons/building-2';
+	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import ComplexForm from './complex-form.svelte';
 
 	let search = $state('');
@@ -50,7 +53,7 @@
 	}}
 >
 	{#snippet item(record: Complex)}
-		<Card class="gap-0 overflow-hidden">
+		<Card class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
 			<CardHeader class="gap-4 border-b pb-4">
 				<div class="space-y-1">
 					<CardTitle>{record.name}</CardTitle>
@@ -58,13 +61,17 @@
 				</div>
 				<CardAction>
 					<DataTableActionsDropdown
+						menuLabel={null}
 						actions={[
 							{
 								label: $LL.complexes.units.management(),
+								icon: Building2Icon,
 								onclick: () => goto(resolve(`/complexes/units/${record.id}`))
 							},
+							{ type: 'separator' as const },
 							{
 								label: $LL.common.actions.edit(),
+								icon: SquarePenIcon,
 								onclick: () => {
 									complex = record;
 									isComplexFormOpen = true;
@@ -72,6 +79,8 @@
 							},
 							{
 								label: $LL.common.actions.delete(),
+								icon: Trash2Icon,
+								variant: 'destructive' as const,
 								onclick: () => {
 									complex = record;
 									isDeleteDialogOpen = true;
@@ -82,13 +91,13 @@
 				</CardAction>
 			</CardHeader>
 			<CardContent class="grid gap-3 pt-4 sm:grid-cols-2">
-				<div class="rounded-lg border bg-muted/10 p-4">
+				<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">
 						{$LL.common.labels.location()}
 					</p>
 					<p class="mt-2 text-sm font-medium">{record.location}</p>
 				</div>
-				<div class="rounded-lg border bg-muted/10 p-4">
+				<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">
 						{$LL.common.labels.units()}
 					</p>

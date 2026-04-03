@@ -58,24 +58,31 @@
 </script>
 
 <Dialog.Root {open} {onOpenChange}>
-	<Dialog.Content class="flex flex-col gap-4">
-		<Dialog.Header class="w-full max-w-sm">
+	<Dialog.Content class="w-full max-w-md">
+		<Dialog.Header>
 			<Dialog.Title class="capitalize">{title}</Dialog.Title>
-			<Dialog.Description>{description}</Dialog.Description>
 		</Dialog.Header>
 
-		{#if error}
-			<Callout variant="error">
-				{error}
-			</Callout>
-		{/if}
+		<div class="flex flex-col gap-4 px-6 py-5">
+			<div
+				class="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm leading-6 text-muted-foreground"
+			>
+				{description}
+			</div>
 
-		<section class="flex flex-row gap-4">
+			{#if error}
+				<Callout variant="error">
+					{error}
+				</Callout>
+			{/if}
+		</div>
+
+		<Dialog.Footer>
 			<Button
 				variant="outline"
 				disabled={isSubmitting}
 				onclick={() => onOpenChange(false)}
-				class="flex-1"
+				class="w-full sm:w-auto"
 			>
 				{$LL.common.actions.cancel()}
 			</Button>
@@ -84,7 +91,7 @@
 				variant={confirmVariant}
 				disabled={isSubmitting || hasError}
 				onclick={submit}
-				class="flex-1"
+				class="w-full sm:w-auto"
 			>
 				{#if isSubmitting}
 					{confirmLoadingLabel}
@@ -92,6 +99,6 @@
 					{confirmLabel}
 				{/if}
 			</Button>
-		</section>
+		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>

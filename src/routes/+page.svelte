@@ -5,6 +5,7 @@
 	import api from '$lib/api/mod';
 	import { getCollectionProgress } from '$lib/api/utils/dashboard';
 	import { Badge } from '$lib/common/components/fragments/badge';
+	import { Button } from '$lib/common/components/fragments/button';
 	import {
 		Card,
 		CardContent,
@@ -20,6 +21,7 @@
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { tick } from 'svelte';
 	import { get } from 'svelte/store';
+	import { cn } from 'tailwind-variants';
 
 	type DashboardData = Awaited<ReturnType<typeof api.contract.dashboard>>;
 	type FollowUpItem = DashboardData['followUps'][number];
@@ -72,6 +74,14 @@
 	const followUpAmountLabel = $LL.common.labels.dueBalance();
 	const followUpRemainingLabel = $LL.common.labels.remainingDueBalance();
 	const followUpProgressLabel = $LL.common.labels.dueBalanceCoveredToDate();
+	const dashboardCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
+	const dashboardVirtualListClass =
+		'rounded-[1.5rem] border border-border/70 bg-background/30 shadow-lg backdrop-blur-xl';
+	const dashboardVirtualListPaddingClass = 'p-2 sm:p-3';
+	const dashboardInsetPanelClass =
+		'rounded-[1.25rem] border border-border/70 bg-background/60 p-4 shadow-sm backdrop-blur-md';
+	const dashboardSubtlePanelClass =
+		'rounded-xl border border-primary/10 bg-accent/35 p-3 backdrop-blur-sm';
 
 	const getFollowUpProgressSummary = (rate: number) =>
 		$LL.dashboard.followUps.progressSummary({ percent: Math.round(rate) });
@@ -291,7 +301,7 @@
 
 {#snippet followUpCard(item: FollowUpItem)}
 	{@const progress = getFollowUpProgress(item)}
-	<div class="rounded-xl border bg-muted/10 p-4">
+	<div class={`${dashboardInsetPanelClass} bg-background/75`}>
 		<div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
 			<div class="space-y-4">
 				<div class="flex flex-row justify-between gap-3">
@@ -309,23 +319,25 @@
 					</div>
 
 					<div class="flex items-start justify-between gap-3">
-						<a
+						<Button
 							href={resolve(`/contracts/payments/${item.contractId}`)}
-							class="inline-flex rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+							variant="outline"
+							size="sm"
+							class="bg-background/85"
 						>
 							{$LL.common.actions.openPayments()}
-						</a>
+						</Button>
 					</div>
 				</div>
 
 				<div class="grid gap-3 sm:grid-cols-3">
-					<div class="rounded-lg border bg-background/70 p-3">
+					<div class={dashboardSubtlePanelClass}>
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.phone()}
 						</p>
 						<p class="mt-1 text-sm font-medium text-foreground">{item.tenantPhone}</p>
 					</div>
-					<div class="rounded-lg border bg-background/70 p-3">
+					<div class={dashboardSubtlePanelClass}>
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.cycle()}
 						</p>
@@ -333,7 +345,7 @@
 							{$LL.contracts.intervals[intervalLabels[item.interval]]()}
 						</p>
 					</div>
-					<div class="rounded-lg border bg-background/70 p-3">
+					<div class={dashboardSubtlePanelClass}>
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.contractEnds()}
 						</p>
@@ -344,9 +356,9 @@
 				</div>
 			</div>
 
-			<div class="rounded-xl border bg-background/70 p-4">
+			<div class={dashboardInsetPanelClass}>
 				<div class="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
-					<div class="rounded-lg border bg-muted/15 p-3">
+					<div class={dashboardSubtlePanelClass}>
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{followUpAmountLabel}
 						</p>
@@ -355,7 +367,7 @@
 							{$LL.common.messages.sar()}
 						</p>
 					</div>
-					<div class="rounded-lg border bg-muted/15 p-3">
+					<div class={dashboardSubtlePanelClass}>
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.dashboard.stats.receivedThisMonth()}
 						</p>
@@ -364,7 +376,7 @@
 							{$LL.common.messages.sar()}
 						</p>
 					</div>
-					<div class="rounded-lg border bg-muted/15 p-3">
+					<div class={dashboardSubtlePanelClass}>
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{followUpRemainingLabel}
 						</p>
@@ -375,7 +387,7 @@
 					</div>
 				</div>
 
-				<div class="mt-4 rounded-lg border bg-muted/15 p-3">
+				<div class={`mt-4 ${dashboardSubtlePanelClass}`}>
 					<div class="flex items-center justify-between gap-3 text-sm">
 						<span class="font-medium">{followUpProgressLabel}</span>
 						<span class="text-muted-foreground">
@@ -432,13 +444,13 @@
 		{#if dashboardQuery.data}
 			<div class="grid gap-4 xl:grid-cols-3">
 				{#each getSummarySections(dashboardQuery.data) as section (section.id)}
-					<Card class="gap-4 overflow-hidden">
-						<CardHeader class="gap-3">
+					<Card class={`gap-4 overflow-hidden ${dashboardCardClass}`}>
+						<CardHeader class="gap-3 border-b border-border/50 pb-5">
 							<CardTitle class="capitalize">{section.title}</CardTitle>
 							<CardDescription>{section.description}</CardDescription>
 						</CardHeader>
-						<CardContent class="space-y-4">
-							<div class={`rounded-xl border p-4 ${section.heroClass}`}>
+						<CardContent class="space-y-4 pt-5">
+							<div class={`rounded-2xl border border-border/60 p-4 shadow-sm ${section.heroClass}`}>
 								<p class="text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
 									{section.heroLabel}
 								</p>
@@ -452,7 +464,7 @@
 
 							<div class="grid gap-3 sm:grid-cols-2">
 								{#each section.stats as stat (stat.id)}
-									<div class="rounded-lg border bg-muted/15 p-3">
+									<div class={dashboardSubtlePanelClass}>
 										<p class="text-xs tracking-wide text-muted-foreground uppercase">
 											{stat.label}
 										</p>
@@ -465,8 +477,8 @@
 				{/each}
 			</div>
 
-			<Card class="gap-4 overflow-hidden">
-				<CardHeader class="gap-3">
+			<Card class={`gap-4 overflow-hidden ${dashboardCardClass}`}>
+				<CardHeader class="gap-3 border-b border-border/50 pb-5">
 					<div class="flex flex-wrap items-start justify-between gap-3">
 						<div class="space-y-1">
 							<CardTitle
@@ -479,7 +491,7 @@
 							</CardDescription>
 						</div>
 						<div
-							class="rounded-full border bg-muted/15 px-3 py-1 text-xs font-medium text-muted-foreground"
+							class="rounded-full border border-border/60 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm"
 						>
 							{dashboardQuery.data.followUps.length === 1
 								? $LL.dashboard.followUps.countOne({ count: 1 })
@@ -489,18 +501,20 @@
 						</div>
 					</div>
 				</CardHeader>
-				<CardContent>
+				<CardContent class="pt-5">
 					{#if followUpRecords.length === 0}
-						<p class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+						<p
+							class="rounded-xl border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground"
+						>
 							{$LL.dashboard.followUps.empty()}
 						</p>
 					{:else if shouldUseVirtualFollowUps}
 						<ScrollArea
 							bind:viewportRef={followUpsViewportRef}
-							class="rounded-xl"
+							class={dashboardVirtualListClass}
 							style={`height: ${followUpVirtualViewportHeight};`}
 						>
-							<div class="relative w-full">
+							<div class={cn('relative w-full', dashboardVirtualListPaddingClass)}>
 								{#if followUpPaddingTop > 0}
 									<div aria-hidden="true" style={`height: ${followUpPaddingTop}px;`}></div>
 								{/if}
@@ -531,7 +545,7 @@
 				</CardContent>
 			</Card>
 		{:else}
-			<Card>
+			<Card class={dashboardCardClass}>
 				<CardContent class="pt-6">
 					<p class="text-sm text-muted-foreground">{$LL.dashboard.followUps.unavailable()}</p>
 				</CardContent>

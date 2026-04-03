@@ -1036,6 +1036,18 @@ type RootTranslation = {
 	contracts: {
 		form: {
 			/**
+			 * s​t​a​r​t​ ​d​a​t​e
+			 */
+			startDate: string
+			/**
+			 * e​n​d​ ​d​a​t​e
+			 */
+			calculatedEndDate: string
+			/**
+			 * u​p​d​a​t​e​d​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​ ​f​r​o​m​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​c​y​c​l​e​,​ ​s​t​a​r​t​ ​d​a​t​e​,​ ​a​n​d​ ​n​u​m​b​e​r​ ​o​f​ ​c​y​c​l​e​s​.
+			 */
+			calculatedEndDateHint: string
+			/**
 			 * c​o​s​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o​.
 			 */
 			costGreaterThanZero: string
@@ -1047,6 +1059,14 @@ type RootTranslation = {
 			 * c​o​s​t​ ​i​s​ ​r​e​q​u​i​r​e​d​.
 			 */
 			costRequired: string
+			/**
+			 * n​u​m​b​e​r​ ​o​f​ ​c​y​c​l​e​s​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o​.
+			 */
+			cyclesGreaterThanZero: string
+			/**
+			 * n​u​m​b​e​r​ ​o​f​ ​c​y​c​l​e​s​ ​i​s​ ​r​e​q​u​i​r​e​d​.
+			 */
+			cyclesRequired: string
 			/**
 			 * g​o​v​e​r​n​m​e​n​t​ ​i​d​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​.
 			 */
@@ -1080,6 +1100,10 @@ type RootTranslation = {
 			 */
 			noTenantFound: string
 			/**
+			 * n​u​m​b​e​r​ ​o​f​ ​c​y​c​l​e​s
+			 */
+			numberOfCycles: string
+			/**
 			 * p​a​y​m​e​n​t​ ​a​m​o​u​n​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o
 			 */
 			paymentAmountGreaterThanZero: string
@@ -1099,6 +1123,12 @@ type RootTranslation = {
 			 * p​i​c​k​ ​a​ ​d​a​t​e​ ​r​a​n​g​e
 			 */
 			pickDateRange: string
+			/**
+			 * c​o​n​t​r​a​c​t​ ​p​e​r​i​o​d​ ​m​u​s​t​ ​b​e​ ​a​ ​w​h​o​l​e​ ​n​u​m​b​e​r​ ​o​f​ ​{​d​a​y​s​}​-​d​a​y​ ​{​i​n​t​e​r​v​a​l​}​ ​c​y​c​l​e​s​.
+			 * @param {unknown} days
+			 * @param {unknown} interval
+			 */
+			periodMustMatchWholeCycles: RequiredParams<'days' | 'interval'>
 			/**
 			 * s​e​a​r​c​h​ ​a​n​d​ ​s​e​l​e​c​t​ ​t​e​n​a​n​t
 			 */
@@ -2380,6 +2410,18 @@ export type TranslationFunctions = {
 	contracts: {
 		form: {
 			/**
+			 * start date
+			 */
+			startDate: () => LocalizedString
+			/**
+			 * end date
+			 */
+			calculatedEndDate: () => LocalizedString
+			/**
+			 * updated automatically from the selected cycle, start date, and number of cycles.
+			 */
+			calculatedEndDateHint: () => LocalizedString
+			/**
 			 * cost must be greater than zero.
 			 */
 			costGreaterThanZero: () => LocalizedString
@@ -2391,6 +2433,14 @@ export type TranslationFunctions = {
 			 * cost is required.
 			 */
 			costRequired: () => LocalizedString
+			/**
+			 * number of cycles must be greater than zero.
+			 */
+			cyclesGreaterThanZero: () => LocalizedString
+			/**
+			 * number of cycles is required.
+			 */
+			cyclesRequired: () => LocalizedString
 			/**
 			 * government id is associated with another contract.
 			 */
@@ -2424,6 +2474,10 @@ export type TranslationFunctions = {
 			 */
 			noTenantFound: () => LocalizedString
 			/**
+			 * number of cycles
+			 */
+			numberOfCycles: () => LocalizedString
+			/**
 			 * payment amount must be greater than zero
 			 */
 			paymentAmountGreaterThanZero: () => LocalizedString
@@ -2443,6 +2497,10 @@ export type TranslationFunctions = {
 			 * pick a date range
 			 */
 			pickDateRange: () => LocalizedString
+			/**
+			 * contract period must be a whole number of {days}-day {interval} cycles.
+			 */
+			periodMustMatchWholeCycles: (arg: { days: unknown, interval: unknown }) => LocalizedString
 			/**
 			 * search and select tenant
 			 */

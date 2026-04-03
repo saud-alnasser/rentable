@@ -66,7 +66,7 @@
 	dir="ltr"
 >
 	<div
-		class="pointer-events-auto flex items-center gap-2 rounded-full border border-border/60 bg-background/20 p-2 shadow-lg backdrop-blur-xl"
+		class="pointer-events-auto flex items-center gap-1.5 rounded-[1.6rem] border border-border/60 bg-background/56 p-2 shadow-lg backdrop-blur-xl"
 	>
 		{#each items as item (item.label)}
 			<Tooltip.Root>
@@ -81,8 +81,8 @@
 							aria-label={item.label()}
 							aria-current={isActive(item.url) ? 'page' : undefined}
 							class={cn(
-								'rounded-full border border-transparent bg-transparent text-muted-foreground hover:border-border/60 hover:bg-background/60 hover:text-foreground',
-								isActive(item.url) && 'border-border/70 bg-background/80 text-foreground shadow-sm'
+								'rounded-[1rem] border border-transparent bg-transparent text-muted-foreground hover:border-border/50 hover:bg-background/60 hover:text-foreground',
+								isActive(item.url) && 'border-primary/15 bg-primary/10 text-primary'
 							)}
 						>
 							<item.icon class="size-5" />
