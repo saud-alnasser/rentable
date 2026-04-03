@@ -23,6 +23,9 @@ importers:
       '@tanstack/svelte-query':
         specifier: ^6.0.18
         version: 6.0.18(svelte@5.53.5)
+      '@tanstack/svelte-virtual':
+        specifier: ^3.13.23
+        version: 3.13.23(svelte@5.53.5)
       '@tauri-apps/api':
         specifier: ^2
         version: 2.10.1
@@ -1239,9 +1242,17 @@ packages:
     peerDependencies:
       svelte: ^5.25.0
 
+  '@tanstack/svelte-virtual@3.13.23':
+    resolution: {integrity: sha512-kUFdKtevYPhuv9bN2/NhE8zCr6pO3lP2a4xYwyzwqvNZim0EMHdq9nKMFgS4rMHE9Iacdj4+PwMYDfRZ45a/+Q==}
+    peerDependencies:
+      svelte: ^3.48.0 || ^4.0.0 || ^5.0.0
+
   '@tanstack/table-core@8.21.3':
     resolution: {integrity: sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==}
     engines: {node: '>=12'}
+
+  '@tanstack/virtual-core@3.13.23':
+    resolution: {integrity: sha512-zSz2Z2HNyLjCplANTDyl3BcdQJc2k1+yyFoKhNRmCr7V7dY8o8q5m8uFTI1/Pg1kL+Hgrz6u3Xo6eFUB7l66cg==}
 
   '@tauri-apps/api@2.10.1':
     resolution: {integrity: sha512-hKL/jWf293UDSUN09rR69hrToyIXBb8CjGaWC7gfinvnQrBVvnLr08FeFi38gxtugAVyVcTa5/FD/Xnkb1siBw==}
@@ -4002,7 +4013,14 @@ snapshots:
       '@tanstack/query-core': 5.90.20
       svelte: 5.53.5
 
+  '@tanstack/svelte-virtual@3.13.23(svelte@5.53.5)':
+    dependencies:
+      '@tanstack/virtual-core': 3.13.23
+      svelte: 5.53.5
+
   '@tanstack/table-core@8.21.3': {}
+
+  '@tanstack/virtual-core@3.13.23': {}
 
   '@tauri-apps/api@2.10.1': {}
 

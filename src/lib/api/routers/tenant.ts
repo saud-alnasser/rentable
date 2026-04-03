@@ -1,8 +1,9 @@
 import * as s from '$lib/api/database/schema';
 import { TenantSchema } from '$lib/api/database/schema';
 import { procedure, router } from '$lib/api/trpc';
+import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/utils/pagination';
 import { TRPCError } from '@trpc/server';
-import { asc, eq, sql } from 'drizzle-orm';
+import { asc, eq, like, or, sql } from 'drizzle-orm';
 import z from 'zod';
 
 export default router({
@@ -112,7 +113,7 @@ export default router({
 			return await ctx.db
 				.select()
 				.from(s.tenant)
-				.where(sql`${s.tenant.name} LIKE %${input.name}%`)
+				.where(like(s.tenant.name, `%${input.name}%`))
 				.get();
 		}
 
@@ -142,11 +143,16 @@ export default router({
 			const search = input.search?.trim();
 
 			if (search) {
+				const searchPattern = `%${search}%`;
 				const query = ctx.db
 					.select()
 					.from(s.tenant)
 					.where(
-						sql`${s.tenant.nationalId} LIKE %${search}% OR ${s.tenant.phone} LIKE %${search}% OR ${s.tenant.name} LIKE %${search}%`
+						or(
+							like(s.tenant.nationalId, searchPattern),
+							like(s.tenant.phone, searchPattern),
+							like(s.tenant.name, searchPattern)
+						)
 					)
 					.orderBy(asc(s.tenant.name), asc(s.tenant.id));
 
@@ -156,5 +162,31 @@ export default router({
 			const query = ctx.db.select().from(s.tenant).orderBy(asc(s.tenant.name), asc(s.tenant.id));
 
 			return input.limit ? await query.limit(input.limit) : await query;
+		}),
+
+	getPaginated: procedure.public
+		.input(PaginationSchema.extend({ search: z.string().optional() }))
+		.query(async ({ input, ctx }) => {
+			const { limit, offset } = resolvePagination(input);
+			const search = input.search?.trim();
+			const query = ctx.db.select().from(s.tenant);
+
+			const tenants = await (
+				search
+					? query
+							.where(
+								or(
+									like(s.tenant.nationalId, `%${search}%`),
+									like(s.tenant.phone, `%${search}%`),
+									like(s.tenant.name, `%${search}%`)
+								)
+							)
+							.orderBy(asc(s.tenant.name), asc(s.tenant.id))
+					: query.orderBy(asc(s.tenant.name), asc(s.tenant.id))
+			)
+				.limit(limit + 1)
+				.offset(offset);
+
+			return toPaginatedResult(tenants, limit, offset);
 		})
 });

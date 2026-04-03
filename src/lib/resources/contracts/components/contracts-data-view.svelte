@@ -23,13 +23,13 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import {
 		useDeleteContract,
-		useFetchContracts,
+		useInfiniteContracts,
 		useTerminateContract,
 		useUnterminateContract
 	} from '$lib/resources/contracts/hooks/queries';
 	import ContractForm from './contract-form.svelte';
 
-	type ContractRow = Awaited<ReturnType<typeof api.contract.getMany>>[number];
+	type ContractRow = Awaited<ReturnType<typeof api.contract.getPaginated>>['items'][number];
 
 	const intervalLabels: Record<Contract['interval'], () => string> = {
 		'1m': $LL.contracts.intervals.monthly,
@@ -86,7 +86,9 @@
 		return { paidAmount, expectedAmount, progressValue, progressPercent, remainingAmount };
 	};
 
-	const fetchQuery = useFetchContracts();
+	let search = $state('');
+
+	const fetchQuery = useInfiniteContracts(() => search);
 	const deleteMutation = useDeleteContract();
 	const terminateMutation = useTerminateContract();
 	const unterminateMutation = useUnterminateContract();
@@ -109,13 +111,21 @@
 		]
 			.filter(Boolean)
 			.join(' ');
+	let contracts = $derived.by(
+		() => fetchQuery.data?.pages.flatMap((page: { items: ContractRow[] }) => page.items) ?? []
+	);
 </script>
 
 <DataView
-	data={fetchQuery.data ?? []}
+	data={contracts}
 	isLoading={fetchQuery.isLoading}
 	isFetching={fetchQuery.isFetching}
+	hasNextPage={fetchQuery.hasNextPage}
+	isFetchingNextPage={fetchQuery.isFetchingNextPage}
+	fetchNextPage={() => fetchQuery.fetchNextPage()}
+	bind:searchValue={search}
 	{getSearchValue}
+	virtualItemHeight={420}
 	onCreate={() => {
 		contract = undefined;
 		isContractFormOpen = true;

@@ -2,8 +2,9 @@ import * as s from '$lib/api/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/api/database/schema';
 import { procedure, router } from '$lib/api/trpc';
 import { deriveUnitStatus } from '$lib/api/utils/contract-status';
+import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/utils/pagination';
 import { TRPCError } from '@trpc/server';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { asc, eq, inArray, like, or, sql } from 'drizzle-orm';
 import z from 'zod';
 
 type DbPayment = typeof s.payment.$inferSelect;
@@ -182,15 +183,35 @@ export default router({
 		.input(z.object({ search: z.string().optional() }))
 		.query(async ({ input, ctx }) => {
 			if (input.search) {
+				const searchPattern = `%${input.search}%`;
 				return await ctx.db
 					.select()
 					.from(s.complex)
-					.where(
-						sql`${s.complex.name} LIKE %${input.search}% OR ${s.complex.location} LIKE %${input.search}%`
-					);
+					.where(or(like(s.complex.name, searchPattern), like(s.complex.location, searchPattern)));
 			}
 
 			return await ctx.db.select().from(s.complex);
+		}),
+
+	getPaginated: procedure.public
+		.input(PaginationSchema.extend({ search: z.string().optional() }))
+		.query(async ({ input, ctx }) => {
+			const { limit, offset } = resolvePagination(input);
+			const search = input.search?.trim();
+			const query = ctx.db.select().from(s.complex);
+			const complexes = await (
+				search
+					? query
+							.where(
+								or(like(s.complex.name, `%${search}%`), like(s.complex.location, `%${search}%`))
+							)
+							.orderBy(asc(s.complex.id))
+					: query.orderBy(asc(s.complex.id))
+			)
+				.limit(limit + 1)
+				.offset(offset);
+
+			return toPaginatedResult(complexes, limit, offset);
 		}),
 
 	units: {
@@ -209,6 +230,41 @@ export default router({
 					.where(eq(s.unit.complexId, input.complexId));
 
 				return await getUnitsWithDerivedStatus(ctx, units);
+			}),
+
+		getPaginated: procedure.public
+			.input(PaginationSchema.extend({ complexId: z.number(), search: z.string().optional() }))
+			.query(async ({ input, ctx }) => {
+				const { limit, offset } = resolvePagination(input);
+				const search = input.search?.trim().toLowerCase();
+
+				if (search) {
+					const units = await ctx.db
+						.select()
+						.from(s.unit)
+						.where(eq(s.unit.complexId, input.complexId))
+						.orderBy(asc(s.unit.id));
+					const unitsWithStatus = await getUnitsWithDerivedStatus(ctx, units);
+					const filteredUnits = unitsWithStatus.filter((unit) =>
+						`${unit.name} ${unit.status}`.toLowerCase().includes(search)
+					);
+
+					return toPaginatedResult(filteredUnits, limit, offset);
+				}
+
+				const units = await ctx.db
+					.select()
+					.from(s.unit)
+					.where(eq(s.unit.complexId, input.complexId))
+					.orderBy(asc(s.unit.id))
+					.limit(limit + 1)
+					.offset(offset);
+				const pageUnits = units.slice(0, limit);
+
+				return {
+					items: await getUnitsWithDerivedStatus(ctx, pageUnits),
+					nextOffset: units.length > limit ? offset + limit : null
+				};
 			}),
 
 		create: procedure.public

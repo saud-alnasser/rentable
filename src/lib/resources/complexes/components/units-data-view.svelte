@@ -18,14 +18,15 @@
 	import {
 		useDeleteUnit,
 		useFetchComplex,
-		useFetchUnits
+		useInfiniteUnits
 	} from '$lib/resources/complexes/hooks/queries';
 	import UnitForm from './unit-form.svelte';
 
 	let { complexId }: { complexId: number } = $props();
 
 	let complexQuery = useFetchComplex(() => complexId);
-	let unitsQuery = useFetchUnits(() => complexId);
+	let search = $state('');
+	let unitsQuery = useInfiniteUnits(() => ({ complexId, search }));
 	let deleteMutation = useDeleteUnit();
 
 	let unit = $state<Unit | undefined>(undefined);
@@ -33,6 +34,9 @@
 	let isDeleteDialogOpen = $state(false);
 
 	const getSearchValue = (record: Unit) => [record.name, record.status].join(' ');
+	let units = $derived.by(
+		() => unitsQuery.data?.pages.flatMap((page: { items: Unit[] }) => page.items) ?? []
+	);
 </script>
 
 {#if complexQuery.isLoading}
@@ -42,10 +46,15 @@
 {/if}
 
 <DataView
-	data={unitsQuery.data ?? []}
+	data={units}
 	isLoading={unitsQuery.isLoading}
 	isFetching={unitsQuery.isFetching}
+	hasNextPage={unitsQuery.hasNextPage}
+	isFetchingNextPage={unitsQuery.isFetchingNextPage}
+	fetchNextPage={() => unitsQuery.fetchNextPage()}
+	bind:searchValue={search}
 	{getSearchValue}
+	virtualItemHeight={280}
 	onCreate={() => {
 		unit = undefined;
 		isUnitFormOpen = true;

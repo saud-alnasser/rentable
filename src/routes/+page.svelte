@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { browser } from '$app/environment';
 	import { resolve } from '$app/paths';
 	import type { Contract } from '$lib/api/database/schema';
 	import api from '$lib/api/mod';
@@ -12,11 +13,16 @@
 		CardTitle
 	} from '$lib/common/components/fragments/card';
 	import { Progress } from '$lib/common/components/fragments/progress';
+	import { ScrollArea } from '$lib/common/components/fragments/scroll-area';
 	import { Spinner } from '$lib/common/components/fragments/spinner';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useFetchContractDashboard } from '$lib/resources/contracts/hooks/queries';
+	import { createVirtualizer } from '@tanstack/svelte-virtual';
+	import { tick } from 'svelte';
+	import { get } from 'svelte/store';
 
 	type DashboardData = Awaited<ReturnType<typeof api.contract.dashboard>>;
+	type FollowUpItem = DashboardData['followUps'][number];
 
 	const formatCurrency = (value: number) =>
 		new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value);
@@ -90,6 +96,70 @@
 	};
 
 	const dashboardQuery = useFetchContractDashboard();
+	const followUpVirtualThreshold = 10;
+	const followUpVirtualEstimate = 320;
+	const followUpVirtualGap = 16;
+	const followUpVirtualViewportHeight = 'min(70vh, 52rem)';
+
+	let followUpsViewportRef = $state<HTMLElement | null>(null);
+	let followUpRecords = $derived(dashboardQuery.data?.followUps ?? []);
+	let shouldUseVirtualFollowUps = $derived(followUpRecords.length >= followUpVirtualThreshold);
+	let followUpMeasureKeys = $derived(followUpRecords.map((item) => String(item.contractId)));
+
+	const followUpVirtualizer = createVirtualizer<HTMLElement, HTMLDivElement>({
+		count: 0,
+		getScrollElement: () => null,
+		estimateSize: () => followUpVirtualEstimate,
+		overscan: 3,
+		gap: followUpVirtualGap,
+		enabled: false
+	});
+
+	let virtualFollowUpItems = $derived($followUpVirtualizer.getVirtualItems());
+	let followUpPaddingTop = $derived(virtualFollowUpItems[0]?.start ?? 0);
+	let followUpPaddingBottom = $derived(
+		Math.max(
+			$followUpVirtualizer.getTotalSize() -
+				(virtualFollowUpItems[virtualFollowUpItems.length - 1]?.end ?? 0),
+			0
+		)
+	);
+
+	$effect(() => {
+		get(followUpVirtualizer).setOptions({
+			count: followUpRecords.length,
+			getScrollElement: () => followUpsViewportRef,
+			estimateSize: () => followUpVirtualEstimate,
+			getItemKey: (index) => followUpMeasureKeys[index] ?? index,
+			overscan: 3,
+			gap: followUpVirtualGap,
+			enabled: browser && shouldUseVirtualFollowUps && !!followUpsViewportRef
+		});
+	});
+
+	$effect(() => {
+		if (!shouldUseVirtualFollowUps || !followUpsViewportRef) return;
+
+		followUpMeasureKeys;
+
+		void tick().then(() => {
+			get(followUpVirtualizer).measure();
+		});
+	});
+
+	function measureFollowUp(node: HTMLDivElement, _followUpKey: string) {
+		const instance = get(followUpVirtualizer);
+		instance.measureElement(node);
+
+		return {
+			update() {
+				instance.measureElement(node);
+			},
+			destroy() {
+				instance.measureElement(null);
+			}
+		};
+	}
 
 	const getSummarySections = (data: DashboardData): SummarySection[] => [
 		{
@@ -219,6 +289,123 @@
 	];
 </script>
 
+{#snippet followUpCard(item: FollowUpItem)}
+	{@const progress = getFollowUpProgress(item)}
+	<div class="rounded-xl border bg-muted/10 p-4">
+		<div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+			<div class="space-y-4">
+				<div class="flex flex-row justify-between gap-3">
+					<div class="flex flex-wrap items-center gap-2">
+						<p class="text-base font-medium">{item.tenantName}</p>
+						<Badge variant={statusVariants[item.status]}>
+							{$LL.common.status[item.status]()}
+						</Badge>
+						{#if hasActiveOverdueFollowUp(item)}
+							<Badge variant="destructive">{$LL.common.status.overdue()}</Badge>
+						{/if}
+						{#if item.govId}
+							<Badge variant="outline">{item.govId}</Badge>
+						{/if}
+					</div>
+
+					<div class="flex items-start justify-between gap-3">
+						<a
+							href={resolve(`/contracts/payments/${item.contractId}`)}
+							class="inline-flex rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+						>
+							{$LL.common.actions.openPayments()}
+						</a>
+					</div>
+				</div>
+
+				<div class="grid gap-3 sm:grid-cols-3">
+					<div class="rounded-lg border bg-background/70 p-3">
+						<p class="text-xs tracking-wide text-muted-foreground uppercase">
+							{$LL.common.labels.phone()}
+						</p>
+						<p class="mt-1 text-sm font-medium text-foreground">{item.tenantPhone}</p>
+					</div>
+					<div class="rounded-lg border bg-background/70 p-3">
+						<p class="text-xs tracking-wide text-muted-foreground uppercase">
+							{$LL.common.labels.cycle()}
+						</p>
+						<p class="mt-1 text-sm font-medium text-foreground capitalize">
+							{$LL.contracts.intervals[intervalLabels[item.interval]]()}
+						</p>
+					</div>
+					<div class="rounded-lg border bg-background/70 p-3">
+						<p class="text-xs tracking-wide text-muted-foreground uppercase">
+							{$LL.common.labels.contractEnds()}
+						</p>
+						<p class="mt-1 text-sm font-medium text-foreground">
+							{formatDate(item.contractEnd)}
+						</p>
+					</div>
+				</div>
+			</div>
+
+			<div class="rounded-xl border bg-background/70 p-4">
+				<div class="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+					<div class="rounded-lg border bg-muted/15 p-3">
+						<p class="text-xs tracking-wide text-muted-foreground uppercase">
+							{followUpAmountLabel}
+						</p>
+						<p class="mt-1 text-sm font-semibold text-foreground">
+							{formatCurrency(getFollowUpTotalBalance(item))}
+							{$LL.common.messages.sar()}
+						</p>
+					</div>
+					<div class="rounded-lg border bg-muted/15 p-3">
+						<p class="text-xs tracking-wide text-muted-foreground uppercase">
+							{$LL.dashboard.stats.receivedThisMonth()}
+						</p>
+						<p class="mt-1 text-sm font-semibold text-foreground">
+							{formatCurrency(item.collectedThisMonth)}
+							{$LL.common.messages.sar()}
+						</p>
+					</div>
+					<div class="rounded-lg border bg-muted/15 p-3">
+						<p class="text-xs tracking-wide text-muted-foreground uppercase">
+							{followUpRemainingLabel}
+						</p>
+						<p class="mt-1 text-sm font-semibold text-foreground">
+							{formatCurrency(progress.remainingAmount)}
+							{$LL.common.messages.sar()}
+						</p>
+					</div>
+				</div>
+
+				<div class="mt-4 rounded-lg border bg-muted/15 p-3">
+					<div class="flex items-center justify-between gap-3 text-sm">
+						<span class="font-medium">{followUpProgressLabel}</span>
+						<span class="text-muted-foreground">
+							{formatCurrency(progress.coveredAmount)} / {formatCurrency(
+								progress.coveredAmount + progress.remainingAmount
+							)}
+							{$LL.common.messages.sar()}
+						</span>
+					</div>
+
+					<Progress
+						value={progress.coveredAmount}
+						max={Math.max(progress.coveredAmount + progress.remainingAmount, 1)}
+						class="mt-2 h-3 bg-emerald-500/15 **:data-[slot=progress-indicator]:bg-emerald-600"
+					/>
+
+					<div class="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+						<span>{getFollowUpProgressSummary(progress.rate)}</span>
+						<span
+							>{$LL.dashboard.followUps.remaining({
+								amount: formatCurrency(progress.remainingAmount)
+							})}</span
+						>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+{/snippet}
+
 {#if dashboardQuery.isLoading}
 	<div class="flex min-h-full flex-1 items-center justify-center p-1">
 		<div class="flex flex-col items-center gap-3">
@@ -303,129 +490,41 @@
 					</div>
 				</CardHeader>
 				<CardContent>
-					{#if dashboardQuery.data.followUps.length === 0}
+					{#if followUpRecords.length === 0}
 						<p class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
 							{$LL.dashboard.followUps.empty()}
 						</p>
+					{:else if shouldUseVirtualFollowUps}
+						<ScrollArea
+							bind:viewportRef={followUpsViewportRef}
+							class="rounded-xl"
+							style={`height: ${followUpVirtualViewportHeight};`}
+						>
+							<div class="relative w-full">
+								{#if followUpPaddingTop > 0}
+									<div aria-hidden="true" style={`height: ${followUpPaddingTop}px;`}></div>
+								{/if}
+
+								<div class="flex flex-col gap-4">
+									{#each virtualFollowUpItems as virtualItem (virtualItem.key)}
+										<div
+											use:measureFollowUp={followUpMeasureKeys[virtualItem.index] ?? ''}
+											class="w-full"
+										>
+											{@render followUpCard(followUpRecords[virtualItem.index])}
+										</div>
+									{/each}
+								</div>
+
+								{#if followUpPaddingBottom > 0}
+									<div aria-hidden="true" style={`height: ${followUpPaddingBottom}px;`}></div>
+								{/if}
+							</div>
+						</ScrollArea>
 					{:else}
 						<div class="space-y-4">
-							{#each dashboardQuery.data.followUps as item (item.contractId)}
-								{@const progress = getFollowUpProgress(item)}
-								<div class="rounded-xl border bg-muted/10 p-4">
-									<div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-										<div class="space-y-4">
-											<div class="flex flex-row justify-between gap-3">
-												<div class="flex flex-wrap items-center gap-2">
-													<p class="text-base font-medium">{item.tenantName}</p>
-													<Badge variant={statusVariants[item.status]}>
-														{$LL.common.status[item.status]()}
-													</Badge>
-													{#if hasActiveOverdueFollowUp(item)}
-														<Badge variant="destructive">{$LL.common.status.overdue()}</Badge>
-													{/if}
-													{#if item.govId}
-														<Badge variant="outline">{item.govId}</Badge>
-													{/if}
-												</div>
-
-												<div class="flex items-start justify-between gap-3">
-													<a
-														href={resolve(`/contracts/payments/${item.contractId}`)}
-														class="inline-flex rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-													>
-														{$LL.common.actions.openPayments()}
-													</a>
-												</div>
-											</div>
-
-											<div class="grid gap-3 sm:grid-cols-3">
-												<div class="rounded-lg border bg-background/70 p-3">
-													<p class="text-xs tracking-wide text-muted-foreground uppercase">
-														{$LL.common.labels.phone()}
-													</p>
-													<p class="mt-1 text-sm font-medium text-foreground">{item.tenantPhone}</p>
-												</div>
-												<div class="rounded-lg border bg-background/70 p-3">
-													<p class="text-xs tracking-wide text-muted-foreground uppercase">
-														{$LL.common.labels.cycle()}
-													</p>
-													<p class="mt-1 text-sm font-medium text-foreground capitalize">
-														{$LL.contracts.intervals[intervalLabels[item.interval]]()}
-													</p>
-												</div>
-												<div class="rounded-lg border bg-background/70 p-3">
-													<p class="text-xs tracking-wide text-muted-foreground uppercase">
-														{$LL.common.labels.contractEnds()}
-													</p>
-													<p class="mt-1 text-sm font-medium text-foreground">
-														{formatDate(item.contractEnd)}
-													</p>
-												</div>
-											</div>
-										</div>
-
-										<div class="rounded-xl border bg-background/70 p-4">
-											<div class="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
-												<div class="rounded-lg border bg-muted/15 p-3">
-													<p class="text-xs tracking-wide text-muted-foreground uppercase">
-														{followUpAmountLabel}
-													</p>
-													<p class="mt-1 text-sm font-semibold text-foreground">
-														{formatCurrency(getFollowUpTotalBalance(item))}
-														{$LL.common.messages.sar()}
-													</p>
-												</div>
-												<div class="rounded-lg border bg-muted/15 p-3">
-													<p class="text-xs tracking-wide text-muted-foreground uppercase">
-														{$LL.dashboard.stats.receivedThisMonth()}
-													</p>
-													<p class="mt-1 text-sm font-semibold text-foreground">
-														{formatCurrency(item.collectedThisMonth)}
-														{$LL.common.messages.sar()}
-													</p>
-												</div>
-												<div class="rounded-lg border bg-muted/15 p-3">
-													<p class="text-xs tracking-wide text-muted-foreground uppercase">
-														{followUpRemainingLabel}
-													</p>
-													<p class="mt-1 text-sm font-semibold text-foreground">
-														{formatCurrency(progress.remainingAmount)}
-														{$LL.common.messages.sar()}
-													</p>
-												</div>
-											</div>
-
-											<div class="mt-4 rounded-lg border bg-muted/15 p-3">
-												<div class="flex items-center justify-between gap-3 text-sm">
-													<span class="font-medium">{followUpProgressLabel}</span>
-													<span class="text-muted-foreground">
-														{formatCurrency(progress.coveredAmount)} / {formatCurrency(
-															progress.coveredAmount + progress.remainingAmount
-														)}
-														{$LL.common.messages.sar()}
-													</span>
-												</div>
-
-												<Progress
-													value={progress.coveredAmount}
-													max={Math.max(progress.coveredAmount + progress.remainingAmount, 1)}
-													class="mt-2 h-3 bg-emerald-500/15 **:data-[slot=progress-indicator]:bg-emerald-600"
-												/>
-
-												<div
-													class="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground"
-												>
-													<span>{getFollowUpProgressSummary(progress.rate)}</span>
-													<span
-														>{$LL.dashboard.followUps.remaining({
-															amount: formatCurrency(progress.remainingAmount)
-														})}</span
-													>
-												</div>
-											</div>
-										</div>
-									</div>
-								</div>
+							{#each followUpRecords as item (item.contractId)}
+								{@render followUpCard(item)}
 							{/each}
 						</div>
 					{/if}

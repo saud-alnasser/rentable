@@ -5,12 +5,23 @@ import {
 	type MutationOptions
 } from '$lib/common/utils/queries';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import {
+	createInfiniteQuery,
+	createMutation,
+	createQuery,
+	useQueryClient,
+	type InfiniteData
+} from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
+
+const DATA_VIEW_PAGE_SIZE = 24;
+type InfiniteContractsPage = Awaited<ReturnType<typeof api.contract.getPaginated>>;
+type InfinitePaymentsPage = Awaited<ReturnType<typeof api.contract.payments.getPaginated>>;
 
 export const keys = {
 	all: ['contracts'],
 	dashboard: ['contracts', 'dashboard'],
+	dataView: (search?: string) => ['contracts', 'data-view', search ?? ''],
 	get: (id: number) => ['contracts', id],
 	getUnits: (id: number) => ['contracts', 'units', id],
 	getVacantUnits: (contractId: number, complexId: number) => [
@@ -20,7 +31,14 @@ export const keys = {
 		contractId,
 		complexId
 	],
-	getPayments: (id: number) => ['contracts', 'payments', id]
+	getPayments: (id: number) => ['contracts', 'payments', id],
+	getPaymentsDataView: (id: number, search?: string) => [
+		'contracts',
+		'payments',
+		'data-view',
+		id,
+		search ?? ''
+	]
 } as const;
 
 export function useFetchContracts() {
@@ -28,6 +46,30 @@ export function useFetchContracts() {
 		queryKey: keys.all,
 		queryFn: () => api.contract.getMany({})
 	}));
+}
+
+export function useInfiniteContracts(search: () => string = () => '') {
+	return createInfiniteQuery<
+		InfiniteContractsPage,
+		Error,
+		InfiniteData<InfiniteContractsPage>,
+		ReturnType<typeof keys.dataView>,
+		number
+	>(() => {
+		const trimmedSearch = search().trim();
+
+		return {
+			queryKey: keys.dataView(trimmedSearch),
+			initialPageParam: 0,
+			getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+			queryFn: ({ pageParam }) =>
+				api.contract.getPaginated({
+					search: trimmedSearch || undefined,
+					limit: DATA_VIEW_PAGE_SIZE,
+					offset: typeof pageParam === 'number' ? pageParam : 0
+				})
+		};
+	});
 }
 
 export function useFetchContractDashboard() {
@@ -267,6 +309,32 @@ export function useFetchContractPayments(contractId: () => number) {
 	});
 }
 
+export function useInfiniteContractPayments(params: () => { contractId: number; search?: string }) {
+	return createInfiniteQuery<
+		InfinitePaymentsPage,
+		Error,
+		InfiniteData<InfinitePaymentsPage>,
+		ReturnType<typeof keys.getPaymentsDataView>,
+		number
+	>(() => {
+		const { contractId, search } = params();
+		const trimmedSearch = search?.trim();
+
+		return {
+			queryKey: keys.getPaymentsDataView(contractId, trimmedSearch),
+			initialPageParam: 0,
+			getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+			queryFn: ({ pageParam }) =>
+				api.contract.payments.getPaginated({
+					contractId,
+					search: trimmedSearch || undefined,
+					limit: DATA_VIEW_PAGE_SIZE,
+					offset: typeof pageParam === 'number' ? pageParam : 0
+				})
+		};
+	});
+}
+
 export function useCreatePayment(
 	opts: MutationOptions = {
 		toast: {
@@ -283,7 +351,7 @@ export function useCreatePayment(
 			api.contract.payments.create(data),
 		onSuccess: (created) => {
 			client.invalidateQueries({ queryKey: keys.dashboard });
-			client.invalidateQueries({ queryKey: keys.getPayments(created.contractId) });
+			client.invalidateQueries({ queryKey: ['contracts', 'payments'] });
 			client.invalidateQueries({ queryKey: keys.all });
 			client.invalidateQueries({ queryKey: keys.get(created.contractId) });
 
@@ -309,7 +377,7 @@ export function useUpdatePayment(
 			api.contract.payments.update(data),
 		onSuccess: (updated) => {
 			client.invalidateQueries({ queryKey: keys.dashboard });
-			client.invalidateQueries({ queryKey: keys.getPayments(updated.contractId) });
+			client.invalidateQueries({ queryKey: ['contracts', 'payments'] });
 			client.invalidateQueries({ queryKey: keys.all });
 			client.invalidateQueries({ queryKey: keys.get(updated.contractId) });
 
@@ -335,7 +403,7 @@ export function useDeletePayment(
 		onSuccess: (deleted) => {
 			if (deleted) {
 				client.invalidateQueries({ queryKey: keys.dashboard });
-				client.invalidateQueries({ queryKey: keys.getPayments(deleted.contractId) });
+				client.invalidateQueries({ queryKey: ['contracts', 'payments'] });
 				client.invalidateQueries({ queryKey: keys.all });
 				client.invalidateQueries({ queryKey: keys.get(deleted.contractId) });
 			}

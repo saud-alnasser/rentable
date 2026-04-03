@@ -5,8 +5,17 @@ import {
 	type MutationOptions
 } from '$lib/common/utils/queries';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import {
+	createInfiniteQuery,
+	createMutation,
+	createQuery,
+	useQueryClient,
+	type InfiniteData
+} from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
+
+const DATA_VIEW_PAGE_SIZE = 24;
+type InfiniteTenantsPage = Awaited<ReturnType<typeof api.tenant.getPaginated>>;
 
 type FetchTenantsParams = {
 	search?: string;
@@ -22,7 +31,8 @@ type FetchTenantParams = {
 export const keys = {
 	all: ['tenants'],
 	get: (id: number) => ['tenants', 'detail', id],
-	getMany: (search?: string, limit?: number) => ['tenants', 'list', search ?? '', limit ?? 'all']
+	getMany: (search?: string, limit?: number) => ['tenants', 'list', search ?? '', limit ?? 'all'],
+	dataView: (search?: string) => ['tenants', 'data-view', search ?? '']
 } as const;
 
 export function useFetchTenants(params: () => FetchTenantsParams = () => ({})) {
@@ -39,6 +49,31 @@ export function useFetchTenants(params: () => FetchTenantsParams = () => ({})) {
 				api.tenant.getMany({
 					search: trimmedSearch || undefined,
 					limit
+				})
+		};
+	});
+}
+
+export function useInfiniteTenants(params: () => Pick<FetchTenantsParams, 'search'> = () => ({})) {
+	return createInfiniteQuery<
+		InfiniteTenantsPage,
+		Error,
+		InfiniteData<InfiniteTenantsPage>,
+		ReturnType<typeof keys.dataView>,
+		number
+	>(() => {
+		const { search } = params();
+		const trimmedSearch = search?.trim();
+
+		return {
+			queryKey: keys.dataView(trimmedSearch),
+			initialPageParam: 0,
+			getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+			queryFn: ({ pageParam }) =>
+				api.tenant.getPaginated({
+					search: trimmedSearch || undefined,
+					limit: DATA_VIEW_PAGE_SIZE,
+					offset: typeof pageParam === 'number' ? pageParam : 0
 				})
 		};
 	});

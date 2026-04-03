@@ -31,9 +31,10 @@ import {
 	isContractIncludedInDashboardPortfolio,
 	shouldIncludeDashboardFollowUp
 } from '$lib/api/utils/dashboard';
+import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/utils/pagination';
 import { sync, type DbClient } from '$lib/api/utils/sync';
 import { TRPCError } from '@trpc/server';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import z from 'zod';
 
 const ContractCreateSchema = ContractSchema.omit({ id: true, status: true });
@@ -338,6 +339,31 @@ function serializePayment(record: typeof s.payment.$inferSelect): Payment {
 		amount: record.amount,
 		contractId: record.contractId
 	};
+}
+
+const paymentSearchDateFormatter = new Intl.DateTimeFormat('en-GB', {
+	dateStyle: 'medium',
+	timeZone: 'UTC'
+});
+
+function matchesContractSearch(contract: SerializedContract, search: string) {
+	return [
+		contract.govId,
+		contract.tenantName,
+		contract.tenantPhone,
+		String(contract.tenantId),
+		contract.status,
+		contract.interval,
+		String(contract.cost)
+	]
+		.filter((value): value is string => Boolean(value))
+		.some((value) => value.toLowerCase().includes(search));
+}
+
+function matchesPaymentSearch(payment: Payment, search: string) {
+	return [String(payment.amount), paymentSearchDateFormatter.format(new Date(payment.date))].some(
+		(value) => value.toLowerCase().includes(search)
+	);
 }
 
 function toUtcDay(value: Date | number) {
@@ -895,13 +921,65 @@ export default router({
 
 			const search = input.search.trim().toLowerCase();
 
-			return serializedContracts.filter(
-				(contract) =>
-					(contract.govId ?? '').toLowerCase().includes(search) ||
-					contract.status.toLowerCase().includes(search) ||
-					contract.tenantName?.toLowerCase().includes(search) ||
-					contract.tenantPhone?.toLowerCase().includes(search)
-			);
+			return serializedContracts.filter((contract) => matchesContractSearch(contract, search));
+		}),
+
+	getPaginated: procedure.public
+		.input(PaginationSchema.extend({ search: z.string().optional() }))
+		.query(async ({ input, ctx }) => {
+			const { limit, offset } = resolvePagination(input);
+			const search = input.search?.trim().toLowerCase();
+
+			if (search) {
+				const contracts = await ctx.db
+					.select({
+						contract: s.contract,
+						tenantName: s.tenant.name,
+						tenantPhone: s.tenant.phone
+					})
+					.from(s.contract)
+					.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+					.orderBy(asc(s.contract.id));
+				const contractIds = contracts.map(({ contract }) => contract.id);
+				const payments = contractIds.length
+					? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
+					: [];
+				const paymentsByContractId = groupPaymentsByContractId(payments);
+				const serializedContracts = contracts.map(({ contract, tenantName, tenantPhone }) =>
+					serializeContract(contract, paymentsByContractId, tenantName, tenantPhone)
+				);
+
+				return toPaginatedResult(
+					serializedContracts.filter((contract) => matchesContractSearch(contract, search)),
+					limit,
+					offset
+				);
+			}
+
+			const contracts = await ctx.db
+				.select({
+					contract: s.contract,
+					tenantName: s.tenant.name,
+					tenantPhone: s.tenant.phone
+				})
+				.from(s.contract)
+				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+				.orderBy(asc(s.contract.id))
+				.limit(limit + 1)
+				.offset(offset);
+			const pageContracts = contracts.slice(0, limit);
+			const contractIds = pageContracts.map(({ contract }) => contract.id);
+			const payments = contractIds.length
+				? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
+				: [];
+			const paymentsByContractId = groupPaymentsByContractId(payments);
+
+			return {
+				items: pageContracts.map(({ contract, tenantName, tenantPhone }) =>
+					serializeContract(contract, paymentsByContractId, tenantName, tenantPhone)
+				),
+				nextOffset: contracts.length > limit ? offset + limit : null
+			};
 		}),
 
 	units: {
@@ -1220,6 +1298,38 @@ export default router({
 					.where(eq(s.payment.contractId, input.contractId));
 
 				return payments.map(serializePayment);
+			}),
+
+		getPaginated: procedure.public
+			.input(PaginationSchema.extend({ contractId: z.number(), search: z.string().optional() }))
+			.query(async ({ input, ctx }) => {
+				const { limit, offset } = resolvePagination(input);
+				const search = input.search?.trim().toLowerCase();
+
+				if (search) {
+					const payments = await ctx.db
+						.select()
+						.from(s.payment)
+						.where(eq(s.payment.contractId, input.contractId))
+						.orderBy(asc(s.payment.id));
+					const serializedPayments = payments.map(serializePayment);
+
+					return toPaginatedResult(
+						serializedPayments.filter((payment) => matchesPaymentSearch(payment, search)),
+						limit,
+						offset
+					);
+				}
+
+				const payments = await ctx.db
+					.select()
+					.from(s.payment)
+					.where(eq(s.payment.contractId, input.contractId))
+					.orderBy(asc(s.payment.id))
+					.limit(limit + 1)
+					.offset(offset);
+
+				return toPaginatedResult(payments.map(serializePayment), limit, offset);
 			}),
 
 		create: procedure.public
