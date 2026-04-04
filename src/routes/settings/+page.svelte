@@ -1,9 +1,7 @@
 <script lang="ts">
 	import api from '$lib/api/mod';
 	import { tauri, type AvailableUpdate, type UpdaterDownloadEvent } from '$lib/api/tauri';
-	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
 	import { Button } from '$lib/common/components/fragments/button';
-	import { Callout } from '$lib/common/components/fragments/callout';
 	import {
 		Card,
 		CardContent,
@@ -11,14 +9,14 @@
 		CardHeader,
 		CardTitle
 	} from '$lib/common/components/fragments/card';
-	import { Input } from '$lib/common/components/fragments/input';
-	import { Label } from '$lib/common/components/fragments/label';
-	import * as Select from '$lib/common/components/fragments/select';
 	import { Spinner } from '$lib/common/components/fragments/spinner';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
-	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import type { Locales } from '$lib/i18n/i18n-types';
-	import { locales } from '$lib/i18n/i18n-util';
+	import SettingsAboutCard from '$lib/resources/settings/components/settings-about-card.svelte';
+	import SettingsDatabaseCard from '$lib/resources/settings/components/settings-database-card.svelte';
+	import SettingsEndingSoonCard from '$lib/resources/settings/components/settings-ending-soon-card.svelte';
+	import SettingsLocaleCard from '$lib/resources/settings/components/settings-locale-card.svelte';
+	import SettingsUpdatesCard from '$lib/resources/settings/components/settings-updates-card.svelte';
 	import {
 		useCreateBackup,
 		useDeleteBackup,
@@ -32,6 +30,8 @@
 	import { onDestroy } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
+	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
+
 	const settingsQuery = useFetchSettings();
 	const backupsQuery = useFetchBackups();
 	const setEndingSoonNoticeDaysMutation = useSetEndingSoonNoticeDays();
@@ -41,17 +41,9 @@
 	const deleteBackupMutation = useDeleteBackup();
 	const restoreBackupMutation = useRestoreBackup();
 	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
-	const settingsInsetPanelClass =
-		'rounded-[1.25rem] border border-border/70 bg-background/60 p-4 shadow-sm backdrop-blur-md';
-	const settingsSubtlePanelClass =
-		'rounded-xl border border-primary/10 bg-accent/35 p-3 backdrop-blur-sm';
-
-	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
 
 	let endingSoonNoticeDaysValue = $state<number | ''>('');
 	let databasePathValue = $state('');
-	let isDeleteBackupDialogOpen = $state(false);
-	let backupToDelete = $state<string | null>(null);
 	let isCheckingForUpdate = $state(false);
 	let hasCheckedForUpdate = $state(false);
 	let availableUpdate = $state<AvailableUpdate | null>(null);
@@ -65,19 +57,16 @@
 	const isSavingDatabasePath = $derived.by(
 		() => setDatabasePathMutation.isPending || resetDatabasePathMutation.isPending
 	);
-
 	const isManagingBackups = $derived.by(
 		() =>
 			createBackupMutation.isPending ||
 			deleteBackupMutation.isPending ||
 			restoreBackupMutation.isPending
 	);
-
 	const getEndingSoonNoticeDaysInputValue = () =>
 		typeof endingSoonNoticeDaysValue === 'number'
 			? String(endingSoonNoticeDaysValue)
 			: endingSoonNoticeDaysValue.trim();
-
 	const hasEndingSoonChange = $derived.by(() => {
 		const settings = settingsQuery.data;
 
@@ -85,18 +74,11 @@
 			? getEndingSoonNoticeDaysInputValue() !== String(settings.endingSoonNoticeDays)
 			: false;
 	});
-
 	const getCurrentDatabasePath = (settings: AppSettings) =>
 		settings.activeDatabasePath ?? settings.defaultDatabasePath;
-
 	const isUsingDefaultDatabasePath = (settings: AppSettings) =>
 		settings.activeDatabasePath === null ||
 		settings.activeDatabasePath === settings.defaultDatabasePath;
-
-	const canDeleteBackup = (filename: string) =>
-		backupsQuery.data?.some((backup) => backup.filename === filename && !backup.isProtected) ??
-		false;
-
 	const hasDatabasePathChange = $derived.by(() => {
 		const settings = settingsQuery.data;
 		const trimmedPath = databasePathValue.trim();
@@ -109,9 +91,7 @@
 			? trimmedPath !== getCurrentDatabasePath(settings)
 			: !isUsingDefaultDatabasePath(settings);
 	});
-
 	const lastBackupAt = $derived.by(() => backupsQuery.data?.[0]?.createdAt ?? null);
-
 	const updateProgressPercent = $derived.by(() => {
 		if (!updateContentLength || updateContentLength <= 0) {
 			return null;
@@ -143,17 +123,6 @@
 		}
 	});
 
-	function formatTimestamp(value: number | null | undefined) {
-		if (!value) {
-			return $LL.common.messages.never();
-		}
-
-		return new Intl.DateTimeFormat('en-GB', {
-			dateStyle: 'medium',
-			timeStyle: 'short'
-		}).format(new Date(value));
-	}
-
 	function getErrorMessage(error: unknown) {
 		if (error instanceof Error && error.message.trim()) {
 			return error.message;
@@ -178,38 +147,6 @@
 		if (import.meta.env.DEV) {
 			console.error(`[updater] ${action} failed`, error);
 		}
-	}
-
-	function formatReleaseDate(value: string | null | undefined) {
-		if (!value) {
-			return $LL.common.messages.unknown();
-		}
-
-		const date = new Date(value);
-
-		return Number.isNaN(date.valueOf())
-			? value
-			: new Intl.DateTimeFormat('en-GB', {
-					dateStyle: 'medium',
-					timeStyle: 'short'
-				}).format(date);
-	}
-
-	function formatBytes(value: number | null | undefined) {
-		if (!value || value <= 0) {
-			return null;
-		}
-
-		const units = ['B', 'KB', 'MB', 'GB'];
-		let size = value;
-		let unitIndex = 0;
-
-		while (size >= 1024 && unitIndex < units.length - 1) {
-			size /= 1024;
-			unitIndex += 1;
-		}
-
-		return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 	}
 
 	async function closeAvailableUpdate() {
@@ -359,25 +296,28 @@
 		}
 	}
 
-	function openDeleteBackupDialog(name: string) {
-		if (!canDeleteBackup(name)) {
-			return;
-		}
-
-		backupToDelete = name;
-		isDeleteBackupDialogOpen = true;
-	}
-
-	async function deleteBackup() {
-		if (!backupToDelete || !canDeleteBackup(backupToDelete)) {
-			return;
-		}
-
+	async function deleteBackup(name: string) {
 		try {
-			await deleteBackupMutation.mutateAsync({ filename: backupToDelete });
-			backupToDelete = null;
+			await deleteBackupMutation.mutateAsync({ filename: name });
 		} catch {
 			/* ignore */
+		}
+	}
+
+	async function changeLocale(next: Locales) {
+		if (next === $locale) {
+			return;
+		}
+
+		const previousLocale = $locale;
+		setLocale(next);
+
+		try {
+			await api.app.settings.set({ locale: next });
+			await settingsQuery.refetch();
+		} catch (error) {
+			setLocale(previousLocale);
+			toast.error(getErrorMessage(error));
 		}
 	}
 </script>
@@ -385,9 +325,7 @@
 <div class="flex flex-col gap-5 p-1">
 	<div class="flex flex-col gap-1">
 		<h1 class="text-3xl font-semibold tracking-tight">{$LL.settings.title()}</h1>
-		<p class="text-sm text-muted-foreground">
-			{$LL.settings.description()}
-		</p>
+		<p class="text-sm text-muted-foreground">{$LL.settings.description()}</p>
 	</div>
 
 	{#if (settingsQuery.isLoading && !settingsQuery.data) || (backupsQuery.isLoading && !backupsQuery.data)}
@@ -401,9 +339,7 @@
 		<Card class={`max-w-2xl ${settingsCardClass}`}>
 			<CardHeader class="gap-3 border-b border-border/50 pb-5">
 				<CardTitle>{$LL.settings.loadErrorTitle()}</CardTitle>
-				<CardDescription>
-					{$LL.settings.loadErrorDescription()}
-				</CardDescription>
+				<CardDescription>{$LL.settings.loadErrorDescription()}</CardDescription>
 			</CardHeader>
 			<CardContent class="space-y-4 pt-5">
 				<p class="text-sm text-muted-foreground">
@@ -422,390 +358,58 @@
 	{:else if settingsQuery.data && backupsQuery.data}
 		<div class="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
 			<div class="space-y-4">
-				<Card class={settingsCardClass}>
-					<CardHeader class="gap-3 border-b border-border/50 pb-5">
-						<CardTitle>{$LL.settings.endingSoonTitle()}</CardTitle>
-						<CardDescription>
-							{$LL.settings.endingSoonDescription()}
-						</CardDescription>
-					</CardHeader>
-					<CardContent class="space-y-4 pt-5">
-						<div class={`${settingsInsetPanelClass} space-y-2`}>
-							<Label for="ending-soon-notice-days">{$LL.common.labels.noticeWindowDays()}</Label>
-							<Input
-								id="ending-soon-notice-days"
-								type="number"
-								min="1"
-								step="1"
-								bind:value={endingSoonNoticeDaysValue}
-							/>
-						</div>
+				<SettingsEndingSoonCard
+					settings={settingsQuery.data}
+					bind:value={endingSoonNoticeDaysValue}
+					isPending={setEndingSoonNoticeDaysMutation.isPending}
+					hasChange={hasEndingSoonChange}
+					onSave={() => void saveEndingSoonNoticeDays()}
+				/>
 
-						<div class="flex flex-wrap items-center gap-3">
-							<Button
-								onclick={() => void saveEndingSoonNoticeDays()}
-								disabled={setEndingSoonNoticeDaysMutation.isPending || !hasEndingSoonChange}
-							>
-								{setEndingSoonNoticeDaysMutation.isPending
-									? $LL.common.actions.saving()
-									: $LL.common.actions.saveWindow()}
-							</Button>
-							<p class="text-sm text-muted-foreground">
-								{$LL.common.labels.currentValue()}: {settingsQuery.data.endingSoonNoticeDays === 1
-									? $LL.common.time.day({ count: settingsQuery.data.endingSoonNoticeDays })
-									: $LL.common.time.days({ count: settingsQuery.data.endingSoonNoticeDays })}
-							</p>
-						</div>
-					</CardContent>
-				</Card>
-
-				<Card class={settingsCardClass}>
-					<CardHeader class="gap-3 border-b border-border/50 pb-5">
-						<CardTitle>{$LL.settings.databaseTitle()}</CardTitle>
-						<CardDescription>
-							{$LL.settings.databaseDescription()}
-						</CardDescription>
-					</CardHeader>
-					<CardContent class="space-y-6 pt-5">
-						<div class="space-y-3">
-							<div class={`${settingsInsetPanelClass} space-y-2`}>
-								<Label>{$LL.common.labels.currentDatabasePath()}</Label>
-								<p
-									class="rounded-lg border border-border/60 bg-muted/12 px-3 py-2 font-mono text-xs break-all"
-								>
-									{getCurrentDatabasePath(settingsQuery.data)}
-								</p>
-							</div>
-
-							<div class={`${settingsInsetPanelClass} space-y-2`}>
-								<Label>{$LL.common.labels.defaultDatabasePath()}</Label>
-								<p
-									class="rounded-lg border border-border/60 bg-muted/12 px-3 py-2 font-mono text-xs break-all text-muted-foreground"
-								>
-									{settingsQuery.data.defaultDatabasePath}
-								</p>
-							</div>
-
-							<div class={`${settingsInsetPanelClass} space-y-2`}>
-								<Label for="database-path-override"
-									>{$LL.common.labels.customDatabasePathOverride()}</Label
-								>
-								<Input
-									id="database-path-override"
-									bind:value={databasePathValue}
-									placeholder={$LL.settings.pathOverridePlaceholder()}
-								/>
-								<p class="text-sm text-muted-foreground">
-									{$LL.settings.pathOverrideDescription()}
-								</p>
-							</div>
-
-							<div class="flex flex-wrap items-center gap-3">
-								<Button
-									onclick={() => void saveDatabasePath()}
-									disabled={isSavingDatabasePath || !hasDatabasePathChange}
-								>
-									{isSavingDatabasePath
-										? $LL.common.actions.saving()
-										: $LL.common.actions.saveDatabasePath()}
-								</Button>
-								<Button
-									variant="outline"
-									onclick={() => void resetDatabasePath()}
-									disabled={isSavingDatabasePath || isUsingDefaultDatabasePath(settingsQuery.data)}
-								>
-									{$LL.common.actions.useDefaultPath()}
-								</Button>
-							</div>
-						</div>
-
-						<div class="space-y-3 border-t border-border/50 pt-6">
-							<div class="flex flex-wrap items-center justify-between gap-3">
-								<div>
-									<h2 class="text-base font-semibold">{$LL.settings.createBackupTitle()}</h2>
-									<p class="text-sm text-muted-foreground">
-										{$LL.settings.createBackupDescription()}
-									</p>
-								</div>
-								<Button onclick={() => void createBackup()} disabled={isManagingBackups}>
-									{createBackupMutation.isPending
-										? $LL.common.actions.creatingBackup()
-										: $LL.common.actions.createBackup()}
-								</Button>
-							</div>
-
-							<div class="space-y-3">
-								<h2 class="text-base font-semibold">{$LL.settings.restoreBackupTitle()}</h2>
-								{#if backupsQuery.data.length === 0}
-									<p
-										class="rounded-xl border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground"
-									>
-										{$LL.settings.noBackups()}
-									</p>
-								{:else}
-									<div class="space-y-3">
-										{#each backupsQuery.data as backup (`${backup.filename}-${backup.createdAt}`)}
-											<div
-												class={`flex flex-wrap items-center justify-between gap-3 ${settingsSubtlePanelClass}`}
-											>
-												<div class="min-w-0 space-y-1">
-													<p class="font-medium break-all">{backup.filename}</p>
-													<p class="text-sm text-muted-foreground">
-														{$LL.settings.createdAt({ value: formatTimestamp(backup.createdAt) })}
-														{#if backup.isProtected}
-															· {$LL.settings.protectedUpdateBackup()}
-														{/if}
-													</p>
-												</div>
-												<div class="flex flex-wrap items-center gap-2">
-													<Button
-														variant="outline"
-														onclick={() => void restoreBackup(backup.filename)}
-														disabled={isManagingBackups}
-													>
-														{restoreBackupMutation.isPending
-															? $LL.common.actions.restoring()
-															: $LL.common.actions.restore()}
-													</Button>
-													{#if !backup.isProtected}
-														<Button
-															variant="destructive"
-															onclick={() => openDeleteBackupDialog(backup.filename)}
-															disabled={isManagingBackups}
-														>
-															{$LL.common.actions.delete()}
-														</Button>
-													{/if}
-												</div>
-											</div>
-										{/each}
-									</div>
-								{/if}
-							</div>
-
-							<DeleteDialog
-								open={isDeleteBackupDialogOpen}
-								onOpenChange={(isOpen) => {
-									isDeleteBackupDialogOpen = isOpen;
-
-									if (!isOpen) {
-										backupToDelete = null;
-									}
-								}}
-								title={$LL.settings.deleteBackupTitle()}
-								description={backupToDelete
-									? $LL.settings.deleteBackupNamedDescription({ name: backupToDelete })
-									: $LL.settings.deleteBackupDescription()}
-								confirmLabel={$LL.common.actions.delete()}
-								confirmLoadingLabel={$LL.common.actions.deleting()}
-								onSubmit={deleteBackup}
-							/>
-						</div>
-					</CardContent>
-				</Card>
+				<SettingsDatabaseCard
+					settings={settingsQuery.data}
+					backups={backupsQuery.data}
+					bind:databasePathValue
+					{isSavingDatabasePath}
+					{hasDatabasePathChange}
+					isUsingDefaultDatabasePath={isUsingDefaultDatabasePath(settingsQuery.data)}
+					{isManagingBackups}
+					isCreatingBackup={createBackupMutation.isPending}
+					isRestoringBackup={restoreBackupMutation.isPending}
+					onSaveDatabasePath={() => void saveDatabasePath()}
+					onResetDatabasePath={() => void resetDatabasePath()}
+					onCreateBackup={() => void createBackup()}
+					onRestoreBackup={(name) => void restoreBackup(name)}
+					onDeleteBackup={deleteBackup}
+				/>
 			</div>
 
 			<div class="space-y-4">
-				<Card class={settingsCardClass}>
-					<CardHeader class="gap-3 border-b border-border/50 pb-5">
-						<CardTitle>{$LL.settings.localeTitle()}</CardTitle>
-						<CardDescription>
-							{$LL.settings.localeDescription()}
-						</CardDescription>
-					</CardHeader>
-					<CardContent class="pt-5">
-						<div class={`${settingsInsetPanelClass} space-y-2`}>
-							<Label for="app-locale">{$LL.settings.localeLabel()}</Label>
-							<Select.Root
-								type="single"
-								value={$locale}
-								onValueChange={async (v) => {
-									if (!v) return;
-									const next = v as Locales;
-									if (next === $locale) return;
-									const previousLocale = $locale;
-									setLocale(next);
+				<SettingsLocaleCard currentLocale={$locale} onChange={changeLocale} />
 
-									try {
-										await api.app.settings.set({ locale: next });
-										await settingsQuery.refetch();
-									} catch (error) {
-										setLocale(previousLocale);
-										toast.error(getErrorMessage(error));
-									}
-								}}
-							>
-								<Select.Trigger id="app-locale" class="w-full capitalize">
-									{localesMetadata[$locale].label}
-								</Select.Trigger>
-								<Select.Content>
-									{#each locales as loc (loc)}
-										<Select.Item value={loc} label={localesMetadata[loc].label} class="capitalize">
-											{localesMetadata[loc].label}
-										</Select.Item>
-									{/each}
-								</Select.Content>
-							</Select.Root>
-						</div>
-					</CardContent>
-				</Card>
+				<SettingsUpdatesCard
+					version={settingsQuery.data.version}
+					{isCheckingForUpdate}
+					{isInstallingUpdate}
+					{hasCheckedForUpdate}
+					{availableUpdate}
+					{updateCheckError}
+					{updateInstallError}
+					{updateInstallComplete}
+					{updateDownloadedBytes}
+					{updateContentLength}
+					{updateProgressPercent}
+					onCheckForUpdates={() => void checkForUpdates()}
+					onInstallUpdate={() => void installUpdate()}
+					onRestartApp={() => void restartApp()}
+				/>
 
-				<Card class={settingsCardClass}>
-					<CardHeader class="gap-3 border-b border-border/50 pb-5">
-						<CardTitle>{$LL.settings.updatesTitle()}</CardTitle>
-						<CardDescription>
-							{$LL.settings.updatesDescription()}
-						</CardDescription>
-					</CardHeader>
-					<CardContent class="space-y-4 pt-5">
-						<div class={settingsSubtlePanelClass}>
-							<p class="text-xs tracking-wide text-muted-foreground uppercase">
-								{$LL.common.labels.currentVersion()}
-							</p>
-							<p class="mt-1 text-base font-semibold">{settingsQuery.data.version}</p>
-						</div>
-
-						<div class="flex flex-wrap gap-3">
-							<Button
-								onclick={() => void checkForUpdates()}
-								disabled={isCheckingForUpdate || isInstallingUpdate}
-							>
-								{isCheckingForUpdate
-									? $LL.common.actions.checkingForUpdates()
-									: $LL.common.actions.checkForUpdates()}
-							</Button>
-
-							{#if availableUpdate}
-								<Button
-									onclick={() => void installUpdate()}
-									disabled={isInstallingUpdate || isCheckingForUpdate}
-								>
-									{isInstallingUpdate
-										? $LL.common.actions.installingUpdate()
-										: $LL.common.actions.downloadAndInstall()}
-								</Button>
-							{/if}
-						</div>
-
-						{#if isCheckingForUpdate}
-							<Callout variant="info">{$LL.settings.updatesChecking()}</Callout>
-						{:else if updateCheckError}
-							<Callout variant="error">{updateCheckError}</Callout>
-						{:else if availableUpdate}
-							<Callout variant="info">
-								{$LL.settings.releaseAvailable({ version: availableUpdate.version })}
-							</Callout>
-						{:else if hasCheckedForUpdate}
-							<Callout variant="success">{$LL.settings.latestRelease()}</Callout>
-						{/if}
-
-						{#if availableUpdate}
-							<div class={`space-y-3 ${settingsSubtlePanelClass}`}>
-								<div class="grid gap-3 sm:grid-cols-2">
-									<div>
-										<p class="text-xs tracking-wide text-muted-foreground uppercase">
-											{$LL.common.labels.availableVersion()}
-										</p>
-										<p class="mt-1 font-semibold">v{availableUpdate.version}</p>
-									</div>
-									<div>
-										<p class="text-xs tracking-wide text-muted-foreground uppercase">
-											{$LL.common.labels.releaseDate()}
-										</p>
-										<p class="mt-1 font-semibold">{formatReleaseDate(availableUpdate.date)}</p>
-									</div>
-								</div>
-
-								{#if availableUpdate.body}
-									<div class="space-y-2 border-t border-border/50 pt-3">
-										<p class="text-xs tracking-wide text-muted-foreground uppercase">
-											{$LL.common.labels.releaseNotes()}
-										</p>
-										<p class="text-sm whitespace-pre-wrap text-muted-foreground">
-											{availableUpdate.body}
-										</p>
-									</div>
-								{/if}
-							</div>
-						{/if}
-
-						{#if isInstallingUpdate}
-							<Callout variant="info">
-								{$LL.settings.downloadingUpdate()}
-								{#if formatBytes(updateDownloadedBytes)}
-									({formatBytes(updateDownloadedBytes)}
-									{#if formatBytes(updateContentLength)}
-										/ {formatBytes(updateContentLength)}{/if})
-								{/if}
-								{#if updateProgressPercent !== null}
-									· {updateProgressPercent}%
-								{/if}
-							</Callout>
-
-							{#if updateProgressPercent !== null}
-								<div class="h-2 overflow-hidden rounded-full bg-muted">
-									<div
-										class="h-full bg-primary transition-[width]"
-										style={`width: ${updateProgressPercent}%`}
-									></div>
-								</div>
-							{/if}
-						{/if}
-
-						{#if updateInstallError}
-							<Callout variant="error">{updateInstallError}</Callout>
-						{/if}
-
-						{#if updateInstallComplete}
-							<Callout variant="success">
-								{$LL.settings.restartNotice()}
-							</Callout>
-
-							<Button onclick={() => void restartApp()}>{$LL.common.actions.restartApp()}</Button>
-						{/if}
-					</CardContent>
-				</Card>
-
-				<Card class={settingsCardClass}>
-					<CardHeader class="gap-3 border-b border-border/50 pb-5">
-						<CardTitle>{$LL.settings.aboutTitle()}</CardTitle>
-						<CardDescription>{$LL.settings.aboutDescription()}</CardDescription>
-					</CardHeader>
-					<CardContent class="space-y-3 pt-5">
-						<div class={settingsSubtlePanelClass}>
-							<p class="text-xs tracking-wide text-muted-foreground uppercase">
-								{$LL.common.labels.appVersion()}
-							</p>
-							<p class="mt-1 text-base font-semibold">{settingsQuery.data.version}</p>
-						</div>
-
-						<div class={settingsSubtlePanelClass}>
-							<p class="text-xs tracking-wide text-muted-foreground uppercase">
-								{$LL.common.labels.lastBackupTime()}
-							</p>
-							<p class="mt-1 text-base font-semibold">
-								{formatTimestamp(lastBackupAt)}
-							</p>
-						</div>
-
-						<div class={settingsSubtlePanelClass}>
-							<p class="text-xs tracking-wide text-muted-foreground uppercase">
-								{$LL.common.labels.backupCount()}
-							</p>
-							<p class="mt-1 text-base font-semibold">{backupsQuery.data.length}</p>
-						</div>
-
-						{#if isUsingDefaultDatabasePath(settingsQuery.data)}
-							<p class="text-sm text-muted-foreground">
-								{$LL.settings.usingDefaultDatabasePath()}
-							</p>
-						{:else}
-							<p class="text-sm text-muted-foreground">
-								{$LL.settings.usingCustomDatabasePath()}
-							</p>
-						{/if}
-					</CardContent>
-				</Card>
+				<SettingsAboutCard
+					version={settingsQuery.data.version}
+					{lastBackupAt}
+					backupsCount={backupsQuery.data.length}
+					usingDefaultDatabasePath={isUsingDefaultDatabasePath(settingsQuery.data)}
+				/>
 			</div>
 		</div>
 	{/if}

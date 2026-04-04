@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { cn, type WithoutChildrenOrChild } from '$lib/common/utils/tailwind.js';
+	import { locale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { DropdownMenu as DropdownMenuPrimitive } from 'bits-ui';
 	import type { ComponentProps } from 'svelte';
 	import DropdownMenuPortal from './dropdown-menu-portal.svelte';
@@ -19,6 +21,7 @@
 	<DropdownMenuPrimitive.Content
 		bind:ref
 		data-slot="dropdown-menu-content"
+		dir={localesMetadata[$locale].direction}
 		{sideOffset}
 		class={cn(
 			'z-50 max-h-(--bits-dropdown-menu-content-available-height) min-w-[10rem] origin-(--bits-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-xl border border-border/60 bg-background/90 p-1.5 text-foreground shadow-xl backdrop-blur-sm outline-none data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-end-2 data-[side=right]:slide-in-from-start-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',

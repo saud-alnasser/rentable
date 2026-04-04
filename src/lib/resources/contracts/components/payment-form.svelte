@@ -6,8 +6,9 @@
 	import * as Form from '$lib/common/components/fragments/form';
 	import { Input } from '$lib/common/components/fragments/input';
 	import * as Popover from '$lib/common/components/fragments/popover';
+	import { getIntlLocale } from '$lib/common/utils/locale';
 	import { cn } from '$lib/common/utils/tailwind.js';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useCreatePayment, useUpdatePayment } from '$lib/resources/contracts/hooks/queries';
 	import {
 		DateFormatter,
@@ -55,7 +56,7 @@
 		const [year, month, day] = value.split('-').map(Number);
 		return Date.UTC(year, month - 1, day);
 	};
-	const dateFormatter = new DateFormatter('en-GB', { dateStyle: 'medium' });
+	let dateFormatter = $derived(new DateFormatter(getIntlLocale($locale), { dateStyle: 'medium' }));
 	const parseCalendarDate = (value: string): CalendarDate | undefined => {
 		if (!value) return undefined;
 

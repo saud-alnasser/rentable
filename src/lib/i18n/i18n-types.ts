@@ -261,6 +261,10 @@ type RootTranslation = {
 			 */
 			governmentId: string
 			/**
+			 * i​n​f​o​r​m​a​t​i​o​n
+			 */
+			information: string
+			/**
 			 * g​o​v​e​r​n​m​e​n​t​ ​i​d​ ​(​o​p​t​i​o​n​a​l​)
 			 */
 			governmentIdOptional: string
@@ -644,9 +648,34 @@ type RootTranslation = {
 	}
 	dashboard: {
 		/**
-		 * t​r​a​c​k​ ​c​o​n​t​r​a​c​t​ ​h​e​a​l​t​h​,​ ​p​a​y​m​e​n​t​ ​p​e​r​f​o​r​m​a​n​c​e​,​ ​a​n​d​ ​o​c​c​u​p​a​n​c​y​ ​a​f​t​e​r​ ​s​t​a​t​u​s​ ​s​y​n​c​h​r​o​n​i​z​a​t​i​o​n​.
+		 * t​r​a​c​k​ ​c​o​n​t​r​a​c​t​ ​h​e​a​l​t​h​,​ ​c​o​l​l​e​c​t​i​o​n​ ​p​r​o​g​r​e​s​s​,​ ​a​n​d​ ​o​c​c​u​p​a​n​c​y​ ​a​f​t​e​r​ ​e​a​c​h​ ​s​y​n​c​h​r​o​n​i​z​a​t​i​o​n​.
 		 */
 		description: string
+		endingSoon: {
+			/**
+			 * {​c​o​u​n​t​}​ ​c​o​n​t​r​a​c​t​ ​e​n​d​i​n​g​ ​s​o​o​n
+			 * @param {unknown} count
+			 */
+			countOne: RequiredParams<'count'>
+			/**
+			 * {​c​o​u​n​t​}​ ​c​o​n​t​r​a​c​t​s​ ​e​n​d​i​n​g​ ​s​o​o​n
+			 * @param {unknown} count
+			 */
+			countOther: RequiredParams<'count'>
+			/**
+			 * a​c​t​i​v​e​ ​a​n​d​ ​f​u​l​f​i​l​l​e​d​ ​c​o​n​t​r​a​c​t​s​ ​t​h​a​t​ ​e​n​d​ ​w​i​t​h​i​n​ ​t​h​e​ ​c​o​n​f​i​g​u​r​e​d​ ​{​n​o​t​i​c​e​W​i​n​d​o​w​}​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​.
+			 * @param {unknown} noticeWindow
+			 */
+			description: RequiredParams<'noticeWindow'>
+			/**
+			 * n​o​ ​c​o​n​t​r​a​c​t​s​ ​a​r​e​ ​e​n​d​i​n​g​ ​s​o​o​n​ ​r​i​g​h​t​ ​n​o​w​.
+			 */
+			empty: string
+			/**
+			 * c​o​n​t​r​a​c​t​s​ ​e​n​d​i​n​g​ ​s​o​o​n
+			 */
+			title: string
+		}
 		followUps: {
 			/**
 			 * {​c​o​u​n​t​}​ ​o​p​e​n​ ​f​o​l​l​o​w​-​u​p
@@ -659,7 +688,7 @@ type RootTranslation = {
 			 */
 			countOther: RequiredParams<'count'>
 			/**
-			 * c​o​n​t​r​a​c​t​s​ ​w​i​t​h​ ​a​ ​s​c​h​e​d​u​l​e​d​ ​d​u​e​ ​o​n​ ​o​r​ ​b​e​f​o​r​e​ ​t​o​d​a​y​ ​t​h​i​s​ ​m​o​n​t​h​,​ ​o​r​ ​a​n​ ​o​v​e​r​d​u​e​ ​d​e​f​a​u​l​t​e​d​ ​b​a​l​a​n​c​e​ ​t​h​a​t​ ​s​t​i​l​l​ ​n​e​e​d​s​ ​f​o​l​l​o​w​-​u​p​.
+			 * c​o​n​t​r​a​c​t​s​ ​w​i​t​h​ ​d​u​e​s​ ​s​c​h​e​d​u​l​e​d​ ​b​y​ ​t​o​d​a​y​ ​i​n​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​m​o​n​t​h​,​ ​o​r​ ​o​v​e​r​d​u​e​ ​d​e​f​a​u​l​t​e​d​ ​b​a​l​a​n​c​e​s​ ​t​h​a​t​ ​s​t​i​l​l​ ​n​e​e​d​ ​a​t​t​e​n​t​i​o​n​.
 			 */
 			description: string
 			/**
@@ -694,7 +723,7 @@ type RootTranslation = {
 		sections: {
 			contracts: {
 				/**
-				 * s​t​a​t​u​s​ ​h​e​a​l​t​h​ ​a​c​r​o​s​s​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​p​o​r​t​f​o​l​i​o​,​ ​w​i​t​h​ ​e​n​d​i​n​g​ ​s​o​o​n​ ​b​a​s​e​d​ ​o​n​ ​t​h​e​ ​c​o​n​f​i​g​u​r​e​d​ ​{​n​o​t​i​c​e​W​i​n​d​o​w​}​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​.
+				 * p​o​r​t​f​o​l​i​o​ ​c​o​n​t​r​a​c​t​ ​s​t​a​t​u​s​,​ ​i​n​c​l​u​d​i​n​g​ ​c​o​n​t​r​a​c​t​s​ ​e​n​d​i​n​g​ ​w​i​t​h​i​n​ ​t​h​e​ ​c​o​n​f​i​g​u​r​e​d​ ​{​n​o​t​i​c​e​W​i​n​d​o​w​}​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​.
 				 * @param {unknown} noticeWindow
 				 */
 				description: RequiredParams<'noticeWindow'>
@@ -716,7 +745,7 @@ type RootTranslation = {
 			}
 			money: {
 				/**
-				 * s​c​h​e​d​u​l​e​d​ ​d​u​e​s​ ​f​o​r​ ​{​m​o​n​t​h​L​a​b​e​l​}​,​ ​p​a​y​m​e​n​t​s​ ​r​e​c​e​i​v​e​d​ ​t​h​i​s​ ​m​o​n​t​h​,​ ​a​n​d​ ​o​v​e​r​a​l​l​ ​c​o​n​t​r​a​c​t​ ​b​a​l​a​n​c​e​s​.
+				 * s​c​h​e​d​u​l​e​d​ ​d​u​e​s​ ​f​o​r​ ​{​m​o​n​t​h​L​a​b​e​l​}​,​ ​p​a​y​m​e​n​t​s​ ​c​o​l​l​e​c​t​e​d​ ​t​h​i​s​ ​m​o​n​t​h​,​ ​a​n​d​ ​o​v​e​r​a​l​l​ ​c​o​n​t​r​a​c​t​ ​b​a​l​a​n​c​e​s​.
 				 * @param {unknown} monthLabel
 				 */
 				description: RequiredParams<'monthLabel'>
@@ -737,7 +766,7 @@ type RootTranslation = {
 			}
 			occupancy: {
 				/**
-				 * s​t​o​r​e​d​ ​u​n​i​t​ ​s​t​a​t​u​s​e​s​ ​a​f​t​e​r​ ​d​a​s​h​b​o​a​r​d​ ​s​y​n​c​h​r​o​n​i​z​a​t​i​o​n​.
+				 * s​t​o​r​e​d​ ​u​n​i​t​ ​o​c​c​u​p​a​n​c​y​ ​a​f​t​e​r​ ​d​a​s​h​b​o​a​r​d​ ​s​y​n​c​h​r​o​n​i​z​a​t​i​o​n​.
 				 */
 				description: string
 				/**
@@ -812,7 +841,7 @@ type RootTranslation = {
 	}
 	settings: {
 		/**
-		 * c​u​r​r​e​n​t​ ​a​p​p​ ​m​e​t​a​d​a​t​a​ ​a​n​d​ ​r​e​c​e​n​t​ ​s​y​n​c​/​b​a​c​k​u​p​ ​t​i​m​e​s​t​a​m​p​s​.
+		 * c​u​r​r​e​n​t​ ​a​p​p​ ​d​e​t​a​i​l​s​ ​a​n​d​ ​t​h​e​ ​l​a​t​e​s​t​ ​s​y​n​c​h​r​o​n​i​z​a​t​i​o​n​ ​a​n​d​ ​b​a​c​k​u​p​ ​t​i​m​e​s​t​a​m​p​s​.
 		 */
 		aboutDescription: string
 		/**
@@ -825,7 +854,7 @@ type RootTranslation = {
 		 */
 		createdAt: RequiredParams<'value'>
 		/**
-		 * b​a​c​k​u​p​s​ ​a​r​e​ ​s​t​o​r​e​d​ ​i​n​ ​t​h​e​ ​a​p​p​ ​b​a​c​k​u​p​ ​d​i​r​e​c​t​o​r​y​ ​a​n​d​ ​c​a​n​ ​b​e​ ​r​e​s​t​o​r​e​d​ ​b​e​l​o​w​.​ ​p​r​o​t​e​c​t​e​d​ ​u​p​d​a​t​e​ ​b​a​c​k​u​p​s​ ​a​r​e​ ​c​r​e​a​t​e​d​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​ ​b​e​f​o​r​e​ ​a​p​p​ ​m​i​g​r​a​t​i​o​n​s​.
+		 * b​a​c​k​u​p​s​ ​a​r​e​ ​s​t​o​r​e​d​ ​i​n​ ​t​h​e​ ​a​p​p​ ​b​a​c​k​u​p​ ​d​i​r​e​c​t​o​r​y​ ​a​n​d​ ​c​a​n​ ​b​e​ ​r​e​s​t​o​r​e​d​ ​b​e​l​o​w​.​ ​p​r​o​t​e​c​t​e​d​ ​u​p​d​a​t​e​ ​b​a​c​k​u​p​s​ ​a​r​e​ ​c​r​e​a​t​e​d​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​ ​b​e​f​o​r​e​ ​m​i​g​r​a​t​i​o​n​s​ ​r​u​n​.
 		 */
 		createBackupDescription: string
 		/**
@@ -833,7 +862,7 @@ type RootTranslation = {
 		 */
 		createBackupTitle: string
 		/**
-		 * s​w​i​t​c​h​ ​t​h​e​ ​a​c​t​i​v​e​ ​d​a​t​a​b​a​s​e​,​ ​f​a​l​l​ ​b​a​c​k​ ​t​o​ ​t​h​e​ ​d​e​f​a​u​l​t​ ​p​a​t​h​,​ ​c​r​e​a​t​e​ ​b​a​c​k​u​p​s​,​ ​a​n​d​ ​r​e​s​t​o​r​e​ ​a​ ​p​r​e​v​i​o​u​s​ ​b​a​c​k​u​p​.
+		 * s​w​i​t​c​h​ ​t​h​e​ ​a​c​t​i​v​e​ ​d​a​t​a​b​a​s​e​,​ ​f​a​l​l​ ​b​a​c​k​ ​t​o​ ​t​h​e​ ​d​e​f​a​u​l​t​ ​p​a​t​h​,​ ​c​r​e​a​t​e​ ​b​a​c​k​u​p​s​,​ ​a​n​d​ ​r​e​s​t​o​r​e​ ​e​a​r​l​i​e​r​ ​b​a​c​k​u​p​s​.
 		 */
 		databaseDescription: string
 		/**
@@ -854,7 +883,7 @@ type RootTranslation = {
 		 */
 		deleteBackupTitle: string
 		/**
-		 * m​a​n​a​g​e​ ​t​h​e​ ​e​n​d​i​n​g​-​s​o​o​n​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​,​ ​a​p​p​ ​u​p​d​a​t​e​s​,​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h​,​ ​b​a​c​k​u​p​s​,​ ​a​n​d​ ​a​p​p​ ​m​e​t​a​d​a​t​a​.
+		 * m​a​n​a​g​e​ ​t​h​e​ ​e​n​d​i​n​g​-​s​o​o​n​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​,​ ​a​p​p​ ​u​p​d​a​t​e​s​,​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h​s​,​ ​b​a​c​k​u​p​s​,​ ​a​n​d​ ​a​p​p​ ​d​e​t​a​i​l​s​.
 		 */
 		description: string
 		/**
@@ -862,7 +891,7 @@ type RootTranslation = {
 		 */
 		downloadingUpdate: string
 		/**
-		 * c​h​o​o​s​e​ ​h​o​w​ ​m​a​n​y​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​c​o​n​t​r​a​c​t​ ​e​n​d​ ​t​h​e​ ​d​a​s​h​b​o​a​r​d​ ​s​h​o​u​l​d​ ​c​o​u​n​t​ ​a​s​ ​e​n​d​i​n​g​ ​s​o​o​n​.
+		 * c​h​o​o​s​e​ ​h​o​w​ ​m​a​n​y​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​c​o​n​t​r​a​c​t​ ​e​n​d​ ​a​ ​c​o​n​t​r​a​c​t​ ​s​h​o​u​l​d​ ​a​p​p​e​a​r​ ​a​s​ ​e​n​d​i​n​g​ ​s​o​o​n​ ​o​n​ ​t​h​e​ ​d​a​s​h​b​o​a​r​d​.
 		 */
 		endingSoonDescription: string
 		/**
@@ -907,7 +936,7 @@ type RootTranslation = {
 		 */
 		noBackups: string
 		/**
-		 * l​e​a​v​i​n​g​ ​t​h​i​s​ ​e​m​p​t​y​ ​u​s​e​s​ ​t​h​e​ ​d​e​f​a​u​l​t​ ​p​a​t​h​ ​a​b​o​v​e​.​ ​s​a​v​i​n​g​ ​r​e​c​o​n​n​e​c​t​s​ ​i​m​m​e​d​i​a​t​e​l​y​,​ ​a​n​d​ ​s​t​a​r​t​u​p​ ​w​i​l​l​ ​r​u​n​ ​m​i​g​r​a​t​i​o​n​s​ ​a​g​a​i​n​ ​o​n​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h​.
+		 * l​e​a​v​e​ ​t​h​i​s​ ​e​m​p​t​y​ ​t​o​ ​u​s​e​ ​t​h​e​ ​d​e​f​a​u​l​t​ ​p​a​t​h​ ​a​b​o​v​e​.​ ​s​a​v​i​n​g​ ​r​e​c​o​n​n​e​c​t​s​ ​i​m​m​e​d​i​a​t​e​l​y​,​ ​a​n​d​ ​s​t​a​r​t​u​p​ ​r​e​r​u​n​s​ ​m​i​g​r​a​t​i​o​n​s​ ​o​n​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h​.
 		 */
 		pathOverrideDescription: string
 		/**
@@ -915,7 +944,7 @@ type RootTranslation = {
 		 */
 		pathOverridePlaceholder: string
 		/**
-		 * c​h​o​o​s​e​ ​y​o​u​r​ ​p​r​e​f​e​r​r​e​d​ ​d​i​s​p​l​a​y​ ​l​a​n​g​u​a​g​e​.​ ​t​h​e​ ​i​n​t​e​r​f​a​c​e​ ​w​i​l​l​ ​u​p​d​a​t​e​ ​i​m​m​e​d​i​a​t​e​l​y​.
+		 * c​h​o​o​s​e​ ​y​o​u​r​ ​p​r​e​f​e​r​r​e​d​ ​d​i​s​p​l​a​y​ ​l​a​n​g​u​a​g​e​.​ ​t​h​e​ ​i​n​t​e​r​f​a​c​e​ ​u​p​d​a​t​e​s​ ​i​m​m​e​d​i​a​t​e​l​y​.
 		 */
 		localeDescription: string
 		/**
@@ -931,11 +960,11 @@ type RootTranslation = {
 		 */
 		title: string
 		/**
-		 * c​h​e​c​k​i​n​g​ ​f​o​r​ ​u​p​d​a​t​e​.​.​.
+		 * c​h​e​c​k​i​n​g​ ​f​o​r​ ​u​p​d​a​t​e​s​.​.​.
 		 */
 		updatesChecking: string
 		/**
-		 * c​h​e​c​k​ ​g​i​t​h​u​b​ ​r​e​l​e​a​s​e​s​ ​f​o​r​ ​a​ ​n​e​w​e​r​ ​s​i​g​n​e​d​ ​b​u​i​l​d​.​ ​i​f​ ​s​t​a​r​t​u​p​ ​l​a​t​e​r​ ​f​a​i​l​s​ ​a​f​t​e​r​ ​a​n​ ​u​p​d​a​t​e​,​ ​r​e​n​t​a​b​l​e​ ​w​i​l​l​ ​o​f​f​e​r​ ​r​o​l​l​b​a​c​k​ ​t​o​ ​t​h​e​ ​p​r​o​t​e​c​t​e​d​ ​p​r​e​-​u​p​d​a​t​e​ ​b​a​c​k​u​p​.
+		 * c​h​e​c​k​ ​g​i​t​h​u​b​ ​r​e​l​e​a​s​e​s​ ​f​o​r​ ​a​ ​n​e​w​e​r​ ​s​i​g​n​e​d​ ​b​u​i​l​d​.​ ​i​f​ ​s​t​a​r​t​u​p​ ​l​a​t​e​r​ ​f​a​i​l​s​ ​a​f​t​e​r​ ​a​n​ ​u​p​d​a​t​e​,​ ​r​e​n​t​a​b​l​e​ ​o​f​f​e​r​s​ ​r​o​l​l​b​a​c​k​ ​t​o​ ​t​h​e​ ​p​r​o​t​e​c​t​e​d​ ​p​r​e​-​u​p​d​a​t​e​ ​b​a​c​k​u​p​.
 		 */
 		updatesDescription: string
 		/**
@@ -1012,6 +1041,10 @@ type RootTranslation = {
 		}
 		form: {
 			/**
+			 * c​o​u​n​t​r​y​ ​c​o​d​e
+			 */
+			phoneCountryCode: string
+			/**
 			 * n​a​t​i​o​n​a​l​ ​i​d​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
 			 */
 			duplicateNationalId: string
@@ -1024,9 +1057,14 @@ type RootTranslation = {
 			 */
 			invalidNationalId: string
 			/**
-			 * p​h​o​n​e​ ​m​u​s​t​ ​s​t​a​r​t​ ​w​i​t​h​ ​+​9​6​6​ ​a​n​d​ ​b​e​ ​1​0​ ​d​i​g​i​t​s​ ​l​o​n​g​.
+			 * p​h​o​n​e​ ​m​u​s​t​ ​b​e​ ​v​a​l​i​d​ ​f​o​r​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​c​o​u​n​t​r​y​ ​c​o​d​e​ ​{​c​o​u​n​t​r​y​C​o​d​e​}​.
+			 * @param {unknown} countryCode
 			 */
-			invalidPhone: string
+			invalidPhone: RequiredParams<'countryCode'>
+			/**
+			 * 5​x​x​x​x​x​x​x​x
+			 */
+			phoneNumberPlaceholder: string
 			/**
 			 * p​h​o​n​e​ ​(​+​9​6​6​.​.​.​)
 			 */
@@ -1044,9 +1082,10 @@ type RootTranslation = {
 			 */
 			calculatedEndDate: string
 			/**
-			 * u​p​d​a​t​e​d​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​ ​f​r​o​m​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​c​y​c​l​e​,​ ​s​t​a​r​t​ ​d​a​t​e​,​ ​a​n​d​ ​n​u​m​b​e​r​ ​o​f​ ​c​y​c​l​e​s​.
+			 * u​p​d​a​t​e​d​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​ ​f​r​o​m​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​c​y​c​l​e​,​ ​s​t​a​r​t​ ​d​a​t​e​,​ ​a​n​d​ ​n​u​m​b​e​r​ ​o​f​ ​c​y​c​l​e​s​.​ ​y​o​u​ ​c​a​n​ ​m​a​n​u​a​l​l​y​ ​a​d​j​u​s​t​ ​i​t​ ​w​i​t​h​i​n​ ​{​d​a​y​s​}​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​o​r​ ​a​f​t​e​r​ ​t​h​e​ ​s​u​g​g​e​s​t​e​d​ ​e​n​d​ ​d​a​t​e​;​ ​a​l​l​o​w​e​d​ ​d​a​t​e​s​ ​a​r​e​ ​h​i​g​h​l​i​g​h​t​e​d​ ​i​n​ ​g​r​e​e​n​.
+			 * @param {unknown} days
 			 */
-			calculatedEndDateHint: string
+			calculatedEndDateHint: RequiredParams<'days'>
 			/**
 			 * c​o​s​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o​.
 			 */
@@ -1124,7 +1163,7 @@ type RootTranslation = {
 			 */
 			pickDateRange: string
 			/**
-			 * c​o​n​t​r​a​c​t​ ​p​e​r​i​o​d​ ​m​u​s​t​ ​b​e​ ​a​ ​w​h​o​l​e​ ​n​u​m​b​e​r​ ​o​f​ ​{​d​a​y​s​}​-​d​a​y​ ​{​i​n​t​e​r​v​a​l​}​ ​c​y​c​l​e​s​.
+			 * e​n​d​ ​d​a​t​e​ ​m​u​s​t​ ​s​t​a​y​ ​w​i​t​h​i​n​ ​{​d​a​y​s​}​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​o​r​ ​a​f​t​e​r​ ​t​h​e​ ​c​a​l​c​u​l​a​t​e​d​ ​{​i​n​t​e​r​v​a​l​}​ ​c​y​c​l​e​ ​e​n​d​ ​d​a​t​e​.
 			 * @param {unknown} days
 			 * @param {unknown} interval
 			 */
@@ -1664,6 +1703,10 @@ export type TranslationFunctions = {
 			 */
 			governmentId: () => LocalizedString
 			/**
+			 * information
+			 */
+			information: () => LocalizedString
+			/**
 			 * government id (optional)
 			 */
 			governmentIdOptional: () => LocalizedString
@@ -2039,9 +2082,31 @@ export type TranslationFunctions = {
 	}
 	dashboard: {
 		/**
-		 * track contract health, payment performance, and occupancy after status synchronization.
+		 * track contract health, collection progress, and occupancy after each synchronization.
 		 */
 		description: () => LocalizedString
+		endingSoon: {
+			/**
+			 * {count} contract ending soon
+			 */
+			countOne: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count} contracts ending soon
+			 */
+			countOther: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * active and fulfilled contracts that end within the configured {noticeWindow} notice window.
+			 */
+			description: (arg: { noticeWindow: unknown }) => LocalizedString
+			/**
+			 * no contracts are ending soon right now.
+			 */
+			empty: () => LocalizedString
+			/**
+			 * contracts ending soon
+			 */
+			title: () => LocalizedString
+		}
 		followUps: {
 			/**
 			 * {count} open follow-up
@@ -2052,7 +2117,7 @@ export type TranslationFunctions = {
 			 */
 			countOther: (arg: { count: unknown }) => LocalizedString
 			/**
-			 * contracts with a scheduled due on or before today this month, or an overdue defaulted balance that still needs follow-up.
+			 * contracts with dues scheduled by today in the current month, or overdue defaulted balances that still need attention.
 			 */
 			description: () => LocalizedString
 			/**
@@ -2083,7 +2148,7 @@ export type TranslationFunctions = {
 		sections: {
 			contracts: {
 				/**
-				 * status health across the current portfolio, with ending soon based on the configured {noticeWindow} notice window.
+				 * portfolio contract status, including contracts ending within the configured {noticeWindow} notice window.
 				 */
 				description: (arg: { noticeWindow: unknown }) => LocalizedString
 				/**
@@ -2101,7 +2166,7 @@ export type TranslationFunctions = {
 			}
 			money: {
 				/**
-				 * scheduled dues for {monthLabel}, payments received this month, and overall contract balances.
+				 * scheduled dues for {monthLabel}, payments collected this month, and overall contract balances.
 				 */
 				description: (arg: { monthLabel: unknown }) => LocalizedString
 				/**
@@ -2119,7 +2184,7 @@ export type TranslationFunctions = {
 			}
 			occupancy: {
 				/**
-				 * stored unit statuses after dashboard synchronization.
+				 * stored unit occupancy after dashboard synchronization.
 				 */
 				description: () => LocalizedString
 				/**
@@ -2189,7 +2254,7 @@ export type TranslationFunctions = {
 	}
 	settings: {
 		/**
-		 * current app metadata and recent sync/backup timestamps.
+		 * current app details and the latest synchronization and backup timestamps.
 		 */
 		aboutDescription: () => LocalizedString
 		/**
@@ -2201,7 +2266,7 @@ export type TranslationFunctions = {
 		 */
 		createdAt: (arg: { value: unknown }) => LocalizedString
 		/**
-		 * backups are stored in the app backup directory and can be restored below. protected update backups are created automatically before app migrations.
+		 * backups are stored in the app backup directory and can be restored below. protected update backups are created automatically before migrations run.
 		 */
 		createBackupDescription: () => LocalizedString
 		/**
@@ -2209,7 +2274,7 @@ export type TranslationFunctions = {
 		 */
 		createBackupTitle: () => LocalizedString
 		/**
-		 * switch the active database, fall back to the default path, create backups, and restore a previous backup.
+		 * switch the active database, fall back to the default path, create backups, and restore earlier backups.
 		 */
 		databaseDescription: () => LocalizedString
 		/**
@@ -2229,7 +2294,7 @@ export type TranslationFunctions = {
 		 */
 		deleteBackupTitle: () => LocalizedString
 		/**
-		 * manage the ending-soon notice window, app updates, database path, backups, and app metadata.
+		 * manage the ending-soon notice window, app updates, database paths, backups, and app details.
 		 */
 		description: () => LocalizedString
 		/**
@@ -2237,7 +2302,7 @@ export type TranslationFunctions = {
 		 */
 		downloadingUpdate: () => LocalizedString
 		/**
-		 * choose how many days before contract end the dashboard should count as ending soon.
+		 * choose how many days before contract end a contract should appear as ending soon on the dashboard.
 		 */
 		endingSoonDescription: () => LocalizedString
 		/**
@@ -2281,7 +2346,7 @@ export type TranslationFunctions = {
 		 */
 		noBackups: () => LocalizedString
 		/**
-		 * leaving this empty uses the default path above. saving reconnects immediately, and startup will run migrations again on the selected database path.
+		 * leave this empty to use the default path above. saving reconnects immediately, and startup reruns migrations on the selected database path.
 		 */
 		pathOverrideDescription: () => LocalizedString
 		/**
@@ -2289,7 +2354,7 @@ export type TranslationFunctions = {
 		 */
 		pathOverridePlaceholder: () => LocalizedString
 		/**
-		 * choose your preferred display language. the interface will update immediately.
+		 * choose your preferred display language. the interface updates immediately.
 		 */
 		localeDescription: () => LocalizedString
 		/**
@@ -2305,11 +2370,11 @@ export type TranslationFunctions = {
 		 */
 		title: () => LocalizedString
 		/**
-		 * checking for update...
+		 * checking for updates...
 		 */
 		updatesChecking: () => LocalizedString
 		/**
-		 * check github releases for a newer signed build. if startup later fails after an update, rentable will offer rollback to the protected pre-update backup.
+		 * check github releases for a newer signed build. if startup later fails after an update, rentable offers rollback to the protected pre-update backup.
 		 */
 		updatesDescription: () => LocalizedString
 		/**
@@ -2386,6 +2451,10 @@ export type TranslationFunctions = {
 		}
 		form: {
 			/**
+			 * country code
+			 */
+			phoneCountryCode: () => LocalizedString
+			/**
 			 * national id is associated with a registered tenant.
 			 */
 			duplicateNationalId: () => LocalizedString
@@ -2398,9 +2467,13 @@ export type TranslationFunctions = {
 			 */
 			invalidNationalId: () => LocalizedString
 			/**
-			 * phone must start with +966 and be 10 digits long.
+			 * phone must be valid for the selected country code {countryCode}.
 			 */
-			invalidPhone: () => LocalizedString
+			invalidPhone: (arg: { countryCode: unknown }) => LocalizedString
+			/**
+			 * 5xxxxxxxx
+			 */
+			phoneNumberPlaceholder: () => LocalizedString
 			/**
 			 * phone (+966...)
 			 */
@@ -2418,9 +2491,9 @@ export type TranslationFunctions = {
 			 */
 			calculatedEndDate: () => LocalizedString
 			/**
-			 * updated automatically from the selected cycle, start date, and number of cycles.
+			 * updated automatically from the selected cycle, start date, and number of cycles. you can manually adjust it within {days} days before or after the suggested end date; allowed dates are highlighted in green.
 			 */
-			calculatedEndDateHint: () => LocalizedString
+			calculatedEndDateHint: (arg: { days: unknown }) => LocalizedString
 			/**
 			 * cost must be greater than zero.
 			 */
@@ -2498,7 +2571,7 @@ export type TranslationFunctions = {
 			 */
 			pickDateRange: () => LocalizedString
 			/**
-			 * contract period must be a whole number of {days}-day {interval} cycles.
+			 * end date must stay within {days} days before or after the calculated {interval} cycle end date.
 			 */
 			periodMustMatchWholeCycles: (arg: { days: unknown, interval: unknown }) => LocalizedString
 			/**

@@ -14,8 +14,14 @@
 	} from '$lib/common/components/fragments/card';
 	import { Progress } from '$lib/common/components/fragments/progress';
 	import { Skeleton } from '$lib/common/components/fragments/skeleton';
+	import {
+		formatLocaleDate,
+		formatLocaleNumber,
+		formatLocaleRangeWithUnit,
+		formatLocaleValueWithUnit
+	} from '$lib/common/utils/locale';
 	import { cn } from '$lib/common/utils/tailwind';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
 		useDeletePayment,
 		useFetchContract,
@@ -25,16 +31,17 @@
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import PaymentForm from './payment-form.svelte';
 
-	const paymentsVirtualThreshold = 4;
+	const paymentsVirtualThreshold = 3;
 	const paymentsVirtualViewportHeight = 'min(56vh, 34rem)';
 
 	const formatDate = (value: number) =>
-		new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' }).format(
-			new Date(value)
-		);
+		formatLocaleDate($locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 
-	const formatCurrency = (value: number) =>
-		new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value);
+	const formatCurrency = (value: number) => formatLocaleNumber($locale, value);
+	const formatMoney = (value: number) =>
+		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
+	const formatMoneyRange = (start: number, end: number) =>
+		formatLocaleRangeWithUnit($locale, start, end, $LL.common.messages.sar());
 
 	let { contractId }: { contractId: number } = $props();
 	let search = $state('');
@@ -114,13 +121,10 @@
 		<div
 			class="rounded-[1.25rem] border border-border/70 bg-background/60 p-4 shadow-lg backdrop-blur-lg"
 		>
-			<div class="mb-2 flex items-center justify-between gap-3 text-sm">
+			<div class="mb-2 flex items-center justify-between gap-3 text-sm rtl:flex-row-reverse">
 				<span class="font-medium">{$LL.common.labels.paymentFulfillment()}</span>
 				<span class="text-muted-foreground">
-					{formatCurrency(paymentProgress.paidAmount)} / {formatCurrency(
-						paymentProgress.expectedAmount
-					)}
-					{$LL.common.messages.sar()}
+					{formatMoneyRange(paymentProgress.paidAmount, paymentProgress.expectedAmount)}
 				</span>
 			</div>
 			<Progress
@@ -128,7 +132,9 @@
 				max={Math.max(paymentProgress.expectedAmount, 1)}
 				class="h-3 bg-emerald-500/15 **:data-[slot=progress-indicator]:bg-emerald-600"
 			/>
-			<div class="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+			<div
+				class="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground rtl:flex-row-reverse"
+			>
 				<span
 					>{$LL.contracts.payments.percentFulfilled({
 						percent: String(Math.round(paymentProgress.progressPercent))
@@ -173,8 +179,8 @@
 		{#snippet item(record: Payment)}
 			<Card class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
 				<CardHeader class="gap-3 border-b pb-4">
-					<div class="space-y-1">
-						<CardTitle>{formatCurrency(record.amount)} {$LL.common.messages.sar()}</CardTitle>
+					<div class="space-y-1 text-start">
+						<CardTitle>{formatMoney(record.amount)}</CardTitle>
 						<CardDescription>{formatDate(record.date)}</CardDescription>
 					</div>
 					{#if !isDeleteLocked}
@@ -205,14 +211,13 @@
 						</CardAction>
 					{/if}
 				</CardHeader>
-				<CardContent class="grid gap-3 pt-4 sm:grid-cols-2">
+				<CardContent class="grid gap-3 pt-4 sm:grid-cols-2 [&>*]:text-start">
 					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.amount()}
 						</p>
 						<p class="mt-2 text-sm font-medium">
-							{formatCurrency(record.amount)}
-							{$LL.common.messages.sar()}
+							{formatMoney(record.amount)}
 						</p>
 					</div>
 					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">

@@ -1,6 +1,5 @@
 import type { Locales } from './i18n-types';
 
-
 export type LocaleMetadata = {
 	label: string;
 	direction: 'ltr' | 'rtl';
@@ -12,7 +11,7 @@ export const localesMetadata: Record<Locales, LocaleMetadata> = {
 		direction: 'rtl'
 	},
 	en: {
-		label: 'english',
+		label: 'English',
 		direction: 'ltr'
 	}
 };

@@ -41,6 +41,17 @@ export const keys = {
 	]
 } as const;
 
+async function invalidateContractData(client: ReturnType<typeof useQueryClient>) {
+	await client.invalidateQueries({ queryKey: keys.all });
+}
+
+async function invalidateContractAndComplexUnitData(client: ReturnType<typeof useQueryClient>) {
+	await Promise.all([
+		invalidateContractData(client),
+		client.invalidateQueries({ queryKey: ['complexes', 'units'] })
+	]);
+}
+
 export function useFetchContracts() {
 	return createQuery(() => ({
 		queryKey: keys.all,
@@ -103,9 +114,8 @@ export function useCreateContract(
 
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.contract.create>[0]) => api.contract.create(data),
-		onSuccess: () => {
-			client.invalidateQueries({ queryKey: keys.all });
-			client.invalidateQueries({ queryKey: keys.dashboard });
+		onSuccess: async () => {
+			await invalidateContractData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -126,10 +136,8 @@ export function useUpdateContract(
 
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.contract.update>[0]) => api.contract.update(data),
-		onSuccess: (updated) => {
-			client.invalidateQueries({ queryKey: keys.all });
-			client.invalidateQueries({ queryKey: keys.dashboard });
-			client.invalidateQueries({ queryKey: keys.get(updated.id) });
+		onSuccess: async (_updated) => {
+			await invalidateContractData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -150,11 +158,9 @@ export function useDeleteContract(
 
 	return createMutation(() => ({
 		mutationFn: (id: number) => api.contract.delete({ id }),
-		onSuccess: (deleted) => {
+		onSuccess: async (deleted) => {
 			if (deleted) {
-				client.invalidateQueries({ queryKey: keys.all });
-				client.invalidateQueries({ queryKey: keys.dashboard });
-				client.invalidateQueries({ queryKey: keys.get(deleted.id) });
+				await invalidateContractData(client);
 			}
 
 			onMutationSuccess(opts);
@@ -176,10 +182,8 @@ export function useTerminateContract(
 
 	return createMutation(() => ({
 		mutationFn: (id: number) => api.contract.terminate({ id }),
-		onSuccess: (terminated) => {
-			client.invalidateQueries({ queryKey: keys.all });
-			client.invalidateQueries({ queryKey: keys.dashboard });
-			client.invalidateQueries({ queryKey: keys.get(terminated.id) });
+		onSuccess: async (_terminated) => {
+			await invalidateContractData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -200,10 +204,8 @@ export function useUnterminateContract(
 
 	return createMutation(() => ({
 		mutationFn: (id: number) => api.contract.unterminate({ id }),
-		onSuccess: (restored) => {
-			client.invalidateQueries({ queryKey: keys.all });
-			client.invalidateQueries({ queryKey: keys.dashboard });
-			client.invalidateQueries({ queryKey: keys.get(restored.id) });
+		onSuccess: async (_restored) => {
+			await invalidateContractData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -254,13 +256,8 @@ export function useAssignContractUnits(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.contract.units.assign>[0]) =>
 			api.contract.units.assign(data),
-		onSuccess: (_, variables) => {
-			client.invalidateQueries({ queryKey: keys.dashboard });
-			client.invalidateQueries({ queryKey: keys.getUnits(variables.contractId) });
-			client.invalidateQueries({
-				queryKey: keys.getVacantUnits(variables.contractId, variables.complexId)
-			});
-			client.invalidateQueries({ queryKey: ['complexes', 'units'] });
+		onSuccess: async (_result, _variables) => {
+			await invalidateContractAndComplexUnitData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -282,15 +279,8 @@ export function useRemoveContractUnit(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.contract.units.remove>[0]) =>
 			api.contract.units.remove(data),
-		onSuccess: (removed) => {
-			client.invalidateQueries({ queryKey: keys.dashboard });
-			client.invalidateQueries({ queryKey: keys.getUnits(removed.contractId) });
-			if (removed.complexId) {
-				client.invalidateQueries({
-					queryKey: keys.getVacantUnits(removed.contractId, removed.complexId)
-				});
-			}
-			client.invalidateQueries({ queryKey: ['complexes', 'units'] });
+		onSuccess: async (_removed) => {
+			await invalidateContractAndComplexUnitData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -349,11 +339,8 @@ export function useCreatePayment(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.contract.payments.create>[0]) =>
 			api.contract.payments.create(data),
-		onSuccess: (created) => {
-			client.invalidateQueries({ queryKey: keys.dashboard });
-			client.invalidateQueries({ queryKey: ['contracts', 'payments'] });
-			client.invalidateQueries({ queryKey: keys.all });
-			client.invalidateQueries({ queryKey: keys.get(created.contractId) });
+		onSuccess: async (_created) => {
+			await invalidateContractData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -375,11 +362,8 @@ export function useUpdatePayment(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.contract.payments.update>[0]) =>
 			api.contract.payments.update(data),
-		onSuccess: (updated) => {
-			client.invalidateQueries({ queryKey: keys.dashboard });
-			client.invalidateQueries({ queryKey: ['contracts', 'payments'] });
-			client.invalidateQueries({ queryKey: keys.all });
-			client.invalidateQueries({ queryKey: keys.get(updated.contractId) });
+		onSuccess: async (_updated) => {
+			await invalidateContractData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -400,12 +384,9 @@ export function useDeletePayment(
 
 	return createMutation(() => ({
 		mutationFn: (id: number) => api.contract.payments.delete({ id }),
-		onSuccess: (deleted) => {
+		onSuccess: async (deleted) => {
 			if (deleted) {
-				client.invalidateQueries({ queryKey: keys.dashboard });
-				client.invalidateQueries({ queryKey: ['contracts', 'payments'] });
-				client.invalidateQueries({ queryKey: keys.all });
-				client.invalidateQueries({ queryKey: keys.get(deleted.contractId) });
+				await invalidateContractData(client);
 			}
 
 			onMutationSuccess(opts);

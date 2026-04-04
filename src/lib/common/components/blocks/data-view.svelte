@@ -48,7 +48,7 @@
 		virtualItemHeight,
 		virtualViewportHeight = 'min(72vh, 56rem)',
 		virtualOverscanRows = 2,
-		virtualThreshold = 18,
+		virtualThreshold = 3,
 		class: className
 	}: DataViewProps<TData> = $props();
 
@@ -56,6 +56,7 @@
 	const loadingIndicatorDelayMs = 1000;
 	const rowGap = 16;
 	const virtualContentPaddingClass = 'p-2 sm:p-3';
+	const nonVirtualBottomSpacingClass = 'pb-3 sm:pb-4';
 
 	let viewportRef = $state<HTMLElement | null>(null);
 	let loadMoreRef = $state<HTMLDivElement | null>(null);
@@ -267,7 +268,7 @@
 	>
 		<div class="relative w-full sm:max-w-sm">
 			<SearchIcon
-				class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+				class="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
 			/>
 			<Input
 				placeholder={$LL.common.table.searchPlaceholder()}
@@ -363,7 +364,12 @@
 						</div>
 					{:else}
 						<div
-							class={cn('grid gap-4', virtualContentPaddingClass, className)}
+							class={cn(
+								'grid gap-4',
+								virtualContentPaddingClass,
+								nonVirtualBottomSpacingClass,
+								className
+							)}
 							style={gridTemplateStyle}
 							aria-busy={isBodyLoading}
 						>
@@ -378,7 +384,7 @@
 				</ScrollArea>
 			{:else}
 				<div
-					class={cn('grid gap-4', className)}
+					class={cn('grid gap-4', nonVirtualBottomSpacingClass, className)}
 					style={gridTemplateStyle}
 					aria-busy={isBodyLoading}
 				>

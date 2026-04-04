@@ -25,6 +25,6 @@
 	)}
 	{...restProps}
 >
-	<ChevronLeftIcon />
+	<ChevronLeftIcon class="rtl:rotate-180" />
 	<span class="hidden sm:block">{$LL.common.ui.previous()}</span></PaginationPrimitive.PrevButton
 >

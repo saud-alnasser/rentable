@@ -1,13 +1,9 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { Complex } from '$lib/api/database/schema';
-	import DataTableActionsDropdown from '$lib/common/components/blocks/data-table-actions-dropdown.svelte';
 	import DataView from '$lib/common/components/blocks/data-view.svelte';
-	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
 	import {
 		Card,
-		CardAction,
 		CardContent,
 		CardDescription,
 		CardHeader,
@@ -15,20 +11,14 @@
 	} from '$lib/common/components/fragments/card';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import ComplexesTableUnitsCount from '$lib/resources/complexes/components/complexes-table-units-count.svelte';
-	import { useDeleteComplex, useInfiniteComplexes } from '$lib/resources/complexes/hooks/queries';
-	import Building2Icon from '@lucide/svelte/icons/building-2';
-	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
-	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import { useInfiniteComplexes } from '$lib/resources/complexes/hooks/queries';
 	import ComplexForm from './complex-form.svelte';
 
 	let search = $state('');
 
-	const fetchQuery = useInfiniteComplexes(() => search);
-	const deleteMutation = useDeleteComplex();
-
-	let complex = $state<Complex | undefined>(undefined);
 	let isComplexFormOpen = $state(false);
-	let isDeleteDialogOpen = $state(false);
+
+	const fetchQuery = useInfiniteComplexes(() => search);
 
 	const getSearchValue = (record: Complex) =>
 		[record.name, record.location].filter(Boolean).join(' ');
@@ -48,65 +38,38 @@
 	{getSearchValue}
 	virtualItemHeight={260}
 	onCreate={() => {
-		complex = undefined;
 		isComplexFormOpen = true;
 	}}
 >
 	{#snippet item(record: Complex)}
-		<Card class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
-			<CardHeader class="gap-4 border-b pb-4">
-				<div class="space-y-1">
-					<CardTitle>{record.name}</CardTitle>
-					<CardDescription>{record.location}</CardDescription>
-				</div>
-				<CardAction>
-					<DataTableActionsDropdown
-						menuLabel={null}
-						actions={[
-							{
-								label: $LL.complexes.units.management(),
-								icon: Building2Icon,
-								onclick: () => goto(resolve(`/complexes/units/${record.id}`))
-							},
-							{ type: 'separator' as const },
-							{
-								label: $LL.common.actions.edit(),
-								icon: SquarePenIcon,
-								onclick: () => {
-									complex = record;
-									isComplexFormOpen = true;
-								}
-							},
-							{
-								label: $LL.common.actions.delete(),
-								icon: Trash2Icon,
-								variant: 'destructive' as const,
-								onclick: () => {
-									complex = record;
-									isDeleteDialogOpen = true;
-								}
-							}
-						]}
-					/>
-				</CardAction>
-			</CardHeader>
-			<CardContent class="grid gap-3 pt-4 sm:grid-cols-2">
-				<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-					<p class="text-xs tracking-wide text-muted-foreground uppercase">
-						{$LL.common.labels.location()}
-					</p>
-					<p class="mt-2 text-sm font-medium">{record.location}</p>
-				</div>
-				<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-					<p class="text-xs tracking-wide text-muted-foreground uppercase">
-						{$LL.common.labels.units()}
-					</p>
-					<div class="mt-2 text-2xl leading-none font-semibold">
-						<ComplexesTableUnitsCount complexId={record.id} class="h-auto w-auto" />
+		<a href={resolve(`/complexes/${record.id}`)} class="block">
+			<Card
+				class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl transition-transform duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-card/78"
+			>
+				<CardHeader class="gap-4 border-b pb-4">
+					<div class="space-y-1 text-start">
+						<CardTitle>{record.name}</CardTitle>
+						<CardDescription>{record.location}</CardDescription>
 					</div>
-				</div>
-			</CardContent>
-		</Card>
+				</CardHeader>
+				<CardContent class="grid gap-3 pt-4 sm:grid-cols-2 [&>*]:text-start">
+					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+						<p class="text-xs tracking-wide text-muted-foreground uppercase">
+							{$LL.common.labels.location()}
+						</p>
+						<p class="mt-2 text-sm font-medium">{record.location}</p>
+					</div>
+					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+						<p class="text-xs tracking-wide text-muted-foreground uppercase">
+							{$LL.common.labels.units()}
+						</p>
+						<div class="mt-2 text-2xl leading-none font-semibold">
+							<ComplexesTableUnitsCount complexId={record.id} class="h-auto w-auto" />
+						</div>
+					</div>
+				</CardContent>
+			</Card>
+		</a>
 	{/snippet}
 </DataView>
 
@@ -114,20 +77,6 @@
 	open={isComplexFormOpen}
 	onOpenChange={(isOpen) => {
 		isComplexFormOpen = isOpen;
-		if (!isOpen) complex = undefined;
 	}}
-	value={complex}
-/>
-
-<DeleteDialog
-	open={isDeleteDialogOpen}
-	onOpenChange={(isOpen) => {
-		isDeleteDialogOpen = isOpen;
-		if (!isOpen) complex = undefined;
-	}}
-	onSubmit={async () => {
-		if (complex) {
-			await deleteMutation.mutateAsync(complex.id);
-		}
-	}}
+	value={undefined}
 />

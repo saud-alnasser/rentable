@@ -22,7 +22,8 @@
 
 <script lang="ts">
 	import { cn, type WithoutChildrenOrChild } from '$lib/common/utils/tailwind.js';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { Dialog as SheetPrimitive } from 'bits-ui';
 	import type { ComponentProps, Snippet } from 'svelte';
@@ -41,6 +42,14 @@
 		side?: Side;
 		children: Snippet;
 	} = $props();
+
+	const resolvedSide = $derived.by(() => {
+		if (side && side !== 'right') {
+			return side;
+		}
+
+		return localesMetadata[$locale].direction === 'rtl' ? 'left' : 'right';
+	});
 </script>
 
 <SheetPortal {...portalProps}>
@@ -48,7 +57,8 @@
 	<SheetPrimitive.Content
 		bind:ref
 		data-slot="sheet-content"
-		class={cn(sheetVariants({ side }), className)}
+		dir={localesMetadata[$locale].direction}
+		class={cn(sheetVariants({ side: resolvedSide }), className)}
 		{...restProps}
 	>
 		{@render children?.()}

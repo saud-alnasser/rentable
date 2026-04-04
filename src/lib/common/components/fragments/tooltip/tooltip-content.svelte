@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { WithoutChildrenOrChild } from '$lib/common/utils/tailwind.js';
 	import { cn } from '$lib/common/utils/tailwind.js';
+	import { locale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { Tooltip as TooltipPrimitive } from 'bits-ui';
 	import type { ComponentProps } from 'svelte';
 	import TooltipPortal from './tooltip-portal.svelte';
@@ -24,6 +26,7 @@
 	<TooltipPrimitive.Content
 		bind:ref
 		data-slot="tooltip-content"
+		dir={localesMetadata[$locale].direction}
 		{sideOffset}
 		{side}
 		class={cn(

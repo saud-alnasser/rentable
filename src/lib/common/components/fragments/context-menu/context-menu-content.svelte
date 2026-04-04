@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { WithoutChildrenOrChild } from '$lib/common/utils/tailwind.js';
 	import { cn } from '$lib/common/utils/tailwind.js';
+	import { locale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { ContextMenu as ContextMenuPrimitive } from 'bits-ui';
 	import type { ComponentProps } from 'svelte';
 	import ContextMenuPortal from './context-menu-portal.svelte';
@@ -19,6 +21,7 @@
 	<ContextMenuPrimitive.Content
 		bind:ref
 		data-slot="context-menu-content"
+		dir={localesMetadata[$locale].direction}
 		class={cn(
 			'z-50 max-h-(--bits-context-menu-content-available-height) min-w-[8rem] origin-(--bits-context-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-end-2 data-[side=right]:slide-in-from-start-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
 			className

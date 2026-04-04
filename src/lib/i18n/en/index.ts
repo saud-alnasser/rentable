@@ -69,6 +69,7 @@ const en = {
 			dueBalanceCoveredToDate: 'due balance covered to date',
 			end: 'end',
 			governmentId: 'government id',
+			information: 'information',
 			governmentIdOptional: 'government id (optional)',
 			lastBackupTime: 'last backup time',
 			lastSyncTime: 'last sync time',
@@ -195,13 +196,22 @@ const en = {
 
 	dashboard: {
 		description:
-			'track contract health, payment performance, and occupancy after status synchronization.',
+			'track contract health, collection progress, and occupancy after each synchronization.',
+
+		endingSoon: {
+			countOne: '{count} contract ending soon',
+			countOther: '{count} contracts ending soon',
+			description:
+				'active and fulfilled contracts that end within the configured {noticeWindow} notice window.',
+			empty: 'no contracts are ending soon right now.',
+			title: 'contracts ending soon'
+		},
 
 		followUps: {
 			countOne: '{count} open follow-up',
 			countOther: '{count} open follow-ups',
 			description:
-				'contracts with a scheduled due on or before today this month, or an overdue defaulted balance that still needs follow-up.',
+				'contracts with dues scheduled by today in the current month, or overdue defaulted balances that still need attention.',
 			empty: 'no payment follow-up is needed right now.',
 			progressSummary: '{percent}% of the due balance covered to date',
 			remaining: '{amount} sar remaining',
@@ -214,7 +224,7 @@ const en = {
 		sections: {
 			contracts: {
 				description:
-					'status health across the current portfolio, with ending soon based on the configured {noticeWindow} notice window.',
+					'portfolio contract status, including contracts ending within the configured {noticeWindow} notice window.',
 				heroHint: '{active} active • {endingSoon} ending within {noticeWindow}',
 				heroLabel: 'current portfolio size',
 				title: 'contracts'
@@ -222,14 +232,14 @@ const en = {
 
 			money: {
 				description:
-					'scheduled dues for {monthLabel}, payments received this month, and overall contract balances.',
+					'scheduled dues for {monthLabel}, payments collected this month, and overall contract balances.',
 				heroHint: '{rate}% of the due for {monthLabel} is covered',
 				heroLabel: 'outstanding now',
 				title: 'money'
 			},
 
 			occupancy: {
-				description: 'stored unit statuses after dashboard synchronization.',
+				description: 'stored unit occupancy after dashboard synchronization.',
 				heroHint: '{occupied} occupied out of {total} units',
 				heroLabel: 'occupancy rate',
 				title: 'occupancy'
@@ -254,16 +264,16 @@ const en = {
 	},
 
 	settings: {
-		aboutDescription: 'current app metadata and recent sync/backup timestamps.',
+		aboutDescription: 'current app details and the latest synchronization and backup timestamps.',
 		aboutTitle: 'about',
 		createdAt: 'created {value}',
 
 		createBackupDescription:
-			'backups are stored in the app backup directory and can be restored below. protected update backups are created automatically before app migrations.',
+			'backups are stored in the app backup directory and can be restored below. protected update backups are created automatically before migrations run.',
 		createBackupTitle: 'create backup',
 
 		databaseDescription:
-			'switch the active database, fall back to the default path, create backups, and restore a previous backup.',
+			'switch the active database, fall back to the default path, create backups, and restore earlier backups.',
 		databaseTitle: 'database path and backups',
 
 		deleteBackupDescription: 'are you sure you want to delete this backup? this cannot be undone.',
@@ -272,12 +282,12 @@ const en = {
 		deleteBackupTitle: 'delete backup',
 
 		description:
-			'manage the ending-soon notice window, app updates, database path, backups, and app metadata.',
+			'manage the ending-soon notice window, app updates, database paths, backups, and app details.',
 
 		downloadingUpdate: 'downloading update',
 
 		endingSoonDescription:
-			'choose how many days before contract end the dashboard should count as ending soon.',
+			'choose how many days before contract end a contract should appear as ending soon on the dashboard.',
 		endingSoonInvalid: 'ending soon notice window must be greater than zero',
 		endingSoonTitle: 'ending soon notice window',
 
@@ -296,19 +306,18 @@ const en = {
 		noBackups: 'no backups are available yet.',
 
 		pathOverrideDescription:
-			'leaving this empty uses the default path above. saving reconnects immediately, and startup will run migrations again on the selected database path.',
+			'leave this empty to use the default path above. saving reconnects immediately, and startup reruns migrations on the selected database path.',
 		pathOverridePlaceholder: 'leave empty to use the default database path',
 
-		localeDescription:
-			'choose your preferred display language. the interface will update immediately.',
+		localeDescription: 'choose your preferred display language. the interface updates immediately.',
 		localeLabel: 'display language',
 		localeTitle: 'language',
 
 		title: 'settings',
 
-		updatesChecking: 'checking for update...',
+		updatesChecking: 'checking for updates...',
 		updatesDescription:
-			'check github releases for a newer signed build. if startup later fails after an update, rentable will offer rollback to the protected pre-update backup.',
+			'check github releases for a newer signed build. if startup later fails after an update, rentable offers rollback to the protected pre-update backup.',
 		updatesTitle: 'app updates',
 
 		usingCustomDatabasePath: 'the app is currently using a custom database path override.',
@@ -342,10 +351,12 @@ const en = {
 		},
 
 		form: {
+			phoneCountryCode: 'country code',
 			duplicateNationalId: 'national id is associated with a registered tenant.',
 			duplicatePhone: 'phone is associated with a registered tenant.',
 			invalidNationalId: 'iqama must start with 1 or 2 and be 10 digits long.',
-			invalidPhone: 'phone must start with +966 and be 10 digits long.',
+			invalidPhone: 'phone must be valid for the selected country code {countryCode}.',
+			phoneNumberPlaceholder: '5xxxxxxxx',
 			phonePlaceholder: 'phone (+966...)'
 		}
 	},
@@ -355,7 +366,7 @@ const en = {
 			startDate: 'start date',
 			calculatedEndDate: 'end date',
 			calculatedEndDateHint:
-				'updated automatically from the selected cycle, start date, and number of cycles.',
+				'updated automatically from the selected cycle, start date, and number of cycles. you can manually adjust it within {days} days before or after the suggested end date; allowed dates are highlighted in green.',
 			costGreaterThanZero: 'cost must be greater than zero.',
 			costPerPaymentGreaterThanZero: 'cost per payment must be greater than zero.',
 			costRequired: 'cost is required.',
@@ -376,7 +387,7 @@ const en = {
 			pickDate: 'pick a date',
 			pickDateRange: 'pick a date range',
 			periodMustMatchWholeCycles:
-				'contract period must be a whole number of {days}-day {interval} cycles.',
+				'end date must stay within {days} days before or after the calculated {interval} cycle end date.',
 			searchAndSelectTenant: 'search and select tenant',
 			searchTenantPlaceholder: 'search tenant by name, id or phone...',
 			startDateRequired: 'start date is required.',

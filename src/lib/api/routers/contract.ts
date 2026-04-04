@@ -8,6 +8,7 @@ import {
 import { tauri } from '$lib/api/tauri';
 import { procedure, router } from '$lib/api/trpc';
 import {
+	CONTRACT_END_DATE_TOLERANCE_DAYS,
 	canManuallyTerminateContractStatus,
 	canUnterminateContractStatus,
 	deriveContractStatus,
@@ -15,7 +16,6 @@ import {
 	getConflictingAssignedUnitIds,
 	getContractPaymentSummary,
 	getExpectedAmountInRange,
-	getMinimumContractPeriodDays,
 	getOutstandingExpectedAmount,
 	hasSameUtcDateRange,
 	hasValidContractPeriodForInterval,
@@ -84,7 +84,7 @@ function ensureValidContractPeriod(input: Pick<Contract, 'start' | 'end' | 'inte
 	if (!hasValidContractPeriodForInterval(input)) {
 		throw new TRPCError({
 			code: 'BAD_REQUEST',
-			message: `contract period must be a whole number of ${getMinimumContractPeriodDays(input.interval)}-day ${intervalLabels[input.interval]} cycles`
+			message: `contract period must stay within ${CONTRACT_END_DATE_TOLERANCE_DAYS} days of the calculated ${intervalLabels[input.interval]} cycle end date`
 		});
 	}
 }
@@ -234,12 +234,23 @@ type DashboardFollowUp = {
 	contractEnd: number;
 };
 
+type DashboardEndingSoonContract = {
+	contractId: number;
+	govId: string;
+	status: Contract['status'];
+	interval: Contract['interval'];
+	tenantName: string;
+	tenantPhone: string;
+	contractEnd: number;
+};
+
 type DashboardData = {
 	generatedAt: number;
 	monthLabel: string;
 	endingSoonNoticeDays: number;
 	summary: DashboardSummary;
 	followUps: DashboardFollowUp[];
+	endingSoonContracts: DashboardEndingSoonContract[];
 };
 
 type ContractAssignmentRow = {
@@ -770,6 +781,27 @@ export default router({
 				settings.endingSoonNoticeDays
 			)
 		);
+		const serializedEndingSoonContracts = endingSoonContracts
+			.map(
+				({
+					contract,
+					tenantName,
+					tenantPhone,
+					serializedContract
+				}): DashboardEndingSoonContract => ({
+					contractId: contract.id,
+					govId: serializedContract.govId,
+					status: serializedContract.status,
+					interval: contract.interval,
+					tenantName,
+					tenantPhone,
+					contractEnd: serializedContract.end
+				})
+			)
+			.sort(
+				(left, right) =>
+					left.contractEnd - right.contractEnd || left.tenantName.localeCompare(right.tenantName)
+			);
 		const portfolioContexts = contexts.filter(({ serializedContract }) =>
 			isContractIncludedInDashboardPortfolio(serializedContract.status)
 		);
@@ -847,7 +879,8 @@ export default router({
 			monthLabel: month.label,
 			endingSoonNoticeDays: settings.endingSoonNoticeDays,
 			summary,
-			followUps
+			followUps,
+			endingSoonContracts: serializedEndingSoonContracts
 		};
 	}),
 

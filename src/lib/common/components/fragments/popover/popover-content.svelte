@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { cn, type WithoutChildrenOrChild } from '$lib/common/utils/tailwind.js';
+	import { locale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { Popover as PopoverPrimitive } from 'bits-ui';
 	import type { ComponentProps } from 'svelte';
 	import PopoverPortal from './popover-portal.svelte';
@@ -20,6 +22,7 @@
 	<PopoverPrimitive.Content
 		bind:ref
 		data-slot="popover-content"
+		dir={localesMetadata[$locale].direction}
 		{sideOffset}
 		{align}
 		class={cn(

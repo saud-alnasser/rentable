@@ -34,6 +34,6 @@
 	{...restProps}
 	bind:ref
 >
-	<ArrowLeftIcon class="size-4" />
+	<ArrowLeftIcon class="size-4 rtl:rotate-180" />
 	<span class="sr-only">{$LL.common.ui.previousSlide()}</span>
 </Button>
