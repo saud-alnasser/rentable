@@ -25,5 +25,5 @@
 	{...restProps}
 >
 	{@render children?.()}
-	<ChevronRightIcon class="ms-auto" />
+	<ChevronRightIcon class="ms-auto rtl:rotate-180" />
 </ContextMenuPrimitive.SubTrigger>

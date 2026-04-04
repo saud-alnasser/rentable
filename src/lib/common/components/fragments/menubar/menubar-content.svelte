@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { cn, type WithoutChildrenOrChild } from '$lib/common/utils/tailwind.js';
+	import { locale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { Menubar as MenubarPrimitive } from 'bits-ui';
 	import type { ComponentProps } from 'svelte';
 	import MenubarPortal from './menubar-portal.svelte';
@@ -22,6 +24,7 @@
 	<MenubarPrimitive.Content
 		bind:ref
 		data-slot="menubar-content"
+		dir={localesMetadata[$locale].direction}
 		{sideOffset}
 		{align}
 		{alignOffset}

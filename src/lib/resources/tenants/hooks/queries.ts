@@ -35,6 +35,13 @@ export const keys = {
 	dataView: (search?: string) => ['tenants', 'data-view', search ?? '']
 } as const;
 
+async function invalidateTenantAndContractData(client: ReturnType<typeof useQueryClient>) {
+	await Promise.all([
+		client.invalidateQueries({ queryKey: keys.all }),
+		client.invalidateQueries({ queryKey: ['contracts'] })
+	]);
+}
+
 export function useFetchTenants(params: () => FetchTenantsParams = () => ({})) {
 	return createQuery(() => {
 		const { search, limit, enabled = true } = params();
@@ -108,9 +115,8 @@ export function useCreateTenant(
 
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.tenant.create>[0]) => api.tenant.create(data),
-		onSuccess: () => {
-			client.invalidateQueries({ queryKey: keys.all });
-			client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
+		onSuccess: async () => {
+			await invalidateTenantAndContractData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -131,9 +137,8 @@ export function useUpdateTenant(
 
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.tenant.update>[0]) => api.tenant.update(data),
-		onSuccess: () => {
-			client.invalidateQueries({ queryKey: keys.all });
-			client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
+		onSuccess: async () => {
+			await invalidateTenantAndContractData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -154,9 +159,8 @@ export function useDeleteTenant(
 
 	return createMutation(() => ({
 		mutationFn: (id: number) => api.tenant.delete({ id }),
-		onSuccess: () => {
-			client.invalidateQueries({ queryKey: keys.all });
-			client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
+		onSuccess: async () => {
+			await invalidateTenantAndContractData(client);
 
 			onMutationSuccess(opts);
 		},

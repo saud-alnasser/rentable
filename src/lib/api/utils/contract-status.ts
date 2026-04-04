@@ -25,8 +25,9 @@ type UnitAssignmentLike = {
 };
 
 const EPSILON = 0.0001;
-const FIXED_MONTH_DAYS = 30;
 const UTC_DAY_MS = 24 * 60 * 60 * 1000;
+
+export const CONTRACT_END_DATE_TOLERANCE_DAYS = 5;
 
 const INTERVAL_MONTHS: Record<Contract['interval'], number> = {
 	'1m': 1,
@@ -45,54 +46,110 @@ function addUtcDays(value: Date, days: number) {
 	return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate() + days));
 }
 
-function getInclusiveUtcDayCount(start: DateLike, end: DateLike) {
-	const normalizedStart = toUtcDay(start).getTime();
-	const normalizedEnd = toUtcDay(end).getTime();
+function addUtcMonths(value: DateLike, months: number) {
+	const date = toUtcDay(value);
+	const targetMonth = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
+	const year = targetMonth.getUTCFullYear();
+	const month = targetMonth.getUTCMonth();
+	const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 
-	return Math.floor((normalizedEnd - normalizedStart) / UTC_DAY_MS) + 1;
-}
-
-function getWholeContractCycleCount(contract: Pick<ContractLike, 'start' | 'end' | 'interval'>) {
-	const inclusiveDayCount = getInclusiveUtcDayCount(contract.start, contract.end);
-	const intervalDayCount = getIntervalDays(contract.interval);
-
-	if (inclusiveDayCount < intervalDayCount || inclusiveDayCount % intervalDayCount !== 0) {
-		return undefined;
-	}
-
-	return inclusiveDayCount / intervalDayCount;
+	return new Date(Date.UTC(year, month, Math.min(date.getUTCDate(), lastDayOfMonth)));
 }
 
 export function getIntervalMonths(interval: Contract['interval']) {
 	return INTERVAL_MONTHS[interval];
 }
 
-export function getIntervalDays(interval: Contract['interval']) {
-	return getIntervalMonths(interval) * FIXED_MONTH_DAYS;
+export function getContractCycleStartDate(
+	start: DateLike,
+	interval: Contract['interval'],
+	cycleOffset: number
+) {
+	return addUtcMonths(start, getIntervalMonths(interval) * cycleOffset);
 }
 
-export function getMinimumContractPeriodDays(interval: Contract['interval']) {
-	return getIntervalDays(interval);
+export function getContractEndDateForCycles(
+	start: DateLike,
+	interval: Contract['interval'],
+	cycleCount: number
+) {
+	if (!Number.isInteger(cycleCount) || cycleCount <= 0) {
+		return undefined;
+	}
+
+	return addUtcDays(getContractCycleStartDate(start, interval, cycleCount), -1);
+}
+
+export function getContractEndDateWindow(
+	start: DateLike,
+	interval: Contract['interval'],
+	cycleCount: number,
+	toleranceDays = CONTRACT_END_DATE_TOLERANCE_DAYS
+) {
+	const calculatedEnd = getContractEndDateForCycles(start, interval, cycleCount);
+
+	if (!calculatedEnd) {
+		return undefined;
+	}
+
+	return {
+		start: addUtcDays(calculatedEnd, -toleranceDays),
+		end: addUtcDays(calculatedEnd, toleranceDays),
+		calculatedEnd
+	};
+}
+
+export function getContractCycleCountForPeriod(
+	contract: Pick<ContractLike, 'start' | 'end' | 'interval'>,
+	toleranceDays = CONTRACT_END_DATE_TOLERANCE_DAYS
+) {
+	const start = toUtcDay(contract.start);
+	const end = toUtcDay(contract.end);
+
+	if (end.getTime() < start.getTime()) {
+		return undefined;
+	}
+
+	const maxExpectedEnd = end.getTime() + toleranceDays * UTC_DAY_MS;
+
+	for (let cycleCount = 1; ; cycleCount += 1) {
+		const calculatedEnd = getContractEndDateForCycles(start, contract.interval, cycleCount);
+
+		if (!calculatedEnd) {
+			return undefined;
+		}
+
+		const differenceInDays = (end.getTime() - calculatedEnd.getTime()) / UTC_DAY_MS;
+
+		if (Math.abs(differenceInDays) <= toleranceDays) {
+			return cycleCount;
+		}
+
+		if (calculatedEnd.getTime() > maxExpectedEnd) {
+			return undefined;
+		}
+	}
 }
 
 export function countExpectedPayments(contract: ContractLike, now: DateLike = Date.now()) {
 	const start = toUtcDay(contract.start);
 	const end = toUtcDay(contract.end);
 	const today = toUtcDay(now);
+	const totalCycleCount = getContractCycleCountForPeriod(contract);
 
 	if (today.getTime() < start.getTime()) {
 		return 0;
 	}
 
 	const dueUntil = today.getTime() < end.getTime() ? today : end;
-	const intervalDays = getIntervalDays(contract.interval);
+	const maxExpectedPayments = totalCycleCount ?? Number.MAX_SAFE_INTEGER;
 
 	let expectedPayments = 1;
-	let nextDueDate = addUtcDays(start, intervalDays);
+	let nextDueDate = getContractCycleStartDate(start, contract.interval, 1);
 
-	while (nextDueDate.getTime() <= dueUntil.getTime()) {
+	while (expectedPayments < maxExpectedPayments && nextDueDate.getTime() <= dueUntil.getTime()) {
 		expectedPayments += 1;
-		nextDueDate = addUtcDays(nextDueDate, intervalDays);
+		nextDueDate = getContractCycleStartDate(start, contract.interval, expectedPayments);
 	}
 
 	return expectedPayments;
@@ -132,7 +189,7 @@ export function getExpectedAmountInRange(
 }
 
 export function getContractTotalCost(contract: ContractLike) {
-	const cycleCount = getWholeContractCycleCount(contract);
+	const cycleCount = getContractCycleCountForPeriod(contract);
 
 	return (cycleCount ?? countExpectedPayments(contract, contract.end)) * contract.cost;
 }
@@ -169,7 +226,7 @@ export function getOutstandingExpectedAmount(
 export function hasValidContractPeriodForInterval(
 	contract: Pick<ContractLike, 'start' | 'end' | 'interval'>
 ) {
-	return getWholeContractCycleCount(contract) !== undefined;
+	return getContractCycleCountForPeriod(contract) !== undefined;
 }
 
 export function deriveContractStatus(

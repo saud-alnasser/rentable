@@ -26,5 +26,5 @@
 	{...restProps}
 >
 	<span class="hidden sm:block">{$LL.common.ui.next()}</span>
-	<ChevronRightIcon /></PaginationPrimitive.NextButton
+	<ChevronRightIcon class="rtl:rotate-180" /></PaginationPrimitive.NextButton
 >

@@ -34,7 +34,7 @@
 	let unit = $state<Unit | undefined>(undefined);
 	let isUnitFormOpen = $state(false);
 	let isDeleteDialogOpen = $state(false);
-	const unitsVirtualThreshold = 8;
+	const unitsVirtualThreshold = 3;
 	const unitsVirtualViewportHeight = 'min(72vh, 48rem)';
 
 	const getSearchValue = (record: Unit) => [record.name, record.status].join(' ');
@@ -76,7 +76,7 @@
 				)}
 			>
 				<CardHeader class="gap-3 border-b pb-4">
-					<div class="space-y-2">
+					<div class="space-y-2 text-start">
 						<CardTitle>{record.name}</CardTitle>
 						<CardDescription>{$LL.common.labels.unit()} #{record.id}</CardDescription>
 						<Badge
@@ -112,7 +112,7 @@
 						/>
 					</CardAction>
 				</CardHeader>
-				<CardContent class="grid gap-3 pt-4 sm:grid-cols-2">
+				<CardContent class="grid gap-3 pt-4 sm:grid-cols-2 [&>*]:text-start">
 					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.status()}

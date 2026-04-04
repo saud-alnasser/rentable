@@ -1,18 +1,6 @@
 <script lang="ts">
 	import api from '$lib/api/mod';
-	import { tauri, type Recovery } from '$lib/api/tauri';
-	import Navbar from '$lib/common/components/blocks/navbar.svelte';
-	import WindowControls from '$lib/common/components/blocks/window-controls.svelte';
-	import { Button } from '$lib/common/components/fragments/button';
-	import { Callout } from '$lib/common/components/fragments/callout';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/common/components/fragments/card';
-	import { Spinner } from '$lib/common/components/fragments/spinner';
+	import type { Recovery } from '$lib/api/tauri';
 	import { TooltipProvider } from '$lib/common/components/fragments/tooltip';
 	import SonnerProvider from '$lib/common/components/providers/sonner-provider.svelte';
 	import LL, { locale, setLocale } from '$lib/i18n/i18n-svelte';
@@ -20,6 +8,10 @@
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { baseLocale, locales } from '$lib/i18n/i18n-util';
 	import { loadLocaleAsync } from '$lib/i18n/i18n-util.async';
+	import LayoutFrame from '$lib/resources/layout/components/layout-frame.svelte';
+	import LayoutStartupError from '$lib/resources/layout/components/layout-startup-error.svelte';
+	import LayoutStartupLoading from '$lib/resources/layout/components/layout-startup-loading.svelte';
+	import LayoutStartupRecovery from '$lib/resources/layout/components/layout-startup-recovery.svelte';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { onMount } from 'svelte';
 	import '../app.css';
@@ -39,6 +31,7 @@
 	let startupState = $state<StartupState>('loading');
 	let startupError = $state<string | null>(null);
 	let startupRecovery = $state<Recovery | null>(null);
+	let currentDirection = $derived(localesMetadata[$locale].direction);
 
 	function getErrorMessage(error: unknown) {
 		if (error instanceof Error && error.message.trim()) {
@@ -132,6 +125,17 @@
 		startApp();
 	});
 
+	$effect(() => {
+		if (!isI18nReady || typeof document === 'undefined') {
+			return;
+		}
+
+		document.documentElement.lang = $locale;
+		document.documentElement.dir = currentDirection;
+		document.body.setAttribute('lang', $locale);
+		document.body.dir = currentDirection;
+	});
+
 	let { children } = $props();
 </script>
 
@@ -139,124 +143,17 @@
 	<QueryClientProvider client={queryClient}>
 		<SonnerProvider>
 			<TooltipProvider>
-				<div
-					lang={$locale}
-					dir={localesMetadata[$locale].direction}
-					class="relative isolate flex h-screen min-h-0 w-screen min-w-0 flex-col overflow-hidden border border-border/50 bg-background/78 shadow-xl backdrop-blur-xl"
-				>
-					<div aria-hidden="true" class="pointer-events-none absolute inset-0 overflow-hidden">
-						<div
-							class="absolute top-[-10rem] left-[-5rem] h-72 w-72 rounded-full bg-sky-400/7 blur-3xl"
-						></div>
-						<div
-							class="absolute top-[8%] right-[-6rem] h-80 w-80 rounded-full bg-violet-400/6 blur-3xl"
-						></div>
-						<div
-							class="absolute bottom-[-14rem] left-[22%] h-96 w-96 rounded-full bg-emerald-400/4 blur-3xl"
-						></div>
-					</div>
-
-					<header class="relative z-10 shrink-0">
-						<WindowControls />
-					</header>
-
-					<main
-						class="app-scroll @container/main relative z-10 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 pb-28"
-					>
-						{#if startupState === 'loading'}
-							<div class="flex min-h-full flex-1 items-center justify-center p-1">
-								<div class="flex flex-col items-center gap-3">
-									<Spinner class="size-8 text-muted-foreground" />
-									<p class="text-sm text-muted-foreground">{$LL.common.messages.loadingApp()}</p>
-								</div>
-							</div>
-						{:else if startupState === 'recovery' && startupRecovery}
-							<div class="flex min-h-full flex-1 items-center justify-center p-1">
-								<Card class="w-full max-w-2xl gap-4">
-									<CardHeader>
-										<CardTitle>{$LL.layout.startup.recoveryRequiredTitle()}</CardTitle>
-										<CardDescription>
-											{$LL.layout.startup.recoveryDescription({
-												version: startupRecovery.targetVersion || $LL.common.messages.unknown()
-											})}
-										</CardDescription>
-									</CardHeader>
-									<CardContent class="space-y-4">
-										{#if startupRecovery.updateError}
-											<Callout variant="error">{startupRecovery.updateError}</Callout>
-										{/if}
-
-										<div class="grid gap-3 sm:grid-cols-2">
-											<div class="rounded-lg border bg-muted/15 p-3">
-												<p class="text-xs tracking-wide text-muted-foreground uppercase">
-													{$LL.layout.startup.startupRecoveryBackup()}
-												</p>
-												<p class="mt-1 font-medium break-all">{startupRecovery.backupFilename}</p>
-											</div>
-											<div class="rounded-lg border bg-muted/15 p-3">
-												<p class="text-xs tracking-wide text-muted-foreground uppercase">
-													{$LL.layout.startup.previousVersion()}
-												</p>
-												<p class="mt-1 font-medium">
-													{startupRecovery.backupVersion || $LL.common.messages.unknown()}
-												</p>
-											</div>
-										</div>
-
-										<p class="text-sm text-muted-foreground">
-											{$LL.layout.startup.recoveryDetails({
-												backupVersion:
-													startupRecovery.backupVersion || $LL.common.messages.unknown()
-											})}
-										</p>
-
-										<div class="flex flex-wrap gap-3">
-											<Button onclick={() => void startApp()}>
-												{$LL.common.actions.retryStartup()}
-											</Button>
-											<Button
-												variant="outline"
-												onclick={() => {
-													const backupReleaseUrl = startupRecovery?.backupReleaseUrl;
-
-													if (backupReleaseUrl) {
-														void tauri.opener.openUrl(backupReleaseUrl);
-													}
-												}}
-												disabled={!startupRecovery.backupReleaseUrl}
-											>
-												{$LL.common.actions.openPreviousRelease()}
-											</Button>
-										</div>
-									</CardContent>
-								</Card>
-							</div>
-						{:else if startupState === 'error'}
-							<div class="flex min-h-full flex-1 items-center justify-center p-1">
-								<Card class="w-full max-w-lg gap-4">
-									<CardHeader>
-										<CardTitle>{$LL.layout.startup.failedToStartTitle()}</CardTitle>
-										<CardDescription>
-											{$LL.layout.startup.failedToStartDescription()}
-										</CardDescription>
-									</CardHeader>
-									<CardContent class="space-y-4">
-										<p class="text-sm text-muted-foreground">{startupError}</p>
-										<Button onclick={() => void startApp()}
-											>{$LL.common.actions.retryStartup()}</Button
-										>
-									</CardContent>
-								</Card>
-							</div>
-						{:else}
-							{@render children?.()}
-						{/if}
-					</main>
-
-					{#if startupState === 'ready'}
-						<Navbar />
+				<LayoutFrame {currentDirection} showNavbar={startupState === 'ready'}>
+					{#if startupState === 'loading'}
+						<LayoutStartupLoading />
+					{:else if startupState === 'recovery' && startupRecovery}
+						<LayoutStartupRecovery recovery={startupRecovery} onRetry={() => void startApp()} />
+					{:else if startupState === 'error'}
+						<LayoutStartupError message={startupError} onRetry={() => void startApp()} />
+					{:else}
+						{@render children?.()}
 					{/if}
-				</div>
+				</LayoutFrame>
 			</TooltipProvider>
 		</SonnerProvider>
 	</QueryClientProvider>

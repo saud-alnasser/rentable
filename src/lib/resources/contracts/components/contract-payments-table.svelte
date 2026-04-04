@@ -7,7 +7,13 @@
 	import { renderComponent, renderSnippet } from '$lib/common/components/fragments/data-table';
 	import { Progress } from '$lib/common/components/fragments/progress';
 	import { Skeleton } from '$lib/common/components/fragments/skeleton';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import {
+		formatLocaleDate,
+		formatLocaleNumber,
+		formatLocaleRangeWithUnit,
+		formatLocaleValueWithUnit
+	} from '$lib/common/utils/locale';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
 		useDeletePayment,
 		useFetchContract,
@@ -17,12 +23,13 @@
 	import PaymentForm from './payment-form.svelte';
 
 	const formatDate = (value: number) =>
-		new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' }).format(
-			new Date(value)
-		);
+		formatLocaleDate($locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 
-	const formatCurrency = (value: number) =>
-		new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value);
+	const formatCurrency = (value: number) => formatLocaleNumber($locale, value);
+	const formatMoney = (value: number) =>
+		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
+	const formatMoneyRange = (start: number, end: number) =>
+		formatLocaleRangeWithUnit($locale, start, end, $LL.common.messages.sar());
 
 	let { contractId }: { contractId: number } = $props();
 
@@ -156,10 +163,7 @@
 		<div class="mb-2 flex items-center justify-between gap-3 text-sm">
 			<span class="font-medium">{$LL.common.labels.paymentFulfillment()}</span>
 			<span class="text-muted-foreground">
-				{formatCurrency(paymentProgress.paidAmount)} / {formatCurrency(
-					paymentProgress.expectedAmount
-				)}
-				{$LL.common.messages.sar()}
+				{formatMoneyRange(paymentProgress.paidAmount, paymentProgress.expectedAmount)}
 			</span>
 		</div>
 
@@ -232,8 +236,5 @@
 {/snippet}
 
 {#snippet AmountCell({ value }: { value: number })}
-	<div class="flex flex-row gap-1">
-		<span>{value}</span>
-		<span>{$LL.common.messages.sar()}</span>
-	</div>
+	<span>{formatMoney(value)}</span>
 {/snippet}

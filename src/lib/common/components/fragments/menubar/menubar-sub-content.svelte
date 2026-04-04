@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { cn } from '$lib/common/utils/tailwind.js';
+	import { locale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { Menubar as MenubarPrimitive } from 'bits-ui';
 
 	let {
@@ -12,6 +14,7 @@
 <MenubarPrimitive.SubContent
 	bind:ref
 	data-slot="menubar-sub-content"
+	dir={localesMetadata[$locale].direction}
 	class={cn(
 		'z-50 min-w-[8rem] origin-(--bits-menubar-content-transform-origin) overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-end-2 data-[side=right]:slide-in-from-start-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
 		className

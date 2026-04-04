@@ -42,8 +42,8 @@
 	const virtualListClass =
 		'rounded-[1.5rem] border border-border/70 bg-background/30 shadow-lg backdrop-blur-xl';
 	const virtualListPaddingClass = 'p-2 sm:p-3';
-	const availableVirtualThreshold = 8;
-	const assignedVirtualThreshold = 6;
+	const availableVirtualThreshold = 3;
+	const assignedVirtualThreshold = 3;
 	const availableVirtualEstimate = 104;
 	const assignedVirtualEstimate = 172;
 	const virtualViewportHeight = 'min(58vh, 34rem)';
@@ -353,7 +353,7 @@
 	<button
 		type="button"
 		class={cn(
-			'flex items-start gap-3 rounded-xl border border-border/60 bg-background/80 p-4 text-left shadow-sm transition-[background-color,border-color,box-shadow] hover:border-border hover:bg-background',
+			'flex items-start gap-3 rounded-xl border border-border/60 bg-background/80 p-4 text-start shadow-sm transition-[background-color,border-color,box-shadow] hover:border-border hover:bg-background',
 			isSelected && 'border-primary/50 bg-primary/5 ring-1 ring-primary/20'
 		)}
 		aria-pressed={isSelected}
@@ -380,8 +380,8 @@
 	<div
 		class="rounded-[1.25rem] border border-border/70 bg-background/60 p-4 shadow-lg backdrop-blur-md"
 	>
-		<div class="flex items-start justify-between gap-3">
-			<div class="min-w-0 space-y-1">
+		<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
+			<div class="min-w-0 space-y-1 text-start">
 				<p class="truncate font-semibold">{unit.name}</p>
 				<p class="text-sm text-muted-foreground">{unit.complexName}</p>
 			</div>
@@ -413,7 +413,7 @@
 			{/if}
 		</div>
 
-		<div class="mt-4 grid gap-3 sm:grid-cols-2">
+		<div class="mt-4 grid gap-3 sm:grid-cols-2 [&>*]:text-start">
 			<div class="rounded-xl border border-border/60 bg-accent/30 p-3 backdrop-blur-sm">
 				<p class="text-xs tracking-wide text-muted-foreground uppercase">
 					{$LL.common.labels.unit()}

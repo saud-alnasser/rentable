@@ -18,3 +18,10 @@
 >
 	{@render children?.()}
 </div>
+
+<style>
+	:global([dir='rtl'] [data-slot='card-action']) {
+		grid-column-start: 1;
+		justify-self: start;
+	}
+</style>

@@ -34,6 +34,6 @@
 	bind:ref
 	{...restProps}
 >
-	<ArrowRightIcon class="size-4" />
+	<ArrowRightIcon class="size-4 rtl:rotate-180" />
 	<span class="sr-only">{$LL.common.ui.nextSlide()}</span>
 </Button>

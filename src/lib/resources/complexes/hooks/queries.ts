@@ -36,6 +36,20 @@ export const keys = {
 	}
 } as const;
 
+async function invalidateComplexAndContractData(client: ReturnType<typeof useQueryClient>) {
+	await Promise.all([
+		client.invalidateQueries({ queryKey: keys.all }),
+		client.invalidateQueries({ queryKey: ['contracts'] })
+	]);
+}
+
+async function invalidateComplexUnitsAndContractData(client: ReturnType<typeof useQueryClient>) {
+	await Promise.all([
+		client.invalidateQueries({ queryKey: keys.units.all }),
+		client.invalidateQueries({ queryKey: ['contracts'] })
+	]);
+}
+
 export function useFetchComplexes() {
 	return createQuery(() => ({
 		queryKey: keys.all,
@@ -139,9 +153,8 @@ export function useCreateComplex(
 
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.complex.create>[0]) => api.complex.create(data),
-		onSuccess: () => {
-			client.invalidateQueries({ queryKey: keys.all });
-			client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
+		onSuccess: async () => {
+			await invalidateComplexAndContractData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -162,9 +175,8 @@ export function useUpdateComplex(
 
 	return createMutation(() => ({
 		mutationFn: (values: Parameters<typeof api.complex.update>[0]) => api.complex.update(values),
-		onSuccess: () => {
-			client.invalidateQueries({ queryKey: keys.all });
-			client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
+		onSuccess: async () => {
+			await invalidateComplexAndContractData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -185,9 +197,8 @@ export function useDeleteComplex(
 
 	return createMutation(() => ({
 		mutationFn: (id: number) => api.complex.delete({ id }),
-		onSuccess: () => {
-			client.invalidateQueries({ queryKey: keys.all });
-			client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
+		onSuccess: async () => {
+			await invalidateComplexAndContractData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -209,10 +220,8 @@ export function useCreateUnit(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.complex.units.create>[0]) =>
 			api.complex.units.create(data),
-		onSuccess: (created) => {
-			client.invalidateQueries({ queryKey: keys.units.all });
-			client.invalidateQueries({ queryKey: keys.units.getMany(created.complexId) });
-			client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
+		onSuccess: async (_created) => {
+			await invalidateComplexUnitsAndContractData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -234,10 +243,8 @@ export function useUpdateUnit(
 	return createMutation(() => ({
 		mutationFn: (values: Parameters<typeof api.complex.units.update>[0]) =>
 			api.complex.units.update(values),
-		onSuccess: (updated) => {
-			client.invalidateQueries({ queryKey: keys.units.all });
-			client.invalidateQueries({ queryKey: keys.units.getMany(updated.complexId) });
-			client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
+		onSuccess: async (_updated) => {
+			await invalidateComplexUnitsAndContractData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -258,11 +265,9 @@ export function useDeleteUnit(
 
 	return createMutation(() => ({
 		mutationFn: (id: number) => api.complex.units.delete({ id }),
-		onSuccess: (deleted) => {
+		onSuccess: async (deleted) => {
 			if (deleted) {
-				client.invalidateQueries({ queryKey: keys.units.all });
-				client.invalidateQueries({ queryKey: keys.units.getMany(deleted.complexId) });
-				client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
+				await invalidateComplexUnitsAndContractData(client);
 			}
 
 			onMutationSuccess(opts);

@@ -13,7 +13,12 @@
 	import { Badge } from '$lib/common/components/fragments/badge';
 	import { renderComponent, renderSnippet } from '$lib/common/components/fragments/data-table';
 	import * as Tooltip from '$lib/common/components/fragments/tooltip';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import {
+		formatLocaleDate,
+		formatLocaleNumber,
+		formatLocaleValueWithUnit
+	} from '$lib/common/utils/locale';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
 		useDeleteContract,
 		useFetchContracts,
@@ -54,12 +59,11 @@
 	};
 
 	const formatDate = (value: number) =>
-		new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' }).format(
-			new Date(value)
-		);
+		formatLocaleDate($locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 
-	const formatCurrency = (value: number) =>
-		new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value);
+	const formatCurrency = (value: number) => formatLocaleNumber($locale, value);
+	const formatMoney = (value: number) =>
+		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
 
 	const fetchQuery = useFetchContracts();
 	const deleteMutation = useDeleteContract();
@@ -278,10 +282,7 @@
 {/snippet}
 
 {#snippet CurrencyCell({ value }: { value: number })}
-	<div class="flex flex-row gap-1">
-		<span>{formatCurrency(value)}</span>
-		<span>{$LL.common.messages.sar()}</span>
-	</div>
+	<span>{formatMoney(value)}</span>
 {/snippet}
 
 {#snippet StatusBadge({ status }: { status: Contract['status'] })}
