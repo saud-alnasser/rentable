@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 0
 
       - name: '🛠️ setup pnpm'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: '🔧 setup node'
         uses: actions/setup-node@v6
@@ -112,7 +112,7 @@ jobs:
           ref: ${{ needs.changesets.outputs.release_tag }}
 
       - name: '🛠️ setup pnpm'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: '🔧 setup node'
         uses: actions/setup-node@v6
