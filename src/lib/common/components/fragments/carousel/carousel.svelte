@@ -22,15 +22,12 @@
 		api: undefined,
 		scrollPrev,
 		scrollNext,
-		// svelte-ignore state_referenced_locally
-		orientation,
+		orientation: 'horizontal',
 		canScrollNext: false,
 		canScrollPrev: false,
 		handleKeyDown,
-		// svelte-ignore state_referenced_locally
-		options: opts,
-		// svelte-ignore state_referenced_locally
-		plugins,
+		options: {},
+		plugins: [],
 		onInit,
 		scrollSnaps: [],
 		selectedIndex: 0,
@@ -38,6 +35,12 @@
 	});
 
 	setEmblaContext(carouselState);
+
+	$effect(() => {
+		carouselState.orientation = orientation;
+		carouselState.options = opts;
+		carouselState.plugins = plugins;
+	});
 
 	function scrollPrev() {
 		carouselState.api?.scrollPrev();

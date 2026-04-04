@@ -54,18 +54,17 @@
 	const getItemClass = (action: ActionItem) => cn('capitalize', action.class ?? '');
 
 	const getItemProps = (action: ActionItem): DropdownMenuPrimitive.ItemProps => {
-		const {
-			type: _type,
-			label: _label,
-			icon: _icon,
-			variant: _variant,
-			inset: _inset,
-			key: _key,
-			class: _class,
-			...itemProps
-		} = action;
+		const itemProps = { ...action } as Partial<ActionItem>;
 
-		return itemProps;
+		delete itemProps.type;
+		delete itemProps.label;
+		delete itemProps.icon;
+		delete itemProps.variant;
+		delete itemProps.inset;
+		delete itemProps.key;
+		delete itemProps.class;
+
+		return itemProps as DropdownMenuPrimitive.ItemProps;
 	};
 </script>
 

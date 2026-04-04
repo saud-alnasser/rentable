@@ -136,7 +136,7 @@ export function useUpdateContract(
 
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.contract.update>[0]) => api.contract.update(data),
-		onSuccess: async (_updated) => {
+		onSuccess: async () => {
 			await invalidateContractData(client);
 
 			onMutationSuccess(opts);
@@ -182,7 +182,7 @@ export function useTerminateContract(
 
 	return createMutation(() => ({
 		mutationFn: (id: number) => api.contract.terminate({ id }),
-		onSuccess: async (_terminated) => {
+		onSuccess: async () => {
 			await invalidateContractData(client);
 
 			onMutationSuccess(opts);
@@ -204,7 +204,7 @@ export function useUnterminateContract(
 
 	return createMutation(() => ({
 		mutationFn: (id: number) => api.contract.unterminate({ id }),
-		onSuccess: async (_restored) => {
+		onSuccess: async () => {
 			await invalidateContractData(client);
 
 			onMutationSuccess(opts);
@@ -256,7 +256,7 @@ export function useAssignContractUnits(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.contract.units.assign>[0]) =>
 			api.contract.units.assign(data),
-		onSuccess: async (_result, _variables) => {
+		onSuccess: async () => {
 			await invalidateContractAndComplexUnitData(client);
 
 			onMutationSuccess(opts);
@@ -279,7 +279,7 @@ export function useRemoveContractUnit(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.contract.units.remove>[0]) =>
 			api.contract.units.remove(data),
-		onSuccess: async (_removed) => {
+		onSuccess: async () => {
 			await invalidateContractAndComplexUnitData(client);
 
 			onMutationSuccess(opts);
@@ -339,7 +339,7 @@ export function useCreatePayment(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.contract.payments.create>[0]) =>
 			api.contract.payments.create(data),
-		onSuccess: async (_created) => {
+		onSuccess: async () => {
 			await invalidateContractData(client);
 
 			onMutationSuccess(opts);
@@ -362,7 +362,7 @@ export function useUpdatePayment(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.contract.payments.update>[0]) =>
 			api.contract.payments.update(data),
-		onSuccess: async (_updated) => {
+		onSuccess: async () => {
 			await invalidateContractData(client);
 
 			onMutationSuccess(opts);

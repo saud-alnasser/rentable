@@ -18,7 +18,6 @@
 	}
 </script>
 
-<!-- svelte-ignore state_referenced_locally -->
 <script lang="ts">
 	import { cn } from '$lib/common/utils/tailwind.js';
 	import { ToggleGroup as ToggleGroupPrimitive } from 'bits-ui';
@@ -34,9 +33,15 @@
 	}: ToggleGroupPrimitive.RootProps & ToggleVariants & { spacing?: number } = $props();
 
 	setToggleGroupCtx({
-		variant,
-		size,
-		spacing
+		get variant() {
+			return variant;
+		},
+		get size() {
+			return size;
+		},
+		get spacing() {
+			return spacing;
+		}
 	});
 </script>
 

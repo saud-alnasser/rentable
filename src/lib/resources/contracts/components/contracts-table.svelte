@@ -13,11 +13,7 @@
 	import { Badge } from '$lib/common/components/fragments/badge';
 	import { renderComponent, renderSnippet } from '$lib/common/components/fragments/data-table';
 	import * as Tooltip from '$lib/common/components/fragments/tooltip';
-	import {
-		formatLocaleDate,
-		formatLocaleNumber,
-		formatLocaleValueWithUnit
-	} from '$lib/common/utils/locale';
+	import { formatLocaleDate, formatLocaleValueWithUnit } from '$lib/common/utils/locale';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
 		useDeleteContract,
@@ -61,7 +57,6 @@
 	const formatDate = (value: number) =>
 		formatLocaleDate($locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 
-	const formatCurrency = (value: number) => formatLocaleNumber($locale, value);
 	const formatMoney = (value: number) =>
 		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
 
