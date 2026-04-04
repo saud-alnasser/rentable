@@ -11,7 +11,9 @@ try {
 	execSync(`git rev-parse ${tag}`, { stdio: 'ignore' });
 	console.log(`tag ${tag} already exists; skipping publish step.`);
 	process.exit(0);
-} catch {}
+} catch {
+	console.log(`tag ${tag} does not exist yet; creating it.`);
+}
 
 execSync(`git tag ${tag}`, { stdio: 'inherit' });
 execSync(`git push origin ${tag}`, { stdio: 'inherit' });

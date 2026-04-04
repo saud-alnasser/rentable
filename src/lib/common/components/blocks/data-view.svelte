@@ -57,6 +57,7 @@
 	const rowGap = 16;
 	const virtualContentPaddingClass = 'p-2 sm:p-3';
 	const nonVirtualBottomSpacingClass = 'pb-3 sm:pb-4';
+	const trackEffectDependencies = (...values: unknown[]) => values.length;
 
 	let viewportRef = $state<HTMLElement | null>(null);
 	let loadMoreRef = $state<HTMLDivElement | null>(null);
@@ -204,8 +205,7 @@
 	$effect(() => {
 		if (!isVirtualizerReady) return;
 
-		columnCount;
-		rowMeasureKeys;
+		trackEffectDependencies(columnCount, rowMeasureKeys);
 
 		void tick().then(() => {
 			get(virtualizer).measure();
@@ -215,7 +215,7 @@
 	$effect(() => {
 		if (!isVirtualizerReady || !viewportRef) return;
 
-		normalizedSearch;
+		trackEffectDependencies(normalizedSearch);
 
 		void tick().then(() => {
 			const instance = get(virtualizer);
@@ -247,12 +247,14 @@
 		};
 	});
 
-	function measureRow(node: HTMLDivElement, _rowKey: string) {
+	function measureRow(node: HTMLDivElement, rowKey: string) {
+		void rowKey;
 		const instance = get(virtualizer);
 		instance.measureElement(node);
 
 		return {
-			update() {
+			update(nextRowKey: string) {
+				void nextRowKey;
 				instance.measureElement(node);
 			},
 			destroy() {

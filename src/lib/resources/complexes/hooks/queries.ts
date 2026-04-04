@@ -220,7 +220,7 @@ export function useCreateUnit(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.complex.units.create>[0]) =>
 			api.complex.units.create(data),
-		onSuccess: async (_created) => {
+		onSuccess: async () => {
 			await invalidateComplexUnitsAndContractData(client);
 
 			onMutationSuccess(opts);
@@ -243,7 +243,7 @@ export function useUpdateUnit(
 	return createMutation(() => ({
 		mutationFn: (values: Parameters<typeof api.complex.units.update>[0]) =>
 			api.complex.units.update(values),
-		onSuccess: async (_updated) => {
+		onSuccess: async () => {
 			await invalidateComplexUnitsAndContractData(client);
 
 			onMutationSuccess(opts);

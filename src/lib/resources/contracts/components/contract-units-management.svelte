@@ -47,6 +47,7 @@
 	const availableVirtualEstimate = 104;
 	const assignedVirtualEstimate = 172;
 	const virtualViewportHeight = 'min(58vh, 34rem)';
+	const trackEffectDependencies = (...values: unknown[]) => values.length;
 
 	let selectedComplexId = $state('');
 	let selectedUnitIds = $state<number[]>([]);
@@ -300,8 +301,7 @@
 	$effect(() => {
 		if (!isAvailableVirtualReady) return;
 
-		availableColumnCount;
-		availableRowKeys;
+		trackEffectDependencies(availableColumnCount, availableRowKeys);
 
 		void tick().then(() => {
 			get(availableVirtualizer).measure();
@@ -311,20 +311,21 @@
 	$effect(() => {
 		if (!isAssignedVirtualReady) return;
 
-		assignedColumnCount;
-		assignedRowKeys;
+		trackEffectDependencies(assignedColumnCount, assignedRowKeys);
 
 		void tick().then(() => {
 			get(assignedVirtualizer).measure();
 		});
 	});
 
-	function measureAvailableRow(node: HTMLDivElement, _rowKey: string) {
+	function measureAvailableRow(node: HTMLDivElement, rowKey: string) {
+		void rowKey;
 		const instance = get(availableVirtualizer);
 		instance.measureElement(node);
 
 		return {
-			update() {
+			update(nextRowKey: string) {
+				void nextRowKey;
 				instance.measureElement(node);
 			},
 			destroy() {
@@ -333,12 +334,14 @@
 		};
 	}
 
-	function measureAssignedRow(node: HTMLDivElement, _rowKey: string) {
+	function measureAssignedRow(node: HTMLDivElement, rowKey: string) {
+		void rowKey;
 		const instance = get(assignedVirtualizer);
 		instance.measureElement(node);
 
 		return {
-			update() {
+			update(nextRowKey: string) {
+				void nextRowKey;
 				instance.measureElement(node);
 			},
 			destroy() {
