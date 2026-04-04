@@ -50,7 +50,7 @@ jobs:
 
       - name: '🔎 detect latest tag needing artifacts'
         id: detect
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const { execSync } = require('node:child_process');
