@@ -1,5 +1,11 @@
 # rentable
 
+## 0.8.1
+
+### Patch Changes
+
+- [#75](https://github.com/saud-alnasser/rentable/pull/75) [`2bfb84c`](https://github.com/saud-alnasser/rentable/commit/2bfb84ceb2d220b1521a9238bd5841ebe1ef509b) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - fixed all linting issues
+
 ## 0.8.0
 
 ### Minor Changes
