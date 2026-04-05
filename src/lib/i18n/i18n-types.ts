@@ -217,7 +217,7 @@ type RootTranslation = {
 			 */
 			contractPeriod: string
 			/**
-			 * c​o​s​t​ ​p​e​r​ ​p​a​y​m​e​n​t
+			 * c​o​s​t​ ​p​e​r​ ​c​y​c​l​e
 			 */
 			costPerPayment: string
 			/**
@@ -1659,7 +1659,7 @@ export type TranslationFunctions = {
 			 */
 			contractPeriod: () => LocalizedString
 			/**
-			 * cost per payment
+			 * cost per cycle
 			 */
 			costPerPayment: () => LocalizedString
 			/**

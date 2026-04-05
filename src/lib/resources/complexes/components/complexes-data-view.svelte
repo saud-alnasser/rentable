@@ -52,13 +52,7 @@
 						<CardDescription>{record.location}</CardDescription>
 					</div>
 				</CardHeader>
-				<CardContent class="grid gap-3 pt-4 sm:grid-cols-2 [&>*]:text-start">
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">
-							{$LL.common.labels.location()}
-						</p>
-						<p class="mt-2 text-sm font-medium">{record.location}</p>
-					</div>
+				<CardContent class="pt-4 [&>*]:text-start">
 					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.units()}

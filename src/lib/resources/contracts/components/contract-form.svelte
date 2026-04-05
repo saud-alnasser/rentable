@@ -226,6 +226,7 @@
 	};
 	const closeContractForm = () => {
 		isTenantPickerOpen = false;
+		isStartDatePickerOpen = false;
 		isEndDatePickerOpen = false;
 		tenantSearch = '';
 		lastHydratedFormKey = undefined;
@@ -329,6 +330,7 @@
 	);
 
 	let isTenantPickerOpen = $state(false);
+	let isStartDatePickerOpen = $state(false);
 	let isEndDatePickerOpen = $state(false);
 	let tenantSearch = $state('');
 	let contractStartDateValue = $state<CalendarDate | undefined>(undefined);
@@ -405,6 +407,7 @@
 			lastHydratedFormKey = undefined;
 			lastAutoCalculationKey = undefined;
 			lastObservedEndDateValue = undefined;
+			isStartDatePickerOpen = false;
 			isEndDatePickerOpen = false;
 			contractStartDateValue = undefined;
 			contractEndDateValue = undefined;
@@ -413,6 +416,7 @@
 		}
 
 		isTenantPickerOpen = false;
+		isStartDatePickerOpen = false;
 		isEndDatePickerOpen = false;
 		tenantSearch = '';
 
@@ -521,19 +525,6 @@
 				<div
 					class="grid gap-4 rounded-2xl border border-border/60 bg-card/25 p-4 backdrop-blur-sm md:grid-cols-2 md:p-5"
 				>
-					<Form.Field form={superform} name="govId">
-						<Form.Control>
-							<Form.Label>{$LL.common.labels.governmentIdOptional()}</Form.Label>
-							<Input
-								bind:value={$form.govId}
-								placeholder={$LL.common.labels.governmentIdOptional()}
-								aria-invalid={$errors.govId ? 'true' : undefined}
-								{...$constraints.govId}
-							/>
-						</Form.Control>
-						<Form.Description />
-					</Form.Field>
-
 					<Form.Field form={superform} name="tenantId">
 						<Form.Control>
 							<Form.Label>{$LL.common.labels.tenant()}</Form.Label>
@@ -612,6 +603,19 @@
 						<Form.Description />
 					</Form.Field>
 
+					<Form.Field form={superform} name="govId">
+						<Form.Control>
+							<Form.Label>{$LL.common.labels.governmentIdOptional()}</Form.Label>
+							<Input
+								bind:value={$form.govId}
+								placeholder={$LL.common.labels.governmentIdOptional()}
+								aria-invalid={$errors.govId ? 'true' : undefined}
+								{...$constraints.govId}
+							/>
+						</Form.Control>
+						<Form.Description />
+					</Form.Field>
+
 					<div class="md:col-span-2">
 						<div
 							class="grid gap-4 rounded-[1.35rem] border border-border/50 bg-background/28 p-4 md:grid-cols-2"
@@ -636,11 +640,30 @@
 								<Form.Description />
 							</Form.Field>
 
+							<Form.Field form={superform} name="cost">
+								<Form.Control>
+									<Form.Label>{$LL.common.labels.costPerPayment()}</Form.Label>
+									<Input
+										type="number"
+										min="0.01"
+										step="0.01"
+										value={$form.cost}
+										oninput={(event) => {
+											$form.cost = event.currentTarget.value;
+										}}
+										placeholder="0.00"
+										aria-invalid={$errors.cost ? 'true' : undefined}
+										{...$constraints.cost}
+									/>
+								</Form.Control>
+								<Form.Description />
+							</Form.Field>
+
 							<Form.Field form={superform} name="start">
 								<Form.Control>
 									<Form.Label>{$LL.contracts.form.startDate()}</Form.Label>
 									<input type="hidden" name="start" value={$form.start} />
-									<Popover.Root bind:open={isEndDatePickerOpen}>
+									<Popover.Root bind:open={isStartDatePickerOpen}>
 										<Popover.Trigger>
 											{#snippet child({ props })}
 												<Button
@@ -689,11 +712,11 @@
 								<Form.Description />
 							</Form.Field>
 
-							<Form.Field form={superform} name="end">
+							<Form.Field form={superform} name="end" class="md:col-span-2">
 								<Form.Control>
 									<Form.Label>{$LL.contracts.form.calculatedEndDate()}</Form.Label>
 									<input type="hidden" name="end" value={$form.end} />
-									<Popover.Root>
+									<Popover.Root bind:open={isEndDatePickerOpen}>
 										<Popover.Trigger>
 											{#snippet child({ props })}
 												<Button
@@ -753,25 +776,6 @@
 							</Form.Field>
 						</div>
 					</div>
-
-					<Form.Field form={superform} name="cost" class="md:col-span-2">
-						<Form.Control>
-							<Form.Label>{$LL.common.labels.costPerPayment()}</Form.Label>
-							<Input
-								type="number"
-								min="0.01"
-								step="0.01"
-								value={$form.cost}
-								oninput={(event) => {
-									$form.cost = event.currentTarget.value;
-								}}
-								placeholder="0.00"
-								aria-invalid={$errors.cost ? 'true' : undefined}
-								{...$constraints.cost}
-							/>
-						</Form.Control>
-						<Form.Description />
-					</Form.Field>
 				</div>
 
 				<Form.ErrorsSummary errors={$errors} class="mt-4" />

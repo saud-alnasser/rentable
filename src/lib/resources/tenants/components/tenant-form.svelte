@@ -168,19 +168,6 @@
 				<div
 					class="flex flex-col gap-4 rounded-2xl border border-border/60 bg-card/25 p-4 backdrop-blur-sm"
 				>
-					<Form.Field form={superform} name="nationalId">
-						<Form.Control>
-							<Form.Label>{$LL.common.labels.nationalId()}</Form.Label>
-							<Input
-								bind:value={$form.nationalId}
-								placeholder={$LL.common.labels.nationalId()}
-								aria-invalid={$errors.nationalId ? 'true' : undefined}
-								{...$constraints.nationalId}
-							/>
-						</Form.Control>
-						<Form.Description />
-					</Form.Field>
-
 					<Form.Field form={superform} name="name">
 						<Form.Control>
 							<Form.Label>{$LL.common.labels.name()}</Form.Label>
@@ -189,6 +176,19 @@
 								placeholder={$LL.common.labels.name()}
 								aria-invalid={$errors.name ? 'true' : undefined}
 								{...$constraints.name}
+							/>
+						</Form.Control>
+						<Form.Description />
+					</Form.Field>
+
+					<Form.Field form={superform} name="nationalId">
+						<Form.Control>
+							<Form.Label>{$LL.common.labels.nationalId()}</Form.Label>
+							<Input
+								bind:value={$form.nationalId}
+								placeholder={$LL.common.labels.nationalId()}
+								aria-invalid={$errors.nationalId ? 'true' : undefined}
+								{...$constraints.nationalId}
 							/>
 						</Form.Control>
 						<Form.Description />

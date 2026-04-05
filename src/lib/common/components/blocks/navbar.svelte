@@ -62,13 +62,14 @@
 
 <nav
 	aria-label={$LL.common.nav.primary()}
-	class="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4"
+	class="pointer-events-none flex h-full max-w-full min-w-0 justify-center"
 	dir="ltr"
 >
 	<div
-		class="pointer-events-auto flex items-center gap-1.5 rounded-[1.6rem] border border-border/60 bg-background/56 p-2 shadow-lg backdrop-blur-xl"
+		class="pointer-events-auto flex h-11 min-h-11 max-w-full min-w-0 items-center justify-center gap-1.5 px-2.5 [-webkit-app-region:drag]"
 	>
 		{#each items as item (item.label)}
+			{@const active = isActive(item.url)}
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					{#snippet child({ props })}
@@ -77,15 +78,16 @@
 							href={resolve(item.url)}
 							onclick={(event) => navigateTo(event, item.url)}
 							variant="ghost"
-							size="icon-lg"
+							size="icon-sm"
 							aria-label={item.label()}
-							aria-current={isActive(item.url) ? 'page' : undefined}
+							aria-current={active ? 'page' : undefined}
+							data-active={active ? 'true' : undefined}
 							class={cn(
-								'rounded-[1rem] border border-transparent bg-transparent text-muted-foreground hover:border-border/50 hover:bg-background/60 hover:text-foreground',
-								isActive(item.url) && 'border-primary/15 bg-primary/10 text-primary'
+								'border-border/55 bg-background/50 shadow-none [-webkit-app-region:no-drag]',
+								active && 'text-primary'
 							)}
 						>
-							<item.icon class="size-5" />
+							<item.icon class="size-3.5" />
 							<span class="sr-only">{item.label()}</span>
 						</Button>
 					{/snippet}

@@ -24,6 +24,7 @@
 		useFetchVacantContractUnits,
 		useRemoveContractUnit
 	} from '$lib/resources/contracts/hooks/queries';
+	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -31,7 +32,15 @@
 	import { tick } from 'svelte';
 	import { get } from 'svelte/store';
 
-	let { contractId }: { contractId: number } = $props();
+	let {
+		contractId,
+		backHref,
+		showHeader = true
+	}: {
+		contractId: number;
+		backHref?: string;
+		showHeader?: boolean;
+	} = $props();
 
 	const contractQuery = useFetchContract(() => contractId);
 	const complexesQuery = useFetchComplexes();
@@ -42,11 +51,12 @@
 	const virtualListClass =
 		'rounded-[1.5rem] border border-border/70 bg-background/30 shadow-lg backdrop-blur-xl';
 	const virtualListPaddingClass = 'p-2 sm:p-3';
-	const availableVirtualThreshold = 3;
-	const assignedVirtualThreshold = 3;
+	const standaloneVirtualThreshold = 3;
+	const embeddedVirtualThreshold = 3;
 	const availableVirtualEstimate = 104;
 	const assignedVirtualEstimate = 172;
-	const virtualViewportHeight = 'min(58vh, 34rem)';
+	const standaloneVirtualViewportHeight = 'min(58vh, 34rem)';
+	const embeddedVirtualViewportHeight = '24rem';
 	const trackEffectDependencies = (...values: unknown[]) => values.length;
 
 	let selectedComplexId = $state('');
@@ -103,8 +113,14 @@
 	let assignedRowKeys = $derived.by(() =>
 		assignedRows.map((row) => row.map((unit) => String(unit.id)).join(':'))
 	);
-	let shouldUseVirtualAvailable = $derived(availableUnits.length >= availableVirtualThreshold);
-	let shouldUseVirtualAssigned = $derived(assignedUnits.length >= assignedVirtualThreshold);
+	let virtualThreshold = $derived(
+		showHeader ? standaloneVirtualThreshold : embeddedVirtualThreshold
+	);
+	let virtualViewportHeight = $derived(
+		showHeader ? standaloneVirtualViewportHeight : embeddedVirtualViewportHeight
+	);
+	let shouldUseVirtualAvailable = $derived(availableUnits.length >= virtualThreshold);
+	let shouldUseVirtualAssigned = $derived(assignedUnits.length >= virtualThreshold);
 	let shouldConstrainLayout = $derived(shouldUseVirtualAvailable || shouldUseVirtualAssigned);
 	let isAvailableVirtualReady = $derived(
 		browser && shouldUseVirtualAvailable && !!availableViewportRef && availableViewportWidth > 0
@@ -372,9 +388,6 @@
 		</div>
 		<div class="min-w-0 flex-1">
 			<p class="truncate font-medium">{unit.name}</p>
-			<p class="mt-1 text-xs tracking-wide text-muted-foreground uppercase">
-				{$LL.common.labels.unit()} #{unit.id}
-			</p>
 		</div>
 	</button>
 {/snippet}
@@ -386,7 +399,6 @@
 		<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
 			<div class="min-w-0 space-y-1 text-start">
 				<p class="truncate font-semibold">{unit.name}</p>
-				<p class="text-sm text-muted-foreground">{unit.complexName}</p>
 			</div>
 			{#if !isLocked}
 				<Tooltip.Root>
@@ -416,13 +428,7 @@
 			{/if}
 		</div>
 
-		<div class="mt-4 grid gap-3 sm:grid-cols-2 [&>*]:text-start">
-			<div class="rounded-xl border border-border/60 bg-accent/30 p-3 backdrop-blur-sm">
-				<p class="text-xs tracking-wide text-muted-foreground uppercase">
-					{$LL.common.labels.unit()}
-				</p>
-				<p class="mt-2 text-sm font-medium">#{unit.id}</p>
-			</div>
+		<div class="mt-4 [&>*]:text-start">
 			<div class="rounded-xl border border-border/60 bg-accent/30 p-3 backdrop-blur-sm">
 				<p class="text-xs tracking-wide text-muted-foreground uppercase">
 					{$LL.common.labels.complex()}
@@ -437,16 +443,44 @@
 	class={cn('flex flex-col gap-4', shouldConstrainLayout && 'xl:min-h-0 xl:flex-1')}
 	dir={localesMetadata[$locale].direction}
 >
-	{#if contractQuery.isLoading}
-		<div class="space-y-3">
-			<Skeleton class="h-8 w-48" />
-			<Skeleton class="h-4 w-72" />
-		</div>
-	{:else}
-		<div class="space-y-1">
-			<h1 class="text-2xl font-bold">{formatContractTitle()}</h1>
-			<p class="text-sm text-muted-foreground">{getLockSummary()}</p>
-		</div>
+	{#if showHeader}
+		{#if contractQuery.isLoading}
+			<div class="space-y-3">
+				<Skeleton class="h-8 w-48" />
+				<Skeleton class="h-4 w-72" />
+			</div>
+		{:else}
+			<div class="space-y-2">
+				{#if backHref}
+					<div class="flex items-center gap-3 rtl:flex-row-reverse">
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<Button
+										{...props}
+										href={backHref}
+										variant="outline"
+										size="icon-sm"
+										aria-label={$LL.common.ui.previous()}
+										class="rounded-full border-border/60 bg-background/70 shadow-sm backdrop-blur-sm"
+									>
+										<ArrowLeftIcon class="size-4 rtl:rotate-180" />
+										<span class="sr-only">{$LL.common.ui.previous()}</span>
+									</Button>
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content side="top" sideOffset={8}>{$LL.common.ui.previous()}</Tooltip.Content
+							>
+						</Tooltip.Root>
+						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+							{$LL.common.nav.contracts()}
+						</p>
+					</div>
+				{/if}
+				<h1 class="text-2xl font-semibold tracking-tight">{formatContractTitle()}</h1>
+				<p class="text-sm text-muted-foreground">{getLockSummary()}</p>
+			</div>
+		{/if}
 	{/if}
 
 	{#if isLocked}
@@ -459,7 +493,7 @@
 
 	<div
 		class={cn(
-			'grid gap-4',
+			'grid gap-3',
 			shouldConstrainLayout && 'xl:min-h-0 xl:flex-1',
 			!isLocked && 'xl:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]'
 		)}
@@ -471,7 +505,7 @@
 					shouldConstrainLayout && 'xl:min-h-0'
 				)}
 			>
-				<CardHeader class="gap-4 border-b border-border/50 pb-5">
+				<CardHeader class="gap-3 border-b border-border/50 pb-4">
 					<div class="flex items-start gap-3">
 						<div
 							class="rounded-xl border border-border/70 bg-background/60 p-2.5 shadow-sm backdrop-blur-md"
@@ -485,9 +519,9 @@
 					</div>
 				</CardHeader>
 
-				<CardContent class="space-y-4 pt-5 xl:min-h-0">
+				<CardContent class="space-y-3 pt-4 xl:min-h-0">
 					<div
-						class="grid gap-3 rounded-[1.25rem] border border-border/70 bg-accent/25 p-4 backdrop-blur-sm md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
+						class="grid gap-3 rounded-[1.25rem] border border-border/70 bg-accent/25 p-3 backdrop-blur-sm md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
 					>
 						<div class="space-y-2">
 							<Label>{$LL.common.labels.complex()}</Label>
@@ -525,7 +559,7 @@
 
 					{#if selectedComplex}
 						<div
-							class="flex items-center justify-between rounded-xl border border-border/60 bg-background/80 px-4 py-3 text-sm shadow-sm"
+							class="flex items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-2.5 text-sm shadow-sm"
 						>
 							<span class="text-muted-foreground">{$LL.common.labels.complex()}</span>
 							<span class="font-medium">{selectedComplex.name}</span>
@@ -534,7 +568,7 @@
 
 					{#if !selectedComplexNumber}
 						<p
-							class="rounded-xl border border-dashed border-border/70 bg-background/40 p-5 text-sm text-muted-foreground"
+							class="rounded-xl border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground"
 						>
 							{$LL.contracts.units.selectComplex()}
 						</p>
@@ -547,7 +581,7 @@
 						</div>
 					{:else if (vacantUnitsQuery.data?.length ?? 0) === 0}
 						<p
-							class="rounded-xl border border-dashed border-border/70 bg-background/40 p-5 text-sm text-muted-foreground"
+							class="rounded-xl border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground"
 						>
 							{$LL.contracts.units.noAvailableUnits()}
 						</p>
@@ -594,10 +628,12 @@
 							{/if}
 						</ScrollArea>
 					{:else}
-						<div class="grid gap-3" style={availableGridTemplateStyle}>
-							{#each availableUnits as unit (unit.id)}
-								{@render availableUnitCard(unit)}
-							{/each}
+						<div class={cn(virtualListClass, virtualListPaddingClass)}>
+							<div class="grid gap-3" style={availableGridTemplateStyle}>
+								{#each availableUnits as unit (unit.id)}
+									{@render availableUnitCard(unit)}
+								{/each}
+							</div>
 						</div>
 					{/if}
 				</CardContent>
@@ -610,7 +646,7 @@
 				shouldConstrainLayout && 'xl:min-h-0'
 			)}
 		>
-			<CardHeader class="gap-4 border-b border-border/50 pb-5">
+			<CardHeader class="gap-3 border-b border-border/50 pb-4">
 				<div class="space-y-1">
 					<CardTitle>{$LL.contracts.units.assignedTitle()}</CardTitle>
 					<CardDescription>
@@ -621,7 +657,7 @@
 				</div>
 			</CardHeader>
 
-			<CardContent class="pt-5 xl:min-h-0">
+			<CardContent class="pt-4 xl:min-h-0">
 				{#if assignedUnitsQuery.isLoading}
 					<div class="grid gap-3 lg:grid-cols-2">
 						<Skeleton class="h-32 w-full rounded-xl" />
@@ -629,7 +665,7 @@
 					</div>
 				{:else if (assignedUnitsQuery.data?.length ?? 0) === 0}
 					<p
-						class="rounded-xl border border-dashed border-border/70 bg-background/40 p-5 text-sm text-muted-foreground"
+						class="rounded-xl border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground"
 					>
 						{$LL.contracts.units.noAssignedUnits()}
 					</p>
@@ -676,10 +712,12 @@
 						{/if}
 					</ScrollArea>
 				{:else}
-					<div class="grid gap-3" style={assignedGridTemplateStyle}>
-						{#each assignedUnits as unit (unit.id)}
-							{@render assignedUnitCard(unit)}
-						{/each}
+					<div class={cn(virtualListClass, virtualListPaddingClass)}>
+						<div class="grid gap-3" style={assignedGridTemplateStyle}>
+							{#each assignedUnits as unit (unit.id)}
+								{@render assignedUnitCard(unit)}
+							{/each}
+						</div>
 					</div>
 				{/if}
 			</CardContent>

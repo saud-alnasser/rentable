@@ -10,6 +10,7 @@
 	} from '$lib/common/components/fragments/card';
 	import { Input } from '$lib/common/components/fragments/input';
 	import { Label } from '$lib/common/components/fragments/label';
+	import { cn } from '$lib/common/utils/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
 	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
@@ -41,18 +42,26 @@
 		<CardDescription>{$LL.settings.endingSoonDescription()}</CardDescription>
 	</CardHeader>
 	<CardContent class="space-y-4 pt-5">
-		<div class={`${settingsInsetPanelClass} space-y-2`}>
-			<Label for="ending-soon-notice-days">{$LL.common.labels.noticeWindowDays()}</Label>
-			<Input id="ending-soon-notice-days" type="number" min="1" step="1" bind:value />
+		<div class="grid gap-3 sm:grid-cols-2 [&>*]:text-start">
+			<div class={settingsInsetPanelClass}>
+				<p class="text-xs tracking-wide text-muted-foreground uppercase">
+					{$LL.common.labels.currentValue()}
+				</p>
+				<p class="mt-1 text-base font-semibold">
+					{formatNoticeWindow(settings.endingSoonNoticeDays)}
+				</p>
+			</div>
+
+			<div class={cn(settingsInsetPanelClass, 'space-y-2')}>
+				<Label for="ending-soon-notice-days">{$LL.common.labels.noticeWindowDays()}</Label>
+				<Input id="ending-soon-notice-days" type="number" min="1" step="1" bind:value />
+			</div>
 		</div>
 
-		<div class="flex flex-wrap items-center gap-3">
+		<div class="flex justify-end">
 			<Button onclick={onSave} disabled={isPending || !hasChange}>
 				{isPending ? $LL.common.actions.saving() : $LL.common.actions.saveWindow()}
 			</Button>
-			<p class="text-sm text-muted-foreground">
-				{$LL.common.labels.currentValue()}: {formatNoticeWindow(settings.endingSoonNoticeDays)}
-			</p>
 		</div>
 	</CardContent>
 </Card>

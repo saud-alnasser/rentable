@@ -4,6 +4,7 @@
 	import DataTableActionsDropdown from '$lib/common/components/blocks/data-table-actions-dropdown.svelte';
 	import DataView from '$lib/common/components/blocks/data-view.svelte';
 	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
+	import { Button } from '$lib/common/components/fragments/button';
 	import {
 		Card,
 		CardAction,
@@ -14,6 +15,7 @@
 	} from '$lib/common/components/fragments/card';
 	import { Progress } from '$lib/common/components/fragments/progress';
 	import { Skeleton } from '$lib/common/components/fragments/skeleton';
+	import * as Tooltip from '$lib/common/components/fragments/tooltip';
 	import {
 		formatLocaleDate,
 		formatLocaleNumber,
@@ -27,12 +29,15 @@
 		useFetchContract,
 		useInfiniteContractPayments
 	} from '$lib/resources/contracts/hooks/queries';
+	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import PaymentForm from './payment-form.svelte';
 
-	const paymentsVirtualThreshold = 3;
-	const paymentsVirtualViewportHeight = 'min(56vh, 34rem)';
+	const standaloneVirtualThreshold = 3;
+	const embeddedVirtualThreshold = 3;
+	const standaloneVirtualViewportHeight = 'min(56vh, 34rem)';
+	const embeddedVirtualViewportHeight = '24rem';
 
 	const formatDate = (value: number) =>
 		formatLocaleDate($locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
@@ -43,8 +48,23 @@
 	const formatMoneyRange = (start: number, end: number) =>
 		formatLocaleRangeWithUnit($locale, start, end, $LL.common.messages.sar());
 
-	let { contractId }: { contractId: number } = $props();
+	let {
+		contractId,
+		backHref,
+		showHeader = true
+	}: {
+		contractId: number;
+		backHref?: string;
+		showHeader?: boolean;
+	} = $props();
 	let search = $state('');
+	let paymentsVirtualThreshold = $derived(
+		showHeader ? standaloneVirtualThreshold : embeddedVirtualThreshold
+	);
+	let paymentsVirtualViewportHeight = $derived(
+		showHeader ? standaloneVirtualViewportHeight : embeddedVirtualViewportHeight
+	);
+	let maxColumns = $derived(showHeader ? undefined : 2);
 
 	const contractQuery = useFetchContract(() => contractId);
 	const paymentsQuery = useInfiniteContractPayments(() => ({ contractId, search }));
@@ -103,23 +123,57 @@
 	let shouldConstrainLayout = $derived(payments.length >= paymentsVirtualThreshold);
 </script>
 
-<div class={cn('flex flex-col gap-4', shouldConstrainLayout && 'min-h-0 flex-1')}>
-	{#if contractQuery.isLoading}
-		<div class="space-y-3">
-			<Skeleton class="h-8 w-48" />
-			<Skeleton class="h-4 w-72" />
-			<Skeleton class="h-24 w-full rounded-md" />
-		</div>
-	{:else}
-		<div class="space-y-1">
-			<h1 class="text-2xl font-bold">{getPaymentsTitle()}</h1>
-			<p class="text-sm text-muted-foreground">{getLockSummary()}</p>
-		</div>
+<div
+	class={cn(
+		'flex flex-col gap-3',
+		shouldConstrainLayout && 'min-h-0 flex-1',
+		!showHeader && 'pb-3'
+	)}
+>
+	{#if showHeader}
+		{#if contractQuery.isLoading}
+			<div class="space-y-3">
+				<Skeleton class="h-8 w-48" />
+				<Skeleton class="h-4 w-72" />
+				<Skeleton class="h-24 w-full rounded-md" />
+			</div>
+		{:else}
+			<div class="space-y-2">
+				{#if backHref}
+					<div class="flex items-center gap-3 rtl:flex-row-reverse">
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<Button
+										{...props}
+										href={backHref}
+										variant="outline"
+										size="icon-sm"
+										aria-label={$LL.common.ui.previous()}
+										class="rounded-full border-border/60 bg-background/70 shadow-sm backdrop-blur-sm"
+									>
+										<ArrowLeftIcon class="size-4 rtl:rotate-180" />
+										<span class="sr-only">{$LL.common.ui.previous()}</span>
+									</Button>
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content side="top" sideOffset={8}>{$LL.common.ui.previous()}</Tooltip.Content
+							>
+						</Tooltip.Root>
+						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+							{$LL.common.nav.contracts()}
+						</p>
+					</div>
+				{/if}
+				<h1 class="text-2xl font-semibold tracking-tight">{getPaymentsTitle()}</h1>
+				<p class="text-sm text-muted-foreground">{getLockSummary()}</p>
+			</div>
+		{/if}
 	{/if}
 
 	{#if contractQuery.data}
 		<div
-			class="rounded-[1.25rem] border border-border/70 bg-background/60 p-4 shadow-lg backdrop-blur-lg"
+			class="rounded-[1.25rem] border border-border/70 bg-background/60 p-3 shadow-lg backdrop-blur-lg"
 		>
 			<div class="mb-2 flex items-center justify-between gap-3 text-sm rtl:flex-row-reverse">
 				<span class="font-medium">{$LL.common.labels.paymentFulfillment()}</span>
@@ -151,7 +205,7 @@
 
 	{#if showLockNotice}
 		<p
-			class="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-muted-foreground backdrop-blur-sm"
+			class="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-muted-foreground backdrop-blur-sm"
 		>
 			{getLockNotice()}
 		</p>
@@ -169,6 +223,8 @@
 		virtualItemHeight={220}
 		virtualThreshold={paymentsVirtualThreshold}
 		virtualViewportHeight={paymentsVirtualViewportHeight}
+		alwaysShowListContainer={!showHeader}
+		{maxColumns}
 		onCreate={isAddLocked
 			? undefined
 			: () => {
@@ -178,7 +234,7 @@
 	>
 		{#snippet item(record: Payment)}
 			<Card class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
-				<CardHeader class="gap-3 border-b pb-4">
+				<CardHeader class="gap-3 border-b pb-3">
 					<div class="space-y-1 text-start">
 						<CardTitle>{formatMoney(record.amount)}</CardTitle>
 						<CardDescription>{formatDate(record.date)}</CardDescription>
@@ -211,8 +267,8 @@
 						</CardAction>
 					{/if}
 				</CardHeader>
-				<CardContent class="grid gap-3 pt-4 sm:grid-cols-2 [&>*]:text-start">
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+				<CardContent class="grid gap-3 pt-3 sm:grid-cols-2 [&>*]:text-start">
+					<div class="rounded-xl border border-border/60 bg-accent/30 p-3 backdrop-blur-sm">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.amount()}
 						</p>
@@ -220,7 +276,7 @@
 							{formatMoney(record.amount)}
 						</p>
 					</div>
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+					<div class="rounded-xl border border-border/60 bg-accent/30 p-3 backdrop-blur-sm">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.paymentDate()}
 						</p>

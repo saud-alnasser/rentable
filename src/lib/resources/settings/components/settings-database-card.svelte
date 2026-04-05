@@ -12,6 +12,7 @@
 	import { Input } from '$lib/common/components/fragments/input';
 	import { Label } from '$lib/common/components/fragments/label';
 	import { formatLocaleDate } from '$lib/common/utils/locale';
+	import { cn } from '$lib/common/utils/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 
 	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
@@ -100,7 +101,7 @@
 	</CardHeader>
 	<CardContent class="space-y-6 pt-5">
 		<div class="space-y-3">
-			<div class={`${settingsInsetPanelClass} space-y-2`}>
+			<div class={cn(settingsInsetPanelClass, 'space-y-2')}>
 				<Label>{$LL.common.labels.currentDatabasePath()}</Label>
 				<p
 					class="rounded-lg border border-border/60 bg-muted/12 px-3 py-2 font-mono text-xs break-all"
@@ -109,7 +110,7 @@
 				</p>
 			</div>
 
-			<div class={`${settingsInsetPanelClass} space-y-2`}>
+			<div class={cn(settingsInsetPanelClass, 'space-y-2')}>
 				<Label>{$LL.common.labels.defaultDatabasePath()}</Label>
 				<p
 					class="rounded-lg border border-border/60 bg-muted/12 px-3 py-2 font-mono text-xs break-all text-muted-foreground"
@@ -118,7 +119,7 @@
 				</p>
 			</div>
 
-			<div class={`${settingsInsetPanelClass} space-y-2`}>
+			<div class={cn(settingsInsetPanelClass, 'space-y-2')}>
 				<Label for="database-path-override">{$LL.common.labels.customDatabasePathOverride()}</Label>
 				<Input
 					id="database-path-override"
@@ -172,7 +173,10 @@
 					<div class="space-y-3">
 						{#each backups as backup (`${backup.filename}-${backup.createdAt}`)}
 							<div
-								class={`flex flex-wrap items-center justify-between gap-3 rtl:flex-row-reverse ${settingsSubtlePanelClass}`}
+								class={cn(
+									'flex flex-wrap items-center justify-between gap-3 rtl:flex-row-reverse',
+									settingsSubtlePanelClass
+								)}
 							>
 								<div class="min-w-0 space-y-1">
 									<p class="font-medium break-all">{backup.filename}</p>

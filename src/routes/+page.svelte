@@ -24,13 +24,15 @@
 		</div>
 	</div>
 {:else}
-	<div class="flex flex-col gap-5 p-1">
+	<div class="mx-auto flex w-full max-w-7xl flex-col gap-5 px-5 pt-5 pb-8">
 		<DashboardHeader generatedAt={dashboardData?.generatedAt} />
 
 		{#if dashboardData}
 			<DashboardSummaryGrid data={dashboardData} />
-			<DashboardFollowUpsSection data={dashboardData} />
-			<DashboardEndingSoonSection data={dashboardData} />
+			<div class="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+				<DashboardFollowUpsSection data={dashboardData} />
+				<DashboardEndingSoonSection data={dashboardData} />
+			</div>
 		{:else}
 			<Card class={dashboardCardClass}>
 				<CardContent class="pt-6">

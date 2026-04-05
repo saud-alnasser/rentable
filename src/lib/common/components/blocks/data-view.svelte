@@ -29,6 +29,8 @@
 		virtualViewportHeight?: string;
 		virtualOverscanRows?: number;
 		virtualThreshold?: number;
+		maxColumns?: number;
+		alwaysShowListContainer?: boolean;
 		class?: string;
 	};
 
@@ -49,6 +51,8 @@
 		virtualViewportHeight = 'min(72vh, 56rem)',
 		virtualOverscanRows = 2,
 		virtualThreshold = 3,
+		maxColumns,
+		alwaysShowListContainer = false,
 		class: className
 	}: DataViewProps<TData> = $props();
 
@@ -57,6 +61,8 @@
 	const rowGap = 16;
 	const virtualContentPaddingClass = 'p-2 sm:p-3';
 	const nonVirtualBottomSpacingClass = 'pb-3 sm:pb-4';
+	const listContainerClass =
+		'rounded-[1.2rem] border border-border/50 bg-background/30 backdrop-blur-xl [box-shadow:inset_0_1px_0_rgb(255_255_255_/_0.05),0_16px_36px_rgb(15_23_42_/_0.14)] dark:[box-shadow:inset_0_1px_0_rgb(255_255_255_/_0.04),0_16px_36px_rgb(2_6_23_/_0.32)]';
 	const trackEffectDependencies = (...values: unknown[]) => values.length;
 
 	let viewportRef = $state<HTMLElement | null>(null);
@@ -85,10 +91,11 @@
 	let isVirtualizerReady = $derived(shouldUseVirtualLayout && !!viewportRef && viewportWidth > 0);
 	let layoutWidth = $derived(viewportWidth || windowWidth);
 	let columnCount = $derived.by(() => {
-		if (layoutWidth >= 1280) return 3;
-		if (layoutWidth >= 768) return 2;
+		const responsiveColumnCount = layoutWidth >= 1280 ? 3 : layoutWidth >= 768 ? 2 : 1;
 
-		return 1;
+		if (!maxColumns) return responsiveColumnCount;
+
+		return Math.max(1, Math.min(responsiveColumnCount, maxColumns));
 	});
 	let gridTemplateStyle = $derived(
 		`grid-template-columns: repeat(${columnCount}, minmax(0, 1fr));`
@@ -327,8 +334,8 @@
 			{#if shouldUseVirtualLayout}
 				<ScrollArea
 					bind:viewportRef
-					class="h-full rounded-[1.1rem] border border-border/35 bg-card/18 backdrop-blur-sm"
-					style={`height: min(${virtualViewportHeight}, 100%);`}
+					class={cn('min-h-0', listContainerClass)}
+					style={`height: ${virtualViewportHeight};`}
 				>
 					{#if isVirtualizerReady}
 						<div class={cn('relative w-full', virtualContentPaddingClass)}>
@@ -384,6 +391,21 @@
 						{/if}
 					{/if}
 				</ScrollArea>
+			{:else if alwaysShowListContainer}
+				<div class={cn(listContainerClass, virtualContentPaddingClass)}>
+					<div
+						class={cn('grid gap-4', nonVirtualBottomSpacingClass, className)}
+						style={gridTemplateStyle}
+						aria-busy={isBodyLoading}
+					>
+						{#each filteredData as record (record.id)}
+							{@render item(record)}
+						{/each}
+					</div>
+					{#if hasNextPage}
+						<div bind:this={loadMoreRef} class="h-px w-full"></div>
+					{/if}
+				</div>
 			{:else}
 				<div
 					class={cn('grid gap-4', nonVirtualBottomSpacingClass, className)}
