@@ -1,5 +1,11 @@
 # rentable
 
+## 0.9.0
+
+### Minor Changes
+
+- [#77](https://github.com/saud-alnasser/rentable/pull/77) [`a3be7ee`](https://github.com/saud-alnasser/rentable/commit/a3be7ee0184df1afd79baeaff56ec8a4eebd68c8) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - redesign ui with integrated navigation and tabbed detail views
+
 ## 0.8.1
 
 ### Patch Changes
