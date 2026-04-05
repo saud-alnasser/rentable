@@ -6,6 +6,7 @@
 		CardHeader,
 		CardTitle
 	} from '$lib/common/components/fragments/card';
+	import { cn } from '$lib/common/utils/tailwind.js';
 
 	let {
 		section
@@ -26,13 +27,13 @@
 		'rounded-xl border border-primary/10 bg-accent/35 p-3 text-start backdrop-blur-sm';
 </script>
 
-<Card class={`gap-4 overflow-hidden ${dashboardCardClass}`}>
+<Card class={cn('gap-4 overflow-hidden', dashboardCardClass)}>
 	<CardHeader class="gap-3 border-b border-border/50 pb-5">
 		<CardTitle class="capitalize">{section.title}</CardTitle>
 		<CardDescription>{section.description}</CardDescription>
 	</CardHeader>
 	<CardContent class="space-y-4 pt-5">
-		<div class={`rounded-2xl border border-border/60 p-4 shadow-sm ${section.heroClass}`}>
+		<div class={cn('rounded-2xl border border-border/60 p-4 shadow-sm', section.heroClass)}>
 			<p class="text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
 				{section.heroLabel}
 			</p>

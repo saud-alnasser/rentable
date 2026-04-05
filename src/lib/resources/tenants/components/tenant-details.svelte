@@ -3,13 +3,7 @@
 	import { resolve } from '$app/paths';
 	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
 	import { Button } from '$lib/common/components/fragments/button';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/common/components/fragments/card';
+	import { Card, CardContent, CardHeader, CardTitle } from '$lib/common/components/fragments/card';
 	import { Spinner } from '$lib/common/components/fragments/spinner';
 	import * as Tooltip from '$lib/common/components/fragments/tooltip';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -50,7 +44,6 @@
 	<Card class="border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
 		<CardHeader>
 			<CardTitle>{$LL.common.messages.noResults()}</CardTitle>
-			<CardDescription>#{tenantId}</CardDescription>
 		</CardHeader>
 	</Card>
 {:else}
@@ -129,31 +122,34 @@
 					{$LL.common.nav.tenants()}
 				</p>
 				<h1 class="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{tenant.name}</h1>
-				<p class="text-sm text-muted-foreground">#{tenant.id}</p>
+				<p class="text-sm text-muted-foreground">{tenant.phone}</p>
 			</div>
 		</div>
 
-		<div class="grid gap-4 sm:grid-cols-2">
-			<Card class="border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
-				<CardContent class="p-5 text-start">
-					<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-						{$LL.common.labels.nationalId()}
-					</p>
-					<p class="mt-3 text-lg font-semibold">{tenant.nationalId}</p>
-				</CardContent>
-			</Card>
+		<Card class="border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
+			<CardHeader class="gap-3 border-b pb-4">
+				<CardTitle class="capitalize">{$LL.common.labels.information()}</CardTitle>
+			</CardHeader>
+			<CardContent class="pt-4">
+				<div class="grid gap-3 sm:grid-cols-2 [&>*]:text-start">
+					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+							{$LL.common.labels.nationalId()}
+						</p>
+						<p class="mt-3 text-lg font-semibold">{tenant.nationalId}</p>
+					</div>
 
-			<Card class="border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
-				<CardContent class="p-5 text-start">
-					<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-						{$LL.common.labels.phone()}
-					</p>
-					<p class="mt-3 text-lg font-semibold" dir={localesMetadata[$locale].direction}>
-						{tenant.phone}
-					</p>
-				</CardContent>
-			</Card>
-		</div>
+					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+							{$LL.common.labels.phone()}
+						</p>
+						<p class="mt-3 text-lg font-semibold" dir={localesMetadata[$locale].direction}>
+							{tenant.phone}
+						</p>
+					</div>
+				</div>
+			</CardContent>
+		</Card>
 	</div>
 
 	<TenantForm

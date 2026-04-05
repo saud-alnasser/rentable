@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Navbar from '$lib/common/components/blocks/navbar.svelte';
 	import WindowControls from '$lib/common/components/blocks/window-controls.svelte';
 	import { locale } from '$lib/i18n/i18n-svelte';
 	import type { Snippet } from 'svelte';
@@ -18,7 +17,7 @@
 <div
 	lang={$locale}
 	dir={currentDirection}
-	class="relative isolate flex h-screen min-h-0 w-screen min-w-0 flex-col overflow-hidden border border-border/50 bg-background/78 shadow-xl backdrop-blur-xl"
+	class="relative isolate flex h-screen min-h-0 w-screen min-w-0 flex-col overflow-hidden border border-border/50 bg-background/78 [box-shadow:inset_0_1px_0_rgb(255_255_255_/_0.05),0_24px_64px_rgb(15_23_42_/_0.2)] backdrop-blur-xl dark:[box-shadow:inset_0_1px_0_rgb(255_255_255_/_0.04),0_24px_64px_rgb(2_6_23_/_0.4)]"
 >
 	<div aria-hidden="true" class="pointer-events-none absolute inset-0 overflow-hidden">
 		<div
@@ -32,17 +31,15 @@
 		></div>
 	</div>
 
-	<header class="relative z-10 shrink-0">
-		<WindowControls />
+	<header class="relative z-10 shrink-0 px-4 pt-4 pb-0 sm:px-6 sm:pt-6 sm:pb-0">
+		<div class="mx-auto w-full max-w-7xl">
+			<WindowControls {showNavbar} />
+		</div>
 	</header>
 
 	<main
-		class="app-scroll @container/main relative z-10 flex min-h-0 flex-1 scroll-pb-32 flex-col gap-3 overflow-y-auto p-4 pb-32 sm:scroll-pb-36 sm:pb-36"
+		class="app-scroll @container/main relative z-10 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pt-3 pb-6 sm:px-6 sm:pb-8"
 	>
 		{@render children?.()}
 	</main>
-
-	{#if showNavbar}
-		<Navbar />
-	{/if}
 </div>

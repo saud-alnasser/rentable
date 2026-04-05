@@ -58,7 +58,7 @@ const en = {
 			complex: 'complex',
 			contractEnds: 'contract ends',
 			contractPeriod: 'contract period',
-			costPerPayment: 'cost per payment',
+			costPerPayment: 'cost per cycle',
 			currentDatabasePath: 'current database path',
 			currentValue: 'current value',
 			currentVersion: 'current version',

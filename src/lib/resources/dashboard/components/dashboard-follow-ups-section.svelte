@@ -20,9 +20,8 @@
 
 	let { data }: { data: DashboardData } = $props();
 
-	const dashboardCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
 	const dashboardVirtualListClass =
-		'rounded-[1.5rem] border border-border/70 bg-background/30 shadow-lg backdrop-blur-xl';
+		'rounded-[1.5rem] border border-border/50 bg-background/30 backdrop-blur-xl [box-shadow:inset_0_1px_0_rgb(255_255_255_/_0.05),0_16px_36px_rgb(15_23_42_/_0.14)] dark:[box-shadow:inset_0_1px_0_rgb(255_255_255_/_0.04),0_16px_36px_rgb(2_6_23_/_0.32)]';
 	const dashboardVirtualListPaddingClass = 'p-2 sm:p-3';
 	const followUpVirtualThreshold = 2;
 	const followUpVirtualEstimate = 320;
@@ -98,7 +97,7 @@
 	}
 </script>
 
-<Card class={`gap-4 overflow-hidden ${dashboardCardClass}`}>
+<Card class="gap-4 overflow-hidden">
 	<CardHeader class="gap-3 border-b border-border/50 pb-5">
 		<div class="flex flex-wrap items-start justify-between gap-3 rtl:flex-row-reverse">
 			<div class="space-y-1 text-start">

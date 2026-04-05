@@ -2,7 +2,7 @@ import type { Translation } from '../i18n-types';
 
 const ar = {
 	app: {
-		name: 'القابل للايجار'
+		name: 'rentable'
 	},
 	common: {
 		actions: {

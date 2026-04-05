@@ -63,7 +63,7 @@
 						</div>
 						<div class="min-w-0 space-y-1 text-start">
 							<CardTitle class="truncate">{record.name}</CardTitle>
-							<CardDescription class="truncate">#{record.id}</CardDescription>
+							<CardDescription class="truncate">{record.phone}</CardDescription>
 						</div>
 					</div>
 				</CardHeader>

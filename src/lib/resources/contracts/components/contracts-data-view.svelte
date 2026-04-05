@@ -58,7 +58,7 @@
 		formatLocaleRangeWithUnit($locale, start, end, $LL.common.messages.sar());
 
 	const getTenantLabel = (record: ContractRow) =>
-		record.tenantName ?? $LL.contracts.table.tenantFallback({ tenantId: String(record.tenantId) });
+		record.tenantName?.trim() || $LL.common.labels.tenant();
 
 	const getDisplayGovId = (record: ContractRow) => record.govId?.trim() || '';
 	const getDisplayTenantPhone = (record: ContractRow) => record.tenantPhone?.trim() || '';
@@ -114,7 +114,7 @@
 	fetchNextPage={() => fetchQuery.fetchNextPage()}
 	bind:searchValue={search}
 	{getSearchValue}
-	virtualItemHeight={420}
+	virtualItemHeight={360}
 	onCreate={openCreateContractForm}
 >
 	{#snippet item(record: ContractRow)}
@@ -190,29 +190,25 @@
 					</div>
 					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
-							{$LL.common.labels.cycle()}
-						</p>
-						<p class="mt-2 text-sm font-medium">{intervalLabels[record.interval]()}</p>
-					</div>
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.payment()}
 						</p>
 						<p class="mt-2 text-sm font-medium">
 							{formatMoney(record.cost)}
 						</p>
+						<p class="mt-1 text-xs text-muted-foreground capitalize">
+							{intervalLabels[record.interval]()}
+						</p>
 					</div>
 					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
-							{$LL.common.labels.start()}
+							{$LL.common.labels.contractPeriod()}
 						</p>
-						<p class="mt-2 text-sm font-medium">{formatDate(record.start)}</p>
-					</div>
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">
-							{$LL.common.labels.end()}
+						<p class="mt-2 text-sm font-medium">
+							{formatDate(record.start)} — {formatDate(record.end)}
 						</p>
-						<p class="mt-2 text-sm font-medium">{formatDate(record.end)}</p>
+						<p class="mt-1 text-xs text-muted-foreground capitalize">
+							{$LL.common.status[record.status]()}
+						</p>
 					</div>
 				</CardContent>
 			</Card>

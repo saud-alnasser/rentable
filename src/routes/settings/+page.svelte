@@ -10,9 +10,11 @@
 		CardTitle
 	} from '$lib/common/components/fragments/card';
 	import { Spinner } from '$lib/common/components/fragments/spinner';
+	import { formatLocaleDate } from '$lib/common/utils/locale';
+	import { cn } from '$lib/common/utils/tailwind.js';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import type { Locales } from '$lib/i18n/i18n-types';
-	import SettingsAboutCard from '$lib/resources/settings/components/settings-about-card.svelte';
 	import SettingsDatabaseCard from '$lib/resources/settings/components/settings-database-card.svelte';
 	import SettingsEndingSoonCard from '$lib/resources/settings/components/settings-ending-soon-card.svelte';
 	import SettingsLocaleCard from '$lib/resources/settings/components/settings-locale-card.svelte';
@@ -41,6 +43,8 @@
 	const deleteBackupMutation = useDeleteBackup();
 	const restoreBackupMutation = useRestoreBackup();
 	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
+	const settingsOverviewPanelClass =
+		'rounded-[1.25rem] border border-border/70 bg-card/40 p-3 shadow-sm backdrop-blur-md';
 
 	let endingSoonNoticeDaysValue = $state<number | ''>('');
 	let databasePathValue = $state('');
@@ -141,6 +145,17 @@
 		}
 
 		return $LL.common.messages.unexpectedError();
+	}
+
+	function formatTimestamp(value: number | null | undefined) {
+		if (!value) {
+			return $LL.common.messages.never();
+		}
+
+		return formatLocaleDate($locale, value, {
+			dateStyle: 'medium',
+			timeStyle: 'short'
+		});
 	}
 
 	function logUpdaterError(action: string, error: unknown) {
@@ -322,7 +337,7 @@
 	}
 </script>
 
-<div class="flex flex-col gap-5 p-1">
+<div class="mx-auto flex w-full max-w-7xl flex-col gap-5 px-5 pt-5 pb-8">
 	<div class="flex flex-col gap-1">
 		<h1 class="text-3xl font-semibold tracking-tight">{$LL.settings.title()}</h1>
 		<p class="text-sm text-muted-foreground">{$LL.settings.description()}</p>
@@ -336,7 +351,7 @@
 			</div>
 		</div>
 	{:else if settingsQuery.error || backupsQuery.error}
-		<Card class={`max-w-2xl ${settingsCardClass}`}>
+		<Card class={cn('max-w-2xl', settingsCardClass)}>
 			<CardHeader class="gap-3 border-b border-border/50 pb-5">
 				<CardTitle>{$LL.settings.loadErrorTitle()}</CardTitle>
 				<CardDescription>{$LL.settings.loadErrorDescription()}</CardDescription>
@@ -356,8 +371,40 @@
 			</CardContent>
 		</Card>
 	{:else if settingsQuery.data && backupsQuery.data}
-		<div class="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
-			<div class="space-y-4">
+		<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+			<div class={settingsOverviewPanelClass}>
+				<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+					{$LL.common.labels.appVersion()}
+				</p>
+				<p class="mt-3 text-lg font-semibold">{settingsQuery.data.version}</p>
+			</div>
+
+			<div class={settingsOverviewPanelClass}>
+				<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+					{$LL.common.labels.lastBackupTime()}
+				</p>
+				<p class="mt-3 text-lg font-semibold">{formatTimestamp(lastBackupAt)}</p>
+			</div>
+
+			<div class={settingsOverviewPanelClass}>
+				<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+					{$LL.common.labels.backupCount()}
+				</p>
+				<p class="mt-3 text-lg font-semibold">{backupsQuery.data.length}</p>
+			</div>
+
+			<div class={settingsOverviewPanelClass}>
+				<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+					{$LL.settings.localeLabel()}
+				</p>
+				<p class="mt-3 text-lg font-semibold">{localesMetadata[$locale].label}</p>
+			</div>
+		</div>
+
+		<div class="grid gap-3 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+			<div class="space-y-3">
+				<SettingsLocaleCard currentLocale={$locale} onChange={changeLocale} />
+
 				<SettingsEndingSoonCard
 					settings={settingsQuery.data}
 					bind:value={endingSoonNoticeDaysValue}
@@ -365,28 +412,9 @@
 					hasChange={hasEndingSoonChange}
 					onSave={() => void saveEndingSoonNoticeDays()}
 				/>
-
-				<SettingsDatabaseCard
-					settings={settingsQuery.data}
-					backups={backupsQuery.data}
-					bind:databasePathValue
-					{isSavingDatabasePath}
-					{hasDatabasePathChange}
-					isUsingDefaultDatabasePath={isUsingDefaultDatabasePath(settingsQuery.data)}
-					{isManagingBackups}
-					isCreatingBackup={createBackupMutation.isPending}
-					isRestoringBackup={restoreBackupMutation.isPending}
-					onSaveDatabasePath={() => void saveDatabasePath()}
-					onResetDatabasePath={() => void resetDatabasePath()}
-					onCreateBackup={() => void createBackup()}
-					onRestoreBackup={(name) => void restoreBackup(name)}
-					onDeleteBackup={deleteBackup}
-				/>
 			</div>
 
-			<div class="space-y-4">
-				<SettingsLocaleCard currentLocale={$locale} onChange={changeLocale} />
-
+			<div class="space-y-3">
 				<SettingsUpdatesCard
 					version={settingsQuery.data.version}
 					{isCheckingForUpdate}
@@ -404,11 +432,21 @@
 					onRestartApp={() => void restartApp()}
 				/>
 
-				<SettingsAboutCard
-					version={settingsQuery.data.version}
-					{lastBackupAt}
-					backupsCount={backupsQuery.data.length}
-					usingDefaultDatabasePath={isUsingDefaultDatabasePath(settingsQuery.data)}
+				<SettingsDatabaseCard
+					settings={settingsQuery.data}
+					backups={backupsQuery.data}
+					bind:databasePathValue
+					{isSavingDatabasePath}
+					{hasDatabasePathChange}
+					isUsingDefaultDatabasePath={isUsingDefaultDatabasePath(settingsQuery.data)}
+					{isManagingBackups}
+					isCreatingBackup={createBackupMutation.isPending}
+					isRestoringBackup={restoreBackupMutation.isPending}
+					onSaveDatabasePath={() => void saveDatabasePath()}
+					onResetDatabasePath={() => void resetDatabasePath()}
+					onCreateBackup={() => void createBackup()}
+					onRestoreBackup={(name) => void restoreBackup(name)}
+					onDeleteBackup={deleteBackup}
 				/>
 			</div>
 		</div>

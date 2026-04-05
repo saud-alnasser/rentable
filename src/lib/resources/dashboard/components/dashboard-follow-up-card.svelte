@@ -13,6 +13,7 @@
 		formatLocaleRangeWithUnit,
 		formatLocaleValueWithUnit
 	} from '$lib/common/utils/locale';
+	import { cn } from '$lib/common/utils/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import WalletIcon from '@lucide/svelte/icons/wallet';
@@ -32,16 +33,6 @@
 		expired: 'outline',
 		defaulted: 'destructive',
 		terminated: 'outline'
-	};
-
-	const intervalLabels: Record<
-		Contract['interval'],
-		'monthly' | 'quarterly' | 'semiAnnual' | 'annual'
-	> = {
-		'1m': 'monthly',
-		'3m': 'quarterly',
-		'6m': 'semiAnnual',
-		'12m': 'annual'
 	};
 
 	const dashboardInsetPanelClass =
@@ -72,7 +63,7 @@
 	);
 </script>
 
-<div class={`${dashboardInsetPanelClass} bg-background/75`}>
+<div class={cn(dashboardInsetPanelClass, 'bg-background/75')}>
 	<div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
 		<div class="space-y-4">
 			<div class="flex flex-row justify-between gap-3 rtl:flex-row-reverse">
@@ -81,9 +72,6 @@
 					<Badge variant={statusVariants[item.status]}>{$LL.common.status[item.status]()}</Badge>
 					{#if hasActiveOverdueFollowUp}
 						<Badge variant="destructive">{$LL.common.status.overdue()}</Badge>
-					{/if}
-					{#if item.govId}
-						<Badge variant="outline">{item.govId}</Badge>
 					{/if}
 				</div>
 
@@ -111,7 +99,7 @@
 				</div>
 			</div>
 
-			<div class="grid gap-3 sm:grid-cols-3 [&>*]:text-start">
+			<div class="grid gap-3 sm:grid-cols-2 [&>*]:text-start">
 				<div class={dashboardSubtlePanelClass}>
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">
 						{$LL.common.labels.phone()}
@@ -125,14 +113,6 @@
 				</div>
 				<div class={dashboardSubtlePanelClass}>
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">
-						{$LL.common.labels.cycle()}
-					</p>
-					<p class="mt-1 text-sm font-medium text-foreground capitalize">
-						{$LL.contracts.intervals[intervalLabels[item.interval]]()}
-					</p>
-				</div>
-				<div class={dashboardSubtlePanelClass}>
-					<p class="text-xs tracking-wide text-muted-foreground uppercase">
 						{$LL.common.labels.contractEnds()}
 					</p>
 					<p class="mt-1 text-sm font-medium text-foreground">{formatDate(item.contractEnd)}</p>
@@ -141,18 +121,10 @@
 		</div>
 
 		<div class={dashboardInsetPanelClass}>
-			<div class="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1 [&>*]:text-start">
+			<div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 [&>*]:text-start">
 				<div class={dashboardSubtlePanelClass}>
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">{followUpAmountLabel}</p>
 					<p class="mt-1 text-sm font-semibold text-foreground">{formatMoney(totalBalance)}</p>
-				</div>
-				<div class={dashboardSubtlePanelClass}>
-					<p class="text-xs tracking-wide text-muted-foreground uppercase">
-						{$LL.dashboard.stats.receivedThisMonth()}
-					</p>
-					<p class="mt-1 text-sm font-semibold text-foreground">
-						{formatMoney(item.collectedThisMonth)}
-					</p>
 				</div>
 				<div class={dashboardSubtlePanelClass}>
 					<p class="text-xs tracking-wide text-muted-foreground uppercase">
@@ -164,7 +136,7 @@
 				</div>
 			</div>
 
-			<div class={`mt-4 ${dashboardSubtlePanelClass}`}>
+			<div class={cn('mt-4', dashboardSubtlePanelClass)}>
 				<div class="flex items-center justify-between gap-3 text-sm rtl:flex-row-reverse">
 					<span class="font-medium">{followUpProgressLabel}</span>
 					<span class="text-muted-foreground">

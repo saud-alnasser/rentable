@@ -10,6 +10,7 @@
 		CardTitle
 	} from '$lib/common/components/fragments/card';
 	import { formatLocaleDate } from '$lib/common/utils/locale';
+	import { cn } from '$lib/common/utils/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 
 	let {
@@ -123,7 +124,7 @@
 		{/if}
 
 		{#if availableUpdate}
-			<div class={`space-y-3 ${settingsSubtlePanelClass}`}>
+			<div class={cn('space-y-3', settingsSubtlePanelClass)}>
 				<div class="grid gap-3 sm:grid-cols-2 [&>*]:text-start">
 					<div>
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">

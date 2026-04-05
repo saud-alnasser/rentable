@@ -9,43 +9,40 @@
 	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
 	import { Badge } from '$lib/common/components/fragments/badge';
 	import { Button } from '$lib/common/components/fragments/button';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/common/components/fragments/card';
-	import { Progress } from '$lib/common/components/fragments/progress';
+	import { Card, CardContent, CardHeader, CardTitle } from '$lib/common/components/fragments/card';
 	import { Spinner } from '$lib/common/components/fragments/spinner';
+	import * as Tabs from '$lib/common/components/fragments/tabs';
 	import * as Tooltip from '$lib/common/components/fragments/tooltip';
-	import {
-		formatLocaleDate,
-		formatLocaleNumber,
-		formatLocaleRangeWithUnit,
-		formatLocaleValueWithUnit
-	} from '$lib/common/utils/locale';
+	import { formatLocaleDate } from '$lib/common/utils/locale';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import {
 		useDeleteContract,
 		useFetchContract,
-		useFetchContractPayments,
-		useFetchContractUnits,
 		useTerminateContract,
 		useUnterminateContract
 	} from '$lib/resources/contracts/hooks/queries';
 	import { useFetchTenant } from '$lib/resources/tenants/hooks/queries';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import BanIcon from '@lucide/svelte/icons/ban';
-	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import WalletIcon from '@lucide/svelte/icons/wallet';
 	import ContractForm from './contract-form.svelte';
+	import ContractPaymentsDataView from './contract-payments-data-view.svelte';
+	import ContractUnitsManagement from './contract-units-management.svelte';
 
-	let { contractId }: { contractId: number } = $props();
+	type ContractDetailsSection = 'overview' | 'units' | 'payments';
+
+	let {
+		contractId,
+		initialSection = 'overview'
+	}: {
+		contractId: number;
+		initialSection?: ContractDetailsSection;
+	} = $props();
+	// eslint-disable-next-line svelte/prefer-writable-derived
+	let activeSection = $state<ContractDetailsSection>('overview');
 
 	const intervalLabels: Record<Contract['interval'], () => string> = {
 		'1m': $LL.contracts.intervals.monthly,
@@ -80,8 +77,6 @@
 		id: contractQuery.data?.tenantId,
 		enabled: Boolean(contractQuery.data?.tenantId)
 	}));
-	const unitsQuery = useFetchContractUnits(() => contractId);
-	const paymentsQuery = useFetchContractPayments(() => contractId);
 	const deleteMutation = useDeleteContract();
 	const terminateMutation = useTerminateContract();
 	const unterminateMutation = useUnterminateContract();
@@ -95,11 +90,10 @@
 	const formatDate = (value: number) =>
 		formatLocaleDate($locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 
-	const formatCurrency = (value: number) => formatLocaleNumber($locale, value);
-	const formatMoney = (value: number) =>
-		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
-	const formatMoneyRange = (start: number, end: number) =>
-		formatLocaleRangeWithUnit($locale, start, end, $LL.common.messages.sar());
+	const tabsListClass =
+		'grid h-auto w-full grid-cols-3 rounded-[1.3rem] border border-border/70 bg-card/55 p-0.5 shadow-lg backdrop-blur-xl';
+	const tabsTriggerClass =
+		'capitalize rounded-[1rem] px-3 py-2 text-sm font-medium data-[state=active]:border-border/50 data-[state=active]:bg-background/80 data-[state=active]:text-foreground data-[state=active]:shadow-sm';
 
 	let tenantLabel = $derived.by(() => {
 		const contract = contractQuery.data;
@@ -108,33 +102,7 @@
 			return $LL.common.messages.unknown();
 		}
 
-		return (
-			tenantQuery.data?.name ??
-			$LL.contracts.table.tenantFallback({ tenantId: String(contract.tenantId) })
-		);
-	});
-
-	let paymentProgress = $derived.by(() => {
-		const contract = contractQuery.data;
-
-		if (!contract) {
-			return {
-				paidAmount: 0,
-				expectedAmount: 0,
-				progressValue: 0,
-				progressPercent: 0,
-				remainingAmount: 0
-			};
-		}
-
-		const paidAmount = contract.paidAmount ?? 0;
-		const expectedAmount = contract.expectedAmount ?? 0;
-		const progressValue = expectedAmount > 0 ? Math.min(paidAmount, expectedAmount) : 0;
-		const progressPercent =
-			expectedAmount > 0 ? Math.min((paidAmount / expectedAmount) * 100, 100) : 0;
-		const remainingAmount = Math.max(expectedAmount - paidAmount, 0);
-
-		return { paidAmount, expectedAmount, progressValue, progressPercent, remainingAmount };
+		return tenantQuery.data?.name?.trim() || $LL.common.labels.tenant();
 	});
 
 	async function deleteContract() {
@@ -155,6 +123,26 @@
 
 		await unterminateMutation.mutateAsync(contractQuery.data.id);
 	}
+
+	const getSectionHref = (section: ContractDetailsSection) =>
+		resolve(`/contracts/${contractId}${section === 'overview' ? '' : `?section=${section}`}`);
+
+	$effect(() => {
+		activeSection = initialSection;
+	});
+
+	$effect(() => {
+		if (activeSection === initialSection) {
+			return;
+		}
+
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		void goto(getSectionHref(activeSection), {
+			replaceState: true,
+			noScroll: true,
+			keepFocus: true
+		});
+	});
 </script>
 
 {#if contractQuery.isLoading}
@@ -168,12 +156,11 @@
 	<Card class="border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
 		<CardHeader>
 			<CardTitle>{$LL.common.messages.noResults()}</CardTitle>
-			<CardDescription>#{contractId}</CardDescription>
 		</CardHeader>
 	</Card>
 {:else}
 	{@const contract = contractQuery.data}
-	<div class="flex flex-col gap-4 pb-10 sm:pb-16">
+	<div class="flex min-h-0 flex-1 flex-col gap-3 pb-8 sm:pb-12">
 		<div class="rounded-[1.5rem] border border-border/70 bg-card/65 p-4 shadow-xl backdrop-blur-xl">
 			<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
 				<Tooltip.Root>
@@ -223,48 +210,6 @@
 							</Tooltip.Content>
 						</Tooltip.Root>
 					{/if}
-
-					<Tooltip.Root>
-						<Tooltip.Trigger>
-							{#snippet child({ props })}
-								<Button
-									{...props}
-									href={resolve(`/contracts/units/${contract.id}`)}
-									variant="outline"
-									size="icon-sm"
-									aria-label={$LL.contracts.table.unitsManagement()}
-									class="rounded-full border-border/60 bg-background/70 shadow-sm backdrop-blur-sm"
-								>
-									<Building2Icon class="size-4" />
-									<span class="sr-only">{$LL.contracts.table.unitsManagement()}</span>
-								</Button>
-							{/snippet}
-						</Tooltip.Trigger>
-						<Tooltip.Content side="top" sideOffset={8}>
-							{$LL.contracts.table.unitsManagement()}
-						</Tooltip.Content>
-					</Tooltip.Root>
-
-					<Tooltip.Root>
-						<Tooltip.Trigger>
-							{#snippet child({ props })}
-								<Button
-									{...props}
-									href={resolve(`/contracts/payments/${contract.id}`)}
-									variant="outline"
-									size="icon-sm"
-									aria-label={$LL.contracts.table.paymentsManagement()}
-									class="rounded-full border-border/60 bg-background/70 shadow-sm backdrop-blur-sm"
-								>
-									<WalletIcon class="size-4" />
-									<span class="sr-only">{$LL.contracts.table.paymentsManagement()}</span>
-								</Button>
-							{/snippet}
-						</Tooltip.Trigger>
-						<Tooltip.Content side="top" sideOffset={8}>
-							{$LL.contracts.table.paymentsManagement()}
-						</Tooltip.Content>
-					</Tooltip.Root>
 
 					{#if canManuallyTerminateContractStatus(contract.status)}
 						<Tooltip.Root>
@@ -335,7 +280,7 @@
 				</div>
 			</div>
 
-			<div class="mt-5 min-w-0 space-y-2 text-start">
+			<div class="mt-4 min-w-0 space-y-2 text-start">
 				<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
 					{$LL.common.nav.contracts()}
 				</p>
@@ -361,127 +306,91 @@
 			</div>
 		</div>
 
-		<Card class="border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
-			<CardHeader class="gap-3 border-b pb-4">
-				<CardTitle class="capitalize">{$LL.common.labels.information()}</CardTitle>
-			</CardHeader>
-			<CardContent class="pt-4">
-				<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 [&>*]:text-start">
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-							{$LL.common.labels.tenant()}
-						</p>
-						<p class="mt-3 text-lg font-semibold">{tenantLabel}</p>
-					</div>
+		<Tabs.Root bind:value={activeSection} class="min-h-0 flex-1 gap-3">
+			<Tabs.List class={tabsListClass}>
+				<Tabs.Trigger value="overview" class={tabsTriggerClass}>
+					{$LL.common.labels.information()}
+				</Tabs.Trigger>
+				<Tabs.Trigger value="units" class={tabsTriggerClass}>
+					{$LL.common.nav.units()}
+				</Tabs.Trigger>
+				<Tabs.Trigger value="payments" class={tabsTriggerClass}>
+					{$LL.common.nav.payments()}
+				</Tabs.Trigger>
+			</Tabs.List>
 
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-							{$LL.common.labels.phone()}
-						</p>
-						<p class="mt-3 text-start text-sm font-medium" dir={localesMetadata[$locale].direction}>
-							{tenantQuery.data?.phone || $LL.common.messages.unknown()}
-						</p>
-					</div>
+			<Tabs.Content value="overview" class="space-y-3 pb-1">
+				<Card class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
+					<CardHeader class="gap-2 border-b pb-4">
+						<CardTitle class="capitalize">{$LL.common.labels.information()}</CardTitle>
+					</CardHeader>
+					<CardContent class="py-4">
+						<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 [&>*]:text-start">
+							<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+									{$LL.common.labels.tenant()}
+								</p>
+								<p class="mt-3 truncate text-sm font-medium">{tenantLabel}</p>
+							</div>
 
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-							{$LL.common.labels.governmentId()}
-						</p>
-						<p class="mt-3 text-sm font-medium">
-							{contract.govId || $LL.common.messages.unknown()}
-						</p>
-					</div>
+							<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+									{$LL.common.labels.nationalId()}
+								</p>
+								<p class="mt-3 text-sm font-medium">
+									{tenantQuery.data?.nationalId || $LL.common.messages.unknown()}
+								</p>
+							</div>
 
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-							{$LL.common.labels.cycle()}
-						</p>
-						<p class="mt-3 text-sm font-medium">{intervalLabels[contract.interval]()}</p>
-					</div>
+							<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+									{$LL.common.labels.phone()}
+								</p>
+								<p
+									class="mt-3 text-start text-sm font-medium"
+									dir={localesMetadata[$locale].direction}
+								>
+									{tenantQuery.data?.phone || $LL.common.messages.unknown()}
+								</p>
+							</div>
 
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-							{$LL.common.labels.start()}
-						</p>
-						<p class="mt-3 text-sm font-medium">{formatDate(contract.start)}</p>
-					</div>
+							<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+									{$LL.common.labels.governmentId()}
+								</p>
+								<p class="mt-3 text-sm font-medium">
+									{contract.govId || $LL.common.messages.unknown()}
+								</p>
+							</div>
 
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-							{$LL.common.labels.end()}
-						</p>
-						<p class="mt-3 text-sm font-medium">{formatDate(contract.end)}</p>
-					</div>
-				</div>
-			</CardContent>
-		</Card>
+							<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+									{$LL.common.labels.cycle()}
+								</p>
+								<p class="mt-3 text-sm font-medium">{intervalLabels[contract.interval]()}</p>
+							</div>
 
-		<Card class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
-			<CardHeader class="gap-4 border-b pb-4">
-				<CardTitle class="capitalize">{$LL.common.labels.paymentFulfillment()}</CardTitle>
-			</CardHeader>
-
-			<CardContent class="space-y-4 pt-4">
-				<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-					<div class="flex items-center justify-between gap-3 text-sm rtl:flex-row-reverse">
-						<div class="text-start">
-							<p class="text-xs tracking-wide text-muted-foreground uppercase">
-								{$LL.common.labels.paymentFulfillment()}
-							</p>
-							<p class="mt-1 text-lg font-semibold">
-								{formatMoneyRange(paymentProgress.paidAmount, paymentProgress.expectedAmount)}
-							</p>
+							<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+									{$LL.common.labels.contractPeriod()}
+								</p>
+								<p class="mt-3 text-sm font-medium">
+									{formatDate(contract.start)} — {formatDate(contract.end)}
+								</p>
+							</div>
 						</div>
-						<p class="text-xs text-muted-foreground">
-							{$LL.contracts.payments.percentFulfilled({
-								percent: String(Math.round(paymentProgress.progressPercent))
-							})}
-						</p>
-					</div>
+					</CardContent>
+				</Card>
+			</Tabs.Content>
 
-					<Progress
-						value={paymentProgress.progressValue}
-						max={Math.max(paymentProgress.expectedAmount, 1)}
-						class="mt-3 h-2.5 bg-emerald-500/15 **:data-[slot=progress-indicator]:bg-emerald-600"
-					/>
+			<Tabs.Content value="units" class="min-h-0 flex-1 pt-1">
+				<ContractUnitsManagement {contractId} showHeader={false} />
+			</Tabs.Content>
 
-					<p class="mt-2 text-xs text-muted-foreground">
-						{$LL.contracts.payments.remaining({
-							amount: formatCurrency(paymentProgress.remainingAmount)
-						})}
-					</p>
-				</div>
-
-				<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:text-start">
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">
-							{$LL.common.labels.payment()}
-						</p>
-						<p class="mt-2 text-sm font-medium">
-							{formatMoney(contract.cost)}
-						</p>
-					</div>
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">
-							{$LL.common.labels.cycle()}
-						</p>
-						<p class="mt-2 text-sm font-medium">{intervalLabels[contract.interval]()}</p>
-					</div>
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">
-							{$LL.common.labels.units()}
-						</p>
-						<p class="mt-2 text-2xl font-semibold">{unitsQuery.data?.length ?? 0}</p>
-					</div>
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">
-							{$LL.contracts.payments.title()}
-						</p>
-						<p class="mt-2 text-2xl font-semibold">{paymentsQuery.data?.length ?? 0}</p>
-					</div>
-				</div>
-			</CardContent>
-		</Card>
+			<Tabs.Content value="payments" class="min-h-0 flex-1 pt-1">
+				<ContractPaymentsDataView {contractId} showHeader={false} />
+			</Tabs.Content>
+		</Tabs.Root>
 	</div>
 
 	{#key contractFormRenderKey}

@@ -8,6 +8,7 @@
 	} from '$lib/common/components/fragments/card';
 	import { Label } from '$lib/common/components/fragments/label';
 	import * as Select from '$lib/common/components/fragments/select';
+	import { cn } from '$lib/common/utils/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import type { Locales } from '$lib/i18n/i18n-types';
@@ -32,7 +33,7 @@
 		<CardDescription>{$LL.settings.localeDescription()}</CardDescription>
 	</CardHeader>
 	<CardContent class="pt-5">
-		<div class={`${settingsInsetPanelClass} space-y-2`}>
+		<div class={cn(settingsInsetPanelClass, 'space-y-2')}>
 			<Label for="app-locale">{$LL.settings.localeLabel()}</Label>
 			<Select.Root
 				type="single"
