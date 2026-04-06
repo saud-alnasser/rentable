@@ -1,5 +1,11 @@
 # rentable
 
+## 0.9.1
+
+### Patch Changes
+
+- [#38](https://github.com/saud-alnasser/rentable/pull/38) [`fc2c9d3`](https://github.com/saud-alnasser/rentable/commit/fc2c9d34f8972f1877cb187890593d2b45655121) Thanks [@renovate](https://github.com/apps/renovate)! - update non-major dependencies
+
 ## 0.9.0
 
 ### Minor Changes
