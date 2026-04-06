@@ -11,8 +11,8 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { DragDropProvider } from '@dnd-kit-svelte/svelte';
+	import { RestrictToVerticalAxis } from '@dnd-kit-svelte/svelte/modifiers';
 	import { useSortable } from '@dnd-kit-svelte/svelte/sortable';
-	import { RestrictToVerticalAxis } from '@dnd-kit/abstract/modifiers';
 	import { move } from '@dnd-kit/helpers';
 	import {
 		IconChevronLeft,
@@ -54,6 +54,11 @@
 	let rowSelection = $state<RowSelectionState>({});
 	let hasDragColumn = $derived(columns.some((col) => col.id === 'drag'));
 	let hasSelectColumn = $derived(columns.some((col) => col.id === 'select'));
+
+	type MoveEvent = Parameters<typeof move>[1];
+	const handleDragEnd = (event: unknown) => {
+		data = move(data, event as MoveEvent);
+	};
 
 	const table = createSvelteTable({
 		get data() {
@@ -191,7 +196,7 @@
 	</div>
 </div>
 <div class="overflow-hidden rounded-lg border">
-	<DragDropProvider modifiers={[RestrictToVerticalAxis]} onDragEnd={(e) => (data = move(data, e))}>
+	<DragDropProvider modifiers={[RestrictToVerticalAxis]} onDragEnd={handleDragEnd}>
 		<Table.Root class="w-full table-fixed">
 			<Table.Header class="sticky top-0 z-10 bg-muted">
 				{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
