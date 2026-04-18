@@ -6,7 +6,7 @@ import {
 	type Payment
 } from '$lib/api/database/schema';
 import { tauri } from '$lib/api/tauri';
-import { procedure, router } from '$lib/api/trpc';
+import { autosync, procedure, router } from '$lib/api/trpc';
 import {
 	CONTRACT_END_DATE_TOLERANCE_DAYS,
 	canManuallyTerminateContractStatus,
@@ -410,156 +410,165 @@ function isWithinUtcRange(value: Date, rangeStart: Date, rangeEnd: Date) {
 }
 
 export default router({
-	create: procedure.public.input(ContractCreateSchema).mutation(async ({ input, ctx }) => {
-		ensureValidContractInput(input);
+	create: procedure.public
+		.use(autosync())
+		.input(ContractCreateSchema)
+		.mutation(async ({ input, ctx }) => {
+			ensureValidContractInput(input);
 
-		const tenant = await ctx.db
-			.select()
-			.from(s.tenant)
-			.where(eq(s.tenant.id, input.tenantId))
-			.get();
+			const tenant = await ctx.db
+				.select()
+				.from(s.tenant)
+				.where(eq(s.tenant.id, input.tenantId))
+				.get();
 
-		if (!tenant) {
-			throw new TRPCError({
-				code: 'BAD_REQUEST',
-				message: 'tenant does not exist'
-			});
-		}
+			if (!tenant) {
+				throw new TRPCError({
+					code: 'BAD_REQUEST',
+					message: 'tenant does not exist'
+				});
+			}
 
-		const normalizedGovId = input.govId?.trim() || null;
-		const isGovIdUsed = normalizedGovId
-			? await ctx.db.select().from(s.contract).where(eq(s.contract.govId, normalizedGovId)).get()
-			: undefined;
+			const normalizedGovId = input.govId?.trim() || null;
+			const isGovIdUsed = normalizedGovId
+				? await ctx.db.select().from(s.contract).where(eq(s.contract.govId, normalizedGovId)).get()
+				: undefined;
 
-		if (isGovIdUsed) {
-			throw new TRPCError({
-				code: 'BAD_REQUEST',
-				message: 'government id is associated with another contract'
-			});
-		}
+			if (isGovIdUsed) {
+				throw new TRPCError({
+					code: 'BAD_REQUEST',
+					message: 'government id is associated with another contract'
+				});
+			}
 
-		const initialStatus = deriveContractStatus(
-			{
-				status: 'active',
-				start: new Date(input.start),
-				end: new Date(input.end),
-				interval: input.interval,
-				cost: input.cost
-			},
-			[]
-		);
+			const initialStatus = deriveContractStatus(
+				{
+					status: 'active',
+					start: new Date(input.start),
+					end: new Date(input.end),
+					interval: input.interval,
+					cost: input.cost
+				},
+				[]
+			);
 
-		const created = await ctx.db
-			.insert(s.contract)
-			.values({
-				...input,
-				govId: normalizedGovId,
-				status: initialStatus,
-				start: new Date(input.start),
-				end: new Date(input.end)
-			})
-			.returning()
-			.get();
+			const created = await ctx.db
+				.insert(s.contract)
+				.values({
+					...input,
+					govId: normalizedGovId,
+					status: initialStatus,
+					start: new Date(input.start),
+					end: new Date(input.end)
+				})
+				.returning()
+				.get();
 
-		await sync(ctx.db);
+			await sync(ctx.db);
 
-		return serializeContract(created);
-	}),
+			return serializeContract(created);
+		}),
 
-	update: procedure.public.input(ContractUpdateSchema).mutation(async ({ input, ctx }) => {
-		ensureValidContractInput(input);
+	update: procedure.public
+		.use(autosync())
+		.input(ContractUpdateSchema)
+		.mutation(async ({ input, ctx }) => {
+			ensureValidContractInput(input);
 
-		const existingContract = await ctx.db
-			.select()
-			.from(s.contract)
-			.where(eq(s.contract.id, input.id))
-			.get();
+			const existingContract = await ctx.db
+				.select()
+				.from(s.contract)
+				.where(eq(s.contract.id, input.id))
+				.get();
 
-		if (!existingContract) {
-			throw new TRPCError({
-				code: 'BAD_REQUEST',
-				message: 'contract does not exist'
-			});
-		}
+			if (!existingContract) {
+				throw new TRPCError({
+					code: 'BAD_REQUEST',
+					message: 'contract does not exist'
+				});
+			}
 
-		ensureContractIsNotTerminated(existingContract.status);
+			ensureContractIsNotTerminated(existingContract.status);
 
-		const tenant = await ctx.db
-			.select()
-			.from(s.tenant)
-			.where(eq(s.tenant.id, input.tenantId))
-			.get();
+			const tenant = await ctx.db
+				.select()
+				.from(s.tenant)
+				.where(eq(s.tenant.id, input.tenantId))
+				.get();
 
-		if (!tenant) {
-			throw new TRPCError({
-				code: 'BAD_REQUEST',
-				message: 'tenant does not exist'
-			});
-		}
+			if (!tenant) {
+				throw new TRPCError({
+					code: 'BAD_REQUEST',
+					message: 'tenant does not exist'
+				});
+			}
 
-		const normalizedGovId = input.govId?.trim() || null;
-		const isGovIdUsed = normalizedGovId
-			? await ctx.db
-					.select()
-					.from(s.contract)
-					.where(sql`${s.contract.govId} = ${normalizedGovId} AND ${s.contract.id} != ${input.id}`)
-					.get()
-			: undefined;
+			const normalizedGovId = input.govId?.trim() || null;
+			const isGovIdUsed = normalizedGovId
+				? await ctx.db
+						.select()
+						.from(s.contract)
+						.where(
+							sql`${s.contract.govId} = ${normalizedGovId} AND ${s.contract.id} != ${input.id}`
+						)
+						.get()
+				: undefined;
 
-		if (isGovIdUsed) {
-			throw new TRPCError({
-				code: 'BAD_REQUEST',
-				message: 'government id is associated with another contract'
-			});
-		}
+			if (isGovIdUsed) {
+				throw new TRPCError({
+					code: 'BAD_REQUEST',
+					message: 'government id is associated with another contract'
+				});
+			}
 
-		const hasDateRangeChanged = !hasSameUtcDateRange(
-			existingContract.start,
-			existingContract.end,
-			input.start,
-			input.end
-		);
+			const hasDateRangeChanged = !hasSameUtcDateRange(
+				existingContract.start,
+				existingContract.end,
+				input.start,
+				input.end
+			);
 
-		if (hasDateRangeChanged) {
-			await ensureAssignedUnitsDoNotOverlap(ctx.db, input.id, input.start, input.end);
-		}
+			if (hasDateRangeChanged) {
+				await ensureAssignedUnitsDoNotOverlap(ctx.db, input.id, input.start, input.end);
+			}
 
-		const existingPayments = await ctx.db
-			.select()
-			.from(s.payment)
-			.where(eq(s.payment.contractId, input.id));
-		const nextStatus = deriveContractStatus(
-			{
-				status: existingContract.status,
-				start: new Date(input.start),
-				end: new Date(input.end),
-				interval: input.interval,
-				cost: input.cost
-			},
-			existingPayments
-		);
+			const existingPayments = await ctx.db
+				.select()
+				.from(s.payment)
+				.where(eq(s.payment.contractId, input.id));
+			const nextStatus = deriveContractStatus(
+				{
+					status: existingContract.status,
+					start: new Date(input.start),
+					end: new Date(input.end),
+					interval: input.interval,
+					cost: input.cost
+				},
+				existingPayments
+			);
 
-		const updated = await ctx.db
-			.update(s.contract)
-			.set({
-				govId: normalizedGovId,
-				status: nextStatus,
-				start: new Date(input.start),
-				end: new Date(input.end),
-				interval: input.interval,
-				cost: input.cost,
-				tenantId: input.tenantId
-			})
-			.where(eq(s.contract.id, input.id))
-			.returning()
-			.get();
+			const updated = await ctx.db
+				.update(s.contract)
+				.set({
+					govId: normalizedGovId,
+					status: nextStatus,
+					start: new Date(input.start),
+					end: new Date(input.end),
+					interval: input.interval,
+					cost: input.cost,
+					tenantId: input.tenantId
+				})
+				.where(eq(s.contract.id, input.id))
+				.returning()
+				.get();
 
-		await sync(ctx.db);
+			await sync(ctx.db);
 
-		return serializeContract(updated);
-	}),
+			return serializeContract(updated);
+		}),
 
 	terminate: procedure.public
+		.use(autosync())
 		.input(ContractSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
 			const existingContract = await ctx.db
@@ -602,6 +611,7 @@ export default router({
 		}),
 
 	unterminate: procedure.public
+		.use(autosync())
 		.input(ContractSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
 			const existingContract = await ctx.db
@@ -646,6 +656,7 @@ export default router({
 		}),
 
 	delete: procedure.public
+		.use(autosync())
 		.input(ContractSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
 			const existingContract = await ctx.db
@@ -1141,184 +1152,190 @@ export default router({
 					}));
 			}),
 
-		assign: procedure.public.input(ContractUnitsAssignSchema).mutation(async ({ input, ctx }) => {
-			const contract = await ctx.db
-				.select()
-				.from(s.contract)
-				.where(eq(s.contract.id, input.contractId))
-				.get();
+		assign: procedure.public
+			.use(autosync())
+			.input(ContractUnitsAssignSchema)
+			.mutation(async ({ input, ctx }) => {
+				const contract = await ctx.db
+					.select()
+					.from(s.contract)
+					.where(eq(s.contract.id, input.contractId))
+					.get();
 
-			if (!contract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
-			}
+				if (!contract) {
+					throw new TRPCError({
+						code: 'BAD_REQUEST',
+						message: 'contract does not exist'
+					});
+				}
 
-			ensureContractIsNotTerminated(contract.status);
-			await ensureContractUnitsAreMutable(ctx.db, input.contractId);
+				ensureContractIsNotTerminated(contract.status);
+				await ensureContractUnitsAreMutable(ctx.db, input.contractId);
 
-			const complex = await ctx.db
-				.select()
-				.from(s.complex)
-				.where(eq(s.complex.id, input.complexId))
-				.get();
+				const complex = await ctx.db
+					.select()
+					.from(s.complex)
+					.where(eq(s.complex.id, input.complexId))
+					.get();
 
-			if (!complex) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'complex does not exist'
-				});
-			}
+				if (!complex) {
+					throw new TRPCError({
+						code: 'BAD_REQUEST',
+						message: 'complex does not exist'
+					});
+				}
 
-			const unitIds = [...new Set(input.unitIds)];
-			const units = await ctx.db
-				.select()
-				.from(s.unit)
-				.where(and(eq(s.unit.complexId, input.complexId), inArray(s.unit.id, unitIds)));
+				const unitIds = [...new Set(input.unitIds)];
+				const units = await ctx.db
+					.select()
+					.from(s.unit)
+					.where(and(eq(s.unit.complexId, input.complexId), inArray(s.unit.id, unitIds)));
 
-			if (units.length !== unitIds.length) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'one or more units could not be found in the selected complex'
-				});
-			}
+				if (units.length !== unitIds.length) {
+					throw new TRPCError({
+						code: 'BAD_REQUEST',
+						message: 'one or more units could not be found in the selected complex'
+					});
+				}
 
-			const existingAssignments = await ctx.db
-				.select({
-					unitId: s.contractUnit.unitId,
-					contractId: s.contract.id,
-					status: s.contract.status,
-					start: s.contract.start,
-					end: s.contract.end,
-					interval: s.contract.interval,
-					cost: s.contract.cost
-				})
-				.from(s.contractUnit)
-				.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
-				.where(inArray(s.contractUnit.unitId, unitIds));
+				const existingAssignments = await ctx.db
+					.select({
+						unitId: s.contractUnit.unitId,
+						contractId: s.contract.id,
+						status: s.contract.status,
+						start: s.contract.start,
+						end: s.contract.end,
+						interval: s.contract.interval,
+						cost: s.contract.cost
+					})
+					.from(s.contractUnit)
+					.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
+					.where(inArray(s.contractUnit.unitId, unitIds));
 
-			const overlappingAssignments = getConflictingAssignedUnitIds(
-				existingAssignments,
-				contract,
-				input.contractId
-			);
-
-			if (overlappingAssignments.size > 0) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'one or more selected units are already assigned to an overlapping contract'
-				});
-			}
-
-			for (const unitId of unitIds) {
-				await ctx.db.insert(s.contractUnit).values({ contractId: input.contractId, unitId });
-			}
-
-			const assignedUnits = await ctx.db
-				.select({
-					id: s.unit.id,
-					name: s.unit.name,
-					complexId: s.unit.complexId,
-					complexName: s.complex.name,
-					contractId: s.contractUnit.contractId
-				})
-				.from(s.contractUnit)
-				.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
-				.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
-				.where(
-					and(
-						eq(s.contractUnit.contractId, input.contractId),
-						inArray(s.contractUnit.unitId, unitIds)
-					)
+				const overlappingAssignments = getConflictingAssignedUnitIds(
+					existingAssignments,
+					contract,
+					input.contractId
 				);
 
-			const assignments = await ctx.db
-				.select({
-					unitId: s.contractUnit.unitId,
-					contractId: s.contract.id,
-					status: s.contract.status,
-					start: s.contract.start,
-					end: s.contract.end,
-					interval: s.contract.interval,
-					cost: s.contract.cost
-				})
-				.from(s.contractUnit)
-				.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
-				.where(inArray(s.contractUnit.unitId, unitIds));
+				if (overlappingAssignments.size > 0) {
+					throw new TRPCError({
+						code: 'BAD_REQUEST',
+						message: 'one or more selected units are already assigned to an overlapping contract'
+					});
+				}
 
-			const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
-			const assignmentPayments = contractIds.length
-				? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-				: [];
-			const assignedStatusByUnitId = getDerivedUnitStatuses(
-				unitIds,
-				assignments,
-				groupPaymentsByContractId(assignmentPayments)
-			);
+				for (const unitId of unitIds) {
+					await ctx.db.insert(s.contractUnit).values({ contractId: input.contractId, unitId });
+				}
 
-			await sync(ctx.db);
+				const assignedUnits = await ctx.db
+					.select({
+						id: s.unit.id,
+						name: s.unit.name,
+						complexId: s.unit.complexId,
+						complexName: s.complex.name,
+						contractId: s.contractUnit.contractId
+					})
+					.from(s.contractUnit)
+					.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
+					.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+					.where(
+						and(
+							eq(s.contractUnit.contractId, input.contractId),
+							inArray(s.contractUnit.unitId, unitIds)
+						)
+					);
 
-			return assignedUnits.map((unit) => ({
-				...unit,
-				status: assignedStatusByUnitId.get(unit.id) ?? 'vacant'
-			}));
-		}),
+				const assignments = await ctx.db
+					.select({
+						unitId: s.contractUnit.unitId,
+						contractId: s.contract.id,
+						status: s.contract.status,
+						start: s.contract.start,
+						end: s.contract.end,
+						interval: s.contract.interval,
+						cost: s.contract.cost
+					})
+					.from(s.contractUnit)
+					.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
+					.where(inArray(s.contractUnit.unitId, unitIds));
 
-		remove: procedure.public.input(ContractUnitRemoveSchema).mutation(async ({ input, ctx }) => {
-			const contract = await ctx.db
-				.select()
-				.from(s.contract)
-				.where(eq(s.contract.id, input.contractId))
-				.get();
-
-			if (!contract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
-			}
-
-			ensureContractIsNotTerminated(contract.status);
-			await ensureContractUnitsAreMutable(ctx.db, input.contractId);
-
-			const existingAssignment = await ctx.db
-				.select()
-				.from(s.contractUnit)
-				.where(
-					and(
-						eq(s.contractUnit.contractId, input.contractId),
-						eq(s.contractUnit.unitId, input.unitId)
-					)
-				)
-				.get();
-
-			if (!existingAssignment) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'unit is not assigned to this contract'
-				});
-			}
-
-			const unit = await ctx.db.select().from(s.unit).where(eq(s.unit.id, input.unitId)).get();
-
-			await ctx.db
-				.delete(s.contractUnit)
-				.where(
-					and(
-						eq(s.contractUnit.contractId, input.contractId),
-						eq(s.contractUnit.unitId, input.unitId)
-					)
+				const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
+				const assignmentPayments = contractIds.length
+					? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
+					: [];
+				const assignedStatusByUnitId = getDerivedUnitStatuses(
+					unitIds,
+					assignments,
+					groupPaymentsByContractId(assignmentPayments)
 				);
 
-			await sync(ctx.db);
+				await sync(ctx.db);
 
-			return {
-				contractId: input.contractId,
-				unitId: input.unitId,
-				complexId: unit?.complexId
-			};
-		})
+				return assignedUnits.map((unit) => ({
+					...unit,
+					status: assignedStatusByUnitId.get(unit.id) ?? 'vacant'
+				}));
+			}),
+
+		remove: procedure.public
+			.use(autosync())
+			.input(ContractUnitRemoveSchema)
+			.mutation(async ({ input, ctx }) => {
+				const contract = await ctx.db
+					.select()
+					.from(s.contract)
+					.where(eq(s.contract.id, input.contractId))
+					.get();
+
+				if (!contract) {
+					throw new TRPCError({
+						code: 'BAD_REQUEST',
+						message: 'contract does not exist'
+					});
+				}
+
+				ensureContractIsNotTerminated(contract.status);
+				await ensureContractUnitsAreMutable(ctx.db, input.contractId);
+
+				const existingAssignment = await ctx.db
+					.select()
+					.from(s.contractUnit)
+					.where(
+						and(
+							eq(s.contractUnit.contractId, input.contractId),
+							eq(s.contractUnit.unitId, input.unitId)
+						)
+					)
+					.get();
+
+				if (!existingAssignment) {
+					throw new TRPCError({
+						code: 'BAD_REQUEST',
+						message: 'unit is not assigned to this contract'
+					});
+				}
+
+				const unit = await ctx.db.select().from(s.unit).where(eq(s.unit.id, input.unitId)).get();
+
+				await ctx.db
+					.delete(s.contractUnit)
+					.where(
+						and(
+							eq(s.contractUnit.contractId, input.contractId),
+							eq(s.contractUnit.unitId, input.unitId)
+						)
+					);
+
+				await sync(ctx.db);
+
+				return {
+					contractId: input.contractId,
+					unitId: input.unitId,
+					complexId: unit?.complexId
+				};
+			})
 	},
 
 	payments: {
@@ -1366,6 +1383,7 @@ export default router({
 			}),
 
 		create: procedure.public
+			.use(autosync())
 			.input(PaymentSchema.omit({ id: true }))
 			.mutation(async ({ input, ctx }) => {
 				const contract = await ctx.db
@@ -1406,6 +1424,7 @@ export default router({
 			}),
 
 		update: procedure.public
+			.use(autosync())
 			.input(PaymentSchema.pick({ id: true, date: true, amount: true }))
 			.mutation(async ({ input, ctx }) => {
 				const existingPayment = await ctx.db
@@ -1459,6 +1478,7 @@ export default router({
 			}),
 
 		delete: procedure.public
+			.use(autosync())
 			.input(PaymentSchema.pick({ id: true }))
 			.mutation(async ({ input, ctx }) => {
 				const existingPayment = await ctx.db

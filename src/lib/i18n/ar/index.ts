@@ -12,6 +12,8 @@ const ar = {
 			cancel: 'إلغاء',
 			checkForUpdates: 'التحقق من التحديثات',
 			checkingForUpdates: 'جاري التحقق من التحديثات...',
+			connect: 'ربط',
+			connecting: 'جارٍ الربط...',
 			create: 'إنشاء',
 			createBackup: 'إنشاء نسخة احتياطية',
 			creating: 'جاري الإنشاء...',
@@ -19,15 +21,23 @@ const ar = {
 			customizeColumns: 'تخصيص الأعمدة',
 			delete: 'حذف',
 			deleting: 'جاري الحذف...',
+			disconnect: 'فصل',
 			dragToReorder: 'اسحب لإعادة الترتيب',
 			downloadAndInstall: 'تنزيل وتثبيت',
 			edit: 'تعديل',
 			installingUpdate: 'جاري تثبيت التحديث...',
+			link: 'ربط',
+			linking: 'جارٍ الربط...',
 			newRecord: 'سجل جديد',
+			openLocal: 'فتح مساحة العمل محليًا',
 			openMenu: 'فتح القائمة',
 			openPayments: 'فتح المدفوعات',
 			openPreviousRelease: 'فتح الإصدار السابق',
 			proceed: 'متابعة',
+			pull: 'سحب البعيد',
+			pulling: 'جارٍ السحب...',
+			push: 'رفع اللقطة',
+			pushing: 'جارٍ الرفع...',
 			remove: 'إزالة',
 			restore: 'استعادة',
 			restoring: 'جاري الاستعادة...',
@@ -40,6 +50,9 @@ const ar = {
 			saveDatabasePath: 'حفظ مسار قاعدة البيانات',
 			saveWindow: 'حفظ النافذة',
 			saving: 'جاري الحفظ...',
+			syncing: 'جارٍ المزامنة...',
+			syncNow: 'زامن الآن',
+			unlink: 'إلغاء الربط',
 			terminate: 'إنهاء',
 			terminating: 'جاري الإنهاء...',
 			unterminate: 'إلغاء الإنهاء',
@@ -172,6 +185,10 @@ const ar = {
 	},
 	layout: {
 		startup: {
+			accountChoiceDescription:
+				'افتح مساحة العمل الحالية محليًا، أو اربط Google Drive الآن لتحويلها إلى مساحة عمل متزامنة.',
+			accountChoiceEmpty: 'لا توجد ملفات عمل متاحة بعد.',
+			accountChoiceTitle: 'افتح مساحة العمل الحالية',
 			failedToStartDescription: 'حدثت مشكلة أثناء الاتصال بقاعدة البيانات أو تشغيل مزامنة البدء.',
 			failedToStartFallback: 'فشل في تشغيل التطبيق.',
 			failedToStartTitle: 'فشل في تشغيل التطبيق',
@@ -260,7 +277,7 @@ const ar = {
 	},
 
 	settings: {
-		aboutDescription: 'معلومات التطبيق الحالية ووقت آخر مزامنة وآخر نسخة احتياطية.',
+		aboutDescription: 'معلومات التطبيق الحالية ووقت آخر مزامنة وآخر لقطة استرداد.',
 		aboutTitle: 'حول',
 		createdAt: 'تم الإنشاء {value}',
 
@@ -277,7 +294,7 @@ const ar = {
 		deleteBackupTitle: 'حذف نسخة احتياطية',
 
 		description:
-			'أدر فترة الإشعار قبل الانتهاء، وتحديثات التطبيق، ومسارات قواعد البيانات، والنسخ الاحتياطية، ومعلومات التطبيق.',
+			'أدر فترة الإشعار قبل الانتهاء، وتحديثات التطبيق، وملفات عمل المزامنة، ومعلومات التطبيق.',
 
 		downloadingUpdate: 'جاري تنزيل التحديث',
 
@@ -290,6 +307,8 @@ const ar = {
 
 		loadErrorDescription: 'حدثت مشكلة أثناء تحميل الإعدادات.',
 		loadErrorTitle: 'الإعدادات غير متاحة حالياً',
+		currentWorkspace: 'مساحة العمل الحالية',
+		openWorkspaceAction: 'فتح مساحة العمل',
 
 		protectedUpdateBackup: 'نسخة احتياطية محمية',
 		releaseAvailable: 'يتوفر تحديث v{version}.',
@@ -303,6 +322,104 @@ const ar = {
 		pathOverrideDescription:
 			'عند تركه فارغاً سيُستخدم المسار الافتراضي أعلاه. عند الحفظ يُعاد الاتصال فوراً، وتُشغَّل الترحيلات مجدداً عند بدء التشغيل على مسار قاعدة البيانات المحدد.',
 		pathOverridePlaceholder: 'اتركه فارغاً لاستخدام المسار الافتراضي',
+		latestSnapshot: 'أحدث لقطة',
+		snapshotNow: 'إنشاء لقطة الآن',
+		syncAutomationDescription:
+			'تُدار اللقطات تلقائياً للاسترداد والمزامنة والتنظيف عند إلغاء الربط، وتُنظَّف اللقطات الداخلية الأقدم نيابةً عنك.',
+		syncAutomationTitle: 'لقطات مُدارة',
+		syncAccountsDescription:
+			'تظل حسابات Google Drive المرتبطة متاحة للتبديل بين مساحات العمل والمزامنة والاختيار عند بدء التشغيل.',
+		syncAccountsTitle: 'حسابات Google Drive المرتبطة',
+		syncAccountStatusNeedsReconnect: 'يحتاج إلى إعادة ربط',
+		syncAccountStatusPending: 'بانتظار التفويض',
+		syncAccountStatusReady: 'جاهز للمزامنة',
+		syncAppDriveUsageDescription: 'مساحة Rentable Sync المستخدمة: {value}',
+		syncConnectedAccountLabel: 'Google Drive المرتبط',
+		syncConflictDeferAction: 'افتح الآن بدون مزامنة',
+		syncCorruptDescription:
+			'تعذّر قراءة بيانات Google Drive الوصفية بأمان. أصلح مساحة العمل البعيدة باستخدام مساحة العمل المحلية الحالية قبل متابعة المزامنة.',
+		syncCorruptKeepLocalAction: 'إصلاح البعيد باستخدام المحلي',
+		syncCorruptLocalDescription:
+			'استخدم هذا الجهاز كمصدر أساسي واكتب ملف manifest نظيفاً مرة أخرى إلى Google Drive.',
+		syncCorruptRemoteDescription:
+			'بيانات Google Drive الوصفية المرتبطة بالحساب {email} تالفة، لذلك لا يمكن الوثوق بالنسخة البعيدة حتى يتم إصلاحها.',
+		syncCorruptShortDescription:
+			'بيانات Google Drive الوصفية تالفة. أصلح مساحة العمل البعيدة باستخدام نسختك المحلية قبل متابعة المزامنة.',
+		syncCorruptTitle: 'إصلاح بيانات Google Drive الوصفية',
+		syncAlreadyRunningDescription:
+			'توجد مزامنة Google Drive أخرى قيد التشغيل بالفعل. انتظر حتى تنتهي ثم أعد المحاولة.',
+		syncConflictDescription:
+			'تغيّرت مساحة العمل هذه محلياً وعلى Google Drive منذ آخر مزامنة. اختر النسخة التي يجب أن تستمر قبل المزامنة مرة أخرى.',
+		syncConflictLatestBadge: 'الأحدث',
+		syncConflictKeepLocalAction: 'الاحتفاظ بالمحلي ومزامنته',
+		syncConflictLocalDescription:
+			'اجعل هذا الجهاز هو المصدر الأساسي واكتب مساحة العمل المحلية فوق لقطة Google Drive الحالية.',
+		syncConflictRemoteDescription: 'استبدل هذا الجهاز بلقطة Google Drive المرتبطة بالحساب {email}.',
+		syncConflictShortDescription:
+			'حدث تباعد بين المساحة المحلية والبعيدة. اختر أي الجانبين يجب أن يعتمد قبل استئناف المزامنة.',
+		syncConflictTitle: 'حل تعارض المزامنة',
+		syncConflictUseRemoteAction: 'استخدام البعيد ومزامنته',
+		syncDescription:
+			'راجع حالة مساحة العمل الحالية، واحتفظ بلقطة حديثة، واربط أو ألغِ ربط مزامنة Google Drive.',
+		syncGoogleDrivePending:
+			'ربط حسابات Google Drive غير مفعّل في هذا الإصدار بعد، لكن أساس ملفات العمل واللقطات أصبح جاهزاً له.',
+		syncTotalDriveUsageDescription: 'إجمالي مساحة Google Drive المستخدمة: {value}',
+		syncLinkConflictDescription:
+			'تحتوي مساحة العمل هذه بالفعل على لقطة محلية ولقطة على Google Drive. اختر النسخة التي يجب أن تستمر قبل بدء المزامنة.',
+		syncLinkConflictLocalDescription:
+			'تابع باستخدام هذا الجهاز واكتب أحدث لقطة محلية فوق Google Drive.',
+		syncLinkConflictLocalTitle: 'الاحتفاظ بالمحلي',
+		syncLinkConflictRemoteDescription:
+			'استبدل هذا الجهاز بلقطة Google Drive المرتبطة بالحساب {email}.',
+		syncLinkConflictRemoteTitle: 'استخدام البعيد',
+		syncLinkConflictShortDescription:
+			'أكمل الربط باختيار ما إذا كانت اللقطة المحلية أو البعيدة ستصبح مساحة العمل المتزامنة.',
+		syncLinkConflictTitle: 'اختر نسخة مساحة العمل التي ستبقى',
+		syncLinkKeepLocalAction: 'الاحتفاظ بالمحلي وربطه',
+		syncLinkUseRemoteAction: 'استخدام البعيد وربطه',
+		syncLastRemoteDescription: 'آخر تحديث بعيد {value}',
+		syncLastSnapshotDescription: 'أحدث لقطة {value}',
+		syncLinkDescription:
+			'اربط Google Drive بمساحة العمل هذه لتفعيل المزامنة عند بدء التشغيل والاسترداد البعيد. إذا وُجدت لقطات محلية وبعيدة معًا فستختار أيهما يبقى.',
+		syncLinkFinalizingDescription:
+			'تم استلام تفويض Google. يُنهي Rentable الآن ربط Google Drive ويتحقق من مساحة العمل البعيدة.',
+		syncLinkFinalizingTitle: 'جارٍ إنهاء ربط Google Drive',
+		syncLinkPendingDescription:
+			'أكمل تسجيل الدخول إلى Google في المتصفح. إذا كانت هناك لقطة موجودة بالفعل على Google Drive لهذه المساحة فستختار المحلي أو البعيد بعد ذلك.',
+		syncLinkPendingTitle: 'بانتظار تفويض Google',
+		syncLinkTimedOutDescription:
+			'استغرق تفويض Google Drive وقتاً طويلاً ولم يكتمل. ابدأ الربط مرة أخرى عندما تكون جاهزاً.',
+		syncNotLinkedDescription: 'مساحة العمل الحالية غير مرتبطة بـ Google Drive.',
+		syncNoLinkedAccounts: 'لا توجد حسابات Google Drive مرتبطة بعد.',
+		syncProfilesDescription:
+			'كل مساحة عمل تحتفظ بمسار قاعدة بياناتها المحلي وآخر لقطة استرداد لها.',
+		syncProfilesTitle: 'ملفات العمل',
+		syncProviderGoogleDrive: 'Google Drive',
+		syncProviderLocal: 'مساحة عمل محلية',
+		syncReconnectDescription: 'انتهت صلاحية تفويض Google Drive. يُرجى إعادة ربط الحساب.',
+		syncRelinkRequiredAction: 'تصفير البعيد وإعادة الربط',
+		syncRelinkRequiredDescription:
+			'مساحة عمل Google Drive المرتبطة فقدت ملف manifest، ولا يمكن الوثوق باللقطات البعيدة المتبقية بصيغتها الحالية. للمتابعة بأمان، صفّر النسخة البعيدة المعطوبة ثم أعد ربط Google Drive من جديد. سيؤدي ذلك إلى مسح ملفات اللقطات البعيدة الحالية قبل إعادة الربط.',
+		syncRelinkRequiredLocalDescription:
+			'احتفظ بمساحة العمل المحلية الحالية على هذا الجهاز، وامسح النسخة البعيدة المعطوبة، ثم ابدأ ربط Google Drive من جديد.',
+		syncRelinkRequiredRemoteDescription:
+			'لا يمكن تحويل ملفات اللقطات المتبقية على Google Drive للحساب {email} إلى ملف manifest بعيد صالح بشكل آمن تلقائياً.',
+		syncRelinkRequiredShortDescription:
+			'النسخة المرتبطة على Google Drive معطوبة ويجب إعادة ربطها قبل متابعة المزامنة.',
+		syncRelinkRequiredTitle: 'أعد ربط مساحة عمل Google Drive المعطوبة',
+		syncRemoteStateChangedDescription:
+			'تغيّر Google Drive أثناء المزامنة. أعد المحاولة باستخدام أحدث حالة بعيدة.',
+		syncRemoteSnapshotUnavailableDescription:
+			'لا توجد لقطة بعيدة متاحة بعد على Google Drive لمساحة العمل هذه.',
+		syncUnlinkDescription:
+			'يبقي إلغاء الربط مساحة العمل هذه محلية، وينشئ لقطة محلية حديثة واحدة، ويوقف مزامنة Google Drive المستقبلية حتى تعيد الربط من جديد.',
+		syncUnlinkDialogDescription:
+			'سيُبقي هذا مساحة العمل محلية ويوقف مزامنة Google Drive المستقبلية حتى تعيد الربط من جديد.',
+		syncUnlinkDialogTitle: 'إلغاء ربط Google Drive؟',
+		syncWorkspaceChangedDescription:
+			'تغيّرت مساحة العمل النشطة قبل أن تتمكن مزامنة Google Drive من البدء.',
+		syncWorkspaceStatusSynced: 'تمت مزامنته',
+		syncTitle: 'المزامنة وملفات العمل',
 
 		localeDescription: 'اختر لغة العرض المفضلة لديك. سيتم تحديث الواجهة فوراً.',
 		localeLabel: 'لغة العرض',
@@ -477,7 +594,14 @@ const ar = {
 		databasePathReset: 'تم إعادة تعيين المسار!',
 		databasePathUpdated: 'تم تحديث المسار!',
 		endingSoonUpdated: 'تم تحديث فترة الإشعار!',
+		googleDriveAlreadyUpToDate: 'مساحة عمل Google Drive محدثة بالفعل!',
+		googleDriveDisconnected: 'تم فصل حساب Google Drive بنجاح!',
+		googleDriveLinked: 'تم ربط مساحة عمل Google Drive بنجاح!',
+		googleDriveUnlinked: 'تم إلغاء ربط مساحة عمل Google Drive بنجاح!',
+		googleDriveSynchronized: 'تمت مزامنة مساحة العمل مع Google Drive بنجاح!',
+		profileSwitched: 'تم تبديل مساحة العمل بنجاح!',
 		rollbackRestored: 'تم استعادة النسخة المحمية!',
+		snapshotCreated: 'تم إنشاء اللقطة بنجاح!',
 		startupRecoveryCleared: 'تم مسح الاسترداد ويمكن المحاولة مجدداً.'
 	}
 } satisfies Translation;

@@ -1,3 +1,4 @@
+import { requestGoogleDriveAutosync } from '$lib/api/utils/remote-sync-google-drive-events';
 import { initTRPC } from '@trpc/server';
 import { ZodError } from 'zod';
 import { db } from './database/mod';
@@ -65,8 +66,19 @@ export const middleware = {
 		console.log(`[TRPC] ${path} executed in ${duration}ms`);
 
 		return result;
+	}),
+	scheduleGoogleDriveAutosync: t.middleware(async ({ next }) => {
+		const result = await next();
+
+		if (result.ok) {
+			requestGoogleDriveAutosync();
+		}
+
+		return result;
 	})
 };
+
+export const autosync = () => middleware.scheduleGoogleDriveAutosync;
 
 /**
  * PROCEDURES

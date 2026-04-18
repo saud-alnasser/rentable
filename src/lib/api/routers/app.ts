@@ -2,10 +2,11 @@ import {
 	tauri,
 	type BackupEntry,
 	type Recovery,
+	type RemoteSyncState,
 	type Settings,
 	type SettingsChangeset
 } from '$lib/api/tauri';
-import { procedure, router } from '$lib/api/trpc';
+import { autosync, procedure, router } from '$lib/api/trpc';
 import { sync } from '$lib/api/utils/sync';
 import z from 'zod';
 
@@ -21,14 +22,12 @@ export default router({
 			.input(
 				z.object({
 					endingSoonNoticeDays: z.number().int().optional(),
-					databasePath: z.string().optional(),
 					locale: z.string().optional()
 				})
 			)
 			.mutation(async ({ input }) => {
 				return tauri.settings.set({
 					endingSoonNoticeDays: input.endingSoonNoticeDays,
-					databasePath: input.databasePath,
 					locale: input.locale
 				} satisfies SettingsChangeset);
 			})
@@ -50,6 +49,7 @@ export default router({
 				return tauri.backup.delete(input.filename);
 			}),
 		restore: procedure.public
+			.use(autosync())
 			.input(
 				z.object({
 					filename: z.string().trim().min(1)
@@ -58,6 +58,14 @@ export default router({
 			.mutation(async ({ input }) => {
 				return tauri.backup.restore(input.filename);
 			})
+	},
+	remoteSync: {
+		getState: procedure.public.query(async (): Promise<RemoteSyncState> => {
+			return tauri.remoteSync.getState();
+		}),
+		snapshotNow: procedure.public.mutation(async (): Promise<RemoteSyncState> => {
+			return tauri.remoteSync.snapshotNow();
+		})
 	},
 	update: {
 		prepare: procedure.public
@@ -76,6 +84,9 @@ export default router({
 	window: {
 		show: procedure.public.mutation(async () => {
 			await tauri.window.show();
+		}),
+		hide: procedure.public.mutation(async () => {
+			await tauri.window.hide();
 		}),
 		minimize: procedure.public.mutation(async () => {
 			await tauri.window.minimize();

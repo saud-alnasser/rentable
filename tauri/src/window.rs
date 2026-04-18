@@ -4,6 +4,11 @@ pub fn window_show(window: tauri::Window) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn window_hide(window: tauri::Window) -> Result<(), String> {
+    window.hide().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn window_minimize(window: tauri::Window) -> Result<(), String> {
     window.minimize().map_err(|error| error.to_string())
 }
@@ -24,7 +29,7 @@ pub fn window_drag(window: tauri::Window) -> Result<(), String> {
 
 #[tauri::command]
 pub fn window_close(window: tauri::Window) -> Result<(), String> {
-    window.close().map_err(|error| error.to_string())
+    window.destroy().map_err(|error| error.to_string())
 }
 
 #[tauri::command]

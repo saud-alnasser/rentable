@@ -36,10 +36,7 @@ impl Database {
 
     pub async fn connect(&mut self) -> Result<(), String> {
         let settings = self.settings.read().await;
-        let db_path = settings
-            .active_database_path
-            .clone()
-            .unwrap_or(settings.default_database_path.clone());
+        let db_path = settings.database_path.clone();
         let migration_dir = settings.migration_dir.clone();
 
         if let Some(parent) = db_path.parent() {
@@ -111,10 +108,7 @@ impl Database {
     pub async fn restore_backup(&mut self, backup_path: &Path) -> Result<(), String> {
         let settings = self.settings.read().await;
 
-        let db_path = settings
-            .active_database_path
-            .clone()
-            .unwrap_or(settings.default_database_path.clone());
+        let db_path = settings.database_path.clone();
 
         drop(settings);
 
@@ -244,31 +238,5 @@ impl Database {
             .ok_or("database not connected".to_string())?;
 
         proxy::execute_batch_sql(&pool, queries).await
-    }
-
-    pub fn normalize_path(path: Option<String>) -> Result<Option<PathBuf>, String> {
-        let Some(raw_path) = path else {
-            return Ok(None);
-        };
-
-        let trimmed_path = raw_path.trim();
-
-        if trimmed_path.is_empty() {
-            return Ok(None);
-        }
-
-        let mut normalized_path = PathBuf::from(trimmed_path);
-
-        if !normalized_path.is_absolute() {
-            normalized_path = std::env::current_dir()
-                .map_err(|e| e.to_string())?
-                .join(normalized_path);
-        }
-
-        if trimmed_path.ends_with('/') || trimmed_path.ends_with('\\') || normalized_path.is_dir() {
-            normalized_path = normalized_path.join(Database::FILENAME);
-        }
-
-        Ok(Some(normalized_path))
     }
 }
