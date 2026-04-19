@@ -1,5 +1,11 @@
 # rentable
 
+## 0.10.1
+
+### Patch Changes
+
+- [#80](https://github.com/saud-alnasser/rentable/pull/80) [`a0405ce`](https://github.com/saud-alnasser/rentable/commit/a0405ce2dd81f0ed1a0ee9e3337cec1fd08bb320) Thanks [@renovate](https://github.com/apps/renovate)! - upgrade all non-major dependencies
+
 ## 0.10.0
 
 ### Minor Changes
