@@ -1,6 +1,6 @@
 import * as s from '$lib/api/database/schema';
 import { TenantSchema } from '$lib/api/database/schema';
-import { procedure, router } from '$lib/api/trpc';
+import { autosync, procedure, router } from '$lib/api/trpc';
 import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/utils/pagination';
 import { TRPCError } from '@trpc/server';
 import { asc, eq, like, or, sql } from 'drizzle-orm';
@@ -8,6 +8,7 @@ import z from 'zod';
 
 export default router({
 	create: procedure.public
+		.use(autosync())
 		.input(TenantSchema.omit({ id: true }))
 		.mutation(async ({ input, ctx }) => {
 			const isNationalIdUsed = await ctx.db
@@ -42,6 +43,7 @@ export default router({
 		}),
 
 	update: procedure.public
+		.use(autosync())
 		.input(TenantSchema.partial({ name: true, nationalId: true, phone: true }))
 		.mutation(async ({ input, ctx }) => {
 			const isNationalIdUsed = await ctx.db
@@ -81,6 +83,7 @@ export default router({
 		}),
 
 	delete: procedure.public
+		.use(autosync())
 		.input(TenantSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
 			const contracts = await ctx.db

@@ -1,6 +1,23 @@
 <script lang="ts">
 	import api from '$lib/api/mod';
 	import { tauri, type AvailableUpdate, type UpdaterDownloadEvent } from '$lib/api/tauri';
+	import type {
+		GoogleDriveLinkPreparation,
+		GoogleDriveLinkResolution,
+		GoogleDrivePendingLinkSession
+	} from '$lib/api/utils/remote-sync-google-drive';
+	import {
+		cancelGoogleDrivePendingLinkSession,
+		finishGoogleDriveLinkSession,
+		isGoogleDriveLinkCancelledError,
+		resetBrokenGoogleDriveWorkspace,
+		startGoogleDriveLinkSession
+	} from '$lib/api/utils/remote-sync-google-drive';
+	import {
+		inspectWorkspaceSyncState,
+		shouldDeferWorkspaceConflict,
+		syncWorkspaceBeforeExit
+	} from '$lib/api/utils/workspace-sync';
 	import { Button } from '$lib/common/components/fragments/button';
 	import {
 		Card,
@@ -15,58 +32,70 @@
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import type { Locales } from '$lib/i18n/i18n-types';
-	import SettingsDatabaseCard from '$lib/resources/settings/components/settings-database-card.svelte';
 	import SettingsEndingSoonCard from '$lib/resources/settings/components/settings-ending-soon-card.svelte';
 	import SettingsLocaleCard from '$lib/resources/settings/components/settings-locale-card.svelte';
+	import SettingsSyncCard from '$lib/resources/settings/components/settings-sync-card.svelte';
 	import SettingsUpdatesCard from '$lib/resources/settings/components/settings-updates-card.svelte';
 	import {
-		useCreateBackup,
-		useDeleteBackup,
-		useFetchBackups,
+		keys,
+		useCancelGoogleDriveLink,
+		useCreateWorkspaceSnapshot,
+		useFetchRemoteSyncState,
 		useFetchSettings,
-		useResetDatabasePath,
-		useRestoreBackup,
-		useSetDatabasePath,
-		useSetEndingSoonNoticeDays
+		useResolveGoogleDriveLink,
+		useSetEndingSoonNoticeDays,
+		useSyncGoogleDriveWorkspace,
+		useUnlinkGoogleDriveWorkspace,
+		type SyncGoogleDriveWorkspaceResult
 	} from '$lib/resources/settings/hooks/queries';
+	import { useQueryClient } from '@tanstack/svelte-query';
 	import { onDestroy } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
-	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
+	// type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
 
 	const settingsQuery = useFetchSettings();
-	const backupsQuery = useFetchBackups();
+	const remoteSyncQuery = useFetchRemoteSyncState();
+	const queryClient = useQueryClient();
 	const setEndingSoonNoticeDaysMutation = useSetEndingSoonNoticeDays();
-	const setDatabasePathMutation = useSetDatabasePath();
-	const resetDatabasePathMutation = useResetDatabasePath();
-	const createBackupMutation = useCreateBackup();
-	const deleteBackupMutation = useDeleteBackup();
-	const restoreBackupMutation = useRestoreBackup();
+	const createWorkspaceSnapshotMutation = useCreateWorkspaceSnapshot();
+	const resolveGoogleDriveLinkMutation = useResolveGoogleDriveLink();
+	const cancelGoogleDriveLinkMutation = useCancelGoogleDriveLink();
+	const syncGoogleDriveWorkspaceMutation = useSyncGoogleDriveWorkspace('sync');
+	const unlinkGoogleDriveWorkspaceMutation = useUnlinkGoogleDriveWorkspace();
 	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
 	const settingsOverviewPanelClass =
 		'rounded-[1.25rem] border border-border/70 bg-card/40 p-3 shadow-sm backdrop-blur-md';
 
 	let endingSoonNoticeDaysValue = $state<number | ''>('');
-	let databasePathValue = $state('');
 	let isCheckingForUpdate = $state(false);
 	let hasCheckedForUpdate = $state(false);
 	let availableUpdate = $state<AvailableUpdate | null>(null);
 	let updateCheckError = $state<string | null>(null);
 	let isInstallingUpdate = $state(false);
+	let disconnectingGoogleDriveAccountId = $state<string | null>(null);
 	let updateInstallError = $state<string | null>(null);
 	let updateInstallComplete = $state(false);
 	let updateDownloadedBytes = $state(0);
 	let updateContentLength = $state<number | null>(null);
+	let pendingGoogleDriveLink = $state<GoogleDriveLinkPreparation | null>(null);
+	let pendingGoogleDriveLinkSession = $state<GoogleDrivePendingLinkSession | null>(null);
+	let pendingGoogleDriveLinkAbortController: AbortController | null = null;
+	let isFinalizingGoogleDriveLink = $state(false);
+	let lastDismissedSyncConflictSignature: string | null = null;
+	let lastInspectedGoogleDriveSignature: string | null = null;
+	let googleDriveInspectionRun = 0;
+	let isRunningManualGoogleDriveSync = $state(false);
 
-	const isSavingDatabasePath = $derived.by(
-		() => setDatabasePathMutation.isPending || resetDatabasePathMutation.isPending
-	);
-	const isManagingBackups = $derived.by(
-		() =>
-			createBackupMutation.isPending ||
-			deleteBackupMutation.isPending ||
-			restoreBackupMutation.isPending
-	);
+	const activeSyncWorkspace = $derived.by(() => remoteSyncQuery.data?.workspace ?? null);
+	const activeSyncAccount = $derived.by(() => {
+		const workspace = remoteSyncQuery.data?.workspace;
+		if (!workspace || workspace.provider !== 'googleDrive' || !workspace.accountId) {
+			return null;
+		}
+
+		return remoteSyncQuery.data?.accounts.find((entry) => entry.id === workspace.accountId) ?? null;
+	});
 	const getEndingSoonNoticeDaysInputValue = () =>
 		typeof endingSoonNoticeDaysValue === 'number'
 			? String(endingSoonNoticeDaysValue)
@@ -78,24 +107,6 @@
 			? getEndingSoonNoticeDaysInputValue() !== String(settings.endingSoonNoticeDays)
 			: false;
 	});
-	const getCurrentDatabasePath = (settings: AppSettings) =>
-		settings.activeDatabasePath ?? settings.defaultDatabasePath;
-	const isUsingDefaultDatabasePath = (settings: AppSettings) =>
-		settings.activeDatabasePath === null ||
-		settings.activeDatabasePath === settings.defaultDatabasePath;
-	const hasDatabasePathChange = $derived.by(() => {
-		const settings = settingsQuery.data;
-		const trimmedPath = databasePathValue.trim();
-
-		if (!settings) {
-			return false;
-		}
-
-		return trimmedPath
-			? trimmedPath !== getCurrentDatabasePath(settings)
-			: !isUsingDefaultDatabasePath(settings);
-	});
-	const lastBackupAt = $derived.by(() => backupsQuery.data?.[0]?.createdAt ?? null);
 	const updateProgressPercent = $derived.by(() => {
 		if (!updateContentLength || updateContentLength <= 0) {
 			return null;
@@ -103,29 +114,177 @@
 
 		return Math.min(100, Math.round((updateDownloadedBytes / updateContentLength) * 100));
 	});
+	const isLinkingGoogleDrive = $derived.by(
+		() => pendingGoogleDriveLinkSession !== null || isFinalizingGoogleDriveLink
+	);
+	const isResolvingLinkConflict = $derived.by(
+		() => resolveGoogleDriveLinkMutation.isPending || cancelGoogleDriveLinkMutation.isPending
+	);
+	const isSyncingGoogleDrive = $derived.by(
+		() => syncGoogleDriveWorkspaceMutation.isPending || isRunningManualGoogleDriveSync
+	);
+
+	function getGoogleDriveInspectionSignature() {
+		if (!activeSyncWorkspace || activeSyncWorkspace.provider !== 'googleDrive') {
+			return null;
+		}
+
+		return [
+			activeSyncWorkspace.id,
+			activeSyncWorkspace.accountId ?? '',
+			activeSyncAccount?.status ?? '',
+			activeSyncAccount?.lastError ?? '',
+			activeSyncWorkspace.lastSnapshotAt ?? '',
+			activeSyncWorkspace.lastSyncedAt ?? '',
+			activeSyncWorkspace.lastRemoteUpdatedAt ?? '',
+			activeSyncWorkspace.remoteHeadFileId ?? '',
+			activeSyncWorkspace.remoteHeadRevision ?? ''
+		].join(':');
+	}
 
 	$effect(() => {
 		const settings = settingsQuery.data;
-		const isMutating =
-			setEndingSoonNoticeDaysMutation.isPending ||
-			setDatabasePathMutation.isPending ||
-			resetDatabasePathMutation.isPending;
+		const isMutating = setEndingSoonNoticeDaysMutation.isPending;
 
 		if (!settings || isMutating) {
 			return;
 		}
 
 		endingSoonNoticeDaysValue = settings.endingSoonNoticeDays;
-		databasePathValue = isUsingDefaultDatabasePath(settings)
-			? ''
-			: getCurrentDatabasePath(settings);
+	});
+
+	$effect(() => {
+		if (activeSyncWorkspace?.provider !== 'googleDrive') {
+			pendingGoogleDriveLink = null;
+			lastDismissedSyncConflictSignature = null;
+			lastInspectedGoogleDriveSignature = null;
+		}
+	});
+
+	$effect(() => {
+		const syncState = remoteSyncQuery.data;
+		const inspectionSignature = getGoogleDriveInspectionSignature();
+
+		if (!syncState || !inspectionSignature) {
+			return;
+		}
+
+		if (
+			pendingGoogleDriveLinkSession !== null ||
+			resolveGoogleDriveLinkMutation.isPending ||
+			cancelGoogleDriveLinkMutation.isPending ||
+			syncGoogleDriveWorkspaceMutation.isPending ||
+			unlinkGoogleDriveWorkspaceMutation.isPending
+		) {
+			return;
+		}
+
+		if (pendingGoogleDriveLink?.conflict?.kind === 'link') {
+			lastInspectedGoogleDriveSignature = inspectionSignature;
+			return;
+		}
+
+		if (
+			inspectionSignature === lastInspectedGoogleDriveSignature ||
+			inspectionSignature === lastDismissedSyncConflictSignature
+		) {
+			return;
+		}
+
+		lastInspectedGoogleDriveSignature = inspectionSignature;
+		const runId = ++googleDriveInspectionRun;
+
+		void (async () => {
+			try {
+				const preparation = await inspectWorkspaceSyncState(syncState);
+
+				if (runId !== googleDriveInspectionRun) {
+					return;
+				}
+
+				pendingGoogleDriveLink = preparation?.requiresResolution ? preparation : null;
+			} catch {
+				if (runId !== googleDriveInspectionRun) {
+					return;
+				}
+			}
+		})();
 	});
 
 	onDestroy(() => {
 		if (availableUpdate) {
 			void availableUpdate.close();
 		}
+
+		void cancelPendingGoogleDriveAuthorization();
 	});
+
+	async function cancelPendingGoogleDriveAuthorization() {
+		const session = pendingGoogleDriveLinkSession;
+		pendingGoogleDriveLinkAbortController?.abort();
+		pendingGoogleDriveLinkAbortController = null;
+		pendingGoogleDriveLinkSession = null;
+		isFinalizingGoogleDriveLink = false;
+
+		if (!session) {
+			return;
+		}
+
+		await cancelGoogleDrivePendingLinkSession(session).catch(() => undefined);
+		await queryClient.invalidateQueries({ queryKey: keys.remoteSync });
+	}
+
+	async function watchPendingGoogleDriveLinkSession(session: GoogleDrivePendingLinkSession) {
+		const abortController = new AbortController();
+		pendingGoogleDriveLinkAbortController = abortController;
+
+		try {
+			const preparation = await finishGoogleDriveLinkSession(session, {
+				signal: abortController.signal,
+				onResult: (result) => {
+					if (
+						result.status === 'completed' &&
+						pendingGoogleDriveLinkSession?.sessionId === session.sessionId
+					) {
+						isFinalizingGoogleDriveLink = true;
+					}
+				}
+			});
+
+			if (pendingGoogleDriveLinkSession?.sessionId !== session.sessionId) {
+				return;
+			}
+
+			queryClient.setQueryData(keys.remoteSync, preparation.state);
+
+			if (preparation.requiresResolution) {
+				isFinalizingGoogleDriveLink = false;
+				pendingGoogleDriveLink = preparation;
+				return;
+			}
+
+			await resolveGoogleDriveLinkMutation.mutateAsync({
+				preparation,
+				resolution: preparation.recommendedMode
+			});
+			pendingGoogleDriveLink = null;
+		} catch (error) {
+			isFinalizingGoogleDriveLink = false;
+			if (!isGoogleDriveLinkCancelledError(error)) {
+				await queryClient.invalidateQueries({ queryKey: keys.remoteSync });
+				toast.error(getErrorMessage(error));
+			}
+		} finally {
+			isFinalizingGoogleDriveLink = false;
+			if (pendingGoogleDriveLinkSession?.sessionId === session.sessionId) {
+				pendingGoogleDriveLinkSession = null;
+			}
+
+			if (pendingGoogleDriveLinkAbortController === abortController) {
+				pendingGoogleDriveLinkAbortController = null;
+			}
+		}
+	}
 
 	function getErrorMessage(error: unknown) {
 		if (error instanceof Error && error.message.trim()) {
@@ -249,6 +408,7 @@
 
 	async function restartApp() {
 		try {
+			await syncWorkspaceBeforeExit(remoteSyncQuery.data);
 			await tauri.window.restart();
 		} catch (error) {
 			toast.error(getErrorMessage(error));
@@ -270,53 +430,129 @@
 		}
 	}
 
-	async function saveDatabasePath() {
-		const trimmedPath = databasePathValue.trim();
+	async function snapshotNow() {
+		try {
+			await createWorkspaceSnapshotMutation.mutateAsync();
+		} catch {
+			/* ignore */
+		}
+	}
+
+	async function syncGoogleDriveNow() {
+		if (activeSyncWorkspace?.provider !== 'googleDrive' || isRunningManualGoogleDriveSync) {
+			return;
+		}
+
+		isRunningManualGoogleDriveSync = true;
 
 		try {
-			if (!trimmedPath) {
-				await resetDatabasePathMutation.mutateAsync();
+			const result = (await syncGoogleDriveWorkspaceMutation.mutateAsync({
+				manual: true
+			})) as SyncGoogleDriveWorkspaceResult;
+			pendingGoogleDriveLink = 'preparation' in result ? result.preparation : null;
+		} catch {
+			/* ignore */
+		} finally {
+			isRunningManualGoogleDriveSync = false;
+		}
+	}
+
+	async function linkGoogleDrive() {
+		if (isFinalizingGoogleDriveLink) {
+			return;
+		}
+
+		if (pendingGoogleDriveLinkSession) {
+			await cancelPendingGoogleDriveAuthorization();
+			return;
+		}
+
+		try {
+			lastDismissedSyncConflictSignature = null;
+			pendingGoogleDriveLink = null;
+			isFinalizingGoogleDriveLink = false;
+			const session = await startGoogleDriveLinkSession();
+			pendingGoogleDriveLinkSession = session;
+			void watchPendingGoogleDriveLinkSession(session);
+		} catch (error) {
+			toast.error(getErrorMessage(error));
+		}
+	}
+
+	async function resolvePendingGoogleDriveLink(resolution: GoogleDriveLinkResolution) {
+		if (!pendingGoogleDriveLink) {
+			return;
+		}
+
+		try {
+			lastDismissedSyncConflictSignature = null;
+			await resolveGoogleDriveLinkMutation.mutateAsync({
+				preparation: pendingGoogleDriveLink,
+				resolution
+			});
+			pendingGoogleDriveLink = null;
+		} catch {
+			/* ignore */
+		}
+	}
+
+	async function cancelPendingGoogleDriveLink() {
+		if (isFinalizingGoogleDriveLink) {
+			return;
+		}
+
+		if (pendingGoogleDriveLinkSession) {
+			await cancelPendingGoogleDriveAuthorization();
+			return;
+		}
+
+		if (!pendingGoogleDriveLink) {
+			return;
+		}
+
+		try {
+			if (shouldDeferWorkspaceConflict(pendingGoogleDriveLink)) {
+				lastDismissedSyncConflictSignature = getGoogleDriveInspectionSignature();
+				pendingGoogleDriveLink = null;
 				return;
 			}
 
-			await setDatabasePathMutation.mutateAsync({ path: trimmedPath });
+			await cancelGoogleDriveLinkMutation.mutateAsync({ preparation: pendingGoogleDriveLink });
+			pendingGoogleDriveLink = null;
 		} catch {
 			/* ignore */
 		}
 	}
 
-	async function resetDatabasePath() {
-		databasePathValue = '';
+	async function relinkBrokenGoogleDrive() {
+		if (pendingGoogleDriveLink?.conflict?.kind !== 'relink' || isFinalizingGoogleDriveLink) {
+			return;
+		}
 
 		try {
-			await resetDatabasePathMutation.mutateAsync();
-		} catch {
-			/* ignore */
+			lastDismissedSyncConflictSignature = null;
+			const nextState = await resetBrokenGoogleDriveWorkspace(pendingGoogleDriveLink.state);
+			queryClient.setQueryData(keys.remoteSync, nextState);
+			pendingGoogleDriveLink = null;
+			isFinalizingGoogleDriveLink = false;
+			const session = await startGoogleDriveLinkSession();
+			pendingGoogleDriveLinkSession = session;
+			void watchPendingGoogleDriveLinkSession(session);
+		} catch (error) {
+			toast.error(getErrorMessage(error));
 		}
 	}
 
-	async function createBackup() {
-		try {
-			await createBackupMutation.mutateAsync();
-		} catch {
-			/* ignore */
-		}
-	}
+	async function unlinkGoogleDriveWorkspace() {
+		disconnectingGoogleDriveAccountId = activeSyncWorkspace?.accountId ?? null;
 
-	async function restoreBackup(name: string) {
 		try {
-			await restoreBackupMutation.mutateAsync({ filename: name });
+			await unlinkGoogleDriveWorkspaceMutation.mutateAsync();
 		} catch {
 			/* ignore */
 		}
-	}
 
-	async function deleteBackup(name: string) {
-		try {
-			await deleteBackupMutation.mutateAsync({ filename: name });
-		} catch {
-			/* ignore */
-		}
+		disconnectingGoogleDriveAccountId = null;
 	}
 
 	async function changeLocale(next: Locales) {
@@ -343,14 +579,14 @@
 		<p class="text-sm text-muted-foreground">{$LL.settings.description()}</p>
 	</div>
 
-	{#if (settingsQuery.isLoading && !settingsQuery.data) || (backupsQuery.isLoading && !backupsQuery.data)}
+	{#if (settingsQuery.isLoading && !settingsQuery.data) || (remoteSyncQuery.isLoading && !remoteSyncQuery.data)}
 		<div class="flex min-h-full flex-1 items-center justify-center p-1">
 			<div class="flex flex-col items-center gap-3">
 				<Spinner class="size-8 text-muted-foreground" />
 				<p class="text-sm text-muted-foreground">{$LL.common.messages.loadingSettings()}</p>
 			</div>
 		</div>
-	{:else if settingsQuery.error || backupsQuery.error}
+	{:else if settingsQuery.error || remoteSyncQuery.error}
 		<Card class={cn('max-w-2xl', settingsCardClass)}>
 			<CardHeader class="gap-3 border-b border-border/50 pb-5">
 				<CardTitle>{$LL.settings.loadErrorTitle()}</CardTitle>
@@ -358,19 +594,19 @@
 			</CardHeader>
 			<CardContent class="space-y-4 pt-5">
 				<p class="text-sm text-muted-foreground">
-					{getErrorMessage(settingsQuery.error ?? backupsQuery.error)}
+					{getErrorMessage(settingsQuery.error ?? remoteSyncQuery.error)}
 				</p>
 				<Button
 					onclick={() => {
 						void settingsQuery.refetch();
-						void backupsQuery.refetch();
+						void remoteSyncQuery.refetch();
 					}}
 				>
 					{$LL.common.actions.retry()}
 				</Button>
 			</CardContent>
 		</Card>
-	{:else if settingsQuery.data && backupsQuery.data}
+	{:else if settingsQuery.data && remoteSyncQuery.data}
 		<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 			<div class={settingsOverviewPanelClass}>
 				<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
@@ -381,16 +617,20 @@
 
 			<div class={settingsOverviewPanelClass}>
 				<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-					{$LL.common.labels.lastBackupTime()}
+					{$LL.settings.currentWorkspace()}
 				</p>
-				<p class="mt-3 text-lg font-semibold">{formatTimestamp(lastBackupAt)}</p>
+				<p class="mt-3 text-lg font-semibold">
+					{activeSyncWorkspace?.name ?? $LL.common.messages.unknown()}
+				</p>
 			</div>
 
 			<div class={settingsOverviewPanelClass}>
 				<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-					{$LL.common.labels.backupCount()}
+					{$LL.settings.latestSnapshot()}
 				</p>
-				<p class="mt-3 text-lg font-semibold">{backupsQuery.data.length}</p>
+				<p class="mt-3 text-lg font-semibold">
+					{formatTimestamp(activeSyncWorkspace?.lastSnapshotAt ?? null)}
+				</p>
 			</div>
 
 			<div class={settingsOverviewPanelClass}>
@@ -432,21 +672,24 @@
 					onRestartApp={() => void restartApp()}
 				/>
 
-				<SettingsDatabaseCard
-					settings={settingsQuery.data}
-					backups={backupsQuery.data}
-					bind:databasePathValue
-					{isSavingDatabasePath}
-					{hasDatabasePathChange}
-					isUsingDefaultDatabasePath={isUsingDefaultDatabasePath(settingsQuery.data)}
-					{isManagingBackups}
-					isCreatingBackup={createBackupMutation.isPending}
-					isRestoringBackup={restoreBackupMutation.isPending}
-					onSaveDatabasePath={() => void saveDatabasePath()}
-					onResetDatabasePath={() => void resetDatabasePath()}
-					onCreateBackup={() => void createBackup()}
-					onRestoreBackup={(name) => void restoreBackup(name)}
-					onDeleteBackup={deleteBackup}
+				<SettingsSyncCard
+					syncState={remoteSyncQuery.data}
+					isSnapshotPending={createWorkspaceSnapshotMutation.isPending}
+					{isSyncingGoogleDrive}
+					{isLinkingGoogleDrive}
+					{isFinalizingGoogleDriveLink}
+					{isResolvingLinkConflict}
+					isUnlinkingGoogleDrive={unlinkGoogleDriveWorkspaceMutation.isPending}
+					linkConflict={pendingGoogleDriveLink?.conflict ?? null}
+					{disconnectingGoogleDriveAccountId}
+					onSnapshotNow={() => void snapshotNow()}
+					onSyncGoogleDrive={() => void syncGoogleDriveNow()}
+					onLinkGoogleDrive={() => void linkGoogleDrive()}
+					onLinkKeepLocal={() => void resolvePendingGoogleDriveLink('local')}
+					onLinkUseRemote={() => void resolvePendingGoogleDriveLink('remote')}
+					onRelinkGoogleDrive={() => void relinkBrokenGoogleDrive()}
+					onCancelLinkConflict={() => void cancelPendingGoogleDriveLink()}
+					onDisconnectGoogleDrive={() => void unlinkGoogleDriveWorkspace()}
 				/>
 			</div>
 		</div>

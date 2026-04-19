@@ -2,6 +2,7 @@ pub mod backup;
 pub mod bootstrap;
 pub mod database;
 pub mod persisted;
+pub mod remote_sync;
 pub mod settings;
 pub mod state;
 pub mod timestamp;
@@ -19,6 +20,7 @@ use tokio::sync::RwLock;
 
 use crate::backup::Backup;
 use crate::persisted::Persisted;
+use crate::remote_sync::RemoteSync;
 use crate::settings::Settings;
 use crate::update::Update;
 
@@ -65,14 +67,12 @@ pub fn run() {
                 let mut settings = Persisted::<Settings>::load(data_dir.join(Settings::FILENAME))
                     .expect("failed to load settings");
 
-                settings.default_database_path = db_dir.join(Database::FILENAME);
+                if settings.database_path.as_os_str().is_empty() {
+                    settings.database_path = db_dir.join(Database::FILENAME);
+                }
                 settings.backup_dir = data_dir.join(Backup::BACKUP_DIRECTORY);
                 settings.recovery_path = data_dir.join(Update::FILENAME);
                 settings.version = env!("CARGO_PKG_VERSION").to_string();
-
-                if settings.active_database_path.is_none() {
-                    settings.active_database_path = Some(settings.default_database_path.clone());
-                }
 
                 settings.migration_dir = if cfg!(debug_assertions) {
                     PathBuf::from("migrations")
@@ -95,6 +95,25 @@ pub fn run() {
                         .expect("failed to create backup manager"),
                 ));
 
+                let remote_sync = Arc::new(RwLock::new(
+                    RemoteSync::new(settings.clone(), data_dir.join(RemoteSync::FILENAME))
+                        .await
+                        .expect("failed to create remote sync manager"),
+                ));
+
+                {
+                    let workspace = {
+                        let remote_sync = remote_sync.read().await;
+                        Some(remote_sync.workspace())
+                    };
+
+                    backup
+                        .write()
+                        .await
+                        .sync_manifest_workspace(workspace.as_ref())
+                        .expect("failed to sync backup manifest workspace");
+                }
+
                 let update = Arc::new(RwLock::new(
                     Update::new(backup.clone(), settings.clone())
                         .await
@@ -105,6 +124,7 @@ pub fn run() {
                     db,
                     settings,
                     backup,
+                    remote_sync,
                     update,
                 });
             });
@@ -113,6 +133,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             window::window_show,
+            window::window_hide,
             window::window_minimize,
             window::window_maximize,
             window::window_drag,
@@ -126,6 +147,23 @@ pub fn run() {
             backup::backup_create,
             backup::backup_restore,
             backup::backup_delete,
+            remote_sync::remote_sync_state_get,
+            remote_sync::remote_sync_snapshot_now,
+            remote_sync::remote_sync_autosave_now,
+            remote_sync::remote_sync_google_drive_config_get,
+            remote_sync::remote_sync_google_drive_begin_link,
+            remote_sync::remote_sync_google_drive_get_link_result,
+            remote_sync::remote_sync_google_drive_cancel_link,
+            remote_sync::remote_sync_google_drive_complete_link,
+            remote_sync::remote_sync_google_drive_get_account_auth,
+            remote_sync::remote_sync_google_drive_update_account,
+            remote_sync::remote_sync_google_drive_disconnect_account,
+            remote_sync::remote_sync_google_drive_acquire_lock,
+            remote_sync::remote_sync_google_drive_release_lock,
+            remote_sync::remote_sync_google_drive_get_local_fingerprint,
+            remote_sync::remote_sync_google_drive_prepare_push,
+            remote_sync::remote_sync_google_drive_mark_synced,
+            remote_sync::remote_sync_google_drive_apply_pull,
             update::update_prepare,
             bootstrap::bootstrap,
         ])

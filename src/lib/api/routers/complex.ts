@@ -1,6 +1,6 @@
 import * as s from '$lib/api/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/api/database/schema';
-import { procedure, router } from '$lib/api/trpc';
+import { autosync, procedure, router } from '$lib/api/trpc';
 import { deriveUnitStatus } from '$lib/api/utils/contract-status';
 import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/utils/pagination';
 import { TRPCError } from '@trpc/server';
@@ -108,6 +108,7 @@ async function getUnitsWithDerivedStatus(
 
 export default router({
 	create: procedure.public
+		.use(autosync())
 		.input(ComplexSchema.omit({ id: true }))
 		.mutation(async ({ input, ctx }) => {
 			const isNameUsed = await ctx.db
@@ -129,6 +130,7 @@ export default router({
 		}),
 
 	update: procedure.public
+		.use(autosync())
 		.input(ComplexSchema.partial({ name: true, location: true }))
 		.mutation(async ({ input, ctx }) => {
 			const isNameUsed = await ctx.db
@@ -155,6 +157,7 @@ export default router({
 		}),
 
 	delete: procedure.public
+		.use(autosync())
 		.input(ComplexSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
 			const units = await ctx.db.select().from(s.unit).where(eq(s.unit.complexId, input.id));
@@ -268,6 +271,7 @@ export default router({
 			}),
 
 		create: procedure.public
+			.use(autosync())
 			.input(UnitSchema.omit({ id: true, status: true }))
 			.mutation(async ({ input, ctx }) => {
 				const isNameUsed = await ctx.db
@@ -296,6 +300,7 @@ export default router({
 			}),
 
 		update: procedure.public
+			.use(autosync())
 			.input(UnitSchema.partial({ name: true, status: true }))
 			.mutation(async ({ input, ctx }) => {
 				const isNameUsed = input.name
@@ -329,6 +334,7 @@ export default router({
 			}),
 
 		delete: procedure.public
+			.use(autosync())
 			.input(UnitSchema.pick({ id: true }))
 			.mutation(async ({ input, ctx }) => {
 				const contracts = await ctx.db

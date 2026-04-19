@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::{
-    backup::Backup,
+    backup::{Backup, BackupRecoveryKind, BackupSource, sync_backup_manifest_workspace},
     persisted::{Persistable, Persisted},
     settings::Settings,
     state::AppState,
@@ -133,7 +133,13 @@ impl Update {
 
         let entry = {
             let mut backup = self.backup.write().await;
-            backup.create(true).await?
+            backup
+                .create_managed(
+                    BackupSource::Recovery,
+                    Some(BackupRecoveryKind::Update),
+                    true,
+                )
+                .await?
         };
         let backup_filename = entry.filename.clone();
 
@@ -192,6 +198,7 @@ impl Update {
             if !self.recovery.backup_filename.trim().is_empty() {
                 let mut backup = self.backup.write().await;
                 backup.set_protected(&self.recovery.backup_filename, false)?;
+                let _ = backup.cleanup_retained().await;
             }
         }
 
@@ -209,6 +216,7 @@ impl Update {
             backup.restore(&self.recovery.backup_filename).await?;
 
             backup.set_protected(&self.recovery.backup_filename, false)?;
+            let _ = backup.cleanup_retained().await;
         }
 
         self.recovery.status = RecoveryStatus::Applied;
@@ -224,6 +232,8 @@ pub async fn update_prepare(
     app_state: tauri::State<'_, AppState>,
     target_version: String,
 ) -> Result<Recovery, String> {
+    sync_backup_manifest_workspace(app_state.inner()).await?;
+
     let mut update = app_state.update.write().await;
     let settings = app_state.settings.read().await;
 
@@ -261,8 +271,7 @@ mod tests {
         let settings_path = root.join(Settings::FILENAME);
         let mut settings =
             Persisted::<Settings>::load(settings_path).expect("failed to load settings");
-        settings.default_database_path = root.join(Database::FILENAME);
-        settings.active_database_path = None;
+        settings.database_path = root.join(Database::FILENAME);
         settings.migration_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("migrations");
         settings.backup_dir = root.join(Backup::BACKUP_DIRECTORY);
         settings.recovery_path = root.join(Update::FILENAME);
@@ -300,7 +309,7 @@ mod tests {
                 update.recovery.status = RecoveryStatus::Pending;
                 update.recovery.target_version = "0.5.2".to_string();
                 update.recovery.backup_version = "0.5.1".to_string();
-                update.recovery.backup_filename = "backup-1.db".to_string();
+                update.recovery.backup_filename = "snapshot-1.db".to_string();
                 update
                     .recovery
                     .commit()

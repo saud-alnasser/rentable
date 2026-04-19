@@ -1,17 +1,16 @@
 use std::path::PathBuf;
 
-use crate::{database::Database, persisted::Persistable, state::AppState};
-use serde::{Deserialize, Serialize};
+use crate::{persisted::Persistable, state::AppState};
+use serde::{Deserialize, Deserializer, Serialize};
 
 const DEFAULT_ENDING_SOON_NOTICE_DAYS: u16 = 60;
 
 /// application settings stored in json file.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub ending_soon_notice_days: u16,
-    pub default_database_path: PathBuf,
-    pub active_database_path: Option<PathBuf>,
+    pub database_path: PathBuf,
     pub migration_dir: PathBuf,
     pub backup_dir: PathBuf,
     pub recovery_path: PathBuf,
@@ -19,18 +18,62 @@ pub struct Settings {
     pub version: String,
 }
 
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct SettingsStored {
+    ending_soon_notice_days: u16,
+    database_path: PathBuf,
+    default_database_path: PathBuf,
+    active_database_path: Option<PathBuf>,
+    migration_dir: PathBuf,
+    backup_dir: PathBuf,
+    recovery_path: PathBuf,
+    locale: Option<String>,
+    version: String,
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
             ending_soon_notice_days: DEFAULT_ENDING_SOON_NOTICE_DAYS,
-            default_database_path: PathBuf::new(),
-            active_database_path: None,
+            database_path: PathBuf::new(),
             migration_dir: PathBuf::new(),
             backup_dir: PathBuf::new(),
             recovery_path: PathBuf::new(),
             locale: None,
             version: String::new(),
         }
+    }
+}
+
+impl From<SettingsStored> for Settings {
+    fn from(value: SettingsStored) -> Self {
+        let database_path = if !value.database_path.as_os_str().is_empty() {
+            value.database_path
+        } else if let Some(active_database_path) = value.active_database_path {
+            active_database_path
+        } else {
+            value.default_database_path
+        };
+
+        Self {
+            ending_soon_notice_days: value.ending_soon_notice_days,
+            database_path,
+            migration_dir: value.migration_dir,
+            backup_dir: value.backup_dir,
+            recovery_path: value.recovery_path,
+            locale: value.locale,
+            version: value.version,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Settings {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        SettingsStored::deserialize(deserializer).map(Into::into)
     }
 }
 
@@ -58,9 +101,8 @@ impl Settings {
 #[derive(Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsChangeset {
-    ending_soon_notice_days: Option<u16>,
-    database_path: Option<String>,
-    locale: Option<String>,
+    pub ending_soon_notice_days: Option<u16>,
+    pub locale: Option<String>,
 }
 
 #[tauri::command]
@@ -74,65 +116,18 @@ pub async fn settings_set(
     app_state: tauri::State<'_, AppState>,
     changeset: SettingsChangeset,
 ) -> Result<Settings, String> {
+    settings_set_inner(app_state.inner(), changeset).await
+}
+
+pub async fn settings_set_inner(
+    app_state: &AppState,
+    changeset: SettingsChangeset,
+) -> Result<Settings, String> {
     if let Some(days) = changeset.ending_soon_notice_days {
         if days == 0 {
             return Err("ending soon notice window must be greater than zero".to_string());
         }
     }
-
-    let mut switched_database_target: Option<PathBuf> = None;
-    let mut switched_database_previous: Option<Option<PathBuf>> = None;
-
-    let pending_database_path = if let Some(raw_path) = changeset.database_path.clone() {
-        let (normalized_path, target_path, previous_path) = {
-            let settings = app_state.settings.read().await;
-            let normalized_path = Database::normalize_path(Some(raw_path))?;
-            let target_path = normalized_path
-                .clone()
-                .unwrap_or_else(|| settings.default_database_path.clone());
-            let previous_path = settings.active_database_path.clone();
-
-            (normalized_path, target_path, previous_path)
-        };
-
-        switched_database_target = Some(target_path.clone());
-        switched_database_previous = Some(previous_path.clone());
-
-        {
-            let mut settings = app_state.settings.write().await;
-            settings.active_database_path = Some(target_path);
-        }
-
-        let reconnect_result = {
-            let mut db = app_state.db.write().await;
-            db.reconnect().await
-        };
-
-        if let Err(error) = reconnect_result {
-            {
-                let mut settings = app_state.settings.write().await;
-                settings.active_database_path = previous_path.clone();
-            }
-
-            let mut db = app_state.db.write().await;
-            db.reconnect().await.unwrap_or_else(|reconnect_error| {
-                panic_database_path_switch_failure(
-                    "rolling back the previous database connection",
-                    previous_path.as_ref(),
-                    switched_database_target
-                        .as_ref()
-                        .expect("database switch target should exist during rollback"),
-                    reconnect_error,
-                )
-            });
-
-            return Err(error);
-        }
-
-        Some(normalized_path)
-    } else {
-        None
-    };
 
     let mut settings = app_state.settings.write().await;
 
@@ -140,48 +135,37 @@ pub async fn settings_set(
         settings.ending_soon_notice_days = days;
     }
 
-    if changeset.database_path.is_some() {
-        settings.active_database_path = pending_database_path.flatten();
-    }
-
     if let Some(locale) = changeset.locale {
         settings.locale = Some(locale);
     }
 
-    if let Err(error) = settings.commit() {
-        if let (Some(target_path), Some(previous_path)) = (
-            switched_database_target.as_ref(),
-            switched_database_previous.as_ref(),
-        ) {
-            panic_database_path_switch_failure(
-                "persisting settings after the runtime database switch",
-                previous_path.as_ref(),
-                target_path,
-                error,
-            );
-        }
-
-        return Err(error);
-    }
+    settings.commit()?;
 
     Ok(settings.inner().clone())
 }
 
-fn panic_database_path_switch_failure(
-    phase: &str,
-    previous_path: Option<&PathBuf>,
-    target_path: &PathBuf,
-    error: impl std::fmt::Display,
-) -> ! {
-    let previous_path = previous_path
-        .map(|path| path.display().to_string())
-        .unwrap_or_else(|| "<default database path>".to_string());
+#[cfg(test)]
+mod tests {
+    use super::Settings;
+    use std::path::PathBuf;
 
-    panic!(
-        "fatal: database path switch entered an unrecoverable state during {} (previous persisted path: {}, runtime target path: {}): {}",
-        phase,
-        previous_path,
-        target_path.display(),
-        error,
-    );
+    #[test]
+    fn deserializes_legacy_database_paths_preferring_active_path() {
+        let settings = serde_json::from_str::<Settings>(
+            r#"{
+                "endingSoonNoticeDays": 45,
+                "defaultDatabasePath": "default.db",
+                "activeDatabasePath": "active.db",
+                "migrationDir": "migrations",
+                "backupDir": "snapshots",
+                "recoveryPath": "recovery.json",
+                "locale": "en",
+                "version": "1.0.0"
+            }"#,
+        )
+        .expect("failed to deserialize legacy settings");
+
+        assert_eq!(settings.database_path, PathBuf::from("active.db"));
+        assert_eq!(settings.ending_soon_notice_days, 45);
+    }
 }
