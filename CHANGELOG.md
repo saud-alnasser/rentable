@@ -1,5 +1,11 @@
 # rentable
 
+## 0.10.0
+
+### Minor Changes
+
+- [#83](https://github.com/saud-alnasser/rentable/pull/83) [`a3dfdd4`](https://github.com/saud-alnasser/rentable/commit/a3dfdd49fd10b77f598cc88f054f16defe30c402) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - implement google-drive based remote sync utilizing the backups backend api.
+
 ## 0.9.1
 
 ### Patch Changes
