@@ -1,6 +1,6 @@
 [package]
 name = "rentable"
-version = "0.10.0"
+version = "0.10.1"
 description = "a rents payment tracker"
 authors = ["saud-alnasser"]
 edition = "2024"
