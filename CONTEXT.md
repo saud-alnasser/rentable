@@ -129,15 +129,6 @@ in existing code as a defect to fix opportunistically; it has a ticket.
 
 ## Architectural constraints
 
-**Target state, agreed but not yet built.** These are decisions the refactor programme
-(issue #95) implements; none of them describe the tree as it stands today. They will be
-restated in `CLAUDE.md` by issue #97, at which point that file is the authority and this
-section is a pointer.
-
-- Google Drive HTTP and OAuth live in Rust, and credentials never cross the IPC boundary.
-  Today the client is in TypeScript and receives both the OAuth client secret and a refresh
-  token — issues #114–#118.
-- Domain rules live with their concept rather than in routers or a shared `utils` bag, and
-  there is no repository layer; routers use Drizzle directly — issues #107, #108.
-- Modules are organised by concept, not by layer, with `src/routes/` as the acknowledged
-  exception — issues #123–#126.
+Moved to `CLAUDE.md` — it loads into every session, so the load-bearing rules live there,
+where an agent reads them by default. See its **Architectural constraints** section. This
+file stays the authority for the vocabulary those rules use.
