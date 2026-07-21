@@ -13,7 +13,7 @@
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"test": "node --test \"src/**/*.test.mjs\"",
-		"test:rust": "cargo test --manifest-path ./tauri/Cargo.toml",
+		"test:rust": "cargo test --manifest-path ./tauri/Cargo.toml -- --test-threads=1",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
