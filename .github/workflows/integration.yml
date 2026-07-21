@@ -71,8 +71,9 @@ jobs:
       - name: '🔎 check'
         run: pnpm check
 
+      # prettier already ran as part of `pnpm check`; this adds eslint only
       - name: '🧹 lint'
-        run: pnpm lint
+        run: pnpm exec eslint .
 
       - name: '🧪 test'
         run: pnpm test

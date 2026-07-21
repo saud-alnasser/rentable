@@ -29,14 +29,16 @@ Always use `pnpm` (engine-strict, pnpm 10+, Node 24).
 
 ### Tests
 
-There is no test script. Tests are `*.test.mjs` files colocated with the code, using `node:test` + `node:assert/strict`, importing the `.ts` source directly (Node 24 type stripping):
+Tests are `*.test.mjs` files colocated with the code, using `node:test` + `node:assert/strict`, importing the `.ts` source directly (Node 24 type stripping):
 
 ```bash
+pnpm test                                               # all TypeScript tests
+pnpm test:rust                                          # all Rust tests
 node --test src/lib/api/utils/dashboard.test.mjs        # single file
-node --test "src/**/*.test.mjs"                         # all
 ```
 
-Only pure logic in `src/lib/api/utils/` is covered this way.
+Only pure logic in `src/lib/api/utils/` is covered this way. Rust tests are inline
+`#[cfg(test)]` modules. CI runs both suites plus ESLint on every pull request.
 
 ## Architecture
 
