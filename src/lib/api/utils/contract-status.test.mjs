@@ -302,7 +302,17 @@ test('hasSatisfiedContractPaymentRequirement locks by required amount, not payme
 	assert.equal(hasSatisfiedContractPaymentRequirement(999.99, 1000), false);
 });
 
-test('hasValidContractPeriodForInterval accepts exact 30-day monthly periods on arbitrary start dates', () => {
+test('hasValidContractPeriodForInterval accepts calendar-month periods on arbitrary start dates', () => {
+	// one whole cycle lands the day before the same day-of-month
+	assert.equal(
+		hasValidContractPeriodForInterval({
+			start: new Date('2026-03-10T00:00:00.000Z'),
+			end: new Date('2026-04-09T00:00:00.000Z'),
+			interval: '1m'
+		}),
+		true
+	);
+
 	assert.equal(
 		hasValidContractPeriodForInterval({
 			start: new Date('2026-03-10T00:00:00.000Z'),
@@ -313,11 +323,11 @@ test('hasValidContractPeriodForInterval accepts exact 30-day monthly periods on 
 	);
 });
 
-test('hasValidContractPeriodForInterval rejects periods that are not a whole number of fixed 30-day cycles', () => {
+test('hasValidContractPeriodForInterval rejects periods that are not a whole number of interval cycles', () => {
 	assert.equal(
 		hasValidContractPeriodForInterval({
 			start: new Date('2026-03-10T00:00:00.000Z'),
-			end: new Date('2026-04-09T00:00:00.000Z'),
+			end: new Date('2026-04-20T00:00:00.000Z'),
 			interval: '1m'
 		}),
 		false
@@ -327,6 +337,27 @@ test('hasValidContractPeriodForInterval rejects periods that are not a whole num
 			start: new Date('2026-01-01T00:00:00.000Z'),
 			end: new Date('2026-04-15T00:00:00.000Z'),
 			interval: '3m'
+		}),
+		false
+	);
+});
+
+test('hasValidContractPeriodForInterval tolerates end dates within five days of a whole cycle', () => {
+	// a whole 1m cycle from 2026-01-12 ends 2026-02-11
+	assert.equal(
+		hasValidContractPeriodForInterval({
+			start: new Date('2026-01-12T00:00:00.000Z'),
+			end: new Date('2026-02-06T00:00:00.000Z'),
+			interval: '1m'
+		}),
+		true
+	);
+
+	assert.equal(
+		hasValidContractPeriodForInterval({
+			start: new Date('2026-01-12T00:00:00.000Z'),
+			end: new Date('2026-02-05T00:00:00.000Z'),
+			interval: '1m'
 		}),
 		false
 	);
@@ -347,7 +378,7 @@ test('hasValidContractPeriodForInterval rejects periods shorter than the selecte
 	assert.equal(
 		hasValidContractPeriodForInterval({
 			start: new Date('2026-01-12T00:00:00.000Z'),
-			end: new Date('2026-02-07T00:00:00.000Z'),
+			end: new Date('2026-02-02T00:00:00.000Z'),
 			interval: '1m'
 		}),
 		false

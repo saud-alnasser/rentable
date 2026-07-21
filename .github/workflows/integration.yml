@@ -71,5 +71,14 @@ jobs:
       - name: '🔎 check'
         run: pnpm check
 
+      - name: '🧹 lint'
+        run: pnpm lint
+
+      - name: '🧪 test'
+        run: pnpm test
+
+      - name: '🦀 test rust'
+        run: pnpm test:rust
+
       - name: '📦 build'
         run: pnpm tauri build

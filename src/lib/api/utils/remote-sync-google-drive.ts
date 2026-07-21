@@ -1469,15 +1469,8 @@ async function resolveManifest(
 			manifest: normalizeGoogleDriveManifest(JSON.parse(content)),
 			corruption: null
 		};
-	} catch (error) {
-		return await repairRemoteManifest(
-			config,
-			accessToken,
-			workspace,
-			folderId,
-			manifestFile,
-			error
-		);
+	} catch {
+		return await repairRemoteManifest(config, accessToken, workspace, folderId, manifestFile);
 	}
 }
 
@@ -1486,8 +1479,7 @@ async function repairRemoteManifest(
 	accessToken: string,
 	workspace: RemoteSyncWorkspace,
 	folderId: string,
-	existingManifestFile: DriveFile | null,
-	_error?: unknown
+	existingManifestFile: DriveFile | null
 ): Promise<GoogleDriveManifestResolution | null> {
 	const snapshotFiles = [...(await listWorkspaceSnapshotFiles(config, accessToken, folderId))].sort(
 		compareDriveFilesBySnapshotRecency
@@ -1541,10 +1533,6 @@ async function repairRemoteManifest(
 		manifest: rebuiltManifest,
 		corruption: null
 	};
-}
-
-function buildRemoteManifestCorruptionMessage(_error: unknown) {
-	return toMessage(getGoogleDriveTranslations().settings.syncCorruptDescription());
 }
 
 function createConflictState(
