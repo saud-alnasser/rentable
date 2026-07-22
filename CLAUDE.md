@@ -29,16 +29,19 @@ Always use `pnpm` (engine-strict, pnpm 10+, Node 24).
 
 ### Tests
 
-Tests are `*.test.mjs` files colocated with the code, using `node:test` + `node:assert/strict`, importing the `.ts` source directly (Node 24 type stripping):
+Tests are `*.test.mjs` files colocated with the code, using `node:test` + `node:assert/strict`, importing the `.ts` source directly. They run under `tsx` (`pnpm test` → `node --import tsx`), which resolves `$lib` aliases and `.ts` imports:
 
 ```bash
-pnpm test                                               # all TypeScript tests
-pnpm test:rust                                          # all Rust tests
-node --test src/lib/api/utils/dashboard.test.mjs        # single file
+pnpm test                                                  # all TypeScript tests
+pnpm test:rust                                             # all Rust tests
+node --import tsx --test src/lib/api/database/memory.test.mjs   # single file
 ```
 
-Only pure logic in `src/lib/api/utils/` is covered this way. Rust tests are inline
-`#[cfg(test)]` modules. CI runs both suites plus ESLint on every pull request.
+Pure logic in `src/lib/api/utils/` is covered directly. Router procedures are covered
+end-to-end through the real tRPC caller bound to an in-memory database
+(`database/memory.ts` — `createMemoryDatabase()`, sqlite-proxy over better-sqlite3).
+Rust tests are inline `#[cfg(test)]` modules. CI runs both suites plus ESLint on every
+pull request.
 
 ## Architecture
 
