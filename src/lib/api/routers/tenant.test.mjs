@@ -114,15 +114,56 @@ test('updating a tenant changes its fields', async () => {
 	assert.equal(updated.name, 'Sara Ali');
 });
 
-test('a name-only update fails even though the input schema allows partial updates', async () => {
+test('a name-only update succeeds and leaves the identity fields intact', async () => {
 	const api = await createApi();
 	const tenant = await api.tenant.create({ name: 'Sara', nationalId: NATIONAL_ID, phone: PHONE });
 
-	// the input schema permits omitting nationalId and phone, but the uniqueness checks
-	// interpolate the missing values into SQL and the query fails — pinned as observed.
+	// pinned the crash before #135; the partial update the input schema advertises now works.
+	const updated = await api.tenant.update({ id: tenant.id, name: 'Sara Ali' });
+
+	assert.equal(updated.name, 'Sara Ali');
+	assert.equal(updated.nationalId, NATIONAL_ID);
+	assert.equal(updated.phone, PHONE);
+});
+
+test('a national-id-only update succeeds and leaves the other fields intact', async () => {
+	const api = await createApi();
+	const tenant = await api.tenant.create({ name: 'Sara', nationalId: NATIONAL_ID, phone: PHONE });
+
+	const updated = await api.tenant.update({ id: tenant.id, nationalId: IQAMA });
+
+	assert.equal(updated.name, 'Sara');
+	assert.equal(updated.nationalId, IQAMA);
+	assert.equal(updated.phone, PHONE);
+});
+
+test('a phone-only update succeeds and leaves the other fields intact', async () => {
+	const api = await createApi();
+	const tenant = await api.tenant.create({ name: 'Sara', nationalId: NATIONAL_ID, phone: PHONE });
+
+	const updated = await api.tenant.update({ id: tenant.id, phone: '+966551234500' });
+
+	assert.equal(updated.name, 'Sara');
+	assert.equal(updated.nationalId, NATIONAL_ID);
+	assert.equal(updated.phone, '+966551234500');
+});
+
+test('a partial update to an identity used by another tenant is still rejected', async () => {
+	const api = await createApi();
+	await api.tenant.create({ name: 'Sara', nationalId: NATIONAL_ID, phone: PHONE });
+	const other = await api.tenant.create({
+		name: 'Omar',
+		nationalId: IQAMA,
+		phone: '+966551234500'
+	});
+
 	await assert.rejects(
-		() => api.tenant.update({ id: tenant.id, name: 'Sara Ali' }),
-		/Failed query/
+		() => api.tenant.update({ id: other.id, nationalId: NATIONAL_ID }),
+		/national id is associated with a registered tenant/
+	);
+	await assert.rejects(
+		() => api.tenant.update({ id: other.id, phone: PHONE }),
+		/phone is associated with a registered tenant/
 	);
 });
 
