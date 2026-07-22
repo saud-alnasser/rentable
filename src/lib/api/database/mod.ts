@@ -3,58 +3,63 @@ import { drizzle } from 'drizzle-orm/sqlite-proxy';
 
 import * as schema from './schema';
 
-type Method = 'run' | 'all' | 'values' | 'get';
+export type Method = 'run' | 'all' | 'values' | 'get';
 
-type Query = {
+export type Query = {
 	sql: string;
 	params: unknown[];
 	method: Method;
 };
 
-type Row = {
+/**
+ * one result row in the shape the Rust proxy returns: the column names, and this row's
+ * values (numbers, strings, or null; booleans and blobs are already encoded upstream).
+ */
+export type Row = {
 	columns: string[];
-	rows: string[];
+	rows: unknown[];
 };
 
-export const db = drizzle(
-	async (sql, params, method) => {
-		// tauri command called directly for fast queries instead of wrapped in function in tauri object
-		const rows = await invoke<Row[]>('db_execute_single_sql', { query: { sql, params } });
+/**
+ * a transport carries a query to the SQLite engine and returns its raw rows. production
+ * uses the Tauri `invoke` commands; tests use an in-memory shim (see `./memory`).
+ */
+export type SingleTransport = (sql: string, params: unknown[], method: Method) => Promise<Row[]>;
+export type BatchTransport = (queries: Query[]) => Promise<Row[][]>;
 
-		/**
-		 * response type:
-		 * { rows: string[] } for 'get'
-		 * { rows: string[][] } for the rest
-		 *
-		 * more info: https://orm.drizzle.team/docs/connect-drizzle-proxy
-		 */
-		return map(rows, method);
-	},
-	async (queries: Query[]) => {
-		// tauri command called directly for fast queries instead of wrapped in function in tauri object
-		const batch = await invoke<Row[][]>('db_execute_batch_sql', { queries });
-
-		/**
-		 * response type:
-		 * { rows: string[] }[] for 'get'
-		 * { rows: string[][] }[] for the rest
-		 *
-		 * more info: https://orm.drizzle.team/docs/connect-drizzle-proxy
-		 */
-		return batch.map((rows, index) => {
-			return map(rows, queries[index].method);
-		});
-	},
-	{
-		schema,
-		logger: import.meta.env.DEV
-	}
-);
-
-function map(rows: Row[], method: Method) {
+/**
+ * reshapes the Rust proxy's rows into what the drizzle sqlite-proxy driver expects: a
+ * single row's values for `get`, an array of rows otherwise. shared by every transport
+ * so the language-boundary mapping is exercised rather than bypassed.
+ */
+export function mapRows(rows: Row[], method: Method) {
 	if (rows.length === 0 && method === 'get') {
 		return {} as { rows: [] };
 	}
 
 	return { rows: method === 'get' ? rows[0].rows : rows.map((r) => r.rows) };
 }
+
+/**
+ * builds a drizzle client over a transport. every client — production and test — is the
+ * same `SqliteRemoteDatabase<typeof schema>` type and runs the same row mapping.
+ */
+export function createDatabase(single: SingleTransport, batch: BatchTransport) {
+	return drizzle(
+		async (sql, params, method) => mapRows(await single(sql, params, method), method),
+		async (queries: Query[]) => {
+			const results = await batch(queries);
+			return results.map((rows, index) => mapRows(rows, queries[index].method));
+		},
+		{
+			schema,
+			logger: import.meta.env?.DEV
+		}
+	);
+}
+
+export const db = createDatabase(
+	// tauri command called directly for fast queries instead of wrapped in the tauri facade
+	async (sql, params) => invoke<Row[]>('db_execute_single_sql', { query: { sql, params } }),
+	async (queries) => invoke<Row[][]>('db_execute_batch_sql', { queries })
+);
