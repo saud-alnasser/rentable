@@ -66,7 +66,7 @@ export function shouldIncludeDashboardFollowUp(
 export function isContractEndingSoon(
 	status: Contract['status'],
 	contractEnd: DateLike,
-	now: DateLike = Date.now(),
+	now: DateLike,
 	noticeWindowDays: number = DEFAULT_DASHBOARD_ENDING_SOON_NOTICE_DAYS
 ) {
 	if (status !== 'active' && status !== 'fulfilled') {

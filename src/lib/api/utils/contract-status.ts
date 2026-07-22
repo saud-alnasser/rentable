@@ -131,7 +131,7 @@ export function getContractCycleCountForPeriod(
 	}
 }
 
-export function countExpectedPayments(contract: ContractLike, now: DateLike = Date.now()) {
+export function countExpectedPayments(contract: ContractLike, now: DateLike) {
 	const start = toUtcDay(contract.start);
 	const end = toUtcDay(contract.end);
 	const today = toUtcDay(now);
@@ -176,7 +176,7 @@ export function countExpectedPaymentsInRange(
 	);
 }
 
-export function getExpectedAmountBy(contract: ContractLike, now: DateLike = Date.now()) {
+export function getExpectedAmountBy(contract: ContractLike, now: DateLike) {
 	return countExpectedPayments(contract, now) * contract.cost;
 }
 
@@ -218,7 +218,7 @@ export function isContractPaidInFull(contract: ContractLike, payments: PaymentLi
 export function getOutstandingExpectedAmount(
 	contract: ContractLike,
 	payments: PaymentLike[],
-	now: DateLike = Date.now()
+	now: DateLike
 ) {
 	return Math.max(getExpectedAmountBy(contract, now) - getPaidAmount(payments), 0);
 }
@@ -232,7 +232,7 @@ export function hasValidContractPeriodForInterval(
 export function deriveContractStatus(
 	contract: ContractLike,
 	payments: PaymentLike[],
-	now = Date.now()
+	now: DateLike
 ) {
 	if (contract.status === 'terminated') {
 		return 'terminated' satisfies Contract['status'];
@@ -312,7 +312,7 @@ export function getConflictingAssignedUnitIds(
 
 export function deriveUnitStatus(
 	assignments: Array<{ contract: ContractLike; payments: PaymentLike[] }>,
-	now = Date.now()
+	now: DateLike
 ): Unit['status'] {
 	const today = toUtcDay(now).getTime();
 

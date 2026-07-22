@@ -33,7 +33,8 @@ function groupPaymentsByContractId(payments: DbPayment[]) {
 function getDerivedUnitStatuses(
 	unitIds: number[],
 	assignments: ContractAssignmentRow[],
-	paymentsByContractId: Map<number, DbPayment[]>
+	paymentsByContractId: Map<number, DbPayment[]>,
+	now: number
 ) {
 	const assignmentsByUnitId = new Map<
 		number,
@@ -60,11 +61,11 @@ function getDerivedUnitStatuses(
 	}
 
 	return new Map(
-		unitIds.map((unitId) => [unitId, deriveUnitStatus(assignmentsByUnitId.get(unitId) ?? [])])
+		unitIds.map((unitId) => [unitId, deriveUnitStatus(assignmentsByUnitId.get(unitId) ?? [], now)])
 	);
 }
 
-export async function sync(db: DbClient, now = Date.now()) {
+export async function sync(db: DbClient, now: number) {
 	const contracts = await db.select().from(s.contract);
 	const contractIds = contracts.map((contract) => contract.id);
 	const payments = contractIds.length
@@ -105,7 +106,7 @@ export async function sync(db: DbClient, now = Date.now()) {
 		.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
 		.where(inArray(s.contractUnit.unitId, unitIds));
 
-	const statusByUnitId = getDerivedUnitStatuses(unitIds, assignments, paymentsByContractId);
+	const statusByUnitId = getDerivedUnitStatuses(unitIds, assignments, paymentsByContractId, now);
 
 	for (const unit of units) {
 		const nextStatus = statusByUnitId.get(unit.id) ?? 'vacant';
