@@ -40,7 +40,8 @@ node --import tsx --test src/lib/api/database/memory.test.mjs   # single file
 Pure logic in `src/lib/api/utils/` is covered directly. Router procedures are covered
 end-to-end through the real tRPC caller bound to an in-memory database
 (`database/memory.ts` — `createMemoryDatabase()`, sqlite-proxy over better-sqlite3).
-Rust tests are inline `#[cfg(test)]` modules. CI runs both suites plus ESLint on every
+Rust tests are `#[cfg(test)]` modules — inline in single-file modules, or a `tests.rs`
+file inside a module tree (see `tauri/src/backup/`). CI runs both suites plus ESLint on every
 pull request.
 
 ## Architecture
