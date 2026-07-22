@@ -29,14 +29,16 @@ Always use `pnpm` (engine-strict, pnpm 10+, Node 24).
 
 ### Tests
 
-There is no test script. Tests are `*.test.mjs` files colocated with the code, using `node:test` + `node:assert/strict`, importing the `.ts` source directly (Node 24 type stripping):
+Tests are `*.test.mjs` files colocated with the code, using `node:test` + `node:assert/strict`, importing the `.ts` source directly (Node 24 type stripping):
 
 ```bash
+pnpm test                                               # all TypeScript tests
+pnpm test:rust                                          # all Rust tests
 node --test src/lib/api/utils/dashboard.test.mjs        # single file
-node --test "src/**/*.test.mjs"                         # all
 ```
 
-Only pure logic in `src/lib/api/utils/` is covered this way.
+Only pure logic in `src/lib/api/utils/` is covered this way. Rust tests are inline
+`#[cfg(test)]` modules. CI runs both suites plus ESLint on every pull request.
 
 ## Architecture
 
@@ -76,6 +78,14 @@ Contract and unit statuses are **derived, not stored authoritatively**: `utils/c
 ### i18n
 
 `typesafe-i18n` with `en` and `ar` (RTL) locales in `src/lib/i18n/<locale>/index.ts`. `i18n-types.ts` and the `i18n-util*.ts` files are **generated** — edit the locale files and run `pnpm i18n`. Components read translations from the `LL` store (`$lib/i18n/i18n-svelte`).
+
+## Architectural constraints
+
+Load-bearing rules, enforced going forward. The current tree still diverges from each in places — every divergence has a ticket under the refactor programme (issue #95), so don't add a new violation and don't "fix" an old one opportunistically; it has a ticket. Terms are defined in `CONTEXT.md`.
+
+- **Google Drive HTTP and OAuth live in Rust; credentials never cross the IPC boundary** (today the client is TypeScript and receives the OAuth client secret and a refresh token — #114–#118).
+- **Domain rules live in their concept's own module, not in routers or a shared `utils` bag; there is no repository layer — routers use Drizzle directly** (#107, #108).
+- **Modules are organised by concept, not by layer**, with `src/routes/` as the acknowledged exception (#123–#126).
 
 ## Conventions
 
