@@ -5,7 +5,6 @@ import {
 	type Contract,
 	type Payment
 } from '$lib/api/database/schema';
-import { tauri } from '$lib/api/tauri';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import {
 	CONTRACT_END_DATE_TOLERANCE_DAYS,
@@ -279,7 +278,8 @@ function groupPaymentsByContractId(payments: DbPayment[]) {
 function getDerivedUnitStatuses(
 	unitIds: number[],
 	assignments: ContractAssignmentRow[],
-	paymentsByContractId: Map<number, DbPayment[]>
+	paymentsByContractId: Map<number, DbPayment[]>,
+	now: number
 ) {
 	const assignmentsByUnitId = new Map<
 		number,
@@ -306,12 +306,13 @@ function getDerivedUnitStatuses(
 	}
 
 	return new Map(
-		unitIds.map((unitId) => [unitId, deriveUnitStatus(assignmentsByUnitId.get(unitId) ?? [])])
+		unitIds.map((unitId) => [unitId, deriveUnitStatus(assignmentsByUnitId.get(unitId) ?? [], now)])
 	);
 }
 
 function serializeContract(
 	record: DbContract,
+	now: number,
 	paymentsByContractId: Map<number, DbPayment[]> = new Map(),
 	tenantName?: string,
 	tenantPhone?: string
@@ -322,7 +323,7 @@ function serializeContract(
 	const serializedContract: SerializedContract = {
 		id: record.id,
 		govId: record.govId ?? '',
-		status: deriveContractStatus(record, payments),
+		status: deriveContractStatus(record, payments, now),
 		start: record.start.getTime(),
 		end: record.end.getTime(),
 		interval: record.interval,
@@ -387,7 +388,7 @@ function toUtcDay(value: Date | number) {
 // 	return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate() + days));
 // }
 
-function getCurrentMonthBounds(now = Date.now()) {
+function getCurrentMonthBounds(now: number) {
 	const today = toUtcDay(now);
 	const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
 	const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0));
@@ -414,6 +415,8 @@ export default router({
 		.use(autosync())
 		.input(ContractCreateSchema)
 		.mutation(async ({ input, ctx }) => {
+			const now = ctx.clock.now();
+
 			ensureValidContractInput(input);
 
 			const tenant = await ctx.db
@@ -449,7 +452,8 @@ export default router({
 					interval: input.interval,
 					cost: input.cost
 				},
-				[]
+				[],
+				now
 			);
 
 			const created = await ctx.db
@@ -464,15 +468,17 @@ export default router({
 				.returning()
 				.get();
 
-			await sync(ctx.db);
+			await sync(ctx.db, now);
 
-			return serializeContract(created);
+			return serializeContract(created, now);
 		}),
 
 	update: procedure.public
 		.use(autosync())
 		.input(ContractUpdateSchema)
 		.mutation(async ({ input, ctx }) => {
+			const now = ctx.clock.now();
+
 			ensureValidContractInput(input);
 
 			const existingContract = await ctx.db
@@ -544,7 +550,8 @@ export default router({
 					interval: input.interval,
 					cost: input.cost
 				},
-				existingPayments
+				existingPayments,
+				now
 			);
 
 			const updated = await ctx.db
@@ -562,15 +569,17 @@ export default router({
 				.returning()
 				.get();
 
-			await sync(ctx.db);
+			await sync(ctx.db, now);
 
-			return serializeContract(updated);
+			return serializeContract(updated, now);
 		}),
 
 	terminate: procedure.public
 		.use(autosync())
 		.input(ContractSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
+			const now = ctx.clock.now();
+
 			const existingContract = await ctx.db
 				.select()
 				.from(s.contract)
@@ -589,7 +598,7 @@ export default router({
 				.from(s.payment)
 				.where(eq(s.payment.contractId, input.id));
 
-			const currentStatus = deriveContractStatus(existingContract, payments);
+			const currentStatus = deriveContractStatus(existingContract, payments, now);
 
 			if (!canManuallyTerminateContractStatus(currentStatus)) {
 				throw new TRPCError({
@@ -605,15 +614,17 @@ export default router({
 				.returning()
 				.get();
 
-			await sync(ctx.db);
+			await sync(ctx.db, now);
 
-			return serializeContract(terminated);
+			return serializeContract(terminated, now);
 		}),
 
 	unterminate: procedure.public
 		.use(autosync())
 		.input(ContractSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
+			const now = ctx.clock.now();
+
 			const existingContract = await ctx.db
 				.select()
 				.from(s.contract)
@@ -640,7 +651,8 @@ export default router({
 				.where(eq(s.payment.contractId, input.id));
 			const restoredStatus = deriveContractStatus(
 				{ ...existingContract, status: 'active' },
-				payments
+				payments,
+				now
 			);
 
 			const restored = await ctx.db
@@ -650,15 +662,17 @@ export default router({
 				.returning()
 				.get();
 
-			await sync(ctx.db);
+			await sync(ctx.db, now);
 
-			return serializeContract(restored);
+			return serializeContract(restored, now);
 		}),
 
 	delete: procedure.public
 		.use(autosync())
 		.input(ContractSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
+			const now = ctx.clock.now();
+
 			const existingContract = await ctx.db
 				.select()
 				.from(s.contract)
@@ -699,14 +713,14 @@ export default router({
 				.returning()
 				.get();
 
-			return deleted ? serializeContract(deleted) : deleted;
+			return deleted ? serializeContract(deleted, now) : deleted;
 		}),
 
 	dashboard: procedure.public.query(async ({ ctx }): Promise<DashboardData> => {
-		const now = Date.now();
+		const now = ctx.clock.now();
 		const today = toUtcDay(now);
 		const month = getCurrentMonthBounds(now);
-		const settings = await tauri.settings.get();
+		const settings = await ctx.host.settings.get();
 
 		const contracts = await ctx.db
 			.select({
@@ -725,7 +739,7 @@ export default router({
 
 		const contexts = contracts.map(({ contract, tenantName, tenantPhone }) => {
 			const contractPayments = paymentsByContractId.get(contract.id) ?? [];
-			const serializedContract = serializeContract(contract, paymentsByContractId);
+			const serializedContract = serializeContract(contract, now, paymentsByContractId);
 			const collectedThisMonth = contractPayments
 				.filter((payment) => isWithinUtcRange(payment.date, month.start, month.end))
 				.reduce((sum, payment) => sum + payment.amount, 0);
@@ -898,6 +912,8 @@ export default router({
 	get: procedure.public
 		.input(ContractSchema.pick({ id: true, govId: true }).partial())
 		.query(async ({ input, ctx }) => {
+			const now = ctx.clock.now();
+
 			if (input.id) {
 				const contract = await ctx.db
 					.select()
@@ -914,7 +930,7 @@ export default router({
 					.from(s.payment)
 					.where(eq(s.payment.contractId, contract.id));
 
-				return serializeContract(contract, groupPaymentsByContractId(payments));
+				return serializeContract(contract, now, groupPaymentsByContractId(payments));
 			}
 
 			if (input.govId) {
@@ -933,7 +949,7 @@ export default router({
 					.from(s.payment)
 					.where(eq(s.payment.contractId, contract.id));
 
-				return serializeContract(contract, groupPaymentsByContractId(payments));
+				return serializeContract(contract, now, groupPaymentsByContractId(payments));
 			}
 
 			return undefined;
@@ -942,6 +958,7 @@ export default router({
 	getMany: procedure.public
 		.input(z.object({ search: z.string().optional() }))
 		.query(async ({ input, ctx }) => {
+			const now = ctx.clock.now();
 			const contracts = await ctx.db
 				.select({
 					contract: s.contract,
@@ -956,7 +973,7 @@ export default router({
 				: [];
 			const paymentsByContractId = groupPaymentsByContractId(payments);
 			const serializedContracts = contracts.map(({ contract, tenantName, tenantPhone }) =>
-				serializeContract(contract, paymentsByContractId, tenantName, tenantPhone)
+				serializeContract(contract, now, paymentsByContractId, tenantName, tenantPhone)
 			);
 
 			if (!input.search) {
@@ -971,6 +988,7 @@ export default router({
 	getPaginated: procedure.public
 		.input(PaginationSchema.extend({ search: z.string().optional() }))
 		.query(async ({ input, ctx }) => {
+			const now = ctx.clock.now();
 			const { limit, offset } = resolvePagination(input);
 			const search = input.search?.trim().toLowerCase();
 
@@ -990,7 +1008,7 @@ export default router({
 					: [];
 				const paymentsByContractId = groupPaymentsByContractId(payments);
 				const serializedContracts = contracts.map(({ contract, tenantName, tenantPhone }) =>
-					serializeContract(contract, paymentsByContractId, tenantName, tenantPhone)
+					serializeContract(contract, now, paymentsByContractId, tenantName, tenantPhone)
 				);
 
 				return toPaginatedResult(
@@ -1020,7 +1038,7 @@ export default router({
 
 			return {
 				items: pageContracts.map(({ contract, tenantName, tenantPhone }) =>
-					serializeContract(contract, paymentsByContractId, tenantName, tenantPhone)
+					serializeContract(contract, now, paymentsByContractId, tenantName, tenantPhone)
 				),
 				nextOffset: contracts.length > limit ? offset + limit : null
 			};
@@ -1028,6 +1046,8 @@ export default router({
 
 	units: {
 		getMany: procedure.public.input(ContractUnitsGetManySchema).query(async ({ input, ctx }) => {
+			const now = ctx.clock.now();
+
 			const units = await ctx.db
 				.select({
 					id: s.unit.id,
@@ -1068,7 +1088,8 @@ export default router({
 			const statusByUnitId = getDerivedUnitStatuses(
 				unitIds,
 				assignments,
-				groupPaymentsByContractId(payments)
+				groupPaymentsByContractId(payments),
+				now
 			);
 
 			return units.map((unit) => ({
@@ -1080,6 +1101,8 @@ export default router({
 		getVacantMany: procedure.public
 			.input(ContractVacantUnitsGetManySchema)
 			.query(async ({ input, ctx }) => {
+				const now = ctx.clock.now();
+
 				const contract = await ctx.db
 					.select()
 					.from(s.contract)
@@ -1129,7 +1152,8 @@ export default router({
 				const statusByUnitId = getDerivedUnitStatuses(
 					unitIds,
 					assignments,
-					groupPaymentsByContractId(payments)
+					groupPaymentsByContractId(payments),
+					now
 				);
 				const conflictingUnitIds = getConflictingAssignedUnitIds(
 					assignments,
@@ -1156,6 +1180,8 @@ export default router({
 			.use(autosync())
 			.input(ContractUnitsAssignSchema)
 			.mutation(async ({ input, ctx }) => {
+				const now = ctx.clock.now();
+
 				const contract = await ctx.db
 					.select()
 					.from(s.contract)
@@ -1268,10 +1294,11 @@ export default router({
 				const assignedStatusByUnitId = getDerivedUnitStatuses(
 					unitIds,
 					assignments,
-					groupPaymentsByContractId(assignmentPayments)
+					groupPaymentsByContractId(assignmentPayments),
+					now
 				);
 
-				await sync(ctx.db);
+				await sync(ctx.db, now);
 
 				return assignedUnits.map((unit) => ({
 					...unit,
@@ -1283,6 +1310,8 @@ export default router({
 			.use(autosync())
 			.input(ContractUnitRemoveSchema)
 			.mutation(async ({ input, ctx }) => {
+				const now = ctx.clock.now();
+
 				const contract = await ctx.db
 					.select()
 					.from(s.contract)
@@ -1328,7 +1357,7 @@ export default router({
 						)
 					);
 
-				await sync(ctx.db);
+				await sync(ctx.db, now);
 
 				return {
 					contractId: input.contractId,
@@ -1386,6 +1415,8 @@ export default router({
 			.use(autosync())
 			.input(PaymentSchema.omit({ id: true }))
 			.mutation(async ({ input, ctx }) => {
+				const now = ctx.clock.now();
+
 				const contract = await ctx.db
 					.select()
 					.from(s.contract)
@@ -1418,7 +1449,7 @@ export default router({
 					.returning()
 					.get();
 
-				await sync(ctx.db);
+				await sync(ctx.db, now);
 
 				return serializePayment(created);
 			}),
@@ -1427,6 +1458,8 @@ export default router({
 			.use(autosync())
 			.input(PaymentSchema.pick({ id: true, date: true, amount: true }))
 			.mutation(async ({ input, ctx }) => {
+				const now = ctx.clock.now();
+
 				const existingPayment = await ctx.db
 					.select()
 					.from(s.payment)
@@ -1472,7 +1505,7 @@ export default router({
 					.returning()
 					.get();
 
-				await sync(ctx.db);
+				await sync(ctx.db, now);
 
 				return serializePayment(updated);
 			}),
@@ -1481,6 +1514,8 @@ export default router({
 			.use(autosync())
 			.input(PaymentSchema.pick({ id: true }))
 			.mutation(async ({ input, ctx }) => {
+				const now = ctx.clock.now();
+
 				const existingPayment = await ctx.db
 					.select()
 					.from(s.payment)
@@ -1512,7 +1547,7 @@ export default router({
 					.returning()
 					.get();
 
-				await sync(ctx.db);
+				await sync(ctx.db, now);
 
 				return deleted ? serializePayment(deleted) : deleted;
 			})

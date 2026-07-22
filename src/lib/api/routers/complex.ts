@@ -1,3 +1,4 @@
+import type { Context } from '$lib/api/context';
 import * as s from '$lib/api/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/api/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
@@ -35,7 +36,8 @@ function groupPaymentsByContractId(payments: DbPayment[]) {
 function getDerivedUnitStatuses(
 	unitIds: number[],
 	assignments: ContractAssignmentRow[],
-	paymentsByContractId: Map<number, DbPayment[]>
+	paymentsByContractId: Map<number, DbPayment[]>,
+	now: number
 ) {
 	const assignmentsByUnitId = new Map<
 		number,
@@ -62,12 +64,12 @@ function getDerivedUnitStatuses(
 	}
 
 	return new Map(
-		unitIds.map((unitId) => [unitId, deriveUnitStatus(assignmentsByUnitId.get(unitId) ?? [])])
+		unitIds.map((unitId) => [unitId, deriveUnitStatus(assignmentsByUnitId.get(unitId) ?? [], now)])
 	);
 }
 
 async function getUnitsWithDerivedStatus(
-	ctx: { db: typeof import('$lib/api/database/mod').db },
+	ctx: Pick<Context, 'db' | 'clock'>,
 	units: (typeof s.unit.$inferSelect)[]
 ) {
 	const unitIds = units.map((unit) => unit.id);
@@ -97,7 +99,8 @@ async function getUnitsWithDerivedStatus(
 	const statusByUnitId = getDerivedUnitStatuses(
 		unitIds,
 		assignments,
-		groupPaymentsByContractId(payments)
+		groupPaymentsByContractId(payments),
+		ctx.clock.now()
 	);
 
 	return units.map((unit) => ({

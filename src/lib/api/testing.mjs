@@ -17,9 +17,13 @@ export function monthsFromNow(months, days = 0) {
 }
 
 // A fresh caller over an isolated in-memory database, the fixed clock, and a fake host.
-export async function createApi() {
+// The default host covers only what procedures actually read; pass `host` to override it.
+export async function createApi({ host } = {}) {
 	const db = createMemoryDatabase();
-	const ctx = await context({ db, clock: { now: () => NOW }, host: {} });
+	const fakeHost = host ?? {
+		settings: { get: async () => ({ endingSoonNoticeDays: 60, locale: 'en' }) }
+	};
+	const ctx = await context({ db, clock: { now: () => NOW }, host: fakeHost });
 
 	return caller(appRouter)(ctx);
 }
