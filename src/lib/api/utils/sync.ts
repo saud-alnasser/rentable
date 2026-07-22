@@ -1,8 +1,7 @@
+import type { Database } from '$lib/api/context';
 import * as s from '$lib/api/database/schema';
 import { deriveContractStatus, deriveUnitStatus } from '$lib/api/utils/contract-status';
 import { eq, inArray } from 'drizzle-orm';
-
-export type DbClient = typeof import('$lib/api/database/mod').db;
 
 type DbContract = typeof s.contract.$inferSelect;
 type DbPayment = typeof s.payment.$inferSelect;
@@ -65,7 +64,7 @@ function getDerivedUnitStatuses(
 	);
 }
 
-export async function sync(db: DbClient, now: number) {
+export async function sync(db: Database, now: number) {
 	const contracts = await db.select().from(s.contract);
 	const contractIds = contracts.map((contract) => contract.id);
 	const payments = contractIds.length

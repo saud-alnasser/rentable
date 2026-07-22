@@ -31,7 +31,8 @@ import {
 	shouldIncludeDashboardFollowUp
 } from '$lib/api/utils/dashboard';
 import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/utils/pagination';
-import { sync, type DbClient } from '$lib/api/utils/sync';
+import type { Database } from '$lib/api/context';
+import { sync } from '$lib/api/utils/sync';
 import { TRPCError } from '@trpc/server';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import z from 'zod';
@@ -103,7 +104,7 @@ function ensureContractIsNotTerminated(status: Contract['status']) {
 	}
 }
 
-async function ensureContractUnitsAreMutable(db: DbClient, contractId: number) {
+async function ensureContractUnitsAreMutable(db: Database, contractId: number) {
 	const payment = await db
 		.select({ id: s.payment.id })
 		.from(s.payment)
@@ -118,7 +119,7 @@ async function ensureContractUnitsAreMutable(db: DbClient, contractId: number) {
 	}
 }
 
-async function ensureContractPaymentsCanBeCreated(db: DbClient, contract: DbContract) {
+async function ensureContractPaymentsCanBeCreated(db: Database, contract: DbContract) {
 	const payments = await db.select().from(s.payment).where(eq(s.payment.contractId, contract.id));
 
 	if (isContractPaidInFull(contract, payments)) {
@@ -130,7 +131,7 @@ async function ensureContractPaymentsCanBeCreated(db: DbClient, contract: DbCont
 }
 
 async function ensureAssignedUnitsDoNotOverlap(
-	db: DbClient,
+	db: Database,
 	contractId: number,
 	start: number,
 	end: number

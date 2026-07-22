@@ -54,10 +54,10 @@ export const middleware = {
 	/**
 	 * logs the request and the duration it took to fulfill it.
 	 */
-	log: t.middleware(async ({ path, next }) => {
-		const start = Date.now();
+	log: t.middleware(async ({ ctx, path, next }) => {
+		const start = ctx.clock.now();
 		const result = await next();
-		const end = Date.now();
+		const end = ctx.clock.now();
 
 		const duration = end - start;
 
