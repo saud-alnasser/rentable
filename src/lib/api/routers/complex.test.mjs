@@ -1,43 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createMemoryDatabase } from '../database/memory.ts';
-import { appRouter } from '../router.ts';
-import { caller, context } from '../trpc.ts';
-
-// A fixed instant (the real "now"), so status derivation is pinned identically whether it
-// reads the clock ambiently today or from the injected context later. Contract dates are
-// expressed relative to it.
-const NOW = Date.now();
-
-function monthsFromNow(months, days = 0) {
-	const base = new Date(NOW);
-	return Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + months, base.getUTCDate() + days);
-}
-
-async function createApi() {
-	const db = createMemoryDatabase();
-	const ctx = await context({ db, clock: { now: () => NOW }, host: {} });
-
-	return caller(appRouter)(ctx);
-}
-
-let seq = 0;
-
-function nextSuffix() {
-	seq += 1;
-	return String(seq).padStart(4, '0');
-}
-
-async function seedTenant(api) {
-	const suffix = nextSuffix();
-
-	return api.tenant.create({
-		name: `Tenant ${suffix}`,
-		nationalId: `1000${suffix}00`.slice(0, 10),
-		phone: `+96655${suffix}000`.slice(0, 13)
-	});
-}
+import { createApi, monthsFromNow, seedTenant } from '../testing.mjs';
 
 async function seedActiveContract(api) {
 	const tenant = await seedTenant(api);
