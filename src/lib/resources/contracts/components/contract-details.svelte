@@ -5,7 +5,7 @@
 	import {
 		canManuallyTerminateContractStatus,
 		canUnterminateContractStatus
-	} from '$lib/api/utils/contract-status';
+	} from '$lib/api/contract';
 	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
 	import { Badge } from '$lib/common/components/fragments/badge';
 	import { Button } from '$lib/common/components/fragments/button';

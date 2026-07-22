@@ -67,7 +67,7 @@ Key consequences:
 
 ### Layers
 
-- **`src/lib/api/`** — the "backend". `context.ts` builds the request context — `{ db, clock, host }` with its dependencies supplied, each defaulting to the real singleton; it carries **only ambient capabilities that cross the process boundary (database, host) or are nondeterministic (clock) — never business configuration**. `trpc.ts` wires that context, defines the `public` procedure (with a logging middleware), and the `autosync()` middleware that schedules a Google Drive push after a successful mutation — add it to any procedure that writes. `routers/` holds one router per domain (`app`, `tenant`, `complex`, `contract`). `utils/` holds pure, testable business logic.
+- **`src/lib/api/`** — the "backend". `context.ts` builds the request context — `{ db, clock, host }` with its dependencies supplied, each defaulting to the real singleton; it carries **only ambient capabilities that cross the process boundary (database, host) or are nondeterministic (clock) — never business configuration**. `trpc.ts` wires that context, defines the `public` procedure (with a logging middleware), and the `autosync()` middleware that schedules a Google Drive push after a successful mutation — add it to any procedure that writes. `routers/` holds one router per domain (`app`, `tenant`, `complex`, `contract`) — routers validate, call the domain, persist with Drizzle directly, and reconcile; they hold no business rules. `contract.ts` is the contract domain module (derivation, invariants, arithmetic, and the rules routers assert), `reconcile.ts` writes derived statuses back, `date.ts` owns UTC-day arithmetic. `utils/` still holds `dashboard`/`pagination` helpers and the ticketed Drive client.
 - **`src/lib/api/database/schema.ts`** — single source of truth: Drizzle table + a matching Zod schema + inferred type per entity (`tenant`/`TenantSchema`/`Tenant`). Routers derive input schemas from these (`ContractSchema.omit({ id: true, status: true })`). Change both the table and the Zod schema together, then run `pnpm db:generate`.
 - **`src/lib/api/tauri.ts`** — the typed facade over every Rust command (`window`, `settings`, `backup`, `update`, `remoteSync.googleDrive`). All `invoke` calls belong here, except the two hot database commands.
 - **`src/lib/resources/<domain>/`** — feature code: `components/` (domain UI) and `hooks/queries.ts` (TanStack Query wrappers). Each `queries.ts` exports a `keys` object; mutations invalidate through those keys. Toast behaviour goes through `onMutationSuccess`/`onMutationError` in `src/lib/common/utils/queries.ts`, which special-cases `TRPCError` `BAD_REQUEST` as a user-facing message.
@@ -76,7 +76,7 @@ Key consequences:
 
 ### Derived status
 
-Contract and unit statuses are **derived, not stored authoritatively**: `utils/contract-status.ts` computes them from dates and payments, and `utils/sync.ts` writes the derived values back after any mutation that touches contracts, payments, or unit assignments. When adding such a mutation, run the sync step or statuses go stale.
+Contract and unit statuses are **derived, not stored authoritatively**: the contract domain module (`src/lib/api/contract.ts`) computes them from dates and payments, and `reconcile.ts` writes the derived values back after any mutation that touches contracts, payments, or unit assignments. When adding such a mutation, run the reconcile step or statuses go stale. (`sync` means remote exclusively — see CONTEXT.md.)
 
 ### i18n
 

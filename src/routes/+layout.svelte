@@ -168,7 +168,7 @@
 			}
 		}
 
-		await api.app.state.sync();
+		await api.app.state.reconcile();
 
 		startupRecovery = null;
 		startupState = 'ready';

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Payment } from '$lib/api/database/schema';
-	import { hasSatisfiedContractPaymentRequirement } from '$lib/api/utils/contract-status';
+	import { hasSatisfiedContractPaymentRequirement } from '$lib/api/contract';
 	import DataTableActionsDropdown from '$lib/common/components/blocks/data-table-actions-dropdown.svelte';
 	import DataView from '$lib/common/components/blocks/data-view.svelte';
 	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';

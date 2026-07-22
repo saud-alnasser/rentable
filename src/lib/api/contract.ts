@@ -1,6 +1,14 @@
 import type { Contract, Payment, Unit } from '$lib/api/database/schema';
+import { addUtcDays, addUtcMonths, toUtcDay, type DateLike } from '$lib/api/date';
+import { TRPCError } from '@trpc/server';
 
-type DateLike = Date | number;
+/**
+ * CONTRACT
+ *
+ * the contract domain module: status derivation, period and cost invariants, cycle and
+ * expected-amount arithmetic, and the rules routers assert before persisting. Routers
+ * fetch rows and call in; no rule or derivation lives anywhere else.
+ */
 
 type ContractLike = Omit<
 	Pick<Contract, 'status' | 'start' | 'end' | 'interval' | 'cost'>,
@@ -24,6 +32,12 @@ type UnitAssignmentLike = {
 	end: DateLike;
 };
 
+/** an assignment row joined with its contract, as routers select it. */
+export type ContractAssignment = UnitAssignmentLike & {
+	interval: Contract['interval'];
+	cost: Contract['cost'];
+};
+
 const EPSILON = 0.0001;
 const UTC_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -36,25 +50,12 @@ const INTERVAL_MONTHS: Record<Contract['interval'], number> = {
 	'12m': 12
 };
 
-function toUtcDay(value: DateLike) {
-	const date = value instanceof Date ? value : new Date(value);
-
-	return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-}
-
-function addUtcDays(value: Date, days: number) {
-	return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate() + days));
-}
-
-function addUtcMonths(value: DateLike, months: number) {
-	const date = toUtcDay(value);
-	const targetMonth = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
-	const year = targetMonth.getUTCFullYear();
-	const month = targetMonth.getUTCMonth();
-	const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-
-	return new Date(Date.UTC(year, month, Math.min(date.getUTCDate(), lastDayOfMonth)));
-}
+const INTERVAL_LABELS: Record<Contract['interval'], string> = {
+	'1m': 'monthly',
+	'3m': 'quarterly',
+	'6m': 'semi-annual',
+	'12m': 'annual'
+};
 
 export function getIntervalMonths(interval: Contract['interval']) {
 	return INTERVAL_MONTHS[interval];
@@ -330,4 +331,151 @@ export function deriveUnitStatus(
 	});
 
 	return isOccupied ? 'occupied' : 'vacant';
+}
+
+/** groups payment rows by their contract, preserving row order within each group. */
+export function groupPaymentsByContractId<P extends { contractId: number }>(payments: P[]) {
+	const paymentsByContractId = new Map<number, P[]>();
+
+	for (const payment of payments) {
+		paymentsByContractId.set(payment.contractId, [
+			...(paymentsByContractId.get(payment.contractId) ?? []),
+			payment
+		]);
+	}
+
+	return paymentsByContractId;
+}
+
+/** derives the status of each unit from its assignments and their payments. */
+export function deriveUnitStatuses(
+	unitIds: number[],
+	assignments: ContractAssignment[],
+	paymentsByContractId: Map<number, PaymentLike[]>,
+	now: DateLike
+) {
+	const assignmentsByUnitId = new Map<
+		number,
+		Array<{ contract: ContractLike; payments: PaymentLike[] }>
+	>();
+
+	for (const assignment of assignments) {
+		assignmentsByUnitId.set(assignment.unitId, [
+			...(assignmentsByUnitId.get(assignment.unitId) ?? []),
+			{
+				contract: {
+					status: assignment.status,
+					start: assignment.start,
+					end: assignment.end,
+					interval: assignment.interval,
+					cost: assignment.cost
+				},
+				payments: paymentsByContractId.get(assignment.contractId) ?? []
+			}
+		]);
+	}
+
+	return new Map(
+		unitIds.map((unitId) => [unitId, deriveUnitStatus(assignmentsByUnitId.get(unitId) ?? [], now)])
+	);
+}
+
+// --- Rules asserted before persisting -------------------------------------------------
+//
+// Each throws the user-facing BAD_REQUEST the routers previously raised inline. Routers
+// fetch the rows a rule needs and call in; the condition and its message live here.
+
+function badRequest(message: string): never {
+	throw new TRPCError({ code: 'BAD_REQUEST', message });
+}
+
+export function ensureValidContractInput(
+	input: Pick<Contract, 'start' | 'end' | 'interval' | 'cost'>
+) {
+	if (input.end < input.start) {
+		badRequest('end date must be after start date');
+	}
+
+	if (!hasValidContractPeriodForInterval(input)) {
+		badRequest(
+			`contract period must stay within ${CONTRACT_END_DATE_TOLERANCE_DAYS} days of the calculated ${INTERVAL_LABELS[input.interval]} cycle end date`
+		);
+	}
+
+	if (input.cost <= 0) {
+		badRequest('cost per payment must be greater than zero');
+	}
+}
+
+/** the router passes whatever row its uniqueness query found; any row is a conflict. */
+export function ensureGovIdAvailable(conflicting: unknown) {
+	if (conflicting) {
+		badRequest('government id is associated with another contract');
+	}
+}
+
+export function ensureContractIsNotTerminated(status: Contract['status']) {
+	if (status === 'terminated') {
+		badRequest('terminated contracts are locked');
+	}
+}
+
+export function ensureContractTerminable(status: Contract['status']) {
+	if (!canManuallyTerminateContractStatus(status)) {
+		badRequest('only active, fulfilled, or past contracts can be terminated');
+	}
+}
+
+export function ensureContractUnterminable(status: Contract['status']) {
+	if (!canUnterminateContractStatus(status)) {
+		badRequest('only terminated contracts can be unterminated');
+	}
+}
+
+export function ensureContractUnitsAreMutable(payments: unknown[]) {
+	if (payments.length > 0) {
+		badRequest('cannot change contract units after payments have been registered');
+	}
+}
+
+export function ensureContractPaymentsCreatable(contract: ContractLike, payments: PaymentLike[]) {
+	if (isContractPaidInFull(contract, payments)) {
+		badRequest('cannot add payments once the required contract amount has been fully paid');
+	}
+}
+
+export function ensureValidPaymentAmount(amount: number) {
+	if (amount <= 0) {
+		badRequest('payment amount must be greater than zero');
+	}
+}
+
+export function ensureContractDeletable(units: unknown[], payments: unknown[]) {
+	if (units.length > 0) {
+		badRequest('cannot delete contract with associated units');
+	}
+
+	if (payments.length > 0) {
+		badRequest('cannot delete contract with associated payments');
+	}
+}
+
+export function ensurePeriodDoesNotOverlapAssignments(
+	assignments: UnitAssignmentLike[],
+	range: ContractRangeLike,
+	contractId: number
+) {
+	if (getConflictingAssignedUnitIds(assignments, range, contractId).size > 0) {
+		badRequest('assigned units overlap with another contract during the selected dates');
+	}
+}
+
+export function ensureUnitsAssignable(
+	assignments: UnitAssignmentLike[],
+	contract: ContractRangeLike,
+	contractId: number
+) {
+	if (getConflictingAssignedUnitIds(assignments, contract, contractId).size > 0) {
+		badRequest('one or more selected units are already assigned to an overlapping contract');
+	}
 }
