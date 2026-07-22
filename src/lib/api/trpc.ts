@@ -1,18 +1,16 @@
 import { requestGoogleDriveAutosync } from '$lib/api/utils/remote-sync-google-drive-events';
 import { initTRPC } from '@trpc/server';
 import { ZodError } from 'zod';
-import { db } from './database/mod';
+import { context } from './context';
 
 /**
  * CONTEXT
  *
- * this section defines the context that is available to all procedures in the API.
- *
- * @returns a context object that can be passed to the any procedure in the API.
+ * the context available to every procedure in the API. it is built by `context.ts`,
+ * which supplies its dependencies; re-exported here so callers importing from `./trpc`
+ * are unchanged.
  */
-export const context = async () => {
-	return { db };
-};
+export { context };
 
 /**
  * INITIALIZER
