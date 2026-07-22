@@ -1,39 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createMemoryDatabase } from '../database/memory.ts';
-import { appRouter } from '../router.ts';
-import { caller, context } from '../trpc.ts';
-
-// A fixed instant. It is the real "now" so these tests pin the same behaviour whether a
-// procedure reads the clock ambiently (today) or from the injected context (after the
-// clock is threaded through). All contract dates below are expressed relative to it.
-const NOW = Date.now();
-
-function monthsFromNow(months, days = 0) {
-	const base = new Date(NOW);
-	return Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + months, base.getUTCDate() + days);
-}
-
-async function createApi() {
-	const db = createMemoryDatabase();
-	const ctx = await context({ db, clock: { now: () => NOW }, host: {} });
-
-	return caller(appRouter)(ctx);
-}
-
-let tenantSeq = 0;
-
-async function seedTenant(api) {
-	tenantSeq += 1;
-	const suffix = String(tenantSeq).padStart(4, '0');
-
-	return api.tenant.create({
-		name: `Tenant ${tenantSeq}`,
-		nationalId: `1000${suffix}00`.slice(0, 10),
-		phone: `+96655${suffix}000`.slice(0, 13)
-	});
-}
+import { createApi, monthsFromNow, seedTenant } from '../testing.mjs';
 
 async function seedComplexWithUnit(api, label) {
 	const complex = await api.complex.create({ name: `Complex ${label}`, location: 'Riyadh' });
