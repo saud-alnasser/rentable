@@ -1,8 +1,12 @@
 import * as s from '$lib/api/database/schema';
 import { TenantSchema } from '$lib/api/database/schema';
+import {
+	ensureIdentityAvailable,
+	ensurePhoneAvailable,
+	ensureTenantDeletable
+} from '$lib/api/tenant';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/utils/pagination';
-import { TRPCError } from '@trpc/server';
 import { asc, eq, like, or, sql } from 'drizzle-orm';
 import z from 'zod';
 
@@ -11,31 +15,12 @@ export default router({
 		.use(autosync())
 		.input(TenantSchema.omit({ id: true }))
 		.mutation(async ({ input, ctx }) => {
-			const isNationalIdUsed = await ctx.db
-				.select()
-				.from(s.tenant)
-				.where(eq(s.tenant.nationalId, input.nationalId))
-				.get();
-
-			if (isNationalIdUsed) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'national id is associated with a registered tenant'
-				});
-			}
-
-			const isPhoneUsed = await ctx.db
-				.select()
-				.from(s.tenant)
-				.where(eq(s.tenant.phone, input.phone))
-				.get();
-
-			if (isPhoneUsed) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'phone is associated with a registered tenant'
-				});
-			}
+			ensureIdentityAvailable(
+				await ctx.db.select().from(s.tenant).where(eq(s.tenant.nationalId, input.nationalId)).get()
+			);
+			ensurePhoneAvailable(
+				await ctx.db.select().from(s.tenant).where(eq(s.tenant.phone, input.phone)).get()
+			);
 
 			const created = await ctx.db.insert(s.tenant).values(input).returning().get();
 
@@ -46,7 +31,7 @@ export default router({
 		.use(autosync())
 		.input(TenantSchema.partial({ name: true, nationalId: true, phone: true }))
 		.mutation(async ({ input, ctx }) => {
-			const isNationalIdUsed =
+			ensureIdentityAvailable(
 				input.nationalId !== undefined
 					? await ctx.db
 							.select()
@@ -55,30 +40,17 @@ export default router({
 								sql`${s.tenant.nationalId} = ${input.nationalId} AND ${s.tenant.id} != ${input.id}`
 							)
 							.get()
-					: null;
-
-			if (isNationalIdUsed) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'national id is associated with a registered tenant'
-				});
-			}
-
-			const isPhoneUsed =
+					: null
+			);
+			ensurePhoneAvailable(
 				input.phone !== undefined
 					? await ctx.db
 							.select()
 							.from(s.tenant)
 							.where(sql`${s.tenant.phone} = ${input.phone} AND ${s.tenant.id} != ${input.id}`)
 							.get()
-					: null;
-
-			if (isPhoneUsed) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'phone is associated with a registered tenant'
-				});
-			}
+					: null
+			);
 
 			const updated = await ctx.db
 				.update(s.tenant)
@@ -103,12 +75,7 @@ export default router({
 				.from(s.contract)
 				.where(eq(s.contract.tenantId, input.id));
 
-			if (contracts?.length > 0) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'cannot delete tenant with associated contracts'
-				});
-			}
+			ensureTenantDeletable(contracts);
 
 			const deleted = await ctx.db
 				.delete(s.tenant)

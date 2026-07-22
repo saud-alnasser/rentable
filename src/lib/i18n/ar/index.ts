@@ -466,7 +466,7 @@ const ar = {
 			phoneCountryCode: 'مفتاح الدولة',
 			duplicateNationalId: 'رقم الهوية مرتبط بمستأجر مسجل.',
 			duplicatePhone: 'رقم الهاتف مرتبط بمستأجر مسجل.',
-			invalidNationalId: 'يجب أن يبدأ رقم الإقامة بـ 1 أو 2 ويتكون من 10 أرقام.',
+			invalidNationalId: 'يجب أن يبدأ رقم الهوية الوطنية بـ 1 أو 2 ويتكون من 10 أرقام.',
 			invalidPhone: 'يجب أن يكون رقم الهاتف صالحاً لمفتاح الدولة المحدد {countryCode}.',
 			phoneNumberPlaceholder: '5xxxxxxxx',
 			phonePlaceholder: 'الهاتف (+966...)'

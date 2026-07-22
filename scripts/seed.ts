@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import Randexp from 'randexp';
 import * as s from '../src/lib/api/database/schema';
-import { regex } from '../src/lib/api/regex';
+import { identity, phone } from '../src/lib/api/tenant';
 import {
 	deriveContractStatus,
 	deriveUnitStatus,
@@ -205,8 +205,8 @@ const db = drizzle({ client: sqlite });
 const seed = async () => {
 	db.transaction((tx) => {
 		const now = Date.now();
-		const nationalIdGen = new Randexp(regex.iqama);
-		const phoneGen = new Randexp(regex.phone);
+		const nationalIdGen = new Randexp(identity);
+		const phoneGen = new Randexp(phone);
 
 		const tenantIds: number[] = [];
 		const complexIds: number[] = [];
