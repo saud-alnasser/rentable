@@ -136,11 +136,16 @@ export default router({
 		.use(autosync())
 		.input(ComplexSchema.partial({ name: true, location: true }))
 		.mutation(async ({ input, ctx }) => {
-			const isNameUsed = await ctx.db
-				.select()
-				.from(s.complex)
-				.where(sql`${s.complex.name} = ${input.name} AND ${s.complex.id} != ${input.id}`)
-				.get();
+			// presence, not truthiness: the schema admits '' for name, and a present value
+			// must hit the uniqueness check exactly when the set clause would write it.
+			const isNameUsed =
+				input.name !== undefined
+					? await ctx.db
+							.select()
+							.from(s.complex)
+							.where(sql`${s.complex.name} = ${input.name} AND ${s.complex.id} != ${input.id}`)
+							.get()
+					: null;
 
 			if (isNameUsed) {
 				throw new TRPCError({
@@ -151,7 +156,10 @@ export default router({
 
 			const updated = await ctx.db
 				.update(s.complex)
-				.set({ name: input.name, location: input.location })
+				.set({
+					...(input.name !== undefined ? { name: input.name } : {}),
+					...(input.location !== undefined ? { location: input.location } : {})
+				})
 				.where(eq(s.complex.id, input.id))
 				.returning()
 				.get();

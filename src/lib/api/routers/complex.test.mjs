@@ -57,6 +57,28 @@ test('updating a complex changes its fields', async () => {
 	assert.equal(updated.location, 'Dammam');
 });
 
+test('a location-only update succeeds and leaves the name intact', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+
+	// crashed on the unguarded name uniqueness check before #135.
+	const updated = await api.complex.update({ id: complex.id, location: 'Dammam' });
+
+	assert.equal(updated.name, 'Palm Court');
+	assert.equal(updated.location, 'Dammam');
+});
+
+test('a name-only update to a name used by another complex is still rejected', async () => {
+	const api = await createApi();
+	await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	const second = await api.complex.create({ name: 'Cedar Court', location: 'Jeddah' });
+
+	await assert.rejects(
+		() => api.complex.update({ id: second.id, name: 'Palm Court' }),
+		/name is associated with a previously registered complex/
+	);
+});
+
 test('updating a complex to a name used by another complex is rejected', async () => {
 	const api = await createApi();
 	await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });

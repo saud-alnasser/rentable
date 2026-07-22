@@ -46,11 +46,16 @@ export default router({
 		.use(autosync())
 		.input(TenantSchema.partial({ name: true, nationalId: true, phone: true }))
 		.mutation(async ({ input, ctx }) => {
-			const isNationalIdUsed = await ctx.db
-				.select()
-				.from(s.tenant)
-				.where(sql`${s.tenant.nationalId} = ${input.nationalId} AND ${s.tenant.id} != ${input.id}`)
-				.get();
+			const isNationalIdUsed =
+				input.nationalId !== undefined
+					? await ctx.db
+							.select()
+							.from(s.tenant)
+							.where(
+								sql`${s.tenant.nationalId} = ${input.nationalId} AND ${s.tenant.id} != ${input.id}`
+							)
+							.get()
+					: null;
 
 			if (isNationalIdUsed) {
 				throw new TRPCError({
@@ -59,11 +64,14 @@ export default router({
 				});
 			}
 
-			const isPhoneUsed = await ctx.db
-				.select()
-				.from(s.tenant)
-				.where(sql`${s.tenant.phone} = ${input.phone} AND ${s.tenant.id} != ${input.id}`)
-				.get();
+			const isPhoneUsed =
+				input.phone !== undefined
+					? await ctx.db
+							.select()
+							.from(s.tenant)
+							.where(sql`${s.tenant.phone} = ${input.phone} AND ${s.tenant.id} != ${input.id}`)
+							.get()
+					: null;
 
 			if (isPhoneUsed) {
 				throw new TRPCError({
@@ -74,7 +82,11 @@ export default router({
 
 			const updated = await ctx.db
 				.update(s.tenant)
-				.set({ name: input.name, nationalId: input.nationalId, phone: input.phone })
+				.set({
+					...(input.name !== undefined ? { name: input.name } : {}),
+					...(input.nationalId !== undefined ? { nationalId: input.nationalId } : {}),
+					...(input.phone !== undefined ? { phone: input.phone } : {})
+				})
 				.where(eq(s.tenant.id, input.id))
 				.returning()
 				.get();
