@@ -1935,7 +1935,8 @@ impl StringExt for String {
 mod tests {
     use super::{
         GoogleDriveLinkCompleteInput, GoogleDriveLinkSession, GoogleDriveLinkSessionLookupInput,
-        GoogleDriveLinkSessionStatus, RemoteSync, RemoteSyncProvider,
+        GoogleDriveLinkSessionStatus, GoogleDriveSyncLockAcquireInput,
+        GoogleDriveSyncLockReleaseInput, RemoteSync, RemoteSyncProvider,
         clear_test_google_drive_credentials_store, percent_decode, slugify,
     };
     use crate::{persisted::Persisted, settings::Settings};
@@ -2126,5 +2127,138 @@ mod tests {
     fn slugify_and_percent_decode_are_stable() {
         assert_eq!(slugify("Person Example+1"), "person-example-1");
         assert_eq!(percent_decode("hello%20world%2Btest"), "hello world+test");
+    }
+
+    async fn setup_remote_sync(root: &std::path::Path) -> RemoteSync {
+        std::fs::create_dir_all(root).expect("failed to create test root");
+
+        let settings_path = root.join(Settings::FILENAME);
+        let mut settings =
+            Persisted::<Settings>::load(settings_path).expect("failed to load settings");
+        settings.database_path = root.join("app.db");
+        settings.commit().expect("failed to commit settings");
+
+        RemoteSync::new(
+            Arc::new(RwLock::new(settings)),
+            root.join(RemoteSync::FILENAME),
+        )
+        .await
+        .expect("failed to initialize remote sync")
+    }
+
+    #[test]
+    fn sync_lock_acquire_returns_a_workspace_scoped_lease() {
+        clear_test_google_drive_credentials_store();
+
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = unique_dir("remote-sync-lock-lease");
+                let mut remote_sync = setup_remote_sync(&root).await;
+
+                let lease = remote_sync
+                    .acquire_google_drive_sync_lock(GoogleDriveSyncLockAcquireInput {
+                        workspace_id: "workspace-1".to_string(),
+                    })
+                    .expect("failed to acquire free sync lock");
+
+                assert!(
+                    lease.lease_id.starts_with("google-drive-sync-workspace-1-"),
+                    "unexpected lease id shape: {}",
+                    lease.lease_id
+                );
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
+    }
+
+    #[test]
+    fn sync_lock_requires_a_workspace_id() {
+        clear_test_google_drive_credentials_store();
+
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = unique_dir("remote-sync-lock-requires-workspace");
+                let mut remote_sync = setup_remote_sync(&root).await;
+
+                let error = remote_sync
+                    .acquire_google_drive_sync_lock(GoogleDriveSyncLockAcquireInput {
+                        workspace_id: String::new(),
+                    })
+                    .expect_err("expected an empty workspace id to be rejected");
+
+                assert_eq!(error, "GOOGLE_DRIVE_SYNC_WORKSPACE_REQUIRED");
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
+    }
+
+    #[test]
+    fn sync_lock_is_exclusive_and_names_the_holder() {
+        clear_test_google_drive_credentials_store();
+
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = unique_dir("remote-sync-lock-exclusive");
+                let mut remote_sync = setup_remote_sync(&root).await;
+
+                remote_sync
+                    .acquire_google_drive_sync_lock(GoogleDriveSyncLockAcquireInput {
+                        workspace_id: "workspace-1".to_string(),
+                    })
+                    .expect("failed to acquire free sync lock");
+
+                let error = remote_sync
+                    .acquire_google_drive_sync_lock(GoogleDriveSyncLockAcquireInput {
+                        workspace_id: "workspace-2".to_string(),
+                    })
+                    .expect_err("expected a held lock to reject a second acquire");
+
+                assert_eq!(error, "GOOGLE_DRIVE_SYNC_LOCKED:workspace-1");
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
+    }
+
+    #[test]
+    fn sync_lock_release_frees_only_with_the_matching_lease() {
+        clear_test_google_drive_credentials_store();
+
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = unique_dir("remote-sync-lock-release");
+                let mut remote_sync = setup_remote_sync(&root).await;
+
+                let lease = remote_sync
+                    .acquire_google_drive_sync_lock(GoogleDriveSyncLockAcquireInput {
+                        workspace_id: "workspace-1".to_string(),
+                    })
+                    .expect("failed to acquire free sync lock");
+
+                // a release with the wrong lease id is ignored; the lock stays held.
+                remote_sync.release_google_drive_sync_lock(GoogleDriveSyncLockReleaseInput {
+                    lease_id: "not-the-lease".to_string(),
+                });
+                remote_sync
+                    .acquire_google_drive_sync_lock(GoogleDriveSyncLockAcquireInput {
+                        workspace_id: "workspace-2".to_string(),
+                    })
+                    .expect_err("expected the lock to survive a mismatched release");
+
+                // releasing with the matching lease frees the lock for the next acquire.
+                remote_sync.release_google_drive_sync_lock(GoogleDriveSyncLockReleaseInput {
+                    lease_id: lease.lease_id,
+                });
+                remote_sync
+                    .acquire_google_drive_sync_lock(GoogleDriveSyncLockAcquireInput {
+                        workspace_id: "workspace-2".to_string(),
+                    })
+                    .expect("failed to acquire the lock after a matching release");
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
     }
 }
