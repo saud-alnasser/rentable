@@ -1,6 +1,7 @@
 pub mod backup;
 pub mod bootstrap;
 pub mod database;
+pub mod error;
 pub mod persisted;
 pub mod remote_sync;
 pub mod settings;
