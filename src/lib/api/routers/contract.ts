@@ -1,3 +1,25 @@
+import {
+	deriveContractStatus,
+	deriveUnitStatuses,
+	ensureContractDeletable,
+	ensureContractIsNotTerminated,
+	ensureContractPaymentsCreatable,
+	ensureContractTerminable,
+	ensureContractUnterminable,
+	ensureContractUnitsAreMutable,
+	ensureGovIdAvailable,
+	ensurePeriodDoesNotOverlapAssignments,
+	ensureUnitsAssignable,
+	ensureValidContractInput,
+	ensureValidPaymentAmount,
+	getConflictingAssignedUnitIds,
+	getContractPaymentSummary,
+	getExpectedAmountInRange,
+	getOutstandingExpectedAmount,
+	groupPaymentsByContractId,
+	hasSameUtcDateRange
+} from '$lib/api/contract';
+import type { Database } from '$lib/api/context';
 import * as s from '$lib/api/database/schema';
 import {
 	ContractSchema,
@@ -5,22 +27,9 @@ import {
 	type Contract,
 	type Payment
 } from '$lib/api/database/schema';
+import { toUtcDay } from '$lib/api/date';
+import { reconcile } from '$lib/api/reconcile';
 import { autosync, procedure, router } from '$lib/api/trpc';
-import {
-	CONTRACT_END_DATE_TOLERANCE_DAYS,
-	canManuallyTerminateContractStatus,
-	canUnterminateContractStatus,
-	deriveContractStatus,
-	deriveUnitStatus,
-	getConflictingAssignedUnitIds,
-	getContractPaymentSummary,
-	getExpectedAmountInRange,
-	getOutstandingExpectedAmount,
-	hasSameUtcDateRange,
-	hasValidContractPeriodForInterval,
-	isContractPaidInFull,
-	rangesOverlap
-} from '$lib/api/utils/contract-status';
 import {
 	getCollectionProgress,
 	getDashboardFollowUpAmount,
@@ -31,8 +40,6 @@ import {
 	shouldIncludeDashboardFollowUp
 } from '$lib/api/utils/dashboard';
 import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/utils/pagination';
-import type { Database } from '$lib/api/context';
-import { sync } from '$lib/api/utils/sync';
 import { TRPCError } from '@trpc/server';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import z from 'zod';
@@ -55,129 +62,31 @@ const ContractUnitRemoveSchema = z.object({
 	unitId: z.number()
 });
 
-const intervalLabels: Record<Contract['interval'], string> = {
-	'1m': 'monthly',
-	'3m': 'quarterly',
-	'6m': 'semi-annual',
-	'12m': 'annual'
-};
-
-function ensureValidDateRange(start: number, end: number) {
-	if (end < start) {
-		throw new TRPCError({
-			code: 'BAD_REQUEST',
-			message: 'end date must be after start date'
-		});
-	}
-}
-
-function ensureValidCost(cost: number) {
-	if (cost <= 0) {
-		throw new TRPCError({
-			code: 'BAD_REQUEST',
-			message: 'cost per payment must be greater than zero'
-		});
-	}
-}
-
-function ensureValidContractPeriod(input: Pick<Contract, 'start' | 'end' | 'interval'>) {
-	if (!hasValidContractPeriodForInterval(input)) {
-		throw new TRPCError({
-			code: 'BAD_REQUEST',
-			message: `contract period must stay within ${CONTRACT_END_DATE_TOLERANCE_DAYS} days of the calculated ${intervalLabels[input.interval]} cycle end date`
-		});
-	}
-}
-
-function ensureValidContractInput(input: Pick<Contract, 'start' | 'end' | 'interval' | 'cost'>) {
-	ensureValidDateRange(input.start, input.end);
-	ensureValidContractPeriod(input);
-	ensureValidCost(input.cost);
-}
-
-function ensureContractIsNotTerminated(status: Contract['status']) {
-	if (status === 'terminated') {
-		throw new TRPCError({
-			code: 'BAD_REQUEST',
-			message: 'terminated contracts are locked'
-		});
-	}
-}
-
-async function ensureContractUnitsAreMutable(db: Database, contractId: number) {
-	const payment = await db
-		.select({ id: s.payment.id })
-		.from(s.payment)
-		.where(eq(s.payment.contractId, contractId))
-		.get();
-
-	if (payment) {
-		throw new TRPCError({
-			code: 'BAD_REQUEST',
-			message: 'cannot change contract units after payments have been registered'
-		});
-	}
-}
-
-async function ensureContractPaymentsCanBeCreated(db: Database, contract: DbContract) {
-	const payments = await db.select().from(s.payment).where(eq(s.payment.contractId, contract.id));
-
-	if (isContractPaidInFull(contract, payments)) {
-		throw new TRPCError({
-			code: 'BAD_REQUEST',
-			message: 'cannot add payments once the required contract amount has been fully paid'
-		});
-	}
-}
-
-async function ensureAssignedUnitsDoNotOverlap(
-	db: Database,
-	contractId: number,
-	start: number,
-	end: number
-) {
-	const assignedUnits = (await db
-		.select({ unitId: s.contractUnit.unitId })
-		.from(s.contractUnit)
-		.where(eq(s.contractUnit.contractId, contractId))) as Array<{ unitId: number }>;
-
-	const unitIds = [...new Set(assignedUnits.map((assignment) => assignment.unitId))];
-
+// fetches the assignment rows (joined with their contracts) for the given units — the
+// shape every derivation and overlap rule takes.
+async function selectAssignmentsForUnits(db: Database, unitIds: number[]) {
 	if (unitIds.length === 0) {
-		return;
+		return [];
 	}
 
-	const overlappingAssignments = (await db
+	return await db
 		.select({
 			unitId: s.contractUnit.unitId,
 			contractId: s.contract.id,
 			status: s.contract.status,
 			start: s.contract.start,
-			end: s.contract.end
+			end: s.contract.end,
+			interval: s.contract.interval,
+			cost: s.contract.cost
 		})
 		.from(s.contractUnit)
 		.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
-		.where(inArray(s.contractUnit.unitId, unitIds))) as Array<{
-		unitId: number;
-		contractId: number;
-		status: Contract['status'];
-		start: Date;
-		end: Date;
-	}>;
+		.where(inArray(s.contractUnit.unitId, unitIds));
+}
 
-	const conflictingAssignment = overlappingAssignments.find(
-		(assignment) =>
-			assignment.contractId !== contractId &&
-			assignment.status !== 'terminated' &&
-			rangesOverlap(assignment.start, assignment.end, start, end)
-	);
-
-	if (conflictingAssignment) {
-		throw new TRPCError({
-			code: 'BAD_REQUEST',
-			message: 'assigned units overlap with another contract during the selected dates'
-		});
-	}
+// fetches the payment rows registered against a contract, for rules that lock on them.
+async function selectPaymentsForContract(db: Database, contractId: number) {
+	return await db.select().from(s.payment).where(eq(s.payment.contractId, contractId));
 }
 
 type DbContract = typeof s.contract.$inferSelect;
@@ -253,64 +162,6 @@ type DashboardData = {
 	endingSoonContracts: DashboardEndingSoonContract[];
 };
 
-type ContractAssignmentRow = {
-	unitId: number;
-	contractId: number;
-	status: DbContract['status'];
-	start: DbContract['start'];
-	end: DbContract['end'];
-	interval: DbContract['interval'];
-	cost: DbContract['cost'];
-};
-
-function groupPaymentsByContractId(payments: DbPayment[]) {
-	const paymentsByContractId = new Map<number, DbPayment[]>();
-
-	for (const payment of payments) {
-		paymentsByContractId.set(payment.contractId, [
-			...(paymentsByContractId.get(payment.contractId) ?? []),
-			payment
-		]);
-	}
-
-	return paymentsByContractId;
-}
-
-function getDerivedUnitStatuses(
-	unitIds: number[],
-	assignments: ContractAssignmentRow[],
-	paymentsByContractId: Map<number, DbPayment[]>,
-	now: number
-) {
-	const assignmentsByUnitId = new Map<
-		number,
-		Array<{
-			contract: Pick<DbContract, 'status' | 'start' | 'end' | 'interval' | 'cost'>;
-			payments: DbPayment[];
-		}>
-	>();
-
-	for (const assignment of assignments) {
-		assignmentsByUnitId.set(assignment.unitId, [
-			...(assignmentsByUnitId.get(assignment.unitId) ?? []),
-			{
-				contract: {
-					status: assignment.status,
-					start: assignment.start,
-					end: assignment.end,
-					interval: assignment.interval,
-					cost: assignment.cost
-				},
-				payments: paymentsByContractId.get(assignment.contractId) ?? []
-			}
-		]);
-	}
-
-	return new Map(
-		unitIds.map((unitId) => [unitId, deriveUnitStatus(assignmentsByUnitId.get(unitId) ?? [], now)])
-	);
-}
-
 function serializeContract(
 	record: DbContract,
 	now: number,
@@ -379,16 +230,6 @@ function matchesPaymentSearch(payment: Payment, search: string) {
 	);
 }
 
-function toUtcDay(value: Date | number) {
-	const date = value instanceof Date ? value : new Date(value);
-
-	return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-}
-
-// function addUtcDays(value: Date, days: number) {
-// 	return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate() + days));
-// }
-
 function getCurrentMonthBounds(now: number) {
 	const today = toUtcDay(now);
 	const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
@@ -434,16 +275,16 @@ export default router({
 			}
 
 			const normalizedGovId = input.govId?.trim() || null;
-			const isGovIdUsed = normalizedGovId
-				? await ctx.db.select().from(s.contract).where(eq(s.contract.govId, normalizedGovId)).get()
-				: undefined;
 
-			if (isGovIdUsed) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'government id is associated with another contract'
-				});
-			}
+			ensureGovIdAvailable(
+				normalizedGovId
+					? await ctx.db
+							.select()
+							.from(s.contract)
+							.where(eq(s.contract.govId, normalizedGovId))
+							.get()
+					: undefined
+			);
 
 			const initialStatus = deriveContractStatus(
 				{
@@ -469,7 +310,7 @@ export default router({
 				.returning()
 				.get();
 
-			await sync(ctx.db, now);
+			await reconcile(ctx.db, now);
 
 			return serializeContract(created, now);
 		}),
@@ -511,22 +352,18 @@ export default router({
 			}
 
 			const normalizedGovId = input.govId?.trim() || null;
-			const isGovIdUsed = normalizedGovId
-				? await ctx.db
-						.select()
-						.from(s.contract)
-						.where(
-							sql`${s.contract.govId} = ${normalizedGovId} AND ${s.contract.id} != ${input.id}`
-						)
-						.get()
-				: undefined;
 
-			if (isGovIdUsed) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'government id is associated with another contract'
-				});
-			}
+			ensureGovIdAvailable(
+				normalizedGovId
+					? await ctx.db
+							.select()
+							.from(s.contract)
+							.where(
+								sql`${s.contract.govId} = ${normalizedGovId} AND ${s.contract.id} != ${input.id}`
+							)
+							.get()
+					: undefined
+			);
 
 			const hasDateRangeChanged = !hasSameUtcDateRange(
 				existingContract.start,
@@ -536,13 +373,22 @@ export default router({
 			);
 
 			if (hasDateRangeChanged) {
-				await ensureAssignedUnitsDoNotOverlap(ctx.db, input.id, input.start, input.end);
+				const assignedUnits = await ctx.db
+					.select({ unitId: s.contractUnit.unitId })
+					.from(s.contractUnit)
+					.where(eq(s.contractUnit.contractId, input.id));
+				const assignments = await selectAssignmentsForUnits(ctx.db, [
+					...new Set(assignedUnits.map((assignment) => assignment.unitId))
+				]);
+
+				ensurePeriodDoesNotOverlapAssignments(
+					assignments,
+					{ start: input.start, end: input.end },
+					input.id
+				);
 			}
 
-			const existingPayments = await ctx.db
-				.select()
-				.from(s.payment)
-				.where(eq(s.payment.contractId, input.id));
+			const existingPayments = await selectPaymentsForContract(ctx.db, input.id);
 			const nextStatus = deriveContractStatus(
 				{
 					status: existingContract.status,
@@ -570,7 +416,7 @@ export default router({
 				.returning()
 				.get();
 
-			await sync(ctx.db, now);
+			await reconcile(ctx.db, now);
 
 			return serializeContract(updated, now);
 		}),
@@ -594,19 +440,9 @@ export default router({
 				});
 			}
 
-			const payments = await ctx.db
-				.select()
-				.from(s.payment)
-				.where(eq(s.payment.contractId, input.id));
+			const payments = await selectPaymentsForContract(ctx.db, input.id);
 
-			const currentStatus = deriveContractStatus(existingContract, payments, now);
-
-			if (!canManuallyTerminateContractStatus(currentStatus)) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'only active, fulfilled, or past contracts can be terminated'
-				});
-			}
+			ensureContractTerminable(deriveContractStatus(existingContract, payments, now));
 
 			const terminated = await ctx.db
 				.update(s.contract)
@@ -615,7 +451,7 @@ export default router({
 				.returning()
 				.get();
 
-			await sync(ctx.db, now);
+			await reconcile(ctx.db, now);
 
 			return serializeContract(terminated, now);
 		}),
@@ -639,17 +475,9 @@ export default router({
 				});
 			}
 
-			if (!canUnterminateContractStatus(existingContract.status)) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'only terminated contracts can be unterminated'
-				});
-			}
+			ensureContractUnterminable(existingContract.status);
 
-			const payments = await ctx.db
-				.select()
-				.from(s.payment)
-				.where(eq(s.payment.contractId, input.id));
+			const payments = await selectPaymentsForContract(ctx.db, input.id);
 			const restoredStatus = deriveContractStatus(
 				{ ...existingContract, status: 'active' },
 				payments,
@@ -663,7 +491,7 @@ export default router({
 				.returning()
 				.get();
 
-			await sync(ctx.db, now);
+			await reconcile(ctx.db, now);
 
 			return serializeContract(restored, now);
 		}),
@@ -688,25 +516,9 @@ export default router({
 				.select()
 				.from(s.contractUnit)
 				.where(eq(s.contractUnit.contractId, input.id));
+			const payments = await selectPaymentsForContract(ctx.db, input.id);
 
-			if (units.length > 0) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'cannot delete contract with associated units'
-				});
-			}
-
-			const payments = await ctx.db
-				.select()
-				.from(s.payment)
-				.where(eq(s.payment.contractId, input.id));
-
-			if (payments.length > 0) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'cannot delete contract with associated payments'
-				});
-			}
+			ensureContractDeletable(units, payments);
 
 			const deleted = await ctx.db
 				.delete(s.contract)
@@ -1068,25 +880,12 @@ export default router({
 				return units;
 			}
 
-			const assignments = await ctx.db
-				.select({
-					unitId: s.contractUnit.unitId,
-					contractId: s.contract.id,
-					status: s.contract.status,
-					start: s.contract.start,
-					end: s.contract.end,
-					interval: s.contract.interval,
-					cost: s.contract.cost
-				})
-				.from(s.contractUnit)
-				.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
-				.where(inArray(s.contractUnit.unitId, unitIds));
-
+			const assignments = await selectAssignmentsForUnits(ctx.db, unitIds);
 			const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
 			const payments = contractIds.length
 				? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
 				: [];
-			const statusByUnitId = getDerivedUnitStatuses(
+			const statusByUnitId = deriveUnitStatuses(
 				unitIds,
 				assignments,
 				groupPaymentsByContractId(payments),
@@ -1132,25 +931,12 @@ export default router({
 					return units;
 				}
 
-				const assignments = await ctx.db
-					.select({
-						unitId: s.contractUnit.unitId,
-						contractId: s.contract.id,
-						status: s.contract.status,
-						start: s.contract.start,
-						end: s.contract.end,
-						interval: s.contract.interval,
-						cost: s.contract.cost
-					})
-					.from(s.contractUnit)
-					.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
-					.where(inArray(s.contractUnit.unitId, unitIds));
-
+				const assignments = await selectAssignmentsForUnits(ctx.db, unitIds);
 				const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
 				const payments = contractIds.length
 					? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
 					: [];
-				const statusByUnitId = getDerivedUnitStatuses(
+				const statusByUnitId = deriveUnitStatuses(
 					unitIds,
 					assignments,
 					groupPaymentsByContractId(payments),
@@ -1197,7 +983,7 @@ export default router({
 				}
 
 				ensureContractIsNotTerminated(contract.status);
-				await ensureContractUnitsAreMutable(ctx.db, input.contractId);
+				ensureContractUnitsAreMutable(await selectPaymentsForContract(ctx.db, input.contractId));
 
 				const complex = await ctx.db
 					.select()
@@ -1225,32 +1011,9 @@ export default router({
 					});
 				}
 
-				const existingAssignments = await ctx.db
-					.select({
-						unitId: s.contractUnit.unitId,
-						contractId: s.contract.id,
-						status: s.contract.status,
-						start: s.contract.start,
-						end: s.contract.end,
-						interval: s.contract.interval,
-						cost: s.contract.cost
-					})
-					.from(s.contractUnit)
-					.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
-					.where(inArray(s.contractUnit.unitId, unitIds));
+				const existingAssignments = await selectAssignmentsForUnits(ctx.db, unitIds);
 
-				const overlappingAssignments = getConflictingAssignedUnitIds(
-					existingAssignments,
-					contract,
-					input.contractId
-				);
-
-				if (overlappingAssignments.size > 0) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'one or more selected units are already assigned to an overlapping contract'
-					});
-				}
+				ensureUnitsAssignable(existingAssignments, contract, input.contractId);
 
 				for (const unitId of unitIds) {
 					await ctx.db.insert(s.contractUnit).values({ contractId: input.contractId, unitId });
@@ -1274,32 +1037,19 @@ export default router({
 						)
 					);
 
-				const assignments = await ctx.db
-					.select({
-						unitId: s.contractUnit.unitId,
-						contractId: s.contract.id,
-						status: s.contract.status,
-						start: s.contract.start,
-						end: s.contract.end,
-						interval: s.contract.interval,
-						cost: s.contract.cost
-					})
-					.from(s.contractUnit)
-					.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
-					.where(inArray(s.contractUnit.unitId, unitIds));
-
+				const assignments = await selectAssignmentsForUnits(ctx.db, unitIds);
 				const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
 				const assignmentPayments = contractIds.length
 					? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
 					: [];
-				const assignedStatusByUnitId = getDerivedUnitStatuses(
+				const assignedStatusByUnitId = deriveUnitStatuses(
 					unitIds,
 					assignments,
 					groupPaymentsByContractId(assignmentPayments),
 					now
 				);
 
-				await sync(ctx.db, now);
+				await reconcile(ctx.db, now);
 
 				return assignedUnits.map((unit) => ({
 					...unit,
@@ -1327,7 +1077,7 @@ export default router({
 				}
 
 				ensureContractIsNotTerminated(contract.status);
-				await ensureContractUnitsAreMutable(ctx.db, input.contractId);
+				ensureContractUnitsAreMutable(await selectPaymentsForContract(ctx.db, input.contractId));
 
 				const existingAssignment = await ctx.db
 					.select()
@@ -1358,7 +1108,7 @@ export default router({
 						)
 					);
 
-				await sync(ctx.db, now);
+				await reconcile(ctx.db, now);
 
 				return {
 					contractId: input.contractId,
@@ -1432,14 +1182,11 @@ export default router({
 				}
 
 				ensureContractIsNotTerminated(contract.status);
-				await ensureContractPaymentsCanBeCreated(ctx.db, contract);
-
-				if (input.amount <= 0) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'payment amount must be greater than zero'
-					});
-				}
+				ensureContractPaymentsCreatable(
+					contract,
+					await selectPaymentsForContract(ctx.db, contract.id)
+				);
+				ensureValidPaymentAmount(input.amount);
 
 				const created = await ctx.db
 					.insert(s.payment)
@@ -1450,7 +1197,7 @@ export default router({
 					.returning()
 					.get();
 
-				await sync(ctx.db, now);
+				await reconcile(ctx.db, now);
 
 				return serializePayment(created);
 			}),
@@ -1488,13 +1235,7 @@ export default router({
 				}
 
 				ensureContractIsNotTerminated(contract.status);
-
-				if (input.amount <= 0) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'payment amount must be greater than zero'
-					});
-				}
+				ensureValidPaymentAmount(input.amount);
 
 				const updated = await ctx.db
 					.update(s.payment)
@@ -1506,7 +1247,7 @@ export default router({
 					.returning()
 					.get();
 
-				await sync(ctx.db, now);
+				await reconcile(ctx.db, now);
 
 				return serializePayment(updated);
 			}),
@@ -1548,7 +1289,7 @@ export default router({
 					.returning()
 					.get();
 
-				await sync(ctx.db, now);
+				await reconcile(ctx.db, now);
 
 				return deleted ? serializePayment(deleted) : deleted;
 			})

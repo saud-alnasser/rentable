@@ -5,8 +5,8 @@ import type {
 	Settings,
 	SettingsChangeset
 } from '$lib/api/tauri';
+import { reconcile } from '$lib/api/reconcile';
 import { autosync, procedure, router } from '$lib/api/trpc';
-import { sync } from '$lib/api/utils/sync';
 import z from 'zod';
 
 export default router({
@@ -104,11 +104,11 @@ export default router({
 		})
 	},
 	state: {
-		sync: procedure.public.mutation(async ({ ctx }) => {
-			const syncedAt = ctx.clock.now();
-			await sync(ctx.db, syncedAt);
+		reconcile: procedure.public.mutation(async ({ ctx }) => {
+			const reconciledAt = ctx.clock.now();
+			await reconcile(ctx.db, reconciledAt);
 
-			return { syncedAt };
+			return { reconciledAt };
 		})
 	}
 });

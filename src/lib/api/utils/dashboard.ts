@@ -1,18 +1,7 @@
 import type { Contract } from '$lib/api/database/schema';
-
-type DateLike = Date | number;
+import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
 
 export const DEFAULT_DASHBOARD_ENDING_SOON_NOTICE_DAYS = 60;
-
-function toUtcDay(value: DateLike) {
-	const date = value instanceof Date ? value : new Date(value);
-
-	return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-}
-
-function addUtcDays(value: Date, days: number) {
-	return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate() + days));
-}
 
 export function getDashboardRate(total: number, amount: number) {
 	if (total <= 0) {

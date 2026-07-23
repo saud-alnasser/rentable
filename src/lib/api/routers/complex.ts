@@ -1,72 +1,12 @@
+import { deriveUnitStatuses, groupPaymentsByContractId } from '$lib/api/contract';
 import type { Context } from '$lib/api/context';
 import * as s from '$lib/api/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/api/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
-import { deriveUnitStatus } from '$lib/api/utils/contract-status';
 import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/utils/pagination';
 import { TRPCError } from '@trpc/server';
 import { asc, eq, inArray, like, or, sql } from 'drizzle-orm';
 import z from 'zod';
-
-type DbPayment = typeof s.payment.$inferSelect;
-
-type ContractAssignmentRow = {
-	unitId: number;
-	contractId: number;
-	status: (typeof s.contract.$inferSelect)['status'];
-	start: (typeof s.contract.$inferSelect)['start'];
-	end: (typeof s.contract.$inferSelect)['end'];
-	interval: (typeof s.contract.$inferSelect)['interval'];
-	cost: (typeof s.contract.$inferSelect)['cost'];
-};
-
-function groupPaymentsByContractId(payments: DbPayment[]) {
-	const paymentsByContractId = new Map<number, DbPayment[]>();
-
-	for (const payment of payments) {
-		paymentsByContractId.set(payment.contractId, [
-			...(paymentsByContractId.get(payment.contractId) ?? []),
-			payment
-		]);
-	}
-
-	return paymentsByContractId;
-}
-
-function getDerivedUnitStatuses(
-	unitIds: number[],
-	assignments: ContractAssignmentRow[],
-	paymentsByContractId: Map<number, DbPayment[]>,
-	now: number
-) {
-	const assignmentsByUnitId = new Map<
-		number,
-		Array<{
-			contract: Pick<ContractAssignmentRow, 'status' | 'start' | 'end' | 'interval' | 'cost'>;
-			payments: DbPayment[];
-		}>
-	>();
-
-	for (const assignment of assignments) {
-		assignmentsByUnitId.set(assignment.unitId, [
-			...(assignmentsByUnitId.get(assignment.unitId) ?? []),
-			{
-				contract: {
-					status: assignment.status,
-					start: assignment.start,
-					end: assignment.end,
-					interval: assignment.interval,
-					cost: assignment.cost
-				},
-				payments: paymentsByContractId.get(assignment.contractId) ?? []
-			}
-		]);
-	}
-
-	return new Map(
-		unitIds.map((unitId) => [unitId, deriveUnitStatus(assignmentsByUnitId.get(unitId) ?? [], now)])
-	);
-}
 
 async function getUnitsWithDerivedStatus(
 	ctx: Pick<Context, 'db' | 'clock'>,
@@ -78,7 +18,7 @@ async function getUnitsWithDerivedStatus(
 		return units;
 	}
 
-	const assignments: ContractAssignmentRow[] = await ctx.db
+	const assignments = await ctx.db
 		.select({
 			unitId: s.contractUnit.unitId,
 			contractId: s.contract.id,
@@ -96,7 +36,7 @@ async function getUnitsWithDerivedStatus(
 	const payments = contractIds.length
 		? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
 		: [];
-	const statusByUnitId = getDerivedUnitStatuses(
+	const statusByUnitId = deriveUnitStatuses(
 		unitIds,
 		assignments,
 		groupPaymentsByContractId(payments),

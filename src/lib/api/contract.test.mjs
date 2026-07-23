@@ -14,7 +14,7 @@ import {
 	hasSatisfiedContractPaymentRequirement,
 	hasValidContractPeriodForInterval,
 	rangesOverlap
-} from './contract-status.ts';
+} from './contract.ts';
 
 test('hasSameUtcDateRange treats matching UTC calendar dates as unchanged', () => {
 	assert.equal(

@@ -6,7 +6,7 @@
 		getContractEndDateForCycles,
 		getContractEndDateWindow,
 		hasValidContractPeriodForInterval
-	} from '$lib/api/utils/contract-status';
+	} from '$lib/api/contract';
 	import { Button } from '$lib/common/components/fragments/button';
 	import * as Calendar from '$lib/common/components/fragments/calendar';
 	import * as Command from '$lib/common/components/fragments/command';

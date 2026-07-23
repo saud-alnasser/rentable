@@ -430,7 +430,7 @@ export async function cancelGoogleDriveLink(preparation: GoogleDriveLinkPreparat
 	}
 
 	const nextState = await disconnectGoogleDriveAccount(target.account.id);
-	await api.app.state.sync();
+	await api.app.state.reconcile();
 
 	return nextState;
 }
@@ -552,7 +552,7 @@ export async function unlinkActiveGoogleDriveWorkspace(
 	providedState?: RemoteSyncState | null
 ): Promise<RemoteSyncState> {
 	return await enqueueGoogleDriveOperation(async () => {
-		await api.app.state.sync();
+		await api.app.state.reconcile();
 
 		const syncState = providedState ?? (await tauri.remoteSync.getState());
 		const target = getActiveGoogleDriveTarget(syncState);
@@ -566,7 +566,7 @@ export async function unlinkActiveGoogleDriveWorkspace(
 			await keepSingleFreshAutosaveSnapshot(snapshotState);
 
 			const nextState = await disconnectGoogleDriveAccount(target.account.id);
-			await api.app.state.sync();
+			await api.app.state.reconcile();
 
 			return nextState;
 		});
@@ -577,7 +577,7 @@ export async function resetBrokenGoogleDriveWorkspace(
 	providedState?: RemoteSyncState | null
 ): Promise<RemoteSyncState> {
 	return await enqueueGoogleDriveOperation(async () => {
-		await api.app.state.sync();
+		await api.app.state.reconcile();
 
 		const syncState = providedState ?? (await tauri.remoteSync.getState());
 		const target = getActiveGoogleDriveTarget(syncState);
@@ -610,7 +610,7 @@ export async function resetBrokenGoogleDriveWorkspace(
 			}
 
 			const nextState = await disconnectGoogleDriveAccount(refreshedTarget.account.id);
-			await api.app.state.sync();
+			await api.app.state.reconcile();
 
 			return nextState;
 		});
@@ -618,7 +618,7 @@ export async function resetBrokenGoogleDriveWorkspace(
 }
 
 export async function syncBeforeAppExit(providedState?: RemoteSyncState | null) {
-	await api.app.state.sync();
+	await api.app.state.reconcile();
 
 	const syncState = providedState ?? (await tauri.remoteSync.getState());
 	const target = getActiveGoogleDriveTarget(syncState);
@@ -1211,7 +1211,7 @@ async function pullRemoteSnapshot(
 		appUsageBytes: storageSummary.appUsageBytes
 	});
 
-	await api.app.state.sync();
+	await api.app.state.reconcile();
 	return state;
 }
 

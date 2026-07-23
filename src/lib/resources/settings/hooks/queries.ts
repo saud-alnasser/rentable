@@ -150,7 +150,7 @@ export function useRestoreBackup(
 	return createMutation(() => ({
 		mutationFn: async ({ filename }: { filename: string }) => {
 			const result = await api.app.backup.restore({ filename });
-			await api.app.state.sync();
+			await api.app.state.reconcile();
 
 			return result;
 		},
