@@ -472,7 +472,7 @@ const en = {
 			phoneCountryCode: 'country code',
 			duplicateNationalId: 'national id is associated with a registered tenant.',
 			duplicatePhone: 'phone is associated with a registered tenant.',
-			invalidNationalId: 'iqama must start with 1 or 2 and be 10 digits long.',
+			invalidNationalId: 'national identity number must start with 1 or 2 and be 10 digits long.',
 			invalidPhone: 'phone must be valid for the selected country code {countryCode}.',
 			phoneNumberPlaceholder: '5xxxxxxxx',
 			phonePlaceholder: 'phone (+966...)'

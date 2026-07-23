@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { TenantSchema, type Tenant } from '$lib/api/database/schema';
-	import { regex } from '$lib/api/regex';
+	import { identity, phone } from '$lib/api/tenant';
 	import { Button } from '$lib/common/components/fragments/button';
 	import * as Dialog from '$lib/common/components/fragments/dialog';
 	import * as Form from '$lib/common/components/fragments/form';
@@ -22,7 +22,7 @@
 	];
 
 	const PHONE_VALIDATORS: Record<PhoneCountryCode, RegExp> = {
-		'+966': regex.phone
+		'+966': phone
 	};
 
 	const DEFAULT_PHONE_COUNTRY_CODE: PhoneCountryCode = '+966';
@@ -53,7 +53,7 @@
 		.object({
 			id: TenantSchema.shape.id.optional(),
 			name: TenantSchema.shape.name,
-			nationalId: z.string().regex(regex.iqama, $LL.tenants.form.invalidNationalId()),
+			nationalId: z.string().regex(identity, $LL.tenants.form.invalidNationalId()),
 			phoneCountryCode: z.enum(PHONE_COUNTRY_CODES),
 			phoneNumber: z.string().trim()
 		})
