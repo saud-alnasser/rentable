@@ -24,10 +24,10 @@ tauri-plugin-fs = { version = "2.4.5" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.149" }
 tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread"] }
-sqlx = { version = "0.8.6", default-features = false , features = ["runtime-tokio-rustls", "macros", "sqlite", "migrate", "uuid", "chrono"] }
-sqlparser = { version = "0.61.0" }
-libsqlite3-sys = { version = "=0.30.1", features = ["bundled"] }
-base64 = { version = "0.22.1" }
+sqlx = { version = "0.9.0", default-features = false , features = ["runtime-tokio-rustls", "macros", "sqlite", "migrate", "uuid", "chrono"] }
+sqlparser = { version = "0.62.0" }
+libsqlite3-sys = { version = "=0.38.1", features = ["bundled"] }
+base64 = { version = "0.23.0" }
 dotenvy = { version = "0.15.7" }
 sha2 = "0.11.0"
 
