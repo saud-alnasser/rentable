@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: '☁️ checkout repository'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -107,7 +107,7 @@ jobs:
 
     steps:
       - name: '☁️ checkout repository'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.changesets.outputs.release_tag }}
 
