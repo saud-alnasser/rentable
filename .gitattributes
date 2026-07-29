@@ -1,1 +1,6 @@
+# Store and check out text as LF everywhere. Without this, core.autocrlf on a Windows
+# clone checks files out as CRLF, and prettier — whose endOfLine default is lf — then
+# reports the entire tree as unformatted while CI on Linux sees it as clean.
+* text=auto eol=lf
+
 pnpm-lock.yaml linguist-generated=true

@@ -13,3 +13,11 @@ tauri/target
 
 # i18n
 src/lib/i18n/i18n-*.ts
+
+# Agent configuration. The guides and tool references under here are copied
+# verbatim from the workflow's templates, and the tool references are verified
+# byte-for-byte against their source — reflowing them to printWidth would break
+# that check and make every re-run of `/aep:configure` show a spurious diff.
+# `CLAUDE.md` is deliberately not listed: it is authored here and stays
+# format-enforced with the rest of the repository's root.
+/.claude/
