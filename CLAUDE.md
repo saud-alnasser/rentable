@@ -1,118 +1,76 @@
-# CLAUDE.md
+# rentable
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+<!--
+  Installed by /configure. The root entrypoint: every turn pays for it, and it
+  is committed, so every Claude that opens the repository loads it — plugin or
+  not. It carries only what holds either way, and reaches the rest by pointer;
+  every file it points at is committed too, so a reader without the plugin
+  follows the same pointers — only the slash commands need it.
 
-## What this is
+  Placement is by **loading mechanism**, not by subject — the three tiers the
+  AEP specification names:
 
-`rentable` is an offline-first desktop rents payment tracker: a Tauri 2 (Rust) shell wrapping a SvelteKit 2 / Svelte 5 frontend, with a local SQLite database and optional Google Drive backup/sync. There is no server — everything runs in the desktop app.
+    boot tier      this file, and `.claude/rules/` with no `paths:` frontmatter
+                   — always-on, loaded by the harness on every turn
+    scoped tier    `.claude/rules/` with `paths:` — loads when a covered file is read
+    pointer tier   everything reached by a pointer, including `.claude/protocol.md`
 
-## Commands
+  A rule that must fire unconditionally goes in one of the first two, never
+  behind a pointer a stage has to follow — that fires only when the stage
+  runs, which is a silent failure. Keep this file under 200 lines.
+-->
 
-```bash
-pnpm dev                # vite dev server only (port 1420, strict) — no Tauri window
-pnpm tauri dev          # full desktop app (loads .env first via scripts/tauri-with-env.mjs)
-pnpm tauri build        # production bundle; this is what CI builds
-pnpm check              # svelte-kit sync + svelte-check + prettier --check  (CI gate)
-pnpm lint               # prettier --check + eslint
-pnpm format             # prettier --write
+An offline-first desktop tracker for rents payments — a Tauri 2 (Rust) shell around a
+SvelteKit 2 / Svelte 5 frontend, with a local SQLite database and optional Google Drive
+backup. There is no server; everything runs in the desktop app.
 
-pnpm db:generate        # drizzle-kit generate → writes SQL into tauri/migrations/
-pnpm db:migrate         # apply migrations to DATABASE_URL (dev convenience)
-pnpm db:studio
-pnpm db:seed            # tsx scripts/seed.ts (faker data)
-pnpm db:purge           # tsx scripts/purge.ts
+## Rules that always apply
 
-pnpm i18n               # typesafe-i18n watcher; regenerates src/lib/i18n/i18n-types.ts
-```
+`.claude/rules/precedence.md` and `.claude/rules/engineering.md` are always-on and never restated here — a standard with two homes drifts at one of them. The rest of that directory is path-scoped by `paths:` frontmatter, and holds standards discovered in **this repository**: the API layer, the frontend, module layout, and testing.
 
-Always use `pnpm` (engine-strict, pnpm 10+, Node 24).
+## Knowledge layers
 
-### Tests
+| Layer     | Answers                        | Lives in              |
+| --------- | ------------------------------ | --------------------- |
+| Codebase  | what currently exists          | source                |
+| Context   | how this repository thinks     | `.claude/contexts/**` |
+| Decisions | why this approach was selected | `.claude/decisions/`  |
 
-Tests are `*.test.mjs` files colocated with the code, using `node:test` + `node:assert/strict`, importing the `.ts` source directly. They run under `tsx` (`pnpm test` → `node --import tsx`), which resolves `$lib` aliases and `.ts` imports:
+The order is absolute: where they disagree, the Codebase is right — fix the documentation, never the reverse. Load `.claude/contexts/map.md` at session start — routing only; Domain Contexts load on demand, and loading them all defeats the point.
 
-```bash
-pnpm test                                                  # all TypeScript tests
-pnpm test:rust                                             # all Rust tests
-node --import tsx --test src/lib/api/database/memory.test.mjs   # single file
-```
+## Where the machinery lives
 
-Pure logic in `src/lib/api/utils/` is covered directly. Router procedures are covered
-end-to-end through the real tRPC caller bound to an in-memory database
-(`database/memory.ts` — `createMemoryDatabase()`, sqlite-proxy over better-sqlite3).
-Rust tests are `#[cfg(test)]` modules — inline in single-file modules, or a `tests.rs`
-file inside a module tree (see `tauri/src/backup/`). CI runs both suites plus ESLint on every
-pull request.
+- `.claude/protocol.md` — the router: the verification machinery and the stage table. Committed, and reached by pointer — a question turn never pays for it.
+- `.claude/modes/` — one reasoning posture per file.
+- `.claude/policies/tracker.md` — where the tickets live; `.claude/policies/version-control.md` — how work lands, including that **this repository is on Graphite and `gt` replaces `git commit`**. `.claude/tools/` — how to _type_ any of it.
 
-## Architecture
+## Verification at use
 
-### The data path
+**Never a scan. Never a phase.** Check a Context statement against the Codebase at the moment it is about to be relied on; scope is what the work touches. **Source Pointers are verified before use, always** — a broken one is searched for, never invented; the router has the machinery. Fix drift where you find it, in the same breath; nothing else catches a lapse.
 
-The app has a server-shaped API with no server. Requests flow:
+## The refactor programme
 
-```
-Svelte component
-  → resource hook (TanStack Query)      src/lib/resources/<domain>/hooks/queries.ts
-  → tRPC caller `api`                   src/lib/api/mod.ts
-  → router procedure                    src/lib/api/routers/*.ts
-  → Drizzle (sqlite-proxy)              src/lib/api/database/mod.ts
-  → invoke('db_execute_single_sql')     tauri/src/database/
-  → SQLite
-```
+The architectural boundaries in `.claude/contexts/repository.md` are enforced **going
+forward**. The current tree still diverges from each of them in places, and every
+divergence has a ticket under the refactor programme (#95).
 
-Key consequences:
+**Do not add a new violation, and do not fix an old one opportunistically.** It has a
+ticket, and an unrelated correction folded into a change makes that change unreviewable.
 
-- `src/lib/api/mod.ts` builds a **direct tRPC caller** (`allowOutsideOfServer: true`), not an HTTP client. Router procedures execute in the webview, in-process. Import it as `api` and call `api.contract.getMany({})` directly — there is no fetch, no serialization boundary except the Tauri `invoke` for raw SQL.
-- Drizzle uses the **sqlite-proxy driver**; every query is marshalled to Rust as `{ sql, params, method }`. Batch queries go through `db_execute_batch_sql`. Note `db.transaction()` is not available in the proxy driver — multi-step writes are sequenced in the router.
-- Everything is client-side: `ssr = false` everywhere, `prerender = true` only for `+layout.ts`; each `+page.ts` sets `prerender = false`. Built with `adapter-static` and an `index.html` fallback.
+The same holds for tests that pin behaviour known to be wrong — they are labelled as such
+where they sit, and they are pinned deliberately so a later correction is a visible,
+intended change rather than an accident.
 
-### Layers
+## Requests that would change code
 
-- **`src/lib/api/`** — the "backend". `context.ts` builds the request context — `{ db, clock, host }` with its dependencies supplied, each defaulting to the real singleton; it carries **only ambient capabilities that cross the process boundary (database, host) or are nondeterministic (clock) — never business configuration**. `trpc.ts` wires that context, defines the `public` procedure (with a logging middleware), and the `autosync()` middleware that schedules a Google Drive push after a successful mutation — add it to any procedure that writes. `routers/` holds one router per domain (`app`, `tenant`, `complex`, `contract`) — routers validate, call the domain, persist with Drizzle directly, and reconcile; they hold no business rules. `contract.ts` is the contract domain module (derivation, invariants, arithmetic, and the rules routers assert), `tenant.ts` the tenant domain module (identity and phone validation and rules — the identity pattern accepts both national ID and iqama, see CONTEXT.md), `reconcile.ts` writes derived statuses back, `date.ts` owns UTC-day arithmetic. `utils/` still holds `dashboard`/`pagination` helpers and the ticketed Drive client.
-- **`src/lib/api/database/schema.ts`** — single source of truth: Drizzle table + a matching Zod schema + inferred type per entity (`tenant`/`TenantSchema`/`Tenant`). Routers derive input schemas from these (`ContractSchema.omit({ id: true, status: true })`). Change both the table and the Zod schema together, then run `pnpm db:generate`.
-- **`src/lib/api/tauri.ts`** — the typed facade over every Rust command (`window`, `settings`, `backup`, `update`, `remoteSync.googleDrive`). All `invoke` calls belong here, except the two hot database commands.
-- **`src/lib/resources/<domain>/`** — feature code: `components/` (domain UI) and `hooks/queries.ts` (TanStack Query wrappers). Each `queries.ts` exports a `keys` object; mutations invalidate through those keys. Toast behaviour goes through `onMutationSuccess`/`onMutationError` in `src/lib/common/utils/queries.ts`, which special-cases `TRPCError` `BAD_REQUEST` as a user-facing message.
-- **`src/lib/common/components/fragments/`** — shadcn-svelte primitives (`components.json` maps `ui` here). Don't hand-edit; regenerate via the CLI. `blocks/` holds app-level composites (data-table, navbar, window controls).
-- **`tauri/src/`** — Rust: `bootstrap.rs` (startup + recovery), `database/` (sqlx pool, proxy commands, custom migration runner over `tauri/migrations/*.sql` tracked in a `__migrations__` table), `backup.rs`, `remote_sync.rs`, `update.rs`, `window.rs` (custom decorations — the window is `decorations: false`).
+A question gets an answer: load, answer, stop. A change to code, every turn, command or not: route, load, verify, then **state the classification** — what kind of change, how much process, one line — before touching anything, so the user can disagree.
 
-### Derived status
+## Writing knowledge
 
-Contract and unit statuses are **derived, not stored authoritatively**: the contract domain module (`src/lib/api/contract.ts`) computes them from dates and payments, and `reconcile.ts` writes the derived values back after any mutation that touches contracts, payments, or unit assignments. When adding such a mutation, run the reconcile step or statuses go stale. (`sync` means remote exclusively — see CONTEXT.md.)
-
-### i18n
-
-`typesafe-i18n` with `en` and `ar` (RTL) locales in `src/lib/i18n/<locale>/index.ts`. `i18n-types.ts` and the `i18n-util*.ts` files are **generated** — edit the locale files and run `pnpm i18n`. Components read translations from the `LL` store (`$lib/i18n/i18n-svelte`).
-
-## Architectural constraints
-
-Load-bearing rules, enforced going forward. The current tree still diverges from each in places — every divergence has a ticket under the refactor programme (issue #95), so don't add a new violation and don't "fix" an old one opportunistically; it has a ticket. Terms are defined in `CONTEXT.md`.
-
-- **Google Drive HTTP and OAuth live in Rust; credentials never cross the IPC boundary** (today the client is TypeScript and receives the OAuth client secret and a refresh token — #114–#118).
-- **Domain rules live in their concept's own module, not in routers or a shared `utils` bag; there is no repository layer — routers use Drizzle directly** (#107, #108).
-- **Modules are organised by concept, not by layer**, with `src/routes/` as the acknowledged exception (#123–#126).
+CI never modifies repository knowledge: `.claude/contexts/**` and `.claude/decisions/**` change only through the workflow's commands. Before any write into knowledge, the compression test: _will this improve a future engineering decision?_ If not, don't write it. What belongs in Context: `.claude/policies/context.md`.
 
 ## Conventions
 
-- Svelte 5 runes throughout (`$state`, `$derived`, `$props`); TanStack Query v6 hooks take a thunk: `createQuery(() => ({ ... }))`.
-- Tailwind v4 (CSS-first config in `src/app.css`), `tailwind-variants` + `tailwind-merge` via `$lib/common/utils/tailwind`.
-- Validation errors surface as `TRPCError` with code `BAD_REQUEST`; Zod failures are flattened into `data.zodError` by the tRPC error formatter.
-- Commit/PR titles must be conventional commits — CI lints PR titles.
-- Releases are driven by changesets (`pnpm changeset`); `.github/workflows/release.yml` versions, tags, and builds signed Tauri updater artifacts on `main`.
+**The workflow's conventions are defaults for when the repository is silent** (ADR 0008): detect before asserting, and where the repository's own convention is genuinely worse, say so once, with reasoning, then follow it. Defaults: `.claude/policies/version-control.md`.
 
-## Agent skills
-
-### Issue tracker
-
-Issues live as GitHub issues in `saud-alnasser/rentable`, managed via the `gh` CLI. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five canonical triage roles map onto this repo's existing emoji label vocabulary; `ready-for-agent` and `ready-for-human` share one label. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context — `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
-
-## Environment
-
-Copy `.env.example` to `.env`. `DATABASE_URL` is only used by drizzle-kit and the seed/purge scripts — the running app resolves its own database path from Tauri settings. `TAURI_UPDATER_PUBLIC_KEY` and the Google OAuth values are read at build time by `pnpm tauri` (which loads `.env` before delegating); signing keys are CI-only secrets.
+This repository is not silent about several of them. Commit and PR titles, the pull request template, changesets, and CI's gate are all in `.claude/policies/version-control.md`; its label vocabulary is in `.claude/policies/tracker.md`.

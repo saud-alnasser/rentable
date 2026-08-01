@@ -8,10 +8,9 @@ import { test } from 'node:test';
 
 import { NOW, createApi, monthsFromNow, seedTenant } from '../testing.mjs';
 
-// A portfolio covering every derived status. Statuses follow the code as implemented,
-// which disagrees with the CONTEXT.md glossary on defaulted/expired — see the caveat in
-// contract.test.mjs; do not "fix" these expectations here. Per contract: cost, period,
-// payments —
+// A portfolio covering every derived status. Statuses follow the code as implemented — see
+// the caveat in contract.test.mjs; do not "fix" these expectations here. Per contract:
+// cost, period, payments —
 // A: 1000, starts today, 250 paid today       → active,    due this month
 // B: 2000, mid-period, 500 paid today         → active,    nothing due this month
 // C: 3000, starts in two months, unpaid       → scheduled

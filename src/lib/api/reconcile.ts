@@ -12,7 +12,7 @@ import { eq, inArray } from 'drizzle-orm';
  *
  * recomputes contract and unit statuses from dates and payments and writes the result
  * back. Must run after any mutation touching contracts, payments, or assignments, or
- * statuses go stale. (`sync` means remote exclusively — see CONTEXT.md.)
+ * statuses go stale. (`sync` means remote exclusively; this local recomputation never is.)
  */
 export async function reconcile(db: Database, now: number) {
 	const contracts = await db.select().from(s.contract);

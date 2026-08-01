@@ -349,12 +349,11 @@ test('a unit cannot be removed once the contract has payments', async () => {
 
 // --- Derived status across every value ------------------------------------------------
 //
-// These pin the status model AS IT IS TODAY, which is surprising and disagrees with the
-// glossary in CONTEXT.md: a contract PAST its end date is `defaulted` when unpaid and
-// `expired` when fully paid, while WITHIN its period it is `active` when unpaid and
-// `fulfilled` when fully paid. "Current vs behind" plays no part. Pinned deliberately so a
-// later correction (the contract domain module) is a visible, intended change — not an
-// accident. Do not "fix" these expectations here.
+// These pin the status model AS IT IS TODAY, which is surprising: a contract PAST its end
+// date is `defaulted` when unpaid and `expired` when fully paid, while WITHIN its period it
+// is `active` when unpaid and `fulfilled` when fully paid. "Current vs behind" plays no
+// part. Pinned deliberately so a later correction (the contract domain module) is a
+// visible, intended change — not an accident. Do not "fix" these expectations here.
 
 test('derived status is scheduled when the contract starts in the future', async () => {
 	const api = await createApi();

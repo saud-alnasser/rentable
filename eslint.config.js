@@ -11,6 +11,13 @@ const gitignorePath = fileURLToPath(new URL('./.gitignore', import.meta.url));
 
 export default ts.config(
 	includeIgnoreFile(gitignorePath),
+	{
+		// `includeIgnoreFile` reads only the root .gitignore, which covers neither the Rust
+		// build output nor the typesafe-i18n generated modules. Both are machine-written, so
+		// anything reported in them is unfixable at the source and `tauri/target` alone is
+		// over a hundred files of build output to walk.
+		ignores: ['tauri/**', 'src/lib/i18n/i18n-*.ts']
+	},
 	js.configs.recommended,
 	...ts.configs.recommended,
 	...svelte.configs.recommended,
@@ -35,12 +42,6 @@ export default ts.config(
 				parser: ts.parser,
 				svelteConfig
 			}
-		}
-	},
-	{
-		files: ['src/lib/i18n/i18n-*.ts'],
-		rules: {
-			'eslint-comments/no-unused-disable': 'off'
 		}
 	}
 );

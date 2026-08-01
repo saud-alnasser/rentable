@@ -11,7 +11,7 @@
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && prettier --check .",
 		"format": "prettier --write .",
-		"lint": "prettier --check . && eslint .",
+		"lint": "prettier --check . --end-of-line auto && eslint .",
 		"test": "node --import tsx --test \"src/**/*.test.mjs\"",
 		"test:rust": "cargo test --manifest-path ./tauri/Cargo.toml -- --test-threads=1",
 		"db:generate": "drizzle-kit generate",
@@ -88,12 +88,6 @@
 		"typescript-eslint": "^8.20.0",
 		"vaul-svelte": "1.0.0-next.7",
 		"vite": "^8.0.0"
-	},
-	"pnpm": {
-		"onlyBuiltDependencies": [
-			"better-sqlite3",
-			"esbuild"
-		]
 	},
 	"engines": {
 		"node": "^24.0.0",
