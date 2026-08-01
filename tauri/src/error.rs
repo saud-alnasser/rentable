@@ -32,6 +32,11 @@ pub enum Error {
     Integrity { message: String },
     /// a filesystem operation failed.
     Io { message: String },
+    /// a request produced no usable answer: it never reached the remote (DNS,
+    /// TLS, a timeout, a dropped connection), or the remote could not serve it.
+    /// Distinct from a remote that answered and refused on the merits — that
+    /// answer says what to change, and this one says only to try later.
+    Network { message: String },
     /// a database operation failed.
     Database { message: String },
     /// a credential-store (keyring) operation failed.
@@ -61,6 +66,7 @@ impl Error {
         | Self::TimedOut { message }
         | Self::Integrity { message }
         | Self::Io { message }
+        | Self::Network { message }
         | Self::Database { message }
         | Self::Credential { message }
         | Self::Internal { message }) = self;
@@ -80,6 +86,7 @@ impl fmt::Display for Error {
         | Self::TimedOut { message }
         | Self::Integrity { message }
         | Self::Io { message }
+        | Self::Network { message }
         | Self::Database { message }
         | Self::Credential { message }
         | Self::Internal { message }) = self;
@@ -127,6 +134,7 @@ mod tests {
             Error::TimedOut { .. } => "timedOut",
             Error::Integrity { .. } => "integrity",
             Error::Io { .. } => "io",
+            Error::Network { .. } => "network",
             Error::Database { .. } => "database",
             Error::Credential { .. } => "credential",
             Error::Internal { .. } => "internal",
@@ -145,6 +153,7 @@ mod tests {
             Error::TimedOut { message: message() },
             Error::Integrity { message: message() },
             Error::Io { message: message() },
+            Error::Network { message: message() },
             Error::Database { message: message() },
             Error::Credential { message: message() },
             Error::Internal { message: message() },

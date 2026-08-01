@@ -71,6 +71,7 @@ const en = {
 			internal: 'something went wrong inside the app.',
 			invalidInput: 'the information provided is not valid.',
 			io: 'a file could not be read or written.',
+			network: 'the app could not reach the internet. check your connection and try again.',
 			notConfigured: 'this feature is not set up yet.',
 			notFound: 'the item could not be found.',
 			preconditionFailed: 'something has to be ready before this can run.',

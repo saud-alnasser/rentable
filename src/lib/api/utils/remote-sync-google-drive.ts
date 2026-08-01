@@ -41,11 +41,7 @@ export type GoogleDriveLinkPreparation = {
 	conflict: GoogleDriveLinkConflict | null;
 };
 
-export type GoogleDrivePendingLinkSession = GoogleDriveLinkSessionStart & {
-	clientId: string;
-	state: string;
-	codeVerifier: string;
-};
+export type GoogleDrivePendingLinkSession = GoogleDriveLinkSessionStart;
 
 type DriveFile = {
 	id: string;
@@ -313,7 +309,7 @@ async function inspectGoogleDriveResolutionState(
 	}
 
 	const config = await tauri.remoteSync.googleDrive.getConfig();
-	const accessToken = await ensureAccessToken(config, target.account);
+	const accessToken = await ensureAccessToken(target.account);
 	const folder = await resolveExistingWorkspaceFolder(config, accessToken, target.workspace);
 	let nextState = syncState;
 
@@ -424,26 +420,15 @@ export async function cancelGoogleDriveLink(preparation: GoogleDriveLinkPreparat
 
 export async function startGoogleDriveLinkSession(): Promise<GoogleDrivePendingLinkSession> {
 	const config = await tauri.remoteSync.googleDrive.getConfig();
-	const clientId = config.clientId?.trim();
 
-	if (!clientId) {
+	if (!config.clientId?.trim()) {
 		throw new Error(toMessage(getGoogleDriveTranslations().settings.syncGoogleDrivePending()));
 	}
 
-	const state = randomToken();
-	const codeVerifier = randomToken();
-	const codeChallenge = await createPkceChallenge(codeVerifier);
-	const session = await tauri.remoteSync.googleDrive.beginLink({ state });
-	const authorizationUrl = buildAuthorizationUrl(
-		config,
-		clientId,
-		session.redirectUri,
-		state,
-		codeChallenge
-	);
+	const session = await tauri.remoteSync.googleDrive.beginLink();
 
 	try {
-		await tauri.opener.openUrl(authorizationUrl);
+		await tauri.opener.openUrl(session.authorizationUrl);
 	} catch (error) {
 		await tauri.remoteSync.googleDrive
 			.cancelLink({ sessionId: session.sessionId })
@@ -451,12 +436,7 @@ export async function startGoogleDriveLinkSession(): Promise<GoogleDrivePendingL
 		throw error;
 	}
 
-	return {
-		...session,
-		clientId,
-		state,
-		codeVerifier
-	};
+	return session;
 }
 
 export async function finishGoogleDriveLinkSession(
@@ -482,7 +462,7 @@ async function linkGoogleDriveAccount(
 	const result = await waitForLinkResult(session.sessionId, options);
 	throwIfGoogleDriveLinkCancelled(options?.signal);
 
-	if (result.status !== 'completed' || !result.authorizationCode) {
+	if (result.status !== 'completed') {
 		if (result.status === 'cancelled') {
 			throw new GoogleDriveLinkCancelledError();
 		}
@@ -506,26 +486,21 @@ async function linkGoogleDriveAccount(
 		);
 	}
 
-	const tokens = await exchangeAuthorizationCode(config, {
-		clientId: session.clientId,
-		redirectUri: session.redirectUri,
-		codeVerifier: session.codeVerifier,
-		code: result.authorizationCode
+	const { accessToken } = await tauri.remoteSync.googleDrive.exchangeLinkCode({
+		sessionId: session.sessionId
 	});
-	const about = await fetchGoogleDriveAbout(config, tokens.accessToken);
+	const about = await fetchGoogleDriveAbout(config, accessToken);
 	throwIfGoogleDriveLinkCancelled(options?.signal);
 
 	return tauri.remoteSync.googleDrive.completeLink({
+		sessionId: session.sessionId,
 		email: about.user?.emailAddress?.trim() || '',
 		displayName: about.user?.displayName?.trim() || about.user?.emailAddress?.trim() || '',
 		avatarUrl: about.user?.photoLink ?? null,
 		providerUserId: about.user?.permissionId ?? null,
 		driveQuotaBytes: parseDriveNumber(about.storageQuota?.limit),
 		driveUsageBytes: parseDriveNumber(about.storageQuota?.usage),
-		appUsageBytes: 0,
-		accessToken: tokens.accessToken,
-		refreshToken: tokens.refreshToken,
-		tokenExpiresAt: tokens.expiresAt
+		appUsageBytes: 0
 	});
 }
 
@@ -589,7 +564,7 @@ export async function resetBrokenGoogleDriveWorkspace(
 			}
 
 			const config = await tauri.remoteSync.googleDrive.getConfig();
-			const accessToken = await ensureAccessToken(config, refreshedTarget.account);
+			const accessToken = await ensureAccessToken(refreshedTarget.account);
 			const folder = await resolveExistingWorkspaceFolder(
 				config,
 				accessToken,
@@ -657,7 +632,7 @@ async function syncActiveGoogleDriveProfileUnlocked(
 
 	const { account } = target;
 	const config = await tauri.remoteSync.googleDrive.getConfig();
-	const accessToken = await ensureAccessToken(config, account);
+	const accessToken = await ensureAccessToken(account);
 	const about = await fetchGoogleDriveAbout(config, accessToken);
 	let currentState = await tauri.remoteSync.googleDrive.updateAccount({
 		accountId: account.id,
@@ -1030,37 +1005,34 @@ function hasLocalSnapshot(workspace: RemoteSyncWorkspace) {
 	return Boolean(workspace.lastSnapshotAt || workspace.lastSnapshotFilename);
 }
 
-async function ensureAccessToken(config: GoogleDriveConfig, account: RemoteSyncAccount) {
-	const auth = await tauri.remoteSync.googleDrive.getAccountAuth({ accountId: account.id });
-	const isTokenFresh = Boolean(
-		auth.accessToken && (!auth.tokenExpiresAt || auth.tokenExpiresAt > Date.now() + 60_000)
-	);
+/**
+ * a usable access token for an account. rust decides whether the stored one is
+ * still fresh and refreshes it if not, so neither the refresh token nor the
+ * client secret is read here.
+ *
+ * the reconnect prompt stays on this side because its text is localised, and a
+ * `preconditionFailed` is rust saying the account has to be linked again.
+ */
+async function ensureAccessToken(account: RemoteSyncAccount) {
+	try {
+		const { accessToken } = await tauri.remoteSync.googleDrive.ensureAccessToken({
+			accountId: account.id
+		});
 
-	if (isTokenFresh) {
-		return auth.accessToken;
-	}
+		return accessToken;
+	} catch (error) {
+		if (toTauriErrorCode(error) !== 'preconditionFailed') {
+			throw error;
+		}
 
-	if (!config.clientId?.trim() || !auth.refreshToken.trim()) {
-		const message = toMessage(getGoogleDriveTranslations().settings.syncReconnectDescription());
 		await tauri.remoteSync.googleDrive.updateAccount({
 			accountId: account.id,
 			status: 'needsReconnect',
-			error: message
+			error: toMessage(getGoogleDriveTranslations().settings.syncReconnectDescription())
 		});
+
 		throw new GoogleDriveAuthorizationExpiredError();
 	}
-
-	const refreshed = await refreshAccessToken(config, config.clientId, auth.refreshToken);
-	await tauri.remoteSync.googleDrive.updateAccount({
-		accountId: account.id,
-		accessToken: refreshed.accessToken,
-		refreshToken: refreshed.refreshToken ?? null,
-		tokenExpiresAt: refreshed.expiresAt,
-		status: 'ready',
-		error: null
-	});
-
-	return refreshed.accessToken;
 }
 
 async function pushLocalSnapshot(
@@ -1811,106 +1783,6 @@ async function waitForGoogleDriveLinkPoll(signal?: AbortSignal) {
 	});
 }
 
-function buildAuthorizationUrl(
-	config: GoogleDriveConfig,
-	clientId: string,
-	redirectUri: string,
-	state: string,
-	codeChallenge: string
-) {
-	const params = new URLSearchParams({
-		client_id: clientId,
-		redirect_uri: redirectUri,
-		response_type: 'code',
-		scope: config.scopes.join(' '),
-		access_type: 'offline',
-		include_granted_scopes: 'true',
-		prompt: 'consent',
-		state,
-		code_challenge: codeChallenge,
-		code_challenge_method: 'S256'
-	});
-
-	return `${config.authorizeEndpoint}?${params.toString()}`;
-}
-
-async function exchangeAuthorizationCode(
-	config: GoogleDriveConfig,
-	input: { clientId: string; redirectUri: string; codeVerifier: string; code: string }
-) {
-	return requestToken(
-		config,
-		withOptionalClientSecret(config, {
-			client_id: input.clientId,
-			redirect_uri: input.redirectUri,
-			grant_type: 'authorization_code',
-			code_verifier: input.codeVerifier,
-			code: input.code
-		})
-	);
-}
-
-async function refreshAccessToken(
-	config: GoogleDriveConfig,
-	clientId: string,
-	refreshToken: string
-) {
-	return requestToken(
-		config,
-		withOptionalClientSecret(config, {
-			client_id: clientId,
-			grant_type: 'refresh_token',
-			refresh_token: refreshToken
-		})
-	);
-}
-
-function withOptionalClientSecret(config: GoogleDriveConfig, body: Record<string, string>) {
-	const clientSecret = config.clientSecret?.trim();
-
-	if (!clientSecret) {
-		return body;
-	}
-
-	return {
-		...body,
-		client_secret: clientSecret
-	};
-}
-
-async function requestToken(config: GoogleDriveConfig, body: Record<string, string>) {
-	const response = await fetch(config.tokenEndpoint, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-		body: new URLSearchParams(body)
-	});
-	const json = (await parseResponseJson(response)) as {
-		access_token?: string;
-		refresh_token?: string;
-		expires_in?: number;
-		error?: string;
-		error_description?: string;
-		error_uri?: string;
-	};
-
-	if (!response.ok || !json.access_token) {
-		const details = [json.error, json.error_description, json.error_uri]
-			.filter(Boolean)
-			.join(' — ');
-		throw new Error(
-			details
-				? `Google token exchange failed (${response.status}): ${details}`
-				: `Google token exchange failed (${response.status}).`
-		);
-	}
-
-	return {
-		accessToken: json.access_token,
-		refreshToken: json.refresh_token ?? null,
-		expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : null
-	};
-}
-
 async function fetchGoogleDriveAbout(config: GoogleDriveConfig, accessToken: string) {
 	const params = new URLSearchParams({
 		fields: 'user(displayName,emailAddress,photoLink,permissionId),storageQuota(limit,usage)'
@@ -2225,7 +2097,7 @@ async function uploadFile(
 		appProperties: input.appProperties,
 		...(input.fileId ? {} : { parents: input.parents })
 	};
-	const boundary = `rentable-${randomToken()}`;
+	const boundary = `rentable-${multipartBoundaryToken()}`;
 	const body = new Blob([
 		`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`,
 		JSON.stringify(metadata),
@@ -2462,26 +2334,20 @@ function uint8ArrayToBase64(bytes: Uint8Array) {
 	return globalThis.btoa(binary);
 }
 
+/**
+ * a separator that will not occur inside the parts it delimits. drawn from the
+ * same source as any other token because a boundary colliding with the payload
+ * corrupts the upload silently.
+ */
+function multipartBoundaryToken() {
+	const bytes = new Uint8Array(32);
+	globalThis.crypto.getRandomValues(bytes);
+
+	return uint8ArrayToBase64(bytes).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+}
+
 async function computeContentHash(bytes: Uint8Array) {
 	const source = new Uint8Array(bytes);
 	const digest = await globalThis.crypto.subtle.digest('SHA-256', source);
 	return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function randomToken() {
-	const bytes = new Uint8Array(32);
-	globalThis.crypto.getRandomValues(bytes);
-	return base64UrlEncode(bytes);
-}
-
-async function createPkceChallenge(verifier: string) {
-	const digest = await globalThis.crypto.subtle.digest(
-		'SHA-256',
-		new TextEncoder().encode(verifier)
-	);
-	return base64UrlEncode(new Uint8Array(digest));
-}
-
-function base64UrlEncode(bytes: Uint8Array) {
-	return uint8ArrayToBase64(bytes).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 }

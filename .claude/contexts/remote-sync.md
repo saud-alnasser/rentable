@@ -39,8 +39,11 @@ save never evicts the copy taken before an update.
 ## Boundaries
 
 - **Credentials belong in Rust and never cross the IPC boundary.** This is the constraint
-  the whole domain is being reshaped around; the TypeScript client that currently holds the
-  OAuth client secret and refresh token is the divergence, tracked in #114–#118.
+  the whole domain is being reshaped around, and it is half met. OAuth itself is Rust's:
+  the `state`, the PKCE verifier, the code exchange, and token refresh never leave the
+  process, so no refresh token reaches the web layer through linking or through a Drive
+  call. What remains is the client secret, still returned by the config command and now
+  read by nobody, and an account-auth command with no caller. #118 withdraws both.
 - **Backup is local, sync is remote, and both produce snapshots.** A change to snapshot
   shape touches both — neither owns the format alone.
 - **A remote operation holds a lock.** Two clients writing one workspace is the failure

@@ -88,18 +88,26 @@ export type GoogleDriveConfig = {
 
 export type GoogleDriveLinkSessionStart = {
 	sessionId: string;
-	redirectUri: string;
+	authorizationUrl: string;
 };
 
 export type GoogleDriveLinkSessionResult = {
 	sessionId: string;
 	status: GoogleDriveLinkSessionStatus;
-	authorizationCode: string | null;
-	state: string | null;
 	error: string | null;
 };
 
+/**
+ * an access token for the drive calls still made from here. the refresh
+ * happens in rust, so this path never carries a refresh token — other commands
+ * on this surface still do, until #118 withdraws them.
+ */
+export type GoogleDriveAccessToken = {
+	accessToken: string;
+};
+
 export type GoogleDriveLinkCompleteInput = {
+	sessionId: string;
 	email: string;
 	displayName: string;
 	avatarUrl?: string | null;
@@ -107,16 +115,6 @@ export type GoogleDriveLinkCompleteInput = {
 	driveQuotaBytes?: number | null;
 	driveUsageBytes?: number | null;
 	appUsageBytes?: number | null;
-	accessToken: string;
-	refreshToken?: string | null;
-	tokenExpiresAt?: number | null;
-};
-
-export type GoogleDriveAccountAuth = {
-	accountId: string;
-	accessToken: string;
-	refreshToken: string;
-	tokenExpiresAt: number | null;
 };
 
 export type GoogleDriveAccountUpdateInput = {
@@ -264,20 +262,23 @@ export const tauri = {
 		autosaveNow: () => invoke<RemoteSyncState>('remote_sync_autosave_now'),
 		googleDrive: {
 			getConfig: () => invoke<GoogleDriveConfig>('remote_sync_google_drive_config_get'),
-			beginLink: (input: { state: string }) =>
-				invoke<GoogleDriveLinkSessionStart>('remote_sync_google_drive_begin_link', { input }),
+			beginLink: () => invoke<GoogleDriveLinkSessionStart>('remote_sync_google_drive_begin_link'),
 			getLinkResult: (input: { sessionId: string }) =>
 				invoke<GoogleDriveLinkSessionResult>('remote_sync_google_drive_get_link_result', {
+					input
+				}),
+			exchangeLinkCode: (input: { sessionId: string }) =>
+				invoke<GoogleDriveAccessToken>('remote_sync_google_drive_exchange_link_code', {
+					input
+				}),
+			ensureAccessToken: (input: { accountId: string }) =>
+				invoke<GoogleDriveAccessToken>('remote_sync_google_drive_ensure_access_token', {
 					input
 				}),
 			cancelLink: (input: { sessionId: string }) =>
 				invoke<void>('remote_sync_google_drive_cancel_link', { input }),
 			completeLink: (input: GoogleDriveLinkCompleteInput) =>
 				invoke<RemoteSyncState>('remote_sync_google_drive_complete_link', { input }),
-			getAccountAuth: (input: { accountId: string }) =>
-				invoke<GoogleDriveAccountAuth>('remote_sync_google_drive_get_account_auth', {
-					input
-				}),
 			updateAccount: (input: GoogleDriveAccountUpdateInput) =>
 				invoke<RemoteSyncState>('remote_sync_google_drive_update_account', { input }),
 			disconnectAccount: (input: { accountId: string }) =>

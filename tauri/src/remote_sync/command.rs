@@ -18,8 +18,8 @@ use super::lock::{
     GoogleDriveSyncLockAcquireInput, GoogleDriveSyncLockLease, GoogleDriveSyncLockReleaseInput,
 };
 use super::session::{
-    GoogleDriveAccountAuth, GoogleDriveAccountAuthInput, GoogleDriveAccountUpdateInput,
-    GoogleDriveDisconnectInput, GoogleDriveLinkCompleteInput, GoogleDriveLinkSessionCreateInput,
+    GoogleDriveAccessToken, GoogleDriveAccountAuth, GoogleDriveAccountAuthInput,
+    GoogleDriveAccountUpdateInput, GoogleDriveDisconnectInput, GoogleDriveLinkCompleteInput,
     GoogleDriveLinkSessionLookupInput, GoogleDriveLinkSessionResult, GoogleDriveLinkSessionStart,
 };
 use super::store::{
@@ -112,10 +112,39 @@ pub async fn remote_sync_google_drive_config_get(
 #[tauri::command]
 pub async fn remote_sync_google_drive_begin_link(
     app_state: tauri::State<'_, AppState>,
-    input: GoogleDriveLinkSessionCreateInput,
 ) -> Result<GoogleDriveLinkSessionStart, Error> {
     let mut remote_sync = app_state.remote_sync.write().await;
-    remote_sync.begin_google_drive_link(input)
+    remote_sync.begin_google_drive_link()
+}
+
+#[tauri::command]
+pub async fn remote_sync_google_drive_exchange_link_code(
+    app_state: tauri::State<'_, AppState>,
+    input: GoogleDriveLinkSessionLookupInput,
+) -> Result<GoogleDriveAccessToken, Error> {
+    let mut remote_sync = app_state.remote_sync.write().await;
+    remote_sync.exchange_google_drive_link_code(input).await
+}
+
+#[tauri::command]
+pub async fn remote_sync_google_drive_ensure_access_token(
+    app_state: tauri::State<'_, AppState>,
+    input: GoogleDriveAccountAuthInput,
+) -> Result<GoogleDriveAccessToken, Error> {
+    // this runs before every Drive operation, and almost always finds a token
+    // that is simply still valid. Answering that under a read lock keeps the
+    // rest of remote sync moving; only a real refresh takes the write lock, and
+    // only that path is worth blocking on a network round trip.
+    {
+        let remote_sync = app_state.remote_sync.read().await;
+
+        if let Some(access_token) = remote_sync.fresh_google_drive_access_token(&input)? {
+            return Ok(GoogleDriveAccessToken { access_token });
+        }
+    }
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    remote_sync.refresh_google_drive_access_token(input).await
 }
 
 #[tauri::command]
