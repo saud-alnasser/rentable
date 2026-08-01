@@ -1,5 +1,5 @@
 mod command;
-mod google;
+pub mod google;
 mod lock;
 mod session;
 mod store;
