@@ -53,10 +53,16 @@ graphite/<type>/<ticket-id>-<slug>
 ```
 
 ```
-graphite/fix/142-partial-update-uniqueness      → fix: partial update uniqueness (#142)
-graphite/refactor/147-typed-error-enum          → refactor: introduce a typed error enum (#147)
-graphite/feat/151-contract-termination          → feat: contract termination (#151)
+issue #135 → graphite/fix/135-partial-update-uniqueness
+             → PR #142 → fix: partial updates crash on unguarded uniqueness checks (#142)
+issue #111 → graphite/refactor/111-typed-error-enum
+             → PR #147 → refactor: introduce a typed error enum (#147)
 ```
+
+**The number in the branch and the number on `main` are different numbers**, and both
+examples above are real. The branch carries the **ticket**; the trailing `(#N)` on the
+landed subject is the **pull request**, appended by GitHub — see **Commit discipline**.
+Never derive one from the other.
 
 `<type>` is the conventional-commit type the branch lands as, from the list under **Commit
 discipline** below. `<ticket-id>` is the bare issue number, no `#`. `<slug>` is the commit
@@ -77,14 +83,26 @@ exception, not a second convention — if there is no ticket, there is nothing t
 
 ## Commit discipline
 
-**Conventional Commits**, and the ticket id goes in the subject as a trailing `(#N)`:
+**Conventional Commits**, and **nothing is appended to the subject by hand.**
+
+The trailing `(#N)` throughout `git log main` is the **pull request** number, written by
+GitHub when it squashes — not a ticket id, and not something a commit carries before it
+lands. Confirm rather than trusting this paragraph; it is one call:
 
 ```
-refactor: introduce a typed error enum (#147)
-fix: partial updates crash on unguarded uniqueness checks (#142)
-test: characterize dashboard aggregation (#139)
-chore(deps): update all non-major dependencies (#80)
+gh api repos/{owner}/{repo} --jq '{squash_merge_commit_title, squash_merge_commit_message}'
+                      # PR_TITLE → GitHub composes the landed subject and appends (#PR)
 ```
+
+So a commit written here reads without a number, and acquires one on merge:
+
+```
+written    refactor: introduce a typed error enum
+lands as   refactor: introduce a typed error enum (#147)
+```
+
+Writing `(#N)` by hand produces a subject with two numbers in it, and the one that reads
+like the ticket is the one GitHub did not add.
 
 **The scope is optional here and mostly unused** — the log carries it for dependency and
 tooling commits and omits it elsewhere. Do not invent one to fill the slot; where you do
@@ -99,6 +117,17 @@ By pull request, reviewed and merged on GitHub. **CI lints the pull request titl
 Conventional Commits — a non-conforming title fails the run, not the review — and runs the
 full gate: typecheck and format, ESLint, the TypeScript tests, the Rust tests, and a
 production Tauri build. All of it must pass.
+
+**Squash is the only merge method enabled**, and it discards the commit body
+(`squash_merge_commit_message: BLANK`). Two consequences worth knowing before writing
+either text:
+
+- **The pull request title becomes the subject on `main`**, which is why CI lints it and
+  why it — not the commit subject — is the Conventional Commit that has to be right.
+- **Nothing in the commit body reaches `main`.** The body is still worth writing: it is
+  what the reviewer reads on the branch, and on a stacked repository it is the only text
+  AEP controls that can reach the pull request at all. But a closing keyword only closes
+  its issue by way of the pull request body, never by riding the commit onto trunk.
 
 Use the repository's template (`.github/pull_request_template.md`): it asks for the closed
 issue, the changes, and a tests checkbox — fill all three rather than replacing the

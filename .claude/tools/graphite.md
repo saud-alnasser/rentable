@@ -44,6 +44,22 @@ Stacking is implicit: the new branch sits on top of whatever is checked out. To 
 
 `--onto` is how a ticket is built on its blocker rather than on trunk. The branch name is still AEP's — `gt create <name>` takes it explicitly, so do not let `gt` generate one from the commit message.
 
+## Adopt a branch git already created
+
+```
+gt track --parent <branch> --no-interactive
+```
+
+`gt create` both branches and commits, so it cannot claim a ticket before there is
+anything to commit. `git switch -c <name>` followed by `gt track` does: the branch exists
+immediately, and `--parent` puts it in the stack without moving anything under a dirty
+tree. Verified on gt 1.8.6.
+
+`--parent` must name an already-tracked branch, and passing it restricts the command to
+one branch. Without it the command selects each parent interactively, so pass it in any
+scripted run. `-f, --force` skips the prompting instead by reparenting onto the nearest
+tracked ancestor, and **takes precedence over `--parent`** — never pass both.
+
 ## Amend the current branch
 
 ```
@@ -53,7 +69,11 @@ gt modify -c -m "type(scope): summary"  # add a new commit to this branch instea
 
 This is the amend path on a Graphite repo, and the reason to prefer it over `git commit --amend`: **`gt modify` restacks every descendant automatically.** A bare `git commit --amend` in the middle of a stack leaves everything above it pointing at the old commit.
 
-`gt modify` prompts to stage unstaged changes. In a non-interactive session that prompt is a hang — stage first.
+`gt modify` prompts to stage unstaged changes. In a non-interactive session that prompt is a hang — stage first, and pass `--no-interactive`.
+
+`-c` is also how the **first** commit lands on a branch `gt track` adopted: on a branch with no commits `gt modify` creates one whether or not `-c` is passed, so there is no `gt create` step for a claim that was made before the work existed.
+
+**There is no `-F`/`--file`.** `-m` takes a full multi-line message in one argument, so `-m "$(cat message.txt)"` is the way to commit a body with headings and tables intact — verified on gt 1.8.6. It is declared as an array and so accepts repetition too; what that does to the spacing between values was not checked, and a body written as one argument does not need it.
 
 ## Navigate the stack
 
