@@ -31,9 +31,10 @@ stored value is a cache of the derivation and never the authority.
 - **There is no server.** The API layer is a direct caller executing in the webview. The
   only process boundary it crosses is Tauri's IPC into Rust — never HTTP.
 - **Credentials never cross the IPC boundary.** Google Drive HTTP and OAuth belong in Rust.
-  OAuth is there; the Drive HTTP client is still TypeScript, and still receives the OAuth
-  client secret in its config. That remainder is a known divergence with tickets
-  (#116–#118). Why the client relocates wholly rather than sitting behind a proxy command:
+  OAuth is there, and so is the Drive transport — but no Drive operation calls it yet, so
+  the requests that actually run are still TypeScript's, still holding the OAuth client
+  secret from its config. That remainder is a known divergence with tickets (#117, #118).
+  Why the client relocates wholly rather than sitting behind a proxy command:
   [ADR 0003](../decisions/0003-drive-client-relocates-to-rust.md).
 - **Domain rules live in their concept's own module.** Routers validate, call the domain,
   persist, and reconcile — they hold no rules. There is no repository layer; routers reach

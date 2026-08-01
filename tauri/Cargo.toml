@@ -23,7 +23,7 @@ tauri-plugin-opener = { version = "2.5.3" }
 tauri-plugin-fs = { version = "2.4.5" } 
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.149" }
-tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "time"] }
 sqlx = { version = "0.8.6", default-features = false , features = ["runtime-tokio-rustls", "macros", "sqlite", "migrate", "uuid", "chrono"] }
 sqlparser = { version = "0.61.0" }
 libsqlite3-sys = { version = "=0.30.1", features = ["bundled"] }
@@ -35,7 +35,23 @@ getrandom = { version = "0.3.4" }
 url = { version = "2.5.8" }
 # `rustls-no-provider` rather than `rustls`, which would pull aws-lc-rs in
 # beside the ring provider the tree already builds through tauri-plugin-updater.
+# Choosing no provider makes installing one this crate's job — `src/http.rs` —
+# so rustls is named directly, with default features off for the same reason.
 reqwest = { version = "0.13.2", default-features = false, features = ["json", "form", "rustls-no-provider"] }
+rustls = { version = "0.23.38", default-features = false, features = ["ring", "std"] }
+
+# the Drive transport is tested against a real HTTP server on loopback rather
+# than a mocked transport, so header construction, retry, and error mapping are
+# exercised on the wire. `hyper` and everything under it is already compiled
+# here as reqwest's own stack; only `httpdate`, which hyper's server feature
+# reads dates with, is new — and being a dev-dependency it is never linked into
+# the shipped binary.
+[dev-dependencies]
+tokio = { version = "1.49.0", features = ["net"] }
+hyper = { version = "1.9.0", default-features = false, features = ["server", "http1"] }
+hyper-util = { version = "0.1.20", default-features = false, features = ["tokio"] }
+http-body-util = { version = "0.1.3" }
+bytes = { version = "1.11.1" }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2.10.0"
