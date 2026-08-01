@@ -29,6 +29,7 @@
 	import { Spinner } from '$lib/common/components/fragments/spinner';
 	import { formatLocaleDate } from '$lib/common/utils/locale';
 	import { cn } from '$lib/common/utils/tailwind.js';
+	import { toErrorMessage, toErrorText } from '$lib/error/message';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import type { Locales } from '$lib/i18n/i18n-types';
@@ -272,7 +273,7 @@
 			isFinalizingGoogleDriveLink = false;
 			if (!isGoogleDriveLinkCancelledError(error)) {
 				await queryClient.invalidateQueries({ queryKey: keys.remoteSync });
-				toast.error(getErrorMessage(error));
+				showErrorToast(error);
 			}
 		} finally {
 			isFinalizingGoogleDriveLink = false;
@@ -286,24 +287,10 @@
 		}
 	}
 
-	function getErrorMessage(error: unknown) {
-		if (error instanceof Error && error.message.trim()) {
-			return error.message;
-		}
+	function showErrorToast(error: unknown) {
+		const { title, detail } = toErrorMessage(error, $LL);
 
-		if (typeof error === 'string' && error.trim()) {
-			return error;
-		}
-
-		if (error && typeof error === 'object' && 'message' in error) {
-			const message = error.message;
-
-			if (typeof message === 'string' && message.trim()) {
-				return message;
-			}
-		}
-
-		return $LL.common.messages.unexpectedError();
+		toast.error(title, { description: detail ?? undefined });
 	}
 
 	function formatTimestamp(value: number | null | undefined) {
@@ -355,7 +342,7 @@
 			hasCheckedForUpdate = true;
 		} catch (error) {
 			logUpdaterError('check for updates', error);
-			updateCheckError = getErrorMessage(error);
+			updateCheckError = toErrorText(error, $LL);
 			hasCheckedForUpdate = true;
 		}
 
@@ -400,7 +387,7 @@
 			await update.close();
 		} catch (error) {
 			logUpdaterError('install update', error);
-			updateInstallError = getErrorMessage(error);
+			updateInstallError = toErrorText(error, $LL);
 		}
 
 		isInstallingUpdate = false;
@@ -411,7 +398,7 @@
 			await syncWorkspaceBeforeExit(remoteSyncQuery.data);
 			await tauri.window.restart();
 		} catch (error) {
-			toast.error(getErrorMessage(error));
+			showErrorToast(error);
 		}
 	}
 
@@ -475,7 +462,7 @@
 			pendingGoogleDriveLinkSession = session;
 			void watchPendingGoogleDriveLinkSession(session);
 		} catch (error) {
-			toast.error(getErrorMessage(error));
+			showErrorToast(error);
 		}
 	}
 
@@ -539,7 +526,7 @@
 			pendingGoogleDriveLinkSession = session;
 			void watchPendingGoogleDriveLinkSession(session);
 		} catch (error) {
-			toast.error(getErrorMessage(error));
+			showErrorToast(error);
 		}
 	}
 
@@ -568,7 +555,7 @@
 			await settingsQuery.refetch();
 		} catch (error) {
 			setLocale(previousLocale);
-			toast.error(getErrorMessage(error));
+			showErrorToast(error);
 		}
 	}
 </script>
@@ -594,7 +581,7 @@
 			</CardHeader>
 			<CardContent class="space-y-4 pt-5">
 				<p class="text-sm text-muted-foreground">
-					{getErrorMessage(settingsQuery.error ?? remoteSyncQuery.error)}
+					{toErrorText(settingsQuery.error ?? remoteSyncQuery.error, $LL)}
 				</p>
 				<Button
 					onclick={() => {

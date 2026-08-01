@@ -24,6 +24,7 @@
 	} from '$lib/api/utils/workspace-sync';
 	import { TooltipProvider } from '$lib/common/components/fragments/tooltip';
 	import SonnerProvider from '$lib/common/components/providers/sonner-provider.svelte';
+	import { toErrorText } from '$lib/error/message';
 	import LL, { locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import type { Locales } from '$lib/i18n/i18n-types';
@@ -65,23 +66,7 @@
 	let currentDirection = $derived(localesMetadata[$locale].direction);
 
 	function getErrorMessage(error: unknown) {
-		if (error instanceof Error && error.message.trim()) {
-			return error.message;
-		}
-
-		if (typeof error === 'string' && error.trim()) {
-			return error;
-		}
-
-		if (error && typeof error === 'object' && 'message' in error) {
-			const message = error.message;
-
-			if (typeof message === 'string' && message.trim()) {
-				return message;
-			}
-		}
-
-		return $LL.layout.startup.failedToStartFallback();
+		return toErrorText(error, $LL, $LL.layout.startup.failedToStartFallback());
 	}
 
 	function hasRecoveryData(recovery: Recovery | null) {
