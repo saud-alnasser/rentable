@@ -1,8 +1,8 @@
 //! the typed error surface. An error crosses the IPC boundary as
 //! `{ code, message }`, where `code` is the stable discriminant TypeScript
-//! branches on and `message` is the human-readable rendering. String-typed
-//! results migrate here in batches (#112); new variants may be added, but a
-//! shipped `code` never changes.
+//! branches on and `message` is the human-readable rendering. Every fallible
+//! path in this crate returns it; new variants may be added, but a shipped
+//! `code` never changes.
 
 use std::fmt;
 
@@ -40,6 +40,35 @@ pub enum Error {
     Internal { message: String },
 }
 
+impl Error {
+    /// extend the rendering, keeping the discriminant. A failure met while
+    /// recovering from another one is context on the original — the caller
+    /// still has to branch on what went wrong first.
+    pub fn with_context(mut self, addition: &str) -> Self {
+        let message = self.message_mut();
+        *message = format!("{}; additionally {}", message, addition);
+
+        self
+    }
+
+    fn message_mut(&mut self) -> &mut String {
+        let (Self::NotConfigured { message }
+        | Self::InvalidInput { message }
+        | Self::NotFound { message }
+        | Self::Forbidden { message }
+        | Self::PreconditionFailed { message }
+        | Self::Busy { message }
+        | Self::TimedOut { message }
+        | Self::Integrity { message }
+        | Self::Io { message }
+        | Self::Database { message }
+        | Self::Credential { message }
+        | Self::Internal { message }) = self;
+
+        message
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (Self::NotConfigured { message }
@@ -61,11 +90,19 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-/// the migration bridge: a function still returning `Result<_, String>` can
-/// `?` a typed sub-result while #112 converts call sites in batches.
-impl From<Error> for String {
-    fn from(error: Error) -> Self {
-        error.to_string()
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Self {
+        Self::Io {
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<sqlx::Error> for Error {
+    fn from(error: sqlx::Error) -> Self {
+        Self::Database {
+            message: error.to_string(),
+        }
     }
 }
 
@@ -134,12 +171,42 @@ mod tests {
     }
 
     #[test]
-    fn string_conversion_preserves_the_message() {
-        let converted: String = Error::Busy {
-            message: "another recovery is still pending".to_string(),
+    fn context_extends_the_message_and_keeps_the_discriminant() {
+        let error = Error::Io {
+            message: "permission denied".to_string(),
         }
-        .into();
+        .with_context("failed to delete recovery backup");
 
-        assert_eq!(converted, "another recovery is still pending");
+        assert_eq!(
+            error,
+            Error::Io {
+                message: "permission denied; additionally failed to delete recovery backup"
+                    .to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn io_errors_become_io_with_the_underlying_message() {
+        let source = std::io::Error::new(std::io::ErrorKind::NotFound, "no such file");
+
+        assert_eq!(
+            Error::from(source),
+            Error::Io {
+                message: "no such file".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn database_errors_become_database_with_the_underlying_message() {
+        let source = sqlx::Error::RowNotFound;
+
+        assert_eq!(
+            Error::from(source),
+            Error::Database {
+                message: sqlx::Error::RowNotFound.to_string()
+            }
+        );
     }
 }

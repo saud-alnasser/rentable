@@ -9,6 +9,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     backup::BackupEntry,
+    error::Error,
     persisted::{Persistable, Persisted},
     settings::Settings,
     timestamp,
@@ -187,7 +188,7 @@ impl RemoteSync {
     pub async fn new(
         settings: Arc<RwLock<Persisted<Settings>>>,
         path: PathBuf,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, Error> {
         let store = Persisted::<RemoteSyncStore>::load(path)?;
         let mut this = Self {
             settings,
@@ -199,7 +200,7 @@ impl RemoteSync {
         Ok(this)
     }
 
-    pub async fn get_state(&mut self) -> Result<RemoteSyncState, String> {
+    pub async fn get_state(&mut self) -> Result<RemoteSyncState, Error> {
         self.reconcile().await?;
         Ok(self.snapshot_state())
     }
@@ -208,7 +209,7 @@ impl RemoteSync {
         self.store.workspace.clone()
     }
 
-    pub fn record_snapshot_for_workspace(&mut self, entry: &BackupEntry) -> Result<(), String> {
+    pub fn record_snapshot_for_workspace(&mut self, entry: &BackupEntry) -> Result<(), Error> {
         self.store.workspace.last_snapshot_at = Some(entry.created_at);
         self.store.workspace.last_snapshot_filename = Some(entry.filename.clone());
         self.store.workspace.updated_at = timestamp::now();
@@ -219,16 +220,17 @@ impl RemoteSync {
     pub fn mark_google_drive_synced(
         &mut self,
         input: GoogleDriveSyncCompleteInput,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let workspace_id = sanitize_string(&input.workspace_id);
         let workspace_name = sanitize_optional_string(input.workspace_name);
         let account_id = sanitize_string(&input.account_id);
         let synced_at = timestamp::now();
 
         if self.store.workspace.account_id.as_deref() != Some(account_id.as_str()) {
-            return Err(
-                "workspace is not linked to the requested google drive account".to_string(),
-            );
+            return Err(Error::Forbidden {
+                message: "workspace is not linked to the requested google drive account"
+                    .to_string(),
+            });
         }
 
         if !workspace_id.is_empty() {
@@ -270,7 +272,7 @@ impl RemoteSync {
         self.store.commit()
     }
 
-    async fn reconcile(&mut self) -> Result<(), String> {
+    async fn reconcile(&mut self) -> Result<(), Error> {
         let current_database_path = self.current_database_path().await;
         let now = timestamp::now();
         let mut changed = false;

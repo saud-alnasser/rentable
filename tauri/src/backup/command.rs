@@ -1,11 +1,9 @@
-use crate::state::AppState;
+use crate::{error::Error, state::AppState};
 
 use super::{BackupEntry, sync_backup_manifest_workspace};
 
 #[tauri::command]
-pub async fn backup_list(
-    app_state: tauri::State<'_, AppState>,
-) -> Result<Vec<BackupEntry>, String> {
+pub async fn backup_list(app_state: tauri::State<'_, AppState>) -> Result<Vec<BackupEntry>, Error> {
     sync_backup_manifest_workspace(app_state.inner()).await?;
 
     let mut backup = app_state.backup.write().await;
@@ -15,7 +13,7 @@ pub async fn backup_list(
 }
 
 #[tauri::command]
-pub async fn backup_create(app_state: tauri::State<'_, AppState>) -> Result<BackupEntry, String> {
+pub async fn backup_create(app_state: tauri::State<'_, AppState>) -> Result<BackupEntry, Error> {
     sync_backup_manifest_workspace(app_state.inner()).await?;
 
     let mut backup = app_state.backup.write().await;
@@ -28,7 +26,7 @@ pub async fn backup_create(app_state: tauri::State<'_, AppState>) -> Result<Back
 pub async fn backup_restore(
     app_state: tauri::State<'_, AppState>,
     filename: String,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let backup = app_state.backup.read().await;
     backup.restore(&filename).await?;
 
@@ -39,7 +37,7 @@ pub async fn backup_restore(
 pub async fn backup_delete(
     app_state: tauri::State<'_, AppState>,
     filename: String,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     sync_backup_manifest_workspace(app_state.inner()).await?;
 
     let mut backup = app_state.backup.write().await;

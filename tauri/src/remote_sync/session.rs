@@ -8,7 +8,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::timestamp;
+use crate::{error::Error, timestamp};
 
 use super::google::auth::{google_oauth_client_id, parse_http_request_path, parse_query_map};
 use super::store::{
@@ -126,22 +126,23 @@ impl RemoteSync {
     pub fn begin_google_drive_link(
         &mut self,
         input: GoogleDriveLinkSessionCreateInput,
-    ) -> Result<GoogleDriveLinkSessionStart, String> {
+    ) -> Result<GoogleDriveLinkSessionStart, Error> {
         if google_oauth_client_id().is_none() {
-            return Err("GOOGLE_OAUTH_CLIENT_ID is not configured".to_string());
+            return Err(Error::NotConfigured {
+                message: "GOOGLE_OAUTH_CLIENT_ID is not configured".to_string(),
+            });
         }
 
         let expected_state = sanitize_string(&input.state);
 
         if expected_state.is_empty() {
-            return Err("oauth state is required".to_string());
+            return Err(Error::InvalidInput {
+                message: "oauth state is required".to_string(),
+            });
         }
 
-        let listener = TcpListener::bind("127.0.0.1:0").map_err(|error| error.to_string())?;
-        let port = listener
-            .local_addr()
-            .map_err(|error| error.to_string())?
-            .port();
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let port = listener.local_addr()?.port();
 
         let session_id = format!("google-drive-link-{}", timestamp::now());
         let redirect_uri = format!("http://127.0.0.1:{port}/callback");
@@ -150,7 +151,7 @@ impl RemoteSync {
             let mut sessions = self
                 .auth_sessions
                 .lock()
-                .map_err(|_| "failed to lock oauth sessions".to_string())?;
+                .map_err(|_| oauth_sessions_poisoned())?;
 
             sessions.insert(
                 session_id.clone(),
@@ -175,7 +176,7 @@ impl RemoteSync {
                 if let Ok(mut sessions) = sessions.lock() {
                     if let Some(session) = sessions.get_mut(&session_id_for_thread) {
                         session.status = GoogleDriveLinkSessionStatus::Error;
-                        session.error = Some(error);
+                        session.error = Some(error.to_string());
                     }
                 }
             }
@@ -190,17 +191,17 @@ impl RemoteSync {
     pub fn get_google_drive_link_result(
         &self,
         input: GoogleDriveLinkSessionLookupInput,
-    ) -> Result<GoogleDriveLinkSessionResult, String> {
+    ) -> Result<GoogleDriveLinkSessionResult, Error> {
         let session_id = sanitize_string(&input.session_id);
 
         let sessions = self
             .auth_sessions
             .lock()
-            .map_err(|_| "failed to lock oauth sessions".to_string())?;
+            .map_err(|_| oauth_sessions_poisoned())?;
 
         let session = sessions
             .get(&session_id)
-            .ok_or("oauth session not found".to_string())?;
+            .ok_or_else(oauth_session_not_found)?;
 
         Ok(GoogleDriveLinkSessionResult {
             session_id: session.session_id.clone(),
@@ -214,17 +215,19 @@ impl RemoteSync {
     pub fn cancel_google_drive_link(
         &mut self,
         input: GoogleDriveLinkSessionLookupInput,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let session_id = sanitize_string(&input.session_id);
 
         if session_id.is_empty() {
-            return Err("oauth session id is required".to_string());
+            return Err(Error::InvalidInput {
+                message: "oauth session id is required".to_string(),
+            });
         }
 
         let mut sessions = self
             .auth_sessions
             .lock()
-            .map_err(|_| "failed to lock oauth sessions".to_string())?;
+            .map_err(|_| oauth_sessions_poisoned())?;
 
         if let Some(session) = sessions.get_mut(&session_id) {
             session.status = GoogleDriveLinkSessionStatus::Cancelled;
@@ -239,7 +242,7 @@ impl RemoteSync {
     pub async fn complete_google_drive_link(
         &mut self,
         input: GoogleDriveLinkCompleteInput,
-    ) -> Result<RemoteSyncState, String> {
+    ) -> Result<RemoteSyncState, Error> {
         let now = timestamp::now();
         let email = sanitize_string(&input.email).to_lowercase();
         let display_name = sanitize_string(&input.display_name);
@@ -254,11 +257,15 @@ impl RemoteSync {
         let refresh_token = sanitize_optional_string(input.refresh_token);
 
         if email.is_empty() {
-            return Err("google account email is required".to_string());
+            return Err(Error::InvalidInput {
+                message: "google account email is required".to_string(),
+            });
         }
 
         if access_token.is_empty() {
-            return Err("google access token is required".to_string());
+            return Err(Error::InvalidInput {
+                message: "google access token is required".to_string(),
+            });
         }
 
         let account_index = self.store.accounts.iter().position(|account| {
@@ -351,12 +358,14 @@ impl RemoteSync {
     pub fn get_google_drive_account_auth(
         &self,
         input: GoogleDriveAccountAuthInput,
-    ) -> Result<GoogleDriveAccountAuth, String> {
+    ) -> Result<GoogleDriveAccountAuth, Error> {
         let account_id = sanitize_string(&input.account_id);
 
         let credentials = self
             .load_google_drive_credentials(&account_id)?
-            .ok_or("google drive credentials not found".to_string())?;
+            .ok_or_else(|| Error::NotFound {
+                message: "google drive credentials not found".to_string(),
+            })?;
 
         Ok(GoogleDriveAccountAuth {
             account_id,
@@ -369,7 +378,7 @@ impl RemoteSync {
     pub async fn update_google_drive_account(
         &mut self,
         input: GoogleDriveAccountUpdateInput,
-    ) -> Result<RemoteSyncState, String> {
+    ) -> Result<RemoteSyncState, Error> {
         let GoogleDriveAccountUpdateInput {
             account_id,
             email,
@@ -396,7 +405,9 @@ impl RemoteSync {
             .accounts
             .iter()
             .position(|account| account.id == account_id)
-            .ok_or("google drive account not found".to_string())?;
+            .ok_or_else(|| Error::NotFound {
+                message: "google drive account not found".to_string(),
+            })?;
 
         {
             let account = &mut self.store.accounts[account_index];
@@ -452,7 +463,7 @@ impl RemoteSync {
     pub async fn disconnect_google_drive_account(
         &mut self,
         input: GoogleDriveDisconnectInput,
-    ) -> Result<RemoteSyncState, String> {
+    ) -> Result<RemoteSyncState, Error> {
         let account_id = sanitize_string(&input.account_id);
 
         self.store
@@ -473,10 +484,8 @@ fn handle_google_drive_callback(
     listener: TcpListener,
     auth_sessions: Arc<Mutex<HashMap<String, GoogleDriveLinkSession>>>,
     session_id: &str,
-) -> Result<(), String> {
-    listener
-        .set_nonblocking(true)
-        .map_err(|error| error.to_string())?;
+) -> Result<(), Error> {
+    listener.set_nonblocking(true)?;
 
     let started_at = std::time::Instant::now();
     let (mut stream, _) = loop {
@@ -486,7 +495,7 @@ fn handle_google_drive_callback(
                 let status = {
                     let sessions = auth_sessions
                         .lock()
-                        .map_err(|_| "failed to lock oauth sessions".to_string())?;
+                        .map_err(|_| oauth_sessions_poisoned())?;
 
                     sessions
                         .get(session_id)
@@ -496,7 +505,9 @@ fn handle_google_drive_callback(
                 match status {
                     Some(GoogleDriveLinkSessionStatus::Pending) => {
                         if started_at.elapsed() >= GOOGLE_DRIVE_LINK_TIMEOUT {
-                            return Err("GOOGLE_DRIVE_LINK_TIMED_OUT".to_string());
+                            return Err(Error::TimedOut {
+                                message: "GOOGLE_DRIVE_LINK_TIMED_OUT".to_string(),
+                            });
                         }
 
                         std::thread::sleep(GOOGLE_DRIVE_LINK_POLL_INTERVAL);
@@ -504,7 +515,7 @@ fn handle_google_drive_callback(
                     Some(_) | None => return Ok(()),
                 }
             }
-            Err(error) => return Err(error.to_string()),
+            Err(error) => return Err(error.into()),
         }
     };
 
@@ -512,12 +523,11 @@ fn handle_google_drive_callback(
     let _ = stream.set_write_timeout(Some(Duration::from_secs(30)));
 
     let mut buffer = [0_u8; 16 * 1024];
-    let count = stream
-        .read(&mut buffer)
-        .map_err(|error| error.to_string())?;
+    let count = stream.read(&mut buffer)?;
     let request = String::from_utf8_lossy(&buffer[..count]).to_string();
-    let path = parse_http_request_path(&request)
-        .ok_or("failed to parse oauth callback request".to_string())?;
+    let path = parse_http_request_path(&request).ok_or_else(|| Error::InvalidInput {
+        message: "failed to parse oauth callback request".to_string(),
+    })?;
     let query = parse_query_map(path);
 
     let mut html_message =
@@ -526,11 +536,11 @@ fn handle_google_drive_callback(
     {
         let mut sessions = auth_sessions
             .lock()
-            .map_err(|_| "failed to lock oauth sessions".to_string())?;
+            .map_err(|_| oauth_sessions_poisoned())?;
 
         let session = sessions
             .get_mut(session_id)
-            .ok_or("oauth session not found".to_string())?;
+            .ok_or_else(oauth_session_not_found)?;
 
         if let Some(error) = query.get("error") {
             session.status = GoogleDriveLinkSessionStatus::Error;
@@ -574,9 +584,21 @@ fn handle_google_drive_callback(
         body
     );
 
-    stream
-        .write_all(response.as_bytes())
-        .map_err(|error| error.to_string())?;
+    stream.write_all(response.as_bytes())?;
 
     Ok(())
+}
+
+/// the oauth sessions map is only ever held for a field read or write, so a
+/// poisoned lock means a panic elsewhere rather than anything the caller did.
+fn oauth_sessions_poisoned() -> Error {
+    Error::Internal {
+        message: "failed to lock oauth sessions".to_string(),
+    }
+}
+
+fn oauth_session_not_found() -> Error {
+    Error::NotFound {
+        message: "oauth session not found".to_string(),
+    }
 }

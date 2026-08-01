@@ -4,6 +4,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 use crate::{
     backup::{BackupRecoveryKind, BackupSource},
+    error::Error,
     state::AppState,
     timestamp,
 };
@@ -33,7 +34,7 @@ use super::{
 #[tauri::command]
 pub async fn remote_sync_state_get(
     app_state: tauri::State<'_, AppState>,
-) -> Result<RemoteSyncState, String> {
+) -> Result<RemoteSyncState, Error> {
     let state = {
         let mut remote_sync = app_state.remote_sync.write().await;
         remote_sync.get_state().await?
@@ -46,7 +47,7 @@ pub async fn remote_sync_state_get(
 #[tauri::command]
 pub async fn remote_sync_snapshot_now(
     app_state: tauri::State<'_, AppState>,
-) -> Result<RemoteSyncState, String> {
+) -> Result<RemoteSyncState, Error> {
     let workspace = {
         let mut remote_sync = app_state.remote_sync.write().await;
         remote_sync.get_state().await?.workspace
@@ -73,7 +74,7 @@ pub async fn remote_sync_snapshot_now(
 #[tauri::command]
 pub async fn remote_sync_autosave_now(
     app_state: tauri::State<'_, AppState>,
-) -> Result<RemoteSyncState, String> {
+) -> Result<RemoteSyncState, Error> {
     let workspace = {
         let mut remote_sync = app_state.remote_sync.write().await;
         remote_sync.get_state().await?.workspace
@@ -103,7 +104,7 @@ pub async fn remote_sync_autosave_now(
 #[tauri::command]
 pub async fn remote_sync_google_drive_config_get(
     app_state: tauri::State<'_, AppState>,
-) -> Result<GoogleDriveConfig, String> {
+) -> Result<GoogleDriveConfig, Error> {
     let remote_sync = app_state.remote_sync.read().await;
     Ok(remote_sync.get_google_drive_config())
 }
@@ -112,7 +113,7 @@ pub async fn remote_sync_google_drive_config_get(
 pub async fn remote_sync_google_drive_begin_link(
     app_state: tauri::State<'_, AppState>,
     input: GoogleDriveLinkSessionCreateInput,
-) -> Result<GoogleDriveLinkSessionStart, String> {
+) -> Result<GoogleDriveLinkSessionStart, Error> {
     let mut remote_sync = app_state.remote_sync.write().await;
     remote_sync.begin_google_drive_link(input)
 }
@@ -121,7 +122,7 @@ pub async fn remote_sync_google_drive_begin_link(
 pub async fn remote_sync_google_drive_get_link_result(
     app_state: tauri::State<'_, AppState>,
     input: GoogleDriveLinkSessionLookupInput,
-) -> Result<GoogleDriveLinkSessionResult, String> {
+) -> Result<GoogleDriveLinkSessionResult, Error> {
     let remote_sync = app_state.remote_sync.read().await;
     remote_sync.get_google_drive_link_result(input)
 }
@@ -130,7 +131,7 @@ pub async fn remote_sync_google_drive_get_link_result(
 pub async fn remote_sync_google_drive_cancel_link(
     app_state: tauri::State<'_, AppState>,
     input: GoogleDriveLinkSessionLookupInput,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let mut remote_sync = app_state.remote_sync.write().await;
     remote_sync.cancel_google_drive_link(input)
 }
@@ -139,7 +140,7 @@ pub async fn remote_sync_google_drive_cancel_link(
 pub async fn remote_sync_google_drive_complete_link(
     app_state: tauri::State<'_, AppState>,
     input: GoogleDriveLinkCompleteInput,
-) -> Result<RemoteSyncState, String> {
+) -> Result<RemoteSyncState, Error> {
     let state = {
         let mut remote_sync = app_state.remote_sync.write().await;
         remote_sync.complete_google_drive_link(input).await?
@@ -153,7 +154,7 @@ pub async fn remote_sync_google_drive_complete_link(
 pub async fn remote_sync_google_drive_get_account_auth(
     app_state: tauri::State<'_, AppState>,
     input: GoogleDriveAccountAuthInput,
-) -> Result<GoogleDriveAccountAuth, String> {
+) -> Result<GoogleDriveAccountAuth, Error> {
     let remote_sync = app_state.remote_sync.read().await;
     remote_sync.get_google_drive_account_auth(input)
 }
@@ -162,7 +163,7 @@ pub async fn remote_sync_google_drive_get_account_auth(
 pub async fn remote_sync_google_drive_update_account(
     app_state: tauri::State<'_, AppState>,
     input: GoogleDriveAccountUpdateInput,
-) -> Result<RemoteSyncState, String> {
+) -> Result<RemoteSyncState, Error> {
     let mut remote_sync = app_state.remote_sync.write().await;
     remote_sync.update_google_drive_account(input).await
 }
@@ -171,7 +172,7 @@ pub async fn remote_sync_google_drive_update_account(
 pub async fn remote_sync_google_drive_disconnect_account(
     app_state: tauri::State<'_, AppState>,
     input: GoogleDriveDisconnectInput,
-) -> Result<RemoteSyncState, String> {
+) -> Result<RemoteSyncState, Error> {
     let state = {
         let mut remote_sync = app_state.remote_sync.write().await;
         remote_sync.disconnect_google_drive_account(input).await?
@@ -185,7 +186,7 @@ pub async fn remote_sync_google_drive_disconnect_account(
 pub async fn remote_sync_google_drive_acquire_lock(
     app_state: tauri::State<'_, AppState>,
     input: GoogleDriveSyncLockAcquireInput,
-) -> Result<GoogleDriveSyncLockLease, String> {
+) -> Result<GoogleDriveSyncLockLease, Error> {
     let mut remote_sync = app_state.remote_sync.write().await;
     remote_sync.acquire_google_drive_sync_lock(input)
 }
@@ -194,7 +195,7 @@ pub async fn remote_sync_google_drive_acquire_lock(
 pub async fn remote_sync_google_drive_release_lock(
     app_state: tauri::State<'_, AppState>,
     input: GoogleDriveSyncLockReleaseInput,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let mut remote_sync = app_state.remote_sync.write().await;
     remote_sync.release_google_drive_sync_lock(input);
     Ok(())
@@ -203,7 +204,7 @@ pub async fn remote_sync_google_drive_release_lock(
 #[tauri::command]
 pub async fn remote_sync_google_drive_get_local_fingerprint(
     app_state: tauri::State<'_, AppState>,
-) -> Result<GoogleDriveLocalFingerprint, String> {
+) -> Result<GoogleDriveLocalFingerprint, Error> {
     Ok(GoogleDriveLocalFingerprint {
         content_hash: current_workspace_content_hash(app_state.inner()).await?,
     })
@@ -213,19 +214,23 @@ pub async fn remote_sync_google_drive_get_local_fingerprint(
 pub async fn remote_sync_google_drive_prepare_push(
     app_state: tauri::State<'_, AppState>,
     input: Option<GoogleDrivePreparePushInput>,
-) -> Result<GoogleDrivePreparedPush, String> {
+) -> Result<GoogleDrivePreparedPush, Error> {
     let (workspace, account_id) = {
         let mut remote_sync = app_state.remote_sync.write().await;
         let workspace = remote_sync.get_state().await?.workspace;
 
         if workspace.provider != RemoteSyncProvider::GoogleDrive {
-            return Err("workspace is not linked to Google Drive".to_string());
+            return Err(Error::PreconditionFailed {
+                message: "workspace is not linked to Google Drive".to_string(),
+            });
         }
 
         let account_id = workspace
             .account_id
             .clone()
-            .ok_or("workspace is missing a linked Google Drive account".to_string())?;
+            .ok_or_else(|| Error::PreconditionFailed {
+                message: "workspace is missing a linked Google Drive account".to_string(),
+            })?;
 
         (workspace, account_id)
     };
@@ -245,7 +250,7 @@ pub async fn remote_sync_google_drive_prepare_push(
     let (contents_base64, content_hash, app_version) = {
         let settings = app_state.settings.read().await;
         let path = settings.backup_dir.join(&entry.filename);
-        let bytes = fs::read(&path).map_err(|error| error.to_string())?;
+        let bytes = fs::read(&path)?;
         (
             BASE64.encode(&bytes),
             content_hash_hex(&bytes),
@@ -272,7 +277,7 @@ pub async fn remote_sync_google_drive_prepare_push(
 pub async fn remote_sync_google_drive_mark_synced(
     app_state: tauri::State<'_, AppState>,
     input: GoogleDriveSyncCompleteInput,
-) -> Result<RemoteSyncState, String> {
+) -> Result<RemoteSyncState, Error> {
     {
         let mut remote_sync = app_state.remote_sync.write().await;
         remote_sync.mark_google_drive_synced(input)?;
@@ -296,13 +301,15 @@ pub async fn remote_sync_google_drive_mark_synced(
 pub async fn remote_sync_google_drive_apply_pull(
     app_state: tauri::State<'_, AppState>,
     input: GoogleDriveApplyPullInput,
-) -> Result<RemoteSyncState, String> {
+) -> Result<RemoteSyncState, Error> {
     let workspace_id = sanitize_string(&input.workspace_id);
     let account_id = sanitize_string(&input.account_id);
     let filename = sanitize_filename(&input.filename);
 
     if workspace_id.is_empty() || account_id.is_empty() {
-        return Err("workspace and account are required for pull".to_string());
+        return Err(Error::InvalidInput {
+            message: "workspace and account are required for pull".to_string(),
+        });
     }
 
     let (backup_dir, current_version) = {
@@ -311,7 +318,9 @@ pub async fn remote_sync_google_drive_apply_pull(
     };
 
     if sanitize_string(&input.app_version) != current_version {
-        return Err("remote snapshot app version does not match current app version".to_string());
+        return Err(Error::Integrity {
+            message: "remote snapshot app version does not match current app version".to_string(),
+        });
     }
 
     let workspace = {
@@ -340,11 +349,13 @@ pub async fn remote_sync_google_drive_apply_pull(
     let expected_content_hash = sanitize_optional_string(input.content_hash);
     let bytes = BASE64
         .decode(input.contents_base64.as_bytes())
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| Error::Integrity {
+            message: error.to_string(),
+        })?;
 
     validate_google_drive_pull_content_hash(expected_content_hash.as_deref(), &bytes)?;
 
-    fs::write(&temp_path, bytes).map_err(|error| error.to_string())?;
+    fs::write(&temp_path, bytes)?;
 
     let restore_result = {
         let mut db = app_state.db.write().await;

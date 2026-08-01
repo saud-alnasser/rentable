@@ -3,7 +3,7 @@ use super::{
     MANUAL_RETENTION_LIMIT, RECOVERED_SNAPSHOT_VERSION, SYNC_RECOVERY_RETENTION_LIMIT,
     UPDATE_RECOVERY_RETENTION_LIMIT, head_snapshot_entry,
 };
-use crate::{database::Database, persisted::Persisted, settings::Settings};
+use crate::{database::Database, error::Error, persisted::Persisted, settings::Settings};
 use std::{sync::Arc, time::Duration};
 
 use tokio::{runtime::Runtime, sync::RwLock};
@@ -151,9 +151,7 @@ fn create_cleans_up_backup_file_when_index_commit_fails() {
                 .await
                 .expect_err("expected backup create to fail");
 
-            assert!(
-                error.contains("failed") || error.contains("denied") || error.contains("directory")
-            );
+            assert!(matches!(error, Error::Io { .. }), "got {error:?}");
             assert!(backup.index.entries.is_empty());
             assert!(
                 std::fs::read_dir(root.join(Backup::BACKUP_DIRECTORY))
@@ -193,9 +191,7 @@ fn delete_keeps_backup_file_when_index_commit_fails() {
                 .await
                 .expect_err("expected backup delete to fail");
 
-            assert!(
-                error.contains("failed") || error.contains("denied") || error.contains("directory")
-            );
+            assert!(matches!(error, Error::Io { .. }), "got {error:?}");
             assert!(backup_path.exists());
             assert_eq!(backup.index.entries.len(), 1);
             assert_eq!(backup.index.entries[0].filename, entry.filename);

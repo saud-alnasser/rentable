@@ -233,6 +233,16 @@ function getGoogleDriveErrorText(error: unknown) {
 		return error;
 	}
 
+	// Rust returns `{ code, message }` across the IPC boundary (#112). #113
+	// replaces the callers of this function with branching on `code`.
+	if (typeof error === 'object' && error !== null && 'message' in error) {
+		const { message } = error as { message: unknown };
+
+		if (typeof message === 'string' && message.trim()) {
+			return message;
+		}
+	}
+
 	return null;
 }
 

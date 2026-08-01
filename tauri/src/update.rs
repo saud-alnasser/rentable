@@ -4,6 +4,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     backup::{Backup, BackupRecoveryKind, BackupSource, sync_backup_manifest_workspace},
+    error::Error,
     persisted::{Persistable, Persisted},
     settings::Settings,
     state::AppState,
@@ -100,7 +101,7 @@ impl Update {
     pub async fn new(
         backup: Arc<RwLock<Backup>>,
         settings: Arc<RwLock<Persisted<Settings>>>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, Error> {
         let settings = settings.read().await;
         let recovery = Persisted::<Recovery>::load(settings.recovery_path.clone())?;
 
@@ -115,18 +116,21 @@ impl Update {
         &mut self,
         backup_version: &str,
         target_version: &str,
-    ) -> Result<Recovery, String> {
+    ) -> Result<Recovery, Error> {
         let backup_version = normalize_version(backup_version);
         let target_version = normalize_version(target_version);
 
         if target_version.is_empty() {
-            return Err("target version is required".to_string());
+            return Err(Error::InvalidInput {
+                message: "target version is required".to_string(),
+            });
         }
 
         if self.recovery.status == RecoveryStatus::Pending && self.recovery.has_data() {
-            return Err(
-                "cannot prepare update while another recovery is still pending".to_string(),
-            );
+            return Err(Error::Busy {
+                message: "cannot prepare update while another recovery is still pending"
+                    .to_string(),
+            });
         }
 
         let previous_recovery = self.recovery.inner().clone();
@@ -177,14 +181,14 @@ impl Update {
             return Err(if cleanup_error.is_empty() {
                 error
             } else {
-                format!("{}; additionally {}", error, cleanup_error.join("; "))
+                error.with_context(&cleanup_error.join("; "))
             });
         }
 
         Ok(self.recovery.inner().clone())
     }
 
-    pub fn fail(&mut self, error: Option<String>) -> Result<(), String> {
+    pub fn fail(&mut self, error: Option<String>) -> Result<(), Error> {
         self.recovery.update_error = error;
         self.recovery.status = RecoveryStatus::Pending;
 
@@ -193,7 +197,7 @@ impl Update {
         Ok(())
     }
 
-    pub async fn complete(&mut self) -> Result<(), String> {
+    pub async fn complete(&mut self) -> Result<(), Error> {
         {
             if !self.recovery.backup_filename.trim().is_empty() {
                 let mut backup = self.backup.write().await;
@@ -209,7 +213,7 @@ impl Update {
         Ok(())
     }
 
-    pub async fn rollback(&mut self) -> Result<(), String> {
+    pub async fn rollback(&mut self) -> Result<(), Error> {
         {
             let mut backup = self.backup.write().await;
 
@@ -231,7 +235,7 @@ impl Update {
 pub async fn update_prepare(
     app_state: tauri::State<'_, AppState>,
     target_version: String,
-) -> Result<Recovery, String> {
+) -> Result<Recovery, Error> {
     sync_backup_manifest_workspace(app_state.inner()).await?;
 
     let mut update = app_state.update.write().await;
@@ -242,7 +246,7 @@ pub async fn update_prepare(
 
 #[cfg(test)]
 mod tests {
-    use super::{RecoveryStatus, Update};
+    use super::{Error, RecoveryStatus, Update};
     use crate::{backup::Backup, database::Database, persisted::Persisted, settings::Settings};
     use std::{path::Path, path::PathBuf, sync::Arc};
     use tokio::{runtime::Runtime, sync::RwLock};
@@ -320,7 +324,7 @@ mod tests {
                     .await
                     .expect_err("expected prepare to reject existing pending recovery");
 
-                assert!(error.contains("pending"));
+                assert!(matches!(error, Error::Busy { .. }), "got {error:?}");
                 assert!(
                     backup
                         .write()
@@ -353,11 +357,7 @@ mod tests {
                     .await
                     .expect_err("expected prepare to fail when recovery commit fails");
 
-                assert!(
-                    error.contains("failed")
-                        || error.contains("denied")
-                        || error.contains("directory")
-                );
+                assert!(matches!(error, Error::Io { .. }), "got {error:?}");
                 assert!(!update.recovery.has_data());
                 assert!(
                     backup

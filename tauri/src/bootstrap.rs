@@ -1,10 +1,11 @@
 use crate::{
+    error::Error,
     state::AppState,
     update::{Recovery, RecoveryStatus},
 };
 
 #[tauri::command]
-pub async fn bootstrap(app_state: tauri::State<'_, AppState>) -> Result<Recovery, String> {
+pub async fn bootstrap(app_state: tauri::State<'_, AppState>) -> Result<Recovery, Error> {
     let version = app_state.settings.read().await.version.clone();
     let mut update = app_state.update.write().await;
 
@@ -30,7 +31,7 @@ pub async fn bootstrap(app_state: tauri::State<'_, AppState>) -> Result<Recovery
 
     if is_pending_target_recovery {
         match error.clone() {
-            Some(err) => update.fail(Some(err))?,
+            Some(err) => update.fail(Some(err.to_string()))?,
             None => update.complete().await?,
         }
     }

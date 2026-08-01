@@ -5,7 +5,7 @@ use super::{
     clear_test_google_drive_credentials_store, content_hash_hex, google_drive_push_snapshot_source,
     percent_decode, slugify, validate_google_drive_pull_content_hash,
 };
-use crate::{backup::BackupSource, persisted::Persisted, settings::Settings};
+use crate::{backup::BackupSource, error::Error, persisted::Persisted, settings::Settings};
 use std::{path::PathBuf, sync::Arc};
 use tokio::{runtime::Runtime, sync::RwLock};
 
@@ -253,7 +253,12 @@ fn sync_lock_requires_a_workspace_id() {
                 })
                 .expect_err("expected an empty workspace id to be rejected");
 
-            assert_eq!(error, "GOOGLE_DRIVE_SYNC_WORKSPACE_REQUIRED");
+            assert_eq!(
+                error,
+                Error::InvalidInput {
+                    message: "GOOGLE_DRIVE_SYNC_WORKSPACE_REQUIRED".to_string()
+                }
+            );
 
             let _ = std::fs::remove_dir_all(&root);
         });
@@ -281,7 +286,12 @@ fn sync_lock_is_exclusive_and_names_the_holder() {
                 })
                 .expect_err("expected a held lock to reject a second acquire");
 
-            assert_eq!(error, "GOOGLE_DRIVE_SYNC_LOCKED:workspace-1");
+            assert_eq!(
+                error,
+                Error::Busy {
+                    message: "GOOGLE_DRIVE_SYNC_LOCKED:workspace-1".to_string()
+                }
+            );
 
             let _ = std::fs::remove_dir_all(&root);
         });

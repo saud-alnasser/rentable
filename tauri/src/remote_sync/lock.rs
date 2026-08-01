@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::timestamp;
+use crate::{error::Error, timestamp};
 
 use super::store::{RemoteSync, sanitize_string};
 
@@ -32,18 +32,21 @@ impl RemoteSync {
     pub fn acquire_google_drive_sync_lock(
         &mut self,
         input: GoogleDriveSyncLockAcquireInput,
-    ) -> Result<GoogleDriveSyncLockLease, String> {
+    ) -> Result<GoogleDriveSyncLockLease, Error> {
         let workspace_id = sanitize_string(&input.workspace_id);
 
         if workspace_id.is_empty() {
-            return Err("GOOGLE_DRIVE_SYNC_WORKSPACE_REQUIRED".to_string());
+            return Err(Error::InvalidInput {
+                message: "GOOGLE_DRIVE_SYNC_WORKSPACE_REQUIRED".to_string(),
+            });
         }
 
+        // the sentinel stays in the message until #113 switches TypeScript onto
+        // the discriminant; `busy` from this call can only mean the sync lock.
         if let Some(existing_lock) = &self.google_drive_sync_lock {
-            return Err(format!(
-                "GOOGLE_DRIVE_SYNC_LOCKED:{}",
-                existing_lock.workspace_id
-            ));
+            return Err(Error::Busy {
+                message: format!("GOOGLE_DRIVE_SYNC_LOCKED:{}", existing_lock.workspace_id),
+            });
         }
 
         let lease_id = format!("google-drive-sync-{}-{}", workspace_id, timestamp::now());
