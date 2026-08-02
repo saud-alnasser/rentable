@@ -73,6 +73,15 @@ pub struct RemoteSyncWorkspace {
     pub provider: RemoteSyncProvider,
     pub name: String,
     pub local_database_path: PathBuf,
+    /// which workspace the remote holds, as the remote itself names it.
+    ///
+    /// Recorded when a sync settles, and compared against what a later reading
+    /// finds: a folder that answers for this workspace while naming a different
+    /// one is intact but is not the remote this workspace agreed with, and no
+    /// direction between them is safe to choose without the user. Absent for a
+    /// workspace linked before this was recorded, which is why a disagreement
+    /// needs both sides — an install that never wrote one cannot be wrong about it.
+    pub remote_workspace_id: Option<String>,
     pub remote_folder_id: Option<String>,
     pub remote_manifest_file_id: Option<String>,
     pub remote_head_file_id: Option<String>,
@@ -148,6 +157,8 @@ impl Persistable for RemoteSyncStore {
         self.workspace.id = sanitize_string(&self.workspace.id);
         self.workspace.account_id = sanitize_optional_string(self.workspace.account_id.clone());
         self.workspace.name = sanitize_string(&self.workspace.name);
+        self.workspace.remote_workspace_id =
+            sanitize_optional_string(self.workspace.remote_workspace_id.clone());
         self.workspace.remote_folder_id =
             sanitize_optional_string(self.workspace.remote_folder_id.clone());
         self.workspace.remote_manifest_file_id =
@@ -234,14 +245,23 @@ impl RemoteSync {
         }
 
         if !workspace_id.is_empty() {
-            self.store.workspace.id = workspace_id;
+            self.store.workspace.id = workspace_id.clone();
         }
 
         if let Some(workspace_name) = workspace_name {
             self.store.workspace.name = workspace_name;
         }
 
+        // the caller names the workspace the remote holds; a remote that named
+        // none is one this machine is seeding, so its identity is this workspace's.
+        let remote_workspace_id = if workspace_id.is_empty() {
+            self.store.workspace.id.clone()
+        } else {
+            workspace_id
+        };
+
         self.store.workspace.provider = RemoteSyncProvider::GoogleDrive;
+        self.store.workspace.remote_workspace_id = Some(remote_workspace_id);
         self.store.workspace.remote_folder_id = Some(sanitize_string(&input.remote_folder_id));
         self.store.workspace.remote_manifest_file_id =
             Some(sanitize_string(&input.remote_manifest_file_id));
@@ -400,6 +420,7 @@ impl RemoteSync {
             provider: RemoteSyncProvider::Local,
             name: "Primary workspace".to_string(),
             local_database_path: path,
+            remote_workspace_id: None,
             remote_folder_id: None,
             remote_manifest_file_id: None,
             remote_head_file_id: None,
@@ -417,6 +438,7 @@ impl RemoteSync {
     pub(super) fn reset_workspace_to_local(workspace: &mut RemoteSyncWorkspace, now: i64) {
         workspace.account_id = None;
         workspace.provider = RemoteSyncProvider::Local;
+        workspace.remote_workspace_id = None;
         workspace.remote_folder_id = None;
         workspace.remote_manifest_file_id = None;
         workspace.remote_head_file_id = None;

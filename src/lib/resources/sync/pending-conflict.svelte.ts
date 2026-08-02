@@ -1,18 +1,26 @@
-import type { GoogleDriveLinkPreparation } from '$lib/api/tauri';
 import {
-	resetBrokenGoogleDriveWorkspace,
-	resolveGoogleDriveLink,
-	type GoogleDriveLinkResolution
-} from '$lib/api/utils/remote-sync-google-drive';
+	tauri,
+	type GoogleDriveConflictResolution,
+	type GoogleDriveLinkPreparation
+} from '$lib/api/tauri';
 
 import { cancelGoogleDriveLink } from './link';
 import { PendingConflictFlow, type PendingConflictDriver } from './pending-conflict';
 
-/** settling a conflict against the account it is about. */
+/**
+ * settling a conflict against the account it is about.
+ *
+ * Every one of these is a single command: Rust reads the remote again, carries
+ * the choice out, and reports what happened. Relinking is the unlink this
+ * application already has — a remote that turned out to hold a different
+ * workspace is not this one's to empty, so nothing there is touched and the
+ * user links again from a workspace that is local once more.
+ */
 const googleDrivePendingConflictDriver: PendingConflictDriver = {
-	resolve: (preparation, resolution) => resolveGoogleDriveLink(preparation, resolution),
+	resolve: (_preparation, resolution) =>
+		tauri.remoteSync.googleDrive.resolveConflict({ resolution }),
 	cancel: () => cancelGoogleDriveLink(),
-	reset: (state) => resetBrokenGoogleDriveWorkspace(state)
+	reset: () => tauri.remoteSync.googleDrive.unlink()
 };
 
 /**
@@ -46,7 +54,7 @@ class PendingConflict {
 
 	forget = () => this.#flow.forget();
 
-	resolve = (resolution: GoogleDriveLinkResolution) => this.#flow.resolve(resolution);
+	resolve = (resolution: GoogleDriveConflictResolution) => this.#flow.resolve(resolution);
 
 	dismiss = () => this.#flow.dismiss();
 

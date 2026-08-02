@@ -108,6 +108,7 @@ pub(super) async fn inspect_google_drive_workspace(
         access_token,
         &state.workspace,
         local_content_hash.as_deref(),
+        GoogleDriveSyncMode::Sync,
     )
     .await?;
 
@@ -134,6 +135,7 @@ pub(super) async fn read_remote_state(
     access_token: &str,
     workspace: &RemoteSyncWorkspace,
     local_content_hash: Option<&str>,
+    mode: GoogleDriveSyncMode,
 ) -> Result<GoogleDriveRemoteState, Error> {
     let Some(folder) = files
         .resolve_existing_workspace_folder(access_token, workspace)
@@ -145,7 +147,7 @@ pub(super) async fn read_remote_state(
             resolution: analyze_sync_resolution(
                 workspace,
                 None,
-                GoogleDriveSyncMode::Sync,
+                mode,
                 &GoogleDriveHeadObservation::default(),
             ),
             app_usage_bytes: 0,
@@ -165,12 +167,7 @@ pub(super) async fn read_remote_state(
         observe_heads(files, access_token, manifest_document, local_content_hash).await?;
 
     Ok(GoogleDriveRemoteState {
-        resolution: analyze_sync_resolution(
-            workspace,
-            manifest_document,
-            GoogleDriveSyncMode::Sync,
-            &observation,
-        ),
+        resolution: analyze_sync_resolution(workspace, manifest_document, mode, &observation),
         folder: Some(folder),
         manifest,
         app_usage_bytes,
@@ -431,6 +428,7 @@ mod tests {
             "token",
             &linked_workspace(),
             Some(SNAPSHOT_CONTENT_HASH),
+            GoogleDriveSyncMode::Sync,
         )
         .await
         .expect("reading the remote failed");
@@ -459,6 +457,7 @@ mod tests {
             "token",
             &linked_workspace(),
             Some(SNAPSHOT_CONTENT_HASH),
+            GoogleDriveSyncMode::Sync,
         )
         .await
         .expect("reading the remote failed");
@@ -492,6 +491,7 @@ mod tests {
             "token",
             &workspace,
             Some(OTHER_CONTENT_HASH),
+            GoogleDriveSyncMode::Sync,
         )
         .await
         .expect("reading the remote failed");

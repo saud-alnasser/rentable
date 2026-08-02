@@ -14,7 +14,10 @@ use super::session::{
     GoogleDriveLinkSessionLookupInput, GoogleDriveLinkSessionResult, GoogleDriveLinkSessionStart,
 };
 use super::store::RemoteSyncState;
-use super::sync::{GoogleDriveSyncInput, GoogleDriveSyncOutcome, sync_google_drive_workspace};
+use super::sync::{
+    GoogleDriveResolveConflictInput, GoogleDriveSyncInput, GoogleDriveSyncOutcome,
+    inspect_google_drive_conflict, resolve_google_drive_conflict, sync_google_drive_workspace,
+};
 use super::workspace::{
     apply_remote_pull, current_workspace_content_hash, mark_workspace_synced, prepare_local_push,
     sync_backup_manifest_to_active_workspace,
@@ -338,6 +341,30 @@ pub async fn remote_sync_google_drive_apply_pull(
     input: GoogleDriveApplyPullInput,
 ) -> Result<RemoteSyncState, Error> {
     apply_remote_pull(app_state.inner(), input).await
+}
+
+/// Ask what the remote holds for this workspace, and whether the two sides can
+/// be reconciled without the user.
+///
+/// Resolves to `null` where the workspace is not on Drive.
+#[tauri::command]
+pub async fn remote_sync_google_drive_inspect(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<Option<GoogleDriveLinkPreparation>, Error> {
+    inspect_google_drive_conflict(app_state.inner()).await
+}
+
+/// Settle the conflict the user was asked about, the way they chose.
+///
+/// `local` keeps this machine's copy and makes the remote match it; `remote`
+/// does the reverse. The remote is read again rather than trusting what the
+/// question was asked against, because the user takes as long as they take.
+#[tauri::command]
+pub async fn remote_sync_google_drive_resolve_conflict(
+    app_state: tauri::State<'_, AppState>,
+    input: GoogleDriveResolveConflictInput,
+) -> Result<GoogleDriveSyncOutcome, Error> {
+    resolve_google_drive_conflict(app_state.inner(), input.resolution).await
 }
 
 /// Sync this workspace with the account it is linked to, end to end.

@@ -53,9 +53,9 @@ save never evicts the copy taken before an update.
   last one acts on no file, and it lives there anyway: what makes the boundary is being a
   request this application issues, not the kind of thing it names, and a second
   request-issuing type would divide the surface a caller has to hold. Linking, unlinking,
-  and the syncs this application schedules for itself reach it; inspection, conflict
-  resolution, and the sync that follows a link still issue their own requests from
-  TypeScript until #118 finishes moving them.
+  the syncs this application schedules for itself, inspecting what the remote holds, and
+  settling a conflict all reach it; only the sync that follows a link still issues its own
+  requests from TypeScript, until #118 finishes moving it.
 - **A flow is one command, and the interface observes it rather than sequencing it.** The
   caller asks for a link and gets back what the remote's contents make possible; it does
   not open a session, poll it, redeem a code, and hold the pieces in between. A flow
@@ -73,9 +73,9 @@ save never evicts the copy taken before an update.
   are the web layer's and reached through its own API, so a pull replaces the database and
   the caller recomputes afterwards. That is the whole residue of the coarse boundary where
   a flow has been moved: a caller of one resolves no folder, reads no manifest, and chooses
-  no direction, and still owns the derivation. The paths #118 has not reached yet — the
-  inspection behind a conflict, and the sync following a link — do all three in TypeScript,
-  which is what makes them the remainder rather than an exception to this.
+  no direction, and still owns the derivation. The one path #118 has not reached yet — the
+  sync following a link — does all three in TypeScript, which is what makes it the
+  remainder rather than an exception to this.
 - **Serialising this application's own sync requests is the caller's, refusing a second one
   is the lock's.** The lock answers a concurrent operation by refusing, which is right for
   work that must not overlap and wrong for a user pressing Sync while an automatic one
@@ -118,6 +118,15 @@ save never evicts the copy taken before an update.
   one on the strength of that refusal would make the refusal decorative. Two costs are
   accepted knowingly: a folder this application has emptied is not necessarily an empty
   folder, and a snapshot predating the source property is never evicted.
+- **A remote that names a different workspace is intact, and is still not this one's.**
+  A folder answering for this workspace while its index names another is the fourth reason
+  the user is asked, and neither direction is safe to take on it: pushing overwrites work
+  that is not theirs, pulling replaces theirs with it. **The identity is recorded when a
+  sync settles and compared on every later reading**, and a disagreement needs both sides —
+  a workspace linked before this was recorded has nothing to be wrong about, so it is never
+  told to relink on that account. Answering it disconnects and leaves the remote exactly as
+  found: emptying a folder on the strength of a conflict that says it belongs to somebody
+  else is the deletion this domain refuses to make.
 - **A retry may never create a second thing.** `POST` is the one method never issued
   twice, because Drive creates a file by `POST` and a duplicate snapshot is a fault this
   application cannot observe. Any new write path has to answer this question before it

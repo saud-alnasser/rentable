@@ -184,6 +184,27 @@ pub fn analyze_sync_resolution(
         );
     };
 
+    // a folder that answers for this workspace while naming a different one is
+    // intact and readable, and is still not the remote this workspace agreed
+    // with. Neither direction is safe: pushing overwrites somebody else's
+    // workspace, pulling replaces this one with it. Both sides are required, so
+    // a workspace that never recorded an identity cannot be wrong about it.
+    if let Some(linked) = workspace.remote_workspace_id.as_deref()
+        && !linked.is_empty()
+        && !manifest.metadata.workspace_id.is_empty()
+        && linked != manifest.metadata.workspace_id
+    {
+        return GoogleDriveSyncResolution {
+            action: GoogleDriveSyncAction::None,
+            requires_resolution: true,
+            recommended_mode: GoogleDriveRecommendedMode::Push,
+            conflict_kind: Some(GoogleDriveConflictKind::Relink),
+            should_mark_synced_without_pull: false,
+            should_refresh_manifest_head: observation.should_refresh_manifest_head,
+            remote_head: observation.remote_head.clone(),
+        };
+    }
+
     let local_content_hash = normalize_content_hash(observation.local_content_hash.as_deref());
     let remote_content_hash = normalize_content_hash(
         observation
@@ -521,6 +542,85 @@ mod tests {
             last_snapshot_filename: Some(String::new()),
             ..RemoteSyncWorkspace::default()
         }));
+    }
+
+    #[test]
+    fn a_remote_naming_a_different_workspace_asks_the_user_to_relink() {
+        let workspace = RemoteSyncWorkspace {
+            remote_workspace_id: Some("workspace-2".to_string()),
+            ..synced_workspace()
+        };
+
+        let resolution = analyze_sync_resolution(
+            &workspace,
+            Some(&manifest(1000)),
+            GoogleDriveSyncMode::Sync,
+            &GoogleDriveHeadObservation::default(),
+        );
+
+        assert!(resolution.requires_resolution);
+        assert_eq!(
+            resolution.conflict_kind,
+            Some(GoogleDriveConflictKind::Relink)
+        );
+        assert_eq!(resolution.action, GoogleDriveSyncAction::None);
+    }
+
+    // both sides are required: an install that predates the recording has no
+    // identity to disagree with, and must not be told to relink on that account.
+    #[test]
+    fn a_workspace_that_never_recorded_an_identity_is_not_asked_to_relink() {
+        let resolution = analyze_sync_resolution(
+            &synced_workspace(),
+            Some(&manifest(1000)),
+            GoogleDriveSyncMode::Sync,
+            &GoogleDriveHeadObservation::default(),
+        );
+
+        assert_ne!(
+            resolution.conflict_kind,
+            Some(GoogleDriveConflictKind::Relink)
+        );
+    }
+
+    #[test]
+    fn a_remote_naming_the_workspace_it_agreed_with_raises_no_relink() {
+        let workspace = RemoteSyncWorkspace {
+            remote_workspace_id: Some("workspace-1".to_string()),
+            ..synced_workspace()
+        };
+
+        let resolution = analyze_sync_resolution(
+            &workspace,
+            Some(&manifest(1000)),
+            GoogleDriveSyncMode::Sync,
+            &GoogleDriveHeadObservation::default(),
+        );
+
+        assert_ne!(
+            resolution.conflict_kind,
+            Some(GoogleDriveConflictKind::Relink)
+        );
+    }
+
+    // the user has answered; carrying out their choice is not the moment to ask
+    // again, and relinking is not settled by a direction anyway.
+    #[test]
+    fn a_chosen_direction_is_carried_out_even_against_a_different_workspace() {
+        let workspace = RemoteSyncWorkspace {
+            remote_workspace_id: Some("workspace-2".to_string()),
+            ..synced_workspace()
+        };
+
+        let resolution = analyze_sync_resolution(
+            &workspace,
+            Some(&manifest(1000)),
+            GoogleDriveSyncMode::Push,
+            &GoogleDriveHeadObservation::default(),
+        );
+
+        assert!(!resolution.requires_resolution);
+        assert_eq!(resolution.action, GoogleDriveSyncAction::Pushed);
     }
 
     #[test]

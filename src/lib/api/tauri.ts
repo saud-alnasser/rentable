@@ -146,6 +146,9 @@ export type GoogleDriveAccountUpdateInput = {
 
 export type GoogleDriveConflictKind = 'link' | 'sync' | 'corrupt' | 'relink';
 
+/** which side of a conflict the user chose. */
+export type GoogleDriveConflictResolution = 'local' | 'remote';
+
 /** which way a conflict is recommended to be settled. narrower than a sync mode: "decide for me" is not an answer to a conflict. */
 export type GoogleDriveRecommendedMode = 'push' | 'pull';
 
@@ -344,6 +347,19 @@ export const tauri = {
 			 */
 			sync: (input?: { manual?: boolean }) =>
 				invoke<GoogleDriveSyncOutcome>('remote_sync_google_drive_sync', { input }),
+			/**
+			 * ask what the remote holds for this workspace, and whether the two
+			 * sides can be reconciled without the user. resolves to `null` where
+			 * the workspace is not on Drive.
+			 */
+			inspect: () => invoke<GoogleDriveLinkPreparation | null>('remote_sync_google_drive_inspect'),
+			/**
+			 * settle the conflict the user was asked about, the way they chose.
+			 * `local` keeps this machine's copy, `remote` keeps the remote's. The
+			 * remote is read again, so answering twice settles the same way.
+			 */
+			resolveConflict: (input: { resolution: GoogleDriveConflictResolution }) =>
+				invoke<GoogleDriveSyncOutcome>('remote_sync_google_drive_resolve_conflict', { input }),
 			/** watch how far a link has got. resolves to its own removal. */
 			onLinkPhase: (listener: (phase: GoogleDriveLinkPhase) => void) =>
 				listen<GoogleDriveLinkPhase>(GOOGLE_DRIVE_LINK_PHASE_EVENT, (event) =>

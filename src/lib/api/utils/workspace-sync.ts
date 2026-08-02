@@ -7,7 +7,6 @@ import {
 	type RemoteSyncWorkspace
 } from '$lib/api/tauri';
 import { enqueueGoogleDriveOperation } from '$lib/api/utils/google-drive-operation-queue';
-import { inspectGoogleDriveSyncState } from '$lib/api/utils/remote-sync-google-drive';
 
 export type WorkspaceSyncAction = GoogleDriveSyncAction | 'autosaved';
 
@@ -37,13 +36,21 @@ export function shouldDeferWorkspaceConflict(preparation?: GoogleDriveLinkPrepar
 	return kind === 'sync' || kind === 'corrupt' || kind === 'relink';
 }
 
+/**
+ * ask what the remote holds, and whether the two sides can be reconciled without
+ * the user. `null` where the workspace is not on a remote that can diverge.
+ *
+ * The reading is Rust's and the argument is not passed on: what the remote holds
+ * is read there, against the state it holds there, so a caller cannot ask about
+ * a workspace the application is no longer on.
+ */
 export async function inspectWorkspaceSyncState(syncState: RemoteSyncState) {
 	const workspace = getWorkspaceFromSyncState(syncState);
 	if (workspace?.provider !== 'googleDrive' || !syncState.googleDriveReady) {
 		return null;
 	}
 
-	return await inspectGoogleDriveSyncState(syncState);
+	return await tauri.remoteSync.googleDrive.inspect();
 }
 
 /**

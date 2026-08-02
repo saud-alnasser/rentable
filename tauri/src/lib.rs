@@ -177,6 +177,8 @@ pub fn run() {
             sync::remote_sync_google_drive_cancel_link_attempt,
             sync::remote_sync_google_drive_unlink,
             sync::remote_sync_google_drive_sync,
+            sync::remote_sync_google_drive_inspect,
+            sync::remote_sync_google_drive_resolve_conflict,
             sync::remote_sync_google_drive_get_account_auth,
             sync::remote_sync_google_drive_update_account,
             sync::remote_sync_google_drive_disconnect_account,
