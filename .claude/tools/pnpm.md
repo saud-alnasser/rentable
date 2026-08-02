@@ -48,8 +48,18 @@ than `pnpm lint`, to avoid checking formatting twice.
 ## Regenerate i18n types
 
 ```bash
-pnpm i18n
+pnpm i18n              # watcher — does not exit
+pnpm i18n --no-watch   # one-shot: regenerate and return
 ```
 
-A **watcher**, not a one-shot — it does not exit. The type definitions and utility files
-under `src/lib/i18n/` are its output; edit the locale files and let it regenerate.
+The type definitions and utility files under `src/lib/i18n/` are the output; edit the
+locale files under `en/` and `ar/`, then regenerate. Use the watcher while working, and
+`--no-watch` anywhere something has to wait for it to finish — pnpm forwards the flag to
+`typesafe-i18n`, verified on 5.27.1.
+
+**Regenerate before typechecking.** `TranslationFunctions` is generated, so a key that
+exists in `en/index.ts` does not exist on the type until the generator has run.
+
+Regenerating rewrites the whole of `src/lib/i18n/i18n-types.ts`, so it also picks up any
+locale edit made since the last run. Expect hunks you did not author, and disclose them
+rather than reverting them — the generated file was stale, not your diff wrong.
