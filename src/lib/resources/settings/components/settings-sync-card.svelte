@@ -5,7 +5,12 @@
 		RemoteSyncState,
 		RemoteSyncWorkspace
 	} from '$lib/api/tauri';
-	import type { GoogleDriveLinkConflict } from '$lib/api/utils/remote-sync-google-drive';
+	import type {
+		GoogleDriveLinkConflict,
+		GoogleDriveLinkPreparation,
+		GoogleDriveLinkResolution
+	} from '$lib/api/utils/remote-sync-google-drive';
+	import { shouldDeferWorkspaceConflict } from '$lib/api/utils/workspace-sync';
 	import {
 		AlertDialog,
 		AlertDialogAction,
@@ -28,54 +33,87 @@
 	} from '$lib/common/components/fragments/card';
 	import { formatLocaleDate } from '$lib/common/utils/locale';
 	import { cn } from '$lib/common/utils/tailwind.js';
+	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import {
+		keys,
+		useCancelGoogleDriveLink,
+		useCreateWorkspaceSnapshot,
+		useInspectWorkspaceSyncState,
+		useResetBrokenGoogleDriveWorkspace,
+		useResolveGoogleDriveLink,
+		useSyncGoogleDriveWorkspace,
+		useUnlinkGoogleDriveWorkspace,
+		type SyncGoogleDriveWorkspaceResult
+	} from '$lib/resources/settings/hooks/queries';
 	import GoogleDriveLinkConflictPanel from '$lib/resources/sync/components/google-drive-link-conflict-panel.svelte';
+	import { LinkSession } from '$lib/resources/sync/link-session.svelte';
 	import HardDriveIcon from '@lucide/svelte/icons/hard-drive';
 	import LinkIcon from '@lucide/svelte/icons/link';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import UnlinkIcon from '@lucide/svelte/icons/unlink';
+	import { useQueryClient } from '@tanstack/svelte-query';
+	import { onDestroy } from 'svelte';
 
-	let {
-		syncState,
-		isSnapshotPending,
-		isSyncingGoogleDrive,
-		isLinkingGoogleDrive,
-		isFinalizingGoogleDriveLink,
-		isResolvingLinkConflict,
-		isUnlinkingGoogleDrive,
-		linkConflict,
-		disconnectingGoogleDriveAccountId,
-		onSnapshotNow,
-		onSyncGoogleDrive,
-		onLinkGoogleDrive,
-		onLinkKeepLocal,
-		onLinkUseRemote,
-		onRelinkGoogleDrive,
-		onCancelLinkConflict,
-		onDisconnectGoogleDrive
-	}: {
-		syncState: RemoteSyncState;
-		isSnapshotPending: boolean;
-		isSyncingGoogleDrive: boolean;
-		isLinkingGoogleDrive: boolean;
-		isFinalizingGoogleDriveLink: boolean;
-		isResolvingLinkConflict: boolean;
-		isUnlinkingGoogleDrive: boolean;
-		linkConflict: GoogleDriveLinkConflict | null;
-		disconnectingGoogleDriveAccountId: string | null;
-		onSnapshotNow: () => void;
-		onSyncGoogleDrive: () => void;
-		onLinkGoogleDrive: () => void;
-		onLinkKeepLocal: () => void;
-		onLinkUseRemote: () => void;
-		onRelinkGoogleDrive: () => void;
-		onCancelLinkConflict: () => void;
-		onDisconnectGoogleDrive: () => void;
-	} = $props();
+	let { syncState }: { syncState: RemoteSyncState } = $props();
 
+	const queryClient = useQueryClient();
+	const createWorkspaceSnapshotMutation = useCreateWorkspaceSnapshot();
+	const resolveGoogleDriveLinkMutation = useResolveGoogleDriveLink();
+	const cancelGoogleDriveLinkMutation = useCancelGoogleDriveLink();
+	const syncGoogleDriveWorkspaceMutation = useSyncGoogleDriveWorkspace('sync');
+	const unlinkGoogleDriveWorkspaceMutation = useUnlinkGoogleDriveWorkspace();
+	const inspectWorkspaceSyncStateMutation = useInspectWorkspaceSyncState();
+	const resetBrokenGoogleDriveWorkspaceMutation = useResetBrokenGoogleDriveWorkspace();
 	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
 	const settingsInsetPanelClass =
 		'rounded-[1.25rem] border border-border/70 bg-background/60 p-4 text-start shadow-sm backdrop-blur-md';
+
+	let disconnectingGoogleDriveAccountId = $state<string | null>(null);
+	let pendingGoogleDriveLink = $state<GoogleDriveLinkPreparation | null>(null);
+	let isRunningManualGoogleDriveSync = $state(false);
+	const linkSession = new LinkSession({
+		onState: (state) => {
+			queryClient.setQueryData(keys.remoteSync, state);
+		},
+		onResolutionRequired: (preparation) => {
+			pendingGoogleDriveLink = preparation;
+		},
+		resolve: async (preparation) => {
+			await resolveGoogleDriveLinkMutation.mutateAsync({
+				preparation,
+				resolution: preparation.recommendedMode
+			});
+			pendingGoogleDriveLink = null;
+		},
+		onFailure: async (error) => {
+			await queryClient.invalidateQueries({ queryKey: keys.remoteSync });
+			showErrorToast(error, $LL);
+		},
+		onCancelled: async () => {
+			await queryClient.invalidateQueries({ queryKey: keys.remoteSync });
+		}
+	});
+
+	// deliberately not reactive: the inspection effect both reads and writes
+	// these, so making them reactive would make it re-run itself.
+	let lastDismissedSyncConflictSignature: string | null = null;
+	let lastInspectedGoogleDriveSignature: string | null = null;
+	let googleDriveInspectionRun = 0;
+
+	const isSnapshotPending = $derived(createWorkspaceSnapshotMutation.isPending);
+	const isLinkingGoogleDrive = $derived(linkSession.isLinking);
+	const isFinalizingGoogleDriveLink = $derived(linkSession.isFinalizing);
+	const isUnlinkingGoogleDrive = $derived(unlinkGoogleDriveWorkspaceMutation.isPending);
+	const linkConflict = $derived<GoogleDriveLinkConflict | null>(
+		pendingGoogleDriveLink?.conflict ?? null
+	);
+	const isResolvingLinkConflict = $derived.by(
+		() => resolveGoogleDriveLinkMutation.isPending || cancelGoogleDriveLinkMutation.isPending
+	);
+	const isSyncingGoogleDrive = $derived.by(
+		() => syncGoogleDriveWorkspaceMutation.isPending || isRunningManualGoogleDriveSync
+	);
 
 	const activeWorkspace = $derived.by(() => syncState.workspace);
 	const accountsById = $derived.by(
@@ -93,6 +131,203 @@
 	);
 	const isGoogleDriveUnavailable = $derived.by(() => !syncState.googleDriveReady);
 	let isUnlinkDialogOpen = $state(false);
+
+	function getGoogleDriveInspectionSignature() {
+		if (activeWorkspace.provider !== 'googleDrive') {
+			return null;
+		}
+
+		return [
+			activeWorkspace.id,
+			activeWorkspace.accountId ?? '',
+			activeAccount?.status ?? '',
+			activeAccount?.lastError ?? '',
+			activeWorkspace.lastSnapshotAt ?? '',
+			activeWorkspace.lastSyncedAt ?? '',
+			activeWorkspace.lastRemoteUpdatedAt ?? '',
+			activeWorkspace.remoteHeadFileId ?? '',
+			activeWorkspace.remoteHeadRevision ?? ''
+		].join(':');
+	}
+
+	$effect(() => {
+		if (activeWorkspace.provider !== 'googleDrive') {
+			pendingGoogleDriveLink = null;
+			lastDismissedSyncConflictSignature = null;
+			lastInspectedGoogleDriveSignature = null;
+		}
+	});
+
+	$effect(() => {
+		const inspectionSignature = getGoogleDriveInspectionSignature();
+
+		if (!inspectionSignature) {
+			return;
+		}
+
+		if (
+			linkSession.session !== null ||
+			resolveGoogleDriveLinkMutation.isPending ||
+			cancelGoogleDriveLinkMutation.isPending ||
+			syncGoogleDriveWorkspaceMutation.isPending ||
+			unlinkGoogleDriveWorkspaceMutation.isPending
+		) {
+			return;
+		}
+
+		if (pendingGoogleDriveLink?.conflict?.kind === 'link') {
+			lastInspectedGoogleDriveSignature = inspectionSignature;
+			return;
+		}
+
+		if (
+			inspectionSignature === lastInspectedGoogleDriveSignature ||
+			inspectionSignature === lastDismissedSyncConflictSignature
+		) {
+			return;
+		}
+
+		lastInspectedGoogleDriveSignature = inspectionSignature;
+		const runId = ++googleDriveInspectionRun;
+
+		void (async () => {
+			try {
+				const preparation = await inspectWorkspaceSyncStateMutation.mutateAsync(syncState);
+
+				if (runId !== googleDriveInspectionRun) {
+					return;
+				}
+
+				pendingGoogleDriveLink = preparation?.requiresResolution ? preparation : null;
+			} catch {
+				if (runId !== googleDriveInspectionRun) {
+					return;
+				}
+			}
+		})();
+	});
+
+	onDestroy(() => {
+		void linkSession.cancel();
+	});
+
+	async function snapshotNow() {
+		try {
+			await createWorkspaceSnapshotMutation.mutateAsync();
+		} catch {
+			/* ignore */
+		}
+	}
+
+	async function syncGoogleDriveNow() {
+		if (activeWorkspace.provider !== 'googleDrive' || isRunningManualGoogleDriveSync) {
+			return;
+		}
+
+		isRunningManualGoogleDriveSync = true;
+
+		try {
+			const result = (await syncGoogleDriveWorkspaceMutation.mutateAsync({
+				manual: true
+			})) as SyncGoogleDriveWorkspaceResult;
+			pendingGoogleDriveLink = 'preparation' in result ? result.preparation : null;
+		} catch {
+			/* ignore */
+		} finally {
+			isRunningManualGoogleDriveSync = false;
+		}
+	}
+
+	async function linkGoogleDrive() {
+		if (linkSession.isFinalizing) {
+			return;
+		}
+
+		if (linkSession.session) {
+			await linkSession.cancel();
+			return;
+		}
+
+		try {
+			lastDismissedSyncConflictSignature = null;
+			pendingGoogleDriveLink = null;
+			await linkSession.begin();
+		} catch (error) {
+			showErrorToast(error, $LL);
+		}
+	}
+
+	async function resolvePendingGoogleDriveLink(resolution: GoogleDriveLinkResolution) {
+		if (!pendingGoogleDriveLink) {
+			return;
+		}
+
+		try {
+			lastDismissedSyncConflictSignature = null;
+			await resolveGoogleDriveLinkMutation.mutateAsync({
+				preparation: pendingGoogleDriveLink,
+				resolution
+			});
+			pendingGoogleDriveLink = null;
+		} catch {
+			/* ignore */
+		}
+	}
+
+	async function cancelPendingGoogleDriveLink() {
+		if (linkSession.isFinalizing) {
+			return;
+		}
+
+		if (linkSession.session) {
+			await linkSession.cancel();
+			return;
+		}
+
+		if (!pendingGoogleDriveLink) {
+			return;
+		}
+
+		try {
+			if (shouldDeferWorkspaceConflict(pendingGoogleDriveLink)) {
+				lastDismissedSyncConflictSignature = getGoogleDriveInspectionSignature();
+				pendingGoogleDriveLink = null;
+				return;
+			}
+
+			await cancelGoogleDriveLinkMutation.mutateAsync({ preparation: pendingGoogleDriveLink });
+			pendingGoogleDriveLink = null;
+		} catch {
+			/* ignore */
+		}
+	}
+
+	async function relinkBrokenGoogleDrive() {
+		if (pendingGoogleDriveLink?.conflict?.kind !== 'relink' || linkSession.isFinalizing) {
+			return;
+		}
+
+		try {
+			lastDismissedSyncConflictSignature = null;
+			await resetBrokenGoogleDriveWorkspaceMutation.mutateAsync(pendingGoogleDriveLink.state);
+			pendingGoogleDriveLink = null;
+			await linkSession.begin();
+		} catch (error) {
+			showErrorToast(error, $LL);
+		}
+	}
+
+	async function unlinkGoogleDriveWorkspace() {
+		disconnectingGoogleDriveAccountId = activeWorkspace.accountId ?? null;
+
+		try {
+			await unlinkGoogleDriveWorkspaceMutation.mutateAsync();
+		} catch {
+			/* ignore */
+		}
+
+		disconnectingGoogleDriveAccountId = null;
+	}
 
 	function formatTimestamp(value: number | null | undefined) {
 		if (!value) {
@@ -247,7 +482,7 @@
 				<div class="mt-3">
 					<Button
 						variant="outline"
-						onclick={onLinkGoogleDrive}
+						onclick={() => void linkGoogleDrive()}
 						disabled={isResolvingLinkConflict || isFinalizingGoogleDriveLink}
 					>
 						{isFinalizingGoogleDriveLink
@@ -365,7 +600,7 @@
 							</div>
 							<div class="grid gap-2 sm:grid-cols-2">
 								<Button
-									onclick={onSyncGoogleDrive}
+									onclick={() => void syncGoogleDriveNow()}
 									disabled={isSyncingGoogleDrive || isGoogleDriveBusy}
 								>
 									<RefreshCwIcon class="size-4" />
@@ -390,12 +625,15 @@
 						{:else}
 							<p class="text-sm text-muted-foreground">{$LL.settings.syncLinkDescription()}</p>
 							<div class="grid gap-2 sm:grid-cols-2">
-								<Button onclick={onSnapshotNow} disabled={isSnapshotPending || isGoogleDriveBusy}>
+								<Button
+									onclick={() => void snapshotNow()}
+									disabled={isSnapshotPending || isGoogleDriveBusy}
+								>
 									<HardDriveIcon class="size-4" />
 									{isSnapshotPending ? $LL.common.actions.creating() : $LL.settings.snapshotNow()}
 								</Button>
 								<Button
-									onclick={onLinkGoogleDrive}
+									onclick={() => void linkGoogleDrive()}
 									disabled={isResolvingLinkConflict ||
 										isFinalizingGoogleDriveLink ||
 										isGoogleDriveUnavailable}
@@ -418,10 +656,10 @@
 						conflict={linkConflict}
 						isWorking={isGoogleDriveBusy}
 						showCancel={linkConflict.kind === 'link'}
-						onCancel={onCancelLinkConflict}
-						onKeepLocal={onLinkKeepLocal}
-						onUseRemote={onLinkUseRemote}
-						onRelink={onRelinkGoogleDrive}
+						onCancel={() => void cancelPendingGoogleDriveLink()}
+						onKeepLocal={() => void resolvePendingGoogleDriveLink('local')}
+						onUseRemote={() => void resolvePendingGoogleDriveLink('remote')}
+						onRelink={() => void relinkBrokenGoogleDrive()}
 					/>
 				{/if}
 
@@ -447,7 +685,7 @@
 								disabled={isGoogleDriveBusy}
 								onclick={() => {
 									isUnlinkDialogOpen = false;
-									onDisconnectGoogleDrive();
+									void unlinkGoogleDriveWorkspace();
 								}}
 							>
 								{$LL.common.actions.unlink()}

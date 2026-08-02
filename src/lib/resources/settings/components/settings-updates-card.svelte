@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { type AvailableUpdate } from '$lib/api/tauri';
+	import { type AvailableUpdate, type UpdaterDownloadEvent } from '$lib/api/tauri';
 	import { Button } from '$lib/common/components/fragments/button';
 	import { Callout } from '$lib/common/components/fragments/callout';
 	import {
@@ -11,43 +11,149 @@
 	} from '$lib/common/components/fragments/card';
 	import { formatLocaleDate } from '$lib/common/utils/locale';
 	import { cn } from '$lib/common/utils/tailwind.js';
+	import { recordDiagnosticError } from '$lib/diagnostics/record';
+	import { toErrorDetail, toErrorText } from '$lib/error/message';
+	import { toTauriErrorCode } from '$lib/error/tauri';
+	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import {
+		useCheckForUpdate,
+		usePrepareUpdate,
+		useRestartApp
+	} from '$lib/resources/settings/hooks/queries';
+	import { onDestroy } from 'svelte';
 
-	let {
-		version,
-		isCheckingForUpdate,
-		isInstallingUpdate,
-		hasCheckedForUpdate,
-		availableUpdate,
-		updateCheckError,
-		updateInstallError,
-		updateInstallComplete,
-		updateDownloadedBytes,
-		updateContentLength,
-		updateProgressPercent,
-		onCheckForUpdates,
-		onInstallUpdate,
-		onRestartApp
-	}: {
-		version: string;
-		isCheckingForUpdate: boolean;
-		isInstallingUpdate: boolean;
-		hasCheckedForUpdate: boolean;
-		availableUpdate: AvailableUpdate | null;
-		updateCheckError: string | null;
-		updateInstallError: string | null;
-		updateInstallComplete: boolean;
-		updateDownloadedBytes: number;
-		updateContentLength: number | null;
-		updateProgressPercent: number | null;
-		onCheckForUpdates: () => void;
-		onInstallUpdate: () => void;
-		onRestartApp: () => void;
-	} = $props();
+	let { version }: { version: string } = $props();
 
+	const checkForUpdateMutation = useCheckForUpdate();
+	const prepareUpdateMutation = usePrepareUpdate();
+	const restartAppMutation = useRestartApp();
 	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
 	const settingsSubtlePanelClass =
 		'rounded-xl border border-primary/10 bg-accent/35 p-3 text-start backdrop-blur-sm';
+
+	let isCheckingForUpdate = $state(false);
+	let hasCheckedForUpdate = $state(false);
+	let availableUpdate = $state<AvailableUpdate | null>(null);
+	let updateCheckError = $state<string | null>(null);
+	let isInstallingUpdate = $state(false);
+	let updateInstallError = $state<string | null>(null);
+	let updateInstallComplete = $state(false);
+	let updateDownloadedBytes = $state(0);
+	let updateContentLength = $state<number | null>(null);
+
+	const updateProgressPercent = $derived.by(() => {
+		if (!updateContentLength || updateContentLength <= 0) {
+			return null;
+		}
+
+		return Math.min(100, Math.round((updateDownloadedBytes / updateContentLength) * 100));
+	});
+
+	onDestroy(() => {
+		if (availableUpdate) {
+			void availableUpdate.close();
+		}
+	});
+
+	function logUpdaterError(action: string, error: unknown) {
+		recordDiagnosticError('update.failed', {
+			action,
+			code: toTauriErrorCode(error),
+			error: toErrorDetail(error)
+		});
+	}
+
+	async function closeAvailableUpdate() {
+		if (!availableUpdate) {
+			return;
+		}
+
+		try {
+			await availableUpdate.close();
+		} catch {
+			/* ignore */
+		}
+	}
+
+	async function checkForUpdates() {
+		if (isCheckingForUpdate || isInstallingUpdate) {
+			return;
+		}
+
+		isCheckingForUpdate = true;
+		updateCheckError = null;
+		updateInstallError = null;
+		updateInstallComplete = false;
+		updateDownloadedBytes = 0;
+		updateContentLength = null;
+
+		try {
+			const update = await checkForUpdateMutation.mutateAsync();
+
+			await closeAvailableUpdate();
+			availableUpdate = update;
+			hasCheckedForUpdate = true;
+		} catch (error) {
+			logUpdaterError('check for updates', error);
+			updateCheckError = toErrorText(error, $LL);
+			hasCheckedForUpdate = true;
+		}
+
+		isCheckingForUpdate = false;
+	}
+
+	async function installUpdate() {
+		const update = availableUpdate;
+
+		if (!update || isInstallingUpdate) {
+			return;
+		}
+
+		isInstallingUpdate = true;
+		updateInstallError = null;
+		updateInstallComplete = false;
+		updateDownloadedBytes = 0;
+		updateContentLength = null;
+
+		try {
+			await prepareUpdateMutation.mutateAsync({ targetVersion: update.version });
+
+			await update.downloadAndInstall((event: UpdaterDownloadEvent) => {
+				switch (event.event) {
+					case 'Started':
+						updateContentLength = event.data.contentLength ?? null;
+						updateDownloadedBytes = 0;
+						break;
+					case 'Progress':
+						updateDownloadedBytes += event.data.chunkLength;
+						break;
+					case 'Finished':
+						if (updateContentLength) {
+							updateDownloadedBytes = updateContentLength;
+						}
+						break;
+				}
+			});
+
+			updateInstallComplete = true;
+			availableUpdate = null;
+			await update.close();
+		} catch (error) {
+			logUpdaterError('install update', error);
+			updateInstallError = toErrorText(error, $LL);
+		}
+
+		isInstallingUpdate = false;
+	}
+
+	async function restartApp() {
+		try {
+			await restartAppMutation.mutateAsync();
+		} catch (error) {
+			showErrorToast(error, $LL);
+		}
+	}
 
 	function formatReleaseDate(value: string | null | undefined) {
 		if (!value) {
@@ -96,14 +202,20 @@
 		</div>
 
 		<div class="flex flex-wrap gap-3">
-			<Button onclick={onCheckForUpdates} disabled={isCheckingForUpdate || isInstallingUpdate}>
+			<Button
+				onclick={() => void checkForUpdates()}
+				disabled={isCheckingForUpdate || isInstallingUpdate}
+			>
 				{isCheckingForUpdate
 					? $LL.common.actions.checkingForUpdates()
 					: $LL.common.actions.checkForUpdates()}
 			</Button>
 
 			{#if availableUpdate}
-				<Button onclick={onInstallUpdate} disabled={isInstallingUpdate || isCheckingForUpdate}>
+				<Button
+					onclick={() => void installUpdate()}
+					disabled={isInstallingUpdate || isCheckingForUpdate}
+				>
 					{isInstallingUpdate
 						? $LL.common.actions.installingUpdate()
 						: $LL.common.actions.downloadAndInstall()}
@@ -180,7 +292,7 @@
 
 		{#if updateInstallComplete}
 			<Callout variant="success">{$LL.settings.restartNotice()}</Callout>
-			<Button onclick={onRestartApp}>{$LL.common.actions.restartApp()}</Button>
+			<Button onclick={() => void restartApp()}>{$LL.common.actions.restartApp()}</Button>
 		{/if}
 	</CardContent>
 </Card>
