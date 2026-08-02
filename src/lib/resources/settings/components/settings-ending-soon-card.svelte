@@ -12,28 +12,50 @@
 	import { Label } from '$lib/common/components/fragments/label';
 	import { cn } from '$lib/common/utils/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { useSetEndingSoonNoticeDays } from '$lib/resources/settings/hooks/queries';
+	import { toast } from 'svelte-sonner';
 
 	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
 
-	let {
-		settings,
-		value = $bindable(),
-		isPending,
-		hasChange,
-		onSave
-	}: {
-		settings: AppSettings;
-		value: number | '';
-		isPending: boolean;
-		hasChange: boolean;
-		onSave: () => void;
-	} = $props();
+	let { settings }: { settings: AppSettings } = $props();
 
+	const setEndingSoonNoticeDaysMutation = useSetEndingSoonNoticeDays();
 	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
 	const settingsInsetPanelClass =
 		'rounded-[1.25rem] border border-border/70 bg-background/60 p-4 text-start shadow-sm backdrop-blur-md';
 	const formatNoticeWindow = (days: number) =>
 		days === 1 ? $LL.common.time.day({ count: days }) : $LL.common.time.days({ count: days });
+
+	let value = $state<number | ''>('');
+
+	const isPending = $derived(setEndingSoonNoticeDaysMutation.isPending);
+	const enteredValue = $derived(typeof value === 'number' ? String(value) : value.trim());
+	const hasChange = $derived(enteredValue !== String(settings.endingSoonNoticeDays));
+
+	$effect(() => {
+		const savedValue = settings.endingSoonNoticeDays;
+
+		if (setEndingSoonNoticeDaysMutation.isPending) {
+			return;
+		}
+
+		value = savedValue;
+	});
+
+	async function save() {
+		const days = Number(value);
+
+		if (!Number.isInteger(days) || days <= 0) {
+			toast.error($LL.settings.endingSoonInvalid());
+			return;
+		}
+
+		try {
+			await setEndingSoonNoticeDaysMutation.mutateAsync({ days });
+		} catch {
+			/* ignore */
+		}
+	}
 </script>
 
 <Card class={settingsCardClass}>
@@ -59,7 +81,7 @@
 		</div>
 
 		<div class="flex justify-end">
-			<Button onclick={onSave} disabled={isPending || !hasChange}>
+			<Button onclick={() => void save()} disabled={isPending || !hasChange}>
 				{isPending ? $LL.common.actions.saving() : $LL.common.actions.saveWindow()}
 			</Button>
 		</div>

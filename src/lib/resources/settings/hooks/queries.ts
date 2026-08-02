@@ -1,7 +1,9 @@
 import api from '$lib/api/mod';
+import { tauri, type RemoteSyncState } from '$lib/api/tauri';
 import {
 	cancelGoogleDriveLink,
 	prepareGoogleDriveLink,
+	resetBrokenGoogleDriveWorkspace,
 	resolveGoogleDriveLink,
 	syncActiveGoogleDriveProfile,
 	unlinkActiveGoogleDriveWorkspace,
@@ -11,6 +13,8 @@ import {
 	type GoogleDriveSyncResult
 } from '$lib/api/utils/remote-sync-google-drive';
 import {
+	inspectWorkspaceSyncState,
+	syncWorkspaceBeforeExit,
 	syncWorkspaceRemoteNow,
 	type WorkspaceRemoteSyncResult
 } from '$lib/api/utils/workspace-sync';
@@ -184,6 +188,71 @@ export function useCreateWorkspaceSnapshot(
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** ask the updater whether a newer release exists. resolves to `null` when none does. */
+export function useCheckForUpdate(opts: MutationOptions = {}) {
+	return createMutation(() => ({
+		mutationFn: () => tauri.update.check(),
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e: Error) => onMutationError(opts, e)
+	}));
+}
+
+/** put the workspace in a state an installer may replace the binary from. */
+export function usePrepareUpdate(opts: MutationOptions = {}) {
+	return createMutation(() => ({
+		mutationFn: ({ targetVersion }: { targetVersion: string }) =>
+			api.app.update.prepare({ targetVersion }),
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e: Error) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * push the workspace to the remote, then restart.
+ *
+ * the push reads the remote state already in the cache rather than subscribing
+ * to it: a caller that only restarts should not hold a live query open for the
+ * whole time it is on screen.
+ */
+export function useRestartApp(opts: MutationOptions = {}) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: async () => {
+			await syncWorkspaceBeforeExit(client.getQueryData<RemoteSyncState>(keys.remoteSync));
+			await tauri.window.restart();
+		},
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e: Error) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * ask whether the workspace and its remote have diverged. resolves to `null`
+ * when the workspace is not on a remote that can diverge.
+ */
+export function useInspectWorkspaceSyncState(opts: MutationOptions = {}) {
+	return createMutation(() => ({
+		mutationFn: (syncState: RemoteSyncState) => inspectWorkspaceSyncState(syncState),
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e: Error) => onMutationError(opts, e)
+	}));
+}
+
+/** clear a workspace whose remote link no longer works, so it can be linked again. */
+export function useResetBrokenGoogleDriveWorkspace(opts: MutationOptions = {}) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: (state: RemoteSyncState) => resetBrokenGoogleDriveWorkspace(state),
+		onSuccess: (nextState) => {
+			client.setQueryData(keys.remoteSync, nextState);
+			onMutationSuccess(opts);
+		},
+		onError: (e: Error) => onMutationError(opts, e)
 	}));
 }
 
