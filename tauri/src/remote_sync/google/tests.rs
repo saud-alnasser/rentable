@@ -26,9 +26,10 @@ use super::{
     },
     manifest::{
         GoogleDriveManifest, GoogleDriveManifestEntry, GoogleDriveManifestEntryOverrides,
-        GoogleDriveManifestMetadata, build_manifest_entry_from_drive_file,
-        compare_manifest_entries_newest_first, is_canonical_snapshot_filename,
-        is_tracked_manifest_file_for_folder, normalize_google_drive_manifest,
+        GoogleDriveManifestMetadata, build_google_drive_manifest_from_snapshots,
+        build_manifest_entry_from_drive_file, compare_manifest_entries_newest_first,
+        is_canonical_snapshot_filename, is_tracked_manifest_file_for_folder,
+        normalize_google_drive_manifest,
     },
     retention::{choose_retained_workspace_snapshots, compare_drive_files_by_snapshot_recency},
     transport::{
@@ -521,6 +522,100 @@ fn a_drive_file_with_no_source_cannot_become_a_manifest_entry() {
     );
 
     assert!(matches!(result, Err(Error::Integrity { .. })));
+}
+
+#[test]
+fn a_manifest_built_from_snapshots_heads_the_newest_and_lists_every_retained_one() {
+    let newest = snapshot("file-new", "manual", 3_000);
+    let older = snapshot("file-old", "autosave", 1_000);
+    let retained = choose_retained_workspace_snapshots(&[older, newest.clone()]);
+
+    let built = build_google_drive_manifest_from_snapshots(
+        "workspace-1",
+        "Primary workspace",
+        &retained,
+        &newest,
+        &GoogleDriveManifestEntryOverrides::default(),
+        None,
+        7_000,
+    )
+    .expect("the manifest should build");
+
+    assert_eq!(built.head.file_id, "file-new");
+    assert_eq!(built.head.source, GoogleDriveSnapshotSource::Manual);
+    assert_eq!(
+        built
+            .entries
+            .iter()
+            .map(|entry| entry.file_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["file-new", "file-old"]
+    );
+    assert_eq!(
+        built.metadata,
+        GoogleDriveManifestMetadata {
+            version: 1,
+            provider: "googleDrive".to_string(),
+            workspace_id: "workspace-1".to_string(),
+            workspace_name: "Primary workspace".to_string(),
+            updated_at: 7_000,
+        }
+    );
+}
+
+#[test]
+fn a_rebuild_keeps_what_only_the_previous_manifest_knew() {
+    let file = snapshot("file-1", "autosave", 2_000);
+    let retained = choose_retained_workspace_snapshots(&[file.clone()]);
+    let mut previous_entry = entry("file-1", 2_000);
+    previous_entry.app_version = "1.2.3".to_string();
+    previous_entry.md5_checksum = Some("recorded-before".to_string());
+    let previous = GoogleDriveManifest {
+        entries: vec![previous_entry.clone()],
+        head: previous_entry,
+        ..manifest(1_000)
+    };
+
+    let built = build_google_drive_manifest_from_snapshots(
+        "workspace-1",
+        "Primary workspace",
+        &retained,
+        &file,
+        &GoogleDriveManifestEntryOverrides::default(),
+        Some(&previous),
+        7_000,
+    )
+    .expect("the manifest should build");
+
+    // a rebuild reads a folder listing, and a listing says nothing about the
+    // version that wrote a snapshot or the checksum Drive computed for it. The
+    // index is derived from the snapshots, so what it knew and they do not say
+    // is carried rather than reset to a default.
+    assert_eq!(built.head.app_version, "1.2.3");
+    assert_eq!(built.head.md5_checksum, Some("recorded-before".to_string()));
+}
+
+#[test]
+fn a_rebuild_of_a_folder_holding_one_snapshot_heads_it_even_where_it_was_not_retained() {
+    let head_file = snapshot("file-1", "autosave", 2_000);
+
+    let built = build_google_drive_manifest_from_snapshots(
+        "workspace-1",
+        "Primary workspace",
+        &[],
+        &head_file,
+        &GoogleDriveManifestEntryOverrides::default(),
+        None,
+        7_000,
+    )
+    .expect("the manifest should build");
+
+    // a manifest has to name a head, so the file the caller nominated is the
+    // answer wherever the retained set produced none. Without this the index
+    // would have to be absent rather than empty, and every reader would carry a
+    // second case for it.
+    assert_eq!(built.head.file_id, "file-1");
+    assert_eq!(built.entries, vec![built.head.clone()]);
 }
 
 #[test]
@@ -2579,10 +2674,13 @@ async fn a_tracked_manifest_belonging_to_another_folder_is_not_this_folders_mani
 }
 
 #[tokio::test]
-async fn content_that_is_not_a_manifest_resolves_to_the_file_alone() {
+async fn content_that_is_not_a_manifest_and_no_snapshots_to_rebuild_from_resolves_to_the_file_alone()
+ {
     let server = TestDriveServer::start(vec![
         listing(vec![json!({ "id": "manifest-1", "name": "manifest.json" })]),
         ScriptedResponse::new(200, b"not json at all".to_vec()),
+        listing(vec![]),
+        listing(vec![]),
     ])
     .await;
 
@@ -2600,8 +2698,9 @@ async fn content_that_is_not_a_manifest_resolves_to_the_file_alone() {
 }
 
 #[tokio::test]
-async fn a_folder_holding_no_manifest_resolves_to_nothing() {
-    let server = TestDriveServer::start(vec![listing(vec![])]).await;
+async fn a_folder_holding_no_manifest_and_no_snapshots_resolves_to_nothing() {
+    let server =
+        TestDriveServer::start(vec![listing(vec![]), listing(vec![]), listing(vec![])]).await;
 
     let resolved = drive_files(&server)
         .resolve_manifest("token", &drive_workspace(), "folder-1")
@@ -2612,21 +2711,97 @@ async fn a_folder_holding_no_manifest_resolves_to_nothing() {
 }
 
 #[tokio::test]
+async fn a_folder_whose_manifest_is_gone_has_one_rebuilt_from_the_snapshots_present() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![]),
+        listing(vec![snapshot_json("snap-1", "snapshot-1.db", 5_000)]),
+        listing(vec![]),
+        ScriptedResponse::new(200, b"the snapshot bytes".to_vec()),
+        json_response(200, file_json("manifest-9", "manifest.json")),
+    ])
+    .await;
+
+    let resolved = drive_files(&server)
+        .resolve_manifest("token", &drive_workspace(), "folder-1")
+        .await
+        .expect("resolving the manifest failed")
+        .expect("no manifest was rebuilt");
+
+    assert_eq!(resolved.file.id, "manifest-9");
+    assert_eq!(
+        resolved
+            .manifest
+            .as_ref()
+            .map(|manifest| manifest.head.file_id.as_str()),
+        Some("snap-1")
+    );
+    assert_eq!(
+        resolved
+            .manifest
+            .and_then(|manifest| manifest.head.content_hash),
+        Some(content_hash_hex(b"the snapshot bytes")),
+        "the rebuilt head was not fingerprinted from the bytes actually there"
+    );
+
+    let write = server.request(4);
+
+    assert_eq!(write.method, "POST");
+    assert!(write.body_as_text().contains("\"parents\":[\"folder-1\"]"));
+}
+
+#[tokio::test]
+async fn a_manifest_that_cannot_be_read_is_rebuilt_over_rather_than_left_beside_a_new_one() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![json!({ "id": "manifest-1", "name": "manifest.json" })]),
+        ScriptedResponse::new(200, b"not json at all".to_vec()),
+        listing(vec![snapshot_json("snap-1", "snapshot-1.db", 5_000)]),
+        listing(vec![]),
+        ScriptedResponse::new(200, b"the snapshot bytes".to_vec()),
+        json_response(200, file_json("manifest-1", "manifest.json")),
+    ])
+    .await;
+
+    let resolved = drive_files(&server)
+        .resolve_manifest("token", &drive_workspace(), "folder-1")
+        .await
+        .expect("resolving the manifest failed")
+        .expect("no manifest was rebuilt");
+
+    assert_eq!(resolved.file.id, "manifest-1");
+
+    let write = server.request(5);
+
+    assert_eq!(write.method, "PATCH");
+    assert!(
+        write.target.contains("/files/manifest-1"),
+        "the rebuild was written somewhere other than the unreadable manifest: {}",
+        write.target
+    );
+}
+
+#[tokio::test]
 async fn saving_a_manifest_writes_it_into_the_folder_as_json() {
-    let server = TestDriveServer::start(vec![json_response(
-        200,
-        file_json("manifest-2", "manifest.json"),
-    )])
+    let server = TestDriveServer::start(vec![
+        listing(vec![]),
+        json_response(200, file_json("manifest-2", "manifest.json")),
+    ])
     .await;
 
     let saved = drive_files(&server)
-        .save_manifest("token", "folder-1", "workspace-1", &fixture_manifest())
+        .save_manifest(
+            "token",
+            &drive_workspace(),
+            "folder-1",
+            None,
+            &fixture_manifest(),
+        )
         .await
         .expect("the manifest was not saved");
 
-    assert_eq!(saved.id, "manifest-2");
+    assert_eq!(saved.file.id, "manifest-2");
+    assert!(!saved.was_rebuilt);
 
-    let body = server.request(0).body_as_text();
+    let body = server.request(1).body_as_text();
 
     assert!(body.contains("\"name\":\"manifest.json\""));
     assert!(body.contains("\"parents\":[\"folder-1\"]"));
@@ -2636,6 +2811,134 @@ async fn saving_a_manifest_writes_it_into_the_folder_as_json() {
         body.contains("\"fileId\": \"head-1\""),
         "the manifest itself never reached the body"
     );
+}
+
+#[tokio::test]
+async fn saving_a_manifest_twice_leaves_the_folder_holding_one() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![]),
+        json_response(200, file_json("manifest-1", "manifest.json")),
+        listing(vec![file_json("manifest-1", "manifest.json")]),
+        json_response(200, file_json("manifest-1", "manifest.json")),
+    ])
+    .await;
+    let files = drive_files(&server);
+    let workspace = drive_workspace();
+
+    let first = files
+        .save_manifest("token", &workspace, "folder-1", None, &fixture_manifest())
+        .await
+        .expect("the first save failed");
+    let second = files
+        .save_manifest(
+            "token",
+            &workspace,
+            "folder-1",
+            Some(&first.file),
+            &fixture_manifest(),
+        )
+        .await
+        .expect("the second save failed");
+
+    assert_eq!(second.file.id, first.file.id);
+    assert!(!second.was_rebuilt);
+
+    let rewrite = server.request(3);
+
+    // a create is a POST, and Drive answers one by adding a file rather than by
+    // replacing the one already there. Naming the file is the whole difference.
+    assert_eq!(rewrite.method, "PATCH");
+    assert!(
+        rewrite.target.contains("/files/manifest-1"),
+        "the second save did not name the first: {}",
+        rewrite.target
+    );
+    assert!(
+        !rewrite.body_as_text().contains("parents"),
+        "an update named a parent, which asks drive to move the file"
+    );
+}
+
+#[tokio::test]
+async fn a_manifest_another_client_replaced_is_rebuilt_and_the_write_still_succeeds() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![json!({
+            "id": "manifest-1",
+            "name": "manifest.json",
+            "version": "9",
+        })]),
+        listing(vec![snapshot_json("snap-2", "snapshot-2.db", 6_000)]),
+        listing(vec![]),
+        ScriptedResponse::new(200, b"the snapshot bytes".to_vec()),
+        json_response(200, file_json("manifest-1", "manifest.json")),
+    ])
+    .await;
+    let expected = DriveFile {
+        version: Some("3".to_string()),
+        ..drive_file("manifest-1")
+    };
+
+    let saved = drive_files(&server)
+        .save_manifest(
+            "token",
+            &drive_workspace(),
+            "folder-1",
+            Some(&expected),
+            &fixture_manifest(),
+        )
+        .await
+        .expect("a concurrent overwrite was reported as a failure");
+
+    // drive offers no compare-and-set, so refusing the write would trade a
+    // recoverable event for one the user has to act on. The snapshots are the
+    // source of truth and the index is derived from them, so it is rebuilt and
+    // the write goes through.
+    assert!(saved.was_rebuilt);
+    assert_eq!(saved.manifest.head.file_id, "snap-2");
+    assert_eq!(saved.file.id, "manifest-1");
+
+    // the index the caller was about to write is stale, not worthless: a folder
+    // listing does not say which version of this application wrote a snapshot,
+    // so a rebuild that ignored it would report "unknown" for something already
+    // recorded.
+    assert_eq!(saved.manifest.head.app_version, "1.0.0");
+}
+
+#[tokio::test]
+async fn a_rebuilt_manifest_is_the_one_the_builder_would_have_produced_from_the_same_files() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![]),
+        listing(vec![snapshot_json("snap-1", "snapshot-1.db", 5_000)]),
+        listing(vec![]),
+        ScriptedResponse::new(200, b"the snapshot bytes".to_vec()),
+        json_response(200, file_json("manifest-9", "manifest.json")),
+    ])
+    .await;
+
+    let rebuilt = drive_files(&server)
+        .resolve_manifest("token", &drive_workspace(), "folder-1")
+        .await
+        .expect("resolving the manifest failed")
+        .and_then(|resolved| resolved.manifest)
+        .expect("no manifest was rebuilt");
+
+    let mut file = snapshot("snap-1", "autosave", 5_000);
+    file.name = "snapshot-1.db".to_string();
+    let expected = build_google_drive_manifest_from_snapshots(
+        "workspace-1",
+        "Primary workspace",
+        &choose_retained_workspace_snapshots(&[file.clone()]),
+        &file,
+        &GoogleDriveManifestEntryOverrides {
+            content_hash: Some(content_hash_hex(b"the snapshot bytes")),
+            ..GoogleDriveManifestEntryOverrides::default()
+        },
+        None,
+        rebuilt.metadata.updated_at,
+    )
+    .expect("the comparison manifest should build");
+
+    assert_eq!(rebuilt, expected);
 }
 
 #[tokio::test]
