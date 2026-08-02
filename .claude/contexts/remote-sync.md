@@ -17,7 +17,9 @@ _sync_.
 
 **Manifest**:
 The index describing which snapshots exist and which one is current. Exists in a local form
-and a remote form, and the two are reconciled separately.
+and a remote form, and the two are reconciled separately. **Derived, never a source of
+truth** — the snapshots are, and a manifest that is lost or overwritten is rebuilt from the
+ones actually present (ADR 0005).
 
 **Manifest reconciliation**:
 Recomputing a manifest from the snapshot files actually present. The same operation the
@@ -73,5 +75,10 @@ save never evicts the copy taken before an update.
   two-line construction.
 - **Backup is local, sync is remote, and both produce snapshots.** A change to snapshot
   shape touches both — neither owns the format alone.
-- **A remote operation holds a lock.** Two clients writing one workspace is the failure
-  this domain exists to prevent, not an edge case to handle afterwards.
+- **A remote operation holds a lock, and that lock is in-process only.** It is a field on
+  the in-memory sync state: acquiring refuses while one is already held, releasing clears
+  it. So it serialises operations inside one running application and nothing more — it
+  does not coordinate two machines and does not survive a restart. Two clients writing one
+  workspace is the failure this domain exists to prevent and does **not** currently
+  prevent; the manifest's read-then-compare before a write is the only thing standing
+  there, and it has an open window between the check and the upload.

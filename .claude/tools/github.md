@@ -77,12 +77,14 @@ gh issue develop <number> --list                  # read-only: branches linked t
 
 ```
 gh api repos/{owner}/{repo}/issues/<parent>/sub_issues \
-  -f sub_issue_id=<id>                            # attach a child to the parent
+  -F sub_issue_id=<id>                            # attach a child to the parent
 gh api repos/{owner}/{repo}/issues/<parent>/sub_issues
                                                   # list the children
 ```
 
 **`sub_issue_id` is the issue's `id`, not its number**, and that is the mistake this entry exists to stop — passing `#42`'s number succeeds against some other issue entirely. Read the id first:
+
+**`-F`, never `-f`.** The endpoint types this field as an integer, and `-f` sends every value as a string: it fails with `Invalid property /sub_issue_id: "..." is not of type integer` (HTTP 422). Verified against gh 2.96.0.
 
 ```
 gh api repos/{owner}/{repo}/issues/<number> --jq .id
