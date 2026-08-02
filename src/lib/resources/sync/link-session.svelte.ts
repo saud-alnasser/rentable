@@ -1,18 +1,35 @@
-import {
-	cancelGoogleDrivePendingLinkSession,
-	finishGoogleDriveLinkSession,
-	isGoogleDriveLinkCancelledError,
-	startGoogleDriveLinkSession
-} from '$lib/api/utils/remote-sync-google-drive';
+import { tauri } from '$lib/api/tauri';
 
 import { LinkSessionFlow, type LinkSessionDriver, type LinkSessionHandlers } from './link-session';
+import {
+	cancelGoogleDriveLink,
+	isGoogleDriveLinkCancellation,
+	linkGoogleDriveWorkspace
+} from './link';
 
-/** the real Drive operations. Separate from the flow so the sequence stays testable. */
+/**
+ * the real link operation.
+ *
+ * The phase subscription is opened before the link and closed after it, because
+ * an event that arrives with nobody listening is the only way the interface can
+ * miss the moment the user answered the consent screen.
+ */
 const googleDriveLinkSessionDriver: LinkSessionDriver = {
-	start: startGoogleDriveLinkSession,
-	finish: finishGoogleDriveLinkSession,
-	cancel: cancelGoogleDrivePendingLinkSession,
-	isCancellation: isGoogleDriveLinkCancelledError
+	link: async (onAuthorized) => {
+		const unlisten = await tauri.remoteSync.googleDrive.onLinkPhase((phase) => {
+			if (phase === 'finalizing') {
+				onAuthorized();
+			}
+		});
+
+		try {
+			return await linkGoogleDriveWorkspace();
+		} finally {
+			unlisten();
+		}
+	},
+	cancel: () => cancelGoogleDriveLink().then(() => undefined),
+	isCancellation: isGoogleDriveLinkCancellation
 };
 
 /**
@@ -23,11 +40,11 @@ const googleDriveLinkSessionDriver: LinkSessionDriver = {
 export class LinkSession {
 	#flow: LinkSessionFlow;
 
-	session = $state.raw<LinkSessionFlow['session']>(null);
+	isAuthorizing = $state(false);
 	isFinalizing = $state(false);
 
 	/** true while authorization is outstanding or its result is being applied. */
-	isLinking = $derived(this.session !== null || this.isFinalizing);
+	isLinking = $derived(this.isAuthorizing || this.isFinalizing);
 
 	constructor(
 		handlers: LinkSessionHandlers,
@@ -36,7 +53,7 @@ export class LinkSession {
 		this.#flow = new LinkSessionFlow(driver, handlers);
 
 		this.#flow.observe(() => {
-			this.session = this.#flow.session;
+			this.isAuthorizing = this.#flow.isAuthorizing;
 			this.isFinalizing = this.#flow.isFinalizing;
 		});
 	}

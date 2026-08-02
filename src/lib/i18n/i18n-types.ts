@@ -241,6 +241,10 @@ type RootTranslation = {
 			 */
 			busy: string
 			/**
+			 * t​h​e​ ​o​p​e​r​a​t​i​o​n​ ​w​a​s​ ​c​a​n​c​e​l​l​e​d​.
+			 */
+			cancelled: string
+			/**
 			 * t​h​e​ ​s​a​v​e​d​ ​c​r​e​d​e​n​t​i​a​l​s​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​u​s​e​d​.
 			 */
 			credential: string
@@ -2132,6 +2136,10 @@ export type TranslationFunctions = {
 			 * another operation is already running.
 			 */
 			busy: () => LocalizedString
+			/**
+			 * the operation was cancelled.
+			 */
+			cancelled: () => LocalizedString
 			/**
 			 * the saved credentials could not be used.
 			 */

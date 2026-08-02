@@ -23,7 +23,7 @@ use tokio::net::TcpListener;
 const SCRIPT_EXHAUSTED_STATUS: u16 = 599;
 
 /// one answer the server is told to give, in order.
-pub(super) enum ScriptedResponse {
+pub(in crate::remote_sync) enum ScriptedResponse {
     Respond {
         status: u16,
         headers: Vec<(String, String)>,
@@ -35,7 +35,7 @@ pub(super) enum ScriptedResponse {
 }
 
 impl ScriptedResponse {
-    pub(super) fn new(status: u16, body: impl Into<Vec<u8>>) -> Self {
+    pub(in crate::remote_sync) fn new(status: u16, body: impl Into<Vec<u8>>) -> Self {
         Self::Respond {
             status,
             headers: Vec::new(),
@@ -43,11 +43,11 @@ impl ScriptedResponse {
         }
     }
 
-    pub(super) fn hangup() -> Self {
+    pub(in crate::remote_sync) fn hangup() -> Self {
         Self::Hangup
     }
 
-    pub(super) fn with_header(self, name: &str, value: &str) -> Self {
+    pub(in crate::remote_sync) fn with_header(self, name: &str, value: &str) -> Self {
         match self {
             Self::Respond {
                 status,
@@ -70,7 +70,7 @@ impl ScriptedResponse {
 /// one request as it arrived, kept so a test can assert on what was actually
 /// sent rather than on what the caller meant to send.
 #[derive(Clone)]
-pub(super) struct RecordedRequest {
+pub(in crate::remote_sync) struct RecordedRequest {
     pub method: String,
     /// the request-target: the path and, where there was one, the query.
     pub target: String,
@@ -80,14 +80,14 @@ pub(super) struct RecordedRequest {
 
 impl RecordedRequest {
     /// a header by name, matched case-insensitively as HTTP requires.
-    pub(super) fn header(&self, name: &str) -> Option<&str> {
+    pub(in crate::remote_sync) fn header(&self, name: &str) -> Option<&str> {
         self.headers
             .iter()
             .find(|(header, _)| header.eq_ignore_ascii_case(name))
             .map(|(_, value)| value.as_str())
     }
 
-    pub(super) fn body_as_text(&self) -> String {
+    pub(in crate::remote_sync) fn body_as_text(&self) -> String {
         String::from_utf8_lossy(&self.body).to_string()
     }
 }
@@ -105,7 +105,7 @@ struct ServerState {
 ///
 /// Nothing shuts it down: `#[tokio::test]` drops the runtime when the test
 /// ends, which cancels the accept loop and every connection it spawned.
-pub(super) struct TestDriveServer {
+pub(in crate::remote_sync) struct TestDriveServer {
     base_url: String,
     state: Arc<Mutex<ServerState>>,
 }
@@ -114,7 +114,7 @@ impl TestDriveServer {
     /// bind, start accepting, and answer each request with the next scripted
     /// entry. Returns once the port is known, so the first request a test makes
     /// cannot outrun the listener.
-    pub(super) async fn start(script: Vec<ScriptedResponse>) -> Self {
+    pub(in crate::remote_sync) async fn start(script: Vec<ScriptedResponse>) -> Self {
         let listener = TcpListener::bind(("127.0.0.1", 0))
             .await
             .expect("failed to bind the test drive server");
@@ -159,17 +159,17 @@ impl TestDriveServer {
     }
 
     /// an absolute URL for `path`, which must start with `/`.
-    pub(super) fn url(&self, path: &str) -> String {
+    pub(in crate::remote_sync) fn url(&self, path: &str) -> String {
         format!("{}{path}", self.base_url)
     }
 
-    pub(super) fn request_count(&self) -> usize {
+    pub(in crate::remote_sync) fn request_count(&self) -> usize {
         self.locked().recorded.len()
     }
 
     /// the `index`th request the server received, in arrival order. Reading one
     /// leaves the log alone, so two reads of the same index agree.
-    pub(super) fn request(&self, index: usize) -> RecordedRequest {
+    pub(in crate::remote_sync) fn request(&self, index: usize) -> RecordedRequest {
         let state = self.locked();
 
         state

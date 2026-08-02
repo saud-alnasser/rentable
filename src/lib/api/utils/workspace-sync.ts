@@ -1,9 +1,13 @@
-import { tauri, type RemoteSyncState, type RemoteSyncWorkspace } from '$lib/api/tauri';
+import {
+	tauri,
+	type GoogleDriveLinkPreparation,
+	type RemoteSyncState,
+	type RemoteSyncWorkspace
+} from '$lib/api/tauri';
 import {
 	inspectGoogleDriveSyncState,
 	syncActiveGoogleDriveProfile,
 	syncBeforeAppExit,
-	type GoogleDriveLinkPreparation,
 	type GoogleDriveSyncResult
 } from '$lib/api/utils/remote-sync-google-drive';
 import {

@@ -398,6 +398,32 @@ impl RemoteSync {
         Ok(())
     }
 
+    /// Cancel every link attempt this process is holding.
+    ///
+    /// The caller that abandons a link is the user, and a user abandons *the*
+    /// link rather than a session identifier they have never seen. At most one
+    /// attempt is outstanding in practice; cancelling by session id is for the
+    /// flow that started one and knows which.
+    ///
+    /// A session that has *already* been authorized is cancelled too, and that
+    /// is the case worth stating: the window between the consent screen closing
+    /// and the account being recorded is short but reachable, and a session left
+    /// alone through it links a workspace the user just asked not to link.
+    /// [`GoogleDriveLinkSession::cancel`] drops the tokens, so a completion
+    /// racing this one cannot succeed on them afterwards.
+    pub fn cancel_google_drive_links(&mut self) -> Result<(), Error> {
+        let mut sessions = self
+            .auth_sessions
+            .lock()
+            .map_err(|_| oauth_sessions_poisoned())?;
+
+        for session in sessions.values_mut() {
+            session.cancel();
+        }
+
+        Ok(())
+    }
+
     /// Redeem the authorization code this session captured, and hold what it
     /// yields until the account is known.
     ///

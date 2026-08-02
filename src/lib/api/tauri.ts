@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import {
 	openUrl as openExternalUrl,
 	revealItemInDir as revealInFileManager
@@ -143,6 +144,40 @@ export type GoogleDriveAccountUpdateInput = {
 	error?: string | null;
 };
 
+export type GoogleDriveConflictKind = 'link' | 'sync' | 'corrupt' | 'relink';
+
+/** which way a conflict is recommended to be settled. narrower than a sync mode: "decide for me" is not an answer to a conflict. */
+export type GoogleDriveRecommendedMode = 'push' | 'pull';
+
+/** what the user is being asked, and everything the interface needs to ask it. */
+export type GoogleDriveLinkConflict = {
+	kind: GoogleDriveConflictKind;
+	accountEmail: string;
+	localSnapshotAt: number | null;
+	remoteUpdatedAt: number | null;
+	remoteFilename: string | null;
+	/** why, where the reason is more specific than the kind's own wording. `null` leaves the interface to say it, in the user's language. */
+	message: string | null;
+};
+
+/**
+ * the situation on the remote, and what to do about it.
+ *
+ * `requiresResolution` is the whole point: false means the caller may proceed,
+ * true means nothing transfers until the user has chosen.
+ */
+export type GoogleDriveLinkPreparation = {
+	state: RemoteSyncState;
+	requiresResolution: boolean;
+	recommendedMode: GoogleDriveRecommendedMode;
+	conflict: GoogleDriveLinkConflict | null;
+};
+
+/** how far a link attempt has got. linking is one call, so progress arrives on an event instead of a return. */
+export type GoogleDriveLinkPhase = 'authorizing' | 'finalizing';
+
+const GOOGLE_DRIVE_LINK_PHASE_EVENT = 'rentable:google-drive-link-phase';
+
 export type GoogleDrivePreparedPush = {
 	workspaceId: string;
 	accountId: string;
@@ -275,6 +310,22 @@ export const tauri = {
 		snapshotNow: () => invoke<RemoteSyncState>('remote_sync_snapshot_now'),
 		autosaveNow: () => invoke<RemoteSyncState>('remote_sync_autosave_now'),
 		googleDrive: {
+			/**
+			 * link this workspace to a google account, end to end. outstanding for as
+			 * long as the user takes over the consent screen; rejects with a
+			 * `cancelled` error where they abandon it.
+			 */
+			link: () => invoke<GoogleDriveLinkPreparation>('remote_sync_google_drive_link'),
+			/** abandon the link that is outstanding, and undo one already recorded. */
+			cancelLinkAttempt: () =>
+				invoke<RemoteSyncState>('remote_sync_google_drive_cancel_link_attempt'),
+			/** disconnect this workspace, keeping one current snapshot of it on this machine. */
+			unlink: () => invoke<RemoteSyncState>('remote_sync_google_drive_unlink'),
+			/** watch how far a link has got. resolves to its own removal. */
+			onLinkPhase: (listener: (phase: GoogleDriveLinkPhase) => void) =>
+				listen<GoogleDriveLinkPhase>(GOOGLE_DRIVE_LINK_PHASE_EVENT, (event) =>
+					listener(event.payload)
+				),
 			getConfig: () => invoke<GoogleDriveConfig>('remote_sync_google_drive_config_get'),
 			beginLink: () => invoke<GoogleDriveLinkSessionStart>('remote_sync_google_drive_begin_link'),
 			getLinkResult: (input: { sessionId: string }) =>

@@ -1,17 +1,14 @@
 import api from '$lib/api/mod';
-import { tauri, type RemoteSyncState } from '$lib/api/tauri';
+import { tauri, type GoogleDriveLinkPreparation, type RemoteSyncState } from '$lib/api/tauri';
 import {
-	cancelGoogleDriveLink,
-	prepareGoogleDriveLink,
 	resetBrokenGoogleDriveWorkspace,
 	resolveGoogleDriveLink,
 	syncActiveGoogleDriveProfile,
-	unlinkActiveGoogleDriveWorkspace,
-	type GoogleDriveLinkPreparation,
 	type GoogleDriveLinkResolution,
 	type GoogleDriveSyncMode,
 	type GoogleDriveSyncResult
 } from '$lib/api/utils/remote-sync-google-drive';
+import { cancelGoogleDriveLink, unlinkGoogleDriveWorkspace } from '$lib/resources/sync/link';
 import {
 	inspectWorkspaceSyncState,
 	syncWorkspaceBeforeExit,
@@ -256,21 +253,6 @@ export function useResetBrokenGoogleDriveWorkspace(opts: MutationOptions = {}) {
 	}));
 }
 
-export function usePrepareGoogleDriveLink(opts: MutationOptions = {}) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: async () => {
-			return await prepareGoogleDriveLink();
-		},
-		onSuccess: async (result) => {
-			client.setQueryData(keys.remoteSync, result.state);
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
 export function useResolveGoogleDriveLink(
 	opts: MutationOptions = {
 		toast: {
@@ -315,8 +297,7 @@ export function useCancelGoogleDriveLink(opts: MutationOptions = {}) {
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: ({ preparation }: { preparation: GoogleDriveLinkPreparation }) =>
-			cancelGoogleDriveLink(preparation),
+		mutationFn: () => cancelGoogleDriveLink(),
 		onSuccess: async (state) => {
 			client.setQueryData(keys.remoteSync, state);
 			await invalidateSettingsAndAppData(client);
@@ -338,7 +319,7 @@ export function useUnlinkGoogleDriveWorkspace(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: () => unlinkActiveGoogleDriveWorkspace(),
+		mutationFn: () => unlinkGoogleDriveWorkspace(),
 		onSuccess: async (state) => {
 			client.setQueryData(keys.remoteSync, state);
 			await invalidateSettingsAndAppData(client);

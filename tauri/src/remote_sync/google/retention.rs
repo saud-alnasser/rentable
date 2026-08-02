@@ -6,10 +6,11 @@ use std::collections::{HashMap, HashSet};
 
 use crate::backup::BackupSource;
 
-use super::transport::{
-    DriveFile, GoogleDrivePreparePushInput, GoogleDriveSnapshotSource,
-    parse_drive_snapshot_created_at, parse_drive_timestamp, try_parse_drive_snapshot_source,
+use super::metadata::{
+    DriveFile, GoogleDriveSnapshotSource, parse_drive_snapshot_created_at, parse_drive_timestamp,
+    try_parse_drive_snapshot_source,
 };
+use super::transport::GoogleDrivePreparePushInput;
 
 /// a snapshot a cleanup keeps, paired with the source it was kept for.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -74,6 +75,28 @@ pub fn choose_retained_workspace_snapshots(
         .sort_by(|left, right| compare_drive_files_by_snapshot_recency(&left.file, &right.file));
 
     retained
+}
+
+/// the snapshots a cleanup may delete, in the order they were given.
+///
+/// Not simply the ones retention did not keep, and the difference is the whole
+/// point: a snapshot declaring a source this application does not recognise is
+/// never retained, and that is not a judgement that it is stale — it is this
+/// policy having no opinion about a file it cannot account for. Evicting one on
+/// the strength of an absent opinion is exactly what the rule above refuses.
+pub fn choose_evictable_workspace_snapshots<'a>(
+    snapshot_files: &'a [DriveFile],
+    retained_file_ids: &[&str],
+) -> Vec<&'a DriveFile> {
+    let retained_file_ids = retained_file_ids.iter().copied().collect::<HashSet<_>>();
+
+    snapshot_files
+        .iter()
+        .filter(|file| {
+            !retained_file_ids.contains(file.id.as_str())
+                && try_parse_drive_snapshot_source(file).is_some()
+        })
+        .collect()
 }
 
 /// newest first. Capture time is what a snapshot is ordered by; Drive's own

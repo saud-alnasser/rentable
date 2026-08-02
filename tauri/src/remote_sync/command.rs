@@ -15,6 +15,10 @@ use super::active_workspace::{
 };
 use super::google::conflict::{content_hash_hex, validate_google_drive_pull_content_hash};
 use super::google::retention::google_drive_push_snapshot_source;
+use super::inspection::GoogleDriveLinkPreparation;
+use super::link::{
+    cancel_google_drive_link, link_google_drive_workspace, unlink_google_drive_workspace,
+};
 use super::lock::{
     GoogleDriveSyncLockAcquireInput, GoogleDriveSyncLockLease, GoogleDriveSyncLockReleaseInput,
 };
@@ -220,6 +224,37 @@ pub async fn remote_sync_google_drive_complete_link(
 
     sync_backup_manifest_to_active_workspace(app_state.inner(), &state).await?;
     Ok(state)
+}
+
+/// Link this workspace to a Google account, end to end.
+///
+/// Outstanding for as long as the user takes over the consent screen; progress
+/// arrives on [`GOOGLE_DRIVE_LINK_PHASE_EVENT`].
+///
+/// [`GOOGLE_DRIVE_LINK_PHASE_EVENT`]: super::link::GOOGLE_DRIVE_LINK_PHASE_EVENT
+#[tauri::command]
+pub async fn remote_sync_google_drive_link(
+    app: tauri::AppHandle,
+    app_state: tauri::State<'_, AppState>,
+) -> Result<GoogleDriveLinkPreparation, Error> {
+    link_google_drive_workspace(&app, app_state.inner()).await
+}
+
+/// Abandon the link that is outstanding, and undo one already recorded.
+#[tauri::command]
+pub async fn remote_sync_google_drive_cancel_link_attempt(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<RemoteSyncState, Error> {
+    cancel_google_drive_link(app_state.inner()).await
+}
+
+/// Disconnect this workspace from Google Drive, keeping one current snapshot of
+/// it on this machine.
+#[tauri::command]
+pub async fn remote_sync_google_drive_unlink(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<RemoteSyncState, Error> {
+    unlink_google_drive_workspace(app_state.inner()).await
 }
 
 #[tauri::command]

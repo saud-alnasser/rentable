@@ -46,16 +46,28 @@ save never evicts the copy taken before an update.
   process, so no refresh token reaches the web layer through linking or through a Drive
   call. What remains is the client secret, still returned by the config command and now
   read by nobody, and an account-auth command with no caller. #118 withdraws both.
-- **Every Drive request is issued by Rust — but nothing asks for one yet.** `DriveTransport`
-  attaches the bearer credential, retries, and maps a refusal onto the typed error;
-  `DriveFiles` is every operation issued over it — listing, upload, download, delete, the
-  folder, manifest, and head resolutions built from them, and the read of the account the
-  token belongs to. That last one acts on no file, and it lives there anyway: what makes the
-  boundary is being a request this application issues, not the kind of thing it names, and
-  a second request-issuing type would divide the surface a caller has to hold. What is
-  still missing is a caller: no Tauri command reaches either, so the requests that actually
-  run are the TypeScript client's until #118. A Rust Drive layer with no caller is the
-  expected state here, not dead code.
+- **Every Drive request is issued by Rust.** `DriveTransport` attaches the bearer
+  credential, retries, and maps a refusal onto the typed error; `DriveFiles` is every
+  operation issued over it — listing, upload, download, delete, the folder, manifest, and
+  head resolutions built from them, and the read of the account the token belongs to. That
+  last one acts on no file, and it lives there anyway: what makes the boundary is being a
+  request this application issues, not the kind of thing it names, and a second
+  request-issuing type would divide the surface a caller has to hold. Linking and unlinking
+  reach it; syncing and conflict resolution still issue their own requests from TypeScript
+  until #118 finishes moving them.
+- **A flow is one command, and the interface observes it rather than sequencing it.** The
+  caller asks for a link and gets back what the remote's contents make possible; it does
+  not open a session, poll it, redeem a code, and hold the pieces in between. A flow
+  outstanding for as long as a user takes reports its progress on an event, because one
+  call cannot return twice. What that costs is the reason it is worth saying: a coarse
+  command owns its own abandonment, so cancelling is a second command rather than a
+  returned value, and every point the flow can be abandoned at has to be answered inside
+  it.
+- **Interpreting what Drive said about a file is not the transport's.** The file record, the
+  keys this application carries its own metadata under, and the decoders reading Drive's
+  spellings back into values are one subject, and a domain question about a file does not
+  reach through the client that issues requests to ask it. Drive draws the same line: a
+  file's metadata is what a listing answers with, its content is what a download returns.
 - **Reading the remote's index is also what repairs it.** A manifest that is absent,
   unreadable, or overwritten by another client is rebuilt from the snapshots present and
   written back — inside resolving it and inside saving it, never left to whoever called
@@ -74,6 +86,17 @@ save never evicts the copy taken before an update.
   code, and it is deliberate: treating every 403 as fatal turns a scope change into a
   failed sync, and treating every 403 as absent hides a real permission failure behind a
   duplicate folder.
+- **A workspace folder is a place in the user's own Drive, so a file is deleted only where
+  it declares an origin this application recognises.** A declaration, specifically — a
+  snapshot names the source it was taken for and a manifest names its type — and not a
+  name. Recognising a file well enough to *read* it is a weaker test than owning it well
+  enough to destroy it: a snapshot is found by its filename as well as its properties,
+  because that is what finds one written before the properties existed, and a cleanup that
+  deleted on the same evidence would take a file that merely looks like ours. Retention
+  already refuses to judge a snapshot whose source it cannot read, and a cleanup evicting
+  one on the strength of that refusal would make the refusal decorative. Two costs are
+  accepted knowingly: a folder this application has emptied is not necessarily an empty
+  folder, and a snapshot predating the source property is never evicted.
 - **A retry may never create a second thing.** `POST` is the one method never issued
   twice, because Drive creates a file by `POST` and a duplicate snapshot is a fault this
   application cannot observe. Any new write path has to answer this question before it
@@ -84,12 +107,12 @@ save never evicts the copy taken before an update.
   two-line construction.
 - **Backup is local, sync is remote, and both produce snapshots.** A change to snapshot
   shape touches both — neither owns the format alone.
-- **The link session is sequenced in one place, and never by a component.** Authorization
-  happens in a browser this application does not control, so a session outstays the screen
-  that started it: a result can arrive for a session the user has already replaced, and
+- **The link is driven from one place, and never by a component.** Authorization happens in
+  a browser this application does not control, so an attempt outstays the screen that
+  started it: a result can arrive for an attempt the user has already replaced, and
   cancelling has to settle the remote as well as the local state. Both are easy to get
   subtly wrong twice, which is what happened. Each entry point constructs that owner and
-  consumes it; none of them sequences the steps again. **The owner's lifetime is its host's**
+  consumes it; none of them drives the link again. **The owner's lifetime is its host's**
   — a host that can disappear mid-session cancels one, so a screen that starts a link stays
   rendered while a link is possible. The pending _conflict_ is not part of it: it has other
   sources and outlives any session.

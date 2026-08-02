@@ -1,13 +1,17 @@
 <script lang="ts">
 	import api from '$lib/api/mod';
-	import { tauri, type Recovery, type RemoteSyncState } from '$lib/api/tauri';
 	import {
-		cancelGoogleDriveLink,
+		tauri,
+		type GoogleDriveLinkPreparation,
+		type Recovery,
+		type RemoteSyncState
+	} from '$lib/api/tauri';
+	import {
 		resetBrokenGoogleDriveWorkspace,
 		resolveGoogleDriveLink,
-		type GoogleDriveLinkPreparation,
 		type GoogleDriveLinkResolution
 	} from '$lib/api/utils/remote-sync-google-drive';
+	import { cancelGoogleDriveLink } from '$lib/resources/sync/link';
 	import { startGoogleDriveAutosyncManager } from '$lib/api/utils/remote-sync-google-drive-autosync';
 	import {
 		getWorkspaceFromSyncState,
@@ -286,7 +290,7 @@
 			return;
 		}
 
-		if (linkSession.session) {
+		if (linkSession.isAuthorizing) {
 			await linkSession.cancel();
 			startupState = 'choose-workspace';
 			await api.app.window.show();
@@ -307,7 +311,7 @@
 				return;
 			}
 
-			startupRemoteSync = await cancelGoogleDriveLink(startupLinkPreparation);
+			startupRemoteSync = await cancelGoogleDriveLink();
 			startupLinkPreparation = null;
 			startupState = 'choose-workspace';
 			await api.app.window.show();
@@ -351,27 +355,15 @@
 			return;
 		}
 
-		if (linkSession.session) {
+		if (linkSession.isAuthorizing) {
 			await linkSession.cancel();
 			await api.app.window.show();
 			return;
 		}
 
-		isHandlingStartupChoice = true;
 		startupError = null;
-
-		try {
-			startupLinkPreparation = null;
-			await linkSession.begin();
-		} catch (error) {
-			startupRecovery = null;
-			startupState = 'choose-workspace';
-			startupLinkPreparation = null;
-			startupError = getErrorMessage(error);
-			await api.app.window.show();
-		} finally {
-			isHandlingStartupChoice = false;
-		}
+		startupLinkPreparation = null;
+		linkSession.begin();
 	}
 
 	onMount(() => {
@@ -458,7 +450,7 @@
 						<LayoutStartupWorkspaceChoice
 							syncState={startupRemoteSync}
 							isWorking={isHandlingStartupChoice}
-							isLinkingGoogleDrive={linkSession.session !== null}
+							isLinkingGoogleDrive={linkSession.isLinking}
 							isFinalizingGoogleDriveLink={linkSession.isFinalizing}
 							errorMessage={startupError}
 							linkConflict={startupLinkPreparation?.conflict ?? null}

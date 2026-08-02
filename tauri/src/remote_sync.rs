@@ -1,6 +1,8 @@
 mod active_workspace;
 mod command;
 pub mod google;
+mod inspection;
+mod link;
 mod lock;
 mod session;
 mod store;
@@ -10,6 +12,7 @@ mod tests;
 
 pub use command::*;
 pub use google::auth::GoogleDriveConfig;
+pub use inspection::{GoogleDriveLinkConflict, GoogleDriveLinkPreparation};
 pub use google::transport::{
     GoogleDriveApplyPullInput, GoogleDriveLocalFingerprint, GoogleDrivePreparePushInput,
     GoogleDrivePreparedPush, GoogleDriveSyncCompleteInput,

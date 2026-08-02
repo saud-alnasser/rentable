@@ -27,6 +27,10 @@ pub enum Error {
     Busy { message: String },
     /// the operation gave up waiting (a link session that never completed).
     TimedOut { message: String },
+    /// the user abandoned the operation before it finished. Nothing went wrong
+    /// and there is nothing to report — which is what separates it from every
+    /// other variant here.
+    Cancelled { message: String },
     /// stored or remote content failed verification (a content hash mismatch,
     /// an app-version mismatch, a corrupt manifest).
     Integrity { message: String },
@@ -64,6 +68,7 @@ impl Error {
         | Self::PreconditionFailed { message }
         | Self::Busy { message }
         | Self::TimedOut { message }
+        | Self::Cancelled { message }
         | Self::Integrity { message }
         | Self::Io { message }
         | Self::Network { message }
@@ -84,6 +89,7 @@ impl fmt::Display for Error {
         | Self::PreconditionFailed { message }
         | Self::Busy { message }
         | Self::TimedOut { message }
+        | Self::Cancelled { message }
         | Self::Integrity { message }
         | Self::Io { message }
         | Self::Network { message }
@@ -132,6 +138,7 @@ mod tests {
             Error::PreconditionFailed { .. } => "preconditionFailed",
             Error::Busy { .. } => "busy",
             Error::TimedOut { .. } => "timedOut",
+            Error::Cancelled { .. } => "cancelled",
             Error::Integrity { .. } => "integrity",
             Error::Io { .. } => "io",
             Error::Network { .. } => "network",
@@ -151,6 +158,7 @@ mod tests {
             Error::PreconditionFailed { message: message() },
             Error::Busy { message: message() },
             Error::TimedOut { message: message() },
+            Error::Cancelled { message: message() },
             Error::Integrity { message: message() },
             Error::Io { message: message() },
             Error::Network { message: message() },
