@@ -377,12 +377,7 @@ pub(crate) async fn request_google_tokens(
     form: &[(String, String)],
     now: i64,
 ) -> Result<GoogleOAuthTokens, Error> {
-    let client = reqwest::Client::builder()
-        .timeout(TOKEN_REQUEST_TIMEOUT)
-        .build()
-        .map_err(|error| Error::Internal {
-            message: format!("failed to build the google token client: {error}"),
-        })?;
+    let client = crate::http::build_client(TOKEN_REQUEST_TIMEOUT)?;
 
     let response = client
         .post(token_endpoint)

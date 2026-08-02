@@ -1,10 +1,13 @@
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
+use reqwest::Method;
 use serde_json::json;
 
 use crate::error::Error;
 
 use super::super::store::RemoteSyncWorkspace;
+use super::test_server::{ScriptedResponse, TestDriveServer};
 use super::{
     auth::{
         GoogleDriveConfig, GoogleTokenResponse, access_token_is_fresh, authorization_code_form,
@@ -25,8 +28,10 @@ use super::{
     },
     retention::{choose_retained_workspace_snapshots, compare_drive_files_by_snapshot_recency},
     transport::{
-        DriveFile, GoogleDriveSnapshotSource, parse_drive_number, parse_drive_snapshot_created_at,
-        parse_drive_timestamp, try_parse_drive_snapshot_source,
+        DriveFile, DriveRequest, DriveResponse, DriveRetryPolicy, DriveTransport,
+        GoogleDriveSnapshotSource, drive_error, is_retryable, parse_drive_number,
+        parse_drive_snapshot_created_at, parse_drive_timestamp, parse_retry_after, retry_delay,
+        try_parse_drive_snapshot_source,
     },
 };
 
@@ -1297,4 +1302,592 @@ fn a_success_status_without_a_token_is_still_a_failure() {
         .expect_err("an empty grant was accepted");
 
     assert!(error.to_string().contains("200"));
+}
+
+/// a policy that retries as production does but waits in milliseconds, so a
+/// test asserting that backoff happened does not pay seconds for the answer.
+fn fast_retry_policy(attempts: u32) -> DriveRetryPolicy {
+    DriveRetryPolicy {
+        attempts,
+        base_delay: Duration::from_millis(150),
+        max_delay: Duration::from_millis(600),
+    }
+}
+
+fn transport(attempts: u32) -> DriveTransport {
+    DriveTransport::with_retry_policy(fast_retry_policy(attempts))
+        .expect("failed to build the drive transport")
+}
+
+fn json_response(status: u16, body: serde_json::Value) -> ScriptedResponse {
+    ScriptedResponse::new(status, body.to_string())
+}
+
+#[test]
+fn a_status_that_cannot_succeed_unchanged_is_not_retried() {
+    for status in [400, 401, 403, 404, 409, 412, 418, 200] {
+        assert!(
+            !is_retryable(&Method::GET, status),
+            "{status} was treated as worth issuing again"
+        );
+    }
+}
+
+#[test]
+fn rate_limiting_and_a_sick_server_are_retried_on_replay_safe_methods() {
+    for status in [429, 500, 502, 503, 504] {
+        for method in [Method::GET, Method::DELETE, Method::PATCH] {
+            assert!(
+                is_retryable(&method, status),
+                "{method} {status} was given up on"
+            );
+        }
+    }
+}
+
+/// the rule that stops a lost response becoming a second snapshot in the
+/// user's Drive: a create is a POST, and a POST is never issued twice.
+#[test]
+fn a_post_is_never_retried_however_the_remote_refused() {
+    for status in [429, 500, 502, 503, 504] {
+        assert!(
+            !is_retryable(&Method::POST, status),
+            "a post was replayed after {status}"
+        );
+    }
+}
+
+#[test]
+fn the_wait_doubles_with_each_refusal_and_stops_at_the_ceiling() {
+    let policy = DriveRetryPolicy {
+        attempts: 6,
+        base_delay: Duration::from_millis(500),
+        max_delay: Duration::from_secs(2),
+    };
+
+    assert_eq!(retry_delay(&policy, 1, None), Duration::from_millis(500));
+    assert_eq!(retry_delay(&policy, 2, None), Duration::from_secs(1));
+    assert_eq!(retry_delay(&policy, 3, None), Duration::from_secs(2));
+    assert_eq!(
+        retry_delay(&policy, 4, None),
+        Duration::from_secs(2),
+        "the doubling ran past the ceiling"
+    );
+    assert_eq!(
+        retry_delay(&policy, 60, None),
+        Duration::from_secs(2),
+        "a large attempt count overflowed instead of capping"
+    );
+}
+
+#[test]
+fn the_remotes_own_retry_after_wins_over_the_computed_wait() {
+    let policy = DriveRetryPolicy {
+        attempts: 3,
+        base_delay: Duration::from_millis(500),
+        max_delay: Duration::from_secs(30),
+    };
+
+    assert_eq!(
+        retry_delay(&policy, 1, Some(Duration::from_secs(7))),
+        Duration::from_secs(7)
+    );
+}
+
+/// a remote asking for an hour is not a reason to hang the application; the
+/// ceiling applies to what it asked for as much as to what we computed.
+#[test]
+fn a_retry_after_beyond_the_ceiling_is_capped() {
+    let policy = DriveRetryPolicy {
+        attempts: 3,
+        base_delay: Duration::from_millis(500),
+        max_delay: Duration::from_secs(8),
+    };
+
+    assert_eq!(
+        retry_delay(&policy, 1, Some(Duration::from_secs(3600))),
+        Duration::from_secs(8)
+    );
+}
+
+#[test]
+fn retry_after_is_read_in_the_delta_seconds_form() {
+    assert_eq!(parse_retry_after("30"), Some(Duration::from_secs(30)));
+    assert_eq!(parse_retry_after("  12 "), Some(Duration::from_secs(12)));
+    assert_eq!(parse_retry_after("0"), Some(Duration::ZERO));
+}
+
+/// the http-date form is legal and deliberately unread — falling through to
+/// the computed backoff is a correct answer for it.
+#[test]
+fn a_retry_after_that_is_not_a_count_of_seconds_is_ignored() {
+    assert_eq!(parse_retry_after("Wed, 21 Oct 2015 07:28:00 GMT"), None);
+    assert_eq!(parse_retry_after(""), None);
+    assert_eq!(parse_retry_after("soon"), None);
+    assert_eq!(parse_retry_after("-5"), None);
+}
+
+#[test]
+fn each_refusal_category_maps_onto_its_own_error() {
+    let body = json!({ "error": { "message": "the remote said why" } }).to_string();
+
+    let expected = [
+        (400, "invalidInput"),
+        (413, "invalidInput"),
+        (422, "invalidInput"),
+        (401, "preconditionFailed"),
+        (403, "forbidden"),
+        (404, "notFound"),
+        (409, "integrity"),
+        (412, "integrity"),
+        (429, "network"),
+        (500, "network"),
+        (503, "network"),
+    ];
+
+    for (status, code) in expected {
+        let error = drive_error(status, &body);
+        let wire = serde_json::to_value(&error).expect("failed to serialize the error");
+
+        assert_eq!(
+            wire,
+            json!({ "code": code, "message": "the remote said why" }),
+            "unexpected mapping for {status}"
+        );
+    }
+}
+
+#[test]
+fn a_refusal_message_is_read_from_either_envelope_google_uses() {
+    assert_eq!(
+        drive_error(
+            404,
+            &json!({ "error": { "message": "File not found: abc." } }).to_string()
+        )
+        .to_string(),
+        "File not found: abc."
+    );
+    assert_eq!(
+        drive_error(
+            400,
+            &json!({ "error": "invalid_request", "error_description": "missing parameter" })
+                .to_string()
+        )
+        .to_string(),
+        "missing parameter"
+    );
+}
+
+/// a proxy's html error page carries no message, and the status is then the
+/// only thing that says anything at all — so it has to survive into the text.
+#[test]
+fn a_body_that_is_not_an_envelope_still_reports_the_status() {
+    for body in ["<html>502 Bad Gateway</html>", "", "{}", r#"{"error":{}}"#] {
+        let message = drive_error(502, body).to_string();
+
+        assert!(
+            message.contains("502"),
+            "the status was lost for body {body:?}: {message}"
+        );
+    }
+}
+
+#[test]
+fn a_successful_response_yields_its_body_and_a_refusal_yields_its_error() {
+    let success = DriveResponse {
+        status: 200,
+        body: b"the payload".to_vec(),
+    };
+
+    assert_eq!(success.into_success(), Ok(b"the payload".to_vec()));
+
+    let refusal = DriveResponse {
+        status: 404,
+        body: json!({ "error": { "message": "gone" } })
+            .to_string()
+            .into_bytes(),
+    };
+
+    assert_eq!(
+        refusal.into_success(),
+        Err(Error::NotFound {
+            message: "gone".to_string()
+        })
+    );
+}
+
+#[tokio::test]
+async fn a_request_carries_the_access_token_as_a_bearer_credential() {
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        json!({ "id": "file-1", "name": "snapshot.db" }),
+    )])
+    .await;
+
+    let file: DriveFile = transport(1)
+        .send_json(
+            "ya29.the-access-token",
+            &DriveRequest::get(server.url("/files/file-1")),
+        )
+        .await
+        .expect("the request failed");
+
+    assert_eq!(file.id, "file-1");
+    assert_eq!(server.request_count(), 1);
+
+    let request = server.request(0);
+
+    assert_eq!(request.method, "GET");
+    assert_eq!(request.target, "/files/file-1");
+    assert_eq!(
+        request.header("authorization"),
+        Some("Bearer ya29.the-access-token")
+    );
+    assert!(request.body.is_empty(), "a read sent a body");
+}
+
+#[tokio::test]
+async fn a_json_request_declares_its_content_type_and_sends_its_document() {
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        json!({ "id": "folder-1", "name": "rentable" }),
+    )])
+    .await;
+    let document = json!({ "name": "rentable", "mimeType": "application/vnd.google-apps.folder" });
+
+    let created: DriveFile = transport(1)
+        .send_json(
+            "token",
+            &DriveRequest::json(
+                Method::POST,
+                server.url("/files"),
+                document.to_string().into_bytes(),
+            ),
+        )
+        .await
+        .expect("the request failed");
+
+    assert_eq!(created.id, "folder-1");
+
+    let request = server.request(0);
+
+    assert_eq!(request.method, "POST");
+    assert_eq!(
+        request.header("content-type"),
+        Some("application/json; charset=UTF-8")
+    );
+    assert_eq!(request.body_as_text(), document.to_string());
+}
+
+/// the boundary in the content type and the one delimiting the parts are one
+/// value; where they disagree Drive reads the whole upload as a single part.
+#[tokio::test]
+async fn a_multipart_upload_declares_the_boundary_its_body_uses() {
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        json!({ "id": "snapshot-1", "name": "snapshot.db" }),
+    )])
+    .await;
+    let boundary = "rentable-0d1c2b3a";
+    let body = format!("--{boundary}\r\n\r\n{{}}\r\n--{boundary}--");
+
+    let uploaded: DriveFile = transport(1)
+        .send_json(
+            "token",
+            &DriveRequest::multipart(
+                Method::PATCH,
+                server.url("/upload/files/snapshot-1?uploadType=multipart"),
+                boundary,
+                body.clone().into_bytes(),
+            ),
+        )
+        .await
+        .expect("the request failed");
+
+    assert_eq!(uploaded.id, "snapshot-1");
+
+    let request = server.request(0);
+
+    assert_eq!(request.method, "PATCH");
+    assert_eq!(
+        request.target,
+        "/upload/files/snapshot-1?uploadType=multipart"
+    );
+    assert_eq!(
+        request.header("content-type"),
+        Some(format!("multipart/related; boundary={boundary}").as_str())
+    );
+    assert_eq!(request.body_as_text(), body);
+}
+
+#[tokio::test]
+async fn a_transient_refusal_is_issued_again_and_then_succeeds() {
+    let server = TestDriveServer::start(vec![
+        ScriptedResponse::new(503, "service unavailable"),
+        json_response(200, json!({ "id": "file-1", "name": "snapshot.db" })),
+    ])
+    .await;
+
+    let file: DriveFile = transport(3)
+        .send_json("token", &DriveRequest::get(server.url("/files/file-1")))
+        .await
+        .expect("a retryable refusal was not retried");
+
+    assert_eq!(file.id, "file-1");
+    assert_eq!(server.request_count(), 2);
+}
+
+#[tokio::test]
+async fn the_transport_waits_longer_before_each_further_attempt() {
+    let server = TestDriveServer::start(vec![
+        ScriptedResponse::new(503, ""),
+        ScriptedResponse::new(503, ""),
+        json_response(200, json!({ "id": "file-1", "name": "snapshot.db" })),
+    ])
+    .await;
+
+    let started = Instant::now();
+
+    transport(3)
+        .send_json::<DriveFile>("token", &DriveRequest::get(server.url("/files/file-1")))
+        .await
+        .expect("the request failed");
+
+    // 150ms before the second attempt and 300ms before the third: doubling,
+    // rather than the same wait twice.
+    assert!(
+        started.elapsed() >= Duration::from_millis(450),
+        "the waits did not lengthen: {:?}",
+        started.elapsed()
+    );
+    assert_eq!(server.request_count(), 3);
+}
+
+/// asserted as a lower bound rather than an upper one: a machine can always be
+/// slower than expected, so only "it waited at least this long" is a fact about
+/// the code rather than about the machine.
+#[tokio::test]
+async fn a_rate_limit_is_waited_out_for_as_long_as_the_remote_asked() {
+    let server = TestDriveServer::start(vec![
+        ScriptedResponse::new(429, "").with_header("retry-after", "1"),
+        json_response(200, json!({ "id": "file-1", "name": "snapshot.db" })),
+    ])
+    .await;
+
+    // a ceiling above what the remote asks for, so this measures whether the
+    // request was obeyed rather than whether it was capped — which is the
+    // separate question `a_retry_after_beyond_the_ceiling_is_capped` answers.
+    let transport = DriveTransport::with_retry_policy(DriveRetryPolicy {
+        attempts: 2,
+        base_delay: Duration::from_millis(150),
+        max_delay: Duration::from_secs(5),
+    })
+    .expect("failed to build the drive transport");
+
+    let started = Instant::now();
+
+    transport
+        .send_json::<DriveFile>("token", &DriveRequest::get(server.url("/files/file-1")))
+        .await
+        .expect("the request failed");
+
+    // a whole second, where the policy's own backoff would have waited 150ms.
+    assert!(
+        started.elapsed() >= Duration::from_secs(1),
+        "the remote's retry-after was ignored in favour of the computed wait: {:?}",
+        started.elapsed()
+    );
+    assert_eq!(server.request_count(), 2);
+}
+
+/// the transport's other retry path: not a refusal, but no answer at all. A
+/// dropped connection is the shape a flaky network actually takes.
+#[tokio::test]
+async fn a_dropped_connection_is_tried_again_on_a_replay_safe_method() {
+    let server = TestDriveServer::start(vec![
+        ScriptedResponse::hangup(),
+        json_response(200, json!({ "id": "file-1", "name": "snapshot.db" })),
+    ])
+    .await;
+
+    let file: DriveFile = transport(3)
+        .send_json("token", &DriveRequest::get(server.url("/files/file-1")))
+        .await
+        .expect("a dropped connection was not retried");
+
+    assert_eq!(file.id, "file-1");
+    assert_eq!(server.request_count(), 2);
+}
+
+/// a create whose response was lost may still have created the file, so the
+/// one thing that must not happen is sending it again.
+#[tokio::test]
+async fn a_dropped_connection_does_not_replay_a_create() {
+    let server = TestDriveServer::start(vec![
+        ScriptedResponse::hangup(),
+        json_response(
+            200,
+            json!({ "id": "a-duplicate-file", "name": "duplicate.db" }),
+        ),
+    ])
+    .await;
+
+    let error = transport(3)
+        .send_json::<DriveFile>(
+            "token",
+            &DriveRequest::json(Method::POST, server.url("/files"), b"{}".to_vec()),
+        )
+        .await
+        .expect_err("a post was replayed after the connection dropped");
+
+    assert!(
+        matches!(error, Error::Network { .. }),
+        "unexpected: {error:?}"
+    );
+    assert_eq!(server.request_count(), 1);
+}
+
+#[tokio::test]
+async fn a_refusal_that_never_clears_gives_up_after_the_last_attempt() {
+    let server = TestDriveServer::start(vec![
+        ScriptedResponse::new(503, ""),
+        ScriptedResponse::new(503, ""),
+        ScriptedResponse::new(503, ""),
+        json_response(200, json!({ "id": "never-reached", "name": "never.db" })),
+    ])
+    .await;
+
+    let error = transport(3)
+        .send_json::<DriveFile>("token", &DriveRequest::get(server.url("/files/file-1")))
+        .await
+        .expect_err("an unending refusal was reported as success");
+
+    assert!(
+        matches!(error, Error::Network { .. }),
+        "unexpected: {error:?}"
+    );
+    assert_eq!(
+        server.request_count(),
+        3,
+        "the transport kept going past its attempt budget"
+    );
+}
+
+#[tokio::test]
+async fn a_create_is_issued_once_however_the_remote_refused() {
+    let server = TestDriveServer::start(vec![
+        ScriptedResponse::new(503, ""),
+        json_response(
+            200,
+            json!({ "id": "a-duplicate-file", "name": "duplicate.db" }),
+        ),
+    ])
+    .await;
+
+    let error = transport(3)
+        .send_json::<DriveFile>(
+            "token",
+            &DriveRequest::json(Method::POST, server.url("/files"), b"{}".to_vec()),
+        )
+        .await
+        .expect_err("a post was replayed");
+
+    assert!(
+        matches!(error, Error::Network { .. }),
+        "unexpected: {error:?}"
+    );
+    assert_eq!(
+        server.request_count(),
+        1,
+        "a create was issued twice, which is how a duplicate snapshot appears"
+    );
+}
+
+#[tokio::test]
+async fn a_refusal_reaches_the_caller_as_its_typed_error() {
+    let server = TestDriveServer::start(vec![json_response(
+        404,
+        json!({ "error": { "message": "File not found: missing." } }),
+    )])
+    .await;
+
+    let error = transport(3)
+        .send_json::<DriveFile>("token", &DriveRequest::get(server.url("/files/missing")))
+        .await
+        .expect_err("a missing file was reported as found");
+
+    assert_eq!(
+        error,
+        Error::NotFound {
+            message: "File not found: missing.".to_string()
+        }
+    );
+}
+
+/// a caller that treats one status as an answer rather than a failure — an
+/// absent file read as absent — has to see the status before it is mapped.
+#[tokio::test]
+async fn a_refused_status_is_visible_to_a_caller_that_reads_it_itself() {
+    let server = TestDriveServer::start(vec![ScriptedResponse::new(404, "")]).await;
+
+    let response = transport(3)
+        .send("token", &DriveRequest::get(server.url("/files/missing")))
+        .await
+        .expect("a refusal was reported as no answer at all");
+
+    assert_eq!(response.status, 404);
+    assert!(!response.is_success());
+}
+
+#[tokio::test]
+async fn a_download_yields_the_bytes_the_remote_sent() {
+    let contents = vec![0x00, 0x01, 0xff, 0xfe, b'r', b'e', b'n', b't'];
+    let server = TestDriveServer::start(vec![ScriptedResponse::new(200, contents.clone())]).await;
+
+    let downloaded = transport(3)
+        .send(
+            "token",
+            &DriveRequest::get(server.url("/files/snapshot-1?alt=media")),
+        )
+        .await
+        .expect("the download failed")
+        .into_success()
+        .expect("the download was refused");
+
+    assert_eq!(downloaded, contents);
+}
+
+#[tokio::test]
+async fn a_delete_sends_no_body_and_answers_with_an_empty_success() {
+    let server = TestDriveServer::start(vec![ScriptedResponse::new(204, "")]).await;
+
+    let response = transport(3)
+        .send("token", &DriveRequest::delete(server.url("/files/file-1")))
+        .await
+        .expect("the delete failed");
+
+    assert!(response.is_success());
+    assert_eq!(response.body, Vec::<u8>::new());
+
+    let request = server.request(0);
+
+    assert_eq!(request.method, "DELETE");
+    assert_eq!(request.header("authorization"), Some("Bearer token"));
+}
+
+/// nothing in these tests may reach Google. Every request goes to a loopback
+/// address the test itself bound, and this pins that rather than trusting it.
+#[tokio::test]
+async fn the_test_harness_serves_from_loopback_and_never_from_the_live_api() {
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        json!({ "id": "file-1", "name": "snapshot.db" }),
+    )])
+    .await;
+    let url = server.url("/files/file-1");
+
+    assert!(
+        url.starts_with("http://127.0.0.1:"),
+        "the harness was not bound to loopback: {url}"
+    );
 }

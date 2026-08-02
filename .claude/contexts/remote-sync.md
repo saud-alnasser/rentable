@@ -1,6 +1,6 @@
 # Remote sync
 
-Sources: `tauri/src/remote_sync/`, `tauri/src/backup/`, `src/lib/api/utils/remote-sync-google-drive.ts`, `src/lib/resources/sync/`
+Sources: `tauri/src/remote_sync/`, `tauri/src/backup/`, `tauri/src/http.rs`, `src/lib/api/utils/remote-sync-google-drive.ts`, `src/lib/resources/sync/`
 
 Getting a workspace off this machine and back onto it. Two subjects share the machinery:
 local backup, and exchange with Google Drive.
@@ -44,6 +44,18 @@ save never evicts the copy taken before an update.
   process, so no refresh token reaches the web layer through linking or through a Drive
   call. What remains is the client secret, still returned by the config command and now
   read by nobody, and an account-auth command with no caller. #118 withdraws both.
+- **Every Drive request is issued by Rust's transport — but nothing issues one yet.**
+  `DriveTransport` attaches the bearer credential, retries, and maps a refusal onto the
+  typed error; the operations that would call it are still the TypeScript client's until
+  #117. A transport with no caller is the expected state here, not dead code.
+- **A retry may never create a second thing.** `POST` is the one method never issued
+  twice, because Drive creates a file by `POST` and a duplicate snapshot is a fault this
+  application cannot observe. Any new write path has to answer this question before it
+  chooses a verb.
+- **Network clients are built in one place**, `tauri/src/http.rs`. reqwest carries no
+  crypto provider here — deliberately, to keep one provider in the tree — so a client
+  built any other way panics rather than failing. This is why there is a builder for a
+  two-line construction.
 - **Backup is local, sync is remote, and both produce snapshots.** A change to snapshot
   shape touches both — neither owns the format alone.
 - **A remote operation holds a lock.** Two clients writing one workspace is the failure

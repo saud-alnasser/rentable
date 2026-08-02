@@ -8,4 +8,6 @@ pub mod retention;
 pub mod transport;
 
 #[cfg(test)]
+mod test_server;
+#[cfg(test)]
 mod tests;
