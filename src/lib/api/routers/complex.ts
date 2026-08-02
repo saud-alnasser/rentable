@@ -262,15 +262,18 @@ export default router({
 			.use(autosync())
 			.input(UnitSchema.partial({ name: true, status: true }))
 			.mutation(async ({ input, ctx }) => {
-				const isNameUsed = input.name
-					? await ctx.db
-							.select()
-							.from(s.unit)
-							.where(
-								sql`${s.unit.name} = ${input.name} AND ${s.unit.complexId} == ${input.complexId} AND ${s.unit.id} != ${input.id}`
-							)
-							.get()
-					: null;
+				// presence, not truthiness: the schema admits '' for name, and a present value
+				// must hit the uniqueness check exactly when the set clause would write it.
+				const isNameUsed =
+					input.name !== undefined
+						? await ctx.db
+								.select()
+								.from(s.unit)
+								.where(
+									sql`${s.unit.name} = ${input.name} AND ${s.unit.complexId} == ${input.complexId} AND ${s.unit.id} != ${input.id}`
+								)
+								.get()
+						: null;
 
 				if (isNameUsed) {
 					throw new TRPCError({
