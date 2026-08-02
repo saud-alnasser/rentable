@@ -2,10 +2,11 @@
 //! (#117) lands here.
 //!
 //! [`DriveTransport`] decides how a request is sent; this decides which
-//! requests exist. Everything on Drive is a file — a snapshot, a manifest, and
-//! a folder alike — so every operation here acts on one, and resolving a folder
-//! or a manifest is a search for a particular file rather than a separate kind
-//! of thing.
+//! requests exist. Almost everything on Drive is a file — a snapshot, a
+//! manifest, and a folder alike — so resolving a folder or a manifest is a
+//! search for a particular file rather than a separate kind of thing. The
+//! exception is the account behind the token, which is a property of the
+//! credential rather than of anything stored.
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -28,7 +29,7 @@ use super::manifest::{
 use super::retention::compare_drive_files_by_snapshot_recency;
 use super::transport::{
     DriveFile, DriveRequest, DriveResponse, DriveTransport, FILE_TYPE_PROPERTY,
-    GOOGLE_DRIVE_API_BASE_URL,
+    GOOGLE_DRIVE_API_BASE_URL, parse_drive_number,
 };
 
 /// where content is uploaded. Drive answers metadata requests and content
@@ -40,6 +41,12 @@ const GOOGLE_DRIVE_UPLOAD_BASE_URL: &str = "https://www.googleapis.com/upload/dr
 /// all — dropping one from here silently empties it everywhere.
 const DRIVE_FILE_FIELDS: &str =
     "id,name,modifiedTime,version,size,md5Checksum,parents,appProperties";
+
+/// the fields the account read asks for. Same rule as [`DRIVE_FILE_FIELDS`]:
+/// what is not asked for does not arrive, so this list is the whole of what an
+/// account read can produce.
+const DRIVE_ABOUT_FIELDS: &str =
+    "user(displayName,emailAddress,photoLink,permissionId),storageQuota(limit,usage)";
 
 /// how many files a listing asks for when it wants all of them. A workspace
 /// folder holds one manifest and a handful of snapshots, so a folder with more
@@ -125,6 +132,31 @@ pub struct GoogleDriveRemoteHeadState {
     pub changed_from_manifest: bool,
 }
 
+/// who the linked account is, and how much of Drive it holds.
+///
+/// One value for two subjects because Drive answers both in a single request,
+/// and separating them here would cost a second round trip to learn half of it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GoogleDriveAccountDetails {
+    /// the address the account is held under. Blank and absent are one answer
+    /// throughout: whitespace names no account and no person.
+    pub email: Option<String>,
+    /// the profile name Drive holds, carried with no fallback applied. What to
+    /// call an account Drive named nothing for is the caller's to decide, and
+    /// the two callers decide it differently — linking labels it by its
+    /// address, refreshing keeps the name already recorded.
+    pub display_name: Option<String>,
+    pub avatar_url: Option<String>,
+    /// Drive's own identifier for the user, which is what survives the address
+    /// being renamed.
+    pub provider_user_id: Option<String>,
+    /// the whole allowance, or `None` where the account has no ceiling.
+    pub drive_quota_bytes: Option<i64>,
+    /// how much of the allowance is spent, across the whole of Drive rather
+    /// than this application's folder.
+    pub drive_usage_bytes: Option<i64>,
+}
+
 /// the Drive operations, bound to one transport and one pair of endpoints.
 pub struct DriveFiles {
     transport: DriveTransport,
@@ -149,6 +181,24 @@ impl DriveFiles {
             transport,
             endpoints,
         }
+    }
+
+    /// who the account behind this token is, and how much of Drive it holds.
+    pub async fn read_account_details(
+        &self,
+        access_token: &str,
+    ) -> Result<GoogleDriveAccountDetails, Error> {
+        let url = build_url(
+            &self.endpoints.api_base_url,
+            "/about",
+            &[("fields", DRIVE_ABOUT_FIELDS.to_string())],
+        )?;
+        let about: DriveAbout = self
+            .transport
+            .send_json(access_token, &DriveRequest::get(url))
+            .await?;
+
+        Ok(about.into_account_details())
     }
 
     /// the files matching a Drive query.
@@ -792,4 +842,55 @@ fn trimmed_str(value: &str) -> Option<&str> {
 struct DriveFileList {
     #[serde(default)]
     files: Vec<DriveFile>,
+}
+
+/// Drive's answer about the token's own account, exactly as it arrives.
+/// Everything is optional twice over — the object and each field inside it —
+/// because Drive returns only what the query asked for and omits what the
+/// account has not set.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DriveAbout {
+    #[serde(default)]
+    user: Option<DriveAboutUser>,
+    #[serde(default)]
+    storage_quota: Option<DriveAboutStorageQuota>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DriveAboutUser {
+    #[serde(default)]
+    display_name: Option<String>,
+    #[serde(default)]
+    email_address: Option<String>,
+    #[serde(default)]
+    photo_link: Option<String>,
+    #[serde(default)]
+    permission_id: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DriveAboutStorageQuota {
+    #[serde(default)]
+    limit: Option<String>,
+    #[serde(default)]
+    usage: Option<String>,
+}
+
+impl DriveAbout {
+    fn into_account_details(self) -> GoogleDriveAccountDetails {
+        let user = self.user.unwrap_or_default();
+        let quota = self.storage_quota.unwrap_or_default();
+
+        GoogleDriveAccountDetails {
+            email: trimmed(user.email_address.as_deref()).map(str::to_string),
+            display_name: trimmed(user.display_name.as_deref()).map(str::to_string),
+            avatar_url: user.photo_link,
+            provider_user_id: user.permission_id,
+            drive_quota_bytes: parse_drive_number(quota.limit.as_deref()),
+            drive_usage_bytes: parse_drive_number(quota.usage.as_deref()),
+        }
+    }
 }
