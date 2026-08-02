@@ -28,13 +28,13 @@ use super::manifest::{
     build_google_drive_manifest_from_snapshots, is_canonical_snapshot_filename,
     is_tracked_manifest_file_for_folder, normalize_google_drive_manifest,
 };
+use super::metadata::{
+    DriveFile, FILE_TYPE_PROPERTY, SNAPSHOT_CONTENT_HASH_PROPERTY, parse_drive_number,
+};
 use super::retention::{
     choose_retained_workspace_snapshots, compare_drive_files_by_snapshot_recency,
 };
-use super::transport::{
-    DriveFile, DriveRequest, DriveResponse, DriveTransport, FILE_TYPE_PROPERTY,
-    GOOGLE_DRIVE_API_BASE_URL, SNAPSHOT_CONTENT_HASH_PROPERTY, parse_drive_number,
-};
+use super::transport::{DriveRequest, DriveResponse, DriveTransport, GOOGLE_DRIVE_API_BASE_URL};
 
 /// where content is uploaded. Drive answers metadata requests and content
 /// uploads on different hosts, so an operation needs to know which it is.

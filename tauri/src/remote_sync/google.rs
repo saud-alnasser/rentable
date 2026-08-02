@@ -5,6 +5,7 @@ pub mod auth;
 pub mod conflict;
 pub mod files;
 pub mod manifest;
+pub mod metadata;
 pub mod retention;
 pub mod transport;
 

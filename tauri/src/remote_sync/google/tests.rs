@@ -31,12 +31,14 @@ use super::{
         is_canonical_snapshot_filename, is_tracked_manifest_file_for_folder,
         normalize_google_drive_manifest,
     },
+    metadata::{
+        DriveFile, GoogleDriveSnapshotSource, parse_drive_number, parse_drive_snapshot_created_at,
+        parse_drive_timestamp, try_parse_drive_snapshot_source,
+    },
     retention::{choose_retained_workspace_snapshots, compare_drive_files_by_snapshot_recency},
     transport::{
-        DriveFile, DriveRequest, DriveResponse, DriveRetryPolicy, DriveTransport,
-        GoogleDriveSnapshotSource, drive_error, is_retryable, parse_drive_number,
-        parse_drive_snapshot_created_at, parse_drive_timestamp, parse_retry_after, retry_delay,
-        try_parse_drive_snapshot_source,
+        DriveRequest, DriveResponse, DriveRetryPolicy, DriveTransport, drive_error, is_retryable,
+        parse_retry_after, retry_delay,
     },
 };
 

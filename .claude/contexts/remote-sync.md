@@ -56,6 +56,11 @@ save never evicts the copy taken before an update.
   still missing is a caller: no Tauri command reaches either, so the requests that actually
   run are the TypeScript client's until #118. A Rust Drive layer with no caller is the
   expected state here, not dead code.
+- **Interpreting what Drive said about a file is not the transport's.** The file record, the
+  keys this application carries its own metadata under, and the decoders reading Drive's
+  spellings back into values are one subject, and a domain question about a file does not
+  reach through the client that issues requests to ask it. Drive draws the same line: a
+  file's metadata is what a listing answers with, its content is what a download returns.
 - **Reading the remote's index is also what repairs it.** A manifest that is absent,
   unreadable, or overwritten by another client is rebuilt from the snapshots present and
   written back — inside resolving it and inside saving it, never left to whoever called
