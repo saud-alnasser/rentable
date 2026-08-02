@@ -1,7 +1,8 @@
 //! the transfer surface: how a Drive request is issued, and the push, pull, and
 //! fingerprint shapes it carries. Authentication is attached here, so an access
-//! token reaches the network without passing through the web layer. The ported
-//! Drive operations (#117) land here too, on top of [`DriveTransport`].
+//! token reaches the network without passing through the web layer. Reading what
+//! a refusal means is here too, so one seam decides it. Which requests exist is
+//! [`super::files`]'s.
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -181,6 +182,17 @@ pub struct GoogleDriveApplyPullInput {
 /// snapshot upload is measured in megabytes over whatever connection the user
 /// has, and a timeout that fires mid-upload costs the whole transfer.
 const DRIVE_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// the sentences Drive refuses with when a file exists but was never granted to
+/// this application. Read by [`DriveResponse::file_access_was_denied`], which
+/// carries why prose is being matched at all.
+const FILE_ACCESS_DENIED_PHRASES: [&str; 5] = [
+    "not granted the app",
+    "read access to the file",
+    "insufficient file permissions",
+    "does not have sufficient permissions",
+    "app is not authorized to access this file",
+];
 
 /// the status codes worth issuing again. Each one says the request was well
 /// formed and could not be served *now* — nothing about it would be different
@@ -397,6 +409,25 @@ pub struct DriveResponse {
 impl DriveResponse {
     pub fn is_success(&self) -> bool {
         (200..300).contains(&self.status)
+    }
+
+    /// whether this refusal is Drive saying the file is there but was never
+    /// this application's to read.
+    ///
+    /// Meaningful only on a 403, and the caller checks that: Drive refuses
+    /// "you may not" and "this app was never granted this file" with the same
+    /// status and no machine-readable reason, so the sentence is the only thing
+    /// that separates them. Reading prose is a poor test and it is the one
+    /// available — treating every 403 as fatal turns a scope change into a
+    /// failed sync, and treating every 403 as absent hides a real permission
+    /// failure behind a duplicate folder.
+    pub fn file_access_was_denied(&self) -> bool {
+        let message = read_drive_error_message(self.status, &String::from_utf8_lossy(&self.body))
+            .to_ascii_lowercase();
+
+        FILE_ACCESS_DENIED_PHRASES
+            .iter()
+            .any(|phrase| message.contains(phrase))
     }
 
     /// the body of a response that succeeded, or the typed error its refusal

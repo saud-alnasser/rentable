@@ -269,10 +269,10 @@ pub fn build_manifest_entry_from_drive_file(
 }
 
 /// the name every manifest file carries.
-const MANIFEST_FILENAME: &str = "manifest.json";
+pub(super) const MANIFEST_FILENAME: &str = "manifest.json";
 
 /// the `rentableType` value marking a file as a manifest.
-const MANIFEST_FILE_TYPE: &str = "manifest";
+pub(super) const MANIFEST_FILE_TYPE: &str = "manifest";
 
 /// whether a file is this workspace's manifest, rather than a file that merely
 /// looks like one.

@@ -44,10 +44,20 @@ save never evicts the copy taken before an update.
   process, so no refresh token reaches the web layer through linking or through a Drive
   call. What remains is the client secret, still returned by the config command and now
   read by nobody, and an account-auth command with no caller. #118 withdraws both.
-- **Every Drive request is issued by Rust's transport — but nothing issues one yet.**
-  `DriveTransport` attaches the bearer credential, retries, and maps a refusal onto the
-  typed error; the operations that would call it are still the TypeScript client's until
-  #117. A transport with no caller is the expected state here, not dead code.
+- **Every Drive request is issued by Rust — but nothing asks for one yet.** `DriveTransport`
+  attaches the bearer credential, retries, and maps a refusal onto the typed error;
+  `DriveFiles` is every operation issued over it — listing, upload, download, delete, and
+  the folder, manifest, and head lookups built from them. What is still missing is a
+  caller: no Tauri command reaches either, so the requests that actually run are the
+  TypeScript client's until #118. A Rust Drive layer with no caller is the expected state
+  here, not dead code.
+- **A 403 from Drive is ambiguous, and the sentence is the only thing that resolves it.**
+  Drive refuses "you may not" and "this app was never granted this file" with the same
+  status and no machine-readable reason, so a single-file read matches the prose to tell
+  them apart. It is the one place this application reads an error message rather than a
+  code, and it is deliberate: treating every 403 as fatal turns a scope change into a
+  failed sync, and treating every 403 as absent hides a real permission failure behind a
+  duplicate folder.
 - **A retry may never create a second thing.** `POST` is the one method never issued
   twice, because Drive creates a file by `POST` and a duplicate snapshot is a fault this
   application cannot observe. Any new write path has to answer this question before it

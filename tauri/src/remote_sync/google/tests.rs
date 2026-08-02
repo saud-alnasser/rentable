@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::time::{Duration, Instant};
 
 use reqwest::Method;
@@ -17,9 +17,11 @@ use super::{
     conflict::{
         GoogleDriveConflictKind, GoogleDriveHeadObservation, GoogleDriveRecommendedMode,
         GoogleDriveResolvedHead, GoogleDriveSyncAction, GoogleDriveSyncMode,
-        analyze_sync_resolution, did_remote_head_change_from_manifest, has_local_snapshot,
-        is_cryptographic_content_hash, normalize_content_hash, should_refresh_remote_manifest_head,
+        analyze_sync_resolution, content_hash_hex, did_remote_head_change_from_manifest,
+        has_local_snapshot, is_cryptographic_content_hash, normalize_content_hash,
+        should_refresh_remote_manifest_head,
     },
+    files::{DriveEndpoints, DriveFiles, DriveUpload, escape_drive_query},
     manifest::{
         GoogleDriveManifest, GoogleDriveManifestEntry, GoogleDriveManifestEntryOverrides,
         GoogleDriveManifestMetadata, build_manifest_entry_from_drive_file,
@@ -1890,4 +1892,831 @@ async fn the_test_harness_serves_from_loopback_and_never_from_the_live_api() {
         url.starts_with("http://127.0.0.1:"),
         "the harness was not bound to loopback: {url}"
     );
+}
+
+fn drive_files(server: &TestDriveServer) -> DriveFiles {
+    DriveFiles::with_transport(
+        transport(1),
+        DriveEndpoints {
+            api_base_url: server.url(""),
+            upload_base_url: server.url("/upload"),
+        },
+    )
+}
+
+fn drive_workspace() -> RemoteSyncWorkspace {
+    RemoteSyncWorkspace {
+        id: "workspace-1".to_string(),
+        name: "Primary workspace".to_string(),
+        ..RemoteSyncWorkspace::default()
+    }
+}
+
+fn file_json(id: &str, name: &str) -> serde_json::Value {
+    json!({ "id": id, "name": name })
+}
+
+fn snapshot_json(id: &str, name: &str, created_at: i64) -> serde_json::Value {
+    json!({
+        "id": id,
+        "name": name,
+        "appProperties": {
+            "rentableType": "snapshot",
+            "rentableSource": "autosave",
+            "rentableCreatedAt": created_at.to_string(),
+        },
+    })
+}
+
+fn listing(files: Vec<serde_json::Value>) -> ScriptedResponse {
+    json_response(200, json!({ "files": files }))
+}
+
+fn manifest_json() -> serde_json::Value {
+    json!({
+        "metadata": manifest_metadata_json(),
+        "entries": [manifest_entry_json("head-1", "7", 3000)],
+        "head": manifest_entry_json("head-1", "7", 3000),
+    })
+}
+
+fn fixture_manifest() -> GoogleDriveManifest {
+    normalize_google_drive_manifest(&manifest_json()).expect("the fixture manifest is not valid")
+}
+
+#[test]
+fn a_quote_in_a_query_value_cannot_close_the_literal_it_sits_in() {
+    assert_eq!(escape_drive_query("o'brien"), "o\\'brien");
+    assert_eq!(escape_drive_query("'"), "\\'");
+    assert_eq!(escape_drive_query("nothing to escape"), "nothing to escape");
+}
+
+#[test]
+fn a_backslash_is_doubled_before_the_ones_quote_escaping_adds() {
+    assert_eq!(escape_drive_query("a\\b"), "a\\\\b");
+
+    // the pair together is what the other escaping order corrupts: the value's
+    // own backslash would be read as escaping the escape, leaving the quote
+    // free to close the literal and the rest of the value read as a query.
+    assert_eq!(escape_drive_query("a\\'b"), "a\\\\\\'b");
+}
+
+#[test]
+fn the_default_endpoints_are_googles_own() {
+    let endpoints = DriveEndpoints::default();
+
+    assert!(
+        endpoints
+            .api_base_url
+            .starts_with("https://www.googleapis.com/drive/"),
+        "the default api endpoint was {}",
+        endpoints.api_base_url
+    );
+    assert!(
+        endpoints
+            .upload_base_url
+            .starts_with("https://www.googleapis.com/upload/drive/"),
+        "the default upload endpoint was {}",
+        endpoints.upload_base_url
+    );
+}
+
+#[tokio::test]
+async fn a_listing_asks_for_the_fields_it_reads_and_answers_with_the_files() {
+    let server = TestDriveServer::start(vec![listing(vec![
+        file_json("file-1", "snapshot-1.db"),
+        file_json("file-2", "snapshot-2.db"),
+    ])])
+    .await;
+
+    let listed = drive_files(&server)
+        .list("token", "trashed=false", 25, Some("modifiedTime desc"))
+        .await
+        .expect("the listing failed");
+
+    assert_eq!(
+        listed
+            .iter()
+            .map(|file| file.id.as_str())
+            .collect::<Vec<_>>(),
+        ["file-1", "file-2"]
+    );
+
+    let request = server.request(0);
+
+    assert_eq!(request.method, "GET");
+    assert!(request.target.starts_with("/files?"));
+    assert!(request.target.contains("pageSize=25"));
+    assert!(request.target.contains("spaces=drive"));
+    assert!(request.target.contains("orderBy=modifiedTime+desc"));
+    assert!(
+        request.target.contains("md5Checksum") && request.target.contains("appProperties"),
+        "the listing did not ask for the fields it reads: {}",
+        request.target
+    );
+}
+
+#[tokio::test]
+async fn a_listing_orders_only_when_it_was_asked_to() {
+    let server = TestDriveServer::start(vec![listing(vec![])]).await;
+
+    drive_files(&server)
+        .list("token", "trashed=false", 10, None)
+        .await
+        .expect("the listing failed");
+
+    assert!(!server.request(0).target.contains("orderBy"));
+}
+
+#[tokio::test]
+async fn finding_a_file_asks_the_remote_for_one() {
+    let server =
+        TestDriveServer::start(vec![listing(vec![file_json("file-1", "manifest.json")])]).await;
+
+    let found = drive_files(&server)
+        .find("token", "name='manifest.json'", None)
+        .await
+        .expect("the search failed");
+
+    assert_eq!(found.map(|file| file.id), Some("file-1".to_string()));
+    assert!(server.request(0).target.contains("pageSize=1"));
+}
+
+#[tokio::test]
+async fn finding_nothing_is_an_answer_rather_than_a_failure() {
+    let server = TestDriveServer::start(vec![listing(vec![])]).await;
+
+    let found = drive_files(&server)
+        .find("token", "name='manifest.json'", None)
+        .await
+        .expect("the search failed");
+
+    assert!(found.is_none());
+}
+
+#[tokio::test]
+async fn getting_a_file_asks_for_every_field_this_app_reads() {
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        file_json("file-1", "snapshot-1.db"),
+    )])
+    .await;
+
+    let file = drive_files(&server)
+        .try_get("token", "file-1")
+        .await
+        .expect("the read failed");
+
+    assert_eq!(
+        file.map(|file| file.name),
+        Some("snapshot-1.db".to_string())
+    );
+
+    let target = server.request(0).target;
+
+    assert!(target.starts_with("/files/file-1?"));
+    assert!(target.contains("appProperties"));
+}
+
+#[tokio::test]
+async fn a_file_that_is_gone_reads_as_absent_rather_than_as_a_failure() {
+    let server = TestDriveServer::start(vec![json_response(
+        404,
+        json!({ "error": { "message": "File not found: file-1." } }),
+    )])
+    .await;
+
+    let file = drive_files(&server)
+        .try_get("token", "file-1")
+        .await
+        .expect("a missing file was reported as a failure");
+
+    assert!(file.is_none());
+}
+
+#[tokio::test]
+async fn a_file_this_app_was_never_granted_reads_as_absent() {
+    let server = TestDriveServer::start(vec![json_response(
+        403,
+        json!({
+            "error": {
+                "message": "The user has not granted the app 000 read access to the file 111."
+            }
+        }),
+    )])
+    .await;
+
+    let file = drive_files(&server)
+        .try_get("token", "file-1")
+        .await
+        .expect("an ungranted file was reported as a failure");
+
+    assert!(file.is_none());
+}
+
+#[tokio::test]
+async fn a_refusal_that_is_not_about_this_apps_grant_stays_a_refusal() {
+    let server = TestDriveServer::start(vec![json_response(
+        403,
+        json!({ "error": { "message": "The user's Drive storage quota has been exceeded." } }),
+    )])
+    .await;
+
+    assert!(matches!(
+        drive_files(&server).try_get("token", "file-1").await,
+        Err(Error::Forbidden { .. })
+    ));
+}
+
+#[tokio::test]
+async fn deleting_a_file_that_is_already_gone_is_success() {
+    let server = TestDriveServer::start(vec![json_response(404, json!({}))]).await;
+
+    drive_files(&server)
+        .delete("token", "file-1")
+        .await
+        .expect("deleting an absent file was reported as a failure");
+
+    let request = server.request(0);
+
+    assert_eq!(request.method, "DELETE");
+    assert_eq!(request.target, "/files/file-1");
+    assert!(request.body.is_empty());
+}
+
+#[tokio::test]
+async fn a_delete_the_remote_refuses_reaches_the_caller() {
+    let server = TestDriveServer::start(vec![json_response(
+        403,
+        json!({ "error": { "message": "insufficient permissions" } }),
+    )])
+    .await;
+
+    assert!(matches!(
+        drive_files(&server).delete("token", "file-1").await,
+        Err(Error::Forbidden { .. })
+    ));
+}
+
+#[tokio::test]
+async fn a_download_asks_for_the_media_and_yields_the_bytes() {
+    let server =
+        TestDriveServer::start(vec![ScriptedResponse::new(200, b"sqlite bytes".to_vec())]).await;
+
+    let bytes = drive_files(&server)
+        .download("token", "file-1")
+        .await
+        .expect("the download failed");
+
+    assert_eq!(bytes, b"sqlite bytes".to_vec());
+    assert!(server.request(0).target.contains("alt=media"));
+}
+
+#[tokio::test]
+async fn creating_a_folder_posts_its_metadata_as_json() {
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        file_json("folder-1", "Rentable Sync"),
+    )])
+    .await;
+
+    let created = drive_files(&server)
+        .create_metadata_file("token", &json!({ "name": "Rentable Sync" }))
+        .await
+        .expect("the folder was not created");
+
+    assert_eq!(created.id, "folder-1");
+
+    let request = server.request(0);
+
+    assert_eq!(request.method, "POST");
+    assert_eq!(
+        request.header("content-type"),
+        Some("application/json; charset=UTF-8")
+    );
+    assert_eq!(request.body_as_text(), "{\"name\":\"Rentable Sync\"}");
+}
+
+#[tokio::test]
+async fn an_upload_sends_its_metadata_and_its_bytes_in_one_multipart_body() {
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        file_json("file-1", "snapshot-1.db"),
+    )])
+    .await;
+
+    drive_files(&server)
+        .upload(
+            "token",
+            &DriveUpload {
+                file_id: None,
+                name: "snapshot-1.db".to_string(),
+                parents: vec!["folder-1".to_string()],
+                mime_type: "application/x-sqlite3".to_string(),
+                app_properties: BTreeMap::from([(
+                    "rentableType".to_string(),
+                    "snapshot".to_string(),
+                )]),
+                content: b"sqlite bytes".to_vec(),
+            },
+        )
+        .await
+        .expect("the upload failed");
+
+    let request = server.request(0);
+
+    assert_eq!(request.method, "POST");
+    assert!(request.target.starts_with("/upload/files?"));
+    assert!(request.target.contains("uploadType=multipart"));
+
+    let boundary = request
+        .header("content-type")
+        .and_then(|value| value.strip_prefix("multipart/related; boundary="))
+        .expect("the upload declared no boundary")
+        .to_string();
+    let body = request.body_as_text();
+
+    assert!(body.starts_with(&format!(
+        "--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"
+    )));
+    assert!(body.contains("\"name\":\"snapshot-1.db\""));
+    assert!(body.contains("\"parents\":[\"folder-1\"]"));
+    assert!(body.contains("\"rentableType\":\"snapshot\""));
+    assert!(body.contains("\r\nContent-Type: application/x-sqlite3\r\n\r\nsqlite bytes"));
+    assert!(body.ends_with(&format!("\r\n--{boundary}--")));
+}
+
+#[tokio::test]
+async fn an_upload_naming_a_file_updates_it_and_does_not_move_it() {
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        file_json("file-1", "snapshot-1.db"),
+    )])
+    .await;
+
+    drive_files(&server)
+        .upload(
+            "token",
+            &DriveUpload {
+                file_id: Some("file-1".to_string()),
+                name: "snapshot-1.db".to_string(),
+                parents: vec!["folder-1".to_string()],
+                mime_type: "application/x-sqlite3".to_string(),
+                app_properties: BTreeMap::new(),
+                content: b"sqlite bytes".to_vec(),
+            },
+        )
+        .await
+        .expect("the upload failed");
+
+    let request = server.request(0);
+
+    assert_eq!(request.method, "PATCH");
+    assert!(request.target.starts_with("/upload/files/file-1?"));
+    assert!(
+        !request.body_as_text().contains("parents"),
+        "an update named a parent, which asks drive to move the file"
+    );
+}
+
+#[tokio::test]
+async fn a_workspace_folder_is_found_by_the_identifier_it_recorded() {
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        file_json("folder-1", "Primary workspace"),
+    )])
+    .await;
+    let workspace = RemoteSyncWorkspace {
+        remote_folder_id: Some("folder-1".to_string()),
+        ..drive_workspace()
+    };
+
+    let folder = drive_files(&server)
+        .resolve_existing_workspace_folder("token", &workspace)
+        .await
+        .expect("the folder was not resolved");
+
+    assert_eq!(folder.map(|folder| folder.id), Some("folder-1".to_string()));
+    assert_eq!(
+        server.request_count(),
+        1,
+        "a folder the workspace already names should not be searched for"
+    );
+}
+
+#[tokio::test]
+async fn a_forgotten_folder_is_recovered_through_a_file_the_workspace_still_tracks() {
+    let server = TestDriveServer::start(vec![
+        json_response(404, json!({})),
+        json_response(
+            200,
+            json!({ "id": "manifest-1", "name": "manifest.json", "parents": ["folder-1"] }),
+        ),
+        json_response(200, file_json("folder-1", "Primary workspace")),
+    ])
+    .await;
+    let workspace = RemoteSyncWorkspace {
+        remote_folder_id: Some("folder-gone".to_string()),
+        remote_manifest_file_id: Some("manifest-1".to_string()),
+        ..drive_workspace()
+    };
+
+    let folder = drive_files(&server)
+        .resolve_existing_workspace_folder("token", &workspace)
+        .await
+        .expect("the folder was not resolved");
+
+    assert_eq!(folder.map(|folder| folder.id), Some("folder-1".to_string()));
+}
+
+#[tokio::test]
+async fn a_workspace_folder_is_found_by_its_workspace_property_under_the_root() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![file_json("root-1", "Rentable Sync")]),
+        listing(vec![file_json("folder-1", "Primary workspace")]),
+    ])
+    .await;
+
+    let folder = drive_files(&server)
+        .resolve_existing_workspace_folder("token", &drive_workspace())
+        .await
+        .expect("the folder was not resolved");
+
+    assert_eq!(folder.map(|folder| folder.id), Some("folder-1".to_string()));
+
+    let workspace_query = server.request(1).target;
+
+    assert!(
+        workspace_query.contains("rentableWorkspaceId") && workspace_query.contains("root-1"),
+        "the workspace folder was not looked for under the root: {workspace_query}"
+    );
+}
+
+#[tokio::test]
+async fn the_most_recently_touched_workspace_folder_is_the_last_resort() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![file_json("root-1", "Rentable Sync")]),
+        listing(vec![]),
+        listing(vec![file_json("folder-2", "Some other workspace")]),
+    ])
+    .await;
+
+    let folder = drive_files(&server)
+        .resolve_existing_workspace_folder("token", &drive_workspace())
+        .await
+        .expect("the folder was not resolved");
+
+    assert_eq!(folder.map(|folder| folder.id), Some("folder-2".to_string()));
+    assert!(
+        server
+            .request(2)
+            .target
+            .contains("orderBy=modifiedTime+desc")
+    );
+}
+
+#[tokio::test]
+async fn no_root_folder_means_this_workspace_has_no_folder_yet() {
+    let server = TestDriveServer::start(vec![listing(vec![])]).await;
+
+    let folder = drive_files(&server)
+        .resolve_existing_workspace_folder("token", &drive_workspace())
+        .await
+        .expect("resolving reported a failure rather than an absence");
+
+    assert!(folder.is_none());
+}
+
+#[tokio::test]
+async fn ensuring_a_folder_creates_the_root_before_the_workspace_folder() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![]),
+        listing(vec![]),
+        json_response(200, file_json("root-1", "Rentable Sync")),
+        json_response(200, file_json("folder-1", "Primary workspace")),
+    ])
+    .await;
+
+    let folder = drive_files(&server)
+        .ensure_workspace_folder("token", &drive_workspace())
+        .await
+        .expect("the folder was not created");
+
+    assert_eq!(folder.id, "folder-1");
+
+    let root_creation = server.request(2).body_as_text();
+
+    assert!(root_creation.contains("\"name\":\"Rentable Sync\""));
+    assert!(root_creation.contains("application/vnd.google-apps.folder"));
+    assert!(root_creation.contains("\"rentableType\":\"root\""));
+
+    let folder_creation = server.request(3).body_as_text();
+
+    assert!(folder_creation.contains("\"name\":\"Primary workspace\""));
+    assert!(folder_creation.contains("\"parents\":[\"root-1\"]"));
+    assert!(folder_creation.contains("\"rentableWorkspaceId\":\"workspace-1\""));
+}
+
+#[tokio::test]
+async fn ensuring_a_folder_reuses_a_root_that_already_exists() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![file_json("root-1", "Rentable Sync")]),
+        listing(vec![]),
+        listing(vec![]),
+        listing(vec![file_json("root-1", "Rentable Sync")]),
+        json_response(200, file_json("folder-1", "Primary workspace")),
+    ])
+    .await;
+
+    let folder = drive_files(&server)
+        .ensure_workspace_folder("token", &drive_workspace())
+        .await
+        .expect("the folder was not created");
+
+    assert_eq!(folder.id, "folder-1");
+    assert_eq!(
+        server.request_count(),
+        5,
+        "a root folder that already exists was created a second time"
+    );
+}
+
+#[tokio::test]
+async fn snapshots_are_listed_by_property_and_by_name_without_repeating_one() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![snapshot_json("file-1", "snapshot-new.db", 3000)]),
+        listing(vec![
+            snapshot_json("file-1", "snapshot-new.db", 3000),
+            snapshot_json("file-2", "snapshot-old.db", 1000),
+            file_json("file-3", "notes.txt"),
+        ]),
+    ])
+    .await;
+
+    let snapshots = drive_files(&server)
+        .list_workspace_snapshot_files("token", "folder-1")
+        .await
+        .expect("the snapshots were not listed");
+
+    assert_eq!(
+        snapshots
+            .iter()
+            .map(|file| file.id.as_str())
+            .collect::<Vec<_>>(),
+        ["file-1", "file-2"],
+        "a file was repeated, dropped, or ordered wrongly"
+    );
+}
+
+#[tokio::test]
+async fn a_file_named_unlike_a_snapshot_is_not_taken_for_one() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![]),
+        listing(vec![
+            file_json("file-1", "holiday-snapshot-photos.zip"),
+            file_json("file-2", "snapshot-1.txt"),
+        ]),
+    ])
+    .await;
+
+    let snapshots = drive_files(&server)
+        .list_workspace_snapshot_files("token", "folder-1")
+        .await
+        .expect("the snapshots were not listed");
+
+    assert!(
+        snapshots.is_empty(),
+        "a file this application never wrote was taken for a snapshot"
+    );
+}
+
+#[tokio::test]
+async fn a_manifest_is_found_in_the_folder_and_read() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![json!({ "id": "manifest-1", "name": "manifest.json" })]),
+        ScriptedResponse::new(200, manifest_json().to_string()),
+    ])
+    .await;
+
+    let resolved = drive_files(&server)
+        .resolve_manifest("token", &drive_workspace(), "folder-1")
+        .await
+        .expect("resolving the manifest failed")
+        .expect("no manifest was resolved");
+
+    assert_eq!(resolved.file.id, "manifest-1");
+    assert_eq!(
+        resolved.manifest.map(|manifest| manifest.head.file_id),
+        Some("head-1".to_string())
+    );
+    assert!(server.request(0).target.contains("manifest.json"));
+}
+
+#[tokio::test]
+async fn a_tracked_manifest_of_this_folder_is_read_without_a_search() {
+    let server = TestDriveServer::start(vec![
+        json_response(
+            200,
+            json!({
+                "id": "manifest-1",
+                "name": "manifest.json",
+                "parents": ["folder-1"],
+                "appProperties": { "rentableType": "manifest" },
+            }),
+        ),
+        ScriptedResponse::new(200, manifest_json().to_string()),
+    ])
+    .await;
+    let workspace = RemoteSyncWorkspace {
+        remote_manifest_file_id: Some("manifest-1".to_string()),
+        ..drive_workspace()
+    };
+
+    let resolved = drive_files(&server)
+        .resolve_manifest("token", &workspace, "folder-1")
+        .await
+        .expect("resolving the manifest failed")
+        .expect("no manifest was resolved");
+
+    assert_eq!(resolved.file.id, "manifest-1");
+    assert_eq!(
+        server.request_count(),
+        2,
+        "a manifest the workspace already names was searched for anyway"
+    );
+}
+
+#[tokio::test]
+async fn a_tracked_manifest_belonging_to_another_folder_is_not_this_folders_manifest() {
+    let server = TestDriveServer::start(vec![
+        json_response(
+            200,
+            json!({
+                "id": "manifest-elsewhere",
+                "name": "manifest.json",
+                "parents": ["folder-other"],
+                "appProperties": { "rentableType": "manifest" },
+            }),
+        ),
+        listing(vec![json!({ "id": "manifest-1", "name": "manifest.json" })]),
+        ScriptedResponse::new(200, manifest_json().to_string()),
+    ])
+    .await;
+    let workspace = RemoteSyncWorkspace {
+        remote_manifest_file_id: Some("manifest-elsewhere".to_string()),
+        ..drive_workspace()
+    };
+
+    let resolved = drive_files(&server)
+        .resolve_manifest("token", &workspace, "folder-1")
+        .await
+        .expect("resolving the manifest failed")
+        .expect("no manifest was resolved");
+
+    assert_eq!(resolved.file.id, "manifest-1");
+}
+
+#[tokio::test]
+async fn content_that_is_not_a_manifest_resolves_to_the_file_alone() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![json!({ "id": "manifest-1", "name": "manifest.json" })]),
+        ScriptedResponse::new(200, b"not json at all".to_vec()),
+    ])
+    .await;
+
+    let resolved = drive_files(&server)
+        .resolve_manifest("token", &drive_workspace(), "folder-1")
+        .await
+        .expect("resolving the manifest failed")
+        .expect("no manifest file was resolved");
+
+    assert_eq!(resolved.file.id, "manifest-1");
+    assert!(
+        resolved.manifest.is_none(),
+        "unreadable content was read as a manifest"
+    );
+}
+
+#[tokio::test]
+async fn a_folder_holding_no_manifest_resolves_to_nothing() {
+    let server = TestDriveServer::start(vec![listing(vec![])]).await;
+
+    let resolved = drive_files(&server)
+        .resolve_manifest("token", &drive_workspace(), "folder-1")
+        .await
+        .expect("resolving reported a failure rather than an absence");
+
+    assert!(resolved.is_none());
+}
+
+#[tokio::test]
+async fn saving_a_manifest_writes_it_into_the_folder_as_json() {
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        file_json("manifest-2", "manifest.json"),
+    )])
+    .await;
+
+    let saved = drive_files(&server)
+        .save_manifest("token", "folder-1", "workspace-1", &fixture_manifest())
+        .await
+        .expect("the manifest was not saved");
+
+    assert_eq!(saved.id, "manifest-2");
+
+    let body = server.request(0).body_as_text();
+
+    assert!(body.contains("\"name\":\"manifest.json\""));
+    assert!(body.contains("\"parents\":[\"folder-1\"]"));
+    assert!(body.contains("\"rentableType\":\"manifest\""));
+    assert!(body.contains("\"rentableWorkspaceId\":\"workspace-1\""));
+    assert!(
+        body.contains("\"fileId\": \"head-1\""),
+        "the manifest itself never reached the body"
+    );
+}
+
+#[tokio::test]
+async fn a_head_the_remote_no_longer_holds_has_no_state() {
+    let server = TestDriveServer::start(vec![json_response(404, json!({}))]).await;
+
+    let state = drive_files(&server)
+        .resolve_remote_head_state("token", &fixture_manifest())
+        .await
+        .expect("resolving reported a failure rather than an absence");
+
+    assert!(state.is_none());
+}
+
+#[tokio::test]
+async fn an_unchanged_head_carrying_a_digest_is_taken_at_the_manifests_word() {
+    let digest = "a".repeat(64);
+    let mut manifest = fixture_manifest();
+    manifest.head.content_hash = Some(digest.clone());
+
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        file_json("head-1", "snapshot-head-1.db"),
+    )])
+    .await;
+
+    let state = drive_files(&server)
+        .resolve_remote_head_state("token", &manifest)
+        .await
+        .expect("resolving the head failed")
+        .expect("the head was reported as gone");
+
+    assert!(!state.changed_from_manifest);
+    assert_eq!(state.content_hash, Some(digest));
+    assert_eq!(
+        server.request_count(),
+        1,
+        "a head that had not moved was downloaded to be hashed again"
+    );
+}
+
+#[tokio::test]
+async fn a_head_that_moved_on_is_hashed_from_the_bytes_the_remote_now_holds() {
+    let bytes = b"the newer snapshot".to_vec();
+    let server = TestDriveServer::start(vec![
+        json_response(
+            200,
+            json!({ "id": "head-1", "name": "snapshot-head-1.db", "version": "9" }),
+        ),
+        ScriptedResponse::new(200, bytes.clone()),
+    ])
+    .await;
+
+    let state = drive_files(&server)
+        .resolve_remote_head_state("token", &fixture_manifest())
+        .await
+        .expect("resolving the head failed")
+        .expect("the head was reported as gone");
+
+    assert!(state.changed_from_manifest);
+    assert_eq!(state.content_hash, Some(content_hash_hex(&bytes)));
+}
+
+#[tokio::test]
+async fn a_head_whose_bytes_cannot_be_read_is_still_reported_as_present() {
+    let server = TestDriveServer::start(vec![
+        json_response(
+            200,
+            json!({ "id": "head-1", "name": "snapshot-head-1.db", "version": "9" }),
+        ),
+        json_response(
+            403,
+            json!({ "error": { "message": "The user's Drive storage quota has been exceeded." } }),
+        ),
+    ])
+    .await;
+
+    let state = drive_files(&server)
+        .resolve_remote_head_state("token", &fixture_manifest())
+        .await
+        .expect("resolving the head failed")
+        .expect("a head whose bytes could not be read was reported as gone");
+
+    assert!(state.changed_from_manifest);
+    assert!(state.content_hash.is_none());
 }
