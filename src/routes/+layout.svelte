@@ -3,15 +3,10 @@
 	import { tauri, type Recovery, type RemoteSyncState } from '$lib/api/tauri';
 	import {
 		cancelGoogleDriveLink,
-		cancelGoogleDrivePendingLinkSession,
-		finishGoogleDriveLinkSession,
-		isGoogleDriveLinkCancelledError,
 		resetBrokenGoogleDriveWorkspace,
 		resolveGoogleDriveLink,
-		startGoogleDriveLinkSession,
 		type GoogleDriveLinkPreparation,
-		type GoogleDriveLinkResolution,
-		type GoogleDrivePendingLinkSession
+		type GoogleDriveLinkResolution
 	} from '$lib/api/utils/remote-sync-google-drive';
 	import { startGoogleDriveAutosyncManager } from '$lib/api/utils/remote-sync-google-drive-autosync';
 	import {
@@ -23,6 +18,7 @@
 		syncWorkspaceNow
 	} from '$lib/api/utils/workspace-sync';
 	import { TooltipProvider } from '$lib/common/components/fragments/tooltip';
+	import { LinkSession } from '$lib/resources/sync/link-session.svelte';
 	import SonnerProvider from '$lib/common/components/providers/sonner-provider.svelte';
 	import { toErrorText } from '$lib/error/message';
 	import LL, { locale, setLocale } from '$lib/i18n/i18n-svelte';
@@ -57,9 +53,36 @@
 	let startupRecovery = $state<Recovery | null>(null);
 	let startupRemoteSync = $state<RemoteSyncState | null>(null);
 	let startupLinkPreparation = $state<GoogleDriveLinkPreparation | null>(null);
-	let pendingStartupGoogleDriveLinkSession = $state<GoogleDrivePendingLinkSession | null>(null);
-	let pendingStartupGoogleDriveLinkAbortController: AbortController | null = null;
-	let isFinalizingStartupGoogleDriveLink = $state(false);
+	const linkSession = new LinkSession({
+		onState: (state) => {
+			startupRemoteSync = state;
+			queryClient.setQueryData(['settings', 'remote-sync'], state);
+		},
+		onResolutionRequired: async (preparation) => {
+			startupLinkPreparation = preparation;
+			startupState = 'choose-workspace';
+			await api.app.window.show();
+		},
+		resolve: async (preparation) => {
+			const result = await resolveGoogleDriveLink(preparation);
+			startupRemoteSync = result.state;
+			startupLinkPreparation = null;
+			await continueStartup(true);
+		},
+		onFailure: async (error) => {
+			startupRecovery = null;
+			startupState = 'choose-workspace';
+			startupLinkPreparation = null;
+			startupError = getErrorMessage(error);
+			await api.app.window.show();
+		},
+		onCancelled: async () => {
+			startupRemoteSync = await tauri.remoteSync.getState().catch(() => startupRemoteSync);
+			if (startupRemoteSync) {
+				queryClient.setQueryData(['settings', 'remote-sync'], startupRemoteSync);
+			}
+		}
+	});
 	let isHandlingStartupChoice = $state(false);
 	let isSyncingWindowClose = false;
 	let isFinalizingWindowClose = false;
@@ -160,92 +183,14 @@
 		await api.app.window.show();
 	}
 
-	async function cancelPendingStartupGoogleDriveAuthorization() {
-		const session = pendingStartupGoogleDriveLinkSession;
-		pendingStartupGoogleDriveLinkAbortController?.abort();
-		pendingStartupGoogleDriveLinkAbortController = null;
-		pendingStartupGoogleDriveLinkSession = null;
-		isFinalizingStartupGoogleDriveLink = false;
-
-		if (!session) {
-			return;
-		}
-
-		await cancelGoogleDrivePendingLinkSession(session).catch(() => undefined);
-		startupRemoteSync = await tauri.remoteSync.getState().catch(() => startupRemoteSync);
-		if (startupRemoteSync) {
-			queryClient.setQueryData(['settings', 'remote-sync'], startupRemoteSync);
-		}
-	}
-
-	async function watchStartupGoogleDriveLinkSession(session: GoogleDrivePendingLinkSession) {
-		const abortController = new AbortController();
-		pendingStartupGoogleDriveLinkAbortController = abortController;
-
-		try {
-			const preparation = await finishGoogleDriveLinkSession(session, {
-				signal: abortController.signal,
-				onResult: (result) => {
-					if (
-						result.status === 'completed' &&
-						pendingStartupGoogleDriveLinkSession?.sessionId === session.sessionId
-					) {
-						isFinalizingStartupGoogleDriveLink = true;
-					}
-				}
-			});
-
-			if (pendingStartupGoogleDriveLinkSession?.sessionId !== session.sessionId) {
-				return;
-			}
-
-			startupRemoteSync = preparation.state;
-			queryClient.setQueryData(['settings', 'remote-sync'], preparation.state);
-
-			if (preparation.requiresResolution) {
-				isFinalizingStartupGoogleDriveLink = false;
-				startupLinkPreparation = preparation;
-				startupState = 'choose-workspace';
-				await api.app.window.show();
-				return;
-			}
-
-			const result = await resolveGoogleDriveLink(preparation);
-			startupRemoteSync = result.state;
-			startupLinkPreparation = null;
-			await continueStartup(true);
-		} catch (error) {
-			isFinalizingStartupGoogleDriveLink = false;
-			if (!isGoogleDriveLinkCancelledError(error)) {
-				startupRecovery = null;
-				startupState = 'choose-workspace';
-				startupLinkPreparation = null;
-				startupError = getErrorMessage(error);
-				await api.app.window.show();
-			}
-		} finally {
-			isFinalizingStartupGoogleDriveLink = false;
-			if (pendingStartupGoogleDriveLinkSession?.sessionId === session.sessionId) {
-				pendingStartupGoogleDriveLinkSession = null;
-			}
-
-			if (pendingStartupGoogleDriveLinkAbortController === abortController) {
-				pendingStartupGoogleDriveLinkAbortController = null;
-			}
-		}
-	}
-
 	async function startApp() {
-		await cancelPendingStartupGoogleDriveAuthorization();
+		await linkSession.cancel();
 
 		startupState = 'loading';
 		startupError = null;
 		startupRecovery = null;
 		startupRemoteSync = null;
 		startupLinkPreparation = null;
-		pendingStartupGoogleDriveLinkSession = null;
-		pendingStartupGoogleDriveLinkAbortController = null;
-		isFinalizingStartupGoogleDriveLink = false;
 		isHandlingStartupChoice = false;
 
 		try {
@@ -292,7 +237,7 @@
 	}
 
 	async function openLocalWorkspace() {
-		if (isHandlingStartupChoice || isFinalizingStartupGoogleDriveLink) {
+		if (isHandlingStartupChoice || linkSession.isFinalizing) {
 			return;
 		}
 
@@ -300,7 +245,7 @@
 		startupError = null;
 
 		try {
-			await cancelPendingStartupGoogleDriveAuthorization();
+			await linkSession.cancel();
 			startupLinkPreparation = null;
 			await continueStartup();
 		} catch (error) {
@@ -337,12 +282,12 @@
 	}
 
 	async function cancelStartupLinkConflict() {
-		if (isFinalizingStartupGoogleDriveLink) {
+		if (linkSession.isFinalizing) {
 			return;
 		}
 
-		if (pendingStartupGoogleDriveLinkSession) {
-			await cancelPendingStartupGoogleDriveAuthorization();
+		if (linkSession.session) {
+			await linkSession.cancel();
 			startupState = 'choose-workspace';
 			await api.app.window.show();
 			return;
@@ -388,12 +333,9 @@
 			startupRemoteSync = await resetBrokenGoogleDriveWorkspace(startupLinkPreparation.state);
 			queryClient.setQueryData(['settings', 'remote-sync'], startupRemoteSync);
 			startupLinkPreparation = null;
-			isFinalizingStartupGoogleDriveLink = false;
-			const session = await startGoogleDriveLinkSession();
-			pendingStartupGoogleDriveLinkSession = session;
+			await linkSession.begin();
 			startupState = 'choose-workspace';
 			await api.app.window.show();
-			void watchStartupGoogleDriveLinkSession(session);
 		} catch (error) {
 			startupRecovery = null;
 			startupState = 'choose-workspace';
@@ -405,12 +347,12 @@
 	}
 
 	async function linkGoogleDriveAtStartup() {
-		if (isHandlingStartupChoice || isFinalizingStartupGoogleDriveLink) {
+		if (isHandlingStartupChoice || linkSession.isFinalizing) {
 			return;
 		}
 
-		if (pendingStartupGoogleDriveLinkSession) {
-			await cancelPendingStartupGoogleDriveAuthorization();
+		if (linkSession.session) {
+			await linkSession.cancel();
 			await api.app.window.show();
 			return;
 		}
@@ -420,10 +362,7 @@
 
 		try {
 			startupLinkPreparation = null;
-			isFinalizingStartupGoogleDriveLink = false;
-			const session = await startGoogleDriveLinkSession();
-			pendingStartupGoogleDriveLinkSession = session;
-			void watchStartupGoogleDriveLinkSession(session);
+			await linkSession.begin();
 		} catch (error) {
 			startupRecovery = null;
 			startupState = 'choose-workspace';
@@ -487,7 +426,7 @@
 		})();
 
 		return () => {
-			void cancelPendingStartupGoogleDriveAuthorization();
+			void linkSession.cancel();
 			stopAutosyncManager();
 			unlistenCloseRequested?.();
 			window.removeEventListener('rentable:window-close-request', handleWindowCloseRequest);
@@ -519,8 +458,8 @@
 						<LayoutStartupWorkspaceChoice
 							syncState={startupRemoteSync}
 							isWorking={isHandlingStartupChoice}
-							isLinkingGoogleDrive={pendingStartupGoogleDriveLinkSession !== null}
-							isFinalizingGoogleDriveLink={isFinalizingStartupGoogleDriveLink}
+							isLinkingGoogleDrive={linkSession.session !== null}
+							isFinalizingGoogleDriveLink={linkSession.isFinalizing}
 							errorMessage={startupError}
 							linkConflict={startupLinkPreparation?.conflict ?? null}
 							onOpenLocal={() => void openLocalWorkspace()}

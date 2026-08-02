@@ -3,16 +3,9 @@
 	import { tauri, type AvailableUpdate, type UpdaterDownloadEvent } from '$lib/api/tauri';
 	import type {
 		GoogleDriveLinkPreparation,
-		GoogleDriveLinkResolution,
-		GoogleDrivePendingLinkSession
+		GoogleDriveLinkResolution
 	} from '$lib/api/utils/remote-sync-google-drive';
-	import {
-		cancelGoogleDrivePendingLinkSession,
-		finishGoogleDriveLinkSession,
-		isGoogleDriveLinkCancelledError,
-		resetBrokenGoogleDriveWorkspace,
-		startGoogleDriveLinkSession
-	} from '$lib/api/utils/remote-sync-google-drive';
+	import { resetBrokenGoogleDriveWorkspace } from '$lib/api/utils/remote-sync-google-drive';
 	import {
 		inspectWorkspaceSyncState,
 		shouldDeferWorkspaceConflict,
@@ -52,6 +45,7 @@
 		useUnlinkGoogleDriveWorkspace,
 		type SyncGoogleDriveWorkspaceResult
 	} from '$lib/resources/settings/hooks/queries';
+	import { LinkSession } from '$lib/resources/sync/link-session.svelte';
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { onDestroy } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -83,9 +77,28 @@
 	let updateDownloadedBytes = $state(0);
 	let updateContentLength = $state<number | null>(null);
 	let pendingGoogleDriveLink = $state<GoogleDriveLinkPreparation | null>(null);
-	let pendingGoogleDriveLinkSession = $state<GoogleDrivePendingLinkSession | null>(null);
-	let pendingGoogleDriveLinkAbortController: AbortController | null = null;
-	let isFinalizingGoogleDriveLink = $state(false);
+	const linkSession = new LinkSession({
+		onState: (state) => {
+			queryClient.setQueryData(keys.remoteSync, state);
+		},
+		onResolutionRequired: (preparation) => {
+			pendingGoogleDriveLink = preparation;
+		},
+		resolve: async (preparation) => {
+			await resolveGoogleDriveLinkMutation.mutateAsync({
+				preparation,
+				resolution: preparation.recommendedMode
+			});
+			pendingGoogleDriveLink = null;
+		},
+		onFailure: async (error) => {
+			await queryClient.invalidateQueries({ queryKey: keys.remoteSync });
+			showErrorToast(error);
+		},
+		onCancelled: async () => {
+			await queryClient.invalidateQueries({ queryKey: keys.remoteSync });
+		}
+	});
 	let lastDismissedSyncConflictSignature: string | null = null;
 	let lastInspectedGoogleDriveSignature: string | null = null;
 	let googleDriveInspectionRun = 0;
@@ -118,9 +131,7 @@
 
 		return Math.min(100, Math.round((updateDownloadedBytes / updateContentLength) * 100));
 	});
-	const isLinkingGoogleDrive = $derived.by(
-		() => pendingGoogleDriveLinkSession !== null || isFinalizingGoogleDriveLink
-	);
+	const isLinkingGoogleDrive = $derived(linkSession.isLinking);
 	const isResolvingLinkConflict = $derived.by(
 		() => resolveGoogleDriveLinkMutation.isPending || cancelGoogleDriveLinkMutation.isPending
 	);
@@ -174,7 +185,7 @@
 		}
 
 		if (
-			pendingGoogleDriveLinkSession !== null ||
+			linkSession.session !== null ||
 			resolveGoogleDriveLinkMutation.isPending ||
 			cancelGoogleDriveLinkMutation.isPending ||
 			syncGoogleDriveWorkspaceMutation.isPending ||
@@ -220,75 +231,8 @@
 			void availableUpdate.close();
 		}
 
-		void cancelPendingGoogleDriveAuthorization();
+		void linkSession.cancel();
 	});
-
-	async function cancelPendingGoogleDriveAuthorization() {
-		const session = pendingGoogleDriveLinkSession;
-		pendingGoogleDriveLinkAbortController?.abort();
-		pendingGoogleDriveLinkAbortController = null;
-		pendingGoogleDriveLinkSession = null;
-		isFinalizingGoogleDriveLink = false;
-
-		if (!session) {
-			return;
-		}
-
-		await cancelGoogleDrivePendingLinkSession(session).catch(() => undefined);
-		await queryClient.invalidateQueries({ queryKey: keys.remoteSync });
-	}
-
-	async function watchPendingGoogleDriveLinkSession(session: GoogleDrivePendingLinkSession) {
-		const abortController = new AbortController();
-		pendingGoogleDriveLinkAbortController = abortController;
-
-		try {
-			const preparation = await finishGoogleDriveLinkSession(session, {
-				signal: abortController.signal,
-				onResult: (result) => {
-					if (
-						result.status === 'completed' &&
-						pendingGoogleDriveLinkSession?.sessionId === session.sessionId
-					) {
-						isFinalizingGoogleDriveLink = true;
-					}
-				}
-			});
-
-			if (pendingGoogleDriveLinkSession?.sessionId !== session.sessionId) {
-				return;
-			}
-
-			queryClient.setQueryData(keys.remoteSync, preparation.state);
-
-			if (preparation.requiresResolution) {
-				isFinalizingGoogleDriveLink = false;
-				pendingGoogleDriveLink = preparation;
-				return;
-			}
-
-			await resolveGoogleDriveLinkMutation.mutateAsync({
-				preparation,
-				resolution: preparation.recommendedMode
-			});
-			pendingGoogleDriveLink = null;
-		} catch (error) {
-			isFinalizingGoogleDriveLink = false;
-			if (!isGoogleDriveLinkCancelledError(error)) {
-				await queryClient.invalidateQueries({ queryKey: keys.remoteSync });
-				showErrorToast(error);
-			}
-		} finally {
-			isFinalizingGoogleDriveLink = false;
-			if (pendingGoogleDriveLinkSession?.sessionId === session.sessionId) {
-				pendingGoogleDriveLinkSession = null;
-			}
-
-			if (pendingGoogleDriveLinkAbortController === abortController) {
-				pendingGoogleDriveLinkAbortController = null;
-			}
-		}
-	}
 
 	function showErrorToast(error: unknown) {
 		const { title, detail } = toErrorMessage(error, $LL);
@@ -464,22 +408,19 @@
 	}
 
 	async function linkGoogleDrive() {
-		if (isFinalizingGoogleDriveLink) {
+		if (linkSession.isFinalizing) {
 			return;
 		}
 
-		if (pendingGoogleDriveLinkSession) {
-			await cancelPendingGoogleDriveAuthorization();
+		if (linkSession.session) {
+			await linkSession.cancel();
 			return;
 		}
 
 		try {
 			lastDismissedSyncConflictSignature = null;
 			pendingGoogleDriveLink = null;
-			isFinalizingGoogleDriveLink = false;
-			const session = await startGoogleDriveLinkSession();
-			pendingGoogleDriveLinkSession = session;
-			void watchPendingGoogleDriveLinkSession(session);
+			await linkSession.begin();
 		} catch (error) {
 			showErrorToast(error);
 		}
@@ -503,12 +444,12 @@
 	}
 
 	async function cancelPendingGoogleDriveLink() {
-		if (isFinalizingGoogleDriveLink) {
+		if (linkSession.isFinalizing) {
 			return;
 		}
 
-		if (pendingGoogleDriveLinkSession) {
-			await cancelPendingGoogleDriveAuthorization();
+		if (linkSession.session) {
+			await linkSession.cancel();
 			return;
 		}
 
@@ -531,7 +472,7 @@
 	}
 
 	async function relinkBrokenGoogleDrive() {
-		if (pendingGoogleDriveLink?.conflict?.kind !== 'relink' || isFinalizingGoogleDriveLink) {
+		if (pendingGoogleDriveLink?.conflict?.kind !== 'relink' || linkSession.isFinalizing) {
 			return;
 		}
 
@@ -540,10 +481,7 @@
 			const nextState = await resetBrokenGoogleDriveWorkspace(pendingGoogleDriveLink.state);
 			queryClient.setQueryData(keys.remoteSync, nextState);
 			pendingGoogleDriveLink = null;
-			isFinalizingGoogleDriveLink = false;
-			const session = await startGoogleDriveLinkSession();
-			pendingGoogleDriveLinkSession = session;
-			void watchPendingGoogleDriveLinkSession(session);
+			await linkSession.begin();
 		} catch (error) {
 			showErrorToast(error);
 		}
@@ -683,7 +621,7 @@
 					isSnapshotPending={createWorkspaceSnapshotMutation.isPending}
 					{isSyncingGoogleDrive}
 					{isLinkingGoogleDrive}
-					{isFinalizingGoogleDriveLink}
+					isFinalizingGoogleDriveLink={linkSession.isFinalizing}
 					{isResolvingLinkConflict}
 					isUnlinkingGoogleDrive={unlinkGoogleDriveWorkspaceMutation.isPending}
 					linkConflict={pendingGoogleDriveLink?.conflict ?? null}
