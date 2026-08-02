@@ -1,6 +1,7 @@
 pub mod backup;
 pub mod bootstrap;
 pub mod database;
+pub mod diagnostics;
 pub mod error;
 pub mod http;
 pub mod persisted;
@@ -21,6 +22,7 @@ use tauri_plugin_fs::FsExt;
 use tokio::sync::RwLock;
 
 use crate::backup::Backup;
+use crate::diagnostics::{DiagnosticLog, RotationLimits};
 use crate::persisted::Persisted;
 use crate::remote_sync::RemoteSync;
 use crate::settings::Settings;
@@ -55,6 +57,16 @@ pub fn run() {
 
             std::fs::create_dir_all(&data_dir).expect("failed to create directory");
 
+            let diagnostics_dir = data_dir.join(diagnostics::DIRECTORY_NAME);
+
+            // installed before anything else can fail, so that what fails next
+            // is recorded. A log that cannot be opened is the one failure with
+            // nowhere to report itself.
+            match DiagnosticLog::new(diagnostics_dir.clone(), RotationLimits::DEFAULT) {
+                Ok(log) => diagnostics::install(log),
+                Err(error) => eprintln!("failed to open the diagnostics log: {error}"),
+            }
+
             let db_dir: PathBuf = if cfg!(debug_assertions) {
                 let current_dir = std::env::current_dir().expect("failed to get current dir");
                 std::fs::create_dir_all(&current_dir).expect("failed to create directory");
@@ -74,6 +86,7 @@ pub fn run() {
                 }
                 settings.backup_dir = data_dir.join(Backup::BACKUP_DIRECTORY);
                 settings.recovery_path = data_dir.join(Update::FILENAME);
+                settings.diagnostics_dir = diagnostics_dir;
                 settings.version = env!("CARGO_PKG_VERSION").to_string();
 
                 settings.migration_dir = if cfg!(debug_assertions) {
@@ -145,6 +158,7 @@ pub fn run() {
             database::commands::db_execute_batch_sql,
             settings::settings_get,
             settings::settings_set,
+            diagnostics::diagnostics_write,
             backup::backup_list,
             backup::backup_create,
             backup::backup_restore,

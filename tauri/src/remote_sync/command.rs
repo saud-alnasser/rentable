@@ -4,6 +4,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 use crate::{
     backup::{BackupRecoveryKind, BackupSource},
+    diagnostics,
     error::Error,
     state::AppState,
     timestamp,
@@ -63,6 +64,11 @@ pub async fn remote_sync_snapshot_now(
     let state = remote_sync.get_state().await?;
     drop(remote_sync);
 
+    diagnostics::info("sync.snapshot.recorded")
+        .with("workspace", state.workspace.id.as_str())
+        .with("filename", entry.filename.as_str())
+        .write();
+
     {
         let mut backup = app_state.backup.write().await;
         let _ = backup.cleanup_retained().await;
@@ -93,6 +99,11 @@ pub async fn remote_sync_autosave_now(
     let state = remote_sync.get_state().await?;
     drop(remote_sync);
 
+    diagnostics::info("sync.autosave.recorded")
+        .with("workspace", state.workspace.id.as_str())
+        .with("filename", entry.filename.as_str())
+        .write();
+
     {
         let mut backup = app_state.backup.write().await;
         let _ = backup.cleanup_retained().await;
@@ -114,7 +125,23 @@ pub async fn remote_sync_google_drive_begin_link(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<GoogleDriveLinkSessionStart, Error> {
     let mut remote_sync = app_state.remote_sync.write().await;
-    remote_sync.begin_google_drive_link()
+
+    match remote_sync.begin_google_drive_link() {
+        Ok(session) => {
+            diagnostics::info("sync.link.started")
+                .with("session", session.session_id.as_str())
+                .write();
+
+            Ok(session)
+        }
+        Err(error) => {
+            diagnostics::error("sync.link.startFailed")
+                .with("error", error.to_string())
+                .write();
+
+            Err(error)
+        }
+    }
 }
 
 #[tauri::command]
@@ -144,7 +171,15 @@ pub async fn remote_sync_google_drive_ensure_access_token(
     }
 
     let mut remote_sync = app_state.remote_sync.write().await;
-    remote_sync.refresh_google_drive_access_token(input).await
+
+    remote_sync
+        .refresh_google_drive_access_token(input)
+        .await
+        .inspect_err(|error| {
+            diagnostics::error("sync.token.refreshFailed")
+                .with("error", error.to_string())
+                .write()
+        })
 }
 
 #[tauri::command]
@@ -174,6 +209,14 @@ pub async fn remote_sync_google_drive_complete_link(
         let mut remote_sync = app_state.remote_sync.write().await;
         remote_sync.complete_google_drive_link(input).await?
     };
+
+    diagnostics::info("sync.link.completed")
+        .with("workspace", state.workspace.id.as_str())
+        .with(
+            "account",
+            state.workspace.account_id.clone().unwrap_or_default(),
+        )
+        .write();
 
     sync_backup_manifest_to_active_workspace(app_state.inner(), &state).await?;
     Ok(state)
@@ -217,7 +260,14 @@ pub async fn remote_sync_google_drive_acquire_lock(
     input: GoogleDriveSyncLockAcquireInput,
 ) -> Result<GoogleDriveSyncLockLease, Error> {
     let mut remote_sync = app_state.remote_sync.write().await;
-    remote_sync.acquire_google_drive_sync_lock(input)
+
+    remote_sync
+        .acquire_google_drive_sync_lock(input)
+        .inspect_err(|error| {
+            diagnostics::warn("sync.lock.denied")
+                .with("error", error.to_string())
+                .write()
+        })
 }
 
 #[tauri::command]

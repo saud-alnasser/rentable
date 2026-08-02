@@ -317,6 +317,12 @@ const en = {
 		description:
 			'manage the ending-soon notice window, app updates, sync workspaces, and app details.',
 
+		diagnosticsDescription:
+			'rentable records what it does on this machine — startups, migrations, backups, and sync — so a failure can be looked into afterwards. the files never leave this machine and are limited in size, and passwords and account tokens are stripped out before anything is written.',
+		diagnosticsLocationLabel: 'log location',
+		diagnosticsReveal: 'open log folder',
+		diagnosticsTitle: 'diagnostics',
+
 		downloadingUpdate: 'downloading update',
 
 		endingSoonDescription:

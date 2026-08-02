@@ -14,6 +14,7 @@ pub struct Settings {
     pub migration_dir: PathBuf,
     pub backup_dir: PathBuf,
     pub recovery_path: PathBuf,
+    pub diagnostics_dir: PathBuf,
     pub locale: Option<String>,
     pub version: String,
 }
@@ -28,6 +29,7 @@ struct SettingsStored {
     migration_dir: PathBuf,
     backup_dir: PathBuf,
     recovery_path: PathBuf,
+    diagnostics_dir: PathBuf,
     locale: Option<String>,
     version: String,
 }
@@ -40,6 +42,7 @@ impl Default for Settings {
             migration_dir: PathBuf::new(),
             backup_dir: PathBuf::new(),
             recovery_path: PathBuf::new(),
+            diagnostics_dir: PathBuf::new(),
             locale: None,
             version: String::new(),
         }
@@ -62,6 +65,7 @@ impl From<SettingsStored> for Settings {
             migration_dir: value.migration_dir,
             backup_dir: value.backup_dir,
             recovery_path: value.recovery_path,
+            diagnostics_dir: value.diagnostics_dir,
             locale: value.locale,
             version: value.version,
         }

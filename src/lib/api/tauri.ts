@@ -1,12 +1,22 @@
 import { invoke } from '@tauri-apps/api/core';
-import { openUrl as openExternalUrl } from '@tauri-apps/plugin-opener';
+import {
+	openUrl as openExternalUrl,
+	revealItemInDir as revealInFileManager
+} from '@tauri-apps/plugin-opener';
 import { check, type DownloadEvent, type Update as TauriUpdate } from '@tauri-apps/plugin-updater';
 
 export type Settings = {
 	endingSoonNoticeDays: number;
 	databasePath: string;
+	diagnosticsDir: string;
 	locale: string | null;
 	version: string;
+};
+
+export type DiagnosticRecord = {
+	level: 'info' | 'warn' | 'error';
+	event: string;
+	fields: Record<string, string>;
 };
 
 export type SettingsChangeset = {
@@ -236,7 +246,11 @@ export const tauri = {
 		restart: () => invoke<void>('window_restart')
 	},
 	opener: {
-		openUrl: (url: string) => openExternalUrl(url)
+		openUrl: (url: string) => openExternalUrl(url),
+		revealItemInDir: (path: string) => revealInFileManager(path)
+	},
+	diagnostics: {
+		write: (record: DiagnosticRecord) => invoke<void>('diagnostics_write', { record })
 	},
 	update: {
 		prepare: (targetVersion: string) => invoke<Recovery>('update_prepare', { targetVersion }),

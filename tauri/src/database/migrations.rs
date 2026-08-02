@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::error::Error;
+use crate::{diagnostics, error::Error};
 
 pub const TABLE_NAME: &'static str = "__migrations__";
 
@@ -25,7 +25,8 @@ pub async fn create_table(pool: &Pool<Sqlite>) -> Result<(), Error> {
 }
 
 pub async fn run(pool: &Pool<Sqlite>, migrations_dir: &PathBuf) -> Result<(), Error> {
-    println!("[migration] running sql migrations.");
+    diagnostics::info("migration.started").write();
+
     create_table(pool).await?;
 
     let migration_files = get_migration_files(migrations_dir)?;
@@ -47,22 +48,24 @@ pub async fn run(pool: &Pool<Sqlite>, migrations_dir: &PathBuf) -> Result<(), Er
         }
 
         migrations_count += 1;
-        println!("[migration] applying migration: {}", file_name);
+
         if let Err(err) = apply_migration(pool, &file_name, &sql).await {
-            println!(
-                "[migration] migration failed: {}\nError: {}",
-                file_name, err
-            );
+            diagnostics::error("migration.failed")
+                .with("file", file_name.as_str())
+                .with("error", err.to_string())
+                .write();
+
             return Err(err);
         }
 
-        println!("[migration] migration applied: {}", file_name);
+        diagnostics::info("migration.applied")
+            .with("file", file_name.as_str())
+            .write();
     }
 
-    println!(
-        "[migration] migration completed. {} new migrations applied.",
-        migrations_count
-    );
+    diagnostics::info("migration.completed")
+        .with("applied", migrations_count.to_string())
+        .write();
 
     Ok(())
 }
