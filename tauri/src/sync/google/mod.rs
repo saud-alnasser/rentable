@@ -10,6 +10,4 @@ pub mod retention;
 pub mod transport;
 
 #[cfg(test)]
-pub(super) mod test_server;
-#[cfg(test)]
-mod tests;
+pub(super) mod test;

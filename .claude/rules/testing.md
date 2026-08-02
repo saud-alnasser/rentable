@@ -29,9 +29,20 @@ Commands are in `.claude/tools/node-test.md`, including the single-file invocati
 
 ## Rust
 
-`#[cfg(test)]` modules — inline for a single-file module, or a `tests.rs` inside a module
-tree. Rust tests run single-threaded; they touch the filesystem and are not isolated from
-each other otherwise. See `.claude/tools/cargo.md`.
+A `#[cfg(test)] mod tests` at the foot of the file it covers. Never a `tests.rs` gathering
+the tests of a whole directory: a shared test module hides which file a failure belongs to,
+and it survives the split of the module it was written against, so the tests of two
+concerns end up in one place with nothing marking the seam.
+
+The cost is paid knowingly. Fixtures used by more than one module are written out in each
+of them rather than shared, and a fixture is cheap to duplicate where a subject is not — a
+second copy of a builder is worth the file that names its own coverage.
+
+A helper that is genuinely shared scaffolding rather than a fixture — the loopback Drive
+server, say — is a module of its own under a `test/` directory, not a test module.
+
+Rust tests run single-threaded; they touch the filesystem and are not isolated from each
+other otherwise. See `.claude/tools/cargo.md`.
 
 ## Characterization tests
 

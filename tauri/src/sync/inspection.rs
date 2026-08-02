@@ -14,7 +14,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{error::Error, state::AppState};
 
-use super::active_workspace::current_workspace_content_hash;
 use super::google::conflict::{
     GoogleDriveConflictKind, GoogleDriveHeadObservation, GoogleDriveRecommendedMode,
     GoogleDriveResolvedHead, GoogleDriveSyncMode, GoogleDriveSyncResolution,
@@ -22,8 +21,10 @@ use super::google::conflict::{
 };
 use super::google::files::{DriveFiles, GoogleDriveAccountDetails, GoogleDriveManifestResolution};
 use super::google::manifest::GoogleDriveManifest;
+use super::google::metadata::DriveFile;
 use super::session::GoogleDriveAccountUpdateInput;
 use super::store::{RemoteSyncProvider, RemoteSyncState, RemoteSyncWorkspace};
+use super::workspace::current_workspace_content_hash;
 
 /// what the user is being asked, and everything the interface needs to ask it.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -56,6 +57,9 @@ pub struct GoogleDriveLinkPreparation {
 /// what the workspace folder turned out to hold.
 #[derive(Clone, Debug)]
 pub(super) struct GoogleDriveRemoteState {
+    /// the workspace's folder, or `None` where the account holds none for it
+    /// yet. A push creates one; nothing else may.
+    pub folder: Option<DriveFile>,
     /// `None` where the account holds no folder for this workspace, or holds one
     /// with nothing in it to index — which is what an account that has never
     /// been synced to looks like.
@@ -136,6 +140,7 @@ pub(super) async fn read_remote_state(
         .await?
     else {
         return Ok(GoogleDriveRemoteState {
+            folder: None,
             manifest: None,
             resolution: analyze_sync_resolution(
                 workspace,
@@ -166,6 +171,7 @@ pub(super) async fn read_remote_state(
             GoogleDriveSyncMode::Sync,
             &observation,
         ),
+        folder: Some(folder),
         manifest,
         app_usage_bytes,
     })
@@ -220,7 +226,12 @@ pub(super) fn linked_google_drive_account_id(state: &RemoteSyncState) -> Option<
         .account_id
         .as_deref()
         .filter(|account_id| !account_id.is_empty())
-        .filter(|account_id| state.accounts.iter().any(|account| account.id == *account_id))
+        .filter(|account_id| {
+            state
+                .accounts
+                .iter()
+                .any(|account| account.id == *account_id)
+        })
         .map(str::to_string)
 }
 
@@ -319,7 +330,7 @@ mod tests {
 
     use super::super::google::conflict::GoogleDriveSyncAction;
     use super::super::google::files::DriveEndpoints;
-    use super::super::google::test_server::{ScriptedResponse, TestDriveServer};
+    use super::super::google::test::server::{ScriptedResponse, TestDriveServer};
     use super::super::google::transport::{DriveRetryPolicy, DriveTransport};
     use super::*;
 
@@ -510,5 +521,4 @@ mod tests {
             "a conflict the interface already has wording for carried a message it would show instead"
         );
     }
-
 }

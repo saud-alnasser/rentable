@@ -1,24 +1,15 @@
+import api from '$lib/api/mod';
 import {
 	tauri,
 	type GoogleDriveLinkPreparation,
+	type GoogleDriveSyncAction,
 	type RemoteSyncState,
 	type RemoteSyncWorkspace
 } from '$lib/api/tauri';
-import {
-	inspectGoogleDriveSyncState,
-	syncActiveGoogleDriveProfile,
-	syncBeforeAppExit,
-	type GoogleDriveSyncResult
-} from '$lib/api/utils/remote-sync-google-drive';
-import {
-	recordDiagnosticError,
-	recordDiagnosticInfo,
-	recordDiagnosticWarning
-} from '$lib/diagnostics/record';
-import { toErrorDetail } from '$lib/error/message';
-import { toTauriErrorCode } from '$lib/error/tauri';
+import { enqueueGoogleDriveOperation } from '$lib/api/utils/google-drive-operation-queue';
+import { inspectGoogleDriveSyncState } from '$lib/api/utils/remote-sync-google-drive';
 
-export type WorkspaceSyncAction = GoogleDriveSyncResult['action'] | 'autosaved';
+export type WorkspaceSyncAction = GoogleDriveSyncAction | 'autosaved';
 
 export type WorkspaceSyncResult = {
 	state: RemoteSyncState;
@@ -27,7 +18,7 @@ export type WorkspaceSyncResult = {
 };
 
 export type WorkspaceRemoteSyncResult = Omit<WorkspaceSyncResult, 'action'> & {
-	action: GoogleDriveSyncResult['action'];
+	action: GoogleDriveSyncAction;
 };
 
 export function getWorkspaceFromSyncState(
@@ -55,6 +46,13 @@ export async function inspectWorkspaceSyncState(syncState: RemoteSyncState) {
 	return await inspectGoogleDriveSyncState(syncState);
 }
 
+/**
+ * exchange this workspace with wherever it is kept.
+ *
+ * `autosaveLocal` says what an unlinked workspace means here: a snapshot on this
+ * machine, or nothing at all. The two callers differ — closing the application
+ * takes one, a mutation does not.
+ */
 export async function syncWorkspaceNow(
 	providedState?: RemoteSyncState | null,
 	options: { manual?: boolean; autosaveLocal?: boolean } = {}
@@ -79,38 +77,7 @@ export async function syncWorkspaceNow(
 		return { state: syncState, action: 'none', preparation: null };
 	}
 
-	const preparation = await inspectGoogleDriveSyncState(syncState);
-	if (preparation.requiresResolution) {
-		recordDiagnosticWarning('sync.deferred', {
-			workspace: workspace.id,
-			conflict: preparation.conflict?.kind
-		});
-
-		return { state: preparation.state, action: 'none', preparation };
-	}
-
-	try {
-		const result = await syncActiveGoogleDriveProfile('sync', preparation.state, {
-			manual: options.manual
-		});
-
-		recordDiagnosticInfo('sync.completed', {
-			workspace: workspace.id,
-			action: result.action,
-			manual: options.manual
-		});
-
-		return { state: result.state, action: result.action, preparation: null };
-	} catch (error) {
-		recordDiagnosticError('sync.failed', {
-			workspace: workspace.id,
-			manual: options.manual,
-			code: toTauriErrorCode(error),
-			error: toErrorDetail(error)
-		});
-
-		throw error;
-	}
+	return await syncGoogleDriveWorkspace({ manual: options.manual });
 }
 
 export async function syncWorkspaceRemoteNow(
@@ -129,6 +96,10 @@ export async function syncWorkspaceRemoteNow(
 	};
 }
 
+/**
+ * the last sync of a session. Derived statuses are recomputed first, so what
+ * leaves this machine is the workspace as it will be read back.
+ */
 export async function syncWorkspaceBeforeExit(
 	providedState?: RemoteSyncState | null
 ): Promise<WorkspaceSyncResult> {
@@ -140,26 +111,9 @@ export async function syncWorkspaceBeforeExit(
 	}
 
 	if (workspace.provider === 'googleDrive' && syncState.googleDriveReady) {
-		try {
-			const result = await syncBeforeAppExit(syncState);
+		await api.app.state.reconcile();
 
-			recordDiagnosticInfo('sync.beforeExit.completed', {
-				workspace: workspace.id,
-				action: result.action
-			});
-
-			return { state: result.state, action: result.action, preparation: null };
-		} catch (error) {
-			// the last sync of a session, and the one whose failure the user is
-			// least likely to see: the window is already closing.
-			recordDiagnosticError('sync.beforeExit.failed', {
-				workspace: workspace.id,
-				code: toTauriErrorCode(error),
-				error: toErrorDetail(error)
-			});
-
-			throw error;
-		}
+		return await syncGoogleDriveWorkspace({});
 	}
 
 	if (workspace.provider === 'local') {
@@ -168,4 +122,25 @@ export async function syncWorkspaceBeforeExit(
 	}
 
 	return { state: syncState, action: 'none', preparation: null };
+}
+
+/**
+ * the coarse sync, and the one thing it cannot do for itself.
+ *
+ * Derived statuses are recomputed after a pull because the database was replaced
+ * underneath them — the derivation is this layer's, and Rust neither owns it nor
+ * can run it.
+ */
+async function syncGoogleDriveWorkspace(options: {
+	manual?: boolean;
+}): Promise<WorkspaceRemoteSyncResult> {
+	const outcome = await enqueueGoogleDriveOperation(() =>
+		tauri.remoteSync.googleDrive.sync({ manual: options.manual })
+	);
+
+	if (outcome.action === 'pulled') {
+		await api.app.state.reconcile();
+	}
+
+	return outcome;
 }

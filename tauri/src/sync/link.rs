@@ -15,13 +15,12 @@ use tauri::{AppHandle, Emitter};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::{
-    backup::{BackupSource, Backup},
+    backup::{Backup, BackupSource},
     diagnostics,
     error::Error,
     state::AppState,
 };
 
-use super::active_workspace::sync_backup_manifest_to_active_workspace;
 use super::google::files::DriveFiles;
 use super::inspection::{
     GoogleDriveLinkPreparation, inspect_google_drive_workspace, linked_google_drive_account_id,
@@ -32,6 +31,7 @@ use super::session::{
     GoogleDriveLinkSessionResult, GoogleDriveLinkSessionStatus,
 };
 use super::store::RemoteSyncState;
+use super::workspace::sync_backup_manifest_to_active_workspace;
 
 /// the event a link reports its progress on. One call cannot return twice, and
 /// the interface has something different to say before and after the user has
@@ -316,19 +316,20 @@ fn read_authorization(result: &GoogleDriveLinkSessionResult) -> Authorization {
         GoogleDriveLinkSessionStatus::Pending => Authorization::Waiting,
         GoogleDriveLinkSessionStatus::Completed => Authorization::Granted,
         GoogleDriveLinkSessionStatus::Cancelled => Authorization::Refused(link_cancelled()),
-        GoogleDriveLinkSessionStatus::Error => Authorization::Refused(match result.error.as_deref()
-        {
-            // the user answered the consent screen, and the answer was no.
-            // Reporting that as a failure would put an error in front of
-            // somebody who already knows what they did.
-            Some(OAUTH_ACCESS_DENIED) => link_cancelled(),
-            Some(error) => Error::PreconditionFailed {
-                message: format!("google drive authorization failed: {error}"),
-            },
-            None => Error::PreconditionFailed {
-                message: "google drive authorization did not complete".to_string(),
-            },
-        }),
+        GoogleDriveLinkSessionStatus::Error => {
+            Authorization::Refused(match result.error.as_deref() {
+                // the user answered the consent screen, and the answer was no.
+                // Reporting that as a failure would put an error in front of
+                // somebody who already knows what they did.
+                Some(OAUTH_ACCESS_DENIED) => link_cancelled(),
+                Some(error) => Error::PreconditionFailed {
+                    message: format!("google drive authorization failed: {error}"),
+                },
+                None => Error::PreconditionFailed {
+                    message: "google drive authorization did not complete".to_string(),
+                },
+            })
+        }
     }
 }
 
@@ -368,7 +369,10 @@ async fn finish_link(
         remote_sync
             .complete_google_drive_link(GoogleDriveLinkCompleteInput {
                 session_id: session_id.to_string(),
-                display_name: details.display_name.clone().unwrap_or_else(|| email.clone()),
+                display_name: details
+                    .display_name
+                    .clone()
+                    .unwrap_or_else(|| email.clone()),
                 email,
                 avatar_url: details.avatar_url.clone(),
                 provider_user_id: details.provider_user_id.clone(),

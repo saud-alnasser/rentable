@@ -173,6 +173,21 @@ export type GoogleDriveLinkPreparation = {
 	conflict: GoogleDriveLinkConflict | null;
 };
 
+/** what a sync run did. */
+export type GoogleDriveSyncAction = 'none' | 'pushed' | 'pulled';
+
+/**
+ * what a sync run did, and what it could not do without asking.
+ *
+ * `preparation` is present only where the two sides could not be reconciled
+ * without the user, and nothing transferred when it is.
+ */
+export type GoogleDriveSyncOutcome = {
+	state: RemoteSyncState;
+	action: GoogleDriveSyncAction;
+	preparation: GoogleDriveLinkPreparation | null;
+};
+
 /** how far a link attempt has got. linking is one call, so progress arrives on an event instead of a return. */
 export type GoogleDriveLinkPhase = 'authorizing' | 'finalizing';
 
@@ -321,6 +336,14 @@ export const tauri = {
 				invoke<RemoteSyncState>('remote_sync_google_drive_cancel_link_attempt'),
 			/** disconnect this workspace, keeping one current snapshot of it on this machine. */
 			unlink: () => invoke<RemoteSyncState>('remote_sync_google_drive_unlink'),
+			/**
+			 * exchange this workspace with the account it is linked to, end to end.
+			 * `manual` says the user asked, which decides what the snapshot a push
+			 * sends counts as. rejects with a `busy` error where a sync is already
+			 * running.
+			 */
+			sync: (input?: { manual?: boolean }) =>
+				invoke<GoogleDriveSyncOutcome>('remote_sync_google_drive_sync', { input }),
 			/** watch how far a link has got. resolves to its own removal. */
 			onLinkPhase: (listener: (phase: GoogleDriveLinkPhase) => void) =>
 				listen<GoogleDriveLinkPhase>(GOOGLE_DRIVE_LINK_PHASE_EVENT, (event) =>

@@ -477,3 +477,96 @@ impl StringExt for String {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{path::PathBuf, sync::Arc};
+
+    use tokio::{runtime::Runtime, sync::RwLock};
+
+    use super::{RemoteSync, RemoteSyncProvider, slugify};
+    use crate::{
+        persisted::Persisted, settings::Settings,
+        sync::google::auth::clear_test_google_drive_credentials_store,
+    };
+
+    fn unique_dir(name: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+
+        std::env::temp_dir()
+            .join("rentable-tests")
+            .join(format!("{}-{}", name, nanos))
+    }
+
+    #[test]
+    fn slugify_is_stable() {
+        assert_eq!(slugify("Person Example+1"), "person-example-1");
+    }
+
+    #[test]
+    fn initializes_default_workspace_from_managed_database_path() {
+        clear_test_google_drive_credentials_store();
+
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = unique_dir("remote-sync-default-profile");
+                std::fs::create_dir_all(&root).expect("failed to create test root");
+
+                let settings_path = root.join(Settings::FILENAME);
+                let mut settings =
+                    Persisted::<Settings>::load(settings_path).expect("failed to load settings");
+                settings.database_path = root.join("app.db");
+                settings.commit().expect("failed to commit settings");
+
+                let settings = Arc::new(RwLock::new(settings));
+                let mut remote_sync = RemoteSync::new(settings, root.join(RemoteSync::FILENAME))
+                    .await
+                    .expect("failed to initialize remote sync");
+
+                let state = remote_sync.get_state().await.expect("failed to get state");
+                assert_eq!(state.workspace.local_database_path, root.join("app.db"));
+                assert_eq!(state.workspace.provider, RemoteSyncProvider::Local);
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
+    }
+
+    #[test]
+    fn reconcile_tracks_managed_database_path_changes() {
+        clear_test_google_drive_credentials_store();
+
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = unique_dir("remote-sync-reconcile-path-change");
+                std::fs::create_dir_all(&root).expect("failed to create test root");
+
+                let settings_path = root.join(Settings::FILENAME);
+                let mut settings =
+                    Persisted::<Settings>::load(settings_path).expect("failed to load settings");
+                settings.database_path = root.join("first.db");
+                settings.commit().expect("failed to commit settings");
+
+                let settings = Arc::new(RwLock::new(settings));
+                let mut remote_sync =
+                    RemoteSync::new(settings.clone(), root.join(RemoteSync::FILENAME))
+                        .await
+                        .expect("failed to initialize remote sync");
+
+                {
+                    let mut settings = settings.write().await;
+                    settings.database_path = root.join("second.db");
+                    settings.commit().expect("failed to update settings");
+                }
+
+                let state = remote_sync.get_state().await.expect("failed to get state");
+                assert_eq!(state.workspace.local_database_path, root.join("second.db"));
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
+    }
+}

@@ -196,3 +196,90 @@ fn redact_pair_value(pair: &str) -> String {
         None => format!("{name}={REDACTED}"),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{DiagnosticLevel, DiagnosticRecord, REDACTED};
+
+    fn event(name: &str) -> DiagnosticRecord {
+        DiagnosticRecord::new(DiagnosticLevel::Info, name)
+    }
+
+    #[test]
+    fn an_event_is_one_json_line_carrying_the_time_it_was_written() {
+        let line = event("migration.applied")
+            .with("file", "0004_add_contracts.sql")
+            .to_line(1_754_000_000_000);
+
+        assert_eq!(
+            line,
+            r#"{"at":1754000000000,"level":"info","event":"migration.applied","fields":{"file":"0004_add_contracts.sql"}}"#
+        );
+        assert!(
+            !line.contains('\n'),
+            "an event must occupy exactly one line"
+        );
+    }
+
+    #[test]
+    fn a_field_that_names_a_secret_is_redacted() {
+        let redacted = event("account.linked")
+            .with("accessToken", "ya29.a0AfH6SM")
+            .with("refresh_token", "1//04dXm")
+            .with("Authorization", "Bearer abc")
+            .with("clientSecret", "GOCSPX-3f")
+            .with("password", "hunter2")
+            .with("email", "someone@example.com")
+            .redacted();
+
+        for name in [
+            "accessToken",
+            "refresh_token",
+            "Authorization",
+            "clientSecret",
+            "password",
+        ] {
+            assert_eq!(
+                redacted.fields.get(name).map(String::as_str),
+                Some(REDACTED),
+                "{name} was written through"
+            );
+        }
+
+        assert_eq!(
+            redacted.fields.get("email").map(String::as_str),
+            Some("someone@example.com"),
+            "redaction must leave what makes a log worth reading"
+        );
+    }
+
+    #[test]
+    fn a_token_is_redacted_under_a_field_name_nobody_guarded() {
+        let redacted = event("sync.push.failed")
+            .with(
+                "error",
+                "GET https://drive.googleapis.com/v3/files?token=ya29.a0AfH6SM failed",
+            )
+            .with("header", "authorization: Bearer 1234")
+            .with("cursor", "1//04dXmRefresh")
+            .redacted();
+
+        // named in a pair, so the request survives and only its token goes — the
+        // failing call is most of what makes the entry worth keeping.
+        assert_eq!(
+            redacted.fields.get("error").map(String::as_str),
+            Some("GET https://drive.googleapis.com/v3/files?token=[redacted] failed")
+        );
+
+        // loose in the prose, with no pair to cut at: there is no way to take the
+        // credential without taking the sentence around it.
+        assert_eq!(
+            redacted.fields.get("header").map(String::as_str),
+            Some(REDACTED)
+        );
+        assert_eq!(
+            redacted.fields.get("cursor").map(String::as_str),
+            Some(REDACTED)
+        );
+    }
+}
