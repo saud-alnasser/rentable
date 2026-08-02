@@ -6,16 +6,17 @@
 	import * as Form from '$lib/common/components/fragments/form';
 	import { Input } from '$lib/common/components/fragments/input';
 	import * as Popover from '$lib/common/components/fragments/popover';
+	import {
+		formatCalendarDate,
+		formatDateInput,
+		parseCalendarDate,
+		parseDateInput
+	} from '$lib/common/utils/date';
 	import { getIntlLocale } from '$lib/common/utils/locale';
 	import { cn } from '$lib/common/utils/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useCreatePayment, useUpdatePayment } from '$lib/resources/contracts/hooks/queries';
-	import {
-		DateFormatter,
-		getLocalTimeZone,
-		parseDate,
-		type CalendarDate
-	} from '@internationalized/date';
+	import { DateFormatter, type CalendarDate } from '@internationalized/date';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import { TRPCError } from '@trpc/server';
 	import { toast } from 'svelte-sonner';
@@ -51,23 +52,7 @@
 		onOpenChange: (value: boolean) => void;
 	} = $props();
 
-	const formatDateInput = (value: number) => new Date(value).toISOString().slice(0, 10);
-	const parseDateInput = (value: string) => {
-		const [year, month, day] = value.split('-').map(Number);
-		return Date.UTC(year, month - 1, day);
-	};
 	let dateFormatter = $derived(new DateFormatter(getIntlLocale($locale), { dateStyle: 'medium' }));
-	const parseCalendarDate = (value: string): CalendarDate | undefined => {
-		if (!value) return undefined;
-
-		try {
-			return parseDate(value);
-		} catch {
-			return undefined;
-		}
-	};
-	const formatCalendarDate = (value: CalendarDate | undefined) =>
-		value ? dateFormatter.format(value.toDate(getLocalTimeZone())) : $LL.contracts.form.pickDate();
 
 	const getInitialForm = (payment?: Payment): PaymentForm =>
 		payment
@@ -167,7 +152,13 @@
 											)}
 											aria-invalid={$errors.date ? 'true' : undefined}
 										>
-											<span>{formatCalendarDate(paymentDateValue)}</span>
+											<span
+												>{formatCalendarDate(
+													paymentDateValue,
+													dateFormatter,
+													$LL.contracts.form.pickDate()
+												)}</span
+											>
 											<ChevronDownIcon class="size-4 opacity-50" />
 										</Button>
 									{/snippet}

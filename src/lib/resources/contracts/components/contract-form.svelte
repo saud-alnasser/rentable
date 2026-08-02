@@ -2,9 +2,6 @@
 	import { ContractSchema, type Contract } from '$lib/api/database/schema';
 	import {
 		CONTRACT_END_DATE_TOLERANCE_DAYS,
-		getContractCycleCountForPeriod,
-		getContractEndDateForCycles,
-		getContractEndDateWindow,
 		hasValidContractPeriodForInterval
 	} from '$lib/api/contract';
 	import { Button } from '$lib/common/components/fragments/button';
@@ -15,18 +12,30 @@
 	import { Input } from '$lib/common/components/fragments/input';
 	import * as Popover from '$lib/common/components/fragments/popover';
 	import * as Select from '$lib/common/components/fragments/select';
+	import {
+		formatCalendarDate,
+		formatDateInput,
+		parseCalendarDate,
+		parseDateInput,
+		toCalendarDate
+	} from '$lib/common/utils/date';
 	import { getIntlLocale } from '$lib/common/utils/locale';
 	import { cn } from '$lib/common/utils/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import {
+		createContractEndDateState,
+		getCalculatedContractEndDate,
+		getContractCycleCount,
+		getContractEndDateCalculationKey,
+		getManualContractEndDateWindow,
+		hydrateContractEndDateState,
+		isContractEndDateWithinWindow,
+		observeContractEndDate,
+		observeContractEndDateInputs
+	} from '$lib/resources/contracts/end-date';
 	import { useCreateContract, useUpdateContract } from '$lib/resources/contracts/hooks/queries';
 	import { useFetchTenant, useFetchTenants } from '$lib/resources/tenants/hooks/queries';
-	import {
-		DateFormatter,
-		getLocalTimeZone,
-		parseDate,
-		type CalendarDate,
-		type DateValue
-	} from '@internationalized/date';
+	import { DateFormatter, type CalendarDate } from '@internationalized/date';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import { TRPCError } from '@trpc/server';
@@ -120,118 +129,19 @@
 		end: ''
 	});
 
-	const formatDateInput = (value: number | Date) =>
-		(value instanceof Date ? value : new Date(value)).toISOString().slice(0, 10);
-	const parseDateInput = (value: string) => {
-		const [year, month, day] = value.split('-').map(Number);
-		return Date.UTC(year, month - 1, day);
-	};
-	const toCalendarDate = (value: number | Date | undefined) =>
-		value === undefined ? undefined : parseDate(formatDateInput(value));
 	let dateFormatter = $derived(new DateFormatter(getIntlLocale($locale), { dateStyle: 'medium' }));
-	const parseCalendarDate = (value: string): CalendarDate | undefined => {
-		if (!value) return undefined;
-
-		try {
-			return parseDate(value);
-		} catch {
-			return undefined;
-		}
-	};
-	const formatCalendarDate = (value: CalendarDate | undefined) =>
-		value ? dateFormatter.format(value.toDate(getLocalTimeZone())) : $LL.contracts.form.pickDate();
 	const getContractPeriodValidationMessage = (interval: Contract['interval']) =>
 		$LL.contracts.form.periodMustMatchWholeCycles({
 			days: CONTRACT_END_DATE_TOLERANCE_DAYS,
 			interval: intervalLabels[interval]()
 		});
-	const getAutoCalculationKey = (
-		start: CalendarDate | undefined,
-		interval: Contract['interval'],
-		cycles: string
-	) => `${start?.toString() ?? ''}|${interval}|${cycles}`;
-	const parseCycleCount = (value: string) => {
-		const parsedValue = Number(value);
-
-		if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
-			return undefined;
-		}
-
-		return parsedValue;
-	};
-	const getCycleCountForContract = (
-		start: CalendarDate | undefined,
-		end: CalendarDate | undefined,
-		interval: Contract['interval']
-	) => {
-		if (!start || !end) return '1';
-
-		return String(
-			Math.max(
-				getContractCycleCountForPeriod({
-					start: parseDateInput(start.toString()),
-					end: parseDateInput(end.toString()),
-					interval
-				}) ?? 1,
-				1
-			)
-		);
-	};
-	const getCalculatedEndDate = (
-		start: CalendarDate | undefined,
-		interval: Contract['interval'],
-		cycles: string
-	) => {
-		const cycleCount = parseCycleCount(cycles);
-
-		if (!start || !cycleCount) {
-			return undefined;
-		}
-
-		return toCalendarDate(
-			getContractEndDateForCycles(parseDateInput(start.toString()), interval, cycleCount)
-		);
-	};
-	const getManualEndDateWindow = (
-		start: CalendarDate | undefined,
-		interval: Contract['interval'],
-		cycles: string
-	) => {
-		const cycleCount = parseCycleCount(cycles);
-
-		if (!start || !cycleCount) {
-			return undefined;
-		}
-
-		const window = getContractEndDateWindow(parseDateInput(start.toString()), interval, cycleCount);
-
-		if (!window) {
-			return undefined;
-		}
-
-		return {
-			start: toCalendarDate(window.start),
-			end: toCalendarDate(window.end)
-		};
-	};
-	const isDateWithinWindow = (
-		date: DateValue,
-		window: { start: CalendarDate | undefined; end: CalendarDate | undefined }
-	) => {
-		if (!window.start || !window.end) {
-			return false;
-		}
-
-		return date.compare(window.start) >= 0 && date.compare(window.end) <= 0;
-	};
 	const closeContractForm = () => {
 		isTenantPickerOpen = false;
 		isStartDatePickerOpen = false;
 		isEndDatePickerOpen = false;
 		tenantSearch = '';
 		lastHydratedFormKey = undefined;
-		lastAutoCalculationKey = undefined;
-		lastObservedEndDateValue = undefined;
+		endDateState = createContractEndDateState();
 		onOpenChange(false);
 	};
 
@@ -241,9 +151,9 @@
 		tenantId: contract.tenantId.toString(),
 		interval: contract.interval,
 		cost: contract.cost.toString(),
-		cycles: getCycleCountForContract(
-			parseDate(formatDateInput(contract.start)),
-			parseDate(formatDateInput(contract.end)),
+		cycles: getContractCycleCount(
+			toCalendarDate(contract.start),
+			toCalendarDate(contract.end),
 			contract.interval
 		),
 		start: formatDateInput(contract.start),
@@ -335,10 +245,8 @@
 	let tenantSearch = $state('');
 	let contractStartDateValue = $state<CalendarDate | undefined>(undefined);
 	let contractEndDateValue = $state<CalendarDate | undefined>(undefined);
-	let isEndDateManuallyEdited = $state(false);
 	let lastHydratedFormKey = $state<string | undefined>(undefined);
-	let lastAutoCalculationKey = $state<string | undefined>(undefined);
-	let lastObservedEndDateValue = $state<string | undefined>(undefined);
+	let endDateState = $state.raw(createContractEndDateState());
 	let normalizedTenantSearch = $derived.by(() => tenantSearch.trim().toLowerCase());
 	let hasTenantSearch = $derived.by(() => normalizedTenantSearch.length > 0);
 
@@ -394,24 +302,23 @@
 	let isTenantResultsLoading = $derived.by(
 		() => hasTenantSearch && tenantsQuery.isLoading && (tenantsQuery.data ?? []).length === 0
 	);
-	let calculatedEndDate = $derived.by(() =>
-		getCalculatedEndDate(contractStartDateValue, $form.interval, $form.cycles)
-	);
+	let endDateInputs = $derived.by(() => ({
+		start: contractStartDateValue,
+		interval: $form.interval,
+		cycles: $form.cycles
+	}));
+	let calculatedEndDate = $derived.by(() => getCalculatedContractEndDate(endDateInputs));
 	let calculatedEndDateValue = $derived.by(() => calculatedEndDate?.toString() ?? '');
-	let manualEndDateWindow = $derived.by(() =>
-		getManualEndDateWindow(contractStartDateValue, $form.interval, $form.cycles)
-	);
+	let manualEndDateWindow = $derived.by(() => getManualContractEndDateWindow(endDateInputs));
 
 	$effect(() => {
 		if (!open) {
 			lastHydratedFormKey = undefined;
-			lastAutoCalculationKey = undefined;
-			lastObservedEndDateValue = undefined;
 			isStartDatePickerOpen = false;
 			isEndDatePickerOpen = false;
 			contractStartDateValue = undefined;
 			contractEndDateValue = undefined;
-			isEndDateManuallyEdited = false;
+			endDateState = createContractEndDateState();
 			return;
 		}
 
@@ -429,22 +336,19 @@
 		const nextFormValue = value ? toFormValue(value) : getInitialForm();
 		const nextStartDateValue = parseCalendarDate(nextFormValue.start);
 		const nextEndDateValue = parseCalendarDate(nextFormValue.end);
-		const nextCalculatedEndDate = getCalculatedEndDate(
-			nextStartDateValue,
-			nextFormValue.interval,
-			nextFormValue.cycles
-		);
+		const nextEndDateInputs = {
+			start: nextStartDateValue,
+			interval: nextFormValue.interval,
+			cycles: nextFormValue.cycles
+		};
 		form.set(nextFormValue);
 		contractStartDateValue = nextStartDateValue;
 		contractEndDateValue = nextEndDateValue;
-		lastObservedEndDateValue = nextEndDateValue?.toString() ?? '';
-		isEndDateManuallyEdited =
-			(nextEndDateValue?.toString() ?? '') !== (nextCalculatedEndDate?.toString() ?? '');
-		lastAutoCalculationKey = getAutoCalculationKey(
-			nextStartDateValue,
-			nextFormValue.interval,
-			nextFormValue.cycles
-		);
+		endDateState = hydrateContractEndDateState({
+			endDate: nextEndDateValue?.toString() ?? '',
+			calculatedEndDate: getCalculatedContractEndDate(nextEndDateInputs)?.toString() ?? '',
+			calculationKey: getContractEndDateCalculationKey(nextEndDateInputs)
+		});
 		lastHydratedFormKey = currentFormKey;
 	});
 
@@ -457,44 +361,31 @@
 	});
 
 	$effect(() => {
-		const nextAutoCalculationKey = getAutoCalculationKey(
-			contractStartDateValue,
-			$form.interval,
-			$form.cycles
+		const change = observeContractEndDateInputs(
+			endDateState,
+			getContractEndDateCalculationKey(endDateInputs)
 		);
 
-		if (lastAutoCalculationKey === undefined) {
-			lastAutoCalculationKey = nextAutoCalculationKey;
-			return;
-		}
+		endDateState = change.state;
 
-		if (nextAutoCalculationKey === lastAutoCalculationKey) {
-			return;
+		if (change.appliesCalculatedEndDate) {
+			isEndDatePickerOpen = false;
+			contractEndDateValue = calculatedEndDate;
 		}
-
-		lastAutoCalculationKey = nextAutoCalculationKey;
-		isEndDateManuallyEdited = false;
-		isEndDatePickerOpen = false;
-		contractEndDateValue = calculatedEndDate;
 	});
 
 	$effect(() => {
-		const nextEndValue = contractEndDateValue?.toString() ?? '';
+		const change = observeContractEndDate(endDateState, {
+			endDate: contractEndDateValue?.toString() ?? '',
+			calculatedEndDate: calculatedEndDateValue,
+			isPickerOpen: isEndDatePickerOpen
+		});
 
-		if (lastObservedEndDateValue === nextEndValue) {
-			return;
+		endDateState = change.state;
+
+		if (change.closesPicker) {
+			isEndDatePickerOpen = false;
 		}
-
-		const changedWhilePickerOpen = isEndDatePickerOpen && lastObservedEndDateValue !== undefined;
-
-		lastObservedEndDateValue = nextEndValue;
-
-		if (!changedWhilePickerOpen) {
-			return;
-		}
-
-		isEndDateManuallyEdited = nextEndValue !== calculatedEndDateValue;
-		isEndDatePickerOpen = false;
 	});
 
 	$effect(() => {
@@ -676,7 +567,13 @@
 													)}
 													aria-invalid={$errors.start ? 'true' : undefined}
 												>
-													<span>{formatCalendarDate(contractStartDateValue)}</span>
+													<span
+														>{formatCalendarDate(
+															contractStartDateValue,
+															dateFormatter,
+															$LL.contracts.form.pickDate()
+														)}</span
+													>
 													<ChevronDownIcon class="size-4 opacity-50" />
 												</Button>
 											{/snippet}
@@ -727,12 +624,18 @@
 													class={cn(
 														'w-full justify-between border-border/60 bg-background/58 font-normal shadow-none',
 														!contractEndDateValue && 'text-muted-foreground',
-														isEndDateManuallyEdited &&
+														endDateState.isManuallyEdited &&
 															'border-emerald-500/40 bg-emerald-500/6 text-emerald-800 dark:text-emerald-200'
 													)}
 													aria-invalid={$errors.end ? 'true' : undefined}
 												>
-													<span>{formatCalendarDate(contractEndDateValue)}</span>
+													<span
+														>{formatCalendarDate(
+															contractEndDateValue,
+															dateFormatter,
+															$LL.contracts.form.pickDate()
+														)}</span
+													>
 													<ChevronDownIcon class="size-4 opacity-50" />
 												</Button>
 											{/snippet}
@@ -750,7 +653,7 @@
 											>
 												{#snippet day({ day })}
 													{@const isAllowedManualDate = manualEndDateWindow
-														? isDateWithinWindow(day, manualEndDateWindow)
+														? isContractEndDateWithinWindow(day, manualEndDateWindow)
 														: false}
 													{@const isSuggestedDate = calculatedEndDate
 														? day.compare(calculatedEndDate) === 0
