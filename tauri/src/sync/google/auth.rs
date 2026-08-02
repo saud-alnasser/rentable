@@ -556,3 +556,348 @@ pub(crate) fn percent_decode(value: &str) -> String {
 
     String::from_utf8_lossy(&output).to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::percent_decode;
+
+    #[test]
+    fn percent_decode_is_stable() {
+        assert_eq!(percent_decode("hello%20world%2Btest"), "hello world+test");
+    }
+
+    use std::collections::HashMap;
+
+    use serde_json::json;
+
+    use crate::error::Error;
+
+    use super::{
+        GoogleDriveConfig, GoogleTokenResponse, access_token_is_fresh, authorization_code_form,
+        build_authorization_url, parse_token_response, pkce_challenge, random_url_safe_token,
+        refresh_token_form,
+    };
+    fn oauth_config() -> GoogleDriveConfig {
+        GoogleDriveConfig {
+            client_id: Some("client-id".to_string()),
+            client_secret: Some("client-secret".to_string()),
+            authorize_endpoint: "https://accounts.google.com/o/oauth2/v2/auth".to_string(),
+            token_endpoint: "https://oauth2.googleapis.com/token".to_string(),
+            drive_api_base_url: "https://www.googleapis.com/drive/v3".to_string(),
+            scopes: vec![
+                "https://www.googleapis.com/auth/drive.file".to_string(),
+                "email".to_string(),
+            ],
+        }
+    }
+
+    /// the worked example from RFC 7636 appendix B. Google verifies the challenge
+    /// against the verifier we send later, so an encoding that is merely
+    /// self-consistent still fails against the live endpoint.
+    #[test]
+    fn the_pkce_challenge_matches_the_rfc_7636_worked_example() {
+        assert_eq!(
+            pkce_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
+            "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+        );
+    }
+
+    #[test]
+    fn a_random_token_is_unpadded_base64url_of_thirty_two_bytes() {
+        let token = random_url_safe_token().expect("failed to draw a random token");
+
+        assert_eq!(token.len(), 43);
+        assert!(
+            token
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric()
+                    || character == '-'
+                    || character == '_'),
+            "token left the base64url alphabet: {token}"
+        );
+    }
+
+    #[test]
+    fn two_random_tokens_differ() {
+        let first = random_url_safe_token().expect("failed to draw a random token");
+        let second = random_url_safe_token().expect("failed to draw a random token");
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn the_authorization_url_carries_every_parameter_google_requires() {
+        let url = build_authorization_url(
+            &oauth_config(),
+            "client-id",
+            "http://127.0.0.1:5173/callback",
+            "the-state",
+            "the-challenge",
+        )
+        .expect("failed to build the authorization url");
+        let parsed = url::Url::parse(&url).expect("the authorization url did not parse");
+        let parameters = parsed
+            .query_pairs()
+            .map(|(key, value)| (key.into_owned(), value.into_owned()))
+            .collect::<HashMap<_, _>>();
+
+        assert_eq!(parsed.host_str(), Some("accounts.google.com"));
+        assert_eq!(parsed.path(), "/o/oauth2/v2/auth");
+        assert_eq!(
+            parameters.get("client_id").map(String::as_str),
+            Some("client-id")
+        );
+        assert_eq!(
+            parameters.get("redirect_uri").map(String::as_str),
+            Some("http://127.0.0.1:5173/callback")
+        );
+        assert_eq!(
+            parameters.get("response_type").map(String::as_str),
+            Some("code")
+        );
+        assert_eq!(
+            parameters.get("scope").map(String::as_str),
+            Some("https://www.googleapis.com/auth/drive.file email")
+        );
+        assert_eq!(
+            parameters.get("access_type").map(String::as_str),
+            Some("offline")
+        );
+        assert_eq!(
+            parameters.get("include_granted_scopes").map(String::as_str),
+            Some("true")
+        );
+        assert_eq!(
+            parameters.get("prompt").map(String::as_str),
+            Some("consent")
+        );
+        assert_eq!(
+            parameters.get("state").map(String::as_str),
+            Some("the-state")
+        );
+        assert_eq!(
+            parameters.get("code_challenge").map(String::as_str),
+            Some("the-challenge")
+        );
+        assert_eq!(
+            parameters.get("code_challenge_method").map(String::as_str),
+            Some("S256")
+        );
+    }
+
+    /// the redirect and the scope list both carry characters that change meaning
+    /// unescaped, and a mis-encoded redirect is rejected by Google as a mismatch
+    /// rather than as a malformed request.
+    #[test]
+    fn the_authorization_url_escapes_the_values_it_carries() {
+        let url = build_authorization_url(
+            &oauth_config(),
+            "client-id",
+            "http://127.0.0.1:5173/callback",
+            "the-state",
+            "the-challenge",
+        )
+        .expect("failed to build the authorization url");
+
+        assert!(
+            url.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A5173%2Fcallback"),
+            "the redirect uri was not escaped: {url}"
+        );
+        assert!(
+            !url.contains("drive.file email"),
+            "the scope separator was not escaped: {url}"
+        );
+    }
+
+    fn token_payload(fields: serde_json::Value) -> GoogleTokenResponse {
+        serde_json::from_value(fields).expect("failed to build a token payload")
+    }
+
+    /// the sixty-second skew is what stops a token that is valid *now* from
+    /// expiring mid-request, so the boundary itself is the interesting case.
+    #[test]
+    fn an_access_token_is_stale_once_it_is_inside_the_refresh_skew() {
+        let now = 1_700_000_000_000;
+
+        assert!(access_token_is_fresh("token", None, now));
+        assert!(access_token_is_fresh("token", Some(now + 60_001), now));
+        assert!(!access_token_is_fresh("token", Some(now + 60_000), now));
+        assert!(!access_token_is_fresh("token", Some(now + 59_999), now));
+        assert!(!access_token_is_fresh("token", Some(now - 1), now));
+    }
+
+    #[test]
+    fn an_absent_access_token_is_never_fresh() {
+        let now = 1_700_000_000_000;
+
+        assert!(!access_token_is_fresh("", None, now));
+        assert!(!access_token_is_fresh("   ", Some(now + 600_000), now));
+    }
+
+    #[test]
+    fn the_authorization_code_grant_replays_the_redirect_and_the_verifier() {
+        let form = authorization_code_form(
+            "client-id",
+            Some("client-secret"),
+            "http://127.0.0.1:5173/callback",
+            "the-verifier",
+            "the-code",
+        )
+        .into_iter()
+        .collect::<HashMap<_, _>>();
+
+        assert_eq!(
+            form.get("grant_type").map(String::as_str),
+            Some("authorization_code")
+        );
+        assert_eq!(form.get("client_id").map(String::as_str), Some("client-id"));
+        assert_eq!(
+            form.get("client_secret").map(String::as_str),
+            Some("client-secret")
+        );
+        assert_eq!(
+            form.get("redirect_uri").map(String::as_str),
+            Some("http://127.0.0.1:5173/callback")
+        );
+        assert_eq!(
+            form.get("code_verifier").map(String::as_str),
+            Some("the-verifier")
+        );
+        assert_eq!(form.get("code").map(String::as_str), Some("the-code"));
+    }
+
+    #[test]
+    fn the_refresh_grant_sends_only_the_refresh_token() {
+        let form = refresh_token_form("client-id", Some("client-secret"), "the-refresh-token")
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+
+        assert_eq!(
+            form.get("grant_type").map(String::as_str),
+            Some("refresh_token")
+        );
+        assert_eq!(form.get("client_id").map(String::as_str), Some("client-id"));
+        assert_eq!(
+            form.get("client_secret").map(String::as_str),
+            Some("client-secret")
+        );
+        assert_eq!(
+            form.get("refresh_token").map(String::as_str),
+            Some("the-refresh-token")
+        );
+        assert_eq!(form.get("code"), None);
+        assert_eq!(form.get("redirect_uri"), None);
+    }
+
+    /// google issues the desktop client id without a secret, and sending an empty
+    /// one is a rejected request rather than an ignored field.
+    #[test]
+    fn a_grant_omits_the_client_secret_when_there_is_none_configured() {
+        for form in [
+            authorization_code_form("client-id", None, "http://127.0.0.1/callback", "v", "c"),
+            refresh_token_form("client-id", None, "the-refresh-token"),
+        ] {
+            assert!(
+                !form.iter().any(|(key, _)| key == "client_secret"),
+                "an unconfigured client secret still reached the request: {form:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_granted_token_carries_its_expiry_as_an_absolute_instant() {
+        let now = 1_700_000_000_000;
+        let tokens = parse_token_response(
+            200,
+            token_payload(json!({
+                "access_token": "the-access-token",
+                "refresh_token": "the-refresh-token",
+                "expires_in": 3599,
+            })),
+            now,
+        )
+        .expect("a well-formed grant was rejected");
+
+        assert_eq!(tokens.access_token, "the-access-token");
+        assert_eq!(tokens.refresh_token.as_deref(), Some("the-refresh-token"));
+        assert_eq!(tokens.expires_at, Some(now + 3_599_000));
+    }
+
+    /// the refresh grant returns no refresh token of its own, and no expiry is a
+    /// token google has not told us how to age out.
+    #[test]
+    fn a_grant_may_omit_the_refresh_token_and_the_expiry() {
+        let tokens = parse_token_response(
+            200,
+            token_payload(json!({ "access_token": "the-access-token" })),
+            1_700_000_000_000,
+        )
+        .expect("a well-formed grant was rejected");
+
+        assert_eq!(tokens.refresh_token, None);
+        assert_eq!(tokens.expires_at, None);
+    }
+
+    /// a spent or revoked grant is the one refusal the caller can act on: it means
+    /// relink, and nothing about retrying will change it.
+    #[test]
+    fn a_dead_grant_is_reported_as_a_failed_precondition() {
+        let error = parse_token_response(
+            400,
+            token_payload(json!({
+                "error": "invalid_grant",
+                "error_description": "Token has been expired or revoked.",
+            })),
+            1_700_000_000_000,
+        )
+        .expect_err("a dead grant was accepted");
+
+        assert!(matches!(error, Error::PreconditionFailed { .. }));
+        assert!(
+            error
+                .to_string()
+                .contains("Token has been expired or revoked."),
+            "google's own description was dropped: {error}"
+        );
+    }
+
+    #[test]
+    fn any_other_refusal_keeps_googles_reported_detail() {
+        let error = parse_token_response(
+            401,
+            token_payload(json!({
+                "error": "invalid_client",
+                "error_description": "The OAuth client was not found.",
+                "error_uri": "https://example.test/oauth",
+            })),
+            1_700_000_000_000,
+        )
+        .expect_err("a refused grant was accepted");
+
+        let message = error.to_string();
+
+        assert!(message.contains("401"), "the status was dropped: {message}");
+        assert!(
+            message.contains("invalid_client"),
+            "the code was dropped: {message}"
+        );
+        assert!(
+            message.contains("The OAuth client was not found."),
+            "the description was dropped: {message}"
+        );
+        assert!(
+            message.contains("https://example.test/oauth"),
+            "the reference url was dropped: {message}"
+        );
+    }
+
+    /// a 200 with no token in it is not a success, and treating it as one stores an
+    /// empty credential that fails at the next call instead of this one.
+    #[test]
+    fn a_success_status_without_a_token_is_still_a_failure() {
+        let error = parse_token_response(200, token_payload(json!({})), 1_700_000_000_000)
+            .expect_err("an empty grant was accepted");
+
+        assert!(error.to_string().contains("200"));
+    }
+}

@@ -1,6 +1,6 @@
 # Remote sync
 
-Sources: `tauri/src/remote_sync/`, `tauri/src/backup/`, `tauri/src/http.rs`, `src/lib/api/utils/remote-sync-google-drive.ts`, `src/lib/resources/sync/`
+Sources: `tauri/src/sync/`, `tauri/src/backup/`, `tauri/src/http.rs`, `src/lib/api/utils/workspace-sync.ts`, `src/lib/api/utils/remote-sync-google-drive.ts`, `src/lib/resources/sync/`
 
 Getting a workspace off this machine and back onto it. Two subjects share the machinery:
 local backup, and exchange with Google Drive.
@@ -52,9 +52,10 @@ save never evicts the copy taken before an update.
   head resolutions built from them, and the read of the account the token belongs to. That
   last one acts on no file, and it lives there anyway: what makes the boundary is being a
   request this application issues, not the kind of thing it names, and a second
-  request-issuing type would divide the surface a caller has to hold. Linking and unlinking
-  reach it; syncing and conflict resolution still issue their own requests from TypeScript
-  until #118 finishes moving them.
+  request-issuing type would divide the surface a caller has to hold. Linking, unlinking,
+  and the syncs this application schedules for itself reach it; inspection, conflict
+  resolution, and the sync that follows a link still issue their own requests from
+  TypeScript until #118 finishes moving them.
 - **A flow is one command, and the interface observes it rather than sequencing it.** The
   caller asks for a link and gets back what the remote's contents make possible; it does
   not open a session, poll it, redeem a code, and hold the pieces in between. A flow
@@ -63,6 +64,26 @@ save never evicts the copy taken before an update.
   command owns its own abandonment, so cancelling is a second command rather than a
   returned value, and every point the flow can be abandoned at has to be answered inside
   it.
+- **A flow that cannot proceed on its own returns the question, and does not raise it as a
+  failure.** A sync needing the user is the same answer a link produces — what diverged and
+  which way the application leans — and it comes back beside the action rather than as an
+  error, because nothing went wrong. Only a caller that can present it has to know about
+  it; the ones that cannot see that nothing transferred, which is true.
+- **What a flow cannot do for itself is recomputation, and only that.** Derived statuses
+  are the web layer's and reached through its own API, so a pull replaces the database and
+  the caller recomputes afterwards. That is the whole residue of the coarse boundary where
+  a flow has been moved: a caller of one resolves no folder, reads no manifest, and chooses
+  no direction, and still owns the derivation. The paths #118 has not reached yet — the
+  inspection behind a conflict, and the sync following a link — do all three in TypeScript,
+  which is what makes them the remainder rather than an exception to this.
+- **Serialising this application's own sync requests is the caller's, refusing a second one
+  is the lock's.** The lock answers a concurrent operation by refusing, which is right for
+  work that must not overlap and wrong for a user pressing Sync while an automatic one
+  runs. So the flows queue before they call, and what reaches the lock is already serial.
+  **One queue, for every flow** — two of them serialise their own callers and nothing
+  between them, which for the collisions that actually happen is the same as none. The
+  symptom is not a hang but a `busy` the autosync manager is right not to retry, so a
+  second queue reads as a sync that quietly stopped happening.
 - **Interpreting what Drive said about a file is not the transport's.** The file record, the
   keys this application carries its own metadata under, and the decoders reading Drive's
   spellings back into values are one subject, and a domain question about a file does not

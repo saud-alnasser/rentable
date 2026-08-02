@@ -10,7 +10,7 @@ import {
 	type RemoteSyncState,
 	type RemoteSyncWorkspace
 } from '$lib/api/tauri';
-import { toErrorText } from '$lib/error/message';
+import { enqueueGoogleDriveOperation } from '$lib/api/utils/google-drive-operation-queue';
 import { toTauriErrorCode } from '$lib/error/tauri';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { get } from 'svelte/store';
@@ -121,8 +121,6 @@ export type GoogleDriveSyncResult = {
 	action: GoogleDriveSyncAction;
 };
 
-let googleDriveOperationQueue: Promise<void> = Promise.resolve();
-
 type GoogleDriveResolvableConflictKind = Exclude<GoogleDriveConflictKind, 'corrupt' | 'relink'>;
 
 class GoogleDriveStaleRemoteStateError extends Error {}
@@ -190,30 +188,6 @@ function createGoogleDriveStaleRemoteStateError() {
 	return new GoogleDriveStaleRemoteStateError(
 		toMessage(getGoogleDriveTranslations().settings.syncRemoteStateChangedDescription())
 	);
-}
-
-export function getGoogleDriveSyncErrorMessage(error: unknown) {
-	return toErrorText(error, getGoogleDriveTranslations());
-}
-
-export function shouldRetryGoogleDriveAutosync(error: unknown) {
-	return !(
-		error instanceof GoogleDriveResolutionRequiredError ||
-		error instanceof GoogleDriveRemoteCorruptionError ||
-		error instanceof GoogleDriveRelinkRequiredError ||
-		error instanceof GoogleDriveAuthorizationExpiredError ||
-		error instanceof GoogleDriveSyncAlreadyRunningError
-	);
-}
-
-function enqueueGoogleDriveOperation<T>(task: () => Promise<T>) {
-	const previous = googleDriveOperationQueue.catch(() => undefined);
-	const result = previous.then(task);
-	googleDriveOperationQueue = result.then(
-		() => undefined,
-		() => undefined
-	);
-	return result;
 }
 
 async function withGoogleDriveSyncLease<T>(workspaceId: string, task: () => Promise<T>) {
@@ -400,22 +374,6 @@ export async function resetBrokenGoogleDriveWorkspace(
 			return nextState;
 		});
 	});
-}
-
-export async function syncBeforeAppExit(providedState?: RemoteSyncState | null) {
-	await api.app.state.reconcile();
-
-	const syncState = providedState ?? (await tauri.remoteSync.getState());
-	const target = getActiveGoogleDriveTarget(syncState);
-
-	if (target) {
-		const inspection = await inspectGoogleDriveSyncState(syncState);
-		if (inspection.requiresResolution) {
-			return { state: inspection.state, action: 'none' as const };
-		}
-	}
-
-	return await syncActiveGoogleDriveProfile('sync', syncState);
 }
 
 export async function syncActiveGoogleDriveProfile(

@@ -2,8 +2,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::{
-    backup::Backup, database::Database, persisted::Persisted, remote_sync::RemoteSync,
-    settings::Settings, update::Update,
+    backup::Backup, database::Database, persisted::Persisted, settings::Settings, sync::RemoteSync,
+    update::Update,
 };
 
 pub struct AppState {

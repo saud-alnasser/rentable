@@ -5,9 +5,9 @@ pub mod diagnostics;
 pub mod error;
 pub mod http;
 pub mod persisted;
-pub mod remote_sync;
 pub mod settings;
 pub mod state;
+pub mod sync;
 pub mod timestamp;
 pub mod update;
 pub mod window;
@@ -24,8 +24,8 @@ use tokio::sync::RwLock;
 use crate::backup::Backup;
 use crate::diagnostics::{DiagnosticLog, RotationLimits};
 use crate::persisted::Persisted;
-use crate::remote_sync::RemoteSync;
 use crate::settings::Settings;
+use crate::sync::RemoteSync;
 use crate::update::Update;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -163,28 +163,29 @@ pub fn run() {
             backup::backup_create,
             backup::backup_restore,
             backup::backup_delete,
-            remote_sync::remote_sync_state_get,
-            remote_sync::remote_sync_snapshot_now,
-            remote_sync::remote_sync_autosave_now,
-            remote_sync::remote_sync_google_drive_config_get,
-            remote_sync::remote_sync_google_drive_begin_link,
-            remote_sync::remote_sync_google_drive_exchange_link_code,
-            remote_sync::remote_sync_google_drive_ensure_access_token,
-            remote_sync::remote_sync_google_drive_get_link_result,
-            remote_sync::remote_sync_google_drive_cancel_link,
-            remote_sync::remote_sync_google_drive_complete_link,
-            remote_sync::remote_sync_google_drive_link,
-            remote_sync::remote_sync_google_drive_cancel_link_attempt,
-            remote_sync::remote_sync_google_drive_unlink,
-            remote_sync::remote_sync_google_drive_get_account_auth,
-            remote_sync::remote_sync_google_drive_update_account,
-            remote_sync::remote_sync_google_drive_disconnect_account,
-            remote_sync::remote_sync_google_drive_acquire_lock,
-            remote_sync::remote_sync_google_drive_release_lock,
-            remote_sync::remote_sync_google_drive_get_local_fingerprint,
-            remote_sync::remote_sync_google_drive_prepare_push,
-            remote_sync::remote_sync_google_drive_mark_synced,
-            remote_sync::remote_sync_google_drive_apply_pull,
+            sync::remote_sync_state_get,
+            sync::remote_sync_snapshot_now,
+            sync::remote_sync_autosave_now,
+            sync::remote_sync_google_drive_config_get,
+            sync::remote_sync_google_drive_begin_link,
+            sync::remote_sync_google_drive_exchange_link_code,
+            sync::remote_sync_google_drive_ensure_access_token,
+            sync::remote_sync_google_drive_get_link_result,
+            sync::remote_sync_google_drive_cancel_link,
+            sync::remote_sync_google_drive_complete_link,
+            sync::remote_sync_google_drive_link,
+            sync::remote_sync_google_drive_cancel_link_attempt,
+            sync::remote_sync_google_drive_unlink,
+            sync::remote_sync_google_drive_sync,
+            sync::remote_sync_google_drive_get_account_auth,
+            sync::remote_sync_google_drive_update_account,
+            sync::remote_sync_google_drive_disconnect_account,
+            sync::remote_sync_google_drive_acquire_lock,
+            sync::remote_sync_google_drive_release_lock,
+            sync::remote_sync_google_drive_get_local_fingerprint,
+            sync::remote_sync_google_drive_prepare_push,
+            sync::remote_sync_google_drive_mark_synced,
+            sync::remote_sync_google_drive_apply_pull,
             update::update_prepare,
             bootstrap::bootstrap,
         ])

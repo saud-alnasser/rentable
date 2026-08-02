@@ -12,9 +12,6 @@ mod command;
 mod record;
 mod writer;
 
-#[cfg(test)]
-mod tests;
-
 // a glob, because `#[tauri::command]` also generates a macro the handler list
 // resolves through, and naming the function alone leaves it behind.
 pub use command::*;

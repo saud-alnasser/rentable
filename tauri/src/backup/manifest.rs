@@ -8,7 +8,7 @@ use std::{
 use crate::{
     error::Error,
     persisted::{Persistable, Persisted},
-    remote_sync::RemoteSyncProvider,
+    sync::RemoteSyncProvider,
     timestamp,
 };
 
@@ -392,5 +392,476 @@ pub(super) fn remote_sync_provider_name(provider: &RemoteSyncProvider) -> &str {
     match provider {
         RemoteSyncProvider::Local => "local",
         RemoteSyncProvider::GoogleDrive => "googleDrive",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{sync::Arc, time::Duration};
+
+    use tokio::{runtime::Runtime, sync::RwLock};
+
+    use super::{
+        BackupEntry, BackupRecoveryKind, BackupSource, RECOVERED_SNAPSHOT_VERSION,
+        head_snapshot_entry,
+    };
+    use crate::{backup::Backup, database::Database, persisted::Persisted, settings::Settings};
+
+    fn set_protected(entries: &mut [BackupEntry], filename: &str, is_protected: bool) -> bool {
+        let Some(entry) = entries.iter_mut().find(|entry| entry.filename == filename) else {
+            return false;
+        };
+
+        if entry.is_protected == is_protected {
+            return false;
+        }
+
+        entry.is_protected = is_protected;
+        true
+    }
+
+    fn unique_dir(name: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+
+        std::env::temp_dir()
+            .join("rentable-tests")
+            .join(format!("{}-{}", name, nanos))
+    }
+
+    async fn setup_backup(
+        root: &std::path::Path,
+    ) -> (
+        Backup,
+        Arc<RwLock<Database>>,
+        Arc<RwLock<Persisted<Settings>>>,
+    ) {
+        std::fs::create_dir_all(root).expect("failed to create test root");
+
+        let settings_path = root.join(Settings::FILENAME);
+        let mut settings =
+            Persisted::<Settings>::load(settings_path).expect("failed to load settings");
+        settings.database_path = root.join(Database::FILENAME);
+        settings.migration_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("migrations");
+        settings.backup_dir = root.join(Backup::BACKUP_DIRECTORY);
+        settings.recovery_path = root.join("recovery.json");
+        settings.version = "0.5.1".to_string();
+        settings.commit().expect("failed to commit settings");
+
+        let settings = Arc::new(RwLock::new(settings));
+        let db = Arc::new(RwLock::new(Database::new(settings.clone())));
+        db.write()
+            .await
+            .connect()
+            .await
+            .expect("failed to connect test database");
+
+        let backup = Backup::new(db.clone(), settings.clone())
+            .await
+            .expect("failed to create backup manager");
+
+        (backup, db, settings)
+    }
+
+    #[test]
+    fn finds_latest_protected_backup_by_version() {
+        let backups = [
+            BackupEntry {
+                filename: "snapshot-1.db".to_string(),
+                is_protected: true,
+                created_at: 1,
+                version: "0.5.1".to_string(),
+                source: BackupSource::Recovery,
+                recovery_kind: Some(BackupRecoveryKind::Update),
+            },
+            BackupEntry {
+                filename: "snapshot-2.db".to_string(),
+                is_protected: false,
+                created_at: 3,
+                version: "0.5.1".to_string(),
+                source: BackupSource::Manual,
+                recovery_kind: None,
+            },
+            BackupEntry {
+                filename: "snapshot-3.db".to_string(),
+                is_protected: true,
+                created_at: 2,
+                version: "0.5.1".to_string(),
+                source: BackupSource::Recovery,
+                recovery_kind: Some(BackupRecoveryKind::Update),
+            },
+        ];
+
+        let latest = backups
+            .iter()
+            .filter(|entry| entry.is_protected && entry.version == "0.5.1")
+            .max_by_key(|entry| entry.created_at)
+            .cloned();
+
+        assert_eq!(latest.expect("missing backup").filename, "snapshot-3.db");
+    }
+
+    #[test]
+    fn can_unprotect_specific_backup_entry() {
+        let mut backups = vec![
+            BackupEntry {
+                filename: "snapshot-1.db".to_string(),
+                is_protected: true,
+                created_at: 1,
+                version: "0.5.1".to_string(),
+                source: BackupSource::Recovery,
+                recovery_kind: Some(BackupRecoveryKind::Update),
+            },
+            BackupEntry {
+                filename: "snapshot-2.db".to_string(),
+                is_protected: true,
+                created_at: 2,
+                version: "0.5.1".to_string(),
+                source: BackupSource::Recovery,
+                recovery_kind: Some(BackupRecoveryKind::Update),
+            },
+        ];
+
+        let changed = set_protected(&mut backups, "snapshot-1.db", false);
+
+        assert!(changed);
+        assert!(!backups[0].is_protected);
+        assert!(backups[1].is_protected);
+    }
+
+    #[test]
+    fn head_prefers_latest_non_recovery_snapshot() {
+        let entries = vec![
+            BackupEntry {
+                filename: "snapshot-manual.db".to_string(),
+                is_protected: false,
+                created_at: 10,
+                version: "0.5.1".to_string(),
+                source: BackupSource::Manual,
+                recovery_kind: None,
+            },
+            BackupEntry {
+                filename: "snapshot-autosave.db".to_string(),
+                is_protected: false,
+                created_at: 20,
+                version: "0.5.1".to_string(),
+                source: BackupSource::Autosave,
+                recovery_kind: None,
+            },
+            BackupEntry {
+                filename: "snapshot-update-recovery.db".to_string(),
+                is_protected: true,
+                created_at: 30,
+                version: "0.5.1".to_string(),
+                source: BackupSource::Recovery,
+                recovery_kind: Some(BackupRecoveryKind::Update),
+            },
+        ];
+
+        let head = head_snapshot_entry(&entries).expect("missing head entry");
+        assert_eq!(head.filename, "snapshot-autosave.db");
+        assert_eq!(head.source, BackupSource::Autosave);
+    }
+
+    #[test]
+    fn head_is_none_when_only_recovery_snapshots_exist() {
+        let entries = vec![
+            BackupEntry {
+                filename: "snapshot-sync-recovery.db".to_string(),
+                is_protected: false,
+                created_at: 10,
+                version: "0.5.1".to_string(),
+                source: BackupSource::Recovery,
+                recovery_kind: Some(BackupRecoveryKind::Sync),
+            },
+            BackupEntry {
+                filename: "snapshot-update-recovery.db".to_string(),
+                is_protected: true,
+                created_at: 20,
+                version: "0.5.1".to_string(),
+                source: BackupSource::Recovery,
+                recovery_kind: Some(BackupRecoveryKind::Update),
+            },
+        ];
+
+        assert!(head_snapshot_entry(&entries).is_none());
+    }
+
+    #[test]
+    fn invalid_manifest_is_rebuilt_from_snapshot_files() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = unique_dir("backup-invalid-manifest-rebuild");
+                let (mut backup, db, settings) = setup_backup(&root).await;
+
+                let first = backup
+                    .create(false)
+                    .await
+                    .expect("failed to create first snapshot");
+                std::thread::sleep(Duration::from_millis(2));
+                let second = backup
+                    .create_managed(BackupSource::Autosave, None, false)
+                    .await
+                    .expect("failed to create second snapshot");
+
+                let manifest_path = root
+                    .join(Backup::BACKUP_DIRECTORY)
+                    .join(Backup::MANIFEST_FILENAME);
+                std::fs::write(&manifest_path, "{invalid json")
+                    .expect("failed to corrupt backup manifest");
+
+                drop(backup);
+
+                let mut recovered = Backup::new(db.clone(), settings.clone())
+                    .await
+                    .expect("failed to recover backup manifest");
+                let entries = recovered
+                    .list()
+                    .await
+                    .expect("failed to list recovered snapshots");
+
+                assert_eq!(entries.len(), 2);
+                assert!(entries.iter().any(|entry| entry.filename == first.filename));
+                assert!(
+                    entries
+                        .iter()
+                        .any(|entry| entry.filename == second.filename)
+                );
+                assert!(
+                    entries
+                        .iter()
+                        .all(|entry| entry.version == RECOVERED_SNAPSHOT_VERSION)
+                );
+
+                let preserved_invalid_manifests =
+                    std::fs::read_dir(root.join(Backup::BACKUP_DIRECTORY))
+                        .expect("failed to read backup dir")
+                        .filter_map(|entry| entry.ok())
+                        .filter(|entry| {
+                            entry
+                                .file_name()
+                                .to_str()
+                                .is_some_and(|name| name.starts_with("manifest.invalid-"))
+                        })
+                        .count();
+                assert_eq!(preserved_invalid_manifests, 1);
+
+                db.write().await.disconnect().await;
+                let _ = std::fs::remove_dir_all(root);
+            });
+    }
+
+    #[test]
+    fn stale_manifest_adds_missing_snapshot_files_without_pruning_them() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = unique_dir("backup-stale-manifest-reconcile");
+                let (mut backup, db, settings) = setup_backup(&root).await;
+
+                let first = backup
+                    .create(false)
+                    .await
+                    .expect("failed to create first snapshot");
+                std::thread::sleep(Duration::from_millis(2));
+                let second = backup
+                    .create_managed(BackupSource::Autosave, None, false)
+                    .await
+                    .expect("failed to create second snapshot");
+
+                let manifest_path = root
+                    .join(Backup::BACKUP_DIRECTORY)
+                    .join(Backup::MANIFEST_FILENAME);
+                let stale_manifest = serde_json::json!({
+                    "metadata": {
+                        "version": 1,
+                        "provider": "googleDrive",
+                        "updatedAt": first.created_at,
+                        "workspaceId": "workspace-123",
+                        "workspaceName": "Primary workspace"
+                    },
+                    "entries": [
+                        {
+                            "filename": first.filename,
+                            "isProtected": first.is_protected,
+                            "createdAt": first.created_at,
+                            "version": first.version,
+                            "source": "manual"
+                        }
+                    ],
+                    "head": {
+                        "filename": first.filename,
+                        "isProtected": first.is_protected,
+                        "createdAt": first.created_at,
+                        "version": first.version,
+                        "source": "manual"
+                    }
+                });
+                std::fs::write(
+                    &manifest_path,
+                    serde_json::to_string_pretty(&stale_manifest)
+                        .expect("failed to serialize stale manifest"),
+                )
+                .expect("failed to write stale manifest");
+
+                drop(backup);
+
+                let mut reconciled = Backup::new(db.clone(), settings.clone())
+                    .await
+                    .expect("failed to reconcile stale manifest");
+                let entries = reconciled
+                    .list()
+                    .await
+                    .expect("failed to list reconciled snapshots");
+
+                assert_eq!(entries.len(), 2);
+                assert!(entries.iter().any(|entry| entry.filename == first.filename));
+                let recovered_entry = entries
+                    .iter()
+                    .find(|entry| entry.filename == second.filename)
+                    .expect("missing recovered snapshot entry");
+                assert_eq!(recovered_entry.version, RECOVERED_SNAPSHOT_VERSION);
+                assert_eq!(recovered_entry.source, BackupSource::Manual);
+
+                db.write().await.disconnect().await;
+                let _ = std::fs::remove_dir_all(root);
+            });
+    }
+
+    #[test]
+    fn manifest_entries_for_deleted_snapshot_files_are_pruned() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = unique_dir("backup-manifest-prunes-deleted-files");
+                let (mut backup, db, settings) = setup_backup(&root).await;
+
+                let kept = backup
+                    .create(false)
+                    .await
+                    .expect("failed to create first snapshot");
+                std::thread::sleep(Duration::from_millis(2));
+                let deleted = backup
+                    .create_managed(BackupSource::Autosave, None, false)
+                    .await
+                    .expect("failed to create second snapshot");
+
+                std::fs::remove_file(root.join(Backup::BACKUP_DIRECTORY).join(&deleted.filename))
+                    .expect("failed to delete snapshot file");
+
+                drop(backup);
+
+                let mut reconciled = Backup::new(db.clone(), settings.clone())
+                    .await
+                    .expect("failed to reconcile manifest");
+                let entries = reconciled
+                    .list()
+                    .await
+                    .expect("failed to list reconciled snapshots");
+
+                assert_eq!(entries.len(), 1);
+                assert_eq!(entries[0].filename, kept.filename);
+                assert_eq!(entries[0].version, kept.version);
+
+                db.write().await.disconnect().await;
+                let _ = std::fs::remove_dir_all(root);
+            });
+    }
+
+    #[test]
+    fn partially_valid_manifest_keeps_salvageable_entries() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = unique_dir("backup-manifest-partial-salvage");
+                let (mut backup, db, settings) = setup_backup(&root).await;
+
+                let salvaged = backup
+                    .create(false)
+                    .await
+                    .expect("failed to create first snapshot");
+                std::thread::sleep(Duration::from_millis(2));
+                let recovered = backup
+                    .create_managed(BackupSource::Autosave, None, false)
+                    .await
+                    .expect("failed to create second snapshot");
+
+                // valid JSON that fails typed deserialization (one well-formed entry with a
+                // marker version, one garbage entry), forcing the best-effort salvage path.
+                let manifest_path = root
+                    .join(Backup::BACKUP_DIRECTORY)
+                    .join(Backup::MANIFEST_FILENAME);
+                let partially_valid = serde_json::json!({
+                    "metadata": {
+                        "version": 1,
+                        "provider": "local",
+                        "updatedAt": salvaged.created_at
+                    },
+                    "entries": [
+                        {
+                            "filename": salvaged.filename,
+                            "isProtected": true,
+                            "createdAt": salvaged.created_at,
+                            "version": "9.9.9",
+                            "source": "manual"
+                        },
+                        { "bogus": true }
+                    ]
+                });
+                std::fs::write(
+                    &manifest_path,
+                    serde_json::to_string_pretty(&partially_valid)
+                        .expect("failed to serialize partially valid manifest"),
+                )
+                .expect("failed to write partially valid manifest");
+
+                drop(backup);
+
+                let mut reopened = Backup::new(db.clone(), settings.clone())
+                    .await
+                    .expect("failed to recover partially valid manifest");
+                let entries = reopened
+                    .list()
+                    .await
+                    .expect("failed to list recovered snapshots");
+
+                assert_eq!(entries.len(), 2);
+
+                // the well-formed entry survives with its own metadata, not a recovered stub.
+                let salvaged_entry = entries
+                    .iter()
+                    .find(|entry| entry.filename == salvaged.filename)
+                    .expect("missing salvaged snapshot entry");
+                assert_eq!(salvaged_entry.version, "9.9.9");
+                assert!(salvaged_entry.is_protected);
+
+                // the file whose entry was garbage comes back as a recovered stub.
+                let recovered_entry = entries
+                    .iter()
+                    .find(|entry| entry.filename == recovered.filename)
+                    .expect("missing recovered snapshot entry");
+                assert_eq!(recovered_entry.version, RECOVERED_SNAPSHOT_VERSION);
+
+                // the unreadable manifest is preserved on disk rather than lost.
+                let preserved_invalid_manifests =
+                    std::fs::read_dir(root.join(Backup::BACKUP_DIRECTORY))
+                        .expect("failed to read backup dir")
+                        .filter_map(|entry| entry.ok())
+                        .filter(|entry| {
+                            entry
+                                .file_name()
+                                .to_str()
+                                .is_some_and(|name| name.starts_with("manifest.invalid-"))
+                        })
+                        .count();
+                assert_eq!(preserved_invalid_manifests, 1);
+
+                db.write().await.disconnect().await;
+                let _ = std::fs::remove_dir_all(root);
+            });
     }
 }
