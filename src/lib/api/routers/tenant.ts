@@ -52,13 +52,21 @@ export default router({
 					: null
 			);
 
+			const values = {
+				...(input.name !== undefined ? { name: input.name } : {}),
+				...(input.nationalId !== undefined ? { nationalId: input.nationalId } : {}),
+				...(input.phone !== undefined ? { phone: input.phone } : {})
+			};
+
+			// Drizzle refuses an empty set clause. An update naming no field means "change
+			// nothing" rather than a bad request, so it reads back instead of writing.
+			if (Object.keys(values).length === 0) {
+				return await ctx.db.select().from(s.tenant).where(eq(s.tenant.id, input.id)).get();
+			}
+
 			const updated = await ctx.db
 				.update(s.tenant)
-				.set({
-					...(input.name !== undefined ? { name: input.name } : {}),
-					...(input.nationalId !== undefined ? { nationalId: input.nationalId } : {}),
-					...(input.phone !== undefined ? { phone: input.phone } : {})
-				})
+				.set(values)
 				.where(eq(s.tenant.id, input.id))
 				.returning()
 				.get();

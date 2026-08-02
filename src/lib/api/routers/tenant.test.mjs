@@ -148,6 +148,24 @@ test('a phone-only update succeeds and leaves the other fields intact', async ()
 	assert.equal(updated.phone, '+966551234500');
 });
 
+test('an id-only update is a no-op that returns the tenant unchanged', async () => {
+	const api = await createApi();
+	const tenant = await api.tenant.create({ name: 'Sara', nationalId: NATIONAL_ID, phone: PHONE });
+
+	const updated = await api.tenant.update({ id: tenant.id });
+
+	assert.deepEqual(updated, tenant);
+});
+
+// the read-back has no row to return, and neither has the write path it stands in for.
+test('an id-only update for a tenant that does not exist returns nothing', async () => {
+	const api = await createApi();
+
+	const updated = await api.tenant.update({ id: 4040 });
+
+	assert.equal(updated, undefined);
+});
+
 test('a partial update to an identity used by another tenant is still rejected', async () => {
 	const api = await createApi();
 	await api.tenant.create({ name: 'Sara', nationalId: NATIONAL_ID, phone: PHONE });

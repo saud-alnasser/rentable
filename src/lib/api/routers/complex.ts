@@ -94,12 +94,20 @@ export default router({
 				});
 			}
 
+			const values = {
+				...(input.name !== undefined ? { name: input.name } : {}),
+				...(input.location !== undefined ? { location: input.location } : {})
+			};
+
+			// Drizzle refuses an empty set clause. An update naming no field means "change
+			// nothing" rather than a bad request, so it reads back instead of writing.
+			if (Object.keys(values).length === 0) {
+				return await ctx.db.select().from(s.complex).where(eq(s.complex.id, input.id)).get();
+			}
+
 			const updated = await ctx.db
 				.update(s.complex)
-				.set({
-					...(input.name !== undefined ? { name: input.name } : {}),
-					...(input.location !== undefined ? { location: input.location } : {})
-				})
+				.set(values)
 				.where(eq(s.complex.id, input.id))
 				.returning()
 				.get();
@@ -271,12 +279,20 @@ export default router({
 					});
 				}
 
+				const values = {
+					...(input.name !== undefined ? { name: input.name } : {}),
+					...(input.status !== undefined ? { status: input.status } : {})
+				};
+
+				// Drizzle refuses an empty set clause. An update naming no field means "change
+				// nothing" rather than a bad request, so it reads back instead of writing.
+				if (Object.keys(values).length === 0) {
+					return await ctx.db.select().from(s.unit).where(eq(s.unit.id, input.id)).get();
+				}
+
 				const updated = await ctx.db
 					.update(s.unit)
-					.set({
-						...(input.name !== undefined ? { name: input.name } : {}),
-						...(input.status !== undefined ? { status: input.status } : {})
-					})
+					.set(values)
 					.where(eq(s.unit.id, input.id))
 					.returning()
 					.get();
