@@ -3,6 +3,11 @@
 //! The manifest is the remote's index: which snapshots exist, and which one is
 //! current. It is a file on someone else's storage, so nothing read out of it
 //! is trusted until it has been through [`normalize_google_drive_manifest`].
+//!
+//! Producing one lives here too. The index is derived from the snapshots rather
+//! than accumulated beside them, so the rule deciding what a manifest may say
+//! and the code deciding what one does say are the same subject, and splitting
+//! them would let a written index fail a read it was written to pass.
 
 use std::cmp::Ordering;
 
@@ -11,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 
 use super::conflict::normalize_content_hash;
+use super::retention::GoogleDriveRetainedSnapshot;
 use super::transport::{
     DriveFile, FILE_TYPE_PROPERTY, GoogleDriveSnapshotSource, SNAPSHOT_APP_VERSION_PROPERTY,
     SNAPSHOT_CONTENT_HASH_PROPERTY, parse_drive_number, parse_drive_snapshot_created_at,
@@ -256,6 +262,111 @@ pub fn build_manifest_entry_from_drive_file(
                 .or_else(|| fallback.and_then(|entry| entry.content_hash.clone()))
                 .as_deref(),
         ),
+    })
+}
+
+/// the shape of the manifest document this application writes. Recorded so a
+/// later format can be told from this one; nothing reads it back yet.
+const MANIFEST_VERSION: u8 = 1;
+
+/// the remote a manifest declares itself to describe.
+const MANIFEST_PROVIDER: &str = "googleDrive";
+
+/// assemble a manifest from the snapshots a workspace folder actually holds.
+///
+/// This is how every manifest comes to exist. The index is derived rather than
+/// accumulated — a concurrent write can lose it, and the snapshots it describes
+/// survive — so writing one after a push and rebuilding one another client
+/// clobbered are the same call with different inputs, and neither can produce
+/// an index the other would not have.
+///
+/// `head_file` is the snapshot the manifest names as current. It heads the
+/// result wherever `retained` produced nothing, because a manifest with no head
+/// is not a manifest and the alternative is an absence every reader would have
+/// to carry a second case for.
+///
+/// `previous` is what a folder listing cannot say: the application version that
+/// wrote a snapshot, its checksum, its content hash. `now` is both the time the
+/// manifest records for itself and the capture time of last resort.
+///
+/// Fails with [`Error::Integrity`] where a file declares no source this
+/// application recognises and the caller supplied none, for the reason
+/// [`build_manifest_entry_from_drive_file`] gives.
+pub fn build_google_drive_manifest_from_snapshots(
+    workspace_id: &str,
+    workspace_name: &str,
+    retained: &[GoogleDriveRetainedSnapshot],
+    head_file: &DriveFile,
+    head_overrides: &GoogleDriveManifestEntryOverrides,
+    previous: Option<&GoogleDriveManifest>,
+    now: i64,
+) -> Result<GoogleDriveManifest, Error> {
+    let fallback_for = |file_id: &str| {
+        previous.map(|previous| {
+            previous
+                .entries
+                .iter()
+                .find(|entry| entry.file_id == file_id)
+                .unwrap_or(&previous.head)
+        })
+    };
+
+    let mut entries: Vec<GoogleDriveManifestEntry> = Vec::with_capacity(retained.len());
+
+    for snapshot in retained {
+        let overrides = if snapshot.file.id == head_file.id {
+            GoogleDriveManifestEntryOverrides {
+                source: head_overrides.source.or(Some(snapshot.source)),
+                ..head_overrides.clone()
+            }
+        } else {
+            GoogleDriveManifestEntryOverrides {
+                source: Some(snapshot.source),
+                ..GoogleDriveManifestEntryOverrides::default()
+            }
+        };
+        let entry = build_manifest_entry_from_drive_file(
+            &snapshot.file,
+            fallback_for(&snapshot.file.id),
+            &overrides,
+            now,
+        )?;
+
+        if !entries
+            .iter()
+            .any(|existing| existing.is_same_snapshot_as(&entry))
+        {
+            entries.push(entry);
+        }
+    }
+
+    entries.sort_by(compare_manifest_entries_newest_first);
+
+    let head = match entries.first() {
+        Some(entry) => entry.clone(),
+        None => build_manifest_entry_from_drive_file(
+            head_file,
+            fallback_for(&head_file.id),
+            head_overrides,
+            now,
+        )?,
+    };
+
+    if !entries.iter().any(|entry| entry.is_same_snapshot_as(&head)) {
+        entries.insert(0, head.clone());
+        entries.sort_by(compare_manifest_entries_newest_first);
+    }
+
+    Ok(GoogleDriveManifest {
+        metadata: GoogleDriveManifestMetadata {
+            version: MANIFEST_VERSION,
+            provider: MANIFEST_PROVIDER.to_string(),
+            workspace_id: workspace_id.to_string(),
+            workspace_name: workspace_name.to_string(),
+            updated_at: now,
+        },
+        entries,
+        head,
     })
 }
 
