@@ -1,15 +1,14 @@
 use std::{fs, path::Path, time::UNIX_EPOCH};
 
-use crate::timestamp;
+use crate::{error::Error, timestamp};
 
 pub(super) struct SnapshotFileInfo {
     pub(super) filename: String,
     pub(super) created_at: i64,
 }
 
-pub(super) fn list_snapshot_files(backup_dir: &Path) -> Result<Vec<SnapshotFileInfo>, String> {
-    let mut snapshots = fs::read_dir(backup_dir)
-        .map_err(|error| error.to_string())?
+pub(super) fn list_snapshot_files(backup_dir: &Path) -> Result<Vec<SnapshotFileInfo>, Error> {
+    let mut snapshots = fs::read_dir(backup_dir)?
         .filter_map(|entry| entry.ok())
         .filter_map(|entry| {
             let path = entry.path();

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{persisted::Persistable, state::AppState};
+use crate::{error::Error, persisted::Persistable, state::AppState};
 use serde::{Deserialize, Deserializer, Serialize};
 
 const DEFAULT_ENDING_SOON_NOTICE_DAYS: u16 = 60;
@@ -106,7 +106,7 @@ pub struct SettingsChangeset {
 }
 
 #[tauri::command]
-pub async fn settings_get(app_state: tauri::State<'_, AppState>) -> Result<Settings, String> {
+pub async fn settings_get(app_state: tauri::State<'_, AppState>) -> Result<Settings, Error> {
     let settings = app_state.settings.read().await;
     Ok(settings.inner().clone())
 }
@@ -115,17 +115,19 @@ pub async fn settings_get(app_state: tauri::State<'_, AppState>) -> Result<Setti
 pub async fn settings_set(
     app_state: tauri::State<'_, AppState>,
     changeset: SettingsChangeset,
-) -> Result<Settings, String> {
+) -> Result<Settings, Error> {
     settings_set_inner(app_state.inner(), changeset).await
 }
 
 pub async fn settings_set_inner(
     app_state: &AppState,
     changeset: SettingsChangeset,
-) -> Result<Settings, String> {
+) -> Result<Settings, Error> {
     if let Some(days) = changeset.ending_soon_notice_days {
         if days == 0 {
-            return Err("ending soon notice window must be greater than zero".to_string());
+            return Err(Error::InvalidInput {
+                message: "ending soon notice window must be greater than zero".to_string(),
+            });
         }
     }
 

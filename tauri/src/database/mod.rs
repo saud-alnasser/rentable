@@ -15,6 +15,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     database::proxy::{SQLQuery, SQLRow},
+    error::Error,
     persisted::Persisted,
     settings::Settings,
 };
@@ -34,13 +35,13 @@ impl Database {
         }
     }
 
-    pub async fn connect(&mut self) -> Result<(), String> {
+    pub async fn connect(&mut self) -> Result<(), Error> {
         let settings = self.settings.read().await;
         let db_path = settings.database_path.clone();
         let migration_dir = settings.migration_dir.clone();
 
         if let Some(parent) = db_path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            std::fs::create_dir_all(parent)?;
         }
 
         let connect_options = SqliteConnectOptions::new()
@@ -52,12 +53,9 @@ impl Database {
 
         let pool = SqlitePoolOptions::new()
             .connect_with(connect_options)
-            .await
-            .map_err(|e| e.to_string())?;
+            .await?;
 
-        migrations::run(&pool, &migration_dir)
-            .await
-            .map_err(|e| e.to_string())?;
+        migrations::run(&pool, &migration_dir).await?;
 
         self.pool = Some(pool);
 
@@ -70,42 +68,35 @@ impl Database {
         }
     }
 
-    pub async fn reconnect(&mut self) -> Result<(), String> {
+    pub async fn reconnect(&mut self) -> Result<(), Error> {
         self.disconnect().await;
         self.connect().await
     }
 
-    pub async fn create_backup(&self, backup_path: &Path) -> Result<(), String> {
-        let pool = self
-            .pool
-            .clone()
-            .ok_or("database not connected".to_string())?;
+    pub async fn create_backup(&self, backup_path: &Path) -> Result<(), Error> {
+        let pool = self.pool.clone().ok_or_else(Self::not_connected)?;
 
         Self::create_backup_from_pool(&pool, backup_path).await
     }
 
-    async fn create_backup_from_pool(
-        pool: &Pool<Sqlite>,
-        backup_path: &Path,
-    ) -> Result<(), String> {
+    async fn create_backup_from_pool(pool: &Pool<Sqlite>, backup_path: &Path) -> Result<(), Error> {
         if let Some(parent) = backup_path.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            fs::create_dir_all(parent)?;
         }
 
         if backup_path.exists() {
-            fs::remove_file(backup_path).map_err(|e| e.to_string())?;
+            fs::remove_file(backup_path)?;
         }
 
         let escaped_path = backup_path.to_string_lossy().replace('\'', "''");
         sqlx::query(format!("VACUUM INTO '{}'", escaped_path).as_str())
             .execute(pool)
-            .await
-            .map_err(|e| e.to_string())?;
+            .await?;
 
         Ok(())
     }
 
-    pub async fn restore_backup(&mut self, backup_path: &Path) -> Result<(), String> {
+    pub async fn restore_backup(&mut self, backup_path: &Path) -> Result<(), Error> {
         let settings = self.settings.read().await;
 
         let db_path = settings.database_path.clone();
@@ -185,15 +176,22 @@ impl Database {
         paths
     }
 
-    fn purge_related_paths(db_path: &Path) -> Result<(), String> {
+    fn purge_related_paths(db_path: &Path) -> Result<(), Error> {
         for path in Self::get_related_paths(db_path) {
             if path.exists() {
-                std::fs::remove_file(&path)
-                    .map_err(|e| format!("failed to delete {}: {}", path.to_string_lossy(), e))?;
+                std::fs::remove_file(&path).map_err(|e| Error::Io {
+                    message: format!("failed to delete {}: {}", path.to_string_lossy(), e),
+                })?;
             }
         }
 
         Ok(())
+    }
+
+    fn not_connected() -> Error {
+        Error::PreconditionFailed {
+            message: "database not connected".to_string(),
+        }
     }
 
     pub async fn is_ready(&self) -> bool {
@@ -219,11 +217,8 @@ impl Database {
         matches!(row, Some(1))
     }
 
-    pub async fn execute_single_sql(&self, query: SQLQuery) -> Result<Vec<SQLRow>, String> {
-        let pool = self
-            .pool
-            .clone()
-            .ok_or("database not connected".to_string())?;
+    pub async fn execute_single_sql(&self, query: SQLQuery) -> Result<Vec<SQLRow>, Error> {
+        let pool = self.pool.clone().ok_or_else(Self::not_connected)?;
 
         proxy::execute_single_sql(&pool, query).await
     }
@@ -231,11 +226,8 @@ impl Database {
     pub async fn execute_batch_sql(
         &self,
         queries: Vec<SQLQuery>,
-    ) -> Result<Vec<Vec<SQLRow>>, String> {
-        let pool = self
-            .pool
-            .clone()
-            .ok_or("database not connected".to_string())?;
+    ) -> Result<Vec<Vec<SQLRow>>, Error> {
+        let pool = self.pool.clone().ok_or_else(Self::not_connected)?;
 
         proxy::execute_batch_sql(&pool, queries).await
     }

@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use std::sync::Mutex;
 
+use crate::error::Error;
+
 use super::super::store::{RemoteSync, StoredGoogleDriveCredentials, sanitize_optional_string};
 use super::transport::GOOGLE_DRIVE_API_BASE_URL;
 
@@ -53,7 +55,7 @@ impl RemoteSync {
         refresh_token: Option<String>,
         token_expires_at: Option<i64>,
         updated_at: i64,
-    ) -> Result<StoredGoogleDriveCredentials, String> {
+    ) -> Result<StoredGoogleDriveCredentials, Error> {
         let access_token = sanitize_optional_string(access_token);
         let refresh_token = sanitize_optional_string(refresh_token);
         let mut credentials = self.load_google_drive_credentials(account_id)?.unwrap_or(
@@ -78,7 +80,9 @@ impl RemoteSync {
         credentials.updated_at = updated_at;
 
         if credentials.access_token.trim().is_empty() {
-            return Err("google drive access token is required".to_string());
+            return Err(Error::InvalidInput {
+                message: "google drive access token is required".to_string(),
+            });
         }
 
         self.save_google_drive_credentials(&credentials)?;
@@ -90,7 +94,7 @@ impl RemoteSync {
     pub(crate) fn load_google_drive_credentials(
         &self,
         account_id: &str,
-    ) -> Result<Option<StoredGoogleDriveCredentials>, String> {
+    ) -> Result<Option<StoredGoogleDriveCredentials>, Error> {
         let entry = self.google_drive_keyring_entry(account_id)?;
         let payload = match entry.get_password() {
             Ok(payload) => payload,
@@ -100,10 +104,10 @@ impl RemoteSync {
 
         serde_json::from_str::<StoredGoogleDriveCredentials>(&payload)
             .map(Some)
-            .map_err(|error| {
-                format!(
+            .map_err(|error| Error::Integrity {
+                message: format!(
                     "failed to decode stored google drive credentials for {account_id}: {error}"
-                )
+                ),
             })
     }
 
@@ -111,10 +115,12 @@ impl RemoteSync {
     pub(crate) fn load_google_drive_credentials(
         &self,
         account_id: &str,
-    ) -> Result<Option<StoredGoogleDriveCredentials>, String> {
+    ) -> Result<Option<StoredGoogleDriveCredentials>, Error> {
         let store = test_google_drive_credentials_store()
             .lock()
-            .map_err(|_| "failed to lock test google drive credentials store".to_string())?;
+            .map_err(|_| Error::Internal {
+                message: "failed to lock test google drive credentials store".to_string(),
+            })?;
 
         Ok(store.get(account_id).cloned())
     }
@@ -123,10 +129,11 @@ impl RemoteSync {
     pub(crate) fn save_google_drive_credentials(
         &self,
         credentials: &StoredGoogleDriveCredentials,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let entry = self.google_drive_keyring_entry(&credentials.account_id)?;
-        let payload = serde_json::to_string(credentials)
-            .map_err(|error| format!("failed to encode google drive credentials: {error}"))?;
+        let payload = serde_json::to_string(credentials).map_err(|error| Error::Internal {
+            message: format!("failed to encode google drive credentials: {error}"),
+        })?;
 
         entry
             .set_password(&payload)
@@ -137,17 +144,20 @@ impl RemoteSync {
     pub(crate) fn save_google_drive_credentials(
         &self,
         credentials: &StoredGoogleDriveCredentials,
-    ) -> Result<(), String> {
-        let mut store = test_google_drive_credentials_store()
-            .lock()
-            .map_err(|_| "failed to lock test google drive credentials store".to_string())?;
+    ) -> Result<(), Error> {
+        let mut store =
+            test_google_drive_credentials_store()
+                .lock()
+                .map_err(|_| Error::Internal {
+                    message: "failed to lock test google drive credentials store".to_string(),
+                })?;
 
         store.insert(credentials.account_id.clone(), credentials.clone());
         Ok(())
     }
 
     #[cfg(not(test))]
-    pub(crate) fn delete_google_drive_credentials(&self, account_id: &str) -> Result<(), String> {
+    pub(crate) fn delete_google_drive_credentials(&self, account_id: &str) -> Result<(), Error> {
         let entry = self.google_drive_keyring_entry(account_id)?;
 
         match entry.delete_credential() {
@@ -157,17 +167,20 @@ impl RemoteSync {
     }
 
     #[cfg(test)]
-    pub(crate) fn delete_google_drive_credentials(&self, account_id: &str) -> Result<(), String> {
-        let mut store = test_google_drive_credentials_store()
-            .lock()
-            .map_err(|_| "failed to lock test google drive credentials store".to_string())?;
+    pub(crate) fn delete_google_drive_credentials(&self, account_id: &str) -> Result<(), Error> {
+        let mut store =
+            test_google_drive_credentials_store()
+                .lock()
+                .map_err(|_| Error::Internal {
+                    message: "failed to lock test google drive credentials store".to_string(),
+                })?;
 
         store.remove(account_id);
         Ok(())
     }
 
     #[cfg(not(test))]
-    fn google_drive_keyring_entry(&self, account_id: &str) -> Result<KeyringEntry, String> {
+    fn google_drive_keyring_entry(&self, account_id: &str) -> Result<KeyringEntry, Error> {
         KeyringEntry::new(GOOGLE_DRIVE_KEYRING_SERVICE, account_id)
             .map_err(|error| format_keyring_error("create", account_id, error))
     }
@@ -197,8 +210,10 @@ fn google_drive_scopes() -> Vec<String> {
 }
 
 #[cfg(not(test))]
-fn format_keyring_error(action: &str, account_id: &str, error: KeyringError) -> String {
-    format!("failed to {action} google drive credentials for {account_id}: {error}")
+fn format_keyring_error(action: &str, account_id: &str, error: KeyringError) -> Error {
+    Error::Credential {
+        message: format!("failed to {action} google drive credentials for {account_id}: {error}"),
+    }
 }
 
 #[cfg(test)]

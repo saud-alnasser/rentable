@@ -3,8 +3,8 @@ use std::{collections::HashSet, fs, path::Path, sync::Arc};
 use tokio::sync::RwLock;
 
 use crate::{
-    database::Database, persisted::Persisted, remote_sync::RemoteSyncWorkspace, settings::Settings,
-    state::AppState, timestamp,
+    database::Database, error::Error, persisted::Persisted, remote_sync::RemoteSyncWorkspace,
+    settings::Settings, state::AppState, timestamp,
 };
 
 use super::manifest::{
@@ -29,7 +29,7 @@ impl Backup {
     pub const BACKUP_DIRECTORY: &'static str = "snapshots";
     pub const MANIFEST_FILENAME: &'static str = "manifest.json";
 
-    pub fn set_protected(&mut self, filename: &str, is_protected: bool) -> Result<bool, String> {
+    pub fn set_protected(&mut self, filename: &str, is_protected: bool) -> Result<bool, Error> {
         let Some(entry) = self
             .index
             .entries
@@ -64,7 +64,7 @@ impl Backup {
         provider: &str,
         workspace_id: Option<String>,
         workspace_name: Option<String>,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let provider = sanitize_manifest_provider(provider);
         let workspace_id = sanitize_optional_string(workspace_id);
         let workspace_name = sanitize_optional_string(workspace_name);
@@ -86,7 +86,7 @@ impl Backup {
     pub fn sync_manifest_workspace(
         &mut self,
         workspace: Option<&RemoteSyncWorkspace>,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         match workspace {
             Some(workspace) => self.set_manifest_identity(
                 remote_sync_provider_name(&workspace.provider),
@@ -101,10 +101,10 @@ impl Backup {
     pub async fn new(
         db: Arc<RwLock<Database>>,
         settings: Arc<RwLock<Persisted<Settings>>>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, Error> {
         let settings_arc = settings.clone();
         let backup_dir = { settings_arc.read().await.backup_dir.clone() };
-        fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
+        fs::create_dir_all(&backup_dir)?;
 
         let manifest_path = backup_dir.join(Self::MANIFEST_FILENAME);
         let BackupManifestLoadOutcome {
@@ -126,14 +126,14 @@ impl Backup {
     }
 
     /// lists all snapshots sorted by creation time (newest first)
-    pub async fn list(&mut self) -> Result<Vec<BackupEntry>, String> {
+    pub async fn list(&mut self) -> Result<Vec<BackupEntry>, Error> {
         let mut entries = self.index.entries.clone();
         entries.sort_by(|a, b| b.created_at.cmp(&a.created_at));
         Ok(entries)
     }
 
     /// creates a snapshot with a canonical filename `snapshot-{timestamp}.db`
-    pub async fn create(&mut self, protected: bool) -> Result<BackupEntry, String> {
+    pub async fn create(&mut self, protected: bool) -> Result<BackupEntry, Error> {
         self.create_with_source(BackupSource::Manual, None, protected, true)
             .await
     }
@@ -143,7 +143,7 @@ impl Backup {
         source: BackupSource,
         recovery_kind: Option<BackupRecoveryKind>,
         protected: bool,
-    ) -> Result<BackupEntry, String> {
+    ) -> Result<BackupEntry, Error> {
         if !source.is_managed() {
             return self
                 .create_with_source(BackupSource::Manual, None, protected, true)
@@ -159,7 +159,7 @@ impl Backup {
         source: BackupSource,
         recovery_kind: Option<BackupRecoveryKind>,
         protected: bool,
-    ) -> Result<BackupEntry, String> {
+    ) -> Result<BackupEntry, Error> {
         if !source.is_managed() {
             return self
                 .create_with_source(BackupSource::Manual, None, protected, false)
@@ -171,7 +171,7 @@ impl Backup {
     }
 
     /// restores a snapshot by filename
-    pub async fn restore(&self, filename: &str) -> Result<(), String> {
+    pub async fn restore(&self, filename: &str) -> Result<(), Error> {
         let current_version = { self.settings.read().await.version.clone() };
         let entry = self
             .index
@@ -179,10 +179,12 @@ impl Backup {
             .iter()
             .find(|entry| entry.filename == filename)
             .cloned()
-            .ok_or("snapshot not found")?;
+            .ok_or_else(snapshot_not_found)?;
 
         if entry.version != current_version {
-            return Err("snapshot app version does not match current app version".to_string());
+            return Err(Error::Integrity {
+                message: "snapshot app version does not match current app version".to_string(),
+            });
         }
 
         let backup_dir = { self.settings.read().await.backup_dir.clone() };
@@ -193,7 +195,7 @@ impl Backup {
     }
 
     /// deletes a snapshot by filename
-    pub async fn delete(&mut self, filename: &str) -> Result<(), String> {
+    pub async fn delete(&mut self, filename: &str) -> Result<(), Error> {
         let backup_dir = { self.settings.read().await.backup_dir.clone() };
         let previous_head = self.index.head.clone();
 
@@ -202,10 +204,12 @@ impl Backup {
             .entries
             .iter()
             .position(|e| e.filename == filename)
-            .ok_or("snapshot not found")?;
+            .ok_or_else(snapshot_not_found)?;
 
         if self.index.entries[pos].is_protected {
-            return Err("protected snapshots cannot be deleted".to_string());
+            return Err(Error::Forbidden {
+                message: "protected snapshots cannot be deleted".to_string(),
+            });
         }
 
         let entry = self.index.entries[pos].clone();
@@ -224,18 +228,21 @@ impl Backup {
             self.index.head = previous_head;
 
             return Err(match self.index.commit() {
-                Ok(()) => error.to_string(),
-                Err(revert_error) => format!(
-                    "failed to delete snapshot file: {}; additionally failed to restore snapshot manifest: {}",
-                    error, revert_error
-                ),
+                Ok(()) => error.into(),
+                Err(revert_error) => Error::Io {
+                    message: format!("failed to delete snapshot file: {}", error),
+                }
+                .with_context(&format!(
+                    "failed to restore snapshot manifest: {}",
+                    revert_error
+                )),
             });
         }
 
         Ok(())
     }
 
-    pub async fn cleanup_managed(&mut self) -> Result<(), String> {
+    pub async fn cleanup_managed(&mut self) -> Result<(), Error> {
         let backup_dir = { self.settings.read().await.backup_dir.clone() };
         self.prune_missing_entries(&backup_dir)?;
 
@@ -282,12 +289,12 @@ impl Backup {
         Ok(())
     }
 
-    pub async fn cleanup_retained(&mut self) -> Result<(), String> {
+    pub async fn cleanup_retained(&mut self) -> Result<(), Error> {
         self.cleanup_current_state().await?;
         self.cleanup_managed().await
     }
 
-    async fn cleanup_current_state(&mut self) -> Result<(), String> {
+    async fn cleanup_current_state(&mut self) -> Result<(), Error> {
         let backup_dir = { self.settings.read().await.backup_dir.clone() };
         self.prune_missing_entries(&backup_dir)?;
 
@@ -331,7 +338,7 @@ impl Backup {
         recovery_kind: Option<BackupRecoveryKind>,
         protected: bool,
         cleanup_managed_after_create: bool,
-    ) -> Result<BackupEntry, String> {
+    ) -> Result<BackupEntry, Error> {
         let (backup_dir, version) = {
             let settings = self.settings.read().await;
             (settings.backup_dir.clone(), settings.version.clone())
@@ -347,11 +354,15 @@ impl Backup {
             if !db.is_ready().await {
                 db.reconnect()
                     .await
-                    .map_err(|error| format!("database not ready to create snapshot: {error}"))?;
+                    .map_err(|error| Error::PreconditionFailed {
+                        message: format!("database not ready to create snapshot: {error}"),
+                    })?;
             }
 
             if !db.is_ready().await {
-                return Err("database not ready to create snapshot".to_string());
+                return Err(Error::PreconditionFailed {
+                    message: "database not ready to create snapshot".to_string(),
+                });
             }
 
             db.create_backup(&path).await?;
@@ -379,10 +390,10 @@ impl Backup {
             let cleanup_error = fs::remove_file(&path).err().map(|err| err.to_string());
 
             return Err(match cleanup_error {
-                Some(cleanup_error) => format!(
-                    "{}; additionally failed to remove untracked snapshot file: {}",
-                    error, cleanup_error
-                ),
+                Some(cleanup_error) => error.with_context(&format!(
+                    "failed to remove untracked snapshot file: {}",
+                    cleanup_error
+                )),
                 None => error,
             });
         }
@@ -398,7 +409,7 @@ impl Backup {
         Ok(entry)
     }
 
-    fn prune_missing_entries(&mut self, backup_dir: &Path) -> Result<(), String> {
+    fn prune_missing_entries(&mut self, backup_dir: &Path) -> Result<(), Error> {
         let original_len = self.index.entries.len();
 
         self.index
@@ -413,7 +424,13 @@ impl Backup {
     }
 }
 
-pub async fn sync_backup_manifest_workspace(app_state: &AppState) -> Result<(), String> {
+fn snapshot_not_found() -> Error {
+    Error::NotFound {
+        message: "snapshot not found".to_string(),
+    }
+}
+
+pub async fn sync_backup_manifest_workspace(app_state: &AppState) -> Result<(), Error> {
     let workspace = {
         let mut remote_sync = app_state.remote_sync.write().await;
         remote_sync.get_state().await?;

@@ -6,6 +6,7 @@ use std::{
 };
 
 use crate::{
+    error::Error,
     persisted::{Persistable, Persisted},
     remote_sync::RemoteSyncProvider,
     timestamp,
@@ -211,7 +212,7 @@ pub(super) fn head_snapshot_entry(entries: &[BackupEntry]) -> Option<BackupEntry
 pub(super) fn load_backup_manifest(
     backup_dir: &Path,
     manifest_path: PathBuf,
-) -> Result<BackupManifestLoadOutcome, String> {
+) -> Result<BackupManifestLoadOutcome, Error> {
     match Persisted::<BackupManifest>::load(manifest_path.clone()) {
         Ok(mut index) => {
             let reconciliation = reconcile_backup_manifest(&mut index, backup_dir)?;
@@ -241,8 +242,10 @@ pub(super) fn load_backup_manifest(
             preserve_invalid_backup_manifest(&manifest_path, &contents);
 
             let serialized =
-                serde_json::to_string_pretty(&manifest).map_err(|error| error.to_string())?;
-            fs::write(&manifest_path, serialized).map_err(|error| error.to_string())?;
+                serde_json::to_string_pretty(&manifest).map_err(|error| Error::Internal {
+                    message: error.to_string(),
+                })?;
+            fs::write(&manifest_path, serialized)?;
 
             Ok(BackupManifestLoadOutcome {
                 index: Persisted::<BackupManifest>::load(manifest_path)?,
@@ -255,12 +258,16 @@ pub(super) fn load_backup_manifest(
 fn reconcile_backup_manifest(
     manifest: &mut BackupManifest,
     backup_dir: &Path,
-) -> Result<BackupManifestReconciliation, String> {
-    let before = serde_json::to_string(manifest).map_err(|error| error.to_string())?;
+) -> Result<BackupManifestReconciliation, Error> {
+    let before = serde_json::to_string(manifest).map_err(|error| Error::Internal {
+        message: error.to_string(),
+    })?;
     manifest.sanitize();
 
     let mut reconciliation = reconcile_backup_manifest_entries(manifest, backup_dir)?;
-    let after = serde_json::to_string(manifest).map_err(|error| error.to_string())?;
+    let after = serde_json::to_string(manifest).map_err(|error| Error::Internal {
+        message: error.to_string(),
+    })?;
     reconciliation.changed |= before != after;
 
     Ok(reconciliation)
@@ -269,7 +276,7 @@ fn reconcile_backup_manifest(
 fn reconcile_backup_manifest_entries(
     manifest: &mut BackupManifest,
     backup_dir: &Path,
-) -> Result<BackupManifestReconciliation, String> {
+) -> Result<BackupManifestReconciliation, Error> {
     let snapshot_files = list_snapshot_files(backup_dir)?;
     let snapshot_filenames = snapshot_files
         .iter()

@@ -6,6 +6,8 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::Error;
+
 /// a trait for types that can be persisted to disk.
 pub trait Persistable: Serialize + for<'de> Deserialize<'de> + Default + Clone {
     /// called before commit to ensure internal state is valid.
@@ -24,13 +26,16 @@ where
     T: Persistable,
 {
     /// load from disk or create default; if the file doesn't exist, it will be created.
-    pub fn load(path: PathBuf) -> Result<Self, String> {
+    pub fn load(path: PathBuf) -> Result<Self, Error> {
         match fs::read_to_string(&path) {
             Ok(contents) => {
-                let mut data = serde_json::from_str::<T>(&contents).map_err(|e| e.to_string())?;
-                let before = serde_json::to_string(&data).map_err(|e| e.to_string())?;
+                let mut data =
+                    serde_json::from_str::<T>(&contents).map_err(|e| Error::Integrity {
+                        message: e.to_string(),
+                    })?;
+                let before = Self::serialized(&data)?;
                 data.sanitize();
-                let after = serde_json::to_string(&data).map_err(|e| e.to_string())?;
+                let after = Self::serialized(&data)?;
 
                 let mut this = Self {
                     data,
@@ -55,25 +60,27 @@ where
 
                 Ok(this)
             }
-            Err(error) => Err(error.to_string()),
+            Err(error) => Err(error.into()),
         }
     }
 
     /// commit/write changes to disk; only if any changes have been made.
-    pub fn commit(&mut self) -> Result<(), String> {
+    pub fn commit(&mut self) -> Result<(), Error> {
         if !self.dirty {
             return Ok(());
         }
 
         self.data.sanitize();
 
-        let contents = serde_json::to_string_pretty(&self.data).map_err(|e| e.to_string())?;
+        let contents = serde_json::to_string_pretty(&self.data).map_err(|e| Error::Internal {
+            message: e.to_string(),
+        })?;
 
         if let Some(parent) = self.path.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            fs::create_dir_all(parent)?;
         }
 
-        fs::write(&self.path, contents).map_err(|e| e.to_string())?;
+        fs::write(&self.path, contents)?;
 
         self.dirty = false;
 
@@ -82,6 +89,12 @@ where
 
     pub const fn inner(&self) -> &T {
         &self.data
+    }
+
+    fn serialized(data: &T) -> Result<String, Error> {
+        serde_json::to_string(data).map_err(|e| Error::Internal {
+            message: e.to_string(),
+        })
     }
 }
 
@@ -108,7 +121,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{Persistable, Persisted};
+    use super::{Error, Persistable, Persisted};
     use serde::{Deserialize, Serialize};
     use std::{
         fs,
@@ -188,7 +201,7 @@ mod tests {
             Err(error) => error,
         };
 
-        assert!(error.contains("expected") || error.contains("key"));
+        assert!(matches!(error, Error::Integrity { .. }), "got {error:?}");
         assert_eq!(
             fs::read_to_string(&path).expect("failed to re-read invalid file"),
             "{invalid json"

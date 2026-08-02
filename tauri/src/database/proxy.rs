@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{Column, Pool, Row, Sqlite, Transaction, TypeInfo, sqlite::SqliteRow};
 
+use crate::error::Error;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SQLQuery {
     pub sql: String,
@@ -63,7 +65,7 @@ impl From<&SqliteRow> for SQLRow {
 pub async fn execute_single_sql(
     pool: &Pool<Sqlite>,
     query: SQLQuery,
-) -> Result<Vec<SQLRow>, String> {
+) -> Result<Vec<SQLRow>, Error> {
     #[cfg(debug_assertions)]
     log(Some(&query), None);
 
@@ -72,15 +74,15 @@ pub async fn execute_single_sql(
         || sql_upper.starts_with("COMMIT")
         || sql_upper.starts_with("ROLLBACK")
     {
-        return Err(
-            "BEGIN/COMMIT/ROLLBACK not allowed in single SQL execution. use batch execution instead.".into(),
-        );
+        return Err(Error::InvalidInput {
+            message: "BEGIN/COMMIT/ROLLBACK not allowed in single SQL execution. use batch execution instead.".to_string(),
+        });
     }
 
     let mut q = sqlx::query(query.sql.as_str());
     q = bind_params(q, &query.params);
 
-    let rows = q.fetch_all(pool).await.map_err(|e| e.to_string())?;
+    let rows = q.fetch_all(pool).await?;
 
     Ok(rows.iter().map(|row| row.into()).collect())
 }
@@ -88,11 +90,11 @@ pub async fn execute_single_sql(
 pub async fn execute_batch_sql(
     pool: &Pool<Sqlite>,
     queries: Vec<SQLQuery>,
-) -> Result<Vec<Vec<SQLRow>>, String> {
+) -> Result<Vec<Vec<SQLRow>>, Error> {
     #[cfg(debug_assertions)]
     log(None, Some(&queries));
 
-    let mut tx: Transaction<'_, Sqlite> = pool.begin().await.map_err(|e| e.to_string())?;
+    let mut tx: Transaction<'_, Sqlite> = pool.begin().await?;
 
     let mut results: Vec<Vec<SQLRow>> = vec![];
 
@@ -101,15 +103,14 @@ pub async fn execute_batch_sql(
             sqlx::query(query.sql.as_str());
         q = bind_params(q, &query.params);
 
-        let rows = q
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(|e| format!("Error executing '{}': {}", query.sql, e))?;
+        let rows = q.fetch_all(&mut *tx).await.map_err(|e| Error::Database {
+            message: format!("Error executing '{}': {}", query.sql, e),
+        })?;
 
         results.push(rows.iter().map(|row| row.into()).collect());
     }
 
-    tx.commit().await.map_err(|e| e.to_string())?;
+    tx.commit().await?;
 
     Ok(results)
 }

@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 
 use std::fs;
 
-use crate::{state::AppState, timestamp};
+use crate::{error::Error, state::AppState, timestamp};
 
 pub(crate) fn content_hash_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
@@ -20,7 +20,7 @@ pub(crate) fn content_hash_hex(bytes: &[u8]) -> String {
 pub(crate) fn validate_google_drive_pull_content_hash(
     expected_content_hash: Option<&str>,
     bytes: &[u8],
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let Some(expected_content_hash) = expected_content_hash
         .map(|value| value.trim().to_ascii_lowercase())
         .filter(|value| !value.is_empty())
@@ -30,13 +30,15 @@ pub(crate) fn validate_google_drive_pull_content_hash(
 
     let actual_content_hash = content_hash_hex(bytes);
     if actual_content_hash != expected_content_hash {
-        return Err("remote snapshot content hash mismatch".to_string());
+        return Err(Error::Integrity {
+            message: "remote snapshot content hash mismatch".to_string(),
+        });
     }
 
     Ok(())
 }
 
-pub(crate) async fn current_workspace_content_hash(app_state: &AppState) -> Result<String, String> {
+pub(crate) async fn current_workspace_content_hash(app_state: &AppState) -> Result<String, Error> {
     let temp_path = {
         let settings = app_state.settings.read().await;
         settings.backup_dir.join(format!(
@@ -53,19 +55,25 @@ pub(crate) async fn current_workspace_content_hash(app_state: &AppState) -> Resu
         let mut db = app_state.db.write().await;
 
         if !db.is_ready().await {
-            db.reconnect().await.map_err(|error| {
-                format!("database not ready to fingerprint current workspace: {error}")
-            })?;
+            db.reconnect()
+                .await
+                .map_err(|error| Error::PreconditionFailed {
+                    message: format!(
+                        "database not ready to fingerprint current workspace: {error}"
+                    ),
+                })?;
         }
 
         if !db.is_ready().await {
-            return Err("database not ready to fingerprint current workspace".to_string());
+            return Err(Error::PreconditionFailed {
+                message: "database not ready to fingerprint current workspace".to_string(),
+            });
         }
 
         db.create_backup(&temp_path).await?;
     }
 
-    let bytes = fs::read(&temp_path).map_err(|error| error.to_string());
+    let bytes = fs::read(&temp_path).map_err(Error::from);
     let _ = fs::remove_file(&temp_path);
 
     Ok(content_hash_hex(&bytes?))
