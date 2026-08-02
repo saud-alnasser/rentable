@@ -6,3 +6,6 @@ pub mod conflict;
 pub mod manifest;
 pub mod retention;
 pub mod transport;
+
+#[cfg(test)]
+mod tests;

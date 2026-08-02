@@ -3611,6 +3611,7 @@ name = "rentable"
 version = "0.10.1"
 dependencies = [
  "base64 0.22.1",
+ "chrono",
  "dotenvy",
  "keyring",
  "libsqlite3-sys",
