@@ -1,11 +1,15 @@
-//! OAuth, credentials, and the link-callback parsing. The OAuth and link state-machine
-//! port (#115) lands here.
+//! OAuth, credentials, and the link-callback parsing. Authorization, the code
+//! exchange, and token refresh all happen here, so the client secret and the
+//! refresh token have no reason to leave this process.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 #[cfg(not(test))]
 use keyring::{Entry as KeyringEntry, Error as KeyringError};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use url::Url;
 
 #[cfg(test)]
 use std::sync::Mutex;
@@ -183,6 +187,270 @@ impl RemoteSync {
     fn google_drive_keyring_entry(&self, account_id: &str) -> Result<KeyringEntry, Error> {
         KeyringEntry::new(GOOGLE_DRIVE_KEYRING_SERVICE, account_id)
             .map_err(|error| format_keyring_error("create", account_id, error))
+    }
+}
+
+/// The number of random bytes behind an OAuth `state` value and a PKCE
+/// verifier. RFC 7636 fixes the verifier between 43 and 128 characters, which
+/// 32 bytes of base64url meets exactly at the lower bound.
+const OAUTH_TOKEN_ENTROPY_BYTES: usize = 32;
+
+/// A fresh URL-safe token drawn from the operating system's entropy source,
+/// used for both the OAuth `state` and the PKCE verifier.
+///
+/// Fails only where the platform cannot supply randomness, which is not a
+/// condition the caller can recover from by retrying.
+pub(crate) fn random_url_safe_token() -> Result<String, Error> {
+    let mut bytes = [0_u8; OAUTH_TOKEN_ENTROPY_BYTES];
+
+    getrandom::fill(&mut bytes).map_err(|error| Error::Internal {
+        message: format!("failed to draw random bytes for the oauth session: {error}"),
+    })?;
+
+    Ok(BASE64URL.encode(bytes))
+}
+
+/// The `S256` PKCE challenge for a verifier: unpadded base64url of its SHA-256
+/// digest, as RFC 7636 section 4.2 defines it.
+pub(crate) fn pkce_challenge(verifier: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(verifier.as_bytes());
+
+    BASE64URL.encode(hasher.finalize())
+}
+
+/// Google's authorization URL for one link attempt.
+///
+/// `redirect_uri` must be the loopback address the callback server is actually
+/// listening on: Google matches it against the one replayed at the code
+/// exchange, and a mismatch is rejected there rather than here.
+pub(crate) fn build_authorization_url(
+    config: &GoogleDriveConfig,
+    client_id: &str,
+    redirect_uri: &str,
+    state: &str,
+    code_challenge: &str,
+) -> Result<String, Error> {
+    let mut url = Url::parse(&config.authorize_endpoint).map_err(|error| Error::Internal {
+        message: format!("google authorize endpoint is not a url: {error}"),
+    })?;
+
+    url.query_pairs_mut()
+        .clear()
+        .append_pair("client_id", client_id)
+        .append_pair("redirect_uri", redirect_uri)
+        .append_pair("response_type", "code")
+        .append_pair("scope", &config.scopes.join(" "))
+        .append_pair("access_type", "offline")
+        .append_pair("include_granted_scopes", "true")
+        .append_pair("prompt", "consent")
+        .append_pair("state", state)
+        .append_pair("code_challenge", code_challenge)
+        .append_pair("code_challenge_method", "S256");
+
+    Ok(url.to_string())
+}
+
+/// How far ahead of its stated expiry an access token stops being usable. A
+/// token that expires mid-flight fails the request it was attached to, so the
+/// skew buys the whole round trip rather than the instant of the check.
+const ACCESS_TOKEN_REFRESH_SKEW_MS: i64 = 60_000;
+
+/// Matches the read and write timeouts the link callback server already sets.
+/// Without one a hung connection holds the link open until the session's own
+/// five-minute timeout, with nothing on screen explaining the wait.
+const TOKEN_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// What a grant yields. `refresh_token` is absent on the refresh grant itself,
+/// and `expires_at` is absent where Google states no lifetime — neither is an
+/// error, and neither may overwrite what is already stored.
+#[derive(Clone, Debug)]
+pub(crate) struct GoogleOAuthTokens {
+    pub(crate) access_token: String,
+    pub(crate) refresh_token: Option<String>,
+    pub(crate) expires_at: Option<i64>,
+}
+
+/// The token endpoint's body, which carries either a grant or a refusal under
+/// the same 200-shaped envelope — so every field is optional and the status
+/// alone does not say which arrived.
+#[derive(Clone, Debug, Default, Deserialize)]
+pub(crate) struct GoogleTokenResponse {
+    #[serde(default)]
+    pub(crate) access_token: Option<String>,
+    #[serde(default)]
+    pub(crate) refresh_token: Option<String>,
+    #[serde(default)]
+    pub(crate) expires_in: Option<i64>,
+    #[serde(default)]
+    pub(crate) error: Option<String>,
+    #[serde(default)]
+    pub(crate) error_description: Option<String>,
+    #[serde(default)]
+    pub(crate) error_uri: Option<String>,
+}
+
+/// Whether a stored access token can still be used, or has to be refreshed
+/// first. A token with no stated expiry is taken at face value: Google did not
+/// tell us when it ages out, and guessing one would refresh on every call.
+pub(crate) fn access_token_is_fresh(access_token: &str, expires_at: Option<i64>, now: i64) -> bool {
+    !access_token.trim().is_empty()
+        && expires_at.is_none_or(|expiry| expiry > now + ACCESS_TOKEN_REFRESH_SKEW_MS)
+}
+
+/// The form fields exchanging an authorization code for a token set.
+///
+/// `redirect_uri` and `code_verifier` are replayed rather than re-derived:
+/// Google checks both against what the authorization request carried.
+pub(crate) fn authorization_code_form(
+    client_id: &str,
+    client_secret: Option<&str>,
+    redirect_uri: &str,
+    code_verifier: &str,
+    code: &str,
+) -> Vec<(String, String)> {
+    let mut form = vec![
+        ("client_id".to_string(), client_id.to_string()),
+        ("redirect_uri".to_string(), redirect_uri.to_string()),
+        ("grant_type".to_string(), "authorization_code".to_string()),
+        ("code_verifier".to_string(), code_verifier.to_string()),
+        ("code".to_string(), code.to_string()),
+    ];
+
+    append_client_secret(&mut form, client_secret);
+
+    form
+}
+
+/// The form fields trading a refresh token for a fresh access token.
+pub(crate) fn refresh_token_form(
+    client_id: &str,
+    client_secret: Option<&str>,
+    refresh_token: &str,
+) -> Vec<(String, String)> {
+    let mut form = vec![
+        ("client_id".to_string(), client_id.to_string()),
+        ("grant_type".to_string(), "refresh_token".to_string()),
+        ("refresh_token".to_string(), refresh_token.to_string()),
+    ];
+
+    append_client_secret(&mut form, client_secret);
+
+    form
+}
+
+/// A token endpoint response read as either a grant or a refusal.
+///
+/// `now` is passed rather than read so the expiry arithmetic is the caller's
+/// clock, and so the boundary is testable.
+pub(crate) fn parse_token_response(
+    status: u16,
+    payload: GoogleTokenResponse,
+    now: i64,
+) -> Result<GoogleOAuthTokens, Error> {
+    let access_token = payload
+        .access_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|token| !token.is_empty());
+
+    let Some(access_token) = access_token else {
+        return Err(token_refusal(status, &payload));
+    };
+
+    Ok(GoogleOAuthTokens {
+        access_token: access_token.to_string(),
+        refresh_token: sanitize_optional_string(payload.refresh_token),
+        expires_at: payload
+            .expires_in
+            .map(|seconds| now.saturating_add(seconds.saturating_mul(1_000))),
+    })
+}
+
+/// Send a prepared grant to Google's token endpoint.
+///
+/// Deliberately thin: everything decidable is decided in
+/// [`parse_token_response`], leaving only the exchange itself untested until
+/// #116's local-server harness can drive it.
+pub(crate) async fn request_google_tokens(
+    token_endpoint: &str,
+    form: &[(String, String)],
+    now: i64,
+) -> Result<GoogleOAuthTokens, Error> {
+    let client = reqwest::Client::builder()
+        .timeout(TOKEN_REQUEST_TIMEOUT)
+        .build()
+        .map_err(|error| Error::Internal {
+            message: format!("failed to build the google token client: {error}"),
+        })?;
+
+    let response = client
+        .post(token_endpoint)
+        .form(form)
+        .send()
+        .await
+        .map_err(|error| Error::Network {
+            message: format!("could not reach the google token endpoint: {error}"),
+        })?;
+
+    let status = response.status().as_u16();
+    let body = response.text().await.map_err(|error| Error::Network {
+        message: format!("the google token response did not arrive in full: {error}"),
+    })?;
+
+    // a body that is not the documented envelope — a proxy's error page, an
+    // outage notice — still carries its status, and the status is what says
+    // what happened. Parsing it as an empty envelope keeps that answer.
+    let payload = serde_json::from_str::<GoogleTokenResponse>(&body).unwrap_or_default();
+
+    parse_token_response(status, payload, now)
+}
+
+fn append_client_secret(form: &mut Vec<(String, String)>, client_secret: Option<&str>) {
+    let client_secret = client_secret
+        .map(str::trim)
+        .filter(|secret| !secret.is_empty());
+
+    if let Some(client_secret) = client_secret {
+        form.push(("client_secret".to_string(), client_secret.to_string()));
+    }
+}
+
+/// A refusal read back as a typed error, by what the caller would have to do
+/// about it: link the account again, fix the OAuth registration, or try later.
+///
+/// Nothing here maps to [`Error::Internal`] — a remote refusing a request is
+/// not an invariant of this program breaking. #116 refines the categories once
+/// the transport can exercise them.
+fn token_refusal(status: u16, payload: &GoogleTokenResponse) -> Error {
+    let detail = [
+        payload.error.as_deref(),
+        payload.error_description.as_deref(),
+        payload.error_uri.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .map(str::trim)
+    .filter(|part| !part.is_empty())
+    .collect::<Vec<_>>()
+    .join(" — ");
+
+    let message = if detail.is_empty() {
+        format!("google token exchange failed ({status})")
+    } else {
+        format!("google token exchange failed ({status}): {detail}")
+    };
+
+    match payload.error.as_deref().map(str::trim) {
+        // the grant is spent or revoked. Nothing retries into a working state;
+        // the account has to be linked again.
+        Some("invalid_grant") => Error::PreconditionFailed { message },
+        // the OAuth client itself is wrong, which is configuration rather than
+        // anything this user did.
+        Some("invalid_client" | "unauthorized_client") => Error::NotConfigured { message },
+        // an unrecognised refusal, or a body that was not a refusal at all —
+        // both leave the caller with nothing to change but the time.
+        _ => Error::Network { message },
     }
 }
 

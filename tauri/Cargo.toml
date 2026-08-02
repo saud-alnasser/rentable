@@ -31,6 +31,11 @@ base64 = { version = "0.22.1" }
 chrono = { version = "0.4.44", default-features = false, features = ["std"] }
 dotenvy = { version = "0.15.7" }
 sha2 = "0.11.0"
+getrandom = { version = "0.3.4" }
+url = { version = "2.5.8" }
+# `rustls-no-provider` rather than `rustls`, which would pull aws-lc-rs in
+# beside the ring provider the tree already builds through tauri-plugin-updater.
+reqwest = { version = "0.13.2", default-features = false, features = ["json", "form", "rustls-no-provider"] }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2.10.0"

@@ -10,7 +10,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{error::Error, timestamp};
 
-use super::google::auth::{google_oauth_client_id, parse_http_request_path, parse_query_map};
+use super::google::auth::{
+    GoogleOAuthTokens, access_token_is_fresh, authorization_code_form, build_authorization_url,
+    google_oauth_client_id, parse_http_request_path, parse_query_map, pkce_challenge,
+    random_url_safe_token, refresh_token_form, request_google_tokens,
+};
 use super::store::{
     RemoteSync, RemoteSyncAccount, RemoteSyncAccountStatus, RemoteSyncProvider, RemoteSyncState,
     sanitize_optional_string, sanitize_string, slugify,
@@ -26,27 +30,36 @@ pub enum GoogleDriveLinkSessionStatus {
     Cancelled,
 }
 
+/// A started link attempt. The caller opens `authorization_url` and polls
+/// `session_id`; the `state` and PKCE verifier behind that URL stay in this
+/// process, so there is nothing else for the caller to carry.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GoogleDriveLinkSessionStart {
     pub session_id: String,
-    pub redirect_uri: String,
+    pub authorization_url: String,
 }
 
+/// How far a link attempt has got. The authorization code is deliberately
+/// absent: it is redeemed here, and a caller that cannot see it cannot redeem
+/// it anywhere else.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GoogleDriveLinkSessionResult {
     pub session_id: String,
     pub status: GoogleDriveLinkSessionStatus,
-    pub authorization_code: Option<String>,
-    pub state: Option<String>,
     pub error: Option<String>,
 }
 
+/// An access token for the Drive calls still made from the web layer.
+///
+/// Nothing on *this* path hands over a refresh token or the client secret. That
+/// is not yet true of the surface as a whole — `get_google_drive_account_auth`
+/// and `get_google_drive_config` still return them — and closing that is #118.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GoogleDriveLinkSessionCreateInput {
-    pub state: String,
+pub struct GoogleDriveAccessToken {
+    pub access_token: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -58,6 +71,7 @@ pub struct GoogleDriveLinkSessionLookupInput {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GoogleDriveLinkCompleteInput {
+    pub session_id: String,
     pub email: String,
     pub display_name: String,
     pub avatar_url: Option<String>,
@@ -65,9 +79,6 @@ pub struct GoogleDriveLinkCompleteInput {
     pub drive_quota_bytes: Option<i64>,
     pub drive_usage_bytes: Option<i64>,
     pub app_usage_bytes: Option<i64>,
-    pub access_token: String,
-    pub refresh_token: Option<String>,
-    pub token_expires_at: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -109,43 +120,191 @@ pub struct GoogleDriveDisconnectInput {
     pub account_id: String,
 }
 
+/// Why a link attempt did not produce an authorization code. Each is a distinct
+/// thing to tell the user, and the provider's own code is kept verbatim because
+/// the caller branches on `access_denied` to separate a declined consent screen
+/// from a real failure.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum GoogleDriveLinkFailure {
+    Provider(String),
+    StateMismatch,
+    MissingAuthorizationCode,
+}
+
+impl GoogleDriveLinkFailure {
+    fn message(&self) -> String {
+        match self {
+            Self::Provider(error) => error.clone(),
+            Self::StateMismatch => {
+                "oauth callback state did not match the active session".to_string()
+            }
+            Self::MissingAuthorizationCode => {
+                "oauth callback did not include an authorization code".to_string()
+            }
+        }
+    }
+
+    /// What the browser tab shows before the user closes it.
+    fn callback_page_message(&self) -> String {
+        match self {
+            Self::Provider(error) => {
+                format!("Google Drive linking failed: {error}. You can close this window.")
+            }
+            Self::StateMismatch => "Google Drive linking failed because the callback state did not match the app session. You can close this window.".to_string(),
+            Self::MissingAuthorizationCode => "Google Drive linking failed because the callback did not include an authorization code. You can close this window.".to_string(),
+        }
+    }
+}
+
+/// What an OAuth callback turned out to carry. Cancellation is not among these:
+/// it arrives from the user rather than from the callback, and is applied by
+/// [`GoogleDriveLinkSession::cancel`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum GoogleDriveLinkOutcome {
+    Authorized { authorization_code: String },
+    Failed(GoogleDriveLinkFailure),
+}
+
+impl GoogleDriveLinkOutcome {
+    /// What the browser tab shows before the user closes it.
+    fn callback_page_message(&self) -> String {
+        match self {
+            Self::Authorized { .. } => {
+                "Google Drive account linked. You can close this window now.".to_string()
+            }
+            Self::Failed(failure) => failure.callback_page_message(),
+        }
+    }
+}
+
+/// One link attempt, from the authorization request to whichever outcome
+/// settles it.
+///
+/// `expected_state` and `code_verifier` are generated here and never leave the
+/// process: the state is what ties a callback back to this session, and the
+/// verifier is what proves to Google that the code is being redeemed by whoever
+/// requested it.
 #[derive(Clone, Debug)]
 pub(super) struct GoogleDriveLinkSession {
     pub(super) session_id: String,
     pub(super) expected_state: String,
+    pub(super) code_verifier: String,
+    pub(super) redirect_uri: String,
     pub(super) status: GoogleDriveLinkSessionStatus,
     pub(super) authorization_code: Option<String>,
-    pub(super) state: Option<String>,
     pub(super) error: Option<String>,
+    /// What the code was redeemed for, held until the account it belongs to is
+    /// known. The profile read that names that account needs an access token,
+    /// so the redemption necessarily happens first.
+    pub(super) tokens: Option<GoogleOAuthTokens>,
+}
+
+impl GoogleDriveLinkSession {
+    /// Read what an OAuth callback's query says, against the state this session
+    /// issued. Pure: it decides nothing about the session's own status.
+    pub(super) fn read_callback(&self, query: &HashMap<String, String>) -> GoogleDriveLinkOutcome {
+        if let Some(error) = query.get("error") {
+            return GoogleDriveLinkOutcome::Failed(GoogleDriveLinkFailure::Provider(error.clone()));
+        }
+
+        if query.get("state").map(String::as_str) != Some(self.expected_state.as_str()) {
+            return GoogleDriveLinkOutcome::Failed(GoogleDriveLinkFailure::StateMismatch);
+        }
+
+        let authorization_code = query
+            .get("code")
+            .map(|code| code.trim())
+            .filter(|code| !code.is_empty());
+
+        let Some(authorization_code) = authorization_code else {
+            return GoogleDriveLinkOutcome::Failed(
+                GoogleDriveLinkFailure::MissingAuthorizationCode,
+            );
+        };
+
+        GoogleDriveLinkOutcome::Authorized {
+            authorization_code: authorization_code.to_string(),
+        }
+    }
+
+    /// Apply the outcome a callback carried, reporting whether it was the one
+    /// that settled this session.
+    ///
+    /// A session leaves `Pending` exactly once by this route. The callback
+    /// server and the user's own cancellation race by construction, so the
+    /// first to arrive wins and a late callback cannot revive a session the
+    /// user already abandoned.
+    pub(super) fn settle(&mut self, outcome: GoogleDriveLinkOutcome) -> bool {
+        if self.status != GoogleDriveLinkSessionStatus::Pending {
+            return false;
+        }
+
+        match outcome {
+            GoogleDriveLinkOutcome::Authorized { authorization_code } => {
+                self.status = GoogleDriveLinkSessionStatus::Completed;
+                self.authorization_code = Some(authorization_code);
+                self.error = None;
+            }
+            GoogleDriveLinkOutcome::Failed(failure) => {
+                self.status = GoogleDriveLinkSessionStatus::Error;
+                self.authorization_code = None;
+                self.error = Some(failure.message());
+            }
+        }
+
+        true
+    }
+
+    /// Abandon this session, whatever state it had reached.
+    ///
+    /// Cancellation is a decision rather than a race, so unlike [`settle`] it
+    /// is never refused: a session that already redeemed its code is holding
+    /// tokens, and abandoning it has to drop them.
+    ///
+    /// [`settle`]: Self::settle
+    pub(super) fn cancel(&mut self) {
+        self.status = GoogleDriveLinkSessionStatus::Cancelled;
+        self.authorization_code = None;
+        self.error = None;
+        self.tokens = None;
+    }
+
+    /// Take the authorization code, leaving none behind.
+    ///
+    /// A code is redeemable once. Removing it as it is read means a repeated
+    /// exchange fails here rather than at Google, which answers a replayed code
+    /// by invalidating the tokens it already issued.
+    pub(super) fn take_authorization_code(&mut self) -> Option<String> {
+        self.authorization_code.take()
+    }
 }
 
 const GOOGLE_DRIVE_LINK_POLL_INTERVAL: Duration = Duration::from_millis(200);
 const GOOGLE_DRIVE_LINK_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 impl RemoteSync {
-    pub fn begin_google_drive_link(
-        &mut self,
-        input: GoogleDriveLinkSessionCreateInput,
-    ) -> Result<GoogleDriveLinkSessionStart, Error> {
-        if google_oauth_client_id().is_none() {
+    pub fn begin_google_drive_link(&mut self) -> Result<GoogleDriveLinkSessionStart, Error> {
+        let Some(client_id) = google_oauth_client_id() else {
             return Err(Error::NotConfigured {
                 message: "GOOGLE_OAUTH_CLIENT_ID is not configured".to_string(),
             });
-        }
+        };
 
-        let expected_state = sanitize_string(&input.state);
-
-        if expected_state.is_empty() {
-            return Err(Error::InvalidInput {
-                message: "oauth state is required".to_string(),
-            });
-        }
+        let expected_state = random_url_safe_token()?;
+        let code_verifier = random_url_safe_token()?;
 
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let port = listener.local_addr()?.port();
 
         let session_id = format!("google-drive-link-{}", timestamp::now());
         let redirect_uri = format!("http://127.0.0.1:{port}/callback");
+        let authorization_url = build_authorization_url(
+            &self.get_google_drive_config(),
+            &client_id,
+            &redirect_uri,
+            &expected_state,
+            &pkce_challenge(&code_verifier),
+        )?;
 
         {
             let mut sessions = self
@@ -158,10 +317,12 @@ impl RemoteSync {
                 GoogleDriveLinkSession {
                     session_id: session_id.clone(),
                     expected_state,
+                    code_verifier,
+                    redirect_uri,
                     status: GoogleDriveLinkSessionStatus::Pending,
                     authorization_code: None,
-                    state: None,
                     error: None,
+                    tokens: None,
                 },
             );
         }
@@ -170,21 +331,24 @@ impl RemoteSync {
         let session_id_for_thread = session_id.clone();
 
         std::thread::spawn(move || {
-            if let Err(error) =
+            let Err(error) =
                 handle_google_drive_callback(listener, sessions.clone(), &session_id_for_thread)
+            else {
+                return;
+            };
+
+            if let Ok(mut sessions) = sessions.lock()
+                && let Some(session) = sessions.get_mut(&session_id_for_thread)
             {
-                if let Ok(mut sessions) = sessions.lock() {
-                    if let Some(session) = sessions.get_mut(&session_id_for_thread) {
-                        session.status = GoogleDriveLinkSessionStatus::Error;
-                        session.error = Some(error.to_string());
-                    }
-                }
+                session.settle(GoogleDriveLinkOutcome::Failed(
+                    GoogleDriveLinkFailure::Provider(error.to_string()),
+                ));
             }
         });
 
         Ok(GoogleDriveLinkSessionStart {
             session_id,
-            redirect_uri,
+            authorization_url,
         })
     }
 
@@ -206,8 +370,6 @@ impl RemoteSync {
         Ok(GoogleDriveLinkSessionResult {
             session_id: session.session_id.clone(),
             status: session.status.clone(),
-            authorization_code: session.authorization_code.clone(),
-            state: session.state.clone(),
             error: session.error.clone(),
         })
     }
@@ -230,13 +392,87 @@ impl RemoteSync {
             .map_err(|_| oauth_sessions_poisoned())?;
 
         if let Some(session) = sessions.get_mut(&session_id) {
-            session.status = GoogleDriveLinkSessionStatus::Cancelled;
-            session.authorization_code = None;
-            session.state = None;
-            session.error = None;
+            session.cancel();
         }
 
         Ok(())
+    }
+
+    /// Redeem the authorization code this session captured, and hold what it
+    /// yields until the account is known.
+    ///
+    /// Returns only the access token, which the caller still needs for the
+    /// Drive profile read. The refresh token is kept on the session and reaches
+    /// storage through [`complete_google_drive_link`].
+    ///
+    /// [`complete_google_drive_link`]: Self::complete_google_drive_link
+    pub async fn exchange_google_drive_link_code(
+        &mut self,
+        input: GoogleDriveLinkSessionLookupInput,
+    ) -> Result<GoogleDriveAccessToken, Error> {
+        let session_id = sanitize_string(&input.session_id);
+
+        let Some(client_id) = google_oauth_client_id() else {
+            return Err(Error::NotConfigured {
+                message: "GOOGLE_OAUTH_CLIENT_ID is not configured".to_string(),
+            });
+        };
+
+        // the sessions map is a std mutex, so nothing may be awaited while it
+        // is held. Everything the exchange needs is copied out first.
+        let redemption = {
+            let mut sessions = self
+                .auth_sessions
+                .lock()
+                .map_err(|_| oauth_sessions_poisoned())?;
+            let session = sessions
+                .get_mut(&session_id)
+                .ok_or_else(oauth_session_not_found)?;
+
+            if session.status != GoogleDriveLinkSessionStatus::Completed {
+                return Err(Error::PreconditionFailed {
+                    message: "oauth session has no authorization code to redeem".to_string(),
+                });
+            }
+
+            let Some(authorization_code) = session.take_authorization_code() else {
+                return Err(Error::PreconditionFailed {
+                    message: "oauth session has no authorization code to redeem".to_string(),
+                });
+            };
+
+            (
+                authorization_code,
+                session.code_verifier.clone(),
+                session.redirect_uri.clone(),
+            )
+        };
+
+        let (authorization_code, code_verifier, redirect_uri) = redemption;
+        let config = self.get_google_drive_config();
+        let form = authorization_code_form(
+            &client_id,
+            config.client_secret.as_deref(),
+            &redirect_uri,
+            &code_verifier,
+            &authorization_code,
+        );
+        let tokens = request_google_tokens(&config.token_endpoint, &form, timestamp::now()).await?;
+        let access_token = tokens.access_token.clone();
+
+        {
+            let mut sessions = self
+                .auth_sessions
+                .lock()
+                .map_err(|_| oauth_sessions_poisoned())?;
+            let session = sessions
+                .get_mut(&session_id)
+                .ok_or_else(oauth_session_not_found)?;
+
+            session.tokens = Some(tokens);
+        }
+
+        Ok(GoogleDriveAccessToken { access_token })
     }
 
     pub async fn complete_google_drive_link(
@@ -253,14 +489,30 @@ impl RemoteSync {
         };
         let provider_user_id = sanitize_optional_string(input.provider_user_id);
         let avatar_url = sanitize_optional_string(input.avatar_url);
-        let access_token = sanitize_string(&input.access_token);
-        let refresh_token = sanitize_optional_string(input.refresh_token);
 
         if email.is_empty() {
             return Err(Error::InvalidInput {
                 message: "google account email is required".to_string(),
             });
         }
+
+        let tokens = {
+            let sessions = self
+                .auth_sessions
+                .lock()
+                .map_err(|_| oauth_sessions_poisoned())?;
+
+            sessions
+                .get(&sanitize_string(&input.session_id))
+                .and_then(|session| session.tokens.clone())
+                .ok_or_else(|| Error::PreconditionFailed {
+                    message: "oauth session has not been redeemed".to_string(),
+                })?
+        };
+
+        let access_token = sanitize_string(&tokens.access_token);
+        let refresh_token = sanitize_optional_string(tokens.refresh_token);
+        let token_expires_at = tokens.expires_at;
 
         if access_token.is_empty() {
             return Err(Error::InvalidInput {
@@ -288,7 +540,7 @@ impl RemoteSync {
             account.drive_quota_bytes = input.drive_quota_bytes;
             account.drive_usage_bytes = input.drive_usage_bytes;
             account.app_usage_bytes = input.app_usage_bytes;
-            account.token_expires_at = input.token_expires_at;
+            account.token_expires_at = token_expires_at;
             account.refresh_token_available = refresh_token
                 .as_ref()
                 .map(|token| !token.is_empty())
@@ -309,7 +561,7 @@ impl RemoteSync {
                 drive_quota_bytes: input.drive_quota_bytes,
                 drive_usage_bytes: input.drive_usage_bytes,
                 app_usage_bytes: input.app_usage_bytes,
-                token_expires_at: input.token_expires_at,
+                token_expires_at,
                 refresh_token_available: refresh_token
                     .as_ref()
                     .map(|token| !token.is_empty())
@@ -326,7 +578,7 @@ impl RemoteSync {
             &account_id,
             Some(access_token),
             refresh_token,
-            input.token_expires_at,
+            token_expires_at,
             now,
         )?;
 
@@ -373,6 +625,90 @@ impl RemoteSync {
             refresh_token: credentials.refresh_token.clone(),
             token_expires_at: credentials.token_expires_at,
         })
+    }
+
+    /// The stored access token for an account, where it is still usable.
+    ///
+    /// `None` means it has to be refreshed. Split from
+    /// [`refresh_google_drive_access_token`] so the common case — a token that
+    /// is simply still valid — answers under a read lock, rather than holding
+    /// every other remote-sync operation behind a network round trip.
+    ///
+    /// [`refresh_google_drive_access_token`]: Self::refresh_google_drive_access_token
+    pub fn fresh_google_drive_access_token(
+        &self,
+        input: &GoogleDriveAccountAuthInput,
+    ) -> Result<Option<String>, Error> {
+        let credentials = self
+            .load_google_drive_credentials(&sanitize_string(&input.account_id))?
+            .ok_or_else(|| Error::NotFound {
+                message: "google drive credentials not found".to_string(),
+            })?;
+
+        Ok(access_token_is_fresh(
+            &credentials.access_token,
+            credentials.token_expires_at,
+            timestamp::now(),
+        )
+        .then_some(credentials.access_token))
+    }
+
+    /// Trade the stored refresh token for a new access token, and persist both.
+    ///
+    /// The exchange happens here, so the refresh token and the client secret
+    /// are never handed to the caller. A `PreconditionFailed` means the account
+    /// has to be linked again — nothing the caller retries will change it.
+    pub async fn refresh_google_drive_access_token(
+        &mut self,
+        input: GoogleDriveAccountAuthInput,
+    ) -> Result<GoogleDriveAccessToken, Error> {
+        let account_id = sanitize_string(&input.account_id);
+        let credentials = self
+            .load_google_drive_credentials(&account_id)?
+            .ok_or_else(|| Error::NotFound {
+                message: "google drive credentials not found".to_string(),
+            })?;
+
+        let config = self.get_google_drive_config();
+        let refresh_token = credentials.refresh_token.trim();
+
+        let (Some(client_id), false) = (google_oauth_client_id(), refresh_token.is_empty()) else {
+            return Err(Error::PreconditionFailed {
+                message: "google drive authorization has expired".to_string(),
+            });
+        };
+
+        let form = refresh_token_form(&client_id, config.client_secret.as_deref(), refresh_token);
+        let now = timestamp::now();
+        let tokens = request_google_tokens(&config.token_endpoint, &form, now).await?;
+        let access_token = tokens.access_token.clone();
+
+        let stored = self.upsert_google_drive_credentials(
+            &account_id,
+            Some(tokens.access_token),
+            tokens.refresh_token,
+            tokens.expires_at,
+            now,
+        )?;
+
+        if let Some(account) = self
+            .store
+            .accounts
+            .iter_mut()
+            .find(|account| account.id == account_id)
+        {
+            account.status = RemoteSyncAccountStatus::Ready;
+            // what was stored, not what the grant stated: a grant that states
+            // no expiry leaves the previous one in place, and the account has
+            // to agree with the credential it describes.
+            account.token_expires_at = stored.token_expires_at;
+            account.last_error = None;
+            account.updated_at = now;
+        }
+
+        self.store.commit()?;
+
+        Ok(GoogleDriveAccessToken { access_token })
     }
 
     pub async fn update_google_drive_account(
@@ -530,10 +866,7 @@ fn handle_google_drive_callback(
     })?;
     let query = parse_query_map(path);
 
-    let mut html_message =
-        "Google Drive account linked. You can close this window now.".to_string();
-
-    {
+    let html_message = {
         let mut sessions = auth_sessions
             .lock()
             .map_err(|_| oauth_sessions_poisoned())?;
@@ -542,38 +875,19 @@ fn handle_google_drive_callback(
             .get_mut(session_id)
             .ok_or_else(oauth_session_not_found)?;
 
-        if let Some(error) = query.get("error") {
-            session.status = GoogleDriveLinkSessionStatus::Error;
-            session.error = Some(error.clone());
-            html_message =
-                format!("Google Drive linking failed: {error}. You can close this window.");
-        } else {
-            let returned_state = query.get("state").cloned();
-            let authorization_code = query.get("code").cloned();
+        let outcome = session.read_callback(&query);
+        let proposed = outcome.callback_page_message();
 
-            if returned_state.as_deref() != Some(session.expected_state.as_str()) {
-                session.status = GoogleDriveLinkSessionStatus::Error;
-                session.error =
-                    Some("oauth callback state did not match the active session".to_string());
-                html_message = "Google Drive linking failed because the callback state did not match the app session. You can close this window.".to_string();
-            } else if authorization_code
-                .as_deref()
-                .unwrap_or_default()
-                .trim()
-                .is_empty()
-            {
-                session.status = GoogleDriveLinkSessionStatus::Error;
-                session.error =
-                    Some("oauth callback did not include an authorization code".to_string());
-                html_message = "Google Drive linking failed because the callback did not include an authorization code. You can close this window.".to_string();
-            } else {
-                session.status = GoogleDriveLinkSessionStatus::Completed;
-                session.authorization_code = authorization_code;
-                session.state = returned_state;
-                session.error = None;
-            }
+        if session.settle(outcome) {
+            proposed
+        } else {
+            // the user cancelled between this connection being accepted and the
+            // outcome being applied. The page states what actually holds, not
+            // what this callback proposed.
+            "Google Drive linking already finished in the app. You can close this window."
+                .to_string()
         }
-    }
+    };
 
     let body = format!(
         "<!doctype html><html><head><meta charset=\"utf-8\"><title>Rentable</title></head><body style=\"font-family: system-ui, sans-serif; padding: 32px;\"><h2>Rentable</h2><p>{html_message}</p></body></html>"

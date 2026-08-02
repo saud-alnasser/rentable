@@ -18,6 +18,7 @@ export const TAURI_ERROR_CODES = [
 	'timedOut',
 	'integrity',
 	'io',
+	'network',
 	'database',
 	'credential',
 	'internal'

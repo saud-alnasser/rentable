@@ -153,6 +153,8 @@ pub fn run() {
             remote_sync::remote_sync_autosave_now,
             remote_sync::remote_sync_google_drive_config_get,
             remote_sync::remote_sync_google_drive_begin_link,
+            remote_sync::remote_sync_google_drive_exchange_link_code,
+            remote_sync::remote_sync_google_drive_ensure_access_token,
             remote_sync::remote_sync_google_drive_get_link_result,
             remote_sync::remote_sync_google_drive_cancel_link,
             remote_sync::remote_sync_google_drive_complete_link,

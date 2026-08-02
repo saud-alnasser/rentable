@@ -269,6 +269,10 @@ type RootTranslation = {
 			 */
 			io: string
 			/**
+			 * t​h​e​ ​a​p​p​ ​c​o​u​l​d​ ​n​o​t​ ​r​e​a​c​h​ ​t​h​e​ ​i​n​t​e​r​n​e​t​.​ ​c​h​e​c​k​ ​y​o​u​r​ ​c​o​n​n​e​c​t​i​o​n​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+			 */
+			network: string
+			/**
 			 * t​h​i​s​ ​f​e​a​t​u​r​e​ ​i​s​ ​n​o​t​ ​s​e​t​ ​u​p​ ​y​e​t​.
 			 */
 			notConfigured: string
@@ -2140,6 +2144,10 @@ export type TranslationFunctions = {
 			 * a file could not be read or written.
 			 */
 			io: () => LocalizedString
+			/**
+			 * the app could not reach the internet. check your connection and try again.
+			 */
+			network: () => LocalizedString
 			/**
 			 * this feature is not set up yet.
 			 */
