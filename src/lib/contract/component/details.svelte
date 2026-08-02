@@ -23,7 +23,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import PaymentsDataView from '$lib/payment/component/data-view.svelte';
-	import { useFetchTenant } from '$lib/resources/tenants/hooks/queries';
+	import { useFetchTenant } from '$lib/tenant/query';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import BanIcon from '@lucide/svelte/icons/ban';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';

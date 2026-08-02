@@ -1,6 +1,6 @@
 # Property
 
-Sources: `src/lib/api/routers/complex.ts`, `src/lib/resources/complexes/`
+Sources: `src/lib/complex/`
 
 The physical things being rented: the buildings, and the spaces inside them.
 

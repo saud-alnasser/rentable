@@ -2,12 +2,12 @@
 	import api from '$lib/api/mod';
 	import { Card, CardContent } from '$lib/common/components/fragments/card';
 	import { Spinner } from '$lib/common/components/fragments/spinner';
-	import { useFetchContractDashboard } from '$lib/contract/query';
+	import { useFetchContractDashboard } from '$lib/dashboard/query';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import DashboardEndingSoonSection from '$lib/resources/dashboard/components/dashboard-ending-soon-section.svelte';
-	import DashboardFollowUpsSection from '$lib/resources/dashboard/components/dashboard-follow-ups-section.svelte';
-	import DashboardHeader from '$lib/resources/dashboard/components/dashboard-header.svelte';
-	import DashboardSummaryGrid from '$lib/resources/dashboard/components/dashboard-summary-grid.svelte';
+	import DashboardEndingSoonSection from '$lib/dashboard/component/ending-soon-section.svelte';
+	import DashboardFollowUpsSection from '$lib/dashboard/component/follow-ups-section.svelte';
+	import DashboardHeader from '$lib/dashboard/component/header.svelte';
+	import DashboardSummaryGrid from '$lib/dashboard/component/summary-grid.svelte';
 
 	type DashboardData = Awaited<ReturnType<typeof api.contract.dashboard>>;
 

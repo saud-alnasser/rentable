@@ -1,6 +1,6 @@
 # Tenant
 
-Sources: `src/lib/api/tenant.ts`, `src/lib/api/routers/tenant.ts`, `src/lib/resources/tenants/`
+Sources: `src/lib/tenant/`
 
 The person who rents, and the identity rules that decide whether a record may exist.
 

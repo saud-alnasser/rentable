@@ -1,17 +1,7 @@
 import type { Database } from '$lib/api/context';
 import * as s from '$lib/api/database/schema';
-import { ContractSchema, type Contract } from '$lib/api/database/schema';
-import { toUtcDay } from '$lib/api/date';
+import { ContractSchema } from '$lib/api/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
-import {
-	getCollectionProgress,
-	getDashboardFollowUpAmount,
-	getDashboardRate,
-	getOccupancyRate,
-	isContractEndingSoon,
-	isContractIncludedInDashboardPortfolio,
-	shouldIncludeDashboardFollowUp
-} from '$lib/api/utils/dashboard';
 import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/utils/pagination';
 import {
 	deriveContractStatus,
@@ -26,12 +16,11 @@ import {
 	ensureUnitsAssignable,
 	ensureValidContractInput,
 	getConflictingAssignedUnitIds,
-	getContractPaymentSummary,
-	getExpectedAmountInRange,
-	getOutstandingExpectedAmount,
 	hasSameUtcDateRange
 } from '$lib/contract/contract';
 import { reconcile } from '$lib/contract/reconcile';
+import { serializeContract, type SerializedContract } from '$lib/contract/serialize';
+import dashboard from '$lib/dashboard/router';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import payment from '$lib/payment/router';
 import { TRPCError } from '@trpc/server';
@@ -83,113 +72,6 @@ async function selectPaymentsForContract(db: Database, contractId: number) {
 	return await db.select().from(s.payment).where(eq(s.payment.contractId, contractId));
 }
 
-type DbContract = typeof s.contract.$inferSelect;
-type DbPayment = typeof s.payment.$inferSelect;
-type SerializedContract = Omit<Contract, 'govId'> & {
-	govId: string;
-	tenantName?: string;
-	tenantPhone?: string;
-	paidAmount: number;
-	expectedAmount: number;
-};
-
-type DashboardSummary = {
-	contracts: {
-		total: number;
-		scheduled: number;
-		active: number;
-		fulfilled: number;
-		expired: number;
-		defaulted: number;
-		terminated: number;
-		endingSoon: number;
-	};
-	money: {
-		dueThisMonth: number;
-		collectedThisMonth: number;
-		remainingThisMonth: number;
-		outstandingNow: number;
-		totalExpectedAmount: number;
-		monthlyCollectionRate: number;
-		overallCollectionRate: number;
-	};
-	occupancy: {
-		totalUnits: number;
-		occupiedUnits: number;
-		vacantUnits: number;
-		occupancyRate: number;
-		vacancyRate: number;
-	};
-};
-
-type DashboardFollowUp = {
-	contractId: number;
-	govId: string;
-	status: Contract['status'];
-	interval: Contract['interval'];
-	tenantName: string;
-	tenantPhone: string;
-	followUpAmount: number;
-	dueNowAmount: number;
-	outstandingAmount: number;
-	paidAmount: number;
-	collectedThisMonth: number;
-	contractEnd: number;
-};
-
-type DashboardEndingSoonContract = {
-	contractId: number;
-	govId: string;
-	status: Contract['status'];
-	interval: Contract['interval'];
-	tenantName: string;
-	tenantPhone: string;
-	contractEnd: number;
-};
-
-type DashboardData = {
-	generatedAt: number;
-	monthLabel: string;
-	endingSoonNoticeDays: number;
-	summary: DashboardSummary;
-	followUps: DashboardFollowUp[];
-	endingSoonContracts: DashboardEndingSoonContract[];
-};
-
-function serializeContract(
-	record: DbContract,
-	now: number,
-	paymentsByContractId: Map<number, DbPayment[]> = new Map(),
-	tenantName?: string,
-	tenantPhone?: string
-): SerializedContract {
-	const payments = paymentsByContractId.get(record.id) ?? [];
-	const { paidAmount, expectedAmount } = getContractPaymentSummary(record, payments);
-
-	const serializedContract: SerializedContract = {
-		id: record.id,
-		govId: record.govId ?? '',
-		status: deriveContractStatus(record, payments, now),
-		start: record.start.getTime(),
-		end: record.end.getTime(),
-		interval: record.interval,
-		cost: record.cost,
-		tenantId: record.tenantId,
-		paidAmount,
-		expectedAmount
-	};
-
-	if (tenantName !== undefined) {
-		serializedContract.tenantName = tenantName;
-	}
-
-	if (tenantPhone !== undefined) {
-		serializedContract.tenantPhone = tenantPhone;
-	}
-
-	return serializedContract;
-}
-
 function matchesContractSearch(contract: SerializedContract, search: string) {
 	return [
 		contract.govId,
@@ -202,28 +84,6 @@ function matchesContractSearch(contract: SerializedContract, search: string) {
 	]
 		.filter((value): value is string => Boolean(value))
 		.some((value) => value.toLowerCase().includes(search));
-}
-
-function getCurrentMonthBounds(now: number) {
-	const today = toUtcDay(now);
-	const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-	const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0));
-
-	return {
-		start,
-		end,
-		label: new Intl.DateTimeFormat('en-US', {
-			month: 'long',
-			year: 'numeric',
-			timeZone: 'UTC'
-		}).format(start)
-	};
-}
-
-function isWithinUtcRange(value: Date, rangeStart: Date, rangeEnd: Date) {
-	const normalizedValue = toUtcDay(value).getTime();
-
-	return normalizedValue >= rangeStart.getTime() && normalizedValue <= rangeEnd.getTime();
 }
 
 export default router({
@@ -502,199 +362,6 @@ export default router({
 
 			return deleted ? serializeContract(deleted, now) : deleted;
 		}),
-
-	dashboard: procedure.public.query(async ({ ctx }): Promise<DashboardData> => {
-		const now = ctx.clock.now();
-		const today = toUtcDay(now);
-		const month = getCurrentMonthBounds(now);
-		const settings = await ctx.host.settings.get();
-
-		const contracts = await ctx.db
-			.select({
-				contract: s.contract,
-				tenantName: s.tenant.name,
-				tenantPhone: s.tenant.phone
-			})
-			.from(s.contract)
-			.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id));
-
-		const contractIds = contracts.map(({ contract }) => contract.id);
-		const payments = contractIds.length
-			? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-			: [];
-		const paymentsByContractId = groupPaymentsByContractId(payments);
-
-		const contexts = contracts.map(({ contract, tenantName, tenantPhone }) => {
-			const contractPayments = paymentsByContractId.get(contract.id) ?? [];
-			const serializedContract = serializeContract(contract, now, paymentsByContractId);
-			const collectedThisMonth = contractPayments
-				.filter((payment) => isWithinUtcRange(payment.date, month.start, month.end))
-				.reduce((sum, payment) => sum + payment.amount, 0);
-			const monthDueAmount = getExpectedAmountInRange(contract, month.start, month.end);
-			const dueNowAmount = getExpectedAmountInRange(contract, month.start, today);
-			const outstandingAmount = getOutstandingExpectedAmount(contract, contractPayments, now);
-
-			return {
-				contract,
-				tenantName,
-				tenantPhone,
-				serializedContract,
-				collectedThisMonth,
-				monthDueAmount,
-				dueNowAmount,
-				outstandingAmount
-			};
-		});
-
-		const followUps = contexts
-			.filter(({ dueNowAmount, outstandingAmount, serializedContract }) =>
-				shouldIncludeDashboardFollowUp(serializedContract.status, dueNowAmount, outstandingAmount)
-			)
-			.map(
-				({
-					contract,
-					tenantName,
-					tenantPhone,
-					serializedContract,
-					collectedThisMonth,
-					dueNowAmount,
-					outstandingAmount
-				}): DashboardFollowUp => ({
-					contractId: contract.id,
-					govId: serializedContract.govId,
-					status: serializedContract.status,
-					interval: contract.interval,
-					tenantName,
-					tenantPhone,
-					followUpAmount: getDashboardFollowUpAmount(
-						serializedContract.status,
-						dueNowAmount,
-						outstandingAmount
-					),
-					dueNowAmount,
-					outstandingAmount,
-					paidAmount: serializedContract.paidAmount,
-					collectedThisMonth,
-					contractEnd: serializedContract.end
-				})
-			)
-			.sort(
-				(left, right) =>
-					right.outstandingAmount - left.outstandingAmount ||
-					left.contractEnd - right.contractEnd ||
-					left.tenantName.localeCompare(right.tenantName)
-			);
-
-		const endingSoonContracts = contexts.filter(({ contract, serializedContract }) =>
-			isContractEndingSoon(
-				serializedContract.status,
-				contract.end,
-				now,
-				settings.endingSoonNoticeDays
-			)
-		);
-		const serializedEndingSoonContracts = endingSoonContracts
-			.map(
-				({
-					contract,
-					tenantName,
-					tenantPhone,
-					serializedContract
-				}): DashboardEndingSoonContract => ({
-					contractId: contract.id,
-					govId: serializedContract.govId,
-					status: serializedContract.status,
-					interval: contract.interval,
-					tenantName,
-					tenantPhone,
-					contractEnd: serializedContract.end
-				})
-			)
-			.sort(
-				(left, right) =>
-					left.contractEnd - right.contractEnd || left.tenantName.localeCompare(right.tenantName)
-			);
-		const portfolioContexts = contexts.filter(({ serializedContract }) =>
-			isContractIncludedInDashboardPortfolio(serializedContract.status)
-		);
-
-		const units = await ctx.db.select({ id: s.unit.id, status: s.unit.status }).from(s.unit);
-		const occupiedUnits = units.filter((unit) => unit.status === 'occupied').length;
-		const vacantUnits = Math.max(units.length - occupiedUnits, 0);
-		const totalPaidAmount = portfolioContexts.reduce(
-			(sum, item) => sum + item.serializedContract.paidAmount,
-			0
-		);
-		const totalExpectedAmount = portfolioContexts.reduce(
-			(sum, item) => sum + item.serializedContract.expectedAmount,
-			0
-		);
-		const dueThisMonth = portfolioContexts.reduce((sum, item) => sum + item.monthDueAmount, 0);
-		const collectedThisMonth = portfolioContexts.reduce(
-			(sum, item) => sum + item.collectedThisMonth,
-			0
-		);
-		const remainingThisMonth = portfolioContexts.reduce(
-			(sum, item) =>
-				sum + getCollectionProgress(item.monthDueAmount, item.collectedThisMonth).remainingAmount,
-			0
-		);
-		const coveredThisMonth = portfolioContexts.reduce(
-			(sum, item) =>
-				sum + getCollectionProgress(item.monthDueAmount, item.collectedThisMonth).coveredAmount,
-			0
-		);
-		const outstandingNow = portfolioContexts.reduce((sum, item) => sum + item.outstandingAmount, 0);
-
-		const summary: DashboardSummary = {
-			contracts: {
-				total: portfolioContexts.length,
-				scheduled: contexts.filter(
-					({ serializedContract }) => serializedContract.status === 'scheduled'
-				).length,
-				active: contexts.filter(({ serializedContract }) => serializedContract.status === 'active')
-					.length,
-				fulfilled: contexts.filter(
-					({ serializedContract }) => serializedContract.status === 'fulfilled'
-				).length,
-				expired: contexts.filter(
-					({ serializedContract }) => serializedContract.status === 'expired'
-				).length,
-				defaulted: contexts.filter(
-					({ serializedContract }) => serializedContract.status === 'defaulted'
-				).length,
-				terminated: contexts.filter(
-					({ serializedContract }) => serializedContract.status === 'terminated'
-				).length,
-				endingSoon: endingSoonContracts.length
-			},
-			money: {
-				dueThisMonth,
-				collectedThisMonth,
-				remainingThisMonth,
-				outstandingNow,
-				totalExpectedAmount,
-				monthlyCollectionRate: getDashboardRate(dueThisMonth, coveredThisMonth),
-				overallCollectionRate: getDashboardRate(totalExpectedAmount, totalPaidAmount)
-			},
-			occupancy: {
-				totalUnits: units.length,
-				occupiedUnits,
-				vacantUnits,
-				occupancyRate: getOccupancyRate(units.length, occupiedUnits),
-				vacancyRate: getDashboardRate(units.length, vacantUnits)
-			}
-		};
-
-		return {
-			generatedAt: now,
-			monthLabel: month.label,
-			endingSoonNoticeDays: settings.endingSoonNoticeDays,
-			summary,
-			followUps,
-			endingSoonContracts: serializedEndingSoonContracts
-		};
-	}),
 
 	get: procedure.public
 		.input(ContractSchema.pick({ id: true, govId: true }).partial())
@@ -1092,5 +759,7 @@ export default router({
 			})
 	},
 
-	payments: payment
+	payments: payment,
+
+	dashboard
 });

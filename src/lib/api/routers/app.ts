@@ -1,71 +1,17 @@
-import type {
-	BackupEntry,
-	Recovery,
-	RemoteSyncState,
-	Settings,
-	SettingsChangeset
-} from '$lib/api/tauri';
-import { autosync, procedure, router } from '$lib/api/trpc';
+import type { Recovery } from '$lib/api/tauri';
+import { procedure, router } from '$lib/api/trpc';
 import { reconcile } from '$lib/contract/reconcile';
+import settings from '$lib/settings/router';
+import { backup, remoteSync } from '$lib/sync/router';
 import z from 'zod';
 
 export default router({
 	bootstrap: procedure.public.mutation(async ({ ctx }): Promise<Recovery> => {
 		return await ctx.host.bootstrap();
 	}),
-	settings: {
-		get: procedure.public.query(async ({ ctx }): Promise<Settings> => {
-			return ctx.host.settings.get();
-		}),
-		set: procedure.public
-			.input(
-				z.object({
-					endingSoonNoticeDays: z.number().int().optional(),
-					locale: z.string().optional()
-				})
-			)
-			.mutation(async ({ input, ctx }) => {
-				return ctx.host.settings.set({
-					endingSoonNoticeDays: input.endingSoonNoticeDays,
-					locale: input.locale
-				} satisfies SettingsChangeset);
-			})
-	},
-	backup: {
-		create: procedure.public.mutation(async ({ ctx }): Promise<BackupEntry> => {
-			return ctx.host.backup.create();
-		}),
-		list: procedure.public.query(async ({ ctx }): Promise<BackupEntry[]> => {
-			return ctx.host.backup.list();
-		}),
-		delete: procedure.public
-			.input(
-				z.object({
-					filename: z.string().trim().min(1)
-				})
-			)
-			.mutation(async ({ input, ctx }) => {
-				return ctx.host.backup.delete(input.filename);
-			}),
-		restore: procedure.public
-			.use(autosync())
-			.input(
-				z.object({
-					filename: z.string().trim().min(1)
-				})
-			)
-			.mutation(async ({ input, ctx }) => {
-				return ctx.host.backup.restore(input.filename);
-			})
-	},
-	remoteSync: {
-		getState: procedure.public.query(async ({ ctx }): Promise<RemoteSyncState> => {
-			return ctx.host.remoteSync.getState();
-		}),
-		snapshotNow: procedure.public.mutation(async ({ ctx }): Promise<RemoteSyncState> => {
-			return ctx.host.remoteSync.snapshotNow();
-		})
-	},
+	settings,
+	backup,
+	remoteSync,
 	update: {
 		prepare: procedure.public
 			.input(

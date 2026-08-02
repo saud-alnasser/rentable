@@ -6,7 +6,7 @@
 		type Recovery,
 		type RemoteSyncState
 	} from '$lib/api/tauri';
-	import { startGoogleDriveAutosyncManager } from '$lib/api/utils/remote-sync-google-drive-autosync';
+	import { startGoogleDriveAutosyncManager } from '$lib/sync/autosync';
 	import {
 		getWorkspaceFromSyncState,
 		inspectWorkspaceSyncState,
@@ -14,10 +14,10 @@
 		syncWorkspaceBeforeExit,
 		syncWorkspaceNow,
 		syncWorkspaceRemoteNow
-	} from '$lib/api/utils/workspace-sync';
+	} from '$lib/sync/workspace';
 	import { TooltipProvider } from '$lib/common/components/fragments/tooltip';
-	import { LinkSession } from '$lib/resources/sync/link-session.svelte';
-	import { pendingConflict } from '$lib/resources/sync/pending-conflict.svelte';
+	import { LinkSession } from '$lib/sync/link-session.svelte';
+	import { pendingConflict } from '$lib/sync/pending-conflict.svelte';
 	import SonnerProvider from '$lib/common/components/providers/sonner-provider.svelte';
 	import { toErrorText } from '$lib/error/message';
 	import LL, { locale, setLocale } from '$lib/i18n/i18n-svelte';

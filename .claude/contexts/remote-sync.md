@@ -1,6 +1,6 @@
 # Remote sync
 
-Sources: `tauri/src/sync/`, `tauri/src/backup/`, `tauri/src/http.rs`, `src/lib/api/utils/workspace-sync.ts`, `src/lib/resources/sync/`
+Sources: `tauri/src/sync/`, `tauri/src/backup/`, `tauri/src/http.rs`, `src/lib/sync/`
 
 Getting a workspace off this machine and back onto it. Two subjects share the machinery:
 local backup, and exchange with Google Drive.

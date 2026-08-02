@@ -19,7 +19,6 @@ type InfiniteContractsPage = Awaited<ReturnType<typeof api.contract.getPaginated
 
 export const keys = {
 	all: ['contracts'],
-	dashboard: ['contracts', 'dashboard'],
 	dataView: (search?: string) => ['contracts', 'data-view', search ?? ''],
 	get: (id: number) => ['contracts', id],
 	getUnits: (id: number) => ['contracts', 'units', id],
@@ -72,13 +71,6 @@ export function useInfiniteContracts(search: () => string = () => '') {
 				})
 		};
 	});
-}
-
-export function useFetchContractDashboard() {
-	return createQuery(() => ({
-		queryKey: keys.dashboard,
-		queryFn: () => api.contract.dashboard()
-	}));
 }
 
 export function useFetchContract(id: () => number) {

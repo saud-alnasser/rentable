@@ -18,6 +18,30 @@ export function addUtcDays(value: Date, days: number) {
 	return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate() + days));
 }
 
+/** whether a date falls inside a UTC-day range, both ends included. */
+export function isWithinUtcRange(value: Date, rangeStart: Date, rangeEnd: Date) {
+	const normalizedValue = toUtcDay(value).getTime();
+
+	return normalizedValue >= rangeStart.getTime() && normalizedValue <= rangeEnd.getTime();
+}
+
+/** the UTC calendar month containing a timestamp, with the label a reader sees. */
+export function getCurrentMonthBounds(now: DateLike) {
+	const today = toUtcDay(now);
+	const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+	const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0));
+
+	return {
+		start,
+		end,
+		label: new Intl.DateTimeFormat('en-US', {
+			month: 'long',
+			year: 'numeric',
+			timeZone: 'UTC'
+		}).format(start)
+	};
+}
+
 /** advances by calendar months, clamping to the last day of shorter months. */
 export function addUtcMonths(value: DateLike, months: number) {
 	const date = toUtcDay(value);

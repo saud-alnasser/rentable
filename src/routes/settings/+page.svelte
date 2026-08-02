@@ -17,12 +17,12 @@
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import type { Locales } from '$lib/i18n/i18n-types';
-	import SettingsDiagnosticsCard from '$lib/resources/settings/components/settings-diagnostics-card.svelte';
-	import SettingsEndingSoonCard from '$lib/resources/settings/components/settings-ending-soon-card.svelte';
-	import SettingsLocaleCard from '$lib/resources/settings/components/settings-locale-card.svelte';
-	import SettingsSyncCard from '$lib/resources/settings/components/settings-sync-card.svelte';
-	import SettingsUpdatesCard from '$lib/resources/settings/components/settings-updates-card.svelte';
-	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/resources/settings/hooks/queries';
+	import SettingsDiagnosticsCard from '$lib/settings/component/diagnostics.svelte';
+	import SettingsEndingSoonCard from '$lib/settings/component/ending-soon.svelte';
+	import SettingsLocaleCard from '$lib/settings/component/locale.svelte';
+	import SettingsSyncCard from '$lib/settings/component/sync.svelte';
+	import SettingsUpdatesCard from '$lib/settings/component/updates.svelte';
+	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
 	import { toast } from 'svelte-sonner';
 
 	const settingsQuery = useFetchSettings();
