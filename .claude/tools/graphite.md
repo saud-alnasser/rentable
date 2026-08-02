@@ -60,6 +60,27 @@ one branch. Without it the command selects each parent interactively, so pass it
 scripted run. `-f, --force` skips the prompting instead by reparenting onto the nearest
 tracked ancestor, and **takes precedence over `--parent`** — never pass both.
 
+## Rename a branch
+
+```
+gt rename <name> --no-interactive
+```
+
+Renames the branch and updates the `gt` metadata that referenced it, so the stack stays
+intact. Called with no name it prompts, which is a hang in a scripted run. Verified on gt
+1.8.6.
+
+**Rename before submitting, never after.** A GitHub pull request's head branch name is
+immutable, so `gt` drops the branch's association to its pull request rather than moving
+it — the pull request is left behind, and the next submit opens a second one. `-f,
+--force` only permits the rename when a pull request is already open; it does not preserve
+the link.
+
+The case that arises is a branch whose type turned out wrong — work claimed as
+`graphite/refactor/…` that lands as `docs:`. The branch name is the conventional commit
+the branch will land as (`.claude/policies/version-control.md`), so it is corrected as
+soon as the type is known, which is always before the human submits.
+
 ## Amend the current branch
 
 ```
@@ -111,6 +132,7 @@ gt sync                 # pulls trunk, rebases, and prompts to delete merged bra
 Verified against `gt submit --help` on gt 1.8.6, and against the command reference:
 
 - **There is no `--title`, `--body`, `--body-file`, or stdin.** The metadata flags are prompts (`--edit`, `--edit-title`, `--edit-description`) and their negations, plus `--ai`. A pull request body cannot be pre-written and passed in.
-- **Whether it prefills the description from the commit message is not documented** — not in `--help`, not in the command reference. So nothing may depend on it. Treat the body as unknown until a human is looking at the prompt.
+- **It does not prefill the description from the commit message.** Observed on gt 1.8.6 submitting a five-branch stack: the pull request **title** was taken from the commit subject, and the **body** was this repository's `.github/pull_request_template.md`, unfilled. The commit body reached neither. `--help` and the command reference document none of this, so it is an observation on one version rather than a contract.
+- **A non-interactive submit creates every pull request as a draft.** It says so on the way past — `Inline prompts to fill PR fields will be skipped and new PRs will be created in draft mode`. `-p, --publish` opts out; `gh pr ready <n>` undrafts afterwards, which is the better order when the body still has to be written.
 
-That is why the closing keyword goes in the commit body on a stacking repository: it is the only text AEP controls that reaches the pull request at all.
+So on this repository the commit body reaches the pull request **not at all**, and squash discards it on merge as well (`squash_merge_commit_message: BLANK`). A closing keyword written into the commit body therefore closes nothing by itself — the pull request body has to carry it, written after submit with `gh pr edit --body-file`. Keep it in the commit body regardless: it is what the reviewer reads on the branch, and it is the text to copy from.
