@@ -235,6 +235,56 @@ type RootTranslation = {
 			 */
 			working: string
 		}
+		errors: {
+			/**
+			 * a​n​o​t​h​e​r​ ​o​p​e​r​a​t​i​o​n​ ​i​s​ ​a​l​r​e​a​d​y​ ​r​u​n​n​i​n​g​.
+			 */
+			busy: string
+			/**
+			 * t​h​e​ ​s​a​v​e​d​ ​c​r​e​d​e​n​t​i​a​l​s​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​u​s​e​d​.
+			 */
+			credential: string
+			/**
+			 * t​h​e​ ​d​a​t​a​b​a​s​e​ ​c​o​u​l​d​ ​n​o​t​ ​c​o​m​p​l​e​t​e​ ​t​h​e​ ​r​e​q​u​e​s​t​.
+			 */
+			database: string
+			/**
+			 * t​h​i​s​ ​a​c​t​i​o​n​ ​i​s​ ​n​o​t​ ​a​l​l​o​w​e​d​.
+			 */
+			forbidden: string
+			/**
+			 * t​h​e​ ​d​a​t​a​ ​d​o​e​s​ ​n​o​t​ ​m​a​t​c​h​ ​w​h​a​t​ ​w​a​s​ ​e​x​p​e​c​t​e​d​.
+			 */
+			integrity: string
+			/**
+			 * s​o​m​e​t​h​i​n​g​ ​w​e​n​t​ ​w​r​o​n​g​ ​i​n​s​i​d​e​ ​t​h​e​ ​a​p​p​.
+			 */
+			internal: string
+			/**
+			 * t​h​e​ ​i​n​f​o​r​m​a​t​i​o​n​ ​p​r​o​v​i​d​e​d​ ​i​s​ ​n​o​t​ ​v​a​l​i​d​.
+			 */
+			invalidInput: string
+			/**
+			 * a​ ​f​i​l​e​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​r​e​a​d​ ​o​r​ ​w​r​i​t​t​e​n​.
+			 */
+			io: string
+			/**
+			 * t​h​i​s​ ​f​e​a​t​u​r​e​ ​i​s​ ​n​o​t​ ​s​e​t​ ​u​p​ ​y​e​t​.
+			 */
+			notConfigured: string
+			/**
+			 * t​h​e​ ​i​t​e​m​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​f​o​u​n​d​.
+			 */
+			notFound: string
+			/**
+			 * s​o​m​e​t​h​i​n​g​ ​h​a​s​ ​t​o​ ​b​e​ ​r​e​a​d​y​ ​b​e​f​o​r​e​ ​t​h​i​s​ ​c​a​n​ ​r​u​n​.
+			 */
+			preconditionFailed: string
+			/**
+			 * t​h​e​ ​o​p​e​r​a​t​i​o​n​ ​t​o​o​k​ ​t​o​o​ ​l​o​n​g​ ​a​n​d​ ​s​t​o​p​p​e​d​.
+			 */
+			timedOut: string
+		}
 		labels: {
 			/**
 			 * a​c​t​i​o​n
@@ -1405,7 +1455,7 @@ type RootTranslation = {
 			 */
 			duplicatePhone: string
 			/**
-			 * i​q​a​m​a​ ​m​u​s​t​ ​s​t​a​r​t​ ​w​i​t​h​ ​1​ ​o​r​ ​2​ ​a​n​d​ ​b​e​ ​1​0​ ​d​i​g​i​t​s​ ​l​o​n​g​.
+			 * n​a​t​i​o​n​a​l​ ​i​d​e​n​t​i​t​y​ ​n​u​m​b​e​r​ ​m​u​s​t​ ​s​t​a​r​t​ ​w​i​t​h​ ​1​ ​o​r​ ​2​ ​a​n​d​ ​b​e​ ​1​0​ ​d​i​g​i​t​s​ ​l​o​n​g​.
 			 */
 			invalidNationalId: string
 			/**
@@ -2056,6 +2106,56 @@ export type TranslationFunctions = {
 			 * working...
 			 */
 			working: () => LocalizedString
+		}
+		errors: {
+			/**
+			 * another operation is already running.
+			 */
+			busy: () => LocalizedString
+			/**
+			 * the saved credentials could not be used.
+			 */
+			credential: () => LocalizedString
+			/**
+			 * the database could not complete the request.
+			 */
+			database: () => LocalizedString
+			/**
+			 * this action is not allowed.
+			 */
+			forbidden: () => LocalizedString
+			/**
+			 * the data does not match what was expected.
+			 */
+			integrity: () => LocalizedString
+			/**
+			 * something went wrong inside the app.
+			 */
+			internal: () => LocalizedString
+			/**
+			 * the information provided is not valid.
+			 */
+			invalidInput: () => LocalizedString
+			/**
+			 * a file could not be read or written.
+			 */
+			io: () => LocalizedString
+			/**
+			 * this feature is not set up yet.
+			 */
+			notConfigured: () => LocalizedString
+			/**
+			 * the item could not be found.
+			 */
+			notFound: () => LocalizedString
+			/**
+			 * something has to be ready before this can run.
+			 */
+			preconditionFailed: () => LocalizedString
+			/**
+			 * the operation took too long and stopped.
+			 */
+			timedOut: () => LocalizedString
 		}
 		labels: {
 			/**
@@ -3187,7 +3287,7 @@ export type TranslationFunctions = {
 			 */
 			duplicatePhone: () => LocalizedString
 			/**
-			 * iqama must start with 1 or 2 and be 10 digits long.
+			 * national identity number must start with 1 or 2 and be 10 digits long.
 			 */
 			invalidNationalId: () => LocalizedString
 			/**

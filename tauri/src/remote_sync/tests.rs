@@ -256,7 +256,7 @@ fn sync_lock_requires_a_workspace_id() {
             assert_eq!(
                 error,
                 Error::InvalidInput {
-                    message: "GOOGLE_DRIVE_SYNC_WORKSPACE_REQUIRED".to_string()
+                    message: "a google drive sync lock needs a workspace".to_string()
                 }
             );
 
@@ -289,7 +289,8 @@ fn sync_lock_is_exclusive_and_names_the_holder() {
             assert_eq!(
                 error,
                 Error::Busy {
-                    message: "GOOGLE_DRIVE_SYNC_LOCKED:workspace-1".to_string()
+                    message: "a google drive sync is already running for workspace workspace-1"
+                        .to_string()
                 }
             );
 

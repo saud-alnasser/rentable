@@ -37,15 +37,16 @@ impl RemoteSync {
 
         if workspace_id.is_empty() {
             return Err(Error::InvalidInput {
-                message: "GOOGLE_DRIVE_SYNC_WORKSPACE_REQUIRED".to_string(),
+                message: "a google drive sync lock needs a workspace".to_string(),
             });
         }
 
-        // the sentinel stays in the message until #113 switches TypeScript onto
-        // the discriminant; `busy` from this call can only mean the sync lock.
         if let Some(existing_lock) = &self.google_drive_sync_lock {
             return Err(Error::Busy {
-                message: format!("GOOGLE_DRIVE_SYNC_LOCKED:{}", existing_lock.workspace_id),
+                message: format!(
+                    "a google drive sync is already running for workspace {}",
+                    existing_lock.workspace_id
+                ),
             });
         }
 

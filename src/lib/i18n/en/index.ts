@@ -62,6 +62,21 @@ const en = {
 			working: 'working...'
 		},
 
+		errors: {
+			busy: 'another operation is already running.',
+			credential: 'the saved credentials could not be used.',
+			database: 'the database could not complete the request.',
+			forbidden: 'this action is not allowed.',
+			integrity: 'the data does not match what was expected.',
+			internal: 'something went wrong inside the app.',
+			invalidInput: 'the information provided is not valid.',
+			io: 'a file could not be read or written.',
+			notConfigured: 'this feature is not set up yet.',
+			notFound: 'the item could not be found.',
+			preconditionFailed: 'something has to be ready before this can run.',
+			timedOut: 'the operation took too long and stopped.'
+		},
+
 		labels: {
 			action: 'action',
 			amount: 'amount',

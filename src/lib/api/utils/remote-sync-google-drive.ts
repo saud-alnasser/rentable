@@ -9,6 +9,8 @@ import {
 	type RemoteSyncState,
 	type RemoteSyncWorkspace
 } from '$lib/api/tauri';
+import { toErrorText } from '$lib/error/message';
+import { toTauriErrorCode } from '$lib/error/tauri';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { get } from 'svelte/store';
 
@@ -224,33 +226,8 @@ function createGoogleDriveStaleRemoteStateError() {
 	);
 }
 
-function getGoogleDriveErrorText(error: unknown) {
-	if (error instanceof Error && error.message.trim()) {
-		return error.message;
-	}
-
-	if (typeof error === 'string' && error.trim()) {
-		return error;
-	}
-
-	// Rust returns `{ code, message }` across the IPC boundary (#112). #113
-	// replaces the callers of this function with branching on `code`.
-	if (typeof error === 'object' && error !== null && 'message' in error) {
-		const { message } = error as { message: unknown };
-
-		if (typeof message === 'string' && message.trim()) {
-			return message;
-		}
-	}
-
-	return null;
-}
-
 export function getGoogleDriveSyncErrorMessage(error: unknown) {
-	return (
-		getGoogleDriveErrorText(error) ??
-		toMessage(getGoogleDriveTranslations().common.messages.unexpectedError())
-	);
+	return toErrorText(error, getGoogleDriveTranslations());
 }
 
 export function isGoogleDriveLinkCancelledError(error: unknown) {
@@ -283,9 +260,9 @@ async function withGoogleDriveSyncLease<T>(workspaceId: string, task: () => Prom
 	try {
 		lease = await tauri.remoteSync.googleDrive.acquireLock({ workspaceId });
 	} catch (error) {
-		const message = getGoogleDriveErrorText(error);
-
-		if (message?.startsWith('GOOGLE_DRIVE_SYNC_LOCKED:')) {
+		// the lock is the only thing this command contends for, so `busy` back
+		// from it can mean nothing else.
+		if (toTauriErrorCode(error) === 'busy') {
 			throw new GoogleDriveSyncAlreadyRunningError();
 		}
 
@@ -514,6 +491,10 @@ async function linkGoogleDriveAccount(
 			throw new GoogleDriveLinkCancelledError();
 		}
 
+		// the link session reports failure as prose on a *success* payload, so
+		// there is no code to branch on here. #119 gives the flow one owner and
+		// closes the last text branch; `access_denied` above is google's own
+		// oauth code and stays either way.
 		if (result.error === 'GOOGLE_DRIVE_LINK_TIMED_OUT') {
 			throw new Error(
 				toMessage(getGoogleDriveTranslations().settings.syncLinkTimedOutDescription())
