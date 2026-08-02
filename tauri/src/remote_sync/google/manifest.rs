@@ -16,12 +16,12 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 
 use super::conflict::normalize_content_hash;
-use super::retention::GoogleDriveRetainedSnapshot;
-use super::transport::{
+use super::metadata::{
     DriveFile, FILE_TYPE_PROPERTY, GoogleDriveSnapshotSource, SNAPSHOT_APP_VERSION_PROPERTY,
     SNAPSHOT_CONTENT_HASH_PROPERTY, parse_drive_number, parse_drive_snapshot_created_at,
     parse_drive_timestamp, try_parse_drive_snapshot_source,
 };
+use super::retention::GoogleDriveRetainedSnapshot;
 
 /// what the manifest says about itself, rather than about any one snapshot.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

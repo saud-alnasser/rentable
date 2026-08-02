@@ -15,7 +15,7 @@ use crate::error::Error;
 
 use super::super::store::RemoteSyncWorkspace;
 use super::manifest::{GoogleDriveManifest, GoogleDriveManifestEntry};
-use super::transport::{DriveFile, SNAPSHOT_CONTENT_HASH_PROPERTY, parse_drive_number};
+use super::metadata::{DriveFile, SNAPSHOT_CONTENT_HASH_PROPERTY, parse_drive_number};
 
 /// the length of a SHA-256 digest written as hexadecimal.
 const CONTENT_HASH_LENGTH: usize = 64;

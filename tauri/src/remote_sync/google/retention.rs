@@ -6,10 +6,11 @@ use std::collections::{HashMap, HashSet};
 
 use crate::backup::BackupSource;
 
-use super::transport::{
-    DriveFile, GoogleDrivePreparePushInput, GoogleDriveSnapshotSource,
-    parse_drive_snapshot_created_at, parse_drive_timestamp, try_parse_drive_snapshot_source,
+use super::metadata::{
+    DriveFile, GoogleDriveSnapshotSource, parse_drive_snapshot_created_at, parse_drive_timestamp,
+    try_parse_drive_snapshot_source,
 };
+use super::transport::GoogleDrivePreparePushInput;
 
 /// a snapshot a cleanup keeps, paired with the source it was kept for.
 #[derive(Clone, Debug, PartialEq, Eq)]
