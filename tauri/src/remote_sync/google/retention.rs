@@ -77,6 +77,28 @@ pub fn choose_retained_workspace_snapshots(
     retained
 }
 
+/// the snapshots a cleanup may delete, in the order they were given.
+///
+/// Not simply the ones retention did not keep, and the difference is the whole
+/// point: a snapshot declaring a source this application does not recognise is
+/// never retained, and that is not a judgement that it is stale — it is this
+/// policy having no opinion about a file it cannot account for. Evicting one on
+/// the strength of an absent opinion is exactly what the rule above refuses.
+pub fn choose_evictable_workspace_snapshots<'a>(
+    snapshot_files: &'a [DriveFile],
+    retained_file_ids: &[&str],
+) -> Vec<&'a DriveFile> {
+    let retained_file_ids = retained_file_ids.iter().copied().collect::<HashSet<_>>();
+
+    snapshot_files
+        .iter()
+        .filter(|file| {
+            !retained_file_ids.contains(file.id.as_str())
+                && try_parse_drive_snapshot_source(file).is_some()
+        })
+        .collect()
+}
+
 /// newest first. Capture time is what a snapshot is ordered by; Drive's own
 /// modification time only breaks a tie, because a file rewritten in place
 /// still represents the moment it was captured. The identifier breaks the

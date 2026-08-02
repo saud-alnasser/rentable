@@ -35,7 +35,10 @@ use super::{
         DriveFile, GoogleDriveSnapshotSource, parse_drive_number, parse_drive_snapshot_created_at,
         parse_drive_timestamp, try_parse_drive_snapshot_source,
     },
-    retention::{choose_retained_workspace_snapshots, compare_drive_files_by_snapshot_recency},
+    retention::{
+        choose_evictable_workspace_snapshots, choose_retained_workspace_snapshots,
+        compare_drive_files_by_snapshot_recency,
+    },
     transport::{
         DriveRequest, DriveResponse, DriveRetryPolicy, DriveTransport, drive_error, is_retryable,
         parse_retry_after, retry_delay,
@@ -220,6 +223,62 @@ fn retention_returns_each_file_once_and_orders_the_result_by_recency() {
 #[test]
 fn retention_of_nothing_retains_nothing() {
     assert!(choose_retained_workspace_snapshots(&[]).is_empty());
+}
+
+#[test]
+fn everything_retention_did_not_keep_is_evictable() {
+    let files = [
+        snapshot("kept", "autosave", 400),
+        snapshot("older", "autosave", 300),
+        snapshot("oldest", "autosave", 100),
+    ];
+
+    let evictable = choose_evictable_workspace_snapshots(&files, &["kept"]);
+
+    assert_eq!(
+        evictable
+            .iter()
+            .map(|file| file.id.as_str())
+            .collect::<Vec<_>>(),
+        ["older", "oldest"]
+    );
+}
+
+/// the asymmetry the whole rule turns on: not retained and evictable are two
+/// different answers, and a source this application cannot read produces the
+/// first without producing the second.
+#[test]
+fn a_snapshot_whose_source_cannot_be_read_is_neither_retained_nor_evictable() {
+    let files = [
+        snapshot("unlabelled", "recovery", 500),
+        snapshot("kept", "manual", 100),
+    ];
+
+    assert!(
+        choose_retained_workspace_snapshots(&files)
+            .iter()
+            .all(|entry| entry.file.id != "unlabelled")
+    );
+    assert!(
+        choose_evictable_workspace_snapshots(&files, &["kept"]).is_empty(),
+        "a snapshot this application cannot account for was offered up for deletion"
+    );
+}
+
+#[test]
+fn a_snapshot_declaring_no_properties_at_all_is_not_evictable() {
+    let files = [drive_file("named-like-ours")];
+    let evictable = choose_evictable_workspace_snapshots(&files, &[]);
+
+    assert!(
+        evictable.is_empty(),
+        "a file recognised only by its name was offered up for deletion"
+    );
+}
+
+#[test]
+fn nothing_can_be_evicted_from_nothing() {
+    assert!(choose_evictable_workspace_snapshots(&[], &["kept"]).is_empty());
 }
 
 fn manifest_entry_json(file_id: &str, revision: &str, created_at: i64) -> serde_json::Value {
@@ -2027,8 +2086,40 @@ fn snapshot_json(id: &str, name: &str, created_at: i64) -> serde_json::Value {
     })
 }
 
+/// a snapshot as Drive would answer with it, declaring the source it was taken
+/// for. `source` is left as text so a test can hand over one this application
+/// does not recognise.
+fn sourced_snapshot_json(id: &str, source: &str, created_at: i64) -> serde_json::Value {
+    json!({
+        "id": id,
+        "name": format!("snapshot-{id}.db"),
+        "appProperties": {
+            "rentableType": "snapshot",
+            "rentableSource": source,
+            "rentableCreatedAt": created_at.to_string(),
+        },
+    })
+}
+
+fn manifest_file_json(id: &str) -> serde_json::Value {
+    json!({
+        "id": id,
+        "name": "manifest.json",
+        "appProperties": { "rentableType": "manifest" },
+    })
+}
+
 fn listing(files: Vec<serde_json::Value>) -> ScriptedResponse {
     json_response(200, json!({ "files": files }))
+}
+
+/// the files a run deleted, in the order the deletes were issued.
+fn deleted_file_ids(server: &TestDriveServer) -> Vec<String> {
+    (0..server.request_count())
+        .map(|index| server.request(index))
+        .filter(|request| request.method == "DELETE")
+        .map(|request| request.target.trim_start_matches("/files/").to_string())
+        .collect()
 }
 
 fn manifest_json() -> serde_json::Value {
@@ -3140,4 +3231,222 @@ async fn a_storage_figure_that_is_not_a_whole_byte_count_is_absent_rather_than_z
 
     assert_eq!(account.drive_quota_bytes, None);
     assert_eq!(account.drive_usage_bytes, None);
+}
+
+/// the empty success Drive answers a delete with.
+fn deleted() -> ScriptedResponse {
+    ScriptedResponse::new(204, Vec::new())
+}
+
+#[tokio::test]
+async fn retention_deletes_the_snapshots_it_did_not_keep() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![
+            sourced_snapshot_json("manual-2", "manual", 5_000),
+            sourced_snapshot_json("auto-3", "autosave", 4_000),
+            sourced_snapshot_json("auto-1", "autosave", 2_000),
+        ]),
+        listing(vec![]),
+        deleted(),
+    ])
+    .await;
+
+    let retained = drive_files(&server)
+        .apply_workspace_snapshot_retention("token", "folder-1")
+        .await
+        .expect("applying retention failed");
+
+    assert_eq!(
+        retained
+            .iter()
+            .map(|entry| entry.file.id.as_str())
+            .collect::<Vec<_>>(),
+        ["manual-2", "auto-3"]
+    );
+    assert_eq!(deleted_file_ids(&server), ["auto-1"]);
+}
+
+/// the policy keeps one snapshot per source, so the two newest of *different*
+/// sources both survive and neither evicts the other.
+#[tokio::test]
+async fn retention_evicts_within_a_source_and_never_across_two() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![
+            sourced_snapshot_json("auto-2", "autosave", 9_000),
+            sourced_snapshot_json("auto-1", "autosave", 8_000),
+            sourced_snapshot_json("manual-1", "manual", 1_000),
+        ]),
+        listing(vec![]),
+        deleted(),
+    ])
+    .await;
+
+    let retained = drive_files(&server)
+        .apply_workspace_snapshot_retention("token", "folder-1")
+        .await
+        .expect("applying retention failed");
+
+    assert_eq!(
+        retained
+            .iter()
+            .map(|entry| entry.file.id.as_str())
+            .collect::<Vec<_>>(),
+        ["auto-2", "manual-1"]
+    );
+    assert_eq!(deleted_file_ids(&server), ["auto-1"]);
+}
+
+/// a snapshot declaring a source this application does not recognise is never
+/// retained, and it is not therefore stale: retention has no opinion about it,
+/// and a file this application cannot account for is not its to remove.
+#[tokio::test]
+async fn a_snapshot_of_an_unrecognised_origin_is_left_where_it_is() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![
+            sourced_snapshot_json("foreign-1", "some-other-tool", 9_000),
+            sourced_snapshot_json("auto-1", "autosave", 5_000),
+        ]),
+        listing(vec![]),
+    ])
+    .await;
+
+    let retained = drive_files(&server)
+        .apply_workspace_snapshot_retention("token", "folder-1")
+        .await
+        .expect("applying retention failed");
+
+    assert_eq!(
+        retained
+            .iter()
+            .map(|entry| entry.file.id.as_str())
+            .collect::<Vec<_>>(),
+        ["auto-1"]
+    );
+    assert!(
+        deleted_file_ids(&server).is_empty(),
+        "a file this application did not write was deleted: {:?}",
+        deleted_file_ids(&server)
+    );
+}
+
+#[tokio::test]
+async fn deleting_every_snapshot_but_the_named_ones_spares_exactly_those() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![
+            sourced_snapshot_json("auto-3", "autosave", 5_000),
+            sourced_snapshot_json("auto-2", "autosave", 3_000),
+            sourced_snapshot_json("manual-1", "manual", 1_000),
+        ]),
+        listing(vec![]),
+        deleted(),
+        deleted(),
+    ])
+    .await;
+
+    drive_files(&server)
+        .delete_workspace_snapshots_except("token", "folder-1", &["auto-3"])
+        .await
+        .expect("deleting the snapshots failed");
+
+    assert_eq!(deleted_file_ids(&server), ["auto-2", "manual-1"]);
+}
+
+#[tokio::test]
+async fn superseded_manifests_are_deleted_and_the_named_one_survives() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![
+            manifest_file_json("manifest-3"),
+            manifest_file_json("manifest-2"),
+            manifest_file_json("manifest-1"),
+        ]),
+        deleted(),
+        deleted(),
+    ])
+    .await;
+
+    drive_files(&server)
+        .delete_workspace_manifests_except("token", "folder-1", Some("manifest-3"))
+        .await
+        .expect("deleting the superseded manifests failed");
+
+    assert_eq!(deleted_file_ids(&server), ["manifest-2", "manifest-1"]);
+
+    let query = server.request(0).target;
+
+    assert!(
+        query.contains("folder-1") && query.contains("manifest.json"),
+        "the cleanup did not ask for this folder's manifests: {query}"
+    );
+
+    // the name is not reserved, so it is the declared type that separates a
+    // manifest this application wrote from a file the user happened to call
+    // manifest.json. Asking without it turns the cleanup into a purge.
+    assert!(
+        query.contains("rentableType") && query.contains("manifest"),
+        "the cleanup asked by name alone, which would take a stranger's file: {query}"
+    );
+}
+
+#[tokio::test]
+async fn purging_a_workspace_folder_removes_the_snapshots_and_the_manifest_it_wrote() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![
+            sourced_snapshot_json("auto-1", "autosave", 5_000),
+            sourced_snapshot_json("manual-1", "manual", 4_000),
+        ]),
+        listing(vec![]),
+        deleted(),
+        deleted(),
+        listing(vec![manifest_file_json("manifest-1")]),
+        deleted(),
+    ])
+    .await;
+
+    drive_files(&server)
+        .purge_workspace_folder("token", "folder-1")
+        .await
+        .expect("purging the folder failed");
+
+    assert_eq!(
+        deleted_file_ids(&server),
+        ["auto-1", "manual-1", "manifest-1"],
+        "a purge left something this application wrote behind"
+    );
+}
+
+/// a workspace folder is a place in the user's own Drive, and emptying it of
+/// this application's files is not the same as emptying it. Nothing here
+/// declares an origin this application can account for, so nothing goes.
+///
+/// `named-1` is the file that matters: it is named exactly as this application
+/// names a snapshot, so the listing takes it — and it declares no source, so
+/// the deletion rule leaves it. Being recognisable enough to read is not being
+/// owned enough to destroy.
+#[tokio::test]
+async fn purging_leaves_every_file_this_application_did_not_write() {
+    let server = TestDriveServer::start(vec![
+        listing(vec![sourced_snapshot_json(
+            "foreign-1",
+            "some-other-tool",
+            9_000,
+        )]),
+        listing(vec![
+            file_json("named-1", "snapshot-2024-05-01.db"),
+            file_json("notes-1", "snapshot-notes.txt"),
+            file_json("photos-1", "holiday-snapshot-photos.zip"),
+        ]),
+        listing(vec![]),
+    ])
+    .await;
+
+    drive_files(&server)
+        .purge_workspace_folder("token", "folder-1")
+        .await
+        .expect("purging the folder failed");
+
+    assert!(
+        deleted_file_ids(&server).is_empty(),
+        "a purge deleted a file this application never wrote: {:?}",
+        deleted_file_ids(&server)
+    );
 }

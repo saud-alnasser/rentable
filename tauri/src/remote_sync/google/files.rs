@@ -32,6 +32,7 @@ use super::metadata::{
     DriveFile, FILE_TYPE_PROPERTY, SNAPSHOT_CONTENT_HASH_PROPERTY, parse_drive_number,
 };
 use super::retention::{
+    GoogleDriveRetainedSnapshot, choose_evictable_workspace_snapshots,
     choose_retained_workspace_snapshots, compare_drive_files_by_snapshot_recency,
 };
 use super::transport::{DriveRequest, DriveResponse, DriveTransport, GOOGLE_DRIVE_API_BASE_URL};
@@ -704,6 +705,116 @@ impl DriveFiles {
         }))
     }
 
+    /// apply the remote retention policy to a workspace folder: the newest
+    /// snapshot of each source survives, and every other snapshot this
+    /// application wrote is deleted. Returns what survived, which is what an
+    /// index describing the folder is then built from.
+    pub async fn apply_workspace_snapshot_retention(
+        &self,
+        access_token: &str,
+        folder_id: &str,
+    ) -> Result<Vec<GoogleDriveRetainedSnapshot>, Error> {
+        let snapshot_files = self
+            .list_workspace_snapshot_files(access_token, folder_id)
+            .await?;
+        let retained = choose_retained_workspace_snapshots(&snapshot_files);
+        let retained_file_ids = retained
+            .iter()
+            .map(|entry| entry.file.id.as_str())
+            .collect::<Vec<_>>();
+
+        self.delete_evictable_snapshots(access_token, &snapshot_files, &retained_file_ids)
+            .await?;
+
+        Ok(retained)
+    }
+
+    /// delete the snapshots this application wrote, but the ones named. A file
+    /// declaring no source it recognises is not among them, however the folder
+    /// is listed.
+    ///
+    /// For the caller that has already chosen what to keep — a repair picks its
+    /// head and builds an index around it, and deciding again from a second
+    /// listing could pick a different one and orphan the index just written.
+    pub async fn delete_workspace_snapshots_except(
+        &self,
+        access_token: &str,
+        folder_id: &str,
+        retained_file_ids: &[&str],
+    ) -> Result<(), Error> {
+        let snapshot_files = self
+            .list_workspace_snapshot_files(access_token, folder_id)
+            .await?;
+
+        self.delete_evictable_snapshots(access_token, &snapshot_files, retained_file_ids)
+            .await
+    }
+
+    /// delete every manifest the folder holds but the one named. `None` keeps
+    /// none of them.
+    ///
+    /// A folder holds more than one manifest whenever a write created rather
+    /// than replaced — which is what a concurrent client, or a workspace whose
+    /// record of the remote was lost, leaves behind.
+    pub async fn delete_workspace_manifests_except(
+        &self,
+        access_token: &str,
+        folder_id: &str,
+        retained_file_id: Option<&str>,
+    ) -> Result<(), Error> {
+        let manifest_files = self
+            .list(
+                access_token,
+                &manifest_file_query(folder_id),
+                MAX_LISTED_FILES,
+                Some("modifiedTime desc"),
+            )
+            .await?;
+
+        for file in manifest_files
+            .iter()
+            .filter(|file| Some(file.id.as_str()) != retained_file_id)
+        {
+            self.delete(access_token, &file.id).await?;
+        }
+
+        Ok(())
+    }
+
+    /// empty a workspace folder of the files this application wrote.
+    ///
+    /// Of those, and nothing else. The folder is a place in the user's own
+    /// Drive rather than private storage, so a file this application cannot
+    /// account for was put there by somebody and is not ours to remove — the
+    /// same judgement retention already makes about a snapshot it does not
+    /// recognise.
+    pub async fn purge_workspace_folder(
+        &self,
+        access_token: &str,
+        folder_id: &str,
+    ) -> Result<(), Error> {
+        self.delete_workspace_snapshots_except(access_token, folder_id, &[])
+            .await?;
+        self.delete_workspace_manifests_except(access_token, folder_id, None)
+            .await
+    }
+
+    /// delete the snapshots a cleanup may take, which are fewer than the ones
+    /// it did not keep — which those are is
+    /// [`choose_evictable_workspace_snapshots`]'s to say.
+    async fn delete_evictable_snapshots(
+        &self,
+        access_token: &str,
+        snapshot_files: &[DriveFile],
+        retained_file_ids: &[&str],
+    ) -> Result<(), Error> {
+        for file in choose_evictable_workspace_snapshots(snapshot_files, retained_file_ids) {
+            self.delete(access_token, &file.id).await?;
+        }
+
+        Ok(())
+    }
+
     /// the folder's manifest as Drive reports it now, whatever this workspace
     /// last recorded about it.
     async fn find_manifest_file(
@@ -713,11 +824,7 @@ impl DriveFiles {
     ) -> Result<Option<DriveFile>, Error> {
         self.find(
             access_token,
-            &format!(
-                "{} and trashed=false and name='{MANIFEST_FILENAME}' and {}",
-                in_parents(folder_id),
-                app_property_clause(FILE_TYPE_PROPERTY, MANIFEST_FILE_TYPE)
-            ),
+            &manifest_file_query(folder_id),
             Some("modifiedTime desc"),
         )
         .await
@@ -916,6 +1023,19 @@ fn manifest_file_moved_on(expected: Option<&DriveFile>, latest: Option<&DriveFil
                 || latest.modified_time != expected.modified_time
         }
     }
+}
+
+/// the query matching every manifest a folder holds.
+///
+/// One query for finding the current one and for finding the superseded ones,
+/// so a manifest a read would take for the folder's own cannot be one a cleanup
+/// walks past.
+fn manifest_file_query(folder_id: &str) -> String {
+    format!(
+        "{} and trashed=false and name='{MANIFEST_FILENAME}' and {}",
+        in_parents(folder_id),
+        app_property_clause(FILE_TYPE_PROPERTY, MANIFEST_FILE_TYPE)
+    )
 }
 
 /// the clause matching one of this application's own app-properties.

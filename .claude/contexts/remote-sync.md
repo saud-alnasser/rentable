@@ -79,6 +79,17 @@ save never evicts the copy taken before an update.
   code, and it is deliberate: treating every 403 as fatal turns a scope change into a
   failed sync, and treating every 403 as absent hides a real permission failure behind a
   duplicate folder.
+- **A workspace folder is a place in the user's own Drive, so a file is deleted only where
+  it declares an origin this application recognises.** A declaration, specifically — a
+  snapshot names the source it was taken for and a manifest names its type — and not a
+  name. Recognising a file well enough to *read* it is a weaker test than owning it well
+  enough to destroy it: a snapshot is found by its filename as well as its properties,
+  because that is what finds one written before the properties existed, and a cleanup that
+  deleted on the same evidence would take a file that merely looks like ours. Retention
+  already refuses to judge a snapshot whose source it cannot read, and a cleanup evicting
+  one on the strength of that refusal would make the refusal decorative. Two costs are
+  accepted knowingly: a folder this application has emptied is not necessarily an empty
+  folder, and a snapshot predating the source property is never evicted.
 - **A retry may never create a second thing.** `POST` is the one method never issued
   twice, because Drive creates a file by `POST` and a duplicate snapshot is a fault this
   application cannot observe. Any new write path has to answer this question before it
