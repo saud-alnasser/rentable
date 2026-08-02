@@ -68,6 +68,15 @@ test('a location-only update succeeds and leaves the name intact', async () => {
 	assert.equal(updated.location, 'Dammam');
 });
 
+test('an id-only update is a no-op that returns the complex unchanged', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+
+	const updated = await api.complex.update({ id: complex.id });
+
+	assert.deepEqual(updated, complex);
+});
+
 test('a name-only update to a name used by another complex is still rejected', async () => {
 	const api = await createApi();
 	await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
@@ -157,6 +166,17 @@ test('updating a unit changes its name', async () => {
 	});
 
 	assert.equal(updated.name, 'A2');
+});
+
+// the unit's identity is the pair, so its empty partial carries `complexId` too.
+test('an update carrying only the unit identity is a no-op that returns it unchanged', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	const unit = await api.complex.units.create({ name: 'A1', complexId: complex.id });
+
+	const updated = await api.complex.units.update({ id: unit.id, complexId: complex.id });
+
+	assert.deepEqual(updated, unit);
 });
 
 test('updating a unit accepts a stored status, but the read status stays derived', async () => {
