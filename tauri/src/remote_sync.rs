@@ -1,3 +1,4 @@
+mod active_workspace;
 mod command;
 pub mod google;
 mod lock;

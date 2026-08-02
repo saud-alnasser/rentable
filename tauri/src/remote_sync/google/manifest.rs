@@ -8,23 +8,14 @@ use std::cmp::Ordering;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{error::Error, state::AppState};
+use crate::error::Error;
 
-use super::super::store::RemoteSyncState;
 use super::conflict::normalize_content_hash;
 use super::transport::{
     DriveFile, FILE_TYPE_PROPERTY, GoogleDriveSnapshotSource, SNAPSHOT_APP_VERSION_PROPERTY,
     SNAPSHOT_CONTENT_HASH_PROPERTY, parse_drive_number, parse_drive_snapshot_created_at,
     parse_drive_timestamp, try_parse_drive_snapshot_source,
 };
-
-pub(crate) async fn sync_backup_manifest_to_active_workspace(
-    app_state: &AppState,
-    state: &RemoteSyncState,
-) -> Result<(), Error> {
-    let mut backup = app_state.backup.write().await;
-    backup.sync_manifest_workspace(Some(&state.workspace))
-}
 
 /// what the manifest says about itself, rather than about any one snapshot.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

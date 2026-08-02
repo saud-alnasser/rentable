@@ -10,10 +10,10 @@ use crate::{
     timestamp,
 };
 
-use super::google::conflict::{
-    content_hash_hex, current_workspace_content_hash, validate_google_drive_pull_content_hash,
+use super::active_workspace::{
+    current_workspace_content_hash, sync_backup_manifest_to_active_workspace,
 };
-use super::google::manifest::sync_backup_manifest_to_active_workspace;
+use super::google::conflict::{content_hash_hex, validate_google_drive_pull_content_hash};
 use super::google::retention::google_drive_push_snapshot_source;
 use super::lock::{
     GoogleDriveSyncLockAcquireInput, GoogleDriveSyncLockLease, GoogleDriveSyncLockReleaseInput,
