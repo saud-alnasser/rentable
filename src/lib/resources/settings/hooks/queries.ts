@@ -1,17 +1,5 @@
 import api from '$lib/api/mod';
-import {
-	tauri,
-	type GoogleDriveConflictResolution,
-	type GoogleDriveLinkPreparation,
-	type RemoteSyncState
-} from '$lib/api/tauri';
-import {
-	resolveGoogleDriveLink,
-	syncActiveGoogleDriveProfile,
-	type GoogleDriveLinkResolution,
-	type GoogleDriveSyncMode,
-	type GoogleDriveSyncResult
-} from '$lib/api/utils/remote-sync-google-drive';
+import { tauri, type GoogleDriveConflictResolution, type RemoteSyncState } from '$lib/api/tauri';
 import { unlinkGoogleDriveWorkspace } from '$lib/resources/sync/link';
 import { pendingConflict } from '$lib/resources/sync/pending-conflict.svelte';
 import {
@@ -36,7 +24,7 @@ export const keys = {
 	remoteSync: ['settings', 'remote-sync']
 } as const;
 
-export type SyncGoogleDriveWorkspaceResult = GoogleDriveSyncResult | WorkspaceRemoteSyncResult;
+export type SyncGoogleDriveWorkspaceResult = WorkspaceRemoteSyncResult;
 
 async function invalidateSettingsAndAppData(client: ReturnType<typeof useQueryClient>) {
 	await Promise.all([
@@ -256,13 +244,7 @@ export function useResolveGoogleDriveLink(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: ({
-			preparation,
-			resolution
-		}: {
-			preparation: GoogleDriveLinkPreparation;
-			resolution?: GoogleDriveLinkResolution | Extract<GoogleDriveSyncMode, 'push' | 'pull'>;
-		}) => resolveGoogleDriveLink(preparation, resolution),
+		mutationFn: () => syncWorkspaceRemoteNow(),
 		onSuccess: async (result) => {
 			client.setQueryData(keys.remoteSync, result.state);
 
@@ -391,7 +373,6 @@ export function useUnlinkGoogleDriveWorkspace(
 }
 
 export function useSyncGoogleDriveWorkspace(
-	mode: GoogleDriveSyncMode,
 	opts: MutationOptions = {
 		toast: {
 			success: () => get(LL).settingsHooks.googleDriveSynchronized(),
@@ -404,9 +385,7 @@ export function useSyncGoogleDriveWorkspace(
 	const mutationFn = async ({
 		manual
 	}: { manual?: boolean } = {}): Promise<SyncGoogleDriveWorkspaceResult> =>
-		mode === 'sync'
-			? syncWorkspaceRemoteNow(undefined, { manual })
-			: syncActiveGoogleDriveProfile(mode, undefined, { manual });
+		syncWorkspaceRemoteNow(undefined, { manual });
 
 	return createMutation(() => ({
 		mutationFn,

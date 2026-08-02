@@ -1,31 +1,15 @@
 use crate::{backup::BackupSource, diagnostics, error::Error, state::AppState};
 
-use super::google::retention::google_drive_push_snapshot_source;
 use super::inspection::GoogleDriveLinkPreparation;
 use super::link::{
     cancel_google_drive_link, link_google_drive_workspace, unlink_google_drive_workspace,
-};
-use super::lock::{
-    GoogleDriveSyncLockAcquireInput, GoogleDriveSyncLockLease, GoogleDriveSyncLockReleaseInput,
-};
-use super::session::{
-    GoogleDriveAccessToken, GoogleDriveAccountAuth, GoogleDriveAccountAuthInput,
-    GoogleDriveAccountUpdateInput, GoogleDriveDisconnectInput, GoogleDriveLinkCompleteInput,
-    GoogleDriveLinkSessionLookupInput, GoogleDriveLinkSessionResult, GoogleDriveLinkSessionStart,
 };
 use super::store::RemoteSyncState;
 use super::sync::{
     GoogleDriveResolveConflictInput, GoogleDriveSyncInput, GoogleDriveSyncOutcome,
     inspect_google_drive_conflict, resolve_google_drive_conflict, sync_google_drive_workspace,
 };
-use super::workspace::{
-    apply_remote_pull, current_workspace_content_hash, mark_workspace_synced, prepare_local_push,
-    sync_backup_manifest_to_active_workspace,
-};
-use super::{
-    GoogleDriveApplyPullInput, GoogleDriveConfig, GoogleDriveLocalFingerprint,
-    GoogleDrivePreparePushInput, GoogleDrivePreparedPush, GoogleDriveSyncCompleteInput,
-};
+use super::workspace::sync_backup_manifest_to_active_workspace;
 
 #[tauri::command]
 pub async fn remote_sync_state_get(
@@ -39,7 +23,6 @@ pub async fn remote_sync_state_get(
     sync_backup_manifest_to_active_workspace(app_state.inner(), &state).await?;
     Ok(state)
 }
-
 #[tauri::command]
 pub async fn remote_sync_snapshot_now(
     app_state: tauri::State<'_, AppState>,
@@ -71,7 +54,6 @@ pub async fn remote_sync_snapshot_now(
 
     Ok(state)
 }
-
 #[tauri::command]
 pub async fn remote_sync_autosave_now(
     app_state: tauri::State<'_, AppState>,
@@ -107,116 +89,6 @@ pub async fn remote_sync_autosave_now(
     Ok(state)
 }
 
-#[tauri::command]
-pub async fn remote_sync_google_drive_config_get(
-    app_state: tauri::State<'_, AppState>,
-) -> Result<GoogleDriveConfig, Error> {
-    let remote_sync = app_state.remote_sync.read().await;
-    Ok(remote_sync.get_google_drive_config())
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_begin_link(
-    app_state: tauri::State<'_, AppState>,
-) -> Result<GoogleDriveLinkSessionStart, Error> {
-    let mut remote_sync = app_state.remote_sync.write().await;
-
-    match remote_sync.begin_google_drive_link() {
-        Ok(session) => {
-            diagnostics::info("sync.link.started")
-                .with("session", session.session_id.as_str())
-                .write();
-
-            Ok(session)
-        }
-        Err(error) => {
-            diagnostics::error("sync.link.startFailed")
-                .with("error", error.to_string())
-                .write();
-
-            Err(error)
-        }
-    }
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_exchange_link_code(
-    app_state: tauri::State<'_, AppState>,
-    input: GoogleDriveLinkSessionLookupInput,
-) -> Result<GoogleDriveAccessToken, Error> {
-    let mut remote_sync = app_state.remote_sync.write().await;
-    remote_sync.exchange_google_drive_link_code(input).await
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_ensure_access_token(
-    app_state: tauri::State<'_, AppState>,
-    input: GoogleDriveAccountAuthInput,
-) -> Result<GoogleDriveAccessToken, Error> {
-    // this runs before every Drive operation, and almost always finds a token
-    // that is simply still valid. Answering that under a read lock keeps the
-    // rest of remote sync moving; only a real refresh takes the write lock, and
-    // only that path is worth blocking on a network round trip.
-    {
-        let remote_sync = app_state.remote_sync.read().await;
-
-        if let Some(access_token) = remote_sync.fresh_google_drive_access_token(&input)? {
-            return Ok(GoogleDriveAccessToken { access_token });
-        }
-    }
-
-    let mut remote_sync = app_state.remote_sync.write().await;
-
-    remote_sync
-        .refresh_google_drive_access_token(input)
-        .await
-        .inspect_err(|error| {
-            diagnostics::error("sync.token.refreshFailed")
-                .with("error", error.to_string())
-                .write()
-        })
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_get_link_result(
-    app_state: tauri::State<'_, AppState>,
-    input: GoogleDriveLinkSessionLookupInput,
-) -> Result<GoogleDriveLinkSessionResult, Error> {
-    let remote_sync = app_state.remote_sync.read().await;
-    remote_sync.get_google_drive_link_result(input)
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_cancel_link(
-    app_state: tauri::State<'_, AppState>,
-    input: GoogleDriveLinkSessionLookupInput,
-) -> Result<(), Error> {
-    let mut remote_sync = app_state.remote_sync.write().await;
-    remote_sync.cancel_google_drive_link(input)
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_complete_link(
-    app_state: tauri::State<'_, AppState>,
-    input: GoogleDriveLinkCompleteInput,
-) -> Result<RemoteSyncState, Error> {
-    let state = {
-        let mut remote_sync = app_state.remote_sync.write().await;
-        remote_sync.complete_google_drive_link(input).await?
-    };
-
-    diagnostics::info("sync.link.completed")
-        .with("workspace", state.workspace.id.as_str())
-        .with(
-            "account",
-            state.workspace.account_id.clone().unwrap_or_default(),
-        )
-        .write();
-
-    sync_backup_manifest_to_active_workspace(app_state.inner(), &state).await?;
-    Ok(state)
-}
-
 /// Link this workspace to a Google account, end to end.
 ///
 /// Outstanding for as long as the user takes over the consent screen; progress
@@ -246,101 +118,6 @@ pub async fn remote_sync_google_drive_unlink(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<RemoteSyncState, Error> {
     unlink_google_drive_workspace(app_state.inner()).await
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_get_account_auth(
-    app_state: tauri::State<'_, AppState>,
-    input: GoogleDriveAccountAuthInput,
-) -> Result<GoogleDriveAccountAuth, Error> {
-    let remote_sync = app_state.remote_sync.read().await;
-    remote_sync.get_google_drive_account_auth(input)
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_update_account(
-    app_state: tauri::State<'_, AppState>,
-    input: GoogleDriveAccountUpdateInput,
-) -> Result<RemoteSyncState, Error> {
-    let mut remote_sync = app_state.remote_sync.write().await;
-    remote_sync.update_google_drive_account(input).await
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_disconnect_account(
-    app_state: tauri::State<'_, AppState>,
-    input: GoogleDriveDisconnectInput,
-) -> Result<RemoteSyncState, Error> {
-    let state = {
-        let mut remote_sync = app_state.remote_sync.write().await;
-        remote_sync.disconnect_google_drive_account(input).await?
-    };
-
-    sync_backup_manifest_to_active_workspace(app_state.inner(), &state).await?;
-    Ok(state)
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_acquire_lock(
-    app_state: tauri::State<'_, AppState>,
-    input: GoogleDriveSyncLockAcquireInput,
-) -> Result<GoogleDriveSyncLockLease, Error> {
-    let mut remote_sync = app_state.remote_sync.write().await;
-
-    remote_sync
-        .acquire_google_drive_sync_lock(input)
-        .inspect_err(|error| {
-            diagnostics::warn("sync.lock.denied")
-                .with("error", error.to_string())
-                .write()
-        })
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_release_lock(
-    app_state: tauri::State<'_, AppState>,
-    input: GoogleDriveSyncLockReleaseInput,
-) -> Result<(), Error> {
-    let mut remote_sync = app_state.remote_sync.write().await;
-    remote_sync.release_google_drive_sync_lock(input);
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_get_local_fingerprint(
-    app_state: tauri::State<'_, AppState>,
-) -> Result<GoogleDriveLocalFingerprint, Error> {
-    Ok(GoogleDriveLocalFingerprint {
-        content_hash: current_workspace_content_hash(app_state.inner()).await?,
-    })
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_prepare_push(
-    app_state: tauri::State<'_, AppState>,
-    input: Option<GoogleDrivePreparePushInput>,
-) -> Result<GoogleDrivePreparedPush, Error> {
-    prepare_local_push(
-        app_state.inner(),
-        google_drive_push_snapshot_source(input.as_ref()) == BackupSource::Manual,
-    )
-    .await
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_mark_synced(
-    app_state: tauri::State<'_, AppState>,
-    input: GoogleDriveSyncCompleteInput,
-) -> Result<RemoteSyncState, Error> {
-    mark_workspace_synced(app_state.inner(), input).await
-}
-
-#[tauri::command]
-pub async fn remote_sync_google_drive_apply_pull(
-    app_state: tauri::State<'_, AppState>,
-    input: GoogleDriveApplyPullInput,
-) -> Result<RemoteSyncState, Error> {
-    apply_remote_pull(app_state.inner(), input).await
 }
 
 /// Ask what the remote holds for this workspace, and whether the two sides can

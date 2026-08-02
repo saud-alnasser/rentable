@@ -4,9 +4,10 @@
 // clock reads — are forbidden everywhere else, so a regression is a failing test,
 // not a review catch.
 //
-// The TypeScript Drive client bypasses the context seam by design of the programme:
-// it is ported to Rust and deleted under #110 and #114-#118, so its files are listed
-// as exceptions rather than reworked here.
+// Two remote-sync modules still reach the desktop facade directly. They are what is
+// left of the Drive client that was deleted around them: each now calls a coarse
+// command rather than sequencing a protocol, and moving them behind the context seam
+// is the context's own contraction rather than this programme's.
 
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -16,11 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 const API_ROOT = fileURLToPath(new URL('.', import.meta.url));
 
-const DRIVE_CLIENT = [
-	'utils/remote-sync-google-drive.ts',
-	'utils/remote-sync-google-drive-autosync.ts',
-	'utils/workspace-sync.ts'
-];
+const REMOTE_SYNC = ['utils/remote-sync-google-drive-autosync.ts', 'utils/workspace-sync.ts'];
 
 function apiSourceFiles() {
 	return readdirSync(API_ROOT, { recursive: true, withFileTypes: true })
@@ -69,7 +66,7 @@ test('the database singleton is reachable only through the context', () => {
 test('the desktop facade is reachable only through the context', () => {
 	const pattern = valueImportFrom('\\$lib/api/tauri', '\\./tauri', '(?:\\.\\./)+tauri');
 
-	assert.deepEqual(offenders(pattern, DRIVE_CLIENT), []);
+	assert.deepEqual(offenders(pattern, REMOTE_SYNC), []);
 });
 
 test('the tauri runtime is imported only by the facade and the database transport', () => {
@@ -81,5 +78,5 @@ test('the tauri runtime is imported only by the facade and the database transpor
 test('the ambient clock is read only by the context', () => {
 	const pattern = /Date\.now\(|new Date\(\)/;
 
-	assert.deepEqual(offenders(pattern, ['context.ts', 'utils/remote-sync-google-drive.ts']), []);
+	assert.deepEqual(offenders(pattern, ['context.ts']), []);
 });

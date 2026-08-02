@@ -61,7 +61,7 @@
 	const resolvePendingConflictMutation = useResolvePendingConflict();
 	const dismissPendingConflictMutation = useDismissPendingConflict();
 	const relinkPendingConflictMutation = useRelinkPendingConflict();
-	const syncGoogleDriveWorkspaceMutation = useSyncGoogleDriveWorkspace('sync');
+	const syncGoogleDriveWorkspaceMutation = useSyncGoogleDriveWorkspace();
 	const unlinkGoogleDriveWorkspaceMutation = useUnlinkGoogleDriveWorkspace();
 	const inspectWorkspaceSyncStateMutation = useInspectWorkspaceSyncState();
 	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
@@ -77,11 +77,8 @@
 		onResolutionRequired: (preparation) => {
 			pendingConflict.present(preparation);
 		},
-		resolve: async (preparation) => {
-			await resolveGoogleDriveLinkMutation.mutateAsync({
-				preparation,
-				resolution: preparation.recommendedMode
-			});
+		resolve: async () => {
+			await resolveGoogleDriveLinkMutation.mutateAsync();
 			pendingConflict.clear();
 		},
 		onFailure: async (error) => {
