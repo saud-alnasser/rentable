@@ -46,8 +46,16 @@ stored value is a cache of the derivation and never the authority.
 - **Domain rules live in their concept's own module.** Routers validate, call the domain,
   persist, and reconcile — they hold no rules. There is no repository layer; routers reach
   the database directly (#107, #108).
-- **Modules are organised by concept, not by layer**, with `src/routes/` as the
-  acknowledged exception (#123–#126).
+- **Modules are organised by concept, not by layer.** A concept owns its rules, its
+  queries, and its components together, under one singular directory named for it:
+  `contract`, `payment`, `tenant`, `complex`, `dashboard`, `settings`, `sync`. A unit is
+  reached only through the complex holding it, so it lives inside that concept rather than
+  beside it. Two homes own no concept — **`ui`**, interface primitives that know no domain,
+  and **`platform`**, capabilities that cross a process boundary or are nondeterministic
+  (the desktop shell, the database, the clock, diagnostics, locale) — and a domain rule
+  never lives in either. The application shell is neither primitive nor concept, so it is
+  its own home, `layout`. `src/routes/` stays layer-first, as the framework requires. **The
+  tree does not look like this yet** (#123–#126).
 - **Derived status is written back by reconciliation, never by the mutation that changed
   its inputs.** Any mutation touching contracts, payments, or unit assignments must
   reconcile, or the stored statuses go stale.
