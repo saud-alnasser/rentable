@@ -1,6 +1,6 @@
 # Remote sync
 
-Sources: `tauri/src/sync/`, `tauri/src/backup/`, `tauri/src/http.rs`, `src/lib/api/utils/workspace-sync.ts`, `src/lib/api/utils/remote-sync-google-drive.ts`, `src/lib/resources/sync/`
+Sources: `tauri/src/sync/`, `tauri/src/backup/`, `tauri/src/http.rs`, `src/lib/api/utils/workspace-sync.ts`, `src/lib/resources/sync/`
 
 Getting a workspace off this machine and back onto it. Two subjects share the machinery:
 local backup, and exchange with Google Drive.
@@ -40,22 +40,22 @@ save never evicts the copy taken before an update.
 
 ## Boundaries
 
-- **Credentials belong in Rust and never cross the IPC boundary.** This is the constraint
-  the whole domain is being reshaped around, and it is half met. OAuth itself is Rust's:
-  the `state`, the PKCE verifier, the code exchange, and token refresh never leave the
-  process, so no refresh token reaches the web layer through linking or through a Drive
-  call. What remains is the client secret, still returned by the config command and now
-  read by nobody, and an account-auth command with no caller. #118 withdraws both.
+- **Credentials belong in Rust and never cross the IPC boundary.** The constraint the whole
+  domain was reshaped around, and it is met. OAuth is Rust's — the `state`, the PKCE
+  verifier, the code exchange, and token refresh never leave the process — and the two
+  commands that used to hand the web layer a client secret and a refresh token are gone
+  rather than quietened, along with every command that exposed a step of the protocol
+  instead of an outcome. What a caller can ask for is what it can be told.
 - **Every Drive request is issued by Rust.** `DriveTransport` attaches the bearer
   credential, retries, and maps a refusal onto the typed error; `DriveFiles` is every
   operation issued over it — listing, upload, download, delete, the folder, manifest, and
   head resolutions built from them, and the read of the account the token belongs to. That
   last one acts on no file, and it lives there anyway: what makes the boundary is being a
   request this application issues, not the kind of thing it names, and a second
-  request-issuing type would divide the surface a caller has to hold. Linking, unlinking,
-  the syncs this application schedules for itself, inspecting what the remote holds, and
-  settling a conflict all reach it; only the sync that follows a link still issues its own
-  requests from TypeScript, until #118 finishes moving it.
+  request-issuing type would divide the surface a caller has to hold. Every flow reaches it
+  — linking, unlinking, the syncs this application schedules for itself, the sync that
+  follows a link, inspecting what the remote holds, and settling a conflict — and no Drive
+  request is issued anywhere else.
 - **A flow is one command, and the interface observes it rather than sequencing it.** The
   caller asks for a link and gets back what the remote's contents make possible; it does
   not open a session, poll it, redeem a code, and hold the pieces in between. A flow
@@ -73,9 +73,8 @@ save never evicts the copy taken before an update.
   are the web layer's and reached through its own API, so a pull replaces the database and
   the caller recomputes afterwards. That is the whole residue of the coarse boundary where
   a flow has been moved: a caller of one resolves no folder, reads no manifest, and chooses
-  no direction, and still owns the derivation. The one path #118 has not reached yet — the
-  sync following a link — does all three in TypeScript, which is what makes it the
-  remainder rather than an exception to this.
+  no direction, and still owns the derivation. There is no longer a path that does those
+  three in TypeScript; recomputation is the whole of what stayed.
 - **Serialising this application's own sync requests is the caller's, refusing a second one
   is the lock's.** The lock answers a concurrent operation by refusing, which is right for
   work that must not overlap and wrong for a user pressing Sync while an automatic one

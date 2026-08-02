@@ -86,64 +86,6 @@ export type RemoteSyncState = {
 	deviceId: string;
 };
 
-export type GoogleDriveLinkSessionStatus = 'pending' | 'completed' | 'error' | 'cancelled';
-
-export type GoogleDriveConfig = {
-	clientId: string | null;
-	clientSecret: string | null;
-	authorizeEndpoint: string;
-	tokenEndpoint: string;
-	driveApiBaseUrl: string;
-	scopes: string[];
-};
-
-export type GoogleDriveLinkSessionStart = {
-	sessionId: string;
-	authorizationUrl: string;
-};
-
-export type GoogleDriveLinkSessionResult = {
-	sessionId: string;
-	status: GoogleDriveLinkSessionStatus;
-	error: string | null;
-};
-
-/**
- * an access token for the drive calls still made from here. the refresh
- * happens in rust, so this path never carries a refresh token — other commands
- * on this surface still do, until #118 withdraws them.
- */
-export type GoogleDriveAccessToken = {
-	accessToken: string;
-};
-
-export type GoogleDriveLinkCompleteInput = {
-	sessionId: string;
-	email: string;
-	displayName: string;
-	avatarUrl?: string | null;
-	providerUserId?: string | null;
-	driveQuotaBytes?: number | null;
-	driveUsageBytes?: number | null;
-	appUsageBytes?: number | null;
-};
-
-export type GoogleDriveAccountUpdateInput = {
-	accountId: string;
-	email?: string | null;
-	displayName?: string | null;
-	avatarUrl?: string | null;
-	providerUserId?: string | null;
-	driveQuotaBytes?: number | null;
-	driveUsageBytes?: number | null;
-	appUsageBytes?: number | null;
-	accessToken?: string | null;
-	refreshToken?: string | null;
-	tokenExpiresAt?: number | null;
-	status?: RemoteSyncAccountStatus | null;
-	error?: string | null;
-};
-
 export type GoogleDriveConflictKind = 'link' | 'sync' | 'corrupt' | 'relink';
 
 /** which side of a conflict the user chose. */
@@ -195,61 +137,6 @@ export type GoogleDriveSyncOutcome = {
 export type GoogleDriveLinkPhase = 'authorizing' | 'finalizing';
 
 const GOOGLE_DRIVE_LINK_PHASE_EVENT = 'rentable:google-drive-link-phase';
-
-export type GoogleDrivePreparedPush = {
-	workspaceId: string;
-	accountId: string;
-	filename: string;
-	createdAt: number;
-	source: 'manual' | 'autosave';
-	appVersion: string;
-	contentsBase64: string;
-	contentHash: string;
-};
-
-export type GoogleDriveLocalFingerprint = {
-	contentHash: string;
-};
-
-export type GoogleDriveSyncLockLease = {
-	leaseId: string;
-};
-
-export type GoogleDrivePreparePushInput = {
-	manual?: boolean;
-};
-
-export type GoogleDriveSyncCompleteInput = {
-	workspaceId: string;
-	workspaceName?: string | null;
-	accountId: string;
-	remoteFolderId: string;
-	remoteManifestFileId: string;
-	remoteHeadFileId: string;
-	remoteHeadRevision: string;
-	remoteUpdatedAt: number;
-	driveQuotaBytes?: number | null;
-	driveUsageBytes?: number | null;
-	appUsageBytes?: number | null;
-};
-
-export type GoogleDriveApplyPullInput = {
-	workspaceId: string;
-	workspaceName?: string | null;
-	accountId: string;
-	filename: string;
-	appVersion: string;
-	contentsBase64: string;
-	contentHash?: string | null;
-	remoteFolderId: string;
-	remoteManifestFileId: string;
-	remoteHeadFileId: string;
-	remoteHeadRevision: string;
-	remoteUpdatedAt: number;
-	driveQuotaBytes?: number | null;
-	driveUsageBytes?: number | null;
-	appUsageBytes?: number | null;
-};
 
 export type Recovery = {
 	targetVersion: string;
@@ -364,41 +251,7 @@ export const tauri = {
 			onLinkPhase: (listener: (phase: GoogleDriveLinkPhase) => void) =>
 				listen<GoogleDriveLinkPhase>(GOOGLE_DRIVE_LINK_PHASE_EVENT, (event) =>
 					listener(event.payload)
-				),
-			getConfig: () => invoke<GoogleDriveConfig>('remote_sync_google_drive_config_get'),
-			beginLink: () => invoke<GoogleDriveLinkSessionStart>('remote_sync_google_drive_begin_link'),
-			getLinkResult: (input: { sessionId: string }) =>
-				invoke<GoogleDriveLinkSessionResult>('remote_sync_google_drive_get_link_result', {
-					input
-				}),
-			exchangeLinkCode: (input: { sessionId: string }) =>
-				invoke<GoogleDriveAccessToken>('remote_sync_google_drive_exchange_link_code', {
-					input
-				}),
-			ensureAccessToken: (input: { accountId: string }) =>
-				invoke<GoogleDriveAccessToken>('remote_sync_google_drive_ensure_access_token', {
-					input
-				}),
-			cancelLink: (input: { sessionId: string }) =>
-				invoke<void>('remote_sync_google_drive_cancel_link', { input }),
-			completeLink: (input: GoogleDriveLinkCompleteInput) =>
-				invoke<RemoteSyncState>('remote_sync_google_drive_complete_link', { input }),
-			updateAccount: (input: GoogleDriveAccountUpdateInput) =>
-				invoke<RemoteSyncState>('remote_sync_google_drive_update_account', { input }),
-			disconnectAccount: (input: { accountId: string }) =>
-				invoke<RemoteSyncState>('remote_sync_google_drive_disconnect_account', { input }),
-			acquireLock: (input: { workspaceId: string }) =>
-				invoke<GoogleDriveSyncLockLease>('remote_sync_google_drive_acquire_lock', { input }),
-			releaseLock: (input: { leaseId: string }) =>
-				invoke<void>('remote_sync_google_drive_release_lock', { input }),
-			getLocalFingerprint: () =>
-				invoke<GoogleDriveLocalFingerprint>('remote_sync_google_drive_get_local_fingerprint'),
-			preparePush: (input?: GoogleDrivePreparePushInput) =>
-				invoke<GoogleDrivePreparedPush>('remote_sync_google_drive_prepare_push', { input }),
-			markSynced: (input: GoogleDriveSyncCompleteInput) =>
-				invoke<RemoteSyncState>('remote_sync_google_drive_mark_synced', { input }),
-			applyPull: (input: GoogleDriveApplyPullInput) =>
-				invoke<RemoteSyncState>('remote_sync_google_drive_apply_pull', { input })
+				)
 		}
 	}
 };

@@ -4,29 +4,16 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
-use crate::backup::BackupSource;
-
 use super::metadata::{
     DriveFile, GoogleDriveSnapshotSource, parse_drive_snapshot_created_at, parse_drive_timestamp,
     try_parse_drive_snapshot_source,
 };
-use super::transport::GoogleDrivePreparePushInput;
 
 /// a snapshot a cleanup keeps, paired with the source it was kept for.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GoogleDriveRetainedSnapshot {
     pub file: DriveFile,
     pub source: GoogleDriveSnapshotSource,
-}
-
-pub(crate) fn google_drive_push_snapshot_source(
-    input: Option<&GoogleDrivePreparePushInput>,
-) -> BackupSource {
-    if input.map(|entry| entry.manual).unwrap_or(false) {
-        BackupSource::Manual
-    } else {
-        BackupSource::Autosave
-    }
 }
 
 /// the newest snapshot of each source, which is the whole remote retention
@@ -122,29 +109,6 @@ pub fn compare_drive_files_by_snapshot_recency(left: &DriveFile, right: &DriveFi
 
 #[cfg(test)]
 mod tests {
-    use super::{GoogleDrivePreparePushInput, google_drive_push_snapshot_source};
-    use crate::backup::BackupSource;
-
-    #[test]
-    fn manual_prepare_push_uses_manual_source() {
-        assert_eq!(
-            google_drive_push_snapshot_source(Some(&GoogleDrivePreparePushInput { manual: true })),
-            BackupSource::Manual
-        );
-    }
-
-    #[test]
-    fn automatic_prepare_push_defaults_to_autosave() {
-        assert_eq!(
-            google_drive_push_snapshot_source(None),
-            BackupSource::Autosave
-        );
-        assert_eq!(
-            google_drive_push_snapshot_source(Some(&GoogleDrivePreparePushInput { manual: false })),
-            BackupSource::Autosave
-        );
-    }
-
     use std::collections::HashMap;
 
     use super::{

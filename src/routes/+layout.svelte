@@ -6,14 +6,14 @@
 		type Recovery,
 		type RemoteSyncState
 	} from '$lib/api/tauri';
-	import { resolveGoogleDriveLink } from '$lib/api/utils/remote-sync-google-drive';
 	import { startGoogleDriveAutosyncManager } from '$lib/api/utils/remote-sync-google-drive-autosync';
 	import {
 		getWorkspaceFromSyncState,
 		inspectWorkspaceSyncState,
 		shouldChooseWorkspaceMode,
 		syncWorkspaceBeforeExit,
-		syncWorkspaceNow
+		syncWorkspaceNow,
+		syncWorkspaceRemoteNow
 	} from '$lib/api/utils/workspace-sync';
 	import { TooltipProvider } from '$lib/common/components/fragments/tooltip';
 	import { LinkSession } from '$lib/resources/sync/link-session.svelte';
@@ -61,8 +61,8 @@
 			startupState = 'choose-workspace';
 			await api.app.window.show();
 		},
-		resolve: async (preparation) => {
-			const result = await resolveGoogleDriveLink(preparation);
+		resolve: async () => {
+			const result = await syncWorkspaceRemoteNow();
 			startupRemoteSync = result.state;
 			pendingConflict.clear();
 			await continueStartup(true);

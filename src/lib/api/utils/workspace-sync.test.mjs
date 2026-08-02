@@ -48,15 +48,6 @@ mock.module('$lib/api/tauri', {
 	}
 });
 
-mock.module('$lib/api/utils/remote-sync-google-drive', {
-	exports: {
-		inspectGoogleDriveSyncState: async () => {
-			calls.push('inspect');
-			return null;
-		}
-	}
-});
-
 const { syncWorkspaceNow, syncWorkspaceBeforeExit } = await import('$lib/api/utils/workspace-sync');
 
 function driveState() {

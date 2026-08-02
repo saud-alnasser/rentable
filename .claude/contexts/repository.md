@@ -30,13 +30,11 @@ stored value is a cache of the derivation and never the authority.
 
 - **There is no server.** The API layer is a direct caller executing in the webview. The
   only process boundary it crosses is Tauri's IPC into Rust — never HTTP.
-- **Credentials never cross the IPC boundary.** Google Drive HTTP and OAuth belong in Rust.
-  OAuth is there, and so are the Drive transport and every operation over it. Linking and
-  unlinking run there whole, and so does every sync this application schedules for itself —
-  autosync, the sync button, the last one before exit — and so do the inspection that
-  decides a conflict exists and the resolution that settles one. What is still TypeScript's
-  is the sync that follows a link, still holding the OAuth client secret from its config.
-  That remainder is a known divergence with a ticket (#118).
+- **Credentials never cross the IPC boundary.** Google Drive HTTP and OAuth belong in Rust,
+  and there is no longer a second place they could be: no Drive network code remains in
+  TypeScript, and no command hands the web layer the client secret or a refresh token. The
+  surface is six coarse operations — link, cancel a link, unlink, sync, inspect, resolve a
+  conflict — and the web layer observes them rather than sequencing anything behind them.
   Why the client relocates wholly rather than sitting behind a proxy command:
   [ADR 0003](../decisions/0003-drive-client-relocates-to-rust.md).
 - **Diagnostics are written locally, bounded, and stripped of recognised credentials.**
