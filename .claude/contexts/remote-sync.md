@@ -75,6 +75,13 @@ save never evicts the copy taken before an update.
   two-line construction.
 - **Backup is local, sync is remote, and both produce snapshots.** A change to snapshot
   shape touches both — neither owns the format alone.
+- **The link session has one owner, and it is not a component.** Authorization happens in a
+  browser this application does not control, so a session outstays the screen that started
+  it: a result can arrive for a session the user has already replaced, and cancelling has to
+  settle the remote as well as the local state. Both are easy to get subtly wrong twice,
+  which is what happened. A third entry point consumes that owner rather than sequencing the
+  steps again. The pending _conflict_ is not part of it — it has other sources and outlives
+  any session.
 - **A remote operation holds a lock, and that lock is in-process only.** It is a field on
   the in-memory sync state: acquiring refuses while one is already held, releasing clears
   it. So it serialises operations inside one running application and nothing more — it
