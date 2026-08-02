@@ -210,6 +210,52 @@ test('updating a unit to a name used by another unit in the complex is rejected'
 	);
 });
 
+test('updating a unit to an empty name another unit in the complex holds is rejected', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	const first = await api.complex.units.create({ name: 'A1', complexId: complex.id });
+	const second = await api.complex.units.create({ name: 'A2', complexId: complex.id });
+	await api.complex.units.update({ id: first.id, complexId: complex.id, name: '' });
+
+	await assert.rejects(
+		() => api.complex.units.update({ id: second.id, complexId: complex.id, name: '' }),
+		/name is associated with a unit in the same complex/
+	);
+});
+
+test('updating a unit to a name held in a different complex succeeds', async () => {
+	const api = await createApi();
+	const first = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	const second = await api.complex.create({ name: 'Cedar Court', location: 'Jeddah' });
+	await api.complex.units.create({ name: 'A1', complexId: first.id });
+	const unit = await api.complex.units.create({ name: 'B1', complexId: second.id });
+
+	const updated = await api.complex.units.update({
+		id: unit.id,
+		complexId: second.id,
+		name: 'A1'
+	});
+
+	assert.equal(updated.name, 'A1');
+});
+
+// status is the only other field a unit update can carry, so authoring it is the only way to
+// make an update write without naming the unit. That authored-status path is pinned as wrong
+// above; this test asserts the name and nothing about the status it had to send.
+test('a status-only update succeeds and leaves the unit name intact', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	const unit = await api.complex.units.create({ name: 'A1', complexId: complex.id });
+
+	const updated = await api.complex.units.update({
+		id: unit.id,
+		complexId: complex.id,
+		status: 'occupied'
+	});
+
+	assert.equal(updated.name, 'A1');
+});
+
 test('deleting an unassigned unit removes it', async () => {
 	const api = await createApi();
 	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
