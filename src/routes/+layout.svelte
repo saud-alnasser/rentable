@@ -1,28 +1,21 @@
 <script lang="ts">
 	import api from '$lib/api/mod';
+	import { tauri, type Recovery, type RemoteSyncState } from '$lib/api/tauri';
 	import {
-		tauri,
-		type GoogleDriveLinkPreparation,
-		type Recovery,
-		type RemoteSyncState
-	} from '$lib/api/tauri';
-	import {
-		resetBrokenGoogleDriveWorkspace,
 		resolveGoogleDriveLink,
 		type GoogleDriveLinkResolution
 	} from '$lib/api/utils/remote-sync-google-drive';
-	import { cancelGoogleDriveLink } from '$lib/resources/sync/link';
 	import { startGoogleDriveAutosyncManager } from '$lib/api/utils/remote-sync-google-drive-autosync';
 	import {
 		getWorkspaceFromSyncState,
 		inspectWorkspaceSyncState,
 		shouldChooseWorkspaceMode,
-		shouldDeferWorkspaceConflict,
 		syncWorkspaceBeforeExit,
 		syncWorkspaceNow
 	} from '$lib/api/utils/workspace-sync';
 	import { TooltipProvider } from '$lib/common/components/fragments/tooltip';
 	import { LinkSession } from '$lib/resources/sync/link-session.svelte';
+	import { pendingConflict } from '$lib/resources/sync/pending-conflict.svelte';
 	import SonnerProvider from '$lib/common/components/providers/sonner-provider.svelte';
 	import { toErrorText } from '$lib/error/message';
 	import LL, { locale, setLocale } from '$lib/i18n/i18n-svelte';
@@ -56,27 +49,26 @@
 	let startupError = $state<string | null>(null);
 	let startupRecovery = $state<Recovery | null>(null);
 	let startupRemoteSync = $state<RemoteSyncState | null>(null);
-	let startupLinkPreparation = $state<GoogleDriveLinkPreparation | null>(null);
 	const linkSession = new LinkSession({
 		onState: (state) => {
 			startupRemoteSync = state;
 			queryClient.setQueryData(['settings', 'remote-sync'], state);
 		},
 		onResolutionRequired: async (preparation) => {
-			startupLinkPreparation = preparation;
+			pendingConflict.present(preparation);
 			startupState = 'choose-workspace';
 			await api.app.window.show();
 		},
 		resolve: async (preparation) => {
 			const result = await resolveGoogleDriveLink(preparation);
 			startupRemoteSync = result.state;
-			startupLinkPreparation = null;
+			pendingConflict.clear();
 			await continueStartup(true);
 		},
 		onFailure: async (error) => {
 			startupRecovery = null;
 			startupState = 'choose-workspace';
-			startupLinkPreparation = null;
+			pendingConflict.clear();
 			startupError = getErrorMessage(error);
 			await api.app.window.show();
 		},
@@ -172,8 +164,7 @@
 			const result = await syncWorkspaceNow(startupRemoteSync, { autosaveLocal: true });
 			startupRemoteSync = result.state;
 
-			if (result.preparation) {
-				startupLinkPreparation = result.preparation;
+			if (pendingConflict.present(result.preparation)) {
 				startupState = 'choose-workspace';
 				await api.app.window.show();
 				return;
@@ -194,7 +185,7 @@
 		startupError = null;
 		startupRecovery = null;
 		startupRemoteSync = null;
-		startupLinkPreparation = null;
+		pendingConflict.clear();
 		isHandlingStartupChoice = false;
 
 		try {
@@ -215,8 +206,7 @@
 				if (inspectedLink) {
 					startupRemoteSync = inspectedLink.state;
 
-					if (inspectedLink.requiresResolution) {
-						startupLinkPreparation = inspectedLink;
+					if (pendingConflict.present(inspectedLink)) {
 						startupState = 'choose-workspace';
 						await api.app.window.show();
 						return;
@@ -250,7 +240,7 @@
 
 		try {
 			await linkSession.cancel();
-			startupLinkPreparation = null;
+			pendingConflict.clear();
 			await continueStartup();
 		} catch (error) {
 			startupRecovery = null;
@@ -263,7 +253,7 @@
 	}
 
 	async function resolveStartupLink(resolution: GoogleDriveLinkResolution) {
-		if (!startupLinkPreparation || isHandlingStartupChoice) {
+		if (isHandlingStartupChoice) {
 			return;
 		}
 
@@ -271,9 +261,13 @@
 		startupError = null;
 
 		try {
-			const result = await resolveGoogleDriveLink(startupLinkPreparation, resolution);
+			const result = await pendingConflict.resolve(resolution);
+
+			if (!result) {
+				return;
+			}
+
 			startupRemoteSync = result.state;
-			startupLinkPreparation = null;
 			await continueStartup(true);
 		} catch (error) {
 			startupRecovery = null;
@@ -297,7 +291,7 @@
 			return;
 		}
 
-		if (!startupLinkPreparation || isHandlingStartupChoice) {
+		if (isHandlingStartupChoice) {
 			return;
 		}
 
@@ -305,14 +299,18 @@
 		startupError = null;
 
 		try {
-			if (shouldDeferWorkspaceConflict(startupLinkPreparation)) {
-				startupLinkPreparation = null;
+			const dismissal = await pendingConflict.dismiss();
+
+			if (!dismissal) {
+				return;
+			}
+
+			if (dismissal.deferred) {
 				await continueStartup(true);
 				return;
 			}
 
-			startupRemoteSync = await cancelGoogleDriveLink();
-			startupLinkPreparation = null;
+			startupRemoteSync = dismissal.state;
 			startupState = 'choose-workspace';
 			await api.app.window.show();
 		} catch (error) {
@@ -326,7 +324,7 @@
 	}
 
 	async function relinkBrokenGoogleDriveAtStartup() {
-		if (startupLinkPreparation?.conflict?.kind !== 'relink' || isHandlingStartupChoice) {
+		if (isHandlingStartupChoice) {
 			return;
 		}
 
@@ -334,10 +332,15 @@
 		startupError = null;
 
 		try {
-			startupRemoteSync = await resetBrokenGoogleDriveWorkspace(startupLinkPreparation.state);
+			const state = await pendingConflict.relink();
+
+			if (!state) {
+				return;
+			}
+
+			startupRemoteSync = state;
 			queryClient.setQueryData(['settings', 'remote-sync'], startupRemoteSync);
-			startupLinkPreparation = null;
-			await linkSession.begin();
+			linkSession.begin();
 			startupState = 'choose-workspace';
 			await api.app.window.show();
 		} catch (error) {
@@ -362,7 +365,10 @@
 		}
 
 		startupError = null;
-		startupLinkPreparation = null;
+
+		// the user asked to link, so an answer they waved away earlier is not the answer to this.
+		pendingConflict.forget();
+		pendingConflict.clear();
 		linkSession.begin();
 	}
 
@@ -449,11 +455,11 @@
 					{:else if startupState === 'choose-workspace' && startupRemoteSync}
 						<LayoutStartupWorkspaceChoice
 							syncState={startupRemoteSync}
-							isWorking={isHandlingStartupChoice}
+							isWorking={isHandlingStartupChoice || pendingConflict.isWorking}
 							isLinkingGoogleDrive={linkSession.isLinking}
 							isFinalizingGoogleDriveLink={linkSession.isFinalizing}
 							errorMessage={startupError}
-							linkConflict={startupLinkPreparation?.conflict ?? null}
+							linkConflict={pendingConflict.conflict}
 							onOpenLocal={() => void openLocalWorkspace()}
 							onLinkGoogleDrive={() => void linkGoogleDriveAtStartup()}
 							onCancelGoogleDriveLink={() => void cancelStartupLinkConflict()}

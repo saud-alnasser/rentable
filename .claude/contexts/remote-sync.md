@@ -137,6 +137,15 @@ save never evicts the copy taken before an update.
   — a host that can disappear mid-session cancels one, so a screen that starts a link stays
   rendered while a link is possible. The pending _conflict_ is not part of it: it has other
   sources and outlives any session.
+- **The pending conflict has one owner, and its lifetime is the application's.** Three things
+  raise one — a link the two sides disagree about, an inspection at startup, and a sync that
+  cannot proceed on its own — and every screen that can present one presents that same one,
+  so resolving, dismissing, and relinking are each written once. **Dismissal is remembered
+  against the state the conflict describes**, not against the conflict, and that memory is
+  the owner's: a question the user waved away is not asked again until the thing it was
+  about has moved, on whichever screen they are on next. What the user does deliberately
+  reopens it — pressing Link or Sync asks about now. What each host does _around_ the
+  conflict stays its own, so the owner returns outcomes rather than driving anybody's screen.
 - **A remote operation holds a lock, and that lock is in-process only.** It is a field on
   the in-memory sync state: acquiring refuses while one is already held, releasing clears
   it. So it serialises operations inside one running application and nothing more — it

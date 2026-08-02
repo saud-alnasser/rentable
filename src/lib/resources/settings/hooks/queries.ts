@@ -1,14 +1,14 @@
 import api from '$lib/api/mod';
 import { tauri, type GoogleDriveLinkPreparation, type RemoteSyncState } from '$lib/api/tauri';
 import {
-	resetBrokenGoogleDriveWorkspace,
 	resolveGoogleDriveLink,
 	syncActiveGoogleDriveProfile,
 	type GoogleDriveLinkResolution,
 	type GoogleDriveSyncMode,
 	type GoogleDriveSyncResult
 } from '$lib/api/utils/remote-sync-google-drive';
-import { cancelGoogleDriveLink, unlinkGoogleDriveWorkspace } from '$lib/resources/sync/link';
+import { unlinkGoogleDriveWorkspace } from '$lib/resources/sync/link';
+import { pendingConflict } from '$lib/resources/sync/pending-conflict.svelte';
 import {
 	inspectWorkspaceSyncState,
 	syncWorkspaceBeforeExit,
@@ -239,20 +239,6 @@ export function useInspectWorkspaceSyncState(opts: MutationOptions = {}) {
 	}));
 }
 
-/** clear a workspace whose remote link no longer works, so it can be linked again. */
-export function useResetBrokenGoogleDriveWorkspace(opts: MutationOptions = {}) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (state: RemoteSyncState) => resetBrokenGoogleDriveWorkspace(state),
-		onSuccess: (nextState) => {
-			client.setQueryData(keys.remoteSync, nextState);
-			onMutationSuccess(opts);
-		},
-		onError: (e: Error) => onMutationError(opts, e)
-	}));
-}
-
 export function useResolveGoogleDriveLink(
 	opts: MutationOptions = {
 		toast: {
@@ -293,17 +279,87 @@ export function useResolveGoogleDriveLink(
 	}));
 }
 
-export function useCancelGoogleDriveLink(opts: MutationOptions = {}) {
+/** settle the conflict waiting on the user, the way they chose. */
+export function useResolvePendingConflict(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).settingsHooks.googleDriveLinked(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: () => cancelGoogleDriveLink(),
-		onSuccess: async (state) => {
-			client.setQueryData(keys.remoteSync, state);
-			await invalidateSettingsAndAppData(client);
+		mutationFn: (resolution: GoogleDriveLinkResolution) => pendingConflict.resolve(resolution),
+		onSuccess: async (result) => {
+			if (!result) {
+				return;
+			}
+
+			client.setQueryData(keys.remoteSync, result.state);
+
+			if (result.action === 'pulled') {
+				await invalidateSettingsAndAppData(client);
+			} else {
+				await Promise.all([
+					client.invalidateQueries({ queryKey: keys.remoteSync }),
+					client.invalidateQueries({ queryKey: keys.backups })
+				]);
+			}
+
+			onMutationSuccess(opts);
+		},
+		onError: async (e) => {
+			await client.invalidateQueries({ queryKey: keys.remoteSync });
+			onMutationError(opts, e);
+		}
+	}));
+}
+
+/**
+ * set the conflict aside, undoing the link where there is one to undo. The state being set
+ * aside is remembered, so the same question is not asked again until it changes.
+ */
+export function useDismissPendingConflict(opts: MutationOptions = {}) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: () => pendingConflict.dismiss(),
+		onSuccess: async (dismissal) => {
+			if (dismissal && !dismissal.deferred && dismissal.state) {
+				client.setQueryData(keys.remoteSync, dismissal.state);
+				await invalidateSettingsAndAppData(client);
+			}
+
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** clear a workspace whose remote link no longer works, so it can be linked again. */
+export function useRelinkPendingConflict(
+	opts: MutationOptions = {
+		toast: {
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: () => pendingConflict.relink(),
+		onSuccess: (state) => {
+			if (state) {
+				client.setQueryData(keys.remoteSync, state);
+			}
+
+			onMutationSuccess(opts);
+		},
+		onError: (e: Error) => onMutationError(opts, e)
 	}));
 }
 
