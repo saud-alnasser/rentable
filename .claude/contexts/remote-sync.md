@@ -51,6 +51,11 @@ save never evicts the copy taken before an update.
   caller: no Tauri command reaches either, so the requests that actually run are the
   TypeScript client's until #118. A Rust Drive layer with no caller is the expected state
   here, not dead code.
+- **The ported Drive logic decides from values, never from the machine.** Conflict
+  analysis, manifest reconciliation, and retention selection issue no request and read no
+  file, setting, or database — which is what lets each be exercised by calling it. A
+  decision needing local state takes it as an argument; the reads that produce it live
+  outside that layer, beside the command surface.
 - **A 403 from Drive is ambiguous, and the sentence is the only thing that resolves it.**
   Drive refuses "you may not" and "this app was never granted this file" with the same
   status and no machine-readable reason, so a single-file read matches the prose to tell

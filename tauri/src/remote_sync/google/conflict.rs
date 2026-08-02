@@ -11,9 +11,7 @@ use sha2::{Digest, Sha256};
 
 use serde::{Deserialize, Serialize};
 
-use std::fs;
-
-use crate::{error::Error, state::AppState, timestamp};
+use crate::error::Error;
 
 use super::super::store::RemoteSyncWorkspace;
 use super::manifest::{GoogleDriveManifest, GoogleDriveManifestEntry};
@@ -374,45 +372,4 @@ pub(crate) fn validate_google_drive_pull_content_hash(
     }
 
     Ok(())
-}
-
-pub(crate) async fn current_workspace_content_hash(app_state: &AppState) -> Result<String, Error> {
-    let temp_path = {
-        let settings = app_state.settings.read().await;
-        settings.backup_dir.join(format!(
-            ".workspace-fingerprint-{}-{}.db",
-            timestamp::now(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|duration| duration.as_nanos())
-                .unwrap_or_default()
-        ))
-    };
-
-    {
-        let mut db = app_state.db.write().await;
-
-        if !db.is_ready().await {
-            db.reconnect()
-                .await
-                .map_err(|error| Error::PreconditionFailed {
-                    message: format!(
-                        "database not ready to fingerprint current workspace: {error}"
-                    ),
-                })?;
-        }
-
-        if !db.is_ready().await {
-            return Err(Error::PreconditionFailed {
-                message: "database not ready to fingerprint current workspace".to_string(),
-            });
-        }
-
-        db.create_backup(&temp_path).await?;
-    }
-
-    let bytes = fs::read(&temp_path).map_err(Error::from);
-    let _ = fs::remove_file(&temp_path);
-
-    Ok(content_hash_hex(&bytes?))
 }
