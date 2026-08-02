@@ -64,6 +64,7 @@ const en = {
 
 		errors: {
 			busy: 'another operation is already running.',
+			cancelled: 'the operation was cancelled.',
 			credential: 'the saved credentials could not be used.',
 			database: 'the database could not complete the request.',
 			forbidden: 'this action is not allowed.',

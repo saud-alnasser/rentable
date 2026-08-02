@@ -1,15 +1,13 @@
 <script lang="ts">
 	import type {
+		GoogleDriveLinkConflict,
+		GoogleDriveLinkPreparation,
 		RemoteSyncAccount,
 		RemoteSyncProvider,
 		RemoteSyncState,
 		RemoteSyncWorkspace
 	} from '$lib/api/tauri';
-	import type {
-		GoogleDriveLinkConflict,
-		GoogleDriveLinkPreparation,
-		GoogleDriveLinkResolution
-	} from '$lib/api/utils/remote-sync-google-drive';
+	import type { GoogleDriveLinkResolution } from '$lib/api/utils/remote-sync-google-drive';
 	import { shouldDeferWorkspaceConflict } from '$lib/api/utils/workspace-sync';
 	import {
 		AlertDialog,
@@ -166,7 +164,7 @@
 		}
 
 		if (
-			linkSession.session !== null ||
+			linkSession.isLinking ||
 			resolveGoogleDriveLinkMutation.isPending ||
 			cancelGoogleDriveLinkMutation.isPending ||
 			syncGoogleDriveWorkspaceMutation.isPending ||
@@ -243,18 +241,14 @@
 			return;
 		}
 
-		if (linkSession.session) {
+		if (linkSession.isAuthorizing) {
 			await linkSession.cancel();
 			return;
 		}
 
-		try {
-			lastDismissedSyncConflictSignature = null;
-			pendingGoogleDriveLink = null;
-			await linkSession.begin();
-		} catch (error) {
-			showErrorToast(error, $LL);
-		}
+		lastDismissedSyncConflictSignature = null;
+		pendingGoogleDriveLink = null;
+		linkSession.begin();
 	}
 
 	async function resolvePendingGoogleDriveLink(resolution: GoogleDriveLinkResolution) {
@@ -279,7 +273,7 @@
 			return;
 		}
 
-		if (linkSession.session) {
+		if (linkSession.isAuthorizing) {
 			await linkSession.cancel();
 			return;
 		}
@@ -295,7 +289,7 @@
 				return;
 			}
 
-			await cancelGoogleDriveLinkMutation.mutateAsync({ preparation: pendingGoogleDriveLink });
+			await cancelGoogleDriveLinkMutation.mutateAsync();
 			pendingGoogleDriveLink = null;
 		} catch {
 			/* ignore */
@@ -311,7 +305,7 @@
 			lastDismissedSyncConflictSignature = null;
 			await resetBrokenGoogleDriveWorkspaceMutation.mutateAsync(pendingGoogleDriveLink.state);
 			pendingGoogleDriveLink = null;
-			await linkSession.begin();
+			linkSession.begin();
 		} catch (error) {
 			showErrorToast(error, $LL);
 		}

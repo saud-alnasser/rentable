@@ -2,8 +2,9 @@ import api from '$lib/api/mod';
 import {
 	tauri,
 	type GoogleDriveConfig,
-	type GoogleDriveLinkSessionResult,
-	type GoogleDriveLinkSessionStart,
+	type GoogleDriveConflictKind,
+	type GoogleDriveLinkConflict,
+	type GoogleDriveLinkPreparation,
 	type GoogleDriveSyncLockLease,
 	type RemoteSyncAccount,
 	type RemoteSyncState,
@@ -22,26 +23,7 @@ export type GoogleDriveSyncMode = 'sync' | 'push' | 'pull';
 type GoogleDriveSyncAction = 'none' | 'pushed' | 'pulled';
 
 export type GoogleDriveLinkResolution = 'local' | 'remote';
-export type GoogleDriveConflictKind = 'link' | 'sync' | 'corrupt' | 'relink';
 type GoogleDriveSnapshotSource = 'manual' | 'autosave';
-
-export type GoogleDriveLinkConflict = {
-	kind: GoogleDriveConflictKind;
-	accountEmail: string;
-	localSnapshotAt: number | null;
-	remoteUpdatedAt: number | null;
-	remoteFilename: string | null;
-	message?: string;
-};
-
-export type GoogleDriveLinkPreparation = {
-	state: RemoteSyncState;
-	requiresResolution: boolean;
-	recommendedMode: Extract<GoogleDriveSyncMode, 'push' | 'pull'>;
-	conflict: GoogleDriveLinkConflict | null;
-};
-
-export type GoogleDrivePendingLinkSession = GoogleDriveLinkSessionStart;
 
 type DriveFile = {
 	id: string;
@@ -134,11 +116,6 @@ type GoogleDriveRemoteEnvironment = {
 	shouldBootstrapWithAutosave: boolean;
 };
 
-type GoogleDriveLinkSessionOptions = {
-	signal?: AbortSignal;
-	onResult?: (result: GoogleDriveLinkSessionResult) => void;
-};
-
 export type GoogleDriveSyncResult = {
 	state: RemoteSyncState;
 	action: GoogleDriveSyncAction;
@@ -149,13 +126,6 @@ let googleDriveOperationQueue: Promise<void> = Promise.resolve();
 type GoogleDriveResolvableConflictKind = Exclude<GoogleDriveConflictKind, 'corrupt' | 'relink'>;
 
 class GoogleDriveStaleRemoteStateError extends Error {}
-
-export class GoogleDriveLinkCancelledError extends Error {
-	constructor() {
-		super(toMessage(getGoogleDriveTranslations().common.actions.cancel()));
-		this.name = 'GoogleDriveLinkCancelledError';
-	}
-}
 
 class GoogleDriveRemoteCorruptionError extends Error {
 	constructor(message = toMessage(getGoogleDriveTranslations().settings.syncCorruptDescription())) {
@@ -226,10 +196,6 @@ export function getGoogleDriveSyncErrorMessage(error: unknown) {
 	return toErrorText(error, getGoogleDriveTranslations());
 }
 
-export function isGoogleDriveLinkCancelledError(error: unknown) {
-	return error instanceof GoogleDriveLinkCancelledError;
-}
-
 export function shouldRetryGoogleDriveAutosync(error: unknown) {
 	return !(
 		error instanceof GoogleDriveResolutionRequiredError ||
@@ -274,23 +240,6 @@ async function withGoogleDriveSyncLease<T>(workspaceId: string, task: () => Prom
 
 async function releaseGoogleDriveSyncLease(lease: GoogleDriveSyncLockLease) {
 	await tauri.remoteSync.googleDrive.releaseLock({ leaseId: lease.leaseId });
-}
-
-export async function prepareGoogleDriveLink(): Promise<GoogleDriveLinkPreparation> {
-	const session = await startGoogleDriveLinkSession();
-
-	try {
-		return await finishGoogleDriveLinkSession(session);
-	} catch (error) {
-		await cancelGoogleDrivePendingLinkSession(session).catch(() => undefined);
-		throw error;
-	}
-}
-
-export async function inspectGoogleDriveLinkState(
-	syncState: RemoteSyncState
-): Promise<GoogleDriveLinkPreparation> {
-	return await inspectGoogleDriveResolutionState(syncState);
 }
 
 export async function inspectGoogleDriveSyncState(
@@ -405,138 +354,8 @@ export async function resolveGoogleDriveLink(
 	return await syncActiveGoogleDriveProfile(mode, preparation.state);
 }
 
-export async function cancelGoogleDriveLink(preparation: GoogleDriveLinkPreparation) {
-	const target = getActiveGoogleDriveTarget(preparation.state);
-
-	if (!target) {
-		return preparation.state;
-	}
-
-	const nextState = await disconnectGoogleDriveAccount(target.account.id);
-	await api.app.state.reconcile();
-
-	return nextState;
-}
-
-export async function startGoogleDriveLinkSession(): Promise<GoogleDrivePendingLinkSession> {
-	const config = await tauri.remoteSync.googleDrive.getConfig();
-
-	if (!config.clientId?.trim()) {
-		throw new Error(toMessage(getGoogleDriveTranslations().settings.syncGoogleDrivePending()));
-	}
-
-	const session = await tauri.remoteSync.googleDrive.beginLink();
-
-	try {
-		await tauri.opener.openUrl(session.authorizationUrl);
-	} catch (error) {
-		await tauri.remoteSync.googleDrive
-			.cancelLink({ sessionId: session.sessionId })
-			.catch(() => undefined);
-		throw error;
-	}
-
-	return session;
-}
-
-export async function finishGoogleDriveLinkSession(
-	session: GoogleDrivePendingLinkSession,
-	options?: GoogleDriveLinkSessionOptions
-): Promise<GoogleDriveLinkPreparation> {
-	const config = await tauri.remoteSync.googleDrive.getConfig();
-	const linkedState = await linkGoogleDriveAccount(session, config, options);
-	return await inspectGoogleDriveLinkState(linkedState);
-}
-
-export async function cancelGoogleDrivePendingLinkSession(
-	session: Pick<GoogleDrivePendingLinkSession, 'sessionId'>
-) {
-	await tauri.remoteSync.googleDrive.cancelLink({ sessionId: session.sessionId });
-}
-
-async function linkGoogleDriveAccount(
-	session: GoogleDrivePendingLinkSession,
-	config: GoogleDriveConfig,
-	options?: GoogleDriveLinkSessionOptions
-): Promise<RemoteSyncState> {
-	const result = await waitForLinkResult(session.sessionId, options);
-	throwIfGoogleDriveLinkCancelled(options?.signal);
-
-	if (result.status !== 'completed') {
-		if (result.status === 'cancelled') {
-			throw new GoogleDriveLinkCancelledError();
-		}
-
-		if (result.error === 'access_denied') {
-			throw new GoogleDriveLinkCancelledError();
-		}
-
-		// the link session reports failure as prose on a *success* payload, so
-		// there is no code to branch on here. #119 gives the flow one owner and
-		// closes the last text branch; `access_denied` above is google's own
-		// oauth code and stays either way.
-		if (result.error === 'GOOGLE_DRIVE_LINK_TIMED_OUT') {
-			throw new Error(
-				toMessage(getGoogleDriveTranslations().settings.syncLinkTimedOutDescription())
-			);
-		}
-
-		throw new Error(
-			result.error ?? toMessage(getGoogleDriveTranslations().common.messages.unexpectedError())
-		);
-	}
-
-	const { accessToken } = await tauri.remoteSync.googleDrive.exchangeLinkCode({
-		sessionId: session.sessionId
-	});
-	const about = await fetchGoogleDriveAbout(config, accessToken);
-	throwIfGoogleDriveLinkCancelled(options?.signal);
-
-	return tauri.remoteSync.googleDrive.completeLink({
-		sessionId: session.sessionId,
-		email: about.user?.emailAddress?.trim() || '',
-		displayName: about.user?.displayName?.trim() || about.user?.emailAddress?.trim() || '',
-		avatarUrl: about.user?.photoLink ?? null,
-		providerUserId: about.user?.permissionId ?? null,
-		driveQuotaBytes: parseDriveNumber(about.storageQuota?.limit),
-		driveUsageBytes: parseDriveNumber(about.storageQuota?.usage),
-		appUsageBytes: 0
-	});
-}
-
-function throwIfGoogleDriveLinkCancelled(signal?: AbortSignal) {
-	if (signal?.aborted) {
-		throw new GoogleDriveLinkCancelledError();
-	}
-}
-
 export async function disconnectGoogleDriveAccount(accountId: string): Promise<RemoteSyncState> {
 	return tauri.remoteSync.googleDrive.disconnectAccount({ accountId });
-}
-
-export async function unlinkActiveGoogleDriveWorkspace(
-	providedState?: RemoteSyncState | null
-): Promise<RemoteSyncState> {
-	return await enqueueGoogleDriveOperation(async () => {
-		await api.app.state.reconcile();
-
-		const syncState = providedState ?? (await tauri.remoteSync.getState());
-		const target = getActiveGoogleDriveTarget(syncState);
-
-		if (!target) {
-			throw createGoogleDriveNotLinkedError();
-		}
-
-		return await withGoogleDriveSyncLease(target.workspace.id, async () => {
-			const snapshotState = await tauri.remoteSync.autosaveNow();
-			await keepSingleFreshAutosaveSnapshot(snapshotState);
-
-			const nextState = await disconnectGoogleDriveAccount(target.account.id);
-			await api.app.state.reconcile();
-
-			return nextState;
-		});
-	});
 }
 
 export async function resetBrokenGoogleDriveWorkspace(
@@ -1511,7 +1330,7 @@ function createConflictState(
 		localSnapshotAt: target.workspace.lastSnapshotAt,
 		remoteUpdatedAt: overrides.remoteUpdatedAt ?? manifest?.metadata.updatedAt ?? null,
 		remoteFilename: overrides.remoteFilename ?? manifest?.head?.filename ?? null,
-		...(message ? { message } : {})
+		message: message ?? null
 	};
 }
 
@@ -1739,48 +1558,6 @@ function normalizeContentHash(value: string | null | undefined) {
 function isCryptographicContentHash(value: string | null | undefined) {
 	const normalized = normalizeContentHash(value);
 	return Boolean(normalized && /^[0-9a-f]{64}$/i.test(normalized));
-}
-
-async function waitForLinkResult(sessionId: string, options?: GoogleDriveLinkSessionOptions) {
-	const startedAt = Date.now();
-
-	while (Date.now() - startedAt < 5 * 60_000) {
-		if (options?.signal?.aborted) {
-			throw new GoogleDriveLinkCancelledError();
-		}
-
-		const result = await tauri.remoteSync.googleDrive.getLinkResult({ sessionId });
-		if (result.status !== 'pending') {
-			options?.onResult?.(result);
-			return result;
-		}
-
-		await waitForGoogleDriveLinkPoll(options?.signal);
-	}
-
-	await tauri.remoteSync.googleDrive.cancelLink({ sessionId }).catch(() => undefined);
-	throw new Error(toMessage(getGoogleDriveTranslations().settings.syncLinkTimedOutDescription()));
-}
-
-async function waitForGoogleDriveLinkPoll(signal?: AbortSignal) {
-	if (signal?.aborted) {
-		throw new GoogleDriveLinkCancelledError();
-	}
-
-	await new Promise<void>((resolve, reject) => {
-		const timer = window.setTimeout(() => {
-			signal?.removeEventListener('abort', onAbort);
-			resolve();
-		}, 750);
-
-		const onAbort = () => {
-			window.clearTimeout(timer);
-			signal?.removeEventListener('abort', onAbort);
-			reject(new GoogleDriveLinkCancelledError());
-		};
-
-		signal?.addEventListener('abort', onAbort, { once: true });
-	});
 }
 
 async function fetchGoogleDriveAbout(config: GoogleDriveConfig, accessToken: string) {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { GoogleDriveLinkConflict } from '$lib/api/utils/remote-sync-google-drive';
+	import type { GoogleDriveLinkConflict } from '$lib/api/tauri';
 	import { Badge } from '$lib/common/components/fragments/badge';
 	import { Button } from '$lib/common/components/fragments/button';
 	import { formatLocaleDate } from '$lib/common/utils/locale';

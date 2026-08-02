@@ -16,6 +16,7 @@ export const TAURI_ERROR_CODES = [
 	'preconditionFailed',
 	'busy',
 	'timedOut',
+	'cancelled',
 	'integrity',
 	'io',
 	'network',
