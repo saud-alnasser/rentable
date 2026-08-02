@@ -48,11 +48,14 @@ save never evicts the copy taken before an update.
   read by nobody, and an account-auth command with no caller. #118 withdraws both.
 - **Every Drive request is issued by Rust — but nothing asks for one yet.** `DriveTransport`
   attaches the bearer credential, retries, and maps a refusal onto the typed error;
-  `DriveFiles` is every operation issued over it — listing, upload, download, delete, and
-  the folder, manifest, and head lookups built from them. What is still missing is a
-  caller: no Tauri command reaches either, so the requests that actually run are the
-  TypeScript client's until #118. A Rust Drive layer with no caller is the expected state
-  here, not dead code.
+  `DriveFiles` is every operation issued over it — listing, upload, download, delete, the
+  folder, manifest, and head lookups built from them, and the read of the account the token
+  belongs to. That last one acts on no file, and it lives there anyway: what makes the
+  boundary is being a request this application issues, not the kind of thing it names, and
+  a second request-issuing type would divide the surface a caller has to hold. What is
+  still missing is a caller: no Tauri command reaches either, so the requests that actually
+  run are the TypeScript client's until #118. A Rust Drive layer with no caller is the
+  expected state here, not dead code.
 - **The ported Drive logic decides from values, never from the machine.** Conflict
   analysis, manifest reconciliation, and retention selection issue no request and read no
   file, setting, or database — which is what lets each be exercised by calling it. A

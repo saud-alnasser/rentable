@@ -21,7 +21,9 @@ use super::{
         has_local_snapshot, is_cryptographic_content_hash, normalize_content_hash,
         should_refresh_remote_manifest_head,
     },
-    files::{DriveEndpoints, DriveFiles, DriveUpload, escape_drive_query},
+    files::{
+        DriveEndpoints, DriveFiles, DriveUpload, GoogleDriveAccountDetails, escape_drive_query,
+    },
     manifest::{
         GoogleDriveManifest, GoogleDriveManifestEntry, GoogleDriveManifestEntryOverrides,
         GoogleDriveManifestMetadata, build_manifest_entry_from_drive_file,
@@ -2719,4 +2721,118 @@ async fn a_head_whose_bytes_cannot_be_read_is_still_reported_as_present() {
 
     assert!(state.changed_from_manifest);
     assert!(state.content_hash.is_none());
+}
+
+#[tokio::test]
+async fn the_account_read_asks_for_the_fields_it_maps_and_answers_with_them() {
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        json!({
+            "user": {
+                "displayName": "Amal Nasser",
+                "emailAddress": "amal@example.com",
+                "photoLink": "https://lh3.example.com/a/amal",
+                "permissionId": "17420938475",
+            },
+            "storageQuota": { "limit": "16106127360", "usage": "4294967296" },
+        }),
+    )])
+    .await;
+
+    let account = drive_files(&server)
+        .read_account_details("ya29.the-access-token")
+        .await
+        .expect("the account read failed");
+
+    assert_eq!(
+        account,
+        GoogleDriveAccountDetails {
+            email: Some("amal@example.com".to_string()),
+            display_name: Some("Amal Nasser".to_string()),
+            avatar_url: Some("https://lh3.example.com/a/amal".to_string()),
+            provider_user_id: Some("17420938475".to_string()),
+            drive_quota_bytes: Some(16_106_127_360),
+            drive_usage_bytes: Some(4_294_967_296),
+        }
+    );
+
+    let request = server.request(0);
+
+    assert_eq!(request.method, "GET");
+    assert!(request.target.starts_with("/about?"));
+    assert_eq!(
+        request.header("authorization"),
+        Some("Bearer ya29.the-access-token")
+    );
+    assert!(
+        ["displayName", "emailAddress", "photoLink", "permissionId"]
+            .iter()
+            .all(|field| request.target.contains(field)),
+        "the account read did not ask for the identity it maps: {}",
+        request.target
+    );
+    assert!(
+        request.target.contains("storageQuota"),
+        "the account read did not ask for the storage figures: {}",
+        request.target
+    );
+}
+
+/// a name Drive omitted has to stay distinguishable from one it sent, because
+/// the two callers of this read disagree about what to do with the absence —
+/// linking labels the account by its address, refreshing keeps the name already
+/// recorded. A fallback applied here would settle that for both of them.
+#[tokio::test]
+async fn a_name_or_address_that_is_only_whitespace_reads_as_absent() {
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        json!({
+            "user": { "displayName": "   ", "emailAddress": "  amal@example.com  " },
+            "storageQuota": { "limit": "16106127360", "usage": "0" },
+        }),
+    )])
+    .await;
+
+    let account = drive_files(&server)
+        .read_account_details("token")
+        .await
+        .expect("the account read failed");
+
+    assert_eq!(account.email, Some("amal@example.com".to_string()));
+    assert_eq!(account.display_name, None);
+    assert_eq!(account.drive_usage_bytes, Some(0));
+}
+
+#[tokio::test]
+async fn an_account_drive_described_nothing_about_reads_as_empty_rather_than_failing() {
+    let server = TestDriveServer::start(vec![json_response(200, json!({}))]).await;
+
+    let account = drive_files(&server)
+        .read_account_details("token")
+        .await
+        .expect("the account read failed");
+
+    assert_eq!(account, GoogleDriveAccountDetails::default());
+}
+
+/// an unlimited allowance is reported by omitting the limit, so an absent
+/// figure has to stay absent — a zero here would read as a full disk.
+#[tokio::test]
+async fn a_storage_figure_that_is_not_a_whole_byte_count_is_absent_rather_than_zero() {
+    let server = TestDriveServer::start(vec![json_response(
+        200,
+        json!({
+            "user": { "emailAddress": "amal@example.com" },
+            "storageQuota": { "usage": "not a number" },
+        }),
+    )])
+    .await;
+
+    let account = drive_files(&server)
+        .read_account_details("token")
+        .await
+        .expect("the account read failed");
+
+    assert_eq!(account.drive_quota_bytes, None);
+    assert_eq!(account.drive_usage_bytes, None);
 }
