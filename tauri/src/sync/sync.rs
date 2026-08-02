@@ -15,7 +15,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use crate::{diagnostics, error::Error, state::AppState, timestamp};
 
 use super::google::conflict::{
-    GoogleDriveResolvedHead, GoogleDriveSyncAction, content_hash_hex,
+    GoogleDriveResolvedHead, GoogleDriveSyncAction, GoogleDriveSyncMode, content_hash_hex,
     is_cryptographic_content_hash, normalize_content_hash,
 };
 use super::google::files::{
@@ -30,8 +30,8 @@ use super::google::metadata::{
 };
 use super::google::transport::{GoogleDriveApplyPullInput, GoogleDriveSyncCompleteInput};
 use super::inspection::{
-    GoogleDriveLinkPreparation, GoogleDriveRemoteState, linked_google_drive_account_id,
-    prepare_from_remote_state, read_remote_state,
+    GoogleDriveLinkPreparation, GoogleDriveRemoteState, inspect_google_drive_workspace,
+    linked_google_drive_account_id, prepare_from_remote_state, read_remote_state,
 };
 use super::lock::{GoogleDriveSyncLockAcquireInput, GoogleDriveSyncLockReleaseInput};
 use super::session::{GoogleDriveAccountAuthInput, GoogleDriveAccountUpdateInput};
@@ -47,6 +47,32 @@ pub struct GoogleDriveSyncInput {
     /// evicts it later.
     #[serde(default)]
     pub manual: bool,
+}
+
+/// which side of a conflict the user chose.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum GoogleDriveConflictResolution {
+    /// keep what is on this machine, and make the remote match it.
+    Local,
+    /// keep what the remote holds, and make this machine match it.
+    Remote,
+}
+
+impl From<GoogleDriveConflictResolution> for GoogleDriveSyncMode {
+    fn from(resolution: GoogleDriveConflictResolution) -> Self {
+        match resolution {
+            GoogleDriveConflictResolution::Local => GoogleDriveSyncMode::Push,
+            GoogleDriveConflictResolution::Remote => GoogleDriveSyncMode::Pull,
+        }
+    }
+}
+
+/// what the caller is asking of a conflict.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoogleDriveResolveConflictInput {
+    pub resolution: GoogleDriveConflictResolution,
 }
 
 /// what a sync run did, and what it could not do without asking.
@@ -84,6 +110,55 @@ pub async fn sync_google_drive_workspace(
     app_state: &AppState,
     manual: bool,
 ) -> Result<GoogleDriveSyncOutcome, Error> {
+    exchange_google_drive_workspace(app_state, manual, GoogleDriveSyncMode::Sync).await
+}
+
+/// what the remote holds for this workspace, as the question to put to the user.
+///
+/// `None` where the workspace is not on Drive: there is no remote to disagree
+/// with, which is what every installation looks like before it is linked.
+pub async fn inspect_google_drive_conflict(
+    app_state: &AppState,
+) -> Result<Option<GoogleDriveLinkPreparation>, Error> {
+    let state = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        remote_sync.get_state().await?
+    };
+
+    let Some(account_id) = linked_google_drive_account_id(&state) else {
+        return Ok(None);
+    };
+
+    if !state.google_drive_ready {
+        return Ok(None);
+    }
+
+    let files = DriveFiles::new()?;
+    let access_token = access_token_for(app_state, &account_id).await?;
+
+    inspect_google_drive_workspace(app_state, &files, &access_token)
+        .await
+        .map(Some)
+}
+
+/// carry out the direction the user chose for a conflict they were asked about.
+///
+/// The reading happens again rather than being carried over from the question:
+/// the user takes as long as they take, and what they answered about is what the
+/// remote held when they were asked. Re-reading is also what makes the choice
+/// safe to repeat — the same answer twice settles the same way.
+pub async fn resolve_google_drive_conflict(
+    app_state: &AppState,
+    resolution: GoogleDriveConflictResolution,
+) -> Result<GoogleDriveSyncOutcome, Error> {
+    exchange_google_drive_workspace(app_state, true, resolution.into()).await
+}
+
+async fn exchange_google_drive_workspace(
+    app_state: &AppState,
+    manual: bool,
+    mode: GoogleDriveSyncMode,
+) -> Result<GoogleDriveSyncOutcome, Error> {
     let state = {
         let mut remote_sync = app_state.remote_sync.write().await;
         remote_sync.get_state().await?
@@ -110,7 +185,7 @@ pub async fn sync_google_drive_workspace(
         })?
     };
 
-    let synced = sync_under_lease(app_state, &account_id, manual).await;
+    let synced = sync_under_lease(app_state, &account_id, manual, mode).await;
 
     {
         let mut remote_sync = app_state.remote_sync.write().await;
@@ -158,6 +233,7 @@ async fn sync_under_lease(
     app_state: &AppState,
     account_id: &str,
     manual: bool,
+    mode: GoogleDriveSyncMode,
 ) -> Result<GoogleDriveSyncOutcome, Error> {
     let files = DriveFiles::new()?;
     let access_token = access_token_for(app_state, account_id).await?;
@@ -174,6 +250,7 @@ async fn sync_under_lease(
         &access_token,
         &state.workspace,
         local_content_hash.as_deref(),
+        mode,
     )
     .await?;
 
@@ -625,7 +702,10 @@ async fn record_agreement(
 /// same thing, whichever operation discovered it. A refresh that failed for any
 /// other reason — no network, Drive unavailable — is transient, and marking the
 /// account on one would send the user to relink over a dropped connection.
-async fn access_token_for(app_state: &AppState, account_id: &str) -> Result<String, Error> {
+pub(super) async fn access_token_for(
+    app_state: &AppState,
+    account_id: &str,
+) -> Result<String, Error> {
     {
         let remote_sync = app_state.remote_sync.read().await;
 

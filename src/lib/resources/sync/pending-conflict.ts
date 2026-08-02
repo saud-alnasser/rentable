@@ -1,12 +1,10 @@
 import type {
+	GoogleDriveConflictResolution,
 	GoogleDriveLinkConflict,
 	GoogleDriveLinkPreparation,
+	GoogleDriveSyncOutcome,
 	RemoteSyncState
 } from '$lib/api/tauri';
-import type {
-	GoogleDriveLinkResolution,
-	GoogleDriveSyncResult
-} from '$lib/api/utils/remote-sync-google-drive';
 import { shouldDeferWorkspaceConflict } from '$lib/api/utils/workspace-sync';
 
 /** what settling a conflict actually does, injected so the sequence can be exercised without an account. */
@@ -14,8 +12,8 @@ export type PendingConflictDriver = {
 	/** carry out the user's choice. */
 	resolve: (
 		preparation: GoogleDriveLinkPreparation,
-		resolution: GoogleDriveLinkResolution
-	) => Promise<GoogleDriveSyncResult>;
+		resolution: GoogleDriveConflictResolution
+	) => Promise<GoogleDriveSyncOutcome>;
 	/** undo a link the user has decided against. */
 	cancel: () => Promise<RemoteSyncState>;
 	/** clear a workspace whose remote can no longer be reached, so it can be linked again. */
@@ -156,7 +154,7 @@ export class PendingConflictFlow {
 	}
 
 	/** carry out the user's choice. Resolves to `null` where there was nothing to settle. */
-	async resolve(resolution: GoogleDriveLinkResolution) {
+	async resolve(resolution: GoogleDriveConflictResolution) {
 		const preparation = this.#preparation;
 
 		if (!preparation || this.#isWorking) {

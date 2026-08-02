@@ -28,4 +28,7 @@ pub use store::{
     RemoteSync, RemoteSyncAccount, RemoteSyncAccountStatus, RemoteSyncProvider, RemoteSyncState,
     RemoteSyncStore, RemoteSyncWorkspace, StoredGoogleDriveCredentials,
 };
-pub use sync::{GoogleDriveSyncInput, GoogleDriveSyncOutcome};
+pub use sync::{
+    GoogleDriveConflictResolution, GoogleDriveResolveConflictInput, GoogleDriveSyncInput,
+    GoogleDriveSyncOutcome,
+};

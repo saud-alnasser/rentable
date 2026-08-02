@@ -1,10 +1,12 @@
 <script lang="ts">
 	import api from '$lib/api/mod';
-	import { tauri, type Recovery, type RemoteSyncState } from '$lib/api/tauri';
 	import {
-		resolveGoogleDriveLink,
-		type GoogleDriveLinkResolution
-	} from '$lib/api/utils/remote-sync-google-drive';
+		tauri,
+		type GoogleDriveConflictResolution,
+		type Recovery,
+		type RemoteSyncState
+	} from '$lib/api/tauri';
+	import { resolveGoogleDriveLink } from '$lib/api/utils/remote-sync-google-drive';
 	import { startGoogleDriveAutosyncManager } from '$lib/api/utils/remote-sync-google-drive-autosync';
 	import {
 		getWorkspaceFromSyncState,
@@ -252,7 +254,7 @@
 		}
 	}
 
-	async function resolveStartupLink(resolution: GoogleDriveLinkResolution) {
+	async function resolveStartupLink(resolution: GoogleDriveConflictResolution) {
 		if (isHandlingStartupChoice) {
 			return;
 		}

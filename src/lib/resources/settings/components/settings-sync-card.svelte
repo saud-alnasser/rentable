@@ -1,11 +1,11 @@
 <script lang="ts">
 	import type {
+		GoogleDriveConflictResolution,
 		RemoteSyncAccount,
 		RemoteSyncProvider,
 		RemoteSyncState,
 		RemoteSyncWorkspace
 	} from '$lib/api/tauri';
-	import type { GoogleDriveLinkResolution } from '$lib/api/utils/remote-sync-google-drive';
 	import {
 		AlertDialog,
 		AlertDialogAction,
@@ -236,7 +236,7 @@
 		linkSession.begin();
 	}
 
-	async function resolvePendingGoogleDriveLink(resolution: GoogleDriveLinkResolution) {
+	async function resolvePendingGoogleDriveLink(resolution: GoogleDriveConflictResolution) {
 		try {
 			await resolvePendingConflictMutation.mutateAsync(resolution);
 		} catch {

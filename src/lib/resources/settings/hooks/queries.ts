@@ -1,5 +1,10 @@
 import api from '$lib/api/mod';
-import { tauri, type GoogleDriveLinkPreparation, type RemoteSyncState } from '$lib/api/tauri';
+import {
+	tauri,
+	type GoogleDriveConflictResolution,
+	type GoogleDriveLinkPreparation,
+	type RemoteSyncState
+} from '$lib/api/tauri';
 import {
 	resolveGoogleDriveLink,
 	syncActiveGoogleDriveProfile,
@@ -292,7 +297,7 @@ export function useResolvePendingConflict(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: (resolution: GoogleDriveLinkResolution) => pendingConflict.resolve(resolution),
+		mutationFn: (resolution: GoogleDriveConflictResolution) => pendingConflict.resolve(resolution),
 		onSuccess: async (result) => {
 			if (!result) {
 				return;
