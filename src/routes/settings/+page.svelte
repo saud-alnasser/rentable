@@ -29,10 +29,13 @@
 	import { Spinner } from '$lib/common/components/fragments/spinner';
 	import { formatLocaleDate } from '$lib/common/utils/locale';
 	import { cn } from '$lib/common/utils/tailwind.js';
-	import { toErrorMessage, toErrorText } from '$lib/error/message';
+	import { recordDiagnosticError } from '$lib/diagnostics/record';
+	import { toErrorDetail, toErrorMessage, toErrorText } from '$lib/error/message';
+	import { toTauriErrorCode } from '$lib/error/tauri';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import type { Locales } from '$lib/i18n/i18n-types';
+	import SettingsDiagnosticsCard from '$lib/resources/settings/components/settings-diagnostics-card.svelte';
 	import SettingsEndingSoonCard from '$lib/resources/settings/components/settings-ending-soon-card.svelte';
 	import SettingsLocaleCard from '$lib/resources/settings/components/settings-locale-card.svelte';
 	import SettingsSyncCard from '$lib/resources/settings/components/settings-sync-card.svelte';
@@ -305,8 +308,24 @@
 	}
 
 	function logUpdaterError(action: string, error: unknown) {
-		if (import.meta.env.DEV) {
-			console.error(`[updater] ${action} failed`, error);
+		recordDiagnosticError('update.failed', {
+			action,
+			code: toTauriErrorCode(error),
+			error: toErrorDetail(error)
+		});
+	}
+
+	async function revealDiagnostics() {
+		const diagnosticsDir = settingsQuery.data?.diagnosticsDir;
+
+		if (!diagnosticsDir) {
+			return;
+		}
+
+		try {
+			await tauri.opener.revealItemInDir(diagnosticsDir);
+		} catch (error) {
+			toast.error(toErrorText(error, $LL));
 		}
 	}
 
@@ -677,6 +696,11 @@
 					onRelinkGoogleDrive={() => void relinkBrokenGoogleDrive()}
 					onCancelLinkConflict={() => void cancelPendingGoogleDriveLink()}
 					onDisconnectGoogleDrive={() => void unlinkGoogleDriveWorkspace()}
+				/>
+
+				<SettingsDiagnosticsCard
+					diagnosticsDir={settingsQuery.data.diagnosticsDir}
+					onRevealDiagnostics={() => void revealDiagnostics()}
 				/>
 			</div>
 		</div>

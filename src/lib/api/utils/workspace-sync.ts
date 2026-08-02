@@ -6,6 +6,13 @@ import {
 	type GoogleDriveLinkPreparation,
 	type GoogleDriveSyncResult
 } from '$lib/api/utils/remote-sync-google-drive';
+import {
+	recordDiagnosticError,
+	recordDiagnosticInfo,
+	recordDiagnosticWarning
+} from '$lib/diagnostics/record';
+import { toErrorDetail } from '$lib/error/message';
+import { toTauriErrorCode } from '$lib/error/tauri';
 
 export type WorkspaceSyncAction = GoogleDriveSyncResult['action'] | 'autosaved';
 
@@ -70,14 +77,36 @@ export async function syncWorkspaceNow(
 
 	const preparation = await inspectGoogleDriveSyncState(syncState);
 	if (preparation.requiresResolution) {
+		recordDiagnosticWarning('sync.deferred', {
+			workspace: workspace.id,
+			conflict: preparation.conflict?.kind
+		});
+
 		return { state: preparation.state, action: 'none', preparation };
 	}
 
-	const result = await syncActiveGoogleDriveProfile('sync', preparation.state, {
-		manual: options.manual
-	});
+	try {
+		const result = await syncActiveGoogleDriveProfile('sync', preparation.state, {
+			manual: options.manual
+		});
 
-	return { state: result.state, action: result.action, preparation: null };
+		recordDiagnosticInfo('sync.completed', {
+			workspace: workspace.id,
+			action: result.action,
+			manual: options.manual
+		});
+
+		return { state: result.state, action: result.action, preparation: null };
+	} catch (error) {
+		recordDiagnosticError('sync.failed', {
+			workspace: workspace.id,
+			manual: options.manual,
+			code: toTauriErrorCode(error),
+			error: toErrorDetail(error)
+		});
+
+		throw error;
+	}
 }
 
 export async function syncWorkspaceRemoteNow(
@@ -107,8 +136,26 @@ export async function syncWorkspaceBeforeExit(
 	}
 
 	if (workspace.provider === 'googleDrive' && syncState.googleDriveReady) {
-		const result = await syncBeforeAppExit(syncState);
-		return { state: result.state, action: result.action, preparation: null };
+		try {
+			const result = await syncBeforeAppExit(syncState);
+
+			recordDiagnosticInfo('sync.beforeExit.completed', {
+				workspace: workspace.id,
+				action: result.action
+			});
+
+			return { state: result.state, action: result.action, preparation: null };
+		} catch (error) {
+			// the last sync of a session, and the one whose failure the user is
+			// least likely to see: the window is already closing.
+			recordDiagnosticError('sync.beforeExit.failed', {
+				workspace: workspace.id,
+				code: toTauriErrorCode(error),
+				error: toErrorDetail(error)
+			});
+
+			throw error;
+		}
 	}
 
 	if (workspace.provider === 'local') {

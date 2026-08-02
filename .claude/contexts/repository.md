@@ -37,6 +37,12 @@ stored value is a cache of the derivation and never the authority.
   with a ticket (#118).
   Why the client relocates wholly rather than sitting behind a proxy command:
   [ADR 0003](../decisions/0003-drive-client-relocates-to-rust.md).
+- **Diagnostics are written locally, bounded, and stripped of recognised credentials.**
+  There is no server to report to, so events go to a rotating file the user can open from
+  settings. Redaction happens in the sink, on the way to disk — never at the call site. It
+  works by **recognising** the credential shapes this application handles, so it bounds the
+  damage rather than guaranteeing none: a value known to be secret still must not be put in
+  an event.
 - **Domain rules live in their concept's own module.** Routers validate, call the domain,
   persist, and reconcile — they hold no rules. There is no repository layer; routers reach
   the database directly (#107, #108).

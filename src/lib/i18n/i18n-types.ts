@@ -1005,6 +1005,22 @@ type RootTranslation = {
 		 */
 		description: string
 		/**
+		 * r​e​n​t​a​b​l​e​ ​r​e​c​o​r​d​s​ ​w​h​a​t​ ​i​t​ ​d​o​e​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​—​ ​s​t​a​r​t​u​p​s​,​ ​m​i​g​r​a​t​i​o​n​s​,​ ​b​a​c​k​u​p​s​,​ ​a​n​d​ ​s​y​n​c​ ​—​ ​s​o​ ​a​ ​f​a​i​l​u​r​e​ ​c​a​n​ ​b​e​ ​l​o​o​k​e​d​ ​i​n​t​o​ ​a​f​t​e​r​w​a​r​d​s​.​ ​t​h​e​ ​f​i​l​e​s​ ​n​e​v​e​r​ ​l​e​a​v​e​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​a​r​e​ ​l​i​m​i​t​e​d​ ​i​n​ ​s​i​z​e​,​ ​a​n​d​ ​p​a​s​s​w​o​r​d​s​ ​a​n​d​ ​a​c​c​o​u​n​t​ ​t​o​k​e​n​s​ ​a​r​e​ ​s​t​r​i​p​p​e​d​ ​o​u​t​ ​b​e​f​o​r​e​ ​a​n​y​t​h​i​n​g​ ​i​s​ ​w​r​i​t​t​e​n​.
+		 */
+		diagnosticsDescription: string
+		/**
+		 * l​o​g​ ​l​o​c​a​t​i​o​n
+		 */
+		diagnosticsLocationLabel: string
+		/**
+		 * o​p​e​n​ ​l​o​g​ ​f​o​l​d​e​r
+		 */
+		diagnosticsReveal: string
+		/**
+		 * d​i​a​g​n​o​s​t​i​c​s
+		 */
+		diagnosticsTitle: string
+		/**
 		 * d​o​w​n​l​o​a​d​i​n​g​ ​u​p​d​a​t​e
 		 */
 		downloadingUpdate: string
@@ -2849,6 +2865,22 @@ export type TranslationFunctions = {
 		 * manage the ending-soon notice window, app updates, sync workspaces, and app details.
 		 */
 		description: () => LocalizedString
+		/**
+		 * rentable records what it does on this machine — startups, migrations, backups, and sync — so a failure can be looked into afterwards. the files never leave this machine and are limited in size, and passwords and account tokens are stripped out before anything is written.
+		 */
+		diagnosticsDescription: () => LocalizedString
+		/**
+		 * log location
+		 */
+		diagnosticsLocationLabel: () => LocalizedString
+		/**
+		 * open log folder
+		 */
+		diagnosticsReveal: () => LocalizedString
+		/**
+		 * diagnostics
+		 */
+		diagnosticsTitle: () => LocalizedString
 		/**
 		 * downloading update
 		 */
