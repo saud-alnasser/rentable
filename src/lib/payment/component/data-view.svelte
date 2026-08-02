@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { Payment } from '$lib/api/database/schema';
-	import { hasSatisfiedContractPaymentRequirement } from '$lib/api/contract';
 	import DataTableActionsDropdown from '$lib/common/components/blocks/data-table-actions-dropdown.svelte';
 	import DataView from '$lib/common/components/blocks/data-view.svelte';
 	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
@@ -23,16 +22,14 @@
 		formatLocaleValueWithUnit
 	} from '$lib/common/utils/locale';
 	import { cn } from '$lib/common/utils/tailwind';
+	import { hasSatisfiedContractPaymentRequirement } from '$lib/contract/contract';
+	import { useFetchContract } from '$lib/contract/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import {
-		useDeletePayment,
-		useFetchContract,
-		useInfiniteContractPayments
-	} from '$lib/resources/contracts/hooks/queries';
+	import { useDeletePayment, useInfiniteContractPayments } from '$lib/payment/query';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import PaymentForm from './payment-form.svelte';
+	import PaymentForm from './form.svelte';
 
 	const standaloneVirtualThreshold = 3;
 	const embeddedVirtualThreshold = 3;

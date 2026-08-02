@@ -22,7 +22,7 @@ is why CI runs `pnpm exec eslint .` directly rather than `pnpm lint` — see `es
 ## Format one file
 
 ```bash
-pnpm exec prettier --write src/lib/api/routers/contract.ts
+pnpm exec prettier --write src/lib/contract/router.ts
 ```
 
 ## What prettier does not touch

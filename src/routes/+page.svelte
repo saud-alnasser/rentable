@@ -2,8 +2,8 @@
 	import api from '$lib/api/mod';
 	import { Card, CardContent } from '$lib/common/components/fragments/card';
 	import { Spinner } from '$lib/common/components/fragments/spinner';
+	import { useFetchContractDashboard } from '$lib/contract/query';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { useFetchContractDashboard } from '$lib/resources/contracts/hooks/queries';
 	import DashboardEndingSoonSection from '$lib/resources/dashboard/components/dashboard-ending-soon-section.svelte';
 	import DashboardFollowUpsSection from '$lib/resources/dashboard/components/dashboard-follow-ups-section.svelte';
 	import DashboardHeader from '$lib/resources/dashboard/components/dashboard-header.svelte';

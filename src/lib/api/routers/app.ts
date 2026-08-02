@@ -5,8 +5,8 @@ import type {
 	Settings,
 	SettingsChangeset
 } from '$lib/api/tauri';
-import { reconcile } from '$lib/api/reconcile';
 import { autosync, procedure, router } from '$lib/api/trpc';
+import { reconcile } from '$lib/contract/reconcile';
 import z from 'zod';
 
 export default router({

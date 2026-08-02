@@ -13,10 +13,10 @@
 		formatLocaleRangeWithUnit,
 		formatLocaleValueWithUnit
 	} from '$lib/common/utils/locale';
+	import { useInfiniteContracts } from '$lib/contract/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
-	import { useInfiniteContracts } from '$lib/resources/contracts/hooks/queries';
-	import ContractForm from './contract-form.svelte';
+	import ContractForm from './form.svelte';
 
 	type ContractRow = Awaited<ReturnType<typeof api.contract.getPaginated>>['items'][number];
 

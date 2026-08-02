@@ -23,7 +23,7 @@ pnpm lint                    # prettier --check + eslint, for local use
 ## Lint one path
 
 ```bash
-pnpm exec eslint src/lib/api/routers/contract.ts
+pnpm exec eslint src/lib/contract/router.ts
 ```
 
 ## `.eslintignore` is dead — ignores come from `.gitignore`
