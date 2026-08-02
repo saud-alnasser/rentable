@@ -16,6 +16,7 @@ use serde::Deserialize;
 use url::Url;
 
 use crate::error::Error;
+use crate::timestamp;
 
 use super::super::store::RemoteSyncWorkspace;
 use super::conflict::{
@@ -23,13 +24,16 @@ use super::conflict::{
     normalize_content_hash,
 };
 use super::manifest::{
-    GoogleDriveManifest, MANIFEST_FILE_TYPE, MANIFEST_FILENAME, is_canonical_snapshot_filename,
+    GoogleDriveManifest, GoogleDriveManifestEntryOverrides, MANIFEST_FILE_TYPE, MANIFEST_FILENAME,
+    build_google_drive_manifest_from_snapshots, is_canonical_snapshot_filename,
     is_tracked_manifest_file_for_folder, normalize_google_drive_manifest,
 };
-use super::retention::compare_drive_files_by_snapshot_recency;
+use super::retention::{
+    choose_retained_workspace_snapshots, compare_drive_files_by_snapshot_recency,
+};
 use super::transport::{
     DriveFile, DriveRequest, DriveResponse, DriveTransport, FILE_TYPE_PROPERTY,
-    GOOGLE_DRIVE_API_BASE_URL, parse_drive_number,
+    GOOGLE_DRIVE_API_BASE_URL, SNAPSHOT_CONTENT_HASH_PROPERTY, parse_drive_number,
 };
 
 /// where content is uploaded. Drive answers metadata requests and content
@@ -116,10 +120,34 @@ pub struct DriveUpload {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GoogleDriveManifestResolution {
     pub file: DriveFile,
-    /// the manifest the file held, or `None` where it could not be read as one.
-    /// Rebuilding it is a write, and resolution only reads, so what to do about
-    /// an unreadable manifest is the caller's.
+    /// the manifest the folder holds. `None` only where the file could not be
+    /// read as one *and* the folder held no snapshot to rebuild it from — an
+    /// index that could be derived always is, so an absence here means the
+    /// workspace has nothing on the remote to describe.
     pub manifest: Option<GoogleDriveManifest>,
+}
+
+/// what a manifest write left on the remote.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GoogleDriveManifestWrite {
+    pub file: DriveFile,
+    /// the manifest the folder now holds — the one the caller supplied, unless
+    /// it was rebuilt.
+    pub manifest: GoogleDriveManifest,
+    /// whether the folder's manifest had moved under the caller, so what was
+    /// written is derived from the snapshots present rather than from what the
+    /// caller asked to write. Not a failure, and not something to report as
+    /// one; it does mean the caller's own record of the remote is behind.
+    pub was_rebuilt: bool,
+}
+
+impl GoogleDriveManifestWrite {
+    fn into_resolution(self) -> GoogleDriveManifestResolution {
+        GoogleDriveManifestResolution {
+            file: self.file,
+            manifest: Some(self.manifest),
+        }
+    }
 }
 
 /// what the remote's current snapshot turned out to be.
@@ -514,8 +542,10 @@ impl DriveFiles {
         Ok(snapshots)
     }
 
-    /// the manifest in a workspace folder, or `None` where the folder holds
-    /// none.
+    /// the manifest in a workspace folder, rebuilt from the snapshots present
+    /// where the folder holds none or holds one that cannot be read.
+    ///
+    /// `None` only where there is nothing to read and nothing to rebuild from.
     ///
     /// The identifier the workspace recorded is used only where the file it
     /// names is still a manifest of *this* folder — a workspace relinked to a
@@ -535,22 +565,14 @@ impl DriveFiles {
             .filter(|file| is_tracked_manifest_file_for_folder(Some(file), folder_id))
         {
             Some(file) => Some(file),
-            None => {
-                self.find(
-                    access_token,
-                    &format!(
-                        "{} and trashed=false and name='{MANIFEST_FILENAME}' and {}",
-                        in_parents(folder_id),
-                        app_property_clause(FILE_TYPE_PROPERTY, MANIFEST_FILE_TYPE)
-                    ),
-                    Some("modifiedTime desc"),
-                )
-                .await?
-            }
+            None => self.find_manifest_file(access_token, folder_id).await?,
         };
 
         let Some(manifest_file) = manifest_file else {
-            return Ok(None);
+            return Ok(self
+                .rebuild_manifest(access_token, workspace, folder_id, None, None)
+                .await?
+                .map(GoogleDriveManifestWrite::into_resolution));
         };
 
         let content = self.download_text(access_token, &manifest_file.id).await?;
@@ -558,42 +580,88 @@ impl DriveFiles {
             .ok()
             .and_then(|raw| normalize_google_drive_manifest(&raw).ok());
 
-        Ok(Some(GoogleDriveManifestResolution {
-            file: manifest_file,
-            manifest,
+        if manifest.is_some() {
+            return Ok(Some(GoogleDriveManifestResolution {
+                file: manifest_file,
+                manifest,
+            }));
+        }
+
+        let rebuilt = self
+            .rebuild_manifest(
+                access_token,
+                workspace,
+                folder_id,
+                Some(&manifest_file),
+                None,
+            )
+            .await?;
+
+        Ok(Some(match rebuilt {
+            Some(write) => write.into_resolution(),
+            None => GoogleDriveManifestResolution {
+                file: manifest_file,
+                manifest: None,
+            },
         }))
     }
 
-    /// write the manifest into the workspace folder.
+    /// write the manifest into the workspace folder, over the one already
+    /// there.
+    ///
+    /// `expected_file` is the manifest file the caller read before deciding
+    /// what to write. Where the folder's manifest is no longer that one,
+    /// another client has written since: the index is rebuilt from the
+    /// snapshots present and that is written instead of what was asked for.
+    ///
+    /// Refusing would be the alternative, and it is the wrong one. Drive offers
+    /// no compare-and-set, so the race cannot be closed — and the index is
+    /// derived from snapshots that a concurrent write cannot destroy, so losing
+    /// it is recoverable. Refusing would turn that into a failure the user has
+    /// to act on.
     pub async fn save_manifest(
         &self,
         access_token: &str,
+        workspace: &RemoteSyncWorkspace,
         folder_id: &str,
-        workspace_id: &str,
+        expected_file: Option<&DriveFile>,
         manifest: &GoogleDriveManifest,
-    ) -> Result<DriveFile, Error> {
-        let content = serde_json::to_vec_pretty(manifest).map_err(|error| Error::Internal {
-            message: format!("could not write the google drive manifest: {error}"),
-        })?;
+    ) -> Result<GoogleDriveManifestWrite, Error> {
+        let latest = self.find_manifest_file(access_token, folder_id).await?;
 
-        self.upload(
-            access_token,
-            &DriveUpload {
-                file_id: None,
-                name: MANIFEST_FILENAME.to_string(),
-                parents: vec![folder_id.to_string()],
-                mime_type: "application/json".to_string(),
-                app_properties: BTreeMap::from([
-                    (
-                        FILE_TYPE_PROPERTY.to_string(),
-                        MANIFEST_FILE_TYPE.to_string(),
-                    ),
-                    (WORKSPACE_ID_PROPERTY.to_string(), workspace_id.to_string()),
-                ]),
-                content,
-            },
-        )
-        .await
+        if manifest_file_moved_on(expected_file, latest.as_ref()) {
+            // a folder with no snapshot left to derive an index from cannot be
+            // repaired, and what the caller computed is then the only account
+            // of the workspace there is.
+            if let Some(rebuilt) = self
+                .rebuild_manifest(
+                    access_token,
+                    workspace,
+                    folder_id,
+                    latest.as_ref(),
+                    Some(manifest),
+                )
+                .await?
+            {
+                return Ok(rebuilt);
+            }
+        }
+
+        let file = self
+            .write_manifest_file(
+                access_token,
+                folder_id,
+                &workspace.id,
+                latest.as_ref().map(|file| file.id.as_str()),
+                manifest,
+            )
+            .await?;
+
+        Ok(GoogleDriveManifestWrite {
+            file,
+            manifest: manifest.clone(),
+            was_rebuilt: false,
+        })
     }
 
     /// what the remote's current snapshot is now, against what the manifest
@@ -634,6 +702,142 @@ impl DriveFiles {
             content_hash,
             changed_from_manifest,
         }))
+    }
+
+    /// the folder's manifest as Drive reports it now, whatever this workspace
+    /// last recorded about it.
+    async fn find_manifest_file(
+        &self,
+        access_token: &str,
+        folder_id: &str,
+    ) -> Result<Option<DriveFile>, Error> {
+        self.find(
+            access_token,
+            &format!(
+                "{} and trashed=false and name='{MANIFEST_FILENAME}' and {}",
+                in_parents(folder_id),
+                app_property_clause(FILE_TYPE_PROPERTY, MANIFEST_FILE_TYPE)
+            ),
+            Some("modifiedTime desc"),
+        )
+        .await
+    }
+
+    /// derive the manifest from the snapshots the folder holds and write it,
+    /// over `existing_file` where there is one.
+    ///
+    /// `None` where the folder holds no snapshot this application recognises:
+    /// there is nothing to describe, and an index naming a head that is not
+    /// there is worse than no index.
+    ///
+    /// `previous` is the index the rebuild replaces, where the caller still
+    /// has it. A folder listing does not say which version of this application
+    /// wrote a snapshot or what Drive computed for its checksum, so a rebuild
+    /// with nothing to read those off loses them.
+    async fn rebuild_manifest(
+        &self,
+        access_token: &str,
+        workspace: &RemoteSyncWorkspace,
+        folder_id: &str,
+        existing_file: Option<&DriveFile>,
+        previous: Option<&GoogleDriveManifest>,
+    ) -> Result<Option<GoogleDriveManifestWrite>, Error> {
+        let snapshot_files = self
+            .list_workspace_snapshot_files(access_token, folder_id)
+            .await?;
+        let retained = choose_retained_workspace_snapshots(&snapshot_files);
+
+        let Some(head) = retained.first() else {
+            return Ok(None);
+        };
+
+        let content_hash = self
+            .resolve_snapshot_content_hash(access_token, &head.file)
+            .await;
+        let manifest = build_google_drive_manifest_from_snapshots(
+            &workspace.id,
+            &workspace.name,
+            &retained,
+            &head.file,
+            &GoogleDriveManifestEntryOverrides {
+                content_hash,
+                ..GoogleDriveManifestEntryOverrides::default()
+            },
+            previous,
+            timestamp::now(),
+        )?;
+        let file = self
+            .write_manifest_file(
+                access_token,
+                folder_id,
+                &workspace.id,
+                existing_file.map(|file| file.id.as_str()),
+                &manifest,
+            )
+            .await?;
+
+        Ok(Some(GoogleDriveManifestWrite {
+            file,
+            manifest,
+            was_rebuilt: true,
+        }))
+    }
+
+    /// put the manifest document into the folder, over `file_id` where one was
+    /// given.
+    async fn write_manifest_file(
+        &self,
+        access_token: &str,
+        folder_id: &str,
+        workspace_id: &str,
+        file_id: Option<&str>,
+        manifest: &GoogleDriveManifest,
+    ) -> Result<DriveFile, Error> {
+        let content = serde_json::to_vec_pretty(manifest).map_err(|error| Error::Internal {
+            message: format!("could not write the google drive manifest: {error}"),
+        })?;
+
+        self.upload(
+            access_token,
+            &DriveUpload {
+                file_id: file_id.map(str::to_string),
+                name: MANIFEST_FILENAME.to_string(),
+                parents: vec![folder_id.to_string()],
+                mime_type: "application/json".to_string(),
+                app_properties: BTreeMap::from([
+                    (
+                        FILE_TYPE_PROPERTY.to_string(),
+                        MANIFEST_FILE_TYPE.to_string(),
+                    ),
+                    (WORKSPACE_ID_PROPERTY.to_string(), workspace_id.to_string()),
+                ]),
+                content,
+            },
+        )
+        .await
+    }
+
+    /// the digest of a snapshot's bytes, downloading them only where nothing
+    /// already recorded against the file is one.
+    ///
+    /// `None` where the bytes could not be read. A rebuilt index that records
+    /// no hash for its head is one a later read fingerprints for itself;
+    /// failing here would instead leave the folder with no index at all.
+    async fn resolve_snapshot_content_hash(
+        &self,
+        access_token: &str,
+        file: &DriveFile,
+    ) -> Option<String> {
+        let recorded = normalize_content_hash(file.app_property(SNAPSHOT_CONTENT_HASH_PROPERTY));
+
+        if is_cryptographic_content_hash(recorded.as_deref()) {
+            return recorded;
+        }
+
+        self.download(access_token, &file.id)
+            .await
+            .ok()
+            .map(|bytes| content_hash_hex(&bytes))
     }
 
     async fn find_root_folder(&self, access_token: &str) -> Result<Option<DriveFile>, Error> {
@@ -693,6 +897,25 @@ impl DriveFiles {
 /// just been escaped.
 pub fn escape_drive_query(value: &str) -> String {
     value.replace('\\', "\\\\").replace('\'', "\\'")
+}
+
+/// whether the folder's manifest is no longer the one a caller read before
+/// deciding what to write.
+///
+/// A manifest that has gone since is not a divergence — the write puts one
+/// back, which is the state the caller wanted. One that appeared where the
+/// caller saw none, or whose identity or revision changed under it, is another
+/// client having written in between.
+fn manifest_file_moved_on(expected: Option<&DriveFile>, latest: Option<&DriveFile>) -> bool {
+    match (expected, latest) {
+        (_, None) => false,
+        (None, Some(_)) => true,
+        (Some(expected), Some(latest)) => {
+            latest.id != expected.id
+                || latest.version != expected.version
+                || latest.modified_time != expected.modified_time
+        }
+    }
 }
 
 /// the clause matching one of this application's own app-properties.

@@ -49,13 +49,19 @@ save never evicts the copy taken before an update.
 - **Every Drive request is issued by Rust — but nothing asks for one yet.** `DriveTransport`
   attaches the bearer credential, retries, and maps a refusal onto the typed error;
   `DriveFiles` is every operation issued over it — listing, upload, download, delete, the
-  folder, manifest, and head lookups built from them, and the read of the account the token
-  belongs to. That last one acts on no file, and it lives there anyway: what makes the
+  folder, manifest, and head resolutions built from them, and the read of the account the
+  token belongs to. That last one acts on no file, and it lives there anyway: what makes the
   boundary is being a request this application issues, not the kind of thing it names, and
   a second request-issuing type would divide the surface a caller has to hold. What is
   still missing is a caller: no Tauri command reaches either, so the requests that actually
   run are the TypeScript client's until #118. A Rust Drive layer with no caller is the
   expected state here, not dead code.
+- **Reading the remote's index is also what repairs it.** A manifest that is absent,
+  unreadable, or overwritten by another client is rebuilt from the snapshots present and
+  written back — inside resolving it and inside saving it, never left to whoever called
+  them. A caller that has to remember the repair is a caller that forgets it, and the
+  failure is silent: an index nobody rebuilt reads as an empty workspace and invites a
+  push over work that is still there.
 - **The ported Drive logic decides from values, never from the machine.** Conflict
   analysis, manifest reconciliation, and retention selection issue no request and read no
   file, setting, or database — which is what lets each be exercised by calling it. A
@@ -91,6 +97,6 @@ save never evicts the copy taken before an update.
   the in-memory sync state: acquiring refuses while one is already held, releasing clears
   it. So it serialises operations inside one running application and nothing more — it
   does not coordinate two machines and does not survive a restart. Two clients writing one
-  workspace is the failure this domain exists to prevent and does **not** currently
-  prevent; the manifest's read-then-compare before a write is the only thing standing
-  there, and it has an open window between the check and the upload.
+  workspace is therefore not prevented, and is not going to be: Drive offers no
+  compare-and-set, so the read before a manifest write is detection rather than a guard,
+  and what follows a collision is a repair rather than a refusal.
