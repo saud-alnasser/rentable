@@ -114,6 +114,25 @@ pub struct GoogleDriveAccountUpdateInput {
     pub error: Option<String>,
 }
 
+/// an update that changes nothing, for a caller to fill the fields it means.
+pub(super) fn account_update(account_id: &str) -> GoogleDriveAccountUpdateInput {
+    GoogleDriveAccountUpdateInput {
+        account_id: account_id.to_string(),
+        email: None,
+        display_name: None,
+        avatar_url: None,
+        provider_user_id: None,
+        drive_quota_bytes: None,
+        drive_usage_bytes: None,
+        app_usage_bytes: None,
+        access_token: None,
+        refresh_token: None,
+        token_expires_at: None,
+        status: None,
+        error: None,
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GoogleDriveDisconnectInput {
