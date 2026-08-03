@@ -22,8 +22,10 @@ use super::google::conflict::{
 use super::google::files::{DriveFiles, GoogleDriveAccountDetails, GoogleDriveManifestResolution};
 use super::google::manifest::GoogleDriveManifest;
 use super::google::metadata::DriveFile;
-use super::session::GoogleDriveAccountUpdateInput;
-use super::store::{RemoteSyncProvider, RemoteSyncState, RemoteSyncWorkspace};
+use super::session::{GoogleDriveAccountUpdateInput, account_update};
+use super::store::{
+    RemoteSyncAccountStatus, RemoteSyncProvider, RemoteSyncState, RemoteSyncWorkspace,
+};
 use super::workspace::current_workspace_content_hash;
 
 /// what the user is being asked, and everything the interface needs to ask it.
@@ -79,11 +81,18 @@ impl GoogleDriveRemoteState {
     }
 }
 
-/// what the remote holds for this workspace, as a question to put to the user.
+/// what a reading of the remote produced, and the state it was read against.
 ///
-/// The account's record of Drive is refreshed on the way through, because the
-/// reading has already paid for the requests that answer it: how much room the
-/// account has is exactly what decides whether a push fits.
+/// The account details are carried out of the reading rather than requested
+/// again: reaching the remote at all required reading the account, and what a
+/// completed sync records about it is that same answer.
+pub(super) struct GoogleDriveReading {
+    pub state: RemoteSyncState,
+    pub details: GoogleDriveAccountDetails,
+    pub remote: GoogleDriveRemoteState,
+}
+
+/// what the remote holds for this workspace, as a question to put to the user.
 pub(super) async fn inspect_google_drive_workspace(
     app_state: &AppState,
     files: &DriveFiles,
@@ -99,38 +108,135 @@ pub(super) async fn inspect_google_drive_workspace(
             message: "workspace is not linked to a google drive account".to_string(),
         })?;
 
+    let reading = read_remote_recording_what_the_account_holds(
+        app_state,
+        files,
+        access_token,
+        state,
+        &account_id,
+    )
+    .await?;
+
+    Ok(prepare_from_remote_state(
+        reading.state,
+        &account_id,
+        &reading.remote,
+    ))
+}
+
+/// read the remote, and write back how much of Drive the account holds.
+///
+/// The account's record of Drive is refreshed on the way through, because the
+/// reading has already paid for the requests that answer it: how much room the
+/// account has is exactly what decides whether a push fits. The folder's share
+/// of it is not knowable until the folder has been read, which is why this
+/// recording follows the reading rather than preceding it — and why the state to
+/// read against is taken as an argument, there being nothing earlier to produce
+/// one.
+pub(super) async fn read_remote_recording_what_the_account_holds(
+    app_state: &AppState,
+    files: &DriveFiles,
+    access_token: &str,
+    state: RemoteSyncState,
+    account_id: &str,
+) -> Result<GoogleDriveReading, Error> {
+    let details = files.read_account_details(access_token).await?;
+    let GoogleDriveReading {
+        state,
+        details,
+        remote,
+    } = read_remote(
+        app_state,
+        files,
+        access_token,
+        state,
+        details,
+        GoogleDriveSyncMode::Sync,
+    )
+    .await?;
+
+    let state = match account_holdings_update(&state, account_id, &details, remote.app_usage_bytes)
+    {
+        Some(update) => {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            remote_sync.update_google_drive_account(update).await?
+        }
+        None => state,
+    };
+
+    Ok(GoogleDriveReading {
+        state,
+        details,
+        remote,
+    })
+}
+
+/// read the remote, and write back who the account is and that it answered.
+///
+/// How much of the *folder* the workspace occupies is not touched here; it is
+/// written once the operation that changes it has run. What is written is the
+/// identity and the cleared failure, and it is written **before** the reading:
+/// reaching Drive at all is what makes a recorded failure stale, so a reading
+/// that then fails must not leave the user told to relink over a refresh that
+/// worked.
+pub(super) async fn read_remote_recording_the_account_is_reachable(
+    app_state: &AppState,
+    files: &DriveFiles,
+    access_token: &str,
+    account_id: &str,
+    mode: GoogleDriveSyncMode,
+) -> Result<GoogleDriveReading, Error> {
+    let details = files.read_account_details(access_token).await?;
+    let state = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        remote_sync
+            .update_google_drive_account(account_reachable_update(account_id, &details))
+            .await?
+    };
+
+    read_remote(app_state, files, access_token, state, details, mode).await
+}
+
+/// the reading both flows take: fingerprint the local workspace, and read what
+/// the account's folder for it holds.
+async fn read_remote(
+    app_state: &AppState,
+    files: &DriveFiles,
+    access_token: &str,
+    state: RemoteSyncState,
+    details: GoogleDriveAccountDetails,
+    mode: GoogleDriveSyncMode,
+) -> Result<GoogleDriveReading, Error> {
     // a fingerprint that cannot be taken leaves the comparison to capture times,
     // which is the same fallback a workspace with no hash recorded already uses.
     let local_content_hash = current_workspace_content_hash(app_state).await.ok();
-    let details = files.read_account_details(access_token).await?;
     let remote = read_remote_state(
         files,
         access_token,
         &state.workspace,
         local_content_hash.as_deref(),
-        GoogleDriveSyncMode::Sync,
+        mode,
     )
     .await?;
 
-    let state =
-        record_what_the_account_holds(app_state, state, &account_id, &details, &remote).await?;
-    let account_email = state
-        .accounts
-        .iter()
-        .find(|account| account.id == account_id)
-        .map(|account| account.email.clone())
-        .unwrap_or_default();
-
-    Ok(prepare_from_remote_state(state, &account_email, &remote))
+    Ok(GoogleDriveReading {
+        state,
+        details,
+        remote,
+    })
 }
 
 /// read the remote against what the workspace records, and decide what should
 /// happen between them.
 ///
+/// Private, and the reason is the point of the pair above: a caller reaching the
+/// remote has to say what the reading is for, because what gets recorded about
+/// the account differs between them.
+///
 /// `local_content_hash` is the digest of the local database, and supplying it is
 /// what lets equal content be recognised as agreement however far the timestamps
 /// have drifted. Without it the fallback is capture times against the last sync.
-pub(super) async fn read_remote_state(
+async fn read_remote_state(
     files: &DriveFiles,
     access_token: &str,
     workspace: &RemoteSyncWorkspace,
@@ -177,22 +283,36 @@ pub(super) async fn read_remote_state(
 /// the preparation a reading amounts to, against the state it was read for.
 pub(super) fn prepare_from_remote_state(
     state: RemoteSyncState,
-    account_email: &str,
+    account_id: &str,
     remote: &GoogleDriveRemoteState,
 ) -> GoogleDriveLinkPreparation {
+    let account_email = account_email(&state, account_id);
+
     GoogleDriveLinkPreparation {
         requires_resolution: remote.resolution.requires_resolution,
         recommended_mode: remote.resolution.recommended_mode,
         conflict: remote.resolution.conflict_kind.map(|kind| {
             describe_conflict(
                 &state.workspace,
-                account_email,
+                &account_email,
                 remote.manifest_document(),
                 kind,
             )
         }),
         state,
     }
+}
+
+/// the address recorded for an account, and blank where the state holds no such
+/// account — which is the same answer as an account recorded without one, and
+/// deliberately: both leave the interface to name the account some other way.
+fn account_email(state: &RemoteSyncState, account_id: &str) -> String {
+    state
+        .accounts
+        .iter()
+        .find(|account| account.id == account_id)
+        .map(|account| account.email.clone())
+        .unwrap_or_default()
 }
 
 /// the question a conflict puts to the user, with what each side holds.
@@ -232,17 +352,16 @@ pub(super) fn linked_google_drive_account_id(state: &RemoteSyncState) -> Option<
         .map(str::to_string)
 }
 
-/// write back how much of Drive the account holds.
+/// the update that writes back how much of Drive the account holds.
 ///
-/// Returns the state unchanged where the numbers already match, so an inspection
-/// that found no news does not write.
-async fn record_what_the_account_holds(
-    app_state: &AppState,
-    state: RemoteSyncState,
+/// `None` where the numbers already match, so an inspection that found no news
+/// does not write.
+fn account_holdings_update(
+    state: &RemoteSyncState,
     account_id: &str,
     details: &GoogleDriveAccountDetails,
-    remote: &GoogleDriveRemoteState,
-) -> Result<RemoteSyncState, Error> {
+    app_usage_bytes: i64,
+) -> Option<GoogleDriveAccountUpdateInput> {
     let unchanged = state
         .accounts
         .iter()
@@ -250,31 +369,42 @@ async fn record_what_the_account_holds(
         .is_some_and(|account| {
             account.drive_quota_bytes == details.drive_quota_bytes
                 && account.drive_usage_bytes == details.drive_usage_bytes
-                && account.app_usage_bytes.unwrap_or(0) == remote.app_usage_bytes
+                && account.app_usage_bytes.unwrap_or(0) == app_usage_bytes
         });
 
     if unchanged {
-        return Ok(state);
+        return None;
     }
 
-    let mut remote_sync = app_state.remote_sync.write().await;
-    remote_sync
-        .update_google_drive_account(GoogleDriveAccountUpdateInput {
-            account_id: account_id.to_string(),
-            drive_quota_bytes: details.drive_quota_bytes,
-            drive_usage_bytes: details.drive_usage_bytes,
-            app_usage_bytes: Some(remote.app_usage_bytes),
-            email: None,
-            display_name: None,
-            avatar_url: None,
-            provider_user_id: None,
-            access_token: None,
-            refresh_token: None,
-            token_expires_at: None,
-            status: None,
-            error: None,
-        })
-        .await
+    Some(GoogleDriveAccountUpdateInput {
+        drive_quota_bytes: details.drive_quota_bytes,
+        drive_usage_bytes: details.drive_usage_bytes,
+        app_usage_bytes: Some(app_usage_bytes),
+        ..account_update(account_id)
+    })
+}
+
+/// the update that writes back who the account is, and clears any failure
+/// recorded against it — reaching Drive at all is what makes a recorded failure
+/// stale.
+///
+/// It names no folder usage. What the workspace's folder occupies is not known
+/// at this point and is written once the operation that changes it has run.
+fn account_reachable_update(
+    account_id: &str,
+    details: &GoogleDriveAccountDetails,
+) -> GoogleDriveAccountUpdateInput {
+    GoogleDriveAccountUpdateInput {
+        email: details.email.clone(),
+        display_name: details.display_name.clone(),
+        avatar_url: details.avatar_url.clone(),
+        provider_user_id: details.provider_user_id.clone(),
+        drive_quota_bytes: details.drive_quota_bytes,
+        drive_usage_bytes: details.drive_usage_bytes,
+        status: Some(RemoteSyncAccountStatus::Ready),
+        error: None,
+        ..account_update(account_id)
+    }
 }
 
 /// what both sides currently hold.
@@ -329,6 +459,7 @@ mod tests {
     use super::super::google::files::DriveEndpoints;
     use super::super::google::test::server::{ScriptedResponse, TestDriveServer};
     use super::super::google::transport::{DriveRetryPolicy, DriveTransport};
+    use super::super::store::RemoteSyncAccount;
     use super::*;
 
     /// the digest of [`SNAPSHOT_BYTES`], which is what a workspace holding that
@@ -519,6 +650,97 @@ mod tests {
         assert_eq!(
             conflict.message, None,
             "a conflict the interface already has wording for carried a message it would show instead"
+        );
+    }
+
+    fn account_details() -> GoogleDriveAccountDetails {
+        GoogleDriveAccountDetails {
+            email: Some("someone@example.com".to_string()),
+            display_name: Some("Someone".to_string()),
+            drive_quota_bytes: Some(15_000),
+            drive_usage_bytes: Some(4_000),
+            ..GoogleDriveAccountDetails::default()
+        }
+    }
+
+    fn state_holding(account: RemoteSyncAccount) -> RemoteSyncState {
+        RemoteSyncState {
+            accounts: vec![account],
+            workspace: linked_workspace(),
+            startup_prompt_enabled: true,
+            google_drive_ready: true,
+            device_id: "device-1".to_string(),
+        }
+    }
+
+    fn recorded_account() -> RemoteSyncAccount {
+        RemoteSyncAccount {
+            id: "account-1".to_string(),
+            email: "someone@example.com".to_string(),
+            drive_quota_bytes: Some(15_000),
+            drive_usage_bytes: Some(4_000),
+            app_usage_bytes: Some(2_048),
+            ..RemoteSyncAccount::default()
+        }
+    }
+
+    #[test]
+    fn an_inspection_that_found_no_news_writes_nothing() {
+        assert!(
+            account_holdings_update(
+                &state_holding(recorded_account()),
+                "account-1",
+                &account_details(),
+                2_048,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn an_inspection_writes_back_the_folders_share_of_drive_and_nothing_about_the_account() {
+        let update = account_holdings_update(
+            &state_holding(recorded_account()),
+            "account-1",
+            &account_details(),
+            9_000,
+        )
+        .expect("a folder that grew left the recorded usage alone");
+
+        assert_eq!(update.account_id, "account-1");
+        assert_eq!(update.app_usage_bytes, Some(9_000));
+        assert_eq!(update.drive_quota_bytes, Some(15_000));
+        assert_eq!(update.drive_usage_bytes, Some(4_000));
+        assert_eq!(
+            update.email, None,
+            "an inspection renamed the account it was only measuring"
+        );
+        assert!(
+            update.status.is_none(),
+            "an inspection decided an account's standing on the strength of a folder listing"
+        );
+    }
+
+    /// the reading a sync takes records that Drive answered, and deliberately
+    /// says nothing about the folder: what the workspace occupies there is
+    /// written once the operation that changes it has run.
+    #[test]
+    fn a_sync_reading_records_the_account_answered_and_not_what_the_folder_holds() {
+        let update = account_reachable_update("account-1", &account_details());
+
+        assert_eq!(update.account_id, "account-1");
+        assert_eq!(update.email, Some("someone@example.com".to_string()));
+        assert_eq!(update.display_name, Some("Someone".to_string()));
+        assert_eq!(update.drive_quota_bytes, Some(15_000));
+        assert_eq!(update.drive_usage_bytes, Some(4_000));
+        assert_eq!(update.status, Some(RemoteSyncAccountStatus::Ready));
+        assert_eq!(
+            update.error, None,
+            "a failure recorded before Drive answered survived Drive answering"
+        );
+        assert_eq!(
+            update.app_usage_bytes, None,
+            "a sync wrote the folder's share of Drive before the operation that changes it had run"
         );
     }
 }

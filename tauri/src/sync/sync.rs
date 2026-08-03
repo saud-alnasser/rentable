@@ -30,11 +30,12 @@ use super::google::metadata::{
 };
 use super::google::transport::{GoogleDriveApplyPullInput, GoogleDriveSyncCompleteInput};
 use super::inspection::{
-    GoogleDriveLinkPreparation, GoogleDriveRemoteState, inspect_google_drive_workspace,
-    linked_google_drive_account_id, prepare_from_remote_state, read_remote_state,
+    GoogleDriveLinkPreparation, GoogleDriveReading, GoogleDriveRemoteState,
+    inspect_google_drive_workspace, linked_google_drive_account_id, prepare_from_remote_state,
+    read_remote_recording_the_account_is_reachable,
 };
 use super::lock::{GoogleDriveSyncLockAcquireInput, GoogleDriveSyncLockReleaseInput};
-use super::session::{GoogleDriveAccountAuthInput, GoogleDriveAccountUpdateInput};
+use super::session::{GoogleDriveAccountAuthInput, GoogleDriveAccountUpdateInput, account_update};
 use super::store::{RemoteSyncAccountStatus, RemoteSyncState, RemoteSyncWorkspace};
 use super::workspace::{apply_remote_pull, mark_workspace_synced, prepare_local_push};
 
@@ -237,26 +238,21 @@ async fn sync_under_lease(
 ) -> Result<GoogleDriveSyncOutcome, Error> {
     let files = DriveFiles::new()?;
     let access_token = access_token_for(app_state, account_id).await?;
-    let details = files.read_account_details(&access_token).await?;
-    let state = record_account_is_reachable(app_state, account_id, &details).await?;
-
-    // a fingerprint that cannot be taken leaves the comparison to capture times,
-    // which is the same fallback a workspace with no hash recorded already uses.
-    let local_content_hash = super::workspace::current_workspace_content_hash(app_state)
-        .await
-        .ok();
-    let remote = read_remote_state(
+    let GoogleDriveReading {
+        state,
+        details,
+        remote,
+    } = read_remote_recording_the_account_is_reachable(
+        app_state,
         &files,
         &access_token,
-        &state.workspace,
-        local_content_hash.as_deref(),
+        account_id,
         mode,
     )
     .await?;
 
     if remote.resolution.requires_resolution {
-        let account_email = account_email(&state, account_id);
-        let preparation = prepare_from_remote_state(state, &account_email, &remote);
+        let preparation = prepare_from_remote_state(state, account_id, &remote);
 
         return Ok(GoogleDriveSyncOutcome {
             state: preparation.state.clone(),
@@ -744,61 +740,6 @@ pub(super) async fn access_token_for(
             Err(error)
         }
     }
-}
-
-/// write back who the account is, and clear any failure recorded against it —
-/// reaching Drive at all is what makes a recorded failure stale.
-///
-/// How much of the *folder* the workspace occupies is not known yet and is not
-/// touched here; it is written once the operation that changes it has run.
-async fn record_account_is_reachable(
-    app_state: &AppState,
-    account_id: &str,
-    details: &GoogleDriveAccountDetails,
-) -> Result<RemoteSyncState, Error> {
-    let mut remote_sync = app_state.remote_sync.write().await;
-
-    remote_sync
-        .update_google_drive_account(GoogleDriveAccountUpdateInput {
-            email: details.email.clone(),
-            display_name: details.display_name.clone(),
-            avatar_url: details.avatar_url.clone(),
-            provider_user_id: details.provider_user_id.clone(),
-            drive_quota_bytes: details.drive_quota_bytes,
-            drive_usage_bytes: details.drive_usage_bytes,
-            status: Some(RemoteSyncAccountStatus::Ready),
-            error: None,
-            ..account_update(account_id)
-        })
-        .await
-}
-
-/// an update that changes nothing, for a caller to fill the fields it means.
-fn account_update(account_id: &str) -> GoogleDriveAccountUpdateInput {
-    GoogleDriveAccountUpdateInput {
-        account_id: account_id.to_string(),
-        email: None,
-        display_name: None,
-        avatar_url: None,
-        provider_user_id: None,
-        drive_quota_bytes: None,
-        drive_usage_bytes: None,
-        app_usage_bytes: None,
-        access_token: None,
-        refresh_token: None,
-        token_expires_at: None,
-        status: None,
-        error: None,
-    }
-}
-
-fn account_email(state: &RemoteSyncState, account_id: &str) -> String {
-    state
-        .accounts
-        .iter()
-        .find(|account| account.id == account_id)
-        .map(|account| account.email.clone())
-        .unwrap_or_default()
 }
 
 /// which workspace the remote calls this one.
