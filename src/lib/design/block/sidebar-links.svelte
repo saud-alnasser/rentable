@@ -54,7 +54,7 @@
 	}: ComponentProps<typeof Sidebar.Root> = $props();
 </script>
 
-<Sidebar.Root {collapsible} variant="inset" {...restProps}>
+<Sidebar.Root bind:ref {collapsible} variant="inset" {...restProps}>
 	<Sidebar.Header>
 		<Sidebar.Menu>
 			<Sidebar.MenuItem>

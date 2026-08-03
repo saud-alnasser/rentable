@@ -35,3 +35,10 @@ exercised rather than bypassed.
 - **No transactions across the boundary.** Multi-step writes are sequenced by the caller
   and are not atomic, so a write that must not half-apply needs its own recovery, not a
   rollback.
+- **SQLite is compiled into the binary, and the driver owns that.** The engine links a
+  bundled SQLite rather than a system library, asked for through the driver's own feature
+  rather than by naming the native bindings as a direct dependency. Nothing here selects a
+  TLS backend for the database: it speaks to a local file, and the TLS stack the crate does
+  carry belongs to the HTTP client. Adding a direct dependency on the bindings to influence
+  the build is the shape this deliberately does not have — it forces an exact version that
+  must then track the driver's own range by hand.

@@ -3,7 +3,7 @@ pub mod migrations;
 pub mod proxy;
 
 use sqlx::{
-    Pool, Sqlite,
+    AssertSqlSafe, Pool, Sqlite,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
 };
 use std::{
@@ -88,8 +88,12 @@ impl Database {
             fs::remove_file(backup_path)?;
         }
 
+        // `VACUUM INTO` takes no bind parameter, so the destination has to be written into
+        // the statement. Asserted safe: the path is chosen by the application rather than
+        // supplied by a caller, and the quote doubling above is SQLite's own escaping for
+        // a string literal.
         let escaped_path = backup_path.to_string_lossy().replace('\'', "''");
-        sqlx::query(format!("VACUUM INTO '{}'", escaped_path).as_str())
+        sqlx::query(AssertSqlSafe(format!("VACUUM INTO '{}'", escaped_path)))
             .execute(pool)
             .await?;
 
@@ -203,16 +207,10 @@ impl Database {
     }
 
     async fn is_pool_ready(pool: &Pool<Sqlite>) -> bool {
-        let row: Option<i32> = sqlx::query_scalar(
-            format!(
-                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='{}';",
-                migrations::TABLE_NAME
-            )
-            .as_str(),
-        )
-        .fetch_one(pool)
-        .await
-        .ok();
+        let row: Option<i32> = sqlx::query_scalar(migrations::TABLE_EXISTS)
+            .fetch_one(pool)
+            .await
+            .ok();
 
         matches!(row, Some(1))
     }
