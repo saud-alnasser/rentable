@@ -209,6 +209,7 @@ const seed = async () => {
 		const phoneGen = new Randexp(phone);
 
 		const tenantIds: number[] = [];
+		const usedPhones = new Set<string>();
 		const complexIds: number[] = [];
 		const unitIdsPerComplex: Record<number, number[]> = {};
 		const unitSchedules = new Map<number, UnitSchedule[]>();
@@ -217,12 +218,22 @@ const seed = async () => {
 		// ️tenants
 		for (let i = 0; i < counts.tenants; i++) {
 			const name = faker.person.fullName();
+
+			// `tenant.phone` is UNIQUE and the whole seed is one transaction, so a single repeat
+			// aborts the run and leaves no database at all. The regex admits 90 million numbers —
+			// ample to hold `counts.tenants`, far too few to draw them without a repeat by luck.
+			let tenantPhone = phoneGen.gen();
+			while (usedPhones.has(tenantPhone)) {
+				tenantPhone = phoneGen.gen();
+			}
+			usedPhones.add(tenantPhone);
+
 			const tenantInsert = tx
 				.insert(s.tenant)
 				.values({
 					name,
 					nationalId: nationalIdGen.gen(),
-					phone: phoneGen.gen()
+					phone: tenantPhone
 				})
 				.returning()
 				.get();
