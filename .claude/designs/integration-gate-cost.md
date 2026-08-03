@@ -1,6 +1,6 @@
 # ci: cut the cost of the pull-request gate
 
-Status: accepted
+Status: implemented
 Sources: `.github/workflows/integration.yml`, `.github/workflows/release.yml`, `tauri/tauri.conf.json`
 
 ## Problem

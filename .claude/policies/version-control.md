@@ -43,6 +43,30 @@ The practical consequences, in order of how often they catch people:
 - **A ticket too large for one commit was scoped too large.** Split the ticket first; the
   branch follows the ticket, never the other way round.
 
+## Decision work has no ticket, and lands as a design PR
+
+The section above binds work that has a ticket. **Decision work has none** — a decision
+produces no branch, so it never becomes a tracker item, and `.claude/policies/maps.md` says
+where it lives instead. What it still needs is a route onto `main`.
+
+A design session's resolutions land together, as one `docs:` pull request for that session
+rather than one per decision. **#221 is the shape**: a single session settled two decisions
+and wrote the map, landing three ADRs, the design document, and the policy edits they forced
+as one pull request closing no issue. It is the only precedent verified here — other recent
+`docs:` pull requests look similar but were ticket-backed (#199 closed #198, #206 closed
+#204, #229 closed #222), so they are the ordinary rule, not this exception.
+
+Two consequences, both exceptions to **One ticket, one branch, one commit** rather than a
+second convention:
+
+- **One branch carries the whole session**, not one decision. There is no ticket to split it
+  along, and the one-commit rule has no ticket to bind it to.
+- **The branch drops the ticket id** — `graphite/<type>/<slug>`, as **Branch naming** states
+  below, because with no ticket there is nothing to claim.
+
+The map itself is where the exception stops: a map *is* a tracker item, because only the map
+survives into build tickets.
+
 ## Branch naming
 
 Branches are cut from `main`, and **the name is the conventional commit the branch will land
