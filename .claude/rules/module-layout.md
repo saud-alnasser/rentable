@@ -55,8 +55,6 @@ counter-example used to be `src/lib/api/mod.ts`; there is no `mod.ts`, no `utils
 `common/`, and no plural module directory left. `src/routes/` is the acknowledged
 exception, and its segments are URL path names rather than module names.
 
-The refactor programme's rule still governs the divergences that remain elsewhere, and it
-is in `CLAUDE.md`: **do not add a new violation, and do not fix an old one
-opportunistically.** What that means specifically for naming: an unrelated rename folded
-into a change makes the change unreviewable, and it takes the work off the ticket that was
-scoped for it.
+Where a divergence turns up anyway, `CLAUDE.md`'s rule on architectural boundaries governs
+what happens to it. What that means specifically for naming: **a rename the change is not
+about waits for its own ticket**, however small it looks from here.
