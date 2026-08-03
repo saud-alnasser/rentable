@@ -1,6 +1,8 @@
 ---
 paths:
   - src/lib/api/**
+  - src/lib/*/router.ts
+  - src/lib/*/reconcile.ts
 ---
 
 <!--
@@ -8,6 +10,10 @@ paths:
   enforces it — this rule loads when a file under `src/lib/api/` is read and
   costs nothing otherwise. A standard that must hold on every turn belongs in
   `CLAUDE.md` or in an unscoped file beside this one instead.
+
+  The layer is no longer one directory. A concept that has relocated (#123-#126)
+  keeps its router under its own name, so the globs follow it there; without them
+  the router rules below stop loading for exactly the routers they govern.
 -->
 
 # API layer

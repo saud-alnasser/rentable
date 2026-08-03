@@ -8,6 +8,10 @@
 // left of the Drive client that was deleted around them: each now calls a coarse
 // command rather than sequencing a protocol, and moving them behind the context seam
 // is the context's own contraction rather than this programme's.
+//
+// The layer is no longer one directory: a concept that has relocated (#123-#126) keeps
+// its router and its domain module under its own name, and stays subject to every rule
+// below. Concepts are listed here so a relocation cannot quietly leave the pin behind.
 
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -15,14 +19,32 @@ import { join, relative, sep } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-const API_ROOT = fileURLToPath(new URL('.', import.meta.url));
+const LIB_ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOTS = ['api', 'contract', 'payment'].map((home) => join(LIB_ROOT, home));
 
 const REMOTE_SYNC = ['utils/remote-sync-google-drive-autosync.ts', 'utils/workspace-sync.ts'];
 
+function toPosix(path) {
+	return path.split(sep).join('/');
+}
+
+// every source file the layer owns. `path` is relative to the file's own root, which is
+// what an allowlist entry names; `label` is relative to the library, so a failure says
+// which home the offender is in — `router.ts` alone now names three files.
 function apiSourceFiles() {
-	return readdirSync(API_ROOT, { recursive: true, withFileTypes: true })
-		.filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
-		.map((entry) => relative(API_ROOT, join(entry.parentPath, entry.name)).split(sep).join('/'));
+	return ROOTS.flatMap((root) =>
+		readdirSync(root, { recursive: true, withFileTypes: true })
+			.filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
+			.map((entry) => {
+				const file = join(entry.parentPath, entry.name);
+
+				return {
+					file,
+					path: toPosix(relative(root, file)),
+					label: toPosix(relative(LIB_ROOT, file))
+				};
+			})
+	);
 }
 
 // files whose full content matches the pattern, minus the allowed ones. every allowed
@@ -30,13 +52,16 @@ function apiSourceFiles() {
 function offenders(pattern, allowed) {
 	const files = apiSourceFiles();
 
-	for (const file of allowed) {
-		assert.ok(files.includes(file), `allowlisted file no longer exists: ${file}`);
+	for (const entry of allowed) {
+		assert.ok(
+			files.some(({ path }) => path === entry),
+			`allowlisted file no longer exists: ${entry}`
+		);
 	}
 
-	return files.filter(
-		(file) => !allowed.includes(file) && pattern.test(readFileSync(join(API_ROOT, file), 'utf8'))
-	);
+	return files
+		.filter(({ file, path }) => !allowed.includes(path) && pattern.test(readFileSync(file, 'utf8')))
+		.map(({ label }) => label);
 }
 
 // a static value import, re-export, or side-effect import from any of the given module

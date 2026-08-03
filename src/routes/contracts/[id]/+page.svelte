@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import ContractDetails from '$lib/resources/contracts/components/contract-details.svelte';
+	import ContractDetails from '$lib/contract/component/details.svelte';
 
 	type ContractDetailsSection = 'overview' | 'units' | 'payments';
 

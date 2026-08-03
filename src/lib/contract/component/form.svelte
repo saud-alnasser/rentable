@@ -1,9 +1,5 @@
 <script lang="ts">
 	import { ContractSchema, type Contract } from '$lib/api/database/schema';
-	import {
-		CONTRACT_END_DATE_TOLERANCE_DAYS,
-		hasValidContractPeriodForInterval
-	} from '$lib/api/contract';
 	import { Button } from '$lib/common/components/fragments/button';
 	import * as Calendar from '$lib/common/components/fragments/calendar';
 	import * as Command from '$lib/common/components/fragments/command';
@@ -21,7 +17,10 @@
 	} from '$lib/common/utils/date';
 	import { getIntlLocale } from '$lib/common/utils/locale';
 	import { cn } from '$lib/common/utils/tailwind.js';
-	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import {
+		CONTRACT_END_DATE_TOLERANCE_DAYS,
+		hasValidContractPeriodForInterval
+	} from '$lib/contract/contract';
 	import {
 		createContractEndDateState,
 		getCalculatedContractEndDate,
@@ -32,8 +31,9 @@
 		isContractEndDateWithinWindow,
 		observeContractEndDate,
 		observeContractEndDateInputs
-	} from '$lib/resources/contracts/end-date';
-	import { useCreateContract, useUpdateContract } from '$lib/resources/contracts/hooks/queries';
+	} from '$lib/contract/end-date';
+	import { useCreateContract, useUpdateContract } from '$lib/contract/query';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useFetchTenant, useFetchTenants } from '$lib/resources/tenants/hooks/queries';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
 	import CheckIcon from '@lucide/svelte/icons/check';

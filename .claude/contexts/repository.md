@@ -54,8 +54,8 @@ stored value is a cache of the derivation and never the authority.
   and **`platform`**, capabilities that cross a process boundary or are nondeterministic
   (the desktop shell, the database, the clock, diagnostics, locale) — and a domain rule
   never lives in either. The application shell is neither primitive nor concept, so it is
-  its own home, `layout`. `src/routes/` stays layer-first, as the framework requires. **The
-  tree does not look like this yet** (#123–#126).
+  its own home, `layout`. `src/routes/` stays layer-first, as the framework requires.
+  **`contract` and `payment` are built; the rest of the tree is not yet** (#125, #126).
 - **Derived status is written back by reconciliation, never by the mutation that changed
   its inputs.** Any mutation touching contracts, payments, or unit assignments must
   reconcile, or the stored statuses go stale.

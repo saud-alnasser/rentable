@@ -1,6 +1,6 @@
+import contract from '$lib/contract/router';
 import app from './routers/app';
 import complex from './routers/complex';
-import contract from './routers/contract';
 import tenant from './routers/tenant';
 import { router } from './trpc';
 

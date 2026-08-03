@@ -1,5 +1,6 @@
-import type { Contract, Payment, Unit } from '$lib/api/database/schema';
+import type { Contract, Unit } from '$lib/api/database/schema';
 import { addUtcDays, addUtcMonths, toUtcDay, type DateLike } from '$lib/api/date';
+import { getPaidAmount, type PaymentLike } from '$lib/payment/payment';
 import { TRPCError } from '@trpc/server';
 
 /**
@@ -7,7 +8,8 @@ import { TRPCError } from '@trpc/server';
  *
  * the contract domain module: status derivation, period and cost invariants, cycle and
  * expected-amount arithmetic, and the rules routers assert before persisting. Routers
- * fetch rows and call in; no rule or derivation lives anywhere else.
+ * fetch rows and call in. What a payment is worth on its own is `$lib/payment/payment`;
+ * everything that weighs payments against a contract is here.
  */
 
 type ContractLike = Omit<
@@ -16,10 +18,6 @@ type ContractLike = Omit<
 > & {
 	start: DateLike;
 	end: DateLike;
-};
-
-type PaymentLike = Omit<Pick<Payment, 'amount' | 'date'>, 'date'> & {
-	date: DateLike;
 };
 
 type ContractRangeLike = Pick<ContractLike, 'start' | 'end'>;
@@ -195,10 +193,6 @@ export function getContractTotalCost(contract: ContractLike) {
 	return (cycleCount ?? countExpectedPayments(contract, contract.end)) * contract.cost;
 }
 
-export function getPaidAmount(payments: PaymentLike[]) {
-	return payments.reduce((sum, payment) => sum + payment.amount, 0);
-}
-
 export function getContractPaymentSummary(contract: ContractLike, payments: PaymentLike[]) {
 	return {
 		paidAmount: getPaidAmount(payments),
@@ -333,20 +327,6 @@ export function deriveUnitStatus(
 	return isOccupied ? 'occupied' : 'vacant';
 }
 
-/** groups payment rows by their contract, preserving row order within each group. */
-export function groupPaymentsByContractId<P extends { contractId: number }>(payments: P[]) {
-	const paymentsByContractId = new Map<number, P[]>();
-
-	for (const payment of payments) {
-		paymentsByContractId.set(payment.contractId, [
-			...(paymentsByContractId.get(payment.contractId) ?? []),
-			payment
-		]);
-	}
-
-	return paymentsByContractId;
-}
-
 /** derives the status of each unit from its assignments and their payments. */
 export function deriveUnitStatuses(
 	unitIds: number[],
@@ -441,12 +421,6 @@ export function ensureContractUnitsAreMutable(payments: unknown[]) {
 export function ensureContractPaymentsCreatable(contract: ContractLike, payments: PaymentLike[]) {
 	if (isContractPaidInFull(contract, payments)) {
 		badRequest('cannot add payments once the required contract amount has been fully paid');
-	}
-}
-
-export function ensureValidPaymentAmount(amount: number) {
-	if (amount <= 0) {
-		badRequest('payment amount must be greater than zero');
 	}
 }
 

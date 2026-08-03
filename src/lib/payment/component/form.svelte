@@ -15,7 +15,7 @@
 	import { getIntlLocale } from '$lib/common/utils/locale';
 	import { cn } from '$lib/common/utils/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { useCreatePayment, useUpdatePayment } from '$lib/resources/contracts/hooks/queries';
+	import { useCreatePayment, useUpdatePayment } from '$lib/payment/query';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import { TRPCError } from '@trpc/server';

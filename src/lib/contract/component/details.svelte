@@ -2,10 +2,6 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { Contract } from '$lib/api/database/schema';
-	import {
-		canManuallyTerminateContractStatus,
-		canUnterminateContractStatus
-	} from '$lib/api/contract';
 	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
 	import { Badge } from '$lib/common/components/fragments/badge';
 	import { Button } from '$lib/common/components/fragments/button';
@@ -14,23 +10,27 @@
 	import * as Tabs from '$lib/common/components/fragments/tabs';
 	import * as Tooltip from '$lib/common/components/fragments/tooltip';
 	import { formatLocaleDate } from '$lib/common/utils/locale';
-	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
+	import {
+		canManuallyTerminateContractStatus,
+		canUnterminateContractStatus
+	} from '$lib/contract/contract';
 	import {
 		useDeleteContract,
 		useFetchContract,
 		useTerminateContract,
 		useUnterminateContract
-	} from '$lib/resources/contracts/hooks/queries';
+	} from '$lib/contract/query';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
+	import PaymentsDataView from '$lib/payment/component/data-view.svelte';
 	import { useFetchTenant } from '$lib/resources/tenants/hooks/queries';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import BanIcon from '@lucide/svelte/icons/ban';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import ContractForm from './contract-form.svelte';
-	import ContractPaymentsDataView from './contract-payments-data-view.svelte';
-	import ContractUnitsManagement from './contract-units-management.svelte';
+	import ContractAssignment from './assignment.svelte';
+	import ContractForm from './form.svelte';
 
 	type ContractDetailsSection = 'overview' | 'units' | 'payments';
 
@@ -384,11 +384,11 @@
 			</Tabs.Content>
 
 			<Tabs.Content value="units" class="min-h-0 flex-1 pt-1">
-				<ContractUnitsManagement {contractId} showHeader={false} />
+				<ContractAssignment {contractId} showHeader={false} />
 			</Tabs.Content>
 
 			<Tabs.Content value="payments" class="min-h-0 flex-1 pt-1">
-				<ContractPaymentsDataView {contractId} showHeader={false} />
+				<PaymentsDataView {contractId} showHeader={false} />
 			</Tabs.Content>
 		</Tabs.Root>
 	</div>

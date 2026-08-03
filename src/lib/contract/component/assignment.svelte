@@ -14,16 +14,16 @@
 	import { Skeleton } from '$lib/common/components/fragments/skeleton';
 	import * as Tooltip from '$lib/common/components/fragments/tooltip';
 	import { cn } from '$lib/common/utils/tailwind.js';
-	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
-	import { useFetchComplexes } from '$lib/resources/complexes/hooks/queries';
 	import {
 		useAssignContractUnits,
 		useFetchContract,
 		useFetchContractUnits,
 		useFetchVacantContractUnits,
 		useRemoveContractUnit
-	} from '$lib/resources/contracts/hooks/queries';
+	} from '$lib/contract/query';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
+	import { useFetchComplexes } from '$lib/resources/complexes/hooks/queries';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import CheckIcon from '@lucide/svelte/icons/check';

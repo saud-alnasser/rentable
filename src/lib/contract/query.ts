@@ -16,7 +16,6 @@ import { get } from 'svelte/store';
 
 const DATA_VIEW_PAGE_SIZE = 24;
 type InfiniteContractsPage = Awaited<ReturnType<typeof api.contract.getPaginated>>;
-type InfinitePaymentsPage = Awaited<ReturnType<typeof api.contract.payments.getPaginated>>;
 
 export const keys = {
 	all: ['contracts'],
@@ -30,14 +29,6 @@ export const keys = {
 		'vacant',
 		contractId,
 		complexId
-	],
-	getPayments: (id: number) => ['contracts', 'payments', id],
-	getPaymentsDataView: (id: number, search?: string) => [
-		'contracts',
-		'payments',
-		'data-view',
-		id,
-		search ?? ''
 	]
 } as const;
 
@@ -281,113 +272,6 @@ export function useRemoveContractUnit(
 			api.contract.units.remove(data),
 		onSuccess: async () => {
 			await invalidateContractAndComplexUnitData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useFetchContractPayments(contractId: () => number) {
-	return createQuery(() => {
-		const id = contractId();
-
-		return {
-			queryKey: keys.getPayments(id),
-			queryFn: () => api.contract.payments.getMany({ contractId: id })
-		};
-	});
-}
-
-export function useInfiniteContractPayments(params: () => { contractId: number; search?: string }) {
-	return createInfiniteQuery<
-		InfinitePaymentsPage,
-		Error,
-		InfiniteData<InfinitePaymentsPage>,
-		ReturnType<typeof keys.getPaymentsDataView>,
-		number
-	>(() => {
-		const { contractId, search } = params();
-		const trimmedSearch = search?.trim();
-
-		return {
-			queryKey: keys.getPaymentsDataView(contractId, trimmedSearch),
-			initialPageParam: 0,
-			getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
-			queryFn: ({ pageParam }) =>
-				api.contract.payments.getPaginated({
-					contractId,
-					search: trimmedSearch || undefined,
-					limit: DATA_VIEW_PAGE_SIZE,
-					offset: typeof pageParam === 'number' ? pageParam : 0
-				})
-		};
-	});
-}
-
-export function useCreatePayment(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).contracts.hooks.createPaymentSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.contract.payments.create>[0]) =>
-			api.contract.payments.create(data),
-		onSuccess: async () => {
-			await invalidateContractData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useUpdatePayment(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).contracts.hooks.updatePaymentSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.contract.payments.update>[0]) =>
-			api.contract.payments.update(data),
-		onSuccess: async () => {
-			await invalidateContractData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useDeletePayment(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).contracts.hooks.deletePaymentSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (id: number) => api.contract.payments.delete({ id }),
-		onSuccess: async (deleted) => {
-			if (deleted) {
-				await invalidateContractData(client);
-			}
 
 			onMutationSuccess(opts);
 		},

@@ -16,7 +16,7 @@ pnpm test
 ## Run one file
 
 ```bash
-node --import tsx --test src/lib/api/routers/contract.test.mjs
+node --import tsx --test src/lib/contract/router.test.mjs
 ```
 
 This is the command to use while working. `--import tsx` is not optional.
@@ -40,7 +40,7 @@ latter is deprecated and warns.
 ## Run one test by name
 
 ```bash
-node --import tsx --test --test-name-pattern "derived status is scheduled" src/lib/api/routers/contract.test.mjs
+node --import tsx --test --test-name-pattern "derived status is scheduled" src/lib/contract/router.test.mjs
 ```
 
 The pattern is a regular expression matched against the test name.

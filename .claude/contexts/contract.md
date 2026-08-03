@@ -1,6 +1,6 @@
 # Contract
 
-Sources: `src/lib/api/contract.ts`, `src/lib/api/routers/contract.ts`, `src/lib/api/reconcile.ts`, `src/lib/resources/contracts/`
+Sources: `src/lib/contract/`, `src/lib/payment/`
 
 The agreement between a tenant and the units they rent, and the arithmetic that decides
 whether it is being honoured. Every derived status in the application — contracts and
