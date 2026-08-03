@@ -136,7 +136,6 @@
 			return;
 		}
 
-		// eslint-disable-next-line svelte/no-navigation-without-resolve
 		void goto(getSectionHref(activeSection), {
 			replaceState: true,
 			noScroll: true,

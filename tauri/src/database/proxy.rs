@@ -1,10 +1,17 @@
 use base64::{Engine, engine::general_purpose};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{Column, Pool, Row, Sqlite, Transaction, TypeInfo, sqlite::SqliteRow};
+use sqlx::{AssertSqlSafe, Column, Pool, Row, Sqlite, Transaction, TypeInfo, sqlite::SqliteRow};
 
 use crate::error::Error;
 
+/// One statement and its bound values, as they arrive from the web layer.
+///
+/// `sql` is executed as written, so it is asserted safe at the point of execution rather
+/// than being checked here. What makes that assertion hold is that the web layer composes
+/// statements through its query builder and never concatenates a value into one: everything
+/// variable travels in `params` and is bound, so the statement text is fixed by the code
+/// that shipped rather than by anything a user typed.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SQLQuery {
     pub sql: String,
@@ -79,7 +86,7 @@ pub async fn execute_single_sql(
         });
     }
 
-    let mut q = sqlx::query(query.sql.as_str());
+    let mut q = sqlx::query(AssertSqlSafe(query.sql.as_str()));
     q = bind_params(q, &query.params);
 
     let rows = q.fetch_all(pool).await?;
@@ -99,8 +106,8 @@ pub async fn execute_batch_sql(
     let mut results: Vec<Vec<SQLRow>> = vec![];
 
     for query in queries {
-        let mut q: sqlx::query::Query<'_, Sqlite, sqlx::sqlite::SqliteArguments<'_>> =
-            sqlx::query(query.sql.as_str());
+        let mut q: sqlx::query::Query<'_, Sqlite, sqlx::sqlite::SqliteArguments> =
+            sqlx::query(AssertSqlSafe(query.sql.as_str()));
         q = bind_params(q, &query.params);
 
         let rows = q.fetch_all(&mut *tx).await.map_err(|e| Error::Database {
@@ -116,9 +123,9 @@ pub async fn execute_batch_sql(
 }
 
 fn bind_params<'a>(
-    mut query: sqlx::query::Query<'a, Sqlite, sqlx::sqlite::SqliteArguments<'a>>,
+    mut query: sqlx::query::Query<'a, Sqlite, sqlx::sqlite::SqliteArguments>,
     params: &'a [Value],
-) -> sqlx::query::Query<'a, Sqlite, sqlx::sqlite::SqliteArguments<'a>> {
+) -> sqlx::query::Query<'a, Sqlite, sqlx::sqlite::SqliteArguments> {
     for p in params {
         match p {
             Value::String(s) => query = query.bind(s),

@@ -1,6 +1,6 @@
 use sqlparser::dialect::SQLiteDialect;
 use sqlparser::parser::Parser;
-use sqlx::{Pool, Sqlite};
+use sqlx::{AssertSqlSafe, Pool, Sqlite};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -8,18 +8,35 @@ use std::{
 
 use crate::{diagnostics, error::Error};
 
-pub const TABLE_NAME: &'static str = "__migrations__";
+// A macro rather than a `const` so the statements below can `concat!` it: sqlx accepts
+// only `&'static str` without an injection assertion, and a name interpolated at runtime
+// would force one on statements that are entirely fixed at compile time.
+macro_rules! table_name {
+    () => {
+        "__migrations__"
+    };
+}
+
+const CREATE_TABLE: &str = concat!(
+    "CREATE TABLE IF NOT EXISTS ",
+    table_name!(),
+    "(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);"
+);
+
+const SELECT_APPLIED: &str = concat!("SELECT id FROM ", table_name!(), " WHERE name = ? LIMIT 1;");
+
+const INSERT_APPLIED: &str = concat!("INSERT INTO ", table_name!(), " (name) VALUES (?)");
+
+/// Whether the migrations table exists yet — the readiness probe the database module runs
+/// before it will treat a pool as usable.
+pub const TABLE_EXISTS: &str = concat!(
+    "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='",
+    table_name!(),
+    "';"
+);
 
 pub async fn create_table(pool: &Pool<Sqlite>) -> Result<(), Error> {
-    sqlx::query(
-            format!(
-                "CREATE TABLE IF NOT EXISTS {}(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);",
-                TABLE_NAME
-            )
-            .as_str(),
-        )
-        .execute(pool)
-        .await?;
+    sqlx::query(CREATE_TABLE).execute(pool).await?;
 
     Ok(())
 }
@@ -97,13 +114,10 @@ fn get_migration_files(migrations_dir: &PathBuf) -> Result<Vec<String>, Error> {
 }
 
 async fn is_migration_applied(pool: &Pool<Sqlite>, name: &str) -> Result<bool, Error> {
-    let res: Option<(i64,)> = sqlx::query_as(&format!(
-        "SELECT id FROM {} WHERE name = ? LIMIT 1;",
-        TABLE_NAME
-    ))
-    .bind(name)
-    .fetch_optional(pool)
-    .await?;
+    let res: Option<(i64,)> = sqlx::query_as(SELECT_APPLIED)
+        .bind(name)
+        .fetch_optional(pool)
+        .await?;
 
     Ok(res.is_some())
 }
@@ -117,8 +131,10 @@ async fn apply_migration(pool: &Pool<Sqlite>, name: &str, sql: &str) -> Result<(
     let mut tx = pool.begin().await?;
 
     for statement in statements {
-        let sql_str = statement.to_string();
-        sqlx::query(&sql_str)
+        // Asserted safe: the text is a migration file shipped with the application,
+        // re-emitted by the parser above rather than assembled from any input.
+        let sql_str = AssertSqlSafe(statement.to_string());
+        sqlx::query(sql_str)
             .execute(&mut *tx)
             .await
             .map_err(|e| Error::Database {
@@ -126,7 +142,7 @@ async fn apply_migration(pool: &Pool<Sqlite>, name: &str, sql: &str) -> Result<(
             })?;
     }
 
-    sqlx::query(&format!("INSERT INTO {} (name) VALUES (?)", TABLE_NAME))
+    sqlx::query(INSERT_APPLIED)
         .bind(name)
         .execute(&mut *tx)
         .await?;
