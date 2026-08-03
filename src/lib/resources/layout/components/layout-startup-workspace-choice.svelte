@@ -14,7 +14,7 @@
 	import * as Tooltip from '$lib/common/components/fragments/tooltip';
 	import { formatLocaleDate } from '$lib/common/utils/locale';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import GoogleDriveLinkConflictPanel from '$lib/resources/sync/components/google-drive-link-conflict-panel.svelte';
+	import GoogleDriveLinkConflictPanel from '$lib/sync/component/conflict-panel.svelte';
 	import CloudIcon from '@lucide/svelte/icons/cloud';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import HardDriveIcon from '@lucide/svelte/icons/hard-drive';

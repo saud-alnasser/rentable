@@ -55,7 +55,8 @@ stored value is a cache of the derivation and never the authority.
   (the desktop shell, the database, the clock, diagnostics, locale) — and a domain rule
   never lives in either. The application shell is neither primitive nor concept, so it is
   its own home, `layout`. `src/routes/` stays layer-first, as the framework requires.
-  **`contract` and `payment` are built; the rest of the tree is not yet** (#125, #126).
+  **Every concept is built. `ui`, `platform` and `layout` are not yet, and what is left of
+  `src/lib/api/` and `src/lib/common/` is what becomes them** (#126).
 - **Derived status is written back by reconciliation, never by the mutation that changed
   its inputs.** Any mutation touching contracts, payments, or unit assignments must
   reconcile, or the stored statuses go stale.

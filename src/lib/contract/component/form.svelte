@@ -34,7 +34,7 @@
 	} from '$lib/contract/end-date';
 	import { useCreateContract, useUpdateContract } from '$lib/contract/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { useFetchTenant, useFetchTenants } from '$lib/resources/tenants/hooks/queries';
+	import { useFetchTenant, useFetchTenants } from '$lib/tenant/query';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';

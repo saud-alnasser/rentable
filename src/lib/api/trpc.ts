@@ -1,4 +1,4 @@
-import { requestGoogleDriveAutosync } from '$lib/api/utils/remote-sync-google-drive-events';
+import { requestGoogleDriveAutosync } from '$lib/sync/event';
 import { initTRPC } from '@trpc/server';
 import { ZodError } from 'zod';
 import { context } from './context';

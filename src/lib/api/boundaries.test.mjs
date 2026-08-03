@@ -4,47 +4,52 @@
 // clock reads — are forbidden everywhere else, so a regression is a failing test,
 // not a review catch.
 //
-// Two remote-sync modules still reach the desktop facade directly. They are what is
-// left of the Drive client that was deleted around them: each now calls a coarse
-// command rather than sequencing a protocol, and moving them behind the context seam
-// is the context's own contraction rather than this programme's.
+// The layer is no longer one directory. A concept that has relocated (#123-#126) keeps
+// its request-time modules — its router, and reconciliation — under its own name, and
+// those stay subject to every rule below. The rest of a concept directory is frontend
+// and is not the layer: a query module reaches the desktop facade because that is what
+// the facade is for. The membership test is the one `.claude/rules/api-layer.md` scopes
+// itself by, so a relocation cannot quietly leave the pin behind.
 //
-// The layer is no longer one directory: a concept that has relocated (#123-#126) keeps
-// its router and its domain module under its own name, and stays subject to every rule
-// below. Concepts are listed here so a relocation cannot quietly leave the pin behind.
+// The two remote-sync modules that used to be allowlisted here needed the exception
+// only because they sat in `api/utils/`. They are the sync concept's now, beside the
+// link and conflict modules that always called the facade, so the exception went with
+// them rather than being carried.
 
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const LIB_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const ROOTS = ['api', 'contract', 'payment'].map((home) => join(LIB_ROOT, home));
-
-const REMOTE_SYNC = ['utils/remote-sync-google-drive-autosync.ts', 'utils/workspace-sync.ts'];
+const API_ROOT = join(LIB_ROOT, 'api');
+const REQUEST_TIME_MODULES = ['router.ts', 'reconcile.ts'];
 
 function toPosix(path) {
 	return path.split(sep).join('/');
 }
 
-// every source file the layer owns. `path` is relative to the file's own root, which is
-// what an allowlist entry names; `label` is relative to the library, so a failure says
-// which home the offender is in — `router.ts` alone now names three files.
-function apiSourceFiles() {
-	return ROOTS.flatMap((root) =>
-		readdirSync(root, { recursive: true, withFileTypes: true })
-			.filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
-			.map((entry) => {
-				const file = join(entry.parentPath, entry.name);
+function labelled(file) {
+	return { file, label: toPosix(relative(LIB_ROOT, file)) };
+}
 
-				return {
-					file,
-					path: toPosix(relative(root, file)),
-					label: toPosix(relative(LIB_ROOT, file))
-				};
-			})
-	);
+// every source file the layer owns: all of `api/`, plus the request-time modules of each
+// concept home beside it. The label is library-relative, because `router.ts` on its own
+// now names half a dozen files.
+function apiSourceFiles() {
+	const inApi = readdirSync(API_ROOT, { recursive: true, withFileTypes: true })
+		.filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
+		.map((entry) => labelled(join(entry.parentPath, entry.name)));
+
+	const inConcepts = readdirSync(LIB_ROOT, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory() && entry.name !== 'api')
+		.flatMap((home) =>
+			REQUEST_TIME_MODULES.map((name) => join(LIB_ROOT, home.name, name)).filter(existsSync)
+		)
+		.map(labelled);
+
+	return [...inApi, ...inConcepts];
 }
 
 // files whose full content matches the pattern, minus the allowed ones. every allowed
@@ -54,13 +59,15 @@ function offenders(pattern, allowed) {
 
 	for (const entry of allowed) {
 		assert.ok(
-			files.some(({ path }) => path === entry),
+			files.some(({ label }) => label === entry),
 			`allowlisted file no longer exists: ${entry}`
 		);
 	}
 
 	return files
-		.filter(({ file, path }) => !allowed.includes(path) && pattern.test(readFileSync(file, 'utf8')))
+		.filter(
+			({ file, label }) => !allowed.includes(label) && pattern.test(readFileSync(file, 'utf8'))
+		)
 		.map(({ label }) => label);
 }
 
@@ -85,23 +92,23 @@ test('the database singleton is reachable only through the context', () => {
 		'\\./mod'
 	);
 
-	assert.deepEqual(offenders(pattern, ['database/memory.ts']), []);
+	assert.deepEqual(offenders(pattern, ['api/database/memory.ts']), []);
 });
 
 test('the desktop facade is reachable only through the context', () => {
 	const pattern = valueImportFrom('\\$lib/api/tauri', '\\./tauri', '(?:\\.\\./)+tauri');
 
-	assert.deepEqual(offenders(pattern, REMOTE_SYNC), []);
+	assert.deepEqual(offenders(pattern, []), []);
 });
 
 test('the tauri runtime is imported only by the facade and the database transport', () => {
 	const pattern = valueImportFrom("@tauri-apps/[^']*");
 
-	assert.deepEqual(offenders(pattern, ['tauri.ts', 'database/mod.ts']), []);
+	assert.deepEqual(offenders(pattern, ['api/tauri.ts', 'api/database/mod.ts']), []);
 });
 
 test('the ambient clock is read only by the context', () => {
 	const pattern = /Date\.now\(|new Date\(\)/;
 
-	assert.deepEqual(offenders(pattern, ['context.ts']), []);
+	assert.deepEqual(offenders(pattern, ['api/context.ts']), []);
 });
