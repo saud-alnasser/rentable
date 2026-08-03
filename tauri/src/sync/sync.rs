@@ -37,7 +37,9 @@ use super::inspection::{
 use super::lock::{GoogleDriveSyncLockAcquireInput, GoogleDriveSyncLockReleaseInput};
 use super::session::{GoogleDriveAccountAuthInput, GoogleDriveAccountUpdateInput, account_update};
 use super::store::{RemoteSyncAccountStatus, RemoteSyncState, RemoteSyncWorkspace};
-use super::workspace::{apply_remote_pull, mark_workspace_synced, prepare_local_push};
+use super::workspace::{
+    LocalPushSnapshot, apply_remote_pull, mark_workspace_synced, prepare_local_push,
+};
 
 /// what the caller is asking for beyond the sync itself.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -318,8 +320,7 @@ async fn push(
         manual,
         remote.folder.is_some() && remote.manifest_document().is_some(),
     );
-    let prepared =
-        prepare_local_push(app_state, source == GoogleDriveSnapshotSource::Manual).await?;
+    let prepared = prepare_local_push(app_state, source.into()).await?;
 
     if prepared.workspace_id != state.workspace.id || prepared.account_id != account_id {
         return Err(Error::PreconditionFailed {
@@ -413,6 +414,22 @@ fn push_snapshot_source(manual: bool, remote_has_index: bool) -> GoogleDriveSnap
         GoogleDriveSnapshotSource::Manual
     } else {
         GoogleDriveSnapshotSource::Autosave
+    }
+}
+
+/// what a snapshot bound for the remote is taken as on this machine.
+///
+/// The two vocabularies agree today, and the mapping is written out rather than
+/// assumed: the remote source says what the copy means to the remote, and the
+/// local one says what evicts it here. A remote source that stopped implying a
+/// local retention policy would otherwise change what a push leaves behind on
+/// this machine without naming anything that changed.
+impl From<GoogleDriveSnapshotSource> for LocalPushSnapshot {
+    fn from(source: GoogleDriveSnapshotSource) -> Self {
+        match source {
+            GoogleDriveSnapshotSource::Manual => Self::Manual,
+            GoogleDriveSnapshotSource::Autosave => Self::Autosave,
+        }
     }
 }
 
@@ -946,6 +963,21 @@ mod tests {
         assert_eq!(
             push_snapshot_source(false, false),
             GoogleDriveSnapshotSource::Autosave
+        );
+    }
+
+    /// what the remote is told a snapshot is and what this machine records it as
+    /// are two vocabularies, and a push that disagreed with itself would send a
+    /// copy the remote keeps longest while retention here evicted it first.
+    #[test]
+    fn a_snapshot_is_recorded_locally_as_what_the_remote_is_told_it_is() {
+        assert_eq!(
+            LocalPushSnapshot::from(GoogleDriveSnapshotSource::Manual),
+            LocalPushSnapshot::Manual
+        );
+        assert_eq!(
+            LocalPushSnapshot::from(GoogleDriveSnapshotSource::Autosave),
+            LocalPushSnapshot::Autosave
         );
     }
 

@@ -74,14 +74,31 @@ pub(crate) async fn current_workspace_content_hash(app_state: &AppState) -> Resu
     Ok(content_hash_hex(&bytes?))
 }
 
+/// what a push's snapshot is taken as on this machine.
+///
+/// Each variant carries two decisions rather than one, and they travel together
+/// because they are not independently choosable: what the snapshot is recorded
+/// under is what retention keeps it by, and what happens to the managed
+/// snapshots around it follows from the same answer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LocalPushSnapshot {
+    /// a copy the user asked for. Recorded as a manual snapshot, and the managed
+    /// ones are cleaned up once it exists.
+    Manual,
+    /// a copy this application took for itself. Recorded as an autosave, and the
+    /// managed snapshots around it are left in place — the cleanup that follows
+    /// a settled sync is what takes them.
+    Autosave,
+}
+
 /// take the snapshot a push is about to send, and record that this workspace
 /// holds it.
 ///
-/// `manual` decides what the snapshot counts as, which decides what evicts it
+/// `snapshot` decides what the copy counts as, which decides what evicts it
 /// later: a copy the user asked for outlives the automatic ones around it.
 pub(crate) async fn prepare_local_push(
     app_state: &AppState,
-    manual: bool,
+    snapshot: LocalPushSnapshot,
 ) -> Result<GoogleDrivePreparedPush, Error> {
     let (workspace, account_id) = {
         let mut remote_sync = app_state.remote_sync.write().await;
@@ -106,12 +123,13 @@ pub(crate) async fn prepare_local_push(
     let entry = {
         let mut backup = app_state.backup.write().await;
         backup.sync_manifest_workspace(Some(&workspace))?;
-        if manual {
-            backup.create(false).await?
-        } else {
-            backup
-                .create_managed_retaining_previous(BackupSource::Autosave, None, false)
-                .await?
+        match snapshot {
+            LocalPushSnapshot::Manual => backup.create(false).await?,
+            LocalPushSnapshot::Autosave => {
+                backup
+                    .create_managed_retaining_previous(BackupSource::Autosave, None, false)
+                    .await?
+            }
         }
     };
 
