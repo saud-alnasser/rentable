@@ -22,7 +22,12 @@ that touches data.
 pnpm tauri build
 ```
 
-What CI builds on every pull request. Slow, and it compiles the Rust side in release mode.
+Slow: it compiles the Rust side in release mode and then packages every bundle target.
+
+**CI does not run this on a pull request.** The gate there compiles the binary and stops —
+`cargo build --release` — so bundling is exercised only by the release workflow, on `main`.
+Reach for this locally when the question is about packaging; for "does it compile", the
+cargo commands in `cargo.md` are minutes faster.
 
 ## Why the wrapper exists
 

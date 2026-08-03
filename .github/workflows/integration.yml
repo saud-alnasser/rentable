@@ -1,8 +1,18 @@
 name: '🔧 integration'
 
+# `edited` is deliberately absent. It fires on a title or body change, it was here
+# only to serve the conventional-commit check on the title, and that check now has
+# its own workflow — see pull-request-title.yml.
 on:
   pull_request:
-    types: ['opened', 'reopened', 'synchronize', 'edited']
+    types: ['opened', 'reopened', 'synchronize']
+
+# A pull request only ever needs an answer about its newest commit. Without this,
+# pushing again while a run is in flight leaves both running, and the older one
+# spends a full build reporting on a commit nobody will merge.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 env:
   # The Linux system libraries the Rust side links against. Defined once because two
@@ -15,11 +25,17 @@ env:
     libgdk-pixbuf-2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
     gstreamer1.0-plugins-base gstreamer1.0-plugins-good patchelf
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # A compile input, not a bundler one: build.rs reads it and bakes it into the
+  # binary through `cargo:rustc-env`, so a build without it produces a different
+  # binary rather than a differently-packaged one. It is also public — the same
+  # value is committed in tauri.conf.json. The signing keys that were here are
+  # gone, because nothing in this workflow bundles any more.
   TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
-  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
 jobs:
+  # The default-branch ruleset requires a status check with this exact name.
+  # Renaming this job, or moving it off a trigger that fires for every commit,
+  # makes every pull request unmergeable.
   integration:
     timeout-minutes: 30
     runs-on: ubuntu-latest
@@ -30,9 +46,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: '📝 lint pull-request title'
-        uses: amannn/action-semantic-pull-request@v6
-
       - name: '🛠️ setup pnpm'
         uses: pnpm/action-setup@v6
 
@@ -42,23 +55,29 @@ jobs:
           node-version: 24
           cache: 'pnpm'
 
+      # The toolchain is part of the cache key, so this has to resolve to the same
+      # thing warm-cache.yml resolves to or the restore misses. It previously
+      # interpolated `matrix.toolchain` in a job that has no matrix, which expanded
+      # to nothing — harmless on its own, but not something to reproduce in the
+      # sibling workflow that now has to agree with it.
       - name: '🔼 update rust'
-        run: rustup update ${{ matrix.toolchain }} && rustup default stable
+        run: rustup update && rustup default stable
 
+      # `save-if: false` is the whole point of this being an action rather than a
+      # hand-rolled cache: a pull request restores and never writes. GitHub scopes a
+      # cache created during a pull request to that pull request alone, so the
+      # entries written here were readable by nothing else while still consuming a
+      # shared ten-gigabyte ceiling — sixteen of them held 12.2 GB, and the eviction
+      # that followed is why this cache used to restore in one second. The entry
+      # every pull request reads is written on main instead, by warm-cache.yml.
+      # `shared-key` is what makes the two agree on a name; changing it here without
+      # changing it there silently returns to a cold build.
       - name: '💿 cargo cache'
-        uses: actions/cache@v6
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            ./tauri/target
-          key: ${{ runner.os }}-cargo-pr-${{ github.head_ref || github.ref_name }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-pr-${{ github.head_ref || github.ref_name }}-
-            ${{ runner.os }}-cargo-main-${{ hashFiles('**/Cargo.lock') }}
-            ${{ runner.os }}-cargo-main-
+          workspaces: './tauri -> target'
+          shared-key: 'integration'
+          save-if: false
 
       - name: '📦 install apt packages'
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
@@ -99,5 +118,15 @@ jobs:
       - name: '🦀 test rust'
         run: pnpm test:rust
 
-      - name: '📦 build'
-        run: pnpm tauri build
+      # `pnpm check` typechecks but never bundles, so without this step nothing
+      # would prove the frontend still builds — it used to be proved as a side
+      # effect of the bundler's beforeBuildCommand.
+      - name: '🏗️ build frontend'
+        run: pnpm build
+
+      # Compiles what the release build compiles, and stops there. Packaging the
+      # installers and signing the updater artifacts is the release workflow's job,
+      # and it does it on four platforms within minutes of merge; doing it here as
+      # well cost six minutes a run to produce files that were never uploaded.
+      - name: '🦀 build release binary'
+        run: cargo build --release --manifest-path ./tauri/Cargo.toml

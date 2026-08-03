@@ -1,0 +1,32 @@
+name: '📝 pull request title'
+
+# Separated from the integration workflow because the title is the only thing here
+# that changes on an `edited` event, and that event is why integration used to run
+# a second time for every submitted pull request — the stacking tool creates the
+# pull request and then sets its body, which edits it. A one-second check does not
+# need the trigger that costs thirteen minutes.
+on:
+  pull_request:
+    types: ['opened', 'reopened', 'edited', 'synchronize']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+
+    permissions:
+      pull-requests: read
+
+    steps:
+      # `synchronize` cannot change a title, so it is here for one reason: this
+      # check is not yet in the default-branch ruleset, and GitHub requires a
+      # required check to report against the newest commit or the pull request
+      # blocks. Including it now means adding this check to the ruleset needs no
+      # matching edit here.
+      - name: '📝 lint pull-request title'
+        uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

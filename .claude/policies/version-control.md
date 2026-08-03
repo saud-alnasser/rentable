@@ -114,9 +114,19 @@ Types in use: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`,
 ## How work lands
 
 By pull request, reviewed and merged on GitHub. **CI lints the pull request title** against
-Conventional Commits — a non-conforming title fails the run, not the review — and runs the
-full gate: typecheck and format, ESLint, the TypeScript tests, the Rust tests, and a
-production Tauri build. All of it must pass.
+Conventional Commits — a non-conforming title fails a run, not the review — in a workflow
+of its own, so editing a title re-runs the check and nothing else.
+
+The gate is a single required status check named `integration`: typecheck and format,
+ESLint, the TypeScript tests, the Rust tests, the frontend build, and a release-profile
+compile of the Rust binary. All of it must pass. **It is the only required check** — the
+title lint reports separately and, until it is added to the default-branch ruleset, a
+failing title does not block the merge.
+
+**Packaging is not proved before merge.** The gate compiles the binary and stops; bundling
+the installers and signing the updater artifacts happen on `main`. A fault confined to
+packaging therefore surfaces on trunk rather than on the branch that caused it, and the
+release workflow is what catches it.
 
 **Squash is the only merge method enabled**, and it discards the commit body
 (`squash_merge_commit_message: BLANK`). Two consequences worth knowing before writing

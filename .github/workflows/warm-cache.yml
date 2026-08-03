@@ -1,0 +1,97 @@
+name: '🔥 warm cache'
+
+# This workflow builds nothing anyone consumes. It exists because of a GitHub rule:
+# a cache created during a pull request can be restored only by that same pull
+# request, while a cache created on the default branch can be restored by all of
+# them. The integration workflow has always carried restore keys pointing at a
+# main-scoped cache, and nothing had ever written one — so every pull request
+# compiled the Rust side from cold. This is what writes it.
+on:
+  push:
+    branches: ['main']
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+env:
+  # The Linux system libraries the Rust side links against. Defined once because two
+  # steps consume it — the cache and the apt-get that guarantees it — and a list that
+  # drifts between them reintroduces exactly the failure they exist to prevent.
+  APT_PACKAGES: >-
+    pkg-config libgtk-3-dev libayatana-appindicator3-dev libsoup-3.0-dev
+    libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev librsvg2-dev
+    libcairo2-dev libpango1.0-dev libharfbuzz-dev libatk1.0-dev
+    libgdk-pixbuf-2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+    gstreamer1.0-plugins-base gstreamer1.0-plugins-good patchelf
+  # Kept identical to the integration workflow on purpose. build.rs declares
+  # `rerun-if-env-changed` on it, so warming with a different value than the one
+  # pull requests build with would invalidate the crate they were meant to reuse.
+  TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+
+jobs:
+  warm:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: '☁️ checkout repository'
+        uses: actions/checkout@v7
+
+      - name: '🛠️ setup pnpm'
+        uses: pnpm/action-setup@v6
+
+      - name: '🔧 setup node'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: '🔼 update rust'
+        run: rustup update && rustup default stable
+
+      # `shared-key` must match the integration workflow's, or pull requests look up
+      # a name this job never writes and go on compiling from cold. This is the only
+      # place that saves; there `save-if` is false.
+      - name: '💿 cargo cache'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './tauri -> target'
+          shared-key: 'integration'
+
+      - name: '📦 install apt packages'
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        continue-on-error: true
+        with:
+          packages: ${{ env.APT_PACKAGES }}
+          version: 4
+          execute_install_scripts: true
+
+      # The step above is an optimization, and it fails open: it has restored zero
+      # packages while still reporting success, which surfaces minutes later as an
+      # unresolvable `-lgtk-3` at link time rather than as a failed install. This step
+      # is the guarantee — a no-op when the cache worked, an install when it did not.
+      # An unrecognised module name here costs an unnecessary apt-get, never a skip.
+      - name: '📦 ensure system libraries'
+        run: |
+          if pkg-config --exists gtk+-3.0 webkit2gtk-4.1; then
+            echo 'system libraries already present'
+            exit 0
+          fi
+          echo 'cache restored nothing usable — installing from apt'
+          sudo apt-get update
+          sudo apt-get install -y ${{ env.APT_PACKAGES }}
+
+      - name: '📦 install pnpm packages'
+        run: pnpm install --frozen-lockfile
+
+      - name: '🏗️ build frontend'
+        run: pnpm build
+
+      # Both profiles, because the integration workflow compiles both — the tests in
+      # debug and the binary in release — and warming one leaves the other cold.
+      # `--no-run` because this job is here to populate a cache, not to gate: the
+      # tests already ran on the pull request that produced this commit.
+      - name: '🦀 compile tests, debug profile'
+        run: cargo test --no-run --manifest-path ./tauri/Cargo.toml
+
+      - name: '🦀 compile binary, release profile'
+        run: cargo build --release --manifest-path ./tauri/Cargo.toml
