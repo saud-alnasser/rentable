@@ -62,9 +62,10 @@ should occupy the same column position and carry the same treatment wherever it 
 per list is how five lists end up looking like five products.
 
 There is one precedent to read rather than invent, and it is **history rather than a shipping
-surface**: a tenant table with national id, name, phone, and an actions column exists in the tree
-but renders nowhere, and has since the card-grid overhaul. Read it for its column set and its
-i18n-wired action shapes, not as evidence of what users see today — every list ships as a card
+surface**: a tenant table with national id, name, phone, and an actions column rendered nowhere
+from the card-grid overhaul until #225 deleted it. Read it out of git history — it was
+`tenant/component/table.svelte` over `design/block/data-table.svelte` — for its column set and
+its i18n-wired action shapes, not as evidence of what users see today; every list ships as a card
 grid (ADR 0009). Whether that column set survives, and whether its ordering generalizes, is part
 of this question rather than an assumption going into it.
 
@@ -90,9 +91,9 @@ survive it?
 
 **Only one model ships.** All five lists load through `createInfiniteQuery` against an offset
 cursor with a fixed order, rendered by a virtualizer. The client-side alternative — load every
-row, then sort, filter and paginate in the browser through table-core's row models — exists in the
-tree but renders nowhere; it is a dead branch, not a competing model (ADR 0009). So this decides
-what the replacement does, with no incumbent to defend.
+row, then sort, filter and paginate in the browser through table-core's row models — rendered
+nowhere and was deleted by #225; it was a dead branch, not a competing model (ADR 0009). So this
+decides what the replacement does, with no incumbent to defend.
 
 The unbounded read that the dead branch used is still live elsewhere: opening the contract form
 still loads every tenant, 542,677 B at 5,000 of them. That is a form question rather than a list
