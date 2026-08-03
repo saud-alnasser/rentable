@@ -32,8 +32,18 @@ reaching the user and everything else reading as an unexpected failure.
 
 ## Components
 
-- **`design/primitive/` is generated.** It holds shadcn-svelte primitives; regenerate
-  through the CLI rather than hand-editing. App-level composites go in `design/block/`.
+- **`design/primitive/` was generated once and is owned now.** It holds shadcn-svelte
+  primitives, and the two operations on it are not the same one: **a new primitive is added
+  through the CLI; an existing primitive is changed by hand.** The generator writes whole
+  files rather than merging, so the flags that make it replace one already here — `add
+  --overwrite`, `init --reinstall` — discard whatever this repository put in it. Adding is
+  safe; replacing is what there is no way back from. `.claude/tools/shadcn-svelte.md` has both.
+  What they would discard is load-bearing. More than thirty of these files, across eighteen
+  primitive families, read the i18n store — for a translated string, or for `dir` on the
+  rendered element. A regenerated file carries neither and still compiles and renders, so
+  the damage shows up as a silently English, silently LTR primitive rather than as an
+  error.
+- **App-level composites go in `design/block/`**, never in `design/primitive/`.
 - **`components.json`'s alias keys are the CLI's vocabulary, not ours.** `components`,
   `utils`, `ui`, and `hooks` each route a different kind of generated file, so they are
   not interchangeable and cannot be merged into one — which is why a `utils` key survives
