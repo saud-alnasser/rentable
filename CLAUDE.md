@@ -48,18 +48,12 @@ The order is absolute: where they disagree, the Codebase is right — fix the do
 
 **Never a scan. Never a phase.** Check a Context statement against the Codebase at the moment it is about to be relied on; scope is what the work touches. **Source Pointers are verified before use, always** — a broken one is searched for, never invented; the router has the machinery. Fix drift where you find it, in the same breath; nothing else catches a lapse.
 
-## The refactor programme
+## Architectural boundaries
 
-The architectural boundaries in `.claude/contexts/repository.md` are enforced **going
-forward**. The current tree still diverges from each of them in places, and every
-divergence has a ticket under the refactor programme (#95).
-
-**Do not add a new violation, and do not fix an old one opportunistically.** It has a
-ticket, and an unrelated correction folded into a change makes that change unreviewable.
-
-The same holds for tests that pin behaviour known to be wrong — they are labelled as such
-where they sit, and they are pinned deliberately so a later correction is a visible,
-intended change rather than an accident.
+The boundaries in `.claude/contexts/repository.md` are enforced. **Do not add a violation,
+and do not fix an existing one opportunistically** — an unrelated correction folded into a
+change makes that change unreviewable, and it takes the work off whatever ticket was scoped
+for it. A divergence found in passing gets its own ticket.
 
 ## Requests that would change code
 
