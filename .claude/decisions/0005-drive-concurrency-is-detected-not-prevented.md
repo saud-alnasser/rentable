@@ -1,3 +1,7 @@
+---
+status: accepted
+---
+
 # Drive concurrency is detected and repaired, not prevented
 
 Two clients writing one workspace cannot be prevented with what Google Drive offers: the

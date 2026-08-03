@@ -1,5 +1,7 @@
 # gh — GitHub CLI
 
+Derived from: aep/github.md
+
 Docs: https://cli.github.com/manual/
 Fetch the docs when: a subcommand or flag you need is not listed below.
 Never guess a flag. An unlisted flag is a docs fetch, not an assumption.
