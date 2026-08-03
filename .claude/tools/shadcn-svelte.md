@@ -1,0 +1,42 @@
+# shadcn-svelte
+
+Generates the design primitives into `src/lib/design/primitive/`. **There is no dependency
+and no `package.json` script** — unlike every other tool here, it is run through `pnpm dlx`,
+so the version is whatever `@latest` resolves to on the day it runs. Configured in
+`components.json`; what its alias keys mean in this layout is in `.claude/rules/frontend.md`.
+
+Docs: <https://shadcn-svelte.com/docs/cli>. Fetch before any command or flag not listed
+below.
+
+## Add a new primitive
+
+```bash
+pnpm dlx shadcn-svelte@latest add <component>
+```
+
+Writes to the `ui` alias — `$lib/design/primitive/` — and installs whatever the component
+depends on unless `--no-deps-install` is passed.
+
+**This is the only routine use of this CLI here.** `init` has already been run, and running
+it again is not how a component is added.
+
+A newly generated primitive arrives with hard-coded English and no direction attribute.
+Wiring it to the i18n store is part of adding it, not a follow-up —
+`.claude/rules/frontend.md` has why, and the primitives already here are the worked examples.
+
+## The flags that replace existing files
+
+Primitives are hand-maintained after generation, so a flag that rewrites one destroys work
+no regeneration reproduces. Three are documented:
+
+| Flag              | On     | What it does                                                    |
+| ----------------- | ------ | --------------------------------------------------------------- |
+| `-o, --overwrite` | `add`  | replaces existing files. Default `false` — **this is the one**   |
+| `--reinstall`     | `init` | reinstalls existing components when the style changes            |
+| `-a, --all`       | `add`  | installs every component; harmless alone, total with `--overwrite` |
+
+`add` without `--overwrite` is safe on a component that already exists — the default is
+documented as `false`. **What it does instead, prompt or skip silently, is not documented
+and was not tested here**, and `-y, --yes` suppresses confirmation prompts generally. So the
+default is not a guard to rely on: do not pass `--overwrite`, rather than passing it and
+expecting to be asked.
