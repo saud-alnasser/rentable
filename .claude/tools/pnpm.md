@@ -35,6 +35,32 @@ prompt is a hang where nothing can answer it; `CI=true` takes the purge, and nee
 `--no-frozen-lockfile` alongside it whenever the lockfile is meant to change, because CI mode
 freezes it by default.
 
+## A version under a day old will not install
+
+`minimumReleaseAge` defaults to **1440 minutes — one day — in pnpm 11**, where pnpm 10
+defaulted to `0`. Nothing here sets it: the value is inherited, and the upgrade in #205 is
+what switched it on. It exists because malicious releases are usually pulled from the
+registry within the hour, so waiting a day is most of the protection for none of the effort.
+
+Install then rejects anything newer than the cutoff, transitive dependencies included:
+
+```
+[ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION] 2 lockfile entries failed verification:
+  globals@17.9.0 was published at ..., within the minimumReleaseAge cutoff
+```
+
+**A red dependency-update pull request less than a day old is this, not a broken update.**
+It clears itself when the newest entry in its lockfile ages past the cutoff — re-run the
+job. The error text advises `pnpm clean --lockfile` and a reinstall; do not follow it here,
+because a lockfile that satisfies the cutoff is one that no longer contains the update the
+pull request exists to make.
+
+`minimumReleaseAgeExclude` exempts a package by name, wildcard, or exact version. It turns a
+wait into a standing hole in the policy, so it is for a genuinely urgent security fix, never
+for making a red check green.
+
+Docs: <https://pnpm.io/settings/dependency-resolution>.
+
 ## Run the app
 
 ```bash
