@@ -1,4 +1,4 @@
-import type { Contract } from '$lib/api/database/schema';
+import type { Contract } from '$lib/platform/database/schema';
 import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
 
 export const DEFAULT_DASHBOARD_ENDING_SOON_NOTICE_DAYS = 60;

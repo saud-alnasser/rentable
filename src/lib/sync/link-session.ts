@@ -1,4 +1,4 @@
-import type { GoogleDriveLinkPreparation } from '$lib/api/tauri';
+import type { GoogleDriveLinkPreparation } from '$lib/platform/tauri';
 
 /** the link operation the flow drives, injected so the sequence can be exercised without one. */
 export type LinkSessionDriver = {

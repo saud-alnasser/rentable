@@ -4,8 +4,6 @@ import dotenv from 'dotenv';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import Randexp from 'randexp';
-import * as s from '../src/lib/api/database/schema';
-import { identity, phone } from '../src/lib/api/tenant';
 import {
 	deriveContractStatus,
 	deriveUnitStatus,
@@ -13,7 +11,9 @@ import {
 	getContractEndDateForCycles,
 	getExpectedAmountBy,
 	getIntervalMonths
-} from '../src/lib/api/utils/contract-status';
+} from '../src/lib/contract/contract';
+import * as s from '../src/lib/platform/database/schema';
+import { identity, phone } from '../src/lib/tenant/tenant';
 
 dotenv.config();
 

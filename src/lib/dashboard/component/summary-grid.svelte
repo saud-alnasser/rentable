@@ -1,6 +1,6 @@
 <script lang="ts">
-	import api from '$lib/api/mod';
-	import { formatLocaleValueWithUnit } from '$lib/common/utils/locale';
+	import api from '$lib/api/caller';
+	import { formatLocaleValueWithUnit } from '$lib/platform/locale';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import DashboardSummaryCard from './summary-card.svelte';
 

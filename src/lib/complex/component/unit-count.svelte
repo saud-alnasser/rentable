@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Skeleton } from '$lib/common/components/fragments/skeleton';
-	import { cn } from '$lib/common/utils/tailwind';
+	import { Skeleton } from '$lib/design/primitive/skeleton';
+	import { cn } from '$lib/design/tailwind';
 	import { useFetchUnits } from '$lib/complex/query';
 	import type { HTMLAttributes } from 'svelte/elements';
 

@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { UnitSchema, type Unit } from '$lib/api/database/schema';
-	import { Button } from '$lib/common/components/fragments/button';
-	import * as Dialog from '$lib/common/components/fragments/dialog';
-	import * as Form from '$lib/common/components/fragments/form';
-	import { Input } from '$lib/common/components/fragments/input';
+	import { UnitSchema, type Unit } from '$lib/platform/database/schema';
+	import { Button } from '$lib/design/primitive/button';
+	import * as Dialog from '$lib/design/primitive/dialog';
+	import * as Form from '$lib/design/primitive/form';
+	import { Input } from '$lib/design/primitive/input';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateUnit, useUpdateUnit } from '$lib/complex/query';
 	import { TRPCError } from '@trpc/server';

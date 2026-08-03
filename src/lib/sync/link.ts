@@ -1,5 +1,5 @@
-import api from '$lib/api/mod';
-import { tauri, type GoogleDriveLinkPreparation, type RemoteSyncState } from '$lib/api/tauri';
+import api from '$lib/api/caller';
+import { tauri, type GoogleDriveLinkPreparation, type RemoteSyncState } from '$lib/platform/tauri';
 import { toTauriErrorCode } from '$lib/error/tauri';
 
 /**

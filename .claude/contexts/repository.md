@@ -50,13 +50,18 @@ stored value is a cache of the derivation and never the authority.
   queries, and its components together, under one singular directory named for it:
   `contract`, `payment`, `tenant`, `complex`, `dashboard`, `settings`, `sync`. A unit is
   reached only through the complex holding it, so it lives inside that concept rather than
-  beside it. Two homes own no concept — **`ui`**, interface primitives that know no domain,
-  and **`platform`**, capabilities that cross a process boundary or are nondeterministic
-  (the desktop shell, the database, the clock, diagnostics, locale) — and a domain rule
-  never lives in either. The application shell is neither primitive nor concept, so it is
-  its own home, `layout`. `src/routes/` stays layer-first, as the framework requires.
-  **Every concept is built. `ui`, `platform` and `layout` are not yet, and what is left of
-  `src/lib/api/` and `src/lib/common/` is what becomes them** (#126).
+  beside it. Three homes own no concept, and a domain rule lives in none of them —
+  **`design`**, the design system — generated primitives, the composites built from
+  them, and the class-merging helper they all share; **`platform`**, capabilities that
+  cross a process boundary or are nondeterministic (the desktop shell, the database,
+  diagnostics, locale); and **`api`**, the in-webview caller itself: the request context,
+  the tRPC wiring, and the root router that assembles every concept's procedures. The
+  clock is the one capability `platform` does not hold, because it is read nowhere but the
+  context that supplies it. The application shell is neither primitive nor concept, so it
+  is its own home, `layout`. `src/routes/` stays layer-first, as the framework requires.
+  **The tree is this shape throughout** (#123–#126). Two directories sit outside it:
+  `i18n`, whose path the locale generator fixes, and `error`, which decodes failures
+  crossing the IPC boundary and has not been placed.
 - **Derived status is written back by reconciliation, never by the mutation that changed
   its inputs.** Any mutation touching contracts, payments, or unit assignments must
   reconcile, or the stored statuses go stale.

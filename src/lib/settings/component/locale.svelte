@@ -5,10 +5,10 @@
 		CardDescription,
 		CardHeader,
 		CardTitle
-	} from '$lib/common/components/fragments/card';
-	import { Label } from '$lib/common/components/fragments/label';
-	import * as Select from '$lib/common/components/fragments/select';
-	import { cn } from '$lib/common/utils/tailwind.js';
+	} from '$lib/design/primitive/card';
+	import { Label } from '$lib/design/primitive/label';
+	import * as Select from '$lib/design/primitive/select';
+	import { cn } from '$lib/design/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import type { Locales } from '$lib/i18n/i18n-types';

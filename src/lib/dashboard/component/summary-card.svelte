@@ -5,8 +5,8 @@
 		CardDescription,
 		CardHeader,
 		CardTitle
-	} from '$lib/common/components/fragments/card';
-	import { cn } from '$lib/common/utils/tailwind.js';
+	} from '$lib/design/primitive/card';
+	import { cn } from '$lib/design/tailwind.js';
 
 	let {
 		section

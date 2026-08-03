@@ -1,5 +1,5 @@
-import * as s from '$lib/api/database/schema';
-import { type Contract } from '$lib/api/database/schema';
+import * as s from '$lib/platform/database/schema';
+import { type Contract } from '$lib/platform/database/schema';
 import { getCurrentMonthBounds, isWithinUtcRange, toUtcDay } from '$lib/api/date';
 import { procedure } from '$lib/api/trpc';
 import { getExpectedAmountInRange, getOutstandingExpectedAmount } from '$lib/contract/contract';

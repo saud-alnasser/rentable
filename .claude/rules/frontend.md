@@ -20,7 +20,7 @@ statements, no `export let`.
 
 ## Data access
 
-Components never call the API directly. A domain's `hooks/` wraps it in TanStack Query,
+Components never call the API directly. A concept's `query.ts` wraps it in TanStack Query,
 and components use those hooks. Query v6 takes a thunk, not an object.
 
 Each domain's query module exports its key set, and mutations invalidate through those
@@ -32,8 +32,16 @@ reaching the user and everything else reading as an unexpected failure.
 
 ## Components
 
-- **`fragments/` is generated.** It holds shadcn-svelte primitives; regenerate through the
-  CLI rather than hand-editing. App-level composites go in `blocks/`.
+- **`design/primitive/` is generated.** It holds shadcn-svelte primitives; regenerate
+  through the CLI rather than hand-editing. App-level composites go in `design/block/`.
+- **`components.json`'s alias keys are the CLI's vocabulary, not ours.** `components`,
+  `utils`, `ui`, and `hooks` each route a different kind of generated file, so they are
+  not interchangeable and cannot be merged into one — which is why a `utils` key survives
+  here against the naming rule. Repoint every one of them when a directory moves.
+  **State `ui` and `hooks` even though they are optional**: their defaults are
+  `$lib/components/ui` and `$lib/hooks`, so omitting them makes the next generated
+  primitive recreate the plural `components/` tree this layout removed. `lib` is the only
+  one omitted, because `$lib` is genuinely its default.
 - **Domain UI lives with its domain**, not in the shared component tree.
 
 ## Styling

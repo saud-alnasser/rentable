@@ -4,7 +4,7 @@ import type {
 	GoogleDriveLinkPreparation,
 	GoogleDriveSyncOutcome,
 	RemoteSyncState
-} from '$lib/api/tauri';
+} from '$lib/platform/tauri';
 import { shouldDeferWorkspaceConflict } from '$lib/sync/workspace';
 
 /** what settling a conflict actually does, injected so the sequence can be exercised without an account. */

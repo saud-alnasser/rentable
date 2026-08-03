@@ -3,7 +3,7 @@ import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
 	dialect: 'sqlite',
-	schema: './src/lib/api/database/schema.ts',
+	schema: './src/lib/platform/database/schema.ts',
 	out: './tauri/migrations',
 	verbose: false,
 	strict: true,

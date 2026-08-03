@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { Payment } from '$lib/api/database/schema';
-	import DataTableActionsDropdown from '$lib/common/components/blocks/data-table-actions-dropdown.svelte';
-	import DataView from '$lib/common/components/blocks/data-view.svelte';
-	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
-	import { Button } from '$lib/common/components/fragments/button';
+	import type { Payment } from '$lib/platform/database/schema';
+	import DataTableActionsDropdown from '$lib/design/block/data-table-actions-dropdown.svelte';
+	import DataView from '$lib/design/block/data-view.svelte';
+	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import { Button } from '$lib/design/primitive/button';
 	import {
 		Card,
 		CardAction,
@@ -11,17 +11,17 @@
 		CardDescription,
 		CardHeader,
 		CardTitle
-	} from '$lib/common/components/fragments/card';
-	import { Progress } from '$lib/common/components/fragments/progress';
-	import { Skeleton } from '$lib/common/components/fragments/skeleton';
-	import * as Tooltip from '$lib/common/components/fragments/tooltip';
+	} from '$lib/design/primitive/card';
+	import { Progress } from '$lib/design/primitive/progress';
+	import { Skeleton } from '$lib/design/primitive/skeleton';
+	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import {
 		formatLocaleDate,
 		formatLocaleNumber,
 		formatLocaleRangeWithUnit,
 		formatLocaleValueWithUnit
-	} from '$lib/common/utils/locale';
-	import { cn } from '$lib/common/utils/tailwind';
+	} from '$lib/platform/locale';
+	import { cn } from '$lib/design/tailwind';
 	import { hasSatisfiedContractPaymentRequirement } from '$lib/contract/contract';
 	import { useFetchContract } from '$lib/contract/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';

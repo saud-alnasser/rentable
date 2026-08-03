@@ -2,7 +2,7 @@ import {
 	tauri,
 	type GoogleDriveConflictResolution,
 	type GoogleDriveLinkPreparation
-} from '$lib/api/tauri';
+} from '$lib/platform/tauri';
 
 import { cancelGoogleDriveLink } from './link';
 import { PendingConflictFlow, type PendingConflictDriver } from './pending-conflict';

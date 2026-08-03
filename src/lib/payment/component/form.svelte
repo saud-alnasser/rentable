@@ -1,19 +1,19 @@
 <script lang="ts">
-	import type { Payment } from '$lib/api/database/schema';
-	import { Button } from '$lib/common/components/fragments/button';
-	import * as Calendar from '$lib/common/components/fragments/calendar';
-	import * as Dialog from '$lib/common/components/fragments/dialog';
-	import * as Form from '$lib/common/components/fragments/form';
-	import { Input } from '$lib/common/components/fragments/input';
-	import * as Popover from '$lib/common/components/fragments/popover';
+	import type { Payment } from '$lib/platform/database/schema';
+	import { Button } from '$lib/design/primitive/button';
+	import * as Calendar from '$lib/design/primitive/calendar';
+	import * as Dialog from '$lib/design/primitive/dialog';
+	import * as Form from '$lib/design/primitive/form';
+	import { Input } from '$lib/design/primitive/input';
+	import * as Popover from '$lib/design/primitive/popover';
 	import {
 		formatCalendarDate,
 		formatDateInput,
 		parseCalendarDate,
 		parseDateInput
-	} from '$lib/common/utils/date';
-	import { getIntlLocale } from '$lib/common/utils/locale';
-	import { cn } from '$lib/common/utils/tailwind.js';
+	} from '$lib/design/date';
+	import { getIntlLocale } from '$lib/platform/locale';
+	import { cn } from '$lib/design/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useCreatePayment, useUpdatePayment } from '$lib/payment/query';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';

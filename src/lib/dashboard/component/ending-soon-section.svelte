@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import api from '$lib/api/mod';
+	import api from '$lib/api/caller';
 	import {
 		Card,
 		CardContent,
 		CardDescription,
 		CardHeader,
 		CardTitle
-	} from '$lib/common/components/fragments/card';
-	import { ScrollArea } from '$lib/common/components/fragments/scroll-area';
+	} from '$lib/design/primitive/card';
+	import { ScrollArea } from '$lib/design/primitive/scroll-area';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { tick } from 'svelte';

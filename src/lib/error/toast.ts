@@ -8,7 +8,7 @@ import { toast } from 'svelte-sonner';
  * rust's prose — where there is any — as the description.
  *
  * for failures raised outside a mutation. a mutation reports through the shared
- * handlers in `$lib/common/utils/queries` instead.
+ * handlers in `$lib/design/mutation` instead.
  */
 export function showErrorToast(error: unknown, translations: TranslationFunctions) {
 	const { title, detail } = toErrorMessage(error, translations);

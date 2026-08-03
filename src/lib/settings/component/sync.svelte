@@ -5,7 +5,7 @@
 		RemoteSyncProvider,
 		RemoteSyncState,
 		RemoteSyncWorkspace
-	} from '$lib/api/tauri';
+	} from '$lib/platform/tauri';
 	import {
 		AlertDialog,
 		AlertDialogAction,
@@ -15,19 +15,19 @@
 		AlertDialogFooter,
 		AlertDialogHeader,
 		AlertDialogTitle
-	} from '$lib/common/components/fragments/alert-dialog';
-	import { Badge, type BadgeVariant } from '$lib/common/components/fragments/badge';
-	import { Button } from '$lib/common/components/fragments/button';
-	import { Callout } from '$lib/common/components/fragments/callout';
+	} from '$lib/design/primitive/alert-dialog';
+	import { Badge, type BadgeVariant } from '$lib/design/primitive/badge';
+	import { Button } from '$lib/design/primitive/button';
+	import { Callout } from '$lib/design/primitive/callout';
 	import {
 		Card,
 		CardContent,
 		CardDescription,
 		CardHeader,
 		CardTitle
-	} from '$lib/common/components/fragments/card';
-	import { formatLocaleDate } from '$lib/common/utils/locale';
-	import { cn } from '$lib/common/utils/tailwind.js';
+	} from '$lib/design/primitive/card';
+	import { formatLocaleDate } from '$lib/platform/locale';
+	import { cn } from '$lib/design/tailwind.js';
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {

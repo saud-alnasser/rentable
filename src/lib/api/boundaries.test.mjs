@@ -11,10 +11,14 @@
 // the facade is for. The membership test is the one `.claude/rules/api-layer.md` scopes
 // itself by, so a relocation cannot quietly leave the pin behind.
 //
-// The two remote-sync modules that used to be allowlisted here needed the exception
-// only because they sat in `api/utils/`. They are the sync concept's now, beside the
-// link and conflict modules that always called the facade, so the exception went with
-// them rather than being carried.
+// Allowlisted files leave rather than accumulate. Two remote-sync modules were excused
+// here while they sat in `api/utils/`; the database transport and the desktop facade
+// were excused while they sat in `api/`. All four have moved to the home that owns them
+// (#125, #126), so the exceptions dissolved instead of being carried — the layer is
+// still checked in full, and what it no longer contains it no longer has to excuse.
+//
+// That also means the database and the facade are reachable from here by one spelling
+// each, the `$lib` one. They are in another home now, so no relative path can name them.
 
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -83,20 +87,13 @@ function valueImportFrom(...modulePaths) {
 }
 
 test('the database singleton is reachable only through the context', () => {
-	// `./mod` is the spelling used from inside `database/`; `memory.ts` is allowed in —
-	// it imports the shared transport factory, not the singleton.
-	const pattern = valueImportFrom(
-		'\\$lib/api/database/mod',
-		'(?:\\.\\./)+database/mod',
-		'\\./database/mod',
-		'\\./mod'
-	);
+	const pattern = valueImportFrom('\\$lib/platform/database/client');
 
-	assert.deepEqual(offenders(pattern, ['api/database/memory.ts']), []);
+	assert.deepEqual(offenders(pattern, []), []);
 });
 
 test('the desktop facade is reachable only through the context', () => {
-	const pattern = valueImportFrom('\\$lib/api/tauri', '\\./tauri', '(?:\\.\\./)+tauri');
+	const pattern = valueImportFrom('\\$lib/platform/tauri');
 
 	assert.deepEqual(offenders(pattern, []), []);
 });
@@ -104,7 +101,7 @@ test('the desktop facade is reachable only through the context', () => {
 test('the tauri runtime is imported only by the facade and the database transport', () => {
 	const pattern = valueImportFrom("@tauri-apps/[^']*");
 
-	assert.deepEqual(offenders(pattern, ['api/tauri.ts', 'api/database/mod.ts']), []);
+	assert.deepEqual(offenders(pattern, []), []);
 });
 
 test('the ambient clock is read only by the context', () => {

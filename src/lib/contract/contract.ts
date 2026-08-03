@@ -1,4 +1,4 @@
-import type { Contract, Unit } from '$lib/api/database/schema';
+import type { Contract, Unit } from '$lib/platform/database/schema';
 import { addUtcDays, addUtcMonths, toUtcDay, type DateLike } from '$lib/api/date';
 import { getPaidAmount, type PaymentLike } from '$lib/payment/payment';
 import { TRPCError } from '@trpc/server';

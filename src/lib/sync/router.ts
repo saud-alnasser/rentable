@@ -1,4 +1,4 @@
-import type { BackupEntry, RemoteSyncState } from '$lib/api/tauri';
+import type { BackupEntry, RemoteSyncState } from '$lib/platform/tauri';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import z from 'zod';
 
