@@ -1,18 +1,18 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Contract } from '$lib/api/database/schema';
-	import api from '$lib/api/mod';
-	import DataView from '$lib/common/components/blocks/data-view.svelte';
-	import { Badge } from '$lib/common/components/fragments/badge';
-	import { Card, CardContent, CardHeader, CardTitle } from '$lib/common/components/fragments/card';
-	import { Progress } from '$lib/common/components/fragments/progress';
-	import * as Tooltip from '$lib/common/components/fragments/tooltip';
+	import type { Contract } from '$lib/platform/database/schema';
+	import api from '$lib/api/caller';
+	import DataView from '$lib/design/block/data-view.svelte';
+	import { Badge } from '$lib/design/primitive/badge';
+	import { Card, CardContent, CardHeader, CardTitle } from '$lib/design/primitive/card';
+	import { Progress } from '$lib/design/primitive/progress';
+	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import {
 		formatLocaleDate,
 		formatLocaleNumber,
 		formatLocaleRangeWithUnit,
 		formatLocaleValueWithUnit
-	} from '$lib/common/utils/locale';
+	} from '$lib/platform/locale';
 	import { useInfiniteContracts } from '$lib/contract/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';

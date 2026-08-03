@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { TenantSchema, type Tenant } from '$lib/api/database/schema';
+	import { TenantSchema, type Tenant } from '$lib/platform/database/schema';
 	import { identity, phone } from '$lib/tenant/tenant';
-	import { Button } from '$lib/common/components/fragments/button';
-	import * as Dialog from '$lib/common/components/fragments/dialog';
-	import * as Form from '$lib/common/components/fragments/form';
-	import { Input } from '$lib/common/components/fragments/input';
-	import * as Select from '$lib/common/components/fragments/select';
+	import { Button } from '$lib/design/primitive/button';
+	import * as Dialog from '$lib/design/primitive/dialog';
+	import * as Form from '$lib/design/primitive/form';
+	import { Input } from '$lib/design/primitive/input';
+	import * as Select from '$lib/design/primitive/select';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateTenant, useUpdateTenant } from '$lib/tenant/query';
 	import { TRPCError } from '@trpc/server';

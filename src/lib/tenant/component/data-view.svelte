@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Tenant } from '$lib/api/database/schema';
-	import DataView from '$lib/common/components/blocks/data-view.svelte';
+	import type { Tenant } from '$lib/platform/database/schema';
+	import DataView from '$lib/design/block/data-view.svelte';
 	import {
 		Card,
 		CardContent,
 		CardDescription,
 		CardHeader,
 		CardTitle
-	} from '$lib/common/components/fragments/card';
+	} from '$lib/design/primitive/card';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { useInfiniteTenants } from '$lib/tenant/query';

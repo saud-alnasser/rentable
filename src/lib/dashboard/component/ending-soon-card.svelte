@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Contract } from '$lib/api/database/schema';
-	import api from '$lib/api/mod';
-	import { Badge } from '$lib/common/components/fragments/badge';
-	import { Button } from '$lib/common/components/fragments/button';
-	import * as Tooltip from '$lib/common/components/fragments/tooltip';
-	import { formatLocaleDate } from '$lib/common/utils/locale';
-	import { cn } from '$lib/common/utils/tailwind.js';
+	import type { Contract } from '$lib/platform/database/schema';
+	import api from '$lib/api/caller';
+	import { Badge } from '$lib/design/primitive/badge';
+	import { Button } from '$lib/design/primitive/button';
+	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import { formatLocaleDate } from '$lib/platform/locale';
+	import { cn } from '$lib/design/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import ContractIcon from '@tabler/icons-svelte/icons/contract';

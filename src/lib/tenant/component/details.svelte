@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
-	import { Button } from '$lib/common/components/fragments/button';
-	import { Card, CardContent, CardHeader, CardTitle } from '$lib/common/components/fragments/card';
-	import { Spinner } from '$lib/common/components/fragments/spinner';
-	import * as Tooltip from '$lib/common/components/fragments/tooltip';
+	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import { Button } from '$lib/design/primitive/button';
+	import { Card, CardContent, CardHeader, CardTitle } from '$lib/design/primitive/card';
+	import { Spinner } from '$lib/design/primitive/spinner';
+	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { useDeleteTenant, useFetchTenant } from '$lib/tenant/query';

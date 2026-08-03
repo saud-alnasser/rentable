@@ -1,11 +1,11 @@
-import api from '$lib/api/mod';
+import api from '$lib/api/caller';
 import {
 	tauri,
 	type GoogleDriveLinkPreparation,
 	type GoogleDriveSyncAction,
 	type RemoteSyncState,
 	type RemoteSyncWorkspace
-} from '$lib/api/tauri';
+} from '$lib/platform/tauri';
 import { enqueueGoogleDriveOperation } from '$lib/sync/queue';
 
 export type WorkspaceSyncAction = GoogleDriveSyncAction | 'autosaved';

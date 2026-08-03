@@ -1,6 +1,6 @@
 # Persistence
 
-Sources: `src/lib/api/database/`, `tauri/src/database/`, `tauri/migrations/`
+Sources: `src/lib/platform/database/`, `tauri/src/database/`, `tauri/migrations/`
 
 How data is described once and reaches SQLite. The description lives in TypeScript; the
 engine and the migration runner live in Rust; the two meet at Tauri's IPC boundary.

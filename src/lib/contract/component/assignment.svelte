@@ -1,19 +1,19 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { Button } from '$lib/common/components/fragments/button';
+	import { Button } from '$lib/design/primitive/button';
 	import {
 		Card,
 		CardContent,
 		CardDescription,
 		CardHeader,
 		CardTitle
-	} from '$lib/common/components/fragments/card';
-	import { Label } from '$lib/common/components/fragments/label';
-	import { ScrollArea } from '$lib/common/components/fragments/scroll-area';
-	import * as Select from '$lib/common/components/fragments/select';
-	import { Skeleton } from '$lib/common/components/fragments/skeleton';
-	import * as Tooltip from '$lib/common/components/fragments/tooltip';
-	import { cn } from '$lib/common/utils/tailwind.js';
+	} from '$lib/design/primitive/card';
+	import { Label } from '$lib/design/primitive/label';
+	import { ScrollArea } from '$lib/design/primitive/scroll-area';
+	import * as Select from '$lib/design/primitive/select';
+	import { Skeleton } from '$lib/design/primitive/skeleton';
+	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import { cn } from '$lib/design/tailwind.js';
 	import {
 		useAssignContractUnits,
 		useFetchContract,

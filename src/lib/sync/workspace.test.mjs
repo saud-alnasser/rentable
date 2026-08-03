@@ -9,7 +9,7 @@ const calls = [];
 let syncOutcome = { state: { workspace: {} }, action: 'none', preparation: null };
 let syncGate = null;
 
-mock.module('$lib/api/mod', {
+mock.module('$lib/api/caller', {
 	exports: {
 		default: {
 			app: {
@@ -23,7 +23,7 @@ mock.module('$lib/api/mod', {
 	}
 });
 
-mock.module('$lib/api/tauri', {
+mock.module('$lib/platform/tauri', {
 	exports: {
 		tauri: {
 			remoteSync: {

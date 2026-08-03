@@ -1,7 +1,7 @@
 # drizzle-kit
 
 Generates migration SQL from the schema module. Configured in `drizzle.config.ts`: SQLite,
-snake_case, schema read from `src/lib/api/database/schema.ts`, SQL written into
+snake_case, schema read from `src/lib/platform/database/schema.ts`, SQL written into
 `tauri/migrations/`.
 
 Docs: <https://orm.drizzle.team/docs/kit-overview>. Fetch before any command not listed

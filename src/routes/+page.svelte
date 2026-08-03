@@ -1,7 +1,7 @@
 <script lang="ts">
-	import api from '$lib/api/mod';
-	import { Card, CardContent } from '$lib/common/components/fragments/card';
-	import { Spinner } from '$lib/common/components/fragments/spinner';
+	import api from '$lib/api/caller';
+	import { Card, CardContent } from '$lib/design/primitive/card';
+	import { Spinner } from '$lib/design/primitive/spinner';
 	import { useFetchContractDashboard } from '$lib/dashboard/query';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import DashboardEndingSoonSection from '$lib/dashboard/component/ending-soon-section.svelte';

@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import dotenv from 'dotenv';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import * as s from '../src/lib/api/database/schema';
+import * as s from '../src/lib/platform/database/schema';
 
 dotenv.config();
 

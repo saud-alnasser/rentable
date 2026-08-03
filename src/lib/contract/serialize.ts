@@ -1,5 +1,5 @@
-import * as s from '$lib/api/database/schema';
-import { type Contract } from '$lib/api/database/schema';
+import * as s from '$lib/platform/database/schema';
+import { type Contract } from '$lib/platform/database/schema';
 import { deriveContractStatus, getContractPaymentSummary } from '$lib/contract/contract';
 
 /**

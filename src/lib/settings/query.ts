@@ -1,5 +1,9 @@
-import api from '$lib/api/mod';
-import { tauri, type GoogleDriveConflictResolution, type RemoteSyncState } from '$lib/api/tauri';
+import api from '$lib/api/caller';
+import {
+	tauri,
+	type GoogleDriveConflictResolution,
+	type RemoteSyncState
+} from '$lib/platform/tauri';
 import { unlinkGoogleDriveWorkspace } from '$lib/sync/link';
 import { pendingConflict } from '$lib/sync/pending-conflict.svelte';
 import {
@@ -8,11 +12,7 @@ import {
 	syncWorkspaceRemoteNow,
 	type WorkspaceRemoteSyncResult
 } from '$lib/sync/workspace';
-import {
-	onMutationError,
-	onMutationSuccess,
-	type MutationOptions
-} from '$lib/common/utils/queries';
+import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';

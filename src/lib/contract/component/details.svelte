@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import type { Contract } from '$lib/api/database/schema';
-	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
-	import { Badge } from '$lib/common/components/fragments/badge';
-	import { Button } from '$lib/common/components/fragments/button';
-	import { Card, CardContent, CardHeader, CardTitle } from '$lib/common/components/fragments/card';
-	import { Spinner } from '$lib/common/components/fragments/spinner';
-	import * as Tabs from '$lib/common/components/fragments/tabs';
-	import * as Tooltip from '$lib/common/components/fragments/tooltip';
-	import { formatLocaleDate } from '$lib/common/utils/locale';
+	import type { Contract } from '$lib/platform/database/schema';
+	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import { Badge } from '$lib/design/primitive/badge';
+	import { Button } from '$lib/design/primitive/button';
+	import { Card, CardContent, CardHeader, CardTitle } from '$lib/design/primitive/card';
+	import { Spinner } from '$lib/design/primitive/spinner';
+	import * as Tabs from '$lib/design/primitive/tabs';
+	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import { formatLocaleDate } from '$lib/platform/locale';
 	import {
 		canManuallyTerminateContractStatus,
 		canUnterminateContractStatus

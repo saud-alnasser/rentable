@@ -1,4 +1,4 @@
-import type { Payment } from '$lib/api/database/schema';
+import type { Payment } from '$lib/platform/database/schema';
 import type { DateLike } from '$lib/api/date';
 import { TRPCError } from '@trpc/server';
 

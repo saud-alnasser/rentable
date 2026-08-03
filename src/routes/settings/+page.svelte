@@ -1,17 +1,17 @@
 <script lang="ts">
-	import api from '$lib/api/mod';
-	import { tauri } from '$lib/api/tauri';
-	import { Button } from '$lib/common/components/fragments/button';
+	import api from '$lib/api/caller';
+	import { tauri } from '$lib/platform/tauri';
+	import { Button } from '$lib/design/primitive/button';
 	import {
 		Card,
 		CardContent,
 		CardDescription,
 		CardHeader,
 		CardTitle
-	} from '$lib/common/components/fragments/card';
-	import { Spinner } from '$lib/common/components/fragments/spinner';
-	import { formatLocaleDate } from '$lib/common/utils/locale';
-	import { cn } from '$lib/common/utils/tailwind.js';
+	} from '$lib/design/primitive/card';
+	import { Spinner } from '$lib/design/primitive/spinner';
+	import { formatLocaleDate } from '$lib/platform/locale';
+	import { cn } from '$lib/design/tailwind.js';
 	import { toErrorText } from '$lib/error/message';
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';

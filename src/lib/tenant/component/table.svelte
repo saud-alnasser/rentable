@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { Tenant } from '$lib/api/database/schema';
-	import DataTableActionsDropdown from '$lib/common/components/blocks/data-table-actions-dropdown.svelte';
-	import DataTable from '$lib/common/components/blocks/data-table.svelte';
-	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
-	import { renderComponent } from '$lib/common/components/fragments/data-table';
+	import type { Tenant } from '$lib/platform/database/schema';
+	import DataTableActionsDropdown from '$lib/design/block/data-table-actions-dropdown.svelte';
+	import DataTable from '$lib/design/block/data-table.svelte';
+	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import { renderComponent } from '$lib/design/primitive/data-table';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useDeleteTenant, useFetchTenants } from '$lib/tenant/query';
 	import type { ColumnDef } from '@tanstack/table-core';

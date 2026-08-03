@@ -1,19 +1,19 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Contract } from '$lib/api/database/schema';
-	import api from '$lib/api/mod';
+	import type { Contract } from '$lib/platform/database/schema';
+	import api from '$lib/api/caller';
 	import { getCollectionProgress } from '$lib/dashboard/dashboard';
-	import { Badge } from '$lib/common/components/fragments/badge';
-	import { Button } from '$lib/common/components/fragments/button';
-	import { Progress } from '$lib/common/components/fragments/progress';
-	import * as Tooltip from '$lib/common/components/fragments/tooltip';
+	import { Badge } from '$lib/design/primitive/badge';
+	import { Button } from '$lib/design/primitive/button';
+	import { Progress } from '$lib/design/primitive/progress';
+	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import {
 		formatLocaleDate,
 		formatLocaleNumber,
 		formatLocaleRangeWithUnit,
 		formatLocaleValueWithUnit
-	} from '$lib/common/utils/locale';
-	import { cn } from '$lib/common/utils/tailwind.js';
+	} from '$lib/platform/locale';
+	import { cn } from '$lib/design/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import WalletIcon from '@lucide/svelte/icons/wallet';

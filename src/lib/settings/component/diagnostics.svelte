@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { Button } from '$lib/common/components/fragments/button';
+	import { Button } from '$lib/design/primitive/button';
 	import {
 		Card,
 		CardContent,
 		CardDescription,
 		CardHeader,
 		CardTitle
-	} from '$lib/common/components/fragments/card';
+	} from '$lib/design/primitive/card';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
 	let {

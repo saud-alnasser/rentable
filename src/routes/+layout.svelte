@@ -1,11 +1,11 @@
 <script lang="ts">
-	import api from '$lib/api/mod';
+	import api from '$lib/api/caller';
 	import {
 		tauri,
 		type GoogleDriveConflictResolution,
 		type Recovery,
 		type RemoteSyncState
-	} from '$lib/api/tauri';
+	} from '$lib/platform/tauri';
 	import { startGoogleDriveAutosyncManager } from '$lib/sync/autosync';
 	import {
 		getWorkspaceFromSyncState,
@@ -15,21 +15,21 @@
 		syncWorkspaceNow,
 		syncWorkspaceRemoteNow
 	} from '$lib/sync/workspace';
-	import { TooltipProvider } from '$lib/common/components/fragments/tooltip';
+	import { TooltipProvider } from '$lib/design/primitive/tooltip';
 	import { LinkSession } from '$lib/sync/link-session.svelte';
 	import { pendingConflict } from '$lib/sync/pending-conflict.svelte';
-	import SonnerProvider from '$lib/common/components/providers/sonner-provider.svelte';
+	import SonnerProvider from '$lib/design/provider/sonner.svelte';
 	import { toErrorText } from '$lib/error/message';
 	import LL, { locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { baseLocale, locales } from '$lib/i18n/i18n-util';
 	import { loadLocaleAsync } from '$lib/i18n/i18n-util.async';
-	import LayoutFrame from '$lib/resources/layout/components/layout-frame.svelte';
-	import LayoutStartupError from '$lib/resources/layout/components/layout-startup-error.svelte';
-	import LayoutStartupLoading from '$lib/resources/layout/components/layout-startup-loading.svelte';
-	import LayoutStartupRecovery from '$lib/resources/layout/components/layout-startup-recovery.svelte';
-	import LayoutStartupWorkspaceChoice from '$lib/resources/layout/components/layout-startup-workspace-choice.svelte';
+	import LayoutFrame from '$lib/layout/component/frame.svelte';
+	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
+	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
+	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
+	import LayoutStartupWorkspaceChoice from '$lib/layout/component/startup-workspace-choice.svelte';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount } from 'svelte';

@@ -1,9 +1,5 @@
-import api from '$lib/api/mod';
-import {
-	onMutationError,
-	onMutationSuccess,
-	type MutationOptions
-} from '$lib/common/utils/queries';
+import api from '$lib/api/caller';
+import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { keys as contractKeys } from '$lib/contract/query';
 import { LL } from '$lib/i18n/i18n-svelte';
 import {

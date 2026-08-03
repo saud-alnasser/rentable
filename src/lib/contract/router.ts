@@ -1,8 +1,8 @@
 import type { Database } from '$lib/api/context';
-import * as s from '$lib/api/database/schema';
-import { ContractSchema } from '$lib/api/database/schema';
+import * as s from '$lib/platform/database/schema';
+import { ContractSchema } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
-import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/utils/pagination';
+import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/pagination';
 import {
 	deriveContractStatus,
 	deriveUnitStatuses,

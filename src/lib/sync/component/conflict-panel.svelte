@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { GoogleDriveLinkConflict } from '$lib/api/tauri';
-	import { Badge } from '$lib/common/components/fragments/badge';
-	import { Button } from '$lib/common/components/fragments/button';
-	import { formatLocaleDate } from '$lib/common/utils/locale';
-	import { cn } from '$lib/common/utils/tailwind.js';
+	import type { GoogleDriveLinkConflict } from '$lib/platform/tauri';
+	import { Badge } from '$lib/design/primitive/badge';
+	import { Button } from '$lib/design/primitive/button';
+	import { formatLocaleDate } from '$lib/platform/locale';
+	import { cn } from '$lib/design/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 
 	let {

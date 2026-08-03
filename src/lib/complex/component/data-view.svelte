@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Complex } from '$lib/api/database/schema';
-	import DataView from '$lib/common/components/blocks/data-view.svelte';
+	import type { Complex } from '$lib/platform/database/schema';
+	import DataView from '$lib/design/block/data-view.svelte';
 	import {
 		Card,
 		CardContent,
 		CardDescription,
 		CardHeader,
 		CardTitle
-	} from '$lib/common/components/fragments/card';
+	} from '$lib/design/primitive/card';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import ComplexesTableUnitsCount from '$lib/complex/component/unit-count.svelte';
 	import { useInfiniteComplexes } from '$lib/complex/query';

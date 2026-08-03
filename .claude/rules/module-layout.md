@@ -17,12 +17,16 @@ descriptive names over abbreviations.
 
 A module name states a concept, so these names are not available:
 
-| Avoid                  | Use instead                      | Why                                           |
-| ---------------------- | -------------------------------- | --------------------------------------------- |
-| `utils`                | the concept's own name           | a grab-bag name invites unrelated code        |
-| `common`               | `ui`, `platform`, or the concept | same                                          |
-| `mod.ts`               | the concept's own name           | a Rust/Deno idiom, unclear in TypeScript      |
-| plural directory names | the singular                     | a directory names a concept, not a collection |
+| Avoid                  | Use instead                          | Why                                           |
+| ---------------------- | ------------------------------------ | --------------------------------------------- |
+| `utils`                | the concept's own name               | a grab-bag name invites unrelated code        |
+| `common`               | `design`, `platform`, or the concept | same                                          |
+| `mod.ts`               | the concept's own name               | a Rust/Deno idiom, unclear in TypeScript      |
+| plural directory names | the singular                         | a directory names a concept, not a collection |
+
+A third-party tool's configuration keys are its API, not this repository's names — where a
+generator's schema fixes a key this table forbids, the key stays and only the path it
+points at is chosen here.
 
 ## A Rust directory is rooted by `mod.rs`
 
@@ -44,12 +48,15 @@ This is the same rule as the table above, applied to the shape Rust makes easy: 
 underscore is available in a filename, so a module that grows a second concern grows a
 second word instead of a directory, and the tree stops describing itself.
 
-## The tree still diverges, and that is expected
+## The tree conforms; keep it that way
 
-The current tree violates every row above in places — `src/lib/api/mod.ts` is the standing
-example. Each divergence has a ticket under the refactor programme, whose rule is in
-`CLAUDE.md` and governs here unchanged: **do not add a new violation, and do not fix an old
-one opportunistically.**
+Every row above now holds throughout `src/lib/` and `tauri/src/` (#126). The standing
+counter-example used to be `src/lib/api/mod.ts`; there is no `mod.ts`, no `utils/`, no
+`common/`, and no plural module directory left. `src/routes/` is the acknowledged
+exception, and its segments are URL path names rather than module names.
 
-What that rule means specifically for naming: an unrelated rename folded into a change makes
-the change unreviewable, and it takes the work off the ticket that was scoped for it.
+The refactor programme's rule still governs the divergences that remain elsewhere, and it
+is in `CLAUDE.md`: **do not add a new violation, and do not fix an old one
+opportunistically.** What that means specifically for naming: an unrelated rename folded
+into a change makes the change unreviewable, and it takes the work off the ticket that was
+scoped for it.

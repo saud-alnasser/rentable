@@ -1,16 +1,16 @@
 <script lang="ts">
-	import api from '$lib/api/mod';
-	import { Button } from '$lib/common/components/fragments/button';
+	import api from '$lib/api/caller';
+	import { Button } from '$lib/design/primitive/button';
 	import {
 		Card,
 		CardContent,
 		CardDescription,
 		CardHeader,
 		CardTitle
-	} from '$lib/common/components/fragments/card';
-	import { Input } from '$lib/common/components/fragments/input';
-	import { Label } from '$lib/common/components/fragments/label';
-	import { cn } from '$lib/common/utils/tailwind.js';
+	} from '$lib/design/primitive/card';
+	import { Input } from '$lib/design/primitive/input';
+	import { Label } from '$lib/design/primitive/label';
+	import { cn } from '$lib/design/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useSetEndingSoonNoticeDays } from '$lib/settings/query';
 	import { toast } from 'svelte-sonner';

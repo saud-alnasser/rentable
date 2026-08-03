@@ -6,7 +6,7 @@ import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
  * the database client, typed structurally as any sqlite-proxy client over the schema
  * rather than as the type of the app singleton — so a test client satisfies it too.
  */
-export type Database = SqliteRemoteDatabase<typeof import('./database/schema')>;
+export type Database = SqliteRemoteDatabase<typeof import('$lib/platform/database/schema')>;
 
 /**
  * CLOCK
@@ -24,7 +24,7 @@ export type Clock = {
  * the desktop shell, as the shape of the existing Tauri facade — a port over what is
  * already there, not a new abstraction.
  */
-export type Host = typeof import('./tauri').tauri;
+export type Host = typeof import('$lib/platform/tauri').tauri;
 
 /**
  * CONTEXT
@@ -50,8 +50,8 @@ const systemClock: Clock = {
  * lazily and only when not supplied — importing this module stays free of it.
  */
 export const context = async (overrides: Partial<Context> = {}): Promise<Context> => {
-	const db = overrides.db ?? (await import('./database/mod')).db;
-	const host = overrides.host ?? (await import('./tauri')).tauri;
+	const db = overrides.db ?? (await import('$lib/platform/database/client')).db;
+	const host = overrides.host ?? (await import('$lib/platform/tauri')).tauri;
 	const clock = overrides.clock ?? systemClock;
 
 	return { db, clock, host };

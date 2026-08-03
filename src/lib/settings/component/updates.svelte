@@ -1,17 +1,17 @@
 <script lang="ts">
-	import { type AvailableUpdate, type UpdaterDownloadEvent } from '$lib/api/tauri';
-	import { Button } from '$lib/common/components/fragments/button';
-	import { Callout } from '$lib/common/components/fragments/callout';
+	import { type AvailableUpdate, type UpdaterDownloadEvent } from '$lib/platform/tauri';
+	import { Button } from '$lib/design/primitive/button';
+	import { Callout } from '$lib/design/primitive/callout';
 	import {
 		Card,
 		CardContent,
 		CardDescription,
 		CardHeader,
 		CardTitle
-	} from '$lib/common/components/fragments/card';
-	import { formatLocaleDate } from '$lib/common/utils/locale';
-	import { cn } from '$lib/common/utils/tailwind.js';
-	import { recordDiagnosticError } from '$lib/diagnostics/record';
+	} from '$lib/design/primitive/card';
+	import { formatLocaleDate } from '$lib/platform/locale';
+	import { cn } from '$lib/design/tailwind.js';
+	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import { toErrorDetail, toErrorText } from '$lib/error/message';
 	import { toTauriErrorCode } from '$lib/error/tauri';
 	import { showErrorToast } from '$lib/error/toast';

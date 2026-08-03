@@ -1,5 +1,5 @@
 import type { Database } from '$lib/api/context';
-import * as s from '$lib/api/database/schema';
+import * as s from '$lib/platform/database/schema';
 import { deriveContractStatus, deriveUnitStatuses } from '$lib/contract/contract';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import { eq, inArray } from 'drizzle-orm';

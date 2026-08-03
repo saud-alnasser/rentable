@@ -1,4 +1,4 @@
-import api from '$lib/api/mod';
+import api from '$lib/api/caller';
 import { createQuery } from '@tanstack/svelte-query';
 
 export const keys = {

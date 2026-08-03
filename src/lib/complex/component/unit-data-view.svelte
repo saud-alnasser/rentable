@@ -1,14 +1,14 @@
 <script lang="ts">
-	import type { Unit } from '$lib/api/database/schema';
-	import DataTableActionsDropdown from '$lib/common/components/blocks/data-table-actions-dropdown.svelte';
-	import DataView from '$lib/common/components/blocks/data-view.svelte';
-	import DeleteDialog from '$lib/common/components/blocks/delete-dialog.svelte';
-	import { Badge } from '$lib/common/components/fragments/badge';
-	import { Button } from '$lib/common/components/fragments/button';
-	import { Card, CardAction, CardHeader, CardTitle } from '$lib/common/components/fragments/card';
-	import { Skeleton } from '$lib/common/components/fragments/skeleton';
-	import * as Tooltip from '$lib/common/components/fragments/tooltip';
-	import { cn } from '$lib/common/utils/tailwind';
+	import type { Unit } from '$lib/platform/database/schema';
+	import DataTableActionsDropdown from '$lib/design/block/data-table-actions-dropdown.svelte';
+	import DataView from '$lib/design/block/data-view.svelte';
+	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import { Badge } from '$lib/design/primitive/badge';
+	import { Button } from '$lib/design/primitive/button';
+	import { Card, CardAction, CardHeader, CardTitle } from '$lib/design/primitive/card';
+	import { Skeleton } from '$lib/design/primitive/skeleton';
+	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import { cn } from '$lib/design/tailwind';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useDeleteUnit, useFetchComplex, useInfiniteUnits } from '$lib/complex/query';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';

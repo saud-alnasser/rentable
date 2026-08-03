@@ -12,8 +12,8 @@
  * here is the conversion between that arithmetic and the calendar widget, and
  * the rules deciding when an override survives.
  */
-import type { Contract } from '$lib/api/database/schema';
-import { parseDateInput, toCalendarDate } from '$lib/common/utils/date';
+import type { Contract } from '$lib/platform/database/schema';
+import { parseDateInput, toCalendarDate } from '$lib/design/date';
 import {
 	getContractCycleCountForPeriod,
 	getContractEndDateForCycles,

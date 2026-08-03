@@ -2,7 +2,7 @@
 // isolated in-memory database, a fixed clock, and a fake host. Not a `*.test.mjs` file, so
 // the test runner does not pick it up directly.
 
-import { createMemoryDatabase } from './database/memory.ts';
+import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { appRouter } from './router.ts';
 import { caller, context } from './trpc.ts';
 

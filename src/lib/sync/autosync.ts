@@ -1,4 +1,4 @@
-import { tauri } from '$lib/api/tauri';
+import { tauri } from '$lib/platform/tauri';
 import {
 	emitGoogleDriveAutosyncResult,
 	listenForGoogleDriveAutosyncRequests,

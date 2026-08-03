@@ -3,6 +3,8 @@ paths:
   - src/lib/api/**
   - src/lib/*/router.ts
   - src/lib/*/reconcile.ts
+  - src/lib/platform/tauri.ts
+  - src/lib/platform/database/**
 ---
 
 <!--
@@ -13,7 +15,10 @@ paths:
 
   The layer is no longer one directory. A concept that has relocated (#123-#126)
   keeps its router under its own name, so the globs follow it there; without them
-  the router rules below stop loading for exactly the routers they govern.
+  the router rules below stop loading for exactly the routers they govern. The two
+  `platform` globs are there for the same reason in the other direction: the facade
+  and the database transport left the layer, and the `invoke` rule below is the one
+  that governs them.
 -->
 
 # API layer
