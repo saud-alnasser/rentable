@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0009
 ---
 
 # Both list blocks are replaced by one server-driven table

@@ -61,9 +61,12 @@ Decide it for all five lists as one system rather than five independent choices.
 should occupy the same column position and carry the same treatment wherever it appears; deciding
 per list is how five lists end up looking like five products.
 
-There is one precedent to read rather than invent: the tenant list already renders as a table with
-national id, name, phone, and an actions column. Whether that column set survives, and whether its
-ordering generalizes, is part of this question rather than an assumption going into it.
+There is one precedent to read rather than invent, and it is **history rather than a shipping
+surface**: a tenant table with national id, name, phone, and an actions column exists in the tree
+but renders nowhere, and has since the card-grid overhaul. Read it for its column set and its
+i18n-wired action shapes, not as evidence of what users see today — every list ships as a card
+grid (ADR 0009). Whether that column set survives, and whether its ordering generalizes, is part
+of this question rather than an assumption going into it.
 
 A card currently shows about five fields across 360px of vertical space; a row has to choose
 fewer. Produces: the column set per list in order; which columns are sortable — sorting on payment
@@ -82,14 +85,18 @@ Blocked by: —
 
 ### Question
 
-How does a list load once the user controls its sort order, and which of the two models shipping
-today survives?
+How does a list load once the user controls its sort order, and does the one model shipping today
+survive it?
 
-Both exist right now and they disagree. Four lists load through `createInfiniteQuery` against an
-offset cursor with a fixed order, rendered by a virtualizer. The tenant list loads every row
-through a plain `createQuery` and then sorts, filters and paginates in the browser through
-table-core's row models. ADR 0008 replaces both blocks, so this decides what the replacement does
-rather than which existing file wins.
+**Only one model ships.** All five lists load through `createInfiniteQuery` against an offset
+cursor with a fixed order, rendered by a virtualizer. The client-side alternative — load every
+row, then sort, filter and paginate in the browser through table-core's row models — exists in the
+tree but renders nowhere; it is a dead branch, not a competing model (ADR 0009). So this decides
+what the replacement does, with no incumbent to defend.
+
+The unbounded read that the dead branch used is still live elsewhere: opening the contract form
+still loads every tenant, 542,677 B at 5,000 of them. That is a form question rather than a list
+one, and it is recorded in the performance baseline.
 
 User-chosen sort interacts badly with an offset cursor: changing sort mid-stream invalidates every
 page already accumulated, so the list either resets to the top, losing the user's position, or
