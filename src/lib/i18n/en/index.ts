@@ -23,7 +23,6 @@ const en = {
 			delete: 'delete',
 			deleting: 'deleting...',
 			disconnect: 'disconnect',
-			dragToReorder: 'drag to reorder',
 			downloadAndInstall: 'download & install',
 			edit: 'edit',
 			installingUpdate: 'installing update...',
