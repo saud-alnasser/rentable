@@ -87,10 +87,6 @@ type RootTranslation = {
 			 */
 			disconnect: string
 			/**
-			 * d​r​a​g​ ​t​o​ ​r​e​o​r​d​e​r
-			 */
-			dragToReorder: string
-			/**
 			 * d​o​w​n​l​o​a​d​ ​&​ ​i​n​s​t​a​l​l
 			 */
 			downloadAndInstall: string
@@ -1982,10 +1978,6 @@ export type TranslationFunctions = {
 			 * disconnect
 			 */
 			disconnect: () => LocalizedString
-			/**
-			 * drag to reorder
-			 */
-			dragToReorder: () => LocalizedString
 			/**
 			 * download & install
 			 */

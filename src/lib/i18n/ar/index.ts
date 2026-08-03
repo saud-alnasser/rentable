@@ -22,7 +22,6 @@ const ar = {
 			delete: 'حذف',
 			deleting: 'جاري الحذف...',
 			disconnect: 'فصل',
-			dragToReorder: 'اسحب لإعادة الترتيب',
 			downloadAndInstall: 'تنزيل وتثبيت',
 			edit: 'تعديل',
 			installingUpdate: 'جاري تثبيت التحديث...',
