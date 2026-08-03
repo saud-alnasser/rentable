@@ -86,7 +86,19 @@ gh issue develop <number> --list                  # read-only: branches linked t
 
 ## Link a parent and its sub-issues
 
-`gh` has **no sub-issue subcommand**. Parent/child goes through the sub-issues REST API with `gh api`:
+**`gh` has native flags for this as of 2.96.0**, and they take issue **numbers**, which is what makes them worth preferring over the API path below — the number is what you already have:
+
+```
+gh issue create --parent <number> …               # create a child under a parent
+gh issue edit <number> --parent <parent>          # reparent an existing issue
+gh issue edit <number> --remove-parent
+gh issue edit <parent> --add-sub-issue <child>    # attach from the parent's side
+gh issue edit <parent> --remove-sub-issue <child>
+```
+
+Read from `gh issue create --help` and `gh issue edit --help` on gh 2.96.0. Check the help before relying on them on an older install: this reference previously stated no such subcommand existed, which was true of the version it was written against.
+
+The REST path still works and is the fallback where the flags are absent: parent/child goes through the sub-issues API with `gh api`:
 
 ```
 gh api repos/{owner}/{repo}/issues/<parent>/sub_issues \
@@ -118,9 +130,21 @@ Where the API is unavailable or refused, a **task list in the parent body** (`- 
 
 ## Record a blocking relationship
 
-`gh` has **no blocking subcommand**, and blocking is not the same edge as parent/child — see the entry above for that one.
+Blocking is not the same edge as parent/child — see the entry above for that one.
 
-**State the edge in the issue body.** "Blocked by #12, #14." Legible to humans, no API surface, and it is what the local-file tracker does anyway.
+**`gh` has native flags for this as of 2.96.0**, and they take issue numbers:
+
+```
+gh issue create --blocked-by <numbers> --blocking <numbers>
+gh issue edit <number> --add-blocked-by <blocker>
+gh issue edit <number> --remove-blocked-by <blocker>
+gh issue edit <number> --add-blocking <blocked>
+gh issue edit <number> --remove-blocking <blocked>
+```
+
+Read from `gh issue create --help` and `gh issue edit --help` on gh 2.96.0. This reference previously stated no blocking subcommand existed, which was true of the version it was written against — check the help before relying on these on an older install.
+
+**State the edge in the issue body as well.** "Blocked by #12, #14." The native relationship is structured and queryable; the body line is what a human reads without opening the sidebar, and it is what the local-file tracker does anyway. Neither replaces the other.
 
 ## Open a pull request
 

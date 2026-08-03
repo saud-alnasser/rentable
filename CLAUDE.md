@@ -65,6 +65,6 @@ CI never modifies repository knowledge: `.claude/contexts/**` and `.claude/decis
 
 ## Conventions
 
-**The workflow's conventions are defaults for when the repository is silent** (ADR 0008): detect before asserting, and where the repository's own convention is genuinely worse, say so once, with reasoning, then follow it. Defaults: `.claude/policies/version-control.md`.
+**The workflow's conventions are defaults for when the repository is silent**: detect before asserting, and where the repository's own convention is genuinely worse, say so once, with reasoning, then follow it. Defaults: `.claude/policies/version-control.md`.
 
 This repository is not silent about several of them. Commit and PR titles, the pull request template, changesets, and CI's gate are all in `.claude/policies/version-control.md`; its label vocabulary is in `.claude/policies/tracker.md`.
