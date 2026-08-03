@@ -30,11 +30,14 @@ pnpm exec prettier --write src/lib/contract/router.ts
 `.prettierignore` excludes the lockfiles, `/static/`, `build`, `tauri/target`, the
 generated `src/lib/i18n/i18n-*.ts`, and **`/.claude/`**.
 
-The `.claude/` entry is load-bearing rather than cosmetic. The guides and tool references
-under there are copied verbatim from the workflow's templates and are verified byte-for-byte
-against their source; reflowing them to printWidth 100 would break that check and make every
-re-run of `/aep:configure` show a spurious diff. It also keeps knowledge from being rewritten
-on the formatter's schedule, which turns a readable diff into an unreadable one.
+The `.claude/` entry is load-bearing rather than cosmetic. The guides under there are copied
+verbatim from the workflow's templates, and the tool references are derived from them by
+filtering — a section that survives is carried over byte-for-byte, one that cannot arise here
+is dropped whole, and sections written for this repository alone have no counterpart upstream
+and are compared against nothing. Reflowing any of it to printWidth 100 would break the
+section-body comparison and make every re-run of `/aep:configure` show a spurious diff. It
+also keeps knowledge from being rewritten on the formatter's schedule, which turns a readable
+diff into an unreadable one.
 
 `CLAUDE.md` is deliberately **not** ignored — it is authored in this repository rather than
 copied, so it stays format-enforced with the rest of the root.
