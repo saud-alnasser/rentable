@@ -232,11 +232,13 @@ const seed = async () => {
 
 		// ️complexes & units
 		for (let i = 0; i < counts.complexes; i++) {
-			const name = faker.location.street();
 			const complexInsert = tx
 				.insert(s.complex)
 				.values({
-					name,
+					// `complex.name` is UNIQUE and the whole seed is one transaction, so a single
+					// repeated street name aborts the run and leaves no database at all. The index
+					// carries the guarantee rather than the generator's entropy.
+					name: `${faker.location.street()} ${i + 1}`,
 					location: faker.location.streetAddress()
 				})
 				.returning()
