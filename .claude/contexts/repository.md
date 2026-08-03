@@ -51,8 +51,9 @@ stored value is a cache of the derivation and never the authority.
   `contract`, `payment`, `tenant`, `complex`, `dashboard`, `settings`, `sync`. A unit is
   reached only through the complex holding it, so it lives inside that concept rather than
   beside it. Three homes own no concept, and a domain rule lives in none of them —
-  **`design`**, the design system — generated primitives, the composites built from
-  them, and the class-merging helper they all share; **`platform`**, capabilities that
+  **`design`**, the design system — the primitives, generated once and owned since, the
+  composites built from them, and the class-merging helper they all share; **`platform`**,
+  capabilities that
   cross a process boundary or are nondeterministic (the desktop shell, the database,
   diagnostics, locale); and **`api`**, the in-webview caller itself: the request context,
   the tRPC wiring, and the root router that assembles every concept's procedures. The

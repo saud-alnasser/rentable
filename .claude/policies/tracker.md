@@ -15,6 +15,17 @@ fetch, not an assumption.
 What happens to a ticket once somebody starts building it — the branch convention, the
 commit discipline, how work lands — is `.claude/policies/version-control.md`'s.
 
+## What a ticket is
+
+**Branch-bound.** One ticket becomes one branch, which lands as one unit of review — from
+`.claude/policies/version-control.md`, under *One ticket, one branch, one commit*: "One
+ticket becomes one `gt create`, which produces one branch carrying exactly one commit, which
+becomes one pull request."
+
+Work that produces no branch — a decision, an investigation — is not a ticket here, and
+opening one anyway creates an issue nothing can ever close by merging.
+`.claude/policies/maps.md` says where decision work lives instead.
+
 ## Assignment
 
 GitHub assignees. Claiming is `gh issue edit <n> --add-assignee @me`.
