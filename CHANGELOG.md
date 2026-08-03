@@ -1,5 +1,23 @@
 # rentable
 
+## 0.11.0
+
+### Minor Changes
+
+- [#169](https://github.com/saud-alnasser/rentable/pull/169) [`ca16df4`](https://github.com/saud-alnasser/rentable/commit/ca16df428631966acf37e294dd30e36b951f6c8e) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - rentable now keeps a diagnostics log on this machine, covering startup, migrations, backups, and sync. settings shows where the files are and opens the folder, so a failure can be sent on rather than described from memory. the log is bounded in size, and passwords and account tokens are stripped out before anything is written.
+
+### Patch Changes
+
+- [#174](https://github.com/saud-alnasser/rentable/pull/174) [`67a1c12`](https://github.com/saud-alnasser/rentable/commit/67a1c126ac671ff77947c6d33b486af04e6f6b28) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the settings screen no longer replaces itself with a load error when a background refresh fails after it has already loaded. an update being downloaded, or a google drive sign-in waiting in the browser, is no longer discarded by that switch.
+
+- [#185](https://github.com/saud-alnasser/rentable/pull/185) [`e218213`](https://github.com/saud-alnasser/rentable/commit/e218213cffa88fe586d342f4c6e485199b2a2a31) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a sync conflict you set aside now stays set aside wherever you go next. dismissing one at startup and then opening settings used to raise the same question again; it no longer does, until the thing the conflict was about has actually changed.
+
+- [#165](https://github.com/saud-alnasser/rentable/pull/165) [`7a973e1`](https://github.com/saud-alnasser/rentable/commit/7a973e1192eb83e8ac0931b258e312ce9aa0ae24) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a google drive sign-in that fails because the machine is offline now says so, instead of reading as an unexpected error.
+
+- [#162](https://github.com/saud-alnasser/rentable/pull/162) [`b7a98e8`](https://github.com/saud-alnasser/rentable/commit/b7a98e89138a338fdda1d61ff49d301a66b0d3fb) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - google drive and startup failures now read in the selected language, with the underlying detail kept alongside the message rather than replacing it.
+
+- [#178](https://github.com/saud-alnasser/rentable/pull/178) [`26cb694`](https://github.com/saud-alnasser/rentable/commit/26cb694dd9f43fda66e8e95463d1cf094acb089e) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - renaming a unit to a name another unit in the same complex already holds is now refused for every name the form accepts, an empty one included — previously a blank name skipped the check entirely and two units could end up sharing it.
+
 ## 0.10.1
 
 ### Patch Changes
