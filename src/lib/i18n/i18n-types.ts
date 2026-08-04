@@ -1590,6 +1590,10 @@ type RootTranslation = {
 			 */
 			numberOfCycles: string
 			/**
+			 * p​a​y​m​e​n​t​ ​a​m​o​u​n​t​ ​c​a​n​ ​h​a​v​e​ ​a​t​ ​m​o​s​t​ ​t​w​o​ ​d​e​c​i​m​a​l​ ​p​l​a​c​e​s
+			 */
+			paymentAmountDecimalPlaces: string
+			/**
 			 * p​a​y​m​e​n​t​ ​a​m​o​u​n​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o
 			 */
 			paymentAmountGreaterThanZero: string
@@ -3463,6 +3467,10 @@ export type TranslationFunctions = {
 			 * number of cycles
 			 */
 			numberOfCycles: () => LocalizedString
+			/**
+			 * payment amount can have at most two decimal places
+			 */
+			paymentAmountDecimalPlaces: () => LocalizedString
 			/**
 			 * payment amount must be greater than zero
 			 */
