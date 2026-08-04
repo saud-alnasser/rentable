@@ -110,7 +110,7 @@ export default procedure.public.query(async ({ ctx }): Promise<DashboardData> =>
 
 	const contexts = contracts.map(({ contract, tenantName, tenantPhone }) => {
 		const contractPayments = paymentsByContractId.get(contract.id) ?? [];
-		const serializedContract = serializeContract(contract, now, paymentsByContractId);
+		const serializedContract = serializeContract(contract);
 		const collectedThisMonth = contractPayments
 			.filter((payment) => isWithinUtcRange(payment.date, month.start, month.end))
 			.reduce((sum, payment) => sum + payment.amount, 0);

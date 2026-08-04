@@ -63,9 +63,11 @@ stored value is a cache of the derivation and never the authority.
   **The tree is this shape throughout** (#123–#126). Two directories sit outside it:
   `i18n`, whose path the locale generator fixes, and `error`, which decodes failures
   crossing the IPC boundary and has not been placed.
-- **Derived status is written back by reconciliation, never by the mutation that changed
-  its inputs.** Any mutation touching contracts, payments, or unit assignments must
-  reconcile, or the stored statuses go stale.
+- **Reconciliation owns the derived columns** — contract status, the contract payment
+  aggregates, and unit status. Any mutation touching contracts, payments, or unit
+  assignments must reconcile, or the stored values go stale. A mutation may seed the
+  derived columns of the row it writes, so the row it returns is current without a
+  re-read; reconcile recomputes them regardless, from the same domain functions.
 
 ## Constraints
 

@@ -1,15 +1,21 @@
 import type { Database } from '$lib/api/context';
 import * as s from '$lib/platform/database/schema';
-import { deriveContractStatus, deriveUnitStatuses } from '$lib/contract/contract';
+import {
+	deriveContractStatus,
+	deriveUnitStatuses,
+	getContractPaymentSummary
+} from '$lib/contract/contract';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import { eq, inArray } from 'drizzle-orm';
 
 /**
  * RECONCILE
  *
- * recomputes contract and unit statuses from dates and payments and writes the result
- * back. Must run after any mutation touching contracts, payments, or assignments, or
- * statuses go stale. (`sync` means remote exclusively; this local recomputation never is.)
+ * recomputes contract and unit statuses and the contract payment aggregates from dates
+ * and payments and writes the result back. Must run after any mutation touching
+ * contracts, payments, or assignments, or the stored derived state goes stale — reads
+ * return these columns as-is. (`sync` means remote exclusively; this local recomputation
+ * never is.)
  */
 export async function reconcile(db: Database, now: number) {
 	const contracts = await db.select().from(s.contract);
@@ -20,14 +26,19 @@ export async function reconcile(db: Database, now: number) {
 	const paymentsByContractId = groupPaymentsByContractId(payments);
 
 	for (const contract of contracts) {
-		const nextStatus = deriveContractStatus(
-			contract,
-			paymentsByContractId.get(contract.id) ?? [],
-			now
-		);
+		const contractPayments = paymentsByContractId.get(contract.id) ?? [];
+		const nextStatus = deriveContractStatus(contract, contractPayments, now);
+		const { paidAmount, expectedAmount } = getContractPaymentSummary(contract, contractPayments);
 
-		if (nextStatus !== contract.status) {
-			await db.update(s.contract).set({ status: nextStatus }).where(eq(s.contract.id, contract.id));
+		if (
+			nextStatus !== contract.status ||
+			paidAmount !== contract.paidAmount ||
+			expectedAmount !== contract.expectedAmount
+		) {
+			await db
+				.update(s.contract)
+				.set({ status: nextStatus, paidAmount, expectedAmount })
+				.where(eq(s.contract.id, contract.id));
 		}
 	}
 

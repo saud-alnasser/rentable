@@ -63,6 +63,8 @@ export const contract = sqliteTable('contract', {
 	end: integer('end_date', { mode: 'timestamp_ms' }).notNull(),
 	interval: text('interval_in_months', { enum: ['1m', '3m', '6m', '12m'] }).notNull(),
 	cost: real('cost_per_interval').notNull(),
+	paidAmount: real('paid_amount').notNull().default(0),
+	expectedAmount: real('expected_amount').notNull().default(0),
 	tenantId: integer('tenant_id').notNull()
 });
 
@@ -74,6 +76,8 @@ export const ContractSchema = z.object({
 	end: z.number(),
 	interval: z.enum(['1m', '3m', '6m', '12m']),
 	cost: z.number(),
+	paidAmount: z.number(),
+	expectedAmount: z.number(),
 	tenantId: z.number()
 });
 

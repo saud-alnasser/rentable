@@ -362,3 +362,49 @@ test('derived status is terminated once a contract is terminated', async () => {
 
 	assert.equal(terminated.status, 'terminated');
 });
+
+// --- Payment aggregates on reads -------------------------------------------------------
+
+test('creating a contract returns the expected amount for its whole period', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	assert.equal(contract.expectedAmount, 1000);
+	assert.equal(contract.paidAmount, 0);
+});
+
+test('the contract list carries the payment aggregates after a payment', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 400
+	});
+
+	const contracts = await api.contract.getMany({});
+	const listed = contracts.find((candidate) => candidate.id === contract.id);
+
+	assert.equal(listed.paidAmount, 400);
+	assert.equal(listed.expectedAmount, 1000);
+});
+
+test('updating the cost updates the expected amount on reads', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	const updated = await api.contract.update({
+		id: contract.id,
+		tenantId: contract.tenantId,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 2500
+	});
+
+	assert.equal(updated.expectedAmount, 2500);
+
+	const reloaded = await api.contract.get({ id: contract.id });
+	assert.equal(reloaded.expectedAmount, 2500);
+});
