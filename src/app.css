@@ -126,3 +126,32 @@ body {
 .app-scroll::-webkit-scrollbar-thumb:hover {
 	background: var(--color-muted-foreground);
 }
+
+/* ===================================== */
+/* Reduced motion                        */
+/* ===================================== */
+
+/*
+ * neither Tailwind nor tw-animate-css consults `prefers-reduced-motion`, so nothing in the
+ * application honours it until this block does. it is stated once and globally so that a
+ * primitive generated later inherits it without being edited for it — shadcn primitives
+ * animate off `data-state`, the navigation menu off `data-motion`. `!important` is on the
+ * transition rule alone, to reach the drawer, whose transition vaul writes inline; the
+ * animation rule is unlayered and already outranks Tailwind's utilities layer.
+ *
+ * the looping indicators — spinner, skeleton, caret — keep moving, and none of them carries
+ * either attribute. a spinner is the only thing on screen saying work is in progress, and a
+ * frozen one reads as a hung application rather than a calmer one.
+ */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		transition-duration: 0s !important;
+	}
+
+	[data-state],
+	[data-motion] {
+		animation: none;
+	}
+}

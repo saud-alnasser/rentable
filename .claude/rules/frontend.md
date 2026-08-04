@@ -85,6 +85,11 @@ thread, the second does not.
 unfinished.** Tailwind's `motion-safe:` gates CSS motion; `prefersReducedMotion` from
 `svelte/motion` gates anything JavaScript-driven.
 
+`src/app.css` carries the two cases a surface cannot reach for itself: every CSS transition,
+and the keyframe animation on anything bits-ui marks with `data-state` or `data-motion`. A
+keyframe animation on an element carrying neither is still the surface's own to gate — which
+covers anything composed here, and the looping indicators, left running deliberately.
+
 **Motion is bidirectional, like everything else here.** A transform that assumes LTR breaks in
 Arabic — prefer logical properties, and check both directions rather than one.
 
