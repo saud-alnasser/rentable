@@ -1,6 +1,6 @@
 # Interface overhaul — decisions
 
-Status: mapping
+Status: complete — every decision is answered; the spec is [`ui-overhaul-spec.md`](ui-overhaul-spec.md)
 Map: [#211](https://github.com/saud-alnasser/rentable/issues/211)
 Sources: `src/lib/design/block/`, `src/lib/design/primitive/`, `src/lib/layout/`, `src/routes/`,
 `src/app.css`, `src/lib/contract/router.ts`, `src/lib/contract/serialize.ts`,
@@ -33,7 +33,8 @@ still means decision 03.
 
 Two decisions are **not** worked here, because neither is answerable from a description. They
 attach to the build ticket that first makes them answerable, declared at design time under
-`## Declared increments`:
+`## Declared increments` — **both are now attached**: the first to #246 (the palette), the
+second to #249 (the list block):
 
 - **How a surface reads as raised or inset on a black base, with no blur and blue reserved for
   state.** Type: `prototype`. Attaches to the ticket that applies the palette and Rhea's geometry
@@ -77,6 +78,59 @@ field, whether it moves to the detail page or disappears.
 Known to be the largest of these. If it will not fit one session it splits per list rather than
 being rushed.
 
+### Answer
+
+Resolved 2026-08-04, in one session. The field inventory was read from the five data-view
+components and the schema at the time of decision; the geometry constraint from the Rhea
+transcription (`.claude/evidence/research/rhea-geometry-scale.md`): 40px header, ~36px one-line
+rows, cells truncate.
+
+**System rules, all five lists:**
+
+- **The human handle leads** — name for complexes, units and tenants; tenant name for contracts.
+  Payments have no human handle; the ledger leads with the date.
+- **Same concept, same treatment everywhere:** status is a badge in the existing status
+  vocabulary; money is localized with the SAR unit; dates are medium-style, UTC; a phone cell
+  carries its own direction handling.
+- **Sortable means a real SQL column, or an expression over materialized or joined columns, in
+  the one bounded list query.** Sorting by status uses the attention rank below, never the enum's
+  alphabetical order.
+- **Actions:** rows with a detail page (complex, tenant, contract) navigate on row click and carry
+  no actions column; rows without one (unit, payment) carry a trailing actions menu with edit and
+  delete.
+- **Dropping a column never drops the field from search.**
+
+**Per list:**
+
+| List | Columns, in order | Sortable | Default order |
+| --- | --- | --- | --- |
+| Complexes | name · location · units · vacant | name, units, vacant | name |
+| Units | name · status · tenant · until · ⋯ | name, status, until | name |
+| Tenants | name · national id · phone · contracts | name, national id, contracts | name |
+| Contracts | tenant name · gov id · status · progress (bar + %) · cost / interval · end date | all six; progress by fulfillment ratio | attention order |
+| Payments | date · amount · ⋯ | date, amount | date, newest first |
+
+**Attention order** — the contracts list's default sort, one `CASE` in the `ORDER BY`:
+`defaulted → active → scheduled → fulfilled → expired → terminated`, end date soonest-first
+within each rank. The list opens as a triage board: what needs the user is on top, history at the
+bottom.
+
+**What each list stops showing:** the contract's start date, the tenant's phone, and the exact
+paid/expected/remaining figures move to the contract detail page; the tenant initials avatar and
+the unit card's colored status edge disappear; complexes and payments drop nothing — complexes
+gain two columns.
+
+**New data the columns require**, recorded for the spec — every one rides the single list query:
+
+- Complexes: unit count and vacant count as aggregates, replacing today's per-row count query.
+- Tenants: an active-contract count aggregate.
+- Units: the occupying tenant's name and the contract's end date, via the active-assignment join;
+  blank when vacant. The tenant cell links to the tenant.
+- Contracts: already carried — the tenant join and the ADR 0006 materialized aggregates.
+
+**Fog this sharpens:** units-as-occupancy-board strengthens the case that a unit stays reachable
+through its complex rather than through a top-level list. Noted on the map; not settled here.
+
 ---
 
 ## 04 — docs: settle the loading and sort model
@@ -109,6 +163,33 @@ paging at all. Weigh it against what this application is: no server, a local fil
 bounded by how many properties one person manages. If the conclusion is that the answer suiting a
 hosted product with a million rows is wrong here, say so explicitly.
 
+### Answer
+
+Resolved 2026-08-04. **The shipping model does not survive: a list loads the whole result set,
+and pagination is retired from the read path** —
+[ADR 0010](../decisions/0010-lists-load-whole-result-sets.md), which carries the reasoning and
+the rejected options. The answer the section invited is stated there explicitly: the
+hosted-product pattern is wrong for a no-server local file.
+
+What the ADR leaves to this section — the behaviour the replacement block builds to:
+
+- One query per (search, sort) state: `WHERE` from the search, `ORDER BY` from a whitelisted
+  per-list sort key. The sortable sets are decision 03's; contracts' no-sort state is the
+  attention order.
+- A sort or search change re-queries and scrolls to top. The previous result set stays rendered
+  until the new one arrives, so a state change never flashes an empty list.
+- Search stays SQL-answered per debounced keystroke. The loaded set is never re-filtered,
+  re-sorted or re-paginated client-side — the `data-view` block's client-side re-filter over
+  accumulated pages does not carry over.
+- A result count is available for free (the set's length); whether the block displays it is the
+  spec's call.
+- The embedded lists (units, payments) use the same model; their per-parent sets are the
+  smallest of the five.
+
+What retires with the card grid: `createInfiniteQuery`, the offset cursor, `nextOffset`, page
+accumulation, and the load-more intersection observer. The contract form's unbounded tenant
+read is a form question, recorded in the baseline, and is not licensed by this answer.
+
 ---
 
 ## 05 — docs: settle what reconcile does once the aggregates are materialized
@@ -130,6 +211,27 @@ because a row did. An incremental reconcile is fast and can be wrong in exactly 
 
 Whatever is chosen must say what happens to a contract that expires while nothing is being edited.
 Likely an ADR rather than a paragraph.
+
+### Answer
+
+Resolved 2026-08-04. **Reconcile splits by trigger, never by rule** —
+[ADR 0011](../decisions/0011-reconcile-is-scoped-by-trigger.md) carries the decision, the
+UTC-day argument that makes the scoped path safe, and the rejected options.
+
+What the ADR leaves to this section — the shape the build tickets work to:
+
+- The ten mutation call sites reconcile the mutation's touch-set only: the contract(s)
+  touched, their payments, their assignments, the units those name, and those units' other
+  assignments. Status and both ADR 0006 aggregates are written for the touched contracts,
+  status for their units.
+- The whole-table pass is today's `reconcile` function, kept verbatim, firing at startup,
+  on a UTC-day crossing noticed by a periodic check (robust to sleep/wake — it compares the
+  current UTC day against the last reconciled one, rather than scheduling a midnight timer),
+  and after a remote-sync pull.
+- The expiring-while-idle contract: updated at the next day-crossing check while the app is
+  open, or at the next startup. The stale window is the check interval.
+- The derivation functions are untouched. This decision moves *when and over what rows* they
+  run — a build ticket that edits a rule cites the wrong decision.
 
 ---
 
@@ -153,6 +255,23 @@ The context that should drive it: there is no server and no other writer, so cac
 more trustworthy here than the library defaults assume. But remote sync can pull in changes made
 on another machine, and the policy has to say what happens then.
 
+### Answer
+
+Resolved 2026-08-04. **The cache is trusted until told otherwise** —
+[ADR 0012](../decisions/0012-the-query-cache-is-trusted-until-told-otherwise.md) carries the
+policy, the writer-set argument, and the rejected options (finite staleTime, join-graph-targeted
+invalidation, optimistic patches).
+
+What the ADR leaves to this section — the shape the build tickets work to:
+
+- `staleTime: Infinity` on workspace data; `retry: false` and `refetchOnWindowFocus: false`
+  stay as configured today.
+- One shared helper invalidates the five data-concept prefixes; every data mutation calls it.
+  The per-domain invalidation helpers that enumerate other concepts' keys inline retire into it.
+- The sync pull and the day-crossing reconcile invalidate the root after their full pass —
+  the reconcile trigger built by ADR 0011's ticket carries the invalidation with it.
+- Invalidate-and-refetch is the only write-back model. No mutation writes the cache directly.
+
 ---
 
 ## Leaving the map
@@ -161,3 +280,10 @@ The map is done when 03 through 06 are answered and the two increments above are
 tickets that will carry them. #219 and #220 are already tickets and do not gate the map, though
 #220 gates decision 03. `/design` then returns to write the spec and cut the remaining build
 tickets — and those *are* tickets, because each one becomes a branch.
+
+**Exited 2026-08-04.** All four decisions answered, the spec accepted at
+[`ui-overhaul-spec.md`](ui-overhaul-spec.md), and the twelve build tickets cut as #243–#254
+under the map, increments attached to #246 and #249. The complex → unit path was settled on
+the way out (units stay under their complex — the occupancy board makes a top-level list a
+duplicate). The dashboard's content and the contract form's internal layout remain on the
+map's *Not yet specified*, each a later design session.
