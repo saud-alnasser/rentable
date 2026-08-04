@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { TenantSchema, type Tenant } from '$lib/platform/database/schema';
 	import { identityField, phone } from '$lib/tenant/tenant';
-	import FormSheet from '$lib/design/block/form-sheet.svelte';
+	import FormSurface from '$lib/design/block/form-surface.svelte';
 	import { Button } from '$lib/design/primitive/button';
 	import * as Form from '$lib/design/primitive/form';
 	import { Input } from '$lib/design/primitive/input';
@@ -157,7 +157,7 @@
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
 </script>
 
-<FormSheet {open} {onOpenChange} {enhance} title={$LL.common.labels.tenant()}>
+<FormSurface {open} {onOpenChange} {enhance} weight="heavy" title={$LL.common.labels.tenant()}>
 	<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
 		<Form.Field form={superform} name="name">
 			<Form.Control>
@@ -239,4 +239,4 @@
 			{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
 		</Button>
 	{/snippet}
-</FormSheet>
+</FormSurface>
