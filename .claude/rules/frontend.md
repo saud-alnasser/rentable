@@ -62,6 +62,32 @@ reaching the user and everything else reading as an unexpected failure.
 Tailwind v4, configured CSS-first in `src/app.css` — there is no JS config file to edit.
 Variants go through `tailwind-variants`, and class merging through the shared helper.
 
+## Motion
+
+**A surface built here carries motion, and the motion always responds to something** — an
+interaction (hover, press, focus, scrolling to it) or a trigger (data arrives, state changes).
+Nothing starts by itself and nothing loops. [ADR 0016](../decisions/0016-motion-responds-and-uses-what-is-installed.md)
+has the reasoning; this is the part that binds a change.
+
+**No motion library.** Reach for what is installed, choosing by what causes the motion:
+
+| Cause | Mechanism |
+| ----------------------------------- | ------------------------------------------------ |
+| hover, press, focus                 | Tailwind `transition-*`                          |
+| an element arriving on mount        | `tw-animate-css` (`animate-in`), as the primitives do |
+| an element leaving on a data change | Svelte `out:` — CSS cannot, the node is gone first |
+| an element moving position          | **unavailable** — see the ADR                    |
+
+Prefer a transition defined through `css` over one through `tick`: the first runs off the main
+thread, the second does not.
+
+**Reduced motion is not automatic in either mechanism, so a surface that omits it is
+unfinished.** Tailwind's `motion-safe:` gates CSS motion; `prefersReducedMotion` from
+`svelte/motion` gates anything JavaScript-driven.
+
+**Motion is bidirectional, like everything else here.** A transform that assumes LTR breaks in
+Arabic — prefer logical properties, and check both directions rather than one.
+
 ## Rendering
 
 Everything is client-side. There is no SSR anywhere, and the build is static with an
