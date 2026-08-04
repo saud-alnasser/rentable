@@ -463,3 +463,160 @@ test('updating the cost updates the expected amount on reads', async () => {
 	const reloaded = await api.contract.get({ id: contract.id });
 	assert.equal(reloaded.expectedAmount, 2500);
 });
+
+// --- The triage queue -------------------------------------------------------------------
+//
+// `getMany` answers the contracts list, which opens as a queue rather than a browse: the
+// order is the attention rank, and the search is the query's own. Both are asserted here
+// because both are what the list may not redo on the client.
+
+// Seeds one contract per status, created in an order that is not the order they come back
+// in — so a test asserting attention order cannot pass on insertion order by accident.
+async function seedOneContractPerStatus(api) {
+	const scheduled = await seedContract(api, {
+		govId: 'GOV-SCHEDULED',
+		start: monthsFromNow(2),
+		end: monthsFromNow(14)
+	});
+	const expired = await seedContract(api, {
+		govId: 'GOV-EXPIRED',
+		start: monthsFromNow(-14),
+		end: monthsFromNow(-2)
+	});
+
+	await api.contract.payments.create({
+		contractId: expired.id,
+		date: monthsFromNow(-8),
+		amount: 1_000_000
+	});
+
+	const terminated = await seedContract(api, { govId: 'GOV-TERMINATED' });
+
+	await api.contract.terminate({ id: terminated.id });
+
+	const active = await seedContract(api, { govId: 'GOV-ACTIVE' });
+	const fulfilled = await seedContract(api, { govId: 'GOV-FULFILLED' });
+
+	await api.contract.payments.create({
+		contractId: fulfilled.id,
+		date: monthsFromNow(0),
+		amount: 1_000_000
+	});
+
+	const defaulted = await seedContract(api, {
+		govId: 'GOV-DEFAULTED',
+		start: monthsFromNow(-14),
+		end: monthsFromNow(-2)
+	});
+
+	return { defaulted, active, scheduled, fulfilled, expired, terminated };
+}
+
+test('the contract list opens in attention order', async () => {
+	const api = await createApi();
+	const seeded = await seedOneContractPerStatus(api);
+
+	const listed = await api.contract.getMany({});
+
+	assert.deepEqual(
+		listed.map((contract) => contract.status),
+		['defaulted', 'active', 'scheduled', 'fulfilled', 'expired', 'terminated']
+	);
+	assert.deepEqual(
+		listed.map((contract) => contract.id),
+		[
+			seeded.defaulted.id,
+			seeded.active.id,
+			seeded.scheduled.id,
+			seeded.fulfilled.id,
+			seeded.expired.id,
+			seeded.terminated.id
+		]
+	);
+});
+
+test('the contract list orders the soonest end date first within a rank', async () => {
+	const api = await createApi();
+	const later = await seedContract(api, { start: monthsFromNow(-1), end: monthsFromNow(11) });
+	const sooner = await seedContract(api, {
+		start: monthsFromNow(-1),
+		end: monthsFromNow(5),
+		interval: '6m'
+	});
+
+	const listed = await api.contract.getMany({});
+
+	assert.deepEqual(
+		listed.map((contract) => contract.id),
+		[sooner.id, later.id]
+	);
+});
+
+test('searching the contract list narrows it and keeps the attention order', async () => {
+	const api = await createApi();
+	const seeded = await seedOneContractPerStatus(api);
+	const tenant = await api.tenant.get({ id: seeded.active.tenantId });
+
+	assert.deepEqual(
+		(await api.contract.getMany({ search: 'GOV-ACTIVE' })).map((contract) => contract.id),
+		[seeded.active.id]
+	);
+	assert.deepEqual(
+		(await api.contract.getMany({ search: tenant.name })).map((contract) => contract.id),
+		[seeded.active.id]
+	);
+	assert.deepEqual(
+		(await api.contract.getMany({ search: tenant.phone })).map((contract) => contract.id),
+		[seeded.active.id]
+	);
+	assert.deepEqual(
+		(await api.contract.getMany({ search: 'gov-' })).map((contract) => contract.status),
+		['defaulted', 'active', 'scheduled', 'fulfilled', 'expired', 'terminated']
+	);
+	assert.deepEqual(await api.contract.getMany({ search: 'nothing matches this' }), []);
+});
+
+// The row stops showing the gov id, the phone, the cost and the interval, and decision 03
+// holds that dropping a field from a surface never drops it from search.
+test('the contract search still reaches the fields the row stopped showing', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { govId: 'GOV-HIDDEN', interval: '3m', cost: 4321 });
+
+	for (const term of ['GOV-HIDDEN', '3m', '4321', 'active']) {
+		assert.deepEqual(
+			(await api.contract.getMany({ search: term })).map((candidate) => candidate.id),
+			[contract.id],
+			`search term ${term}`
+		);
+	}
+});
+
+test('the contract search treats a wildcard character as text', async () => {
+	const api = await createApi();
+
+	await seedContract(api, { govId: 'GOV-PLAIN' });
+	const literal = await seedContract(api, { govId: 'GOV-50%-SHARE' });
+
+	assert.deepEqual(
+		(await api.contract.getMany({ search: '50%' })).map((contract) => contract.id),
+		[literal.id]
+	);
+	assert.deepEqual(await api.contract.getMany({ search: 'GOV_PLAIN' }), []);
+});
+
+test('the contract list returns the whole result set', async () => {
+	const api = await createApi();
+	const tenant = await seedTenant(api);
+
+	for (let index = 0; index < 30; index += 1) {
+		await api.contract.create({
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000 + index
+		});
+	}
+
+	assert.equal((await api.contract.getMany({})).length, 30);
+});

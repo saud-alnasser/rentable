@@ -2,21 +2,11 @@ import api from '$lib/api/caller';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
 import { LL } from '$lib/i18n/i18n-svelte';
-import {
-	createInfiniteQuery,
-	createMutation,
-	createQuery,
-	useQueryClient,
-	type InfiniteData
-} from '@tanstack/svelte-query';
+import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
-const DATA_VIEW_PAGE_SIZE = 24;
-type InfiniteContractsPage = Awaited<ReturnType<typeof api.contract.getPaginated>>;
-
 export const keys = {
-	all: workspacePrefixes.contracts,
-	dataView: (search?: string) => [...workspacePrefixes.contracts, 'data-view', search ?? ''],
+	list: (search?: string) => [...workspacePrefixes.contracts, 'list', search ?? ''],
 	get: (id: number) => [...workspacePrefixes.contracts, id],
 	getUnits: (id: number) => [...workspacePrefixes.contracts, 'units', id],
 	getVacantUnits: (contractId: number, complexId: number) => [
@@ -28,33 +18,20 @@ export const keys = {
 	]
 } as const;
 
-export function useFetchContracts() {
-	return createQuery(() => ({
-		queryKey: keys.all,
-		queryFn: () => api.contract.getMany({})
-	}));
-}
-
-export function useInfiniteContracts(search: () => string = () => '') {
-	return createInfiniteQuery<
-		InfiniteContractsPage,
-		Error,
-		InfiniteData<InfiniteContractsPage>,
-		ReturnType<typeof keys.dataView>,
-		number
-	>(() => {
+/**
+ * The contracts list for a search: the whole result set, in the queue's attention order.
+ *
+ * `placeholderData` holds the previous set while a new search is in flight, so the list
+ * keeps rendering rows instead of flashing through its loading state on every keystroke.
+ */
+export function useListContracts(search: () => string = () => '') {
+	return createQuery(() => {
 		const trimmedSearch = search().trim();
 
 		return {
-			queryKey: keys.dataView(trimmedSearch),
-			initialPageParam: 0,
-			getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
-			queryFn: ({ pageParam }) =>
-				api.contract.getPaginated({
-					search: trimmedSearch || undefined,
-					limit: DATA_VIEW_PAGE_SIZE,
-					offset: typeof pageParam === 'number' ? pageParam : 0
-				})
+			queryKey: keys.list(trimmedSearch),
+			queryFn: () => api.contract.getMany({ search: trimmedSearch || undefined }),
+			placeholderData: <T>(previous: T) => previous
 		};
 	});
 }
