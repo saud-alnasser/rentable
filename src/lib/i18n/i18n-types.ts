@@ -195,6 +195,10 @@ type RootTranslation = {
 			 */
 			saving: string
 			/**
+			 * s​o​r​t​ ​b​y
+			 */
+			sortBy: string
+			/**
 			 * s​y​n​c​i​n​g​.​.​.
 			 */
 			syncing: string
@@ -584,6 +588,11 @@ type RootTranslation = {
 			 * @param {unknown} page
 			 */
 			pageOf: RequiredParams<'count' | 'page'>
+			/**
+			 * {​c​o​u​n​t​}​ ​r​e​s​u​l​t​(​s​)
+			 * @param {unknown} count
+			 */
+			results: RequiredParams<'count'>
 			/**
 			 * r​o​w​s​ ​p​e​r​ ​p​a​g​e
 			 */
@@ -2103,6 +2112,10 @@ export type TranslationFunctions = {
 			 */
 			saving: () => LocalizedString
 			/**
+			 * sort by
+			 */
+			sortBy: () => LocalizedString
+			/**
 			 * syncing...
 			 */
 			syncing: () => LocalizedString
@@ -2490,6 +2503,10 @@ export type TranslationFunctions = {
 			 * page {page} of {count}
 			 */
 			pageOf: (arg: { count: unknown, page: unknown }) => LocalizedString
+			/**
+			 * {count} result(s)
+			 */
+			results: (arg: { count: unknown }) => LocalizedString
 			/**
 			 * rows per page
 			 */
