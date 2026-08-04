@@ -481,7 +481,7 @@
 	<QueryClientProvider client={queryClient}>
 		<SonnerProvider>
 			<TooltipProvider>
-				<LayoutFrame {currentDirection} showNavbar={startupState === 'ready'}>
+				<LayoutFrame {currentDirection} showNavigation={startupState === 'ready'}>
 					{#if startupState === 'loading'}
 						<LayoutStartupLoading />
 					{:else if startupState === 'choose-workspace' && startupRemoteSync}

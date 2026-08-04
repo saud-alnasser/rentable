@@ -32,6 +32,6 @@
 	}}
 	{...restProps}
 >
-	<PanelLeftIcon />
+	<PanelLeftIcon class="rtl:rotate-180" />
 	<span class="sr-only">{$LL.common.ui.toggleSidebar()}</span>
 </Button>
