@@ -1,6 +1,6 @@
 # feat: rebuild the interface — table-first lists, sidebar shell, SQL-backed search
 
-Status: accepted
+Status: superseded by list-presentation-spec.md
 Sources: `src/lib/design/`, `src/lib/layout/`, `src/routes/`, `src/app.css`,
 `src/lib/contract/`, `src/lib/payment/`, `src/lib/tenant/`, `src/lib/complex/`,
 `src/lib/platform/database/`, `tauri/migrations/`, `tauri/tauri.conf.json`

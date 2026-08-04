@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0013
 ---
 
 # The shipping list block is rewritten under a new name, and the dead one is deleted

@@ -293,12 +293,72 @@ What the ADR leaves to this section — the shape the build tickets work to:
 
 ---
 
+## 07 — docs: settle the list presentation per concept
+
+Type: grilling
+Blocked by: —
+
+### Question
+
+Should all five lists render the same way?
+
+Raised 2026-08-04 by the human, after #249 built the table-first block and it was looked at
+against real contracts: the interface "feels not customed to the data we have, not intuitive".
+The uniform block is [ADR 0009](../decisions/0009-the-shipping-list-block-is-rewritten-under-a-new-name.md)'s,
+inherited from 0008 — and 0008's stated reason for it, that the column vocabulary cannot be
+decided once with two blocks, was already voided by 0009. So the question is what is left
+holding uniformity up, and whether it survives contact with what each list is actually for.
+
+### Answer
+
+Resolved 2026-08-04. **Mechanism stays single, presentation goes per concept** —
+[ADR 0013](../decisions/0013-list-presentation-is-per-concept.md) carries the decision and the
+rejected shapes. What that section leaves to this one:
+
+**The shapes, one per concept:**
+
+| List | Shape | What it is for | Order |
+| --- | --- | --- | --- |
+| Contracts | triage queue, grouped by attention rank | what needs the user today | attention rank, fixed |
+| Payments | ledger, date-grouped, amount trailing, running balance | an account statement for one contract | date, newest first, fixed |
+| Units | occupancy board, tiles by status carrying the tenant | who is in what, at a glance | unit name, fixed |
+| Tenants | directory rows — handle, then secondary facts | search, then pick one | sort control: name · national id · contracts |
+| Complexes | directory rows | same | sort control: name · units · vacant |
+
+**The seam.** One shell in `design/block/` owns the query state, the search input and its
+debounce, the result count, the create action, the empty and loading states, the scroll
+container, virtualization, and group headers where a shape has groups. Each concept supplies a
+snippet for one record, in its own module. Three of the four shapes are rows with optional
+groups, so one shell covers them; the board is a grid of tiles rendered inside a single group.
+
+**What this retires.** No list is a table, so the table markup, the column fit-and-priority
+machinery and the column picker have no consumer. The narrow-end increment declared on #249
+and resolved earlier the same day — collapse by priority with a reader override — is void with
+the table it governed; it stays recorded above as answered, and is not a live rule.
+
+**What survives from 03.** Its system rules, unchanged: the human handle leads, a concept
+carries the same treatment everywhere, sortable means a real SQL column in the one bounded
+query, rows with a detail page navigate on click and carry no actions column, and dropping a
+field from a surface never drops it from search. Its per-list column tables are superseded by
+the shapes above.
+
+**Drift consumed.** [`adr-0009-miscites-adr-0007`](../evidence/drift/adr-0009-miscites-adr-0007.md)
+was waiting on this decision's subject. 0009 is superseded, and 0013 does not carry the false
+citation forward.
+
+---
+
 ## Leaving the map
 
 The map is done when 03 through 06 are answered and the two increments above are attached to the
 tickets that will carry them. #219 and #220 are already tickets and do not gate the map, though
 #220 gates decision 03. `/design` then returns to write the spec and cut the remaining build
 tickets — and those *are* tickets, because each one becomes a branch.
+
+**Re-entered 2026-08-04**, after #243–#249 were built, for decision 07 above: the uniform list
+presentation did not survive being looked at. The map is exited again on 07's answer, and the
+spec it produced is superseded by
+[`list-presentation-spec.md`](list-presentation-spec.md) for the work that remains.
 
 **Exited 2026-08-04.** All four decisions answered, the spec accepted at
 [`ui-overhaul-spec.md`](ui-overhaul-spec.md), and the twelve build tickets cut as #243–#254
