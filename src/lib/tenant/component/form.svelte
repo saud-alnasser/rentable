@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { TenantSchema, type Tenant } from '$lib/platform/database/schema';
 	import { identityField, phone } from '$lib/tenant/tenant';
+	import FormSheet from '$lib/design/block/form-sheet.svelte';
 	import { Button } from '$lib/design/primitive/button';
-	import * as Dialog from '$lib/design/primitive/dialog';
 	import * as Form from '$lib/design/primitive/form';
 	import { Input } from '$lib/design/primitive/input';
 	import * as Select from '$lib/design/primitive/select';
@@ -157,99 +157,86 @@
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
 </script>
 
-<Dialog.Root bind:open {onOpenChange}>
-	<Dialog.Content class="w-full sm:max-w-md">
-		<!-- novalidate: the browser cannot express a rule that normalizes before it matches, so
-		     its constraint check would refuse a stored identity that this form is able to repair.
-		     validation is the schema's, and its messages are the translated ones. -->
-		<form method="POST" use:enhance novalidate class="flex flex-col">
-			<Dialog.Header>
-				<Dialog.Title class="capitalize">{$LL.common.labels.tenant()}</Dialog.Title>
-			</Dialog.Header>
+<FormSheet {open} {onOpenChange} {enhance} title={$LL.common.labels.tenant()}>
+	<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
+		<Form.Field form={superform} name="name">
+			<Form.Control>
+				<Form.Label>{$LL.common.labels.name()}</Form.Label>
+				<Input
+					bind:value={$form.name}
+					placeholder={$LL.common.labels.name()}
+					aria-invalid={$errors.name ? 'true' : undefined}
+					{...$constraints.name}
+				/>
+			</Form.Control>
+			<Form.Description />
+		</Form.Field>
 
-			<div class="px-6 py-5">
-				<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
-					<Form.Field form={superform} name="name">
-						<Form.Control>
-							<Form.Label>{$LL.common.labels.name()}</Form.Label>
-							<Input
-								bind:value={$form.name}
-								placeholder={$LL.common.labels.name()}
-								aria-invalid={$errors.name ? 'true' : undefined}
-								{...$constraints.name}
-							/>
-						</Form.Control>
-						<Form.Description />
-					</Form.Field>
+		<Form.Field form={superform} name="nationalId">
+			<Form.Control>
+				<Form.Label>{$LL.common.labels.nationalId()}</Form.Label>
+				<Input
+					bind:value={$form.nationalId}
+					placeholder={$LL.common.labels.nationalId()}
+					aria-invalid={$errors.nationalId ? 'true' : undefined}
+					{...$constraints.nationalId}
+				/>
+			</Form.Control>
+			<Form.Description />
+		</Form.Field>
 
-					<Form.Field form={superform} name="nationalId">
-						<Form.Control>
-							<Form.Label>{$LL.common.labels.nationalId()}</Form.Label>
-							<Input
-								bind:value={$form.nationalId}
-								placeholder={$LL.common.labels.nationalId()}
-								aria-invalid={$errors.nationalId ? 'true' : undefined}
-								{...$constraints.nationalId}
-							/>
-						</Form.Control>
-						<Form.Description />
-					</Form.Field>
-
-					<Form.Field form={superform} name="phoneNumber">
-						<Form.Control>
-							<Form.Label>{$LL.common.labels.phone()}</Form.Label>
-							<div class="grid gap-3 sm:grid-cols-[9rem_minmax(0,1fr)]">
-								<Select.Root type="single" bind:value={$form.phoneCountryCode}>
-									<Select.Trigger
-										class="w-full"
-										aria-label={$LL.tenants.form.phoneCountryCode()}
-										aria-invalid={$errors.phoneNumber ? 'true' : undefined}
-									>
-										{$form.phoneCountryCode}
-									</Select.Trigger>
-									<Select.Content>
-										{#each PHONE_COUNTRY_OPTIONS as option (option.value)}
-											<Select.Item value={option.value} label={option.label} />
-										{/each}
-									</Select.Content>
-								</Select.Root>
-								<Input
-									value={$form.phoneNumber}
-									oninput={(event) => {
-										$form.phoneNumber = normalizePhoneNumberInput(event.currentTarget.value);
-									}}
-									inputmode="numeric"
-									dir="ltr"
-									autocomplete="tel-national"
-									placeholder={$LL.tenants.form.phoneNumberPlaceholder()}
-									aria-invalid={$errors.phoneNumber ? 'true' : undefined}
-								/>
-							</div>
-						</Form.Control>
-						<Form.Description />
-					</Form.Field>
+		<Form.Field form={superform} name="phoneNumber">
+			<Form.Control>
+				<Form.Label>{$LL.common.labels.phone()}</Form.Label>
+				<div class="grid gap-3 sm:grid-cols-[9rem_minmax(0,1fr)]">
+					<Select.Root type="single" bind:value={$form.phoneCountryCode}>
+						<Select.Trigger
+							class="w-full"
+							aria-label={$LL.tenants.form.phoneCountryCode()}
+							aria-invalid={$errors.phoneNumber ? 'true' : undefined}
+						>
+							{$form.phoneCountryCode}
+						</Select.Trigger>
+						<Select.Content>
+							{#each PHONE_COUNTRY_OPTIONS as option (option.value)}
+								<Select.Item value={option.value} label={option.label} />
+							{/each}
+						</Select.Content>
+					</Select.Root>
+					<Input
+						value={$form.phoneNumber}
+						oninput={(event) => {
+							$form.phoneNumber = normalizePhoneNumberInput(event.currentTarget.value);
+						}}
+						inputmode="numeric"
+						dir="ltr"
+						autocomplete="tel-national"
+						placeholder={$LL.tenants.form.phoneNumberPlaceholder()}
+						aria-invalid={$errors.phoneNumber ? 'true' : undefined}
+					/>
 				</div>
+			</Form.Control>
+			<Form.Description />
+		</Form.Field>
+	</div>
 
-				<Form.ErrorsSummary errors={$errors} class="mt-4" />
-			</div>
+	<Form.ErrorsSummary errors={$errors} class="mt-4" />
 
-			<Dialog.Footer>
-				<Button
-					type="button"
-					variant="outline"
-					disabled={CreateMutation.isPending || UpdateMutation.isPending}
-					onclick={() => onOpenChange(false)}
-				>
-					{$LL.common.actions.cancel()}
-				</Button>
-				<Button
-					type="submit"
-					disabled={CreateMutation.isPending || UpdateMutation.isPending}
-					class="capitalize"
-				>
-					{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
-				</Button>
-			</Dialog.Footer>
-		</form>
-	</Dialog.Content>
-</Dialog.Root>
+	{#snippet actions()}
+		<Button
+			type="button"
+			variant="outline"
+			disabled={CreateMutation.isPending || UpdateMutation.isPending}
+			onclick={() => onOpenChange(false)}
+		>
+			{$LL.common.actions.cancel()}
+		</Button>
+		<Button
+			type="submit"
+			disabled={CreateMutation.isPending || UpdateMutation.isPending}
+			class="capitalize"
+		>
+			{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
+		</Button>
+	{/snippet}
+</FormSheet>
