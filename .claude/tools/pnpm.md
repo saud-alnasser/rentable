@@ -64,8 +64,9 @@ Docs: <https://pnpm.io/settings/dependency-resolution>.
 ## Run the app
 
 ```bash
-pnpm dev          # vite only, port 1420 (strict) — no desktop window
-pnpm tauri dev    # the actual desktop app; see tauri.md
+pnpm dev                          # vite only, port 1420 (strict) — no desktop window
+pnpm tauri dev                    # the actual desktop app; see tauri.md
+pnpm prototype /contracts?create  # the desktop app, opened on one route; see tauri.md
 ```
 
 `pnpm dev` gives you the frontend with no Rust side, so anything touching the database or a

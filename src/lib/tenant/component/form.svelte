@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { TenantSchema, type Tenant } from '$lib/platform/database/schema';
 	import { identityField, phone } from '$lib/tenant/tenant';
+	import FieldError from '$lib/design/block/field-error.svelte';
 	import FormSurface from '$lib/design/block/form-surface.svelte';
 	import { Button } from '$lib/design/primitive/button';
 	import * as Form from '$lib/design/primitive/form';
@@ -159,7 +160,7 @@
 
 <FormSurface {open} {onOpenChange} {enhance} weight="heavy" title={$LL.common.labels.tenant()}>
 	<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
-		<Form.Field form={superform} name="name">
+		<Form.Field form={superform} name="name" class="group relative">
 			<Form.Control>
 				<Form.Label>{$LL.common.labels.name()}</Form.Label>
 				<Input
@@ -169,10 +170,10 @@
 					{...$constraints.name}
 				/>
 			</Form.Control>
-			<Form.Description />
+			<FieldError />
 		</Form.Field>
 
-		<Form.Field form={superform} name="nationalId">
+		<Form.Field form={superform} name="nationalId" class="group relative">
 			<Form.Control>
 				<Form.Label>{$LL.common.labels.nationalId()}</Form.Label>
 				<Input
@@ -182,10 +183,10 @@
 					{...$constraints.nationalId}
 				/>
 			</Form.Control>
-			<Form.Description />
+			<FieldError />
 		</Form.Field>
 
-		<Form.Field form={superform} name="phoneNumber">
+		<Form.Field form={superform} name="phoneNumber" class="group relative">
 			<Form.Control>
 				<Form.Label>{$LL.common.labels.phone()}</Form.Label>
 				<div class="grid gap-3 sm:grid-cols-[9rem_minmax(0,1fr)]">
@@ -216,11 +217,9 @@
 					/>
 				</div>
 			</Form.Control>
-			<Form.Description />
+			<FieldError />
 		</Form.Field>
 	</div>
-
-	<Form.ErrorsSummary errors={$errors} class="mt-4" />
 
 	{#snippet actions()}
 		<Button

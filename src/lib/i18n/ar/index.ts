@@ -507,6 +507,7 @@ const ar = {
 			calculatedEndDate: 'تاريخ النهاية المحسوب',
 			calculatedEndDateHint:
 				'يتم تحديثه تلقائياً حسب الدورة وتاريخ البداية وعدد الدورات. يمكنك تعديله يدوياً ضمن {days} أيام قبل أو بعد تاريخ النهاية المقترح؛ والتواريخ المسموح بها مميزة باللون الأخضر.',
+			costDecimalPlaces: 'تقبل التكلفة منزلتين عشريتين كحد أقصى.',
 			costGreaterThanZero: 'يجب أن تكون التكلفة أكبر من صفر.',
 			costPerPaymentGreaterThanZero: 'يجب أن تكون تكلفة الدفعة أكبر من صفر.',
 			costRequired: 'التكلفة مطلوبة.',
@@ -521,6 +522,7 @@ const ar = {
 			loadingTenants: 'جاري تحميل المستأجرين...',
 			noTenantFound: 'لم يتم العثور على مستأجر.',
 			numberOfCycles: 'عدد الدورات',
+			totalExpectedAmount: 'إجمالي المبلغ المتوقع',
 			paymentAmountDecimalPlaces: 'يقبل مبلغ الدفع منزلتين عشريتين كحد أقصى',
 			paymentAmountGreaterThanZero: 'يجب أن يكون مبلغ الدفع أكبر من صفر',
 			paymentAmountRequired: 'مبلغ الدفع مطلوب',
@@ -532,7 +534,6 @@ const ar = {
 			searchAndSelectTenant: 'ابحث واختر مستأجر',
 			searchTenantPlaceholder: 'ابحث عن مستأجر بالاسم أو الهوية أو الهاتف...',
 			startDateRequired: 'تاريخ البداية مطلوب.',
-			startTypingTenantSearch: 'ابدأ الكتابة للبحث عن مستأجر.',
 			tenantRequired: 'المستأجر مطلوب.'
 		},
 

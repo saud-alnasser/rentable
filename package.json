@@ -20,6 +20,7 @@
 		"db:seed": "tsx ./scripts/seed.ts",
 		"db:purge": "tsx ./scripts/purge.ts",
 		"tauri": "node ./scripts/tauri-with-env.mjs",
+		"prototype": "node ./scripts/prototype.mjs",
 		"i18n": "typesafe-i18n"
 	},
 	"dependencies": {

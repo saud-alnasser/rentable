@@ -16,6 +16,26 @@ pnpm tauri dev
 The full app — Rust side, webview, database. Use this rather than `pnpm dev` for anything
 that touches data.
 
+## Open the app on one route
+
+```bash
+pnpm prototype /contracts?create
+```
+
+`scripts/prototype.mjs`, for looking at a prototype: same app, window opened on the route
+given instead of `/`. The route survives the reloads the Rust watcher triggers, which is the
+whole point — clicking back to the surface under test after every restart is most of the
+friction of running a prototype.
+
+It reaches the window through `tauri dev --config`, which takes **JSON strings or paths to
+JSON, JSON5 or TOML files to merge with the default configuration file** — a merge, not a
+replacement, so only `build.devUrl` is overridden and `tauri.conf.json` is never edited. The
+script writes the override to a temporary file and removes it afterwards; a run that is
+killed leaves nothing behind in the repository.
+
+The bar for switching between a prototype's variants is `src/lib/prototype/switcher.svelte`,
+and it renders under `dev` only.
+
 ## Build a release bundle
 
 ```bash

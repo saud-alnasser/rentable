@@ -513,6 +513,7 @@ const en = {
 			calculatedEndDate: 'end date',
 			calculatedEndDateHint:
 				'updated automatically from the selected cycle, start date, and number of cycles. you can manually adjust it within {days} days before or after the suggested end date; allowed dates are highlighted in green.',
+			costDecimalPlaces: 'cost can have at most two decimal places.',
 			costGreaterThanZero: 'cost must be greater than zero.',
 			costPerPaymentGreaterThanZero: 'cost per payment must be greater than zero.',
 			costRequired: 'cost is required.',
@@ -527,6 +528,7 @@ const en = {
 			loadingTenants: 'loading tenants...',
 			noTenantFound: 'no tenant found.',
 			numberOfCycles: 'number of cycles',
+			totalExpectedAmount: 'total expected amount',
 			paymentAmountDecimalPlaces: 'payment amount can have at most two decimal places',
 			paymentAmountGreaterThanZero: 'payment amount must be greater than zero',
 			paymentAmountRequired: 'payment amount is required',
@@ -538,7 +540,6 @@ const en = {
 			searchAndSelectTenant: 'search and select tenant',
 			searchTenantPlaceholder: 'search tenant by name, id or phone...',
 			startDateRequired: 'start date is required.',
-			startTypingTenantSearch: 'start typing to search tenants by name, id or phone.',
 			tenantRequired: 'tenant is required.'
 		},
 
