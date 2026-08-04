@@ -363,6 +363,61 @@ test('derived status is terminated once a contract is terminated', async () => {
 	assert.equal(terminated.status, 'terminated');
 });
 
+// --- Stored unit status across reconcile ------------------------------------------------
+//
+// The dashboard's occupancy summary is the one read of the STORED unit status, so it is
+// what proves reconcile wrote the unit rows a mutation touched.
+
+test('stored unit occupancy follows assignment and removal', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const { complex, unit } = await seedComplexWithUnit(api, 'E');
+
+	await api.contract.units.assign({
+		contractId: contract.id,
+		complexId: complex.id,
+		unitIds: [unit.id]
+	});
+
+	const afterAssign = await api.contract.dashboard();
+	assert.equal(afterAssign.summary.occupancy.occupiedUnits, 1);
+
+	await api.contract.units.remove({ contractId: contract.id, unitId: unit.id });
+
+	const afterRemoval = await api.contract.dashboard();
+	assert.equal(afterRemoval.summary.occupancy.occupiedUnits, 0);
+});
+
+test('a mutation on one contract keeps a shared unit occupied by the other', async () => {
+	const api = await createApi();
+	const { complex, unit } = await seedComplexWithUnit(api, 'F');
+	const past = await seedContract(api, { start: monthsFromNow(-14), end: monthsFromNow(-2) });
+	const current = await seedContract(api);
+
+	await api.contract.units.assign({
+		contractId: past.id,
+		complexId: complex.id,
+		unitIds: [unit.id]
+	});
+	await api.contract.units.assign({
+		contractId: current.id,
+		complexId: complex.id,
+		unitIds: [unit.id]
+	});
+
+	await api.contract.payments.create({
+		contractId: past.id,
+		date: monthsFromNow(-8),
+		amount: 1_000_000
+	});
+
+	const reloadedPast = await api.contract.get({ id: past.id });
+	assert.equal(reloadedPast.status, 'expired');
+
+	const dashboard = await api.contract.dashboard();
+	assert.equal(dashboard.summary.occupancy.occupiedUnits, 1);
+});
+
 // --- Payment aggregates on reads -------------------------------------------------------
 
 test('creating a contract returns the expected amount for its whole period', async () => {

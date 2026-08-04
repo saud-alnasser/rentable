@@ -19,7 +19,7 @@ import {
 	getContractPaymentSummary,
 	hasSameUtcDateRange
 } from '$lib/contract/contract';
-import { reconcile } from '$lib/contract/reconcile';
+import { reconcileTouched } from '$lib/contract/reconcile';
 import { serializeContract, type SerializedContract } from '$lib/contract/serialize';
 import dashboard from '$lib/dashboard/router';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
@@ -156,7 +156,7 @@ export default router({
 				.returning()
 				.get();
 
-			await reconcile(ctx.db, now);
+			await reconcileTouched(ctx.db, now, { contractIds: [created.id] });
 
 			return serializeContract(created);
 		}),
@@ -265,7 +265,7 @@ export default router({
 				.returning()
 				.get();
 
-			await reconcile(ctx.db, now);
+			await reconcileTouched(ctx.db, now, { contractIds: [input.id] });
 
 			return serializeContract(updated);
 		}),
@@ -300,7 +300,7 @@ export default router({
 				.returning()
 				.get();
 
-			await reconcile(ctx.db, now);
+			await reconcileTouched(ctx.db, now, { contractIds: [input.id] });
 
 			return serializeContract(terminated);
 		}),
@@ -340,7 +340,7 @@ export default router({
 				.returning()
 				.get();
 
-			await reconcile(ctx.db, now);
+			await reconcileTouched(ctx.db, now, { contractIds: [input.id] });
 
 			return serializeContract(restored);
 		}),
@@ -666,7 +666,7 @@ export default router({
 					now
 				);
 
-				await reconcile(ctx.db, now);
+				await reconcileTouched(ctx.db, now, { contractIds: [input.contractId], unitIds });
 
 				return assignedUnits.map((unit) => ({
 					...unit,
@@ -725,7 +725,10 @@ export default router({
 						)
 					);
 
-				await reconcile(ctx.db, now);
+				await reconcileTouched(ctx.db, now, {
+					contractIds: [input.contractId],
+					unitIds: [input.unitId]
+				});
 
 				return {
 					contractId: input.contractId,
