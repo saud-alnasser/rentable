@@ -90,10 +90,8 @@
 	const formatDate = (value: number) =>
 		formatLocaleDate($locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 
-	const tabsListClass =
-		'grid h-auto w-full grid-cols-3 rounded-[1.3rem] border border-border/70 bg-card/55 p-0.5 shadow-lg backdrop-blur-xl';
-	const tabsTriggerClass =
-		'capitalize rounded-[1rem] px-3 py-2 text-sm font-medium data-[state=active]:border-border/50 data-[state=active]:bg-background/80 data-[state=active]:text-foreground data-[state=active]:shadow-sm';
+	const tabsListClass = 'grid h-auto w-full grid-cols-3';
+	const tabsTriggerClass = 'capitalize';
 
 	let tenantLabel = $derived.by(() => {
 		const contract = contractQuery.data;
@@ -152,7 +150,7 @@
 		</div>
 	</div>
 {:else if !contractQuery.data}
-	<Card class="border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
+	<Card>
 		<CardHeader>
 			<CardTitle>{$LL.common.messages.noResults()}</CardTitle>
 		</CardHeader>
@@ -160,7 +158,7 @@
 {:else}
 	{@const contract = contractQuery.data}
 	<div class="flex min-h-0 flex-1 flex-col gap-3 pb-8 sm:pb-12">
-		<div class="rounded-[1.5rem] border border-border/70 bg-card/65 p-4 shadow-xl backdrop-blur-xl">
+		<div class="rounded-2xl border bg-muted p-4">
 			<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
 				<Tooltip.Root>
 					<Tooltip.Trigger>
@@ -171,7 +169,7 @@
 								variant="outline"
 								size="icon-sm"
 								aria-label={$LL.common.ui.previous()}
-								class="shrink-0 rounded-full border-border/60 bg-background/70 shadow-sm backdrop-blur-sm"
+								class="shrink-0 rounded-full bg-secondary"
 							>
 								<ArrowLeftIcon class="size-4 rtl:rotate-180" />
 								<span class="sr-only">{$LL.common.ui.previous()}</span>
@@ -193,7 +191,7 @@
 										variant="outline"
 										size="icon-sm"
 										aria-label={$LL.common.actions.edit()}
-										class="rounded-full border-border/60 bg-background/70 shadow-sm backdrop-blur-sm"
+										class="rounded-full bg-secondary"
 										onclick={() => {
 											contractFormRenderKey += 1;
 											isContractFormOpen = true;
@@ -242,7 +240,7 @@
 										variant="outline"
 										size="icon-sm"
 										aria-label={$LL.common.actions.unterminate()}
-										class="rounded-full border-border/60 bg-background/70 shadow-sm backdrop-blur-sm"
+										class="rounded-full bg-secondary"
 										onclick={() => (isUnterminateDialogOpen = true)}
 									>
 										<RotateCcwIcon class="size-4" />
@@ -319,20 +317,20 @@
 			</Tabs.List>
 
 			<Tabs.Content value="overview" class="space-y-3 pb-1">
-				<Card class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
+				<Card class="gap-0 overflow-hidden">
 					<CardHeader class="gap-2 border-b pb-4">
 						<CardTitle class="capitalize">{$LL.common.labels.information()}</CardTitle>
 					</CardHeader>
 					<CardContent class="py-4">
 						<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 [&>*]:text-start">
-							<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+							<div class="rounded-xl border bg-muted p-4">
 								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
 									{$LL.common.labels.tenant()}
 								</p>
 								<p class="mt-3 truncate text-sm font-medium">{tenantLabel}</p>
 							</div>
 
-							<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+							<div class="rounded-xl border bg-muted p-4">
 								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
 									{$LL.common.labels.nationalId()}
 								</p>
@@ -341,7 +339,7 @@
 								</p>
 							</div>
 
-							<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+							<div class="rounded-xl border bg-muted p-4">
 								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
 									{$LL.common.labels.phone()}
 								</p>
@@ -353,7 +351,7 @@
 								</p>
 							</div>
 
-							<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+							<div class="rounded-xl border bg-muted p-4">
 								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
 									{$LL.common.labels.governmentId()}
 								</p>
@@ -362,14 +360,14 @@
 								</p>
 							</div>
 
-							<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+							<div class="rounded-xl border bg-muted p-4">
 								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
 									{$LL.common.labels.cycle()}
 								</p>
 								<p class="mt-3 text-sm font-medium">{intervalLabels[contract.interval]()}</p>
 							</div>
 
-							<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+							<div class="rounded-xl border bg-muted p-4">
 								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
 									{$LL.common.labels.contractPeriod()}
 								</p>

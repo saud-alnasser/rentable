@@ -91,9 +91,7 @@
 			</Dialog.Header>
 
 			<div class="px-6 py-5">
-				<div
-					class="flex flex-col gap-4 rounded-2xl border border-border/60 bg-card/25 p-4 backdrop-blur-sm"
-				>
+				<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
 					<Form.Field form={superform} name="name">
 						<Form.Control>
 							<Form.Label>{$LL.common.labels.name()}</Form.Label>

@@ -82,10 +82,7 @@
 							aria-label={item.label()}
 							aria-current={active ? 'page' : undefined}
 							data-active={active ? 'true' : undefined}
-							class={cn(
-								'border-border/55 bg-background/50 shadow-none [-webkit-app-region:no-drag]',
-								active && 'text-primary'
-							)}
+							class={cn('[-webkit-app-region:no-drag]', active && 'text-primary')}
 						>
 							<item.icon class="size-3.5" />
 							<span class="sr-only">{item.label()}</span>

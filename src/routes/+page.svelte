@@ -12,7 +12,6 @@
 	type DashboardData = Awaited<ReturnType<typeof api.contract.dashboard>>;
 
 	const dashboardQuery = useFetchContractDashboard();
-	const dashboardCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
 	let dashboardData = $derived<DashboardData | undefined>(dashboardQuery.data);
 </script>
 
@@ -34,7 +33,7 @@
 				<DashboardEndingSoonSection data={dashboardData} />
 			</div>
 		{:else}
-			<Card class={dashboardCardClass}>
+			<Card>
 				<CardContent class="pt-6">
 					<p class="text-sm text-muted-foreground">{$LL.dashboard.followUps.unavailable()}</p>
 				</CardContent>

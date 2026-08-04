@@ -117,11 +117,11 @@
 
 		<CardContent class="space-y-4">
 			{#if activeWorkspace}
-				<div class="rounded-[1.25rem] border border-border/65 bg-background/55 p-4 shadow-sm">
+				<div class="rounded-2xl border bg-muted p-4">
 					<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 						<div class="flex min-w-0 items-center gap-3">
 							<div
-								class="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary"
+								class="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary font-semibold text-foreground"
 							>
 								{getInitials(activeWorkspace, activeAccount)}
 							</div>

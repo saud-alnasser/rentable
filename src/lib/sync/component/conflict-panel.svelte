@@ -134,14 +134,14 @@
 	}
 </script>
 
-<div class={cn('space-y-4 rounded-[1.25rem] border border-border/70 bg-card/35 p-4', className)}>
+<div class={cn('space-y-4 rounded-2xl border bg-card p-4', className)}>
 	<div class="space-y-1">
 		<p class="text-base font-semibold">{getTitle()}</p>
 		<p class="text-sm text-muted-foreground">{getDescription()}</p>
 	</div>
 
 	<div class="grid gap-3 lg:grid-cols-2">
-		<div class="space-y-3 rounded-2xl border border-border/65 bg-background/60 p-4">
+		<div class="space-y-3 rounded-2xl border bg-muted p-4">
 			<div class="flex items-center justify-between gap-3">
 				<p class="font-medium">{$LL.settings.syncLinkConflictLocalTitle()}</p>
 				<div class="flex items-center gap-2">
@@ -159,7 +159,7 @@
 			</p>
 		</div>
 
-		<div class="space-y-3 rounded-2xl border border-border/65 bg-background/60 p-4">
+		<div class="space-y-3 rounded-2xl border bg-muted p-4">
 			<div class="flex items-center justify-between gap-3">
 				<p class="font-medium">{$LL.settings.syncLinkConflictRemoteTitle()}</p>
 				<div class="flex items-center gap-2">

@@ -413,9 +413,7 @@
 			</Dialog.Header>
 
 			<div class="min-h-0 overflow-y-auto px-6 py-5">
-				<div
-					class="grid gap-4 rounded-2xl border border-border/60 bg-card/25 p-4 backdrop-blur-sm md:grid-cols-2 md:p-5"
-				>
+				<div class="grid gap-4 rounded-2xl border bg-muted p-4 md:grid-cols-2 md:p-5">
 					<Form.Field form={superform} name="tenantId">
 						<Form.Control>
 							<Form.Label>{$LL.common.labels.tenant()}</Form.Label>
@@ -426,7 +424,7 @@
 											{...props}
 											variant="outline"
 											class={cn(
-												'w-full justify-between border-border/60 bg-background/80 font-normal shadow-sm',
+												'w-full justify-between font-normal',
 												!selectedTenant && 'text-muted-foreground'
 											)}
 											aria-invalid={$errors.tenantId ? 'true' : undefined}
@@ -508,9 +506,7 @@
 					</Form.Field>
 
 					<div class="md:col-span-2">
-						<div
-							class="grid gap-4 rounded-[1.35rem] border border-border/50 bg-background/28 p-4 md:grid-cols-2"
-						>
+						<div class="grid gap-4 rounded-2xl border bg-muted p-4 md:grid-cols-2">
 							<Form.Field form={superform} name="interval">
 								<Form.Control>
 									<Form.Label>{$LL.common.labels.cycle()}</Form.Label>
@@ -562,7 +558,7 @@
 													type="button"
 													variant="outline"
 													class={cn(
-														'w-full justify-between border-border/60 bg-background/58 font-normal shadow-none',
+														'w-full justify-between font-normal',
 														!contractStartDateValue && 'text-muted-foreground'
 													)}
 													aria-invalid={$errors.start ? 'true' : undefined}
@@ -622,7 +618,7 @@
 													variant="outline"
 													disabled={!manualEndDateWindow?.start || !manualEndDateWindow?.end}
 													class={cn(
-														'w-full justify-between border-border/60 bg-background/58 font-normal shadow-none',
+														'w-full justify-between font-normal',
 														!contractEndDateValue && 'text-muted-foreground',
 														endDateState.isManuallyEdited &&
 															'border-emerald-500/40 bg-emerald-500/6 text-emerald-800 dark:text-emerald-200'

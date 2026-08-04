@@ -147,7 +147,7 @@
 										variant="outline"
 										size="icon-sm"
 										aria-label={$LL.common.ui.previous()}
-										class="rounded-full border-border/60 bg-background/70 shadow-sm backdrop-blur-sm"
+										class="rounded-full bg-secondary"
 									>
 										<ArrowLeftIcon class="size-4 rtl:rotate-180" />
 										<span class="sr-only">{$LL.common.ui.previous()}</span>
@@ -169,9 +169,7 @@
 	{/if}
 
 	{#if contractQuery.data}
-		<div
-			class="rounded-[1.25rem] border border-border/70 bg-background/60 p-3 shadow-lg backdrop-blur-lg"
-		>
+		<div class="rounded-2xl border bg-muted p-3">
 			<div class="mb-2 flex items-center justify-between gap-3 text-sm rtl:flex-row-reverse">
 				<span class="font-medium">{$LL.common.labels.paymentFulfillment()}</span>
 				<span class="text-muted-foreground">
@@ -202,7 +200,7 @@
 
 	{#if showLockNotice}
 		<p
-			class="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-muted-foreground backdrop-blur-sm"
+			class="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-muted-foreground"
 		>
 			{getLockNotice()}
 		</p>
@@ -230,7 +228,7 @@
 				}}
 	>
 		{#snippet item(record: Payment)}
-			<Card class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
+			<Card class="gap-0 overflow-hidden">
 				<CardHeader class="gap-3 border-b pb-3">
 					<div class="space-y-1 text-start">
 						<CardTitle>{formatMoney(record.amount)}</CardTitle>
@@ -265,7 +263,7 @@
 					{/if}
 				</CardHeader>
 				<CardContent class="grid gap-3 pt-3 sm:grid-cols-2 [&>*]:text-start">
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-3 backdrop-blur-sm">
+					<div class="rounded-xl border bg-muted p-3">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.amount()}
 						</p>
@@ -273,7 +271,7 @@
 							{formatMoney(record.amount)}
 						</p>
 					</div>
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-3 backdrop-blur-sm">
+					<div class="rounded-xl border bg-muted p-3">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.paymentDate()}
 						</p>

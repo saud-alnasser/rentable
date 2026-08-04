@@ -6,7 +6,6 @@
 		CardHeader,
 		CardTitle
 	} from '$lib/design/primitive/card';
-	import { cn } from '$lib/design/tailwind.js';
 
 	let {
 		section
@@ -17,23 +16,20 @@
 			heroLabel: string;
 			heroValue: string;
 			heroHint: string;
-			heroClass: string;
 			stats: { id: string; label: string; value: string }[];
 		};
 	} = $props();
 
-	const dashboardCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
-	const dashboardSubtlePanelClass =
-		'rounded-xl border border-primary/10 bg-accent/35 p-3 text-start backdrop-blur-sm';
+	const dashboardSubtlePanelClass = 'rounded-xl border bg-muted p-3 text-start';
 </script>
 
-<Card class={cn('gap-4 overflow-hidden', dashboardCardClass)}>
-	<CardHeader class="gap-3 border-b border-border/50 pb-5">
+<Card class="gap-4 overflow-hidden">
+	<CardHeader class="gap-3 border-b pb-5">
 		<CardTitle class="capitalize">{section.title}</CardTitle>
 		<CardDescription>{section.description}</CardDescription>
 	</CardHeader>
 	<CardContent class="space-y-4 pt-5">
-		<div class={cn('rounded-2xl border border-border/60 p-4 shadow-sm', section.heroClass)}>
+		<div class="rounded-2xl border bg-muted p-4">
 			<p class="text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
 				{section.heroLabel}
 			</p>

@@ -48,8 +48,7 @@
 	const assignMutation = useAssignContractUnits();
 	const removeMutation = useRemoveContractUnit();
 	const listRowGap = 12;
-	const virtualListClass =
-		'rounded-[1.5rem] border border-border/70 bg-background/30 shadow-lg backdrop-blur-xl';
+	const virtualListClass = 'rounded-2xl border bg-card';
 	const virtualListPaddingClass = 'p-2 sm:p-3';
 	const standaloneVirtualThreshold = 3;
 	const embeddedVirtualThreshold = 3;
@@ -372,15 +371,15 @@
 	<button
 		type="button"
 		class={cn(
-			'flex items-start gap-3 rounded-xl border border-border/60 bg-background/80 p-4 text-start shadow-sm transition-[background-color,border-color,box-shadow] hover:border-border hover:bg-background',
-			isSelected && 'border-primary/50 bg-primary/5 ring-1 ring-primary/20'
+			'flex items-start gap-3 rounded-xl border bg-muted p-4 text-start transition-[background-color,border-color] hover:bg-accent',
+			isSelected && 'border-primary bg-accent ring-1 ring-primary'
 		)}
 		aria-pressed={isSelected}
 		onclick={() => toggleUnit(unit.id, !isSelected)}
 	>
 		<div
 			class={cn(
-				'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background/80 text-transparent transition-colors',
+				'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border bg-muted text-transparent transition-colors',
 				isSelected && 'border-primary bg-primary text-primary-foreground'
 			)}
 		>
@@ -393,9 +392,7 @@
 {/snippet}
 
 {#snippet assignedUnitCard(unit: AssignedUnitRecord)}
-	<div
-		class="rounded-[1.25rem] border border-border/70 bg-background/60 p-4 shadow-lg backdrop-blur-md"
-	>
+	<div class="rounded-2xl border bg-muted p-4">
 		<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
 			<div class="min-w-0 space-y-1 text-start">
 				<p class="truncate font-semibold">{unit.name}</p>
@@ -429,7 +426,7 @@
 		</div>
 
 		<div class="mt-4 [&>*]:text-start">
-			<div class="rounded-xl border border-border/60 bg-accent/30 p-3 backdrop-blur-sm">
+			<div class="rounded-xl border bg-muted p-3">
 				<p class="text-xs tracking-wide text-muted-foreground uppercase">
 					{$LL.common.labels.complex()}
 				</p>
@@ -462,7 +459,7 @@
 										variant="outline"
 										size="icon-sm"
 										aria-label={$LL.common.ui.previous()}
-										class="rounded-full border-border/60 bg-background/70 shadow-sm backdrop-blur-sm"
+										class="rounded-full bg-secondary"
 									>
 										<ArrowLeftIcon class="size-4 rtl:rotate-180" />
 										<span class="sr-only">{$LL.common.ui.previous()}</span>
@@ -485,7 +482,7 @@
 
 	{#if isLocked}
 		<p
-			class="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-muted-foreground backdrop-blur-sm"
+			class="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-muted-foreground"
 		>
 			{getLockNotice()}
 		</p>
@@ -499,18 +496,11 @@
 		)}
 	>
 		{#if !isLocked}
-			<Card
-				class={cn(
-					'gap-0 border-border/70 bg-card/65 shadow-xl backdrop-blur-xl',
-					shouldConstrainLayout && 'xl:min-h-0'
-				)}
-			>
-				<CardHeader class="gap-3 border-b border-border/50 pb-4">
+			<Card class={cn('gap-0', shouldConstrainLayout && 'xl:min-h-0')}>
+				<CardHeader class="gap-3 border-b pb-4">
 					<div class="flex items-start gap-3">
-						<div
-							class="rounded-xl border border-border/70 bg-background/60 p-2.5 shadow-sm backdrop-blur-md"
-						>
-							<Building2Icon class="size-5 text-primary" />
+						<div class="rounded-xl border bg-muted p-2.5">
+							<Building2Icon class="size-5 text-muted-foreground" />
 						</div>
 						<div class="space-y-1">
 							<CardTitle>{$LL.contracts.units.availableTitle()}</CardTitle>
@@ -521,7 +511,7 @@
 
 				<CardContent class="space-y-3 pt-4 xl:min-h-0">
 					<div
-						class="grid gap-3 rounded-[1.25rem] border border-border/70 bg-accent/25 p-3 backdrop-blur-sm md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
+						class="grid gap-3 rounded-2xl border bg-muted p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
 					>
 						<div class="space-y-2">
 							<Label>{$LL.common.labels.complex()}</Label>
@@ -559,7 +549,7 @@
 
 					{#if selectedComplex}
 						<div
-							class="flex items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-2.5 text-sm shadow-sm"
+							class="flex items-center justify-between rounded-xl border bg-muted px-3 py-2.5 text-sm"
 						>
 							<span class="text-muted-foreground">{$LL.common.labels.complex()}</span>
 							<span class="font-medium">{selectedComplex.name}</span>
@@ -567,9 +557,7 @@
 					{/if}
 
 					{#if !selectedComplexNumber}
-						<p
-							class="rounded-xl border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground"
-						>
+						<p class="rounded-xl border border-dashed bg-muted p-4 text-sm text-muted-foreground">
 							{$LL.contracts.units.selectComplex()}
 						</p>
 					{:else if vacantUnitsQuery.isLoading}
@@ -580,9 +568,7 @@
 							<Skeleton class="h-24 w-full rounded-xl" />
 						</div>
 					{:else if (vacantUnitsQuery.data?.length ?? 0) === 0}
-						<p
-							class="rounded-xl border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground"
-						>
+						<p class="rounded-xl border border-dashed bg-muted p-4 text-sm text-muted-foreground">
 							{$LL.contracts.units.noAvailableUnits()}
 						</p>
 					{:else if shouldUseVirtualAvailable}
@@ -640,13 +626,8 @@
 			</Card>
 		{/if}
 
-		<Card
-			class={cn(
-				'gap-0 border-border/70 bg-card/65 shadow-xl backdrop-blur-xl',
-				shouldConstrainLayout && 'xl:min-h-0'
-			)}
-		>
-			<CardHeader class="gap-3 border-b border-border/50 pb-4">
+		<Card class={cn('gap-0', shouldConstrainLayout && 'xl:min-h-0')}>
+			<CardHeader class="gap-3 border-b pb-4">
 				<div class="space-y-1">
 					<CardTitle>{$LL.contracts.units.assignedTitle()}</CardTitle>
 					<CardDescription>
@@ -664,9 +645,7 @@
 						<Skeleton class="h-32 w-full rounded-xl" />
 					</div>
 				{:else if (assignedUnitsQuery.data?.length ?? 0) === 0}
-					<p
-						class="rounded-xl border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground"
-					>
+					<p class="rounded-xl border border-dashed bg-muted p-4 text-sm text-muted-foreground">
 						{$LL.contracts.units.noAssignedUnits()}
 					</p>
 				{:else if shouldUseVirtualAssigned}

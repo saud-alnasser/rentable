@@ -75,7 +75,7 @@
 				{...props}
 				variant="ghost"
 				size="icon-sm"
-				class="relative rounded-full border border-border/60 bg-background/70 p-0 shadow-sm backdrop-blur-sm transition-[background-color,border-color,box-shadow] hover:border-border hover:bg-accent/70"
+				class="relative rounded-full bg-secondary p-0 transition-[background-color] hover:bg-accent"
 			>
 				<span class="sr-only">{$LL.common.actions.openMenu()}</span>
 				<EllipsisIcon class="size-4" />

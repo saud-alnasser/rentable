@@ -11,7 +11,6 @@
 	} from '$lib/design/primitive/card';
 	import { Spinner } from '$lib/design/primitive/spinner';
 	import { formatLocaleDate } from '$lib/platform/locale';
-	import { cn } from '$lib/design/tailwind.js';
 	import { toErrorText } from '$lib/error/message';
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
@@ -27,9 +26,7 @@
 
 	const settingsQuery = useFetchSettings();
 	const remoteSyncQuery = useFetchRemoteSyncState();
-	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
-	const settingsOverviewPanelClass =
-		'rounded-[1.25rem] border border-border/70 bg-card/40 p-3 shadow-sm backdrop-blur-md';
+	const settingsOverviewPanelClass = 'rounded-2xl border bg-muted p-3';
 
 	const activeSyncWorkspace = $derived.by(() => remoteSyncQuery.data?.workspace ?? null);
 
@@ -90,8 +87,8 @@
 			</div>
 		</div>
 	{:else if (settingsQuery.error && !settingsQuery.data) || (remoteSyncQuery.error && !remoteSyncQuery.data)}
-		<Card class={cn('max-w-2xl', settingsCardClass)}>
-			<CardHeader class="gap-3 border-b border-border/50 pb-5">
+		<Card class="max-w-2xl">
+			<CardHeader class="gap-3 border-b pb-5">
 				<CardTitle>{$LL.settings.loadErrorTitle()}</CardTitle>
 				<CardDescription>{$LL.settings.loadErrorDescription()}</CardDescription>
 			</CardHeader>

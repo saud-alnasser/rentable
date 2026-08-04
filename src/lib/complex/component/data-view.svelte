@@ -43,9 +43,7 @@
 >
 	{#snippet item(record: Complex)}
 		<a href={resolve(`/complexes/${record.id}`)} class="block">
-			<Card
-				class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl transition-transform duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-card/78"
-			>
+			<Card class="gap-0 overflow-hidden">
 				<CardHeader class="gap-4 border-b pb-4">
 					<div class="space-y-1 text-start">
 						<CardTitle>{record.name}</CardTitle>
@@ -53,7 +51,7 @@
 					</div>
 				</CardHeader>
 				<CardContent class="pt-4 [&>*]:text-start">
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+					<div class="rounded-xl border bg-muted p-4">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.units()}
 						</p>

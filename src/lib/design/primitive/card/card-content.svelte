@@ -16,7 +16,7 @@
 	bind:this={ref}
 	data-slot="card-content"
 	dir={localesMetadata[$locale].direction}
-	class={cn('px-6 text-start', className)}
+	class={cn('px-5 text-start', className)}
 	{...restProps}
 >
 	{@render children?.()}

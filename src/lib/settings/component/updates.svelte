@@ -24,9 +24,7 @@
 	const checkForUpdateMutation = useCheckForUpdate();
 	const prepareUpdateMutation = usePrepareUpdate();
 	const restartAppMutation = useRestartApp();
-	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
-	const settingsSubtlePanelClass =
-		'rounded-xl border border-primary/10 bg-accent/35 p-3 text-start backdrop-blur-sm';
+	const settingsSubtlePanelClass = 'rounded-xl border bg-muted p-3 text-start';
 
 	let isCheckingForUpdate = $state(false);
 	let hasCheckedForUpdate = $state(false);
@@ -184,8 +182,8 @@
 	}
 </script>
 
-<Card class={settingsCardClass}>
-	<CardHeader class="gap-3 border-b border-border/50 pb-5">
+<Card>
+	<CardHeader class="gap-3 border-b pb-5">
 		<CardTitle>{$LL.settings.updatesTitle()}</CardTitle>
 		<CardDescription>{$LL.settings.updatesDescription()}</CardDescription>
 	</CardHeader>
@@ -249,7 +247,7 @@
 				</div>
 
 				{#if availableUpdate.body}
-					<div class="space-y-2 border-t border-border/50 pt-3">
+					<div class="space-y-2 border-t pt-3">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.releaseNotes()}
 						</p>

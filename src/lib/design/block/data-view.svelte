@@ -61,8 +61,9 @@
 	const rowGap = 16;
 	const virtualContentPaddingClass = 'p-2 sm:p-3';
 	const nonVirtualBottomSpacingClass = 'pb-3 sm:pb-4';
-	const listContainerClass =
-		'rounded-[1.2rem] border border-border/50 bg-background/30 backdrop-blur-xl [box-shadow:inset_0_1px_0_rgb(255_255_255_/_0.05),0_16px_36px_rgb(15_23_42_/_0.14)] dark:[box-shadow:inset_0_1px_0_rgb(255_255_255_/_0.04),0_16px_36px_rgb(2_6_23_/_0.32)]';
+	// the frame the rows scroll inside sits at the page's own value, so the cards it holds
+	// are the raised thing; its radius matches theirs rather than cutting inside them.
+	const listContainerClass = 'rounded-3xl border bg-background';
 	const trackEffectDependencies = (...values: unknown[]) => values.length;
 
 	let viewportRef = $state<HTMLElement | null>(null);
@@ -273,7 +274,7 @@
 
 <div class={cn('flex flex-col gap-3', shouldUseVirtualLayout && 'min-h-0 flex-1')}>
 	<div
-		class="flex shrink-0 flex-col gap-3 rounded-[1.1rem] border border-border/50 bg-card/24 px-3 py-2.5 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between"
+		class="flex shrink-0 flex-col gap-3 rounded-2xl border bg-card px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
 	>
 		<div class="relative w-full sm:max-w-sm">
 			<SearchIcon
@@ -285,7 +286,7 @@
 				oninput={(event) => {
 					searchInputValue = event.currentTarget.value;
 				}}
-				class="h-9 border-transparent bg-transparent ps-9 shadow-none hover:bg-background/18 focus-visible:border-border/60 focus-visible:bg-background/28"
+				class="h-8 border-transparent bg-transparent ps-9 hover:bg-input/30"
 			/>
 		</div>
 		{#if onCreate}
@@ -296,7 +297,7 @@
 							{...props}
 							variant="outline"
 							size="icon-sm"
-							class="shrink-0 self-start border-border/55 bg-background/28 shadow-none sm:self-auto"
+							class="shrink-0 self-start sm:self-auto"
 							aria-label={$LL.common.actions.newRecord()}
 							onclick={() => onCreate()}
 						>
@@ -427,9 +428,7 @@
 				</div>
 			{/if}
 		{:else}
-			<div
-				class="rounded-[1.25rem] border border-dashed border-border/70 bg-card/30 p-8 text-center shadow-sm backdrop-blur-md"
-			>
+			<div class="rounded-2xl border border-dashed bg-card p-8 text-center">
 				<p class="text-sm font-medium">{emptyTitle}</p>
 				{#if emptyDescription}
 					<p class="mt-2 text-sm text-muted-foreground">{emptyDescription}</p>

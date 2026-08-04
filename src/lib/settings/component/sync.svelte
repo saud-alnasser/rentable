@@ -64,9 +64,7 @@
 	const syncGoogleDriveWorkspaceMutation = useSyncGoogleDriveWorkspace();
 	const unlinkGoogleDriveWorkspaceMutation = useUnlinkGoogleDriveWorkspace();
 	const inspectWorkspaceSyncStateMutation = useInspectWorkspaceSyncState();
-	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
-	const settingsInsetPanelClass =
-		'rounded-[1.25rem] border border-border/70 bg-background/60 p-4 text-start shadow-sm backdrop-blur-md';
+	const settingsInsetPanelClass = 'rounded-2xl border bg-muted p-4 text-start';
 
 	let disconnectingGoogleDriveAccountId = $state<string | null>(null);
 	let isRunningManualGoogleDriveSync = $state(false);
@@ -405,8 +403,8 @@
 	}
 </script>
 
-<Card class={settingsCardClass}>
-	<CardHeader class="gap-3 border-b border-border/50 pb-5">
+<Card>
+	<CardHeader class="gap-3 border-b pb-5">
 		<CardTitle>{$LL.settings.syncTitle()}</CardTitle>
 		<CardDescription>{$LL.settings.syncDescription()}</CardDescription>
 	</CardHeader>
@@ -454,7 +452,7 @@
 					<div class="min-w-0 flex-1 space-y-4 text-start">
 						<div class="flex min-w-0 items-start gap-3 rtl:flex-row-reverse">
 							<div
-								class="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary"
+								class="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground"
 							>
 								{getAvatarLabel(activeWorkspace, activeAccount)}
 							</div>
@@ -475,7 +473,7 @@
 						</div>
 
 						<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-							<div class="rounded-2xl border border-border/60 bg-background/70 p-3">
+							<div class="rounded-2xl border bg-muted p-3">
 								<p class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
 									{$LL.settings.latestSnapshot()}
 								</p>
@@ -489,7 +487,7 @@
 								</p>
 							</div>
 
-							<div class="rounded-2xl border border-border/60 bg-background/70 p-3">
+							<div class="rounded-2xl border bg-muted p-3">
 								<p class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
 									{$LL.common.actions.syncNow()}
 								</p>
@@ -505,9 +503,7 @@
 								</p>
 							</div>
 
-							<div
-								class="rounded-2xl border border-border/60 bg-background/70 p-3 sm:col-span-2 xl:col-span-1"
-							>
+							<div class="rounded-2xl border bg-muted p-3 sm:col-span-2 xl:col-span-1">
 								<p class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
 									{activeWorkspace.provider === 'googleDrive'
 										? $LL.settings.syncProviderGoogleDrive()

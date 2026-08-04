@@ -132,9 +132,7 @@
 			</Dialog.Header>
 
 			<div class="px-6 py-5">
-				<div
-					class="flex flex-col gap-4 rounded-2xl border border-border/60 bg-card/25 p-4 backdrop-blur-sm"
-				>
+				<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
 					<Form.Field form={superform} name="date">
 						<Form.Control>
 							<Form.Label>{$LL.common.labels.paymentDate()}</Form.Label>
@@ -147,7 +145,7 @@
 											type="button"
 											variant="outline"
 											class={cn(
-												'w-full justify-between border-border/60 bg-background/58 font-normal shadow-none',
+												'w-full justify-between font-normal',
 												!paymentDateValue && 'text-muted-foreground'
 											)}
 											aria-invalid={$errors.date ? 'true' : undefined}
