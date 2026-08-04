@@ -1,6 +1,6 @@
 # feat: forms get one surface, and it answers the window
 
-Status: proposed
+Status: implemented
 Sources: `src/lib/design/block/form-sheet.svelte`, `src/lib/design/primitive/form/`,
 `src/lib/design/primitive/dialog/`, `src/lib/design/primitive/sheet/`,
 `src/lib/tenant/component/form.svelte`, `src/lib/contract/component/form.svelte`,

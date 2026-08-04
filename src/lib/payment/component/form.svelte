@@ -2,6 +2,7 @@
 	import type { Payment } from '$lib/platform/database/schema';
 	import { Button } from '$lib/design/primitive/button';
 	import * as Calendar from '$lib/design/primitive/calendar';
+	import FieldError from '$lib/design/block/field-error.svelte';
 	import FormSurface from '$lib/design/block/form-surface.svelte';
 	import * as Form from '$lib/design/primitive/form';
 	import { Input } from '$lib/design/primitive/input';
@@ -13,6 +14,7 @@
 		parseDateInput
 	} from '$lib/design/date';
 	import { getIntlLocale } from '$lib/platform/locale';
+	import { isWholeHalalas } from '$lib/design/money';
 	import { cn } from '$lib/design/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useCreatePayment, useUpdatePayment } from '$lib/payment/query';
@@ -24,15 +26,6 @@
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
 
-	// scaling by 100 and rounding is the obvious test and is wrong above a few million, where a
-	// float can no longer represent the scaled value exactly. the round-trip through `toFixed`
-	// holds at every magnitude the input accepts.
-	const isWholeHalalas = (value: string) => {
-		const amount = Number(value);
-
-		return Number(amount.toFixed(2)) === amount;
-	};
-
 	const PaymentFormSchema = z.object({
 		date: z.string().min(1, $LL.contracts.form.paymentDateRequired()),
 		amount: z
@@ -42,8 +35,6 @@
 			.refine((value) => Number.isFinite(Number(value)) && Number(value) > 0, {
 				message: $LL.contracts.form.paymentAmountGreaterThanZero()
 			})
-			// the input's `step="0.01"` used to be enforced by the browser; the shared surface sets
-			// `novalidate`, so the rule only survives if the schema carries it.
 			.refine(isWholeHalalas, {
 				message: $LL.contracts.form.paymentAmountDecimalPlaces()
 			})
@@ -140,7 +131,7 @@
 
 <FormSurface {open} {onOpenChange} {enhance} weight="light" title={$LL.common.labels.payment()}>
 	<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
-		<Form.Field form={superform} name="date">
+		<Form.Field form={superform} name="date" class="group relative">
 			<Form.Control>
 				<Form.Label>{$LL.common.labels.paymentDate()}</Form.Label>
 				<input type="hidden" name="date" value={$form.date} />
@@ -177,10 +168,10 @@
 					</Popover.Content>
 				</Popover.Root>
 			</Form.Control>
-			<Form.Description />
+			<FieldError />
 		</Form.Field>
 
-		<Form.Field form={superform} name="amount">
+		<Form.Field form={superform} name="amount" class="group relative">
 			<Form.Control>
 				<Form.Label>{$LL.common.labels.amount()}</Form.Label>
 				<Input
@@ -196,11 +187,9 @@
 					{...$constraints.amount}
 				/>
 			</Form.Control>
-			<Form.Description />
+			<FieldError />
 		</Form.Field>
 	</div>
-
-	<Form.ErrorsSummary errors={$errors} class="mt-4" />
 
 	{#snippet actions()}
 		<Button

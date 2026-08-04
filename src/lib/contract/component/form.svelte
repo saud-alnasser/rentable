@@ -1,9 +1,26 @@
+<script lang="ts" module>
+	/**
+	 * Every control in this form, cut into the surface rather than sitting on top of it.
+	 *
+	 * The hover fill is here because each control primitive brings its own, and without one of
+	 * ours the well repaints to its pre-inset colour under the pointer.
+	 *
+	 * The two `aria-invalid` rules are restated even though the primitives carry them, because
+	 * they must survive alongside the transparent border above — and `button` declares the
+	 * destructive ring colour without a ring width, so the three date and tenant controls would
+	 * otherwise be the only invalid fields in the form with no ring at all.
+	 */
+	const insetControl =
+		'border-transparent bg-foreground/5 shadow-[inset_0_2px_4px_rgb(0_0_0/0.14)] hover:bg-foreground/8 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
+</script>
+
 <script lang="ts">
 	import { ContractSchema, type Contract } from '$lib/platform/database/schema';
 	import { Button } from '$lib/design/primitive/button';
 	import * as Calendar from '$lib/design/primitive/calendar';
 	import * as Command from '$lib/design/primitive/command';
-	import * as Dialog from '$lib/design/primitive/dialog';
+	import FieldError from '$lib/design/block/field-error.svelte';
+	import FormSurface from '$lib/design/block/form-surface.svelte';
 	import * as Form from '$lib/design/primitive/form';
 	import { Input } from '$lib/design/primitive/input';
 	import * as Popover from '$lib/design/primitive/popover';
@@ -15,7 +32,8 @@
 		parseDateInput,
 		toCalendarDate
 	} from '$lib/design/date';
-	import { getIntlLocale } from '$lib/platform/locale';
+	import { formatLocaleValueWithUnit, getIntlLocale } from '$lib/platform/locale';
+	import { isWholeHalalas } from '$lib/design/money';
 	import { cn } from '$lib/design/tailwind.js';
 	import {
 		CONTRACT_END_DATE_TOLERANCE_DAYS,
@@ -91,6 +109,9 @@
 			.min(1, $LL.contracts.form.costRequired())
 			.refine((value) => Number.isFinite(Number(value)) && Number(value) > 0, {
 				message: $LL.contracts.form.costGreaterThanZero()
+			})
+			.refine(isWholeHalalas, {
+				message: $LL.contracts.form.costDecimalPlaces()
 			}),
 		cycles: z
 			.string()
@@ -270,18 +291,21 @@
 		searchValue: [tenant.name, tenant.nationalId, tenant.phone].filter(Boolean).join(' ')
 	});
 
-	let tenantOptions = $derived.by(() => {
-		if (!hasTenantSearch) return [];
-
-		return (tenantsQuery.data ?? [])
-			.filter((tenant) =>
-				[tenant.name, tenant.nationalId, tenant.phone]
-					.filter(Boolean)
-					.some((value) => value.toLowerCase().includes(normalizedTenantSearch))
+	// the picker opens on the tenants rather than on an instruction to search for one: every
+	// tenant is already in memory and the filtering below is client-side, so waiting for a
+	// search term bought an empty panel and nothing else.
+	let tenantOptions = $derived.by(() =>
+		(tenantsQuery.data ?? [])
+			.filter(
+				(tenant) =>
+					!hasTenantSearch ||
+					[tenant.name, tenant.nationalId, tenant.phone]
+						.filter(Boolean)
+						.some((value) => value.toLowerCase().includes(normalizedTenantSearch))
 			)
 			.slice(0, MAX_VISIBLE_TENANTS)
-			.map((tenant) => toTenantOption(tenant));
-	});
+			.map((tenant) => toTenantOption(tenant))
+	);
 
 	const selectTenant = (tenantId: string) => {
 		$form.tenantId = tenantId;
@@ -300,7 +324,7 @@
 		);
 	});
 	let isTenantResultsLoading = $derived.by(
-		() => hasTenantSearch && tenantsQuery.isLoading && (tenantsQuery.data ?? []).length === 0
+		() => tenantsQuery.isLoading && (tenantsQuery.data ?? []).length === 0
 	);
 	let endDateInputs = $derived.by(() => ({
 		start: contractStartDateValue,
@@ -403,300 +427,334 @@
 	});
 
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
+
+	const totalExpectedAmount = $derived(Number($form.cost) * Number($form.cycles));
+	const hasTotalExpectedAmount = $derived(
+		Number.isFinite(totalExpectedAmount) && totalExpectedAmount > 0
+	);
+	const formatMoney = (value: number) =>
+		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
+
+	// a range needs both ends, and a half-set period reads as one date rather than as a range
+	// missing a half — the em dash already means "nothing here" everywhere else in this panel.
+	const contractPeriod = $derived(
+		contractStartDateValue && contractEndDateValue
+			? `${formatCalendarDate(contractStartDateValue, dateFormatter, '')} – ${formatCalendarDate(contractEndDateValue, dateFormatter, '')}`
+			: '—'
+	);
 </script>
 
-<Dialog.Root bind:open {onOpenChange}>
-	<Dialog.Content class="w-full sm:max-w-2xl">
-		<form method="POST" use:enhance class="flex min-h-0 flex-col">
-			<Dialog.Header>
-				<Dialog.Title class="capitalize">{$LL.common.nav.contracts()}</Dialog.Title>
-			</Dialog.Header>
+<FormSurface {open} {onOpenChange} {enhance} weight="heavy" title={$LL.common.nav.contracts()}>
+	<div class="flex flex-col gap-4">
+		<!-- what the contract will be, pinned above the fields that decide it — it is sticky
+		     because the total is answered by cost and cycles, which are far enough down that a
+		     read-out scrolling with them leaves exactly when it is being used. The opaque wrapper
+		     is what the tinted panel is stacked on: sticky over a translucent fill shows the
+		     fields sliding underneath it. The period is a range rather than "start → end"
+		     because an arrow does not mirror in Arabic, where the two dates swap and it would
+		     then point at the wrong one. -->
+		<div class="sticky top-0 z-10 bg-card pb-1">
+			<div class="grid grid-cols-2 gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4">
+				<div class="col-span-2 flex flex-col">
+					<span class="text-xs text-muted-foreground">{$LL.common.labels.tenant()}</span>
+					<span class="truncate font-medium">{selectedTenant?.name ?? '—'}</span>
+				</div>
+				<div class="flex min-w-0 flex-col">
+					<span class="truncate text-xs text-muted-foreground">
+						{$LL.contracts.form.totalExpectedAmount()}
+					</span>
+					<span class="truncate font-medium tabular-nums">
+						{hasTotalExpectedAmount ? formatMoney(totalExpectedAmount) : '—'}
+					</span>
+				</div>
+				<div class="flex min-w-0 flex-col">
+					<span class="truncate text-xs text-muted-foreground">
+						{$LL.common.labels.contractPeriod()}
+					</span>
+					<span class="truncate text-sm tabular-nums">{contractPeriod}</span>
+				</div>
+			</div>
+		</div>
 
-			<div class="min-h-0 overflow-y-auto px-6 py-5">
-				<div class="grid gap-4 rounded-2xl border bg-muted p-4 md:grid-cols-2 md:p-5">
-					<Form.Field form={superform} name="tenantId">
-						<Form.Control>
-							<Form.Label>{$LL.common.labels.tenant()}</Form.Label>
-							<Popover.Root bind:open={isTenantPickerOpen}>
-								<Popover.Trigger>
-									{#snippet child({ props })}
-										<Button
-											{...props}
-											variant="outline"
-											class={cn(
-												'w-full justify-between font-normal',
-												!selectedTenant && 'text-muted-foreground'
-											)}
-											aria-invalid={$errors.tenantId ? 'true' : undefined}
-										>
-											<span class="min-w-0 flex-1 truncate text-start">
-												{selectedTenant?.name ||
-													(selectedTenantQuery.isLoading
-														? $LL.contracts.form.loadingTenant()
-														: $LL.contracts.form.searchAndSelectTenant())}
-											</span>
-											<ChevronDownIcon class="size-4 shrink-0 opacity-50" />
-										</Button>
-									{/snippet}
-								</Popover.Trigger>
+		<!-- one column: the surface is 512px and does not widen, so a second column here would
+		     be two columns inside a container narrower than one they would fit. -->
+		<div class="flex flex-col gap-4">
+			<Form.Field form={superform} name="tenantId" class="group relative">
+				<Form.Control>
+					<Form.Label>{$LL.common.labels.tenant()}</Form.Label>
+					<Popover.Root bind:open={isTenantPickerOpen}>
+						<Popover.Trigger>
+							{#snippet child({ props })}
+								<Button
+									{...props}
+									variant="outline"
+									class={cn(
+										'w-full justify-between font-normal',
+										insetControl,
+										!selectedTenant && 'text-muted-foreground'
+									)}
+									aria-invalid={$errors.tenantId ? 'true' : undefined}
+								>
+									<span class="min-w-0 flex-1 truncate text-start">
+										{selectedTenant?.name ||
+											(selectedTenantQuery.isLoading
+												? $LL.contracts.form.loadingTenant()
+												: $LL.contracts.form.searchAndSelectTenant())}
+									</span>
+									<ChevronDownIcon class="size-4 shrink-0 opacity-50" />
+								</Button>
+							{/snippet}
+						</Popover.Trigger>
 
-								<Popover.Content class="w-(--bits-popover-anchor-width) p-0" align="start">
-									<Command.Root class="w-full" shouldFilter={false}>
-										<Command.Input
-											bind:value={tenantSearch}
-											placeholder={$LL.contracts.form.searchTenantPlaceholder()}
-										/>
-										<Command.List>
-											{#if !hasTenantSearch}
-												<div class="p-3 text-sm text-muted-foreground">
-													{$LL.contracts.form.startTypingTenantSearch()}
-												</div>
-											{:else if isTenantResultsLoading && tenantOptions.length === 0}
-												<div class="p-3 text-sm text-muted-foreground">
-													{$LL.contracts.form.loadingTenants()}
-												</div>
-											{:else if tenantOptions.length === 0}
-												<div class="p-3 text-sm text-muted-foreground">
-													{$LL.contracts.form.noTenantFound()}
-												</div>
-											{:else}
-												<Command.Group>
-													{#each tenantOptions as tenant (tenant.id)}
-														<Command.Item
-															value={tenant.tenantId}
-															onSelect={() => selectTenant(tenant.tenantId)}
-														>
-															<div class="flex min-w-0 flex-1 flex-col text-start">
-																<span class="truncate">{tenant.name}</span>
-																{#if tenant.details}
-																	<span class="truncate text-xs text-muted-foreground">
-																		{tenant.details}
-																	</span>
-																{/if}
-															</div>
-															<CheckIcon
-																class={cn(
-																	'ms-auto size-4',
-																	$form.tenantId === tenant.tenantId ? 'opacity-100' : 'opacity-0'
-																)}
-															/>
-														</Command.Item>
-													{/each}
-												</Command.Group>
-											{/if}
-										</Command.List>
-									</Command.Root>
-								</Popover.Content>
-							</Popover.Root>
-						</Form.Control>
-						<Form.Description />
-					</Form.Field>
-
-					<Form.Field form={superform} name="govId">
-						<Form.Control>
-							<Form.Label>{$LL.common.labels.governmentIdOptional()}</Form.Label>
-							<Input
-								bind:value={$form.govId}
-								placeholder={$LL.common.labels.governmentIdOptional()}
-								aria-invalid={$errors.govId ? 'true' : undefined}
-								{...$constraints.govId}
-							/>
-						</Form.Control>
-						<Form.Description />
-					</Form.Field>
-
-					<div class="md:col-span-2">
-						<div class="grid gap-4 rounded-2xl border bg-muted p-4 md:grid-cols-2">
-							<Form.Field form={superform} name="interval">
-								<Form.Control>
-									<Form.Label>{$LL.common.labels.cycle()}</Form.Label>
-									<Select.Root type="single" bind:value={$form.interval}>
-										<Select.Trigger
-											class="w-full"
-											aria-invalid={$errors.interval ? 'true' : undefined}
-										>
-											{intervalLabels[$form.interval]()}
-										</Select.Trigger>
-										<Select.Content>
-											{#each intervals as interval (interval.value)}
-												<Select.Item value={interval.value} label={interval.label} />
-											{/each}
-										</Select.Content>
-									</Select.Root>
-								</Form.Control>
-								<Form.Description />
-							</Form.Field>
-
-							<Form.Field form={superform} name="cost">
-								<Form.Control>
-									<Form.Label>{$LL.common.labels.costPerPayment()}</Form.Label>
-									<Input
-										type="number"
-										min="0.01"
-										step="0.01"
-										value={$form.cost}
-										oninput={(event) => {
-											$form.cost = event.currentTarget.value;
-										}}
-										placeholder="0.00"
-										aria-invalid={$errors.cost ? 'true' : undefined}
-										{...$constraints.cost}
-									/>
-								</Form.Control>
-								<Form.Description />
-							</Form.Field>
-
-							<Form.Field form={superform} name="start">
-								<Form.Control>
-									<Form.Label>{$LL.contracts.form.startDate()}</Form.Label>
-									<input type="hidden" name="start" value={$form.start} />
-									<Popover.Root bind:open={isStartDatePickerOpen}>
-										<Popover.Trigger>
-											{#snippet child({ props })}
-												<Button
-													{...props}
-													type="button"
-													variant="outline"
-													class={cn(
-														'w-full justify-between font-normal',
-														!contractStartDateValue && 'text-muted-foreground'
-													)}
-													aria-invalid={$errors.start ? 'true' : undefined}
+						<Popover.Content class="w-(--bits-popover-anchor-width) p-0" align="start">
+							<Command.Root class="w-full" shouldFilter={false}>
+								<Command.Input
+									bind:value={tenantSearch}
+									placeholder={$LL.contracts.form.searchTenantPlaceholder()}
+								/>
+								<Command.List>
+									{#if isTenantResultsLoading && tenantOptions.length === 0}
+										<div class="p-3 text-sm text-muted-foreground">
+											{$LL.contracts.form.loadingTenants()}
+										</div>
+									{:else if tenantOptions.length === 0}
+										<div class="p-3 text-sm text-muted-foreground">
+											{$LL.contracts.form.noTenantFound()}
+										</div>
+									{:else}
+										<Command.Group>
+											{#each tenantOptions as tenant (tenant.id)}
+												<Command.Item
+													value={tenant.tenantId}
+													onSelect={() => selectTenant(tenant.tenantId)}
 												>
-													<span
-														>{formatCalendarDate(
-															contractStartDateValue,
-															dateFormatter,
-															$LL.contracts.form.pickDate()
-														)}</span
-													>
-													<ChevronDownIcon class="size-4 opacity-50" />
-												</Button>
-											{/snippet}
-										</Popover.Trigger>
-										<Popover.Content class="w-auto p-0" align="start" collisionPadding={16}>
-											<Calendar.Calendar
-												type="single"
-												bind:value={contractStartDateValue}
-												captionLayout="dropdown"
-											/>
-										</Popover.Content>
-									</Popover.Root>
-								</Form.Control>
-								<Form.Description />
-							</Form.Field>
-
-							<Form.Field form={superform} name="cycles">
-								<Form.Control>
-									<Form.Label>{$LL.contracts.form.numberOfCycles()}</Form.Label>
-									<Input
-										type="number"
-										min="1"
-										step="1"
-										value={$form.cycles}
-										oninput={(event) => {
-											$form.cycles = event.currentTarget.value;
-										}}
-										placeholder="1"
-										aria-invalid={$errors.cycles ? 'true' : undefined}
-										{...$constraints.cycles}
-									/>
-								</Form.Control>
-								<Form.Description />
-							</Form.Field>
-
-							<Form.Field form={superform} name="end" class="md:col-span-2">
-								<Form.Control>
-									<Form.Label>{$LL.contracts.form.calculatedEndDate()}</Form.Label>
-									<input type="hidden" name="end" value={$form.end} />
-									<Popover.Root bind:open={isEndDatePickerOpen}>
-										<Popover.Trigger>
-											{#snippet child({ props })}
-												<Button
-													{...props}
-													type="button"
-													variant="outline"
-													disabled={!manualEndDateWindow?.start || !manualEndDateWindow?.end}
-													class={cn(
-														'w-full justify-between font-normal',
-														!contractEndDateValue && 'text-muted-foreground',
-														endDateState.isManuallyEdited &&
-															'border-emerald-500/40 bg-emerald-500/6 text-emerald-800 dark:text-emerald-200'
-													)}
-													aria-invalid={$errors.end ? 'true' : undefined}
-												>
-													<span
-														>{formatCalendarDate(
-															contractEndDateValue,
-															dateFormatter,
-															$LL.contracts.form.pickDate()
-														)}</span
-													>
-													<ChevronDownIcon class="size-4 opacity-50" />
-												</Button>
-											{/snippet}
-										</Popover.Trigger>
-										<Popover.Content class="w-auto p-0" align="start" collisionPadding={16}>
-											<Calendar.Calendar
-												type="single"
-												bind:value={contractEndDateValue}
-												placeholder={contractEndDateValue ??
-													calculatedEndDate ??
-													contractStartDateValue}
-												captionLayout="dropdown"
-												minValue={manualEndDateWindow?.start}
-												maxValue={manualEndDateWindow?.end}
-											>
-												{#snippet day({ day })}
-													{@const isAllowedManualDate = manualEndDateWindow
-														? isContractEndDateWithinWindow(day, manualEndDateWindow)
-														: false}
-													{@const isSuggestedDate = calculatedEndDate
-														? day.compare(calculatedEndDate) === 0
-														: false}
-													<Calendar.Day
+													<div class="flex min-w-0 flex-1 flex-col text-start">
+														<span class="truncate">{tenant.name}</span>
+														{#if tenant.details}
+															<span class="truncate text-xs text-muted-foreground">
+																{tenant.details}
+															</span>
+														{/if}
+													</div>
+													<CheckIcon
 														class={cn(
-															isAllowedManualDate &&
-																'rounded-full border border-emerald-500/45 text-emerald-700 hover:bg-emerald-500/10 data-[selected]:border-emerald-600 data-[selected]:bg-emerald-600 data-[selected]:text-white dark:text-emerald-300',
-															isSuggestedDate &&
-																'border-emerald-600 bg-emerald-500/14 font-medium text-emerald-800 ring-1 ring-emerald-500/35 data-[selected]:bg-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100'
+															'ms-auto size-4',
+															$form.tenantId === tenant.tenantId ? 'opacity-100' : 'opacity-0'
 														)}
 													/>
-												{/snippet}
-											</Calendar.Calendar>
-										</Popover.Content>
-									</Popover.Root>
-								</Form.Control>
-								<Form.Description>
-									{$LL.contracts.form.calculatedEndDateHint({
-										days: CONTRACT_END_DATE_TOLERANCE_DAYS
-									})}
-								</Form.Description>
-							</Form.Field>
-						</div>
-					</div>
-				</div>
+												</Command.Item>
+											{/each}
+										</Command.Group>
+									{/if}
+								</Command.List>
+							</Command.Root>
+						</Popover.Content>
+					</Popover.Root>
+				</Form.Control>
+				<FieldError />
+			</Form.Field>
 
-				<Form.ErrorsSummary errors={$errors} class="mt-4" />
-			</div>
+			<Form.Field form={superform} name="govId" class="group relative">
+				<Form.Control>
+					<Form.Label>{$LL.common.labels.governmentIdOptional()}</Form.Label>
+					<Input
+						bind:value={$form.govId}
+						placeholder={$LL.common.labels.governmentIdOptional()}
+						class={insetControl}
+						aria-invalid={$errors.govId ? 'true' : undefined}
+						{...$constraints.govId}
+					/>
+				</Form.Control>
+				<FieldError />
+			</Form.Field>
 
-			<Dialog.Footer>
-				<Button
-					type="button"
-					variant="outline"
-					disabled={CreateMutation.isPending || UpdateMutation.isPending}
-					onclick={closeContractForm}
-				>
-					{$LL.common.actions.cancel()}
-				</Button>
-				<Button
-					type="submit"
-					disabled={CreateMutation.isPending || UpdateMutation.isPending}
-					class="capitalize"
-				>
-					{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
-				</Button>
-			</Dialog.Footer>
-		</form>
-	</Dialog.Content>
-</Dialog.Root>
+			<Form.Field form={superform} name="interval" class="group relative">
+				<Form.Control>
+					<Form.Label>{$LL.common.labels.cycle()}</Form.Label>
+					<Select.Root type="single" bind:value={$form.interval}>
+						<Select.Trigger
+							class={cn('w-full', insetControl)}
+							aria-invalid={$errors.interval ? 'true' : undefined}
+						>
+							{intervalLabels[$form.interval]()}
+						</Select.Trigger>
+						<Select.Content>
+							{#each intervals as interval (interval.value)}
+								<Select.Item value={interval.value} label={interval.label} />
+							{/each}
+						</Select.Content>
+					</Select.Root>
+				</Form.Control>
+				<FieldError />
+			</Form.Field>
+
+			<Form.Field form={superform} name="cost" class="group relative">
+				<Form.Control>
+					<Form.Label>{$LL.common.labels.costPerPayment()}</Form.Label>
+					<Input
+						type="number"
+						min="0.01"
+						step="0.01"
+						value={$form.cost}
+						oninput={(event) => {
+							$form.cost = event.currentTarget.value;
+						}}
+						placeholder="0.00"
+						class={insetControl}
+						aria-invalid={$errors.cost ? 'true' : undefined}
+						{...$constraints.cost}
+					/>
+				</Form.Control>
+				<FieldError />
+			</Form.Field>
+
+			<Form.Field form={superform} name="start" class="group relative">
+				<Form.Control>
+					<Form.Label>{$LL.contracts.form.startDate()}</Form.Label>
+					<input type="hidden" name="start" value={$form.start} />
+					<Popover.Root bind:open={isStartDatePickerOpen}>
+						<Popover.Trigger>
+							{#snippet child({ props })}
+								<Button
+									{...props}
+									type="button"
+									variant="outline"
+									class={cn(
+										'w-full justify-between font-normal',
+										insetControl,
+										!contractStartDateValue && 'text-muted-foreground'
+									)}
+									aria-invalid={$errors.start ? 'true' : undefined}
+								>
+									<span
+										>{formatCalendarDate(
+											contractStartDateValue,
+											dateFormatter,
+											$LL.contracts.form.pickDate()
+										)}</span
+									>
+									<ChevronDownIcon class="size-4 opacity-50" />
+								</Button>
+							{/snippet}
+						</Popover.Trigger>
+						<Popover.Content class="w-auto p-0" align="start" collisionPadding={16}>
+							<Calendar.Calendar
+								type="single"
+								bind:value={contractStartDateValue}
+								captionLayout="dropdown"
+							/>
+						</Popover.Content>
+					</Popover.Root>
+				</Form.Control>
+				<FieldError />
+			</Form.Field>
+
+			<Form.Field form={superform} name="cycles" class="group relative">
+				<Form.Control>
+					<Form.Label>{$LL.contracts.form.numberOfCycles()}</Form.Label>
+					<Input
+						type="number"
+						min="1"
+						step="1"
+						value={$form.cycles}
+						oninput={(event) => {
+							$form.cycles = event.currentTarget.value;
+						}}
+						placeholder="1"
+						class={insetControl}
+						aria-invalid={$errors.cycles ? 'true' : undefined}
+						{...$constraints.cycles}
+					/>
+				</Form.Control>
+				<FieldError />
+			</Form.Field>
+
+			<Form.Field form={superform} name="end" class="group relative">
+				<Form.Control>
+					<Form.Label>{$LL.contracts.form.calculatedEndDate()}</Form.Label>
+					<input type="hidden" name="end" value={$form.end} />
+					<Popover.Root bind:open={isEndDatePickerOpen}>
+						<Popover.Trigger>
+							{#snippet child({ props })}
+								<Button
+									{...props}
+									type="button"
+									variant="outline"
+									disabled={!manualEndDateWindow?.start || !manualEndDateWindow?.end}
+									class={cn(
+										'w-full justify-between font-normal',
+										insetControl,
+										!contractEndDateValue && 'text-muted-foreground',
+										endDateState.isManuallyEdited &&
+											'border-emerald-500/40 bg-emerald-500/6 text-emerald-800 dark:text-emerald-200'
+									)}
+									aria-invalid={$errors.end ? 'true' : undefined}
+								>
+									<span
+										>{formatCalendarDate(
+											contractEndDateValue,
+											dateFormatter,
+											$LL.contracts.form.pickDate()
+										)}</span
+									>
+									<ChevronDownIcon class="size-4 opacity-50" />
+								</Button>
+							{/snippet}
+						</Popover.Trigger>
+						<Popover.Content class="w-auto p-0" align="start" collisionPadding={16}>
+							<Calendar.Calendar
+								type="single"
+								bind:value={contractEndDateValue}
+								placeholder={contractEndDateValue ?? calculatedEndDate ?? contractStartDateValue}
+								captionLayout="dropdown"
+								minValue={manualEndDateWindow?.start}
+								maxValue={manualEndDateWindow?.end}
+							>
+								{#snippet day({ day })}
+									{@const isAllowedManualDate = manualEndDateWindow
+										? isContractEndDateWithinWindow(day, manualEndDateWindow)
+										: false}
+									{@const isSuggestedDate = calculatedEndDate
+										? day.compare(calculatedEndDate) === 0
+										: false}
+									<Calendar.Day
+										class={cn(
+											isAllowedManualDate &&
+												'rounded-full border border-emerald-500/45 text-emerald-700 hover:bg-emerald-500/10 data-[selected]:border-emerald-600 data-[selected]:bg-emerald-600 data-[selected]:text-white dark:text-emerald-300',
+											isSuggestedDate &&
+												'border-emerald-600 bg-emerald-500/14 font-medium text-emerald-800 ring-1 ring-emerald-500/35 data-[selected]:bg-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100'
+										)}
+									/>
+								{/snippet}
+							</Calendar.Calendar>
+						</Popover.Content>
+					</Popover.Root>
+				</Form.Control>
+				<Form.Description>
+					{$LL.contracts.form.calculatedEndDateHint({
+						days: CONTRACT_END_DATE_TOLERANCE_DAYS
+					})}
+				</Form.Description>
+				<FieldError />
+			</Form.Field>
+		</div>
+	</div>
+
+	{#snippet actions()}
+		<Button
+			type="button"
+			variant="outline"
+			disabled={CreateMutation.isPending || UpdateMutation.isPending}
+			onclick={closeContractForm}
+		>
+			{$LL.common.actions.cancel()}
+		</Button>
+		<Button
+			type="submit"
+			disabled={CreateMutation.isPending || UpdateMutation.isPending}
+			class="capitalize"
+		>
+			{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
+		</Button>
+	{/snippet}
+</FormSurface>

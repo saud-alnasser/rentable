@@ -2,7 +2,6 @@ import * as FormPrimitive from 'formsnap';
 import Button from './form-button.svelte';
 import Description from './form-description.svelte';
 import ElementField from './form-element-field.svelte';
-import ErrorsSummary from './form-errors-summary.svelte';
 import FieldErrors from './form-field-errors.svelte';
 import Field from './form-field.svelte';
 import Fieldset from './form-fieldset.svelte';
@@ -16,7 +15,6 @@ export {
 	Control,
 	Description,
 	ElementField,
-	ErrorsSummary,
 	Field,
 	FieldErrors,
 	Fieldset,
@@ -24,7 +22,6 @@ export {
 	Control as FormControl,
 	Description as FormDescription,
 	ElementField as FormElementField,
-	ErrorsSummary as FormErrorsSummary,
 	//
 	Field as FormField,
 	FieldErrors as FormFieldErrors,

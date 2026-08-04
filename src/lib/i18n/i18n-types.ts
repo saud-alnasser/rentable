@@ -1534,6 +1534,10 @@ type RootTranslation = {
 			 */
 			calculatedEndDateHint: RequiredParams<'days'>
 			/**
+			 * c​o​s​t​ ​c​a​n​ ​h​a​v​e​ ​a​t​ ​m​o​s​t​ ​t​w​o​ ​d​e​c​i​m​a​l​ ​p​l​a​c​e​s​.
+			 */
+			costDecimalPlaces: string
+			/**
 			 * c​o​s​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o​.
 			 */
 			costGreaterThanZero: string
@@ -1590,6 +1594,10 @@ type RootTranslation = {
 			 */
 			numberOfCycles: string
 			/**
+			 * t​o​t​a​l​ ​e​x​p​e​c​t​e​d​ ​a​m​o​u​n​t
+			 */
+			totalExpectedAmount: string
+			/**
 			 * p​a​y​m​e​n​t​ ​a​m​o​u​n​t​ ​c​a​n​ ​h​a​v​e​ ​a​t​ ​m​o​s​t​ ​t​w​o​ ​d​e​c​i​m​a​l​ ​p​l​a​c​e​s
 			 */
 			paymentAmountDecimalPlaces: string
@@ -1631,10 +1639,6 @@ type RootTranslation = {
 			 * s​t​a​r​t​ ​d​a​t​e​ ​i​s​ ​r​e​q​u​i​r​e​d​.
 			 */
 			startDateRequired: string
-			/**
-			 * s​t​a​r​t​ ​t​y​p​i​n​g​ ​t​o​ ​s​e​a​r​c​h​ ​t​e​n​a​n​t​s​ ​b​y​ ​n​a​m​e​,​ ​i​d​ ​o​r​ ​p​h​o​n​e​.
-			 */
-			startTypingTenantSearch: string
 			/**
 			 * t​e​n​a​n​t​ ​i​s​ ​r​e​q​u​i​r​e​d​.
 			 */
@@ -3412,6 +3416,10 @@ export type TranslationFunctions = {
 			 */
 			calculatedEndDateHint: (arg: { days: unknown }) => LocalizedString
 			/**
+			 * cost can have at most two decimal places.
+			 */
+			costDecimalPlaces: () => LocalizedString
+			/**
 			 * cost must be greater than zero.
 			 */
 			costGreaterThanZero: () => LocalizedString
@@ -3468,6 +3476,10 @@ export type TranslationFunctions = {
 			 */
 			numberOfCycles: () => LocalizedString
 			/**
+			 * total expected amount
+			 */
+			totalExpectedAmount: () => LocalizedString
+			/**
 			 * payment amount can have at most two decimal places
 			 */
 			paymentAmountDecimalPlaces: () => LocalizedString
@@ -3507,10 +3519,6 @@ export type TranslationFunctions = {
 			 * start date is required.
 			 */
 			startDateRequired: () => LocalizedString
-			/**
-			 * start typing to search tenants by name, id or phone.
-			 */
-			startTypingTenantSearch: () => LocalizedString
 			/**
 			 * tenant is required.
 			 */

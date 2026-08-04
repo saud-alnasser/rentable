@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { UnitSchema, type Unit } from '$lib/platform/database/schema';
 	import { Button } from '$lib/design/primitive/button';
-	import * as Dialog from '$lib/design/primitive/dialog';
+	import FieldError from '$lib/design/block/field-error.svelte';
+	import FormSurface from '$lib/design/block/form-surface.svelte';
 	import * as Form from '$lib/design/primitive/form';
 	import { Input } from '$lib/design/primitive/input';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -83,49 +84,37 @@
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
 </script>
 
-<Dialog.Root bind:open {onOpenChange}>
-	<Dialog.Content class="w-full sm:max-w-md">
-		<form method="POST" use:enhance class="flex flex-col">
-			<Dialog.Header>
-				<Dialog.Title class="capitalize">{$LL.common.labels.unit()}</Dialog.Title>
-			</Dialog.Header>
+<FormSurface {open} {onOpenChange} {enhance} weight="light" title={$LL.common.labels.unit()}>
+	<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
+		<Form.Field form={superform} name="name" class="group relative">
+			<Form.Control>
+				<Form.Label>{$LL.common.labels.name()}</Form.Label>
+				<Input
+					bind:value={$form.name}
+					placeholder={$LL.common.labels.name()}
+					aria-invalid={$errors.name ? 'true' : undefined}
+					{...$constraints.name}
+				/>
+			</Form.Control>
+			<FieldError />
+		</Form.Field>
+	</div>
 
-			<div class="px-6 py-5">
-				<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
-					<Form.Field form={superform} name="name">
-						<Form.Control>
-							<Form.Label>{$LL.common.labels.name()}</Form.Label>
-							<Input
-								bind:value={$form.name}
-								placeholder={$LL.common.labels.name()}
-								aria-invalid={$errors.name ? 'true' : undefined}
-								{...$constraints.name}
-							/>
-						</Form.Control>
-						<Form.Description />
-					</Form.Field>
-				</div>
-
-				<Form.ErrorsSummary errors={$errors} class="mt-4" />
-			</div>
-
-			<Dialog.Footer>
-				<Button
-					type="button"
-					variant="outline"
-					disabled={CreateMutation.isPending || UpdateMutation.isPending}
-					onclick={() => onOpenChange(false)}
-				>
-					{$LL.common.actions.cancel()}
-				</Button>
-				<Button
-					type="submit"
-					disabled={CreateMutation.isPending || UpdateMutation.isPending}
-					class="capitalize"
-				>
-					{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
-				</Button>
-			</Dialog.Footer>
-		</form>
-	</Dialog.Content>
-</Dialog.Root>
+	{#snippet actions()}
+		<Button
+			type="button"
+			variant="outline"
+			disabled={CreateMutation.isPending || UpdateMutation.isPending}
+			onclick={() => onOpenChange(false)}
+		>
+			{$LL.common.actions.cancel()}
+		</Button>
+		<Button
+			type="submit"
+			disabled={CreateMutation.isPending || UpdateMutation.isPending}
+			class="capitalize"
+		>
+			{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
+		</Button>
+	{/snippet}
+</FormSurface>

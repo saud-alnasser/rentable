@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ComplexSchema, type Complex } from '$lib/platform/database/schema';
 	import { Button } from '$lib/design/primitive/button';
+	import FieldError from '$lib/design/block/field-error.svelte';
 	import FormSurface from '$lib/design/block/form-surface.svelte';
 	import * as Form from '$lib/design/primitive/form';
 	import { Input } from '$lib/design/primitive/input';
@@ -80,7 +81,7 @@
 
 <FormSurface {open} {onOpenChange} {enhance} weight="light" title={$LL.common.labels.complex()}>
 	<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
-		<Form.Field form={superform} name="name">
+		<Form.Field form={superform} name="name" class="group relative">
 			<Form.Control>
 				<Form.Label>{$LL.common.labels.name()}</Form.Label>
 				<Input
@@ -90,10 +91,10 @@
 					{...$constraints.name}
 				/>
 			</Form.Control>
-			<Form.Description />
+			<FieldError />
 		</Form.Field>
 
-		<Form.Field form={superform} name="location">
+		<Form.Field form={superform} name="location" class="group relative">
 			<Form.Control>
 				<Form.Label>{$LL.common.labels.location()}</Form.Label>
 				<Input
@@ -103,11 +104,9 @@
 					{...$constraints.location}
 				/>
 			</Form.Control>
-			<Form.Description />
+			<FieldError />
 		</Form.Field>
 	</div>
-
-	<Form.ErrorsSummary errors={$errors} class="mt-4" />
 
 	{#snippet actions()}
 		<Button
