@@ -1,6 +1,9 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import type { Tenant } from '$lib/platform/database/schema';
+	import { hasCreateIntent } from '$lib/design/create-intent';
 	import DataView from '$lib/design/block/data-view.svelte';
 	import {
 		Card,
@@ -25,6 +28,17 @@
 	let tenants = $derived.by(
 		() => fetchQuery.data?.pages.flatMap((page: { items: Tenant[] }) => page.items) ?? []
 	);
+
+	// the intent is consumed on arrival and cleared from the URL, so a reload or a back
+	// navigation does not reopen a form the user has already dismissed.
+	$effect(() => {
+		if (!hasCreateIntent(page.url)) {
+			return;
+		}
+
+		isTenantFormOpen = true;
+		void goto(resolve('/tenants'), { replaceState: true, noScroll: true, keepFocus: true });
+	});
 
 	const getTenantInitials = (name: string) =>
 		name

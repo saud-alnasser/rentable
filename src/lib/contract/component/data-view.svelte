@@ -1,7 +1,10 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import type { Contract } from '$lib/platform/database/schema';
 	import api from '$lib/api/caller';
+	import { hasCreateIntent } from '$lib/design/create-intent';
 	import DataView from '$lib/design/block/data-view.svelte';
 	import { Badge } from '$lib/design/primitive/badge';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/design/primitive/card';
@@ -16,6 +19,7 @@
 	import { useInfiniteContracts } from '$lib/contract/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
+	import { untrack } from 'svelte';
 	import ContractForm from './form.svelte';
 
 	type ContractRow = Awaited<ReturnType<typeof api.contract.getPaginated>>['items'][number];
@@ -87,6 +91,19 @@
 		contractFormRenderKey += 1;
 		isContractFormOpen = true;
 	};
+
+	// the intent is consumed on arrival and cleared from the URL, so a reload or a back
+	// navigation does not reopen a form the user has already dismissed. opening is untracked
+	// because it advances the render key by reading it, and an effect that reads what it
+	// writes never settles.
+	$effect(() => {
+		if (!hasCreateIntent(page.url)) {
+			return;
+		}
+
+		untrack(openCreateContractForm);
+		void goto(resolve('/contracts'), { replaceState: true, noScroll: true, keepFocus: true });
+	});
 
 	const getSearchValue = (record: ContractRow) =>
 		[

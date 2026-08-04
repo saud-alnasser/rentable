@@ -1,30 +1,16 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import type { Pathname } from '$app/types';
 	import * as Sidebar from '$lib/design/primitive/sidebar';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import {
+		primaryDestinations,
+		secondaryDestinations,
+		type Destination
+	} from '$lib/layout/destination';
 	import { isActiveRoute } from '$lib/layout/navigation';
-	import { type Icon } from '@tabler/icons-svelte';
-	import ContractIcon from '@tabler/icons-svelte/icons/contract';
-	import Home2Icon from '@tabler/icons-svelte/icons/home-2';
 	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
-	import SettingsIcon from '@tabler/icons-svelte/icons/settings';
-	import UserIcon from '@tabler/icons-svelte/icons/user';
 	import type { ComponentProps } from 'svelte';
-
-	type Item = { label: () => string; icon: Icon; url: Pathname };
-
-	const primary: Item[] = [
-		{ label: () => $LL.common.nav.dashboard(), icon: InnerShadowTopIcon, url: '/' },
-		{ label: () => $LL.common.nav.tenants(), icon: UserIcon, url: '/tenants' },
-		{ label: () => $LL.common.nav.complexes(), icon: Home2Icon, url: '/complexes' },
-		{ label: () => $LL.common.nav.contracts(), icon: ContractIcon, url: '/contracts' }
-	];
-
-	const secondary: Item[] = [
-		{ label: () => $LL.common.nav.settings(), icon: SettingsIcon, url: '/settings' }
-	];
 
 	let {
 		ref = $bindable(null),
@@ -33,18 +19,18 @@
 	}: ComponentProps<typeof Sidebar.Root> = $props();
 </script>
 
-{#snippet links(items: Item[])}
+{#snippet links(items: Destination[])}
 	<Sidebar.Menu>
 		{#each items as item (item.url)}
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton
 					isActive={isActiveRoute(page.url.pathname, item.url)}
-					tooltipContent={item.label()}
+					tooltipContent={item.label($LL)}
 				>
 					{#snippet child({ props })}
 						<a href={resolve(item.url)} {...props}>
 							<item.icon />
-							<span class="capitalize">{item.label()}</span>
+							<span class="capitalize">{item.label($LL)}</span>
 						</a>
 					{/snippet}
 				</Sidebar.MenuButton>
@@ -67,11 +53,11 @@
 
 	<Sidebar.Content>
 		<nav aria-label={$LL.common.nav.primary()}>
-			{@render links(primary)}
+			{@render links(primaryDestinations)}
 		</nav>
 	</Sidebar.Content>
 
 	<Sidebar.Footer>
-		{@render links(secondary)}
+		{@render links(secondaryDestinations)}
 	</Sidebar.Footer>
 </Sidebar.Root>
