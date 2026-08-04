@@ -15,6 +15,7 @@
 		syncWorkspaceNow,
 		syncWorkspaceRemoteNow
 	} from '$lib/sync/workspace';
+	import { toUtcDay } from '$lib/api/date';
 	import { TooltipProvider } from '$lib/design/primitive/tooltip';
 	import { LinkSession } from '$lib/sync/link-session.svelte';
 	import { pendingConflict } from '$lib/sync/pending-conflict.svelte';
@@ -84,6 +85,9 @@
 	let isHandlingStartupChoice = $state(false);
 	let isSyncingWindowClose = false;
 	let isFinalizingWindowClose = false;
+	const DAY_CROSSING_CHECK_INTERVAL_MS = 60_000;
+	let lastReconciledUtcDay = toUtcDay(Date.now()).getTime();
+	let isReconcilingDayCrossing = false;
 	let currentDirection = $derived(localesMetadata[$locale].direction);
 
 	function getErrorMessage(error: unknown) {
@@ -173,11 +177,36 @@
 			}
 		}
 
-		await api.app.state.reconcile();
+		const { reconciledAt } = await api.app.state.reconcile();
+		lastReconciledUtcDay = toUtcDay(reconciledAt).getTime();
 
 		startupRecovery = null;
 		startupState = 'ready';
 		await api.app.window.show();
+	}
+
+	// derived state moves only at UTC day boundaries, so an app left running crosses into
+	// wrong statuses at midnight UTC. Comparing calendar days on every tick — rather than
+	// counting elapsed ticks — keeps the check correct across sleep and wake.
+	async function reconcileOnDayCrossing() {
+		if (startupState !== 'ready' || isReconcilingDayCrossing) {
+			return;
+		}
+
+		if (toUtcDay(Date.now()).getTime() === lastReconciledUtcDay) {
+			return;
+		}
+
+		isReconcilingDayCrossing = true;
+
+		try {
+			const { reconciledAt } = await api.app.state.reconcile();
+			lastReconciledUtcDay = toUtcDay(reconciledAt).getTime();
+		} catch {
+			/* the next tick retries */
+		} finally {
+			isReconcilingDayCrossing = false;
+		}
 	}
 
 	async function startApp() {
@@ -409,6 +438,9 @@
 		const handleWindowCloseRequest = () => {
 			void finalizeWindowClose(startupState !== 'ready');
 		};
+		const dayCrossingInterval = setInterval(() => {
+			void reconcileOnDayCrossing();
+		}, DAY_CROSSING_CHECK_INTERVAL_MS);
 
 		void (async () => {
 			unlistenCloseRequested = await appWindow.onCloseRequested(async (event) => {
@@ -426,6 +458,7 @@
 		})();
 
 		return () => {
+			clearInterval(dayCrossingInterval);
 			void linkSession.cancel();
 			stopAutosyncManager();
 			unlistenCloseRequested?.();

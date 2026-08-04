@@ -6,7 +6,7 @@ import {
 	ensureContractIsNotTerminated,
 	ensureContractPaymentsCreatable
 } from '$lib/contract/contract';
-import { reconcile } from '$lib/contract/reconcile';
+import { reconcileTouched } from '$lib/contract/reconcile';
 import { ensureValidPaymentAmount } from '$lib/payment/payment';
 import { TRPCError } from '@trpc/server';
 import { asc, eq } from 'drizzle-orm';
@@ -120,7 +120,7 @@ export default router({
 				.returning()
 				.get();
 
-			await reconcile(ctx.db, now);
+			await reconcileTouched(ctx.db, now, { contractIds: [contract.id] });
 
 			return serializePayment(created);
 		}),
@@ -170,7 +170,7 @@ export default router({
 				.returning()
 				.get();
 
-			await reconcile(ctx.db, now);
+			await reconcileTouched(ctx.db, now, { contractIds: [contract.id] });
 
 			return serializePayment(updated);
 		}),
@@ -212,7 +212,7 @@ export default router({
 				.returning()
 				.get();
 
-			await reconcile(ctx.db, now);
+			await reconcileTouched(ctx.db, now, { contractIds: [contract.id] });
 
 			return deleted ? serializePayment(deleted) : deleted;
 		})
