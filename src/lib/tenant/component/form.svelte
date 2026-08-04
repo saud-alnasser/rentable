@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { TenantSchema, type Tenant } from '$lib/platform/database/schema';
-	import { identity, phone } from '$lib/tenant/tenant';
+	import { identityField, phone } from '$lib/tenant/tenant';
 	import { Button } from '$lib/design/primitive/button';
 	import * as Dialog from '$lib/design/primitive/dialog';
 	import * as Form from '$lib/design/primitive/form';
@@ -53,7 +53,7 @@
 		.object({
 			id: TenantSchema.shape.id.optional(),
 			name: TenantSchema.shape.name,
-			nationalId: z.string().regex(identity, $LL.tenants.form.invalidNationalId()),
+			nationalId: identityField($LL.tenants.form.invalidNationalId()),
 			phoneCountryCode: z.enum(PHONE_COUNTRY_CODES),
 			phoneNumber: z.string().trim()
 		})
@@ -159,7 +159,10 @@
 
 <Dialog.Root bind:open {onOpenChange}>
 	<Dialog.Content class="w-full sm:max-w-md">
-		<form method="POST" use:enhance class="flex flex-col">
+		<!-- novalidate: the browser cannot express a rule that normalizes before it matches, so
+		     its constraint check would refuse a stored identity that this form is able to repair.
+		     validation is the schema's, and its messages are the translated ones. -->
+		<form method="POST" use:enhance novalidate class="flex flex-col">
 			<Dialog.Header>
 				<Dialog.Title class="capitalize">{$LL.common.labels.tenant()}</Dialog.Title>
 			</Dialog.Header>

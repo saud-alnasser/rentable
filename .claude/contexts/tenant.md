@@ -26,3 +26,8 @@ this, because it accepts both forms.
   several, and nothing about a tenant record is owned by a property.
 - **Identity and phone are both unique across all tenants**, and a tenant with contracts
   cannot be deleted.
+- **An identity is normalized before it is validated, and stored normalized.** Surrounding
+  whitespace is removed, then the whole value must be an identity number — one definition,
+  which every caller that validates the field imports rather than restating. Records written
+  before this held padding, so the normalization is also what repairs them, one save at a
+  time; nothing corrects them in bulk.
