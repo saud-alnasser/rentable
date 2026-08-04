@@ -16,6 +16,7 @@ import {
 	ensureUnitsAssignable,
 	ensureValidContractInput,
 	getConflictingAssignedUnitIds,
+	getContractPaymentSummary,
 	hasSameUtcDateRange
 } from '$lib/contract/contract';
 import { reconcile } from '$lib/contract/reconcile';
@@ -27,8 +28,19 @@ import { TRPCError } from '@trpc/server';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import z from 'zod';
 
-const ContractCreateSchema = ContractSchema.omit({ id: true, status: true });
-const ContractUpdateSchema = ContractSchema.omit({ status: true });
+// status and the payment aggregates are derived columns: reconcile owns them, so no
+// caller may supply them.
+const ContractCreateSchema = ContractSchema.omit({
+	id: true,
+	status: true,
+	paidAmount: true,
+	expectedAmount: true
+});
+const ContractUpdateSchema = ContractSchema.omit({
+	status: true,
+	paidAmount: true,
+	expectedAmount: true
+});
 
 const ContractUnitsGetManySchema = z.object({ contractId: z.number() });
 const ContractVacantUnitsGetManySchema = z.object({
@@ -120,17 +132,15 @@ export default router({
 					: undefined
 			);
 
-			const initialStatus = deriveContractStatus(
-				{
-					status: 'active',
-					start: new Date(input.start),
-					end: new Date(input.end),
-					interval: input.interval,
-					cost: input.cost
-				},
-				[],
-				now
-			);
+			const contractShape = {
+				status: 'active' as const,
+				start: new Date(input.start),
+				end: new Date(input.end),
+				interval: input.interval,
+				cost: input.cost
+			};
+			const initialStatus = deriveContractStatus(contractShape, [], now);
+			const { paidAmount, expectedAmount } = getContractPaymentSummary(contractShape, []);
 
 			const created = await ctx.db
 				.insert(s.contract)
@@ -138,6 +148,8 @@ export default router({
 					...input,
 					govId: normalizedGovId,
 					status: initialStatus,
+					paidAmount,
+					expectedAmount,
 					start: new Date(input.start),
 					end: new Date(input.end)
 				})
@@ -146,7 +158,7 @@ export default router({
 
 			await reconcile(ctx.db, now);
 
-			return serializeContract(created, now);
+			return serializeContract(created);
 		}),
 
 	update: procedure.public
@@ -223,16 +235,17 @@ export default router({
 			}
 
 			const existingPayments = await selectPaymentsForContract(ctx.db, input.id);
-			const nextStatus = deriveContractStatus(
-				{
-					status: existingContract.status,
-					start: new Date(input.start),
-					end: new Date(input.end),
-					interval: input.interval,
-					cost: input.cost
-				},
-				existingPayments,
-				now
+			const contractShape = {
+				status: existingContract.status,
+				start: new Date(input.start),
+				end: new Date(input.end),
+				interval: input.interval,
+				cost: input.cost
+			};
+			const nextStatus = deriveContractStatus(contractShape, existingPayments, now);
+			const { paidAmount, expectedAmount } = getContractPaymentSummary(
+				contractShape,
+				existingPayments
 			);
 
 			const updated = await ctx.db
@@ -240,6 +253,8 @@ export default router({
 				.set({
 					govId: normalizedGovId,
 					status: nextStatus,
+					paidAmount,
+					expectedAmount,
 					start: new Date(input.start),
 					end: new Date(input.end),
 					interval: input.interval,
@@ -252,7 +267,7 @@ export default router({
 
 			await reconcile(ctx.db, now);
 
-			return serializeContract(updated, now);
+			return serializeContract(updated);
 		}),
 
 	terminate: procedure.public
@@ -287,7 +302,7 @@ export default router({
 
 			await reconcile(ctx.db, now);
 
-			return serializeContract(terminated, now);
+			return serializeContract(terminated);
 		}),
 
 	unterminate: procedure.public
@@ -327,15 +342,13 @@ export default router({
 
 			await reconcile(ctx.db, now);
 
-			return serializeContract(restored, now);
+			return serializeContract(restored);
 		}),
 
 	delete: procedure.public
 		.use(autosync())
 		.input(ContractSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
-			const now = ctx.clock.now();
-
 			const existingContract = await ctx.db
 				.select()
 				.from(s.contract)
@@ -360,14 +373,12 @@ export default router({
 				.returning()
 				.get();
 
-			return deleted ? serializeContract(deleted, now) : deleted;
+			return deleted ? serializeContract(deleted) : deleted;
 		}),
 
 	get: procedure.public
 		.input(ContractSchema.pick({ id: true, govId: true }).partial())
 		.query(async ({ input, ctx }) => {
-			const now = ctx.clock.now();
-
 			if (input.id) {
 				const contract = await ctx.db
 					.select()
@@ -375,16 +386,7 @@ export default router({
 					.where(eq(s.contract.id, input.id))
 					.get();
 
-				if (!contract) {
-					return undefined;
-				}
-
-				const payments = await ctx.db
-					.select()
-					.from(s.payment)
-					.where(eq(s.payment.contractId, contract.id));
-
-				return serializeContract(contract, now, groupPaymentsByContractId(payments));
+				return contract ? serializeContract(contract) : undefined;
 			}
 
 			if (input.govId) {
@@ -394,16 +396,7 @@ export default router({
 					.where(eq(s.contract.govId, input.govId))
 					.get();
 
-				if (!contract) {
-					return undefined;
-				}
-
-				const payments = await ctx.db
-					.select()
-					.from(s.payment)
-					.where(eq(s.payment.contractId, contract.id));
-
-				return serializeContract(contract, now, groupPaymentsByContractId(payments));
+				return contract ? serializeContract(contract) : undefined;
 			}
 
 			return undefined;
@@ -412,7 +405,6 @@ export default router({
 	getMany: procedure.public
 		.input(z.object({ search: z.string().optional() }))
 		.query(async ({ input, ctx }) => {
-			const now = ctx.clock.now();
 			const contracts = await ctx.db
 				.select({
 					contract: s.contract,
@@ -421,13 +413,8 @@ export default router({
 				})
 				.from(s.contract)
 				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id));
-			const contractIds = contracts.map(({ contract }) => contract.id);
-			const payments = contractIds.length
-				? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-				: [];
-			const paymentsByContractId = groupPaymentsByContractId(payments);
 			const serializedContracts = contracts.map(({ contract, tenantName, tenantPhone }) =>
-				serializeContract(contract, now, paymentsByContractId, tenantName, tenantPhone)
+				serializeContract(contract, tenantName, tenantPhone)
 			);
 
 			if (!input.search) {
@@ -442,7 +429,6 @@ export default router({
 	getPaginated: procedure.public
 		.input(PaginationSchema.extend({ search: z.string().optional() }))
 		.query(async ({ input, ctx }) => {
-			const now = ctx.clock.now();
 			const { limit, offset } = resolvePagination(input);
 			const search = input.search?.trim().toLowerCase();
 
@@ -456,13 +442,8 @@ export default router({
 					.from(s.contract)
 					.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
 					.orderBy(asc(s.contract.id));
-				const contractIds = contracts.map(({ contract }) => contract.id);
-				const payments = contractIds.length
-					? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-					: [];
-				const paymentsByContractId = groupPaymentsByContractId(payments);
 				const serializedContracts = contracts.map(({ contract, tenantName, tenantPhone }) =>
-					serializeContract(contract, now, paymentsByContractId, tenantName, tenantPhone)
+					serializeContract(contract, tenantName, tenantPhone)
 				);
 
 				return toPaginatedResult(
@@ -484,15 +465,10 @@ export default router({
 				.limit(limit + 1)
 				.offset(offset);
 			const pageContracts = contracts.slice(0, limit);
-			const contractIds = pageContracts.map(({ contract }) => contract.id);
-			const payments = contractIds.length
-				? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-				: [];
-			const paymentsByContractId = groupPaymentsByContractId(payments);
 
 			return {
 				items: pageContracts.map(({ contract, tenantName, tenantPhone }) =>
-					serializeContract(contract, now, paymentsByContractId, tenantName, tenantPhone)
+					serializeContract(contract, tenantName, tenantPhone)
 				),
 				nextOffset: contracts.length > limit ? offset + limit : null
 			};
