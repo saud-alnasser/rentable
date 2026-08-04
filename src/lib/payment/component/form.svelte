@@ -2,7 +2,7 @@
 	import type { Payment } from '$lib/platform/database/schema';
 	import { Button } from '$lib/design/primitive/button';
 	import * as Calendar from '$lib/design/primitive/calendar';
-	import * as Dialog from '$lib/design/primitive/dialog';
+	import FormSurface from '$lib/design/block/form-surface.svelte';
 	import * as Form from '$lib/design/primitive/form';
 	import { Input } from '$lib/design/primitive/input';
 	import * as Popover from '$lib/design/primitive/popover';
@@ -24,6 +24,15 @@
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
 
+	// scaling by 100 and rounding is the obvious test and is wrong above a few million, where a
+	// float can no longer represent the scaled value exactly. the round-trip through `toFixed`
+	// holds at every magnitude the input accepts.
+	const isWholeHalalas = (value: string) => {
+		const amount = Number(value);
+
+		return Number(amount.toFixed(2)) === amount;
+	};
+
 	const PaymentFormSchema = z.object({
 		date: z.string().min(1, $LL.contracts.form.paymentDateRequired()),
 		amount: z
@@ -32,6 +41,11 @@
 			.min(1, $LL.contracts.form.paymentAmountRequired())
 			.refine((value) => Number.isFinite(Number(value)) && Number(value) > 0, {
 				message: $LL.contracts.form.paymentAmountGreaterThanZero()
+			})
+			// the input's `step="0.01"` used to be enforced by the browser; the shared surface sets
+			// `novalidate`, so the rule only survives if the schema carries it.
+			.refine(isWholeHalalas, {
+				message: $LL.contracts.form.paymentAmountDecimalPlaces()
 			})
 	});
 
@@ -124,97 +138,87 @@
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
 </script>
 
-<Dialog.Root bind:open {onOpenChange}>
-	<Dialog.Content class="w-full sm:max-w-md">
-		<form method="POST" use:enhance class="flex flex-col">
-			<Dialog.Header>
-				<Dialog.Title class="capitalize">{$LL.common.labels.payment()}</Dialog.Title>
-			</Dialog.Header>
+<FormSurface {open} {onOpenChange} {enhance} weight="light" title={$LL.common.labels.payment()}>
+	<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
+		<Form.Field form={superform} name="date">
+			<Form.Control>
+				<Form.Label>{$LL.common.labels.paymentDate()}</Form.Label>
+				<input type="hidden" name="date" value={$form.date} />
+				<Popover.Root>
+					<Popover.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								type="button"
+								variant="outline"
+								class={cn(
+									'w-full justify-between font-normal',
+									!paymentDateValue && 'text-muted-foreground'
+								)}
+								aria-invalid={$errors.date ? 'true' : undefined}
+							>
+								<span
+									>{formatCalendarDate(
+										paymentDateValue,
+										dateFormatter,
+										$LL.contracts.form.pickDate()
+									)}</span
+								>
+								<ChevronDownIcon class="size-4 opacity-50" />
+							</Button>
+						{/snippet}
+					</Popover.Trigger>
+					<Popover.Content class="w-auto p-0" align="start">
+						<Calendar.Calendar
+							type="single"
+							bind:value={paymentDateValue}
+							captionLayout="dropdown"
+						/>
+					</Popover.Content>
+				</Popover.Root>
+			</Form.Control>
+			<Form.Description />
+		</Form.Field>
 
-			<div class="px-6 py-5">
-				<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
-					<Form.Field form={superform} name="date">
-						<Form.Control>
-							<Form.Label>{$LL.common.labels.paymentDate()}</Form.Label>
-							<input type="hidden" name="date" value={$form.date} />
-							<Popover.Root>
-								<Popover.Trigger>
-									{#snippet child({ props })}
-										<Button
-											{...props}
-											type="button"
-											variant="outline"
-											class={cn(
-												'w-full justify-between font-normal',
-												!paymentDateValue && 'text-muted-foreground'
-											)}
-											aria-invalid={$errors.date ? 'true' : undefined}
-										>
-											<span
-												>{formatCalendarDate(
-													paymentDateValue,
-													dateFormatter,
-													$LL.contracts.form.pickDate()
-												)}</span
-											>
-											<ChevronDownIcon class="size-4 opacity-50" />
-										</Button>
-									{/snippet}
-								</Popover.Trigger>
-								<Popover.Content class="w-auto p-0" align="start">
-									<Calendar.Calendar
-										type="single"
-										bind:value={paymentDateValue}
-										captionLayout="dropdown"
-									/>
-								</Popover.Content>
-							</Popover.Root>
-						</Form.Control>
-						<Form.Description />
-					</Form.Field>
+		<Form.Field form={superform} name="amount">
+			<Form.Control>
+				<Form.Label>{$LL.common.labels.amount()}</Form.Label>
+				<Input
+					type="number"
+					min="0.01"
+					step="0.01"
+					value={$form.amount}
+					oninput={(event) => {
+						$form.amount = event.currentTarget.value;
+					}}
+					placeholder="0.00"
+					aria-invalid={$errors.amount ? 'true' : undefined}
+					{...$constraints.amount}
+				/>
+			</Form.Control>
+			<Form.Description />
+		</Form.Field>
+	</div>
 
-					<Form.Field form={superform} name="amount">
-						<Form.Control>
-							<Form.Label>{$LL.common.labels.amount()}</Form.Label>
-							<Input
-								type="number"
-								min="0.01"
-								step="0.01"
-								value={$form.amount}
-								oninput={(event) => {
-									$form.amount = event.currentTarget.value;
-								}}
-								placeholder="0.00"
-								aria-invalid={$errors.amount ? 'true' : undefined}
-								{...$constraints.amount}
-							/>
-						</Form.Control>
-						<Form.Description />
-					</Form.Field>
-				</div>
+	<Form.ErrorsSummary errors={$errors} class="mt-4" />
 
-				<Form.ErrorsSummary errors={$errors} class="mt-4" />
-			</div>
-
-			<Dialog.Footer>
-				<Button
-					type="button"
-					variant="outline"
-					disabled={isPending}
-					onclick={() => onOpenChange(false)}
-				>
-					{$LL.common.actions.cancel()}
-				</Button>
-				<Button type="submit" disabled={isPending} class="capitalize">
-					{isEditMode
-						? isPending
-							? $LL.common.actions.saving()
-							: $LL.common.actions.save()
-						: isPending
-							? $LL.common.actions.creating()
-							: $LL.common.actions.create()}
-				</Button>
-			</Dialog.Footer>
-		</form>
-	</Dialog.Content>
-</Dialog.Root>
+	{#snippet actions()}
+		<Button
+			type="button"
+			variant="outline"
+			disabled={isPending}
+			onclick={() => onOpenChange(false)}
+		>
+			{$LL.common.actions.cancel()}
+		</Button>
+		<Button type="submit" disabled={isPending} class="capitalize">
+			{isEditMode
+				? isPending
+					? $LL.common.actions.saving()
+					: $LL.common.actions.save()
+				: isPending
+					? $LL.common.actions.creating()
+					: $LL.common.actions.create()}
+		</Button>
+	{/snippet}
+</FormSurface>

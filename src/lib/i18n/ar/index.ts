@@ -521,6 +521,7 @@ const ar = {
 			loadingTenants: 'جاري تحميل المستأجرين...',
 			noTenantFound: 'لم يتم العثور على مستأجر.',
 			numberOfCycles: 'عدد الدورات',
+			paymentAmountDecimalPlaces: 'يقبل مبلغ الدفع منزلتين عشريتين كحد أقصى',
 			paymentAmountGreaterThanZero: 'يجب أن يكون مبلغ الدفع أكبر من صفر',
 			paymentAmountRequired: 'مبلغ الدفع مطلوب',
 			paymentDateRequired: 'تاريخ الدفع مطلوب',

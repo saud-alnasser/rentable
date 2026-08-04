@@ -527,6 +527,7 @@ const en = {
 			loadingTenants: 'loading tenants...',
 			noTenantFound: 'no tenant found.',
 			numberOfCycles: 'number of cycles',
+			paymentAmountDecimalPlaces: 'payment amount can have at most two decimal places',
 			paymentAmountGreaterThanZero: 'payment amount must be greater than zero',
 			paymentAmountRequired: 'payment amount is required',
 			paymentDateRequired: 'payment date is required',
