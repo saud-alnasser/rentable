@@ -46,10 +46,70 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Merging one pull request of a stack rebases every branch above it, which
+      # force-pushes each one and re-runs this whole gate on code that has not changed —
+      # and the merge waits for every one of them. The rebase moves commits, not content:
+      # a git tree is content-addressed, so a branch replayed onto a base holding the same
+      # code produces a byte-identical tree and therefore an identical hash. That is what
+      # is fingerprinted here.
+      - name: '🔑 fingerprint the tree'
+        id: fingerprint
+        run: echo "tree=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+
+      # A hit means these exact bytes already passed this gate, so every step below is
+      # skipped and the job reports green in seconds. `lookup-only` asks whether the entry
+      # exists without downloading it — the entry is a marker, and its contents are never
+      # read. The key carries a version so it can be invalidated by hand without waiting
+      # for eviction.
+      #
+      # What a hit assumes is that identical sources produce an identical result. That is
+      # not quite free — the npm registry, the Rust toolchain and a flaky test can all
+      # move underneath it — and it is the same assumption a merge queue makes when it
+      # fast-forwards. Anything genuinely landing on the base changes the tree, misses,
+      # and gets the full run; that miss is what keeps the rest honest.
+      - name: '🗃️ look for a pass on this exact tree'
+        id: memo
+        uses: actions/cache/restore@v6
+        with:
+          path: .integration-pass
+          key: integration-pass-v1-${{ steps.fingerprint.outputs.tree }}
+          lookup-only: true
+
+      # A stack pays for this job once per branch, and almost all of that time is the Rust
+      # side, which most branches never touch. This decides which of the steps below have
+      # anything left to prove on the runs that are not memoized away. It reads the pull
+      # request's own diff against its base rather than a commit range, so a branch rebased
+      # onto a new base still classifies the same change the same way.
+      #
+      # It fails open: a diff that cannot be read runs everything, because the failure a
+      # gate must never have is deciding it had nothing to check.
+      - name: '🔍 classify the change'
+        id: changed
+        if: steps.memo.outputs.cache-hit != 'true'
+        run: |
+          if ! files=$(git diff --name-only '${{ github.event.pull_request.base.sha }}' HEAD); then
+            echo 'the diff could not be read — running every step rather than guessing'
+            echo 'rust=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "$files"
+
+          # The workflows are here because a change to this file has to be proved on the
+          # path it is changing, and the two manifests because the Rust build reaches
+          # through them for the tauri CLI.
+          if printf '%s\n' "$files" | grep -qE '^(tauri/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.github/workflows/)'; then
+            echo 'rust=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'rust=false' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: '🛠️ setup pnpm'
+        if: steps.memo.outputs.cache-hit != 'true'
         uses: pnpm/action-setup@v6
 
       - name: '🔧 setup node'
+        if: steps.memo.outputs.cache-hit != 'true'
         uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -61,6 +121,7 @@ jobs:
       # to nothing — harmless on its own, but not something to reproduce in the
       # sibling workflow that now has to agree with it.
       - name: '🔼 update rust'
+        if: steps.memo.outputs.cache-hit != 'true' && steps.changed.outputs.rust == 'true'
         run: rustup update && rustup default stable
 
       # `save-if: false` is the whole point of this being an action rather than a
@@ -73,13 +134,18 @@ jobs:
       # `shared-key` is what makes the two agree on a name; changing it here without
       # changing it there silently returns to a cold build.
       - name: '💿 cargo cache'
+        if: steps.memo.outputs.cache-hit != 'true' && steps.changed.outputs.rust == 'true'
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: './tauri -> target'
           shared-key: 'integration'
           save-if: false
 
+      # The system libraries exist for the Rust link step and nothing else — the
+      # typecheck, the tests and the frontend build are pure Node. They are skipped
+      # with the compile they serve.
       - name: '📦 install apt packages'
+        if: steps.memo.outputs.cache-hit != 'true' && steps.changed.outputs.rust == 'true'
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         continue-on-error: true
         with:
@@ -93,6 +159,7 @@ jobs:
       # is the guarantee — a no-op when the cache worked, an install when it did not.
       # An unrecognised module name here costs an unnecessary apt-get, never a skip.
       - name: '📦 ensure system libraries'
+        if: steps.memo.outputs.cache-hit != 'true' && steps.changed.outputs.rust == 'true'
         run: |
           if pkg-config --exists gtk+-3.0 webkit2gtk-4.1; then
             echo 'system libraries already present'
@@ -103,30 +170,60 @@ jobs:
           sudo apt-get install -y ${{ env.APT_PACKAGES }}
 
       - name: '📦 install pnpm packages'
+        if: steps.memo.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
 
       - name: '🔎 check'
+        if: steps.memo.outputs.cache-hit != 'true'
         run: pnpm check
 
       # prettier already ran as part of `pnpm check`; this adds eslint only
       - name: '🧹 lint'
+        if: steps.memo.outputs.cache-hit != 'true'
         run: pnpm exec eslint .
 
       - name: '🧪 test'
+        if: steps.memo.outputs.cache-hit != 'true'
         run: pnpm test
 
       - name: '🦀 test rust'
+        if: steps.memo.outputs.cache-hit != 'true' && steps.changed.outputs.rust == 'true'
         run: pnpm test:rust
 
       # `pnpm check` typechecks but never bundles, so without this step nothing
       # would prove the frontend still builds — it used to be proved as a side
       # effect of the bundler's beforeBuildCommand.
       - name: '🏗️ build frontend'
+        if: steps.memo.outputs.cache-hit != 'true'
         run: pnpm build
 
       # Compiles what the release build compiles, and stops there. Packaging the
       # installers and signing the updater artifacts is the release workflow's job,
       # and it does it on four platforms within minutes of merge; doing it here as
       # well cost six minutes a run to produce files that were never uploaded.
+      #
+      # What the skip gives up: this compile also embeds the frontend bundle, so a
+      # frontend-only change no longer proves the binary still builds around it. That
+      # is the same hole packaging already has — the release workflow is what catches
+      # it, on `main`, within minutes of merge.
       - name: '🦀 build release binary'
+        if: steps.memo.outputs.cache-hit != 'true' && steps.changed.outputs.rust == 'true'
         run: cargo build --release --manifest-path ./tauri/Cargo.toml
+
+      # Only now is this tree known to have passed. `success()` is spelled out because
+      # writing any `if` on a step replaces the implicit one, and the failure that would
+      # cause — recording a pass for a tree whose tests just failed — is the one this
+      # whole mechanism must never make. The marker's contents are never read; the key
+      # is the entire claim.
+      - name: '✅ mark this tree as passed'
+        if: success() && steps.memo.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p .integration-pass
+          echo '${{ steps.fingerprint.outputs.tree }}' > .integration-pass/tree
+
+      - name: '🗃️ record the pass'
+        if: success() && steps.memo.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .integration-pass
+          key: integration-pass-v1-${{ steps.fingerprint.outputs.tree }}
