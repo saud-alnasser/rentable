@@ -13,6 +13,8 @@ import {
 	type WorkspaceRemoteSyncResult
 } from '$lib/sync/workspace';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
+import { invalidateRoot } from '$lib/design/query';
+import { keys as dashboardKeys } from '$lib/dashboard/query';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
@@ -25,17 +27,6 @@ export const keys = {
 } as const;
 
 export type SyncGoogleDriveWorkspaceResult = WorkspaceRemoteSyncResult;
-
-async function invalidateSettingsAndAppData(client: ReturnType<typeof useQueryClient>) {
-	await Promise.all([
-		client.invalidateQueries({ queryKey: keys.settings }),
-		client.invalidateQueries({ queryKey: keys.backups }),
-		client.invalidateQueries({ queryKey: keys.remoteSync }),
-		client.invalidateQueries({ queryKey: ['contracts'] }),
-		client.invalidateQueries({ queryKey: ['tenants'] }),
-		client.invalidateQueries({ queryKey: ['complexes'] })
-	]);
-}
 
 export function useFetchSettings() {
 	return createQuery(() => ({
@@ -77,7 +68,7 @@ export function useSetEndingSoonNoticeDays(
 
 			await Promise.all([
 				client.invalidateQueries({ queryKey: keys.settings }),
-				client.invalidateQueries({ queryKey: ['contracts', 'dashboard'] })
+				client.invalidateQueries({ queryKey: dashboardKeys.get })
 			]);
 
 			onMutationSuccess(opts);
@@ -149,7 +140,7 @@ export function useRestoreBackup(
 			return result;
 		},
 		onSuccess: async () => {
-			await invalidateSettingsAndAppData(client);
+			await invalidateRoot(client);
 
 			onMutationSuccess(opts);
 		},
@@ -249,7 +240,7 @@ export function useResolveGoogleDriveLink(
 			client.setQueryData(keys.remoteSync, result.state);
 
 			if (result.action === 'pulled') {
-				await invalidateSettingsAndAppData(client);
+				await invalidateRoot(client);
 			} else {
 				await Promise.all([
 					client.invalidateQueries({ queryKey: keys.remoteSync }),
@@ -288,7 +279,7 @@ export function useResolvePendingConflict(
 			client.setQueryData(keys.remoteSync, result.state);
 
 			if (result.action === 'pulled') {
-				await invalidateSettingsAndAppData(client);
+				await invalidateRoot(client);
 			} else {
 				await Promise.all([
 					client.invalidateQueries({ queryKey: keys.remoteSync }),
@@ -317,7 +308,7 @@ export function useDismissPendingConflict(opts: MutationOptions = {}) {
 		onSuccess: async (dismissal) => {
 			if (dismissal && !dismissal.deferred && dismissal.state) {
 				client.setQueryData(keys.remoteSync, dismissal.state);
-				await invalidateSettingsAndAppData(client);
+				await invalidateRoot(client);
 			}
 
 			onMutationSuccess(opts);
@@ -365,7 +356,7 @@ export function useUnlinkGoogleDriveWorkspace(
 		mutationFn: () => unlinkGoogleDriveWorkspace(),
 		onSuccess: async (state) => {
 			client.setQueryData(keys.remoteSync, state);
-			await invalidateSettingsAndAppData(client);
+			await invalidateRoot(client);
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)
@@ -393,7 +384,7 @@ export function useSyncGoogleDriveWorkspace(
 			client.setQueryData(keys.remoteSync, result.state);
 
 			if (result.action === 'pulled') {
-				await invalidateSettingsAndAppData(client);
+				await invalidateRoot(client);
 			} else {
 				await Promise.all([
 					client.invalidateQueries({ queryKey: keys.remoteSync }),

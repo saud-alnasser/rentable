@@ -1,6 +1,6 @@
 import api from '$lib/api/caller';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
-import { keys as contractKeys } from '$lib/contract/query';
+import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
 import { LL } from '$lib/i18n/i18n-svelte';
 import {
 	createInfiniteQuery,
@@ -15,21 +15,14 @@ const DATA_VIEW_PAGE_SIZE = 24;
 type InfinitePaymentsPage = Awaited<ReturnType<typeof api.contract.payments.getPaginated>>;
 
 export const keys = {
-	getMany: (contractId: number) => ['contracts', 'payments', contractId],
+	getMany: (contractId: number) => [...workspacePrefixes.payments, contractId],
 	dataView: (contractId: number, search?: string) => [
-		'contracts',
-		'payments',
+		...workspacePrefixes.payments,
 		'data-view',
 		contractId,
 		search ?? ''
 	]
 } as const;
-
-// every payment changes what its contract is owed, so a payment mutation invalidates the
-// contract tree rather than only its own keys — which sit under it.
-async function invalidateContractData(client: ReturnType<typeof useQueryClient>) {
-	await client.invalidateQueries({ queryKey: contractKeys.all });
-}
 
 export function useFetchContractPayments(contractId: () => number) {
 	return createQuery(() => {
@@ -83,7 +76,7 @@ export function useCreatePayment(
 		mutationFn: (data: Parameters<typeof api.contract.payments.create>[0]) =>
 			api.contract.payments.create(data),
 		onSuccess: async () => {
-			await invalidateContractData(client);
+			await invalidateWorkspaceData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -106,7 +99,7 @@ export function useUpdatePayment(
 		mutationFn: (data: Parameters<typeof api.contract.payments.update>[0]) =>
 			api.contract.payments.update(data),
 		onSuccess: async () => {
-			await invalidateContractData(client);
+			await invalidateWorkspaceData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -129,7 +122,7 @@ export function useDeletePayment(
 		mutationFn: (id: number) => api.contract.payments.delete({ id }),
 		onSuccess: async (deleted) => {
 			if (deleted) {
-				await invalidateContractData(client);
+				await invalidateWorkspaceData(client);
 			}
 
 			onMutationSuccess(opts);

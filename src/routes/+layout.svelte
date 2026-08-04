@@ -16,6 +16,8 @@
 		syncWorkspaceRemoteNow
 	} from '$lib/sync/workspace';
 	import { toUtcDay } from '$lib/api/date';
+	import { invalidateRoot, trustWorkspaceData } from '$lib/design/query';
+	import { keys as settingsKeys } from '$lib/settings/query';
 	import { TooltipProvider } from '$lib/design/primitive/tooltip';
 	import { LinkSession } from '$lib/sync/link-session.svelte';
 	import { pendingConflict } from '$lib/sync/pending-conflict.svelte';
@@ -44,6 +46,7 @@
 			}
 		}
 	});
+	trustWorkspaceData(queryClient);
 
 	type StartupState = 'loading' | 'choose-workspace' | 'ready' | 'error' | 'recovery';
 
@@ -55,7 +58,7 @@
 	const linkSession = new LinkSession({
 		onState: (state) => {
 			startupRemoteSync = state;
-			queryClient.setQueryData(['settings', 'remote-sync'], state);
+			queryClient.setQueryData(settingsKeys.remoteSync, state);
 		},
 		onResolutionRequired: async (preparation) => {
 			pendingConflict.present(preparation);
@@ -78,7 +81,7 @@
 		onCancelled: async () => {
 			startupRemoteSync = await tauri.remoteSync.getState().catch(() => startupRemoteSync);
 			if (startupRemoteSync) {
-				queryClient.setQueryData(['settings', 'remote-sync'], startupRemoteSync);
+				queryClient.setQueryData(settingsKeys.remoteSync, startupRemoteSync);
 			}
 		}
 	});
@@ -202,6 +205,7 @@
 		try {
 			const { reconciledAt } = await api.app.state.reconcile();
 			lastReconciledUtcDay = toUtcDay(reconciledAt).getTime();
+			await invalidateRoot(queryClient);
 		} catch {
 			/* the next tick retries */
 		} finally {
@@ -370,7 +374,7 @@
 			}
 
 			startupRemoteSync = state;
-			queryClient.setQueryData(['settings', 'remote-sync'], startupRemoteSync);
+			queryClient.setQueryData(settingsKeys.remoteSync, startupRemoteSync);
 			linkSession.begin();
 			startupState = 'choose-workspace';
 			await api.app.window.show();
@@ -411,26 +415,19 @@
 				const state = await tauri.remoteSync.getState().catch(() => null);
 				if (state) {
 					startupRemoteSync = state;
-					queryClient.setQueryData(['settings', 'remote-sync'], state);
+					queryClient.setQueryData(settingsKeys.remoteSync, state);
 				}
 
 				if (detail.action === 'pulled') {
-					await Promise.all([
-						queryClient.invalidateQueries({ queryKey: ['settings', 'data'] }),
-						queryClient.invalidateQueries({ queryKey: ['settings', 'backups'] }),
-						queryClient.invalidateQueries({ queryKey: ['settings', 'remote-sync'] }),
-						queryClient.invalidateQueries({ queryKey: ['contracts'] }),
-						queryClient.invalidateQueries({ queryKey: ['tenants'] }),
-						queryClient.invalidateQueries({ queryKey: ['complexes'] })
-					]);
+					await invalidateRoot(queryClient);
 				} else if (
 					detail.action === 'pushed' ||
 					detail.action === 'none' ||
 					detail.action === 'error'
 				) {
 					await Promise.all([
-						queryClient.invalidateQueries({ queryKey: ['settings', 'backups'] }),
-						queryClient.invalidateQueries({ queryKey: ['settings', 'remote-sync'] })
+						queryClient.invalidateQueries({ queryKey: settingsKeys.backups }),
+						queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync })
 					]);
 				}
 			}
