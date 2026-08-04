@@ -52,6 +52,18 @@ second to #249 (the list block):
   `prototype`. Attaches to the ticket that builds the replacement list block. Whether it scrolls,
   collapses columns by priority, or falls back to the card presentation is a question about feel at
   640px, not a rule derivable from the column set.
+  **Resolved 2026-08-04, on #249's built block against the contracts set:** it **collapses by
+  priority, and the reader can override it**. Every column declares a width, a priority and
+  whether it is essential; the block measures itself and keeps columns in priority order while
+  the width lasts, the first column that does not fit ending the run so a narrower one further
+  down cannot outrank it. An essential column is always shown — a row that has lost the thing it
+  names is unreadable rather than shorter — and is not offered in the picker. A column picker
+  carries the rest: a column switched on is shown whatever the width says and **does not spend
+  the width budget**, so exercising the choice never silently removes a column the reader never
+  touched; the table scrolls instead. Below the md breakpoint the card presentation still takes
+  over, so the collapse governs the band between md and the width the widest list needs.
+  Judged by looking at 800px, where the six-column contracts set collapses to three, and accepted
+  as built.
 
 ---
 

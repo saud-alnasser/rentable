@@ -49,6 +49,7 @@ const ar = {
 			saveDatabasePath: 'حفظ مسار قاعدة البيانات',
 			saveWindow: 'حفظ النافذة',
 			saving: 'جاري الحفظ...',
+			sortBy: 'ترتيب حسب',
 			syncing: 'جارٍ المزامنة...',
 			syncNow: 'زامن الآن',
 			unlink: 'إلغاء الربط',
@@ -161,6 +162,7 @@ const ar = {
 			goToNextPage: 'اذهب للصفحة التالية',
 			goToPreviousPage: 'اذهب للصفحة السابقة',
 			pageOf: 'الصفحة {page} من {count}',
+			results: '{count} نتيجة',
 			rowsPerPage: 'عدد الصفوف لكل صفحة',
 			rowsSelected: '{selected} من {total} صف محدد.',
 			searchPlaceholder: 'بحث...'

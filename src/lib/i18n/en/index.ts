@@ -50,6 +50,7 @@ const en = {
 			saveDatabasePath: 'save database path',
 			saveWindow: 'save window',
 			saving: 'saving...',
+			sortBy: 'sort by',
 			syncing: 'syncing...',
 			syncNow: 'sync',
 			unlink: 'unlink',
@@ -162,6 +163,7 @@ const en = {
 			goToNextPage: 'go to next page',
 			goToPreviousPage: 'go to previous page',
 			pageOf: 'page {page} of {count}',
+			results: '{count} result(s)',
 			rowsPerPage: 'rows per page',
 			rowsSelected: '{selected} of {total} row(s) selected.',
 			searchPlaceholder: 'search...'
