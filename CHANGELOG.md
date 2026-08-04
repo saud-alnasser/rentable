@@ -1,5 +1,11 @@
 # rentable
 
+## 0.11.1
+
+### Patch Changes
+
+- [#241](https://github.com/saud-alnasser/rentable/pull/241) [`c367dc2`](https://github.com/saud-alnasser/rentable/commit/c367dc2a87978df35a60006494dd5a76cec0a864) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a national identity number is now accepted only when the whole value is one, so a padded or embedded number such as `!1234567890!` is refused where it was previously saved. surrounding whitespace is removed before the check, so an existing tenant stored with padding can still be opened and saved.
+
 ## 0.11.0
 
 ### Minor Changes
