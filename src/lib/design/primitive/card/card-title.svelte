@@ -16,7 +16,7 @@
 	bind:this={ref}
 	data-slot="card-title"
 	dir={localesMetadata[$locale].direction}
-	class={cn('text-start leading-none font-semibold', className)}
+	class={cn('text-start text-base leading-none font-semibold', className)}
 	{...restProps}
 >
 	{@render children?.()}

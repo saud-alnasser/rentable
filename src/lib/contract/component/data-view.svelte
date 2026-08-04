@@ -120,9 +120,7 @@
 	{#snippet item(record: ContractRow)}
 		{@const paymentProgress = getPaymentProgress(record)}
 		<a href={resolve(`/contracts/${record.id}`)} class="block">
-			<Card
-				class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl transition-transform duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-card/78"
-			>
+			<Card class="gap-0 overflow-hidden">
 				<CardHeader class="gap-4 border-b pb-4">
 					<div class="min-w-0 space-y-2 text-start">
 						<CardTitle class="truncate">{getContractTitle(record)}</CardTitle>
@@ -143,9 +141,7 @@
 					</div>
 				</CardHeader>
 				<CardContent class="grid gap-3 pt-4 sm:grid-cols-2 xl:grid-cols-2 [&>*]:text-start">
-					<div
-						class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm sm:col-span-2 xl:col-span-2"
-					>
+					<div class="rounded-xl border bg-muted p-4 sm:col-span-2 xl:col-span-2">
 						<div class="flex items-center justify-between gap-3 text-sm rtl:flex-row-reverse">
 							<div class="text-start">
 								<p class="text-xs tracking-wide text-muted-foreground uppercase">
@@ -172,7 +168,7 @@
 							})}
 						</p>
 					</div>
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+					<div class="rounded-xl border bg-muted p-4">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.governmentId()}
 						</p>
@@ -180,7 +176,7 @@
 							{getDisplayGovId(record) || $LL.common.messages.unknown()}
 						</p>
 					</div>
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+					<div class="rounded-xl border bg-muted p-4">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.phone()}
 						</p>
@@ -188,7 +184,7 @@
 							{getDisplayTenantPhone(record) || $LL.common.messages.unknown()}
 						</p>
 					</div>
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+					<div class="rounded-xl border bg-muted p-4">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.payment()}
 						</p>
@@ -199,7 +195,7 @@
 							{intervalLabels[record.interval]()}
 						</p>
 					</div>
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+					<div class="rounded-xl border bg-muted p-4">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.contractPeriod()}
 						</p>

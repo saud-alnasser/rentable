@@ -17,13 +17,11 @@
 		onRevealDiagnostics: () => void;
 	} = $props();
 
-	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
-	const settingsSubtlePanelClass =
-		'rounded-xl border border-primary/10 bg-accent/35 p-3 text-start backdrop-blur-sm';
+	const settingsSubtlePanelClass = 'rounded-xl border bg-muted p-3 text-start';
 </script>
 
-<Card class={settingsCardClass}>
-	<CardHeader class="gap-3 border-b border-border/50 pb-5">
+<Card>
+	<CardHeader class="gap-3 border-b pb-5">
 		<CardTitle>{$LL.settings.diagnosticsTitle()}</CardTitle>
 		<CardDescription>{$LL.settings.diagnosticsDescription()}</CardDescription>
 	</CardHeader>

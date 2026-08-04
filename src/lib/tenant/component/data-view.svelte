@@ -51,13 +51,11 @@
 >
 	{#snippet item(record: Tenant)}
 		<a href={resolve(`/tenants/${record.id}`)} class="block">
-			<Card
-				class="gap-0 overflow-hidden border-border/70 bg-card/65 shadow-xl backdrop-blur-xl transition-transform duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-card/78"
-			>
+			<Card class="gap-0 overflow-hidden">
 				<CardHeader class="gap-3 border-b pb-4">
 					<div class="flex min-w-0 items-center gap-3 rtl:flex-row-reverse">
 						<div
-							class="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary"
+							class="flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground"
 						>
 							{getTenantInitials(record.name)}
 						</div>
@@ -68,13 +66,13 @@
 					</div>
 				</CardHeader>
 				<CardContent class="grid gap-3 pt-4 sm:grid-cols-2 xl:grid-cols-3 [&>*]:text-start">
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+					<div class="rounded-xl border bg-muted p-4">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.nationalId()}
 						</p>
 						<p class="mt-2 text-sm font-medium">{record.nationalId}</p>
 					</div>
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+					<div class="rounded-xl border bg-muted p-4">
 						<p class="text-xs tracking-wide text-muted-foreground uppercase">
 							{$LL.common.labels.phone()}
 						</p>

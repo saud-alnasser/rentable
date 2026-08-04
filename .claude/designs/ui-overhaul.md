@@ -41,6 +41,13 @@ second to #249 (the list block):
   to the primitives. Every surface today is separated by `backdrop-filter` plus a double inset
   shadow and all of it is being deleted; border and value alone have to carry the job, and that is
   judged by looking.
+  **Resolved 2026-08-04, on #246's built palette:** raised is a one-step-lighter opaque fill under
+  `ring-1 ring-foreground/10`, carrying Rhea's surface shadow for its family; **nesting deeper is
+  always lighter** — a well sits at `muted`, above its card's value, never below, and a frame that
+  merely delineates a scroll region stays at the page value so the rows inside it are the raised
+  thing. Blue marks the chosen element and nothing else: a solid `primary` fill where one option
+  is active, a `primary` border and ring over a neutral fill where several may be selected at
+  once. Judged by looking and accepted as built.
 - **What a horizontally overflowing table does at the narrow end of the supported range.** Type:
   `prototype`. Attaches to the ticket that builds the replacement list block. Whether it scrolls,
   collapses columns by priority, or falls back to the card presentation is a question about feel at

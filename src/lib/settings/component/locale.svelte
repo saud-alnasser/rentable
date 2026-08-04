@@ -22,13 +22,11 @@
 		onChange: (locale: Locales) => Promise<void> | void;
 	} = $props();
 
-	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
-	const settingsInsetPanelClass =
-		'rounded-[1.25rem] border border-border/70 bg-background/60 p-4 text-start shadow-sm backdrop-blur-md';
+	const settingsInsetPanelClass = 'rounded-2xl border bg-muted p-4 text-start';
 </script>
 
-<Card class={settingsCardClass}>
-	<CardHeader class="gap-3 border-b border-border/50 pb-5">
+<Card>
+	<CardHeader class="gap-3 border-b pb-5">
 		<CardTitle>{$LL.settings.localeTitle()}</CardTitle>
 		<CardDescription>{$LL.settings.localeDescription()}</CardDescription>
 	</CardHeader>

@@ -13,7 +13,6 @@
 		heroLabel: string;
 		heroValue: string;
 		heroHint: string;
-		heroClass: string;
 		stats: { id: string; label: string; value: string }[];
 	};
 
@@ -38,7 +37,6 @@
 				endingSoon: dashboard.summary.contracts.endingSoon,
 				noticeWindow: formatNoticeWindow(dashboard.endingSoonNoticeDays)
 			}),
-			heroClass: 'border-sky-500/20 bg-sky-500/10',
 			stats: [
 				{
 					id: 'active',
@@ -86,7 +84,6 @@
 				rate: dashboard.summary.money.monthlyCollectionRate,
 				monthLabel: dashboard.monthLabel
 			}),
-			heroClass: 'border-emerald-500/20 bg-emerald-500/10',
 			stats: [
 				{
 					id: 'dueThisMonth',
@@ -125,7 +122,6 @@
 				occupied: dashboard.summary.occupancy.occupiedUnits,
 				total: dashboard.summary.occupancy.totalUnits
 			}),
-			heroClass: 'border-violet-500/20 bg-violet-500/10',
 			stats: [
 				{
 					id: 'totalUnits',

@@ -70,7 +70,7 @@
 										variant="outline"
 										size="icon-sm"
 										aria-label={$LL.common.ui.previous()}
-										class="rounded-full border-border/60 bg-background/70 shadow-sm backdrop-blur-sm"
+										class="rounded-full bg-secondary"
 									>
 										<ArrowLeftIcon class="size-4 rtl:rotate-180" />
 										<span class="sr-only">{$LL.common.ui.previous()}</span>
@@ -115,7 +115,7 @@
 		{#snippet item(record: Unit)}
 			<Card
 				class={cn(
-					'gap-0 overflow-hidden border-s-4 border-border/70 bg-card/65 shadow-xl backdrop-blur-xl',
+					'gap-0 overflow-hidden border-s-4',
 					record.status === 'vacant' ? 'border-s-emerald-500/60' : 'border-s-amber-500/60'
 				)}
 			>

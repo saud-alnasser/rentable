@@ -6,7 +6,6 @@
 	import { Button } from '$lib/design/primitive/button';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import { formatLocaleDate } from '$lib/platform/locale';
-	import { cn } from '$lib/design/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import ContractIcon from '@tabler/icons-svelte/icons/contract';
@@ -28,16 +27,14 @@
 		terminated: 'outline'
 	};
 
-	const dashboardInsetPanelClass =
-		'rounded-[1.25rem] border border-border/70 bg-background/60 p-4 shadow-sm backdrop-blur-md';
-	const dashboardSubtlePanelClass =
-		'rounded-xl border border-primary/10 bg-accent/35 p-3 text-start backdrop-blur-sm';
+	const dashboardInsetPanelClass = 'rounded-2xl border bg-muted p-4';
+	const dashboardSubtlePanelClass = 'rounded-xl border bg-muted p-3 text-start';
 
 	const formatDate = (value: number) =>
 		formatLocaleDate($locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 </script>
 
-<div class={cn(dashboardInsetPanelClass, 'bg-background/75')}>
+<div class={dashboardInsetPanelClass}>
 	<div class="space-y-4">
 		<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
 			<div class="flex flex-wrap items-center gap-2">
@@ -54,7 +51,7 @@
 							variant="outline"
 							size="icon-sm"
 							aria-label={$LL.common.labels.information()}
-							class="rounded-full border-border/60 bg-background/85 shadow-sm backdrop-blur-sm"
+							class="rounded-full bg-secondary"
 						>
 							<ContractIcon class="size-4" />
 							<span class="sr-only">{$LL.common.labels.information()}</span>

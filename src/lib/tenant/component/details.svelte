@@ -41,7 +41,7 @@
 		</div>
 	</div>
 {:else if !tenantQuery.data}
-	<Card class="border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
+	<Card>
 		<CardHeader>
 			<CardTitle>{$LL.common.messages.noResults()}</CardTitle>
 		</CardHeader>
@@ -49,7 +49,7 @@
 {:else}
 	{@const tenant = tenantQuery.data}
 	<div class="flex flex-col gap-4">
-		<div class="rounded-[1.5rem] border border-border/70 bg-card/65 p-4 shadow-xl backdrop-blur-xl">
+		<div class="rounded-2xl border bg-muted p-4">
 			<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
 				<Tooltip.Root>
 					<Tooltip.Trigger>
@@ -60,7 +60,7 @@
 								variant="outline"
 								size="icon-sm"
 								aria-label={$LL.common.ui.previous()}
-								class="shrink-0 rounded-full border-border/60 bg-background/70 shadow-sm backdrop-blur-sm"
+								class="shrink-0 rounded-full bg-secondary"
 							>
 								<ArrowLeftIcon class="size-4 rtl:rotate-180" />
 								<span class="sr-only">{$LL.common.ui.previous()}</span>
@@ -81,7 +81,7 @@
 									variant="outline"
 									size="icon-sm"
 									aria-label={$LL.common.actions.edit()}
-									class="rounded-full border-border/60 bg-background/70 shadow-sm backdrop-blur-sm"
+									class="rounded-full bg-secondary"
 									onclick={() => (isTenantFormOpen = true)}
 								>
 									<SquarePenIcon class="size-4" />
@@ -126,20 +126,20 @@
 			</div>
 		</div>
 
-		<Card class="border-border/70 bg-card/65 shadow-xl backdrop-blur-xl">
+		<Card>
 			<CardHeader class="gap-3 border-b pb-4">
 				<CardTitle class="capitalize">{$LL.common.labels.information()}</CardTitle>
 			</CardHeader>
 			<CardContent class="pt-4">
 				<div class="grid gap-3 sm:grid-cols-2 [&>*]:text-start">
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+					<div class="rounded-xl border bg-muted p-4">
 						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
 							{$LL.common.labels.nationalId()}
 						</p>
 						<p class="mt-3 text-lg font-semibold">{tenant.nationalId}</p>
 					</div>
 
-					<div class="rounded-xl border border-border/60 bg-accent/30 p-4 backdrop-blur-sm">
+					<div class="rounded-xl border bg-muted p-4">
 						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
 							{$LL.common.labels.phone()}
 						</p>

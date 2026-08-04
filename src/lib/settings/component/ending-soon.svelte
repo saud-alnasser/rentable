@@ -20,9 +20,7 @@
 	let { settings }: { settings: AppSettings } = $props();
 
 	const setEndingSoonNoticeDaysMutation = useSetEndingSoonNoticeDays();
-	const settingsCardClass = 'border-border/70 bg-card/65 shadow-xl backdrop-blur-xl';
-	const settingsInsetPanelClass =
-		'rounded-[1.25rem] border border-border/70 bg-background/60 p-4 text-start shadow-sm backdrop-blur-md';
+	const settingsInsetPanelClass = 'rounded-2xl border bg-muted p-4 text-start';
 	const formatNoticeWindow = (days: number) =>
 		days === 1 ? $LL.common.time.day({ count: days }) : $LL.common.time.days({ count: days });
 
@@ -58,8 +56,8 @@
 	}
 </script>
 
-<Card class={settingsCardClass}>
-	<CardHeader class="gap-3 border-b border-border/50 pb-5">
+<Card>
+	<CardHeader class="gap-3 border-b pb-5">
 		<CardTitle>{$LL.settings.endingSoonTitle()}</CardTitle>
 		<CardDescription>{$LL.settings.endingSoonDescription()}</CardDescription>
 	</CardHeader>

@@ -20,8 +20,7 @@
 
 	let { data }: { data: DashboardData } = $props();
 
-	const dashboardVirtualListClass =
-		'rounded-[1.5rem] border border-border/50 bg-background/30 backdrop-blur-xl [box-shadow:inset_0_1px_0_rgb(255_255_255_/_0.05),0_16px_36px_rgb(15_23_42_/_0.14)] dark:[box-shadow:inset_0_1px_0_rgb(255_255_255_/_0.04),0_16px_36px_rgb(2_6_23_/_0.32)]';
+	const dashboardVirtualListClass = 'rounded-2xl border bg-card';
 	const dashboardVirtualListPaddingClass = 'p-2 sm:p-3';
 	const endingSoonVirtualThreshold = 2;
 	const endingSoonVirtualEstimate = 220;
@@ -100,7 +99,7 @@
 </script>
 
 <Card class="gap-4 overflow-hidden">
-	<CardHeader class="gap-3 border-b border-border/50 pb-5">
+	<CardHeader class="gap-3 border-b pb-5">
 		<div class="flex flex-wrap items-start justify-between gap-3 rtl:flex-row-reverse">
 			<div class="space-y-1 text-start">
 				<CardTitle>{$LL.dashboard.endingSoon.title()}</CardTitle>
@@ -110,9 +109,7 @@
 					})}
 				</CardDescription>
 			</div>
-			<div
-				class="rounded-full border border-border/60 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm"
-			>
+			<div class="rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
 				{records.length === 1
 					? $LL.dashboard.endingSoon.countOne({ count: records.length })
 					: $LL.dashboard.endingSoon.countOther({ count: records.length })}
@@ -121,9 +118,7 @@
 	</CardHeader>
 	<CardContent class="pt-5">
 		{#if records.length === 0}
-			<p
-				class="rounded-xl border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground"
-			>
+			<p class="rounded-xl border border-dashed bg-muted p-4 text-sm text-muted-foreground">
 				{$LL.dashboard.endingSoon.empty()}
 			</p>
 		{:else if shouldUseVirtualEndingSoon}
