@@ -2,8 +2,8 @@ import type { Database } from '$lib/api/context';
 import * as s from '$lib/platform/database/schema';
 import { ContractSchema } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
-import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/pagination';
 import {
+	CONTRACT_ATTENTION_ORDER,
 	deriveContractStatus,
 	deriveUnitStatuses,
 	ensureContractDeletable,
@@ -20,12 +20,12 @@ import {
 	hasSameUtcDateRange
 } from '$lib/contract/contract';
 import { reconcileTouched } from '$lib/contract/reconcile';
-import { serializeContract, type SerializedContract } from '$lib/contract/serialize';
+import { serializeContract } from '$lib/contract/serialize';
 import dashboard from '$lib/dashboard/router';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import payment from '$lib/payment/router';
 import { TRPCError } from '@trpc/server';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
 // status and the payment aggregates are derived columns: reconcile owns them, so no
@@ -84,18 +84,44 @@ async function selectPaymentsForContract(db: Database, contractId: number) {
 	return await db.select().from(s.payment).where(eq(s.payment.contractId, contractId));
 }
 
-function matchesContractSearch(contract: SerializedContract, search: string) {
-	return [
-		contract.govId,
-		contract.tenantName,
-		contract.tenantPhone,
-		String(contract.tenantId),
-		contract.status,
-		contract.interval,
-		String(contract.cost)
-	]
-		.filter((value): value is string => Boolean(value))
-		.some((value) => value.toLowerCase().includes(search));
+// the queue's order, as one expression the database can sort on: the rank a status holds in
+// CONTRACT_ATTENTION_ORDER. Built from the array rather than written out, so the order is
+// stated once and a status added to the enum without a rank sorts last instead of silently
+// landing among the ones that need attention.
+const contractAttentionRank = sql.join(
+	[
+		sql`case`,
+		...CONTRACT_ATTENTION_ORDER.map(
+			(status, rank) => sql`when ${s.contract.status} = ${status} then ${rank}`
+		),
+		sql`else ${CONTRACT_ATTENTION_ORDER.length} end`
+	],
+	sql` `
+);
+
+// every field the list can be searched by, whether or not the row shows it — a field dropped
+// from a surface is never dropped from search.
+//
+// `%` and `_` are LIKE's own wildcards, so a term carrying either is escaped before it
+// becomes a pattern: a user searching for "50%" is looking for that text, not asking to
+// match everything.
+function contractSearchCondition(search: string) {
+	const pattern = `%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
+	const like = (column: SQL | AnyColumn) =>
+		sql`lower(cast(${column} as text)) like lower(${pattern}) escape '\\'`;
+
+	return sql.join(
+		[
+			like(s.contract.govId),
+			like(s.tenant.name),
+			like(s.tenant.phone),
+			like(s.contract.tenantId),
+			like(s.contract.status),
+			like(s.contract.interval),
+			like(s.contract.cost)
+		],
+		sql` or `
+	);
 }
 
 export default router({
@@ -402,56 +428,13 @@ export default router({
 			return undefined;
 		}),
 
+	// the contracts list, in one bounded query: the whole result set for a search, ordered so
+	// that each attention rank's contracts arrive together. The list shell reads that order to
+	// place its group headers and never imposes one of its own.
 	getMany: procedure.public
 		.input(z.object({ search: z.string().optional() }))
 		.query(async ({ input, ctx }) => {
-			const contracts = await ctx.db
-				.select({
-					contract: s.contract,
-					tenantName: s.tenant.name,
-					tenantPhone: s.tenant.phone
-				})
-				.from(s.contract)
-				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id));
-			const serializedContracts = contracts.map(({ contract, tenantName, tenantPhone }) =>
-				serializeContract(contract, tenantName, tenantPhone)
-			);
-
-			if (!input.search) {
-				return serializedContracts;
-			}
-
-			const search = input.search.trim().toLowerCase();
-
-			return serializedContracts.filter((contract) => matchesContractSearch(contract, search));
-		}),
-
-	getPaginated: procedure.public
-		.input(PaginationSchema.extend({ search: z.string().optional() }))
-		.query(async ({ input, ctx }) => {
-			const { limit, offset } = resolvePagination(input);
-			const search = input.search?.trim().toLowerCase();
-
-			if (search) {
-				const contracts = await ctx.db
-					.select({
-						contract: s.contract,
-						tenantName: s.tenant.name,
-						tenantPhone: s.tenant.phone
-					})
-					.from(s.contract)
-					.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
-					.orderBy(asc(s.contract.id));
-				const serializedContracts = contracts.map(({ contract, tenantName, tenantPhone }) =>
-					serializeContract(contract, tenantName, tenantPhone)
-				);
-
-				return toPaginatedResult(
-					serializedContracts.filter((contract) => matchesContractSearch(contract, search)),
-					limit,
-					offset
-				);
-			}
+			const search = input.search?.trim();
 
 			const contracts = await ctx.db
 				.select({
@@ -461,17 +444,12 @@ export default router({
 				})
 				.from(s.contract)
 				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
-				.orderBy(asc(s.contract.id))
-				.limit(limit + 1)
-				.offset(offset);
-			const pageContracts = contracts.slice(0, limit);
+				.where(search ? contractSearchCondition(search) : undefined)
+				.orderBy(contractAttentionRank, asc(s.contract.end), asc(s.contract.id));
 
-			return {
-				items: pageContracts.map(({ contract, tenantName, tenantPhone }) =>
-					serializeContract(contract, tenantName, tenantPhone)
-				),
-				nextOffset: contracts.length > limit ? offset + limit : null
-			};
+			return contracts.map(({ contract, tenantName, tenantPhone }) =>
+				serializeContract(contract, tenantName, tenantPhone)
+			);
 		}),
 
 	units: {

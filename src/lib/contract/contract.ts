@@ -257,6 +257,23 @@ export function deriveContractStatus(
 	return 'active' satisfies Contract['status'];
 }
 
+/**
+ * The order the contracts list opens in: what needs the user, then what is running, then
+ * what has not started, then the history behind them.
+ *
+ * It is an ordering over statuses rather than a property of one, so it lives beside the
+ * derivation that produces them and is turned into an `ORDER BY` by the router that reads
+ * the list. Position in this array is the rank — nothing else fixes it.
+ */
+export const CONTRACT_ATTENTION_ORDER = [
+	'defaulted',
+	'active',
+	'scheduled',
+	'fulfilled',
+	'expired',
+	'terminated'
+] as const satisfies readonly Contract['status'][];
+
 export function canManuallyTerminateContractStatus(status: Contract['status']) {
 	return (
 		status === 'active' || status === 'fulfilled' || status === 'expired' || status === 'defaulted'
