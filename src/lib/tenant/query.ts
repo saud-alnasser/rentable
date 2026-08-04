@@ -1,5 +1,6 @@
 import api from '$lib/api/caller';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
+import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
 import { LL } from '$lib/i18n/i18n-svelte';
 import {
 	createInfiniteQuery,
@@ -25,18 +26,16 @@ type FetchTenantParams = {
 };
 
 export const keys = {
-	all: ['tenants'],
-	get: (id: number) => ['tenants', 'detail', id],
-	getMany: (search?: string, limit?: number) => ['tenants', 'list', search ?? '', limit ?? 'all'],
-	dataView: (search?: string) => ['tenants', 'data-view', search ?? '']
+	all: workspacePrefixes.tenants,
+	get: (id: number) => [...workspacePrefixes.tenants, 'detail', id],
+	getMany: (search?: string, limit?: number) => [
+		...workspacePrefixes.tenants,
+		'list',
+		search ?? '',
+		limit ?? 'all'
+	],
+	dataView: (search?: string) => [...workspacePrefixes.tenants, 'data-view', search ?? '']
 } as const;
-
-async function invalidateTenantAndContractData(client: ReturnType<typeof useQueryClient>) {
-	await Promise.all([
-		client.invalidateQueries({ queryKey: keys.all }),
-		client.invalidateQueries({ queryKey: ['contracts'] })
-	]);
-}
 
 export function useFetchTenants(params: () => FetchTenantsParams = () => ({})) {
 	return createQuery(() => {
@@ -112,7 +111,7 @@ export function useCreateTenant(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.tenant.create>[0]) => api.tenant.create(data),
 		onSuccess: async () => {
-			await invalidateTenantAndContractData(client);
+			await invalidateWorkspaceData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -134,7 +133,7 @@ export function useUpdateTenant(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.tenant.update>[0]) => api.tenant.update(data),
 		onSuccess: async () => {
-			await invalidateTenantAndContractData(client);
+			await invalidateWorkspaceData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -156,7 +155,7 @@ export function useDeleteTenant(
 	return createMutation(() => ({
 		mutationFn: (id: number) => api.tenant.delete({ id }),
 		onSuccess: async () => {
-			await invalidateTenantAndContractData(client);
+			await invalidateWorkspaceData(client);
 
 			onMutationSuccess(opts);
 		},

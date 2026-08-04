@@ -23,8 +23,11 @@ statements, no `export let`.
 Components never call the API directly. A concept's `query.ts` wraps it in TanStack Query,
 and components use those hooks. Query v6 takes a thunk, not an object.
 
-Each domain's query module exports its key set, and mutations invalidate through those
-keys. An invalidation that spells a key out inline drifts the moment the key changes.
+Each domain's query module composes its key set from the workspace prefixes in
+`design/query.ts` and exports it. Every data mutation invalidates through the shared
+helper there, and a full pass with no touch-set — a sync pull, a day crossing — through
+the root helper beside it; an invalidation that spells a key out inline drifts the moment
+the key changes. Settings, backups, and remote-sync keep their own keys and invalidations.
 
 Toast behaviour on a mutation goes through the shared success and error handlers, never
 through direct toast calls in a component — that is what keeps `BAD_REQUEST` messages

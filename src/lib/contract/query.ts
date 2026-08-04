@@ -1,5 +1,6 @@
 import api from '$lib/api/caller';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
+import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
 import { LL } from '$lib/i18n/i18n-svelte';
 import {
 	createInfiniteQuery,
@@ -14,29 +15,18 @@ const DATA_VIEW_PAGE_SIZE = 24;
 type InfiniteContractsPage = Awaited<ReturnType<typeof api.contract.getPaginated>>;
 
 export const keys = {
-	all: ['contracts'],
-	dataView: (search?: string) => ['contracts', 'data-view', search ?? ''],
-	get: (id: number) => ['contracts', id],
-	getUnits: (id: number) => ['contracts', 'units', id],
+	all: workspacePrefixes.contracts,
+	dataView: (search?: string) => [...workspacePrefixes.contracts, 'data-view', search ?? ''],
+	get: (id: number) => [...workspacePrefixes.contracts, id],
+	getUnits: (id: number) => [...workspacePrefixes.contracts, 'units', id],
 	getVacantUnits: (contractId: number, complexId: number) => [
-		'contracts',
+		...workspacePrefixes.contracts,
 		'units',
 		'vacant',
 		contractId,
 		complexId
 	]
 } as const;
-
-async function invalidateContractData(client: ReturnType<typeof useQueryClient>) {
-	await client.invalidateQueries({ queryKey: keys.all });
-}
-
-async function invalidateContractAndComplexUnitData(client: ReturnType<typeof useQueryClient>) {
-	await Promise.all([
-		invalidateContractData(client),
-		client.invalidateQueries({ queryKey: ['complexes', 'units'] })
-	]);
-}
 
 export function useFetchContracts() {
 	return createQuery(() => ({
@@ -94,7 +84,7 @@ export function useCreateContract(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.contract.create>[0]) => api.contract.create(data),
 		onSuccess: async () => {
-			await invalidateContractData(client);
+			await invalidateWorkspaceData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -116,7 +106,7 @@ export function useUpdateContract(
 	return createMutation(() => ({
 		mutationFn: (data: Parameters<typeof api.contract.update>[0]) => api.contract.update(data),
 		onSuccess: async () => {
-			await invalidateContractData(client);
+			await invalidateWorkspaceData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -139,7 +129,7 @@ export function useDeleteContract(
 		mutationFn: (id: number) => api.contract.delete({ id }),
 		onSuccess: async (deleted) => {
 			if (deleted) {
-				await invalidateContractData(client);
+				await invalidateWorkspaceData(client);
 			}
 
 			onMutationSuccess(opts);
@@ -162,7 +152,7 @@ export function useTerminateContract(
 	return createMutation(() => ({
 		mutationFn: (id: number) => api.contract.terminate({ id }),
 		onSuccess: async () => {
-			await invalidateContractData(client);
+			await invalidateWorkspaceData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -184,7 +174,7 @@ export function useUnterminateContract(
 	return createMutation(() => ({
 		mutationFn: (id: number) => api.contract.unterminate({ id }),
 		onSuccess: async () => {
-			await invalidateContractData(client);
+			await invalidateWorkspaceData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -236,7 +226,7 @@ export function useAssignContractUnits(
 		mutationFn: (data: Parameters<typeof api.contract.units.assign>[0]) =>
 			api.contract.units.assign(data),
 		onSuccess: async () => {
-			await invalidateContractAndComplexUnitData(client);
+			await invalidateWorkspaceData(client);
 
 			onMutationSuccess(opts);
 		},
@@ -259,7 +249,7 @@ export function useRemoveContractUnit(
 		mutationFn: (data: Parameters<typeof api.contract.units.remove>[0]) =>
 			api.contract.units.remove(data),
 		onSuccess: async () => {
-			await invalidateContractAndComplexUnitData(client);
+			await invalidateWorkspaceData(client);
 
 			onMutationSuccess(opts);
 		},
