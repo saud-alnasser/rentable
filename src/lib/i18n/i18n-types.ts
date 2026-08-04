@@ -315,6 +315,10 @@ type RootTranslation = {
 			 */
 			complex: string
 			/**
+			 * c​o​n​t​r​a​c​t
+			 */
+			contract: string
+			/**
 			 * c​o​n​t​r​a​c​t​ ​e​n​d​s
 			 */
 			contractEnds: string
@@ -639,6 +643,14 @@ type RootTranslation = {
 			 */
 			commandPaletteDescription: string
 			/**
+			 * n​o​ ​m​a​t​c​h​e​s​ ​f​o​u​n​d
+			 */
+			commandPaletteEmpty: string
+			/**
+			 * g​o​ ​t​o
+			 */
+			commandPaletteGoTo: string
+			/**
 			 * l​o​a​d​i​n​g
 			 */
 			loading: string
@@ -674,6 +686,10 @@ type RootTranslation = {
 			 * p​r​e​v​i​o​u​s​ ​s​l​i​d​e
 			 */
 			previousSlide: string
+			/**
+			 * s​e​a​r​c​h
+			 */
+			search: string
 			/**
 			 * s​i​d​e​b​a​r
 			 */
@@ -2207,6 +2223,10 @@ export type TranslationFunctions = {
 			 */
 			complex: () => LocalizedString
 			/**
+			 * contract
+			 */
+			contract: () => LocalizedString
+			/**
 			 * contract ends
 			 */
 			contractEnds: () => LocalizedString
@@ -2525,6 +2545,14 @@ export type TranslationFunctions = {
 			 */
 			commandPaletteDescription: () => LocalizedString
 			/**
+			 * no matches found
+			 */
+			commandPaletteEmpty: () => LocalizedString
+			/**
+			 * go to
+			 */
+			commandPaletteGoTo: () => LocalizedString
+			/**
 			 * loading
 			 */
 			loading: () => LocalizedString
@@ -2560,6 +2588,10 @@ export type TranslationFunctions = {
 			 * previous slide
 			 */
 			previousSlide: () => LocalizedString
+			/**
+			 * search
+			 */
+			search: () => LocalizedString
 			/**
 			 * sidebar
 			 */
