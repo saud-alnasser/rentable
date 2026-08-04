@@ -1,6 +1,6 @@
 # fix: the national identity number is validated by an unanchored pattern
 
-Status: accepted
+Status: implemented
 Sources: `src/lib/tenant/tenant.ts`, `src/lib/platform/database/schema.ts`,
 `src/lib/tenant/component/form.svelte`, `src/lib/tenant/router.test.mjs`
 

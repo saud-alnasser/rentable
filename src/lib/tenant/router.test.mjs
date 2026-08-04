@@ -56,6 +56,60 @@ test('an identity number of the wrong length is rejected', async () => {
 	);
 });
 
+test('an identity number padded with non-whitespace characters is rejected', async () => {
+	const api = await createApi();
+
+	await assert.rejects(
+		() => api.tenant.create({ name: 'Sara', nationalId: `!${NATIONAL_ID}!`, phone: PHONE }),
+		/must start with 1 or 2/
+	);
+});
+
+test('an identity number embedded in a longer string is rejected', async () => {
+	const api = await createApi();
+
+	await assert.rejects(
+		() =>
+			api.tenant.create({
+				name: 'Sara',
+				nationalId: `hello ${NATIONAL_ID} world`,
+				phone: PHONE
+			}),
+		/must start with 1 or 2/
+	);
+});
+
+test('an identity number surrounded by whitespace is accepted and stored without it', async () => {
+	const api = await createApi();
+
+	const tenant = await api.tenant.create({
+		name: 'Sara',
+		nationalId: `  ${NATIONAL_ID}  `,
+		phone: PHONE
+	});
+
+	assert.equal(tenant.nationalId, NATIONAL_ID);
+});
+
+test('a tenant holding a padded identity can be saved without editing that field', async () => {
+	const api = await createApi();
+
+	const tenant = await api.tenant.create({
+		name: 'Sara',
+		nationalId: ` ${NATIONAL_ID} `,
+		phone: PHONE
+	});
+
+	const updated = await api.tenant.update({
+		id: tenant.id,
+		name: 'Sara Al-Otaibi',
+		nationalId: ` ${NATIONAL_ID} `
+	});
+
+	assert.equal(updated.name, 'Sara Al-Otaibi');
+	assert.equal(updated.nationalId, NATIONAL_ID);
+});
+
 // --- Phone validation ----------------------------------------------------------------
 
 test('a phone without the +9665 prefix is rejected', async () => {

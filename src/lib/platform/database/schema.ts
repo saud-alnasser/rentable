@@ -1,4 +1,4 @@
-import { identity, phone } from '$lib/tenant/tenant';
+import { identityField, phone } from '$lib/tenant/tenant';
 import { relations } from 'drizzle-orm';
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import z from 'zod';
@@ -15,9 +15,9 @@ export const tenant = sqliteTable('tenant', {
 export const TenantSchema = z.object({
 	id: z.number(),
 	name: z.string(),
-	nationalId: z
-		.string()
-		.regex(identity, 'national identity number must start with 1 or 2; and be 10 digits long'),
+	nationalId: identityField(
+		'national identity number must start with 1 or 2; and be 10 digits long'
+	),
 	phone: z.string().regex(phone, 'phone must start with +966; and be 10 digits long')
 });
 
