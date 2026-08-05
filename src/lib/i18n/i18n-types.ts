@@ -331,6 +331,10 @@ type RootTranslation = {
 			 */
 			contractEnds: string
 			/**
+			 * c​o​n​t​r​a​c​t​ ​n​u​m​b​e​r
+			 */
+			contractNumber: string
+			/**
 			 * c​o​n​t​r​a​c​t​ ​p​e​r​i​o​d
 			 */
 			contractPeriod: string
@@ -2140,6 +2144,10 @@ export type TranslationFunctions = {
 			 * contract ends
 			 */
 			contractEnds: () => LocalizedString
+			/**
+			 * contract number
+			 */
+			contractNumber: () => LocalizedString
 			/**
 			 * contract period
 			 */

@@ -1,12 +1,19 @@
 import api from '$lib/api/caller';
+import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
+import type { ListSort } from '$lib/design/sort';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 export const keys = {
-	list: (search?: string) => [...workspacePrefixes.contracts, 'list', search ?? ''],
+	list: (search: string, sort: ListSort | null) => [
+		...workspacePrefixes.contracts,
+		'list',
+		search,
+		sort ? `${sort.columnId}:${sort.direction}` : 'default'
+	],
 	get: (id: number) => [...workspacePrefixes.contracts, id],
 	getUnits: (id: number) => [...workspacePrefixes.contracts, 'units', id],
 	getVacantUnits: (contractId: number, complexId: number) => [
@@ -18,19 +25,37 @@ export const keys = {
 	]
 } as const;
 
+// the shell's sort carries a bare string, because it is shared by lists that order by
+// different keys. This is where it becomes one of this list's own.
+function isContractSortColumnId(columnId: string): columnId is ContractSortColumnId {
+	return (CONTRACT_SORT_COLUMN_IDS as readonly string[]).includes(columnId);
+}
+
 /**
- * The contracts list for a search: the whole result set, in the queue's attention order.
+ * The contracts directory for a search and an order: the whole result set, each row carrying
+ * the tenant the contract is held by.
  *
- * `placeholderData` holds the previous set while a new search is in flight, so the list
- * keeps rendering rows instead of flashing through its loading state on every keystroke.
+ * `placeholderData` holds the previous set while a new query is in flight, so the list keeps
+ * rendering rows instead of flashing through its loading state on every keystroke.
  */
-export function useListContracts(search: () => string = () => '') {
+export function useListContracts(
+	search: () => string = () => '',
+	sort: () => ListSort | null = () => null
+) {
 	return createQuery(() => {
 		const trimmedSearch = search().trim();
+		const chosenSort = sort();
 
 		return {
-			queryKey: keys.list(trimmedSearch),
-			queryFn: () => api.contract.getMany({ search: trimmedSearch || undefined }),
+			queryKey: keys.list(trimmedSearch, chosenSort),
+			queryFn: () =>
+				api.contract.getMany({
+					search: trimmedSearch || undefined,
+					sort:
+						chosenSort && isContractSortColumnId(chosenSort.columnId)
+							? { columnId: chosenSort.columnId, direction: chosenSort.direction }
+							: undefined
+				}),
 			placeholderData: <T>(previous: T) => previous
 		};
 	});
