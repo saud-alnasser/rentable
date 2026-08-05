@@ -22,7 +22,7 @@
 	} from '$lib/contract/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
-	import PaymentsDataView from '$lib/payment/component/data-view.svelte';
+	import PaymentLedger from '$lib/payment/component/ledger.svelte';
 	import { useFetchTenant } from '$lib/tenant/query';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import BanIcon from '@lucide/svelte/icons/ban';
@@ -385,7 +385,7 @@
 			</Tabs.Content>
 
 			<Tabs.Content value="payments" class="min-h-0 flex-1 pt-1">
-				<PaymentsDataView {contractId} showHeader={false} />
+				<PaymentLedger {contractId} />
 			</Tabs.Content>
 		</Tabs.Root>
 	</div>

@@ -570,8 +570,10 @@ const en = {
 				'this contract has already reached its required total payment amount. you can still edit or delete payments if needed, but you cannot add more until the paid total drops below the required amount.',
 			fullyPaidSummary:
 				'this contract has been fully paid. you can edit or delete payments, but you cannot add more.',
+			monthTotal: 'total shown for {month}',
 			percentFulfilled: '{percent}% fulfilled',
 			remaining: '{amount} sar remaining',
+			remainingBalance: 'remaining balance',
 			terminatedNotice:
 				'terminated contracts are locked. you can review payment history here, but you cannot add, edit, or delete payments until the contract is unterminated.',
 			terminatedSummary: 'this contract is terminated and locked. payment records are read-only.',

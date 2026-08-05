@@ -563,8 +563,10 @@ const ar = {
 			fullyPaidNotice:
 				'تم الوصول إلى إجمالي المبلغ المطلوب. يمكنك التعديل أو الحذف لكن لا يمكن إضافة دفعات جديدة.',
 			fullyPaidSummary: 'تم سداد العقد بالكامل.',
+			monthTotal: 'الإجمالي المعروض في {month}',
 			percentFulfilled: '{percent}% مكتمل',
 			remaining: 'متبقي {amount} ريال',
+			remainingBalance: 'الرصيد المتبقي',
 			terminatedNotice: 'العقود المنتهية مقفلة ولا يمكن تعديل المدفوعات.',
 			terminatedSummary: 'العقد منتهي والمدفوعات للقراءة فقط.',
 			title: 'المدفوعات',
