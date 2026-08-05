@@ -120,7 +120,8 @@ const en = {
 			status: 'status',
 			tenant: 'tenant',
 			unit: 'unit',
-			units: 'units'
+			units: 'units',
+			vacantUnits: 'vacant units'
 		},
 
 		messages: {
@@ -164,7 +165,7 @@ const en = {
 			goToNextPage: 'go to next page',
 			goToPreviousPage: 'go to previous page',
 			pageOf: 'page {page} of {count}',
-			results: '{count} result(s)',
+			results: '{count|number} result(s)',
 			rowsPerPage: 'rows per page',
 			rowsSelected: '{selected} of {total} row(s) selected.',
 			searchPlaceholder: 'search...'

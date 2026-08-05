@@ -119,7 +119,8 @@ const ar = {
 			status: 'الحالة',
 			tenant: 'المستأجر',
 			unit: 'وحدة',
-			units: 'وحدات'
+			units: 'وحدات',
+			vacantUnits: 'وحدات شاغرة'
 		},
 
 		messages: {
@@ -163,7 +164,7 @@ const ar = {
 			goToNextPage: 'اذهب للصفحة التالية',
 			goToPreviousPage: 'اذهب للصفحة السابقة',
 			pageOf: 'الصفحة {page} من {count}',
-			results: '{count} نتيجة',
+			results: '{count|number} نتيجة',
 			rowsPerPage: 'عدد الصفوف لكل صفحة',
 			rowsSelected: '{selected} من {total} صف محدد.',
 			searchPlaceholder: 'بحث...'

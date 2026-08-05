@@ -14,7 +14,7 @@
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import ComplexForm from './form.svelte';
-	import UnitsDataView from './unit-data-view.svelte';
+	import UnitBoard from './unit-board.svelte';
 
 	type ComplexDetailsSection = 'overview' | 'units';
 
@@ -193,8 +193,8 @@
 				</Card>
 			</Tabs.Content>
 
-			<Tabs.Content value="units" class="min-h-0 flex-1 pt-1">
-				<UnitsDataView {complexId} showHeader={false} />
+			<Tabs.Content value="units" class="flex min-h-0 flex-1 flex-col pt-1">
+				<UnitBoard {complexId} />
 			</Tabs.Content>
 		</Tabs.Root>
 	</div>

@@ -458,6 +458,10 @@ type RootTranslation = {
 			 * u​n​i​t​s
 			 */
 			units: string
+			/**
+			 * v​a​c​a​n​t​ ​u​n​i​t​s
+			 */
+			vacantUnits: string
 		}
 		messages: {
 			/**
@@ -593,10 +597,10 @@ type RootTranslation = {
 			 */
 			pageOf: RequiredParams<'count' | 'page'>
 			/**
-			 * {​c​o​u​n​t​}​ ​r​e​s​u​l​t​(​s​)
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​s​u​l​t​(​s​)
 			 * @param {unknown} count
 			 */
-			results: RequiredParams<'count'>
+			results: RequiredParams<'count|number'>
 			/**
 			 * r​o​w​s​ ​p​e​r​ ​p​a​g​e
 			 */
@@ -2387,6 +2391,10 @@ export type TranslationFunctions = {
 			 * units
 			 */
 			units: () => LocalizedString
+			/**
+			 * vacant units
+			 */
+			vacantUnits: () => LocalizedString
 		}
 		messages: {
 			/**
@@ -2520,7 +2528,7 @@ export type TranslationFunctions = {
 			 */
 			pageOf: (arg: { count: unknown, page: unknown }) => LocalizedString
 			/**
-			 * {count} result(s)
+			 * {count|number} result(s)
 			 */
 			results: (arg: { count: unknown }) => LocalizedString
 			/**
@@ -3821,4 +3829,6 @@ export type TranslationFunctions = {
 	}
 }
 
-export type Formatters = {}
+export type Formatters = {
+	number: (value: unknown) => unknown
+}

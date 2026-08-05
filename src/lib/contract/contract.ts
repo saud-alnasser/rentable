@@ -292,6 +292,20 @@ export const CONTRACT_IN_FORCE_STATUSES = [
 	'fulfilled'
 ] as const satisfies readonly Contract['status'][];
 
+/**
+ * The statuses a contract holds while it still occupies the units assigned to it.
+ *
+ * Wider than "in force" by `defaulted`, and that is the whole difference: a tenant who owes
+ * money is still living in the unit, so a board that showed it vacant would be describing a
+ * space nobody can let. Occupancy also asks a second question this list cannot answer —
+ * whether today falls inside the contract's period — so a caller pairs the two.
+ */
+export const CONTRACT_OCCUPYING_STATUSES = [
+	'active',
+	'fulfilled',
+	'defaulted'
+] as const satisfies readonly Contract['status'][];
+
 export function canManuallyTerminateContractStatus(status: Contract['status']) {
 	return (
 		status === 'active' || status === 'fulfilled' || status === 'expired' || status === 'defaulted'
@@ -356,7 +370,7 @@ export function deriveUnitStatus(
 
 		const status = deriveContractStatus(contract, payments, now);
 
-		return status === 'active' || status === 'fulfilled' || status === 'defaulted';
+		return (CONTRACT_OCCUPYING_STATUSES as readonly Contract['status'][]).includes(status);
 	});
 
 	return isOccupied ? 'occupied' : 'vacant';
