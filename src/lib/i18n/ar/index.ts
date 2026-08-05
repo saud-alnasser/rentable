@@ -126,7 +126,6 @@ const ar = {
 		messages: {
 			loadingApp: 'جاري تحميل التطبيق...',
 			loadingComplexes: 'جاري تحميل المجمعات...',
-			loadingDashboard: 'جاري تحميل لوحة التحكم...',
 			loadingSettings: 'جاري تحميل الإعدادات...',
 			never: 'أبدًا',
 			noResults: 'لا توجد نتائج.',
@@ -233,68 +232,24 @@ const ar = {
 	},
 
 	dashboard: {
-		description: 'تابع حالة العقود وتقدم التحصيل ونسبة الإشغال بعد كل مزامنة.',
-
-		endingSoon: {
-			countOne: '{count} عقد قريب الانتهاء',
-			countOther: '{count} عقود قريبة الانتهاء',
-			description:
-				'العقود النشطة والمسددة بالكامل التي تنتهي خلال فترة الإشعار المحددة {noticeWindow}.',
-			empty: 'لا توجد عقود قريبة الانتهاء حالياً.',
-			title: 'العقود القريبة من الانتهاء'
+		empty: {
+			description: 'لا يوجد متأخر ولا متعثر ولا عقد ينتهي خلال فترة الإشعار.',
+			title: 'لا شيء يحتاج إلى إجراء اليوم.'
 		},
 
-		followUps: {
-			countOne: '{count} متابعة مفتوحة',
-			countOther: '{count} متابعات مفتوحة',
-			description:
-				'العقود التي لها مستحقات يحين موعدها حتى اليوم خلال الشهر الحالي، أو أرصدة متعثرة متأخرة ما زالت تحتاج إلى متابعة.',
-			empty: 'لا توجد متابعات مطلوبة حالياً.',
-			progressSummary: '{percent}% من الرصيد المستحق تم تغطيته حتى الآن',
-			remaining: 'متبقي {amount} ريال',
-			title: 'مدفوعات تحتاج متابعة في {monthLabel}',
-			unavailable: 'بيانات لوحة التحكم غير متاحة حالياً.'
-		},
-
-		lastSynchronized: 'آخر مزامنة {value}',
-
-		sections: {
-			contracts: {
-				description:
-					'حالة عقود المحفظة الحالية، بما في ذلك العقود القريبة من الانتهاء وفق فترة الإشعار المحددة {noticeWindow}.',
-				heroHint: '{active} نشط • {endingSoon} ينتهي خلال {noticeWindow}',
-				heroLabel: 'حجم المحفظة الحالي',
-				title: 'العقود'
+		queue: {
+			alsoEnding: 'ينتهي أيضاً',
+			collectedThisMonth: 'المحصل هذا الشهر',
+			groupCount: '{count|number} عقد',
+			groups: {
+				endingSoon: 'قريب الانتهاء',
+				overdue: 'متأخر',
+				owing: 'مستحق'
 			},
-
-			money: {
-				description:
-					'المستحقات المجدولة لشهر {monthLabel}، والمبالغ المحصلة هذا الشهر، وأرصدة العقود الإجمالية.',
-				heroHint: '{rate}% من مستحقات {monthLabel} تم تغطيتها',
-				heroLabel: 'المتبقي حالياً',
-				title: 'المال'
-			},
-
-			occupancy: {
-				description: 'حالة إشغال الوحدات المخزنة بعد مزامنة لوحة التحكم.',
-				heroHint: '{occupied} مشغول من {total} وحدة',
-				heroLabel: 'نسبة الإشغال',
-				title: 'الإشغال'
-			}
-		},
-
-		stats: {
-			activeEndingWithin: '{active} نشط • {endingSoon} ينتهي خلال {noticeWindow}',
-			dueThisMonth: 'مستحق هذا الشهر',
-			occupancyRate: 'نسبة الإشغال',
-			overallCollectionRate: 'نسبة التحصيل العامة',
+			occupancy: '{occupied} / {total}',
 			occupiedUnits: 'الوحدات المشغولة',
-			receivedThisMonth: 'المستلم هذا الشهر',
-			stillDueThisMonth: 'المتبقي هذا الشهر',
-			totalExpectedAmount: 'إجمالي المبلغ المتوقع',
-			totalUnits: 'إجمالي الوحدات',
-			vacancyRate: 'نسبة الشواغر',
-			vacantUnits: 'الوحدات الشاغرة'
+			openContract: 'افتح عقد {tenant}',
+			recordPayment: 'سجل دفعة لـ {tenant}'
 		},
 
 		title: 'لوحة التحكم'

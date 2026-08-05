@@ -127,7 +127,6 @@ const en = {
 		messages: {
 			loadingApp: 'loading app...',
 			loadingComplexes: 'loading complexes...',
-			loadingDashboard: 'loading dashboard...',
 			loadingSettings: 'loading settings...',
 			never: 'never',
 			noResults: 'no results.',
@@ -236,69 +235,24 @@ const en = {
 	},
 
 	dashboard: {
-		description:
-			'track contract health, collection progress, and occupancy after each synchronization.',
-
-		endingSoon: {
-			countOne: '{count} contract ending soon',
-			countOther: '{count} contracts ending soon',
-			description:
-				'active and fulfilled contracts that end within the configured {noticeWindow} notice window.',
-			empty: 'no contracts are ending soon right now.',
-			title: 'contracts ending soon'
+		empty: {
+			description: 'nothing is overdue, behind on payment, or ending inside the notice window.',
+			title: 'nothing needs doing today.'
 		},
 
-		followUps: {
-			countOne: '{count} open follow-up',
-			countOther: '{count} open follow-ups',
-			description:
-				'contracts with dues scheduled by today in the current month, or overdue defaulted balances that still need attention.',
-			empty: 'no payment follow-up is needed right now.',
-			progressSummary: '{percent}% of the due balance covered to date',
-			remaining: '{amount} sar remaining',
-			title: 'payments requiring follow-up in {monthLabel}',
-			unavailable: 'dashboard data is unavailable right now.'
-		},
-
-		lastSynchronized: 'last synchronized {value}',
-
-		sections: {
-			contracts: {
-				description:
-					'portfolio contract status, including contracts ending within the configured {noticeWindow} notice window.',
-				heroHint: '{active} active • {endingSoon} ending within {noticeWindow}',
-				heroLabel: 'current portfolio size',
-				title: 'contracts'
+		queue: {
+			alsoEnding: 'also ending',
+			collectedThisMonth: 'collected this month',
+			groupCount: '{count|number} contract(s)',
+			groups: {
+				endingSoon: 'ending soon',
+				overdue: 'overdue',
+				owing: 'owing'
 			},
-
-			money: {
-				description:
-					'scheduled dues for {monthLabel}, payments collected this month, and overall contract balances.',
-				heroHint: '{rate}% of the due for {monthLabel} is covered',
-				heroLabel: 'outstanding now',
-				title: 'money'
-			},
-
-			occupancy: {
-				description: 'stored unit occupancy after dashboard synchronization.',
-				heroHint: '{occupied} occupied out of {total} units',
-				heroLabel: 'occupancy rate',
-				title: 'occupancy'
-			}
-		},
-
-		stats: {
-			activeEndingWithin: '{active} active • {endingSoon} ending within {noticeWindow}',
-			dueThisMonth: 'due this month',
-			occupancyRate: 'occupancy rate',
-			overallCollectionRate: 'overall collection rate',
+			occupancy: '{occupied} / {total}',
 			occupiedUnits: 'occupied units',
-			receivedThisMonth: 'received this month',
-			stillDueThisMonth: 'still due this month',
-			totalExpectedAmount: 'total expected amount',
-			totalUnits: 'total units',
-			vacancyRate: 'vacancy rate',
-			vacantUnits: 'vacant units'
+			openContract: 'open the contract for {tenant}',
+			recordPayment: 'record a payment for {tenant}'
 		},
 
 		title: 'dashboard'

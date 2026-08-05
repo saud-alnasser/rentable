@@ -1,34 +1,36 @@
-// Characterizes the dashboard aggregation at a fixed clock with a fake host supplying
-// the notice window (#100 pinned the determinism seam; #105 pins the arithmetic). All
-// dates are relative to the fixed NOW, all contracts are single-cycle 12m, so every
-// figure below is derivable by hand from the fixture.
+// Characterizes the landing screen's work queue at a fixed clock with a fake host supplying
+// the notice window. All dates are relative to the fixed NOW, so every figure below is
+// derivable by hand from the fixture.
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { NOW, createApi, monthsFromNow, seedTenant } from '$lib/api/testing.mjs';
+import { createApi, monthsFromNow, seedTenant } from '$lib/api/testing.mjs';
 
-// A portfolio covering every derived status. Statuses follow the code as implemented — see
-// the caveat in contract.test.mjs; do not "fix" these expectations here. Per contract:
-// cost, period, payments —
-// A: 1000, starts today, 250 paid today       → active,    due this month
-// B: 2000, mid-period, 500 paid today         → active,    nothing due this month
-// C: 3000, starts in two months, unpaid       → scheduled
-// D: 4000, ended a month ago, unpaid          → defaulted
-// E: 5000, ended two months ago, paid in full → expired
-// F: 6000, mid-period, paid in full           → fulfilled
-// G: 7000, mid-period, manually terminated    → terminated
-// H: 8000, ends within a month, unpaid        → active,    ending soon
+// A portfolio covering every group and every reason to be in none. Statuses follow the code
+// as implemented — see the caveat in contract.test.mjs; do not "fix" these expectations here.
+// Per contract: cost, period, interval, payments —
+// A: 1000, starts today, 12m, 250 paid today  → active,     owes 750
+// B: 2000, mid-period, 12m, 500 paid today    → active,     owes 1500
+// C: 3000, starts in two months, 12m, unpaid  → scheduled,  owes nothing, in no group
+// D: 4000, ended a month ago, 12m, unpaid     → defaulted,  owes 4000, past its end
+// E: 5000, ended two months ago, paid in full → expired,    in no group
+// F: 6000, mid-period, paid in full           → fulfilled,  ends in 9 months, in no group
+// G: 7000, mid-period, manually terminated    → terminated, in no group
+// H: 8000, ends within a month, 12m, unpaid   → active,     owes 8000 and is ending soon
+// I: 100, ends within a month, paid in full   → fulfilled,  ends inside the notice window
+// J: 9000, two months into a quarter, unpaid  → active,     owes 9000, none of it this month
 async function seedPortfolio(api) {
 	const tenant = await seedTenant(api);
 
-	const contract = async (govId, cost, startMonths, endMonths) =>
+	const contract = async (govId, cost, startMonths, endMonths, interval = '12m', endDays = 0) =>
 		api.contract.create({
 			govId,
 			cost,
 			start: monthsFromNow(startMonths),
-			end: monthsFromNow(endMonths),
-			interval: '12m',
+			end: monthsFromNow(endMonths, endDays),
+			interval,
 			tenantId: tenant.id
 		});
 
@@ -40,6 +42,8 @@ async function seedPortfolio(api) {
 	const f = await contract('GOV-F', 6000, -3, 9);
 	const g = await contract('GOV-G', 7000, -1, 11);
 	await contract('GOV-H', 8000, -11, 1);
+	const i = await contract('GOV-I', 100, -11, 1);
+	await contract('GOV-J', 9000, -2, 4, '3m', -1);
 
 	// one complex with three units; one assigned to the active contract A — the sync step
 	// after the mutation writes it back as occupied, the other two stay vacant.
@@ -59,161 +63,199 @@ async function seedPortfolio(api) {
 	await pay(b.id, 500, 0);
 	await pay(e.id, 5000, -2);
 	await pay(f.id, 6000, -2);
+	await pay(i.id, 100, -2);
 
 	await api.contract.terminate({ id: g.id });
 }
 
-test('dashboard timestamps come from the injected clock', async () => {
+const queueEntry = (queue, govId) => queue.find((entry) => entry.govId === govId);
+
+test('the queue is read overdue first, then owing, then ending soon', async () => {
 	const api = await createApi();
+	await seedPortfolio(api);
+
+	const { queue } = await api.contract.dashboard();
+
+	assert.deepEqual(
+		queue.map(({ govId, group, outstandingAmount }) => ({ govId, group, outstandingAmount })),
+		[
+			{ govId: 'GOV-D', group: 'overdue', outstandingAmount: 4000 },
+			{ govId: 'GOV-J', group: 'owing', outstandingAmount: 9000 },
+			{ govId: 'GOV-H', group: 'owing', outstandingAmount: 8000 },
+			{ govId: 'GOV-B', group: 'owing', outstandingAmount: 1500 },
+			{ govId: 'GOV-A', group: 'owing', outstandingAmount: 750 },
+			{ govId: 'GOV-I', group: 'ending-soon', outstandingAmount: 0 }
+		]
+	);
+});
+
+// the defect this ticket exists to fix: J is a quarterly contract two months into its
+// quarter, so nothing fell due in the current calendar month and it is a full cycle behind.
+test('a contract behind by cycles that fell due in earlier months is in the queue', async () => {
+	const api = await createApi();
+	await seedPortfolio(api);
+
+	const { queue } = await api.contract.dashboard();
+
+	assert.deepEqual(queueEntry(queue, 'GOV-J'), {
+		id: queueEntry(queue, 'GOV-J').id,
+		govId: 'GOV-J',
+		group: 'owing',
+		status: 'active',
+		tenantName: queueEntry(queue, 'GOV-J').tenantName,
+		tenantPhone: queueEntry(queue, 'GOV-J').tenantPhone,
+		outstandingAmount: 9000,
+		contractEnd: queueEntry(queue, 'GOV-J').contractEnd,
+		isEndingSoon: false
+	});
+});
+
+test('a contract that owes money and ends inside the notice window is under the money, marked as also ending', async () => {
+	const api = await createApi();
+	await seedPortfolio(api);
+
+	const { queue } = await api.contract.dashboard();
+	const endingAndOwing = queueEntry(queue, 'GOV-H');
+
+	assert.equal(endingAndOwing.group, 'owing');
+	assert.equal(endingAndOwing.isEndingSoon, true);
+	assert.equal(queueEntry(queue, 'GOV-I').isEndingSoon, true);
+	assert.equal(queueEntry(queue, 'GOV-A').isEndingSoon, false);
+});
+
+test('a contract appears in exactly one group', async () => {
+	const api = await createApi();
+	await seedPortfolio(api);
+
+	const { queue } = await api.contract.dashboard();
+
+	assert.equal(new Set(queue.map(({ id }) => id)).size, queue.length);
+});
+
+// termination locks the contract, so a debt on one is a closed matter rather than work.
+test('a terminated contract is in no group, whatever it owes', async () => {
+	const api = await createApi();
+	await seedPortfolio(api);
+
+	const { queue } = await api.contract.dashboard();
+
+	assert.equal(queueEntry(queue, 'GOV-G'), undefined);
+});
+
+test('each group states its contract count and its money total', async () => {
+	const api = await createApi();
+	await seedPortfolio(api);
+
+	const { groups } = await api.contract.dashboard();
+
+	assert.deepEqual(groups, [
+		{ group: 'overdue', contractCount: 1, totalAmount: 4000 },
+		{ group: 'owing', contractCount: 4, totalAmount: 19250 },
+		{ group: 'ending-soon', contractCount: 1, totalAmount: 0 }
+	]);
+});
+
+test('with nothing outstanding and nothing ending, the queue is empty rather than grouped', async () => {
+	const api = await createApi();
+	const tenant = await seedTenant(api);
+	const contract = await api.contract.create({
+		govId: 'GOV-SETTLED',
+		cost: 1000,
+		start: monthsFromNow(-6),
+		end: monthsFromNow(6),
+		interval: '12m',
+		tenantId: tenant.id
+	});
+	await api.contract.payments.create({
+		contractId: contract.id,
+		amount: 1000,
+		date: monthsFromNow(-2)
+	});
+
+	const { queue, groups } = await api.contract.dashboard();
+
+	assert.deepEqual(queue, []);
+	assert.deepEqual(groups, []);
+});
+
+test('the queue answers a search over the fields its rows show', async () => {
+	const api = await createApi();
+	await seedPortfolio(api);
+
+	const searched = await api.contract.dashboard({ search: 'GOV-D' });
+
+	assert.deepEqual(
+		searched.queue.map(({ govId }) => govId),
+		['GOV-D']
+	);
+	assert.deepEqual(searched.groups, [{ group: 'overdue', contractCount: 1, totalAmount: 4000 }]);
+});
+
+// the strip is two figures and no others, and it carries no timestamp: the query cache is
+// trusted until a writer says otherwise, so a "last current at" would contradict the policy
+// that keeps the screen truthful.
+test('the strip carries exactly two figures and no timestamp', async () => {
+	const api = await createApi();
+	await seedPortfolio(api);
 
 	const dashboard = await api.contract.dashboard();
 
-	assert.equal(dashboard.generatedAt, NOW);
+	assert.deepEqual(Object.keys(dashboard.summary).sort(), ['money', 'occupancy']);
+	assert.deepEqual(Object.keys(dashboard.summary.money).sort(), [
+		'collectedThisMonth',
+		'dueThisMonth'
+	]);
+	assert.deepEqual(Object.keys(dashboard.summary.occupancy).sort(), [
+		'occupiedUnits',
+		'totalUnits'
+	]);
+	assert.equal('generatedAt' in dashboard, false);
 });
 
-test('dashboard reads the notice window from the host, not the desktop shell', async () => {
+test('the two strip figures are pinned', async () => {
+	const api = await createApi();
+	await seedPortfolio(api);
+
+	const { summary } = await api.contract.dashboard();
+
+	// due: only A has a cycle falling due this month (its start). collected: every payment
+	// dated inside the month, which is the three dated today (250 + 500 + 0).
+	assert.deepEqual(summary.money, { dueThisMonth: 1000, collectedThisMonth: 750 });
+	assert.deepEqual(summary.occupancy, { totalUnits: 3, occupiedUnits: 1 });
+});
+
+test('the notice window comes from the host, not the desktop shell', async () => {
 	const api = await createApi({
 		host: { settings: { get: async () => ({ endingSoonNoticeDays: 7, locale: 'en' }) } }
 	});
+	await seedPortfolio(api);
 
 	const dashboard = await api.contract.dashboard();
 
 	assert.equal(dashboard.endingSoonNoticeDays, 7);
+	// a seven-day window catches nothing in the fixture, so the renewals group empties and
+	// H stops being marked as also ending while still owing.
+	assert.equal(queueEntry(dashboard.queue, 'GOV-I'), undefined);
+	assert.equal(queueEntry(dashboard.queue, 'GOV-H').isEndingSoon, false);
 });
 
-test('dashboard aggregation is identical across repeated calls', async () => {
+test('the aggregation is identical across repeated calls', async () => {
 	const api = await createApi();
-	const tenant = await seedTenant(api);
-
-	// an unpaid contract inside its period derives `active` and, ending within the notice
-	// window, shows up in the ending-soon list — all of it derived from the fixed clock.
-	await api.contract.create({
-		govId: 'GOV-DASH-1',
-		start: monthsFromNow(-11),
-		end: monthsFromNow(1, -1),
-		interval: '12m',
-		cost: 1000,
-		tenantId: tenant.id
-	});
+	await seedPortfolio(api);
 
 	const first = await api.contract.dashboard();
 	const second = await api.contract.dashboard();
 
 	assert.deepEqual(second, first);
-	assert.equal(first.endingSoonContracts.length, 1);
-	assert.equal(first.summary.contracts.active, 1);
 });
 
-test('contract counts by status are pinned', async () => {
-	const api = await createApi();
-	await seedPortfolio(api);
+// The screen's cost is a function of how many contracts exist, never of how many payments
+// have been recorded: outstanding comes from the materialized `paid_amount` column, and the
+// one payment read left is a scalar sum for the month figure.
+test('the read never loads payment rows', () => {
+	const source = readFileSync(new URL('./router.ts', import.meta.url), 'utf8');
 
-	const { summary } = await api.contract.dashboard();
-
-	// total is the live portfolio — every status except terminated.
-	assert.deepEqual(summary.contracts, {
-		total: 7,
-		scheduled: 1,
-		active: 3,
-		fulfilled: 1,
-		expired: 1,
-		defaulted: 1,
-		terminated: 1,
-		endingSoon: 1
-	});
-});
-
-test('monthly and overall money figures are pinned', async () => {
-	const api = await createApi();
-	await seedPortfolio(api);
-
-	const { summary } = await api.contract.dashboard();
-
-	// due: only A has a payment falling due this month (its start). collected: the two
-	// payments dated today (250 + 500). remaining: A's due minus what it covered.
-	// outstanding: everything due by now and unpaid — A 750, B 1500, D 4000, H 8000.
-	// overall rate: paid 11750 of expected 29000; monthly rate: covered 250 of due 1000.
-	assert.deepEqual(summary.money, {
-		dueThisMonth: 1000,
-		collectedThisMonth: 750,
-		remainingThisMonth: 750,
-		outstandingNow: 14250,
-		totalExpectedAmount: 29000,
-		monthlyCollectionRate: 25,
-		overallCollectionRate: 40.5
-	});
-});
-
-test('occupancy figures are pinned', async () => {
-	const api = await createApi();
-	await seedPortfolio(api);
-
-	const { summary } = await api.contract.dashboard();
-
-	assert.deepEqual(summary.occupancy, {
-		totalUnits: 3,
-		occupiedUnits: 1,
-		vacantUnits: 2,
-		occupancyRate: 33.3,
-		vacancyRate: 66.7
-	});
-});
-
-test('the follow-up list is pinned, sorted by outstanding amount', async () => {
-	const api = await createApi();
-	await seedPortfolio(api);
-
-	const { followUps } = await api.contract.dashboard();
-
-	// defaulted D follows up on its full outstanding amount; active A on what has fallen
-	// due so far this month. B is active with nothing due, so it stays off despite owing.
-	assert.deepEqual(
-		followUps.map(({ govId, status, followUpAmount, dueNowAmount, outstandingAmount }) => ({
-			govId,
-			status,
-			followUpAmount,
-			dueNowAmount,
-			outstandingAmount
-		})),
-		[
-			{
-				govId: 'GOV-D',
-				status: 'defaulted',
-				followUpAmount: 4000,
-				dueNowAmount: 0,
-				outstandingAmount: 4000
-			},
-			{
-				govId: 'GOV-A',
-				status: 'active',
-				followUpAmount: 1000,
-				dueNowAmount: 1000,
-				outstandingAmount: 750
-			}
-		]
-	);
-});
-
-test('ending-soon selection is pinned against the supplied notice window', async () => {
-	const endingSoonGovIds = async (noticeDays) => {
-		const api = await createApi(
-			noticeDays === undefined
-				? {}
-				: { host: { settings: { get: async () => ({ endingSoonNoticeDays: noticeDays }) } } }
-		);
-		await seedPortfolio(api);
-		const dashboard = await api.contract.dashboard();
-
-		return dashboard.endingSoonContracts.map(({ govId }) => govId);
-	};
-
-	// the default 60-day window catches only H, ending within a month.
-	assert.deepEqual(await endingSoonGovIds(undefined), ['GOV-H']);
-
-	// a 400-day window catches every active or fulfilled contract, ordered by end date;
-	// scheduled, expired, defaulted, and terminated contracts stay ineligible.
-	assert.deepEqual(await endingSoonGovIds(400), ['GOV-H', 'GOV-B', 'GOV-F', 'GOV-A']);
-
-	// a zero-day window catches only contracts ending today — none in this portfolio.
-	assert.deepEqual(await endingSoonGovIds(0), []);
+	assert.doesNotMatch(source, /from '\$lib\/payment\/payment'/);
+	assert.doesNotMatch(source, /getOutstandingExpectedAmount/);
+	assert.match(source, /sum\(\$\{s\.payment\.amount\}\)/);
 });
