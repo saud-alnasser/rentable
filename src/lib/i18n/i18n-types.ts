@@ -299,6 +299,10 @@ type RootTranslation = {
 			 */
 			action: string
 			/**
+			 * a​c​t​i​v​e​ ​c​o​n​t​r​a​c​t​s
+			 */
+			activeContracts: string
+			/**
 			 * a​m​o​u​n​t
 			 */
 			amount: string
@@ -2223,6 +2227,10 @@ export type TranslationFunctions = {
 			 * action
 			 */
 			action: () => LocalizedString
+			/**
+			 * active contracts
+			 */
+			activeContracts: () => LocalizedString
 			/**
 			 * amount
 			 */

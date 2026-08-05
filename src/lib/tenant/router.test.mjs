@@ -303,3 +303,187 @@ test('deleting a tenant that has a contract is rejected', async () => {
 		/cannot delete tenant with associated contracts/
 	);
 });
+
+// --- The directory list -------------------------------------------------------------
+//
+// `getMany` answers the tenants list, which reads as a directory: the order is the
+// reader's, and the active-contract count is an aggregate on the same query. Both are
+// asserted here because both are what the list may not redo on the client.
+
+async function seedContract(api, tenantId, overrides = {}) {
+	return api.contract.create({
+		tenantId,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000,
+		...overrides
+	});
+}
+
+test('a tenant with no contracts is listed with a count of zero', async () => {
+	const api = await createApi();
+	const tenant = await seedTenant(api);
+
+	const [listed] = await api.tenant.getMany({});
+
+	assert.equal(listed.id, tenant.id);
+	assert.equal(listed.activeContractCount, 0);
+});
+
+test('the active-contract count holds the contracts in force and nothing else', async () => {
+	const api = await createApi();
+	const tenant = await seedTenant(api);
+
+	await seedContract(api, tenant.id);
+
+	const fulfilled = await seedContract(api, tenant.id);
+	await api.contract.payments.create({
+		contractId: fulfilled.id,
+		date: monthsFromNow(0),
+		amount: 1_000_000
+	});
+
+	// ended and still owing, ended and settled, not yet started, and ended by hand — four
+	// contracts the tenant holds and none of them in force.
+	await seedContract(api, tenant.id, { start: monthsFromNow(-14), end: monthsFromNow(-2) });
+
+	const expired = await seedContract(api, tenant.id, {
+		start: monthsFromNow(-14),
+		end: monthsFromNow(-2)
+	});
+	await api.contract.payments.create({
+		contractId: expired.id,
+		date: monthsFromNow(-8),
+		amount: 1_000_000
+	});
+
+	await seedContract(api, tenant.id, { start: monthsFromNow(2), end: monthsFromNow(14) });
+
+	const terminated = await seedContract(api, tenant.id);
+	await api.contract.terminate({ id: terminated.id });
+
+	const [listed] = await api.tenant.getMany({});
+
+	assert.equal(listed.activeContractCount, 2);
+});
+
+test('the directory opens ordered by name', async () => {
+	const api = await createApi();
+	const zaid = await seedTenant(api);
+	const amal = await seedTenant(api);
+
+	await api.tenant.update({ id: zaid.id, name: 'Zaid' });
+	await api.tenant.update({ id: amal.id, name: 'Amal' });
+
+	assert.deepEqual(
+		(await api.tenant.getMany({})).map((tenant) => tenant.name),
+		['Amal', 'Zaid']
+	);
+});
+
+test('the directory orders by every key the sort control offers', async () => {
+	const api = await createApi();
+	const amal = await api.tenant.create({
+		name: 'Amal',
+		nationalId: '2999999999',
+		phone: '+966551110001'
+	});
+	const zaid = await api.tenant.create({
+		name: 'Zaid',
+		nationalId: '1000000001',
+		phone: '+966551110002'
+	});
+
+	await seedContract(api, zaid.id);
+
+	const orderBy = async (columnId, direction) =>
+		(await api.tenant.getMany({ sort: { columnId, direction } })).map((tenant) => tenant.id);
+
+	assert.deepEqual(await orderBy('name', 'asc'), [amal.id, zaid.id]);
+	assert.deepEqual(await orderBy('name', 'desc'), [zaid.id, amal.id]);
+	assert.deepEqual(await orderBy('nationalId', 'asc'), [zaid.id, amal.id]);
+	assert.deepEqual(await orderBy('nationalId', 'desc'), [amal.id, zaid.id]);
+	assert.deepEqual(await orderBy('activeContractCount', 'asc'), [amal.id, zaid.id]);
+	assert.deepEqual(await orderBy('activeContractCount', 'desc'), [zaid.id, amal.id]);
+});
+
+test('tenants tied on the chosen order fall back to the directory order', async () => {
+	const api = await createApi();
+	const zaid = await api.tenant.create({
+		name: 'Zaid',
+		nationalId: '2999999999',
+		phone: '+966551110001'
+	});
+	const amal = await api.tenant.create({
+		name: 'Amal',
+		nationalId: '1000000001',
+		phone: '+966551110002'
+	});
+
+	// created Zaid first, so an id tie-break would put him first and a name one would not.
+	await seedContract(api, zaid.id);
+	await seedContract(api, amal.id);
+
+	assert.deepEqual(
+		(
+			await api.tenant.getMany({ sort: { columnId: 'activeContractCount', direction: 'desc' } })
+		).map((tenant) => tenant.name),
+		['Amal', 'Zaid']
+	);
+});
+
+test('the directory refuses to order by a column the control does not offer', async () => {
+	const api = await createApi();
+
+	await assert.rejects(() => api.tenant.getMany({ sort: { columnId: 'phone', direction: 'asc' } }));
+});
+
+test('searching the directory narrows it and keeps the chosen order', async () => {
+	const api = await createApi();
+	const amal = await api.tenant.create({
+		name: 'Amal Odeh',
+		nationalId: '2999999999',
+		phone: '+966551110001'
+	});
+	const zaid = await api.tenant.create({
+		name: 'Zaid Odeh',
+		nationalId: '1000000001',
+		phone: '+966551110002'
+	});
+	await api.tenant.create({ name: 'Rana Saleh', nationalId: '1000000002', phone: '+966551110003' });
+
+	await seedContract(api, zaid.id);
+
+	const listed = await api.tenant.getMany({
+		search: 'Odeh',
+		sort: { columnId: 'activeContractCount', direction: 'desc' }
+	});
+
+	assert.deepEqual(
+		listed.map((tenant) => tenant.id),
+		[zaid.id, amal.id]
+	);
+	assert.deepEqual(
+		listed.map((tenant) => tenant.activeContractCount),
+		[1, 0]
+	);
+});
+
+test('searching the directory reaches the national id and the phone', async () => {
+	const api = await createApi();
+	const tenant = await api.tenant.create({
+		name: 'Amal',
+		nationalId: '2999999999',
+		phone: '+966551110001'
+	});
+	await api.tenant.create({ name: 'Rana', nationalId: '1000000002', phone: '+966551110003' });
+
+	for (const term of ['2999999999', '+966551110001', 'Amal']) {
+		assert.deepEqual(
+			(await api.tenant.getMany({ search: term })).map((candidate) => candidate.id),
+			[tenant.id],
+			`search term ${term}`
+		);
+	}
+});

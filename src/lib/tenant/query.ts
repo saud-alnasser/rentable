@@ -1,18 +1,11 @@
 import api from '$lib/api/caller';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
+import type { ListSort } from '$lib/design/sort';
+import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
 import { LL } from '$lib/i18n/i18n-svelte';
-import {
-	createInfiniteQuery,
-	createMutation,
-	createQuery,
-	useQueryClient,
-	type InfiniteData
-} from '@tanstack/svelte-query';
+import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
-
-const DATA_VIEW_PAGE_SIZE = 24;
-type InfiniteTenantsPage = Awaited<ReturnType<typeof api.tenant.getPaginated>>;
 
 type FetchTenantsParams = {
 	search?: string;
@@ -34,8 +27,49 @@ export const keys = {
 		search ?? '',
 		limit ?? 'all'
 	],
-	dataView: (search?: string) => [...workspacePrefixes.tenants, 'data-view', search ?? '']
+	list: (search: string, sort: ListSort | null) => [
+		...workspacePrefixes.tenants,
+		'list',
+		search,
+		sort ? `${sort.columnId}:${sort.direction}` : 'default'
+	]
 } as const;
+
+// the shell's sort carries a bare string, because it is shared by lists that order by
+// different keys. This is where it becomes one of this list's own.
+function isTenantSortColumnId(columnId: string): columnId is TenantSortColumnId {
+	return (TENANT_SORT_COLUMN_IDS as readonly string[]).includes(columnId);
+}
+
+/**
+ * The tenants directory for a search and an order: the whole result set, each row carrying
+ * how many contracts that tenant currently holds.
+ *
+ * `placeholderData` holds the previous set while a new query is in flight, so the list keeps
+ * rendering rows instead of flashing through its loading state on every keystroke.
+ */
+export function useListTenants(
+	search: () => string = () => '',
+	sort: () => ListSort | null = () => null
+) {
+	return createQuery(() => {
+		const trimmedSearch = search().trim();
+		const chosenSort = sort();
+
+		return {
+			queryKey: keys.list(trimmedSearch, chosenSort),
+			queryFn: () =>
+				api.tenant.getMany({
+					search: trimmedSearch || undefined,
+					sort:
+						chosenSort && isTenantSortColumnId(chosenSort.columnId)
+							? { columnId: chosenSort.columnId, direction: chosenSort.direction }
+							: undefined
+				}),
+			placeholderData: <T>(previous: T) => previous
+		};
+	});
+}
 
 export function useFetchTenants(params: () => FetchTenantsParams = () => ({})) {
 	return createQuery(() => {
@@ -51,31 +85,6 @@ export function useFetchTenants(params: () => FetchTenantsParams = () => ({})) {
 				api.tenant.getMany({
 					search: trimmedSearch || undefined,
 					limit
-				})
-		};
-	});
-}
-
-export function useInfiniteTenants(params: () => Pick<FetchTenantsParams, 'search'> = () => ({})) {
-	return createInfiniteQuery<
-		InfiniteTenantsPage,
-		Error,
-		InfiniteData<InfiniteTenantsPage>,
-		ReturnType<typeof keys.dataView>,
-		number
-	>(() => {
-		const { search } = params();
-		const trimmedSearch = search?.trim();
-
-		return {
-			queryKey: keys.dataView(trimmedSearch),
-			initialPageParam: 0,
-			getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
-			queryFn: ({ pageParam }) =>
-				api.tenant.getPaginated({
-					search: trimmedSearch || undefined,
-					limit: DATA_VIEW_PAGE_SIZE,
-					offset: typeof pageParam === 'number' ? pageParam : 0
 				})
 		};
 	});

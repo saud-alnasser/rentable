@@ -1,14 +1,56 @@
 import * as s from '$lib/platform/database/schema';
 import { TenantSchema } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
-import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/pagination';
+import { CONTRACT_IN_FORCE_STATUSES } from '$lib/contract/contract';
 import {
+	TENANT_SORT_COLUMN_IDS,
 	ensureIdentityAvailable,
 	ensurePhoneAvailable,
-	ensureTenantDeletable
+	ensureTenantDeletable,
+	type TenantSortColumnId
 } from '$lib/tenant/tenant';
-import { asc, eq, like, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, like, or, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
+
+// How many contracts the tenant currently holds, counted on the list query itself rather
+// than by a query per row. The join is filtered before it is counted, so a tenant with no
+// contract in force still arrives with a row and a count of zero.
+//
+// One expression, selected under an alias and ordered by directly: written twice, the
+// column the list sorts on could come to differ from the number its rows show.
+const inForceContracts = sql<number>`count(${s.contract.id})`;
+
+const TENANT_SORT_COLUMNS: Record<TenantSortColumnId, SQL | AnyColumn> = {
+	name: s.tenant.name,
+	nationalId: s.tenant.nationalId,
+	activeContractCount: inForceContracts
+};
+
+const TenantSortSchema = z.object({
+	columnId: z.enum(TENANT_SORT_COLUMN_IDS),
+	direction: z.enum(['asc', 'desc'])
+});
+
+/**
+ * Ties fall back to the directory's own order — name, then id.
+ *
+ * A count is shared by hundreds of tenants, so ordering by it alone leaves most of the
+ * screen tied; breaking those by id would show a page of equal counts in insertion order,
+ * which reads as no order at all. The id is still last because a name is not unique, and
+ * without a total order two renders of the same query may disagree.
+ */
+function tenantOrderBy(sort: z.infer<typeof TenantSortSchema> | undefined): SQL[] {
+	const directoryOrder = [asc(s.tenant.name), asc(s.tenant.id)];
+
+	if (!sort) {
+		return directoryOrder;
+	}
+
+	const column = TENANT_SORT_COLUMNS[sort.columnId];
+	const chosen = sort.direction === 'asc' ? asc(column) : desc(column);
+
+	return sort.columnId === 'name' ? [chosen, asc(s.tenant.id)] : [chosen, ...directoryOrder];
+}
 
 export default router({
 	create: procedure.public
@@ -126,57 +168,42 @@ export default router({
 		.input(
 			z.object({
 				search: z.string().optional(),
+				sort: TenantSortSchema.optional(),
 				limit: z.number().int().positive().max(50).optional()
 			})
 		)
 		.query(async ({ input, ctx }) => {
 			const search = input.search?.trim();
+			const searchPattern = search ? `%${search}%` : undefined;
 
-			if (search) {
-				const searchPattern = `%${search}%`;
-				const query = ctx.db
-					.select()
-					.from(s.tenant)
-					.where(
-						or(
-							like(s.tenant.nationalId, searchPattern),
-							like(s.tenant.phone, searchPattern),
-							like(s.tenant.name, searchPattern)
-						)
+			const query = ctx.db
+				.select({
+					id: s.tenant.id,
+					name: s.tenant.name,
+					nationalId: s.tenant.nationalId,
+					phone: s.tenant.phone,
+					activeContractCount: inForceContracts.as('activeContractCount')
+				})
+				.from(s.tenant)
+				.leftJoin(
+					s.contract,
+					and(
+						eq(s.contract.tenantId, s.tenant.id),
+						inArray(s.contract.status, CONTRACT_IN_FORCE_STATUSES)
 					)
-					.orderBy(asc(s.tenant.name), asc(s.tenant.id));
-
-				return input.limit ? await query.limit(input.limit) : await query;
-			}
-
-			const query = ctx.db.select().from(s.tenant).orderBy(asc(s.tenant.name), asc(s.tenant.id));
+				)
+				.where(
+					searchPattern
+						? or(
+								like(s.tenant.nationalId, searchPattern),
+								like(s.tenant.phone, searchPattern),
+								like(s.tenant.name, searchPattern)
+							)
+						: undefined
+				)
+				.groupBy(s.tenant.id)
+				.orderBy(...tenantOrderBy(input.sort));
 
 			return input.limit ? await query.limit(input.limit) : await query;
-		}),
-
-	getPaginated: procedure.public
-		.input(PaginationSchema.extend({ search: z.string().optional() }))
-		.query(async ({ input, ctx }) => {
-			const { limit, offset } = resolvePagination(input);
-			const search = input.search?.trim();
-			const query = ctx.db.select().from(s.tenant);
-
-			const tenants = await (
-				search
-					? query
-							.where(
-								or(
-									like(s.tenant.nationalId, `%${search}%`),
-									like(s.tenant.phone, `%${search}%`),
-									like(s.tenant.name, `%${search}%`)
-								)
-							)
-							.orderBy(asc(s.tenant.name), asc(s.tenant.id))
-					: query.orderBy(asc(s.tenant.name), asc(s.tenant.id))
-			)
-				.limit(limit + 1)
-				.offset(offset);
-
-			return toPaginatedResult(tenants, limit, offset);
 		})
 });
