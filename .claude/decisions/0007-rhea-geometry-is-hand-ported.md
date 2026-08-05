@@ -1,5 +1,9 @@
 ---
 status: accepted
+load-when: a primitive is being regenerated, added, or restyled
+sources: [src/lib/design/primitive/]
+supersedes: []
+superseded-by: []
 ---
 
 # Rhea's geometry is hand-ported, and the primitives are a permanent fork

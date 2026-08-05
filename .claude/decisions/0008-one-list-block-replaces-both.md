@@ -1,5 +1,9 @@
 ---
-status: superseded by 0009
+status: superseded
+load-when: the history of how the list block reached its present shape is in question
+sources: [src/lib/design/block/]
+supersedes: []
+superseded-by: ["0009"]
 ---
 
 # Both list blocks are replaced by one server-driven table

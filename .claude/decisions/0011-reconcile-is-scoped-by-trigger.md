@@ -1,3 +1,11 @@
+---
+status: accepted
+load-when: a mutation, a sync pull, or a day crossing has to move derived state
+sources: [src/lib/contract/reconcile.ts]
+supersedes: []
+superseded-by: []
+---
+
 # Reconcile is scoped by trigger: touched rows on mutation, whole table on time and sync
 
 Reconcile loaded every contract, payment, unit and assignment on every mutation and at

@@ -1,6 +1,9 @@
-# Remote sync
+---
+load-when: the request touches backup, Google Drive, linking, or conflicts
+sources: [tauri/src/sync/, tauri/src/backup/, tauri/src/http.rs, src/lib/sync/]
+---
 
-Sources: `tauri/src/sync/`, `tauri/src/backup/`, `tauri/src/http.rs`, `src/lib/sync/`
+# Remote sync
 
 Getting a workspace off this machine and back onto it. Two subjects share the machinery:
 local backup, and exchange with Google Drive.

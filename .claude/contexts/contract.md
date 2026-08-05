@@ -1,6 +1,9 @@
-# Contract
+---
+load-when: the request touches contracts, payments, unit assignments, or any derived status
+sources: [src/lib/contract/, src/lib/payment/]
+---
 
-Sources: `src/lib/contract/`, `src/lib/payment/`
+# Contract
 
 The agreement between a tenant and the units they rent, and the arithmetic that decides
 whether it is being honoured. Every derived status in the application — contracts and

@@ -1,6 +1,9 @@
-# Persistence
+---
+load-when: the request touches the schema, migrations, or how queries reach SQLite
+sources: [src/lib/platform/database/, tauri/src/database/, tauri/migrations/]
+---
 
-Sources: `src/lib/platform/database/`, `tauri/src/database/`, `tauri/migrations/`
+# Persistence
 
 How data is described once and reaches SQLite. The description lives in TypeScript; the
 engine and the migration runner live in Rust; the two meet at Tauri's IPC boundary.

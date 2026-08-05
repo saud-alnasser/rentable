@@ -1,5 +1,9 @@
 ---
 status: accepted
+load-when: two clients could write one workspace, or a manifest or snapshot conflict is being handled
+sources: [tauri/src/sync/google/manifest.rs, tauri/src/sync/google/conflict.rs]
+supersedes: []
+superseded-by: []
 ---
 
 # Drive concurrency is detected and repaired, not prevented

@@ -1,6 +1,6 @@
 # feat: give the contracts one work queue and one directory
 
-Status: accepted
+Status: implemented
 Sources: `src/lib/dashboard/`, `src/lib/contract/`, `src/lib/payment/component/`,
 `src/lib/design/block/`, `src/routes/+page.svelte`, `src/routes/contracts/+page.svelte`
 

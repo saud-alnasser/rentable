@@ -1,3 +1,11 @@
+---
+status: accepted
+load-when: a query's caching or invalidation behaviour is in question
+sources: [src/lib/design/query.ts]
+supersedes: []
+superseded-by: []
+---
+
 # The query cache is trusted until told otherwise
 
 There is no server and no writer this application cannot see, so TanStack Query's

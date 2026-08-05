@@ -1,5 +1,9 @@
 ---
 status: accepted
+load-when: the landing screen or the contracts list is being changed
+sources: [src/lib/dashboard/, src/lib/contract/]
+supersedes: []
+superseded-by: []
 ---
 
 # The contract work queue is the landing screen, and the contracts list is a directory

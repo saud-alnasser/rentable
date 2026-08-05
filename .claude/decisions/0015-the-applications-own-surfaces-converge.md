@@ -1,3 +1,11 @@
+---
+status: accepted
+load-when: a surface the application shows about itself — starting, failing, recovering, choosing a workspace — is being built or restyled
+sources: [src/lib/layout/component/, src/lib/sync/component/, src/routes/+error.svelte]
+supersedes: []
+superseded-by: []
+---
+
 # The application's own surfaces converge, where its concepts' surfaces diverge
 
 [ADR 0013](0013-list-presentation-is-per-concept.md) gave each list the shape its data has,

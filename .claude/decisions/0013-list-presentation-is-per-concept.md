@@ -1,5 +1,9 @@
 ---
 status: accepted
+load-when: a list's presentation is being chosen or changed
+sources: [src/lib/design/block/list.svelte]
+supersedes: ["0009"]
+superseded-by: []
 ---
 
 # Each list gets the presentation its data is shaped like, over one shared shell

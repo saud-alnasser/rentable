@@ -1,5 +1,9 @@
 ---
 status: accepted
+load-when: a form is being presented, or a surface has to survive a breakpoint crossing
+sources: [src/lib/design/block/form-surface.svelte]
+supersedes: []
+superseded-by: []
 ---
 
 # A form surface is one component that presents two ways, not two components swapped

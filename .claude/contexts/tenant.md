@@ -1,6 +1,9 @@
-# Tenant
+---
+load-when: the request touches tenants, identity, or phone numbers
+sources: [src/lib/tenant/]
+---
 
-Sources: `src/lib/tenant/`
+# Tenant
 
 The person who rents, and the identity rules that decide whether a record may exist.
 
