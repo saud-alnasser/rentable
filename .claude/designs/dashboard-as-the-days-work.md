@@ -1,6 +1,6 @@
 # feat(dashboard): make the landing screen the day's work
 
-Status: accepted
+Status: superseded by `contract-work-queue-and-directory.md`
 Sources: `src/lib/dashboard/`, `src/routes/+page.svelte`, `src/lib/design/block/`,
 `src/lib/design/cell/`, `src/lib/contract/`
 

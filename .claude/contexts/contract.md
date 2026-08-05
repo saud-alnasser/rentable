@@ -39,6 +39,12 @@ Cost multiplied by the cycles elapsed so far — what is owed as of a given mome
 from total cost, and the two are not interchangeable: what is outstanding today is
 measured against amount due, while being paid in full is measured against total cost.
 
+**Outstanding**:
+Amount due as of today, less every payment ever received against the contract, floored at
+zero. The debt as it stands — never scoped to a month, a cycle, or any other window. A
+figure measured over a window is that window's name followed by the amount, never the bare
+word.
+
 **Paid in full**:
 Payments received meet the contract's total cost. Not "up to date" — a contract one month
 in with the whole term prepaid is paid in full.
@@ -56,6 +62,19 @@ _Avoid_: conflict — that word belongs to remote sync
 **Ending soon**:
 A contract whose end date falls inside the user-configured notice window. A presentation
 concern, never a stored status.
+
+**Owing**:
+A contract inside its period, not terminated, whose outstanding is above zero. What the
+work queue groups on, and a presentation concern like _ending soon_ — a contract is not
+`defaulted` for being behind, and being behind is not a status.
+
+**Overdue**:
+A contract past its end date, not terminated, and still outstanding. Every `defaulted`
+contract qualifies, because past the end date the amount due is the total cost — so the
+two coincide, and the word is the queue's rather than the status model's.
+
+Neither reaches a terminated contract, whatever it owes: termination locks the contract,
+so the debt is a closed matter rather than work.
 
 **Contract status**:
 Derived from the period and whether the contract is paid in full — nothing else.
