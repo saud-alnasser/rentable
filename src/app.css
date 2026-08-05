@@ -2,14 +2,13 @@
 
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
-
 /*
- * one palette, no modes: the app runs permanently dark (`class="dark"` is static in
- * app.html), so the tokens live here alone. the base is neutral black — chroma 0
- * throughout — and elevation is carried by value: background < card < popover < muted <
- * secondary < accent, each step lighter reading as more raised. blue exists only in
- * `primary` and `ring`, so it can only ever mark the active, selected, or focused element.
+ * one palette, no modes: the tokens live here alone, and there is no `dark:` variant to
+ * select against them — every utility states the one value it renders. the base is neutral
+ * black — chroma 0 throughout — and elevation is carried by value: background < card <
+ * popover < muted < secondary < accent, each step lighter reading as more raised. blue
+ * exists only in `primary` and `ring`, so it can only ever mark the active, selected, or
+ * focused element.
  */
 :root {
 	/*

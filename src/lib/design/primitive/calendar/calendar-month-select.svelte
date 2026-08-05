@@ -14,13 +14,13 @@
 
 <span
 	class={cn(
-		"relative flex h-8 items-center rounded-md border border-input bg-transparent px-3 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none select-none has-focus:border-ring has-focus:ring-[3px] has-focus:ring-ring/50 dark:bg-input/30 dark:hover:bg-input/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
+		"relative flex h-8 items-center rounded-md border border-input bg-input/30 px-3 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none select-none hover:bg-input/50 has-focus:border-ring has-focus:ring-[3px] has-focus:ring-ring/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
 		className
 	)}
 >
 	<CalendarPrimitive.MonthSelect
 		bind:ref
-		class="absolute inset-0 opacity-0 dark:bg-popover dark:text-popover-foreground"
+		class="absolute inset-0 bg-popover text-popover-foreground opacity-0"
 		{...restProps}
 	>
 		{#snippet child({ props, monthItems, selectedMonthItem })}
