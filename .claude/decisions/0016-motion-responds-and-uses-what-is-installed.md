@@ -1,5 +1,9 @@
 ---
 status: accepted
+load-when: a surface is gaining animation, a transition, or a duration
+sources: [src/lib/design/, src/app.css]
+supersedes: []
+superseded-by: []
 ---
 
 # Motion always responds to something, and is built from what is already installed

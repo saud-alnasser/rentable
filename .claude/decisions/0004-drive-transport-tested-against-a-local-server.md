@@ -1,5 +1,9 @@
 ---
 status: accepted
+load-when: a Drive transport test is being written or is failing
+sources: [tauri/src/sync/google/test/, tauri/src/sync/google/transport.rs]
+supersedes: []
+superseded-by: []
 ---
 
 # Drive transport is tested against a local HTTP server

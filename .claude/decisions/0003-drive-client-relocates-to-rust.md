@@ -1,5 +1,9 @@
 ---
 status: accepted
+load-when: the request touches Drive credentials, OAuth, or where Drive network calls are made
+sources: [tauri/src/sync/google/, src/lib/sync/]
+supersedes: []
+superseded-by: []
 ---
 
 # The Google Drive client relocates wholly to Rust

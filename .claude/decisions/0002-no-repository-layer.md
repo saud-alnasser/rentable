@@ -1,5 +1,9 @@
 ---
 status: accepted
+load-when: a router or a domain module is being added, and where persistence is called from is in question
+sources: [src/lib/api/, src/lib/contract/]
+supersedes: []
+superseded-by: []
 ---
 
 # No repository layer; routers reach the database directly

@@ -1,5 +1,9 @@
 ---
 status: accepted
+load-when: a database client is constructed, or the shape of a row crossing the IPC boundary is in question
+sources: [src/lib/platform/database/]
+supersedes: []
+superseded-by: []
 ---
 
 # One database client type, shared by tests and production

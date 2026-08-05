@@ -1,5 +1,9 @@
 ---
-status: superseded by 0013
+status: superseded
+load-when: the history of how the list block reached its present shape is in question
+sources: [src/lib/design/block/]
+supersedes: ["0008"]
+superseded-by: ["0013"]
 ---
 
 # The shipping list block is rewritten under a new name, and the dead one is deleted

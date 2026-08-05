@@ -1,5 +1,9 @@
 ---
 status: accepted
+load-when: a form reports validation errors
+sources: [src/lib/design/block/field-error.svelte, src/lib/design/primitive/form/]
+supersedes: []
+superseded-by: []
 ---
 
 # A validation error belongs to its field, not to a summary the surface places

@@ -1,3 +1,11 @@
+---
+status: accepted
+load-when: the landing screen's content is in question
+sources: [src/lib/dashboard/]
+supersedes: []
+superseded-by: []
+---
+
 # The dashboard is the day's work, not a portfolio report
 
 The landing screen showed fifteen portfolio figures above two lists of cards, and the only

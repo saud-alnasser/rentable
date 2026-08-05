@@ -1,6 +1,9 @@
-# Property
+---
+load-when: the request touches complexes or units
+sources: [src/lib/complex/]
+---
 
-Sources: `src/lib/complex/`
+# Property
 
 The physical things being rented: the buildings, and the spaces inside them.
 

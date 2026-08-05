@@ -1,5 +1,9 @@
 ---
 status: accepted
+load-when: a read needs a contract's paid or expected amount, or a list sorts or filters on one
+sources: [src/lib/payment/, src/lib/contract/reconcile.ts]
+supersedes: []
+superseded-by: []
 ---
 
 # Payment aggregates are materialized, not derived at read

@@ -1,5 +1,9 @@
 ---
 status: accepted
+load-when: a new surface for a concept is being placed
+sources: [src/lib/design/block/]
+supersedes: []
+superseded-by: []
 ---
 
 # Surfaces diverge by kind, not by operation

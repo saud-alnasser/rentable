@@ -1,3 +1,8 @@
+---
+load-when: a term, boundary, or constraint is in question
+sources: []
+---
+
 # rentable
 
 An offline-first desktop tracker for rents payments — one bilingual application, one local

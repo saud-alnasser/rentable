@@ -1,10 +1,10 @@
 # Context map
 
-| Context                                | Load when                                                                        | Sources                                                                                                                                        |
-| -------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| [repository](repository.md)            | a term, boundary, or constraint is in question                                   | —                                                                                                                                              |
-| [contract](contract.md)                | the request touches contracts, payments, unit assignments, or any derived status | `src/lib/contract/`, `src/lib/payment/`                                                                                                        |
-| [tenant](tenant.md)                    | the request touches tenants, identity, or phone numbers                          | `src/lib/tenant/`                                                          |
-| [property](property.md)                | the request touches complexes or units                                           | `src/lib/complex/`                                                                                |
-| [remote-sync](remote-sync.md)          | the request touches backup, Google Drive, linking, or conflicts                  | `tauri/src/sync/`, `tauri/src/backup/`, `tauri/src/http.rs`, `src/lib/sync/`  |
-| [persistence](persistence.md)          | the request touches the schema, migrations, or how queries reach SQLite          | `src/lib/platform/database/`, `tauri/src/database/`, `tauri/migrations/`                                                                             |
+| Context | Load when | Sources |
+| --- | --- | --- |
+| [repository](repository.md) | a term, boundary, or constraint is in question | — |
+| [contract](contract.md) | the request touches contracts, payments, unit assignments, or any derived status | `src/lib/contract/`, `src/lib/payment/` |
+| [tenant](tenant.md) | the request touches tenants, identity, or phone numbers | `src/lib/tenant/` |
+| [property](property.md) | the request touches complexes or units | `src/lib/complex/` |
+| [remote-sync](remote-sync.md) | the request touches backup, Google Drive, linking, or conflicts | `tauri/src/sync/`, `tauri/src/backup/`, `tauri/src/http.rs`, `src/lib/sync/` |
+| [persistence](persistence.md) | the request touches the schema, migrations, or how queries reach SQLite | `src/lib/platform/database/`, `tauri/src/database/`, `tauri/migrations/` |

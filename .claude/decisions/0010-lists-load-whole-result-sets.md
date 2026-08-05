@@ -1,3 +1,11 @@
+---
+status: accepted
+load-when: a list read is being written, or pagination is proposed for one
+sources: [src/lib/api/pagination.ts, src/lib/design/block/list.svelte]
+supersedes: []
+superseded-by: []
+---
+
 # Lists load whole result sets, and pagination is retired from the read path
 
 There is no server: every list reads a local SQLite file whose row counts are bounded by one
