@@ -473,10 +473,6 @@ type RootTranslation = {
 			 */
 			loadingComplexes: string
 			/**
-			 * l​o​a​d​i​n​g​ ​d​a​s​h​b​o​a​r​d​.​.​.
-			 */
-			loadingDashboard: string
-			/**
 			 * l​o​a​d​i​n​g​ ​s​e​t​t​i​n​g​s​.​.​.
 			 */
 			loadingSettings: string
@@ -798,192 +794,64 @@ type RootTranslation = {
 		}
 	}
 	dashboard: {
-		/**
-		 * t​r​a​c​k​ ​c​o​n​t​r​a​c​t​ ​h​e​a​l​t​h​,​ ​c​o​l​l​e​c​t​i​o​n​ ​p​r​o​g​r​e​s​s​,​ ​a​n​d​ ​o​c​c​u​p​a​n​c​y​ ​a​f​t​e​r​ ​e​a​c​h​ ​s​y​n​c​h​r​o​n​i​z​a​t​i​o​n​.
-		 */
-		description: string
-		endingSoon: {
+		empty: {
 			/**
-			 * {​c​o​u​n​t​}​ ​c​o​n​t​r​a​c​t​ ​e​n​d​i​n​g​ ​s​o​o​n
-			 * @param {unknown} count
-			 */
-			countOne: RequiredParams<'count'>
-			/**
-			 * {​c​o​u​n​t​}​ ​c​o​n​t​r​a​c​t​s​ ​e​n​d​i​n​g​ ​s​o​o​n
-			 * @param {unknown} count
-			 */
-			countOther: RequiredParams<'count'>
-			/**
-			 * a​c​t​i​v​e​ ​a​n​d​ ​f​u​l​f​i​l​l​e​d​ ​c​o​n​t​r​a​c​t​s​ ​t​h​a​t​ ​e​n​d​ ​w​i​t​h​i​n​ ​t​h​e​ ​c​o​n​f​i​g​u​r​e​d​ ​{​n​o​t​i​c​e​W​i​n​d​o​w​}​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​.
-			 * @param {unknown} noticeWindow
-			 */
-			description: RequiredParams<'noticeWindow'>
-			/**
-			 * n​o​ ​c​o​n​t​r​a​c​t​s​ ​a​r​e​ ​e​n​d​i​n​g​ ​s​o​o​n​ ​r​i​g​h​t​ ​n​o​w​.
-			 */
-			empty: string
-			/**
-			 * c​o​n​t​r​a​c​t​s​ ​e​n​d​i​n​g​ ​s​o​o​n
-			 */
-			title: string
-		}
-		followUps: {
-			/**
-			 * {​c​o​u​n​t​}​ ​o​p​e​n​ ​f​o​l​l​o​w​-​u​p
-			 * @param {unknown} count
-			 */
-			countOne: RequiredParams<'count'>
-			/**
-			 * {​c​o​u​n​t​}​ ​o​p​e​n​ ​f​o​l​l​o​w​-​u​p​s
-			 * @param {unknown} count
-			 */
-			countOther: RequiredParams<'count'>
-			/**
-			 * c​o​n​t​r​a​c​t​s​ ​w​i​t​h​ ​d​u​e​s​ ​s​c​h​e​d​u​l​e​d​ ​b​y​ ​t​o​d​a​y​ ​i​n​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​m​o​n​t​h​,​ ​o​r​ ​o​v​e​r​d​u​e​ ​d​e​f​a​u​l​t​e​d​ ​b​a​l​a​n​c​e​s​ ​t​h​a​t​ ​s​t​i​l​l​ ​n​e​e​d​ ​a​t​t​e​n​t​i​o​n​.
+			 * n​o​t​h​i​n​g​ ​i​s​ ​o​v​e​r​d​u​e​,​ ​b​e​h​i​n​d​ ​o​n​ ​p​a​y​m​e​n​t​,​ ​o​r​ ​e​n​d​i​n​g​ ​i​n​s​i​d​e​ ​t​h​e​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​.
 			 */
 			description: string
 			/**
-			 * n​o​ ​p​a​y​m​e​n​t​ ​f​o​l​l​o​w​-​u​p​ ​i​s​ ​n​e​e​d​e​d​ ​r​i​g​h​t​ ​n​o​w​.
+			 * n​o​t​h​i​n​g​ ​n​e​e​d​s​ ​d​o​i​n​g​ ​t​o​d​a​y​.
 			 */
-			empty: string
-			/**
-			 * {​p​e​r​c​e​n​t​}​%​ ​o​f​ ​t​h​e​ ​d​u​e​ ​b​a​l​a​n​c​e​ ​c​o​v​e​r​e​d​ ​t​o​ ​d​a​t​e
-			 * @param {unknown} percent
-			 */
-			progressSummary: RequiredParams<'percent'>
-			/**
-			 * {​a​m​o​u​n​t​}​ ​s​a​r​ ​r​e​m​a​i​n​i​n​g
-			 * @param {unknown} amount
-			 */
-			remaining: RequiredParams<'amount'>
-			/**
-			 * p​a​y​m​e​n​t​s​ ​r​e​q​u​i​r​i​n​g​ ​f​o​l​l​o​w​-​u​p​ ​i​n​ ​{​m​o​n​t​h​L​a​b​e​l​}
-			 * @param {unknown} monthLabel
-			 */
-			title: RequiredParams<'monthLabel'>
-			/**
-			 * d​a​s​h​b​o​a​r​d​ ​d​a​t​a​ ​i​s​ ​u​n​a​v​a​i​l​a​b​l​e​ ​r​i​g​h​t​ ​n​o​w​.
-			 */
-			unavailable: string
+			title: string
 		}
-		/**
-		 * l​a​s​t​ ​s​y​n​c​h​r​o​n​i​z​e​d​ ​{​v​a​l​u​e​}
-		 * @param {unknown} value
-		 */
-		lastSynchronized: RequiredParams<'value'>
-		sections: {
-			contracts: {
+		queue: {
+			/**
+			 * a​l​s​o​ ​e​n​d​i​n​g
+			 */
+			alsoEnding: string
+			/**
+			 * c​o​l​l​e​c​t​e​d​ ​t​h​i​s​ ​m​o​n​t​h
+			 */
+			collectedThisMonth: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)
+			 * @param {unknown} count
+			 */
+			groupCount: RequiredParams<'count|number'>
+			groups: {
 				/**
-				 * p​o​r​t​f​o​l​i​o​ ​c​o​n​t​r​a​c​t​ ​s​t​a​t​u​s​,​ ​i​n​c​l​u​d​i​n​g​ ​c​o​n​t​r​a​c​t​s​ ​e​n​d​i​n​g​ ​w​i​t​h​i​n​ ​t​h​e​ ​c​o​n​f​i​g​u​r​e​d​ ​{​n​o​t​i​c​e​W​i​n​d​o​w​}​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​.
-				 * @param {unknown} noticeWindow
+				 * e​n​d​i​n​g​ ​s​o​o​n
 				 */
-				description: RequiredParams<'noticeWindow'>
+				endingSoon: string
 				/**
-				 * {​a​c​t​i​v​e​}​ ​a​c​t​i​v​e​ ​•​ ​{​e​n​d​i​n​g​S​o​o​n​}​ ​e​n​d​i​n​g​ ​w​i​t​h​i​n​ ​{​n​o​t​i​c​e​W​i​n​d​o​w​}
-				 * @param {unknown} active
-				 * @param {unknown} endingSoon
-				 * @param {unknown} noticeWindow
+				 * o​v​e​r​d​u​e
 				 */
-				heroHint: RequiredParams<'active' | 'endingSoon' | 'noticeWindow'>
+				overdue: string
 				/**
-				 * c​u​r​r​e​n​t​ ​p​o​r​t​f​o​l​i​o​ ​s​i​z​e
+				 * o​w​i​n​g
 				 */
-				heroLabel: string
-				/**
-				 * c​o​n​t​r​a​c​t​s
-				 */
-				title: string
+				owing: string
 			}
-			money: {
-				/**
-				 * s​c​h​e​d​u​l​e​d​ ​d​u​e​s​ ​f​o​r​ ​{​m​o​n​t​h​L​a​b​e​l​}​,​ ​p​a​y​m​e​n​t​s​ ​c​o​l​l​e​c​t​e​d​ ​t​h​i​s​ ​m​o​n​t​h​,​ ​a​n​d​ ​o​v​e​r​a​l​l​ ​c​o​n​t​r​a​c​t​ ​b​a​l​a​n​c​e​s​.
-				 * @param {unknown} monthLabel
-				 */
-				description: RequiredParams<'monthLabel'>
-				/**
-				 * {​r​a​t​e​}​%​ ​o​f​ ​t​h​e​ ​d​u​e​ ​f​o​r​ ​{​m​o​n​t​h​L​a​b​e​l​}​ ​i​s​ ​c​o​v​e​r​e​d
-				 * @param {unknown} monthLabel
-				 * @param {unknown} rate
-				 */
-				heroHint: RequiredParams<'monthLabel' | 'rate'>
-				/**
-				 * o​u​t​s​t​a​n​d​i​n​g​ ​n​o​w
-				 */
-				heroLabel: string
-				/**
-				 * m​o​n​e​y
-				 */
-				title: string
-			}
-			occupancy: {
-				/**
-				 * s​t​o​r​e​d​ ​u​n​i​t​ ​o​c​c​u​p​a​n​c​y​ ​a​f​t​e​r​ ​d​a​s​h​b​o​a​r​d​ ​s​y​n​c​h​r​o​n​i​z​a​t​i​o​n​.
-				 */
-				description: string
-				/**
-				 * {​o​c​c​u​p​i​e​d​}​ ​o​c​c​u​p​i​e​d​ ​o​u​t​ ​o​f​ ​{​t​o​t​a​l​}​ ​u​n​i​t​s
-				 * @param {unknown} occupied
-				 * @param {unknown} total
-				 */
-				heroHint: RequiredParams<'occupied' | 'total'>
-				/**
-				 * o​c​c​u​p​a​n​c​y​ ​r​a​t​e
-				 */
-				heroLabel: string
-				/**
-				 * o​c​c​u​p​a​n​c​y
-				 */
-				title: string
-			}
-		}
-		stats: {
 			/**
-			 * {​a​c​t​i​v​e​}​ ​a​c​t​i​v​e​ ​•​ ​{​e​n​d​i​n​g​S​o​o​n​}​ ​e​n​d​i​n​g​ ​w​i​t​h​i​n​ ​{​n​o​t​i​c​e​W​i​n​d​o​w​}
-			 * @param {unknown} active
-			 * @param {unknown} endingSoon
-			 * @param {unknown} noticeWindow
+			 * {​o​c​c​u​p​i​e​d​}​ ​/​ ​{​t​o​t​a​l​}
+			 * @param {unknown} occupied
+			 * @param {unknown} total
 			 */
-			activeEndingWithin: RequiredParams<'active' | 'endingSoon' | 'noticeWindow'>
-			/**
-			 * d​u​e​ ​t​h​i​s​ ​m​o​n​t​h
-			 */
-			dueThisMonth: string
-			/**
-			 * o​c​c​u​p​a​n​c​y​ ​r​a​t​e
-			 */
-			occupancyRate: string
-			/**
-			 * o​v​e​r​a​l​l​ ​c​o​l​l​e​c​t​i​o​n​ ​r​a​t​e
-			 */
-			overallCollectionRate: string
+			occupancy: RequiredParams<'occupied' | 'total'>
 			/**
 			 * o​c​c​u​p​i​e​d​ ​u​n​i​t​s
 			 */
 			occupiedUnits: string
 			/**
-			 * r​e​c​e​i​v​e​d​ ​t​h​i​s​ ​m​o​n​t​h
+			 * o​p​e​n​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​f​o​r​ ​{​t​e​n​a​n​t​}
+			 * @param {unknown} tenant
 			 */
-			receivedThisMonth: string
+			openContract: RequiredParams<'tenant'>
 			/**
-			 * s​t​i​l​l​ ​d​u​e​ ​t​h​i​s​ ​m​o​n​t​h
+			 * r​e​c​o​r​d​ ​a​ ​p​a​y​m​e​n​t​ ​f​o​r​ ​{​t​e​n​a​n​t​}
+			 * @param {unknown} tenant
 			 */
-			stillDueThisMonth: string
-			/**
-			 * t​o​t​a​l​ ​e​x​p​e​c​t​e​d​ ​a​m​o​u​n​t
-			 */
-			totalExpectedAmount: string
-			/**
-			 * t​o​t​a​l​ ​u​n​i​t​s
-			 */
-			totalUnits: string
-			/**
-			 * v​a​c​a​n​c​y​ ​r​a​t​e
-			 */
-			vacancyRate: string
-			/**
-			 * v​a​c​a​n​t​ ​u​n​i​t​s
-			 */
-			vacantUnits: string
+			recordPayment: RequiredParams<'tenant'>
 		}
 		/**
 		 * d​a​s​h​b​o​a​r​d
@@ -2415,10 +2283,6 @@ export type TranslationFunctions = {
 			 */
 			loadingComplexes: () => LocalizedString
 			/**
-			 * loading dashboard...
-			 */
-			loadingDashboard: () => LocalizedString
-			/**
 			 * loading settings...
 			 */
 			loadingSettings: () => LocalizedString
@@ -2731,171 +2595,59 @@ export type TranslationFunctions = {
 		}
 	}
 	dashboard: {
-		/**
-		 * track contract health, collection progress, and occupancy after each synchronization.
-		 */
-		description: () => LocalizedString
-		endingSoon: {
+		empty: {
 			/**
-			 * {count} contract ending soon
-			 */
-			countOne: (arg: { count: unknown }) => LocalizedString
-			/**
-			 * {count} contracts ending soon
-			 */
-			countOther: (arg: { count: unknown }) => LocalizedString
-			/**
-			 * active and fulfilled contracts that end within the configured {noticeWindow} notice window.
-			 */
-			description: (arg: { noticeWindow: unknown }) => LocalizedString
-			/**
-			 * no contracts are ending soon right now.
-			 */
-			empty: () => LocalizedString
-			/**
-			 * contracts ending soon
-			 */
-			title: () => LocalizedString
-		}
-		followUps: {
-			/**
-			 * {count} open follow-up
-			 */
-			countOne: (arg: { count: unknown }) => LocalizedString
-			/**
-			 * {count} open follow-ups
-			 */
-			countOther: (arg: { count: unknown }) => LocalizedString
-			/**
-			 * contracts with dues scheduled by today in the current month, or overdue defaulted balances that still need attention.
+			 * nothing is overdue, behind on payment, or ending inside the notice window.
 			 */
 			description: () => LocalizedString
 			/**
-			 * no payment follow-up is needed right now.
+			 * nothing needs doing today.
 			 */
-			empty: () => LocalizedString
-			/**
-			 * {percent}% of the due balance covered to date
-			 */
-			progressSummary: (arg: { percent: unknown }) => LocalizedString
-			/**
-			 * {amount} sar remaining
-			 */
-			remaining: (arg: { amount: unknown }) => LocalizedString
-			/**
-			 * payments requiring follow-up in {monthLabel}
-			 */
-			title: (arg: { monthLabel: unknown }) => LocalizedString
-			/**
-			 * dashboard data is unavailable right now.
-			 */
-			unavailable: () => LocalizedString
+			title: () => LocalizedString
 		}
-		/**
-		 * last synchronized {value}
-		 */
-		lastSynchronized: (arg: { value: unknown }) => LocalizedString
-		sections: {
-			contracts: {
+		queue: {
+			/**
+			 * also ending
+			 */
+			alsoEnding: () => LocalizedString
+			/**
+			 * collected this month
+			 */
+			collectedThisMonth: () => LocalizedString
+			/**
+			 * {count|number} contract(s)
+			 */
+			groupCount: (arg: { count: unknown }) => LocalizedString
+			groups: {
 				/**
-				 * portfolio contract status, including contracts ending within the configured {noticeWindow} notice window.
+				 * ending soon
 				 */
-				description: (arg: { noticeWindow: unknown }) => LocalizedString
+				endingSoon: () => LocalizedString
 				/**
-				 * {active} active • {endingSoon} ending within {noticeWindow}
+				 * overdue
 				 */
-				heroHint: (arg: { active: unknown, endingSoon: unknown, noticeWindow: unknown }) => LocalizedString
+				overdue: () => LocalizedString
 				/**
-				 * current portfolio size
+				 * owing
 				 */
-				heroLabel: () => LocalizedString
-				/**
-				 * contracts
-				 */
-				title: () => LocalizedString
+				owing: () => LocalizedString
 			}
-			money: {
-				/**
-				 * scheduled dues for {monthLabel}, payments collected this month, and overall contract balances.
-				 */
-				description: (arg: { monthLabel: unknown }) => LocalizedString
-				/**
-				 * {rate}% of the due for {monthLabel} is covered
-				 */
-				heroHint: (arg: { monthLabel: unknown, rate: unknown }) => LocalizedString
-				/**
-				 * outstanding now
-				 */
-				heroLabel: () => LocalizedString
-				/**
-				 * money
-				 */
-				title: () => LocalizedString
-			}
-			occupancy: {
-				/**
-				 * stored unit occupancy after dashboard synchronization.
-				 */
-				description: () => LocalizedString
-				/**
-				 * {occupied} occupied out of {total} units
-				 */
-				heroHint: (arg: { occupied: unknown, total: unknown }) => LocalizedString
-				/**
-				 * occupancy rate
-				 */
-				heroLabel: () => LocalizedString
-				/**
-				 * occupancy
-				 */
-				title: () => LocalizedString
-			}
-		}
-		stats: {
 			/**
-			 * {active} active • {endingSoon} ending within {noticeWindow}
+			 * {occupied} / {total}
 			 */
-			activeEndingWithin: (arg: { active: unknown, endingSoon: unknown, noticeWindow: unknown }) => LocalizedString
-			/**
-			 * due this month
-			 */
-			dueThisMonth: () => LocalizedString
-			/**
-			 * occupancy rate
-			 */
-			occupancyRate: () => LocalizedString
-			/**
-			 * overall collection rate
-			 */
-			overallCollectionRate: () => LocalizedString
+			occupancy: (arg: { occupied: unknown, total: unknown }) => LocalizedString
 			/**
 			 * occupied units
 			 */
 			occupiedUnits: () => LocalizedString
 			/**
-			 * received this month
+			 * open the contract for {tenant}
 			 */
-			receivedThisMonth: () => LocalizedString
+			openContract: (arg: { tenant: unknown }) => LocalizedString
 			/**
-			 * still due this month
+			 * record a payment for {tenant}
 			 */
-			stillDueThisMonth: () => LocalizedString
-			/**
-			 * total expected amount
-			 */
-			totalExpectedAmount: () => LocalizedString
-			/**
-			 * total units
-			 */
-			totalUnits: () => LocalizedString
-			/**
-			 * vacancy rate
-			 */
-			vacancyRate: () => LocalizedString
-			/**
-			 * vacant units
-			 */
-			vacantUnits: () => LocalizedString
+			recordPayment: (arg: { tenant: unknown }) => LocalizedString
 		}
 		/**
 		 * dashboard
