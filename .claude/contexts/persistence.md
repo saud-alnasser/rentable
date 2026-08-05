@@ -17,8 +17,19 @@ Generated from the schema, never hand-authored ahead of it.
 
 **Transport**:
 What carries a query to the engine. Production goes through IPC to Rust; tests go through
-an in-memory engine that is type-identical to it, so the language-boundary mapping is
-exercised rather than bypassed.
+an in-memory engine that is type-identical to it.
+
+The two share the row *reshaping* in `client.ts` and nothing below it. **Value conversion is
+per-transport**, and both halves convert by the storage class SQLite reports for the value:
+Rust reads it explicitly, better-sqlite3 by returning native values. Neither consults the
+type a column was *declared* as — that type is absent for every expression, and dispatching
+on it is what made a selected aggregate arrive as null (#287).
+
+**A value the conversion cannot map fails the query.** Nothing degrades to null, because a
+null is indistinguishable from a column that was null and hides the gap that produced it.
+
+**Only Rust tests reach the Rust half.** The TypeScript harness executes under Node, so a
+router test can pass over a conversion that is broken in the running application.
 
 ## Boundaries
 

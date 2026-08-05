@@ -1,6 +1,6 @@
 # fix(persistence): a value crosses the boundary typed by what it is
 
-Status: accepted
+Status: implemented
 Sources: `tauri/src/database/proxy.rs`, `src/lib/platform/database/client.ts`,
 `src/lib/platform/database/memory.ts`
 
