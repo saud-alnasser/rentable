@@ -33,7 +33,7 @@ This repository runs the **Agentic Engineering Protocol**; this file is its per-
 
 **Position has a directory: `.claude/position/`.** That is the category made structural rather than declared — a per-clone file goes there and is covered by the existing ignore rule, instead of arguing for a new exception each time.
 
-`.claude/.gitignore` still carries the membership test in prose, because the directory says *where* and only the test says *which*. Read it there. One file sits outside: `settings.local.json` belongs to the harness rather than to this workflow, and the harness would not find it anywhere else.
+`.claude/.gitignore` still carries the membership test in prose, because the directory says *where* and only the test says *which*. Read it there. Two paths sit outside, both the harness's rather than this workflow's, and both at locations the harness would not find anywhere else: `settings.local.json`, and `worktrees/`, where it checks out an isolated child.
 
 The invariant that keeps Position from becoming a fourth knowledge layer: **nothing shared may depend on it.** Delete every ignored file under `.claude/` and no other person and no other clone loses information they needed. This clone loses a shortcut and re-earns it.
 
@@ -90,13 +90,15 @@ Every stage also loads `.claude/contexts/repository.md` and routes from its tabl
 | --- | --- | --- |
 | `/configure` | maintenance | every guide in `.claude/policies/` — it writes them all, and an audit run reads each one back against the repository |
 | `/design` | design | `.claude/policies/tickets.md`, `.claude/policies/specs.md`, `.claude/policies/maps.md`, `.claude/policies/decisions.md`, `.claude/policies/evidence.md`, `.claude/policies/knowledge.md`, `.claude/policies/tracker.md`, `.claude/tools/git.md`, the forge reference |
-| `/implement` | implementation | `.claude/policies/tickets.md`, `.claude/policies/knowledge.md`, `.claude/policies/context.md`, `.claude/policies/tracker.md`, `.claude/policies/version-control.md`, `.claude/tools/git.md`, the forge reference |
-| `/review` | review | `.claude/policies/decisions.md`, `.claude/rules/`, `.claude/decisions/`, `.claude/tools/git.md`, the forge reference |
-| `/research` | research | `.claude/policies/evidence.md` |
+| `/implement` | implementation | `.claude/policies/tickets.md`, `.claude/policies/knowledge.md`, `.claude/policies/context.md`, `.claude/policies/tracker.md`, `.claude/policies/version-control.md`, `.claude/policies/sub-agents.md`, `.claude/tools/git.md`, the forge reference |
+| `/review` | review | `.claude/policies/decisions.md`, `.claude/policies/sub-agents.md`, `.claude/rules/`, `.claude/decisions/`, `.claude/tools/git.md`, the forge reference |
+| `/research` | research | `.claude/policies/evidence.md`, `.claude/policies/sub-agents.md` |
 | `/prototype` | prototype | `.claude/policies/evidence.md`, `.claude/.gitignore` |
 | `/commit` | maintenance | `.claude/policies/specs.md`, `.claude/policies/knowledge.md`, `.claude/policies/version-control.md`, `.claude/policies/tracker.md`, `.claude/tools/git.md` |
 
 **The forge reference is whichever of `github.md`, `gitlab.md`, or `graphite.md` this repository's `.claude/tools/` actually holds** — the row names a role because the file filling it is chosen per repository. A stage that finds no reference for an operation has hit a configuration gap and says so; it does not guess the flag.
+
+**`.claude/policies/sub-agents.md` appears on every row whose stage dispatches sub-agents**, and on no other row that names its guides one by one. It is the contract a child is bound by, so a stage that dispatches reads it and restates none of it; a stage that dispatches nobody never pays for it. `/configure` is the exception it always is — its row is the whole directory rather than a list.
 
 A stage reads its row and stops. Reading another stage's guides is the cost this table exists to remove, and a guide reached with no row naming it is either a missing row or a stage doing another stage's job.
 
