@@ -81,6 +81,7 @@ const en = {
 
 		labels: {
 			action: 'action',
+			activeContracts: 'active contracts',
 			amount: 'amount',
 			appVersion: 'app version',
 			availableVersion: 'available version',

@@ -274,6 +274,24 @@ export const CONTRACT_ATTENTION_ORDER = [
 	'terminated'
 ] as const satisfies readonly Contract['status'][];
 
+/**
+ * The statuses a contract in force holds — the ones whose period covers today and which
+ * nobody has ended by hand. This is what "the tenant's active contracts" counts.
+ *
+ * `fulfilled` is in force: it is a running contract that happens to be paid up, and a
+ * tenant's count dropping to zero the moment they settle would be wrong. `defaulted` is
+ * not: the period has passed and only the debt remains, which the contracts queue chases
+ * rather than the directory. `scheduled` has not started and `terminated` was ended.
+ *
+ * Derived from the same reading of the status model as `deriveContractStatus`, and stated
+ * here rather than at each caller so a status added to the enum has one place to be
+ * classified.
+ */
+export const CONTRACT_IN_FORCE_STATUSES = [
+	'active',
+	'fulfilled'
+] as const satisfies readonly Contract['status'][];
+
 export function canManuallyTerminateContractStatus(status: Contract['status']) {
 	return (
 		status === 'active' || status === 'fulfilled' || status === 'expired' || status === 'defaulted'

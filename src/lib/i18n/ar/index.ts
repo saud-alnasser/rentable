@@ -80,6 +80,7 @@ const ar = {
 
 		labels: {
 			action: 'إجراء',
+			activeContracts: 'العقود السارية',
 			amount: 'المبلغ',
 			appVersion: 'إصدار التطبيق',
 			availableVersion: 'الإصدار المتاح',
