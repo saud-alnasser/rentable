@@ -1722,6 +1722,11 @@ type RootTranslation = {
 			 */
 			fullyPaidSummary: string
 			/**
+			 * t​o​t​a​l​ ​s​h​o​w​n​ ​f​o​r​ ​{​m​o​n​t​h​}
+			 * @param {unknown} month
+			 */
+			monthTotal: RequiredParams<'month'>
+			/**
 			 * {​p​e​r​c​e​n​t​}​%​ ​f​u​l​f​i​l​l​e​d
 			 * @param {unknown} percent
 			 */
@@ -1731,6 +1736,10 @@ type RootTranslation = {
 			 * @param {unknown} amount
 			 */
 			remaining: RequiredParams<'amount'>
+			/**
+			 * r​e​m​a​i​n​i​n​g​ ​b​a​l​a​n​c​e
+			 */
+			remainingBalance: string
 			/**
 			 * t​e​r​m​i​n​a​t​e​d​ ​c​o​n​t​r​a​c​t​s​ ​a​r​e​ ​l​o​c​k​e​d​.​ ​y​o​u​ ​c​a​n​ ​r​e​v​i​e​w​ ​p​a​y​m​e​n​t​ ​h​i​s​t​o​r​y​ ​h​e​r​e​,​ ​b​u​t​ ​y​o​u​ ​c​a​n​n​o​t​ ​a​d​d​,​ ​e​d​i​t​,​ ​o​r​ ​d​e​l​e​t​e​ ​p​a​y​m​e​n​t​s​ ​u​n​t​i​l​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​u​n​t​e​r​m​i​n​a​t​e​d​.
 			 */
@@ -3610,6 +3619,10 @@ export type TranslationFunctions = {
 			 */
 			fullyPaidSummary: () => LocalizedString
 			/**
+			 * total shown for {month}
+			 */
+			monthTotal: (arg: { month: unknown }) => LocalizedString
+			/**
 			 * {percent}% fulfilled
 			 */
 			percentFulfilled: (arg: { percent: unknown }) => LocalizedString
@@ -3617,6 +3630,10 @@ export type TranslationFunctions = {
 			 * {amount} sar remaining
 			 */
 			remaining: (arg: { amount: unknown }) => LocalizedString
+			/**
+			 * remaining balance
+			 */
+			remainingBalance: () => LocalizedString
 			/**
 			 * terminated contracts are locked. you can review payment history here, but you cannot add, edit, or delete payments until the contract is unterminated.
 			 */

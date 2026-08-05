@@ -2,25 +2,16 @@ import api from '$lib/api/caller';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
 import { LL } from '$lib/i18n/i18n-svelte';
-import {
-	createInfiniteQuery,
-	createMutation,
-	createQuery,
-	useQueryClient,
-	type InfiniteData
-} from '@tanstack/svelte-query';
+import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
-
-const DATA_VIEW_PAGE_SIZE = 24;
-type InfinitePaymentsPage = Awaited<ReturnType<typeof api.contract.payments.getPaginated>>;
 
 export const keys = {
 	getMany: (contractId: number) => [...workspacePrefixes.payments, contractId],
-	dataView: (contractId: number, search?: string) => [
+	list: (contractId: number, search: string) => [
 		...workspacePrefixes.payments,
-		'data-view',
+		'list',
 		contractId,
-		search ?? ''
+		search
 	]
 } as const;
 
@@ -35,28 +26,25 @@ export function useFetchContractPayments(contractId: () => number) {
 	});
 }
 
-export function useInfiniteContractPayments(params: () => { contractId: number; search?: string }) {
-	return createInfiniteQuery<
-		InfinitePaymentsPage,
-		Error,
-		InfiniteData<InfinitePaymentsPage>,
-		ReturnType<typeof keys.dataView>,
-		number
-	>(() => {
+/**
+ * A contract's ledger for a search: every payment it holds, newest first.
+ *
+ * `placeholderData` holds the previous set while a new query is in flight, so the ledger
+ * keeps rendering rows instead of flashing through its loading state on every keystroke.
+ */
+export function useListContractPayments(params: () => { contractId: number; search?: string }) {
+	return createQuery(() => {
 		const { contractId, search } = params();
-		const trimmedSearch = search?.trim();
+		const trimmedSearch = search?.trim() ?? '';
 
 		return {
-			queryKey: keys.dataView(contractId, trimmedSearch),
-			initialPageParam: 0,
-			getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
-			queryFn: ({ pageParam }) =>
-				api.contract.payments.getPaginated({
+			queryKey: keys.list(contractId, trimmedSearch),
+			queryFn: () =>
+				api.contract.payments.getMany({
 					contractId,
-					search: trimmedSearch || undefined,
-					limit: DATA_VIEW_PAGE_SIZE,
-					offset: typeof pageParam === 'number' ? pageParam : 0
-				})
+					search: trimmedSearch || undefined
+				}),
+			placeholderData: <T>(previous: T) => previous
 		};
 	});
 }

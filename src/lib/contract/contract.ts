@@ -204,6 +204,21 @@ export function hasSatisfiedContractPaymentRequirement(paidAmount: number, expec
 	return paidAmount + EPSILON >= expectedAmount;
 }
 
+/**
+ * What a contract still owes against its whole expected amount, read from the two
+ * aggregates reconcile materializes onto it rather than from its payment rows.
+ *
+ * A contract that has satisfied its requirement owes nothing: an overpayment is not a
+ * negative balance, and the float dust the requirement tolerates is not a debt.
+ */
+export function getRemainingContractBalance(paidAmount: number, expectedAmount: number) {
+	if (hasSatisfiedContractPaymentRequirement(paidAmount, expectedAmount)) {
+		return 0;
+	}
+
+	return expectedAmount - paidAmount;
+}
+
 export function isContractPaidInFull(contract: ContractLike, payments: PaymentLike[]) {
 	const { paidAmount, expectedAmount } = getContractPaymentSummary(contract, payments);
 

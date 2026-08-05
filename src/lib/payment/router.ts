@@ -1,7 +1,6 @@
 import * as s from '$lib/platform/database/schema';
 import { PaymentSchema, type Payment } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
-import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/pagination';
 import {
 	ensureContractIsNotTerminated,
 	ensureContractPaymentsCreatable
@@ -9,7 +8,7 @@ import {
 import { reconcileTouched } from '$lib/contract/reconcile';
 import { ensureValidPaymentAmount } from '$lib/payment/payment';
 import { TRPCError } from '@trpc/server';
-import { asc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
 /**
@@ -28,59 +27,54 @@ function serializePayment(record: typeof s.payment.$inferSelect): Payment {
 	};
 }
 
-const paymentSearchDateFormatter = new Intl.DateTimeFormat('en-GB', {
-	dateStyle: 'medium',
-	timeZone: 'UTC'
-});
+// the day a payment was made, as the text a search runs against. A stored date is epoch
+// milliseconds, which no reader would type, so the comparison is made against the calendar
+// day it stands for — in UTC, which is the zone every date here is held in.
+const paymentDay = sql<string>`strftime('%Y-%m-%d', ${s.payment.date} / 1000, 'unixepoch')`;
 
-function matchesPaymentSearch(payment: Payment, search: string) {
-	return [String(payment.amount), paymentSearchDateFormatter.format(new Date(payment.date))].some(
-		(value) => value.toLowerCase().includes(search)
-	);
+// every field the ledger can be searched by, whether or not the row shows it — a field
+// dropped from a surface is never dropped from search.
+//
+// `%` and `_` are LIKE's own wildcards, so a term carrying either is escaped before it
+// becomes a pattern: a user searching for "50%" is looking for that text, not asking to
+// match everything.
+function paymentSearchCondition(search: string) {
+	const pattern = `%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
+	const like = (column: SQL | AnyColumn) =>
+		sql`lower(cast(${column} as text)) like lower(${pattern}) escape '\\'`;
+
+	return sql.join([like(s.payment.amount), like(paymentDay)], sql` or `);
 }
 
 export default router({
+	/**
+	 * A contract's payments, in one bounded query: the whole result set for a search, newest
+	 * first, so the ledger can read that order to place its month headers.
+	 *
+	 * `search` matches an amount, or the payment's calendar day written as `2026-03-20` — a
+	 * prefix of it, `2026-03`, selects a month. It is the stored day rather than the date the
+	 * row displays: the display date is localized, and no locale's rendering of it exists in
+	 * the database to compare against.
+	 */
 	getMany: procedure.public
-		.input(PaymentSchema.pick({ contractId: true }))
+		.input(PaymentSchema.pick({ contractId: true }).extend({ search: z.string().optional() }))
 		.query(async ({ input, ctx }) => {
+			const search = input.search?.trim();
 			const payments = await ctx.db
 				.select()
 				.from(s.payment)
-				.where(eq(s.payment.contractId, input.contractId));
+				.where(
+					and(
+						eq(s.payment.contractId, input.contractId),
+						search ? paymentSearchCondition(search) : undefined
+					)
+				)
+				// a statement reads newest first, and two payments made on one day are told apart
+				// by which was recorded later — without that tie-break the order is not total, and
+				// two renders of the same ledger may disagree.
+				.orderBy(desc(s.payment.date), desc(s.payment.id));
 
 			return payments.map(serializePayment);
-		}),
-
-	getPaginated: procedure.public
-		.input(PaginationSchema.extend({ contractId: z.number(), search: z.string().optional() }))
-		.query(async ({ input, ctx }) => {
-			const { limit, offset } = resolvePagination(input);
-			const search = input.search?.trim().toLowerCase();
-
-			if (search) {
-				const payments = await ctx.db
-					.select()
-					.from(s.payment)
-					.where(eq(s.payment.contractId, input.contractId))
-					.orderBy(asc(s.payment.id));
-				const serializedPayments = payments.map(serializePayment);
-
-				return toPaginatedResult(
-					serializedPayments.filter((payment) => matchesPaymentSearch(payment, search)),
-					limit,
-					offset
-				);
-			}
-
-			const payments = await ctx.db
-				.select()
-				.from(s.payment)
-				.where(eq(s.payment.contractId, input.contractId))
-				.orderBy(asc(s.payment.id))
-				.limit(limit + 1)
-				.offset(offset);
-
-			return toPaginatedResult(payments.map(serializePayment), limit, offset);
 		}),
 
 	create: procedure.public

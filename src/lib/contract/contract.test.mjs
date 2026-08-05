@@ -10,6 +10,7 @@ import {
 	getContractPaymentSummary,
 	getExpectedAmountInRange,
 	getOutstandingExpectedAmount,
+	getRemainingContractBalance,
 	hasSameUtcDateRange,
 	hasSatisfiedContractPaymentRequirement,
 	hasValidContractPeriodForInterval,
@@ -300,6 +301,18 @@ test('hasSatisfiedContractPaymentRequirement locks by required amount, not payme
 	assert.equal(hasSatisfiedContractPaymentRequirement(1000, 1000), true);
 	assert.equal(hasSatisfiedContractPaymentRequirement(1000.00005, 1000), true);
 	assert.equal(hasSatisfiedContractPaymentRequirement(999.99, 1000), false);
+});
+
+test('getRemainingContractBalance measures the aggregates against each other', () => {
+	assert.equal(getRemainingContractBalance(400, 1000), 600);
+	assert.equal(getRemainingContractBalance(0, 1000), 1000);
+});
+
+test('getRemainingContractBalance owes nothing once the requirement is satisfied', () => {
+	assert.equal(getRemainingContractBalance(1000, 1000), 0);
+	assert.equal(getRemainingContractBalance(1200, 1000), 0);
+	// the same float dust the requirement tolerates is not a debt either
+	assert.equal(getRemainingContractBalance(999.99995, 1000), 0);
 });
 
 test('hasValidContractPeriodForInterval accepts calendar-month periods on arbitrary start dates', () => {
