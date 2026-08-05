@@ -2,12 +2,100 @@ import type { Context } from '$lib/api/context';
 import * as s from '$lib/platform/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
-import { PaginationSchema, resolvePagination, toPaginatedResult } from '$lib/api/pagination';
-import { deriveUnitStatuses } from '$lib/contract/contract';
+import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
+import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
+import { CONTRACT_OCCUPYING_STATUSES, deriveUnitStatuses } from '$lib/contract/contract';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import { TRPCError } from '@trpc/server';
-import { asc, eq, inArray, like, or, sql } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	gte,
+	inArray,
+	like,
+	lt,
+	or,
+	sql,
+	type AnyColumn,
+	type SQL
+} from 'drizzle-orm';
+import { QueryBuilder } from 'drizzle-orm/sqlite-core';
 import z from 'zod';
+
+// How many units the complex holds and how many of them stand vacant, counted on the list
+// query itself rather than by a query per row. The join is a left one, so a complex with no
+// units still arrives with a row and two zeroes.
+//
+// One expression each, selected under an alias and ordered by directly: written twice, the
+// column the list sorts on could come to differ from the number its rows show.
+const unitCount = sql<number>`count(${s.unit.id})`;
+const vacantUnitCount = sql<number>`coalesce(sum(case when ${s.unit.status} = 'vacant' then 1 else 0 end), 0)`;
+
+const COMPLEX_SORT_COLUMNS: Record<ComplexSortColumnId, SQL | AnyColumn> = {
+	name: s.complex.name,
+	location: s.complex.location,
+	unitCount,
+	vacantUnitCount
+};
+
+const ComplexSortSchema = z.object({
+	columnId: z.enum(COMPLEX_SORT_COLUMN_IDS),
+	direction: z.enum(['asc', 'desc'])
+});
+
+/**
+ * Ties fall back to the directory's own order — name, then id.
+ *
+ * A location is shared by every complex in one city and a count by most of them, so
+ * ordering by either alone leaves the screen tied; breaking those by id would show a page
+ * in insertion order, which reads as no order at all. The id is still last because a name
+ * is unique today only by a constraint the order cannot see.
+ */
+function complexOrderBy(sort: z.infer<typeof ComplexSortSchema> | undefined): SQL[] {
+	const directoryOrder = [asc(s.complex.name), asc(s.complex.id)];
+
+	if (!sort) {
+		return directoryOrder;
+	}
+
+	const column = COMPLEX_SORT_COLUMNS[sort.columnId];
+	const chosen = sort.direction === 'asc' ? asc(column) : desc(column);
+
+	return sort.columnId === 'name' ? [chosen, asc(s.complex.id)] : [chosen, ...directoryOrder];
+}
+
+/**
+ * The name of the tenant occupying a unit today, or null where nobody is.
+ *
+ * The rule is `deriveUnitStatus`'s, expressed for the query rather than for a loaded row:
+ * an assignment whose contract holds an occupying status and whose period covers today.
+ * `limit 1` is what keeps one unit to one row — assignments cannot legally overlap, so the
+ * subquery is choosing between rows that should not both exist rather than picking a
+ * winner.
+ */
+function occupyingTenantName(now: DateLike) {
+	const dayStart = toUtcDay(now);
+	const dayEnd = addUtcDays(dayStart, 1);
+	const occupant = new QueryBuilder()
+		.select({ name: s.tenant.name })
+		.from(s.contractUnit)
+		.innerJoin(s.contract, eq(s.contract.id, s.contractUnit.contractId))
+		.innerJoin(s.tenant, eq(s.tenant.id, s.contract.tenantId))
+		.where(
+			and(
+				eq(s.contractUnit.unitId, s.unit.id),
+				inArray(s.contract.status, CONTRACT_OCCUPYING_STATUSES),
+				lt(s.contract.start, dayEnd),
+				gte(s.contract.end, dayStart)
+			)
+		)
+		.orderBy(desc(s.contract.start))
+		.limit(1);
+
+	return sql<string | null>`(${occupant})`;
+}
 
 async function getUnitsWithDerivedStatus(
 	ctx: Pick<Context, 'db' | 'clock'>,
@@ -143,38 +231,33 @@ export default router({
 	}),
 
 	getMany: procedure.public
-		.input(z.object({ search: z.string().optional() }))
+		.input(
+			z.object({
+				search: z.string().optional(),
+				sort: ComplexSortSchema.optional()
+			})
+		)
 		.query(async ({ input, ctx }) => {
-			if (input.search) {
-				const searchPattern = `%${input.search}%`;
-				return await ctx.db
-					.select()
-					.from(s.complex)
-					.where(or(like(s.complex.name, searchPattern), like(s.complex.location, searchPattern)));
-			}
-
-			return await ctx.db.select().from(s.complex);
-		}),
-
-	getPaginated: procedure.public
-		.input(PaginationSchema.extend({ search: z.string().optional() }))
-		.query(async ({ input, ctx }) => {
-			const { limit, offset } = resolvePagination(input);
 			const search = input.search?.trim();
-			const query = ctx.db.select().from(s.complex);
-			const complexes = await (
-				search
-					? query
-							.where(
-								or(like(s.complex.name, `%${search}%`), like(s.complex.location, `%${search}%`))
-							)
-							.orderBy(asc(s.complex.id))
-					: query.orderBy(asc(s.complex.id))
-			)
-				.limit(limit + 1)
-				.offset(offset);
+			const searchPattern = search ? `%${search}%` : undefined;
 
-			return toPaginatedResult(complexes, limit, offset);
+			return await ctx.db
+				.select({
+					id: s.complex.id,
+					name: s.complex.name,
+					location: s.complex.location,
+					unitCount: unitCount.as('unitCount'),
+					vacantUnitCount: vacantUnitCount.as('vacantUnitCount')
+				})
+				.from(s.complex)
+				.leftJoin(s.unit, eq(s.unit.complexId, s.complex.id))
+				.where(
+					searchPattern
+						? or(like(s.complex.name, searchPattern), like(s.complex.location, searchPattern))
+						: undefined
+				)
+				.groupBy(s.complex.id)
+				.orderBy(...complexOrderBy(input.sort));
 		}),
 
 	units: {
@@ -185,49 +268,32 @@ export default router({
 		}),
 
 		getMany: procedure.public
-			.input(UnitSchema.pick({ complexId: true }))
+			.input(UnitSchema.pick({ complexId: true }).extend({ search: z.string().optional() }))
 			.query(async ({ input, ctx }) => {
-				const units = await ctx.db
-					.select()
+				const search = input.search?.trim();
+				const searchPattern = search ? `%${search}%` : undefined;
+				const tenantName = occupyingTenantName(ctx.clock.now());
+
+				// the board has one order and no control over it, so the search narrows what it
+				// holds and never rearranges it.
+				return await ctx.db
+					.select({
+						id: s.unit.id,
+						name: s.unit.name,
+						complexId: s.unit.complexId,
+						status: s.unit.status,
+						tenantName: tenantName.as('tenantName')
+					})
 					.from(s.unit)
-					.where(eq(s.unit.complexId, input.complexId));
-
-				return await getUnitsWithDerivedStatus(ctx, units);
-			}),
-
-		getPaginated: procedure.public
-			.input(PaginationSchema.extend({ complexId: z.number(), search: z.string().optional() }))
-			.query(async ({ input, ctx }) => {
-				const { limit, offset } = resolvePagination(input);
-				const search = input.search?.trim().toLowerCase();
-
-				if (search) {
-					const units = await ctx.db
-						.select()
-						.from(s.unit)
-						.where(eq(s.unit.complexId, input.complexId))
-						.orderBy(asc(s.unit.id));
-					const unitsWithStatus = await getUnitsWithDerivedStatus(ctx, units);
-					const filteredUnits = unitsWithStatus.filter((unit) =>
-						`${unit.name} ${unit.status}`.toLowerCase().includes(search)
-					);
-
-					return toPaginatedResult(filteredUnits, limit, offset);
-				}
-
-				const units = await ctx.db
-					.select()
-					.from(s.unit)
-					.where(eq(s.unit.complexId, input.complexId))
-					.orderBy(asc(s.unit.id))
-					.limit(limit + 1)
-					.offset(offset);
-				const pageUnits = units.slice(0, limit);
-
-				return {
-					items: await getUnitsWithDerivedStatus(ctx, pageUnits),
-					nextOffset: units.length > limit ? offset + limit : null
-				};
+					.where(
+						and(
+							eq(s.unit.complexId, input.complexId),
+							searchPattern
+								? or(like(s.unit.name, searchPattern), like(tenantName, searchPattern))
+								: undefined
+						)
+					)
+					.orderBy(asc(s.unit.name), asc(s.unit.id));
 			}),
 
 		create: procedure.public

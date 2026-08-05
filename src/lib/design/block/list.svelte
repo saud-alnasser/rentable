@@ -64,6 +64,13 @@
 		recordHeight?: number;
 		/** The same, for a group header. */
 		groupHeaderHeight?: number;
+		/**
+		 * The narrowest a record may render, in pixels. A list that sets it lays records out
+		 * across the viewport rather than one to a line, fitting as many columns of at least
+		 * this width as there is room for — so the layout reflows on a resize instead of
+		 * scrolling sideways. A list that leaves it unset is one record wide.
+		 */
+		recordMinWidth?: number;
 		/** What the empty state says when the list has no records to show. */
 		emptyTitle?: string;
 		/** An optional line under it, where the list can say why it is empty. */
@@ -83,6 +90,7 @@
 		onCreate,
 		recordHeight = 56,
 		groupHeaderHeight = 36,
+		recordMinWidth,
 		emptyTitle = $LL.common.messages.noResults(),
 		emptyDescription
 	}: ListProps = $props();
@@ -94,11 +102,17 @@
 	const OVERSCAN_ROWS = 8;
 
 	let viewport = $state<HTMLElement | null>(null);
+	let viewportWidth = $state(0);
 	let searchInput = $state(search);
 
+	// the column count is measured rather than declared, because the shape it serves reflows:
+	// the reader's window decides how many records fit, and the query knows nothing about it.
+	const columns = $derived(
+		recordMinWidth ? Math.max(1, Math.floor(viewportWidth / recordMinWidth)) : 1
+	);
 	// grouping without a header snippet would insert rows that render nothing and still take
 	// up a header's height, so the two props only take effect as a pair.
-	const rows = $derived(listRows(data, groupHeader ? groupOf : undefined));
+	const rows = $derived(listRows(data, groupHeader ? groupOf : undefined, columns));
 	const sortableColumnIds = $derived(sortOptions.map((option) => option.id));
 	const hasResults = $derived(rows.length > 0);
 	const isAwaitingFirstResults = $derived(isLoading && !hasResults);
@@ -268,6 +282,7 @@
 		{:else}
 			<div
 				bind:this={viewport}
+				bind:clientWidth={viewportWidth}
 				class="app-scroll h-full overflow-y-auto"
 				aria-busy={isFetching || undefined}
 			>
@@ -290,8 +305,17 @@
 							>
 								{#if row.kind === 'header'}
 									{@render groupHeader?.(row.group)}
+								{:else if columns === 1}
+									{@render record(row.records[0])}
 								{:else}
-									{@render record(row.record)}
+									<div
+										class="grid h-full"
+										style={`grid-template-columns: repeat(${columns}, minmax(0, 1fr));`}
+									>
+										{#each row.records as item (item.id)}
+											{@render record(item)}
+										{/each}
+									</div>
 								{/if}
 							</div>
 						{/if}

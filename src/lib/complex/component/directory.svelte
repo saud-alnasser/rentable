@@ -1,0 +1,107 @@
+<script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
+	import type api from '$lib/api/caller';
+	import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
+	import { useListComplexes } from '$lib/complex/query';
+	import List from '$lib/design/block/list.svelte';
+	import { hasCreateIntent } from '$lib/design/create-intent';
+	import type { ListSort } from '$lib/design/sort';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { formatLocaleNumber } from '$lib/platform/locale';
+	import CircleDashedIcon from '@tabler/icons-svelte/icons/circle-dashed';
+	import DoorIcon from '@tabler/icons-svelte/icons/door';
+	import ComplexForm from './form.svelte';
+
+	type ComplexRecord = Awaited<ReturnType<typeof api.complex.getMany>>[number];
+
+	// two lines of text and the breathing room around them; the shell lays rows out at this
+	// height rather than measuring them.
+	const ROW_HEIGHT = 64;
+
+	let search = $state('');
+	let sort = $state<ListSort | null>(null);
+	let isComplexFormOpen = $state(false);
+
+	const complexesQuery = useListComplexes(
+		() => search,
+		() => sort
+	);
+	const complexes = $derived(complexesQuery.data ?? []);
+
+	// built from the ids the procedure orders by, so the control cannot come to offer a key
+	// the query would reject. The record type is what makes a missing label a type error.
+	const sortOptions = $derived.by(() => {
+		const labels: Record<ComplexSortColumnId, string> = {
+			name: $LL.common.labels.name(),
+			location: $LL.common.labels.location(),
+			unitCount: $LL.common.labels.units(),
+			vacantUnitCount: $LL.common.labels.vacantUnits()
+		};
+
+		return COMPLEX_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
+	});
+
+	// the intent is consumed on arrival and cleared from the URL, so a reload or a back
+	// navigation does not reopen a form the user has already dismissed.
+	$effect(() => {
+		if (!hasCreateIntent(page.url)) {
+			return;
+		}
+
+		isComplexFormOpen = true;
+		void goto(resolve('/complexes'), { replaceState: true, noScroll: true, keepFocus: true });
+	});
+</script>
+
+<List
+	data={complexes}
+	bind:search
+	bind:sort
+	{sortOptions}
+	isLoading={complexesQuery.isLoading}
+	isFetching={complexesQuery.isFetching}
+	recordHeight={ROW_HEIGHT}
+	onCreate={() => {
+		isComplexFormOpen = true;
+	}}
+>
+	{#snippet record(complex: ComplexRecord)}
+		{@const units = formatLocaleNumber($locale, complex.unitCount)}
+		{@const vacant = formatLocaleNumber($locale, complex.vacantUnitCount)}
+		<a
+			href={resolve(`/complexes/${complex.id}`)}
+			class="flex h-full items-center gap-4 border-b px-4 transition-colors hover:bg-muted/40"
+		>
+			<span class="flex min-w-0 flex-1 flex-col gap-0.5 text-start">
+				<span class="truncate text-sm font-medium">{complex.name}</span>
+				<span class="truncate text-xs text-muted-foreground">{complex.location}</span>
+			</span>
+
+			<span
+				class="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
+				aria-label={`${$LL.common.labels.units()}: ${units}`}
+			>
+				<DoorIcon class="size-4" />
+				<span class="tabular-nums">{units}</span>
+			</span>
+
+			<span
+				class="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
+				aria-label={`${$LL.common.labels.vacantUnits()}: ${vacant}`}
+			>
+				<CircleDashedIcon class="size-4" />
+				<span class="tabular-nums">{vacant}</span>
+			</span>
+		</a>
+	{/snippet}
+</List>
+
+<ComplexForm
+	open={isComplexFormOpen}
+	onOpenChange={(isOpen) => {
+		isComplexFormOpen = isOpen;
+	}}
+	value={undefined}
+/>

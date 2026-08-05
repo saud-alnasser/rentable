@@ -351,3 +351,229 @@ test('a unit becomes vacant again once its contract is terminated', async () => 
 	const unit = await readUnit(api, created.id);
 	assert.equal(unit.status, 'vacant');
 });
+
+// --- The complexes directory ---------------------------------------------------------
+//
+// `getMany` answers the complexes list, which reads as a directory: the order is the
+// reader's, and the unit and vacant counts are aggregates on the same query. Both are
+// asserted here because both are what the list may not redo on the client.
+
+async function seedOccupiedUnit(api, complexId, name) {
+	const unit = await api.complex.units.create({ name, complexId });
+	const contract = await seedActiveContract(api);
+	await api.contract.units.assign({ contractId: contract.id, complexId, unitIds: [unit.id] });
+
+	return unit;
+}
+
+test('a complex is listed with how many units it holds and how many stand vacant', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	await seedOccupiedUnit(api, complex.id, 'A1');
+	await api.complex.units.create({ name: 'A2', complexId: complex.id });
+	await api.complex.units.create({ name: 'A3', complexId: complex.id });
+
+	const [listed] = await api.complex.getMany({});
+
+	assert.equal(listed.unitCount, 3);
+	assert.equal(listed.vacantUnitCount, 2);
+});
+
+test('a complex with no units is listed with counts of zero rather than omitted', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+
+	const [listed] = await api.complex.getMany({});
+
+	assert.equal(listed.id, complex.id);
+	assert.equal(listed.unitCount, 0);
+	assert.equal(listed.vacantUnitCount, 0);
+});
+
+test('the directory opens ordered by name', async () => {
+	const api = await createApi();
+	await api.complex.create({ name: 'Zahra Towers', location: 'Riyadh' });
+	await api.complex.create({ name: 'Amber Court', location: 'Jeddah' });
+
+	assert.deepEqual(
+		(await api.complex.getMany({})).map((complex) => complex.name),
+		['Amber Court', 'Zahra Towers']
+	);
+});
+
+test('the directory orders by every key the sort control offers', async () => {
+	const api = await createApi();
+	const amber = await api.complex.create({ name: 'Amber Court', location: 'Riyadh' });
+	const zahra = await api.complex.create({ name: 'Zahra Towers', location: 'Jeddah' });
+
+	await api.complex.units.create({ name: 'A1', complexId: amber.id });
+	await api.complex.units.create({ name: 'A2', complexId: amber.id });
+	await seedOccupiedUnit(api, zahra.id, 'B1');
+
+	const orderBy = async (columnId, direction) =>
+		(await api.complex.getMany({ sort: { columnId, direction } })).map((complex) => complex.id);
+
+	assert.deepEqual(await orderBy('name', 'asc'), [amber.id, zahra.id]);
+	assert.deepEqual(await orderBy('name', 'desc'), [zahra.id, amber.id]);
+	assert.deepEqual(await orderBy('location', 'asc'), [zahra.id, amber.id]);
+	assert.deepEqual(await orderBy('location', 'desc'), [amber.id, zahra.id]);
+	assert.deepEqual(await orderBy('unitCount', 'asc'), [zahra.id, amber.id]);
+	assert.deepEqual(await orderBy('unitCount', 'desc'), [amber.id, zahra.id]);
+	assert.deepEqual(await orderBy('vacantUnitCount', 'asc'), [zahra.id, amber.id]);
+	assert.deepEqual(await orderBy('vacantUnitCount', 'desc'), [amber.id, zahra.id]);
+});
+
+test('complexes tied on the chosen order fall back to the directory order', async () => {
+	const api = await createApi();
+	// created Zahra first, so an id tie-break would put it first and a name one would not.
+	const zahra = await api.complex.create({ name: 'Zahra Towers', location: 'Riyadh' });
+	const amber = await api.complex.create({ name: 'Amber Court', location: 'Riyadh' });
+	await api.complex.units.create({ name: 'B1', complexId: zahra.id });
+	await api.complex.units.create({ name: 'A1', complexId: amber.id });
+
+	assert.deepEqual(
+		(await api.complex.getMany({ sort: { columnId: 'unitCount', direction: 'desc' } })).map(
+			(complex) => complex.name
+		),
+		['Amber Court', 'Zahra Towers']
+	);
+});
+
+test('the directory refuses to order by a column the control does not offer', async () => {
+	const api = await createApi();
+
+	await assert.rejects(() => api.complex.getMany({ sort: { columnId: 'id', direction: 'asc' } }));
+});
+
+test('searching the directory narrows it by name and by location', async () => {
+	const api = await createApi();
+	const amber = await api.complex.create({ name: 'Amber Court', location: 'Riyadh' });
+	const zahra = await api.complex.create({ name: 'Zahra Towers', location: 'Riyadh' });
+	await api.complex.create({ name: 'Coral Bay', location: 'Jeddah' });
+	await api.complex.units.create({ name: 'B1', complexId: zahra.id });
+
+	const byLocation = await api.complex.getMany({
+		search: 'Riyadh',
+		sort: { columnId: 'unitCount', direction: 'desc' }
+	});
+
+	assert.deepEqual(
+		byLocation.map((complex) => complex.id),
+		[zahra.id, amber.id]
+	);
+	assert.deepEqual(
+		(await api.complex.getMany({ search: 'Coral' })).map((complex) => complex.name),
+		['Coral Bay']
+	);
+});
+
+// --- The occupancy board -------------------------------------------------------------
+//
+// `units.getMany` answers the board inside a complex: every unit of the complex, in the
+// board's own order, each carrying the tenant occupying it.
+
+test('an occupied unit names the tenant occupying it', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	const unit = await api.complex.units.create({ name: 'A1', complexId: complex.id });
+	const tenant = await seedTenant(api);
+	const contract = await api.contract.create({
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000
+	});
+	await api.contract.units.assign({
+		contractId: contract.id,
+		complexId: complex.id,
+		unitIds: [unit.id]
+	});
+
+	const [listed] = await api.complex.units.getMany({ complexId: complex.id });
+
+	assert.equal(listed.status, 'occupied');
+	assert.equal(listed.tenantName, tenant.name);
+});
+
+test('a vacant unit names no tenant', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	await api.complex.units.create({ name: 'A1', complexId: complex.id });
+
+	const [listed] = await api.complex.units.getMany({ complexId: complex.id });
+
+	assert.equal(listed.status, 'vacant');
+	assert.equal(listed.tenantName, null);
+});
+
+test('a unit whose contract has ended names no tenant', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	const unit = await api.complex.units.create({ name: 'A1', complexId: complex.id });
+	const tenant = await seedTenant(api);
+	const contract = await api.contract.create({
+		tenantId: tenant.id,
+		start: monthsFromNow(-14),
+		end: monthsFromNow(-2),
+		interval: '12m',
+		cost: 1000
+	});
+	await api.contract.units.assign({
+		contractId: contract.id,
+		complexId: complex.id,
+		unitIds: [unit.id]
+	});
+
+	const [listed] = await api.complex.units.getMany({ complexId: complex.id });
+
+	assert.equal(listed.status, 'vacant');
+	assert.equal(listed.tenantName, null);
+});
+
+test('the board is ordered by unit name and holds only its own complex', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	const other = await api.complex.create({ name: 'Coral Bay', location: 'Jeddah' });
+	await api.complex.units.create({ name: 'B2', complexId: complex.id });
+	await api.complex.units.create({ name: 'A1', complexId: complex.id });
+	await api.complex.units.create({ name: 'Z9', complexId: other.id });
+
+	assert.deepEqual(
+		(await api.complex.units.getMany({ complexId: complex.id })).map((unit) => unit.name),
+		['A1', 'B2']
+	);
+});
+
+test('searching the board reaches the unit name and the occupying tenant', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	await api.complex.units.create({ name: 'A1', complexId: complex.id });
+	const occupied = await api.complex.units.create({ name: 'B2', complexId: complex.id });
+	const tenant = await seedTenant(api);
+	const contract = await api.contract.create({
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000
+	});
+	await api.contract.units.assign({
+		contractId: contract.id,
+		complexId: complex.id,
+		unitIds: [occupied.id]
+	});
+
+	assert.deepEqual(
+		(await api.complex.units.getMany({ complexId: complex.id, search: 'A1' })).map(
+			(unit) => unit.name
+		),
+		['A1']
+	);
+	assert.deepEqual(
+		(await api.complex.units.getMany({ complexId: complex.id, search: tenant.name })).map(
+			(unit) => unit.name
+		),
+		['B2']
+	);
+});

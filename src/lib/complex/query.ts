@@ -1,66 +1,94 @@
 import api from '$lib/api/caller';
+import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
+import type { ListSort } from '$lib/design/sort';
 import { LL } from '$lib/i18n/i18n-svelte';
-import {
-	createInfiniteQuery,
-	createMutation,
-	createQuery,
-	useQueryClient,
-	type InfiniteData
-} from '@tanstack/svelte-query';
+import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
-
-const DATA_VIEW_PAGE_SIZE = 24;
-type InfiniteComplexesPage = Awaited<ReturnType<typeof api.complex.getPaginated>>;
-type InfiniteUnitsPage = Awaited<ReturnType<typeof api.complex.units.getPaginated>>;
 
 export const keys = {
 	all: workspacePrefixes.complexes,
 	get: (id: number) => [...workspacePrefixes.complexes, id],
-	dataView: (search?: string) => [...workspacePrefixes.complexes, 'data-view', search ?? ''],
+	list: (search: string, sort: ListSort | null) => [
+		...workspacePrefixes.complexes,
+		'list',
+		search,
+		sort ? `${sort.columnId}:${sort.direction}` : 'default'
+	],
 	units: {
 		all: workspacePrefixes.units,
 		get: (id: number) => [...workspacePrefixes.units, 'detail', id],
 		getMany: (complexId: number) => [...workspacePrefixes.units, complexId],
-		dataView: (complexId: number, search?: string) => [
+		board: (complexId: number, search: string) => [
 			...workspacePrefixes.units,
-			'data-view',
+			'board',
 			complexId,
-			search ?? ''
+			search
 		]
 	}
 } as const;
+
+// the shell's sort carries a bare string, because it is shared by lists that order by
+// different keys. This is where it becomes one of this list's own.
+function isComplexSortColumnId(columnId: string): columnId is ComplexSortColumnId {
+	return (COMPLEX_SORT_COLUMN_IDS as readonly string[]).includes(columnId);
+}
+
+/**
+ * The complexes directory for a search and an order: the whole result set, each row
+ * carrying how many units the complex holds and how many of them stand vacant.
+ *
+ * `placeholderData` holds the previous set while a new query is in flight, so the list keeps
+ * rendering rows instead of flashing through its loading state on every keystroke.
+ */
+export function useListComplexes(
+	search: () => string = () => '',
+	sort: () => ListSort | null = () => null
+) {
+	return createQuery(() => {
+		const trimmedSearch = search().trim();
+		const chosenSort = sort();
+
+		return {
+			queryKey: keys.list(trimmedSearch, chosenSort),
+			queryFn: () =>
+				api.complex.getMany({
+					search: trimmedSearch || undefined,
+					sort:
+						chosenSort && isComplexSortColumnId(chosenSort.columnId)
+							? { columnId: chosenSort.columnId, direction: chosenSort.direction }
+							: undefined
+				}),
+			placeholderData: <T>(previous: T) => previous
+		};
+	});
+}
+
+/**
+ * The occupancy board for one complex: every unit it holds, in the board's own order, each
+ * carrying the tenant occupying it. The board has no sort control — its order is what makes
+ * it a board — so the search is all the reader varies.
+ */
+export function useListUnits(complexId: () => number, search: () => string = () => '') {
+	return createQuery(() => {
+		const id = complexId();
+		const trimmedSearch = search().trim();
+
+		return {
+			queryKey: keys.units.board(id, trimmedSearch),
+			queryFn: () =>
+				api.complex.units.getMany({ complexId: id, search: trimmedSearch || undefined }),
+			placeholderData: <T>(previous: T) => previous
+		};
+	});
+}
 
 export function useFetchComplexes() {
 	return createQuery(() => ({
 		queryKey: keys.all,
 		queryFn: () => api.complex.getMany({})
 	}));
-}
-
-export function useInfiniteComplexes(search: () => string = () => '') {
-	return createInfiniteQuery<
-		InfiniteComplexesPage,
-		Error,
-		InfiniteData<InfiniteComplexesPage>,
-		ReturnType<typeof keys.dataView>,
-		number
-	>(() => {
-		const trimmedSearch = search().trim();
-
-		return {
-			queryKey: keys.dataView(trimmedSearch),
-			initialPageParam: 0,
-			getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
-			queryFn: ({ pageParam }) =>
-				api.complex.getPaginated({
-					search: trimmedSearch || undefined,
-					limit: DATA_VIEW_PAGE_SIZE,
-					offset: typeof pageParam === 'number' ? pageParam : 0
-				})
-		};
-	});
 }
 
 export function useFetchComplex(id: () => number) {
@@ -92,32 +120,6 @@ export function useFetchUnits(complexId: () => number) {
 		return {
 			queryKey: keys.units.getMany(id),
 			queryFn: () => api.complex.units.getMany({ complexId: id })
-		};
-	});
-}
-
-export function useInfiniteUnits(params: () => { complexId: number; search?: string }) {
-	return createInfiniteQuery<
-		InfiniteUnitsPage,
-		Error,
-		InfiniteData<InfiniteUnitsPage>,
-		ReturnType<typeof keys.units.dataView>,
-		number
-	>(() => {
-		const { complexId, search } = params();
-		const trimmedSearch = search?.trim();
-
-		return {
-			queryKey: keys.units.dataView(complexId, trimmedSearch),
-			initialPageParam: 0,
-			getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
-			queryFn: ({ pageParam }) =>
-				api.complex.units.getPaginated({
-					complexId,
-					search: trimmedSearch || undefined,
-					limit: DATA_VIEW_PAGE_SIZE,
-					offset: typeof pageParam === 'number' ? pageParam : 0
-				})
 		};
 	});
 }
