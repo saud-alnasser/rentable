@@ -4,6 +4,8 @@ import { ContractSchema } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import {
 	CONTRACT_ATTENTION_ORDER,
+	CONTRACT_SORT_COLUMN_IDS,
+	type ContractSortColumnId,
 	deriveContractStatus,
 	deriveUnitStatuses,
 	ensureContractDeletable,
@@ -25,7 +27,7 @@ import dashboard from '$lib/dashboard/router';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import payment from '$lib/payment/router';
 import { TRPCError } from '@trpc/server';
-import { and, asc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
 // status and the payment aggregates are derived columns: reconcile owns them, so no
@@ -84,7 +86,7 @@ async function selectPaymentsForContract(db: Database, contractId: number) {
 	return await db.select().from(s.payment).where(eq(s.payment.contractId, contractId));
 }
 
-// the queue's order, as one expression the database can sort on: the rank a status holds in
+// ordering by status, as one expression the database can sort on: the rank a status holds in
 // CONTRACT_ATTENTION_ORDER. Built from the array rather than written out, so the order is
 // stated once and a status added to the enum without a rank sorts last instead of silently
 // landing among the ones that need attention.
@@ -98,6 +100,57 @@ const contractAttentionRank = sql.join(
 	],
 	sql` `
 );
+
+const CONTRACT_SORT_COLUMNS: Record<ContractSortColumnId, SQL | AnyColumn> = {
+	tenantName: s.tenant.name,
+	govId: s.contract.govId,
+	start: s.contract.start,
+	end: s.contract.end,
+	cost: s.contract.cost,
+	status: contractAttentionRank
+};
+
+const ContractSortSchema = z.object({
+	columnId: z.enum(CONTRACT_SORT_COLUMN_IDS),
+	direction: z.enum(['asc', 'desc'])
+});
+
+// the order the directory opens in, and the order ties fall back to under any other: tenant
+// name, then when the contract runs, then the id that makes the order total. Each term
+// carries the sort key it answers, so the chosen key can be dropped from the fallback
+// wherever it appears — a term repeated below the key it was chosen as can never break a tie
+// that key did not already break.
+const CONTRACT_DIRECTORY_ORDER: readonly { columnId?: ContractSortColumnId; term: SQL }[] = [
+	{ columnId: 'tenantName', term: asc(s.tenant.name) },
+	{ columnId: 'start', term: asc(s.contract.start) },
+	{ term: asc(s.contract.id) }
+];
+
+/**
+ * Ties fall back to the directory's own order — tenant name, then when the contract runs,
+ * then id — less whichever of those the reader is already ordering by.
+ *
+ * A status or a cost is shared by whole screens of contracts, so ordering by one alone
+ * leaves most of the list tied; breaking those by id would show equal values in insertion
+ * order, which reads as no order at all. One tenant's contracts then read oldest first, and
+ * the id is last because nothing above it is unique — without a total order two renders of
+ * the same query may disagree.
+ */
+function contractOrderBy(sort: z.infer<typeof ContractSortSchema> | undefined): SQL[] {
+	if (!sort) {
+		return CONTRACT_DIRECTORY_ORDER.map(({ term }) => term);
+	}
+
+	const column = CONTRACT_SORT_COLUMNS[sort.columnId];
+	const chosen = sort.direction === 'asc' ? asc(column) : desc(column);
+
+	return [
+		chosen,
+		...CONTRACT_DIRECTORY_ORDER.filter(({ columnId }) => columnId !== sort.columnId).map(
+			({ term }) => term
+		)
+	];
+}
 
 // every field the list can be searched by, whether or not the row shows it — a field dropped
 // from a surface is never dropped from search.
@@ -428,11 +481,10 @@ export default router({
 			return undefined;
 		}),
 
-	// the contracts list, in one bounded query: the whole result set for a search, ordered so
-	// that each attention rank's contracts arrive together. The list shell reads that order to
-	// place its group headers and never imposes one of its own.
+	// the contracts directory, in one bounded query: the whole result set for a search, in the
+	// order the sort control chose. The list renders what arrives and orders nothing itself.
 	getMany: procedure.public
-		.input(z.object({ search: z.string().optional() }))
+		.input(z.object({ search: z.string().optional(), sort: ContractSortSchema.optional() }))
 		.query(async ({ input, ctx }) => {
 			const search = input.search?.trim();
 
@@ -445,7 +497,7 @@ export default router({
 				.from(s.contract)
 				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
 				.where(search ? contractSearchCondition(search) : undefined)
-				.orderBy(contractAttentionRank, asc(s.contract.end), asc(s.contract.id));
+				.orderBy(...contractOrderBy(input.sort));
 
 			return contracts.map(({ contract, tenantName, tenantPhone }) =>
 				serializeContract(contract, tenantName, tenantPhone)

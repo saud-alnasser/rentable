@@ -88,6 +88,7 @@ const ar = {
 			complex: 'مجمع',
 			contract: 'عقد',
 			contractEnds: 'ينتهي العقد',
+			contractNumber: 'رقم العقد',
 			contractPeriod: 'مدة العقد',
 			costPerPayment: 'التكلفة لكل دفعة',
 			currentDatabasePath: 'مسار قاعدة البيانات الحالي',

@@ -464,11 +464,11 @@ test('updating the cost updates the expected amount on reads', async () => {
 	assert.equal(reloaded.expectedAmount, 2500);
 });
 
-// --- The triage queue -------------------------------------------------------------------
+// --- The directory ----------------------------------------------------------------------
 //
-// `getMany` answers the contracts list, which opens as a queue rather than a browse: the
-// order is the attention rank, and the search is the query's own. Both are asserted here
-// because both are what the list may not redo on the client.
+// `getMany` answers the contracts list, which opens as a directory rather than a queue: the
+// order is whichever key the sort control chose, and the search is the query's own. Both are
+// asserted here because both are what the list may not redo on the client.
 
 // Seeds one contract per status, created in an order that is not the order they come back
 // in — so a test asserting attention order cannot pass on insertion order by accident.
@@ -512,47 +512,152 @@ async function seedOneContractPerStatus(api) {
 	return { defaulted, active, scheduled, fulfilled, expired, terminated };
 }
 
-test('the contract list opens in attention order', async () => {
+test('the directory opens ordered by tenant name, then by when the contract runs', async () => {
 	const api = await createApi();
-	const seeded = await seedOneContractPerStatus(api);
-
-	const listed = await api.contract.getMany({});
-
-	assert.deepEqual(
-		listed.map((contract) => contract.status),
-		['defaulted', 'active', 'scheduled', 'fulfilled', 'expired', 'terminated']
-	);
-	assert.deepEqual(
-		listed.map((contract) => contract.id),
-		[
-			seeded.defaulted.id,
-			seeded.active.id,
-			seeded.scheduled.id,
-			seeded.fulfilled.id,
-			seeded.expired.id,
-			seeded.terminated.id
-		]
-	);
-});
-
-test('the contract list orders the soonest end date first within a rank', async () => {
-	const api = await createApi();
-	const later = await seedContract(api, { start: monthsFromNow(-1), end: monthsFromNow(11) });
-	const sooner = await seedContract(api, {
-		start: monthsFromNow(-1),
-		end: monthsFromNow(5),
-		interval: '6m'
+	const zaid = await api.tenant.create({
+		name: 'Zaid',
+		nationalId: '2999999999',
+		phone: '+966551110001'
+	});
+	const amal = await api.tenant.create({
+		name: 'Amal',
+		nationalId: '1000000001',
+		phone: '+966551110002'
 	});
 
-	const listed = await api.contract.getMany({});
+	// Zaid's contract is created first, so an insertion order would put him at the top.
+	const zaidContract = await seedContract(api, { tenantId: zaid.id, govId: 'GOV-Z' });
+	const amalLater = await seedContract(api, {
+		tenantId: amal.id,
+		govId: 'GOV-A-LATER',
+		start: monthsFromNow(1),
+		end: monthsFromNow(13)
+	});
+	const amalEarlier = await seedContract(api, {
+		tenantId: amal.id,
+		govId: 'GOV-A-EARLIER',
+		start: monthsFromNow(-6),
+		end: monthsFromNow(6)
+	});
 
 	assert.deepEqual(
-		listed.map((contract) => contract.id),
-		[sooner.id, later.id]
+		(await api.contract.getMany({})).map((contract) => contract.id),
+		[amalEarlier.id, amalLater.id, zaidContract.id]
 	);
 });
 
-test('searching the contract list narrows it and keeps the attention order', async () => {
+test('the directory orders by every key the sort control offers', async () => {
+	const api = await createApi();
+	const amal = await api.tenant.create({
+		name: 'Amal',
+		nationalId: '2999999999',
+		phone: '+966551110001'
+	});
+	const zaid = await api.tenant.create({
+		name: 'Zaid',
+		nationalId: '1000000001',
+		phone: '+966551110002'
+	});
+
+	// Amal's contract starts earlier and ends later, so no two keys agree on the same pair
+	// and a key wired to the wrong column shows up as a wrong order.
+	const amalContract = await seedContract(api, {
+		tenantId: amal.id,
+		govId: 'GOV-2',
+		start: monthsFromNow(-3),
+		end: monthsFromNow(9),
+		cost: 2000
+	});
+	const zaidContract = await seedContract(api, {
+		tenantId: zaid.id,
+		govId: 'GOV-1',
+		start: monthsFromNow(-1),
+		end: monthsFromNow(2),
+		interval: '3m',
+		cost: 1000
+	});
+
+	const orderBy = async (columnId, direction) =>
+		(await api.contract.getMany({ sort: { columnId, direction } })).map((contract) => contract.id);
+
+	assert.deepEqual(await orderBy('tenantName', 'asc'), [amalContract.id, zaidContract.id]);
+	assert.deepEqual(await orderBy('tenantName', 'desc'), [zaidContract.id, amalContract.id]);
+	assert.deepEqual(await orderBy('govId', 'asc'), [zaidContract.id, amalContract.id]);
+	assert.deepEqual(await orderBy('govId', 'desc'), [amalContract.id, zaidContract.id]);
+	assert.deepEqual(await orderBy('start', 'asc'), [amalContract.id, zaidContract.id]);
+	assert.deepEqual(await orderBy('start', 'desc'), [zaidContract.id, amalContract.id]);
+	assert.deepEqual(await orderBy('end', 'asc'), [zaidContract.id, amalContract.id]);
+	assert.deepEqual(await orderBy('end', 'desc'), [amalContract.id, zaidContract.id]);
+	assert.deepEqual(await orderBy('cost', 'asc'), [zaidContract.id, amalContract.id]);
+	assert.deepEqual(await orderBy('cost', 'desc'), [amalContract.id, zaidContract.id]);
+});
+
+test('ordering the directory by status follows the attention ranking', async () => {
+	const api = await createApi();
+
+	await seedOneContractPerStatus(api);
+
+	const attentionOrder = ['defaulted', 'active', 'scheduled', 'fulfilled', 'expired', 'terminated'];
+
+	assert.deepEqual(
+		(await api.contract.getMany({ sort: { columnId: 'status', direction: 'asc' } })).map(
+			(contract) => contract.status
+		),
+		attentionOrder
+	);
+	// descending reverses the ranking rather than reading the enum backwards by name, which
+	// is the only ordering of these six words that means anything.
+	assert.deepEqual(
+		(await api.contract.getMany({ sort: { columnId: 'status', direction: 'desc' } })).map(
+			(contract) => contract.status
+		),
+		[...attentionOrder].reverse()
+	);
+});
+
+test('the directory refuses to order by a column the sort control does not offer', async () => {
+	const api = await createApi();
+
+	await assert.rejects(() =>
+		api.contract.getMany({ sort: { columnId: 'paidAmount', direction: 'asc' } })
+	);
+});
+
+test('contracts tied on the chosen order fall back to the directory order', async () => {
+	const api = await createApi();
+	const zaid = await api.tenant.create({
+		name: 'Zaid',
+		nationalId: '2999999999',
+		phone: '+966551110001'
+	});
+	const amal = await api.tenant.create({
+		name: 'Amal',
+		nationalId: '1000000001',
+		phone: '+966551110002'
+	});
+
+	// created Zaid's first, so an id tie-break would put it first and a name one would not.
+	const zaidContract = await seedContract(api, { tenantId: zaid.id, cost: 1000 });
+	const amalContract = await seedContract(api, { tenantId: amal.id, cost: 1000 });
+
+	assert.deepEqual(
+		(await api.contract.getMany({ sort: { columnId: 'cost', direction: 'desc' } })).map(
+			(contract) => contract.id
+		),
+		[amalContract.id, zaidContract.id]
+	);
+
+	// both contracts also start on the same day, and start is itself one of the fallback
+	// terms: ordering by it falls through to the tenant name rather than to the start again.
+	assert.deepEqual(
+		(await api.contract.getMany({ sort: { columnId: 'start', direction: 'desc' } })).map(
+			(contract) => contract.id
+		),
+		[amalContract.id, zaidContract.id]
+	);
+});
+
+test('searching the contract list narrows it and keeps the chosen order', async () => {
 	const api = await createApi();
 	const seeded = await seedOneContractPerStatus(api);
 	const tenant = await api.tenant.get({ id: seeded.active.tenantId });
@@ -570,15 +675,21 @@ test('searching the contract list narrows it and keeps the attention order', asy
 		[seeded.active.id]
 	);
 	assert.deepEqual(
-		(await api.contract.getMany({ search: 'gov-' })).map((contract) => contract.status),
+		(
+			await api.contract.getMany({
+				search: 'gov-',
+				sort: { columnId: 'status', direction: 'asc' }
+			})
+		).map((contract) => contract.status),
 		['defaulted', 'active', 'scheduled', 'fulfilled', 'expired', 'terminated']
 	);
 	assert.deepEqual(await api.contract.getMany({ search: 'nothing matches this' }), []);
 });
 
-// The row stops showing the gov id, the phone, the cost and the interval, and decision 03
-// holds that dropping a field from a surface never drops it from search.
-test('the contract search still reaches the fields the row stopped showing', async () => {
+// The row shows the tenant, the contract number, the period, the status and the cost; the
+// phone, the tenant id and the interval as it is stored are not on it. Decision 03 holds
+// that a field a surface does not show is still a field the list is searched by.
+test('the contract search reaches the fields the row does not show', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api, { govId: 'GOV-HIDDEN', interval: '3m', cost: 4321 });
 

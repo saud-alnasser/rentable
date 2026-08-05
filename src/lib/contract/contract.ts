@@ -273,8 +273,8 @@ export function deriveContractStatus(
 }
 
 /**
- * The order the contracts list opens in: what needs the user, then what is running, then
- * what has not started, then the history behind them.
+ * The order the statuses rank in when a reader orders the directory by status: what needs
+ * the user, then what is running, then what has not started, then the history behind them.
  *
  * It is an ordering over statuses rather than a property of one, so it lives beside the
  * derivation that produces them and is turned into an `ORDER BY` by the router that reads
@@ -288,6 +288,26 @@ export const CONTRACT_ATTENTION_ORDER = [
 	'expired',
 	'terminated'
 ] as const satisfies readonly Contract['status'][];
+
+/**
+ * The keys the contracts directory may be ordered by, and the whole of what its sort control
+ * may offer — an order outside this list is one the query cannot answer, so the router
+ * rejects it rather than silently falling back to the directory's own order.
+ *
+ * It lives here rather than beside the SQL because it decides what a caller is allowed to
+ * ask for, and it is exported because the control has to be built from the same list: two
+ * places naming the orders is how a control comes to offer one the query cannot serve.
+ */
+export const CONTRACT_SORT_COLUMN_IDS = [
+	'tenantName',
+	'govId',
+	'start',
+	'end',
+	'cost',
+	'status'
+] as const;
+
+export type ContractSortColumnId = (typeof CONTRACT_SORT_COLUMN_IDS)[number];
 
 /**
  * The statuses a contract in force holds — the ones whose period covers today and which
