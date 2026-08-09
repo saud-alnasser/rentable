@@ -1,3 +1,8 @@
+---
+kind: research
+falsifies: [.claude/decisions/0008-one-list-block-replaces-both.md]
+---
+
 # What does the interface cost today — search, scrolling, reconcile, and the query traffic behind one list page?
 
 Verified against: this repository at `5a8cee5`, 2026-08-03

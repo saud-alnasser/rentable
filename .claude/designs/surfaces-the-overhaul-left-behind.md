@@ -1,8 +1,14 @@
-# feat: rebuild the surfaces the overhaul left behind
+---
+status: draft
+sources:
+  - src/routes/settings/
+  - src/lib/settings/
+  - src/lib/layout/component/
+  - src/lib/sync/component/
+  - src/routes/+error.svelte
+---
 
-Status: draft
-Sources: `src/routes/settings/`, `src/lib/settings/`, `src/lib/layout/component/`,
-`src/lib/sync/component/`, `src/routes/+error.svelte`
+# feat: rebuild the surfaces the overhaul left behind
 
 ## Problem
 

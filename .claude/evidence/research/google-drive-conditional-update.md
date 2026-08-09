@@ -1,3 +1,8 @@
+---
+kind: research
+falsifies: []
+---
+
 # Does the Google Drive API v3 support a conditional update — a compare-and-set — on an existing file's content or metadata?
 
 Verified against: Google Drive API v3, 2026-08-02

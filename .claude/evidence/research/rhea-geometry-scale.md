@@ -1,3 +1,8 @@
+---
+kind: research
+falsifies: []
+---
+
 # What are Rhea's geometry values, and what has to change when they are hand-ported onto these primitives?
 
 Verified against: shadcn-svelte registry as served on 2026-08-03; CLI `shadcn-svelte@1.5.0` (published 2026-08-02); this repository at `8ce1962`

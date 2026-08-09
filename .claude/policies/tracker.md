@@ -15,6 +15,17 @@ fetch, not an assumption.
 What happens to a ticket once somebody starts building it — the branch convention, the
 commit discipline, how work lands — is `.claude/policies/version-control.md`'s.
 
+## Where the specs live
+
+**Flat, in `.claude/designs/<slug>.md`**, and their index is `.claude/designs/map.md`. The
+other layout — one spec per effort, beside the tickets it governs — needs the tickets to be
+on disk, and here they are GitHub issues. The two layouts are exclusive, and the index
+regeneration refuses a tree holding both.
+
+Decision work has no ticket and so no effort directory either. Its sections live in the
+design document for that effort, in the same directory, and the map itself is a pinned
+issue — `.claude/policies/maps.md` has the form.
+
 ## What a ticket is
 
 **Branch-bound.** One ticket becomes one branch, which lands as one unit of review — from

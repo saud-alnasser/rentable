@@ -1,7 +1,14 @@
-# chore(deps): consolidate the Renovate backlog into one update
+---
+status: accepted
+sources:
+  - package.json
+  - tauri/Cargo.toml
+  - .github/renovate.json
+  - .github/workflows/
+  - .claude/evidence/research/dependency-backlog-consolidation.md
+---
 
-Status: accepted
-Sources: `package.json`, `tauri/Cargo.toml`, `.github/renovate.json`, `.github/workflows/`, `.claude/evidence/research/dependency-backlog-consolidation.md`
+# chore(deps): consolidate the Renovate backlog into one update
 
 ## Problem
 

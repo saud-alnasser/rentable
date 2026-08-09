@@ -1,3 +1,8 @@
+---
+kind: prototypes
+falsifies: []
+---
+
 # What should the contract form's interior become — sections, progressive disclosure, or a split?
 
 Verified against: Svelte 5.56.8 / SvelteKit 2, bits-ui 2.18.1, Tauri 2, in the running desktop app, 2026-08-04

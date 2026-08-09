@@ -1,8 +1,15 @@
-# feat: give the contracts one work queue and one directory
+---
+status: implemented
+sources:
+  - src/lib/dashboard/
+  - src/lib/contract/
+  - src/lib/payment/component/
+  - src/lib/design/block/
+  - src/routes/+page.svelte
+  - src/routes/contracts/+page.svelte
+---
 
-Status: implemented
-Sources: `src/lib/dashboard/`, `src/lib/contract/`, `src/lib/payment/component/`,
-`src/lib/design/block/`, `src/routes/+page.svelte`, `src/routes/contracts/+page.svelte`
+# feat: give the contracts one work queue and one directory
 
 Re-plans [#250](https://github.com/saud-alnasser/rentable/issues/250), handed back blocked, and
 re-scopes [#268](https://github.com/saud-alnasser/rentable/issues/268), which was accepted but

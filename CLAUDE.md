@@ -26,7 +26,7 @@ backup. There is no server; everything runs in the desktop app.
 
 ## Rules that always apply
 
-`.claude/rules/precedence.md` and `.claude/rules/engineering.md` are always-on and never restated here — a standard with two homes drifts at one of them. The rest of that directory is path-scoped by `paths:` frontmatter, and holds standards discovered in **this repository**: the API layer, the frontend, module layout, and testing.
+`.claude/rules/precedence.md`, `.claude/rules/engineering.md`, and `.claude/rules/placement.md` are always-on and never restated here — a standard with two homes drifts at one of them. The rest of that directory is path-scoped by `paths:` frontmatter, and holds standards discovered in **this repository**: the API layer, the frontend, module layout, and testing.
 
 ## Knowledge layers
 

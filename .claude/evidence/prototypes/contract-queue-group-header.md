@@ -1,3 +1,8 @@
+---
+kind: prototypes
+falsifies: []
+---
+
 # What should a group header in the contracts triage queue carry besides its name?
 
 Verified against: Svelte 5 / SvelteKit 2, Tauri 2, in the running desktop app, 2026-08-04
