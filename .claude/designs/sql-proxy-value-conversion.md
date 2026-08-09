@@ -1,8 +1,12 @@
-# fix(persistence): a value crosses the boundary typed by what it is
+---
+status: implemented
+sources:
+  - tauri/src/database/proxy.rs
+  - src/lib/platform/database/client.ts
+  - src/lib/platform/database/memory.ts
+---
 
-Status: implemented
-Sources: `tauri/src/database/proxy.rs`, `src/lib/platform/database/client.ts`,
-`src/lib/platform/database/memory.ts`
+# fix(persistence): a value crosses the boundary typed by what it is
 
 ## Problem
 

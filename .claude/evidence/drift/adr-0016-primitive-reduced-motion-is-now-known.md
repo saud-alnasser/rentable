@@ -1,8 +1,11 @@
+---
+kind: drift
+falsifies: [.claude/decisions/0016-motion-responds-and-uses-what-is-installed.md]
+---
+
 # ADR 0016 records as unknown something #273 established
 
 Checked against: `574200a` (`main`), with `tw-animate-css` 1.4.0 and `bits-ui` 2.18.1 installed
-Falsifies: `.claude/decisions/0016-motion-responds-and-uses-what-is-installed.md`, Consequences,
-the paragraph beginning *"Whether the generated primitives honour the preference today is unknown"*
 Area: the interface overhaul — map [#211](https://github.com/saud-alnasser/rentable/issues/211)
 
 ## What was checked

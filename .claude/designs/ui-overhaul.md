@@ -1,10 +1,26 @@
+---
+status: implemented
+sources:
+  - src/lib/design/block/
+  - src/lib/design/primitive/
+  - src/lib/layout/
+  - src/routes/
+  - src/app.css
+  - src/lib/contract/router.ts
+  - src/lib/contract/serialize.ts
+  - src/lib/contract/reconcile.ts
+  - tauri/tauri.conf.json
+---
+
 # Interface overhaul — decisions
 
-Status: complete — every decision is answered; the spec is [`ui-overhaul-spec.md`](ui-overhaul-spec.md)
 Map: [#211](https://github.com/saud-alnasser/rentable/issues/211)
-Sources: `src/lib/design/block/`, `src/lib/design/primitive/`, `src/lib/layout/`, `src/routes/`,
-`src/app.css`, `src/lib/contract/router.ts`, `src/lib/contract/serialize.ts`,
-`src/lib/contract/reconcile.ts`, `tauri/tauri.conf.json`
+
+Every decision is answered and the spec it produced is
+[`ui-overhaul-spec.md`](ui-overhaul-spec.md). This is the decision document `.claude/policies/maps.md`
+places decision work in on a branch-bound tracker, not a spec — the `status` field carries the
+spec vocabulary because the directory's index reads it, and `implemented` is what *exited, and
+the tickets it produced were built* renders as there.
 
 **The map is #211; this file holds the decisions it is made of.** A ticket in this repository is
 one branch carrying one commit that becomes one pull request, and a decision produces no branch —

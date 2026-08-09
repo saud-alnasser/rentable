@@ -1,3 +1,8 @@
+---
+kind: research
+falsifies: []
+---
+
 # Does a motion library beat Svelte's built-ins for this application's animation needs?
 
 Verified against: Svelte 5.56.8, Tailwind CSS 4.3.3, tw-animate-css 1.4.0, Motion (motion.dev)

@@ -54,6 +54,7 @@
 		"untermnate",
 		"vaul",
 		"vite",
+		"worktree",
 		"العربية"
 	],
 	"i18n-ally.localesPaths": ["src/lib/i18n", "src/lib/i18n/messages"],

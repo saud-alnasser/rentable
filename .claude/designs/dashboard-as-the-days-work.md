@@ -1,8 +1,14 @@
-# feat(dashboard): make the landing screen the day's work
+---
+status: superseded by contract-work-queue-and-directory.md
+sources:
+  - src/lib/dashboard/
+  - src/routes/+page.svelte
+  - src/lib/design/block/
+  - src/lib/design/cell/
+  - src/lib/contract/
+---
 
-Status: superseded by `contract-work-queue-and-directory.md`
-Sources: `src/lib/dashboard/`, `src/routes/+page.svelte`, `src/lib/design/block/`,
-`src/lib/design/cell/`, `src/lib/contract/`
+# feat(dashboard): make the landing screen the day's work
 
 ## Problem
 

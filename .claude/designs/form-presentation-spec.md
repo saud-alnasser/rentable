@@ -1,10 +1,17 @@
-# feat: forms get one surface, and it answers the window
+---
+status: implemented
+sources:
+  - src/lib/design/block/form-sheet.svelte
+  - src/lib/design/primitive/form/
+  - src/lib/design/primitive/dialog/
+  - src/lib/design/primitive/sheet/
+  - src/lib/tenant/component/form.svelte
+  - src/lib/contract/component/form.svelte
+  - src/lib/complex/component/form.svelte
+  - src/lib/payment/component/form.svelte
+---
 
-Status: implemented
-Sources: `src/lib/design/block/form-sheet.svelte`, `src/lib/design/primitive/form/`,
-`src/lib/design/primitive/dialog/`, `src/lib/design/primitive/sheet/`,
-`src/lib/tenant/component/form.svelte`, `src/lib/contract/component/form.svelte`,
-`src/lib/complex/component/form.svelte`, `src/lib/payment/component/form.svelte`
+# feat: forms get one surface, and it answers the window
 
 Closes the last entry on [#211](https://github.com/saud-alnasser/rentable/issues/211)'s *Not yet
 specified* list — *"The forms, in detail"* — and answers the question left open on #250's

@@ -1,8 +1,13 @@
+---
+kind: drift
+falsifies: [.claude/decisions/0009-the-shipping-list-block-is-rewritten-under-a-new-name.md]
+---
+
 # ADR 0009 cites ADR 0007 for a claim ADR 0007 does not make
 
 Checked against: `0652708` (`main`)
-Falsifies: `.claude/decisions/0009-the-shipping-list-block-is-rewritten-under-a-new-name.md`, final paragraph
 Area: the interface overhaul — map [#211](https://github.com/saud-alnasser/rentable/issues/211)
+Consumed: `.claude/decisions/0013-list-presentation-is-per-concept.md` — #211 decision 07
 
 ## What was checked
 

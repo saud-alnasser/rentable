@@ -1,3 +1,8 @@
+---
+kind: research
+falsifies: []
+---
+
 # Which of the thirteen open Renovate updates can land together, and which cannot?
 
 Verified against: crates.io and registry.npmjs.org, 2026-08-03; cargo 1.97.1, resolution probes run locally

@@ -1,8 +1,15 @@
-# feat: give each list the presentation its data is shaped like
+---
+status: accepted
+sources:
+  - src/lib/design/block/
+  - src/lib/design/cell/
+  - src/lib/contract/
+  - src/lib/payment/
+  - src/lib/tenant/
+  - src/lib/complex/
+---
 
-Status: accepted
-Sources: `src/lib/design/block/`, `src/lib/design/cell/`, `src/lib/contract/`,
-`src/lib/payment/`, `src/lib/tenant/`, `src/lib/complex/`
+# feat: give each list the presentation its data is shaped like
 
 Supersedes [`ui-overhaul-spec.md`](ui-overhaul-spec.md) for the work that remains. Its data
 layer (#243–#245) and its shell (#246–#248) are built and are not revisited; what changes is

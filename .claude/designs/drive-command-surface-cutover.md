@@ -1,8 +1,13 @@
-# refactor: coarse Drive command surface, credentials withdrawn, TypeScript client deleted
+---
+status: implemented
+sources:
+  - src/lib/api/utils/remote-sync-google-drive.ts
+  - tauri/src/remote_sync/
+  - src/lib/resources/settings/
+  - src/routes/+layout.svelte
+---
 
-Status: implemented
-Sources: `src/lib/api/utils/remote-sync-google-drive.ts`, `tauri/src/remote_sync/`,
-`src/lib/resources/settings/`, `src/routes/+layout.svelte`
+# refactor: coarse Drive command surface, credentials withdrawn, TypeScript client deleted
 
 ## Problem
 
