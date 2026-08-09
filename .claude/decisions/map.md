@@ -11,7 +11,7 @@
 | [0007](0007-rhea-geometry-is-hand-ported.md) | a primitive is being regenerated, added, or restyled | accepted | `src/lib/design/primitive/` |
 | [0008](0008-one-list-block-replaces-both.md) | the history of how the list block reached its present shape is in question | superseded | `src/lib/design/block/` |
 | [0009](0009-the-shipping-list-block-is-rewritten-under-a-new-name.md) | the history of how the list block reached its present shape is in question | superseded | `src/lib/design/block/` |
-| [0010](0010-lists-load-whole-result-sets.md) | a list read is being written, or pagination is proposed for one | accepted | `src/lib/api/pagination.ts`, `src/lib/design/block/list.svelte` |
+| [0010](0010-lists-load-whole-result-sets.md) | a list read is being written, or pagination is proposed for one | accepted | `src/lib/design/block/list.svelte` |
 | [0011](0011-reconcile-is-scoped-by-trigger.md) | a mutation, a sync pull, or a day crossing has to move derived state | accepted | `src/lib/contract/reconcile.ts` |
 | [0012](0012-the-query-cache-is-trusted-until-told-otherwise.md) | a query's caching or invalidation behaviour is in question | accepted | `src/lib/design/query.ts` |
 | [0013](0013-list-presentation-is-per-concept.md) | a list's presentation is being chosen or changed | accepted | `src/lib/design/block/list.svelte` |

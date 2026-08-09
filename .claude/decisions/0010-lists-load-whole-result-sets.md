@@ -1,7 +1,7 @@
 ---
 status: accepted
 load-when: a list read is being written, or pagination is proposed for one
-sources: [src/lib/api/pagination.ts, src/lib/design/block/list.svelte]
+sources: [src/lib/design/block/list.svelte]
 supersedes: []
 superseded-by: []
 ---

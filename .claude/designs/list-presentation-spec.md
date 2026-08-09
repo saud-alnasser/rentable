@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: implemented
 sources:
   - src/lib/design/block/
   - src/lib/design/cell/
