@@ -22,3 +22,4 @@
 | [0018](0018-a-validation-error-belongs-to-its-field.md) | a form reports validation errors | accepted | `src/lib/design/block/field-error.svelte`, `src/lib/design/primitive/form/` |
 | [0019](0019-the-work-queue-is-the-landing-screen.md) | the landing screen or the contracts list is being changed | accepted | `src/lib/dashboard/`, `src/lib/contract/` |
 | [0020](0020-surfaces-diverge-by-kind-not-by-operation.md) | a new surface for a concept is being placed | accepted | `src/lib/design/block/` |
+| [0021](0021-reduced-motion-is-guarded-once-and-loops-are-exempt.md) | a surface is gaining animation or a transition, or the reduced-motion preference is in question | accepted | `src/app.css`, `src/lib/design/primitive/` |

@@ -116,6 +116,23 @@ gt abort                # give up on the in-progress operation
 
 `gt restack` is the fix when branches have drifted — most often because a `git` operation edited history that `gt` didn't know about.
 
+## Reparent a branch
+
+```
+gt move --onto <branch> --no-interactive        # move the current branch; descendants follow
+gt move --onto <branch> --source <branch>       # move one other than the current
+gt move --onto <branch> --only                  # leave descendants on the old parent
+```
+
+**`gt restack` is the wrong verb when the parent is gone.** It rebases onto the parent Graphite has *recorded*, so a branch whose parent branch was deleted has nothing to rebase onto. `--onto` is the only way to name a new one.
+
+This repository squash-merges, which makes that case routine rather than exotic: the squash commit is not an ancestor of the branch it came from, so merging a parent's pull request deletes that branch and leaves every child pointing at a parent that no longer exists. GitHub retargets the child's pull request to the default branch on its own, the pull request goes `DIRTY`, and **auto-merge stays enabled on it and simply never fires** — there is no failure to notice. Fetch the default branch before moving onto it (`git fetch origin main:main`), or the move lands on a stale trunk.
+
+Verified on gt 1.8.6. Two things worth knowing before typing it:
+
+- **With no `--onto`, `gt move` opens an interactive selector** — a hang in a non-interactive session, not an error.
+- **`--help` contradicts itself about `--interactive`**: the prose says "Enabled by default" and the annotation beside it says `[default: false]`. Pass `--no-interactive` explicitly rather than relying on either reading.
+
 ## Never submit or sync
 
 ```

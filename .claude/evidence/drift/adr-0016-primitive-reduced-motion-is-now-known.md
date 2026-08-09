@@ -7,6 +7,7 @@ falsifies: [.claude/decisions/0016-motion-responds-and-uses-what-is-installed.md
 
 Checked against: `574200a` (`main`), with `tw-animate-css` 1.4.0 and `bits-ui` 2.18.1 installed
 Area: the interface overhaul — map [#211](https://github.com/saud-alnasser/rentable/issues/211)
+Consumed: `.claude/decisions/0021-reduced-motion-is-guarded-once-and-loops-are-exempt.md` — #211, decision work carrying no ticket
 
 ## What was checked
 
