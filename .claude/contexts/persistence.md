@@ -1,4 +1,5 @@
 ---
+owner: repository
 load-when: the request touches the schema, migrations, or how queries reach SQLite
 sources: [src/lib/platform/database/, tauri/src/database/, tauri/migrations/]
 ---

@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: accepted
 load-when: two clients could write one workspace, or a manifest or snapshot conflict is being handled
 sources: [tauri/src/sync/google/manifest.rs, tauri/src/sync/google/conflict.rs]

@@ -1,3 +1,8 @@
+---
+owner: framework
+version: 1.19.0
+---
+
 # Mode: research
 
 <!-- Installed by /configure at `.claude/modes/research.md`, copied as-is. -->

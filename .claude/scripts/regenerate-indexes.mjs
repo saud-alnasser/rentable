@@ -110,7 +110,7 @@ function list(fields, key, shape, file) {
 	if (!field) refuse(file, `it declares no \`${key}\``);
 	if (field.shape === 'scalar') refuse(file, `\`${key}\` is a value where a list was required`);
 	if (field.shape === 'block' && field.items.length === 0)
-		refuse(file, `\`${key}\` has nothing under it — that is YAML null; write \`[]\` to point at nothing`);
+		refuse(file, `\`${key}\` has nothing under it -- that is YAML null; write \`[]\` to point at nothing`);
 	if (field.items.length > 0 && field.shape !== shape)
 		refuse(file, `\`${key}\` is ${field.shape} where this family declares ${shape}`);
 	return field.items;
@@ -119,6 +119,20 @@ function list(fields, key, shape, file) {
 /** A cell with nothing in it is an em dash — blank reads as a column nobody filled in. */
 function paths(entries) {
 	return entries.length === 0 ? '—' : entries.map((entry) => `\`${entry}\``).join(', ');
+}
+
+/**
+ * Whether a finding's body carries a consumption mark naming what was healed — a
+ * `Consumed:` line with something after it. A mark naming nothing reads as no mark.
+ */
+function consumed(file) {
+	const lines = readFileSync(file, 'utf8').split(/\r?\n/);
+	const end = lines[0] === '---' ? lines.indexOf('---', 1) : 0;
+	for (const line of lines.slice(end + 1)) {
+		const mark = /^Consumed:\s*(.*)$/.exec(line);
+		if (mark) return mark[1].trim() !== '';
+	}
+	return false;
 }
 
 function markdownFiles(dir) {
@@ -135,8 +149,23 @@ function subdirectories(dir) {
 		.sort(byName);
 }
 
+/**
+ * Every index opens with `owner: repository` frontmatter: the generated files sit in a
+ * corpus where every instruction and knowledge file declares its owner, and the
+ * generator is the only writer here, so the declaration is emitted rather than asked.
+ */
 function table(title, columns, rows) {
-	return [`# ${title}`, '', `| ${columns.join(' | ')} |`, `| ${columns.map(() => '---').join(' | ')} |`, ...rows];
+	return [
+		'---',
+		'owner: repository',
+		'---',
+		'',
+		`# ${title}`,
+		'',
+		`| ${columns.join(' | ')} |`,
+		`| ${columns.map(() => '---').join(' | ')} |`,
+		...rows,
+	];
 }
 
 function buildContexts(root, errors) {
@@ -214,7 +243,14 @@ function buildEvidence(root, errors) {
 		const fields = parseFrontmatter(file);
 		const declared = scalar(fields, 'kind', file);
 		if (declared !== kind) refuse(file, `it declares kind \`${declared}\` but sits in \`${kind}/\``);
-		return `| [${name.slice(0, -3)}](${kind}/${name}) | ${kind} | ${paths(list(fields, 'falsifies', 'inline', file))} |`;
+		const falsifies = list(fields, 'falsifies', 'inline', file);
+		// A finding that named something to heal is `waiting` until its own consumption
+		// mark says otherwise — the mark is where the file records its healing, and the
+		// one value any index reads from outside the frontmatter. Unknown resolves to
+		// waiting: the reverse would retire evidence nobody acted on.
+		const cell =
+			falsifies.length === 0 ? '—' : `${consumed(file) ? 'consumed' : 'waiting'} — ${paths(falsifies)}`;
+		return `| [${name.slice(0, -3)}](${kind}/${name}) | ${kind} | ${cell} |`;
 	});
 
 	if (rows.length === 0) return null;
@@ -272,13 +308,15 @@ function main() {
 			.filter(Boolean);
 	} catch (error) {
 		if (!(error instanceof Refusal)) throw error;
-		console.error(`refused, nothing written — ${error.message}`);
+		// Emitted output stays ASCII: it crosses whatever console encoding the shell has,
+		// and an em dash does not survive one that is not UTF-8.
+		console.error(`refused, nothing written -- ${error.message}`);
 		process.exit(1);
 	}
 
 	for (const { path, lines } of indexes) {
 		writeFileSync(path, lines.join(eol) + eol, 'utf8');
-		console.log(`wrote ${path} (${lines.length - 4} rows)`);
+		console.log(`wrote ${path} (${lines.length - 8} rows)`);
 	}
 
 	for (const error of errors) console.error(error);

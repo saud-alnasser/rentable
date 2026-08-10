@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: accepted
 load-when: a surface is gaining animation or a transition, or the reduced-motion preference is in question
 sources: [src/app.css, src/lib/design/primitive/]

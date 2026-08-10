@@ -1,3 +1,8 @@
+---
+owner: framework
+version: 1.19.0
+---
+
 # Mode: implementation
 
 <!-- Installed by /configure at `.claude/modes/implementation.md`, copied as-is. -->

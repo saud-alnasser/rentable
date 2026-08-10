@@ -1,3 +1,7 @@
+---
+owner: repository
+---
+
 # pnpm
 
 The package manager and the entry point for every script in this repository. `engine-strict`

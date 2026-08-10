@@ -1,3 +1,7 @@
+---
+owner: repository
+---
+
 # cargo (Rust side)
 
 The Rust crate lives in `tauri/`, not at the repository root, so **every cargo command

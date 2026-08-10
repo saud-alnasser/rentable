@@ -1,3 +1,7 @@
+---
+owner: repository
+---
+
 # eslint
 
 The linter, and the other half of the CI gate. **CI runs `pnpm exec eslint .` directly**,

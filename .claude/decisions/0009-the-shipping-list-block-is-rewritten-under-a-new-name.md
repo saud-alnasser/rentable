@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: superseded
 load-when: the history of how the list block reached its present shape is in question
 sources: [src/lib/design/block/]

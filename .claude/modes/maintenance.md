@@ -1,3 +1,8 @@
+---
+owner: framework
+version: 1.19.0
+---
+
 # Mode: maintenance
 
 <!-- Installed by /configure at `.claude/modes/maintenance.md`, copied as-is. -->

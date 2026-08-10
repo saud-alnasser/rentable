@@ -1,4 +1,5 @@
 ---
+owner: repository
 kind: research
 falsifies: [.claude/decisions/0008-one-list-block-replaces-both.md]
 ---

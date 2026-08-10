@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: accepted
 load-when: a list's presentation is being chosen or changed
 sources: [src/lib/design/block/list.svelte]

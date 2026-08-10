@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: accepted
 load-when: a database client is constructed, or the shape of a row crossing the IPC boundary is in question
 sources: [src/lib/platform/database/]

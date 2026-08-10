@@ -169,6 +169,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ${{ env.APT_PACKAGES }}
 
+      # A generated index is never hand-edited, and this is what enforces it: the
+      # regeneration overwrites every index, so anything git still reports afterwards —
+      # a stale index, a hand edit, a drifted generator — fails the run, named. Needs
+      # node and nothing from pnpm, so it sits before the install.
+      - name: '🗺️ verify generated indexes'
+        if: steps.memo.outputs.cache-hit != 'true'
+        run: |
+          node .claude/scripts/regenerate-indexes.mjs > /dev/null
+          stale=$(git status --porcelain -- .claude/contexts/map.md .claude/decisions/map.md .claude/evidence/map.md .claude/designs/map.md .claude/tickets/map.md | cut -c4-)
+          if [ -n "$stale" ]; then
+            echo 'stale generated index — regenerate with: node .claude/scripts/regenerate-indexes.mjs' >&2
+            printf '%s\n' "$stale"
+            exit 1
+          fi
+
       - name: '📦 install pnpm packages'
         if: steps.memo.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile

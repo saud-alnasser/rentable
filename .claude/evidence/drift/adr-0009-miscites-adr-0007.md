@@ -1,4 +1,5 @@
 ---
+owner: repository
 kind: drift
 falsifies: [.claude/decisions/0009-the-shipping-list-block-is-rewritten-under-a-new-name.md]
 ---

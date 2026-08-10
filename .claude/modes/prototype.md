@@ -1,3 +1,8 @@
+---
+owner: framework
+version: 1.19.0
+---
+
 # Mode: prototype
 
 <!-- Installed by /configure at `.claude/modes/prototype.md`, copied as-is. -->
