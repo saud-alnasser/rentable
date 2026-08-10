@@ -57,7 +57,7 @@ for it. A divergence found in passing gets its own ticket.
 
 ## Requests that would change code
 
-A question gets an answer: load, answer, stop. A change to code, every turn, command or not: route, load, verify, then **state the classification** — what kind of change, how much process, one line — before touching anything, so the user can disagree.
+A question gets an answer: load, answer, stop. A change to code, every turn, command or not: route, load, verify, then **state the classification** — what kind of change, how much process, and **which stage it enters** — one line, before touching anything, so the user can disagree. **Then enter that stage**, rather than answering with something for the user to run; the router's table says which.
 
 ## Writing knowledge
 

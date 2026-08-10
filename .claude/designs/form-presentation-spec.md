@@ -1,7 +1,7 @@
 ---
 status: implemented
 sources:
-  - src/lib/design/block/form-sheet.svelte
+  - src/lib/design/block/form-surface.svelte
   - src/lib/design/primitive/form/
   - src/lib/design/primitive/dialog/
   - src/lib/design/primitive/sheet/

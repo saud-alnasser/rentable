@@ -1,9 +1,8 @@
 ---
 status: implemented
 sources:
-  - src/lib/api/utils/remote-sync-google-drive.ts
-  - tauri/src/remote_sync/
-  - src/lib/resources/settings/
+  - tauri/src/sync/
+  - src/lib/settings/
   - src/routes/+layout.svelte
 ---
 
