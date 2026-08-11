@@ -16,4 +16,5 @@ owner: repository
 | [rhea-geometry-scale](research/rhea-geometry-scale.md) | research | — |
 | [status-glyphs-and-the-payment-ring](prototypes/status-glyphs-and-the-payment-ring.md) | prototypes | — |
 | [svelte-motion-mechanism](research/svelte-motion-mechanism.md) | research | — |
+| [the-batch-transport-is-a-transaction](drift/the-batch-transport-is-a-transaction.md) | drift | waiting — `.claude/contexts/persistence.md` |
 | [the-dashboard-after-the-queues-action](discussions/the-dashboard-after-the-queues-action.md) | discussions | consumed — `.claude/decisions/0014-the-dashboard-is-the-days-work.md` |

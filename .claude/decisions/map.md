@@ -31,3 +31,6 @@ owner: repository
 | [0023](0023-a-status-is-an-icon-and-its-word-lives-in-the-tooltip.md) | a status is rendered, or a status is added to the model | accepted | `src/lib/design/cell/status.svelte` |
 | [0024](0024-units-read-as-a-directory-and-assigning-them-is-a-form.md) | a unit is being listed, or units are being assigned to a contract | accepted | `src/lib/complex/component/`, `src/lib/contract/component/` |
 | [0025](0025-a-row-opens-its-record-and-does-nothing-else.md) | a list row is given an action, or a row's click target is in question | accepted | `src/lib/design/block/list.svelte`, `src/lib/dashboard/component/queue.svelte` |
+| [0026](0026-undo-is-a-session-stack-of-inverses.md) | a data mutation is added, or undo, redo, or recovering a deleted record is in question | accepted | `src/lib/design/`, `src/lib/api/` |
+| [0027](0027-a-write-that-spans-tables-is-one-batch.md) | a mutation writes more than one table, or atomicity of a multi-step write is in question | accepted | `src/lib/platform/database/`, `tauri/src/database/` |
+| [0028](0028-a-mutation-is-declared-once-on-the-caller-side.md) | a data mutation is added, or where a mutation's cache invalidation, toast, or inverse is written is in question | accepted | `src/lib/design/mutation.ts`, `src/lib/design/query.ts` |
