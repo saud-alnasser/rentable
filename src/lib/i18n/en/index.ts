@@ -342,7 +342,6 @@ const en = {
 
 		loadErrorDescription: 'there was a problem loading the current settings snapshot.',
 		loadErrorTitle: 'settings are unavailable right now',
-		currentWorkspace: 'current workspace',
 		openWorkspaceAction: 'open workspace',
 
 		protectedUpdateBackup: 'protected update backup',
@@ -399,15 +398,12 @@ const en = {
 			'see the current workspace status, keep a fresh snapshot, and link or unlink Google Drive sync.',
 		syncGoogleDrivePending:
 			'Google Drive account linking is not configured in this build yet. The workspace and snapshot foundation is ready for it.',
-		syncTotalDriveUsageDescription: 'google drive storage: {value}',
 		syncLinkConflictDescription:
 			'this workspace already has both a local snapshot and a Google Drive snapshot. choose which copy should continue before sync starts.',
 		syncLinkConflictLocalDescription:
 			'continue with this device and overwrite Google Drive with the latest local snapshot.',
-		syncLinkConflictLocalTitle: 'keep local',
 		syncLinkConflictRemoteDescription:
 			'replace this device with the Google Drive snapshot linked to {email}.',
-		syncLinkConflictRemoteTitle: 'use remote',
 		syncLinkConflictShortDescription:
 			'finish linking by choosing whether the local or remote snapshot should become the synced workspace.',
 		syncLinkConflictTitle: 'choose which workspace copy to keep',

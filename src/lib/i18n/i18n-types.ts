@@ -1113,10 +1113,6 @@ type RootTranslation = {
 		 */
 		loadErrorTitle: string
 		/**
-		 * c​u​r​r​e​n​t​ ​w​o​r​k​s​p​a​c​e
-		 */
-		currentWorkspace: string
-		/**
 		 * o​p​e​n​ ​w​o​r​k​s​p​a​c​e
 		 */
 		openWorkspaceAction: string
@@ -1269,11 +1265,6 @@ type RootTranslation = {
 		 */
 		syncGoogleDrivePending: string
 		/**
-		 * g​o​o​g​l​e​ ​d​r​i​v​e​ ​s​t​o​r​a​g​e​:​ ​{​v​a​l​u​e​}
-		 * @param {unknown} value
-		 */
-		syncTotalDriveUsageDescription: RequiredParams<'value'>
-		/**
 		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​a​l​r​e​a​d​y​ ​h​a​s​ ​b​o​t​h​ ​a​ ​l​o​c​a​l​ ​s​n​a​p​s​h​o​t​ ​a​n​d​ ​a​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​n​a​p​s​h​o​t​.​ ​c​h​o​o​s​e​ ​w​h​i​c​h​ ​c​o​p​y​ ​s​h​o​u​l​d​ ​c​o​n​t​i​n​u​e​ ​b​e​f​o​r​e​ ​s​y​n​c​ ​s​t​a​r​t​s​.
 		 */
 		syncLinkConflictDescription: string
@@ -1282,18 +1273,10 @@ type RootTranslation = {
 		 */
 		syncLinkConflictLocalDescription: string
 		/**
-		 * k​e​e​p​ ​l​o​c​a​l
-		 */
-		syncLinkConflictLocalTitle: string
-		/**
 		 * r​e​p​l​a​c​e​ ​t​h​i​s​ ​d​e​v​i​c​e​ ​w​i​t​h​ ​t​h​e​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​n​a​p​s​h​o​t​ ​l​i​n​k​e​d​ ​t​o​ ​{​e​m​a​i​l​}​.
 		 * @param {unknown} email
 		 */
 		syncLinkConflictRemoteDescription: RequiredParams<'email'>
-		/**
-		 * u​s​e​ ​r​e​m​o​t​e
-		 */
-		syncLinkConflictRemoteTitle: string
 		/**
 		 * f​i​n​i​s​h​ ​l​i​n​k​i​n​g​ ​b​y​ ​c​h​o​o​s​i​n​g​ ​w​h​e​t​h​e​r​ ​t​h​e​ ​l​o​c​a​l​ ​o​r​ ​r​e​m​o​t​e​ ​s​n​a​p​s​h​o​t​ ​s​h​o​u​l​d​ ​b​e​c​o​m​e​ ​t​h​e​ ​s​y​n​c​e​d​ ​w​o​r​k​s​p​a​c​e​.
 		 */
@@ -3029,10 +3012,6 @@ export type TranslationFunctions = {
 		 */
 		loadErrorTitle: () => LocalizedString
 		/**
-		 * current workspace
-		 */
-		currentWorkspace: () => LocalizedString
-		/**
 		 * open workspace
 		 */
 		openWorkspaceAction: () => LocalizedString
@@ -3181,10 +3160,6 @@ export type TranslationFunctions = {
 		 */
 		syncGoogleDrivePending: () => LocalizedString
 		/**
-		 * google drive storage: {value}
-		 */
-		syncTotalDriveUsageDescription: (arg: { value: unknown }) => LocalizedString
-		/**
 		 * this workspace already has both a local snapshot and a Google Drive snapshot. choose which copy should continue before sync starts.
 		 */
 		syncLinkConflictDescription: () => LocalizedString
@@ -3193,17 +3168,9 @@ export type TranslationFunctions = {
 		 */
 		syncLinkConflictLocalDescription: () => LocalizedString
 		/**
-		 * keep local
-		 */
-		syncLinkConflictLocalTitle: () => LocalizedString
-		/**
 		 * replace this device with the Google Drive snapshot linked to {email}.
 		 */
 		syncLinkConflictRemoteDescription: (arg: { email: unknown }) => LocalizedString
-		/**
-		 * use remote
-		 */
-		syncLinkConflictRemoteTitle: () => LocalizedString
 		/**
 		 * finish linking by choosing whether the local or remote snapshot should become the synced workspace.
 		 */
