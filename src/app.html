@@ -1,4 +1,10 @@
 <!doctype html>
+<!--
+	`class="dark"` is not orphaned. The chart primitive's style tag emits
+	`.dark [data-chart=…]` rules from a literal selector rather than a Tailwind
+	variant, so this attribute is what selects them. Nothing renders a chart yet;
+	removing it would hand the first one that declares a dark theme its light colours.
+-->
 <html lang="en" dir="ltr" class="dark">
 	<head>
 		<meta charset="utf-8" />
