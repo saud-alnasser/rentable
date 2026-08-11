@@ -22,8 +22,9 @@ owner: repository
 | [0014](0014-the-dashboard-is-the-days-work.md) | the landing screen's content is in question | accepted | `src/lib/dashboard/` |
 | [0015](0015-the-applications-own-surfaces-converge.md) | a surface the application shows about itself — starting, failing, recovering, choosing a workspace — is being built or restyled | accepted | `src/lib/layout/component/`, `src/lib/sync/component/`, `src/routes/+error.svelte` |
 | [0016](0016-motion-responds-and-uses-what-is-installed.md) | a surface is gaining animation, a transition, or a duration | accepted | `src/lib/design/`, `src/app.css` |
-| [0017](0017-a-form-surface-is-one-component.md) | a form is being presented, or a surface has to survive a breakpoint crossing | accepted | `src/lib/design/block/form-surface.svelte` |
+| [0017](0017-a-form-surface-is-one-component.md) | a form is being presented, or a form surface has to survive a breakpoint crossing | accepted | `src/lib/design/block/form-surface.svelte` |
 | [0018](0018-a-validation-error-belongs-to-its-field.md) | a form reports validation errors | accepted | `src/lib/design/block/field-error.svelte`, `src/lib/design/primitive/form/` |
 | [0019](0019-the-work-queue-is-the-landing-screen.md) | the landing screen or the contracts list is being changed | accepted | `src/lib/dashboard/`, `src/lib/contract/` |
 | [0020](0020-surfaces-diverge-by-kind-not-by-operation.md) | a new surface for a concept is being placed | accepted | `src/lib/design/block/` |
 | [0021](0021-reduced-motion-is-guarded-once-and-loops-are-exempt.md) | a surface is gaining animation or a transition, or the reduced-motion preference is in question | accepted | `src/app.css`, `src/lib/design/primitive/` |
+| [0022](0022-the-shells-breakpoint-is-one-declaration.md) | the shell changes shape with window width, or a breakpoint is being added, moved, or read from script | accepted | `src/app.css`, `src/lib/design/is-below-shell-breakpoint.svelte.ts` |

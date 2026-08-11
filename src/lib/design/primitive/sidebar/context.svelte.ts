@@ -1,4 +1,4 @@
-import { IsMobile } from '$lib/design/is-mobile.svelte.js';
+import { IsBelowShellBreakpoint } from '$lib/design/is-below-shell-breakpoint.svelte.js';
 import { matchesShortcutKey } from '$lib/design/shortcut.js';
 import { getContext, setContext } from 'svelte';
 import { SIDEBAR_KEYBOARD_SHORTCUT } from './constants.js';
@@ -24,21 +24,30 @@ export type SidebarStateProps = {
 class SidebarState {
 	readonly props: SidebarStateProps;
 	open = $derived.by(() => this.props.open());
-	openMobile = $state(false);
+	openDrawer = $state(false);
 	setOpen: SidebarStateProps['setOpen'];
-	#isMobile: IsMobile;
+	#isBelowShellBreakpoint: IsBelowShellBreakpoint;
 	state = $derived.by(() => (this.open ? 'expanded' : 'collapsed'));
 
 	constructor(props: SidebarStateProps) {
 		this.setOpen = props.setOpen;
-		this.#isMobile = new IsMobile();
+		this.#isBelowShellBreakpoint = new IsBelowShellBreakpoint();
 		this.props = props;
+
+		// the drawer is destroyed by the crossing rather than closed by it: the dialog
+		// primitive's teardown decrements a nested-open counter and never writes this flag
+		// back, so it survives a presentation it no longer describes. Left alone, a drawer
+		// opened narrow re-opens itself the next time the window narrows, unasked.
+		$effect(() => {
+			if (!this.presentsAsDrawer) {
+				this.openDrawer = false;
+			}
+		});
 	}
 
-	// Convenience getter for checking if the sidebar is mobile
-	// without this, we would need to use `sidebar.isMobile.current` everywhere
-	get isMobile() {
-		return this.#isMobile.current;
+	/** Whether the navigation is presenting as an overlay drawer rather than as a rail. */
+	get presentsAsDrawer() {
+		return this.#isBelowShellBreakpoint.current;
 	}
 
 	// Event handler to apply to the `<svelte:window>`
@@ -49,12 +58,12 @@ class SidebarState {
 		}
 	};
 
-	setOpenMobile = (value: boolean) => {
-		this.openMobile = value;
+	setOpenDrawer = (value: boolean) => {
+		this.openDrawer = value;
 	};
 
 	toggle = () => {
-		return this.#isMobile.current ? (this.openMobile = !this.openMobile) : this.setOpen(!this.open);
+		return this.presentsAsDrawer ? (this.openDrawer = !this.openDrawer) : this.setOpen(!this.open);
 	};
 }
 
@@ -62,6 +71,9 @@ const SYMBOL_KEY = 'scn-sidebar';
 
 /**
  * Instantiates a new `SidebarState` instance and sets it in the context.
+ *
+ * Call this during component initialization only: the state it creates owns an effect that
+ * closes the drawer when the window stops being narrow enough to present one.
  *
  * @param props The constructor props for the `SidebarState` class.
  * @returns  The `SidebarState` instance.

@@ -212,6 +212,20 @@ jobs:
         if: steps.memo.outputs.cache-hit != 'true'
         run: pnpm build
 
+      # The shell's breakpoint is declared once, in the stylesheet, and read from script at
+      # runtime to decide which navigation presents. Unused-value elimination drops theme
+      # entries nothing references, and this one is referenced from script rather than from a
+      # utility — `@theme static` is what holds it in. A stylesheet shipped without it leaves
+      # that read empty at the widths it was meant to decide, so the declaration is proved to
+      # survive the bundler rather than assumed to.
+      - name: '📐 verify the shell breakpoint survived the build'
+        if: steps.memo.outputs.cache-hit != 'true'
+        run: |
+          if ! grep -rq -- '--breakpoint-shell:' build/_app/immutable/assets/; then
+            echo 'the shell breakpoint is absent from the built stylesheet — check that src/app.css still declares it under `@theme static`' >&2
+            exit 1
+          fi
+
       # Compiles what the release build compiles, and stops there. Packaging the
       # installers and signing the updater artifacts is the release workflow's job,
       # and it does it on four platforms within minutes of merge; doing it here as

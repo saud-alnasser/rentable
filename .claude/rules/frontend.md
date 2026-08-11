@@ -65,6 +65,19 @@ reaching the user and everything else reading as an unexpected failure.
 Tailwind v4, configured CSS-first in `src/app.css` — there is no JS config file to edit.
 Variants go through `tailwind-variants`, and class merging through the shared helper.
 
+**The shell's breakpoint is `shell:`, and it is declared once.** The sidebar family and the
+window chrome gate on that variant, never on Tailwind's generic `sm:`/`md:` — those name a size,
+where `shell:` names the decision that the navigation changes presentation. Script reads the same
+declaration rather than restating the number.
+[ADR 0022](../decisions/0022-the-shells-breakpoint-is-one-declaration.md) has the reasoning; what
+binds a change is that **a bare `md:` appearing in the sidebar family or the shell is the signal
+the decision was worked around** — it compiles, it renders, and it re-creates the drift where the
+navigation and the styling disagree about where the breakpoint is.
+
+**Width is not input modality.** An affordance that exists for fingers — an enlarged hit area, a
+control revealed without hover — is never gated on how wide the window is. This application has
+no touch input, and a window is narrow because somebody dragged it there with a mouse.
+
 ## Motion
 
 **A surface built here carries motion, and the motion always responds to something** — an
