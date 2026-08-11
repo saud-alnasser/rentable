@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import api from '$lib/api/caller';
-	import WindowControls from '$lib/design/block/window-controls.svelte';
 	import { Button } from '$lib/design/primitive/button';
 	import { Kbd } from '$lib/design/primitive/kbd';
 	import { Separator } from '$lib/design/primitive/separator';
@@ -10,6 +9,7 @@
 	import LayoutBreadcrumb from '$lib/layout/component/breadcrumb.svelte';
 	import LayoutPalette, { PALETTE_SHORTCUT_HINT } from '$lib/layout/component/palette.svelte';
 	import LayoutSidebar from '$lib/layout/component/sidebar.svelte';
+	import LayoutWindowControls from '$lib/layout/component/window-controls.svelte';
 	import { toBreadcrumbTrail } from '$lib/layout/navigation';
 	import SearchIcon from '@tabler/icons-svelte/icons/search';
 	import type { Snippet } from 'svelte';
@@ -70,7 +70,7 @@
 		{/if}
 
 		<div class="relative ms-auto">
-			<WindowControls />
+			<LayoutWindowControls />
 		</div>
 	</header>
 {/snippet}

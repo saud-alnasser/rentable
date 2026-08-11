@@ -47,7 +47,9 @@ reaching the user and everything else reading as an unexpected failure.
   rendered element. A regenerated file carries neither and still compiles and renders, so
   the damage shows up as a silently English, silently LTR primitive rather than as an
   error.
-- **App-level composites go in `design/block/`**, never in `design/primitive/`.
+- **App-level composites go in `design/block/`**, never in `design/primitive/`. App-level
+  means shared by concepts; the application shell's own components are not, and live in
+  `layout` (#257).
 - **`components.json`'s alias keys are the CLI's vocabulary, not ours.** `components`,
   `utils`, `ui`, and `hooks` each route a different kind of generated file, so they are
   not interchangeable and cannot be merged into one — which is why a `utils` key survives
