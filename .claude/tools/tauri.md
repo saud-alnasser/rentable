@@ -1,3 +1,7 @@
+---
+owner: repository
+---
+
 # Tauri CLI
 
 Builds and runs the desktop app. **`pnpm tauri` is not the Tauri CLI directly** — it is a

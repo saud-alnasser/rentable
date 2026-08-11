@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: accepted
 load-when: a router or a domain module is being added, and where persistence is called from is in question
 sources: [src/lib/api/, src/lib/contract/]

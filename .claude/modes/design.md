@@ -1,3 +1,8 @@
+---
+owner: framework
+version: 1.19.0
+---
+
 # Mode: design
 
 <!-- Installed by /configure at `.claude/modes/design.md`, copied as-is. -->

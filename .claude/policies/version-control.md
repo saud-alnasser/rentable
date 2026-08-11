@@ -1,3 +1,9 @@
+---
+owner: repository
+model: stacked-changes
+unit: ticket
+---
+
 # Version control
 
 ## Which model
@@ -141,9 +147,9 @@ By pull request, reviewed and merged on GitHub. **CI lints the pull request titl
 Conventional Commits — a non-conforming title fails a run, not the review — in a workflow
 of its own, so editing a title re-runs the check and nothing else.
 
-The gate is a single required status check named `integration`: typecheck and format,
-ESLint, the TypeScript tests, the Rust tests, the frontend build, and a release-profile
-compile of the Rust binary. All of it must pass. **It is the only required check** — the
+The gate is a single required status check named `integration`: the generated-index
+verification, typecheck and format, ESLint, the TypeScript tests, the Rust tests, the
+frontend build, and a release-profile compile of the Rust binary. All of it must pass. **It is the only required check** — the
 title lint reports separately and, until it is added to the default-branch ruleset, a
 failing title does not block the merge.
 

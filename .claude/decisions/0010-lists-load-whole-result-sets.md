@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: accepted
 load-when: a list read is being written, or pagination is proposed for one
 sources: [src/lib/design/block/list.svelte]

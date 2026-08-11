@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: superseded by contract-work-queue-and-directory.md
 sources:
   - src/lib/dashboard/

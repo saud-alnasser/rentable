@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: accepted
 load-when: a read needs a contract's paid or expected amount, or a list sorts or filters on one
 sources: [src/lib/payment/, src/lib/contract/reconcile.ts]

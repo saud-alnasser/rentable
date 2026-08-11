@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: accepted
 load-when: the landing screen or the contracts list is being changed
 sources: [src/lib/dashboard/, src/lib/contract/]

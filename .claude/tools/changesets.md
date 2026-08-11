@@ -1,3 +1,7 @@
+---
+owner: repository
+---
+
 # changesets
 
 How a user-visible change gets into the changelog and into a release.

@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: implemented
 sources:
   - tauri/src/database/proxy.rs

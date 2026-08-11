@@ -1,4 +1,5 @@
 ---
+owner: repository
 load-when: the request touches backup, Google Drive, linking, or conflicts
 sources: [tauri/src/sync/, tauri/src/backup/, tauri/src/http.rs, src/lib/sync/]
 ---

@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: accepted
 load-when: a query's caching or invalidation behaviour is in question
 sources: [src/lib/design/query.ts]

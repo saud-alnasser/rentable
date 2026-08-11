@@ -1,4 +1,5 @@
 ---
+owner: repository
 paths:
   - src/lib/api/**
   - src/lib/*/router.ts

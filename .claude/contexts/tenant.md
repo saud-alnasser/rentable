@@ -1,4 +1,5 @@
 ---
+owner: repository
 load-when: the request touches tenants, identity, or phone numbers
 sources: [src/lib/tenant/]
 ---

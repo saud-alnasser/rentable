@@ -1,3 +1,7 @@
+---
+owner: repository
+---
+
 # shadcn-svelte
 
 Generates the design primitives into `src/lib/design/primitive/`. **There is no dependency

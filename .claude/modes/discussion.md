@@ -1,3 +1,8 @@
+---
+owner: framework
+version: 1.19.0
+---
+
 # Mode: discussion
 
 <!-- Installed by /configure at `.claude/modes/discussion.md`, copied as-is. -->

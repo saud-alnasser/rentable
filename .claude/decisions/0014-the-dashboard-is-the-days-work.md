@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: accepted
 load-when: the landing screen's content is in question
 sources: [src/lib/dashboard/]

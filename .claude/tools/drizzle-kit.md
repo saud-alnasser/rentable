@@ -1,3 +1,7 @@
+---
+owner: repository
+---
+
 # drizzle-kit
 
 Generates migration SQL from the schema module. Configured in `drizzle.config.ts`: SQLite,

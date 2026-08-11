@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: accepted
 load-when: a primitive is being regenerated, added, or restyled
 sources: [src/lib/design/primitive/]

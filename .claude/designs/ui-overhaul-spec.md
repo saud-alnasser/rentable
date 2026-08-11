@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: superseded by list-presentation-spec.md
 sources:
   - src/lib/design/

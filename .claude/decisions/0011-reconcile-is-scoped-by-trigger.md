@@ -1,4 +1,5 @@
 ---
+owner: repository
 status: accepted
 load-when: a mutation, a sync pull, or a day crossing has to move derived state
 sources: [src/lib/contract/reconcile.ts]

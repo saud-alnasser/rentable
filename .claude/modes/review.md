@@ -1,3 +1,8 @@
+---
+owner: framework
+version: 1.19.0
+---
+
 # Mode: review
 
 <!-- Installed by /configure at `.claude/modes/review.md`, copied as-is. -->

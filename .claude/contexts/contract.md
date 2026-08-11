@@ -1,4 +1,5 @@
 ---
+owner: repository
 load-when: the request touches contracts, payments, unit assignments, or any derived status
 sources: [src/lib/contract/, src/lib/payment/]
 ---

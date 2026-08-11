@@ -1,3 +1,10 @@
+---
+owner: repository
+tracker: github
+spec-home: flat
+ticket-model: branch-bound
+---
+
 # Tracker
 
 ## Which tracker
@@ -15,7 +22,7 @@ fetch, not an assumption.
 What happens to a ticket once somebody starts building it — the branch convention, the
 commit discipline, how work lands — is `.claude/policies/version-control.md`'s.
 
-## Where the specs live
+## Where a spec lives
 
 **Flat, in `.claude/designs/<slug>.md`**, and their index is `.claude/designs/map.md`. The
 other layout — one spec per effort, beside the tickets it governs — needs the tickets to be

@@ -1,3 +1,7 @@
+---
+owner: repository
+---
+
 # prettier
 
 The formatter, and half of the CI gate — `pnpm check` runs `prettier --check .`, so a

@@ -1,4 +1,5 @@
 ---
+owner: repository
 kind: drift
 falsifies: [.claude/decisions/0016-motion-responds-and-uses-what-is-installed.md]
 ---
