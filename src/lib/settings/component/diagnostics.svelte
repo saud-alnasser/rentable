@@ -1,12 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/design/primitive/button';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/design/primitive/card';
+	import * as Field from '$lib/design/primitive/field';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
 	let {
@@ -16,27 +10,23 @@
 		diagnosticsDir: string;
 		onRevealDiagnostics: () => void;
 	} = $props();
-
-	const settingsSubtlePanelClass = 'rounded-xl border bg-muted p-3 text-start';
 </script>
 
-<Card>
-	<CardHeader class="gap-3 border-b pb-5">
-		<CardTitle>{$LL.settings.diagnosticsTitle()}</CardTitle>
-		<CardDescription>{$LL.settings.diagnosticsDescription()}</CardDescription>
-	</CardHeader>
-	<CardContent class="space-y-4 pt-5">
-		<div class={settingsSubtlePanelClass}>
-			<p class="text-xs tracking-wide text-muted-foreground uppercase">
-				{$LL.settings.diagnosticsLocationLabel()}
-			</p>
-			<!-- the path is the machine's, not the reader's language: isolating it
-			     keeps an ltr path from reordering the arabic around it -->
-			<p class="mt-1 text-sm break-all" dir="ltr">{diagnosticsDir}</p>
-		</div>
-
-		<Button variant="outline" onclick={onRevealDiagnostics} disabled={!diagnosticsDir}>
-			{$LL.settings.diagnosticsReveal()}
-		</Button>
-	</CardContent>
-</Card>
+<Field.Field orientation="responsive">
+	<Field.Content>
+		<Field.Label>{$LL.settings.diagnosticsTitle()}</Field.Label>
+		<Field.Description>{$LL.settings.diagnosticsDescription()}</Field.Description>
+		<!-- the path is the machine's, not the reader's language: isolating it keeps an ltr
+		     path from reordering the arabic around it -->
+		<p class="text-xs break-all text-muted-foreground" dir="ltr">{diagnosticsDir}</p>
+	</Field.Content>
+	<Button
+		variant="outline"
+		size="sm"
+		onclick={onRevealDiagnostics}
+		disabled={!diagnosticsDir}
+		class="shrink-0"
+	>
+		{$LL.settings.diagnosticsReveal()}
+	</Button>
+</Field.Field>

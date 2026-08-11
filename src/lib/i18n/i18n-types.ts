@@ -989,6 +989,22 @@ type RootTranslation = {
 		 */
 		endingSoonTitle: string
 		/**
+		 * d​i​a​g​n​o​s​t​i​c​s
+		 */
+		groupDiagnostics: string
+		/**
+		 * g​e​n​e​r​a​l
+		 */
+		groupGeneral: string
+		/**
+		 * u​p​d​a​t​e​s
+		 */
+		groupUpdates: string
+		/**
+		 * w​o​r​k​s​p​a​c​e
+		 */
+		groupWorkspace: string
+		/**
 		 * y​o​u​'​r​e​ ​a​l​r​e​a​d​y​ ​o​n​ ​t​h​e​ ​l​a​t​e​s​t​ ​r​e​l​e​a​s​e​.
 		 */
 		latestRelease: string
@@ -2805,6 +2821,22 @@ export type TranslationFunctions = {
 		 * ending soon notice window
 		 */
 		endingSoonTitle: () => LocalizedString
+		/**
+		 * diagnostics
+		 */
+		groupDiagnostics: () => LocalizedString
+		/**
+		 * general
+		 */
+		groupGeneral: () => LocalizedString
+		/**
+		 * updates
+		 */
+		groupUpdates: () => LocalizedString
+		/**
+		 * workspace
+		 */
+		groupWorkspace: () => LocalizedString
 		/**
 		 * you're already on the latest release.
 		 */

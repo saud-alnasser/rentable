@@ -311,6 +311,10 @@ const en = {
 		endingSoonInvalid: 'ending soon notice window must be greater than zero',
 		endingSoonTitle: 'ending soon notice window',
 
+		groupDiagnostics: 'diagnostics',
+		groupGeneral: 'general',
+		groupUpdates: 'updates',
+		groupWorkspace: 'workspace',
 		latestRelease: "you're already on the latest release.",
 
 		loadErrorDescription: 'there was a problem loading the current settings snapshot.',

@@ -1,16 +1,8 @@
 <script lang="ts">
 	import api from '$lib/api/caller';
 	import { Button } from '$lib/design/primitive/button';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/design/primitive/card';
+	import * as Field from '$lib/design/primitive/field';
 	import { Input } from '$lib/design/primitive/input';
-	import { Label } from '$lib/design/primitive/label';
-	import { cn } from '$lib/design/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useSetEndingSoonNoticeDays } from '$lib/settings/query';
 	import { toast } from 'svelte-sonner';
@@ -20,9 +12,6 @@
 	let { settings }: { settings: AppSettings } = $props();
 
 	const setEndingSoonNoticeDaysMutation = useSetEndingSoonNoticeDays();
-	const settingsInsetPanelClass = 'rounded-2xl border bg-muted p-4 text-start';
-	const formatNoticeWindow = (days: number) =>
-		days === 1 ? $LL.common.time.day({ count: days }) : $LL.common.time.days({ count: days });
 
 	let value = $state<number | ''>('');
 
@@ -56,32 +45,17 @@
 	}
 </script>
 
-<Card>
-	<CardHeader class="gap-3 border-b pb-5">
-		<CardTitle>{$LL.settings.endingSoonTitle()}</CardTitle>
-		<CardDescription>{$LL.settings.endingSoonDescription()}</CardDescription>
-	</CardHeader>
-	<CardContent class="space-y-4 pt-5">
-		<div class="grid gap-3 sm:grid-cols-2 [&>*]:text-start">
-			<div class={settingsInsetPanelClass}>
-				<p class="text-xs tracking-wide text-muted-foreground uppercase">
-					{$LL.common.labels.currentValue()}
-				</p>
-				<p class="mt-1 text-base font-semibold">
-					{formatNoticeWindow(settings.endingSoonNoticeDays)}
-				</p>
-			</div>
-
-			<div class={cn(settingsInsetPanelClass, 'space-y-2')}>
-				<Label for="ending-soon-notice-days">{$LL.common.labels.noticeWindowDays()}</Label>
-				<Input id="ending-soon-notice-days" type="number" min="1" step="1" bind:value />
-			</div>
-		</div>
-
-		<div class="flex justify-end">
-			<Button onclick={() => void save()} disabled={isPending || !hasChange}>
-				{isPending ? $LL.common.actions.saving() : $LL.common.actions.saveWindow()}
-			</Button>
-		</div>
-	</CardContent>
-</Card>
+<Field.Field orientation="responsive">
+	<Field.Content>
+		<Field.Label for="ending-soon-notice-days">{$LL.settings.endingSoonTitle()}</Field.Label>
+		<Field.Description>{$LL.settings.endingSoonDescription()}</Field.Description>
+	</Field.Content>
+	<!-- the saved value is the field's own value: a second panel restating it was the page
+	     saying the same number twice. -->
+	<div class="flex items-center gap-2 sm:w-56">
+		<Input id="ending-soon-notice-days" type="number" min="1" step="1" class="w-full" bind:value />
+		<Button size="sm" onclick={() => void save()} disabled={isPending || !hasChange}>
+			{isPending ? $LL.common.actions.saving() : $LL.common.actions.save()}
+		</Button>
+	</div>
+</Field.Field>
