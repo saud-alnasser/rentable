@@ -454,6 +454,11 @@ const ar = {
 	},
 
 	tenants: {
+		contracts: {
+			emptyTitle: 'لا توجد عقود بعد',
+			emptyDescription: 'ستظهر هنا العقود التي يحملها هذا المستأجر.'
+		},
+
 		hooks: {
 			createSuccess: 'تم إنشاء المستأجر بنجاح!',
 			deleteSuccess: 'تم حذف المستأجر بنجاح!',

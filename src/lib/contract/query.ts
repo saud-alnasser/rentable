@@ -8,11 +8,14 @@ import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-qu
 import { get } from 'svelte/store';
 
 export const keys = {
-	list: (search: string, sort: ListSort | null) => [
+	list: (search: string, sort: ListSort | null, tenantId?: number) => [
 		...workspacePrefixes.contracts,
 		'list',
 		search,
-		sort ? `${sort.columnId}:${sort.direction}` : 'default'
+		sort ? `${sort.columnId}:${sort.direction}` : 'default',
+		// part of the key rather than a filter over a shared set: the tenant's contracts are a
+		// different query, and sharing a cache entry would serve one surface the other's rows.
+		tenantId ?? 'all'
 	],
 	get: (id: number) => [...workspacePrefixes.contracts, id],
 	getUnits: (id: number) => [...workspacePrefixes.contracts, 'units', id],
@@ -40,21 +43,24 @@ function isContractSortColumnId(columnId: string): columnId is ContractSortColum
  */
 export function useListContracts(
 	search: () => string = () => '',
-	sort: () => ListSort | null = () => null
+	sort: () => ListSort | null = () => null,
+	tenantId: () => number | undefined = () => undefined
 ) {
 	return createQuery(() => {
 		const trimmedSearch = search().trim();
 		const chosenSort = sort();
+		const heldBy = tenantId();
 
 		return {
-			queryKey: keys.list(trimmedSearch, chosenSort),
+			queryKey: keys.list(trimmedSearch, chosenSort, heldBy),
 			queryFn: () =>
 				api.contract.getMany({
 					search: trimmedSearch || undefined,
 					sort:
 						chosenSort && isContractSortColumnId(chosenSort.columnId)
 							? { columnId: chosenSort.columnId, direction: chosenSort.direction }
-							: undefined
+							: undefined,
+					tenantId: heldBy
 				}),
 			placeholderData: <T>(previous: T) => previous
 		};
