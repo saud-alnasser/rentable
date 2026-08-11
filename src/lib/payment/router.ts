@@ -48,6 +48,38 @@ function paymentSearchCondition(search: string) {
 
 export default router({
 	/**
+	 * One payment, carrying the contract it was made against and whose tenant holds it.
+	 *
+	 * A payment is reached only through its contract, so a view of one that could not name
+	 * that contract would leave the reader with three figures and no way back.
+	 */
+	get: procedure.public.input(PaymentSchema.pick({ id: true })).query(async ({ input, ctx }) => {
+		const row = await ctx.db
+			.select({
+				payment: s.payment,
+				contractGovId: s.contract.govId,
+				contractStatus: s.contract.status,
+				tenantName: s.tenant.name
+			})
+			.from(s.payment)
+			.innerJoin(s.contract, eq(s.payment.contractId, s.contract.id))
+			.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+			.where(eq(s.payment.id, input.id))
+			.get();
+
+		if (!row) {
+			return undefined;
+		}
+
+		return {
+			...serializePayment(row.payment),
+			contractGovId: row.contractGovId ?? '',
+			contractStatus: row.contractStatus,
+			tenantName: row.tenantName
+		};
+	}),
+
+	/**
 	 * A contract's payments, in one bounded query: the whole result set for a search, newest
 	 * first, so the ledger can read that order to place its month headers.
 	 *

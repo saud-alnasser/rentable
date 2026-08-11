@@ -6,6 +6,7 @@ import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-qu
 import { get } from 'svelte/store';
 
 export const keys = {
+	get: (id: number) => [...workspacePrefixes.payments, 'one', id],
 	getMany: (contractId: number) => [...workspacePrefixes.payments, contractId],
 	list: (contractId: number, search: string) => [
 		...workspacePrefixes.payments,
@@ -14,6 +15,19 @@ export const keys = {
 		search
 	]
 } as const;
+
+/** One payment, with the contract it was made against. */
+export function useFetchPayment(id: () => number) {
+	return createQuery(() => {
+		const freshId = id();
+
+		return {
+			queryKey: keys.get(freshId),
+			queryFn: () => api.contract.payments.get({ id: freshId }),
+			enabled: Number.isInteger(freshId) && freshId > 0
+		};
+	});
+}
 
 export function useFetchContractPayments(contractId: () => number) {
 	return createQuery(() => {

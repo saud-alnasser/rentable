@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import type { Payment } from '$lib/platform/database/schema';
 	import DataTableActionsDropdown from '$lib/design/block/data-table-actions-dropdown.svelte';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
@@ -110,15 +111,24 @@
 		{/snippet}
 
 		{#snippet record(entry: Payment)}
-			<div class="flex h-full items-center gap-3 border-b px-4 transition-colors hover:bg-muted/40">
-				<span class="min-w-0 flex-1 truncate text-start text-sm">
+			<div
+				class="relative flex h-full items-center gap-3 border-b px-4 transition-colors hover:bg-muted/40"
+			>
+				<!-- the link covers the line rather than wrapping it, so the row's own menu can sit
+				     above it instead of being swallowed by its click target. -->
+				<a
+					href={resolve(`/contracts/payments/${entry.id}`)}
+					class="absolute inset-0 rounded-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+					aria-label={$LL.common.labels.payment()}
+				></a>
+				<span class="pointer-events-none relative min-w-0 flex-1 truncate text-start text-sm">
 					<Cell.Date value={entry.date} />
 				</span>
-				<span class="shrink-0 text-end text-sm font-medium">
+				<span class="pointer-events-none relative shrink-0 text-end text-sm font-medium">
 					<Cell.Money amount={entry.amount} />
 				</span>
 				{#if hasRowActions}
-					<div class="flex size-8 shrink-0 items-center justify-center">
+					<div class="relative flex size-8 shrink-0 items-center justify-center">
 						<DataTableActionsDropdown
 							menuLabel={null}
 							actions={[

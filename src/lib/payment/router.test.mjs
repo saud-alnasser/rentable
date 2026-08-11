@@ -156,6 +156,32 @@ test('a ledger search reads a wildcard as text, not as a pattern', async () => {
 	);
 });
 
+test('a payment is read with the contract it was made against', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { govId: 'PAY-1' });
+	const created = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 500
+	});
+
+	const payment = await api.contract.payments.get({ id: created.id });
+
+	assert.equal(payment.id, created.id);
+	assert.equal(payment.amount, 500);
+	assert.equal(payment.contractId, contract.id);
+	// the context a payment cannot be read without: three figures and no way back is not a view
+	assert.equal(payment.contractGovId, 'PAY-1');
+	assert.equal(payment.contractStatus, contract.status);
+	assert.ok(payment.tenantName);
+});
+
+test('reading a payment that does not exist answers with nothing rather than failing', async () => {
+	const api = await createApi();
+
+	assert.equal(await api.contract.payments.get({ id: 9999 }), undefined);
+});
+
 test('recording a payment increases the contract paid amount', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);
