@@ -140,6 +140,13 @@ export const useDeleteContract = declareMutation({
 export const useTerminateContract = declareMutation({
 	mutate: (id: number) => api.contract.terminate({ id }),
 	touches: ['contracts', 'units'],
+	// un-terminating is the procedure that already exists to reverse this, and it recomputes the
+	// derived status rather than putting back the one the contract happened to hold.
+	inverse: ({ variables }) => ({
+		describe: (t) => t.common.undo.terminated({ record: t.common.labels.contract() }),
+		undo: () => api.contract.unterminate({ id: variables }),
+		redo: () => api.contract.terminate({ id: variables })
+	}),
 	toast: {
 		success: () => get(LL).contracts.hooks.terminateSuccess(),
 		error: true,
@@ -150,6 +157,11 @@ export const useTerminateContract = declareMutation({
 export const useUnterminateContract = declareMutation({
 	mutate: (id: number) => api.contract.unterminate({ id }),
 	touches: ['contracts', 'units'],
+	inverse: ({ variables }) => ({
+		describe: (t) => t.common.undo.unterminated({ record: t.common.labels.contract() }),
+		undo: () => api.contract.terminate({ id: variables }),
+		redo: () => api.contract.unterminate({ id: variables })
+	}),
 	toast: {
 		success: () => get(LL).contracts.hooks.restoreSuccess(),
 		error: true,
@@ -199,6 +211,18 @@ export function useFetchAssignableContractUnits(
 export const useSetContractUnits = declareMutation({
 	mutate: (data: Parameters<typeof api.contract.units.set>[0]) => api.contract.units.set(data),
 	touches: ['contracts', 'units'],
+	// the set the contract held before the change, which is what makes the inverse another set
+	// rather than a sequence of removals and additions to replay in order.
+	capture: (variables) => api.contract.units.getMany({ contractId: variables.contractId }),
+	inverse: ({ variables, captured }) => ({
+		describe: (t) => t.common.undo.assigned({ record: t.common.labels.contract() }),
+		undo: () =>
+			api.contract.units.set({
+				contractId: variables.contractId,
+				unitIds: captured.map((unit) => unit.id)
+			}),
+		redo: () => api.contract.units.set(variables)
+	}),
 	toast: {
 		success: () => get(LL).contracts.hooks.assignUnitsSuccess(),
 		error: true,
