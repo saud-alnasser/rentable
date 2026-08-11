@@ -20,8 +20,8 @@
 		isExpanded = (await appWindow.isMaximized()) || (await appWindow.isFullscreen());
 	}
 
-	// the layout owns closing: it has to sync and hide before the window goes, and this
-	// component cannot see that state.
+	// the root layout owns closing: it has to sync and hide before the window goes, and
+	// this component cannot see that state.
 	function requestClose() {
 		window.dispatchEvent(new CustomEvent('rentable:window-close-request'));
 	}
