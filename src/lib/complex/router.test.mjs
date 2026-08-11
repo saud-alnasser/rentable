@@ -16,7 +16,7 @@ async function seedActiveContract(api) {
 }
 
 async function readUnit(api, id) {
-	const [unit] = await api.complex.units.get({ id });
+	const unit = await api.complex.units.get({ id });
 
 	return unit;
 }

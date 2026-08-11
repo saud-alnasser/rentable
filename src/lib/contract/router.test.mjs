@@ -499,6 +499,49 @@ test('a tenant filter and a search narrow together rather than one replacing the
 	);
 });
 
+test('the contract list narrows to the contracts that mention one unit', async () => {
+	const api = await createApi();
+	const { complex, unit } = await seedComplexWithUnit(api, 'U');
+	const mentions = await seedContract(api);
+	await seedContract(api);
+
+	await api.contract.units.assign({
+		contractId: mentions.id,
+		complexId: complex.id,
+		unitIds: [unit.id]
+	});
+
+	const listed = await api.contract.getMany({ unitId: unit.id });
+
+	assert.deepEqual(
+		listed.map((contract) => contract.id),
+		[mentions.id]
+	);
+});
+
+test('a contract holding several units appears once when narrowed to one of them', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Multi Court', location: 'Riyadh' });
+	const first = await api.complex.units.create({ name: 'M1', complexId: complex.id });
+	const second = await api.complex.units.create({ name: 'M2', complexId: complex.id });
+	const contract = await seedContract(api);
+
+	await api.contract.units.assign({
+		contractId: contract.id,
+		complexId: complex.id,
+		unitIds: [first.id, second.id]
+	});
+
+	// matched through the assignment table rather than joined to it: a join would multiply the
+	// contract into one row per unit it holds.
+	const listed = await api.contract.getMany({ unitId: first.id });
+
+	assert.deepEqual(
+		listed.map((contract) => contract.id),
+		[contract.id]
+	);
+});
+
 test('the payment count follows a deleted payment back down', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);

@@ -448,6 +448,8 @@ const ar = {
 		},
 
 		units: {
+			contractsEmptyDescription: 'ستظهر هنا العقود التي تذكر هذه الوحدة.',
+			contractsEmptyTitle: 'لا توجد عقود تذكر هذه الوحدة',
 			duplicateName: 'الاسم مرتبط بوحدة في نفس المجمع.',
 			management: 'إدارة الوحدات'
 		}
