@@ -495,7 +495,17 @@ export default router({
 	// the contracts directory, in one bounded query: the whole result set for a search, in the
 	// order the sort control chose. The list renders what arrives and orders nothing itself.
 	getMany: procedure.public
-		.input(z.object({ search: z.string().optional(), sort: ContractSortSchema.optional() }))
+		.input(
+			z.object({
+				search: z.string().optional(),
+				sort: ContractSortSchema.optional(),
+				// narrows the list to one tenant's contracts, for the surface that asks what a
+				// person rents. Filtered here rather than by the caller: a directory that loaded
+				// every contract to keep one tenant's would be the client-side narrowing
+				// ADR 0010 exists to refuse.
+				tenantId: z.number().optional()
+			})
+		)
 		.query(async ({ input, ctx }) => {
 			const search = input.search?.trim();
 
@@ -508,7 +518,12 @@ export default router({
 				})
 				.from(s.contract)
 				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
-				.where(search ? contractSearchCondition(search) : undefined)
+				.where(
+					and(
+						input.tenantId !== undefined ? eq(s.contract.tenantId, input.tenantId) : undefined,
+						search ? contractSearchCondition(search) : undefined
+					)
+				)
 				.orderBy(...contractOrderBy(input.sort));
 
 			return contracts.map(({ contract, tenantName, tenantPhone, paymentCount }) => ({

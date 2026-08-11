@@ -459,6 +459,11 @@ const en = {
 	},
 
 	tenants: {
+		contracts: {
+			emptyTitle: 'no contracts yet',
+			emptyDescription: 'contracts this tenant holds will appear here.'
+		},
+
 		hooks: {
 			createSuccess: 'tenant created successfully!',
 			deleteSuccess: 'tenant deleted successfully!',

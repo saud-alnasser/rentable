@@ -462,6 +462,43 @@ test('the contract list carries how many payments are recorded against each cont
 	assert.equal(listed(untouched.id).paymentCount, 0);
 });
 
+test('the contract list narrows to one tenant when asked', async () => {
+	const api = await createApi();
+	const held = await seedContract(api);
+	await seedContract(api);
+
+	const listed = await api.contract.getMany({ tenantId: held.tenantId });
+
+	assert.deepEqual(
+		listed.map((contract) => contract.id),
+		[held.id]
+	);
+});
+
+test('narrowing to a tenant with no contracts answers with an empty list', async () => {
+	const api = await createApi();
+	await seedContract(api);
+	const stranger = await seedTenant(api);
+
+	assert.deepEqual(await api.contract.getMany({ tenantId: stranger.id }), []);
+});
+
+test('a tenant filter and a search narrow together rather than one replacing the other', async () => {
+	const api = await createApi();
+	const held = await seedContract(api, { govId: 'KEEP-1' });
+	await seedContract(api, { govId: 'DROP-1' });
+
+	// the search matches nothing this tenant holds, so the pair must intersect: a filter that
+	// replaced the search would answer with the tenant's whole set instead.
+	assert.deepEqual(await api.contract.getMany({ tenantId: held.tenantId, search: 'DROP' }), []);
+
+	const both = await api.contract.getMany({ tenantId: held.tenantId, search: 'KEEP' });
+	assert.deepEqual(
+		both.map((contract) => contract.id),
+		[held.id]
+	);
+});
+
 test('the payment count follows a deleted payment back down', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);

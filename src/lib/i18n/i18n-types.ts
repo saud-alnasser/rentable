@@ -1390,6 +1390,16 @@ type RootTranslation = {
 		}
 	}
 	tenants: {
+		contracts: {
+			/**
+			 * n​o​ ​c​o​n​t​r​a​c​t​s​ ​y​e​t
+			 */
+			emptyTitle: string
+			/**
+			 * c​o​n​t​r​a​c​t​s​ ​t​h​i​s​ ​t​e​n​a​n​t​ ​h​o​l​d​s​ ​w​i​l​l​ ​a​p​p​e​a​r​ ​h​e​r​e​.
+			 */
+			emptyDescription: string
+		}
 		hooks: {
 			/**
 			 * t​e​n​a​n​t​ ​c​r​e​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
@@ -3191,6 +3201,16 @@ export type TranslationFunctions = {
 		}
 	}
 	tenants: {
+		contracts: {
+			/**
+			 * no contracts yet
+			 */
+			emptyTitle: () => LocalizedString
+			/**
+			 * contracts this tenant holds will appear here.
+			 */
+			emptyDescription: () => LocalizedString
+		}
 		hooks: {
 			/**
 			 * tenant created successfully!
