@@ -2,6 +2,7 @@
 	import api from '$lib/api/caller';
 	import { Button } from '$lib/design/primitive/button';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { requestWindowClose } from '$lib/layout/event';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import SquareIcon from '@lucide/svelte/icons/square';
@@ -18,12 +19,6 @@
 	async function refreshWindowState() {
 		const appWindow = getCurrentWindow();
 		isExpanded = (await appWindow.isMaximized()) || (await appWindow.isFullscreen());
-	}
-
-	// the root layout owns closing: it has to sync and hide before the window goes, and
-	// this component cannot see that state.
-	function requestClose() {
-		window.dispatchEvent(new CustomEvent('rentable:window-close-request'));
 	}
 
 	onMount(() => {
@@ -86,7 +81,7 @@
 		aria-label={$LL.common.window.close()}
 		onmousedown={stopEventPropagation}
 		ondblclick={stopEventPropagation}
-		onclick={requestClose}
+		onclick={requestWindowClose}
 	>
 		<XIcon class="size-3.5" />
 	</Button>

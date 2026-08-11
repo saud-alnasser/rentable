@@ -33,6 +33,7 @@
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
 	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
 	import LayoutStartupWorkspaceChoice from '$lib/layout/component/startup-workspace-choice.svelte';
+	import { listenForWindowCloseRequests } from '$lib/layout/event';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount } from 'svelte';
@@ -410,6 +411,7 @@
 	onMount(() => {
 		const appWindow = getCurrentWindow();
 		let unlistenCloseRequested: (() => void) | undefined;
+		let stopListeningForCloseRequests: (() => void) | undefined;
 		const stopAutosyncManager = startGoogleDriveAutosyncManager({
 			onResult: async (detail) => {
 				const state = await tauri.remoteSync.getState().catch(() => null);
@@ -449,7 +451,7 @@
 				await finalizeWindowClose(startupState !== 'ready');
 			});
 
-			window.addEventListener('rentable:window-close-request', handleWindowCloseRequest);
+			stopListeningForCloseRequests = listenForWindowCloseRequests(handleWindowCloseRequest);
 
 			await startApp();
 		})();
@@ -459,7 +461,7 @@
 			void linkSession.cancel();
 			stopAutosyncManager();
 			unlistenCloseRequested?.();
-			window.removeEventListener('rentable:window-close-request', handleWindowCloseRequest);
+			stopListeningForCloseRequests?.();
 		};
 	});
 
