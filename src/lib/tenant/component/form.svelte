@@ -80,12 +80,13 @@
 		open,
 		onOpenChange
 	}: {
-		value?: Tenant;
+		/** the tenant being edited, or the details a new one starts from when duplicating. */
+		value?: Partial<Tenant>;
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
 	} = $props();
 
-	const toFormValue = (tenant?: Tenant): TenantForm => {
+	const toFormValue = (tenant?: Partial<Tenant>): TenantForm => {
 		const { phoneCountryCode, phoneNumber } = splitPhone(tenant?.phone);
 
 		return {

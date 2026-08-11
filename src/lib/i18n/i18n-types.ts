@@ -51,6 +51,10 @@ type RootTranslation = {
 			 */
 			connecting: string
 			/**
+			 * c​o​p​y​ ​d​e​t​a​i​l​s
+			 */
+			copyDetails: string
+			/**
 			 * c​r​e​a​t​e
 			 */
 			create: string
@@ -86,6 +90,10 @@ type RootTranslation = {
 			 * d​o​w​n​l​o​a​d​ ​&​ ​i​n​s​t​a​l​l
 			 */
 			downloadAndInstall: string
+			/**
+			 * d​u​p​l​i​c​a​t​e
+			 */
+			duplicate: string
 			/**
 			 * e​d​i​t
 			 */
@@ -464,6 +472,14 @@ type RootTranslation = {
 			vacantUnits: string
 		}
 		messages: {
+			/**
+			 * c​o​p​i​e​d​ ​t​o​ ​t​h​e​ ​c​l​i​p​b​o​a​r​d
+			 */
+			copied: string
+			/**
+			 * n​o​t​h​i​n​g​ ​c​o​u​l​d​ ​b​e​ ​c​o​p​i​e​d​.
+			 */
+			copyFailed: string
 			/**
 			 * l​o​a​d​i​n​g​ ​a​p​p​.​.​.
 			 */
@@ -1952,6 +1968,10 @@ export type TranslationFunctions = {
 			 */
 			connecting: () => LocalizedString
 			/**
+			 * copy details
+			 */
+			copyDetails: () => LocalizedString
+			/**
 			 * create
 			 */
 			create: () => LocalizedString
@@ -1987,6 +2007,10 @@ export type TranslationFunctions = {
 			 * download & install
 			 */
 			downloadAndInstall: () => LocalizedString
+			/**
+			 * duplicate
+			 */
+			duplicate: () => LocalizedString
 			/**
 			 * edit
 			 */
@@ -2365,6 +2389,14 @@ export type TranslationFunctions = {
 			vacantUnits: () => LocalizedString
 		}
 		messages: {
+			/**
+			 * copied to the clipboard
+			 */
+			copied: () => LocalizedString
+			/**
+			 * nothing could be copied.
+			 */
+			copyFailed: () => LocalizedString
 			/**
 			 * loading app...
 			 */

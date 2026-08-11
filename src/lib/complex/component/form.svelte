@@ -26,7 +26,8 @@
 		open,
 		onOpenChange
 	}: {
-		value?: ComplexForm;
+		/** the complex being edited, or the details a new one starts from when duplicating. */
+		value?: Partial<ComplexForm>;
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
 	} = $props();
@@ -117,7 +118,9 @@
 			unitError = undefined;
 
 			if (value) {
-				form.set(value);
+				// a duplicate arrives without the fields that must be unique, and a form field
+				// holds a string rather than nothing.
+				form.set({ id: value.id, name: value.name ?? '', location: value.location ?? '' });
 			} else {
 				reset();
 			}

@@ -30,6 +30,7 @@
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import ContractUnits from './units.svelte';
+	import RecordActions from '$lib/design/block/record-actions.svelte';
 	import ContractForm from './form.svelte';
 
 	type ContractDetailsSection = 'overview' | 'units' | 'payments';
@@ -60,6 +61,9 @@
 	const terminateMutation = useTerminateContract();
 	const unterminateMutation = useUnterminateContract();
 
+	type ContractFormValue = Omit<NonNullable<typeof contractQuery.data>, 'id'> & { id?: number };
+
+	let formOpensOn = $state<ContractFormValue | undefined>(undefined);
 	let isContractFormOpen = $state(false);
 	let contractFormRenderKey = $state(0);
 	let isDeleteDialogOpen = $state(false);
@@ -161,6 +165,27 @@
 				</Tooltip.Root>
 
 				<div class="flex flex-wrap items-center justify-end gap-2">
+					<RecordActions
+						details={[
+							{ label: $LL.common.labels.tenant(), value: tenantLabel },
+							{ label: $LL.common.labels.nationalId(), value: tenantQuery.data?.nationalId ?? '' },
+							{ label: $LL.common.labels.phone(), value: tenantQuery.data?.phone ?? '' },
+							{ label: $LL.common.labels.governmentId(), value: contract.govId ?? '' },
+							{ label: $LL.common.labels.cycle(), value: intervalLabels[contract.interval]() },
+							{
+								label: $LL.common.labels.contractPeriod(),
+								value: `${formatDate(contract.start)} — ${formatDate(contract.end)}`
+							}
+						]}
+						onDuplicate={() => {
+							// the government id is a contract's unique field, so the copy starts
+							// without it rather than with a value that cannot be saved.
+							formOpensOn = { ...contract, id: undefined, govId: '' };
+							contractFormRenderKey += 1;
+							isContractFormOpen = true;
+						}}
+					/>
+
 					{#if contract.status !== 'terminated'}
 						<Tooltip.Root>
 							<Tooltip.Trigger>
@@ -172,6 +197,7 @@
 										aria-label={$LL.common.actions.edit()}
 										class="rounded-full bg-secondary"
 										onclick={() => {
+											formOpensOn = contract;
 											contractFormRenderKey += 1;
 											isContractFormOpen = true;
 										}}
@@ -366,7 +392,7 @@
 
 				isContractFormOpen = isOpen;
 			}}
-			value={contract}
+			value={formOpensOn}
 		/>
 	{/key}
 

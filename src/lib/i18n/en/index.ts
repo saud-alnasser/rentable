@@ -14,6 +14,7 @@ const en = {
 			checkingForUpdates: 'checking for updates...',
 			connect: 'connect',
 			connecting: 'connecting...',
+			copyDetails: 'copy details',
 			create: 'create',
 			createBackup: 'create backup',
 			creating: 'creating...',
@@ -23,6 +24,7 @@ const en = {
 			deleting: 'deleting...',
 			disconnect: 'disconnect',
 			downloadAndInstall: 'download & install',
+			duplicate: 'duplicate',
 			edit: 'edit',
 			installingUpdate: 'installing update...',
 			link: 'link',
@@ -125,6 +127,8 @@ const en = {
 		},
 
 		messages: {
+			copied: 'copied to the clipboard',
+			copyFailed: 'nothing could be copied.',
 			loadingApp: 'loading app...',
 			loadingSettings: 'loading settings...',
 			never: 'never',

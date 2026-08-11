@@ -11,6 +11,7 @@
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { useDeleteTenant, useFetchTenant } from '$lib/tenant/query';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
+	import RecordActions from '$lib/design/block/record-actions.svelte';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import TenantContracts from './contracts.svelte';
@@ -56,6 +57,7 @@
 	}));
 	const deleteMutation = useDeleteTenant();
 
+	let formOpensOn = $state<Partial<NonNullable<typeof tenantQuery.data>> | undefined>(undefined);
 	let isTenantFormOpen = $state(false);
 	let isDeleteDialogOpen = $state(false);
 
@@ -107,6 +109,20 @@
 				</Tooltip.Root>
 
 				<div class="flex flex-wrap items-center justify-end gap-2">
+					<RecordActions
+						details={[
+							{ label: $LL.common.labels.name(), value: tenant.name },
+							{ label: $LL.common.labels.nationalId(), value: tenant.nationalId },
+							{ label: $LL.common.labels.phone(), value: tenant.phone }
+						]}
+						onDuplicate={() => {
+							// the identity and the phone are a tenant's unique fields, so the copy
+							// starts without them rather than with a value that cannot be saved.
+							formOpensOn = { ...tenant, id: undefined, nationalId: '', phone: '' };
+							isTenantFormOpen = true;
+						}}
+					/>
+
 					<Tooltip.Root>
 						<Tooltip.Trigger>
 							{#snippet child({ props })}
@@ -116,7 +132,10 @@
 									size="icon-sm"
 									aria-label={$LL.common.actions.edit()}
 									class="rounded-full bg-secondary"
-									onclick={() => (isTenantFormOpen = true)}
+									onclick={() => {
+										formOpensOn = tenant;
+										isTenantFormOpen = true;
+									}}
 								>
 									<SquarePenIcon class="size-4" />
 									<span class="sr-only">{$LL.common.actions.edit()}</span>
@@ -208,7 +227,7 @@
 		onOpenChange={(isOpen) => {
 			isTenantFormOpen = isOpen;
 		}}
-		value={tenant}
+		value={formOpensOn}
 	/>
 
 	<DeleteDialog

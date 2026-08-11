@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import RecordActions from '$lib/design/block/record-actions.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { Button } from '$lib/design/primitive/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/design/primitive/card';
@@ -87,6 +88,18 @@
 						{$LL.common.ui.previous()}
 					</Tooltip.Content>
 				</Tooltip.Root>
+
+				<div class="flex flex-wrap items-center justify-end gap-2">
+					<!-- a unit is created and edited from the complex holding it, so there is no form
+					     here to duplicate into. -->
+					<RecordActions
+						details={[
+							{ label: $LL.common.labels.name(), value: unit.name },
+							{ label: $LL.common.labels.complex(), value: unit.complexName },
+							{ label: $LL.common.labels.status(), value: $LL.common.status[unit.status]() }
+						]}
+					/>
+				</div>
 			</div>
 
 			<div class="mt-4 min-w-0 space-y-2 text-start">
