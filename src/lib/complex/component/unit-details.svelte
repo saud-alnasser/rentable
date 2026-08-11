@@ -1,16 +1,14 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import BackControl from '$lib/design/block/back-control.svelte';
 	import RecordActions from '$lib/design/block/record-actions.svelte';
 	import * as Cell from '$lib/design/cell';
-	import { Button } from '$lib/design/primitive/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/design/primitive/card';
 	import { Spinner } from '$lib/design/primitive/spinner';
 	import * as Tabs from '$lib/design/primitive/tabs';
-	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import { useFetchUnit } from '$lib/complex/query';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import UnitContracts from './unit-contracts.svelte';
 
 	type UnitDetailsSection = 'overview' | 'contracts';
@@ -68,26 +66,7 @@
 	<div class="flex min-h-0 flex-1 flex-col gap-3">
 		<div class="rounded-2xl border bg-muted p-4">
 			<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
-				<Tooltip.Root>
-					<Tooltip.Trigger>
-						{#snippet child({ props })}
-							<Button
-								{...props}
-								href={resolve(`/complexes/${unit.complexId}`)}
-								variant="outline"
-								size="icon-sm"
-								aria-label={$LL.common.ui.previous()}
-								class="shrink-0 rounded-full bg-secondary"
-							>
-								<ArrowLeftIcon class="size-4 rtl:rotate-180" />
-								<span class="sr-only">{$LL.common.ui.previous()}</span>
-							</Button>
-						{/snippet}
-					</Tooltip.Trigger>
-					<Tooltip.Content side="top" sideOffset={8}>
-						{$LL.common.ui.previous()}
-					</Tooltip.Content>
-				</Tooltip.Root>
+				<BackControl fallback={resolve(`/complexes/${unit.complexId}`)} />
 
 				<div class="flex flex-wrap items-center justify-end gap-2">
 					<!-- a unit is created and edited from the complex holding it, so there is no form

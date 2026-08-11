@@ -10,7 +10,8 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { useDeleteTenant, useFetchTenant } from '$lib/tenant/query';
-	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
+	import BackControl from '$lib/design/block/back-control.svelte';
+	import { back } from '$lib/design/back.svelte';
 	import RecordActions from '$lib/design/block/record-actions.svelte';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -65,6 +66,10 @@
 		if (!tenantQuery.data) return;
 
 		await deleteMutation.mutateAsync(tenantQuery.data.id);
+		// the record is gone, so the screen showing it is no longer somewhere back can return
+		// to — whatever was open before it is.
+		back.forgetCurrent();
+
 		await goto(resolve('/tenants'));
 	}
 </script>
@@ -87,26 +92,7 @@
 	<div class="flex min-h-0 flex-1 flex-col gap-4">
 		<div class="rounded-2xl border bg-muted p-4">
 			<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
-				<Tooltip.Root>
-					<Tooltip.Trigger>
-						{#snippet child({ props })}
-							<Button
-								{...props}
-								href={resolve('/tenants')}
-								variant="outline"
-								size="icon-sm"
-								aria-label={$LL.common.ui.previous()}
-								class="shrink-0 rounded-full bg-secondary"
-							>
-								<ArrowLeftIcon class="size-4 rtl:rotate-180" />
-								<span class="sr-only">{$LL.common.ui.previous()}</span>
-							</Button>
-						{/snippet}
-					</Tooltip.Trigger>
-					<Tooltip.Content side="top" sideOffset={8}>
-						{$LL.common.ui.previous()}
-					</Tooltip.Content>
-				</Tooltip.Root>
+				<BackControl fallback={resolve('/tenants')} />
 
 				<div class="flex flex-wrap items-center justify-end gap-2">
 					<RecordActions

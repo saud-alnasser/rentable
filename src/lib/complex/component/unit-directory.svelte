@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { back } from '$lib/design/back.svelte';
 	import type api from '$lib/api/caller';
 	import { useDeleteUnit, useListUnits } from '$lib/complex/query';
 	import DataTableActionsDropdown from '$lib/design/block/data-table-actions-dropdown.svelte';
@@ -131,6 +132,9 @@
 	onSubmit={async () => {
 		if (unit) {
 			await deleteMutation.mutateAsync(unit.id);
+			// the unit's own page may be behind the reader; it is not somewhere back can return
+			// to now that the record is gone.
+			back.forget(resolve(`/complexes/units/${unit.id}`));
 		}
 	}}
 />
