@@ -253,9 +253,17 @@
 	let lastHydratedFormKey = $state<string | undefined>(undefined);
 	let endDateState = $state.raw(createContractEndDateState());
 	let normalizedTenantSearch = $derived.by(() => tenantSearch.trim().toLowerCase());
-	let hasTenantSearch = $derived.by(() => normalizedTenantSearch.length > 0);
 
-	const tenantsQuery = useFetchTenants(() => ({ enabled: open }));
+	// bounded, and narrowed in SQL. This read used to ask for every tenant and keep twenty of
+	// them in the browser — 543 kB in one call at the measured stress scale, on every open of
+	// this form. ADR 0010 declined to license that and parked it as a form question; this is
+	// the form. `placeholderData` on the hook holds the previous page while a new term is in
+	// flight, so the list narrows rather than emptying between keystrokes.
+	const tenantsQuery = useFetchTenants(() => ({
+		enabled: open,
+		search: normalizedTenantSearch || undefined,
+		limit: MAX_VISIBLE_TENANTS
+	}));
 
 	const selectedTenantQuery = useFetchTenant(() => ({
 		id: $form.tenantId ? Number($form.tenantId) : undefined,
@@ -275,20 +283,11 @@
 		searchValue: [tenant.name, tenant.nationalId, tenant.phone].filter(Boolean).join(' ')
 	});
 
-	// the picker opens on the tenants rather than on an instruction to search for one: every
-	// tenant is already in memory and the filtering below is client-side, so waiting for a
-	// search term bought an empty panel and nothing else.
+	// the picker opens on the tenants rather than on an instruction to search for one: the
+	// query answers an empty term with the first page by name, so there is always something to
+	// choose from. Nothing is re-filtered here — the term is the query's.
 	let tenantOptions = $derived.by(() =>
-		(tenantsQuery.data ?? [])
-			.filter(
-				(tenant) =>
-					!hasTenantSearch ||
-					[tenant.name, tenant.nationalId, tenant.phone]
-						.filter(Boolean)
-						.some((value) => value.toLowerCase().includes(normalizedTenantSearch))
-			)
-			.slice(0, MAX_VISIBLE_TENANTS)
-			.map((tenant) => toTenantOption(tenant))
+		(tenantsQuery.data ?? []).map((tenant) => toTenantOption(tenant))
 	);
 
 	const selectTenant = (tenantId: string) => {
