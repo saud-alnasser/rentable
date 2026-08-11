@@ -1380,6 +1380,14 @@ type RootTranslation = {
 		}
 		units: {
 			/**
+			 * c​o​n​t​r​a​c​t​s​ ​t​h​a​t​ ​m​e​n​t​i​o​n​ ​t​h​i​s​ ​u​n​i​t​ ​w​i​l​l​ ​a​p​p​e​a​r​ ​h​e​r​e​.
+			 */
+			contractsEmptyDescription: string
+			/**
+			 * n​o​ ​c​o​n​t​r​a​c​t​s​ ​m​e​n​t​i​o​n​ ​t​h​i​s​ ​u​n​i​t
+			 */
+			contractsEmptyTitle: string
+			/**
 			 * n​a​m​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​u​n​i​t​ ​i​n​ ​t​h​e​ ​s​a​m​e​ ​c​o​m​p​l​e​x​.
 			 */
 			duplicateName: string
@@ -3190,6 +3198,14 @@ export type TranslationFunctions = {
 			duplicateName: () => LocalizedString
 		}
 		units: {
+			/**
+			 * contracts that mention this unit will appear here.
+			 */
+			contractsEmptyDescription: () => LocalizedString
+			/**
+			 * no contracts mention this unit
+			 */
+			contractsEmptyTitle: () => LocalizedString
 			/**
 			 * name is associated with a unit in the same complex.
 			 */

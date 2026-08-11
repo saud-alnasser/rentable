@@ -102,13 +102,15 @@ export function useFetchComplex(id: () => number) {
 	});
 }
 
+/** One unit and the complex holding it. */
 export function useFetchUnit(id: () => number) {
 	return createQuery(() => {
 		const freshId = id();
 
 		return {
 			queryKey: keys.units.get(freshId),
-			queryFn: () => api.complex.units.getMany({ complexId: freshId })
+			queryFn: () => api.complex.units.get({ id: freshId }),
+			enabled: Number.isInteger(freshId) && freshId > 0
 		};
 	});
 }

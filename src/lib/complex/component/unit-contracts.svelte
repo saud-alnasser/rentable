@@ -7,8 +7,8 @@
 	import { useListContracts } from '$lib/contract/query';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
-	/** The tenant whose contracts these are. */
-	let { tenantId }: { tenantId: number } = $props();
+	/** The unit these contracts mention. */
+	let { unitId }: { unitId: number } = $props();
 
 	type ContractRow = Awaited<ReturnType<typeof api.contract.getMany>>[number];
 
@@ -20,12 +20,13 @@
 	const contractsQuery = useListContracts(
 		() => search,
 		() => sort,
-		() => ({ tenantId })
+		() => ({ unitId })
 	);
 	const contracts = $derived(contractsQuery.data ?? []);
 
-	// the same keys the directory offers, less the tenant: every contract here is held by one
-	// person, so ordering by their name would order by a column that does not vary.
+	// every sort key the directory offers: a unit's contracts are held by different tenants
+	// over different periods, so none of them is constant here the way a tenant's name is on
+	// that tenant's own profile.
 	const sortOptions = $derived.by(() => {
 		const labels: Record<ContractSortColumnId, string> = {
 			tenantName: $LL.common.labels.tenant(),
@@ -36,10 +37,7 @@
 			status: $LL.common.labels.status()
 		};
 
-		return CONTRACT_SORT_COLUMN_IDS.filter((id) => id !== 'tenantName').map((id) => ({
-			id,
-			label: labels[id]
-		}));
+		return CONTRACT_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
 	});
 </script>
 
@@ -51,8 +49,8 @@
 	isLoading={contractsQuery.isLoading}
 	isFetching={contractsQuery.isFetching}
 	recordHeight={ROW_HEIGHT}
-	emptyTitle={$LL.tenants.contracts.emptyTitle()}
-	emptyDescription={$LL.tenants.contracts.emptyDescription()}
+	emptyTitle={$LL.complexes.units.contractsEmptyTitle()}
+	emptyDescription={$LL.complexes.units.contractsEmptyDescription()}
 >
 	{#snippet record(contract: ContractRow)}
 		<ContractRecord {contract} />

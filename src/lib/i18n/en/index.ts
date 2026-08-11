@@ -453,6 +453,8 @@ const en = {
 		},
 
 		units: {
+			contractsEmptyDescription: 'contracts that mention this unit will appear here.',
+			contractsEmptyTitle: 'no contracts mention this unit',
 			duplicateName: 'name is associated with a unit in the same complex.',
 			management: 'units management'
 		}

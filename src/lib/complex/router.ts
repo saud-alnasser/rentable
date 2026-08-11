@@ -261,10 +261,30 @@ export default router({
 		}),
 
 	units: {
+		// one unit, carrying the complex holding it: a unit is reached only through its complex,
+		// so a view of one that could not name it would send the reader back to find out where
+		// they are.
 		get: procedure.public.input(UnitSchema.pick({ id: true })).query(async ({ input, ctx }) => {
-			const units = await ctx.db.select().from(s.unit).where(eq(s.unit.id, input.id));
+			const unit = await ctx.db
+				.select({
+					id: s.unit.id,
+					name: s.unit.name,
+					complexId: s.unit.complexId,
+					status: s.unit.status,
+					complexName: s.complex.name
+				})
+				.from(s.unit)
+				.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+				.where(eq(s.unit.id, input.id))
+				.get();
 
-			return await getUnitsWithDerivedStatus(ctx, units);
+			if (!unit) {
+				return undefined;
+			}
+
+			const [withStatus] = await getUnitsWithDerivedStatus(ctx, [unit]);
+
+			return { ...unit, status: withStatus?.status ?? unit.status };
 		}),
 
 		getMany: procedure.public

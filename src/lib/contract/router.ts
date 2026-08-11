@@ -112,6 +112,14 @@ const contractPaymentCount = sql<number>`(
 	select count(*) from ${s.payment} where ${s.payment.contractId} = ${s.contract.id}
 )`;
 
+// Whether the contract has the given unit assigned to it, as an EXISTS rather than a join:
+// joining the assignment table would multiply a contract holding several units into one row
+// per unit, and the list's own ordering has no way to tell those apart.
+const contractHoldsUnit = (unitId: number) => sql`exists (
+	select 1 from ${s.contractUnit}
+	where ${s.contractUnit.contractId} = ${s.contract.id} and ${s.contractUnit.unitId} = ${unitId}
+)`;
+
 const CONTRACT_SORT_COLUMNS: Record<ContractSortColumnId, SQL | AnyColumn> = {
 	tenantName: s.tenant.name,
 	govId: s.contract.govId,
@@ -503,7 +511,11 @@ export default router({
 				// person rents. Filtered here rather than by the caller: a directory that loaded
 				// every contract to keep one tenant's would be the client-side narrowing
 				// ADR 0010 exists to refuse.
-				tenantId: z.number().optional()
+				tenantId: z.number().optional(),
+				// the same, for the surface that asks what has been agreed over one unit. It
+				// matches through the assignment table rather than joining it, so a contract
+				// holding several units is still one row.
+				unitId: z.number().optional()
 			})
 		)
 		.query(async ({ input, ctx }) => {
@@ -521,6 +533,7 @@ export default router({
 				.where(
 					and(
 						input.tenantId !== undefined ? eq(s.contract.tenantId, input.tenantId) : undefined,
+						input.unitId !== undefined ? contractHoldsUnit(input.unitId) : undefined,
 						search ? contractSearchCondition(search) : undefined
 					)
 				)
