@@ -14,4 +14,6 @@ owner: repository
 | [google-drive-conditional-update](research/google-drive-conditional-update.md) | research | — |
 | [interface-performance-baseline](research/interface-performance-baseline.md) | research | waiting — `.claude/decisions/0008-one-list-block-replaces-both.md` |
 | [rhea-geometry-scale](research/rhea-geometry-scale.md) | research | — |
+| [status-glyphs-and-the-payment-ring](prototypes/status-glyphs-and-the-payment-ring.md) | prototypes | — |
 | [svelte-motion-mechanism](research/svelte-motion-mechanism.md) | research | — |
+| [the-dashboard-after-the-queues-action](discussions/the-dashboard-after-the-queues-action.md) | discussions | consumed — `.claude/decisions/0014-the-dashboard-is-the-days-work.md` |

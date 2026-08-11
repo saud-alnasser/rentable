@@ -121,6 +121,14 @@ Two traps, either of which fails against the wrong target or not at all:
 
 - **`-F`, never `-f`.** The API types `sub_issue_id` as an integer, and `-f` sends every value as a string; `-F` is the typed form that sends a number as one.
 
+**Reading the children back needs `--paginate`, and the failure is silent.** The endpoint pages at 30, so a parent with more children answers with the first 30 and no indication there are more — a set created past that boundary reads as though half of it failed to attach. The issue payload carries no `parent` field either, so checking from the child's side finds nothing whether or not it is attached; the parent's list is the only read that answers.
+
+```
+gh api repos/{owner}/{repo}/issues/<parent>/sub_issues --paginate --jq '.[].number'
+```
+
+Attaching an already-attached child fails with `Issue may not contain duplicate sub-issues`, which is the confirmation that it was attached — not an error to route around.
+
 Removing a child is its own invocation, needed the moment a ticket turns out not to belong under its parent. **The removal path is singular** — `sub_issue`, not `sub_issues` — and both traps above apply to it unchanged:
 
 ```
