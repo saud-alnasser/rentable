@@ -5,17 +5,12 @@
 		RemoteSyncWorkspace
 	} from '$lib/platform/tauri';
 	import type { GoogleDriveLinkConflict } from '$lib/platform/tauri';
+	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
 	import { Badge } from '$lib/design/primitive/badge';
 	import { Button } from '$lib/design/primitive/button';
 	import { Callout } from '$lib/design/primitive/callout';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/design/primitive/card';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import { getConflictPresentation } from '$lib/sync/conflict';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import GoogleDriveLinkConflictPanel from '$lib/sync/component/conflict-panel.svelte';
@@ -53,6 +48,12 @@
 		onCancelLinkConflict: () => void;
 	} = $props();
 
+	// the same table the conflict panel reads. This header used to resolve two of the four
+	// kinds a seventh time, in a nested ternary, and the two copies had already drifted.
+	const conflictPresentation = $derived(
+		linkConflict ? getConflictPresentation(linkConflict, $LL) : undefined
+	);
+
 	const activeWorkspace = $derived.by(() => syncState.workspace);
 	const activeAccount = $derived.by(() =>
 		activeWorkspace.accountId
@@ -88,139 +89,114 @@
 	}
 </script>
 
-<div class="flex min-h-full flex-1 items-center justify-center p-1">
-	<Card class="w-full max-w-2xl gap-4">
-		<CardHeader>
-			<CardTitle>
-				{linkConflict
-					? linkConflict.kind === 'sync'
-						? $LL.settings.syncConflictTitle()
-						: linkConflict.kind === 'relink'
-							? $LL.settings.syncRelinkRequiredTitle()
-							: linkConflict.kind === 'corrupt'
-								? $LL.settings.syncCorruptTitle()
-								: $LL.settings.syncLinkConflictTitle()
-					: $LL.layout.startup.accountChoiceTitle()}
-			</CardTitle>
-			<CardDescription>
-				{linkConflict
-					? linkConflict.kind === 'sync'
-						? $LL.settings.syncConflictDescription()
-						: linkConflict.kind === 'relink'
-							? (linkConflict.message ?? $LL.settings.syncRelinkRequiredDescription())
-							: linkConflict.kind === 'corrupt'
-								? (linkConflict.message ?? $LL.settings.syncCorruptDescription())
-								: $LL.settings.syncLinkConflictDescription()
-					: $LL.layout.startup.accountChoiceDescription()}
-			</CardDescription>
-		</CardHeader>
-
-		<CardContent class="space-y-4">
-			{#if activeWorkspace}
-				<div class="rounded-2xl border bg-muted p-4">
-					<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-						<div class="flex min-w-0 items-center gap-3">
-							<div
-								class="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary font-semibold text-foreground"
-							>
-								{getInitials(activeWorkspace, activeAccount)}
-							</div>
-							<div class="min-w-0 space-y-1">
-								<p class="text-lg font-semibold">{activeWorkspace.name}</p>
-								<p class="flex items-center gap-2 text-sm text-muted-foreground">
-									<Tooltip.Root>
-										<Tooltip.Trigger><HardDriveIcon class="size-4 shrink-0" /></Tooltip.Trigger>
-										<Tooltip.Content>{$LL.settings.latestSnapshot()}</Tooltip.Content>
-									</Tooltip.Root>
-									{$LL.settings.latestSnapshot()}: {formatTimestamp(
-										getLatestSnapshotTimestamp(activeWorkspace)
-									)}
-								</p>
-							</div>
+<StandaloneSurface
+	class="max-w-2xl"
+	title={conflictPresentation?.title ?? $LL.layout.startup.accountChoiceTitle()}
+	description={conflictPresentation?.description ?? $LL.layout.startup.accountChoiceDescription()}
+>
+	<div class="space-y-4">
+		{#if activeWorkspace}
+			<div class="rounded-2xl border bg-muted p-4">
+				<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+					<div class="flex min-w-0 items-center gap-3">
+						<div
+							class="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary font-semibold text-foreground"
+						>
+							{getInitials(activeWorkspace, activeAccount)}
 						</div>
-
-						<div class="flex flex-wrap gap-2">
-							<Tooltip.Root>
-								<Tooltip.Trigger>
-									<Badge variant="outline">
-										{activeWorkspace.provider === 'googleDrive'
-											? $LL.settings.syncWorkspaceStatusSynced()
-											: $LL.settings.syncProviderLocal()}
-									</Badge>
-								</Tooltip.Trigger>
-								<Tooltip.Content>{activeAccount?.email ?? activeWorkspace.name}</Tooltip.Content>
-							</Tooltip.Root>
+						<div class="min-w-0 space-y-1">
+							<p class="text-lg font-semibold">{activeWorkspace.name}</p>
+							<p class="flex items-center gap-2 text-sm text-muted-foreground">
+								<Tooltip.Root>
+									<Tooltip.Trigger><HardDriveIcon class="size-4 shrink-0" /></Tooltip.Trigger>
+									<Tooltip.Content>{$LL.settings.latestSnapshot()}</Tooltip.Content>
+								</Tooltip.Root>
+								{$LL.settings.latestSnapshot()}: {formatTimestamp(
+									getLatestSnapshotTimestamp(activeWorkspace)
+								)}
+							</p>
 						</div>
 					</div>
-				</div>
-			{/if}
 
-			{#if errorMessage}
-				<p class="text-sm text-destructive">{errorMessage}</p>
-			{/if}
-
-			{#if isLinkingGoogleDrive}
-				<Callout variant="info">
-					<strong>
-						{isFinalizingGoogleDriveLink
-							? $LL.settings.syncLinkFinalizingTitle()
-							: $LL.settings.syncLinkPendingTitle()}
-					</strong>
-					<div class="mt-1 text-sm text-current/80">
-						{isFinalizingGoogleDriveLink
-							? $LL.settings.syncLinkFinalizingDescription()
-							: $LL.settings.syncLinkPendingDescription()}
+					<div class="flex flex-wrap gap-2">
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								<Badge variant="outline">
+									{activeWorkspace.provider === 'googleDrive'
+										? $LL.settings.syncWorkspaceStatusSynced()
+										: $LL.settings.syncProviderLocal()}
+								</Badge>
+							</Tooltip.Trigger>
+							<Tooltip.Content>{activeAccount?.email ?? activeWorkspace.name}</Tooltip.Content>
+						</Tooltip.Root>
 					</div>
-				</Callout>
-			{/if}
+				</div>
+			</div>
+		{/if}
 
-			{#if linkConflict}
-				<GoogleDriveLinkConflictPanel
-					conflict={linkConflict}
-					{isWorking}
-					showCancel={true}
-					cancelLabel={linkConflict.kind === 'sync' ||
-					linkConflict.kind === 'corrupt' ||
-					linkConflict.kind === 'relink'
-						? $LL.settings.syncConflictDeferAction()
-						: $LL.common.actions.cancel()}
-					onCancel={onCancelLinkConflict}
-					onKeepLocal={onLinkKeepLocal}
-					onUseRemote={onLinkUseRemote}
-					onRelink={onRelinkGoogleDrive}
-				/>
-			{:else if isLinkingGoogleDrive}
-				<div class="grid gap-3 sm:grid-cols-2">
-					<Button
-						variant="outline"
-						onclick={onOpenLocal}
-						disabled={isWorking || isFinalizingGoogleDriveLink}
-					>
-						<FolderOpenIcon class="size-4" />
-						{$LL.common.actions.openLocal()}
-					</Button>
-					<Button
-						onclick={onCancelGoogleDriveLink}
-						disabled={isWorking || isFinalizingGoogleDriveLink}
-					>
-						<CloudIcon class="size-4" />
-						{isFinalizingGoogleDriveLink
-							? $LL.common.actions.linking()
-							: $LL.common.actions.cancel()}
-					</Button>
+		{#if errorMessage}
+			<p class="text-sm text-destructive">{errorMessage}</p>
+		{/if}
+
+		{#if isLinkingGoogleDrive}
+			<Callout variant="info">
+				<strong>
+					{isFinalizingGoogleDriveLink
+						? $LL.settings.syncLinkFinalizingTitle()
+						: $LL.settings.syncLinkPendingTitle()}
+				</strong>
+				<div class="mt-1 text-sm text-current/80">
+					{isFinalizingGoogleDriveLink
+						? $LL.settings.syncLinkFinalizingDescription()
+						: $LL.settings.syncLinkPendingDescription()}
 				</div>
-			{:else}
-				<div class="grid gap-3 sm:grid-cols-2">
-					<Button variant="outline" onclick={onOpenLocal} disabled={isWorking}>
-						<FolderOpenIcon class="size-4" />
-						{$LL.common.actions.openLocal()}
-					</Button>
-					<Button onclick={onLinkGoogleDrive} disabled={isWorking || !syncState.googleDriveReady}>
-						<CloudIcon class="size-4" />
-						{isWorking ? $LL.common.actions.linking() : $LL.common.actions.link()}
-					</Button>
-				</div>
-			{/if}
-		</CardContent>
-	</Card>
-</div>
+			</Callout>
+		{/if}
+
+		{#if linkConflict}
+			<GoogleDriveLinkConflictPanel
+				conflict={linkConflict}
+				{isWorking}
+				showCancel={true}
+				cancelLabel={linkConflict.kind === 'sync' ||
+				linkConflict.kind === 'corrupt' ||
+				linkConflict.kind === 'relink'
+					? $LL.settings.syncConflictDeferAction()
+					: $LL.common.actions.cancel()}
+				onCancel={onCancelLinkConflict}
+				onKeepLocal={onLinkKeepLocal}
+				onUseRemote={onLinkUseRemote}
+				onRelink={onRelinkGoogleDrive}
+			/>
+		{:else if isLinkingGoogleDrive}
+			<div class="grid gap-3 sm:grid-cols-2">
+				<Button
+					variant="outline"
+					onclick={onOpenLocal}
+					disabled={isWorking || isFinalizingGoogleDriveLink}
+				>
+					<FolderOpenIcon class="size-4" />
+					{$LL.common.actions.openLocal()}
+				</Button>
+				<Button
+					onclick={onCancelGoogleDriveLink}
+					disabled={isWorking || isFinalizingGoogleDriveLink}
+				>
+					<CloudIcon class="size-4" />
+					{isFinalizingGoogleDriveLink ? $LL.common.actions.linking() : $LL.common.actions.cancel()}
+				</Button>
+			</div>
+		{:else}
+			<div class="grid gap-3 sm:grid-cols-2">
+				<Button variant="outline" onclick={onOpenLocal} disabled={isWorking}>
+					<FolderOpenIcon class="size-4" />
+					{$LL.common.actions.openLocal()}
+				</Button>
+				<Button onclick={onLinkGoogleDrive} disabled={isWorking || !syncState.googleDriveReady}>
+					<CloudIcon class="size-4" />
+					{isWorking ? $LL.common.actions.linking() : $LL.common.actions.link()}
+				</Button>
+			</div>
+		{/if}
+	</div>
+</StandaloneSurface>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { getConflictPresentation } from '$lib/sync/conflict';
 	import type { GoogleDriveLinkConflict } from '$lib/platform/tauri';
 	import { Badge } from '$lib/design/primitive/badge';
 	import { Button } from '$lib/design/primitive/button';
@@ -36,83 +37,11 @@
 		return formatLocaleDate($locale, value, { dateStyle: 'medium', timeStyle: 'short' });
 	}
 
-	function getTitle() {
-		if (conflict.kind === 'relink') {
-			return $LL.settings.syncRelinkRequiredTitle();
-		}
+	// one table keyed by kind, shared with every other screen that can raise a conflict.
+	const presentation = $derived(getConflictPresentation(conflict, $LL));
 
-		if (conflict.kind === 'corrupt') {
-			return $LL.settings.syncCorruptTitle();
-		}
-
-		return conflict.kind === 'sync'
-			? $LL.settings.syncConflictTitle()
-			: $LL.settings.syncLinkConflictTitle();
-	}
-
-	function getDescription() {
-		if (conflict.kind === 'relink') {
-			return conflict.message ?? $LL.settings.syncRelinkRequiredDescription();
-		}
-
-		if (conflict.kind === 'corrupt') {
-			return conflict.message ?? $LL.settings.syncCorruptDescription();
-		}
-
-		return conflict.kind === 'sync'
-			? $LL.settings.syncConflictDescription()
-			: $LL.settings.syncLinkConflictDescription();
-	}
-
-	function getLocalDescription() {
-		if (conflict.kind === 'relink') {
-			return $LL.settings.syncRelinkRequiredLocalDescription();
-		}
-
-		if (conflict.kind === 'corrupt') {
-			return $LL.settings.syncCorruptLocalDescription();
-		}
-
-		return conflict.kind === 'sync'
-			? $LL.settings.syncConflictLocalDescription()
-			: $LL.settings.syncLinkConflictLocalDescription();
-	}
-
-	function getRemoteDescription() {
-		if (conflict.kind === 'relink') {
-			return $LL.settings.syncRelinkRequiredRemoteDescription({ email: conflict.accountEmail });
-		}
-
-		if (conflict.kind === 'corrupt') {
-			return $LL.settings.syncCorruptRemoteDescription({ email: conflict.accountEmail });
-		}
-
-		return conflict.kind === 'sync'
-			? $LL.settings.syncConflictRemoteDescription({ email: conflict.accountEmail })
-			: $LL.settings.syncLinkConflictRemoteDescription({ email: conflict.accountEmail });
-	}
-
-	function getKeepLocalLabel() {
-		if (conflict.kind === 'relink') {
-			return $LL.settings.syncRelinkRequiredAction();
-		}
-
-		if (conflict.kind === 'corrupt') {
-			return $LL.settings.syncCorruptKeepLocalAction();
-		}
-
-		return conflict.kind === 'sync'
-			? $LL.settings.syncConflictKeepLocalAction()
-			: $LL.settings.syncLinkKeepLocalAction();
-	}
-
-	function getUseRemoteLabel() {
-		return conflict.kind === 'sync'
-			? $LL.settings.syncConflictUseRemoteAction()
-			: $LL.settings.syncLinkUseRemoteAction();
-	}
-
-	const showUseRemote = $derived.by(() => conflict.kind === 'sync' || conflict.kind === 'link');
+	// the table says so: a kind offering no remote copy declares no label for taking one.
+	const showUseRemote = $derived(presentation.useRemoteLabel !== undefined);
 
 	function getLatestSide() {
 		const local = conflict.localSnapshotAt ?? 0;
@@ -136,8 +65,8 @@
 
 <div class={cn('space-y-4 rounded-2xl border bg-card p-4', className)}>
 	<div class="space-y-1">
-		<p class="text-base font-semibold">{getTitle()}</p>
-		<p class="text-sm text-muted-foreground">{getDescription()}</p>
+		<p class="text-base font-semibold">{presentation.title}</p>
+		<p class="text-sm text-muted-foreground">{presentation.description}</p>
 	</div>
 
 	<div class="grid gap-3 lg:grid-cols-2">
@@ -151,7 +80,7 @@
 					<Badge variant="outline">{$LL.settings.syncProviderLocal()}</Badge>
 				</div>
 			</div>
-			<p class="text-sm text-muted-foreground">{getLocalDescription()}</p>
+			<p class="text-sm text-muted-foreground">{presentation.localDescription}</p>
 			<p class="text-sm text-muted-foreground">
 				{$LL.settings.syncLastSnapshotDescription({
 					value: formatTimestamp(conflict.localSnapshotAt)
@@ -169,7 +98,7 @@
 					<Badge variant="secondary">{$LL.settings.syncProviderGoogleDrive()}</Badge>
 				</div>
 			</div>
-			<p class="text-sm text-muted-foreground">{getRemoteDescription()}</p>
+			<p class="text-sm text-muted-foreground">{presentation.remoteDescription}</p>
 			<p class="text-sm text-muted-foreground">
 				{$LL.settings.syncLastRemoteDescription({
 					value: formatTimestamp(conflict.remoteUpdatedAt)
@@ -189,11 +118,11 @@
 		{/if}
 		{#if showUseRemote}
 			<Button variant="outline" onclick={onUseRemote} disabled={isWorking}>
-				{getUseRemoteLabel()}
+				{presentation.useRemoteLabel}
 			</Button>
 		{/if}
 		<Button onclick={conflict.kind === 'relink' ? onRelink : onKeepLocal} disabled={isWorking}>
-			{getKeepLocalLabel()}
+			{presentation.keepLocalLabel}
 		</Button>
 	</div>
 </div>
