@@ -541,6 +541,7 @@ const ar = {
 			monthTotal: 'الإجمالي المعروض في {month}',
 			percentFulfilled: '{percent}% مكتمل',
 			remaining: 'متبقي {amount} ريال',
+			remainingAfter: 'المتبقي بعد هذه الدفعة',
 			remainingBalance: 'الرصيد المتبقي',
 			terminatedNotice: 'العقود المنتهية مقفلة ولا يمكن تعديل المدفوعات.',
 			terminatedSummary: 'العقد منتهي والمدفوعات للقراءة فقط.',

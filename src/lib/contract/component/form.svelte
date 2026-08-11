@@ -1,26 +1,10 @@
-<script lang="ts" module>
-	/**
-	 * Every control in this form, cut into the surface rather than sitting on top of it.
-	 *
-	 * The hover fill is here because each control primitive brings its own, and without one of
-	 * ours the well repaints to its pre-inset colour under the pointer.
-	 *
-	 * The two `aria-invalid` rules are restated even though the primitives carry them, because
-	 * they must survive alongside the transparent border above — and `button` declares the
-	 * destructive ring colour without a ring width, so the three date and tenant controls would
-	 * otherwise be the only invalid fields in the form with no ring at all.
-	 */
-	const insetControl =
-		'border-transparent bg-foreground/5 shadow-[inset_0_2px_4px_rgb(0_0_0/0.14)] hover:bg-foreground/8 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
-</script>
-
 <script lang="ts">
 	import { ContractSchema, type Contract } from '$lib/platform/database/schema';
 	import { Button } from '$lib/design/primitive/button';
 	import * as Calendar from '$lib/design/primitive/calendar';
 	import * as Command from '$lib/design/primitive/command';
 	import FieldError from '$lib/design/block/field-error.svelte';
-	import FormSurface from '$lib/design/block/form-surface.svelte';
+	import FormSurface, { insetControl } from '$lib/design/block/form-surface.svelte';
 	import * as Form from '$lib/design/primitive/form';
 	import { Input } from '$lib/design/primitive/input';
 	import * as Popover from '$lib/design/primitive/popover';

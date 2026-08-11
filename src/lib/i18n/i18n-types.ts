@@ -1665,6 +1665,10 @@ type RootTranslation = {
 			 */
 			remaining: RequiredParams<'amount'>
 			/**
+			 * r​e​m​a​i​n​i​n​g​ ​a​f​t​e​r​ ​t​h​i​s​ ​p​a​y​m​e​n​t
+			 */
+			remainingAfter: string
+			/**
 			 * r​e​m​a​i​n​i​n​g​ ​b​a​l​a​n​c​e
 			 */
 			remainingBalance: string
@@ -3451,6 +3455,10 @@ export type TranslationFunctions = {
 			 * {amount} sar remaining
 			 */
 			remaining: (arg: { amount: unknown }) => LocalizedString
+			/**
+			 * remaining after this payment
+			 */
+			remainingAfter: () => LocalizedString
 			/**
 			 * remaining balance
 			 */
