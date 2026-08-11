@@ -158,6 +158,18 @@ const ar = {
 			vacant: 'شاغر'
 		},
 
+		statusDescriptions: {
+			active: 'نشط؛ المدفوعات منتظمة',
+			defaulted: 'منتهي؛ غير مدفوع بالكامل',
+			expired: 'منتهي؛ مدفوع بالكامل',
+			fulfilled: 'نشط؛ مدفوع بالكامل',
+			occupied: 'مشغولة بعقد سارٍ اليوم',
+			overdue: 'انتهت مدته وما زال عليه مستحق',
+			scheduled: 'مجدول؛ يبدأ لاحقاً',
+			terminated: 'تم إنهاؤه يدوياً',
+			vacant: 'لا يشغلها أي عقد اليوم'
+		},
+
 		table: {
 			goToFirstPage: 'اذهب للصفحة الأولى',
 			goToLastPage: 'اذهب للصفحة الأخيرة',
@@ -528,15 +540,6 @@ const ar = {
 			title: 'المدفوعات',
 			titleFor: 'مدفوعات {govId}',
 			trackSummary: 'تتبع المدفوعات وإضافة دفعات جديدة.'
-		},
-
-		statusDescriptions: {
-			active: 'نشط؛ المدفوعات منتظمة',
-			defaulted: 'منتهي؛ غير مدفوع بالكامل',
-			expired: 'منتهي؛ مدفوع بالكامل',
-			fulfilled: 'نشط؛ مدفوع بالكامل',
-			scheduled: 'مجدول؛ يبدأ لاحقاً',
-			terminated: 'تم إنهاؤه يدوياً'
 		},
 
 		table: {

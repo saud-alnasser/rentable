@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import type { Contract } from '$lib/platform/database/schema';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
-	import { Badge } from '$lib/design/primitive/badge';
+	import * as Cell from '$lib/design/cell';
 	import { Button } from '$lib/design/primitive/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/design/primitive/card';
 	import { Spinner } from '$lib/design/primitive/spinner';
@@ -49,27 +49,6 @@
 		'3m': $LL.contracts.intervals.quarterly,
 		'6m': $LL.contracts.intervals.semiAnnual,
 		'12m': $LL.contracts.intervals.annual
-	};
-
-	const statusVariants: Record<
-		Contract['status'],
-		'default' | 'secondary' | 'destructive' | 'outline'
-	> = {
-		scheduled: 'secondary',
-		active: 'default',
-		terminated: 'destructive',
-		fulfilled: 'outline',
-		expired: 'secondary',
-		defaulted: 'destructive'
-	};
-
-	const statusDescriptions: Record<Contract['status'], () => string> = {
-		scheduled: $LL.contracts.statusDescriptions.scheduled,
-		active: $LL.contracts.statusDescriptions.active,
-		terminated: $LL.contracts.statusDescriptions.terminated,
-		fulfilled: $LL.contracts.statusDescriptions.fulfilled,
-		expired: $LL.contracts.statusDescriptions.expired,
-		defaulted: $LL.contracts.statusDescriptions.defaulted
 	};
 
 	const contractQuery = useFetchContract(() => contractId);
@@ -283,20 +262,7 @@
 				</p>
 				<h1 class="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{tenantLabel}</h1>
 				<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-					<Tooltip.Root>
-						<Tooltip.Trigger>
-							{#snippet child({ props })}
-								<span {...props} class="inline-flex">
-									<Badge variant={statusVariants[contract.status]} class="capitalize">
-										{$LL.common.status[contract.status]()}
-									</Badge>
-								</span>
-							{/snippet}
-						</Tooltip.Trigger>
-						<Tooltip.Content class="max-w-60" side="top">
-							{statusDescriptions[contract.status]()}
-						</Tooltip.Content>
-					</Tooltip.Root>
+					<Cell.Status status={contract.status} />
 					<span class="text-border">•</span>
 					<span>{formatDate(contract.start)} — {formatDate(contract.end)}</span>
 				</div>
