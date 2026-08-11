@@ -159,6 +159,18 @@ const en = {
 			vacant: 'vacant'
 		},
 
+		statusDescriptions: {
+			active: 'active; payments on track',
+			defaulted: 'ended; not paid in full',
+			expired: 'ended; paid in full',
+			fulfilled: 'active; paid in full',
+			occupied: 'held by a contract running today',
+			overdue: 'past its end date and still owing',
+			scheduled: 'scheduled; starts in the future',
+			terminated: 'manually terminated; locked for changes',
+			vacant: 'held by no contract today'
+		},
+
 		table: {
 			goToFirstPage: 'go to first page',
 			goToLastPage: 'go to last page',
@@ -535,15 +547,6 @@ const en = {
 			title: 'payments',
 			titleFor: 'payments for {govId}',
 			trackSummary: 'track contract payments and add new payment records here.'
-		},
-
-		statusDescriptions: {
-			active: 'active; payments on track',
-			defaulted: 'ended; not paid in full',
-			expired: 'ended; paid in full',
-			fulfilled: 'active; paid in full',
-			scheduled: 'scheduled; starts in the future',
-			terminated: 'manually terminated; locked for changes'
 		},
 
 		table: {

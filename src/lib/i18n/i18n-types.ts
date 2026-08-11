@@ -573,6 +573,44 @@ type RootTranslation = {
 			 */
 			vacant: string
 		}
+		statusDescriptions: {
+			/**
+			 * a​c​t​i​v​e​;​ ​p​a​y​m​e​n​t​s​ ​o​n​ ​t​r​a​c​k
+			 */
+			active: string
+			/**
+			 * e​n​d​e​d​;​ ​n​o​t​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
+			 */
+			defaulted: string
+			/**
+			 * e​n​d​e​d​;​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
+			 */
+			expired: string
+			/**
+			 * a​c​t​i​v​e​;​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
+			 */
+			fulfilled: string
+			/**
+			 * h​e​l​d​ ​b​y​ ​a​ ​c​o​n​t​r​a​c​t​ ​r​u​n​n​i​n​g​ ​t​o​d​a​y
+			 */
+			occupied: string
+			/**
+			 * p​a​s​t​ ​i​t​s​ ​e​n​d​ ​d​a​t​e​ ​a​n​d​ ​s​t​i​l​l​ ​o​w​i​n​g
+			 */
+			overdue: string
+			/**
+			 * s​c​h​e​d​u​l​e​d​;​ ​s​t​a​r​t​s​ ​i​n​ ​t​h​e​ ​f​u​t​u​r​e
+			 */
+			scheduled: string
+			/**
+			 * m​a​n​u​a​l​l​y​ ​t​e​r​m​i​n​a​t​e​d​;​ ​l​o​c​k​e​d​ ​f​o​r​ ​c​h​a​n​g​e​s
+			 */
+			terminated: string
+			/**
+			 * h​e​l​d​ ​b​y​ ​n​o​ ​c​o​n​t​r​a​c​t​ ​t​o​d​a​y
+			 */
+			vacant: string
+		}
 		table: {
 			/**
 			 * g​o​ ​t​o​ ​f​i​r​s​t​ ​p​a​g​e
@@ -1634,32 +1672,6 @@ type RootTranslation = {
 			 */
 			trackSummary: string
 		}
-		statusDescriptions: {
-			/**
-			 * a​c​t​i​v​e​;​ ​p​a​y​m​e​n​t​s​ ​o​n​ ​t​r​a​c​k
-			 */
-			active: string
-			/**
-			 * e​n​d​e​d​;​ ​n​o​t​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
-			 */
-			defaulted: string
-			/**
-			 * e​n​d​e​d​;​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
-			 */
-			expired: string
-			/**
-			 * a​c​t​i​v​e​;​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
-			 */
-			fulfilled: string
-			/**
-			 * s​c​h​e​d​u​l​e​d​;​ ​s​t​a​r​t​s​ ​i​n​ ​t​h​e​ ​f​u​t​u​r​e
-			 */
-			scheduled: string
-			/**
-			 * m​a​n​u​a​l​l​y​ ​t​e​r​m​i​n​a​t​e​d​;​ ​l​o​c​k​e​d​ ​f​o​r​ ​c​h​a​n​g​e​s
-			 */
-			terminated: string
-		}
 		table: {
 			/**
 			 * p​a​y​m​e​n​t​s​ ​m​a​n​a​g​e​m​e​n​t
@@ -2384,6 +2396,44 @@ export type TranslationFunctions = {
 			terminated: () => LocalizedString
 			/**
 			 * vacant
+			 */
+			vacant: () => LocalizedString
+		}
+		statusDescriptions: {
+			/**
+			 * active; payments on track
+			 */
+			active: () => LocalizedString
+			/**
+			 * ended; not paid in full
+			 */
+			defaulted: () => LocalizedString
+			/**
+			 * ended; paid in full
+			 */
+			expired: () => LocalizedString
+			/**
+			 * active; paid in full
+			 */
+			fulfilled: () => LocalizedString
+			/**
+			 * held by a contract running today
+			 */
+			occupied: () => LocalizedString
+			/**
+			 * past its end date and still owing
+			 */
+			overdue: () => LocalizedString
+			/**
+			 * scheduled; starts in the future
+			 */
+			scheduled: () => LocalizedString
+			/**
+			 * manually terminated; locked for changes
+			 */
+			terminated: () => LocalizedString
+			/**
+			 * held by no contract today
 			 */
 			vacant: () => LocalizedString
 		}
@@ -3414,32 +3464,6 @@ export type TranslationFunctions = {
 			 * track contract payments and add new payment records here.
 			 */
 			trackSummary: () => LocalizedString
-		}
-		statusDescriptions: {
-			/**
-			 * active; payments on track
-			 */
-			active: () => LocalizedString
-			/**
-			 * ended; not paid in full
-			 */
-			defaulted: () => LocalizedString
-			/**
-			 * ended; paid in full
-			 */
-			expired: () => LocalizedString
-			/**
-			 * active; paid in full
-			 */
-			fulfilled: () => LocalizedString
-			/**
-			 * scheduled; starts in the future
-			 */
-			scheduled: () => LocalizedString
-			/**
-			 * manually terminated; locked for changes
-			 */
-			terminated: () => LocalizedString
 		}
 		table: {
 			/**
