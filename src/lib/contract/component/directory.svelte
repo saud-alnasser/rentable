@@ -10,7 +10,8 @@
 	import type { ListSort } from '$lib/design/sort';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import { useListContracts } from '$lib/contract/query';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { formatLocaleValueWithUnit } from '$lib/platform/locale';
 	import CashIcon from '@tabler/icons-svelte/icons/cash-banknote';
 	import { untrack } from 'svelte';
 	import ContractForm from './form.svelte';
@@ -53,6 +54,9 @@
 
 		return CONTRACT_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
 	});
+
+	const formatMoney = (value: number) =>
+		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
 
 	const openCreateContractForm = () => {
 		contractFormRenderKey += 1;
@@ -110,12 +114,13 @@
 					label={$LL.common.nav.payments()}
 				/>
 				<Cell.Status status={contract.status} />
-				<!-- the interval rides with the figure because a bare amount beside a contract
-				     reads as what the contract is worth, and the cost is per interval. -->
-				<span class="flex flex-col items-end gap-0.5 text-end text-sm">
-					<Cell.Money amount={contract.cost} />
-					<span class="text-xs text-muted-foreground">{intervalLabels[contract.interval]}</span>
-				</span>
+				<!-- the cost is per interval, so it goes to the tooltip carrying its interval with
+				     it: a bare amount beside a contract reads as what the whole contract is worth. -->
+				<Cell.Fulfillment
+					paid={contract.paidAmount}
+					expected={contract.expectedAmount}
+					note={`${formatMoney(contract.cost)} · ${intervalLabels[contract.interval]}`}
+				/>
 			</span>
 		</a>
 	{/snippet}
