@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { getConflictPresentation } from '$lib/sync/conflict';
 	import type {
 		GoogleDriveConflictResolution,
 		RemoteSyncAccount,
@@ -19,13 +20,7 @@
 	import { Badge, type BadgeVariant } from '$lib/design/primitive/badge';
 	import { Button } from '$lib/design/primitive/button';
 	import { Callout } from '$lib/design/primitive/callout';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/design/primitive/card';
+	import * as Field from '$lib/design/primitive/field';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import { cn } from '$lib/design/tailwind.js';
 	import { showErrorToast } from '$lib/error/toast';
@@ -293,25 +288,11 @@
 		});
 	}
 
-	function getConflictDescription() {
-		if (!linkConflict) {
-			return null;
-		}
-
-		if (linkConflict.kind === 'sync') {
-			return $LL.settings.syncConflictShortDescription();
-		}
-
-		if (linkConflict.kind === 'corrupt') {
-			return linkConflict.message ?? $LL.settings.syncCorruptShortDescription();
-		}
-
-		if (linkConflict.kind === 'relink') {
-			return linkConflict.message ?? $LL.settings.syncRelinkRequiredShortDescription();
-		}
-
-		return $LL.settings.syncLinkConflictShortDescription();
-	}
+	// the same table every other screen that can raise a conflict reads. This was an eighth
+	// parallel ladder over the four kinds, in its own wording set.
+	const conflictPresentation = $derived(
+		linkConflict ? getConflictPresentation(linkConflict, $LL) : undefined
+	);
 
 	function getProviderLabel(provider: RemoteSyncProvider) {
 		return provider === 'googleDrive'
@@ -403,248 +384,231 @@
 	}
 </script>
 
-<Card>
-	<CardHeader class="gap-3 border-b pb-5">
-		<CardTitle>{$LL.settings.syncTitle()}</CardTitle>
-		<CardDescription>{$LL.settings.syncDescription()}</CardDescription>
-	</CardHeader>
-	<CardContent class="space-y-5 pt-5">
+<div class="space-y-5">
+	<Field.Field>
+		<Field.Content>
+			<Field.Label>{$LL.settings.syncTitle()}</Field.Label>
+			<Field.Description>{$LL.settings.syncDescription()}</Field.Description>
+		</Field.Content>
+	</Field.Field>
+
+	<Callout variant="info">
+		<strong>{$LL.settings.syncAutomationTitle()}</strong>
+		<div class="mt-1 text-sm text-muted-foreground">
+			{$LL.settings.syncAutomationDescription()}
+		</div>
+	</Callout>
+
+	{#if !syncState.googleDriveReady}
+		<Callout variant="warning">{$LL.settings.syncGoogleDrivePending()}</Callout>
+	{/if}
+
+	{#if isLinkingGoogleDrive}
 		<Callout variant="info">
-			<strong>{$LL.settings.syncAutomationTitle()}</strong>
-			<div class="mt-1 text-sm text-muted-foreground">
-				{$LL.settings.syncAutomationDescription()}
+			<strong>
+				{isFinalizingGoogleDriveLink
+					? $LL.settings.syncLinkFinalizingTitle()
+					: $LL.settings.syncLinkPendingTitle()}
+			</strong>
+			<div class="mt-1 text-sm text-current/80">
+				{isFinalizingGoogleDriveLink
+					? $LL.settings.syncLinkFinalizingDescription()
+					: $LL.settings.syncLinkPendingDescription()}
+			</div>
+			<div class="mt-3">
+				<Button
+					variant="outline"
+					onclick={() => void linkGoogleDrive()}
+					disabled={isResolvingLinkConflict || isFinalizingGoogleDriveLink}
+				>
+					{isFinalizingGoogleDriveLink ? $LL.common.actions.linking() : $LL.common.actions.cancel()}
+				</Button>
 			</div>
 		</Callout>
+	{/if}
 
-		{#if !syncState.googleDriveReady}
-			<Callout variant="warning">{$LL.settings.syncGoogleDrivePending()}</Callout>
-		{/if}
-
-		{#if isLinkingGoogleDrive}
-			<Callout variant="info">
-				<strong>
-					{isFinalizingGoogleDriveLink
-						? $LL.settings.syncLinkFinalizingTitle()
-						: $LL.settings.syncLinkPendingTitle()}
-				</strong>
-				<div class="mt-1 text-sm text-current/80">
-					{isFinalizingGoogleDriveLink
-						? $LL.settings.syncLinkFinalizingDescription()
-						: $LL.settings.syncLinkPendingDescription()}
-				</div>
-				<div class="mt-3">
-					<Button
-						variant="outline"
-						onclick={() => void linkGoogleDrive()}
-						disabled={isResolvingLinkConflict || isFinalizingGoogleDriveLink}
-					>
-						{isFinalizingGoogleDriveLink
-							? $LL.common.actions.linking()
-							: $LL.common.actions.cancel()}
-					</Button>
-				</div>
-			</Callout>
-		{/if}
-
-		{#if activeWorkspace}
-			<div class={cn(settingsInsetPanelClass, 'space-y-4')}>
-				<div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-					<div class="min-w-0 flex-1 space-y-4 text-start">
-						<div class="flex min-w-0 items-start gap-3 rtl:flex-row-reverse">
-							<div
-								class="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground"
-							>
-								{getAvatarLabel(activeWorkspace, activeAccount)}
-							</div>
-							<div class="min-w-0 flex-1 space-y-2">
-								<div class="flex flex-wrap items-center gap-2">
-									<p class="text-lg font-semibold">{activeWorkspace.name}</p>
-									{#if activeWorkspace.provider === 'googleDrive'}
-										<Badge variant="outline">{getProviderLabel(activeWorkspace.provider)}</Badge>
-										<Badge variant={getWorkspaceStatus(activeWorkspace, activeAccount).variant}>
-											{getWorkspaceStatus(activeWorkspace, activeAccount).label}
-										</Badge>
-									{/if}
-								</div>
-								<p class="text-sm text-muted-foreground">
-									{activeAccount?.email ?? getProviderLabel(activeWorkspace.provider)}
-								</p>
-							</div>
+	{#if activeWorkspace}
+		<div class={cn(settingsInsetPanelClass, 'space-y-4')}>
+			<div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+				<div class="min-w-0 flex-1 space-y-4 text-start">
+					<div class="flex min-w-0 items-start gap-3 rtl:flex-row-reverse">
+						<div
+							class="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground"
+						>
+							{getAvatarLabel(activeWorkspace, activeAccount)}
 						</div>
-
-						<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-							<div class="rounded-2xl border bg-muted p-3">
-								<p class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
-									{$LL.settings.latestSnapshot()}
-								</p>
-								<p class="mt-2 text-sm font-medium">
-									{formatTimestamp(getLatestSnapshotTimestamp(activeWorkspace))}
-								</p>
-								<p class="mt-1 text-xs text-muted-foreground">
-									{$LL.settings.syncLastSnapshotDescription({
-										value: formatTimestamp(activeWorkspace.lastSnapshotAt ?? null)
-									})}
-								</p>
+						<div class="min-w-0 flex-1 space-y-2">
+							<div class="flex flex-wrap items-center gap-2">
+								<p class="text-lg font-semibold">{activeWorkspace.name}</p>
+								{#if activeWorkspace.provider === 'googleDrive'}
+									<Badge variant="outline">{getProviderLabel(activeWorkspace.provider)}</Badge>
+									<Badge variant={getWorkspaceStatus(activeWorkspace, activeAccount).variant}>
+										{getWorkspaceStatus(activeWorkspace, activeAccount).label}
+									</Badge>
+								{/if}
 							</div>
-
-							<div class="rounded-2xl border bg-muted p-3">
-								<p class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
-									{$LL.common.actions.syncNow()}
-								</p>
-								<p class="mt-2 text-sm font-medium">
-									{formatTimestamp(activeWorkspace.lastSyncedAt ?? null)}
-								</p>
-								<p class="mt-1 text-xs text-muted-foreground">
-									{activeWorkspace.provider === 'googleDrive'
-										? $LL.settings.syncLastRemoteDescription({
-												value: formatTimestamp(activeWorkspace.lastRemoteUpdatedAt ?? null)
-											})
-										: $LL.settings.syncLinkDescription()}
-								</p>
-							</div>
-
-							<div class="rounded-2xl border bg-muted p-3 sm:col-span-2 xl:col-span-1">
-								<p class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
-									{activeWorkspace.provider === 'googleDrive'
-										? $LL.settings.syncProviderGoogleDrive()
-										: $LL.settings.currentWorkspace()}
-								</p>
-								<p class="mt-2 text-sm font-medium">
-									{activeWorkspace.provider === 'googleDrive'
-										? (formatBytes(activeAccount?.appUsageBytes) ?? $LL.common.messages.unknown())
-										: getProviderLabel(activeWorkspace.provider)}
-								</p>
-								<p class="mt-1 text-xs text-muted-foreground">
-									{activeWorkspace.provider === 'googleDrive'
-										? formatDriveUsage(activeAccount)
-											? $LL.settings.syncTotalDriveUsageDescription({
-													value: formatDriveUsage(activeAccount) ?? ''
-												})
-											: $LL.settings.syncProviderGoogleDrive()
-										: $LL.settings.syncAutomationDescription()}
-								</p>
-							</div>
-						</div>
-					</div>
-
-					<div class="w-full max-w-md space-y-3 text-start">
-						{#if linkConflict}
 							<p class="text-sm text-muted-foreground">
-								{getConflictDescription()}
+								{activeAccount?.email ?? getProviderLabel(activeWorkspace.provider)}
 							</p>
-						{:else if activeWorkspace.provider === 'googleDrive' && activeAccount}
-							<div class="space-y-1 text-sm text-muted-foreground">
-								{#if formatBytes(activeAccount.appUsageBytes)}
-									<p>
-										{$LL.settings.syncAppDriveUsageDescription({
-											value: formatBytes(activeAccount.appUsageBytes) ?? '0 B'
-										})}
-									</p>
-								{/if}
-								{#if formatDriveUsage(activeAccount)}
-									<p>
-										{$LL.settings.syncTotalDriveUsageDescription({
-											value: formatDriveUsage(activeAccount) ?? ''
-										})}
-									</p>
-								{/if}
-							</div>
-							<div class="grid gap-2 sm:grid-cols-2">
-								<Button
-									onclick={() => void syncGoogleDriveNow()}
-									disabled={isSyncingGoogleDrive || isGoogleDriveBusy}
-								>
-									<RefreshCwIcon class="size-4" />
-									{isSyncingGoogleDrive
-										? $LL.common.actions.working()
-										: $LL.common.actions.syncNow()}
-								</Button>
-								<Button
-									variant="outline"
-									onclick={() => {
-										isUnlinkDialogOpen = true;
-									}}
-									disabled={isGoogleDriveBusy || isGoogleDriveUnavailable}
-								>
-									<UnlinkIcon class="size-4" />
-									{isUnlinkingGoogleDrive || disconnectingGoogleDriveAccountId !== null
-										? $LL.common.actions.working()
-										: $LL.common.actions.unlink()}
-								</Button>
-							</div>
-							<p class="text-xs text-muted-foreground">{$LL.settings.syncUnlinkDescription()}</p>
-						{:else}
-							<p class="text-sm text-muted-foreground">{$LL.settings.syncLinkDescription()}</p>
-							<div class="grid gap-2 sm:grid-cols-2">
-								<Button
-									onclick={() => void snapshotNow()}
-									disabled={isSnapshotPending || isGoogleDriveBusy}
-								>
-									<HardDriveIcon class="size-4" />
-									{isSnapshotPending ? $LL.common.actions.creating() : $LL.settings.snapshotNow()}
-								</Button>
-								<Button
-									onclick={() => void linkGoogleDrive()}
-									disabled={isResolvingLinkConflict ||
-										isFinalizingGoogleDriveLink ||
-										isGoogleDriveUnavailable}
-									variant="outline"
-								>
-									<LinkIcon class="size-4" />
-									{isLinkingGoogleDrive
-										? isFinalizingGoogleDriveLink
-											? $LL.common.actions.linking()
-											: $LL.common.actions.cancel()
-										: $LL.common.actions.link()}
-								</Button>
-							</div>
-						{/if}
+						</div>
+					</div>
+
+					<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+						<div class="rounded-2xl border bg-muted p-3">
+							<p class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
+								{$LL.settings.latestSnapshot()}
+							</p>
+							<p class="mt-2 text-sm font-medium">
+								{formatTimestamp(getLatestSnapshotTimestamp(activeWorkspace))}
+							</p>
+							<p class="mt-1 text-xs text-muted-foreground">
+								{$LL.settings.syncLastSnapshotDescription({
+									value: formatTimestamp(activeWorkspace.lastSnapshotAt ?? null)
+								})}
+							</p>
+						</div>
+
+						<div class="rounded-2xl border bg-muted p-3">
+							<p class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
+								{$LL.common.actions.syncNow()}
+							</p>
+							<p class="mt-2 text-sm font-medium">
+								{formatTimestamp(activeWorkspace.lastSyncedAt ?? null)}
+							</p>
+							<p class="mt-1 text-xs text-muted-foreground">
+								{activeWorkspace.provider === 'googleDrive'
+									? $LL.settings.syncLastRemoteDescription({
+											value: formatTimestamp(activeWorkspace.lastRemoteUpdatedAt ?? null)
+										})
+									: $LL.settings.syncLinkDescription()}
+							</p>
+						</div>
+
+						<div class="rounded-2xl border bg-muted p-3 sm:col-span-2 xl:col-span-1">
+							<p class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
+								{activeWorkspace.provider === 'googleDrive'
+									? $LL.settings.syncProviderGoogleDrive()
+									: $LL.settings.currentWorkspace()}
+							</p>
+							<p class="mt-2 text-sm font-medium">
+								{activeWorkspace.provider === 'googleDrive'
+									? (formatBytes(activeAccount?.appUsageBytes) ?? $LL.common.messages.unknown())
+									: getProviderLabel(activeWorkspace.provider)}
+							</p>
+							<p class="mt-1 text-xs text-muted-foreground">
+								{activeWorkspace.provider === 'googleDrive'
+									? formatDriveUsage(activeAccount)
+										? $LL.settings.syncTotalDriveUsageDescription({
+												value: formatDriveUsage(activeAccount) ?? ''
+											})
+										: $LL.settings.syncProviderGoogleDrive()
+									: $LL.settings.syncAutomationDescription()}
+							</p>
+						</div>
 					</div>
 				</div>
 
-				{#if linkConflict}
-					<GoogleDriveLinkConflictPanel
-						conflict={linkConflict}
-						isWorking={isGoogleDriveBusy}
-						showCancel={linkConflict.kind === 'link'}
-						onCancel={() => void cancelPendingGoogleDriveLink()}
-						onKeepLocal={() => void resolvePendingGoogleDriveLink('local')}
-						onUseRemote={() => void resolvePendingGoogleDriveLink('remote')}
-						onRelink={() => void relinkBrokenGoogleDrive()}
-					/>
-				{/if}
-
-				{#if activeWorkspace.lastError || activeAccount?.lastError}
-					<Callout variant="warning">
-						{activeWorkspace.lastError ?? activeAccount?.lastError}
-					</Callout>
-				{/if}
-
-				<AlertDialog bind:open={isUnlinkDialogOpen}>
-					<AlertDialogContent>
-						<AlertDialogHeader>
-							<AlertDialogTitle>{$LL.settings.syncUnlinkDialogTitle()}</AlertDialogTitle>
-							<AlertDialogDescription>
-								{$LL.settings.syncUnlinkDialogDescription()}
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogCancel disabled={isGoogleDriveBusy}>
-								{$LL.common.actions.cancel()}
-							</AlertDialogCancel>
-							<AlertDialogAction
-								disabled={isGoogleDriveBusy}
-								onclick={() => {
-									isUnlinkDialogOpen = false;
-									void unlinkGoogleDriveWorkspace();
-								}}
+				<div class="w-full max-w-md space-y-3 text-start">
+					{#if linkConflict}
+						<p class="text-sm text-muted-foreground">
+							{conflictPresentation?.shortDescription}
+						</p>
+					{:else if activeWorkspace.provider === 'googleDrive' && activeAccount}
+						<!-- the usage figures are stated once, in the panel above that owns them. They
+						     were repeated here as well, sixty lines apart, saying nothing the second time. -->
+						<div class="grid gap-2 sm:grid-cols-2">
+							<Button
+								onclick={() => void syncGoogleDriveNow()}
+								disabled={isSyncingGoogleDrive || isGoogleDriveBusy}
 							>
-								{$LL.common.actions.unlink()}
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
+								<RefreshCwIcon class="size-4" />
+								{isSyncingGoogleDrive ? $LL.common.actions.working() : $LL.common.actions.syncNow()}
+							</Button>
+							<Button
+								variant="outline"
+								onclick={() => {
+									isUnlinkDialogOpen = true;
+								}}
+								disabled={isGoogleDriveBusy || isGoogleDriveUnavailable}
+							>
+								<UnlinkIcon class="size-4" />
+								{isUnlinkingGoogleDrive || disconnectingGoogleDriveAccountId !== null
+									? $LL.common.actions.working()
+									: $LL.common.actions.unlink()}
+							</Button>
+						</div>
+						<p class="text-xs text-muted-foreground">{$LL.settings.syncUnlinkDescription()}</p>
+					{:else}
+						<p class="text-sm text-muted-foreground">{$LL.settings.syncLinkDescription()}</p>
+						<div class="grid gap-2 sm:grid-cols-2">
+							<Button
+								onclick={() => void snapshotNow()}
+								disabled={isSnapshotPending || isGoogleDriveBusy}
+							>
+								<HardDriveIcon class="size-4" />
+								{isSnapshotPending ? $LL.common.actions.creating() : $LL.settings.snapshotNow()}
+							</Button>
+							<Button
+								onclick={() => void linkGoogleDrive()}
+								disabled={isResolvingLinkConflict ||
+									isFinalizingGoogleDriveLink ||
+									isGoogleDriveUnavailable}
+								variant="outline"
+							>
+								<LinkIcon class="size-4" />
+								{isLinkingGoogleDrive
+									? isFinalizingGoogleDriveLink
+										? $LL.common.actions.linking()
+										: $LL.common.actions.cancel()
+									: $LL.common.actions.link()}
+							</Button>
+						</div>
+					{/if}
+				</div>
 			</div>
-		{/if}
-	</CardContent>
-</Card>
+
+			{#if linkConflict}
+				<GoogleDriveLinkConflictPanel
+					conflict={linkConflict}
+					isWorking={isGoogleDriveBusy}
+					showCancel={linkConflict.kind === 'link'}
+					onCancel={() => void cancelPendingGoogleDriveLink()}
+					onKeepLocal={() => void resolvePendingGoogleDriveLink('local')}
+					onUseRemote={() => void resolvePendingGoogleDriveLink('remote')}
+					onRelink={() => void relinkBrokenGoogleDrive()}
+				/>
+			{/if}
+
+			{#if activeWorkspace.lastError || activeAccount?.lastError}
+				<Callout variant="warning">
+					{activeWorkspace.lastError ?? activeAccount?.lastError}
+				</Callout>
+			{/if}
+
+			<AlertDialog bind:open={isUnlinkDialogOpen}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>{$LL.settings.syncUnlinkDialogTitle()}</AlertDialogTitle>
+						<AlertDialogDescription>
+							{$LL.settings.syncUnlinkDialogDescription()}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={isGoogleDriveBusy}>
+							{$LL.common.actions.cancel()}
+						</AlertDialogCancel>
+						<AlertDialogAction
+							disabled={isGoogleDriveBusy}
+							onclick={() => {
+								isUnlinkDialogOpen = false;
+								void unlinkGoogleDriveWorkspace();
+							}}
+						>
+							{$LL.common.actions.unlink()}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+		</div>
+	{/if}
+</div>
