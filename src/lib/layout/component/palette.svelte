@@ -16,6 +16,7 @@
 	import type { ResolvedPathname } from '$app/types';
 	import { withCreateIntent } from '$lib/design/create-intent';
 	import * as Command from '$lib/design/primitive/command';
+	import { matchesShortcutKey } from '$lib/design/shortcut.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 	import { primaryDestinations, secondaryDestinations } from '$lib/layout/destination';
@@ -41,14 +42,8 @@
 
 	const destinations = $derived([...primaryDestinations, ...secondaryDestinations]);
 
-	// the physical key is matched as well as the character it produces: under an Arabic
-	// keyboard layout that key reports as `ك`, and the palette has to open in both locales.
-	function isShortcutKey(event: KeyboardEvent) {
-		return event.key === SHORTCUT_KEY || event.code === `Key${SHORTCUT_KEY.toUpperCase()}`;
-	}
-
 	function handleShortcut(event: KeyboardEvent) {
-		if (!isShortcutKey(event) || !(event.metaKey || event.ctrlKey)) {
+		if (!matchesShortcutKey(event, SHORTCUT_KEY) || !(event.metaKey || event.ctrlKey)) {
 			return;
 		}
 
