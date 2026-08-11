@@ -30,12 +30,12 @@ export const keys = {
 	],
 	get: (id: number) => [...workspacePrefixes.contracts, id],
 	getUnits: (id: number) => [...workspacePrefixes.contracts, 'units', id],
-	getVacantUnits: (contractId: number, complexId: number) => [
+	getAssignableUnits: (contractId: number, search: string) => [
 		...workspacePrefixes.contracts,
 		'units',
-		'vacant',
+		'assignable',
 		contractId,
-		complexId
+		search
 	]
 } as const;
 
@@ -168,41 +168,39 @@ export function useFetchContractUnits(contractId: () => number) {
 	});
 }
 
-export function useFetchVacantContractUnits(
-	params: () => { contractId: number; complexId: number | undefined }
+/**
+ * Every unit this contract may hold, assigned or not — both panes of the transfer surface.
+ *
+ * `enabled` is the surface being open: this reads across every complex, so a units tab that
+ * nobody is assigning from should not be paying for it. `placeholderData` holds the previous
+ * set while a new search is in flight, so the panes keep their rows instead of emptying on
+ * every keystroke.
+ */
+export function useFetchAssignableContractUnits(
+	params: () => { contractId: number; search?: string; enabled?: boolean }
 ) {
 	return createQuery(() => {
-		const { contractId, complexId } = params();
+		const { contractId, search, enabled = true } = params();
+		const trimmedSearch = search?.trim() ?? '';
 
 		return {
-			queryKey: keys.getVacantUnits(contractId, complexId ?? 0),
-			enabled: Boolean(complexId),
-			queryFn: async () => {
-				if (!complexId) return [];
-
-				return api.contract.units.getVacantMany({ contractId, complexId });
-			}
+			queryKey: keys.getAssignableUnits(contractId, trimmedSearch),
+			enabled,
+			queryFn: () =>
+				api.contract.units.getAssignableMany({
+					contractId,
+					search: trimmedSearch || undefined
+				}),
+			placeholderData: <T>(previous: T) => previous
 		};
 	});
 }
 
-export const useAssignContractUnits = declareMutation({
-	mutate: (data: Parameters<typeof api.contract.units.assign>[0]) =>
-		api.contract.units.assign(data),
+export const useSetContractUnits = declareMutation({
+	mutate: (data: Parameters<typeof api.contract.units.set>[0]) => api.contract.units.set(data),
 	touches: ['contracts', 'units'],
 	toast: {
 		success: () => get(LL).contracts.hooks.assignUnitsSuccess(),
-		error: true,
-		unexpected: () => get(LL).common.messages.unexpectedError()
-	}
-});
-
-export const useRemoveContractUnit = declareMutation({
-	mutate: (data: Parameters<typeof api.contract.units.remove>[0]) =>
-		api.contract.units.remove(data),
-	touches: ['contracts', 'units'],
-	toast: {
-		success: () => get(LL).contracts.hooks.removeUnitSuccess(),
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}

@@ -8,8 +8,7 @@ const en = {
 	common: {
 		actions: {
 			actions: 'actions',
-			assignSelected: 'assign selected',
-			assigning: 'assigning...',
+			add: 'add',
 			cancel: 'cancel',
 			checkForUpdates: 'check for updates',
 			checkingForUpdates: 'checking for updates...',
@@ -127,7 +126,6 @@ const en = {
 
 		messages: {
 			loadingApp: 'loading app...',
-			loadingComplexes: 'loading complexes...',
 			loadingSettings: 'loading settings...',
 			never: 'never',
 			noResults: 'no results.',
@@ -547,7 +545,6 @@ const en = {
 			createSuccess: 'contract created successfully!',
 			deletePaymentSuccess: 'payment deleted successfully!',
 			deleteSuccess: 'contract deleted successfully!',
-			removeUnitSuccess: 'unit removed from contract successfully!',
 			restoreSuccess: 'contract restored successfully!',
 			terminateSuccess: 'contract terminated successfully!',
 			updatePaymentSuccess: 'payment updated successfully!',
@@ -592,8 +589,11 @@ const en = {
 		},
 
 		units: {
-			availableDescription:
-				'choose a complex to show units that are available for this contract timeframe. units linked to overlapping contracts are excluded.',
+			available: 'available',
+			assigned: 'assigned',
+
+			transferDescription:
+				'move units between the two sides, then save once. units linked to a contract whose term overlaps this one are not offered.',
 
 			lockNoticeHasPayments:
 				'contracts with registered payments are locked. you can review linked units here, but you cannot assign or remove units after payments have been recorded.',
@@ -601,17 +601,9 @@ const en = {
 				'terminated contracts are locked. you can review linked units here, but you cannot assign or remove units until the contract is unterminated.',
 
 			noAssignedUnits: 'no units are assigned to this contract yet.',
-			noAvailableUnits:
-				'no units are available for this contract timeframe in the selected complex.',
+			noAvailableUnits: 'no units are available for this contract timeframe.',
 
-			assignTitle: 'assign units',
-
-			removeDescription: 'remove this unit from the contract?',
-			removeTitle: 'remove unit',
-
-			selectComplex: 'select a complex to load available units.',
-			selectComplexPlaceholder: 'select complex',
-			selectUnits: 'select at least one unit.'
+			assignTitle: 'assign units'
 		}
 	},
 

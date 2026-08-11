@@ -7,8 +7,7 @@ const ar = {
 	common: {
 		actions: {
 			actions: 'الإجراءات',
-			assignSelected: 'تعيين المحدد',
-			assigning: 'جاري التعيين...',
+			add: 'إضافة',
 			cancel: 'إلغاء',
 			checkForUpdates: 'التحقق من التحديثات',
 			checkingForUpdates: 'جاري التحقق من التحديثات...',
@@ -126,7 +125,6 @@ const ar = {
 
 		messages: {
 			loadingApp: 'جاري تحميل التطبيق...',
-			loadingComplexes: 'جاري تحميل المجمعات...',
 			loadingSettings: 'جاري تحميل الإعدادات...',
 			never: 'أبدًا',
 			noResults: 'لا توجد نتائج.',
@@ -541,7 +539,6 @@ const ar = {
 			createSuccess: 'تم إنشاء العقد بنجاح!',
 			deletePaymentSuccess: 'تم حذف الدفعة بنجاح!',
 			deleteSuccess: 'تم حذف العقد بنجاح!',
-			removeUnitSuccess: 'تمت إزالة الوحدة من العقد!',
 			restoreSuccess: 'تمت استعادة العقد بنجاح!',
 			terminateSuccess: 'تم إنهاء العقد بنجاح!',
 			updatePaymentSuccess: 'تم تحديث الدفعة بنجاح!',
@@ -582,7 +579,11 @@ const ar = {
 		},
 
 		units: {
-			availableDescription: 'اختر مجمعاً لعرض الوحدات المتاحة.',
+			available: 'المتاحة',
+			assigned: 'المسندة',
+
+			transferDescription:
+				'انقل الوحدات بين الجانبين ثم احفظ مرة واحدة. الوحدات المرتبطة بعقد تتداخل مدته مع هذا العقد لا تُعرض.',
 
 			lockNoticeHasPayments: 'لا يمكن تعديل الوحدات بعد تسجيل مدفوعات.',
 			lockNoticeTerminated: 'العقد منتهي ولا يمكن تعديل الوحدات.',
@@ -590,14 +591,7 @@ const ar = {
 			noAssignedUnits: 'لا توجد وحدات مرتبطة.',
 			noAvailableUnits: 'لا توجد وحدات متاحة.',
 
-			assignTitle: 'إسناد وحدات',
-
-			removeDescription: 'هل تريد إزالة هذه الوحدة من العقد؟',
-			removeTitle: 'إزالة وحدة',
-
-			selectComplex: 'اختر مجمع',
-			selectComplexPlaceholder: 'اختر مجمع',
-			selectUnits: 'اختر وحدة واحدة على الأقل.'
+			assignTitle: 'إسناد وحدات'
 		}
 	},
 

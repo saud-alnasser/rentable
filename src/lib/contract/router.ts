@@ -28,7 +28,7 @@ import dashboard from '$lib/dashboard/router';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import payment from '$lib/payment/router';
 import { TRPCError } from '@trpc/server';
-import { and, asc, desc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, like, or, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
 // status and the payment aggregates are derived columns: reconcile owns them, so no
@@ -48,18 +48,15 @@ const ContractUpdateSchema = ContractSchema.omit({
 });
 
 const ContractUnitsGetManySchema = z.object({ contractId: z.number() });
-const ContractVacantUnitsGetManySchema = z.object({
+const ContractAssignableUnitsSchema = z.object({
 	contractId: z.number(),
-	complexId: z.number()
+	search: z.string().optional()
 });
-const ContractUnitsAssignSchema = z.object({
+// the whole set, not an addition to it: an empty array is the contract holding no units, which
+// is what removing the last one means.
+const ContractUnitsSetSchema = z.object({
 	contractId: z.number(),
-	complexId: z.number(),
-	unitIds: z.array(z.number()).min(1, 'at least one unit must be selected')
-});
-const ContractUnitRemoveSchema = z.object({
-	contractId: z.number(),
-	unitId: z.number()
+	unitIds: z.array(z.number())
 });
 
 // fetches the assignment rows (joined with their contracts) for the given units — the
@@ -87,6 +84,61 @@ async function selectAssignmentsForUnits(db: Database, unitIds: number[]) {
 // fetches the payment rows registered against a contract, for rules that lock on them.
 async function selectPaymentsForContract(db: Database, contractId: number) {
 	return await db.select().from(s.payment).where(eq(s.payment.contractId, contractId));
+}
+
+// the contract a unit procedure is about, refused rather than returned absent: every one of
+// them reads a rule off it, and there is no answer to give for a contract that is not there.
+async function selectContract(db: Database, contractId: number) {
+	const contract = await db.select().from(s.contract).where(eq(s.contract.id, contractId)).get();
+
+	if (!contract) {
+		throw new TRPCError({ code: 'BAD_REQUEST', message: 'contract does not exist' });
+	}
+
+	return contract;
+}
+
+// the units a contract holds, each carrying the complex holding it and its derived status —
+// the shape both the directory that reads them and the surface that writes them answer with.
+async function selectContractUnits(db: Database, contractId: number, now: number) {
+	const units = await db
+		.select({
+			id: s.unit.id,
+			name: s.unit.name,
+			complexId: s.unit.complexId,
+			complexName: s.complex.name,
+			contractId: s.contractUnit.contractId
+		})
+		.from(s.contractUnit)
+		.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
+		.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+		.where(eq(s.contractUnit.contractId, contractId));
+
+	const unitIds = [...new Set(units.map((unit) => unit.id))];
+
+	// the empty case returns the same shape as the full one rather than the bare rows: a
+	// procedure whose result type depends on how many rows it found makes every caller handle a
+	// shape it can never actually observe.
+	if (unitIds.length === 0) {
+		return units.map((unit) => ({ ...unit, status: 'vacant' as const }));
+	}
+
+	const assignments = await selectAssignmentsForUnits(db, unitIds);
+	const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
+	const payments = contractIds.length
+		? await db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
+		: [];
+	const statusByUnitId = deriveUnitStatuses(
+		unitIds,
+		assignments,
+		groupPaymentsByContractId(payments),
+		now
+	);
+
+	return units.map((unit) => ({
+		...unit,
+		status: statusByUnitId.get(unit.id) ?? 'vacant'
+	}));
 }
 
 // ordering by status, as one expression the database can sort on: the rank a status holds in
@@ -555,79 +607,50 @@ export default router({
 
 	units: {
 		getMany: procedure.public.input(ContractUnitsGetManySchema).query(async ({ input, ctx }) => {
-			const now = ctx.clock.now();
-
-			const units = await ctx.db
-				.select({
-					id: s.unit.id,
-					name: s.unit.name,
-					complexId: s.unit.complexId,
-					complexName: s.complex.name,
-					contractId: s.contractUnit.contractId
-				})
-				.from(s.contractUnit)
-				.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
-				.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
-				.where(eq(s.contractUnit.contractId, input.contractId));
-
-			const unitIds = [...new Set(units.map((unit) => unit.id))];
-
-			// the empty case returns the same shape as the full one rather than the bare rows:
-			// a procedure whose result type depends on how many rows it found makes every
-			// caller handle a shape it can never actually observe.
-			if (unitIds.length === 0) {
-				return units.map((unit) => ({ ...unit, status: 'vacant' as const }));
-			}
-
-			const assignments = await selectAssignmentsForUnits(ctx.db, unitIds);
-			const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
-			const payments = contractIds.length
-				? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-				: [];
-			const statusByUnitId = deriveUnitStatuses(
-				unitIds,
-				assignments,
-				groupPaymentsByContractId(payments),
-				now
-			);
-
-			return units.map((unit) => ({
-				...unit,
-				status: statusByUnitId.get(unit.id) ?? 'vacant'
-			}));
+			return await selectContractUnits(ctx.db, input.contractId, ctx.clock.now());
 		}),
 
-		getVacantMany: procedure.public
-			.input(ContractVacantUnitsGetManySchema)
+		/**
+		 * Every unit this contract may hold, whether or not it holds it — both panes of the
+		 * transfer surface, for one search.
+		 *
+		 * The search narrows in SQL, over the unit's name and the name of the complex holding
+		 * it, so the surface never receives a wider set to filter. Units held by a contract
+		 * whose term overlaps this one are left out: they are not this contract's to take, so
+		 * offering them would be offering a refusal.
+		 */
+		getAssignableMany: procedure.public
+			.input(ContractAssignableUnitsSchema)
 			.query(async ({ input, ctx }) => {
 				const now = ctx.clock.now();
-
-				const contract = await ctx.db
-					.select()
-					.from(s.contract)
-					.where(eq(s.contract.id, input.contractId))
-					.get();
-
-				if (!contract) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'contract does not exist'
-					});
-				}
+				const contract = await selectContract(ctx.db, input.contractId);
+				const search = input.search?.trim();
+				const searchPattern = search ? `%${search}%` : undefined;
 
 				const units = await ctx.db
 					.select({
 						id: s.unit.id,
 						name: s.unit.name,
-						complexId: s.unit.complexId
+						complexId: s.unit.complexId,
+						complexName: s.complex.name
 					})
 					.from(s.unit)
-					.where(eq(s.unit.complexId, input.complexId));
+					.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+					.where(
+						searchPattern
+							? or(like(s.unit.name, searchPattern), like(s.complex.name, searchPattern))
+							: undefined
+					)
+					.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id));
 
 				const unitIds = units.map((unit) => unit.id);
 
 				if (unitIds.length === 0) {
-					return units;
+					return units.map((unit) => ({
+						...unit,
+						status: 'vacant' as const,
+						isAssigned: false
+					}));
 				}
 
 				const assignments = await selectAssignmentsForUnits(ctx.db, unitIds);
@@ -646,177 +669,92 @@ export default router({
 					contract,
 					input.contractId
 				);
-				const currentContractUnitIds = new Set(
+				const assignedUnitIds = new Set(
 					assignments
 						.filter((assignment) => assignment.contractId === input.contractId)
 						.map((assignment) => assignment.unitId)
 				);
 
 				return units
-					.filter(
-						(unit) => !conflictingUnitIds.has(unit.id) && !currentContractUnitIds.has(unit.id)
-					)
+					.filter((unit) => !conflictingUnitIds.has(unit.id))
 					.map((unit) => ({
 						...unit,
-						status: statusByUnitId.get(unit.id) ?? 'vacant'
+						status: statusByUnitId.get(unit.id) ?? 'vacant',
+						isAssigned: assignedUnitIds.has(unit.id)
 					}));
 			}),
 
-		assign: procedure.public
+		/**
+		 * Make the contract's units exactly this set.
+		 *
+		 * A set rather than an addition, because the surface that writes it expresses removal too
+		 * and commits both directions at once (ADR 0024). Every unit named must exist and be free
+		 * of an overlapping contract; the locks on a terminated contract and one with a payment
+		 * recorded refuse the whole call, as they always did.
+		 */
+		set: procedure.public
 			.use(autosync())
-			.input(ContractUnitsAssignSchema)
+			.input(ContractUnitsSetSchema)
 			.mutation(async ({ input, ctx }) => {
 				const now = ctx.clock.now();
-
-				const contract = await ctx.db
-					.select()
-					.from(s.contract)
-					.where(eq(s.contract.id, input.contractId))
-					.get();
-
-				if (!contract) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'contract does not exist'
-					});
-				}
+				const contract = await selectContract(ctx.db, input.contractId);
 
 				ensureContractIsNotTerminated(contract.status);
 				ensureContractUnitsAreMutable(await selectPaymentsForContract(ctx.db, input.contractId));
 
-				const complex = await ctx.db
-					.select()
-					.from(s.complex)
-					.where(eq(s.complex.id, input.complexId))
-					.get();
+				const nextUnitIds = [...new Set(input.unitIds)];
+				const units = nextUnitIds.length
+					? await ctx.db.select().from(s.unit).where(inArray(s.unit.id, nextUnitIds))
+					: [];
 
-				if (!complex) {
+				if (units.length !== nextUnitIds.length) {
 					throw new TRPCError({
 						code: 'BAD_REQUEST',
-						message: 'complex does not exist'
+						message: 'one or more units could not be found'
 					});
 				}
 
-				const unitIds = [...new Set(input.unitIds)];
-				const units = await ctx.db
+				const held = await ctx.db
 					.select()
-					.from(s.unit)
-					.where(and(eq(s.unit.complexId, input.complexId), inArray(s.unit.id, unitIds)));
+					.from(s.contractUnit)
+					.where(eq(s.contractUnit.contractId, input.contractId));
+				const heldUnitIds = new Set(held.map((assignment) => assignment.unitId));
+				const added = nextUnitIds.filter((unitId) => !heldUnitIds.has(unitId));
+				const removed = [...heldUnitIds].filter((unitId) => !nextUnitIds.includes(unitId));
 
-				if (units.length !== unitIds.length) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'one or more units could not be found in the selected complex'
-					});
+				// only what is arriving is checked: a unit the contract already holds cannot
+				// conflict with the contract holding it.
+				if (added.length) {
+					ensureUnitsAssignable(
+						await selectAssignmentsForUnits(ctx.db, added),
+						contract,
+						input.contractId
+					);
 				}
 
-				const existingAssignments = await selectAssignmentsForUnits(ctx.db, unitIds);
-
-				ensureUnitsAssignable(existingAssignments, contract, input.contractId);
-
-				for (const unitId of unitIds) {
+				for (const unitId of added) {
 					await ctx.db.insert(s.contractUnit).values({ contractId: input.contractId, unitId });
 				}
 
-				const assignedUnits = await ctx.db
-					.select({
-						id: s.unit.id,
-						name: s.unit.name,
-						complexId: s.unit.complexId,
-						complexName: s.complex.name,
-						contractId: s.contractUnit.contractId
-					})
-					.from(s.contractUnit)
-					.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
-					.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
-					.where(
-						and(
-							eq(s.contractUnit.contractId, input.contractId),
-							inArray(s.contractUnit.unitId, unitIds)
-						)
-					);
-
-				const assignments = await selectAssignmentsForUnits(ctx.db, unitIds);
-				const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
-				const assignmentPayments = contractIds.length
-					? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-					: [];
-				const assignedStatusByUnitId = deriveUnitStatuses(
-					unitIds,
-					assignments,
-					groupPaymentsByContractId(assignmentPayments),
-					now
-				);
-
-				await reconcileTouched(ctx.db, now, { contractIds: [input.contractId], unitIds });
-
-				return assignedUnits.map((unit) => ({
-					...unit,
-					status: assignedStatusByUnitId.get(unit.id) ?? 'vacant'
-				}));
-			}),
-
-		remove: procedure.public
-			.use(autosync())
-			.input(ContractUnitRemoveSchema)
-			.mutation(async ({ input, ctx }) => {
-				const now = ctx.clock.now();
-
-				const contract = await ctx.db
-					.select()
-					.from(s.contract)
-					.where(eq(s.contract.id, input.contractId))
-					.get();
-
-				if (!contract) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'contract does not exist'
-					});
+				if (removed.length) {
+					await ctx.db
+						.delete(s.contractUnit)
+						.where(
+							and(
+								eq(s.contractUnit.contractId, input.contractId),
+								inArray(s.contractUnit.unitId, removed)
+							)
+						);
 				}
 
-				ensureContractIsNotTerminated(contract.status);
-				ensureContractUnitsAreMutable(await selectPaymentsForContract(ctx.db, input.contractId));
-
-				const existingAssignment = await ctx.db
-					.select()
-					.from(s.contractUnit)
-					.where(
-						and(
-							eq(s.contractUnit.contractId, input.contractId),
-							eq(s.contractUnit.unitId, input.unitId)
-						)
-					)
-					.get();
-
-				if (!existingAssignment) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'unit is not assigned to this contract'
-					});
-				}
-
-				const unit = await ctx.db.select().from(s.unit).where(eq(s.unit.id, input.unitId)).get();
-
-				await ctx.db
-					.delete(s.contractUnit)
-					.where(
-						and(
-							eq(s.contractUnit.contractId, input.contractId),
-							eq(s.contractUnit.unitId, input.unitId)
-						)
-					);
-
+				// a unit that left is no longer reachable through the contract's assignments, so it
+				// is named for the reconcile that has to recompute its status.
 				await reconcileTouched(ctx.db, now, {
 					contractIds: [input.contractId],
-					unitIds: [input.unitId]
+					unitIds: [...new Set([...nextUnitIds, ...removed])]
 				});
 
-				return {
-					contractId: input.contractId,
-					unitId: input.unitId,
-					complexId: unit?.complexId
-				};
+				return await selectContractUnits(ctx.db, input.contractId, now);
 			})
 	},
 
