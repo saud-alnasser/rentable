@@ -3,7 +3,7 @@
 	import { Button } from '$lib/design/primitive/button';
 	import * as Calendar from '$lib/design/primitive/calendar';
 	import FieldError from '$lib/design/block/field-error.svelte';
-	import FormSurface from '$lib/design/block/form-surface.svelte';
+	import FormSurface, { insetControl } from '$lib/design/block/form-surface.svelte';
 	import * as Form from '$lib/design/primitive/form';
 	import { Input } from '$lib/design/primitive/input';
 	import * as Popover from '$lib/design/primitive/popover';
@@ -13,9 +13,11 @@
 		parseCalendarDate,
 		parseDateInput
 	} from '$lib/design/date';
-	import { getIntlLocale } from '$lib/platform/locale';
+	import { formatLocaleValueWithUnit, getIntlLocale } from '$lib/platform/locale';
 	import { isWholeHalalas } from '$lib/design/money';
 	import { cn } from '$lib/design/tailwind.js';
+	import { getRemainingContractBalance } from '$lib/contract/contract';
+	import { useFetchContract } from '$lib/contract/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useCreatePayment, useUpdatePayment } from '$lib/payment/query';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
@@ -127,10 +129,53 @@
 	});
 
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
+
+	const contractQuery = useFetchContract(() => contractId);
+	const formatMoney = (value: number) =>
+		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
+
+	// what the contract still owes, and what it would owe once this payment lands. The amount
+	// being typed is the one figure a reader cannot check against anything else on the surface,
+	// and getting it wrong is a correction rather than a mistake they notice.
+	const remaining = $derived(
+		contractQuery.data
+			? getRemainingContractBalance(
+					contractQuery.data.paidAmount,
+					contractQuery.data.expectedAmount
+				)
+			: undefined
+	);
+	const enteredAmount = $derived(Number($form.amount));
+	const hasEnteredAmount = $derived(Number.isFinite(enteredAmount) && enteredAmount > 0);
+	const remainingAfter = $derived(
+		remaining === undefined
+			? undefined
+			: Math.max(remaining - (hasEnteredAmount ? enteredAmount : 0), 0)
+	);
 </script>
 
 <FormSurface {open} {onOpenChange} {enhance} weight="light" title={$LL.common.labels.payment()}>
-	<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
+	<div class="flex flex-col gap-4">
+		<!-- what this payment does to the contract, above the field that decides it. -->
+		<div class="grid grid-cols-2 gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4">
+			<div class="flex min-w-0 flex-col">
+				<span class="truncate text-xs text-muted-foreground">
+					{$LL.contracts.payments.remainingBalance()}
+				</span>
+				<span class="truncate font-medium tabular-nums">
+					{remaining === undefined ? '—' : formatMoney(remaining)}
+				</span>
+			</div>
+			<div class="flex min-w-0 flex-col">
+				<span class="truncate text-xs text-muted-foreground">
+					{$LL.contracts.payments.remainingAfter()}
+				</span>
+				<span class="truncate font-medium tabular-nums">
+					{remainingAfter === undefined ? '—' : formatMoney(remainingAfter)}
+				</span>
+			</div>
+		</div>
+
 		<Form.Field form={superform} name="date" class="group relative">
 			<Form.Control>
 				<Form.Label>{$LL.common.labels.paymentDate()}</Form.Label>
@@ -144,6 +189,7 @@
 								variant="outline"
 								class={cn(
 									'w-full justify-between font-normal',
+									insetControl,
 									!paymentDateValue && 'text-muted-foreground'
 								)}
 								aria-invalid={$errors.date ? 'true' : undefined}
@@ -183,6 +229,7 @@
 						$form.amount = event.currentTarget.value;
 					}}
 					placeholder="0.00"
+					class={insetControl}
 					aria-invalid={$errors.amount ? 'true' : undefined}
 					{...$constraints.amount}
 				/>

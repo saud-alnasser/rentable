@@ -15,6 +15,22 @@
 
 	/** How much form there is — the only thing a form says about how it should be presented. */
 	export type FormWeight = NonNullable<VariantProps<typeof presentation>['weight']>;
+
+	/**
+	 * Every control in a form, cut into the surface rather than sitting on top of it.
+	 *
+	 * The hover fill is here because each control primitive brings its own, and without one of
+	 * ours the well repaints to its pre-inset colour under the pointer.
+	 *
+	 * **The two `aria-invalid` rules are load-bearing and must not be dropped.** The
+	 * transparent border above outranks the `aria-invalid:border-destructive` every control
+	 * primitive already carries, so an invalid field silently loses its mark without them
+	 * restated here — and `button` declares the destructive ring colour with no ring width, so
+	 * the controls built on one would otherwise be the only invalid fields in a form with no
+	 * ring at all. Anything that restyles a control's border inherits this trap.
+	 */
+	export const insetControl =
+		'border-transparent bg-foreground/5 shadow-[inset_0_2px_4px_rgb(0_0_0/0.14)] hover:bg-foreground/8 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
 </script>
 
 <script lang="ts">

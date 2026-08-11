@@ -2,11 +2,12 @@
 	import { TenantSchema, type Tenant } from '$lib/platform/database/schema';
 	import { identityField, phone } from '$lib/tenant/tenant';
 	import FieldError from '$lib/design/block/field-error.svelte';
-	import FormSurface from '$lib/design/block/form-surface.svelte';
+	import FormSurface, { insetControl } from '$lib/design/block/form-surface.svelte';
 	import { Button } from '$lib/design/primitive/button';
 	import * as Form from '$lib/design/primitive/form';
 	import { Input } from '$lib/design/primitive/input';
 	import * as Select from '$lib/design/primitive/select';
+	import { cn } from '$lib/design/tailwind';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateTenant, useUpdateTenant } from '$lib/tenant/query';
 	import { TRPCError } from '@trpc/server';
@@ -159,13 +160,40 @@
 </script>
 
 <FormSurface {open} {onOpenChange} {enhance} weight="heavy" title={$LL.common.labels.tenant()}>
-	<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
+	<div class="flex flex-col gap-4">
+		<!-- who this record will be, pinned above the fields that decide it. A tenant is
+		     identified by a government document, and the identity is the field most easily
+		     mistyped and least easily checked afterwards — so the read-out answers "did I get
+		     this right" while the fields are still open. Sticky over an opaque wrapper: over a
+		     translucent one the fields show through as they scroll beneath it. -->
+		<div class="sticky top-0 z-10 bg-card pb-1">
+			<div class="grid grid-cols-2 gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4">
+				<div class="col-span-2 flex flex-col">
+					<span class="text-xs text-muted-foreground">{$LL.common.labels.name()}</span>
+					<span class="truncate font-medium">{$form.name.trim() || '—'}</span>
+				</div>
+				<div class="flex min-w-0 flex-col">
+					<span class="truncate text-xs text-muted-foreground">
+						{$LL.common.labels.nationalId()}
+					</span>
+					<span class="truncate font-medium tabular-nums">{$form.nationalId.trim() || '—'}</span>
+				</div>
+				<div class="flex min-w-0 flex-col">
+					<span class="truncate text-xs text-muted-foreground">{$LL.common.labels.phone()}</span>
+					<span class="truncate text-sm tabular-nums" dir="ltr">
+						{$form.phoneNumber ? combinePhone($form.phoneCountryCode, $form.phoneNumber) : '—'}
+					</span>
+				</div>
+			</div>
+		</div>
+
 		<Form.Field form={superform} name="name" class="group relative">
 			<Form.Control>
 				<Form.Label>{$LL.common.labels.name()}</Form.Label>
 				<Input
 					bind:value={$form.name}
 					placeholder={$LL.common.labels.name()}
+					class={insetControl}
 					aria-invalid={$errors.name ? 'true' : undefined}
 					{...$constraints.name}
 				/>
@@ -179,6 +207,7 @@
 				<Input
 					bind:value={$form.nationalId}
 					placeholder={$LL.common.labels.nationalId()}
+					class={insetControl}
 					aria-invalid={$errors.nationalId ? 'true' : undefined}
 					{...$constraints.nationalId}
 				/>
@@ -192,7 +221,7 @@
 				<div class="grid gap-3 sm:grid-cols-[9rem_minmax(0,1fr)]">
 					<Select.Root type="single" bind:value={$form.phoneCountryCode}>
 						<Select.Trigger
-							class="w-full"
+							class={cn('w-full', insetControl)}
 							aria-label={$LL.tenants.form.phoneCountryCode()}
 							aria-invalid={$errors.phoneNumber ? 'true' : undefined}
 						>
@@ -213,6 +242,7 @@
 						dir="ltr"
 						autocomplete="tel-national"
 						placeholder={$LL.tenants.form.phoneNumberPlaceholder()}
+						class={insetControl}
 						aria-invalid={$errors.phoneNumber ? 'true' : undefined}
 					/>
 				</div>

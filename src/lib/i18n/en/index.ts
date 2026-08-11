@@ -547,6 +547,7 @@ const en = {
 			monthTotal: 'total shown for {month}',
 			percentFulfilled: '{percent}% fulfilled',
 			remaining: '{amount} sar remaining',
+			remainingAfter: 'remaining after this payment',
 			remainingBalance: 'remaining balance',
 			terminatedNotice:
 				'terminated contracts are locked. you can review payment history here, but you cannot add, edit, or delete payments until the contract is unterminated.',

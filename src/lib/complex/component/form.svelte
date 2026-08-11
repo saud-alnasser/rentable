@@ -2,7 +2,7 @@
 	import { ComplexSchema, type Complex } from '$lib/platform/database/schema';
 	import { Button } from '$lib/design/primitive/button';
 	import FieldError from '$lib/design/block/field-error.svelte';
-	import FormSurface from '$lib/design/block/form-surface.svelte';
+	import FormSurface, { insetControl } from '$lib/design/block/form-surface.svelte';
 	import * as Form from '$lib/design/primitive/form';
 	import { Input } from '$lib/design/primitive/input';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -80,13 +80,16 @@
 </script>
 
 <FormSurface {open} {onOpenChange} {enhance} weight="light" title={$LL.common.labels.complex()}>
-	<div class="flex flex-col gap-4 rounded-2xl border bg-muted p-4">
+	<!-- no pinned read-out: a complex is a name and a location, and a panel restating the two
+	     fields directly beneath it is decoration rather than an answer. -->
+	<div class="flex flex-col gap-4">
 		<Form.Field form={superform} name="name" class="group relative">
 			<Form.Control>
 				<Form.Label>{$LL.common.labels.name()}</Form.Label>
 				<Input
 					bind:value={$form.name}
 					placeholder={$LL.common.labels.name()}
+					class={insetControl}
 					aria-invalid={$errors.name ? 'true' : undefined}
 					{...$constraints.name}
 				/>
@@ -100,6 +103,7 @@
 				<Input
 					bind:value={$form.location}
 					placeholder={$LL.common.labels.location()}
+					class={insetControl}
 					aria-invalid={$errors.location ? 'true' : undefined}
 					{...$constraints.location}
 				/>
