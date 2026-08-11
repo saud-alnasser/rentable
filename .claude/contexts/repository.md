@@ -32,6 +32,16 @@ _Avoid_: using it for any local recomputation
 A status computed from other rows rather than authored by a user. It is stored, but the
 stored value is a cache of the derivation and never the authority.
 
+**Undo**:
+Reversing the user's own last data change by issuing its inverse. Scoped to the session and
+to what the user did — never to what a sync, a migration, or a recovery did.
+_Avoid_: rollback, restore — those belong to the protected update backup and to snapshots
+
+**Inverse**:
+The call that returns a workspace to the state before a given mutation, issued through the
+same procedure any other caller would use. A mutation's inverse is part of that mutation, not
+a mechanism underneath it ([ADR 0026](../decisions/0026-undo-is-a-session-stack-of-inverses.md)).
+
 ## Boundaries
 
 - **There is no server.** The API layer is a direct caller executing in the webview. The
