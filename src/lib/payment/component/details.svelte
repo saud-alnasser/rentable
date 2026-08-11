@@ -206,6 +206,7 @@
 		onOpenChange={(isOpen) => {
 			isDeleteDialogOpen = isOpen;
 		}}
+		record={formatMoney(payment.amount)}
 		onSubmit={deletePayment}
 	/>
 {/if}

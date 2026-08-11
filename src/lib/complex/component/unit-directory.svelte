@@ -3,6 +3,8 @@
 	import { back } from '$lib/design/back.svelte';
 	import type api from '$lib/api/caller';
 	import { useDeleteUnit, useListUnits } from '$lib/complex/query';
+	import { useListContracts } from '$lib/contract/query';
+	import { isUnitDeletable } from '$lib/complex/complex';
 	import DataTableActionsDropdown from '$lib/design/block/data-table-actions-dropdown.svelte';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
@@ -32,6 +34,24 @@
 	);
 	const units = $derived(unitsQuery.data ?? []);
 	const deleteMutation = useDeleteUnit();
+
+	// what a deletion would be refused for, read before the question is asked rather than
+	// after the destructive control is pressed.
+	const holdingContractsQuery = useListContracts(
+		() => '',
+		() => null,
+		() => ({ unitId: unit?.id }),
+		() => Boolean(unit)
+	);
+	const unitBlockers = $derived.by(() => {
+		if (!unit || holdingContractsQuery.isPending) return undefined;
+
+		const held = holdingContractsQuery.data ?? [];
+
+		return isUnitDeletable(held)
+			? []
+			: [$LL.common.deleteDialog.blockedContracts({ count: held.length })];
+	});
 </script>
 
 <List
@@ -129,6 +149,8 @@
 		isDeleteDialogOpen = isOpen;
 		if (!isOpen) unit = undefined;
 	}}
+	record={unit?.name}
+	blockers={unitBlockers}
 	onSubmit={async () => {
 		if (unit) {
 			await deleteMutation.mutateAsync(unit.id);

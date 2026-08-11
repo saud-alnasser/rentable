@@ -66,6 +66,8 @@
 	});
 
 	const formatMonth = (month: PaymentLedgerMonth) => formatPaymentLedgerMonth($locale, month);
+	const formatMoney = (value: number) =>
+		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
 
 	function openPaymentForm(record?: Payment) {
 		payment = record;
@@ -219,6 +221,7 @@
 		isDeleteDialogOpen = isOpen;
 		if (!isOpen) payment = undefined;
 	}}
+	record={payment ? formatMoney(payment.amount) : undefined}
 	onSubmit={async () => {
 		if (payment) {
 			await deleteMutation.mutateAsync(payment.id);

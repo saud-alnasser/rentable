@@ -56,7 +56,8 @@ function isContractSortColumnId(columnId: string): columnId is ContractSortColum
 export function useListContracts(
 	search: () => string = () => '',
 	sort: () => ListSort | null = () => null,
-	scope: () => ContractListScope = () => ({})
+	scope: () => ContractListScope = () => ({}),
+	enabled: () => boolean = () => true
 ) {
 	return createQuery(() => {
 		const trimmedSearch = search().trim();
@@ -65,6 +66,7 @@ export function useListContracts(
 
 		return {
 			queryKey: keys.list(trimmedSearch, chosenSort, chosenScope),
+			enabled: enabled(),
 			queryFn: () =>
 				api.contract.getMany({
 					search: trimmedSearch || undefined,

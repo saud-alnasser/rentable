@@ -234,6 +234,10 @@ const ar = {
 		},
 
 		deleteDialog: {
+			blockedContracts: '{count|number} عقد مرتبط به',
+			blockedDescription: 'لا يمكن الحذف ما دامت العناصر التالية مرتبطة به.',
+			blockedPayments: '{count|number} دفعة مسجلة عليه',
+			blockedUnits: '{count|number} وحدة تابعة له',
 			description: 'هل أنت متأكد أنك تريد حذف هذا السجل؟',
 			title: 'تأكيد'
 		}

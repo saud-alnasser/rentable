@@ -9,6 +9,17 @@ import { TRPCError } from '@trpc/server';
  */
 
 /**
+ * Whether a complex may be deleted: no unit may belong to it.
+ *
+ * Exported beside the router that enforces it so a surface can say what blocks a deletion
+ * before offering one, rather than restating the threshold in its own words.
+ */
+export const isComplexDeletable = (units: unknown[]) => units.length === 0;
+
+/** Whether a unit may be deleted: no contract may hold it. The same shape, one level down. */
+export const isUnitDeletable = (assignments: unknown[]) => assignments.length === 0;
+
+/**
  * Refuse a set of unit names holding the same name twice.
  *
  * A collision *within* one submission is a case creating units one dialog at a time could

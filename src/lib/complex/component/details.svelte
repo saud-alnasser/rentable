@@ -13,6 +13,8 @@
 	import RecordActions from '$lib/design/block/record-actions.svelte';
 	import ComplexesTableUnitsCount from '$lib/complex/component/unit-count.svelte';
 	import { useDeleteComplex, useFetchComplex } from '$lib/complex/query';
+	import { useFetchUnits } from '$lib/complex/query';
+	import { isComplexDeletable } from '$lib/complex/complex';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import ComplexForm from './form.svelte';
@@ -32,6 +34,19 @@
 
 	const complexQuery = useFetchComplex(() => complexId);
 	const deleteMutation = useDeleteComplex();
+
+	// what a deletion would be refused for, read before the question is asked rather than
+	// after the destructive control is pressed.
+	const heldUnitsQuery = useFetchUnits(() => complexId);
+	const complexBlockers = $derived.by(() => {
+		if (heldUnitsQuery.isPending) return undefined;
+
+		const held = heldUnitsQuery.data ?? [];
+
+		return isComplexDeletable(held)
+			? []
+			: [$LL.common.deleteDialog.blockedUnits({ count: held.length })];
+	});
 	const tabsListClass = 'grid h-auto w-full grid-cols-2';
 	const tabsTriggerClass = 'capitalize';
 
@@ -216,6 +231,8 @@
 		onOpenChange={(isOpen) => {
 			isDeleteDialogOpen = isOpen;
 		}}
+		record={complex.name}
+		blockers={complexBlockers}
 		onSubmit={deleteComplex}
 	/>
 {/if}
