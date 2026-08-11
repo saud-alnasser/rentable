@@ -7,6 +7,8 @@
  * timestamp, because a date here means a day and not an instant — converting via
  * the local zone would move it across a boundary for anyone east or west of UTC.
  */
+import type { Locales } from '$lib/i18n/i18n-types';
+import { formatLocaleDate } from '$lib/platform/locale';
 import {
 	getLocalTimeZone,
 	parseDate,
@@ -50,3 +52,13 @@ export const formatCalendarDate = (
 	formatter: DateFormatter,
 	placeholder: string
 ) => (value ? formatter.format(value.toDate(getLocalTimeZone())) : placeholder);
+
+/**
+ * A date as every surface here renders one.
+ *
+ * Medium style, so a month reads as a word and no locale's numeric order can be mistaken for
+ * another's, and UTC, because the domain's days are whole UTC days. It is a function rather
+ * than only the cell that shows it, so a file written from a list reads the way the list does.
+ */
+export const formatRecordDate = (locale: Locales, value: number | string | Date) =>
+	formatLocaleDate(locale, value, { dateStyle: 'medium', timeZone: 'UTC' });

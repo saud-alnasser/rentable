@@ -6,16 +6,22 @@
 	import { Input } from '$lib/design/primitive/input';
 	import { Spinner } from '$lib/design/primitive/spinner';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import { toCsv, type CsvColumn } from '$lib/design/csv';
 	import { listRows, stickyGroupRowIndex, type ListGroup } from '$lib/design/group';
+	import { isolateDirection } from '$lib/error/message';
+	import { showErrorToast } from '$lib/error/toast';
 	import { nextListSort, type ListSort } from '$lib/design/sort';
 	import { cn } from '$lib/design/tailwind';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { tauri } from '$lib/platform/tauri';
 	import ArrowsSortIcon from '@tabler/icons-svelte/icons/arrows-sort';
 	import ChevronDownIcon from '@tabler/icons-svelte/icons/chevron-down';
+	import DownloadIcon from '@tabler/icons-svelte/icons/download';
 	import ChevronUpIcon from '@tabler/icons-svelte/icons/chevron-up';
 	import PlusIcon from '@tabler/icons-svelte/icons/plus';
 	import SearchIcon from '@tabler/icons-svelte/icons/search';
 	import { createVirtualizer, defaultRangeExtractor } from '@tanstack/svelte-virtual';
+	import { toast } from 'svelte-sonner';
 	import { tick, type Snippet } from 'svelte';
 	import { get } from 'svelte/store';
 
@@ -56,6 +62,17 @@
 		/** Offered as the leading action when the list can create a record. */
 		onCreate?: () => void;
 		/**
+		 * What an export writes, and what to call the file.
+		 *
+		 * The columns are the row's own, supplied by the concept that renders it: an export
+		 * written from the query behind the list would put fields on disk the reader never
+		 * chose to see. A list that names none offers no export.
+		 */
+		exportAs?: {
+			name: string;
+			columns: CsvColumn<TData>[];
+		};
+		/**
 		 * How tall one record renders, in pixels. Rows are laid out at this height rather than
 		 * measured, which keeps the geometry exact for a presentation whose records are all the
 		 * same shape. A record that renders taller is clipped, not overlapped — raise this
@@ -88,6 +105,7 @@
 		isLoading = false,
 		isFetching = false,
 		onCreate,
+		exportAs,
 		recordHeight = 56,
 		groupHeaderHeight = 36,
 		recordMinWidth,
@@ -100,6 +118,34 @@
 	// the grid overscanned two rows of cards; a record row is a fraction of a card's height,
 	// so the same two rows would buy a fraction of the distance ahead of the scroll.
 	const OVERSCAN_ROWS = 8;
+
+	let isExporting = $state(false);
+
+	// written from `data` rather than from a fresh read: the file is what the list is showing,
+	// under the search and the order it is showing it under.
+	async function exportRows() {
+		if (!exportAs || isExporting) return;
+
+		isExporting = true;
+
+		try {
+			const path = await tauri.export.write(exportAs.name, toCsv(exportAs.columns, data));
+
+			// the path is isolated because it is written left to right whatever the sentence
+			// around it is, and an unisolated one reorders the Arabic it is spliced into.
+			toast.success($LL.common.messages.exported({ path: isolateDirection(path) }));
+
+			// a file manager that will not open is not a failed export: the file is written and
+			// the user has been told where.
+			await tauri.opener.revealItemInDir(path).catch(() => {});
+		} catch (failure) {
+			// the export is not a mutation, and what a refused command carries is `{ code,
+			// message }` rather than an Error — so it is decoded rather than read as prose.
+			showErrorToast(failure, $LL);
+		} finally {
+			isExporting = false;
+		}
+	}
 
 	let viewport = $state<HTMLElement | null>(null);
 	let viewportWidth = $state(0);
@@ -240,6 +286,27 @@
 						{/each}
 					</DropdownMenu.Content>
 				</DropdownMenu.Root>
+			{/if}
+			{#if exportAs}
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="outline"
+								size="icon-sm"
+								aria-label={$LL.common.actions.export()}
+								disabled={!hasResults || isExporting}
+								onclick={exportRows}
+							>
+								<DownloadIcon />
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content side="top" sideOffset={8}>
+						{$LL.common.actions.export()}
+					</Tooltip.Content>
+				</Tooltip.Root>
 			{/if}
 			{#if onCreate}
 				<Tooltip.Root>

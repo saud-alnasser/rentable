@@ -3,6 +3,7 @@ pub mod bootstrap;
 pub mod database;
 pub mod diagnostics;
 pub mod error;
+pub mod export;
 pub mod http;
 pub mod persisted;
 pub mod settings;
@@ -172,6 +173,7 @@ pub fn run() {
             sync::remote_sync_google_drive_sync,
             sync::remote_sync_google_drive_inspect,
             sync::remote_sync_google_drive_resolve_conflict,
+            export::export_write,
             update::update_prepare,
             bootstrap::bootstrap,
         ])

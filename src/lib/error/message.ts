@@ -6,6 +6,17 @@ const FIRST_STRONG_ISOLATE = '⁨';
 const POP_DIRECTIONAL_ISOLATE = '⁩';
 
 /**
+ * Wrap a fragment that runs left to right whatever the sentence around it does — a file
+ * path, a filename, a URL.
+ *
+ * Without it the fragment reorders the Arabic sentence it is spliced into, and the reader is
+ * shown a path with its pieces in an order the filesystem does not have.
+ */
+export function isolateDirection(fragment: string) {
+	return `${FIRST_STRONG_ISOLATE}${fragment}${POP_DIRECTIONAL_ISOLATE}`;
+}
+
+/**
  * the message a caller reads: a sentence to show, and the underlying prose
  * behind it where there is any.
  */
@@ -80,7 +91,7 @@ export function toErrorText(
 		return title;
 	}
 
-	// the detail is rust's english prose whatever the locale. isolating it keeps
-	// an ltr fragment from reordering the arabic sentence it is spliced into.
-	return `${title} — ${FIRST_STRONG_ISOLATE}${detail}${POP_DIRECTIONAL_ISOLATE}`;
+	// the detail is rust's english prose whatever the locale, so it is isolated for the reason
+	// `isolateDirection` states.
+	return `${title} — ${isolateDirection(detail)}`;
 }

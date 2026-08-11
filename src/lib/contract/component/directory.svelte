@@ -8,7 +8,9 @@
 	import type { ListSort } from '$lib/design/sort';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import { useListContracts } from '$lib/contract/query';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { formatRecordDate } from '$lib/design/date';
+	import { formatLocaleNumber, formatLocaleRangeWithUnit } from '$lib/platform/locale';
 	import { untrack } from 'svelte';
 	import ContractForm from './form.svelte';
 	import ContractRecord from './record.svelte';
@@ -29,6 +31,9 @@
 		() => sort
 	);
 	const contracts = $derived(contractsQuery.data ?? []);
+
+	// the same rendering the row shows, so the file reads as the screen does.
+	const formatDate = (value: number) => formatRecordDate($locale, value);
 
 	// built from the ids the procedure orders by, so the control cannot come to offer a key
 	// the query would reject. The record type is what makes a missing label a type error.
@@ -72,6 +77,36 @@
 	isLoading={contractsQuery.isLoading}
 	isFetching={contractsQuery.isFetching}
 	recordHeight={ROW_HEIGHT}
+	exportAs={{
+		name: `${$LL.common.nav.contracts()}.csv`,
+		columns: [
+			{
+				header: $LL.common.labels.tenant(),
+				value: (contract) => contract.tenantName?.trim() || $LL.common.labels.tenant()
+			},
+			{ header: $LL.common.labels.governmentId(), value: (contract) => contract.govId.trim() },
+			{ header: $LL.common.labels.start(), value: (contract) => formatDate(contract.start) },
+			{ header: $LL.common.labels.end(), value: (contract) => formatDate(contract.end) },
+			{
+				header: $LL.common.nav.payments(),
+				value: (contract) => formatLocaleNumber($locale, contract.paymentCount)
+			},
+			{
+				header: $LL.common.labels.status(),
+				value: (contract) => $LL.common.status[contract.status]()
+			},
+			{
+				header: $LL.common.labels.paymentFulfillment(),
+				value: (contract) =>
+					formatLocaleRangeWithUnit(
+						$locale,
+						contract.paidAmount,
+						contract.expectedAmount,
+						$LL.common.messages.sar()
+					)
+			}
+		]
+	}}
 	onCreate={openCreateContractForm}
 >
 	{#snippet record(contract: ContractRow)}

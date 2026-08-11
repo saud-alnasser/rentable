@@ -17,7 +17,11 @@
 		type PaymentLedgerMonth
 	} from '$lib/payment/ledger';
 	import { useDeletePayment, useListContractPayments } from '$lib/payment/query';
-	import { formatLocaleRangeWithUnit } from '$lib/platform/locale';
+	import {
+		formatLocaleDate,
+		formatLocaleRangeWithUnit,
+		formatLocaleValueWithUnit
+	} from '$lib/platform/locale';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import PaymentForm from './form.svelte';
@@ -89,6 +93,21 @@
 		recordHeight={ROW_HEIGHT}
 		groupHeaderHeight={MONTH_HEIGHT}
 		emptyDescription={isAddLocked ? undefined : $LL.contracts.payments.trackSummary()}
+		exportAs={{
+			name: `${$LL.common.nav.payments()}.csv`,
+			columns: [
+				{
+					header: $LL.common.labels.paymentDate(),
+					value: (entry) =>
+						formatLocaleDate($locale, entry.date, { dateStyle: 'medium', timeZone: 'UTC' })
+				},
+				{
+					header: $LL.common.labels.amount(),
+					value: (entry) =>
+						formatLocaleValueWithUnit($locale, entry.amount, $LL.common.messages.sar())
+				}
+			]
+		}}
 		onCreate={isAddLocked ? undefined : () => openPaymentForm()}
 	>
 		{#snippet groupHeader(month: PaymentLedgerMonth)}
