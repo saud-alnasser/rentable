@@ -1,11 +1,6 @@
 <script lang="ts">
-	import { Spinner } from '$lib/design/primitive/spinner';
+	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 </script>
 
-<div class="flex min-h-full flex-1 items-center justify-center p-1">
-	<div class="flex flex-col items-center gap-3">
-		<Spinner class="size-8 text-muted-foreground" />
-		<p class="text-sm text-muted-foreground">{$LL.common.messages.loadingApp()}</p>
-	</div>
-</div>
+<StandaloneSurface busy title={$LL.common.messages.loadingApp()} />

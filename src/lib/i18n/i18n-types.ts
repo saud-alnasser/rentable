@@ -766,6 +766,20 @@ type RootTranslation = {
 		}
 	}
 	layout: {
+		error: {
+			/**
+			 * s​o​m​e​t​h​i​n​g​ ​w​e​n​t​ ​w​r​o​n​g​ ​o​n​ ​t​h​i​s​ ​s​c​r​e​e​n​.​ ​g​o​i​n​g​ ​b​a​c​k​ ​t​o​ ​t​h​e​ ​d​a​s​h​b​o​a​r​d​ ​u​s​u​a​l​l​y​ ​c​l​e​a​r​s​ ​i​t​.
+			 */
+			description: string
+			/**
+			 * g​o​ ​t​o​ ​d​a​s​h​b​o​a​r​d
+			 */
+			goHome: string
+			/**
+			 * t​h​i​s​ ​s​c​r​e​e​n​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​s​h​o​w​n
+			 */
+			title: string
+		}
 		startup: {
 			/**
 			 * o​p​e​n​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​w​o​r​k​s​p​a​c​e​ ​l​o​c​a​l​l​y​,​ ​o​r​ ​l​i​n​k​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​n​o​w​ ​t​o​ ​t​u​r​n​ ​i​t​ ​i​n​t​o​ ​a​ ​s​y​n​c​e​d​ ​w​o​r​k​s​p​a​c​e​.
@@ -2577,6 +2591,20 @@ export type TranslationFunctions = {
 		}
 	}
 	layout: {
+		error: {
+			/**
+			 * something went wrong on this screen. going back to the dashboard usually clears it.
+			 */
+			description: () => LocalizedString
+			/**
+			 * go to dashboard
+			 */
+			goHome: () => LocalizedString
+			/**
+			 * this screen could not be shown
+			 */
+			title: () => LocalizedString
+		}
 		startup: {
 			/**
 			 * open the current workspace locally, or link Google Drive now to turn it into a synced workspace.

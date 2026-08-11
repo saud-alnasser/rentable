@@ -221,6 +221,13 @@ const en = {
 		}
 	},
 	layout: {
+		error: {
+			description:
+				'something went wrong on this screen. going back to the dashboard usually clears it.',
+			goHome: 'go to dashboard',
+			title: 'this screen could not be shown'
+		},
+
 		startup: {
 			accountChoiceDescription:
 				'open the current workspace locally, or link Google Drive now to turn it into a synced workspace.',
