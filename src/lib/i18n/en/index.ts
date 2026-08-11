@@ -569,37 +569,26 @@ const en = {
 		},
 
 		units: {
-			assignedDescriptionEditable:
-				'remove a unit from this contract when it should no longer be linked to it.',
-			assignedDescriptionLocked: 'review the units currently linked to this contract.',
-			assignedTitle: 'assigned units',
-
 			availableDescription:
 				'choose a complex to show units that are available for this contract timeframe. units linked to overlapping contracts are excluded.',
-			availableTitle: 'available units',
-
-			loadingContract: 'loading contract...',
 
 			lockNoticeHasPayments:
 				'contracts with registered payments are locked. you can review linked units here, but you cannot assign or remove units after payments have been recorded.',
 			lockNoticeTerminated:
 				'terminated contracts are locked. you can review linked units here, but you cannot assign or remove units until the contract is unterminated.',
 
-			lockSummaryDefault:
-				'assign available units by complex, then manage the units already linked to this contract.',
-			lockSummaryHasPayments: 'this contract has registered payments. unit assignments are locked.',
-			lockSummaryTerminated:
-				'this contract is terminated and locked. unit assignments are read-only.',
-
 			noAssignedUnits: 'no units are assigned to this contract yet.',
 			noAvailableUnits:
 				'no units are available for this contract timeframe in the selected complex.',
 
+			assignTitle: 'assign units',
+
+			removeDescription: 'remove this unit from the contract?',
+			removeTitle: 'remove unit',
+
 			selectComplex: 'select a complex to load available units.',
 			selectComplexPlaceholder: 'select complex',
-
-			unitsFor: 'units for {govId}',
-			unitsTitle: 'units'
+			selectUnits: 'select at least one unit.'
 		}
 	},
 

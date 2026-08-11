@@ -560,30 +560,22 @@ const ar = {
 		},
 
 		units: {
-			assignedDescriptionEditable: 'إزالة الوحدة من العقد عند الحاجة.',
-			assignedDescriptionLocked: 'عرض الوحدات المرتبطة.',
-			assignedTitle: 'الوحدات المرتبطة',
-
 			availableDescription: 'اختر مجمعاً لعرض الوحدات المتاحة.',
-			availableTitle: 'الوحدات المتاحة',
-
-			loadingContract: 'جاري تحميل العقد...',
 
 			lockNoticeHasPayments: 'لا يمكن تعديل الوحدات بعد تسجيل مدفوعات.',
 			lockNoticeTerminated: 'العقد منتهي ولا يمكن تعديل الوحدات.',
 
-			lockSummaryDefault: 'قم بتعيين الوحدات وإدارتها.',
-			lockSummaryHasPayments: 'العقد يحتوي مدفوعات.',
-			lockSummaryTerminated: 'العقد مقفل.',
-
 			noAssignedUnits: 'لا توجد وحدات مرتبطة.',
 			noAvailableUnits: 'لا توجد وحدات متاحة.',
 
+			assignTitle: 'إسناد وحدات',
+
+			removeDescription: 'هل تريد إزالة هذه الوحدة من العقد؟',
+			removeTitle: 'إزالة وحدة',
+
 			selectComplex: 'اختر مجمع',
 			selectComplexPlaceholder: 'اختر مجمع',
-
-			unitsFor: 'وحدات {govId}',
-			unitsTitle: 'الوحدات'
+			selectUnits: 'اختر وحدة واحدة على الأقل.'
 		}
 	},
 

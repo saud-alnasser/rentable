@@ -1723,29 +1723,9 @@ type RootTranslation = {
 		}
 		units: {
 			/**
-			 * r​e​m​o​v​e​ ​a​ ​u​n​i​t​ ​f​r​o​m​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​w​h​e​n​ ​i​t​ ​s​h​o​u​l​d​ ​n​o​ ​l​o​n​g​e​r​ ​b​e​ ​l​i​n​k​e​d​ ​t​o​ ​i​t​.
-			 */
-			assignedDescriptionEditable: string
-			/**
-			 * r​e​v​i​e​w​ ​t​h​e​ ​u​n​i​t​s​ ​c​u​r​r​e​n​t​l​y​ ​l​i​n​k​e​d​ ​t​o​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​.
-			 */
-			assignedDescriptionLocked: string
-			/**
-			 * a​s​s​i​g​n​e​d​ ​u​n​i​t​s
-			 */
-			assignedTitle: string
-			/**
 			 * c​h​o​o​s​e​ ​a​ ​c​o​m​p​l​e​x​ ​t​o​ ​s​h​o​w​ ​u​n​i​t​s​ ​t​h​a​t​ ​a​r​e​ ​a​v​a​i​l​a​b​l​e​ ​f​o​r​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​t​i​m​e​f​r​a​m​e​.​ ​u​n​i​t​s​ ​l​i​n​k​e​d​ ​t​o​ ​o​v​e​r​l​a​p​p​i​n​g​ ​c​o​n​t​r​a​c​t​s​ ​a​r​e​ ​e​x​c​l​u​d​e​d​.
 			 */
 			availableDescription: string
-			/**
-			 * a​v​a​i​l​a​b​l​e​ ​u​n​i​t​s
-			 */
-			availableTitle: string
-			/**
-			 * l​o​a​d​i​n​g​ ​c​o​n​t​r​a​c​t​.​.​.
-			 */
-			loadingContract: string
 			/**
 			 * c​o​n​t​r​a​c​t​s​ ​w​i​t​h​ ​r​e​g​i​s​t​e​r​e​d​ ​p​a​y​m​e​n​t​s​ ​a​r​e​ ​l​o​c​k​e​d​.​ ​y​o​u​ ​c​a​n​ ​r​e​v​i​e​w​ ​l​i​n​k​e​d​ ​u​n​i​t​s​ ​h​e​r​e​,​ ​b​u​t​ ​y​o​u​ ​c​a​n​n​o​t​ ​a​s​s​i​g​n​ ​o​r​ ​r​e​m​o​v​e​ ​u​n​i​t​s​ ​a​f​t​e​r​ ​p​a​y​m​e​n​t​s​ ​h​a​v​e​ ​b​e​e​n​ ​r​e​c​o​r​d​e​d​.
 			 */
@@ -1755,18 +1735,6 @@ type RootTranslation = {
 			 */
 			lockNoticeTerminated: string
 			/**
-			 * a​s​s​i​g​n​ ​a​v​a​i​l​a​b​l​e​ ​u​n​i​t​s​ ​b​y​ ​c​o​m​p​l​e​x​,​ ​t​h​e​n​ ​m​a​n​a​g​e​ ​t​h​e​ ​u​n​i​t​s​ ​a​l​r​e​a​d​y​ ​l​i​n​k​e​d​ ​t​o​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​.
-			 */
-			lockSummaryDefault: string
-			/**
-			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​h​a​s​ ​r​e​g​i​s​t​e​r​e​d​ ​p​a​y​m​e​n​t​s​.​ ​u​n​i​t​ ​a​s​s​i​g​n​m​e​n​t​s​ ​a​r​e​ ​l​o​c​k​e​d​.
-			 */
-			lockSummaryHasPayments: string
-			/**
-			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​t​e​r​m​i​n​a​t​e​d​ ​a​n​d​ ​l​o​c​k​e​d​.​ ​u​n​i​t​ ​a​s​s​i​g​n​m​e​n​t​s​ ​a​r​e​ ​r​e​a​d​-​o​n​l​y​.
-			 */
-			lockSummaryTerminated: string
-			/**
 			 * n​o​ ​u​n​i​t​s​ ​a​r​e​ ​a​s​s​i​g​n​e​d​ ​t​o​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​y​e​t​.
 			 */
 			noAssignedUnits: string
@@ -1774,6 +1742,18 @@ type RootTranslation = {
 			 * n​o​ ​u​n​i​t​s​ ​a​r​e​ ​a​v​a​i​l​a​b​l​e​ ​f​o​r​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​t​i​m​e​f​r​a​m​e​ ​i​n​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​c​o​m​p​l​e​x​.
 			 */
 			noAvailableUnits: string
+			/**
+			 * a​s​s​i​g​n​ ​u​n​i​t​s
+			 */
+			assignTitle: string
+			/**
+			 * r​e​m​o​v​e​ ​t​h​i​s​ ​u​n​i​t​ ​f​r​o​m​ ​t​h​e​ ​c​o​n​t​r​a​c​t​?
+			 */
+			removeDescription: string
+			/**
+			 * r​e​m​o​v​e​ ​u​n​i​t
+			 */
+			removeTitle: string
 			/**
 			 * s​e​l​e​c​t​ ​a​ ​c​o​m​p​l​e​x​ ​t​o​ ​l​o​a​d​ ​a​v​a​i​l​a​b​l​e​ ​u​n​i​t​s​.
 			 */
@@ -1783,14 +1763,9 @@ type RootTranslation = {
 			 */
 			selectComplexPlaceholder: string
 			/**
-			 * u​n​i​t​s​ ​f​o​r​ ​{​g​o​v​I​d​}
-			 * @param {unknown} govId
+			 * s​e​l​e​c​t​ ​a​t​ ​l​e​a​s​t​ ​o​n​e​ ​u​n​i​t​.
 			 */
-			unitsFor: RequiredParams<'govId'>
-			/**
-			 * u​n​i​t​s
-			 */
-			unitsTitle: string
+			selectUnits: string
 		}
 	}
 	settingsHooks: {
@@ -3533,29 +3508,9 @@ export type TranslationFunctions = {
 		}
 		units: {
 			/**
-			 * remove a unit from this contract when it should no longer be linked to it.
-			 */
-			assignedDescriptionEditable: () => LocalizedString
-			/**
-			 * review the units currently linked to this contract.
-			 */
-			assignedDescriptionLocked: () => LocalizedString
-			/**
-			 * assigned units
-			 */
-			assignedTitle: () => LocalizedString
-			/**
 			 * choose a complex to show units that are available for this contract timeframe. units linked to overlapping contracts are excluded.
 			 */
 			availableDescription: () => LocalizedString
-			/**
-			 * available units
-			 */
-			availableTitle: () => LocalizedString
-			/**
-			 * loading contract...
-			 */
-			loadingContract: () => LocalizedString
 			/**
 			 * contracts with registered payments are locked. you can review linked units here, but you cannot assign or remove units after payments have been recorded.
 			 */
@@ -3565,18 +3520,6 @@ export type TranslationFunctions = {
 			 */
 			lockNoticeTerminated: () => LocalizedString
 			/**
-			 * assign available units by complex, then manage the units already linked to this contract.
-			 */
-			lockSummaryDefault: () => LocalizedString
-			/**
-			 * this contract has registered payments. unit assignments are locked.
-			 */
-			lockSummaryHasPayments: () => LocalizedString
-			/**
-			 * this contract is terminated and locked. unit assignments are read-only.
-			 */
-			lockSummaryTerminated: () => LocalizedString
-			/**
 			 * no units are assigned to this contract yet.
 			 */
 			noAssignedUnits: () => LocalizedString
@@ -3584,6 +3527,18 @@ export type TranslationFunctions = {
 			 * no units are available for this contract timeframe in the selected complex.
 			 */
 			noAvailableUnits: () => LocalizedString
+			/**
+			 * assign units
+			 */
+			assignTitle: () => LocalizedString
+			/**
+			 * remove this unit from the contract?
+			 */
+			removeDescription: () => LocalizedString
+			/**
+			 * remove unit
+			 */
+			removeTitle: () => LocalizedString
 			/**
 			 * select a complex to load available units.
 			 */
@@ -3593,13 +3548,9 @@ export type TranslationFunctions = {
 			 */
 			selectComplexPlaceholder: () => LocalizedString
 			/**
-			 * units for {govId}
+			 * select at least one unit.
 			 */
-			unitsFor: (arg: { govId: unknown }) => LocalizedString
-			/**
-			 * units
-			 */
-			unitsTitle: () => LocalizedString
+			selectUnits: () => LocalizedString
 		}
 	}
 	settingsHooks: {
