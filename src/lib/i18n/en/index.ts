@@ -264,8 +264,7 @@ const en = {
 			},
 			occupancy: '{occupied} / {total}',
 			occupiedUnits: 'occupied units',
-			openContract: 'open the contract for {tenant}',
-			recordPayment: 'record a payment for {tenant}'
+			openContract: 'open the contract for {tenant}'
 		},
 
 		title: 'dashboard'

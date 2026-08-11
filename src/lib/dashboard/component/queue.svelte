@@ -7,7 +7,6 @@
 	import { isDashboardMoneyGroup, type DashboardQueueGroup } from '$lib/dashboard/dashboard';
 	import { useFetchContractWorkQueue } from '$lib/dashboard/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import PaymentForm from '$lib/payment/component/form.svelte';
 	import { formatLocaleRangeWithUnit } from '$lib/platform/locale';
 
 	type WorkQueue = Awaited<ReturnType<typeof api.contract.dashboard>>;
@@ -19,9 +18,6 @@
 	const GROUP_HEADER_HEIGHT = 40;
 
 	let search = $state('');
-	let payingContractId = $state<number | undefined>(undefined);
-	// a fresh subtree per contract, so the form never opens holding the previous row's state.
-	let paymentFormRenderKey = $state(0);
 
 	const workQueueQuery = useFetchContractWorkQueue(() => search);
 	const workQueue = $derived(workQueueQuery.data);
@@ -52,11 +48,6 @@
 			total: workQueue?.summary.occupancy.totalUnits ?? 0
 		})
 	);
-
-	function recordPayment(contractId: number) {
-		paymentFormRenderKey += 1;
-		payingContractId = contractId;
-	}
 
 	const groupOf = (entry: QueueEntry) => ({ key: entry.group });
 </script>
@@ -112,22 +103,13 @@
 			<div
 				class="relative flex h-full items-center gap-3 border-b px-4 transition-colors hover:bg-muted/40"
 			>
-				<!-- the action covers the row rather than wrapping it, so the phone can sit above it
+				<!-- the link covers the row rather than wrapping it, so the phone can sit above it
 				and stay selectable instead of being swallowed by the row's click target. -->
-				{#if isDashboardMoneyGroup(entry.group)}
-					<button
-						type="button"
-						class="absolute inset-0 rounded-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-						aria-label={$LL.dashboard.queue.recordPayment({ tenant: entry.tenantName })}
-						onclick={() => recordPayment(entry.id)}
-					></button>
-				{:else}
-					<a
-						href={resolve(`/contracts/${entry.id}`)}
-						class="absolute inset-0 rounded-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-						aria-label={$LL.dashboard.queue.openContract({ tenant: entry.tenantName })}
-					></a>
-				{/if}
+				<a
+					href={resolve(`/contracts/${entry.id}`)}
+					class="absolute inset-0 rounded-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+					aria-label={$LL.dashboard.queue.openContract({ tenant: entry.tenantName })}
+				></a>
 
 				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1">
 					<span class="flex min-w-0 items-center gap-2">
@@ -158,18 +140,3 @@
 		{/snippet}
 	</List>
 </div>
-
-{#key paymentFormRenderKey}
-	{#if payingContractId !== undefined}
-		<PaymentForm
-			contractId={payingContractId}
-			open={true}
-			onOpenChange={(isOpen) => {
-				if (!isOpen) {
-					payingContractId = undefined;
-				}
-			}}
-			value={undefined}
-		/>
-	{/if}
-{/key}
