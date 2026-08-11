@@ -28,3 +28,6 @@ owner: repository
 | [0020](0020-surfaces-diverge-by-kind-not-by-operation.md) | a new surface for a concept is being placed | accepted | `src/lib/design/block/` |
 | [0021](0021-reduced-motion-is-guarded-once-and-loops-are-exempt.md) | a surface is gaining animation or a transition, or the reduced-motion preference is in question | accepted | `src/app.css`, `src/lib/design/primitive/` |
 | [0022](0022-the-shells-breakpoint-is-one-declaration.md) | the shell changes shape with window width, or a breakpoint is being added, moved, or read from script | accepted | `src/app.css`, `src/lib/design/is-below-shell-breakpoint.svelte.ts` |
+| [0023](0023-a-status-is-an-icon-and-its-word-lives-in-the-tooltip.md) | a status is rendered, or a status is added to the model | accepted | `src/lib/design/cell/status.svelte` |
+| [0024](0024-units-read-as-a-directory-and-assigning-them-is-a-form.md) | a unit is being listed, or units are being assigned to a contract | accepted | `src/lib/complex/component/`, `src/lib/contract/component/` |
+| [0025](0025-a-row-opens-its-record-and-does-nothing-else.md) | a list row is given an action, or a row's click target is in question | accepted | `src/lib/design/block/list.svelte`, `src/lib/dashboard/component/queue.svelte` |

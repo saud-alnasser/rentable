@@ -1,6 +1,6 @@
 ---
 owner: repository
-status: draft
+status: accepted
 sources:
   - src/routes/settings/
   - src/lib/settings/
