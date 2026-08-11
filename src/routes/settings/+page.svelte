@@ -1,45 +1,35 @@
 <script lang="ts">
 	import api from '$lib/api/caller';
 	import { tauri } from '$lib/platform/tauri';
+	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
 	import { Button } from '$lib/design/primitive/button';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/design/primitive/card';
+	import * as Field from '$lib/design/primitive/field';
+	import { Separator } from '$lib/design/primitive/separator';
 	import { Spinner } from '$lib/design/primitive/spinner';
-	import { formatLocaleDate } from '$lib/platform/locale';
 	import { toErrorText } from '$lib/error/message';
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
-	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import type { Locales } from '$lib/i18n/i18n-types';
-	import SettingsDiagnosticsCard from '$lib/settings/component/diagnostics.svelte';
-	import SettingsEndingSoonCard from '$lib/settings/component/ending-soon.svelte';
-	import SettingsLocaleCard from '$lib/settings/component/locale.svelte';
-	import SettingsSyncCard from '$lib/settings/component/sync.svelte';
-	import SettingsUpdatesCard from '$lib/settings/component/updates.svelte';
+	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
+	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
+	import SettingsLocale from '$lib/settings/component/locale.svelte';
+	import SettingsSync from '$lib/settings/component/sync.svelte';
+	import SettingsUpdates from '$lib/settings/component/updates.svelte';
 	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
 	import { toast } from 'svelte-sonner';
 
 	const settingsQuery = useFetchSettings();
 	const remoteSyncQuery = useFetchRemoteSyncState();
-	const settingsOverviewPanelClass = 'rounded-2xl border bg-muted p-3';
 
-	const activeSyncWorkspace = $derived.by(() => remoteSyncQuery.data?.workspace ?? null);
-
-	function formatTimestamp(value: number | null | undefined) {
-		if (!value) {
-			return $LL.common.messages.never();
-		}
-
-		return formatLocaleDate($locale, value, {
-			dateStyle: 'medium',
-			timeStyle: 'short'
-		});
-	}
+	const isLoading = $derived(
+		(settingsQuery.isLoading && !settingsQuery.data) ||
+			(remoteSyncQuery.isLoading && !remoteSyncQuery.data)
+	);
+	const loadError = $derived(
+		(settingsQuery.error && !settingsQuery.data) || (remoteSyncQuery.error && !remoteSyncQuery.data)
+			? (settingsQuery.error ?? remoteSyncQuery.error)
+			: undefined
+	);
 
 	async function revealDiagnostics() {
 		const diagnosticsDir = settingsQuery.data?.diagnosticsDir;
@@ -73,91 +63,73 @@
 	}
 </script>
 
-<div class="mx-auto flex w-full max-w-7xl flex-col gap-5 px-5 pt-5 pb-8">
-	<div class="flex flex-col gap-1">
-		<h1 class="text-3xl font-semibold tracking-tight">{$LL.settings.title()}</h1>
-		<p class="text-sm text-muted-foreground">{$LL.settings.description()}</p>
+{#if isLoading}
+	<div class="flex min-h-full flex-1 items-center justify-center p-1">
+		<div class="flex flex-col items-center gap-3">
+			<Spinner class="size-8 text-muted-foreground" />
+			<p class="text-sm text-muted-foreground">{$LL.common.messages.loadingSettings()}</p>
+		</div>
 	</div>
+{:else if loadError}
+	<StandaloneSurface
+		title={$LL.settings.loadErrorTitle()}
+		description={$LL.settings.loadErrorDescription()}
+	>
+		<p class="text-sm text-muted-foreground">{toErrorText(loadError, $LL)}</p>
 
-	{#if (settingsQuery.isLoading && !settingsQuery.data) || (remoteSyncQuery.isLoading && !remoteSyncQuery.data)}
-		<div class="flex min-h-full flex-1 items-center justify-center p-1">
-			<div class="flex flex-col items-center gap-3">
-				<Spinner class="size-8 text-muted-foreground" />
-				<p class="text-sm text-muted-foreground">{$LL.common.messages.loadingSettings()}</p>
-			</div>
-		</div>
-	{:else if (settingsQuery.error && !settingsQuery.data) || (remoteSyncQuery.error && !remoteSyncQuery.data)}
-		<Card class="max-w-2xl">
-			<CardHeader class="gap-3 border-b pb-5">
-				<CardTitle>{$LL.settings.loadErrorTitle()}</CardTitle>
-				<CardDescription>{$LL.settings.loadErrorDescription()}</CardDescription>
-			</CardHeader>
-			<CardContent class="space-y-4 pt-5">
-				<p class="text-sm text-muted-foreground">
-					{toErrorText(settingsQuery.error ?? remoteSyncQuery.error, $LL)}
-				</p>
-				<Button
-					onclick={() => {
-						void settingsQuery.refetch();
-						void remoteSyncQuery.refetch();
-					}}
-				>
-					{$LL.common.actions.retry()}
-				</Button>
-			</CardContent>
-		</Card>
-	{:else if settingsQuery.data && remoteSyncQuery.data}
-		<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-			<div class={settingsOverviewPanelClass}>
-				<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-					{$LL.common.labels.appVersion()}
-				</p>
-				<p class="mt-3 text-lg font-semibold">{settingsQuery.data.version}</p>
-			</div>
-
-			<div class={settingsOverviewPanelClass}>
-				<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-					{$LL.settings.currentWorkspace()}
-				</p>
-				<p class="mt-3 text-lg font-semibold">
-					{activeSyncWorkspace?.name ?? $LL.common.messages.unknown()}
-				</p>
-			</div>
-
-			<div class={settingsOverviewPanelClass}>
-				<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-					{$LL.settings.latestSnapshot()}
-				</p>
-				<p class="mt-3 text-lg font-semibold">
-					{formatTimestamp(activeSyncWorkspace?.lastSnapshotAt ?? null)}
-				</p>
-			</div>
-
-			<div class={settingsOverviewPanelClass}>
-				<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-					{$LL.settings.localeLabel()}
-				</p>
-				<p class="mt-3 text-lg font-semibold">{localesMetadata[$locale].label}</p>
-			</div>
+		{#snippet actions()}
+			<Button
+				onclick={() => {
+					void settingsQuery.refetch();
+					void remoteSyncQuery.refetch();
+				}}
+			>
+				{$LL.common.actions.retry()}
+			</Button>
+		{/snippet}
+	</StandaloneSurface>
+{:else if settingsQuery.data && remoteSyncQuery.data}
+	<!-- one column of rows in four groups, and no tile strip: every figure the strip carried
+	     was stated again by the section that owns it, so the strip only ever said things twice. -->
+	<div class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 pt-5 pb-8">
+		<div class="flex flex-col gap-1">
+			<h1 class="text-3xl font-semibold tracking-tight">{$LL.settings.title()}</h1>
+			<p class="text-sm text-muted-foreground">{$LL.settings.description()}</p>
 		</div>
 
-		<div class="grid gap-3 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-			<div class="space-y-3">
-				<SettingsLocaleCard currentLocale={$locale} onChange={changeLocale} />
+		<Field.Group>
+			<Field.Set>
+				<Field.Legend>{$LL.settings.groupGeneral()}</Field.Legend>
+				<Field.Group>
+					<SettingsLocale currentLocale={$locale} onChange={changeLocale} />
+					<Field.Separator />
+					<SettingsEndingSoon settings={settingsQuery.data} />
+				</Field.Group>
+			</Field.Set>
 
-				<SettingsEndingSoonCard settings={settingsQuery.data} />
-			</div>
+			<Separator />
 
-			<div class="space-y-3">
-				<SettingsUpdatesCard version={settingsQuery.data.version} />
+			<Field.Set>
+				<Field.Legend>{$LL.settings.groupWorkspace()}</Field.Legend>
+				<SettingsSync syncState={remoteSyncQuery.data} />
+			</Field.Set>
 
-				<SettingsSyncCard syncState={remoteSyncQuery.data} />
+			<Separator />
 
-				<SettingsDiagnosticsCard
+			<Field.Set>
+				<Field.Legend>{$LL.settings.groupUpdates()}</Field.Legend>
+				<SettingsUpdates version={settingsQuery.data.version} />
+			</Field.Set>
+
+			<Separator />
+
+			<Field.Set>
+				<Field.Legend>{$LL.settings.groupDiagnostics()}</Field.Legend>
+				<SettingsDiagnostics
 					diagnosticsDir={settingsQuery.data.diagnosticsDir}
 					onRevealDiagnostics={() => void revealDiagnostics()}
 				/>
-			</div>
-		</div>
-	{/if}
-</div>
+			</Field.Set>
+		</Field.Group>
+	</div>
+{/if}

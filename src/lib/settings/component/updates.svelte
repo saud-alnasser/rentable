@@ -2,13 +2,7 @@
 	import { type AvailableUpdate, type UpdaterDownloadEvent } from '$lib/platform/tauri';
 	import { Button } from '$lib/design/primitive/button';
 	import { Callout } from '$lib/design/primitive/callout';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/design/primitive/card';
+	import * as Field from '$lib/design/primitive/field';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import { cn } from '$lib/design/tailwind.js';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
@@ -182,111 +176,110 @@
 	}
 </script>
 
-<Card>
-	<CardHeader class="gap-3 border-b pb-5">
-		<CardTitle>{$LL.settings.updatesTitle()}</CardTitle>
-		<CardDescription>{$LL.settings.updatesDescription()}</CardDescription>
-	</CardHeader>
-	<CardContent class="space-y-4 pt-5">
-		<div class={settingsSubtlePanelClass}>
-			<p class="text-xs tracking-wide text-muted-foreground uppercase">
-				{$LL.common.labels.currentVersion()}
+<div class="space-y-4">
+	<Field.Field orientation="responsive">
+		<Field.Content>
+			<Field.Label>{$LL.settings.updatesTitle()}</Field.Label>
+			<Field.Description>{$LL.settings.updatesDescription()}</Field.Description>
+			<!-- the version lives here and nowhere else on the page: the strip above used to
+			     state it a second time, beside the section that owns it. -->
+			<p class="text-xs text-muted-foreground tabular-nums">
+				{$LL.common.labels.currentVersion()}: {version}
 			</p>
-			<p class="mt-1 text-base font-semibold">{version}</p>
-		</div>
+		</Field.Content>
+	</Field.Field>
 
-		<div class="flex flex-wrap gap-3">
-			<Button
-				onclick={() => void checkForUpdates()}
-				disabled={isCheckingForUpdate || isInstallingUpdate}
-			>
-				{isCheckingForUpdate
-					? $LL.common.actions.checkingForUpdates()
-					: $LL.common.actions.checkForUpdates()}
-			</Button>
-
-			{#if availableUpdate}
-				<Button
-					onclick={() => void installUpdate()}
-					disabled={isInstallingUpdate || isCheckingForUpdate}
-				>
-					{isInstallingUpdate
-						? $LL.common.actions.installingUpdate()
-						: $LL.common.actions.downloadAndInstall()}
-				</Button>
-			{/if}
-		</div>
-
-		{#if isCheckingForUpdate}
-			<Callout variant="info">{$LL.settings.updatesChecking()}</Callout>
-		{:else if updateCheckError}
-			<Callout variant="error">{updateCheckError}</Callout>
-		{:else if availableUpdate}
-			<Callout variant="info">
-				{$LL.settings.releaseAvailable({ version: availableUpdate.version })}
-			</Callout>
-		{:else if hasCheckedForUpdate}
-			<Callout variant="success">{$LL.settings.latestRelease()}</Callout>
-		{/if}
+	<div class="flex flex-wrap gap-3">
+		<Button
+			onclick={() => void checkForUpdates()}
+			disabled={isCheckingForUpdate || isInstallingUpdate}
+		>
+			{isCheckingForUpdate
+				? $LL.common.actions.checkingForUpdates()
+				: $LL.common.actions.checkForUpdates()}
+		</Button>
 
 		{#if availableUpdate}
-			<div class={cn('space-y-3', settingsSubtlePanelClass)}>
-				<div class="grid gap-3 sm:grid-cols-2 [&>*]:text-start">
-					<div>
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">
-							{$LL.common.labels.availableVersion()}
-						</p>
-						<p class="mt-1 font-semibold">v{availableUpdate.version}</p>
-					</div>
-					<div>
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">
-							{$LL.common.labels.releaseDate()}
-						</p>
-						<p class="mt-1 font-semibold">{formatReleaseDate(availableUpdate.date)}</p>
-					</div>
-				</div>
-
-				{#if availableUpdate.body}
-					<div class="space-y-2 border-t pt-3">
-						<p class="text-xs tracking-wide text-muted-foreground uppercase">
-							{$LL.common.labels.releaseNotes()}
-						</p>
-						<p class="text-sm whitespace-pre-wrap text-muted-foreground">{availableUpdate.body}</p>
-					</div>
-				{/if}
-			</div>
+			<Button
+				onclick={() => void installUpdate()}
+				disabled={isInstallingUpdate || isCheckingForUpdate}
+			>
+				{isInstallingUpdate
+					? $LL.common.actions.installingUpdate()
+					: $LL.common.actions.downloadAndInstall()}
+			</Button>
 		{/if}
+	</div>
 
-		{#if isInstallingUpdate}
-			<Callout variant="info">
-				{$LL.settings.downloadingUpdate()}
-				{#if formatBytes(updateDownloadedBytes)}
-					({formatBytes(updateDownloadedBytes)}
-					{#if formatBytes(updateContentLength)}
-						/ {formatBytes(updateContentLength)}{/if})
-				{/if}
-				{#if updateProgressPercent !== null}
-					· {updateProgressPercent}%
-				{/if}
-			</Callout>
+	{#if isCheckingForUpdate}
+		<Callout variant="info">{$LL.settings.updatesChecking()}</Callout>
+	{:else if updateCheckError}
+		<Callout variant="error">{updateCheckError}</Callout>
+	{:else if availableUpdate}
+		<Callout variant="info">
+			{$LL.settings.releaseAvailable({ version: availableUpdate.version })}
+		</Callout>
+	{:else if hasCheckedForUpdate}
+		<Callout variant="success">{$LL.settings.latestRelease()}</Callout>
+	{/if}
 
-			{#if updateProgressPercent !== null}
-				<div class="h-2 overflow-hidden rounded-full bg-muted">
-					<div
-						class="h-full bg-primary transition-[width]"
-						style={`width: ${updateProgressPercent}%`}
-					></div>
+	{#if availableUpdate}
+		<div class={cn('space-y-3', settingsSubtlePanelClass)}>
+			<div class="grid gap-3 sm:grid-cols-2 [&>*]:text-start">
+				<div>
+					<p class="text-xs tracking-wide text-muted-foreground uppercase">
+						{$LL.common.labels.availableVersion()}
+					</p>
+					<p class="mt-1 font-semibold">v{availableUpdate.version}</p>
+				</div>
+				<div>
+					<p class="text-xs tracking-wide text-muted-foreground uppercase">
+						{$LL.common.labels.releaseDate()}
+					</p>
+					<p class="mt-1 font-semibold">{formatReleaseDate(availableUpdate.date)}</p>
+				</div>
+			</div>
+
+			{#if availableUpdate.body}
+				<div class="space-y-2 border-t pt-3">
+					<p class="text-xs tracking-wide text-muted-foreground uppercase">
+						{$LL.common.labels.releaseNotes()}
+					</p>
+					<p class="text-sm whitespace-pre-wrap text-muted-foreground">{availableUpdate.body}</p>
 				</div>
 			{/if}
-		{/if}
+		</div>
+	{/if}
 
-		{#if updateInstallError}
-			<Callout variant="error">{updateInstallError}</Callout>
-		{/if}
+	{#if isInstallingUpdate}
+		<Callout variant="info">
+			{$LL.settings.downloadingUpdate()}
+			{#if formatBytes(updateDownloadedBytes)}
+				({formatBytes(updateDownloadedBytes)}
+				{#if formatBytes(updateContentLength)}
+					/ {formatBytes(updateContentLength)}{/if})
+			{/if}
+			{#if updateProgressPercent !== null}
+				· {updateProgressPercent}%
+			{/if}
+		</Callout>
 
-		{#if updateInstallComplete}
-			<Callout variant="success">{$LL.settings.restartNotice()}</Callout>
-			<Button onclick={() => void restartApp()}>{$LL.common.actions.restartApp()}</Button>
+		{#if updateProgressPercent !== null}
+			<div class="h-2 overflow-hidden rounded-full bg-muted">
+				<div
+					class="h-full bg-primary transition-[width]"
+					style={`width: ${updateProgressPercent}%`}
+				></div>
+			</div>
 		{/if}
-	</CardContent>
-</Card>
+	{/if}
+
+	{#if updateInstallError}
+		<Callout variant="error">{updateInstallError}</Callout>
+	{/if}
+
+	{#if updateInstallComplete}
+		<Callout variant="success">{$LL.settings.restartNotice()}</Callout>
+		<Button onclick={() => void restartApp()}>{$LL.common.actions.restartApp()}</Button>
+	{/if}
+</div>

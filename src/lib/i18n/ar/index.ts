@@ -306,6 +306,10 @@ const ar = {
 		endingSoonInvalid: 'يجب أن تكون فترة الإشعار أكبر من صفر',
 		endingSoonTitle: 'فترة الإشعار قبل الانتهاء',
 
+		groupDiagnostics: 'التشخيص',
+		groupGeneral: 'عام',
+		groupUpdates: 'التحديثات',
+		groupWorkspace: 'مساحة العمل',
 		latestRelease: 'أنت تستخدم أحدث إصدار.',
 
 		loadErrorDescription: 'حدثت مشكلة أثناء تحميل الإعدادات.',
