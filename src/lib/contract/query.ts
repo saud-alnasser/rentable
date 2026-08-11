@@ -1,10 +1,10 @@
 import api from '$lib/api/caller';
 import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
-import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
-import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
+import { declareMutation } from '$lib/design/mutation';
+import { workspacePrefixes } from '$lib/design/query';
 import type { ListSort } from '$lib/design/sort';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 /**
@@ -89,117 +89,55 @@ export function useFetchContract(id: () => number) {
 	});
 }
 
-export function useCreateContract(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).contracts.hooks.createSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useCreateContract = declareMutation({
+	mutate: (data: Parameters<typeof api.contract.create>[0]) => api.contract.create(data),
+	touches: ['contracts'],
+	toast: {
+		success: () => get(LL).contracts.hooks.createSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.contract.create>[0]) => api.contract.create(data),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useUpdateContract(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).contracts.hooks.updateSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useUpdateContract = declareMutation({
+	mutate: (data: Parameters<typeof api.contract.update>[0]) => api.contract.update(data),
+	touches: ['contracts', 'units'],
+	toast: {
+		success: () => get(LL).contracts.hooks.updateSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.contract.update>[0]) => api.contract.update(data),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useDeleteContract(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).contracts.hooks.deleteSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useDeleteContract = declareMutation({
+	mutate: (id: number) => api.contract.delete({ id }),
+	touches: ['contracts'],
+	toast: {
+		success: () => get(LL).contracts.hooks.deleteSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (id: number) => api.contract.delete({ id }),
-		onSuccess: async (deleted) => {
-			if (deleted) {
-				await invalidateWorkspaceData(client);
-			}
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useTerminateContract(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).contracts.hooks.terminateSuccess(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useTerminateContract = declareMutation({
+	mutate: (id: number) => api.contract.terminate({ id }),
+	touches: ['contracts', 'units'],
+	toast: {
+		success: () => get(LL).contracts.hooks.terminateSuccess(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (id: number) => api.contract.terminate({ id }),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useUnterminateContract(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).contracts.hooks.restoreSuccess(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useUnterminateContract = declareMutation({
+	mutate: (id: number) => api.contract.unterminate({ id }),
+	touches: ['contracts', 'units'],
+	toast: {
+		success: () => get(LL).contracts.hooks.restoreSuccess(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (id: number) => api.contract.unterminate({ id }),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+});
 
 export function useFetchContractUnits(contractId: () => number) {
 	return createQuery(() => {
@@ -230,48 +168,24 @@ export function useFetchVacantContractUnits(
 	});
 }
 
-export function useAssignContractUnits(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).contracts.hooks.assignUnitsSuccess(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useAssignContractUnits = declareMutation({
+	mutate: (data: Parameters<typeof api.contract.units.assign>[0]) =>
+		api.contract.units.assign(data),
+	touches: ['contracts', 'units'],
+	toast: {
+		success: () => get(LL).contracts.hooks.assignUnitsSuccess(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.contract.units.assign>[0]) =>
-			api.contract.units.assign(data),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useRemoveContractUnit(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).contracts.hooks.removeUnitSuccess(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useRemoveContractUnit = declareMutation({
+	mutate: (data: Parameters<typeof api.contract.units.remove>[0]) =>
+		api.contract.units.remove(data),
+	touches: ['contracts', 'units'],
+	toast: {
+		success: () => get(LL).contracts.hooks.removeUnitSuccess(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.contract.units.remove>[0]) =>
-			api.contract.units.remove(data),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+});

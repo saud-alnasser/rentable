@@ -1,8 +1,8 @@
 import api from '$lib/api/caller';
-import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
-import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
+import { declareMutation } from '$lib/design/mutation';
+import { workspacePrefixes } from '$lib/design/query';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 export const keys = {
@@ -63,72 +63,34 @@ export function useListContractPayments(params: () => { contractId: number; sear
 	});
 }
 
-export function useCreatePayment(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).contracts.hooks.createPaymentSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useCreatePayment = declareMutation({
+	mutate: (data: Parameters<typeof api.contract.payments.create>[0]) =>
+		api.contract.payments.create(data),
+	touches: ['payments', 'contracts', 'units'],
+	toast: {
+		success: () => get(LL).contracts.hooks.createPaymentSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.contract.payments.create>[0]) =>
-			api.contract.payments.create(data),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useUpdatePayment(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).contracts.hooks.updatePaymentSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useUpdatePayment = declareMutation({
+	mutate: (data: Parameters<typeof api.contract.payments.update>[0]) =>
+		api.contract.payments.update(data),
+	touches: ['payments', 'contracts', 'units'],
+	toast: {
+		success: () => get(LL).contracts.hooks.updatePaymentSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.contract.payments.update>[0]) =>
-			api.contract.payments.update(data),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useDeletePayment(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).contracts.hooks.deletePaymentSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useDeletePayment = declareMutation({
+	mutate: (id: number) => api.contract.payments.delete({ id }),
+	touches: ['payments', 'contracts', 'units'],
+	toast: {
+		success: () => get(LL).contracts.hooks.deletePaymentSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (id: number) => api.contract.payments.delete({ id }),
-		onSuccess: async (deleted) => {
-			if (deleted) {
-				await invalidateWorkspaceData(client);
-			}
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+});
