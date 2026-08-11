@@ -261,8 +261,7 @@ const ar = {
 			},
 			occupancy: '{occupied} / {total}',
 			occupiedUnits: 'الوحدات المشغولة',
-			openContract: 'افتح عقد {tenant}',
-			recordPayment: 'سجل دفعة لـ {tenant}'
+			openContract: 'افتح عقد {tenant}'
 		},
 
 		title: 'لوحة التحكم'

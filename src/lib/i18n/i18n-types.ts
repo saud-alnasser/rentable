@@ -889,11 +889,6 @@ type RootTranslation = {
 			 * @param {unknown} tenant
 			 */
 			openContract: RequiredParams<'tenant'>
-			/**
-			 * r​e​c​o​r​d​ ​a​ ​p​a​y​m​e​n​t​ ​f​o​r​ ​{​t​e​n​a​n​t​}
-			 * @param {unknown} tenant
-			 */
-			recordPayment: RequiredParams<'tenant'>
 		}
 		/**
 		 * d​a​s​h​b​o​a​r​d
@@ -2699,10 +2694,6 @@ export type TranslationFunctions = {
 			 * open the contract for {tenant}
 			 */
 			openContract: (arg: { tenant: unknown }) => LocalizedString
-			/**
-			 * record a payment for {tenant}
-			 */
-			recordPayment: (arg: { tenant: unknown }) => LocalizedString
 		}
 		/**
 		 * dashboard
