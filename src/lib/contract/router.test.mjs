@@ -445,6 +445,39 @@ test('the contract list carries the payment aggregates after a payment', async (
 	assert.equal(listed.expectedAmount, 1000);
 });
 
+test('the contract list carries how many payments are recorded against each contract', async () => {
+	const api = await createApi();
+	const paid = await seedContract(api);
+	const untouched = await seedContract(api);
+
+	await api.contract.payments.create({ contractId: paid.id, date: monthsFromNow(0), amount: 100 });
+	await api.contract.payments.create({ contractId: paid.id, date: monthsFromNow(0), amount: 200 });
+
+	const contracts = await api.contract.getMany({});
+	const listed = (id) => contracts.find((candidate) => candidate.id === id);
+
+	assert.equal(listed(paid.id).paymentCount, 2);
+	// a contract nobody has paid is counted as zero rather than dropped from the list — the
+	// count rides the row, so a missing one would be a contract missing from the directory.
+	assert.equal(listed(untouched.id).paymentCount, 0);
+});
+
+test('the payment count follows a deleted payment back down', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const payment = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 100
+	});
+
+	await api.contract.payments.delete({ id: payment.id });
+
+	const listed = (await api.contract.getMany({})).find((candidate) => candidate.id === contract.id);
+
+	assert.equal(listed.paymentCount, 0);
+});
+
 test('updating the cost updates the expected amount on reads', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);

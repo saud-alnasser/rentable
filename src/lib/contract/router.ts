@@ -101,6 +101,17 @@ const contractAttentionRank = sql.join(
 	sql` `
 );
 
+// How many payments have been recorded against the contract, counted on the list query itself
+// rather than by a query per row — the shape the tenant and complex aggregates already take.
+// A correlated subquery rather than a join, because the directory's own joins are what its
+// ordering is built on and grouping them would change which rows the order sees.
+//
+// It is a count and never a sum: the money a contract has taken is `paid_amount`, which
+// reconcile owns (ADR 0006), and a second figure derived here could disagree with it.
+const contractPaymentCount = sql<number>`(
+	select count(*) from ${s.payment} where ${s.payment.contractId} = ${s.contract.id}
+)`;
+
 const CONTRACT_SORT_COLUMNS: Record<ContractSortColumnId, SQL | AnyColumn> = {
 	tenantName: s.tenant.name,
 	govId: s.contract.govId,
@@ -492,16 +503,18 @@ export default router({
 				.select({
 					contract: s.contract,
 					tenantName: s.tenant.name,
-					tenantPhone: s.tenant.phone
+					tenantPhone: s.tenant.phone,
+					paymentCount: contractPaymentCount.as('paymentCount')
 				})
 				.from(s.contract)
 				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
 				.where(search ? contractSearchCondition(search) : undefined)
 				.orderBy(...contractOrderBy(input.sort));
 
-			return contracts.map(({ contract, tenantName, tenantPhone }) =>
-				serializeContract(contract, tenantName, tenantPhone)
-			);
+			return contracts.map(({ contract, tenantName, tenantPhone, paymentCount }) => ({
+				...serializeContract(contract, tenantName, tenantPhone),
+				paymentCount
+			}));
 		}),
 
 	units: {

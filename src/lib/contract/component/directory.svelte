@@ -11,6 +11,7 @@
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import { useListContracts } from '$lib/contract/query';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import CashIcon from '@tabler/icons-svelte/icons/cash-banknote';
 	import { untrack } from 'svelte';
 	import ContractForm from './form.svelte';
 
@@ -103,6 +104,11 @@
 			</span>
 
 			<span class="flex shrink-0 items-center gap-3">
+				<Cell.Count
+					icon={CashIcon}
+					count={contract.paymentCount}
+					label={$LL.common.nav.payments()}
+				/>
 				<Cell.Status status={contract.status} />
 				<!-- the interval rides with the figure because a bare amount beside a contract
 				     reads as what the contract is worth, and the cost is per interval. -->

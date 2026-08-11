@@ -79,13 +79,11 @@
 				</span>
 			</span>
 
-			<span
-				class="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
-				aria-label={`${$LL.common.labels.activeContracts()}: ${tenant.activeContractCount}`}
-			>
-				<ContractIcon class="size-4" />
-				<span class="tabular-nums">{tenant.activeContractCount}</span>
-			</span>
+			<Cell.Count
+				icon={ContractIcon}
+				count={tenant.activeContractCount}
+				label={$LL.common.labels.activeContracts()}
+			/>
 		</a>
 	{/snippet}
 </List>
