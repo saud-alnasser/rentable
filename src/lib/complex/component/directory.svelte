@@ -6,10 +6,10 @@
 	import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
 	import { useListComplexes } from '$lib/complex/query';
 	import List from '$lib/design/block/list.svelte';
+	import * as Cell from '$lib/design/cell';
 	import { hasCreateIntent } from '$lib/design/create-intent';
 	import type { ListSort } from '$lib/design/sort';
-	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { formatLocaleNumber } from '$lib/platform/locale';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import CircleDashedIcon from '@tabler/icons-svelte/icons/circle-dashed';
 	import DoorIcon from '@tabler/icons-svelte/icons/door';
 	import ComplexForm from './form.svelte';
@@ -68,8 +68,6 @@
 	}}
 >
 	{#snippet record(complex: ComplexRecord)}
-		{@const units = formatLocaleNumber($locale, complex.unitCount)}
-		{@const vacant = formatLocaleNumber($locale, complex.vacantUnitCount)}
 		<a
 			href={resolve(`/complexes/${complex.id}`)}
 			class="flex h-full items-center gap-4 border-b px-4 transition-colors hover:bg-muted/40"
@@ -79,21 +77,13 @@
 				<span class="truncate text-xs text-muted-foreground">{complex.location}</span>
 			</span>
 
-			<span
-				class="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
-				aria-label={`${$LL.common.labels.units()}: ${units}`}
-			>
-				<DoorIcon class="size-4" />
-				<span class="tabular-nums">{units}</span>
-			</span>
+			<Cell.Count icon={DoorIcon} count={complex.unitCount} label={$LL.common.labels.units()} />
 
-			<span
-				class="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
-				aria-label={`${$LL.common.labels.vacantUnits()}: ${vacant}`}
-			>
-				<CircleDashedIcon class="size-4" />
-				<span class="tabular-nums">{vacant}</span>
-			</span>
+			<Cell.Count
+				icon={CircleDashedIcon}
+				count={complex.vacantUnitCount}
+				label={$LL.common.labels.vacantUnits()}
+			/>
 		</a>
 	{/snippet}
 </List>
