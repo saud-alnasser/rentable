@@ -94,7 +94,7 @@
 		<Tooltip.Content
 			side={tooltipSide}
 			align="center"
-			hidden={sidebar.state !== 'collapsed' || sidebar.isMobile}
+			hidden={sidebar.state !== 'collapsed' || sidebar.presentsAsDrawer}
 			{...tooltipContentProps}
 		>
 			{#if typeof tooltipContent === 'string'}

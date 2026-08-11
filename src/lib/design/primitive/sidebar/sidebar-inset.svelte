@@ -15,7 +15,11 @@
 	data-slot="sidebar-inset"
 	class={cn(
 		'relative flex w-full min-w-0 flex-1 flex-col overflow-hidden bg-background',
-		'md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ms-0 md:peer-data-[variant=inset]:rounded-2xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:ring-1 md:peer-data-[variant=inset]:ring-foreground/10 md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ms-2',
+		'peer-data-[variant=inset]:m-2 peer-data-[variant=inset]:rounded-2xl peer-data-[variant=inset]:shadow-sm peer-data-[variant=inset]:ring-1 peer-data-[variant=inset]:ring-foreground/10',
+		// the start margin closes only where the rail is actually alongside: below the shell's
+		// breakpoint the navigation is an overlay and nothing sits there, so the panel keeps an
+		// even margin rather than butting against an edge with no sidebar behind it.
+		'shell:peer-data-[variant=inset]:ms-0 shell:peer-data-[variant=inset]:peer-data-[state=collapsed]:ms-2',
 		className
 	)}
 	{...restProps}

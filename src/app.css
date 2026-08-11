@@ -84,6 +84,20 @@
 	--color-sidebar-ring: var(--sidebar-ring);
 }
 
+/*
+ * the width at which the shell swaps its navigation between a rail and an overlay drawer.
+ * this is the only statement of that number: the `shell:` variant it generates gates every
+ * width-dependent style in the sidebar family, and `is-below-shell-breakpoint.svelte.ts` reads this same
+ * custom property to build its media query, so script and stylesheet cannot disagree.
+ *
+ * `static` rather than plain `@theme` because unused-value elimination drops theme entries
+ * nothing references, and this one is referenced from script rather than from a utility —
+ * dropping it would leave the runtime read empty and the navigation absent across the band.
+ */
+@theme static {
+	--breakpoint-shell: 48rem;
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring/50;
