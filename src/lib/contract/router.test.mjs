@@ -910,3 +910,50 @@ test('the contract list returns the whole result set', async () => {
 
 	assert.equal((await api.contract.getMany({})).length, 30);
 });
+
+// --- Palette search -------------------------------------------------------------------
+
+test('a contract is found by its reference or by the tenant holding it', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { govId: 'GOV-42' });
+	const tenant = await api.tenant.get({ id: contract.tenantId });
+
+	assert.deepEqual(
+		(await api.contract.search({ term: 'GOV-4' })).map((match) => match.id),
+		[contract.id]
+	);
+	assert.deepEqual(
+		(await api.contract.search({ term: tenant.name })).map((match) => match.label),
+		['GOV-42']
+	);
+});
+
+// a contract's reference is optional, so the tenant holding it is the handle when there is none.
+test('a contract with no reference is found under the tenant holding it', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const tenant = await api.tenant.get({ id: contract.tenantId });
+
+	assert.deepEqual(
+		(await api.contract.search({ term: tenant.name })).map((match) => match.label),
+		[tenant.name]
+	);
+});
+
+test('a payment is found by its amount, across every contract', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { govId: 'GOV-7' });
+	const payment = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 1234
+	});
+
+	const found = await api.contract.payments.search({ term: '1234' });
+
+	assert.deepEqual(
+		found.map((match) => match.id),
+		[payment.id]
+	);
+	assert.equal(found[0].hint, 'GOV-7');
+});

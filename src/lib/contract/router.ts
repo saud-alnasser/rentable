@@ -1,4 +1,6 @@
 import type { Database } from '$lib/api/context';
+import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
+import { matchesSearch } from '$lib/platform/database/search';
 import { ensureIdFree } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ContractSchema } from '$lib/platform/database/schema';
@@ -532,6 +534,29 @@ export default router({
 				.get();
 
 			return deleted ? serializeContract(deleted) : deleted;
+		}),
+
+	/** The contracts a palette search reaches, by reference or by the tenant holding them. */
+	search: procedure.public
+		.input(RecordSearchSchema)
+		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
+			const rows = await ctx.db
+				.select({ id: s.contract.id, govId: s.contract.govId, tenantName: s.tenant.name })
+				.from(s.contract)
+				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+				.where(
+					or(matchesSearch(s.contract.govId, input.term), matchesSearch(s.tenant.name, input.term))
+				)
+				.orderBy(desc(s.contract.id))
+				.limit(input.limit);
+
+			// a contract's reference is optional, so the tenant holding it is the handle whenever
+			// there is no reference to show.
+			return rows.map((row) => ({
+				id: row.id,
+				label: row.govId ?? row.tenantName,
+				hint: row.tenantName
+			}));
 		}),
 
 	get: procedure.public

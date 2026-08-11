@@ -16,6 +16,7 @@ export const keys = {
 		search,
 		sort ? `${sort.columnId}:${sort.direction}` : 'default'
 	],
+	search: (term: string) => [...workspacePrefixes.complexes, 'search', term],
 	units: {
 		all: workspacePrefixes.units,
 		get: (id: number) => [...workspacePrefixes.units, 'detail', id],
@@ -25,9 +26,38 @@ export const keys = {
 			'board',
 			complexId,
 			search
-		]
+		],
+		search: (term: string) => [...workspacePrefixes.units, 'search', term]
 	}
 } as const;
+
+/** The complexes a palette search reaches. Bounded in SQL; nothing is narrowed again here. */
+export function useSearchComplexes(term: () => string, limit: number) {
+	return createQuery(() => {
+		const trimmed = term().trim();
+
+		return {
+			queryKey: keys.search(trimmed),
+			enabled: trimmed.length > 0,
+			queryFn: () => api.complex.search({ term: trimmed, limit }),
+			placeholderData: <T>(previous: T) => previous
+		};
+	});
+}
+
+/** The units a palette search reaches, across every complex. */
+export function useSearchUnits(term: () => string, limit: number) {
+	return createQuery(() => {
+		const trimmed = term().trim();
+
+		return {
+			queryKey: keys.units.search(trimmed),
+			enabled: trimmed.length > 0,
+			queryFn: () => api.complex.units.search({ term: trimmed, limit }),
+			placeholderData: <T>(previous: T) => previous
+		};
+	});
+}
 
 // the shell's sort carries a bare string, because it is shared by lists that order by
 // different keys. This is where it becomes one of this list's own.

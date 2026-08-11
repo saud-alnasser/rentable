@@ -487,3 +487,41 @@ test('searching the directory reaches the national id and the phone', async () =
 		);
 	}
 });
+
+// --- Palette search -------------------------------------------------------------------
+
+test('a tenant is found by name, identity or phone', async () => {
+	const api = await createApi();
+	const sara = await api.tenant.create({ name: 'Sara', nationalId: NATIONAL_ID, phone: PHONE });
+	await api.tenant.create({ name: 'Omar', nationalId: IQAMA, phone: '+966559999999' });
+
+	for (const term of ['Sar', NATIONAL_ID.slice(0, 5), PHONE.slice(0, 8)]) {
+		assert.deepEqual(
+			(await api.tenant.search({ term })).map((match) => match.id),
+			[sara.id],
+			`expected "${term}" to reach the tenant`
+		);
+	}
+});
+
+// arabic is not a second-class locale: a name stored in it has to be reachable by typing it.
+test('a tenant named in arabic is found by an arabic term', async () => {
+	const api = await createApi();
+	const tenant = await api.tenant.create({
+		name: 'سارة الأحمد',
+		nationalId: NATIONAL_ID,
+		phone: PHONE
+	});
+
+	assert.deepEqual(
+		(await api.tenant.search({ term: 'سارة' })).map((match) => match.id),
+		[tenant.id]
+	);
+});
+
+test('a search answers at most the number of records it was asked for', async () => {
+	const api = await createApi();
+	for (let index = 0; index < 4; index += 1) await seedTenant(api);
+
+	assert.equal((await api.tenant.search({ term: 'Tenant', limit: 2 })).length, 2);
+});
