@@ -92,6 +92,11 @@ export function useFetchContract(id: () => number) {
 export const useCreateContract = declareMutation({
 	mutate: (data: Parameters<typeof api.contract.create>[0]) => api.contract.create(data),
 	touches: ['contracts'],
+	inverse: ({ result }) => ({
+		describe: (t) => t.common.undo.created({ record: t.common.labels.contract() }),
+		undo: () => api.contract.delete({ id: result.id }),
+		redo: () => api.contract.create(result)
+	}),
 	toast: {
 		success: () => get(LL).contracts.hooks.createSuccess(),
 		error: false,
@@ -102,6 +107,13 @@ export const useCreateContract = declareMutation({
 export const useUpdateContract = declareMutation({
 	mutate: (data: Parameters<typeof api.contract.update>[0]) => api.contract.update(data),
 	touches: ['contracts', 'units'],
+	capture: (variables) => api.contract.get({ id: variables.id }),
+	inverse: ({ variables, captured }) =>
+		captured && {
+			describe: (t) => t.common.undo.edited({ record: t.common.labels.contract() }),
+			undo: () => api.contract.update(captured),
+			redo: () => api.contract.update(variables)
+		},
 	toast: {
 		success: () => get(LL).contracts.hooks.updateSuccess(),
 		error: false,
@@ -112,6 +124,12 @@ export const useUpdateContract = declareMutation({
 export const useDeleteContract = declareMutation({
 	mutate: (id: number) => api.contract.delete({ id }),
 	touches: ['contracts'],
+	inverse: ({ result }) =>
+		result && {
+			describe: (t) => t.common.undo.deleted({ record: t.common.labels.contract() }),
+			undo: () => api.contract.create(result),
+			redo: () => api.contract.delete({ id: result.id })
+		},
 	toast: {
 		success: () => get(LL).contracts.hooks.deleteSuccess(),
 		error: false,

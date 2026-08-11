@@ -1,4 +1,5 @@
 import type { Database } from '$lib/api/context';
+import { ensureIdFree } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ContractSchema } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
@@ -32,12 +33,14 @@ import z from 'zod';
 
 // status and the payment aggregates are derived columns: reconcile owns them, so no
 // caller may supply them.
+// an optional id, so undoing a deletion can put the row back with the identity it had — a page
+// still open on that record is holding a reference to it (ADR 0026). Absent otherwise, and the
+// engine assigns one.
 const ContractCreateSchema = ContractSchema.omit({
-	id: true,
 	status: true,
 	paidAmount: true,
 	expectedAmount: true
-});
+}).partial({ id: true });
 const ContractUpdateSchema = ContractSchema.omit({
 	status: true,
 	paidAmount: true,
@@ -204,6 +207,11 @@ export default router({
 			const now = ctx.clock.now();
 
 			ensureValidContractInput(input);
+			ensureIdFree(
+				input.id === undefined
+					? undefined
+					: await ctx.db.select().from(s.contract).where(eq(s.contract.id, input.id)).get()
+			);
 
 			const tenant = await ctx.db
 				.select()

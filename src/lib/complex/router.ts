@@ -1,4 +1,5 @@
 import type { Context } from '$lib/api/context';
+import { ensureIdFree } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
@@ -139,10 +140,19 @@ async function getUnitsWithDerivedStatus(
 }
 
 export default router({
+	// an optional id, so undoing a deletion can put the row back with the identity it had — a
+	// page still open on that record is holding a reference to it (ADR 0026). Absent otherwise,
+	// and the engine assigns one.
 	create: procedure.public
 		.use(autosync())
-		.input(ComplexSchema.omit({ id: true }))
+		.input(ComplexSchema.partial({ id: true }))
 		.mutation(async ({ input, ctx }) => {
+			ensureIdFree(
+				input.id === undefined
+					? undefined
+					: await ctx.db.select().from(s.complex).where(eq(s.complex.id, input.id)).get()
+			);
+
 			const isNameUsed = await ctx.db
 				.select()
 				.from(s.complex)
@@ -316,10 +326,19 @@ export default router({
 					.orderBy(asc(s.unit.name), asc(s.unit.id));
 			}),
 
+		// an optional id, so undoing a deletion can put the row back with the identity it had — a
+		// page still open on that record is holding a reference to it (ADR 0026). Absent
+		// otherwise, and the engine assigns one.
 		create: procedure.public
 			.use(autosync())
-			.input(UnitSchema.omit({ id: true, status: true }))
+			.input(UnitSchema.omit({ status: true }).partial({ id: true }))
 			.mutation(async ({ input, ctx }) => {
+				ensureIdFree(
+					input.id === undefined
+						? undefined
+						: await ctx.db.select().from(s.unit).where(eq(s.unit.id, input.id)).get()
+				);
+
 				const isNameUsed = await ctx.db
 					.select()
 					.from(s.unit)

@@ -1,4 +1,5 @@
 import api from '$lib/api/caller';
+import { inverseStack } from '$lib/design/inverse';
 import { tauri, type GoogleDriveLinkPreparation, type RemoteSyncState } from '$lib/platform/tauri';
 import { toTauriErrorCode } from '$lib/error/tauri';
 
@@ -25,10 +26,12 @@ export function linkGoogleDriveWorkspace(): Promise<GoogleDriveLinkPreparation> 
  * abandon the link that is outstanding, and undo one already recorded.
  *
  * Reconciles afterwards because the workspace the derived statuses were computed
- * against is no longer the one the application is on.
+ * against is no longer the one the application is on. The session's inverses are
+ * dropped for the same reason, and cannot be recomputed the way statuses can.
  */
 export async function cancelGoogleDriveLink(): Promise<RemoteSyncState> {
 	const state = await tauri.remoteSync.googleDrive.cancelLinkAttempt();
+	inverseStack.clear();
 	await api.app.state.reconcile();
 
 	return state;
@@ -44,6 +47,7 @@ export async function cancelGoogleDriveLink(): Promise<RemoteSyncState> {
 export async function unlinkGoogleDriveWorkspace(): Promise<RemoteSyncState> {
 	await api.app.state.reconcile();
 	const state = await tauri.remoteSync.googleDrive.unlink();
+	inverseStack.clear();
 	await api.app.state.reconcile();
 
 	return state;

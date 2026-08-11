@@ -67,6 +67,11 @@ export const useCreatePayment = declareMutation({
 	mutate: (data: Parameters<typeof api.contract.payments.create>[0]) =>
 		api.contract.payments.create(data),
 	touches: ['payments', 'contracts', 'units'],
+	inverse: ({ result }) => ({
+		describe: (t) => t.common.undo.created({ record: t.common.labels.payment() }),
+		undo: () => api.contract.payments.delete({ id: result.id }),
+		redo: () => api.contract.payments.create(result)
+	}),
 	toast: {
 		success: () => get(LL).contracts.hooks.createPaymentSuccess(),
 		error: false,
@@ -78,6 +83,13 @@ export const useUpdatePayment = declareMutation({
 	mutate: (data: Parameters<typeof api.contract.payments.update>[0]) =>
 		api.contract.payments.update(data),
 	touches: ['payments', 'contracts', 'units'],
+	capture: (variables) => api.contract.payments.get({ id: variables.id }),
+	inverse: ({ variables, captured }) =>
+		captured && {
+			describe: (t) => t.common.undo.edited({ record: t.common.labels.payment() }),
+			undo: () => api.contract.payments.update(captured),
+			redo: () => api.contract.payments.update(variables)
+		},
 	toast: {
 		success: () => get(LL).contracts.hooks.updatePaymentSuccess(),
 		error: false,
@@ -88,6 +100,12 @@ export const useUpdatePayment = declareMutation({
 export const useDeletePayment = declareMutation({
 	mutate: (id: number) => api.contract.payments.delete({ id }),
 	touches: ['payments', 'contracts', 'units'],
+	inverse: ({ result }) =>
+		result && {
+			describe: (t) => t.common.undo.deleted({ record: t.common.labels.payment() }),
+			undo: () => api.contract.payments.create(result),
+			redo: () => api.contract.payments.delete({ id: result.id })
+		},
 	toast: {
 		success: () => get(LL).contracts.hooks.deletePaymentSuccess(),
 		error: false,

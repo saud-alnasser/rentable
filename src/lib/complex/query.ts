@@ -129,6 +129,11 @@ export function useFetchUnits(complexId: () => number) {
 export const useCreateComplex = declareMutation({
 	mutate: (data: Parameters<typeof api.complex.create>[0]) => api.complex.create(data),
 	touches: ['complexes'],
+	inverse: ({ result }) => ({
+		describe: (t) => t.common.undo.created({ record: t.common.labels.complex() }),
+		undo: () => api.complex.delete({ id: result.id }),
+		redo: () => api.complex.create(result)
+	}),
 	toast: {
 		success: () => get(LL).complexes.hooks.createSuccess(),
 		error: false,
@@ -139,6 +144,13 @@ export const useCreateComplex = declareMutation({
 export const useUpdateComplex = declareMutation({
 	mutate: (values: Parameters<typeof api.complex.update>[0]) => api.complex.update(values),
 	touches: ['complexes'],
+	capture: (variables) => api.complex.get({ id: variables.id }),
+	inverse: ({ variables, captured }) =>
+		captured && {
+			describe: (t) => t.common.undo.edited({ record: t.common.labels.complex() }),
+			undo: () => api.complex.update(captured),
+			redo: () => api.complex.update(variables)
+		},
 	toast: {
 		success: () => get(LL).complexes.hooks.updateSuccess(),
 		error: false,
@@ -149,6 +161,12 @@ export const useUpdateComplex = declareMutation({
 export const useDeleteComplex = declareMutation({
 	mutate: (id: number) => api.complex.delete({ id }),
 	touches: ['complexes'],
+	inverse: ({ result }) =>
+		result && {
+			describe: (t) => t.common.undo.deleted({ record: t.common.labels.complex() }),
+			undo: () => api.complex.create(result),
+			redo: () => api.complex.delete({ id: result.id })
+		},
 	toast: {
 		success: () => get(LL).complexes.hooks.deleteSuccess(),
 		error: false,
@@ -159,6 +177,11 @@ export const useDeleteComplex = declareMutation({
 export const useCreateUnit = declareMutation({
 	mutate: (data: Parameters<typeof api.complex.units.create>[0]) => api.complex.units.create(data),
 	touches: ['units'],
+	inverse: ({ result }) => ({
+		describe: (t) => t.common.undo.created({ record: t.common.labels.unit() }),
+		undo: () => api.complex.units.delete({ id: result.id }),
+		redo: () => api.complex.units.create(result)
+	}),
 	toast: {
 		success: () => get(LL).complexes.hooks.unitCreateSuccess(),
 		error: false,
@@ -170,6 +193,13 @@ export const useUpdateUnit = declareMutation({
 	mutate: (values: Parameters<typeof api.complex.units.update>[0]) =>
 		api.complex.units.update(values),
 	touches: ['units'],
+	capture: (variables) => api.complex.units.get({ id: variables.id }),
+	inverse: ({ variables, captured }) =>
+		captured && {
+			describe: (t) => t.common.undo.edited({ record: t.common.labels.unit() }),
+			undo: () => api.complex.units.update(captured),
+			redo: () => api.complex.units.update(variables)
+		},
 	toast: {
 		success: () => get(LL).complexes.hooks.unitUpdateSuccess(),
 		error: false,
@@ -180,6 +210,12 @@ export const useUpdateUnit = declareMutation({
 export const useDeleteUnit = declareMutation({
 	mutate: (id: number) => api.complex.units.delete({ id }),
 	touches: ['units'],
+	inverse: ({ result }) =>
+		result && {
+			describe: (t) => t.common.undo.deleted({ record: t.common.labels.unit() }),
+			undo: () => api.complex.units.create(result),
+			redo: () => api.complex.units.delete({ id: result.id })
+		},
 	toast: {
 		success: () => get(LL).complexes.hooks.unitDeleteSuccess(),
 		error: false,

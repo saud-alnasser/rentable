@@ -1,4 +1,5 @@
 import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
+import { inverseStack, type Inverse } from '$lib/design/inverse';
 import { createMutation, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 import { TRPCError } from '@trpc/server';
 import { toast } from 'svelte-sonner';
@@ -21,11 +22,12 @@ export type MutationOptions = {
 export type WorkspaceConcept = keyof typeof workspacePrefixes;
 
 /**
- * What varies between one data mutation and the next: the call it makes, what it writes, and
- * what the user is told. The hook a component calls and the cache invalidation behind it are
- * derived from this and written nowhere else (ADR 0028).
+ * What varies between one data mutation and the next: the call it makes, what it writes, what
+ * the user is told, and the call that reverses it. The hook a component calls, the cache
+ * invalidation behind it and the undo entry are derived from this and written nowhere else
+ * (ADR 0028).
  */
-export type MutationDeclaration<TVariables, TResult> = {
+export type MutationDeclaration<TVariables, TResult, TCaptured = void> = {
 	/** the procedure this mutation calls. */
 	mutate: (variables: TVariables) => Promise<TResult>;
 	/**
@@ -40,6 +42,22 @@ export type MutationDeclaration<TVariables, TResult> = {
 	touches: readonly WorkspaceConcept[];
 	/** what the user is told. A mutation that declares none reports nothing, either way. */
 	toast?: MutationOptions['toast'];
+	/**
+	 * read what the inverse will need, before the mutation runs: the row an edit is about to
+	 * overwrite, the row a deletion is about to remove. Whatever it resolves to reaches
+	 * {@link inverse} untouched.
+	 */
+	capture?: (variables: TVariables) => Promise<TCaptured>;
+	/**
+	 * what this mutation leaves on the undo stack, given what it was called with and what came
+	 * back. A mutation declaring none is outside undo, and nothing fails — the cost ADR 0026
+	 * records and accepts.
+	 */
+	inverse?: (change: {
+		variables: TVariables;
+		result: TResult;
+		captured: TCaptured;
+	}) => Inverse | undefined;
 };
 
 function resolveToastMessage(message: ToastMessage) {
@@ -81,16 +99,23 @@ export function onMutationError(opts: MutationOptions, e: Error) {
  * refetch, where a mutation that changed something and skipped it shows the user a row that is
  * no longer there.
  */
-function bindMutation<TVariables, TResult>(
-	declaration: MutationDeclaration<TVariables, TResult>,
+function bindMutation<TVariables, TResult, TCaptured>(
+	declaration: MutationDeclaration<TVariables, TResult, TCaptured>,
 	client: QueryClient
 ) {
 	const opts: MutationOptions = { toast: declaration.toast };
 
 	return {
 		mutationFn: declaration.mutate,
-		onSuccess: async () => {
+		onMutate: declaration.capture,
+		onSuccess: async (result: TResult, variables: TVariables, captured: TCaptured) => {
 			await invalidateWorkspaceData(client);
+
+			const inverse = declaration.inverse?.({ variables, result, captured });
+
+			if (inverse) {
+				inverseStack.record(inverse);
+			}
 
 			onMutationSuccess(opts);
 		},
@@ -102,11 +127,11 @@ function bindMutation<TVariables, TResult>(
  * Turn a declaration into the hook a component calls.
  *
  * This is what a concept's query module exports for each of its mutations. Adding a data
- * mutation means writing one declaration — the call, what it touches, and what the user is
- * told — and nothing about the cache is written by hand.
+ * mutation means writing one declaration — the call, what it touches, what the user is told,
+ * and how it is taken back — and nothing about the cache or the undo stack is written by hand.
  */
-export function declareMutation<TVariables, TResult>(
-	declaration: MutationDeclaration<TVariables, TResult>
+export function declareMutation<TVariables, TResult, TCaptured = void>(
+	declaration: MutationDeclaration<TVariables, TResult, TCaptured>
 ) {
 	return () => {
 		const client = useQueryClient();

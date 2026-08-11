@@ -14,6 +14,7 @@ import {
 } from '$lib/sync/workspace';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { invalidateRoot } from '$lib/design/query';
+import { inverseStack } from '$lib/design/inverse';
 import { keys as dashboardKeys } from '$lib/dashboard/query';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
@@ -133,8 +134,11 @@ export function useRestoreBackup(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
+		// the inverses go with the database they were statements about: a restore replaces the
+		// workspace, so replaying one there would corrupt rather than undo (ADR 0026).
 		mutationFn: async ({ filename }: { filename: string }) => {
 			const result = await api.app.backup.restore({ filename });
+			inverseStack.clear();
 			await api.app.state.reconcile();
 
 			return result;
