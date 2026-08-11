@@ -304,6 +304,27 @@ describe('undoing a record change', () => {
 		assert.equal(await inverseStack.undo(), null);
 	});
 
+	// a complex created with its units is the one creation whose inverse is not a single
+	// delete: a complex still holding units refuses to be deleted.
+	it('takes back a complex created with its units, and puts them all back', async () => {
+		const complex = await run(useCreateComplex, {
+			name: 'Palm Court',
+			location: 'Riyadh',
+			units: [{ name: 'A1' }, { name: 'A2' }]
+		});
+
+		await inverseStack.undo();
+		assert.equal(await caller.complex.get({ id: complex.id }), undefined);
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), []);
+
+		await inverseStack.redo();
+		assert.equal((await caller.complex.get({ id: complex.id })).name, 'Palm Court');
+		assert.deepEqual(
+			(await caller.complex.units.getMany({ complexId: complex.id })).map((unit) => unit.id),
+			complex.units.map((unit) => unit.id)
+		);
+	});
+
 	// the risk this whole design carries: an inverse is a statement about a database, and the
 	// remote can replace that database underneath the running session.
 	it('can apply nothing once the remote has replaced the workspace', async () => {
@@ -339,7 +360,12 @@ describe('undoing a record change', () => {
 		await run(useDeleteComplex, complex.id);
 
 		await inverseStack.undo();
-		assert.deepEqual(await caller.complex.get({ id: complex.id }), complex);
+		// creation answers with the units it made as well, so the row is compared rather than
+		// the whole answer.
+		const { units, ...row } = complex;
+
+		assert.deepEqual(units, []);
+		assert.deepEqual(await caller.complex.get({ id: complex.id }), row);
 
 		await inverseStack.undo();
 		assert.equal((await caller.complex.units.get({ id: unit.id })).name, 'A1');

@@ -47,9 +47,18 @@ router test can pass over a conversion that is broken in the running application
 
 ## Constraints
 
-- **No transactions across the boundary.** Multi-step writes are sequenced by the caller
-  and are not atomic, so a write that must not half-apply needs its own recovery, not a
-  rollback.
+- **A transaction crosses the boundary as a batch, and only as a batch.** The batch command
+  opens a transaction, runs every query inside it, and commits at the end; the single-query
+  command refuses `BEGIN`, `COMMIT` and `ROLLBACK` outright and directs the caller to batch
+  execution instead. The test transport does the same, so a router test over a batch
+  exercises the atomicity production has. **A write that must not half-apply issues one
+  batch** ([ADR 0027](../decisions/0027-a-write-that-spans-tables-is-one-batch.md)); a
+  multi-step write sequenced as separate queries is still not atomic, and that is a choice
+  the caller made rather than a limit of the boundary.
+- **A batch is built before any of it runs**, so a statement cannot read an identity an
+  earlier statement in the same batch is about to assign. Where one needs it, it names the
+  row by a value it already has — creating a complex with its units names the complex by
+  its own unique name.
 - **SQLite is compiled into the binary, and the driver owns that.** The engine links a
   bundled SQLite rather than a system library, asked for through the driver's own feature
   rather than by naming the native bindings as a direct dependency. Nothing here selects a

@@ -472,7 +472,11 @@ const en = {
 		},
 
 		form: {
-			duplicateName: 'name is associated with a previously registered complex.'
+			duplicateName: 'name is associated with a previously registered complex.',
+			duplicateUnitName: '{name:string} is already in the list.',
+			duplicateUnitNames: 'two units share a name; each needs its own.',
+			noUnitsYet: 'no units yet. add them here, or later from the complex itself.',
+			unitName: 'unit name'
 		},
 
 		units: {

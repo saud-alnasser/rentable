@@ -1454,6 +1454,23 @@ type RootTranslation = {
 			 * n​a​m​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​p​r​e​v​i​o​u​s​l​y​ ​r​e​g​i​s​t​e​r​e​d​ ​c​o​m​p​l​e​x​.
 			 */
 			duplicateName: string
+			/**
+			 * {​n​a​m​e​}​ ​i​s​ ​a​l​r​e​a​d​y​ ​i​n​ ​t​h​e​ ​l​i​s​t​.
+			 * @param {string} name
+			 */
+			duplicateUnitName: RequiredParams<'name'>
+			/**
+			 * t​w​o​ ​u​n​i​t​s​ ​s​h​a​r​e​ ​a​ ​n​a​m​e​;​ ​e​a​c​h​ ​n​e​e​d​s​ ​i​t​s​ ​o​w​n​.
+			 */
+			duplicateUnitNames: string
+			/**
+			 * n​o​ ​u​n​i​t​s​ ​y​e​t​.​ ​a​d​d​ ​t​h​e​m​ ​h​e​r​e​,​ ​o​r​ ​l​a​t​e​r​ ​f​r​o​m​ ​t​h​e​ ​c​o​m​p​l​e​x​ ​i​t​s​e​l​f​.
+			 */
+			noUnitsYet: string
+			/**
+			 * u​n​i​t​ ​n​a​m​e
+			 */
+			unitName: string
 		}
 		units: {
 			/**
@@ -3304,6 +3321,22 @@ export type TranslationFunctions = {
 			 * name is associated with a previously registered complex.
 			 */
 			duplicateName: () => LocalizedString
+			/**
+			 * {name} is already in the list.
+			 */
+			duplicateUnitName: (arg: { name: string }) => LocalizedString
+			/**
+			 * two units share a name; each needs its own.
+			 */
+			duplicateUnitNames: () => LocalizedString
+			/**
+			 * no units yet. add them here, or later from the complex itself.
+			 */
+			noUnitsYet: () => LocalizedString
+			/**
+			 * unit name
+			 */
+			unitName: () => LocalizedString
 		}
 		units: {
 			/**

@@ -5,6 +5,7 @@ import { appRouter } from '$lib/api/router.ts';
 import { caller, context } from '$lib/api/trpc.ts';
 import { createMemoryDatabase } from './memory.ts';
 import { mapRows } from './client.ts';
+import * as s from './schema.ts';
 
 async function createApi() {
 	const db = createMemoryDatabase();
@@ -74,4 +75,37 @@ test('mapRows returns every row for a non-get method', () => {
 	];
 
 	assert.deepEqual(mapRows(rows, 'all'), { rows: [[1], [2]] });
+});
+
+// this client claims to run a batch inside a transaction "as the Rust layer does", and a write
+// that must not half-apply is built on that claim (ADR 0027). It is checked here because the
+// claim is what makes a router test over a batch mean anything.
+
+test('a batch that fails part way leaves nothing of itself behind', async () => {
+	const db = createMemoryDatabase();
+
+	await assert.rejects(() =>
+		db.batch([
+			db.insert(s.complex).values({ name: 'Palm Court', location: 'Riyadh' }),
+			// the second statement takes a name the first just took, and complex names are unique
+			// in the schema rather than only in the router.
+			db.insert(s.complex).values({ name: 'Palm Court', location: 'Jeddah' })
+		])
+	);
+
+	assert.deepEqual(await db.select().from(s.complex), []);
+});
+
+test('a batch that succeeds commits every statement in it', async () => {
+	const db = createMemoryDatabase();
+
+	await db.batch([
+		db.insert(s.complex).values({ name: 'Palm Court', location: 'Riyadh' }),
+		db.insert(s.complex).values({ name: 'Coral Tower', location: 'Jeddah' })
+	]);
+
+	assert.deepEqual((await db.select().from(s.complex)).map((complex) => complex.name).sort(), [
+		'Coral Tower',
+		'Palm Court'
+	]);
 });
