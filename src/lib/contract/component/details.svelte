@@ -29,7 +29,7 @@
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import ContractAssignment from './assignment.svelte';
+	import ContractUnits from './units.svelte';
 	import ContractForm from './form.svelte';
 
 	type ContractDetailsSection = 'overview' | 'units' | 'payments';
@@ -347,7 +347,7 @@
 			</Tabs.Content>
 
 			<Tabs.Content value="units" class="min-h-0 flex-1 pt-1">
-				<ContractAssignment {contractId} showHeader={false} />
+				<ContractUnits {contractId} />
 			</Tabs.Content>
 
 			<Tabs.Content value="payments" class="min-h-0 flex-1 pt-1">

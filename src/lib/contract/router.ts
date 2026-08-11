@@ -564,8 +564,11 @@ export default router({
 
 			const unitIds = [...new Set(units.map((unit) => unit.id))];
 
+			// the empty case returns the same shape as the full one rather than the bare rows:
+			// a procedure whose result type depends on how many rows it found makes every
+			// caller handle a shape it can never actually observe.
 			if (unitIds.length === 0) {
-				return units;
+				return units.map((unit) => ({ ...unit, status: 'vacant' as const }));
 			}
 
 			const assignments = await selectAssignmentsForUnits(ctx.db, unitIds);
