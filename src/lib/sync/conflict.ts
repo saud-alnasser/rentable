@@ -20,6 +20,8 @@ import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 export type ConflictPresentation = {
 	title: string;
 	description: string;
+	/** The same situation in one line, where a surface has room for a sentence and not a panel. */
+	shortDescription: string;
 	localDescription: string;
 	remoteDescription: string;
 	keepLocalLabel: string;
@@ -43,6 +45,7 @@ export function getConflictPresentation(
 		sync: {
 			title: LL.settings.syncConflictTitle(),
 			description: LL.settings.syncConflictDescription(),
+			shortDescription: LL.settings.syncConflictShortDescription(),
 			localDescription: LL.settings.syncConflictLocalDescription(),
 			remoteDescription: LL.settings.syncConflictRemoteDescription({ email }),
 			keepLocalLabel: LL.settings.syncConflictKeepLocalAction(),
@@ -51,6 +54,7 @@ export function getConflictPresentation(
 		link: {
 			title: LL.settings.syncLinkConflictTitle(),
 			description: LL.settings.syncLinkConflictDescription(),
+			shortDescription: LL.settings.syncLinkConflictShortDescription(),
 			localDescription: LL.settings.syncLinkConflictLocalDescription(),
 			remoteDescription: LL.settings.syncLinkConflictRemoteDescription({ email }),
 			keepLocalLabel: LL.settings.syncLinkKeepLocalAction(),
@@ -59,6 +63,7 @@ export function getConflictPresentation(
 		relink: {
 			title: LL.settings.syncRelinkRequiredTitle(),
 			description: conflict.message ?? LL.settings.syncRelinkRequiredDescription(),
+			shortDescription: conflict.message ?? LL.settings.syncRelinkRequiredShortDescription(),
 			localDescription: LL.settings.syncRelinkRequiredLocalDescription(),
 			remoteDescription: LL.settings.syncRelinkRequiredRemoteDescription({ email }),
 			keepLocalLabel: LL.settings.syncRelinkRequiredAction()
@@ -66,6 +71,7 @@ export function getConflictPresentation(
 		corrupt: {
 			title: LL.settings.syncCorruptTitle(),
 			description: conflict.message ?? LL.settings.syncCorruptDescription(),
+			shortDescription: conflict.message ?? LL.settings.syncCorruptShortDescription(),
 			localDescription: LL.settings.syncCorruptLocalDescription(),
 			remoteDescription: LL.settings.syncCorruptRemoteDescription({ email }),
 			keepLocalLabel: LL.settings.syncCorruptKeepLocalAction()
