@@ -2,7 +2,7 @@ import * as s from '$lib/platform/database/schema';
 import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
 import { matchesSearch } from '$lib/platform/database/search';
 import { ensureIdFree } from '$lib/platform/database/identity';
-import { TenantSchema } from '$lib/platform/database/schema';
+import { TenantSchema, type Contract } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import { CONTRACT_IN_FORCE_STATUSES } from '$lib/contract/contract';
 import {
@@ -12,16 +12,44 @@ import {
 	ensureTenantDeletable,
 	type TenantSortColumnId
 } from '$lib/tenant/tenant';
-import { and, asc, desc, eq, inArray, like, or, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { asc, desc, eq, inArray, like, or, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
-// How many contracts the tenant currently holds, counted on the list query itself rather
-// than by a query per row. The join is filtered before it is counted, so a tenant with no
-// contract in force still arrives with a row and a count of zero.
+/**
+ * How many of the tenant's contracts sit in one status, counted on the list query itself
+ * rather than by a query per row.
+ *
+ * The join is no longer filtered, because the row asks about every status rather than about
+ * one of them — so the filtering moves into the aggregates, one conditional count each. A
+ * status nobody holds counts NULL for every row and `count` ignores it, which is how a tenant
+ * with no contracts still arrives with a row and six zeroes.
+ */
+const contractsInStatus = (status: Contract['status']) =>
+	sql<number>`count(case when ${s.contract.status} = ${status} then 1 end)`;
+
+// what the reader means by "the tenant's contracts" when they order the directory by them:
+// the ones in force, which is a pair of statuses rather than one, so it cannot be read off a
+// single conditional count above.
 //
-// One expression, selected under an alias and ordered by directly: written twice, the
-// column the list sorts on could come to differ from the number its rows show.
-const inForceContracts = sql<number>`count(${s.contract.id})`;
+// One expression, selected nowhere and ordered by directly: written twice, the column the
+// list sorts on could come to differ from what it claims to sort by.
+const inForceContracts = sql<number>`count(case when ${inArray(s.contract.status, CONTRACT_IN_FORCE_STATUSES)} then 1 end)`;
+
+/**
+ * The figure per status a directory row carries, as the list query selects them.
+ *
+ * Written out rather than folded up from the status list, because drizzle infers the shape of
+ * a row from the shape of this object — and the `satisfies` is what makes a status added to
+ * the enum a type error here rather than a figure silently missing from the row.
+ */
+const contractCountColumns = {
+	contractsScheduled: contractsInStatus('scheduled').as('contractsScheduled'),
+	contractsActive: contractsInStatus('active').as('contractsActive'),
+	contractsFulfilled: contractsInStatus('fulfilled').as('contractsFulfilled'),
+	contractsDefaulted: contractsInStatus('defaulted').as('contractsDefaulted'),
+	contractsExpired: contractsInStatus('expired').as('contractsExpired'),
+	contractsTerminated: contractsInStatus('terminated').as('contractsTerminated')
+} satisfies Record<`contracts${Capitalize<Contract['status']>}`, unknown>;
 
 const TENANT_SORT_COLUMNS: Record<TenantSortColumnId, SQL | AnyColumn> = {
 	name: s.tenant.name,
@@ -213,16 +241,10 @@ export default router({
 					name: s.tenant.name,
 					nationalId: s.tenant.nationalId,
 					phone: s.tenant.phone,
-					activeContractCount: inForceContracts.as('activeContractCount')
+					...contractCountColumns
 				})
 				.from(s.tenant)
-				.leftJoin(
-					s.contract,
-					and(
-						eq(s.contract.tenantId, s.tenant.id),
-						inArray(s.contract.status, CONTRACT_IN_FORCE_STATUSES)
-					)
-				)
+				.leftJoin(s.contract, eq(s.contract.tenantId, s.tenant.id))
 				.where(
 					searchPattern
 						? or(

@@ -7,6 +7,15 @@
 	 */
 	export type CountTone = 'running' | 'settled';
 
+	/**
+	 * What the figure itself wears, wherever a directory row states a quantity.
+	 *
+	 * One declaration, read by the status-keyed count beside this one as well, because the figures
+	 * on a row have to line up down the list and two of them deciding their own measure is how a
+	 * trailing cluster comes to read ragged.
+	 */
+	export const countFigure = 'tabular-nums';
+
 	// the same two tones `active`/`occupied` and `vacant` carry on a status glyph, so a count
 	// and a status never disagree about what blue means.
 	const cell = tv({
@@ -63,7 +72,7 @@
 			     may lay a click target over its content and disable pointer events beneath. -->
 			<span {...props} class={cell({ tone })}>
 				<Icon class="size-4" aria-hidden="true" />
-				<span class="tabular-nums" aria-hidden="true">{figure}</span>
+				<span class={countFigure} aria-hidden="true">{figure}</span>
 				<span class="sr-only">{label}: {figure}</span>
 			</span>
 		{/snippet}
