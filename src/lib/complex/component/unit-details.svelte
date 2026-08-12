@@ -14,6 +14,8 @@
 	const unit = $derived(unitQuery.data);
 </script>
 
+<!-- read in the field list and nowhere else. It used to render here and again under the name
+     from this one value, so the two could never disagree and one of them was doing no work. -->
 {#snippet status()}
 	{#if unit}
 		<Cell.Status status={unit.status} />
@@ -55,7 +57,6 @@
 	path={resolve(`/complexes/units/${unitId}`)}
 	eyebrow={unit?.complexName ?? ''}
 	title={unit?.name ?? ''}
-	identity={status}
 	{actions}
 	{fields}
 	collections={[{ value: 'contracts', label: $LL.common.nav.contracts(), content: contracts }]}
