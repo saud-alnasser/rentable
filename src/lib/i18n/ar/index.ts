@@ -545,7 +545,6 @@ const ar = {
 		},
 
 		hooks: {
-			assignUnitsSuccess: 'تمت إضافة الوحدات للعقد بنجاح!',
 			createPaymentSuccess: 'تم إنشاء الدفعة بنجاح!',
 			createSuccess: 'تم إنشاء العقد بنجاح!',
 			deletePaymentSuccess: 'تم حذف الدفعة بنجاح!',
@@ -594,15 +593,13 @@ const ar = {
 			assigned: 'المسندة',
 
 			transferDescription:
-				'انقل الوحدات بين الجانبين ثم احفظ مرة واحدة. الوحدات المرتبطة بعقد تتداخل مدته مع هذا العقد لا تُعرض.',
+				'انقل الوحدة بين الجانبين؛ كل نقل يُحفظ فور حدوثه. الوحدات المرتبطة بعقد تتداخل مدته مع هذا العقد لا تُعرض.',
 
 			lockNoticeHasPayments: 'لا يمكن تعديل الوحدات بعد تسجيل مدفوعات.',
 			lockNoticeTerminated: 'العقد منتهي ولا يمكن تعديل الوحدات.',
 
 			noAssignedUnits: 'لا توجد وحدات مرتبطة.',
-			noAvailableUnits: 'لا توجد وحدات متاحة.',
-
-			assignTitle: 'إسناد وحدات'
+			noAvailableUnits: 'لا توجد وحدات متاحة.'
 		}
 	},
 
