@@ -7,13 +7,26 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { TRPCError } from '@trpc/server';
 
+	/**
+	 * The one surface that asks before something is destroyed, shared by every action that does.
+	 *
+	 * It is built the way _Semantics are secondary_ (62) builds a confirmation: the action names
+	 * the dialog, the record it acts on leads the sentence below, and the destructive control is
+	 * the primary one — solid and high contrast — because a destructive action is primary here
+	 * and nowhere else. Leaving is the tertiary control beside it, and the corner close the
+	 * dialog already carries.
+	 *
+	 * Where something blocks the action there is no destructive control at all. The answer to the
+	 * question is that it cannot be done, not that it might fail, and a control that would be
+	 * refused is not an answer.
+	 */
 	let {
 		open,
 		onOpenChange,
 		onSubmit,
 		record,
 		blockers,
-		title = $LL.common.deleteDialog.title(),
+		title = $LL.common.actions.delete(),
 		description = $LL.common.deleteDialog.description(),
 		confirmLabel = $LL.common.actions.delete(),
 		confirmLoadingLabel = $LL.common.actions.deleting(),
@@ -22,10 +35,10 @@
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
 		onSubmit: () => Promise<void> | void;
-		/** the record being deleted, named as the surface names it. */
+		/** the record being acted on, named as the surface names it. */
 		record?: string;
 		/**
-		 * What depends on the record and stops it being deleted, in the reader's words.
+		 * What depends on the record and stops it being acted on, in the reader's words.
 		 *
 		 * The procedure refuses either way — this is what lets the dialog say so before
 		 * offering anything destructive rather than after the control is pressed. A surface
@@ -33,7 +46,9 @@
 		 * {@link AWAITING_BLOCKERS}.
 		 */
 		blockers?: Blockers;
+		/** What is about to happen, as the dialog's own name. */
 		title?: string;
+		/** What it costs, under the record. Not shown where something blocks the action. */
 		description?: string;
 		confirmLabel?: string;
 		confirmLoadingLabel?: string;
@@ -83,21 +98,24 @@
 		</Dialog.Header>
 
 		<div class="flex flex-col gap-4 px-6 py-5">
-			<div
-				class="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm leading-6 text-muted-foreground"
-			>
-				<!-- the record leads: the question is about this one and no other. -->
-				{#if record}
-					<p class="mb-1 font-medium break-words text-foreground">{record}</p>
-				{/if}
-				{isBlocked ? $LL.common.deleteDialog.blockedDescription() : description}
+			<!-- the record leads, in the reader's own words for it: the question is about this one
+			     and no other. What follows says what the action costs, or what stops it — on its own
+			     line, because both sentences have a subject already and a name set in front of one
+			     reads as that sentence's subject rather than as the record. -->
+			<div class="space-y-1">
+				<p class="text-sm leading-6 font-medium break-words">
+					{record || $LL.common.deleteDialog.unnamedRecord()}
+				</p>
+				<p class="text-sm leading-6 text-muted-foreground">
+					{isBlocked ? $LL.common.deleteDialog.blockedDescription() : description}
+				</p>
 			</div>
 
 			{#if isBlocked}
-				<ul class="flex flex-col gap-1 text-sm text-muted-foreground">
+				<ul class="flex flex-col gap-1 rounded-2xl bg-muted p-4 text-sm text-muted-foreground">
 					{#each confirmation.blocking as blocker (blocker)}
 						<li class="flex items-start gap-2">
-							<span class="mt-2 size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true"
+							<span class="mt-2 size-1.5 shrink-0 rounded-full bg-foreground/40" aria-hidden="true"
 							></span>
 							<span class="min-w-0">{blocker}</span>
 						</li>
@@ -113,23 +131,23 @@
 		</div>
 
 		<Dialog.Footer>
+			<!-- tertiary, because leaving costs nothing and the eye should land on the control that
+			     does. Where the action is blocked it is the only control, and leads. -->
 			<Button
-				variant="outline"
+				variant={isBlocked ? 'default' : 'ghost'}
 				disabled={isSubmitting}
 				onclick={() => onOpenChange(false)}
-				class="w-full sm:w-auto"
+				class="w-full cursor-pointer sm:w-auto"
 			>
 				{isBlocked ? $LL.common.ui.close() : $LL.common.actions.cancel()}
 			</Button>
 
-			<!-- nothing destructive is offered where something blocks the deletion: the answer to
-			     the question is that it cannot be done, not that it might fail. -->
 			{#if !isBlocked}
 				<Button
 					variant={confirmVariant}
 					disabled={!isConfirmable(confirmation.state, isSubmitting)}
 					onclick={submit}
-					class="w-full sm:w-auto"
+					class="w-full cursor-pointer sm:w-auto"
 				>
 					{#if isSubmitting}
 						{confirmLoadingLabel}

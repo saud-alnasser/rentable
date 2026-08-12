@@ -846,13 +846,13 @@ type RootTranslation = {
 			 */
 			blockedUnits: RequiredParams<'count|number'>
 			/**
-			 * a​r​e​ ​y​o​u​ ​s​u​r​e​ ​y​o​u​ ​w​a​n​t​ ​t​o​ ​d​e​l​e​t​e​ ​t​h​i​s​ ​r​e​c​o​r​d​?
+			 * d​e​l​e​t​i​n​g​ ​i​t​ ​c​a​n​n​o​t​ ​b​e​ ​u​n​d​o​n​e​.
 			 */
 			description: string
 			/**
-			 * c​o​n​f​i​r​m​a​t​i​o​n
+			 * t​h​i​s​ ​r​e​c​o​r​d
 			 */
-			title: string
+			unnamedRecord: string
 		}
 	}
 	layout: {
@@ -2759,13 +2759,13 @@ export type TranslationFunctions = {
 			 */
 			blockedUnits: (arg: { count: unknown }) => LocalizedString
 			/**
-			 * are you sure you want to delete this record?
+			 * deleting it cannot be undone.
 			 */
 			description: () => LocalizedString
 			/**
-			 * confirmation
+			 * this record
 			 */
-			title: () => LocalizedString
+			unnamedRecord: () => LocalizedString
 		}
 	}
 	layout: {

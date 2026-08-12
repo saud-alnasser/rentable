@@ -238,8 +238,8 @@ const en = {
 			blockedDescription: 'this cannot be deleted while the following still depend on it.',
 			blockedPayments: '{count|number} payment(s) recorded against it',
 			blockedUnits: '{count|number} unit(s) belong to it',
-			description: 'are you sure you want to delete this record?',
-			title: 'confirmation'
+			description: 'deleting it cannot be undone.',
+			unnamedRecord: 'this record'
 		}
 	},
 	layout: {
