@@ -117,7 +117,7 @@
 		<div
 			bind:this={viewport}
 			bind:clientWidth={viewportWidth}
-			class="app-scroll min-h-0 flex-1 overflow-y-auto pe-1"
+			class="min-h-0 flex-1 overflow-y-auto pe-1"
 		>
 			<div class="relative w-full" style={`height: ${totalHeight}px;`}>
 				{#each virtualRows as virtualRow (virtualRow.key)}

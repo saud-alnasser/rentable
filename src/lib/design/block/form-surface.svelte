@@ -107,7 +107,7 @@
 					{/if}
 				</div>
 
-				<div class="app-scroll min-h-0 flex-1 overflow-y-auto px-5 py-5">
+				<div class="min-h-0 flex-1 overflow-y-auto px-5 py-5">
 					{@render children()}
 				</div>
 

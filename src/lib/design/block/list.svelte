@@ -406,7 +406,7 @@
 			<div
 				bind:this={viewport}
 				bind:clientWidth={viewportWidth}
-				class="app-scroll h-full overflow-y-auto"
+				class="h-full overflow-y-auto"
 				aria-busy={isFetching || undefined}
 			>
 				<div class="relative w-full" style={`height: ${totalHeight}px;`}>

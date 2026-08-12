@@ -306,7 +306,7 @@
 					     a list whose rows are added and taken away one control at a time. The name is a
 					     field rather than text, because the names are what is held and every one a range
 					     produced stays the reader's to correct. -->
-					<ul class="app-scroll flex max-h-64 flex-col gap-2 overflow-y-auto pe-1">
+					<ul class="flex max-h-64 flex-col gap-2 overflow-y-auto pe-1">
 						{#each units as unit (unit.key)}
 							<li
 								class="flex items-center gap-3 rounded-xl bg-muted p-3 transition-colors hover:bg-accent"
