@@ -13,6 +13,7 @@
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import RecordActions from '$lib/design/block/record-actions.svelte';
 	import PaymentForm from './form.svelte';
 
 	let { paymentId }: { paymentId: number } = $props();
@@ -20,6 +21,9 @@
 	const paymentQuery = useFetchPayment(() => paymentId);
 	const deleteMutation = useDeletePayment();
 
+	type PaymentFormValue = Omit<NonNullable<typeof paymentQuery.data>, 'id'> & { id?: number };
+
+	let formOpensOn = $state<PaymentFormValue | undefined>(undefined);
 	let isPaymentFormOpen = $state(false);
 	let isDeleteDialogOpen = $state(false);
 
@@ -76,6 +80,26 @@
 					<Tooltip.Content side="top" sideOffset={8}>{$LL.common.ui.previous()}</Tooltip.Content>
 				</Tooltip.Root>
 
+				<div class="flex flex-wrap items-center justify-end gap-2">
+					<!-- copying is a read, so it stands outside the lock that closes what writes. -->
+					<RecordActions
+						details={[
+							{ label: $LL.common.labels.amount(), value: formatMoney(payment.amount) },
+							{ label: $LL.common.labels.tenant(), value: payment.tenantName ?? '' },
+							{
+								label: $LL.common.labels.contractNumber(),
+								value: payment.contractGovId ?? ''
+							}
+						]}
+						onDuplicate={isTerminated
+							? undefined
+							: () => {
+									formOpensOn = { ...payment, id: undefined };
+									isPaymentFormOpen = true;
+								}}
+					/>
+				</div>
+
 				{#if !isTerminated}
 					<div class="flex flex-wrap items-center justify-end gap-2">
 						<Tooltip.Root>
@@ -87,7 +111,10 @@
 										size="icon-sm"
 										aria-label={$LL.common.actions.edit()}
 										class="rounded-full bg-secondary"
-										onclick={() => (isPaymentFormOpen = true)}
+										onclick={() => {
+											formOpensOn = payment;
+											isPaymentFormOpen = true;
+										}}
 									>
 										<SquarePenIcon class="size-4" />
 										<span class="sr-only">{$LL.common.actions.edit()}</span>
@@ -179,7 +206,7 @@
 
 	<PaymentForm
 		contractId={payment.contractId}
-		value={payment}
+		value={formOpensOn}
 		open={isPaymentFormOpen}
 		onOpenChange={(isOpen) => {
 			isPaymentFormOpen = isOpen;

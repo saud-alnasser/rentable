@@ -118,7 +118,11 @@
 		open,
 		onOpenChange
 	}: {
-		value?: Contract;
+		/**
+		 * the contract being edited, or the details a new one starts from when duplicating —
+		 * which is the same shape without an identity, because everything else transfers.
+		 */
+		value?: Omit<Contract, 'id'> & { id?: number };
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
 	} = $props();
@@ -150,7 +154,7 @@
 		onOpenChange(false);
 	};
 
-	const toFormValue = (contract: Contract): ContractForm => ({
+	const toFormValue = (contract: NonNullable<typeof value>): ContractForm => ({
 		id: contract.id,
 		govId: contract.govId ?? '',
 		tenantId: contract.tenantId.toString(),
@@ -334,7 +338,7 @@
 		isEndDatePickerOpen = false;
 		tenantSearch = '';
 
-		const currentFormKey = value ? `edit:${value.id}` : 'create';
+		const currentFormKey = value ? `edit:${value.id ?? 'duplicate'}` : 'create';
 
 		if (lastHydratedFormKey === currentFormKey) {
 			return;

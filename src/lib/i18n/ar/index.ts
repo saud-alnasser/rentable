@@ -13,6 +13,7 @@ const ar = {
 			checkingForUpdates: 'جاري التحقق من التحديثات...',
 			connect: 'ربط',
 			connecting: 'جارٍ الربط...',
+			copyDetails: 'نسخ التفاصيل',
 			create: 'إنشاء',
 			createBackup: 'إنشاء نسخة احتياطية',
 			creating: 'جاري الإنشاء...',
@@ -22,6 +23,7 @@ const ar = {
 			deleting: 'جاري الحذف...',
 			disconnect: 'فصل',
 			downloadAndInstall: 'تنزيل وتثبيت',
+			duplicate: 'نسخة جديدة',
 			edit: 'تعديل',
 			installingUpdate: 'جاري تثبيت التحديث...',
 			link: 'ربط',
@@ -124,6 +126,8 @@ const ar = {
 		},
 
 		messages: {
+			copied: 'تم النسخ إلى الحافظة',
+			copyFailed: 'لا يوجد ما يمكن نسخه.',
 			loadingApp: 'جاري تحميل التطبيق...',
 			loadingSettings: 'جاري تحميل الإعدادات...',
 			never: 'أبدًا',

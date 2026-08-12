@@ -54,14 +54,15 @@
 		onOpenChange
 	}: {
 		contractId: number;
-		value?: Payment;
+		/** the payment being edited, or the details a new one starts from when duplicating. */
+		value?: Omit<Payment, 'id'> & { id?: number };
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
 	} = $props();
 
 	let dateFormatter = $derived(new DateFormatter(getIntlLocale($locale), { dateStyle: 'medium' }));
 
-	const getInitialForm = (payment?: Payment): PaymentForm =>
+	const getInitialForm = (payment?: typeof value): PaymentForm =>
 		payment
 			? {
 					date: formatDateInput(payment.date),
@@ -73,7 +74,7 @@
 				};
 
 	let paymentDateValue = $state<CalendarDate | undefined>(undefined);
-	let isEditMode = $derived(Boolean(value));
+	let isEditMode = $derived(Boolean(value?.id));
 	let isPending = $derived(createMutation.isPending || updateMutation.isPending);
 
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<PaymentForm>(
@@ -90,7 +91,9 @@
 				};
 
 				try {
-					if (value) {
+					// the identity decides, not the presence of a value: a duplicate arrives with
+					// everything the record had except that.
+					if (value?.id) {
 						await updateMutation.mutateAsync({
 							id: value.id,
 							...payload
