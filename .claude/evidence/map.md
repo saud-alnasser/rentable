@@ -11,6 +11,7 @@ owner: repository
 | [contract-form-interior](prototypes/contract-form-interior.md) | prototypes | — |
 | [contract-queue-group-header](prototypes/contract-queue-group-header.md) | prototypes | — |
 | [dependency-backlog-consolidation](research/dependency-backlog-consolidation.md) | research | — |
+| [directory-row-colour](prototypes/directory-row-colour.md) | prototypes | — |
 | [google-drive-conditional-update](research/google-drive-conditional-update.md) | research | — |
 | [interface-performance-baseline](research/interface-performance-baseline.md) | research | waiting — `.claude/decisions/0008-one-list-block-replaces-both.md` |
 | [prototype-code-cannot-live-where-the-policy-puts-it](drift/prototype-code-cannot-live-where-the-policy-puts-it.md) | drift | waiting — `.claude/policies/evidence.md` |
