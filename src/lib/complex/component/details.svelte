@@ -51,7 +51,7 @@
 	const tabsListClass = 'grid h-auto w-full grid-cols-2';
 	const tabsTriggerClass = 'capitalize';
 
-	let formOpensOn = $state<Partial<NonNullable<typeof complexQuery.data>> | undefined>(undefined);
+	let formOpensOn = $state<NonNullable<typeof complexQuery.data> | undefined>(undefined);
 	let isComplexFormOpen = $state(false);
 	let isDeleteDialogOpen = $state(false);
 
@@ -112,12 +112,6 @@
 							{ label: $LL.common.labels.name(), value: complex.name },
 							{ label: $LL.common.labels.location(), value: complex.location }
 						]}
-						onDuplicate={() => {
-							// the name is a complex's unique field, so the copy starts without it
-							// rather than with a value that cannot be saved.
-							formOpensOn = { ...complex, id: undefined, name: '' };
-							isComplexFormOpen = true;
-						}}
 					/>
 
 					<Tooltip.Root>
