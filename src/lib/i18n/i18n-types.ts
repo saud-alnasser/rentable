@@ -1021,11 +1021,7 @@ type RootTranslation = {
 		 */
 		databaseTitle: string
 		/**
-		 * m​a​n​a​g​e​ ​t​h​e​ ​e​n​d​i​n​g​-​s​o​o​n​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​,​ ​a​p​p​ ​u​p​d​a​t​e​s​,​ ​s​y​n​c​ ​w​o​r​k​s​p​a​c​e​s​,​ ​a​n​d​ ​a​p​p​ ​d​e​t​a​i​l​s​.
-		 */
-		description: string
-		/**
-		 * r​e​n​t​a​b​l​e​ ​r​e​c​o​r​d​s​ ​w​h​a​t​ ​i​t​ ​d​o​e​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​—​ ​s​t​a​r​t​u​p​s​,​ ​m​i​g​r​a​t​i​o​n​s​,​ ​b​a​c​k​u​p​s​,​ ​a​n​d​ ​s​y​n​c​ ​—​ ​s​o​ ​a​ ​f​a​i​l​u​r​e​ ​c​a​n​ ​b​e​ ​l​o​o​k​e​d​ ​i​n​t​o​ ​a​f​t​e​r​w​a​r​d​s​.​ ​t​h​e​ ​f​i​l​e​s​ ​n​e​v​e​r​ ​l​e​a​v​e​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​a​r​e​ ​l​i​m​i​t​e​d​ ​i​n​ ​s​i​z​e​,​ ​a​n​d​ ​p​a​s​s​w​o​r​d​s​ ​a​n​d​ ​a​c​c​o​u​n​t​ ​t​o​k​e​n​s​ ​a​r​e​ ​s​t​r​i​p​p​e​d​ ​o​u​t​ ​b​e​f​o​r​e​ ​a​n​y​t​h​i​n​g​ ​i​s​ ​w​r​i​t​t​e​n​.
+		 * r​e​n​t​a​b​l​e​ ​k​e​e​p​s​ ​a​ ​r​e​c​o​r​d​ ​o​f​ ​w​h​a​t​ ​i​t​ ​d​o​e​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​s​o​ ​a​ ​f​a​i​l​u​r​e​ ​c​a​n​ ​b​e​ ​l​o​o​k​e​d​ ​i​n​t​o​ ​a​f​t​e​r​w​a​r​d​s​.​ ​t​h​e​ ​f​i​l​e​s​ ​n​e​v​e​r​ ​l​e​a​v​e​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​t​h​e​y​ ​a​r​e​ ​l​i​m​i​t​e​d​ ​i​n​ ​s​i​z​e​,​ ​a​n​d​ ​p​a​s​s​w​o​r​d​s​ ​a​n​d​ ​a​c​c​o​u​n​t​ ​t​o​k​e​n​s​ ​a​r​e​ ​r​e​m​o​v​e​d​ ​b​e​f​o​r​e​ ​a​n​y​t​h​i​n​g​ ​i​s​ ​w​r​i​t​t​e​n​.
 		 */
 		diagnosticsDescription: string
 		/**
@@ -1037,23 +1033,19 @@ type RootTranslation = {
 		 */
 		diagnosticsReveal: string
 		/**
-		 * d​i​a​g​n​o​s​t​i​c​s
-		 */
-		diagnosticsTitle: string
-		/**
 		 * d​o​w​n​l​o​a​d​i​n​g​ ​u​p​d​a​t​e
 		 */
 		downloadingUpdate: string
 		/**
-		 * c​h​o​o​s​e​ ​h​o​w​ ​m​a​n​y​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​c​o​n​t​r​a​c​t​ ​e​n​d​ ​a​ ​c​o​n​t​r​a​c​t​ ​s​h​o​u​l​d​ ​a​p​p​e​a​r​ ​a​s​ ​e​n​d​i​n​g​ ​s​o​o​n​ ​o​n​ ​t​h​e​ ​d​a​s​h​b​o​a​r​d​.
+		 * a​ ​c​o​n​t​r​a​c​t​ ​s​t​a​r​t​s​ ​s​h​o​w​i​n​g​ ​a​s​ ​e​n​d​i​n​g​ ​s​o​o​n​ ​o​n​ ​t​h​e​ ​d​a​s​h​b​o​a​r​d​ ​t​h​i​s​ ​m​a​n​y​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​i​t​ ​e​n​d​s​.
 		 */
 		endingSoonDescription: string
 		/**
-		 * e​n​d​i​n​g​ ​s​o​o​n​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o
+		 * t​h​e​ ​n​u​m​b​e​r​ ​o​f​ ​d​a​y​s​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o
 		 */
 		endingSoonInvalid: string
 		/**
-		 * e​n​d​i​n​g​ ​s​o​o​n​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w
+		 * e​n​d​i​n​g​ ​s​o​o​n
 		 */
 		endingSoonTitle: string
 		/**
@@ -1076,10 +1068,6 @@ type RootTranslation = {
 		 * y​o​u​'​r​e​ ​a​l​r​e​a​d​y​ ​o​n​ ​t​h​e​ ​l​a​t​e​s​t​ ​r​e​l​e​a​s​e​.
 		 */
 		latestRelease: string
-		/**
-		 * t​h​e​r​e​ ​w​a​s​ ​a​ ​p​r​o​b​l​e​m​ ​l​o​a​d​i​n​g​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​s​e​t​t​i​n​g​s​ ​s​n​a​p​s​h​o​t​.
-		 */
-		loadErrorDescription: string
 		/**
 		 * s​e​t​t​i​n​g​s​ ​a​r​e​ ​u​n​a​v​a​i​l​a​b​l​e​ ​r​i​g​h​t​ ​n​o​w
 		 */
@@ -1126,11 +1114,11 @@ type RootTranslation = {
 		 */
 		snapshotNow: string
 		/**
-		 * s​n​a​p​s​h​o​t​s​ ​a​r​e​ ​m​a​n​a​g​e​d​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​ ​f​o​r​ ​r​e​c​o​v​e​r​y​,​ ​s​y​n​c​,​ ​a​n​d​ ​u​n​l​i​n​k​ ​c​l​e​a​n​u​p​,​ ​a​n​d​ ​o​l​d​e​r​ ​i​n​t​e​r​n​a​l​ ​s​n​a​p​s​h​o​t​s​ ​a​r​e​ ​c​l​e​a​n​e​d​ ​u​p​ ​f​o​r​ ​y​o​u​.
+		 * r​e​n​t​a​b​l​e​ ​k​e​e​p​s​ ​a​ ​r​e​c​e​n​t​ ​s​n​a​p​s​h​o​t​ ​o​f​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​s​o​ ​i​t​ ​c​a​n​ ​b​e​ ​r​e​c​o​v​e​r​e​d​,​ ​a​n​d​ ​c​l​e​a​r​s​ ​o​u​t​ ​t​h​e​ ​o​l​d​e​r​ ​o​n​e​s​.​ ​t​h​e​r​e​ ​i​s​ ​n​o​t​h​i​n​g​ ​t​o​ ​d​o​ ​h​e​r​e​.
 		 */
 		syncAutomationDescription: string
 		/**
-		 * m​a​n​a​g​e​d​ ​s​n​a​p​s​h​o​t​s
+		 * s​n​a​p​s​h​o​t​s​ ​a​r​e​ ​k​e​p​t​ ​f​o​r​ ​y​o​u
 		 */
 		syncAutomationTitle: string
 		/**
@@ -1229,10 +1217,6 @@ type RootTranslation = {
 		 */
 		syncConflictUseRemoteAction: string
 		/**
-		 * s​e​e​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​w​o​r​k​s​p​a​c​e​ ​s​t​a​t​u​s​,​ ​k​e​e​p​ ​a​ ​f​r​e​s​h​ ​s​n​a​p​s​h​o​t​,​ ​a​n​d​ ​l​i​n​k​ ​o​r​ ​u​n​l​i​n​k​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​y​n​c​.
-		 */
-		syncDescription: string
-		/**
 		 * G​o​o​g​l​e​ ​D​r​i​v​e​ ​a​c​c​o​u​n​t​ ​l​i​n​k​i​n​g​ ​i​s​ ​n​o​t​ ​c​o​n​f​i​g​u​r​e​d​ ​i​n​ ​t​h​i​s​ ​b​u​i​l​d​ ​y​e​t​.​ ​T​h​e​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​s​n​a​p​s​h​o​t​ ​f​o​u​n​d​a​t​i​o​n​ ​i​s​ ​r​e​a​d​y​ ​f​o​r​ ​i​t​.
 		 */
 		syncGoogleDrivePending: string
@@ -1276,7 +1260,7 @@ type RootTranslation = {
 		 */
 		syncLastSnapshotDescription: RequiredParams<'value'>
 		/**
-		 * l​i​n​k​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​t​o​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​t​o​ ​e​n​a​b​l​e​ ​s​t​a​r​t​u​p​ ​s​y​n​c​ ​a​n​d​ ​r​e​m​o​t​e​ ​r​e​c​o​v​e​r​y​.​ ​i​f​ ​b​o​t​h​ ​l​o​c​a​l​ ​a​n​d​ ​r​e​m​o​t​e​ ​s​n​a​p​s​h​o​t​s​ ​e​x​i​s​t​,​ ​y​o​u​ ​w​i​l​l​ ​c​h​o​o​s​e​ ​w​h​i​c​h​ ​o​n​e​ ​t​o​ ​k​e​e​p​.
+		 * l​i​n​k​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​o​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​s​y​n​c​s​ ​w​h​e​n​ ​t​h​e​ ​a​p​p​ ​s​t​a​r​t​s​,​ ​a​n​d​ ​c​a​n​ ​b​e​ ​r​e​c​o​v​e​r​e​d​ ​i​f​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​l​o​s​t​.​ ​i​f​ ​b​o​t​h​ ​s​i​d​e​s​ ​a​l​r​e​a​d​y​ ​h​o​l​d​ ​a​ ​c​o​p​y​,​ ​y​o​u​ ​c​h​o​o​s​e​ ​w​h​i​c​h​ ​o​n​e​ ​t​o​ ​k​e​e​p​.
 		 */
 		syncLinkDescription: string
 		/**
@@ -1361,7 +1345,7 @@ type RootTranslation = {
 		 */
 		syncRemoteSnapshotUnavailableDescription: string
 		/**
-		 * u​n​l​i​n​k​ ​k​e​e​p​s​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​l​o​c​a​l​,​ ​c​r​e​a​t​e​s​ ​o​n​e​ ​f​r​e​s​h​ ​l​o​c​a​l​ ​s​n​a​p​s​h​o​t​,​ ​a​n​d​ ​s​t​o​p​s​ ​f​u​t​u​r​e​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​y​n​c​s​ ​u​n​t​i​l​ ​y​o​u​ ​l​i​n​k​ ​a​g​a​i​n​.
+		 * u​n​l​i​n​k​i​n​g​ ​k​e​e​p​s​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​s​t​o​p​s​ ​i​t​ ​s​y​n​c​i​n​g​ ​t​o​ ​G​o​o​g​l​e​ ​D​r​i​v​e​.​ ​y​o​u​ ​c​a​n​ ​l​i​n​k​ ​i​t​ ​a​g​a​i​n​ ​l​a​t​e​r​.
 		 */
 		syncUnlinkDescription: string
 		/**
@@ -1381,11 +1365,7 @@ type RootTranslation = {
 		 */
 		syncWorkspaceStatusSynced: string
 		/**
-		 * w​o​r​k​s​p​a​c​e
-		 */
-		syncTitle: string
-		/**
-		 * c​h​o​o​s​e​ ​y​o​u​r​ ​p​r​e​f​e​r​r​e​d​ ​d​i​s​p​l​a​y​ ​l​a​n​g​u​a​g​e​.​ ​t​h​e​ ​i​n​t​e​r​f​a​c​e​ ​u​p​d​a​t​e​s​ ​i​m​m​e​d​i​a​t​e​l​y​.
+		 * t​h​e​ ​i​n​t​e​r​f​a​c​e​ ​c​h​a​n​g​e​s​ ​a​s​ ​s​o​o​n​ ​a​s​ ​y​o​u​ ​p​i​c​k​ ​o​n​e​.
 		 */
 		localeDescription: string
 		/**
@@ -1405,13 +1385,9 @@ type RootTranslation = {
 		 */
 		updatesChecking: string
 		/**
-		 * c​h​e​c​k​ ​g​i​t​h​u​b​ ​r​e​l​e​a​s​e​s​ ​f​o​r​ ​a​ ​n​e​w​e​r​ ​s​i​g​n​e​d​ ​b​u​i​l​d​.​ ​i​f​ ​s​t​a​r​t​u​p​ ​l​a​t​e​r​ ​f​a​i​l​s​ ​a​f​t​e​r​ ​a​n​ ​u​p​d​a​t​e​,​ ​r​e​n​t​a​b​l​e​ ​o​f​f​e​r​s​ ​r​o​l​l​b​a​c​k​ ​t​o​ ​t​h​e​ ​p​r​o​t​e​c​t​e​d​ ​p​r​e​-​u​p​d​a​t​e​ ​b​a​c​k​u​p​.
+		 * c​h​e​c​k​ ​w​h​e​t​h​e​r​ ​a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​i​s​ ​a​v​a​i​l​a​b​l​e​,​ ​a​n​d​ ​i​n​s​t​a​l​l​ ​i​t​.​ ​i​f​ ​t​h​e​ ​a​p​p​ ​w​i​l​l​ ​n​o​t​ ​s​t​a​r​t​ ​a​f​t​e​r​w​a​r​d​s​,​ ​i​t​ ​o​f​f​e​r​s​ ​t​o​ ​p​u​t​ ​b​a​c​k​ ​t​h​e​ ​v​e​r​s​i​o​n​ ​y​o​u​ ​w​e​r​e​ ​o​n​.
 		 */
 		updatesDescription: string
-		/**
-		 * a​p​p​ ​u​p​d​a​t​e​s
-		 */
-		updatesTitle: string
 		/**
 		 * t​h​e​ ​a​p​p​ ​i​s​ ​c​u​r​r​e​n​t​l​y​ ​u​s​i​n​g​ ​a​ ​c​u​s​t​o​m​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h​ ​o​v​e​r​r​i​d​e​.
 		 */
@@ -2915,11 +2891,7 @@ export type TranslationFunctions = {
 		 */
 		databaseTitle: () => LocalizedString
 		/**
-		 * manage the ending-soon notice window, app updates, sync workspaces, and app details.
-		 */
-		description: () => LocalizedString
-		/**
-		 * rentable records what it does on this machine — startups, migrations, backups, and sync — so a failure can be looked into afterwards. the files never leave this machine and are limited in size, and passwords and account tokens are stripped out before anything is written.
+		 * rentable keeps a record of what it does on this machine, so a failure can be looked into afterwards. the files never leave this machine, they are limited in size, and passwords and account tokens are removed before anything is written.
 		 */
 		diagnosticsDescription: () => LocalizedString
 		/**
@@ -2931,23 +2903,19 @@ export type TranslationFunctions = {
 		 */
 		diagnosticsReveal: () => LocalizedString
 		/**
-		 * diagnostics
-		 */
-		diagnosticsTitle: () => LocalizedString
-		/**
 		 * downloading update
 		 */
 		downloadingUpdate: () => LocalizedString
 		/**
-		 * choose how many days before contract end a contract should appear as ending soon on the dashboard.
+		 * a contract starts showing as ending soon on the dashboard this many days before it ends.
 		 */
 		endingSoonDescription: () => LocalizedString
 		/**
-		 * ending soon notice window must be greater than zero
+		 * the number of days must be greater than zero
 		 */
 		endingSoonInvalid: () => LocalizedString
 		/**
-		 * ending soon notice window
+		 * ending soon
 		 */
 		endingSoonTitle: () => LocalizedString
 		/**
@@ -2970,10 +2938,6 @@ export type TranslationFunctions = {
 		 * you're already on the latest release.
 		 */
 		latestRelease: () => LocalizedString
-		/**
-		 * there was a problem loading the current settings snapshot.
-		 */
-		loadErrorDescription: () => LocalizedString
 		/**
 		 * settings are unavailable right now
 		 */
@@ -3019,11 +2983,11 @@ export type TranslationFunctions = {
 		 */
 		snapshotNow: () => LocalizedString
 		/**
-		 * snapshots are managed automatically for recovery, sync, and unlink cleanup, and older internal snapshots are cleaned up for you.
+		 * rentable keeps a recent snapshot of this workspace so it can be recovered, and clears out the older ones. there is nothing to do here.
 		 */
 		syncAutomationDescription: () => LocalizedString
 		/**
-		 * managed snapshots
+		 * snapshots are kept for you
 		 */
 		syncAutomationTitle: () => LocalizedString
 		/**
@@ -3119,10 +3083,6 @@ export type TranslationFunctions = {
 		 */
 		syncConflictUseRemoteAction: () => LocalizedString
 		/**
-		 * see the current workspace status, keep a fresh snapshot, and link or unlink Google Drive sync.
-		 */
-		syncDescription: () => LocalizedString
-		/**
 		 * Google Drive account linking is not configured in this build yet. The workspace and snapshot foundation is ready for it.
 		 */
 		syncGoogleDrivePending: () => LocalizedString
@@ -3163,7 +3123,7 @@ export type TranslationFunctions = {
 		 */
 		syncLastSnapshotDescription: (arg: { value: unknown }) => LocalizedString
 		/**
-		 * link Google Drive to this workspace to enable startup sync and remote recovery. if both local and remote snapshots exist, you will choose which one to keep.
+		 * link Google Drive so this workspace syncs when the app starts, and can be recovered if this machine is lost. if both sides already hold a copy, you choose which one to keep.
 		 */
 		syncLinkDescription: () => LocalizedString
 		/**
@@ -3247,7 +3207,7 @@ export type TranslationFunctions = {
 		 */
 		syncRemoteSnapshotUnavailableDescription: () => LocalizedString
 		/**
-		 * unlink keeps this workspace local, creates one fresh local snapshot, and stops future Google Drive syncs until you link again.
+		 * unlinking keeps this workspace on this machine and stops it syncing to Google Drive. you can link it again later.
 		 */
 		syncUnlinkDescription: () => LocalizedString
 		/**
@@ -3267,11 +3227,7 @@ export type TranslationFunctions = {
 		 */
 		syncWorkspaceStatusSynced: () => LocalizedString
 		/**
-		 * workspace
-		 */
-		syncTitle: () => LocalizedString
-		/**
-		 * choose your preferred display language. the interface updates immediately.
+		 * the interface changes as soon as you pick one.
 		 */
 		localeDescription: () => LocalizedString
 		/**
@@ -3291,13 +3247,9 @@ export type TranslationFunctions = {
 		 */
 		updatesChecking: () => LocalizedString
 		/**
-		 * check github releases for a newer signed build. if startup later fails after an update, rentable offers rollback to the protected pre-update backup.
+		 * check whether a newer version of rentable is available, and install it. if the app will not start afterwards, it offers to put back the version you were on.
 		 */
 		updatesDescription: () => LocalizedString
-		/**
-		 * app updates
-		 */
-		updatesTitle: () => LocalizedString
 		/**
 		 * the app is currently using a custom database path override.
 		 */

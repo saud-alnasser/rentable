@@ -72,10 +72,10 @@
 		</div>
 	</div>
 {:else if loadError}
-	<StandaloneSurface
-		title={$LL.settings.loadErrorTitle()}
-		description={$LL.settings.loadErrorDescription()}
-	>
+	<!-- no description between the title and the failure: the title says the settings are not
+	     available and the line below says why, so a sentence in between only says it a third
+	     time in weaker words. -->
+	<StandaloneSurface title={$LL.settings.loadErrorTitle()}>
 		<p class="text-sm text-muted-foreground">{toErrorText(loadError, $LL)}</p>
 
 		{#snippet actions()}
@@ -93,10 +93,9 @@
 	<!-- one column of rows in four groups, and no tile strip: every figure the strip carried
 	     was stated again by the section that owns it, so the strip only ever said things twice. -->
 	<PageFrame>
-		<div class="flex flex-col gap-1">
-			<h1 class="text-3xl font-semibold tracking-tight">{$LL.settings.title()}</h1>
-			<p class="text-sm text-muted-foreground">{$LL.settings.description()}</p>
-		</div>
+		<!-- the title alone: the sentence under it listed the four groups whose own legends are
+		     directly below, so the page opened by naming its contents twice. -->
+		<h1 class="text-3xl font-semibold tracking-tight">{$LL.settings.title()}</h1>
 
 		<Field.Group>
 			<Field.Set>

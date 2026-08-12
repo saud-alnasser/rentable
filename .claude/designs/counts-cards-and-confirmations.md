@@ -320,5 +320,14 @@ implementation vocabulary in about half its entries — *reruns migrations on th
 path*, *unlink cleanup*, *the latest synchronization and snapshot timestamps* — beside entries
 that are already plain. Each title and description is rewritten to say what the setting does for
 the reader and what changes if they touch it, in both locales, keeping the lower-case register
-the application already uses. No setting changes behaviour, and no key is added or removed except
-the three the confirmation ticket already retires.
+the application already uses. No setting changes behaviour.
+
+**A title or description that says nothing is removed rather than rewritten**, which this section
+originally forbade — the user's instruction was that some entries are duplicated or should not be
+there at all, and _Separate visual hierarchy from document hierarchy_ (54) is the reference's own
+answer to it: a section title is a label rather than a heading, and where the content speaks for
+itself the title can go entirely. Three group legends had a single row under them repeating the
+legend word for word, the page opened by listing the four groups whose legends sit directly below
+it, and the settings failure stated itself between a title and the error text that followed. Those
+six entries come out. **The dead copy already in the settings namespace is not this ticket's** —
+about a third of it has no reader at all, which is a finding of its own rather than a rewrite.

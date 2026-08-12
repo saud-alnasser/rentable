@@ -179,7 +179,8 @@
 <div class="space-y-4">
 	<Field.Field orientation="responsive">
 		<Field.Content>
-			<Field.Label>{$LL.settings.updatesTitle()}</Field.Label>
+			<!-- no title of its own: the group above is already called updates, and a row title
+			     repeating its own section is the label the section had already given it. -->
 			<Field.Description>{$LL.settings.updatesDescription()}</Field.Description>
 			<!-- the version lives here and nowhere else on the page: the strip above used to
 			     state it a second time, beside the section that owns it. -->

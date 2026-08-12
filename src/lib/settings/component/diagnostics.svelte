@@ -14,7 +14,8 @@
 
 <Field.Field orientation="responsive">
 	<Field.Content>
-		<Field.Label>{$LL.settings.diagnosticsTitle()}</Field.Label>
+		<!-- no title of its own: the group above is already called diagnostics, and this row was
+		     repeating it word for word. -->
 		<Field.Description>{$LL.settings.diagnosticsDescription()}</Field.Description>
 		<!-- the path is the machine's, not the reader's language: isolating it keeps an ltr
 		     path from reordering the arabic around it -->
