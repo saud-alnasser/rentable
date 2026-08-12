@@ -3,14 +3,23 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type api from '$lib/api/caller';
-	import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
-	import { useListComplexes } from '$lib/complex/query';
+	import {
+		COMPLEX_SORT_COLUMN_IDS,
+		isComplexDeletable,
+		type ComplexSortColumnId
+	} from '$lib/complex/complex';
+	import { useDeleteComplex, useFetchUnits, useListComplexes } from '$lib/complex/query';
+	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
+	import RecordCardMenu, { type RecordCardAction } from '$lib/design/block/record-card-menu.svelte';
 	import * as Cell from '$lib/design/cell';
+	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import { hasCreateIntent } from '$lib/design/create-intent';
 	import type { ListSort } from '$lib/design/sort';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleNumber } from '$lib/platform/locale';
+	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import CircleDashedIcon from '@tabler/icons-svelte/icons/circle-dashed';
 	import CircleFilledIcon from '@tabler/icons-svelte/icons/circle-filled';
 	import LayoutGridIcon from '@tabler/icons-svelte/icons/layout-grid';
@@ -27,12 +36,71 @@
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
 	let isComplexFormOpen = $state(false);
+	let formOpensOn = $state<ComplexRecord | undefined>(undefined);
+	// the one record a card's menu is acting on, which is what makes a single confirmation and a
+	// single read of what blocks it enough for a whole directory.
+	let deleteOpensOn = $state<ComplexRecord | null>(null);
 
 	const complexesQuery = useListComplexes(
 		() => search,
 		() => sort
 	);
 	const complexes = $derived(complexesQuery.data ?? []);
+	const deleteMutation = useDeleteComplex();
+
+	// what a deletion would be refused for, read for the record being acted on and only while it
+	// is being acted on. The row carries a unit count, and the rule is the domain's to apply —
+	// judging it on the figure here would state the same rule a second time, outside the module
+	// that owns it.
+	const heldUnitsQuery = useFetchUnits(
+		() => deleteOpensOn?.id ?? 0,
+		() => deleteOpensOn !== null
+	);
+	const deleteBlockers = $derived.by(() => {
+		if (!deleteOpensOn) {
+			return [];
+		}
+
+		if (heldUnitsQuery.isPending) {
+			return AWAITING_BLOCKERS;
+		}
+
+		const held = heldUnitsQuery.data ?? [];
+
+		return isComplexDeletable(held)
+			? []
+			: [$LL.common.deleteDialog.blockedUnits({ count: held.length })];
+	});
+
+	// what the record's own page offers, minus opening it. No duplicate: a complex is its name and
+	// its location, both unique to it, so the copy would carry nothing.
+	const cardActions = (complex: ComplexRecord): RecordCardAction[] => [
+		{
+			label: $LL.common.actions.edit(),
+			icon: SquarePenIcon,
+			onSelect: () => {
+				formOpensOn = complex;
+				isComplexFormOpen = true;
+			}
+		},
+		{
+			label: $LL.common.actions.delete(),
+			icon: Trash2Icon,
+			variant: 'destructive',
+			onSelect: () => {
+				deleteOpensOn = complex;
+			}
+		}
+	];
+
+	async function deleteComplex() {
+		if (!deleteOpensOn) {
+			return;
+		}
+
+		await deleteMutation.mutateAsync(deleteOpensOn.id);
+		deleteOpensOn = null;
+	}
 
 	// built from the ids the procedure orders by, so the control cannot come to offer a key
 	// the query would reject. The record type is what makes a missing label a type error.
@@ -54,6 +122,7 @@
 			return;
 		}
 
+		formOpensOn = undefined;
 		isComplexFormOpen = true;
 		void goto(resolve('/complexes'), { replaceState: true, noScroll: true, keepFocus: true });
 	});
@@ -90,6 +159,7 @@
 		]
 	}}
 	onCreate={() => {
+		formOpensOn = undefined;
 		isComplexFormOpen = true;
 	}}
 >
@@ -97,34 +167,39 @@
 		<!-- occupancy is not on the query: a unit is occupied or vacant, so the third figure is
 		     the other two. -->
 		{@const occupiedUnitCount = complex.unitCount - complex.vacantUnitCount}
-		<a
-			href={resolve(`/complexes/${complex.id}`)}
-			class={cn('flex h-full items-center gap-4 px-4 hover:bg-muted/40', recordCard)}
-		>
-			<span class="flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-				<span class="truncate text-sm font-medium">{complex.name}</span>
-				<span class="truncate text-xs text-muted-foreground">{complex.location}</span>
-			</span>
+		<RecordCardMenu actions={cardActions(complex)}>
+			{#snippet card(trigger)}
+				<a
+					{...trigger}
+					href={resolve(`/complexes/${complex.id}`)}
+					class={cn('flex h-full items-center gap-4 px-4 hover:bg-muted/40', recordCard)}
+				>
+					<span class="flex min-w-0 flex-1 flex-col gap-0.5 text-start">
+						<span class="truncate text-sm font-medium">{complex.name}</span>
+						<span class="truncate text-xs text-muted-foreground">{complex.location}</span>
+					</span>
 
-			<Cell.Count
-				icon={LayoutGridIcon}
-				count={complex.unitCount}
-				label={$LL.common.labels.units()}
-			/>
+					<Cell.Count
+						icon={LayoutGridIcon}
+						count={complex.unitCount}
+						label={$LL.common.labels.units()}
+					/>
 
-			<Cell.Count
-				icon={CircleFilledIcon}
-				count={occupiedUnitCount}
-				label={$LL.common.labels.occupiedUnits()}
-				tone={occupiedUnitCount > 0 ? 'running' : 'settled'}
-			/>
+					<Cell.Count
+						icon={CircleFilledIcon}
+						count={occupiedUnitCount}
+						label={$LL.common.labels.occupiedUnits()}
+						tone={occupiedUnitCount > 0 ? 'running' : 'settled'}
+					/>
 
-			<Cell.Count
-				icon={CircleDashedIcon}
-				count={complex.vacantUnitCount}
-				label={$LL.common.labels.vacantUnits()}
-			/>
-		</a>
+					<Cell.Count
+						icon={CircleDashedIcon}
+						count={complex.vacantUnitCount}
+						label={$LL.common.labels.vacantUnits()}
+					/>
+				</a>
+			{/snippet}
+		</RecordCardMenu>
 	{/snippet}
 </List>
 
@@ -133,5 +208,17 @@
 	onOpenChange={(isOpen) => {
 		isComplexFormOpen = isOpen;
 	}}
-	value={undefined}
+	value={formOpensOn}
+/>
+
+<DeleteDialog
+	open={deleteOpensOn !== null}
+	onOpenChange={(isOpen) => {
+		if (!isOpen) {
+			deleteOpensOn = null;
+		}
+	}}
+	record={deleteOpensOn?.name}
+	blockers={deleteBlockers}
+	onSubmit={deleteComplex}
 />

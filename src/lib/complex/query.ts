@@ -145,12 +145,13 @@ export function useFetchUnit(id: () => number) {
 	});
 }
 
-export function useFetchUnits(complexId: () => number) {
+export function useFetchUnits(complexId: () => number, enabled: () => boolean = () => true) {
 	return createQuery(() => {
 		const id = complexId();
 
 		return {
 			queryKey: keys.units.getMany(id),
+			enabled: enabled(),
 			queryFn: () => api.complex.units.getMany({ complexId: id })
 		};
 	});
