@@ -846,7 +846,7 @@ type RootTranslation = {
 			 */
 			blockedUnits: RequiredParams<'count|number'>
 			/**
-			 * d​e​l​e​t​i​n​g​ ​i​t​ ​c​a​n​n​o​t​ ​b​e​ ​u​n​d​o​n​e​.
+			 * y​o​u​ ​c​a​n​ ​u​n​d​o​ ​t​h​i​s​ ​w​h​i​l​e​ ​t​h​e​ ​a​p​p​ ​i​s​ ​o​p​e​n​.
 			 */
 			description: string
 			/**
@@ -1020,19 +1020,6 @@ type RootTranslation = {
 		 * d​a​t​a​b​a​s​e​ ​p​a​t​h​ ​a​n​d​ ​b​a​c​k​u​p​s
 		 */
 		databaseTitle: string
-		/**
-		 * a​r​e​ ​y​o​u​ ​s​u​r​e​ ​y​o​u​ ​w​a​n​t​ ​t​o​ ​d​e​l​e​t​e​ ​t​h​i​s​ ​b​a​c​k​u​p​?​ ​t​h​i​s​ ​c​a​n​n​o​t​ ​b​e​ ​u​n​d​o​n​e​.
-		 */
-		deleteBackupDescription: string
-		/**
-		 * a​r​e​ ​y​o​u​ ​s​u​r​e​ ​y​o​u​ ​w​a​n​t​ ​t​o​ ​d​e​l​e​t​e​ ​"​{​n​a​m​e​}​"​?​ ​t​h​i​s​ ​c​a​n​n​o​t​ ​b​e​ ​u​n​d​o​n​e​.
-		 * @param {unknown} name
-		 */
-		deleteBackupNamedDescription: RequiredParams<'name'>
-		/**
-		 * d​e​l​e​t​e​ ​b​a​c​k​u​p
-		 */
-		deleteBackupTitle: string
 		/**
 		 * m​a​n​a​g​e​ ​t​h​e​ ​e​n​d​i​n​g​-​s​o​o​n​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​,​ ​a​p​p​ ​u​p​d​a​t​e​s​,​ ​s​y​n​c​ ​w​o​r​k​s​p​a​c​e​s​,​ ​a​n​d​ ​a​p​p​ ​d​e​t​a​i​l​s​.
 		 */
@@ -2759,7 +2746,7 @@ export type TranslationFunctions = {
 			 */
 			blockedUnits: (arg: { count: unknown }) => LocalizedString
 			/**
-			 * deleting it cannot be undone.
+			 * you can undo this while the app is open.
 			 */
 			description: () => LocalizedString
 			/**
@@ -2927,18 +2914,6 @@ export type TranslationFunctions = {
 		 * database path and backups
 		 */
 		databaseTitle: () => LocalizedString
-		/**
-		 * are you sure you want to delete this backup? this cannot be undone.
-		 */
-		deleteBackupDescription: () => LocalizedString
-		/**
-		 * are you sure you want to delete "{name}"? this cannot be undone.
-		 */
-		deleteBackupNamedDescription: (arg: { name: unknown }) => LocalizedString
-		/**
-		 * delete backup
-		 */
-		deleteBackupTitle: () => LocalizedString
 		/**
 		 * manage the ending-soon notice window, app updates, sync workspaces, and app details.
 		 */
