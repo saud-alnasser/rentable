@@ -57,12 +57,16 @@ export function useFetchPayment(id: () => number) {
 	});
 }
 
-export function useFetchContractPayments(contractId: () => number) {
+export function useFetchContractPayments(
+	contractId: () => number,
+	enabled: () => boolean = () => true
+) {
 	return createQuery(() => {
 		const id = contractId();
 
 		return {
 			queryKey: keys.getMany(id),
+			enabled: enabled(),
 			queryFn: () => api.contract.payments.getMany({ contractId: id })
 		};
 	});
