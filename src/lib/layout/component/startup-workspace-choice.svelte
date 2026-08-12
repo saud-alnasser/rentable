@@ -10,7 +10,6 @@
 	import { Button } from '$lib/design/primitive/button';
 	import { Callout } from '$lib/design/primitive/callout';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
-	import { getConflictPresentation } from '$lib/sync/conflict';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import GoogleDriveLinkConflictPanel from '$lib/sync/component/conflict-panel.svelte';
@@ -48,12 +47,6 @@
 		onCancelLinkConflict: () => void;
 	} = $props();
 
-	// the same table the conflict panel reads. This header used to resolve two of the four
-	// kinds a seventh time, in a nested ternary, and the two copies had already drifted.
-	const conflictPresentation = $derived(
-		linkConflict ? getConflictPresentation(linkConflict, $LL) : undefined
-	);
-
 	const activeWorkspace = $derived.by(() => syncState.workspace);
 	const activeAccount = $derived.by(() =>
 		activeWorkspace.accountId
@@ -89,10 +82,13 @@
 	}
 </script>
 
+<!-- the screen keeps its own question whether or not a conflict is present: the conflict's title
+     and description belong to the panel below, which is where the answer is. Reading them here
+     as well meant a reader stopped at startup met the same two sentences twice. -->
 <StandaloneSurface
 	class="max-w-2xl"
-	title={conflictPresentation?.title ?? $LL.layout.startup.accountChoiceTitle()}
-	description={conflictPresentation?.description ?? $LL.layout.startup.accountChoiceDescription()}
+	title={$LL.layout.startup.accountChoiceTitle()}
+	description={$LL.layout.startup.accountChoiceDescription()}
 >
 	<div class="space-y-4">
 		{#if activeWorkspace}
