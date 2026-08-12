@@ -281,18 +281,17 @@ const en = {
 			title: 'nothing needs doing today.'
 		},
 
-		queue: {
-			alsoEnding: 'also ending',
+		figures: {
 			collectedThisMonth: 'collected this month',
-			groupCount: '{count|number} contract(s)',
-			groups: {
-				endingSoon: 'ending soon',
-				overdue: 'overdue',
-				owing: 'owing'
-			},
-			occupancy: '{occupied} / {total}',
 			occupiedUnits: 'occupied units',
-			openContract: 'open the contract for {tenant}'
+			outstanding: 'outstanding'
+		},
+
+		sections: {
+			alsoEnding: 'also ending',
+			contractCount: '{count|number} contract(s)',
+			openContract: 'open the contract for {tenant}',
+			seeAll: 'see all ({count|number})'
 		},
 
 		title: 'dashboard'
@@ -584,6 +583,12 @@ const en = {
 			title: 'payments',
 			titleFor: 'payments for {govId}',
 			trackSummary: 'track contract payments and add new payment records here.'
+		},
+
+		ranks: {
+			endingSoon: 'ending soon',
+			overdue: 'overdue',
+			owing: 'owing'
 		},
 
 		table: {

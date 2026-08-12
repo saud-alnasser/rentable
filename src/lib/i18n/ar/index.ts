@@ -277,18 +277,17 @@ const ar = {
 			title: 'لا شيء يحتاج إلى إجراء اليوم.'
 		},
 
-		queue: {
-			alsoEnding: 'ينتهي أيضاً',
+		figures: {
 			collectedThisMonth: 'المحصل هذا الشهر',
-			groupCount: '{count|number} عقد',
-			groups: {
-				endingSoon: 'قريب الانتهاء',
-				overdue: 'متأخر',
-				owing: 'مستحق'
-			},
-			occupancy: '{occupied} / {total}',
 			occupiedUnits: 'الوحدات المشغولة',
-			openContract: 'افتح عقد {tenant}'
+			outstanding: 'المستحق'
+		},
+
+		sections: {
+			alsoEnding: 'ينتهي أيضاً',
+			contractCount: '{count|number} عقد',
+			openContract: 'افتح عقد {tenant}',
+			seeAll: 'عرض الكل ({count|number})'
 		},
 
 		title: 'لوحة التحكم'
@@ -576,6 +575,12 @@ const ar = {
 			title: 'المدفوعات',
 			titleFor: 'مدفوعات {govId}',
 			trackSummary: 'تتبع المدفوعات وإضافة دفعات جديدة.'
+		},
+
+		ranks: {
+			endingSoon: 'قريب الانتهاء',
+			overdue: 'متأخر',
+			owing: 'مستحق'
 		},
 
 		table: {

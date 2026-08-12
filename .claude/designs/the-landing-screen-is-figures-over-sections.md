@@ -1,10 +1,11 @@
 ---
 owner: repository
-status: accepted
+status: implemented
 sources:
   - src/lib/dashboard/dashboard.ts
   - src/lib/dashboard/router.ts
-  - src/lib/dashboard/component/queue.svelte
+  - src/lib/dashboard/component/landing.svelte
+  - src/lib/dashboard/component/section.svelte
   - src/lib/contract/router.ts
   - src/lib/contract/component/directory.svelte
   - src/lib/design/cell/fulfillment.svelte
