@@ -237,7 +237,7 @@ const ar = {
 			blockedDescription: 'لا يمكن الحذف ما دامت العناصر التالية مرتبطة به.',
 			blockedPayments: '{count|number} دفعة مسجلة عليه',
 			blockedUnits: '{count|number} وحدة تابعة له',
-			description: 'لا يمكن التراجع عن الحذف.',
+			description: 'يمكنك التراجع عن هذا ما دام التطبيق مفتوحًا.',
 			unnamedRecord: 'هذا السجل'
 		}
 	},
@@ -306,10 +306,6 @@ const ar = {
 		databaseDescription:
 			'بدّل قاعدة البيانات النشطة، أو ارجع إلى المسار الافتراضي، أو أنشئ نسخاً احتياطية، أو استعد نسخاً سابقة.',
 		databaseTitle: 'مسار قاعدة البيانات والنسخ الاحتياطية',
-
-		deleteBackupDescription: 'هل أنت متأكد أنك تريد حذف هذه النسخة؟ لا يمكن التراجع.',
-		deleteBackupNamedDescription: 'هل أنت متأكد أنك تريد حذف "{name}"؟ لا يمكن التراجع.',
-		deleteBackupTitle: 'حذف نسخة احتياطية',
 
 		description:
 			'أدر فترة الإشعار قبل الانتهاء، وتحديثات التطبيق، وملفات عمل المزامنة، ومعلومات التطبيق.',

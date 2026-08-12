@@ -238,7 +238,7 @@ const en = {
 			blockedDescription: 'this cannot be deleted while the following still depend on it.',
 			blockedPayments: '{count|number} payment(s) recorded against it',
 			blockedUnits: '{count|number} unit(s) belong to it',
-			description: 'deleting it cannot be undone.',
+			description: 'you can undo this while the app is open.',
 			unnamedRecord: 'this record'
 		}
 	},
@@ -310,11 +310,6 @@ const en = {
 		databaseDescription:
 			'switch the active database, fall back to the default path, create backups, and restore earlier backups.',
 		databaseTitle: 'database path and backups',
-
-		deleteBackupDescription: 'are you sure you want to delete this backup? this cannot be undone.',
-		deleteBackupNamedDescription:
-			'are you sure you want to delete "{name}"? this cannot be undone.',
-		deleteBackupTitle: 'delete backup',
 
 		description:
 			'manage the ending-soon notice window, app updates, sync workspaces, and app details.',
