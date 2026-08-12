@@ -37,6 +37,7 @@
 		useUnlinkGoogleDriveWorkspace,
 		type SyncGoogleDriveWorkspaceResult
 	} from '$lib/settings/query';
+	import ConflictDismiss from '$lib/sync/component/conflict-dismiss.svelte';
 	import GoogleDriveLinkConflictPanel from '$lib/sync/component/conflict-panel.svelte';
 	import { LinkSession } from '$lib/sync/link-session.svelte';
 	import { workspaceConflictSignature } from '$lib/sync/pending-conflict';
@@ -406,6 +407,19 @@
 
 	{#if activeWorkspace}
 		<div class={cn(settingsInsetPanelClass, 'space-y-4')}>
+			<!-- abandoning a half-finished link leaves this panel, not the conflict card inside it,
+			     so it is this card's corner control. Only a link in progress can be abandoned —
+			     the other three kinds describe a workspace that is already diverged. -->
+			{#if linkConflict?.kind === 'link'}
+				<div class="flex justify-end">
+					<ConflictDismiss
+						label={$LL.common.actions.cancel()}
+						disabled={isGoogleDriveBusy}
+						onDismiss={() => void cancelPendingGoogleDriveLink()}
+					/>
+				</div>
+			{/if}
+
 			<div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
 				<div class="min-w-0 flex-1 space-y-4 text-start">
 					<div class="flex min-w-0 items-start gap-3 rtl:flex-row-reverse">
@@ -527,8 +541,6 @@
 				<GoogleDriveLinkConflictPanel
 					conflict={linkConflict}
 					isWorking={isGoogleDriveBusy}
-					showCancel={linkConflict.kind === 'link'}
-					onCancel={() => void cancelPendingGoogleDriveLink()}
 					onKeepLocal={() => void resolvePendingGoogleDriveLink('local')}
 					onUseRemote={() => void resolvePendingGoogleDriveLink('remote')}
 					onRelink={() => void relinkBrokenGoogleDrive()}
