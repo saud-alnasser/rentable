@@ -1483,6 +1483,19 @@ type RootTranslation = {
 			 * u​n​i​t​ ​n​a​m​e
 			 */
 			unitName: string
+			/**
+			 * t​h​e​ ​l​a​s​t​ ​n​u​m​b​e​r​ ​m​u​s​t​ ​n​o​t​ ​b​e​ ​b​e​l​o​w​ ​t​h​e​ ​f​i​r​s​t​.
+			 */
+			unitRangeEndBeforeStart: string
+			/**
+			 * o​n​e​ ​n​a​m​e​,​ ​o​r​ ​a​ ​r​u​n​ ​—​ ​"​a​ ​1​-​1​8​"​ ​a​d​d​s​ ​a​ ​1​ ​t​h​r​o​u​g​h​ ​a​ ​1​8​.
+			 */
+			unitRangeHint: string
+			/**
+			 * a​ ​r​u​n​ ​a​d​d​s​ ​a​t​ ​m​o​s​t​ ​{​m​a​x​}​ ​u​n​i​t​s​ ​a​t​ ​a​ ​t​i​m​e​.
+			 * @param {number} max
+			 */
+			unitRangeTooLarge: RequiredParams<'max'>
 		}
 		units: {
 			/**
@@ -3367,6 +3380,18 @@ export type TranslationFunctions = {
 			 * unit name
 			 */
 			unitName: () => LocalizedString
+			/**
+			 * the last number must not be below the first.
+			 */
+			unitRangeEndBeforeStart: () => LocalizedString
+			/**
+			 * one name, or a run — "a 1-18" adds a 1 through a 18.
+			 */
+			unitRangeHint: () => LocalizedString
+			/**
+			 * a run adds at most {max} units at a time.
+			 */
+			unitRangeTooLarge: (arg: { max: number }) => LocalizedString
 		}
 		units: {
 			/**
