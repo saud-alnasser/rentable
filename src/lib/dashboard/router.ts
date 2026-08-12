@@ -4,15 +4,15 @@ import { getCurrentMonthBounds } from '$lib/api/date';
 import { procedure } from '$lib/api/trpc';
 import { getExpectedAmountBy, getExpectedAmountInRange } from '$lib/contract/contract';
 import { serializeContract } from '$lib/contract/serialize';
+import { isContractIncludedInDashboardPortfolio } from '$lib/dashboard/dashboard';
 import {
-	compareDashboardQueueEntries,
-	getDashboardQueueGroup,
+	compareContractsByRank,
+	getContractRank,
 	isContractEndingSoon,
-	isContractIncludedInDashboardPortfolio,
-	summarizeDashboardQueueGroups,
-	type DashboardQueueGroup,
-	type DashboardQueueGroupSummary
-} from '$lib/dashboard/dashboard';
+	summarizeContractRanks,
+	type ContractRank,
+	type ContractRankSummary
+} from '$lib/contract/rank';
 import { and, eq, gte, lte, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
@@ -34,7 +34,7 @@ type DashboardQueueEntry = {
 	id: number;
 	govId: string;
 	status: Contract['status'];
-	group: DashboardQueueGroup;
+	rank: ContractRank;
 	tenantName: string;
 	tenantPhone: string;
 	outstandingAmount: number;
@@ -52,7 +52,7 @@ type DashboardSummary = {
 type DashboardData = {
 	endingSoonNoticeDays: number;
 	queue: DashboardQueueEntry[];
-	groups: DashboardQueueGroupSummary[];
+	ranks: ContractRankSummary[];
 	summary: DashboardSummary;
 };
 
@@ -104,7 +104,7 @@ export default procedure.public
 					getExpectedAmountBy(contract, now) - serializedContract.paidAmount,
 					0
 				);
-				const group = getDashboardQueueGroup(
+				const rank = getContractRank(
 					serializedContract.status,
 					contract.end,
 					outstandingAmount,
@@ -112,7 +112,7 @@ export default procedure.public
 					settings.endingSoonNoticeDays
 				);
 
-				if (!group) {
+				if (!rank) {
 					return [];
 				}
 
@@ -121,7 +121,7 @@ export default procedure.public
 						id: contract.id,
 						govId: serializedContract.govId,
 						status: serializedContract.status,
-						group,
+						rank,
 						tenantName,
 						tenantPhone,
 						outstandingAmount,
@@ -135,7 +135,7 @@ export default procedure.public
 					}
 				];
 			})
-			.sort(compareDashboardQueueEntries);
+			.sort(compareContractsByRank);
 
 		// the strip is a portfolio figure, so it is read over every contract rather than over
 		// the ones a search left: a total that moved as the user typed would be describing the
@@ -174,7 +174,7 @@ export default procedure.public
 		return {
 			endingSoonNoticeDays: settings.endingSoonNoticeDays,
 			queue,
-			groups: summarizeDashboardQueueGroups(queue),
+			ranks: summarizeContractRanks(queue),
 			summary: {
 				money: { dueThisMonth, collectedThisMonth: collected?.amount ?? 0 },
 				occupancy: {
