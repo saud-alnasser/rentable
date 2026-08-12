@@ -9,6 +9,8 @@ import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
 import {
 	COMPLEX_SORT_COLUMN_IDS,
 	ensureUnitNamesDistinct,
+	isComplexDeletable,
+	isUnitDeletable,
 	type ComplexSortColumnId
 } from '$lib/complex/complex';
 import { CONTRACT_OCCUPYING_STATUSES, deriveUnitStatuses } from '$lib/contract/contract';
@@ -277,7 +279,7 @@ export default router({
 		.mutation(async ({ input, ctx }) => {
 			const units = await ctx.db.select().from(s.unit).where(eq(s.unit.complexId, input.id));
 
-			if (units?.length > 0) {
+			if (!isComplexDeletable(units)) {
 				throw new TRPCError({
 					code: 'BAD_REQUEST',
 					message: 'cannot delete complex with associated units'
@@ -507,7 +509,7 @@ export default router({
 					.from(s.contractUnit)
 					.where(eq(s.contractUnit.unitId, input.id));
 
-				if (contracts?.length > 0) {
+				if (!isUnitDeletable(contracts)) {
 					throw new TRPCError({
 						code: 'BAD_REQUEST',
 						message: 'cannot delete unit with associated contracts'

@@ -833,7 +833,26 @@ type RootTranslation = {
 		}
 		deleteDialog: {
 			/**
-			 * a​r​e​ ​y​o​u​ ​s​u​r​e​ ​y​o​u​ ​w​a​n​t​ ​t​o​ ​d​e​l​e​t​e​ ​t​h​i​s​ ​r​e​c​o​r​d​(​s​)​?
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​s​t​i​l​l​ ​m​e​n​t​i​o​n​ ​i​t
+			 * @param {unknown} count
+			 */
+			blockedContracts: RequiredParams<'count|number'>
+			/**
+			 * t​h​i​s​ ​c​a​n​n​o​t​ ​b​e​ ​d​e​l​e​t​e​d​ ​w​h​i​l​e​ ​t​h​e​ ​f​o​l​l​o​w​i​n​g​ ​s​t​i​l​l​ ​d​e​p​e​n​d​ ​o​n​ ​i​t​.
+			 */
+			blockedDescription: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​p​a​y​m​e​n​t​(​s​)​ ​r​e​c​o​r​d​e​d​ ​a​g​a​i​n​s​t​ ​i​t
+			 * @param {unknown} count
+			 */
+			blockedPayments: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​u​n​i​t​(​s​)​ ​b​e​l​o​n​g​ ​t​o​ ​i​t
+			 * @param {unknown} count
+			 */
+			blockedUnits: RequiredParams<'count|number'>
+			/**
+			 * a​r​e​ ​y​o​u​ ​s​u​r​e​ ​y​o​u​ ​w​a​n​t​ ​t​o​ ​d​e​l​e​t​e​ ​t​h​i​s​ ​r​e​c​o​r​d​?
 			 */
 			description: string
 			/**
@@ -2741,7 +2760,23 @@ export type TranslationFunctions = {
 		}
 		deleteDialog: {
 			/**
-			 * are you sure you want to delete this record(s)?
+			 * {count|number} contract(s) still mention it
+			 */
+			blockedContracts: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * this cannot be deleted while the following still depend on it.
+			 */
+			blockedDescription: () => LocalizedString
+			/**
+			 * {count|number} payment(s) recorded against it
+			 */
+			blockedPayments: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} unit(s) belong to it
+			 */
+			blockedUnits: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * are you sure you want to delete this record?
 			 */
 			description: () => LocalizedString
 			/**

@@ -508,6 +508,14 @@ export function ensureContractPaymentsCreatable(contract: ContractLike, payments
 	}
 }
 
+/**
+ * Whether a contract may be deleted: it may hold no unit and carry no payment.
+ *
+ * Exported beside the rule that enforces it for the reason `isTenantDeletable` states.
+ */
+export const isContractDeletable = (units: unknown[], payments: unknown[]) =>
+	units.length === 0 && payments.length === 0;
+
 export function ensureContractDeletable(units: unknown[], payments: unknown[]) {
 	if (units.length > 0) {
 		badRequest('cannot delete contract with associated units');

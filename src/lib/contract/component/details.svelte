@@ -12,14 +12,17 @@
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import {
 		canManuallyTerminateContractStatus,
-		canUnterminateContractStatus
+		canUnterminateContractStatus,
+		isContractDeletable
 	} from '$lib/contract/contract';
 	import {
 		useDeleteContract,
 		useFetchContract,
 		useTerminateContract,
+		useFetchContractUnits,
 		useUnterminateContract
 	} from '$lib/contract/query';
+	import { useFetchContractPayments } from '$lib/payment/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import PaymentLedger from '$lib/payment/component/ledger.svelte';
@@ -59,6 +62,24 @@
 		enabled: Boolean(contractQuery.data?.tenantId)
 	}));
 	const deleteMutation = useDeleteContract();
+
+	// what a deletion would be refused for, read before the question is asked rather than
+	// after the destructive control is pressed.
+	const heldUnitsQuery = useFetchContractUnits(() => contractId);
+	const heldPaymentsQuery = useFetchContractPayments(() => contractId);
+	const deletionBlockers = $derived.by(() => {
+		if (heldUnitsQuery.isPending || heldPaymentsQuery.isPending) return undefined;
+
+		const units = heldUnitsQuery.data ?? [];
+		const payments = heldPaymentsQuery.data ?? [];
+
+		if (isContractDeletable(units, payments)) return [];
+
+		return [
+			units.length ? $LL.common.deleteDialog.blockedUnits({ count: units.length }) : null,
+			payments.length ? $LL.common.deleteDialog.blockedPayments({ count: payments.length }) : null
+		].filter((blocker) => blocker !== null);
+	});
 	const terminateMutation = useTerminateContract();
 	const unterminateMutation = useUnterminateContract();
 
@@ -387,6 +408,8 @@
 		onOpenChange={(isOpen) => {
 			isDeleteDialogOpen = isOpen;
 		}}
+		record={contract.govId?.trim() || tenantLabel}
+		blockers={deletionBlockers}
 		onSubmit={deleteContract}
 	/>
 

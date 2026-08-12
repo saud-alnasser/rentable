@@ -54,8 +54,16 @@ export function ensurePhoneAvailable(conflicting: unknown) {
 	}
 }
 
+/**
+ * Whether a tenant may be deleted: no contract may mention it.
+ *
+ * The predicate is exported beside the rule that enforces it so a surface can say what blocks
+ * a deletion before offering one, rather than restating the threshold in its own words.
+ */
+export const isTenantDeletable = (contracts: unknown[]) => contracts.length === 0;
+
 export function ensureTenantDeletable(contracts: unknown[]) {
-	if (contracts.length > 0) {
+	if (!isTenantDeletable(contracts)) {
 		badRequest('cannot delete tenant with associated contracts');
 	}
 }

@@ -235,7 +235,11 @@ const en = {
 		},
 
 		deleteDialog: {
-			description: 'are you sure you want to delete this record(s)?',
+			blockedContracts: '{count|number} contract(s) still mention it',
+			blockedDescription: 'this cannot be deleted while the following still depend on it.',
+			blockedPayments: '{count|number} payment(s) recorded against it',
+			blockedUnits: '{count|number} unit(s) belong to it',
+			description: 'are you sure you want to delete this record?',
 			title: 'confirmation'
 		}
 	},

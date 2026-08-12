@@ -10,6 +10,8 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { useDeleteTenant, useFetchTenant } from '$lib/tenant/query';
+	import { useListContracts } from '$lib/contract/query';
+	import { isTenantDeletable } from '$lib/tenant/tenant';
 	import BackControl from '$lib/design/block/back-control.svelte';
 	import { back } from '$lib/design/back.svelte';
 	import RecordActions from '$lib/design/block/record-actions.svelte';
@@ -57,6 +59,23 @@
 		enabled: Number.isInteger(tenantId) && tenantId > 0
 	}));
 	const deleteMutation = useDeleteTenant();
+
+	// what a deletion would be refused for, read before the question is asked rather than
+	// after the destructive control is pressed.
+	const heldContractsQuery = useListContracts(
+		() => '',
+		() => null,
+		() => ({ tenantId })
+	);
+	const tenantBlockers = $derived.by(() => {
+		if (heldContractsQuery.isPending) return undefined;
+
+		const held = heldContractsQuery.data ?? [];
+
+		return isTenantDeletable(held)
+			? []
+			: [$LL.common.deleteDialog.blockedContracts({ count: held.length })];
+	});
 
 	let formOpensOn = $state<Partial<NonNullable<typeof tenantQuery.data>> | undefined>(undefined);
 	let isTenantFormOpen = $state(false);
@@ -221,6 +240,8 @@
 		onOpenChange={(isOpen) => {
 			isDeleteDialogOpen = isOpen;
 		}}
+		record={tenant.name}
+		blockers={tenantBlockers}
 		onSubmit={deleteTenant}
 	/>
 {/if}
