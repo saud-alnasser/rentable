@@ -12,7 +12,8 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleNumber } from '$lib/platform/locale';
 	import CircleDashedIcon from '@tabler/icons-svelte/icons/circle-dashed';
-	import DoorIcon from '@tabler/icons-svelte/icons/door';
+	import CircleFilledIcon from '@tabler/icons-svelte/icons/circle-filled';
+	import LayoutGridIcon from '@tabler/icons-svelte/icons/layout-grid';
 	import ComplexForm from './form.svelte';
 
 	type ComplexRecord = Awaited<ReturnType<typeof api.complex.getMany>>[number];
@@ -84,6 +85,9 @@
 	}}
 >
 	{#snippet record(complex: ComplexRecord)}
+		<!-- occupancy is not on the query: a unit is occupied or vacant, so the third figure is
+		     the other two. -->
+		{@const occupiedUnitCount = complex.unitCount - complex.vacantUnitCount}
 		<a
 			href={resolve(`/complexes/${complex.id}`)}
 			class="flex h-full items-center gap-4 border-b px-4 transition-colors hover:bg-muted/40"
@@ -93,7 +97,18 @@
 				<span class="truncate text-xs text-muted-foreground">{complex.location}</span>
 			</span>
 
-			<Cell.Count icon={DoorIcon} count={complex.unitCount} label={$LL.common.labels.units()} />
+			<Cell.Count
+				icon={LayoutGridIcon}
+				count={complex.unitCount}
+				label={$LL.common.labels.units()}
+			/>
+
+			<Cell.Count
+				icon={CircleFilledIcon}
+				count={occupiedUnitCount}
+				label={$LL.common.labels.occupiedUnits()}
+				tone={occupiedUnitCount > 0 ? 'running' : 'settled'}
+			/>
 
 			<Cell.Count
 				icon={CircleDashedIcon}

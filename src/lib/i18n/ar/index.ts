@@ -111,6 +111,7 @@ const ar = {
 			name: 'الاسم',
 			nationalId: 'الهوية الوطنية',
 			noticeWindowDays: 'فترة الإشعار (أيام)',
+			occupiedUnits: 'وحدات مشغولة',
 			payment: 'دفعة',
 			paymentDate: 'تاريخ الدفع',
 			paymentFulfillment: 'تحقق الدفع',

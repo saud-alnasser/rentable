@@ -423,6 +423,10 @@ type RootTranslation = {
 			 */
 			noticeWindowDays: string
 			/**
+			 * o​c​c​u​p​i​e​d​ ​u​n​i​t​s
+			 */
+			occupiedUnits: string
+			/**
 			 * p​a​y​m​e​n​t
 			 */
 			payment: string
@@ -2337,6 +2341,10 @@ export type TranslationFunctions = {
 			 * notice window (days)
 			 */
 			noticeWindowDays: () => LocalizedString
+			/**
+			 * occupied units
+			 */
+			occupiedUnits: () => LocalizedString
 			/**
 			 * payment
 			 */
