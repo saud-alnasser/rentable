@@ -22,7 +22,9 @@ mock.module('@tanstack/svelte-query', {
 	}
 });
 
-mock.module('svelte-sonner', { exports: { toast: { success: () => {}, error: () => {} } } });
+mock.module('svelte-sonner', {
+	exports: { toast: { success: () => {}, error: () => {}, dismiss: () => {} } }
+});
 
 // the remote is the one thing that cannot be real here: it is a process boundary. What it
 // reports is all the sync path reads, so the pull below is the pull the application takes.

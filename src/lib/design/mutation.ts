@@ -1,7 +1,9 @@
 import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
 import { inverseStack, type Inverse } from '$lib/design/inverse';
+import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 import { TRPCError } from '@trpc/server';
+import { get } from 'svelte/store';
 import { toast } from 'svelte-sonner';
 
 type ToastMessage = string | (() => string);
@@ -52,6 +54,9 @@ export type MutationDeclaration<TVariables, TResult, TCaptured = void> = {
 	 * what this mutation leaves on the undo stack, given what it was called with and what came
 	 * back. A mutation declaring none is outside undo, and nothing fails — the cost ADR 0026
 	 * records and accepts.
+	 *
+	 * Declared beside {@link toast}, this is also what the announcement offers to take back:
+	 * the offer is derived from the two and is not declared anywhere itself.
 	 */
 	inverse?: (change: {
 		variables: TVariables;
@@ -68,10 +73,83 @@ function isToastMessage(message: boolean | ToastMessage | undefined): message is
 	return typeof message === 'string' || typeof message === 'function';
 }
 
-export function onMutationSuccess(opts: MutationOptions) {
-	if (opts.toast?.success) {
-		toast.success(resolveToastMessage(opts.toast.success));
+/**
+ * How long an announcement carrying an offer stays on screen.
+ *
+ * The shared duration suits a confirmation that only has to be read. One that also has to be
+ * decided on, and reached for, does not fit in it.
+ */
+const OFFER_DURATION = 8000;
+
+/** which way an offer would move the undo stack. */
+type OfferDirection = 'undo' | 'redo';
+
+/**
+ * The offer to move a change back, carried by the announcement that change makes.
+ *
+ * It names the change rather than a position, because the stack moves whatever is on top and
+ * an announcement outlives the moment it was raised in.
+ */
+export type UndoOffer = { client: QueryClient; change: Inverse; direction: OfferDirection };
+
+/**
+ * the announcement currently carrying an offer, where one is on screen.
+ *
+ * Only the change on top of the stack can be moved, so only one offer is ever live — and an
+ * older announcement left standing would offer a control over somebody else's change.
+ */
+let outstandingOffer: string | number | null = null;
+
+function withdrawOutstandingOffer() {
+	if (outstandingOffer !== null) {
+		toast.dismiss(outstandingOffer);
+		outstandingOffer = null;
 	}
+}
+
+// the stack is emptied whenever the workspace underneath it is replaced — a sync pull, a
+// backup restore, a workspace switch. An offer still on screen then names a change nothing
+// can move, so it leaves with the stack rather than waiting to be pressed and refuse.
+inverseStack.observe(() => {
+	if (!inverseStack.undoable && !inverseStack.redoable) {
+		withdrawOutstandingOffer();
+	}
+});
+
+function toToastAction({ client, change, direction }: UndoOffer) {
+	const translations = get(LL);
+
+	return {
+		label: direction === 'undo' ? translations.common.undo.undo() : translations.common.undo.redo(),
+		onClick: () => {
+			// by identity: the stack is emptied whenever the workspace underneath it is replaced,
+			// and an offer outliving that names a change nothing can move.
+			const top = direction === 'undo' ? inverseStack.undoable : inverseStack.redoable;
+
+			return top === change ? applyInverse(client, direction) : undefined;
+		}
+	};
+}
+
+export function onMutationSuccess(opts: MutationOptions, offer?: UndoOffer) {
+	if (!opts.toast?.success) {
+		return;
+	}
+
+	const message = resolveToastMessage(opts.toast.success);
+
+	if (!offer) {
+		toast.success(message);
+
+		return;
+	}
+
+	withdrawOutstandingOffer();
+
+	outstandingOffer = toast.success(message, {
+		action: toToastAction(offer),
+		duration: OFFER_DURATION
+	});
 }
 
 export function onMutationError(opts: MutationOptions, e: Error) {
@@ -92,6 +170,55 @@ export function onMutationError(opts: MutationOptions, e: Error) {
 			toast.error(resolveToastMessage(opts.toast.unexpected));
 		}
 	}
+}
+
+/**
+ * Move the undo stack one step, and announce what moved with the offer to move it back.
+ *
+ * The inverse issues an ordinary procedure, so the workspace has moved by the time it resolves
+ * and the cache is as stale as it would be after any other mutation.
+ */
+async function applyInverse(client: QueryClient, direction: OfferDirection) {
+	try {
+		const applied = await (direction === 'undo' ? inverseStack.undo() : inverseStack.redo());
+
+		if (!applied) {
+			return;
+		}
+
+		await invalidateWorkspaceData(client);
+
+		const translations = get(LL);
+		const change = applied.describe(translations);
+
+		onMutationSuccess(
+			{
+				toast: {
+					success:
+						direction === 'undo'
+							? translations.common.undo.undone({ change })
+							: translations.common.undo.redone({ change })
+				}
+			},
+			// what a change offers next is its opposite: one taken back is one to apply again.
+			{ client, change: applied, direction: direction === 'undo' ? 'redo' : 'undo' }
+		);
+	} catch (failure) {
+		onMutationError(
+			{ toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() } },
+			failure as Error
+		);
+	}
+}
+
+/** take back the change on top of the undo stack. What the keyboard shortcut calls. */
+export function applyUndo(client: QueryClient) {
+	return applyInverse(client, 'undo');
+}
+
+/** apply the most recently taken-back change again. The mirror of {@link applyUndo}. */
+export function applyRedo(client: QueryClient) {
+	return applyInverse(client, 'redo');
 }
 
 /**
@@ -117,7 +244,7 @@ function bindMutation<TVariables, TResult, TCaptured>(
 				inverseStack.record(inverse);
 			}
 
-			onMutationSuccess(opts);
+			onMutationSuccess(opts, inverse && { client, change: inverse, direction: 'undo' });
 		},
 		onError: (e: Error) => onMutationError(opts, e)
 	};

@@ -705,18 +705,9 @@ type RootTranslation = {
 			 */
 			edited: RequiredParams<'record'>
 			/**
-			 * n​o​t​h​i​n​g​ ​t​o​ ​r​e​d​o
+			 * r​e​d​o
 			 */
-			nothingToRedo: string
-			/**
-			 * n​o​t​h​i​n​g​ ​t​o​ ​u​n​d​o
-			 */
-			nothingToUndo: string
-			/**
-			 * r​e​d​o​ ​{​c​h​a​n​g​e​}
-			 * @param {string} change
-			 */
-			redo: RequiredParams<'change'>
+			redo: string
 			/**
 			 * {​c​h​a​n​g​e​}​ ​a​p​p​l​i​e​d​ ​a​g​a​i​n
 			 * @param {string} change
@@ -728,10 +719,9 @@ type RootTranslation = {
 			 */
 			terminated: RequiredParams<'record'>
 			/**
-			 * u​n​d​o​ ​{​c​h​a​n​g​e​}
-			 * @param {string} change
+			 * u​n​d​o
 			 */
-			undo: RequiredParams<'change'>
+			undo: string
 			/**
 			 * {​c​h​a​n​g​e​}​ ​u​n​d​o​n​e
 			 * @param {string} change
@@ -2621,17 +2611,9 @@ export type TranslationFunctions = {
 			 */
 			edited: (arg: { record: string }) => LocalizedString
 			/**
-			 * nothing to redo
+			 * redo
 			 */
-			nothingToRedo: () => LocalizedString
-			/**
-			 * nothing to undo
-			 */
-			nothingToUndo: () => LocalizedString
-			/**
-			 * redo {change}
-			 */
-			redo: (arg: { change: string }) => LocalizedString
+			redo: () => LocalizedString
 			/**
 			 * {change} applied again
 			 */
@@ -2641,9 +2623,9 @@ export type TranslationFunctions = {
 			 */
 			terminated: (arg: { record: string }) => LocalizedString
 			/**
-			 * undo {change}
+			 * undo
 			 */
-			undo: (arg: { change: string }) => LocalizedString
+			undo: () => LocalizedString
 			/**
 			 * {change} undone
 			 */
