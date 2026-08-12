@@ -7,7 +7,9 @@
 	import List from '$lib/design/block/list.svelte';
 	import type { ListSort } from '$lib/design/sort';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
+	import { CONTRACT_RANKS, type ContractRank } from '$lib/contract/rank';
 	import { useListContracts } from '$lib/contract/query';
+	import { Button } from '$lib/design/primitive/button';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatRecordDate } from '$lib/design/date';
 	import { formatLocaleNumber, formatLocaleRangeWithUnit } from '$lib/platform/locale';
@@ -23,13 +25,23 @@
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
+	let rank = $state<ContractRank | null>(null);
 	let isContractFormOpen = $state(false);
 	let contractFormRenderKey = $state(0);
 
 	const contractsQuery = useListContracts(
 		() => search,
-		() => sort
+		() => sort,
+		() => (rank ? { rank } : {})
 	);
+
+	// the rank's own words, still under the landing screen's keys — the rank moved to the
+	// contract domain (ADR 0031) and its labels have not followed yet.
+	const rankLabels = $derived<Record<ContractRank, string>>({
+		overdue: $LL.dashboard.queue.groups.overdue(),
+		owing: $LL.dashboard.queue.groups.owing(),
+		'ending-soon': $LL.dashboard.queue.groups.endingSoon()
+	});
 	const contracts = $derived(contractsQuery.data ?? []);
 
 	// the same rendering the row shows, so the file reads as the screen does.
@@ -69,11 +81,29 @@
 	});
 </script>
 
+{#snippet rankFilter()}
+	<!-- pressing the chosen rank again clears it, so the control needs no separate "all" and
+	     the set of ranks is the whole vocabulary on screen. -->
+	<div class="flex items-center gap-1">
+		{#each CONTRACT_RANKS as option (option)}
+			<Button
+				variant={rank === option ? 'default' : 'outline'}
+				size="sm"
+				aria-pressed={rank === option}
+				onclick={() => (rank = rank === option ? null : option)}
+			>
+				{rankLabels[option]}
+			</Button>
+		{/each}
+	</div>
+{/snippet}
+
 <List
 	data={contracts}
 	bind:search
 	bind:sort
 	{sortOptions}
+	filters={rankFilter}
 	isLoading={contractsQuery.isLoading}
 	isFetching={contractsQuery.isFetching}
 	recordHeight={ROW_HEIGHT}

@@ -22,8 +22,15 @@ import {
 	ensureValidContractInput,
 	getConflictingAssignedUnitIds,
 	getContractPaymentSummary,
+	getExpectedAmountBy,
 	hasSameUtcDateRange
 } from '$lib/contract/contract';
+import {
+	CONTRACT_RANKS,
+	compareContractsByRank,
+	getContractRank,
+	type ContractRankOrder
+} from '$lib/contract/rank';
 import { reconcileTouched } from '$lib/contract/reconcile';
 import { serializeContract } from '$lib/contract/serialize';
 import dashboard from '$lib/dashboard/router';
@@ -143,11 +150,14 @@ async function selectContractUnits(db: Database, contractId: number, now: number
 	}));
 }
 
-// ordering by status, as one expression the database can sort on: the rank a status holds in
-// CONTRACT_ATTENTION_ORDER. Built from the array rather than written out, so the order is
-// stated once and a status added to the enum without a rank sorts last instead of silently
+// ordering by status, as one expression the database can sort on: the position a status holds
+// in CONTRACT_ATTENTION_ORDER. Built from the array rather than written out, so the order is
+// stated once and a status added to the enum without a position sorts last instead of silently
 // landing among the ones that need attention.
-const contractAttentionRank = sql.join(
+//
+// Not the attention *rank* of ADR 0031, which is decided from what a contract owes today and
+// cannot be expressed here — this only sorts on the stored status column.
+const contractStatusOrder = sql.join(
 	[
 		sql`case`,
 		...CONTRACT_ATTENTION_ORDER.map(
@@ -183,7 +193,7 @@ const CONTRACT_SORT_COLUMNS: Record<ContractSortColumnId, SQL | AnyColumn> = {
 	start: s.contract.start,
 	end: s.contract.end,
 	cost: s.contract.cost,
-	status: contractAttentionRank
+	status: contractStatusOrder
 };
 
 const ContractSortSchema = z.object({
@@ -592,6 +602,11 @@ export default router({
 			z.object({
 				search: z.string().optional(),
 				sort: ContractSortSchema.optional(),
+				// narrows the list to one attention rank, so a surface that ranked a contract has
+				// somewhere to send the reader that still knows the rank (ADR 0031). It cannot be a
+				// `where`: a rank is decided from what the contract owes *today*, which is expected
+				// -by-now minus the materialized paid amount, and no column holds that.
+				rank: z.enum(CONTRACT_RANKS).optional(),
 				// narrows the list to one tenant's contracts, for the surface that asks what a
 				// person rents. Filtered here rather than by the caller: a directory that loaded
 				// every contract to keep one tenant's would be the client-side narrowing
@@ -624,10 +639,61 @@ export default router({
 				)
 				.orderBy(...contractOrderBy(input.sort));
 
-			return contracts.map(({ contract, tenantName, tenantPhone, paymentCount }) => ({
+			const listed = contracts.map(({ contract, tenantName, tenantPhone, paymentCount }) => ({
 				...serializeContract(contract, tenantName, tenantPhone),
 				paymentCount
 			}));
+
+			if (!input.rank) {
+				return listed;
+			}
+
+			// held as a const: the narrowing above does not survive into the closure below.
+			const wantedRank = input.rank;
+
+			// the rank is derived rather than stored, so this pass is what a `where` would have
+			// been. It costs one arithmetic step per row already read and returns fewer of them
+			// than the unfiltered list does — the read itself is unchanged, and ADR 0010's one
+			// query per state still holds.
+			const now = ctx.clock.now();
+			const { endingSoonNoticeDays } = await ctx.host.settings.get();
+
+			const ranked = listed.flatMap((contract) => {
+				const outstandingAmount = Math.max(
+					getExpectedAmountBy(contract, now) - contract.paidAmount,
+					0
+				);
+				const rank = getContractRank(
+					contract.status,
+					contract.end,
+					outstandingAmount,
+					now,
+					endingSoonNoticeDays
+				);
+
+				if (rank !== wantedRank) {
+					return [];
+				}
+
+				const order: ContractRankOrder = {
+					rank,
+					outstandingAmount,
+					contractEnd: contract.end,
+					// the list joins its tenant, so the name is always there; the serialized shape
+					// is the one that admits it might not be.
+					tenantName: contract.tenantName ?? ''
+				};
+
+				return [{ contract, order }];
+			});
+
+			// a chosen sort is the reader's and wins. With none, the rank's own follow-up order
+			// applies, because that order is part of what the rank means (ADR 0031).
+			if (!input.sort) {
+				ranked.sort((left, right) => compareContractsByRank(left.order, right.order));
+			}
+
+			return ranked.map(({ contract }) => contract);
 		}),
 
 	units: {

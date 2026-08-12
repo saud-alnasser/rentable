@@ -957,3 +957,123 @@ test('a payment is found by its amount, across every contract', async () => {
 	);
 	assert.equal(found[0].hint, 'GOV-7');
 });
+
+// --- Attention rank ------------------------------------------------------------------
+
+// One contract per rank plus one in none, so a filter that answered with everything or with
+// nothing is distinguishable from one that answered correctly.
+async function seedRankedPortfolio(api) {
+	const tenant = await seedTenant(api);
+
+	const contract = (govId, cost, startMonths, endMonths) =>
+		api.contract.create({
+			govId,
+			cost,
+			start: monthsFromNow(startMonths),
+			end: monthsFromNow(endMonths),
+			interval: '12m',
+			tenantId: tenant.id
+		});
+
+	await contract('RANK-OVERDUE', 4000, -13, -1);
+	await contract('RANK-OWING', 2000, -6, 6);
+
+	// paid in full and ending inside the notice window: owes nothing, so it ranks as a renewal.
+	const ending = await contract('RANK-ENDING', 100, -11, 1);
+	await api.contract.payments.create({
+		contractId: ending.id,
+		amount: 100,
+		date: monthsFromNow(-2)
+	});
+
+	// starts in two months and owes nothing yet — in no rank at all.
+	await contract('RANK-NONE', 3000, 2, 14);
+}
+
+test('the contracts list narrows to one attention rank', async () => {
+	const api = await createApi();
+	await seedRankedPortfolio(api);
+
+	const govIds = async (rank) =>
+		(await api.contract.getMany({ rank })).map((contract) => contract.govId);
+
+	assert.deepEqual(await govIds('overdue'), ['RANK-OVERDUE']);
+	assert.deepEqual(await govIds('owing'), ['RANK-OWING']);
+	assert.deepEqual(await govIds('ending-soon'), ['RANK-ENDING']);
+});
+
+test('asking for no rank answers with every contract, ranked or not', async () => {
+	const api = await createApi();
+	await seedRankedPortfolio(api);
+
+	const all = await api.contract.getMany({});
+
+	assert.equal(all.length, 4);
+	assert.ok(all.some((contract) => contract.govId === 'RANK-NONE'));
+});
+
+test('a rank and a search narrow together rather than replacing one another', async () => {
+	const api = await createApi();
+	await seedRankedPortfolio(api);
+
+	assert.deepEqual(
+		(await api.contract.getMany({ rank: 'owing', search: 'RANK-OWING' })).map((c) => c.govId),
+		['RANK-OWING']
+	);
+	assert.deepEqual(await api.contract.getMany({ rank: 'owing', search: 'RANK-OVERDUE' }), []);
+});
+
+// the order is part of what a rank means (ADR 0031), so a caller that asked for a rank and
+// named no sort gets follow-up order — largest debt first inside a money rank.
+test('a rank with no chosen sort answers in the rank’s own order', async () => {
+	const api = await createApi();
+	const tenant = await seedTenant(api);
+
+	const contract = (govId, cost) =>
+		api.contract.create({
+			govId,
+			cost,
+			start: monthsFromNow(-6),
+			end: monthsFromNow(6),
+			interval: '12m',
+			tenantId: tenant.id
+		});
+
+	await contract('SMALL', 1200);
+	await contract('LARGE', 9000);
+	await contract('MIDDLE', 4800);
+
+	assert.deepEqual(
+		(await api.contract.getMany({ rank: 'owing' })).map((c) => c.govId),
+		['LARGE', 'MIDDLE', 'SMALL']
+	);
+});
+
+test('a chosen sort still wins over the rank’s own order', async () => {
+	const api = await createApi();
+	const tenant = await seedTenant(api);
+
+	const contract = (govId, cost) =>
+		api.contract.create({
+			govId,
+			cost,
+			start: monthsFromNow(-6),
+			end: monthsFromNow(6),
+			interval: '12m',
+			tenantId: tenant.id
+		});
+
+	await contract('SMALL', 1200);
+	await contract('LARGE', 9000);
+	await contract('MIDDLE', 4800);
+
+	const sorted = await api.contract.getMany({
+		rank: 'owing',
+		sort: { columnId: 'cost', direction: 'asc' }
+	});
+
+	assert.deepEqual(
+		sorted.map((c) => c.govId),
+		['SMALL', 'MIDDLE', 'LARGE']
+	);
+});
