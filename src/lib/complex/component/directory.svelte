@@ -76,6 +76,13 @@
 				header: $LL.common.labels.units(),
 				value: (complex) => formatLocaleNumber($locale, complex.unitCount)
 			},
+			// the three figures the row shows, in the order it shows them. Occupancy is not on the
+			// query — a unit is occupied or vacant, so the third figure is the other two — which is
+			// why it has to be derived here as well rather than read off the record.
+			{
+				header: $LL.common.labels.occupiedUnits(),
+				value: (complex) => formatLocaleNumber($locale, complex.unitCount - complex.vacantUnitCount)
+			},
 			{
 				header: $LL.common.labels.vacantUnits(),
 				value: (complex) => formatLocaleNumber($locale, complex.vacantUnitCount)
