@@ -100,7 +100,11 @@
 	</Tooltip.Root>
 
 	<!-- deleting is secondary here and primary inside the confirmation it opens: the reader did
-	     not come to this screen to press it (_Semantics are secondary_). -->
+	     not come to this screen to press it (_Semantics are secondary_). The warning colour
+	     arrives with the intent rather than at rest — a red glyph is the only chroma on this
+	     surface, so it draws the eye to the one control nobody came for, and the icon already
+	     says what the action is (_Don't rely on color alone_). Resting a step quieter than its
+	     neighbours counterbalances how heavy an icon reads (_Balance weight and contrast_). -->
 	<Tooltip.Root>
 		<Tooltip.Trigger>
 			{#snippet child({ props })}
@@ -109,7 +113,7 @@
 					variant="outline"
 					size="icon-sm"
 					aria-label={$LL.common.actions.delete()}
-					class="rounded-full bg-secondary text-destructive hover:bg-destructive/10"
+					class="rounded-full bg-secondary text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive"
 					onclick={() => (isDeleteDialogOpen = true)}
 				>
 					<Trash2Icon class="size-4" />

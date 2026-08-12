@@ -90,6 +90,8 @@
 		</Tooltip.Content>
 	</Tooltip.Root>
 
+	<!-- deleting rests as quietly as any other control here and turns red on the intent to press
+	     it; it is primary only inside the confirmation it opens (_Semantics are secondary_). -->
 	<Tooltip.Root>
 		<Tooltip.Trigger>
 			{#snippet child({ props })}
@@ -98,7 +100,7 @@
 					variant="outline"
 					size="icon-sm"
 					aria-label={$LL.common.actions.delete()}
-					class="rounded-full bg-secondary text-destructive hover:bg-destructive/10"
+					class="rounded-full bg-secondary text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive"
 					onclick={() => (isDeleteDialogOpen = true)}
 				>
 					<Trash2Icon class="size-4" />

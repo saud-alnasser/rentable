@@ -188,7 +188,10 @@
 
 	<!-- terminating and deleting are secondary here and primary inside the confirmation each
 	     opens: neither is what the reader came to this screen to press
-	     (_Semantics are secondary_). -->
+	     (_Semantics are secondary_). Both rest a step quieter than the controls beside them and
+	     take the warning colour on the intent to press — a red glyph at rest is the only chroma
+	     on the surface and pulls the eye to what nobody came for, and the icon already says what
+	     the action is (_Don't rely on color alone_). -->
 	{#if contract && canManuallyTerminateContractStatus(contract.status)}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
@@ -198,7 +201,7 @@
 						variant="outline"
 						size="icon-sm"
 						aria-label={$LL.common.actions.terminate()}
-						class="rounded-full bg-secondary text-destructive hover:bg-destructive/10"
+						class="rounded-full bg-secondary text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive"
 						onclick={() => (isTerminateDialogOpen = true)}
 					>
 						<BanIcon class="size-4" />
@@ -241,7 +244,7 @@
 					variant="outline"
 					size="icon-sm"
 					aria-label={$LL.common.actions.delete()}
-					class="rounded-full bg-secondary text-destructive hover:bg-destructive/10"
+					class="rounded-full bg-secondary text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive"
 					onclick={() => (isDeleteDialogOpen = true)}
 				>
 					<Trash2Icon class="size-4" />
