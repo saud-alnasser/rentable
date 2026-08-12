@@ -90,6 +90,8 @@
 					amount: Number(form.data.amount)
 				};
 
+				submittedRemaining = projectedRemaining;
+
 				try {
 					// the identity decides, not the presence of a value: a duplicate arrives with
 					// everything the record had except that.
@@ -107,6 +109,9 @@
 
 					onOpenChange(false);
 				} catch (e) {
+					// nothing landed, so the projection is a live question again.
+					submittedRemaining = undefined;
+
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 						if (e.message.includes('amount')) {
 							setError(form, 'amount', $LL.contracts.form.paymentAmountGreaterThanZero());
@@ -123,6 +128,7 @@
 		if (open) {
 			const nextFormValue = getInitialForm(value);
 			paymentDateValue = parseCalendarDate(nextFormValue.date);
+			submittedRemaining = undefined;
 			form.set(nextFormValue);
 		}
 	});
@@ -150,11 +156,39 @@
 	);
 	const enteredAmount = $derived(Number($form.amount));
 	const hasEnteredAmount = $derived(Number.isFinite(enteredAmount) && enteredAmount > 0);
-	const remainingAfter = $derived(
-		remaining === undefined
-			? undefined
-			: Math.max(remaining - (hasEnteredAmount ? enteredAmount : 0), 0)
-	);
+
+	// what this payment already contributes to the contract's paid figure. Editing one replaces
+	// that contribution rather than adding to it, and the contract's stored figure already holds
+	// it — so subtracting the typed amount from the balance as it stands would count the payment
+	// twice, and retyping the same amount would appear to pay the contract down again.
+	//
+	// A duplicate carries the details without the identity, and contributes nothing yet.
+	const committedAmount = $derived(value?.id ? value.amount : 0);
+
+	// computed from the contract's own figures rather than by adjusting the balance above, so a
+	// contract already paid in full reads correctly: that balance is floored at zero, and an edit
+	// that lowers a payment has to be able to lift it back off the floor.
+	const projectedRemaining = $derived.by(() => {
+		const contract = contractQuery.data;
+
+		if (!contract) return undefined;
+
+		const paidAfter =
+			contract.paidAmount - committedAmount + (hasEnteredAmount ? enteredAmount : 0);
+
+		return getRemainingContractBalance(paidAfter, contract.expectedAmount);
+	});
+
+	// what the projection said when this payment was submitted, held until the surface reopens.
+	//
+	// The contract's own paid figure is about to include this payment, while the typed amount is
+	// still on screen and still being projected onto it — so between the write landing and the
+	// surface closing the payment is counted twice, and the reader watches the figure overshoot
+	// by the amount they just entered. Holding it is what makes that window unobservable, and it
+	// costs nothing in truth: the figure was already the answer for the payment that landed.
+	let submittedRemaining = $state<number | undefined>(undefined);
+
+	const remainingAfter = $derived(submittedRemaining ?? projectedRemaining);
 </script>
 
 <FormSurface {open} {onOpenChange} {enhance} weight="light" title={$LL.common.labels.payment()}>
