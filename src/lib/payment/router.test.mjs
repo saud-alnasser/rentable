@@ -232,3 +232,47 @@ test('a payment is rejected once the contract is fully paid', async () => {
 		/fully paid/
 	);
 });
+
+test('a payment dated after today is rejected', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	await assert.rejects(
+		() =>
+			api.contract.payments.create({
+				contractId: contract.id,
+				date: monthsFromNow(0, 1),
+				amount: 500
+			}),
+		/cannot be dated in the future/
+	);
+});
+
+test('a payment dated today is taken', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	const created = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 500
+	});
+
+	assert.equal(created.date, monthsFromNow(0));
+});
+
+test('a payment cannot be moved into the future by an edit', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	const payment = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 500
+	});
+
+	await assert.rejects(
+		() => api.contract.payments.update({ id: payment.id, date: monthsFromNow(0, 1), amount: 500 }),
+		/cannot be dated in the future/
+	);
+});

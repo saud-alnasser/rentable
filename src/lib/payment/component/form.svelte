@@ -11,7 +11,8 @@
 		formatCalendarDate,
 		formatDateInput,
 		parseCalendarDate,
-		parseDateInput
+		parseDateInput,
+		toCalendarDate
 	} from '$lib/design/date';
 	import { formatLocaleValueWithUnit, getIntlLocale } from '$lib/platform/locale';
 	import { isWholeHalalas } from '$lib/design/money';
@@ -124,10 +125,20 @@
 		}
 	);
 
+	// the last day a payment may be dated. A payment records money already received, so the
+	// procedure refuses a later one; offering it here and refusing it on submit would make the
+	// reader discover the rule by breaking it.
+	//
+	// Read when the surface opens rather than once when it is built: this is a desktop window that
+	// stays open for days, and the bound has to be the day the procedure will compare against. It
+	// is the UTC day for the same reason — that is the comparison the rule makes.
+	let latestPaymentDate = $state<CalendarDate | undefined>(undefined);
+
 	$effect(() => {
 		if (open) {
 			const nextFormValue = getInitialForm(value);
 			paymentDateValue = parseCalendarDate(nextFormValue.date);
+			latestPaymentDate = toCalendarDate(new Date());
 			submittedRemaining = undefined;
 			form.set(nextFormValue);
 		}
@@ -246,6 +257,7 @@
 						<Calendar.Calendar
 							type="single"
 							bind:value={paymentDateValue}
+							maxValue={latestPaymentDate}
 							captionLayout="dropdown"
 						/>
 					</Popover.Content>
