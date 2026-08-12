@@ -189,7 +189,13 @@
 				</Tabs.List>
 
 				{#each collections as collection (collection.value)}
-					<Tabs.Content value={collection.value} class="min-h-0 flex-1">
+					<!-- a flex column, not merely a sized box: the panel is a block by default, so a
+					     collection inside it asking for a share of the height resolves against nothing
+					     and grows without bound — the list then runs past the window instead of
+					     scrolling inside it, and anything pinned to its scroll edge has nothing to
+					     pin against. Only a record with more than one collection takes this path,
+					     which is why exactly one screen showed it. -->
+					<Tabs.Content value={collection.value} class="flex min-h-0 flex-1 flex-col">
 						{@render collection.content()}
 					</Tabs.Content>
 				{/each}
