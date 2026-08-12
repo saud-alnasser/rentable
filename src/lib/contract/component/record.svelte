@@ -54,7 +54,15 @@
 	</span>
 
 	<span class="flex shrink-0 items-center gap-3">
-		<Cell.Count icon={CashIcon} count={contract.paymentCount} label={$LL.common.nav.payments()} />
+		<!-- money rather than state: this figure sits beside a status glyph, and the two wore the
+		     same tone while meaning different things by it. Quiet at nothing, as every count on a
+		     row is — a contract with no payments has no money to report. -->
+		<Cell.Count
+			icon={CashIcon}
+			count={contract.paymentCount}
+			label={$LL.common.nav.payments()}
+			tone={contract.paymentCount > 0 ? 'money' : 'settled'}
+		/>
 		<Cell.Status status={contract.status} />
 		<!-- the cost is per interval, so it goes to the tooltip carrying its interval with it: a
 		     bare amount beside a contract reads as what the whole contract is worth. -->
