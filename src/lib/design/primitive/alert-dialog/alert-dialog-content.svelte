@@ -19,12 +19,21 @@
 
 <AlertDialogPortal {...portalProps}>
 	<AlertDialogOverlay />
+	<!--
+		the surface is the dialog primitive's, by hand: same ground, same corner, same shadow, and the
+		same hairline ring in place of a border. A reader meets both of these at the moment the
+		application asks them to confirm something, and two confirmations sitting on different
+		surfaces read as two applications.
+
+		The interior spacing is this primitive's own and stays — dialog content is padded by its
+		callers, where an alert dialog pads itself.
+	-->
 	<AlertDialogPrimitive.Content
 		bind:ref
 		data-slot="alert-dialog-content"
 		dir={localesMetadata[$locale].direction}
 		class={cn(
-			'fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg',
+			'fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl bg-card p-6 shadow-xl ring-1 ring-foreground/10 duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg',
 			className
 		)}
 		{...restProps}
