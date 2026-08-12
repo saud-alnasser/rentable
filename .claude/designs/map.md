@@ -7,6 +7,7 @@ owner: repository
 | Design | Status | Sources |
 | --- | --- | --- |
 | [contract-work-queue-and-directory](contract-work-queue-and-directory.md) | implemented | `src/lib/dashboard/`, `src/lib/contract/`, `src/lib/payment/component/`, `src/lib/design/block/`, `src/routes/+page.svelte`, `src/routes/contracts/+page.svelte` |
+| [counts-cards-and-confirmations](counts-cards-and-confirmations.md) | accepted | `src/lib/design/block/list.svelte`, `src/lib/design/cell/count.svelte`, `src/lib/design/block/record-surface.svelte`, `src/lib/design/primitive/alert-dialog/`, `src/lib/tenant/router.ts`, `src/lib/contract/component/units.svelte` |
 | [dashboard-as-the-days-work](dashboard-as-the-days-work.md) | superseded by contract-work-queue-and-directory.md | `src/lib/dashboard/`, `src/routes/+page.svelte`, `src/lib/design/block/`, `src/lib/design/cell/`, `src/lib/contract/` |
 | [dependency-backlog-consolidation](dependency-backlog-consolidation.md) | implemented | `package.json`, `tauri/Cargo.toml`, `.github/renovate.json`, `.github/workflows/`, `.claude/evidence/research/dependency-backlog-consolidation.md` |
 | [drive-command-surface-cutover](drive-command-surface-cutover.md) | implemented | `tauri/src/sync/`, `src/lib/settings/`, `src/routes/+layout.svelte` |
