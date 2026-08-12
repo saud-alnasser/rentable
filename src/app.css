@@ -8,7 +8,8 @@
  * black — chroma 0 throughout — and elevation is carried by value: background < card <
  * popover < muted < secondary < accent, each step lighter reading as more raised. blue
  * exists only in `primary` and `ring`, so it can only ever mark the active, selected, or
- * focused element.
+ * focused element. every other hue here is named for the one thing it says, so a surface
+ * cannot reach for a colour without saying what it means by it.
  */
 :root {
 	/*
@@ -32,6 +33,20 @@
 	--accent: oklch(0.26 0 0);
 	--accent-foreground: oklch(0.985 0 0);
 	--destructive: oklch(0.704 0.191 22.216);
+	/*
+	 * the two greens, named for what each says rather than for the hue they share.
+	 *
+	 * They were raw palette values — `green-300` and a spread of `emerald-*` — so green already
+	 * meant two unrelated things here and neither answered to this palette: a change made in this
+	 * block left both behind, silently, because nothing connected them to it.
+	 *
+	 * `success` reports that something the reader asked for worked. `permitted` marks a date the
+	 * contract's own arithmetic allows or suggests, in the end-date window — a bound rather than an
+	 * outcome, which is why one green could not have carried both.
+	 */
+	--success: oklch(0.871 0.15 154.449);
+	--permitted: oklch(0.696 0.17 162.48);
+	--permitted-foreground: oklch(0.985 0 0);
 	--border: oklch(1 0 0 / 12%);
 	--input: oklch(1 0 0 / 14%);
 	--ring: oklch(0.64 0.19 252);
@@ -66,6 +81,9 @@
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
+	--color-success: var(--success);
+	--color-permitted: var(--permitted);
+	--color-permitted-foreground: var(--permitted-foreground);
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
