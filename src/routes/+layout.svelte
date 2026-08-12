@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import api from '$lib/api/caller';
 	import {
 		tauri,
@@ -29,6 +30,8 @@
 	import { baseLocale, locales } from '$lib/i18n/i18n-util';
 	import { loadLocaleAsync } from '$lib/i18n/i18n-util.async';
 	import LayoutFrame from '$lib/layout/component/frame.svelte';
+	import { toScreen } from '$lib/design/back';
+	import { back } from '$lib/design/back.svelte';
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
 	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
@@ -463,6 +466,12 @@
 			unlistenCloseRequested?.();
 			stopListeningForCloseRequests?.();
 		};
+	});
+
+	// the application's own trail, so a back control returns to the screen that opened a record
+	// rather than to a fixed place. It is recorded here because every screen is inside this one.
+	$effect(() => {
+		back.visit(toScreen(page.url));
 	});
 
 	$effect(() => {

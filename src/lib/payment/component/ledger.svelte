@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { back } from '$lib/design/back.svelte';
 	import type { Payment } from '$lib/platform/database/schema';
 	import DataTableActionsDropdown from '$lib/design/block/data-table-actions-dropdown.svelte';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
 	import * as Cell from '$lib/design/cell';
+	import { formatRecordDate } from '$lib/design/date';
 	import {
 		getRemainingContractBalance,
 		hasSatisfiedContractPaymentRequirement
@@ -17,11 +19,7 @@
 		type PaymentLedgerMonth
 	} from '$lib/payment/ledger';
 	import { useDeletePayment, useListContractPayments } from '$lib/payment/query';
-	import {
-		formatLocaleDate,
-		formatLocaleRangeWithUnit,
-		formatLocaleValueWithUnit
-	} from '$lib/platform/locale';
+	import { formatLocaleRangeWithUnit, formatLocaleValueWithUnit } from '$lib/platform/locale';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import PaymentForm from './form.svelte';
@@ -98,8 +96,7 @@
 			columns: [
 				{
 					header: $LL.common.labels.paymentDate(),
-					value: (entry) =>
-						formatLocaleDate($locale, entry.date, { dateStyle: 'medium', timeZone: 'UTC' })
+					value: (entry) => formatRecordDate($locale, entry.date)
 				},
 				{
 					header: $LL.common.labels.amount(),
@@ -225,6 +222,9 @@
 	onSubmit={async () => {
 		if (payment) {
 			await deleteMutation.mutateAsync(payment.id);
+			// the payment's own page may be behind the reader; it is not somewhere back can
+			// return to now that the record is gone.
+			back.forget(resolve(`/contracts/payments/${payment.id}`));
 		}
 	}}
 />
