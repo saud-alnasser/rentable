@@ -34,19 +34,25 @@
 	--accent-foreground: oklch(0.985 0 0);
 	--destructive: oklch(0.704 0.191 22.216);
 	/*
-	 * the two greens, named for what each says rather than for the hue they share.
+	 * the greens, named for what each says rather than for the hue they share.
 	 *
-	 * They were raw palette values — `green-300` and a spread of `emerald-*` — so green already
-	 * meant two unrelated things here and neither answered to this palette: a change made in this
-	 * block left both behind, silently, because nothing connected them to it.
+	 * Two of them were raw palette values — `green-300` and a spread of `emerald-*` — so green
+	 * already meant two unrelated things here and neither answered to this palette: a change made
+	 * in this block left both behind, silently, because nothing connected them to it.
 	 *
 	 * `success` reports that something the reader asked for worked. `permitted` marks a date the
 	 * contract's own arithmetic allows or suggests, in the end-date window — a bound rather than an
-	 * outcome, which is why one green could not have carried both.
+	 * outcome, which is why one green could not have carried both. `money` stands for a quantity of
+	 * money, and had to be its own name rather than borrowing a state colour: it sits on a directory
+	 * row beside a glyph reporting a condition, and in blue it would say *live* about a count.
+	 *
+	 * None of the three ever appears on screen with another, so each is told apart from what is
+	 * beside it rather than from the other two.
 	 */
 	--success: oklch(0.871 0.15 154.449);
 	--permitted: oklch(0.696 0.17 162.48);
 	--permitted-foreground: oklch(0.985 0 0);
+	--money: oklch(0.792 0.209 151.711);
 	--border: oklch(1 0 0 / 12%);
 	--input: oklch(1 0 0 / 14%);
 	--ring: oklch(0.64 0.19 252);
@@ -84,6 +90,7 @@
 	--color-success: var(--success);
 	--color-permitted: var(--permitted);
 	--color-permitted-foreground: var(--permitted-foreground);
+	--color-money: var(--money);
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);

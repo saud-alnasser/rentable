@@ -4,8 +4,13 @@
 	/**
 	 * What a figure is standing for, in the tone vocabulary the status treatment declares:
 	 * `running` is live, `settled` is finished or empty.
+	 *
+	 * `money` is the one entry not keyed on state, and it is stated here because that is the thing
+	 * a reader of this list has to know: everywhere else on a directory row a colour reports a
+	 * condition, so a figure counting money in the state colour would be claiming a condition it
+	 * cannot have. It has a name of its own in the stylesheet for the same reason.
 	 */
-	export type CountTone = 'running' | 'settled';
+	export type CountTone = 'running' | 'settled' | 'money';
 
 	/**
 	 * What the figure itself wears, wherever a directory row states a quantity.
@@ -33,7 +38,8 @@
 		variants: {
 			tone: {
 				running: 'text-primary',
-				settled: 'text-muted-foreground'
+				settled: 'text-muted-foreground',
+				money: 'text-money'
 			} satisfies Record<CountTone, string>
 		}
 	});
