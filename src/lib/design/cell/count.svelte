@@ -13,8 +13,18 @@
 	 * One declaration, read by the status-keyed count beside this one as well, because the figures
 	 * on a row have to line up down the list and two of them deciding their own measure is how a
 	 * trailing cluster comes to read ragged.
+	 *
+	 * **The measure is fixed, so a row's trailing figures form columns down the list.** Sized to
+	 * the digits rather than to a length — `ch` is the advance width of a zero in whatever font is
+	 * rendering, so a locale whose digits are wider gets a wider column rather than a cramped one,
+	 * which a value in rem could not do. Three of them, because that covers every quantity this
+	 * domain counts; it is a floor and not a cap, so a figure that genuinely needs more takes it
+	 * and pushes the cluster rather than being clipped.
+	 *
+	 * Aligned to the end, or the fixed measure would leave a one-digit figure sitting away from the
+	 * column its neighbours below it line up on.
 	 */
-	export const countFigure = 'tabular-nums';
+	export const countFigure = 'min-w-[3ch] text-end tabular-nums';
 
 	// the same two tones `active`/`occupied` and `vacant` carry on a status glyph, so a count
 	// and a status never disagree about what blue means.
