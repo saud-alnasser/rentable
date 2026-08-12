@@ -37,3 +37,4 @@ owner: repository
 | [0029](0029-a-contracts-units-are-transferred-on-the-tab-that-shows-them.md) | a contract's units are being assigned, or a writing control is being put on a reading surface | accepted | `src/lib/contract/component/` |
 | [0030](0030-the-landing-screen-is-figures-over-sections.md) | the landing screen's shape or content is in question | accepted | `src/lib/dashboard/` |
 | [0031](0031-a-contracts-attention-rank-is-the-contracts-own.md) | a contract's rank, grouping or follow-up order is in question, or a surface outside the dashboard needs one | accepted | `src/lib/contract/`, `src/lib/dashboard/` |
+| [0032](0032-a-record-surface-is-one-shell-with-a-per-concept-body.md) | a surface showing one record is being built or changed, or where a record's chrome lives is in question | accepted | `src/lib/design/block/`, `src/lib/contract/component/`, `src/lib/tenant/component/` |
