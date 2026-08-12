@@ -174,7 +174,14 @@
 			<Tabs.Root bind:value={chosen} class="min-h-0 flex-1 gap-3">
 				<Tabs.List class="shrink-0 self-start">
 					{#each collections as collection (collection.value)}
-						<Tabs.Trigger value={collection.value} class="capitalize">
+						<!-- the chosen collection is marked by a value step rather than by the
+						     primitive's solid `primary` fill: with the panel and the tiles gone there is
+						     nothing else loud on the surface, and a filled switcher would lead a screen
+						     nobody opened to change sections on. -->
+						<Tabs.Trigger
+							value={collection.value}
+							class="capitalize data-[state=active]:bg-accent data-[state=active]:text-foreground"
+						>
 							{collection.label}
 						</Tabs.Trigger>
 					{/each}
