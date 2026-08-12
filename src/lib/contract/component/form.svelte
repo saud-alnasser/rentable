@@ -673,7 +673,7 @@
 										insetControl,
 										!contractEndDateValue && 'text-muted-foreground',
 										endDateState.isManuallyEdited &&
-											'border-emerald-500/40 bg-emerald-500/6 text-emerald-200'
+											'border-permitted/40 bg-permitted/6 text-permitted'
 									)}
 									aria-invalid={$errors.end ? 'true' : undefined}
 								>
@@ -707,9 +707,9 @@
 									<Calendar.Day
 										class={cn(
 											isAllowedManualDate &&
-												'rounded-full border border-emerald-500/45 text-emerald-300 hover:bg-emerald-500/10 data-[selected]:border-emerald-600 data-[selected]:bg-emerald-600 data-[selected]:text-white',
+												'rounded-full border border-permitted/45 text-permitted hover:bg-permitted/10 data-[selected]:border-permitted data-[selected]:bg-permitted data-[selected]:text-permitted-foreground',
 											isSuggestedDate &&
-												'border-emerald-600 bg-emerald-500/20 font-medium text-emerald-100 ring-1 ring-emerald-500/35 data-[selected]:bg-emerald-700'
+												'border-permitted bg-permitted/20 font-medium text-permitted ring-1 ring-permitted/35 data-[selected]:bg-permitted data-[selected]:text-permitted-foreground'
 										)}
 									/>
 								{/snippet}
