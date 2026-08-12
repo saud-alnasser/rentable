@@ -307,7 +307,7 @@ test('deleting a tenant that has a contract is rejected', async () => {
 // --- The directory list -------------------------------------------------------------
 //
 // `getMany` answers the tenants list, which reads as a directory: the order is the
-// reader's, and the active-contract count is an aggregate on the same query. Both are
+// reader's, and the figure per contract status is an aggregate on the same query. Both are
 // asserted here because both are what the list may not redo on the client.
 
 async function seedContract(api, tenantId, overrides = {}) {
@@ -321,20 +321,40 @@ async function seedContract(api, tenantId, overrides = {}) {
 	});
 }
 
-test('a tenant with no contracts is listed with a count of zero', async () => {
+/** the six figures off a listed row, named by status so a mis-keyed one reads as one. */
+const statusCounts = (listed) => ({
+	scheduled: listed.contractsScheduled,
+	active: listed.contractsActive,
+	fulfilled: listed.contractsFulfilled,
+	defaulted: listed.contractsDefaulted,
+	expired: listed.contractsExpired,
+	terminated: listed.contractsTerminated
+});
+
+test('a tenant with no contracts is listed with a zero against every status', async () => {
 	const api = await createApi();
 	const tenant = await seedTenant(api);
 
 	const [listed] = await api.tenant.getMany({});
 
 	assert.equal(listed.id, tenant.id);
-	assert.equal(listed.activeContractCount, 0);
+	assert.deepEqual(statusCounts(listed), {
+		scheduled: 0,
+		active: 0,
+		fulfilled: 0,
+		defaulted: 0,
+		expired: 0,
+		terminated: 0
+	});
 });
 
-test('the active-contract count holds the contracts in force and nothing else', async () => {
+test('a row carries one figure per status, and each counts only its own', async () => {
 	const api = await createApi();
 	const tenant = await seedTenant(api);
 
+	// one contract in each of the six statuses. A tenant holding exactly one everywhere is what
+	// makes a conditional count wired to the wrong status show up as a figure in the wrong
+	// column rather than as a total that still happens to add up.
 	await seedContract(api, tenant.id);
 
 	const fulfilled = await seedContract(api, tenant.id);
@@ -344,8 +364,6 @@ test('the active-contract count holds the contracts in force and nothing else', 
 		amount: 1_000_000
 	});
 
-	// ended and still owing, ended and settled, not yet started, and ended by hand — four
-	// contracts the tenant holds and none of them in force.
 	await seedContract(api, tenant.id, { start: monthsFromNow(-14), end: monthsFromNow(-2) });
 
 	const expired = await seedContract(api, tenant.id, {
@@ -365,7 +383,50 @@ test('the active-contract count holds the contracts in force and nothing else', 
 
 	const [listed] = await api.tenant.getMany({});
 
-	assert.equal(listed.activeContractCount, 2);
+	assert.deepEqual(statusCounts(listed), {
+		scheduled: 1,
+		active: 1,
+		fulfilled: 1,
+		defaulted: 1,
+		expired: 1,
+		terminated: 1
+	});
+});
+
+test('ordering by contracts counts the ones in force, not every contract held', async () => {
+	const api = await createApi();
+	const inForce = await api.tenant.create({
+		name: 'Amal',
+		nationalId: '2999999999',
+		phone: '+966551110001'
+	});
+	const history = await api.tenant.create({
+		name: 'Zaid',
+		nationalId: '1000000001',
+		phone: '+966551110002'
+	});
+
+	// two in force against three that are not, so an order over every contract would invert this
+	// and an order over the contracts in force will not.
+	await seedContract(api, inForce.id);
+	const fulfilled = await seedContract(api, inForce.id);
+	await api.contract.payments.create({
+		contractId: fulfilled.id,
+		date: monthsFromNow(0),
+		amount: 1_000_000
+	});
+
+	await seedContract(api, history.id, { start: monthsFromNow(-14), end: monthsFromNow(-2) });
+	await seedContract(api, history.id, { start: monthsFromNow(2), end: monthsFromNow(14) });
+	const terminated = await seedContract(api, history.id);
+	await api.contract.terminate({ id: terminated.id });
+
+	assert.deepEqual(
+		(
+			await api.tenant.getMany({ sort: { columnId: 'activeContractCount', direction: 'desc' } })
+		).map((tenant) => tenant.id),
+		[inForce.id, history.id]
+	);
 });
 
 test('the directory opens ordered by name', async () => {
@@ -465,7 +526,7 @@ test('searching the directory narrows it and keeps the chosen order', async () =
 		[zaid.id, amal.id]
 	);
 	assert.deepEqual(
-		listed.map((tenant) => tenant.activeContractCount),
+		listed.map((tenant) => tenant.contractsActive),
 		[1, 0]
 	);
 });

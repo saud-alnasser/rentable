@@ -11,7 +11,7 @@
 	import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 	import { tv } from 'tailwind-variants';
 
-	type StatusName = keyof TranslationFunctions['common']['status'];
+	export type StatusName = keyof TranslationFunctions['common']['status'];
 
 	/**
 	 * The glyph each status is read by.
@@ -29,7 +29,7 @@
 	 * stands alone: a pair distinguished by fine detail reads as one mark there, and a dashed
 	 * ring already means *vacant* on the complexes directory beside its count.
 	 */
-	const glyphs: Record<StatusName, typeof LockIcon> = {
+	export const statusGlyphs: Record<StatusName, typeof LockIcon> = {
 		scheduled: HourglassIcon,
 		active: ClockPlayIcon,
 		fulfilled: ProgressCheckIcon,
@@ -41,26 +41,31 @@
 		overdue: ClockExclamationIcon
 	};
 
-	// blue is the state colour, so it marks what is running and destructive marks what
-	// failed; everything settled or not yet started reads quieter than both. Carried over
-	// from the badge this replaced — within each pair the tone separates them a second time,
-	// so the glyph is not doing the work alone.
-	const glyph = tv({
-		base: 'size-4',
-		variants: {
-			status: {
-				active: 'text-primary',
-				occupied: 'text-primary',
-				scheduled: 'text-muted-foreground',
-				vacant: 'text-muted-foreground',
-				expired: 'text-muted-foreground',
-				defaulted: 'text-destructive',
-				overdue: 'text-destructive',
-				terminated: 'text-destructive',
-				fulfilled: 'text-foreground'
-			} satisfies Record<StatusName, string>
-		}
-	});
+	/**
+	 * The colour each status is read in.
+	 *
+	 * Blue is the state colour, so it marks what is running and destructive marks what failed;
+	 * everything settled or not yet started reads quieter than both. Carried over from the badge
+	 * this replaced — within each pair the tone separates them a second time, so the glyph is not
+	 * doing the work alone.
+	 *
+	 * Exported because a figure counting contracts in a status has to read in the same colour as
+	 * the status itself: two tables would let a count and a status come to disagree about what
+	 * red means, which is the one thing the shared vocabulary exists to prevent.
+	 */
+	export const statusTones: Record<StatusName, string> = {
+		active: 'text-primary',
+		occupied: 'text-primary',
+		scheduled: 'text-muted-foreground',
+		vacant: 'text-muted-foreground',
+		expired: 'text-muted-foreground',
+		defaulted: 'text-destructive',
+		overdue: 'text-destructive',
+		terminated: 'text-destructive',
+		fulfilled: 'text-foreground'
+	};
+
+	const glyph = tv({ base: 'size-4', variants: { status: statusTones } });
 </script>
 
 <script lang="ts">
@@ -73,7 +78,7 @@
 	 */
 	let { status }: { status: StatusName } = $props();
 
-	const Glyph = $derived(glyphs[status]);
+	const Glyph = $derived(statusGlyphs[status]);
 	const name = $derived($LL.common.status[status]());
 </script>
 

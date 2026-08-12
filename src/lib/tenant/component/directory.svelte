@@ -11,7 +11,7 @@
 	import { formatLocaleNumber } from '$lib/platform/locale';
 	import { useListTenants } from '$lib/tenant/query';
 	import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
-	import ContractIcon from '@tabler/icons-svelte/icons/contract';
+	import { CONTRACT_ATTENTION_ORDER } from '$lib/contract/contract';
 	import TenantForm from './form.svelte';
 	import { recordCard } from '$lib/design/block/list.svelte';
 	import { cn } from '$lib/design/tailwind';
@@ -21,6 +21,20 @@
 	// two lines of text and the breathing room around them; the shell lays rows out at this
 	// height rather than measuring them.
 	const ROW_HEIGHT = 64;
+
+	// the row's six figures, keyed by the status each counts.
+	//
+	// The query answers with one field per status rather than a nested figure, so this is where
+	// the two shapes meet — and it is a function of the record rather than a derived value
+	// because the list hands each row to the snippet one at a time.
+	const contractCounts = (tenant: TenantRecord) => ({
+		scheduled: tenant.contractsScheduled,
+		active: tenant.contractsActive,
+		fulfilled: tenant.contractsFulfilled,
+		defaulted: tenant.contractsDefaulted,
+		expired: tenant.contractsExpired,
+		terminated: tenant.contractsTerminated
+	});
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
@@ -70,10 +84,13 @@
 			{ header: $LL.common.labels.name(), value: (tenant) => tenant.name },
 			{ header: $LL.common.labels.nationalId(), value: (tenant) => tenant.nationalId },
 			{ header: $LL.common.labels.phone(), value: (tenant) => tenant.phone },
-			{
-				header: $LL.common.labels.activeContracts(),
-				value: (tenant) => formatLocaleNumber($locale, tenant.activeContractCount)
-			}
+			// the export follows the row, because the columns are the row's: a reader exports what
+			// they are looking at, and a file short of a figure that is on screen is the defect the
+			// complexes export already has.
+			...CONTRACT_ATTENTION_ORDER.map((status) => ({
+				header: $LL.common.status[status](),
+				value: (tenant: TenantRecord) => formatLocaleNumber($locale, contractCounts(tenant)[status])
+			}))
 		]
 	}}
 	onCreate={() => {
@@ -81,6 +98,7 @@
 	}}
 >
 	{#snippet record(tenant: TenantRecord)}
+		{@const counts = contractCounts(tenant)}
 		<a
 			href={resolve(`/tenants/${tenant.id}`)}
 			class={cn('flex h-full items-center gap-4 px-4 hover:bg-muted/40', recordCard)}
@@ -94,12 +112,16 @@
 				</span>
 			</span>
 
-			<Cell.Count
-				icon={ContractIcon}
-				count={tenant.activeContractCount}
-				label={$LL.common.labels.activeContracts()}
-				tone={tenant.activeContractCount > 0 ? 'running' : 'settled'}
-			/>
+			<!-- a figure per status, in the order the contracts directory ranks them: what needs the
+			     reader, then what is running, then what has not started, then the history behind
+			     them. Every status is shown including the ones at zero, so the six form fixed
+			     columns down the list — a cluster that varied with what each tenant happened to
+			     hold would work against exactly that. -->
+			<span class="flex shrink-0 items-center gap-3">
+				{#each CONTRACT_ATTENTION_ORDER as status (status)}
+					<Cell.StatusCount {status} count={counts[status]} />
+				{/each}
+			</span>
 		</a>
 	{/snippet}
 </List>
