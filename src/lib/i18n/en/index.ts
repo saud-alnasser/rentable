@@ -311,21 +311,17 @@ const en = {
 			'switch the active database, fall back to the default path, create backups, and restore earlier backups.',
 		databaseTitle: 'database path and backups',
 
-		description:
-			'manage the ending-soon notice window, app updates, sync workspaces, and app details.',
-
 		diagnosticsDescription:
-			'rentable records what it does on this machine — startups, migrations, backups, and sync — so a failure can be looked into afterwards. the files never leave this machine and are limited in size, and passwords and account tokens are stripped out before anything is written.',
+			'rentable keeps a record of what it does on this machine, so a failure can be looked into afterwards. the files never leave this machine, they are limited in size, and passwords and account tokens are removed before anything is written.',
 		diagnosticsLocationLabel: 'log location',
 		diagnosticsReveal: 'open log folder',
-		diagnosticsTitle: 'diagnostics',
 
 		downloadingUpdate: 'downloading update',
 
 		endingSoonDescription:
-			'choose how many days before contract end a contract should appear as ending soon on the dashboard.',
-		endingSoonInvalid: 'ending soon notice window must be greater than zero',
-		endingSoonTitle: 'ending soon notice window',
+			'a contract starts showing as ending soon on the dashboard this many days before it ends.',
+		endingSoonInvalid: 'the number of days must be greater than zero',
+		endingSoonTitle: 'ending soon',
 
 		groupDiagnostics: 'diagnostics',
 		groupGeneral: 'general',
@@ -333,7 +329,6 @@ const en = {
 		groupWorkspace: 'workspace',
 		latestRelease: "you're already on the latest release.",
 
-		loadErrorDescription: 'there was a problem loading the current settings snapshot.',
 		loadErrorTitle: 'settings are unavailable right now',
 		openWorkspaceAction: 'open workspace',
 
@@ -352,8 +347,8 @@ const en = {
 		latestSnapshot: 'latest snapshot',
 		snapshotNow: 'snapshot',
 		syncAutomationDescription:
-			'snapshots are managed automatically for recovery, sync, and unlink cleanup, and older internal snapshots are cleaned up for you.',
-		syncAutomationTitle: 'managed snapshots',
+			'rentable keeps a recent snapshot of this workspace so it can be recovered, and clears out the older ones. there is nothing to do here.',
+		syncAutomationTitle: 'snapshots are kept for you',
 		syncAccountsDescription:
 			'linked Google Drive accounts stay available for workspace switching, sync, and startup selection.',
 		syncAccountsTitle: 'linked Google Drive accounts',
@@ -387,8 +382,6 @@ const en = {
 			'this workspace diverged locally and remotely. choose which side should win before syncing again.',
 		syncConflictTitle: 'resolve the sync conflict',
 		syncConflictUseRemoteAction: 'use remote & sync',
-		syncDescription:
-			'see the current workspace status, keep a fresh snapshot, and link or unlink Google Drive sync.',
 		syncGoogleDrivePending:
 			'Google Drive account linking is not configured in this build yet. The workspace and snapshot foundation is ready for it.',
 		syncLinkConflictDescription:
@@ -405,7 +398,7 @@ const en = {
 		syncLastRemoteDescription: 'latest remote update {value}',
 		syncLastSnapshotDescription: 'latest snapshot {value}',
 		syncLinkDescription:
-			'link Google Drive to this workspace to enable startup sync and remote recovery. if both local and remote snapshots exist, you will choose which one to keep.',
+			'link Google Drive so this workspace syncs when the app starts, and can be recovered if this machine is lost. if both sides already hold a copy, you choose which one to keep.',
 		syncLinkFinalizingDescription:
 			'Google authorization was received. Rentable is finishing the Google Drive link and checking the remote workspace now.',
 		syncLinkFinalizingTitle: 'Finishing Google Drive link',
@@ -437,16 +430,14 @@ const en = {
 		syncRemoteSnapshotUnavailableDescription:
 			'no remote snapshot is available in Google Drive for this workspace yet.',
 		syncUnlinkDescription:
-			'unlink keeps this workspace local, creates one fresh local snapshot, and stops future Google Drive syncs until you link again.',
+			'unlinking keeps this workspace on this machine and stops it syncing to Google Drive. you can link it again later.',
 		syncUnlinkDialogDescription:
 			'this keeps your local workspace and stops future Google Drive syncs until you link again.',
 		syncUnlinkDialogTitle: 'unlink Google Drive?',
 		syncWorkspaceChangedDescription:
 			'the active workspace changed before Google Drive sync could start.',
 		syncWorkspaceStatusSynced: 'synced',
-		syncTitle: 'workspace',
-
-		localeDescription: 'choose your preferred display language. the interface updates immediately.',
+		localeDescription: 'the interface changes as soon as you pick one.',
 		localeLabel: 'display language',
 		localeTitle: 'language',
 
@@ -454,8 +445,7 @@ const en = {
 
 		updatesChecking: 'checking for updates...',
 		updatesDescription:
-			'check github releases for a newer signed build. if startup later fails after an update, rentable offers rollback to the protected pre-update backup.',
-		updatesTitle: 'app updates',
+			'check whether a newer version of rentable is available, and install it. if the app will not start afterwards, it offers to put back the version you were on.',
 
 		usingCustomDatabasePath: 'the app is currently using a custom database path override.',
 		usingDefaultDatabasePath: 'the app is currently using the default database path.'

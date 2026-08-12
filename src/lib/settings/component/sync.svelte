@@ -20,7 +20,6 @@
 	import { Badge, type BadgeVariant } from '$lib/design/primitive/badge';
 	import { Button } from '$lib/design/primitive/button';
 	import { Callout } from '$lib/design/primitive/callout';
-	import * as Field from '$lib/design/primitive/field';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import { cn } from '$lib/design/tailwind.js';
 	import { showErrorToast } from '$lib/error/toast';
@@ -362,14 +361,9 @@
 	}
 </script>
 
+<!-- no heading row of its own: the group above is already called workspace, and the row said
+     "workspace" under it and then listed the controls that follow. -->
 <div class="space-y-5">
-	<Field.Field>
-		<Field.Content>
-			<Field.Label>{$LL.settings.syncTitle()}</Field.Label>
-			<Field.Description>{$LL.settings.syncDescription()}</Field.Description>
-		</Field.Content>
-	</Field.Field>
-
 	<Callout variant="info">
 		<strong>{$LL.settings.syncAutomationTitle()}</strong>
 		<div class="mt-1 text-sm text-muted-foreground">
