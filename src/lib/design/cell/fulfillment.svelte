@@ -1,9 +1,8 @@
 <script lang="ts">
+	import Ring from '$lib/design/cell/ring.svelte';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
-	import { cn } from '$lib/design/tailwind';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleValueWithUnit } from '$lib/platform/locale';
-	import { onMount } from 'svelte';
 
 	/**
 	 * How much of an amount has been paid, as a ring carrying its own percentage.
@@ -12,6 +11,9 @@
 	 * through paying this is* wants a shape, and the amounts are one hover away when it wants
 	 * those instead. The percentage stays at the centre because a bare arc on a row is the
 	 * shape a loading indicator takes, and a number at its middle is not.
+	 *
+	 * This is the payment reading of {@link Ring} — the arc is the treatment, and what it is an
+	 * arc *of* is here.
 	 */
 	let {
 		paid,
@@ -24,22 +26,6 @@
 		note?: string;
 	} = $props();
 
-	const RADIUS = 14;
-	const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-
-	const fraction = $derived(expected > 0 ? Math.min(Math.max(paid / expected, 0), 1) : 0);
-	const percent = $derived(Math.round(fraction * 100));
-	const isSettled = $derived(fraction >= 1);
-
-	// the ring fills from nothing to its value once, when the data it describes arrives — a
-	// trigger rather than a loop. `mounted` holds it at zero for the first frame so there is
-	// something to transition from; reduced motion is gated on the transition itself.
-	let mounted = $state(false);
-	onMount(() => {
-		mounted = true;
-	});
-	const shown = $derived(mounted ? fraction : 0);
-
 	const money = (value: number) =>
 		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
 </script>
@@ -49,41 +35,8 @@
 		{#snippet child({ props })}
 			<!-- pointer-events-auto for the reason the other cells carry it: a surface may lay a
 			     click target over its content and disable pointer events beneath. -->
-			<span {...props} class="pointer-events-auto relative inline-flex shrink-0 items-center">
-				<!-- a rotation rather than a mirrored fill: an arc starting at twelve o'clock reads
-				     the same way round in both locales, where a bar filling from one edge does not. -->
-				<svg viewBox="0 0 36 36" class="size-9 -rotate-90" aria-hidden="true">
-					<circle
-						cx="18"
-						cy="18"
-						r={RADIUS}
-						fill="none"
-						stroke="currentColor"
-						stroke-width="3"
-						class="text-foreground/12"
-					/>
-					<circle
-						cx="18"
-						cy="18"
-						r={RADIUS}
-						fill="none"
-						stroke="currentColor"
-						stroke-width="3"
-						stroke-linecap="round"
-						stroke-dasharray={CIRCUMFERENCE}
-						stroke-dashoffset={CIRCUMFERENCE * (1 - shown)}
-						class={cn(
-							'motion-safe:transition-[stroke-dashoffset] motion-safe:duration-700 motion-safe:ease-out',
-							isSettled ? 'text-foreground' : 'text-primary'
-						)}
-					/>
-				</svg>
-				<span
-					class="absolute inset-0 flex items-center justify-center text-[10px] leading-none font-medium tabular-nums"
-					aria-hidden="true"
-				>
-					{percent}
-				</span>
+			<span {...props} class="pointer-events-auto inline-flex items-center">
+				<Ring value={paid} total={expected} />
 				<span class="sr-only">
 					{$LL.common.labels.paymentFulfillment()}: {money(paid)} / {money(expected)}
 				</span>

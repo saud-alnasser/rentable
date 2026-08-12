@@ -1,4 +1,4 @@
-import type { ContractRank } from '$lib/contract/rank';
+import type { ContractRank, ContractRankSummary } from '$lib/contract/rank';
 import type { Contract } from '$lib/platform/database/schema';
 
 /**
@@ -54,5 +54,39 @@ export function takeEntriesShownPerRank<TEntry extends { rank: ContractRank }>(
 		takenPerRank.set(entry.rank, taken + 1);
 
 		return true;
+	});
+}
+
+/** One rank as the screen shows it: what the rank holds, the rows it shows, and the rest. */
+export type DashboardSection<TEntry> = {
+	summary: ContractRankSummary;
+	entries: TEntry[];
+	/** How many contracts of this rank the section does not show. Zero where the rank fits. */
+	hiddenCount: number;
+};
+
+/**
+ * One section per rank that holds something, in the ranks' own order.
+ *
+ * A rank that holds nothing has no summary, so it produces no section — an empty section would
+ * be a heading standing over nothing, and a screen of those says there is work when there is
+ * none. A screen with no sections at all is the empty state.
+ *
+ * `hiddenCount` is the rank's whole count less the rows shown, which is why it can be stated at
+ * all: the summary describes every contract under the rank and the entries are only the few
+ * that came back.
+ */
+export function toDashboardSections<TEntry extends { rank: ContractRank }>(
+	summaries: readonly ContractRankSummary[],
+	entries: readonly TEntry[]
+): DashboardSection<TEntry>[] {
+	return summaries.map((summary) => {
+		const shown = entries.filter((entry) => entry.rank === summary.rank);
+
+		return {
+			summary,
+			entries: shown,
+			hiddenCount: Math.max(summary.contractCount - shown.length, 0)
+		};
 	});
 }

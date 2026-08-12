@@ -4,8 +4,11 @@ import test from 'node:test';
 import {
 	DASHBOARD_ENTRIES_PER_RANK,
 	isContractIncludedInDashboardPortfolio,
-	takeEntriesShownPerRank
+	takeEntriesShownPerRank,
+	toDashboardSections
 } from './dashboard.ts';
+
+const summaryOf = (rank, contractCount, totalAmount = 0) => ({ rank, contractCount, totalAmount });
 
 const entriesOf = (rank, count) =>
 	Array.from({ length: count }, (_, index) => ({ rank, id: `${rank}-${index}` }));
@@ -45,4 +48,43 @@ test('a rank holding fewer entries than the cap is returned whole', () => {
 	const entries = entriesOf('owing', 1);
 
 	assert.deepEqual(takeEntriesShownPerRank(entries), entries);
+});
+
+test('a section takes its rows from the entries and its count from the summary', () => {
+	const sections = toDashboardSections(
+		[summaryOf('overdue', 9, 4000), summaryOf('owing', 2, 1500)],
+		[...entriesOf('overdue', 4), ...entriesOf('owing', 2)]
+	);
+
+	assert.deepEqual(
+		sections.map(({ summary, entries, hiddenCount }) => ({
+			rank: summary.rank,
+			shown: entries.length,
+			hiddenCount
+		})),
+		[
+			{ rank: 'overdue', shown: 4, hiddenCount: 5 },
+			{ rank: 'owing', shown: 2, hiddenCount: 0 }
+		]
+	);
+});
+
+// the sections are the summaries', so the ranks' own order carries through and a rank holding
+// nothing — which is summarized as nothing — produces no heading standing over no rows.
+test('a rank that holds nothing produces no section', () => {
+	assert.deepEqual(toDashboardSections([], entriesOf('overdue', 3)), []);
+	assert.deepEqual(
+		toDashboardSections([summaryOf('ending-soon', 1)], entriesOf('ending-soon', 1)).map(
+			({ summary }) => summary.rank
+		),
+		['ending-soon']
+	);
+});
+
+// a count that outran its rows would read as a negative remainder on the screen. It cannot
+// happen from the router, and the arithmetic says so rather than trusting that it cannot.
+test('a section never states a negative remainder', () => {
+	const [section] = toDashboardSections([summaryOf('owing', 1)], entriesOf('owing', 3));
+
+	assert.equal(section.hiddenCount, 0);
 });

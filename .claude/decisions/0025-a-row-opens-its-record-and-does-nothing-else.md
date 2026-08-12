@@ -2,7 +2,7 @@
 owner: repository
 status: accepted
 load-when: a list row is given an action, or a row's click target is in question
-sources: [src/lib/design/block/list.svelte, src/lib/dashboard/component/queue.svelte]
+sources: [src/lib/design/block/list.svelte, src/lib/dashboard/component/section.svelte]
 supersedes: []
 superseded-by: []
 ---

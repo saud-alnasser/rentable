@@ -946,49 +946,40 @@ type RootTranslation = {
 			 */
 			title: string
 		}
-		queue: {
-			/**
-			 * a​l​s​o​ ​e​n​d​i​n​g
-			 */
-			alsoEnding: string
+		figures: {
 			/**
 			 * c​o​l​l​e​c​t​e​d​ ​t​h​i​s​ ​m​o​n​t​h
 			 */
 			collectedThisMonth: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)
-			 * @param {unknown} count
-			 */
-			groupCount: RequiredParams<'count|number'>
-			groups: {
-				/**
-				 * e​n​d​i​n​g​ ​s​o​o​n
-				 */
-				endingSoon: string
-				/**
-				 * o​v​e​r​d​u​e
-				 */
-				overdue: string
-				/**
-				 * o​w​i​n​g
-				 */
-				owing: string
-			}
-			/**
-			 * {​o​c​c​u​p​i​e​d​}​ ​/​ ​{​t​o​t​a​l​}
-			 * @param {unknown} occupied
-			 * @param {unknown} total
-			 */
-			occupancy: RequiredParams<'occupied' | 'total'>
-			/**
 			 * o​c​c​u​p​i​e​d​ ​u​n​i​t​s
 			 */
 			occupiedUnits: string
+			/**
+			 * o​u​t​s​t​a​n​d​i​n​g
+			 */
+			outstanding: string
+		}
+		sections: {
+			/**
+			 * a​l​s​o​ ​e​n​d​i​n​g
+			 */
+			alsoEnding: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)
+			 * @param {unknown} count
+			 */
+			contractCount: RequiredParams<'count|number'>
 			/**
 			 * o​p​e​n​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​f​o​r​ ​{​t​e​n​a​n​t​}
 			 * @param {unknown} tenant
 			 */
 			openContract: RequiredParams<'tenant'>
+			/**
+			 * s​e​e​ ​a​l​l​ ​(​{​c​o​u​n​t​|​n​u​m​b​e​r​}​)
+			 * @param {unknown} count
+			 */
+			seeAll: RequiredParams<'count|number'>
 		}
 		/**
 		 * d​a​s​h​b​o​a​r​d
@@ -1796,6 +1787,20 @@ type RootTranslation = {
 			 * t​r​a​c​k​ ​c​o​n​t​r​a​c​t​ ​p​a​y​m​e​n​t​s​ ​a​n​d​ ​a​d​d​ ​n​e​w​ ​p​a​y​m​e​n​t​ ​r​e​c​o​r​d​s​ ​h​e​r​e​.
 			 */
 			trackSummary: string
+		}
+		ranks: {
+			/**
+			 * e​n​d​i​n​g​ ​s​o​o​n
+			 */
+			endingSoon: string
+			/**
+			 * o​v​e​r​d​u​e
+			 */
+			overdue: string
+			/**
+			 * o​w​i​n​g
+			 */
+			owing: string
 		}
 		table: {
 			/**
@@ -2835,45 +2840,37 @@ export type TranslationFunctions = {
 			 */
 			title: () => LocalizedString
 		}
-		queue: {
-			/**
-			 * also ending
-			 */
-			alsoEnding: () => LocalizedString
+		figures: {
 			/**
 			 * collected this month
 			 */
 			collectedThisMonth: () => LocalizedString
 			/**
-			 * {count|number} contract(s)
-			 */
-			groupCount: (arg: { count: unknown }) => LocalizedString
-			groups: {
-				/**
-				 * ending soon
-				 */
-				endingSoon: () => LocalizedString
-				/**
-				 * overdue
-				 */
-				overdue: () => LocalizedString
-				/**
-				 * owing
-				 */
-				owing: () => LocalizedString
-			}
-			/**
-			 * {occupied} / {total}
-			 */
-			occupancy: (arg: { occupied: unknown, total: unknown }) => LocalizedString
-			/**
 			 * occupied units
 			 */
 			occupiedUnits: () => LocalizedString
 			/**
+			 * outstanding
+			 */
+			outstanding: () => LocalizedString
+		}
+		sections: {
+			/**
+			 * also ending
+			 */
+			alsoEnding: () => LocalizedString
+			/**
+			 * {count|number} contract(s)
+			 */
+			contractCount: (arg: { count: unknown }) => LocalizedString
+			/**
 			 * open the contract for {tenant}
 			 */
 			openContract: (arg: { tenant: unknown }) => LocalizedString
+			/**
+			 * see all ({count|number})
+			 */
+			seeAll: (arg: { count: unknown }) => LocalizedString
 		}
 		/**
 		 * dashboard
@@ -3662,6 +3659,20 @@ export type TranslationFunctions = {
 			 * track contract payments and add new payment records here.
 			 */
 			trackSummary: () => LocalizedString
+		}
+		ranks: {
+			/**
+			 * ending soon
+			 */
+			endingSoon: () => LocalizedString
+			/**
+			 * overdue
+			 */
+			overdue: () => LocalizedString
+			/**
+			 * owing
+			 */
+			owing: () => LocalizedString
 		}
 		table: {
 			/**
