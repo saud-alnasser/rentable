@@ -336,29 +336,6 @@
 		}).format(size)} ${units[unitIndex]}`;
 	}
 
-	function formatDriveUsage(account: RemoteSyncAccount | null) {
-		if (!account) {
-			return null;
-		}
-
-		const used = formatBytes(account.driveUsageBytes);
-		const total = formatBytes(account.driveQuotaBytes);
-
-		if (!used || !total) {
-			return null;
-		}
-
-		return `${used} / ${total}`;
-	}
-
-	function getLatestSnapshotTimestamp(workspace: RemoteSyncWorkspace) {
-		const snapshotAt = workspace.lastSnapshotAt ?? 0;
-		const syncedAt = workspace.provider === 'googleDrive' ? (workspace.lastSyncedAt ?? 0) : 0;
-		const latest = Math.max(snapshotAt, syncedAt);
-
-		return latest > 0 ? latest : null;
-	}
-
 	function getWorkspaceStatus(
 		workspace: RemoteSyncWorkspace,
 		account: RemoteSyncAccount | null
@@ -453,59 +430,38 @@
 						</div>
 					</div>
 
-					<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-						<div class="rounded-2xl border bg-muted p-3">
-							<p class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
+					<!-- each fact once: the header already carries the provider and the account, so what is
+					     left is when this workspace was last written and how much room it takes. -->
+					<dl class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+						<div class="min-w-0">
+							<dt class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
 								{$LL.settings.latestSnapshot()}
-							</p>
-							<p class="mt-2 text-sm font-medium">
-								{formatTimestamp(getLatestSnapshotTimestamp(activeWorkspace))}
-							</p>
-							<p class="mt-1 text-xs text-muted-foreground">
-								{$LL.settings.syncLastSnapshotDescription({
-									value: formatTimestamp(activeWorkspace.lastSnapshotAt ?? null)
-								})}
-							</p>
+							</dt>
+							<dd class="mt-1 font-medium">
+								{formatTimestamp(activeWorkspace.lastSnapshotAt ?? null)}
+							</dd>
 						</div>
 
-						<div class="rounded-2xl border bg-muted p-3">
-							<p class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
-								{$LL.common.actions.syncNow()}
-							</p>
-							<p class="mt-2 text-sm font-medium">
-								{formatTimestamp(activeWorkspace.lastSyncedAt ?? null)}
-							</p>
-							<p class="mt-1 text-xs text-muted-foreground">
-								{activeWorkspace.provider === 'googleDrive'
-									? $LL.settings.syncLastRemoteDescription({
-											value: formatTimestamp(activeWorkspace.lastRemoteUpdatedAt ?? null)
-										})
-									: $LL.settings.syncLinkDescription()}
-							</p>
-						</div>
+						{#if activeWorkspace.provider === 'googleDrive'}
+							<div class="min-w-0">
+								<dt class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
+									{$LL.common.labels.lastSyncTime()}
+								</dt>
+								<dd class="mt-1 font-medium">
+									{formatTimestamp(activeWorkspace.lastSyncedAt ?? null)}
+								</dd>
+							</div>
 
-						<div class="rounded-2xl border bg-muted p-3 sm:col-span-2 xl:col-span-1">
-							<p class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
-								{activeWorkspace.provider === 'googleDrive'
-									? $LL.settings.syncProviderGoogleDrive()
-									: $LL.settings.currentWorkspace()}
-							</p>
-							<p class="mt-2 text-sm font-medium">
-								{activeWorkspace.provider === 'googleDrive'
-									? (formatBytes(activeAccount?.appUsageBytes) ?? $LL.common.messages.unknown())
-									: getProviderLabel(activeWorkspace.provider)}
-							</p>
-							<p class="mt-1 text-xs text-muted-foreground">
-								{activeWorkspace.provider === 'googleDrive'
-									? formatDriveUsage(activeAccount)
-										? $LL.settings.syncTotalDriveUsageDescription({
-												value: formatDriveUsage(activeAccount) ?? ''
-											})
-										: $LL.settings.syncProviderGoogleDrive()
-									: $LL.settings.syncAutomationDescription()}
-							</p>
-						</div>
-					</div>
+							<div class="min-w-0">
+								<dt class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
+									{$LL.settings.syncProviderGoogleDrive()}
+								</dt>
+								<dd class="mt-1 font-medium">
+									{formatBytes(activeAccount?.appUsageBytes) ?? $LL.common.messages.unknown()}
+								</dd>
+							</div>
+						{/if}
+					</dl>
 				</div>
 
 				<div class="w-full max-w-md space-y-3 text-start">

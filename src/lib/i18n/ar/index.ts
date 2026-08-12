@@ -337,7 +337,6 @@ const ar = {
 
 		loadErrorDescription: 'حدثت مشكلة أثناء تحميل الإعدادات.',
 		loadErrorTitle: 'الإعدادات غير متاحة حالياً',
-		currentWorkspace: 'مساحة العمل الحالية',
 		openWorkspaceAction: 'فتح مساحة العمل',
 
 		protectedUpdateBackup: 'نسخة احتياطية محمية',
@@ -393,15 +392,12 @@ const ar = {
 			'راجع حالة مساحة العمل الحالية، واحتفظ بلقطة حديثة، واربط أو ألغِ ربط مزامنة Google Drive.',
 		syncGoogleDrivePending:
 			'ربط حسابات Google Drive غير مفعّل في هذا الإصدار بعد، لكن أساس ملفات العمل واللقطات أصبح جاهزاً له.',
-		syncTotalDriveUsageDescription: 'إجمالي مساحة Google Drive المستخدمة: {value}',
 		syncLinkConflictDescription:
 			'تحتوي مساحة العمل هذه بالفعل على لقطة محلية ولقطة على Google Drive. اختر النسخة التي يجب أن تستمر قبل بدء المزامنة.',
 		syncLinkConflictLocalDescription:
 			'تابع باستخدام هذا الجهاز واكتب أحدث لقطة محلية فوق Google Drive.',
-		syncLinkConflictLocalTitle: 'الاحتفاظ بالمحلي',
 		syncLinkConflictRemoteDescription:
 			'استبدل هذا الجهاز بلقطة Google Drive المرتبطة بالحساب {email}.',
-		syncLinkConflictRemoteTitle: 'استخدام البعيد',
 		syncLinkConflictShortDescription:
 			'أكمل الربط باختيار ما إذا كانت اللقطة المحلية أو البعيدة ستصبح مساحة العمل المتزامنة.',
 		syncLinkConflictTitle: 'اختر نسخة مساحة العمل التي ستبقى',
