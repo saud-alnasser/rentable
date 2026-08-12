@@ -1,3 +1,5 @@
+import { TRPCError } from '@trpc/server';
+
 /**
  * COMPLEX
  *
@@ -5,6 +7,34 @@
  * complexes directory. The rules that decide whether a write is allowed still live in the
  * router beside the uniqueness checks they read the database for.
  */
+
+/**
+ * Refuse a set of unit names holding the same name twice.
+ *
+ * A collision *within* one submission is a case creating units one dialog at a time could
+ * not produce: each was checked against what was stored, and there was never a set to check
+ * against itself. The uniqueness the database enforces is per complex, so this is the same
+ * rule read against the arriving set rather than against the table.
+ *
+ * @param names the unit names as submitted, in order.
+ * @throws a `BAD_REQUEST` naming the first name that repeats.
+ */
+export function ensureUnitNamesDistinct(names: string[]) {
+	const seen = new Set<string>();
+
+	for (const name of names) {
+		const normalized = name.trim().toLowerCase();
+
+		if (seen.has(normalized)) {
+			throw new TRPCError({
+				code: 'BAD_REQUEST',
+				message: `"${name.trim()}" is used twice; each unit needs its own name`
+			});
+		}
+
+		seen.add(normalized);
+	}
+}
 
 /**
  * The keys the complexes directory may be ordered by, and the whole of what its sort

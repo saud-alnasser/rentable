@@ -74,7 +74,12 @@ test('an id-only update is a no-op that returns the complex unchanged', async ()
 
 	const updated = await api.complex.update({ id: complex.id });
 
-	assert.deepEqual(updated, complex);
+	// creation answers with the units it made as well, so the row is compared rather than the
+	// whole answer.
+	const { units, ...row } = complex;
+
+	assert.deepEqual(units, []);
+	assert.deepEqual(updated, row);
 });
 
 test('a name-only update to a name used by another complex is still rejected', async () => {
@@ -569,4 +574,68 @@ test('searching the board reaches the unit name and the occupying tenant', async
 		),
 		['B2']
 	);
+});
+
+// --- Creating a complex with its units ------------------------------------------------
+
+test('a complex and its units are created in one submission', async () => {
+	const api = await createApi();
+
+	const complex = await api.complex.create({
+		name: 'Palm Court',
+		location: 'Riyadh',
+		units: [{ name: 'A1' }, { name: 'A2' }]
+	});
+
+	assert.deepEqual(
+		(await api.complex.units.getMany({ complexId: complex.id })).map((unit) => unit.name),
+		['A1', 'A2']
+	);
+});
+
+test('a complex can still be created with no units', async () => {
+	const api = await createApi();
+
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+
+	assert.deepEqual(await api.complex.units.getMany({ complexId: complex.id }), []);
+});
+
+// a collision one dialog at a time could not produce: each unit was checked against what was
+// stored, and there was never a set to check against itself.
+test('two units entered under one name are refused, naming the collision', async () => {
+	const api = await createApi();
+
+	await assert.rejects(
+		() =>
+			api.complex.create({
+				name: 'Palm Court',
+				location: 'Riyadh',
+				units: [{ name: 'A1' }, { name: ' a1 ' }]
+			}),
+		/"a1" is used twice/
+	);
+
+	assert.deepEqual(await api.complex.getMany({}), []);
+});
+
+test('a refused complex name creates none of its units either', async () => {
+	const api = await createApi();
+	await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+
+	await assert.rejects(
+		() =>
+			api.complex.create({
+				name: 'Palm Court',
+				location: 'Jeddah',
+				units: [{ name: 'A1' }]
+			}),
+		/name is associated with a previously registered complex/
+	);
+
+	assert.deepEqual(
+		(await api.complex.getMany({})).map((complex) => complex.location),
+		['Riyadh']
+	);
+	assert.equal((await api.complex.getMany({}))[0].unitCount, 0);
 });

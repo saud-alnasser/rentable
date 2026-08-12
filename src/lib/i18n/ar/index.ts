@@ -466,7 +466,11 @@ const ar = {
 		},
 
 		form: {
-			duplicateName: 'الاسم مرتبط بمجمع مسجل مسبقاً.'
+			duplicateName: 'الاسم مرتبط بمجمع مسجل مسبقاً.',
+			duplicateUnitName: '{name} موجود في القائمة بالفعل.',
+			duplicateUnitNames: 'هناك وحدتان بنفس الاسم؛ لكل وحدة اسمها.',
+			noUnitsYet: 'لا توجد وحدات بعد. أضفها هنا أو لاحقاً من المجمع نفسه.',
+			unitName: 'اسم الوحدة'
 		},
 
 		units: {

@@ -128,10 +128,18 @@ export function useFetchUnits(complexId: () => number) {
 
 export const useCreateComplex = declareMutation({
 	mutate: (data: Parameters<typeof api.complex.create>[0]) => api.complex.create(data),
-	touches: ['complexes'],
+	touches: ['complexes', 'units'],
 	inverse: ({ result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.complex() }),
-		undo: () => api.complex.delete({ id: result.id }),
+		// the units go first: a complex still holding units refuses to be deleted, which is the
+		// rule that lets an inverse be a single insert everywhere else.
+		undo: async () => {
+			for (const unit of result.units) {
+				await api.complex.units.delete({ id: unit.id });
+			}
+
+			await api.complex.delete({ id: result.id });
+		},
 		redo: () => api.complex.create(result)
 	}),
 	toast: {

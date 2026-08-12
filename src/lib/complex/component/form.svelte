@@ -7,6 +7,8 @@
 	import { Input } from '$lib/design/primitive/input';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateComplex, useUpdateComplex } from '$lib/complex/query';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import XIcon from '@lucide/svelte/icons/x';
 	import { TRPCError } from '@trpc/server';
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
@@ -29,6 +31,39 @@
 		onOpenChange: (value: boolean) => void;
 	} = $props();
 
+	// the units a complex is being created with. They are the form's own state rather than a
+	// field of the schema: nothing about them is persisted until the complex is, and the whole
+	// list goes down with it as one write. An existing complex manages its units in its own
+	// directory, so the list is offered only while creating one.
+	let unitNames = $state<string[]>([]);
+	let unitDraft = $state('');
+	let unitError = $state<string | undefined>(undefined);
+
+	const isCreating = $derived(!value?.id);
+
+	function addUnit() {
+		const name = unitDraft.trim();
+
+		if (!name) return;
+
+		// the same rule the procedure enforces over the arriving set, answered while the user is
+		// still holding the name rather than after they submit.
+		if (unitNames.some((existing) => existing.toLowerCase() === name.toLowerCase())) {
+			unitError = $LL.complexes.form.duplicateUnitName({ name });
+
+			return;
+		}
+
+		unitNames = [...unitNames, name];
+		unitDraft = '';
+		unitError = undefined;
+	}
+
+	function removeUnit(name: string) {
+		unitNames = unitNames.filter((existing) => existing !== name);
+		unitError = undefined;
+	}
+
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<ComplexForm>(
 		defaults(zod4(ComplexFormSchema)),
 		{
@@ -47,15 +82,24 @@
 					}
 				}
 
-				const mutation = form.data.id ? UpdateMutation : CreateMutation;
-
 				try {
-					await mutation.mutateAsync(form.data as Complex);
+					if (form.data.id) {
+						await UpdateMutation.mutateAsync(form.data as Complex);
+					} else {
+						await CreateMutation.mutateAsync({
+							...(form.data as Complex),
+							units: unitNames.map((name) => ({ name }))
+						});
+					}
 
 					onOpenChange(false);
 				} catch (e) {
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
-						if (e.message.includes('name')) {
+						// a collision within the unit list belongs to the list rather than to the
+						// complex's own name field, which is what the other refusal is about.
+						if (e.message.includes('used twice')) {
+							unitError = $LL.complexes.form.duplicateUnitNames();
+						} else if (e.message.includes('name')) {
 							setError(form, 'name', $LL.complexes.form.duplicateName());
 						}
 					} else {
@@ -68,6 +112,10 @@
 
 	$effect(() => {
 		if (open) {
+			unitNames = [];
+			unitDraft = '';
+			unitError = undefined;
+
 			if (value) {
 				form.set(value);
 			} else {
@@ -110,6 +158,67 @@
 			</Form.Control>
 			<FieldError />
 		</Form.Field>
+
+		{#if isCreating}
+			<div class="flex flex-col gap-2">
+				<span class="text-sm font-medium capitalize">{$LL.common.nav.units()}</span>
+
+				<div class="flex items-center gap-2">
+					<Input
+						bind:value={unitDraft}
+						placeholder={$LL.complexes.form.unitName()}
+						class={insetControl}
+						aria-invalid={unitError ? 'true' : undefined}
+						aria-label={$LL.complexes.form.unitName()}
+						onkeydown={(event) => {
+							if (event.key !== 'Enter') return;
+
+							// the surface is a form, so Enter would submit the complex with the name
+							// still sitting unadded in the field.
+							event.preventDefault();
+							addUnit();
+						}}
+					/>
+					<Button
+						type="button"
+						variant="outline"
+						size="icon"
+						aria-label={$LL.common.actions.add()}
+						disabled={!unitDraft.trim()}
+						onclick={addUnit}
+					>
+						<PlusIcon class="size-4" />
+					</Button>
+				</div>
+
+				{#if unitError}
+					<p class="text-sm text-destructive">{unitError}</p>
+				{/if}
+
+				{#if unitNames.length === 0}
+					<p class="rounded-xl border border-dashed bg-muted p-3 text-sm text-muted-foreground">
+						{$LL.complexes.form.noUnitsYet()}
+					</p>
+				{:else}
+					<ul class="app-scroll flex max-h-40 flex-col gap-2 overflow-y-auto pe-1">
+						{#each unitNames as name (name)}
+							<li class="flex items-center gap-2 rounded-xl border bg-muted p-2 ps-3">
+								<span class="min-w-0 flex-1 truncate text-sm">{name}</span>
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-sm"
+									aria-label={`${$LL.common.actions.remove()} ${name}`}
+									onclick={() => removeUnit(name)}
+								>
+									<XIcon class="size-4" />
+								</Button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 	{#snippet actions()}

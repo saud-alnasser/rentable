@@ -4,7 +4,11 @@ import * as s from '$lib/platform/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
-import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
+import {
+	COMPLEX_SORT_COLUMN_IDS,
+	ensureUnitNamesDistinct,
+	type ComplexSortColumnId
+} from '$lib/complex/complex';
 import { CONTRACT_OCCUPYING_STATUSES, deriveUnitStatuses } from '$lib/contract/contract';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import { TRPCError } from '@trpc/server';
@@ -40,6 +44,13 @@ const COMPLEX_SORT_COLUMNS: Record<ComplexSortColumnId, SQL | AnyColumn> = {
 	unitCount,
 	vacantUnitCount
 };
+
+// the units a complex is created with: a name, and optionally the identity a unit already had,
+// so undoing the creation and applying it again puts the same units back. Everything else about
+// a unit is derived or is the complex being created.
+const ComplexCreateSchema = ComplexSchema.partial({ id: true }).extend({
+	units: z.array(UnitSchema.pick({ name: true }).extend({ id: z.number().optional() })).optional()
+});
 
 const ComplexSortSchema = z.object({
 	columnId: z.enum(COMPLEX_SORT_COLUMN_IDS),
@@ -140,23 +151,33 @@ async function getUnitsWithDerivedStatus(
 }
 
 export default router({
-	// an optional id, so undoing a deletion can put the row back with the identity it had — a
-	// page still open on that record is holding a reference to it (ADR 0026). Absent otherwise,
-	// and the engine assigns one.
+	/**
+	 * Create a complex, and the units it was entered for, in one write.
+	 *
+	 * The units are optional and the complex still arrives alone where none are given. Where
+	 * some are, the complex and every unit go down as one batch — the boundary runs a batch
+	 * inside a transaction — so a refusal anywhere creates nothing, including the complex
+	 * (ADR 0027).
+	 *
+	 * The id is optional and almost always absent, so undoing a deletion can put the row back
+	 * with the identity it had (ADR 0026).
+	 */
 	create: procedure.public
 		.use(autosync())
-		.input(ComplexSchema.partial({ id: true }))
+		.input(ComplexCreateSchema)
 		.mutation(async ({ input, ctx }) => {
+			const { units = [], ...complex } = input;
+
 			ensureIdFree(
-				input.id === undefined
+				complex.id === undefined
 					? undefined
-					: await ctx.db.select().from(s.complex).where(eq(s.complex.id, input.id)).get()
+					: await ctx.db.select().from(s.complex).where(eq(s.complex.id, complex.id)).get()
 			);
 
 			const isNameUsed = await ctx.db
 				.select()
 				.from(s.complex)
-				.where(eq(s.complex.name, input.name))
+				.where(eq(s.complex.name, complex.name))
 				.get();
 
 			if (isNameUsed) {
@@ -166,9 +187,43 @@ export default router({
 				});
 			}
 
-			const created = await ctx.db.insert(s.complex).values(input).returning().get();
+			const named = units.map((unit) => ({ ...unit, name: unit.name.trim() }));
 
-			return created;
+			ensureUnitNamesDistinct(named.map((unit) => unit.name));
+
+			for (const unit of named) {
+				ensureIdFree(
+					unit.id === undefined
+						? undefined
+						: await ctx.db.select().from(s.unit).where(eq(s.unit.id, unit.id)).get()
+				);
+			}
+
+			if (named.length === 0) {
+				const created = await ctx.db.insert(s.complex).values(complex).returning().get();
+
+				return { ...created, units: [] as (typeof s.unit.$inferSelect)[] };
+			}
+
+			// the units name their complex by its own name rather than by an id: the batch is
+			// built before any of it runs, so the identity the engine is about to assign is not
+			// available to the statements that need it. The name is unique and was just checked.
+			const complexId = ctx.db
+				.select({ id: s.complex.id })
+				.from(s.complex)
+				.where(eq(s.complex.name, complex.name));
+
+			const [[created], ...createdUnits] = await ctx.db.batch([
+				ctx.db.insert(s.complex).values(complex).returning(),
+				...named.map((unit) =>
+					ctx.db
+						.insert(s.unit)
+						.values({ ...unit, complexId: sql`(${complexId})`, status: 'vacant' })
+						.returning()
+				)
+			]);
+
+			return { ...created, units: createdUnits.map(([unit]) => unit) };
 		}),
 
 	update: procedure.public
