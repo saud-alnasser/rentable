@@ -8,7 +8,8 @@
 	import DataTableActionsDropdown from '$lib/design/block/data-table-actions-dropdown.svelte';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
-	import List from '$lib/design/block/list.svelte';
+	import List, { recordCard } from '$lib/design/block/list.svelte';
+	import { cn } from '$lib/design/tailwind';
 	import * as Cell from '$lib/design/cell';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import UserIcon from '@tabler/icons-svelte/icons/user';
@@ -77,9 +78,7 @@
 	}}
 >
 	{#snippet record(record: UnitRecord)}
-		<div
-			class="relative flex h-full items-center gap-3 border-b px-4 transition-colors hover:bg-muted/40"
-		>
+		<div class={cn('relative flex h-full items-center gap-3 px-4 hover:bg-muted/40', recordCard)}>
 			<!-- the link covers the row rather than wrapping it, so the row's own controls can sit
 			     above it instead of being swallowed by its click target. -->
 			<a

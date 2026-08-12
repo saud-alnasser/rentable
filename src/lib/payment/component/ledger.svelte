@@ -4,7 +4,8 @@
 	import type { Payment } from '$lib/platform/database/schema';
 	import DataTableActionsDropdown from '$lib/design/block/data-table-actions-dropdown.svelte';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
-	import List from '$lib/design/block/list.svelte';
+	import List, { recordCard } from '$lib/design/block/list.svelte';
+	import { cn } from '$lib/design/tailwind';
 	import * as Cell from '$lib/design/cell';
 	import { formatRecordDate } from '$lib/design/date';
 	import {
@@ -30,6 +31,9 @@
 	// one line of text and the breathing room around it; the shell lays rows out at this
 	// height rather than measuring them.
 	const ROW_HEIGHT = 52;
+	// the marker's own height. The space that separates one month from the records above it is
+	// the list block's, not this figure — the block owns the gap between cards and the two have
+	// to be set against each other.
 	const MONTH_HEIGHT = 34;
 
 	let search = $state('');
@@ -108,28 +112,34 @@
 		onCreate={isAddLocked ? undefined : () => openPaymentForm()}
 	>
 		{#snippet groupHeader(month: PaymentLedgerMonth)}
-			<div class="flex h-full items-center gap-3 bg-muted/60 px-4">
-				<span
-					class="min-w-0 flex-1 truncate text-start text-xs font-medium tracking-wide uppercase"
-				>
-					{formatMonth(month)}
-				</span>
-				<span class="shrink-0 text-end text-xs text-muted-foreground">
+			<!-- a card in the list rather than a marker floating over it, and a separator rather than
+			     a record: it takes the same space and the same corner as a payment card, and none of
+			     the elevation or the lift, because there is nothing here to press. That is what keeps
+			     it from reading as one of the rows it divides while still sitting in their rhythm.
+
+			     Quieter than a record, not louder. The rows are what the reader came for
+			     (_Emphasize by de-emphasizing_), so the month recedes and separates by being a
+			     different kind of surface rather than by shouting over them. -->
+			<!-- as wide as what it says and no wider. A separator the full width of the list is the
+			     filled strip this replaced — at that width it reads as one more card in the column,
+			     which is the thing that stopped the grouping being legible. Sized to its own content
+			     it reads as a label on the list rather than an entry in it. -->
+			<div
+				class="flex h-full w-fit max-w-full items-center gap-2 rounded-2xl bg-muted/60 px-4 text-xs font-medium"
+			>
+				<span class="min-w-0 truncate tracking-wide uppercase">{formatMonth(month)}</span>
+				<span class="text-muted-foreground" aria-hidden="true">&middot;</span>
+				<span class="shrink-0 text-muted-foreground">
 					<span class="sr-only">
 						{$LL.contracts.payments.monthTotal({ month: formatMonth(month) })}
 					</span>
 					<Cell.Money amount={month.total} />
 				</span>
-				{#if hasRowActions}
-					<span class="size-8 shrink-0" aria-hidden="true"></span>
-				{/if}
 			</div>
 		{/snippet}
 
 		{#snippet record(entry: Payment)}
-			<div
-				class="relative flex h-full items-center gap-3 border-b px-4 transition-colors hover:bg-muted/40"
-			>
+			<div class={cn('relative flex h-full items-center gap-3 px-4 hover:bg-muted/40', recordCard)}>
 				<!-- the link covers the line rather than wrapping it, so the row's own menu can sit
 				     above it instead of being swallowed by its click target. -->
 				<a

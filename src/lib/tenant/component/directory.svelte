@@ -13,6 +13,8 @@
 	import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
 	import ContractIcon from '@tabler/icons-svelte/icons/contract';
 	import TenantForm from './form.svelte';
+	import { recordCard } from '$lib/design/block/list.svelte';
+	import { cn } from '$lib/design/tailwind';
 
 	type TenantRecord = Awaited<ReturnType<typeof api.tenant.getMany>>[number];
 
@@ -81,7 +83,7 @@
 	{#snippet record(tenant: TenantRecord)}
 		<a
 			href={resolve(`/tenants/${tenant.id}`)}
-			class="flex h-full items-center gap-4 border-b px-4 transition-colors hover:bg-muted/40"
+			class={cn('flex h-full items-center gap-4 px-4 hover:bg-muted/40', recordCard)}
 		>
 			<span class="flex min-w-0 flex-1 flex-col gap-0.5 text-start">
 				<span class="truncate text-sm font-medium">{tenant.name}</span>

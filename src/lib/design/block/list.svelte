@@ -1,3 +1,27 @@
+<script lang="ts" module>
+	/**
+	 * What a record wears to read as a card in this list.
+	 *
+	 * The block owns the geometry between cards and the concept owns what a card holds, so the
+	 * surface itself is declared here and worn by the concept's own anchor — the anchor is the
+	 * click target, and a treatment painted by the shell onto a wrapper would put the elevation
+	 * on something the reader cannot press.
+	 *
+	 * It carries resting elevation rather than lifting only on hover, which is the answer a
+	 * prototype gave against the real lists: a small shadow is not a per-row claim about
+	 * importance, it is what makes a row read as an object at all — and a hover that has already
+	 * been told these are objects is free to say only *this one* (_Use shadows to convey
+	 * elevation_, 180). The ring is not decoration and not the book's: it is silent on dark mode,
+	 * where a shadow against a dark ground reads as almost nothing, and the ring is what separates
+	 * the card there.
+	 */
+	export const recordCard = [
+		'rounded-2xl bg-card ring-1 ring-foreground/5 shadow-[0_1px_3px_rgba(0,0,0,0.18)]',
+		'motion-safe:transition-[transform,box-shadow] motion-safe:duration-150',
+		'hover:-translate-y-[3px] hover:shadow-[0_10px_20px_rgba(0,0,0,0.16)]'
+	].join(' ');
+</script>
+
 <script lang="ts" generics="TData extends { id: number }, TGroup extends ListGroup">
 	import { browser } from '$app/environment';
 	import { Button } from '$lib/design/primitive/button';
@@ -7,7 +31,7 @@
 	import { Spinner } from '$lib/design/primitive/spinner';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import { toCsv, type CsvColumn } from '$lib/design/csv';
-	import { listRows, stickyGroupRowIndex, type ListGroup } from '$lib/design/group';
+	import { listRows, type ListGroup } from '$lib/design/group';
 	import { isolateDirection } from '$lib/error/message';
 	import { showErrorToast } from '$lib/error/toast';
 	import { nextListSort, type ListSort } from '$lib/design/sort';
@@ -20,7 +44,7 @@
 	import ChevronUpIcon from '@tabler/icons-svelte/icons/chevron-up';
 	import PlusIcon from '@tabler/icons-svelte/icons/plus';
 	import SearchIcon from '@tabler/icons-svelte/icons/search';
-	import { createVirtualizer, defaultRangeExtractor } from '@tanstack/svelte-virtual';
+	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { toast } from 'svelte-sonner';
 	import { tick, type Snippet } from 'svelte';
 	import { get } from 'svelte/store';
@@ -43,7 +67,14 @@
 		 * group's records together — the shell reads the order, it never imposes one.
 		 */
 		groupOf?: (record: TData) => TGroup;
-		/** A group's header, pinned to the top of the viewport while its records scroll. */
+		/**
+		 * A group's header, rendered as its own row above the records it opens.
+		 *
+		 * It scrolls with them rather than pinning to the top of the viewport: the records are cards
+		 * with space between them, and a header pinned over them is a third surface floating above a
+		 * list that reads in two. Separation comes from the header being a different kind of card,
+		 * not from it staying in view.
+		 */
 		groupHeader?: Snippet<[TGroup]>;
 		/** The orders the reader may choose between. A list that offers none gets no control. */
 		sortOptions?: readonly ListSortOption[];
@@ -161,6 +192,15 @@
 	let viewportWidth = $state(0);
 	let searchInput = $state(search);
 
+	// the space between one card and the next. It rides inside the row the virtualizer lays out,
+	// as that row's own bottom padding, rather than as a margin on the card: rows are laid out at
+	// a declared height and never measured, so a margin would put every card slightly below where
+	// the virtualizer believes it is and the error would accumulate down the list.
+	const ROW_GAP = 12;
+	// enough for a card's shadow to fall without being cut: setting one axis of `overflow` makes
+	// the other `auto`, so a shadow at the viewport's edge is clipped rather than drawn.
+	const ROW_INSET = 'px-2';
+
 	// the column count is measured rather than declared, because the shape it serves reflows:
 	// the reader's window decides how many records fit, and the query knows nothing about it.
 	const columns = $derived(
@@ -185,29 +225,26 @@
 	});
 	const virtualRows = $derived($virtualizer.getVirtualItems());
 	const totalHeight = $derived($virtualizer.getTotalSize());
-	// the first row the reader can actually see, which is not the first row rendered: overscan
-	// puts several above it, and a header chosen from those would belong to the group before.
-	const firstVisibleRowIndex = $derived(
-		$virtualizer.getVirtualItemForOffset($virtualizer.scrollOffset ?? 0)?.index ?? 0
-	);
-	const pinnedRowIndex = $derived(
-		groupHeader ? stickyGroupRowIndex(rows, firstVisibleRowIndex) : null
-	);
 
 	$effect(() => {
 		get(virtualizer).setOptions({
 			count: rows.length,
 			getScrollElement: () => viewport,
-			estimateSize: (index) => (rows[index]?.kind === 'header' ? groupHeaderHeight : recordHeight),
+			// a header takes the gap a record takes, so one rhythm runs the length of the list. What
+			// separates a group is the header itself — it is a card of its own, and a card that names
+			// a month is not mistaken for a card that is a record.
+			estimateSize: (index) =>
+				(rows[index]?.kind === 'header' ? groupHeaderHeight : recordHeight) + ROW_GAP,
 			getItemKey: (index) => rows[index]?.key ?? index,
-			// the pinned header has left its own scroll position, so the range no longer holds
-			// it. Without this it unmounts and the group scrolls with nothing naming it.
-			rangeExtractor: (range) => {
-				const pinned = stickyGroupRowIndex(rows, range.startIndex);
-				const visible = defaultRangeExtractor(range);
-
-				return pinned === null || visible.includes(pinned) ? visible : [pinned, ...visible];
-			},
+			// space before the first card, so a card at the top of the list has somewhere to lift
+			// into — without it the topmost card's rise is cut by the scroll edge and reads as the
+			// card sliding under the toolbar rather than rising towards the reader.
+			//
+			// It is the virtualizer's own padding and not CSS on the scroll element, and the two are
+			// not interchangeable: padding on the scroll element leaves `scrollTop` and the item
+			// offsets out of phase by its own measure, and every offset this list reports would be
+			// wrong by it.
+			paddingStart: ROW_GAP,
 			overscan: OVERSCAN_ROWS,
 			enabled: browser && !!viewport
 		});
@@ -348,7 +385,9 @@
 		</div>
 	</div>
 
-	<div class="min-h-0 flex-1 overflow-hidden rounded-3xl border bg-background">
+	<!-- no frame of its own: the cards carry their own edges, and a bordered box drawn around
+	     bordered rows is the arrangement _Use fewer borders_ (238) exists to replace. -->
+	<div class="min-h-0 flex-1 overflow-hidden rounded-3xl">
 		{#if isAwaitingFirstResults}
 			<div class="flex h-full items-center justify-center" aria-busy="true">
 				<Spinner class="size-6 text-muted-foreground" />
@@ -373,19 +412,16 @@
 				<div class="relative w-full" style={`height: ${totalHeight}px;`}>
 					{#each virtualRows as virtualRow (virtualRow.key)}
 						{@const row = rows[virtualRow.index]}
-						{@const isPinned = virtualRow.index === pinnedRowIndex}
 						{#if row}
+							<!-- the row is not clipped, and that is a trade rather than an oversight: the
+							     clip used to make a card that outgrew its declared height visible where it
+							     was caused, and a card that lifts on hover has to leave its row. The two
+							     cannot both hold, so an outgrown card now overlaps the one below instead of
+							     being cut — still visible, and still fixed by raising `recordHeight`. -->
 							<div
 								data-index={virtualRow.index}
-								class={cn(
-									// a row taller than it declared clips here rather than running into the
-									// row below it, so an outgrown height is visible where it is caused.
-									'overflow-hidden',
-									isPinned ? 'sticky top-0 z-10 bg-background' : 'absolute start-0 top-0 w-full'
-								)}
-								style={`height: ${virtualRow.size}px;${
-									isPinned ? '' : ` transform: translateY(${virtualRow.start}px);`
-								}`}
+								class={cn(ROW_INSET, 'absolute start-0 top-0 w-full')}
+								style={`height: ${virtualRow.size}px; padding-bottom: ${ROW_GAP}px; transform: translateY(${virtualRow.start}px);`}
 							>
 								{#if row.kind === 'header'}
 									{@render groupHeader?.(row.group)}
