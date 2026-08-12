@@ -21,6 +21,7 @@
 	let {
 		syncState,
 		isWorking,
+		isOpeningLocal,
 		isLinkingGoogleDrive,
 		isFinalizingGoogleDriveLink,
 		errorMessage,
@@ -34,7 +35,10 @@
 		onCancelLinkConflict
 	}: {
 		syncState: RemoteSyncState;
+		/** anything at all is outstanding, which is what makes every control unavailable. */
 		isWorking: boolean;
+		/** the local workspace is being opened — the one operation this screen's own control starts. */
+		isOpeningLocal: boolean;
 		isLinkingGoogleDrive: boolean;
 		isFinalizingGoogleDriveLink: boolean;
 		errorMessage: string | null;
@@ -95,6 +99,20 @@
 			onDismiss={onCancelLinkConflict}
 		/>
 	{/if}
+{/snippet}
+
+<!-- both arrangements below offer this, and the label is the reason it is written once: a control
+     reports the work it started and nothing else, so this one says what it is doing only while
+     the local workspace is what is being opened. -->
+{#snippet openLocalControl()}
+	<Button
+		variant="outline"
+		onclick={onOpenLocal}
+		disabled={isWorking || isFinalizingGoogleDriveLink}
+	>
+		<FolderOpenIcon class="size-4" />
+		{isOpeningLocal ? $LL.common.actions.working() : $LL.common.actions.openLocal()}
+	</Button>
 {/snippet}
 
 <!-- the screen keeps its own question whether or not a conflict is present: the conflict's title
@@ -175,14 +193,7 @@
 			/>
 		{:else if isLinkingGoogleDrive}
 			<div class="grid gap-3 sm:grid-cols-2">
-				<Button
-					variant="outline"
-					onclick={onOpenLocal}
-					disabled={isWorking || isFinalizingGoogleDriveLink}
-				>
-					<FolderOpenIcon class="size-4" />
-					{$LL.common.actions.openLocal()}
-				</Button>
+				{@render openLocalControl()}
 				<Button
 					onclick={onCancelGoogleDriveLink}
 					disabled={isWorking || isFinalizingGoogleDriveLink}
@@ -193,13 +204,10 @@
 			</div>
 		{:else}
 			<div class="grid gap-3 sm:grid-cols-2">
-				<Button variant="outline" onclick={onOpenLocal} disabled={isWorking}>
-					<FolderOpenIcon class="size-4" />
-					{$LL.common.actions.openLocal()}
-				</Button>
+				{@render openLocalControl()}
 				<Button onclick={onLinkGoogleDrive} disabled={isWorking || !syncState.googleDriveReady}>
 					<CloudIcon class="size-4" />
-					{isWorking ? $LL.common.actions.linking() : $LL.common.actions.link()}
+					{$LL.common.actions.link()}
 				</Button>
 			</div>
 		{/if}
