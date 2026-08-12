@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import { Button } from '$lib/design/primitive/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/design/primitive/card';
 	import { Spinner } from '$lib/design/primitive/spinner';
@@ -39,7 +40,7 @@
 	// after the destructive control is pressed.
 	const heldUnitsQuery = useFetchUnits(() => complexId);
 	const complexBlockers = $derived.by(() => {
-		if (heldUnitsQuery.isPending) return undefined;
+		if (heldUnitsQuery.isPending) return AWAITING_BLOCKERS;
 
 		const held = heldUnitsQuery.data ?? [];
 

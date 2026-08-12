@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import type { Contract } from '$lib/platform/database/schema';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import * as Cell from '$lib/design/cell';
 	import { Button } from '$lib/design/primitive/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/design/primitive/card';
@@ -68,7 +69,7 @@
 	const heldUnitsQuery = useFetchContractUnits(() => contractId);
 	const heldPaymentsQuery = useFetchContractPayments(() => contractId);
 	const deletionBlockers = $derived.by(() => {
-		if (heldUnitsQuery.isPending || heldPaymentsQuery.isPending) return undefined;
+		if (heldUnitsQuery.isPending || heldPaymentsQuery.isPending) return AWAITING_BLOCKERS;
 
 		const units = heldUnitsQuery.data ?? [];
 		const payments = heldPaymentsQuery.data ?? [];

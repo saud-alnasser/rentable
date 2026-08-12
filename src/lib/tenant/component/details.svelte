@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import { Button } from '$lib/design/primitive/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/design/primitive/card';
 	import { Spinner } from '$lib/design/primitive/spinner';
@@ -68,7 +69,7 @@
 		() => ({ tenantId })
 	);
 	const tenantBlockers = $derived.by(() => {
-		if (heldContractsQuery.isPending) return undefined;
+		if (heldContractsQuery.isPending) return AWAITING_BLOCKERS;
 
 		const held = heldContractsQuery.data ?? [];
 
