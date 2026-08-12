@@ -1,10 +1,10 @@
 import api from '$lib/api/caller';
-import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
-import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
+import { declareMutation } from '$lib/design/mutation';
+import { workspacePrefixes } from '$lib/design/query';
 import type { ListSort } from '$lib/design/sort';
 import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 type FetchTenantsParams = {
@@ -106,68 +106,32 @@ export function useFetchTenant(params: () => FetchTenantParams) {
 	});
 }
 
-export function useCreateTenant(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).tenants.hooks.createSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useCreateTenant = declareMutation({
+	mutate: (data: Parameters<typeof api.tenant.create>[0]) => api.tenant.create(data),
+	touches: ['tenants'],
+	toast: {
+		success: () => get(LL).tenants.hooks.createSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.tenant.create>[0]) => api.tenant.create(data),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useUpdateTenant(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).tenants.hooks.updateSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useUpdateTenant = declareMutation({
+	mutate: (data: Parameters<typeof api.tenant.update>[0]) => api.tenant.update(data),
+	touches: ['tenants'],
+	toast: {
+		success: () => get(LL).tenants.hooks.updateSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.tenant.update>[0]) => api.tenant.update(data),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useDeleteTenant(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).tenants.hooks.deleteSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useDeleteTenant = declareMutation({
+	mutate: (id: number) => api.tenant.delete({ id }),
+	touches: ['tenants'],
+	toast: {
+		success: () => get(LL).tenants.hooks.deleteSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (id: number) => api.tenant.delete({ id }),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+});

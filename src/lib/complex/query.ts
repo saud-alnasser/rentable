@@ -1,10 +1,10 @@
 import api from '$lib/api/caller';
 import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
-import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
-import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
+import { declareMutation } from '$lib/design/mutation';
+import { workspacePrefixes } from '$lib/design/query';
 import type { ListSort } from '$lib/design/sort';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 export const keys = {
@@ -126,138 +126,63 @@ export function useFetchUnits(complexId: () => number) {
 	});
 }
 
-export function useCreateComplex(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).complexes.hooks.createSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useCreateComplex = declareMutation({
+	mutate: (data: Parameters<typeof api.complex.create>[0]) => api.complex.create(data),
+	touches: ['complexes'],
+	toast: {
+		success: () => get(LL).complexes.hooks.createSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.complex.create>[0]) => api.complex.create(data),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useUpdateComplex(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).complexes.hooks.updateSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useUpdateComplex = declareMutation({
+	mutate: (values: Parameters<typeof api.complex.update>[0]) => api.complex.update(values),
+	touches: ['complexes'],
+	toast: {
+		success: () => get(LL).complexes.hooks.updateSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (values: Parameters<typeof api.complex.update>[0]) => api.complex.update(values),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useDeleteComplex(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).complexes.hooks.deleteSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useDeleteComplex = declareMutation({
+	mutate: (id: number) => api.complex.delete({ id }),
+	touches: ['complexes'],
+	toast: {
+		success: () => get(LL).complexes.hooks.deleteSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (id: number) => api.complex.delete({ id }),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useCreateUnit(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).complexes.hooks.unitCreateSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useCreateUnit = declareMutation({
+	mutate: (data: Parameters<typeof api.complex.units.create>[0]) => api.complex.units.create(data),
+	touches: ['units'],
+	toast: {
+		success: () => get(LL).complexes.hooks.unitCreateSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (data: Parameters<typeof api.complex.units.create>[0]) =>
-			api.complex.units.create(data),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useUpdateUnit(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).complexes.hooks.unitUpdateSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useUpdateUnit = declareMutation({
+	mutate: (values: Parameters<typeof api.complex.units.update>[0]) =>
+		api.complex.units.update(values),
+	touches: ['units'],
+	toast: {
+		success: () => get(LL).complexes.hooks.unitUpdateSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
+});
 
-	return createMutation(() => ({
-		mutationFn: (values: Parameters<typeof api.complex.units.update>[0]) =>
-			api.complex.units.update(values),
-		onSuccess: async () => {
-			await invalidateWorkspaceData(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useDeleteUnit(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).complexes.hooks.unitDeleteSuccess(),
-			error: false,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useDeleteUnit = declareMutation({
+	mutate: (id: number) => api.complex.units.delete({ id }),
+	touches: ['units'],
+	toast: {
+		success: () => get(LL).complexes.hooks.unitDeleteSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (id: number) => api.complex.units.delete({ id }),
-		onSuccess: async (deleted) => {
-			if (deleted) {
-				await invalidateWorkspaceData(client);
-			}
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+});
