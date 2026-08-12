@@ -11,15 +11,20 @@ import { get } from 'svelte/store';
 /**
  * Which contracts a list is asking for, beyond its search and its order.
  *
- * The directory asks for all of them; a tenant's profile and a unit's view each ask for the
- * ones that concern the record being looked at, and a surface that ranked a contract asks for
- * one rank.
+ * The directory asks for all of them; a tenant's profile, a unit's view and a complex's record
+ * each ask for the ones that concern the record being looked at, and a surface that ranked a
+ * contract asks for one rank.
  *
  * Every one of them narrows in the procedure, so the surface never receives a wider set to
- * filter. The first two narrow in SQL; a rank cannot, because it is decided from what the
+ * filter. The first three narrow in SQL; a rank cannot, because it is decided from what the
  * contract owes today and no column holds that.
  */
-export type ContractListScope = { tenantId?: number; unitId?: number; rank?: ContractRank };
+export type ContractListScope = {
+	tenantId?: number;
+	unitId?: number;
+	complexId?: number;
+	rank?: ContractRank;
+};
 
 export const keys = {
 	list: (search: string, sort: ListSort | null, scope: ContractListScope = {}) => [
@@ -32,6 +37,7 @@ export const keys = {
 		// other's rows.
 		scope.tenantId ?? 'all',
 		scope.unitId ?? 'all',
+		scope.complexId ?? 'all',
 		scope.rank ?? 'all'
 	],
 	get: (id: number) => [...workspacePrefixes.contracts, id],

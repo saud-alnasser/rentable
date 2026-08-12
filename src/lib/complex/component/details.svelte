@@ -7,13 +7,14 @@
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import { Button } from '$lib/design/primitive/button';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { back } from '$lib/design/back.svelte';
 	import RecordActions from '$lib/design/block/record-actions.svelte';
-	import ComplexesTableUnitsCount from '$lib/complex/component/unit-count.svelte';
 	import { useDeleteComplex, useFetchComplex } from '$lib/complex/query';
 	import { useFetchUnits } from '$lib/complex/query';
+	import { useListContracts } from '$lib/contract/query';
 	import { isComplexDeletable } from '$lib/complex/complex';
+	import { formatLocaleNumber } from '$lib/platform/locale';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import ComplexForm from './form.svelte';
@@ -37,6 +38,34 @@
 			? []
 			: [$LL.common.deleteDialog.blockedUnits({ count: held.length })];
 	});
+
+	// the units this complex holds, read once and answering two questions: what a deletion is
+	// refused for, and what the field list states.
+	const unitFigures = $derived.by(() => {
+		const held = heldUnitsQuery.data;
+
+		if (!held) return undefined;
+
+		const vacant = held.filter((unit) => unit.status === 'vacant').length;
+
+		return { total: held.length, vacant, occupied: held.length - vacant };
+	});
+
+	// narrowed to this complex in the procedure. Loading every contract to keep this building's
+	// would be the client-side narrowing ADR 0010 refuses.
+	const complexContractsQuery = useListContracts(
+		() => '',
+		() => null,
+		() => ({ complexId })
+	);
+	const activeContractCount = $derived(
+		complexContractsQuery.data?.filter((contract) => contract.status === 'active').length
+	);
+
+	// a figure the reader can trust or nothing at all: a zero shown while its query is still in
+	// flight is a wrong answer rather than an incomplete one.
+	const figure = (count: number | undefined) =>
+		count === undefined ? '' : formatLocaleNumber($locale, count);
 
 	let formOpensOn = $state<NonNullable<typeof complexQuery.data> | undefined>(undefined);
 	let isComplexFormOpen = $state(false);
@@ -114,14 +143,18 @@
 	</Tooltip.Root>
 {/snippet}
 
-{#snippet unitCount()}
-	<ComplexesTableUnitsCount {complexId} class="h-auto w-auto" />
-{/snippet}
-
-<!-- location is read in the title area, so it is not read again here — the same division the
-     tenant record makes with its phone number. -->
+<!-- location is read in the title area, so it is not read again here. Everything else the
+     record knows about itself is stated: how many spaces it holds, how they divide, and how
+     much runs against them today. -->
 {#snippet fields()}
-	<Specification entries={[{ label: $LL.common.labels.units(), value: unitCount }]} />
+	<Specification
+		entries={[
+			{ label: $LL.common.labels.units(), value: figure(unitFigures?.total) },
+			{ label: $LL.common.labels.occupiedUnits(), value: figure(unitFigures?.occupied) },
+			{ label: $LL.common.labels.vacantUnits(), value: figure(unitFigures?.vacant) },
+			{ label: $LL.common.labels.activeContracts(), value: figure(activeContractCount) }
+		]}
+	/>
 {/snippet}
 
 {#snippet units()}
