@@ -7,7 +7,8 @@
 	import * as Cell from '$lib/design/cell';
 	import { hasCreateIntent } from '$lib/design/create-intent';
 	import type { ListSort } from '$lib/design/sort';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { formatLocaleNumber } from '$lib/platform/locale';
 	import { useListTenants } from '$lib/tenant/query';
 	import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
 	import ContractIcon from '@tabler/icons-svelte/icons/contract';
@@ -61,6 +62,18 @@
 	isLoading={tenantsQuery.isLoading}
 	isFetching={tenantsQuery.isFetching}
 	recordHeight={ROW_HEIGHT}
+	exportAs={{
+		name: `${$LL.common.nav.tenants()}.csv`,
+		columns: [
+			{ header: $LL.common.labels.name(), value: (tenant) => tenant.name },
+			{ header: $LL.common.labels.nationalId(), value: (tenant) => tenant.nationalId },
+			{ header: $LL.common.labels.phone(), value: (tenant) => tenant.phone },
+			{
+				header: $LL.common.labels.activeContracts(),
+				value: (tenant) => formatLocaleNumber($locale, tenant.activeContractCount)
+			}
+		]
+	}}
 	onCreate={() => {
 		isTenantFormOpen = true;
 	}}

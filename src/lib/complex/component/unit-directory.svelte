@@ -39,6 +39,16 @@
 	isLoading={unitsQuery.isLoading}
 	isFetching={unitsQuery.isFetching}
 	recordHeight={ROW_HEIGHT}
+	exportAs={{
+		// the complex is in the name: every complex has a units directory, and one file name
+		// between them would have each export replace the last silently.
+		name: `${$LL.common.nav.units()}-${complexId}.csv`,
+		columns: [
+			{ header: $LL.common.labels.name(), value: (unit) => unit.name },
+			{ header: $LL.common.labels.status(), value: (unit) => $LL.common.status[unit.status]() },
+			{ header: $LL.common.labels.tenant(), value: (unit) => unit.tenantName ?? '' }
+		]
+	}}
 	onCreate={() => {
 		unit = undefined;
 		isUnitFormOpen = true;

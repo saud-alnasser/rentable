@@ -99,6 +99,10 @@ type RootTranslation = {
 			 */
 			edit: string
 			/**
+			 * e​x​p​o​r​t
+			 */
+			'export': string
+			/**
 			 * i​n​s​t​a​l​l​i​n​g​ ​u​p​d​a​t​e​.​.​.
 			 */
 			installingUpdate: string
@@ -480,6 +484,11 @@ type RootTranslation = {
 			 * n​o​t​h​i​n​g​ ​c​o​u​l​d​ ​b​e​ ​c​o​p​i​e​d​.
 			 */
 			copyFailed: string
+			/**
+			 * e​x​p​o​r​t​e​d​ ​t​o​ ​{​p​a​t​h​}
+			 * @param {string} path
+			 */
+			exported: RequiredParams<'path'>
 			/**
 			 * l​o​a​d​i​n​g​ ​a​p​p​.​.​.
 			 */
@@ -2016,6 +2025,10 @@ export type TranslationFunctions = {
 			 */
 			edit: () => LocalizedString
 			/**
+			 * export
+			 */
+			'export': () => LocalizedString
+			/**
 			 * installing update...
 			 */
 			installingUpdate: () => LocalizedString
@@ -2397,6 +2410,10 @@ export type TranslationFunctions = {
 			 * nothing could be copied.
 			 */
 			copyFailed: () => LocalizedString
+			/**
+			 * exported to {path}
+			 */
+			exported: (arg: { path: string }) => LocalizedString
 			/**
 			 * loading app...
 			 */

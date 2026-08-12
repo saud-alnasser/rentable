@@ -189,6 +189,15 @@ export const tauri = {
 		openUrl: (url: string) => openExternalUrl(url),
 		revealItemInDir: (path: string) => revealInFileManager(path)
 	},
+	export: {
+		/**
+		 * Write text out of the application and answer with where it landed.
+		 *
+		 * The name is a file name and never a path: where an export may go is Rust's to
+		 * decide, and the web layer has no say in it.
+		 */
+		write: (name: string, contents: string) => invoke<string>('export_write', { name, contents })
+	},
 	diagnostics: {
 		write: (record: DiagnosticRecord) => invoke<void>('diagnostics_write', { record })
 	},

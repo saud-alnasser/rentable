@@ -26,6 +26,7 @@ const en = {
 			downloadAndInstall: 'download & install',
 			duplicate: 'duplicate',
 			edit: 'edit',
+			export: 'export',
 			installingUpdate: 'installing update...',
 			link: 'link',
 			linking: 'linking...',
@@ -129,6 +130,7 @@ const en = {
 		messages: {
 			copied: 'copied to the clipboard',
 			copyFailed: 'nothing could be copied.',
+			exported: 'exported to {path:string}',
 			loadingApp: 'loading app...',
 			loadingSettings: 'loading settings...',
 			never: 'never',

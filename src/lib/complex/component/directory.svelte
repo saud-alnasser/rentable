@@ -9,7 +9,8 @@
 	import * as Cell from '$lib/design/cell';
 	import { hasCreateIntent } from '$lib/design/create-intent';
 	import type { ListSort } from '$lib/design/sort';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { formatLocaleNumber } from '$lib/platform/locale';
 	import CircleDashedIcon from '@tabler/icons-svelte/icons/circle-dashed';
 	import DoorIcon from '@tabler/icons-svelte/icons/door';
 	import ComplexForm from './form.svelte';
@@ -63,6 +64,21 @@
 	isLoading={complexesQuery.isLoading}
 	isFetching={complexesQuery.isFetching}
 	recordHeight={ROW_HEIGHT}
+	exportAs={{
+		name: `${$LL.common.nav.complexes()}.csv`,
+		columns: [
+			{ header: $LL.common.labels.name(), value: (complex) => complex.name },
+			{ header: $LL.common.labels.location(), value: (complex) => complex.location },
+			{
+				header: $LL.common.labels.units(),
+				value: (complex) => formatLocaleNumber($locale, complex.unitCount)
+			},
+			{
+				header: $LL.common.labels.vacantUnits(),
+				value: (complex) => formatLocaleNumber($locale, complex.vacantUnitCount)
+			}
+		]
+	}}
 	onCreate={() => {
 		isComplexFormOpen = true;
 	}}

@@ -25,6 +25,7 @@ const ar = {
 			downloadAndInstall: 'تنزيل وتثبيت',
 			duplicate: 'نسخة جديدة',
 			edit: 'تعديل',
+			export: 'تصدير',
 			installingUpdate: 'جاري تثبيت التحديث...',
 			link: 'ربط',
 			linking: 'جارٍ الربط...',
@@ -128,6 +129,7 @@ const ar = {
 		messages: {
 			copied: 'تم النسخ إلى الحافظة',
 			copyFailed: 'لا يوجد ما يمكن نسخه.',
+			exported: 'تم التصدير إلى {path}',
 			loadingApp: 'جاري تحميل التطبيق...',
 			loadingSettings: 'جاري تحميل الإعدادات...',
 			never: 'أبدًا',
