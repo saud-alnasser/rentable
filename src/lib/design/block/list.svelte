@@ -16,7 +16,7 @@
 	import { tauri } from '$lib/platform/tauri';
 	import ArrowsSortIcon from '@tabler/icons-svelte/icons/arrows-sort';
 	import ChevronDownIcon from '@tabler/icons-svelte/icons/chevron-down';
-	import DownloadIcon from '@tabler/icons-svelte/icons/download';
+	import TableExportIcon from '@tabler/icons-svelte/icons/table-export';
 	import ChevronUpIcon from '@tabler/icons-svelte/icons/chevron-up';
 	import PlusIcon from '@tabler/icons-svelte/icons/plus';
 	import SearchIcon from '@tabler/icons-svelte/icons/search';
@@ -310,7 +310,13 @@
 								disabled={!hasResults || isExporting}
 								onclick={exportRows}
 							>
-								<DownloadIcon />
+								<!-- this list, leaving. A download arrow describes fetching from somewhere
+								     remote, and there is nowhere remote: the file is written to disk here.
+
+								     Mirrored rather than rotated, unlike every other directional glyph here:
+								     the arrow has to swap sides, and a half turn would take the table's header
+								     row to the bottom with it. -->
+								<TableExportIcon class="rtl:-scale-x-100" />
 							</Button>
 						{/snippet}
 					</Tooltip.Trigger>
