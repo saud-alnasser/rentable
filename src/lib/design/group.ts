@@ -61,24 +61,3 @@ export function listRows<TData extends { id: number }, TGroup extends ListGroup>
 
 	return rows;
 }
-
-/**
- * The row index of the header that stays at the top of the viewport while its group scrolls,
- * given the first row currently visible — or `null` when no header sits at or above it.
- *
- * A header is pinned from the moment its own row reaches the top until the next group's
- * header takes its place, which is why the search runs backwards from the first visible row
- * rather than forwards from it.
- */
-export function stickyGroupRowIndex<TData, TGroup extends ListGroup>(
-	rows: readonly ListRow<TData, TGroup>[],
-	firstVisibleRowIndex: number
-): number | null {
-	for (let index = Math.min(firstVisibleRowIndex, rows.length - 1); index >= 0; index -= 1) {
-		if (rows[index].kind === 'header') {
-			return index;
-		}
-	}
-
-	return null;
-}

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { listRows, stickyGroupRowIndex } from './group.ts';
+import { listRows } from './group.ts';
 
 const payments = [
 	{ id: 1, month: 'august' },
@@ -106,23 +106,4 @@ test('a width below one record per row is treated as one', () => {
 		listRows(payments, undefined, 0).map((row) => row.records.map((record) => record.id)),
 		[[1], [2], [3]]
 	);
-});
-
-test('the header that stays put is the last one at or above the first visible row', () => {
-	const rows = listRows(payments, byMonth);
-
-	assert.equal(stickyGroupRowIndex(rows, 1), 0);
-	assert.equal(stickyGroupRowIndex(rows, 2), 0);
-	assert.equal(stickyGroupRowIndex(rows, 4), 3);
-});
-
-test('a header scrolled to exactly is the one that stays put', () => {
-	const rows = listRows(payments, byMonth);
-
-	assert.equal(stickyGroupRowIndex(rows, 3), 3);
-});
-
-test('nothing stays put above the first header, or in a list with none', () => {
-	assert.equal(stickyGroupRowIndex(listRows(payments), 1), null);
-	assert.equal(stickyGroupRowIndex([], 0), null);
 });

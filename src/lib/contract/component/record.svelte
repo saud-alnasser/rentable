@@ -6,6 +6,8 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleValueWithUnit } from '$lib/platform/locale';
 	import CashIcon from '@tabler/icons-svelte/icons/cash-banknote';
+	import { recordCard } from '$lib/design/block/list.svelte';
+	import { cn } from '$lib/design/tailwind';
 
 	/**
 	 * One contract, as every surface that lists contracts renders it — the directory, a
@@ -31,7 +33,10 @@
 
 <a
 	href={resolve(`/contracts/${contract.id}`)}
-	class="flex h-full items-center gap-3 border-b px-4 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 active:bg-muted/60"
+	class={cn(
+		'flex h-full items-center gap-3 px-4 hover:bg-muted/40 focus-visible:bg-muted/40 active:bg-muted/60',
+		recordCard
+	)}
 >
 	<span class="flex min-w-0 flex-1 flex-col gap-0.5 text-start">
 		<span class="truncate text-sm font-medium">
