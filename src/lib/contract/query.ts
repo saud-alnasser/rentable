@@ -200,21 +200,19 @@ export function useFetchContractUnits(contractId: () => number) {
 /**
  * Every unit this contract may hold, assigned or not — both panes of the transfer surface.
  *
- * `enabled` is the surface being open: this reads across every complex, so a units tab that
- * nobody is assigning from should not be paying for it. `placeholderData` holds the previous
- * set while a new search is in flight, so the panes keep their rows instead of emptying on
- * every keystroke.
+ * `isAssigned` is what separates the panes, so the two sides are one read and cannot disagree
+ * about a unit. `placeholderData` holds the previous set while a new search is in flight, so
+ * the panes keep their rows instead of emptying on every keystroke.
  */
 export function useFetchAssignableContractUnits(
-	params: () => { contractId: number; search?: string; enabled?: boolean }
+	params: () => { contractId: number; search?: string }
 ) {
 	return createQuery(() => {
-		const { contractId, search, enabled = true } = params();
+		const { contractId, search } = params();
 		const trimmedSearch = search?.trim() ?? '';
 
 		return {
 			queryKey: keys.getAssignableUnits(contractId, trimmedSearch),
-			enabled,
 			queryFn: () =>
 				api.contract.units.getAssignableMany({
 					contractId,
@@ -240,8 +238,10 @@ export const useSetContractUnits = declareMutation({
 			}),
 		redo: () => api.contract.units.set(variables)
 	}),
+	// no success message: the row landing in the other pane is the confirmation, and a surface
+	// announcing what the reader just watched happen is noise (ADR 0029). A refusal still speaks,
+	// because nothing on screen moves to say it.
 	toast: {
-		success: () => get(LL).contracts.hooks.assignUnitsSuccess(),
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
