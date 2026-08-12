@@ -6,8 +6,7 @@
 	import Specification from '$lib/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
-	import { Button } from '$lib/design/primitive/button';
-	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useDeleteTenant, useFetchTenant } from '$lib/tenant/query';
 	import { useListContracts } from '$lib/contract/query';
@@ -70,56 +69,21 @@
 		]}
 	/>
 
-	<Tooltip.Root>
-		<Tooltip.Trigger>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					variant="outline"
-					size="icon-sm"
-					aria-label={$LL.common.actions.edit()}
-					class="rounded-full bg-secondary"
-					onclick={() => {
-						formOpensOn = tenant;
-						isTenantFormOpen = true;
-					}}
-				>
-					<SquarePenIcon class="size-4" />
-					<span class="sr-only">{$LL.common.actions.edit()}</span>
-				</Button>
-			{/snippet}
-		</Tooltip.Trigger>
-		<Tooltip.Content side="top" sideOffset={8}>
-			{$LL.common.actions.edit()}
-		</Tooltip.Content>
-	</Tooltip.Root>
+	<RecordActionControl
+		label={$LL.common.actions.edit()}
+		icon={SquarePenIcon}
+		onclick={() => {
+			formOpensOn = tenant;
+			isTenantFormOpen = true;
+		}}
+	/>
 
-	<!-- deleting is secondary here and primary inside the confirmation it opens: the reader did
-	     not come to this screen to press it (_Semantics are secondary_). The warning colour
-	     arrives with the intent rather than at rest — a red glyph is the only chroma on this
-	     surface, so it draws the eye to the one control nobody came for, and the icon already
-	     says what the action is (_Don't rely on color alone_). Resting a step quieter than its
-	     neighbours counterbalances how heavy an icon reads (_Balance weight and contrast_). -->
-	<Tooltip.Root>
-		<Tooltip.Trigger>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					variant="outline"
-					size="icon-sm"
-					aria-label={$LL.common.actions.delete()}
-					class="rounded-full bg-secondary text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive"
-					onclick={() => (isDeleteDialogOpen = true)}
-				>
-					<Trash2Icon class="size-4" />
-					<span class="sr-only">{$LL.common.actions.delete()}</span>
-				</Button>
-			{/snippet}
-		</Tooltip.Trigger>
-		<Tooltip.Content side="top" sideOffset={8}>
-			{$LL.common.actions.delete()}
-		</Tooltip.Content>
-	</Tooltip.Root>
+	<RecordActionControl
+		label={$LL.common.actions.delete()}
+		icon={Trash2Icon}
+		tone="destructive"
+		onclick={() => (isDeleteDialogOpen = true)}
+	/>
 {/snippet}
 
 {#snippet phone()}
