@@ -78,6 +78,25 @@ navigation and the styling disagree about where the breakpoint is.
 control revealed without hover — is never gated on how wide the window is. This application has
 no touch input, and a window is narrow because somebody dragged it there with a mouse.
 
+**Spacing comes from a subset of the scale, never the whole of it.** Tailwind's scale is linear,
+so adjacent steps at the small end differ by a few percent, and a surface assembled from all of
+them has no rhythm — a gap cannot say *these belong together* if the next gap up is barely wider.
+The steps in use:
+
+| Step | `1` | `1.5` | `2` | `3` | `4` | `6` | `8` | `12` | `16` |
+| ---- | --- | ----- | --- | --- | --- | --- | --- | ---- | ---- |
+| px   | 4   | 6     | 8   | 12  | 16  | 24  | 32  | 48   | 64   |
+
+No two adjacent steps are closer than a third apart, which is what makes a difference in spacing
+read as a difference in grouping. It binds `p-*`, `m-*`, `gap-*` and `space-*` on anything
+composed here; a **size** — `size-4`, `h-8`, `max-w-*` — is a component's own dimension and is
+not on this ladder, and `design/primitive/` keeps the geometry it was ported with
+([ADR 0007](../decisions/0007-rhea-geometry-is-hand-ported.md)).
+
+**Review enforces this, and no spacing token is added to the stylesheet for it.** A semantic
+scale beside the framework's own would make every component read in a dialect, and `app.css` is
+deliberately kept to what is genuinely global.
+
 ## Motion
 
 **A surface built here carries motion, and the motion always responds to something** — an
