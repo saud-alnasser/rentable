@@ -1,10 +1,7 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
-	import type api from '$lib/api/caller';
-	import * as Cell from '$lib/design/cell';
-	import { Button } from '$lib/design/primitive/button';
 	import { Input } from '$lib/design/primitive/input';
-	import { Skeleton } from '$lib/design/primitive/skeleton';
+	import { cn } from '$lib/design/tailwind';
+	import UnitPane from './unit-pane.svelte';
 	import {
 		useFetchAssignableContractUnits,
 		useFetchContract,
@@ -19,13 +16,14 @@
 	/**
 	 * A contract's units, read and chosen in the same place.
 	 *
-	 * Both panes are directory rows, and the transfer is a control on the row rather than a door
+	 * A pane's units are directory rows, and the transfer is a control on the row rather than a door
 	 * to a form: the reading and the writing are one gesture here, which is the narrow case
 	 * ADR 0029 excepts from ADR 0020.
+	 *
+	 * Where the contract's units are locked there is nothing to transfer, so there is one pane
+	 * rather than two — see the layout below.
 	 */
 	let { contractId }: { contractId: number } = $props();
-
-	type AssignableUnit = Awaited<ReturnType<typeof api.contract.units.getAssignableMany>>[number];
 
 	let search = $state('');
 
@@ -73,76 +71,6 @@
 	}
 </script>
 
-{#snippet pane({
-	heading,
-	units,
-	empty,
-	label,
-	icon,
-	wasHeld
-}: {
-	heading: string;
-	units: AssignableUnit[];
-	empty: string;
-	label: string;
-	icon: typeof PlusIcon;
-	/** which side these rows sit on — the only difference between the two panes. */
-	wasHeld: boolean;
-})}
-	{@const Icon = icon}
-	<section class="flex min-h-0 flex-col gap-2">
-		<h3 class="shrink-0 text-xs tracking-[0.2em] text-muted-foreground uppercase">
-			{heading}
-			<span class="ms-1 tracking-normal">({units.length})</span>
-		</h3>
-
-		{#if assignableQuery.isLoading}
-			<div class="flex flex-col gap-2">
-				<Skeleton class="h-16 w-full rounded-xl" />
-				<Skeleton class="h-16 w-full rounded-xl" />
-			</div>
-		{:else if units.length === 0}
-			<p class="rounded-xl border border-dashed bg-muted p-4 text-sm text-muted-foreground">
-				{empty}
-			</p>
-		{:else}
-			<ul class="app-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pe-1">
-				{#each units as unit (unit.id)}
-					<li
-						class="flex items-center gap-3 rounded-xl bg-muted p-3 transition-colors hover:bg-accent"
-					>
-						<a
-							href={resolve(`/complexes/units/${unit.id}`)}
-							class="flex min-w-0 flex-1 items-center gap-3 rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-						>
-							<span class="flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-								<span class="truncate text-sm font-medium">{unit.name}</span>
-								<span class="truncate text-xs text-muted-foreground">{unit.complexName}</span>
-							</span>
-
-							<Cell.Status status={unit.status} />
-						</a>
-
-						{#if !isLocked}
-							<Button
-								type="button"
-								variant="outline"
-								size="icon-sm"
-								class="shrink-0"
-								aria-label={`${label} ${unit.name}`}
-								disabled={isTransferring}
-								onclick={() => transfer(unit.id, wasHeld)}
-							>
-								<Icon class="size-4" />
-							</Button>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	</section>
-{/snippet}
-
 <div class="flex min-h-0 flex-1 flex-col gap-3">
 	{#if lockNotice}
 		<p
@@ -165,23 +93,39 @@
 	/>
 
 	<!-- the panes stack below the shell's breakpoint, and they are start and end rather than
-	     left and right: neither the order nor the controls may depend on a physical side. -->
-	<div class="grid min-h-0 flex-1 grid-cols-1 gap-4 shell:grid-cols-2">
-		{@render pane({
-			heading: $LL.contracts.units.assigned(),
-			units: held,
-			empty: $LL.contracts.units.noAssignedUnits(),
-			label: $LL.common.actions.remove(),
-			icon: MinusIcon,
-			wasHeld: true
-		})}
-		{@render pane({
-			heading: $LL.contracts.units.available(),
-			units: available,
-			empty: $LL.contracts.units.noAvailableUnits(),
-			label: $LL.common.actions.add(),
-			icon: PlusIcon,
-			wasHeld: false
-		})}
+	     left and right: neither the order nor the controls may depend on a physical side.
+
+	     A locked contract gets one pane, full width, so the assigned units lay out as a grid: the
+	     available list answers a question the reader is not allowed to ask, and a column of units
+	     beside a control that has been removed is worse than absent. The notice above already says
+	     why the contract is locked. -->
+	<div class={cn('grid min-h-0 flex-1 grid-cols-1 gap-4', !isLocked && 'shell:grid-cols-2')}>
+		<UnitPane
+			heading={$LL.contracts.units.assigned()}
+			units={held}
+			empty={$LL.contracts.units.noAssignedUnits()}
+			label={$LL.common.actions.remove()}
+			icon={MinusIcon}
+			wasHeld={true}
+			isLoading={assignableQuery.isLoading}
+			{isLocked}
+			{isTransferring}
+			gridded={isLocked}
+			onTransfer={transfer}
+		/>
+		{#if !isLocked}
+			<UnitPane
+				heading={$LL.contracts.units.available()}
+				units={available}
+				empty={$LL.contracts.units.noAvailableUnits()}
+				label={$LL.common.actions.add()}
+				icon={PlusIcon}
+				wasHeld={false}
+				isLoading={assignableQuery.isLoading}
+				{isLocked}
+				{isTransferring}
+				onTransfer={transfer}
+			/>
+		{/if}
 	</div>
 </div>
