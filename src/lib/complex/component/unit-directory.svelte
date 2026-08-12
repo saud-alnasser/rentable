@@ -7,6 +7,7 @@
 	import { isUnitDeletable } from '$lib/complex/complex';
 	import DataTableActionsDropdown from '$lib/design/block/data-table-actions-dropdown.svelte';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import List from '$lib/design/block/list.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -44,7 +45,7 @@
 		() => Boolean(unit)
 	);
 	const unitBlockers = $derived.by(() => {
-		if (!unit || holdingContractsQuery.isPending) return undefined;
+		if (!unit || holdingContractsQuery.isPending) return AWAITING_BLOCKERS;
 
 		const held = holdingContractsQuery.data ?? [];
 

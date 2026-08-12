@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { isConfirmable, toConfirmation, type Blockers } from '$lib/design/confirmation';
 	import type { ButtonVariant } from '$lib/design/primitive/button';
 	import { Button } from '$lib/design/primitive/button';
 	import { Callout } from '$lib/design/primitive/callout';
@@ -27,12 +28,11 @@
 		 * What depends on the record and stops it being deleted, in the reader's words.
 		 *
 		 * The procedure refuses either way — this is what lets the dialog say so before
-		 * offering anything destructive rather than after the control is pressed. `undefined`
-		 * is *not yet known*, which is not the same answer as *nothing*: until the surface has
-		 * read what depends on the record, the destructive control waits rather than offering
-		 * a deletion that may be refused.
+		 * offering anything destructive rather than after the control is pressed. A surface
+		 * with nothing to read omits it; one that is still reading passes
+		 * {@link AWAITING_BLOCKERS}.
 		 */
-		blockers?: string[];
+		blockers?: Blockers;
 		title?: string;
 		description?: string;
 		confirmLabel?: string;
@@ -40,15 +40,17 @@
 		confirmVariant?: ButtonVariant;
 	} = $props();
 
-	const isBlocked = $derived(blockers !== undefined && blockers.length > 0);
-	const isUnknown = $derived(blockers === undefined);
+	const confirmation = $derived(toConfirmation(blockers));
+	const isBlocked = $derived(confirmation.state === 'blocked');
 
 	let isSubmitting = $state(false);
 	let error = $state<string | null>(null);
-	let hasError = $derived(Boolean(error));
 
 	async function submit() {
 		isSubmitting = true;
+		// a refusal describes the attempt that earned it, not the one starting now — leaving it
+		// standing is what turned one refusal into a dialog that could never be pressed again.
+		error = null;
 
 		try {
 			await onSubmit();
@@ -91,9 +93,9 @@
 				{isBlocked ? $LL.common.deleteDialog.blockedDescription() : description}
 			</div>
 
-			{#if isBlocked && blockers}
+			{#if isBlocked}
 				<ul class="flex flex-col gap-1 text-sm text-muted-foreground">
-					{#each blockers as blocker (blocker)}
+					{#each confirmation.blocking as blocker (blocker)}
 						<li class="flex items-start gap-2">
 							<span class="mt-2 size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true"
 							></span>
@@ -125,7 +127,7 @@
 			{#if !isBlocked}
 				<Button
 					variant={confirmVariant}
-					disabled={isSubmitting || hasError || isUnknown}
+					disabled={!isConfirmable(confirmation.state, isSubmitting)}
 					onclick={submit}
 					class="w-full sm:w-auto"
 				>

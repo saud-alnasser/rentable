@@ -705,18 +705,9 @@ type RootTranslation = {
 			 */
 			edited: RequiredParams<'record'>
 			/**
-			 * n​o​t​h​i​n​g​ ​t​o​ ​r​e​d​o
+			 * r​e​d​o
 			 */
-			nothingToRedo: string
-			/**
-			 * n​o​t​h​i​n​g​ ​t​o​ ​u​n​d​o
-			 */
-			nothingToUndo: string
-			/**
-			 * r​e​d​o​ ​{​c​h​a​n​g​e​}
-			 * @param {string} change
-			 */
-			redo: RequiredParams<'change'>
+			redo: string
 			/**
 			 * {​c​h​a​n​g​e​}​ ​a​p​p​l​i​e​d​ ​a​g​a​i​n
 			 * @param {string} change
@@ -728,10 +719,9 @@ type RootTranslation = {
 			 */
 			terminated: RequiredParams<'record'>
 			/**
-			 * u​n​d​o​ ​{​c​h​a​n​g​e​}
-			 * @param {string} change
+			 * u​n​d​o
 			 */
-			undo: RequiredParams<'change'>
+			undo: string
 			/**
 			 * {​c​h​a​n​g​e​}​ ​u​n​d​o​n​e
 			 * @param {string} change
@@ -956,49 +946,40 @@ type RootTranslation = {
 			 */
 			title: string
 		}
-		queue: {
-			/**
-			 * a​l​s​o​ ​e​n​d​i​n​g
-			 */
-			alsoEnding: string
+		figures: {
 			/**
 			 * c​o​l​l​e​c​t​e​d​ ​t​h​i​s​ ​m​o​n​t​h
 			 */
 			collectedThisMonth: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)
-			 * @param {unknown} count
-			 */
-			groupCount: RequiredParams<'count|number'>
-			groups: {
-				/**
-				 * e​n​d​i​n​g​ ​s​o​o​n
-				 */
-				endingSoon: string
-				/**
-				 * o​v​e​r​d​u​e
-				 */
-				overdue: string
-				/**
-				 * o​w​i​n​g
-				 */
-				owing: string
-			}
-			/**
-			 * {​o​c​c​u​p​i​e​d​}​ ​/​ ​{​t​o​t​a​l​}
-			 * @param {unknown} occupied
-			 * @param {unknown} total
-			 */
-			occupancy: RequiredParams<'occupied' | 'total'>
-			/**
 			 * o​c​c​u​p​i​e​d​ ​u​n​i​t​s
 			 */
 			occupiedUnits: string
+			/**
+			 * o​u​t​s​t​a​n​d​i​n​g
+			 */
+			outstanding: string
+		}
+		sections: {
+			/**
+			 * a​l​s​o​ ​e​n​d​i​n​g
+			 */
+			alsoEnding: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)
+			 * @param {unknown} count
+			 */
+			contractCount: RequiredParams<'count|number'>
 			/**
 			 * o​p​e​n​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​f​o​r​ ​{​t​e​n​a​n​t​}
 			 * @param {unknown} tenant
 			 */
 			openContract: RequiredParams<'tenant'>
+			/**
+			 * s​e​e​ ​a​l​l​ ​(​{​c​o​u​n​t​|​n​u​m​b​e​r​}​)
+			 * @param {unknown} count
+			 */
+			seeAll: RequiredParams<'count|number'>
 		}
 		/**
 		 * d​a​s​h​b​o​a​r​d
@@ -1703,10 +1684,6 @@ type RootTranslation = {
 		}
 		hooks: {
 			/**
-			 * u​n​i​t​s​ ​a​d​d​e​d​ ​t​o​ ​c​o​n​t​r​a​c​t​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
-			 */
-			assignUnitsSuccess: string
-			/**
 			 * p​a​y​m​e​n​t​ ​c​r​e​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
 			createPaymentSuccess: string
@@ -1811,6 +1788,20 @@ type RootTranslation = {
 			 */
 			trackSummary: string
 		}
+		ranks: {
+			/**
+			 * e​n​d​i​n​g​ ​s​o​o​n
+			 */
+			endingSoon: string
+			/**
+			 * o​v​e​r​d​u​e
+			 */
+			overdue: string
+			/**
+			 * o​w​i​n​g
+			 */
+			owing: string
+		}
 		table: {
 			/**
 			 * p​a​y​m​e​n​t​s​ ​m​a​n​a​g​e​m​e​n​t
@@ -1852,7 +1843,7 @@ type RootTranslation = {
 			 */
 			assigned: string
 			/**
-			 * m​o​v​e​ ​u​n​i​t​s​ ​b​e​t​w​e​e​n​ ​t​h​e​ ​t​w​o​ ​s​i​d​e​s​,​ ​t​h​e​n​ ​s​a​v​e​ ​o​n​c​e​.​ ​u​n​i​t​s​ ​l​i​n​k​e​d​ ​t​o​ ​a​ ​c​o​n​t​r​a​c​t​ ​w​h​o​s​e​ ​t​e​r​m​ ​o​v​e​r​l​a​p​s​ ​t​h​i​s​ ​o​n​e​ ​a​r​e​ ​n​o​t​ ​o​f​f​e​r​e​d​.
+			 * m​o​v​e​ ​a​ ​u​n​i​t​ ​b​e​t​w​e​e​n​ ​t​h​e​ ​t​w​o​ ​s​i​d​e​s​;​ ​e​a​c​h​ ​m​o​v​e​ ​i​s​ ​s​a​v​e​d​ ​a​s​ ​i​t​ ​h​a​p​p​e​n​s​.​ ​u​n​i​t​s​ ​l​i​n​k​e​d​ ​t​o​ ​a​ ​c​o​n​t​r​a​c​t​ ​w​h​o​s​e​ ​t​e​r​m​ ​o​v​e​r​l​a​p​s​ ​t​h​i​s​ ​o​n​e​ ​a​r​e​ ​n​o​t​ ​o​f​f​e​r​e​d​.
 			 */
 			transferDescription: string
 			/**
@@ -1871,10 +1862,6 @@ type RootTranslation = {
 			 * n​o​ ​u​n​i​t​s​ ​a​r​e​ ​a​v​a​i​l​a​b​l​e​ ​f​o​r​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​t​i​m​e​f​r​a​m​e​.
 			 */
 			noAvailableUnits: string
-			/**
-			 * a​s​s​i​g​n​ ​u​n​i​t​s
-			 */
-			assignTitle: string
 		}
 	}
 	settingsHooks: {
@@ -2621,17 +2608,9 @@ export type TranslationFunctions = {
 			 */
 			edited: (arg: { record: string }) => LocalizedString
 			/**
-			 * nothing to redo
+			 * redo
 			 */
-			nothingToRedo: () => LocalizedString
-			/**
-			 * nothing to undo
-			 */
-			nothingToUndo: () => LocalizedString
-			/**
-			 * redo {change}
-			 */
-			redo: (arg: { change: string }) => LocalizedString
+			redo: () => LocalizedString
 			/**
 			 * {change} applied again
 			 */
@@ -2641,9 +2620,9 @@ export type TranslationFunctions = {
 			 */
 			terminated: (arg: { record: string }) => LocalizedString
 			/**
-			 * undo {change}
+			 * undo
 			 */
-			undo: (arg: { change: string }) => LocalizedString
+			undo: () => LocalizedString
 			/**
 			 * {change} undone
 			 */
@@ -2861,45 +2840,37 @@ export type TranslationFunctions = {
 			 */
 			title: () => LocalizedString
 		}
-		queue: {
-			/**
-			 * also ending
-			 */
-			alsoEnding: () => LocalizedString
+		figures: {
 			/**
 			 * collected this month
 			 */
 			collectedThisMonth: () => LocalizedString
 			/**
-			 * {count|number} contract(s)
-			 */
-			groupCount: (arg: { count: unknown }) => LocalizedString
-			groups: {
-				/**
-				 * ending soon
-				 */
-				endingSoon: () => LocalizedString
-				/**
-				 * overdue
-				 */
-				overdue: () => LocalizedString
-				/**
-				 * owing
-				 */
-				owing: () => LocalizedString
-			}
-			/**
-			 * {occupied} / {total}
-			 */
-			occupancy: (arg: { occupied: unknown, total: unknown }) => LocalizedString
-			/**
 			 * occupied units
 			 */
 			occupiedUnits: () => LocalizedString
 			/**
+			 * outstanding
+			 */
+			outstanding: () => LocalizedString
+		}
+		sections: {
+			/**
+			 * also ending
+			 */
+			alsoEnding: () => LocalizedString
+			/**
+			 * {count|number} contract(s)
+			 */
+			contractCount: (arg: { count: unknown }) => LocalizedString
+			/**
 			 * open the contract for {tenant}
 			 */
 			openContract: (arg: { tenant: unknown }) => LocalizedString
+			/**
+			 * see all ({count|number})
+			 */
+			seeAll: (arg: { count: unknown }) => LocalizedString
 		}
 		/**
 		 * dashboard
@@ -3589,10 +3560,6 @@ export type TranslationFunctions = {
 		}
 		hooks: {
 			/**
-			 * units added to contract successfully!
-			 */
-			assignUnitsSuccess: () => LocalizedString
-			/**
 			 * payment created successfully!
 			 */
 			createPaymentSuccess: () => LocalizedString
@@ -3693,6 +3660,20 @@ export type TranslationFunctions = {
 			 */
 			trackSummary: () => LocalizedString
 		}
+		ranks: {
+			/**
+			 * ending soon
+			 */
+			endingSoon: () => LocalizedString
+			/**
+			 * overdue
+			 */
+			overdue: () => LocalizedString
+			/**
+			 * owing
+			 */
+			owing: () => LocalizedString
+		}
 		table: {
 			/**
 			 * payments management
@@ -3733,7 +3714,7 @@ export type TranslationFunctions = {
 			 */
 			assigned: () => LocalizedString
 			/**
-			 * move units between the two sides, then save once. units linked to a contract whose term overlaps this one are not offered.
+			 * move a unit between the two sides; each move is saved as it happens. units linked to a contract whose term overlaps this one are not offered.
 			 */
 			transferDescription: () => LocalizedString
 			/**
@@ -3752,10 +3733,6 @@ export type TranslationFunctions = {
 			 * no units are available for this contract timeframe.
 			 */
 			noAvailableUnits: () => LocalizedString
-			/**
-			 * assign units
-			 */
-			assignTitle: () => LocalizedString
 		}
 	}
 	settingsHooks: {

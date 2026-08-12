@@ -197,12 +197,10 @@ const en = {
 			created: 'creating {record:string}',
 			deleted: 'deleting {record:string}',
 			edited: 'editing {record:string}',
-			nothingToRedo: 'nothing to redo',
-			nothingToUndo: 'nothing to undo',
-			redo: 'redo {change:string}',
+			redo: 'redo',
 			redone: '{change:string} applied again',
 			terminated: 'terminating {record:string}',
-			undo: 'undo {change:string}',
+			undo: 'undo',
 			undone: '{change:string} undone',
 			unterminated: 'restoring {record:string}'
 		},
@@ -283,18 +281,17 @@ const en = {
 			title: 'nothing needs doing today.'
 		},
 
-		queue: {
-			alsoEnding: 'also ending',
+		figures: {
 			collectedThisMonth: 'collected this month',
-			groupCount: '{count|number} contract(s)',
-			groups: {
-				endingSoon: 'ending soon',
-				overdue: 'overdue',
-				owing: 'owing'
-			},
-			occupancy: '{occupied} / {total}',
 			occupiedUnits: 'occupied units',
-			openContract: 'open the contract for {tenant}'
+			outstanding: 'outstanding'
+		},
+
+		sections: {
+			alsoEnding: 'also ending',
+			contractCount: '{count|number} contract(s)',
+			openContract: 'open the contract for {tenant}',
+			seeAll: 'see all ({count|number})'
 		},
 
 		title: 'dashboard'
@@ -553,7 +550,6 @@ const en = {
 		},
 
 		hooks: {
-			assignUnitsSuccess: 'units added to contract successfully!',
 			createPaymentSuccess: 'payment created successfully!',
 			createSuccess: 'contract created successfully!',
 			deletePaymentSuccess: 'payment deleted successfully!',
@@ -589,6 +585,12 @@ const en = {
 			trackSummary: 'track contract payments and add new payment records here.'
 		},
 
+		ranks: {
+			endingSoon: 'ending soon',
+			overdue: 'overdue',
+			owing: 'owing'
+		},
+
 		table: {
 			paymentsManagement: 'payments management',
 			restoreDescription:
@@ -606,7 +608,7 @@ const en = {
 			assigned: 'assigned',
 
 			transferDescription:
-				'move units between the two sides, then save once. units linked to a contract whose term overlaps this one are not offered.',
+				'move a unit between the two sides; each move is saved as it happens. units linked to a contract whose term overlaps this one are not offered.',
 
 			lockNoticeHasPayments:
 				'contracts with registered payments are locked. you can review linked units here, but you cannot assign or remove units after payments have been recorded.',
@@ -614,9 +616,7 @@ const en = {
 				'terminated contracts are locked. you can review linked units here, but you cannot assign or remove units until the contract is unterminated.',
 
 			noAssignedUnits: 'no units are assigned to this contract yet.',
-			noAvailableUnits: 'no units are available for this contract timeframe.',
-
-			assignTitle: 'assign units'
+			noAvailableUnits: 'no units are available for this contract timeframe.'
 		}
 	},
 

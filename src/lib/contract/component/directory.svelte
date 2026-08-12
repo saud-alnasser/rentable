@@ -7,7 +7,10 @@
 	import List from '$lib/design/block/list.svelte';
 	import type { ListSort } from '$lib/design/sort';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
+	import { CONTRACT_RANKS, type ContractRank } from '$lib/contract/rank';
+	import { readContractRank } from '$lib/contract/rank-filter';
 	import { useListContracts } from '$lib/contract/query';
+	import { Button } from '$lib/design/primitive/button';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatRecordDate } from '$lib/design/date';
 	import { formatLocaleNumber, formatLocaleRangeWithUnit } from '$lib/platform/locale';
@@ -23,13 +26,21 @@
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
+	let rank = $state<ContractRank | null>(null);
 	let isContractFormOpen = $state(false);
 	let contractFormRenderKey = $state(0);
 
 	const contractsQuery = useListContracts(
 		() => search,
-		() => sort
+		() => sort,
+		() => (rank ? { rank } : {})
 	);
+
+	const rankLabels = $derived<Record<ContractRank, string>>({
+		overdue: $LL.contracts.ranks.overdue(),
+		owing: $LL.contracts.ranks.owing(),
+		'ending-soon': $LL.contracts.ranks.endingSoon()
+	});
 	const contracts = $derived(contractsQuery.data ?? []);
 
 	// the same rendering the row shows, so the file reads as the screen does.
@@ -67,13 +78,46 @@
 		untrack(openCreateContractForm);
 		void goto(resolve('/contracts'), { replaceState: true, noScroll: true, keepFocus: true });
 	});
+
+	// a rank arrives in the URL from a surface that ranked a contract and sent the reader here
+	// for the rest of that rank (ADR 0031). It is applied and cleared from the URL on arrival,
+	// exactly as the create intent is: the narrowing is the reader's to change from the control
+	// afterwards, and a reload should not put back one they have since cleared.
+	$effect(() => {
+		const requested = readContractRank(page.url);
+
+		if (!requested) {
+			return;
+		}
+
+		rank = requested;
+		void goto(resolve('/contracts'), { replaceState: true, noScroll: true, keepFocus: true });
+	});
 </script>
+
+{#snippet rankFilter()}
+	<!-- pressing the chosen rank again clears it, so the control needs no separate "all" and
+	     the set of ranks is the whole vocabulary on screen. -->
+	<div class="flex items-center gap-1">
+		{#each CONTRACT_RANKS as option (option)}
+			<Button
+				variant={rank === option ? 'default' : 'outline'}
+				size="sm"
+				aria-pressed={rank === option}
+				onclick={() => (rank = rank === option ? null : option)}
+			>
+				{rankLabels[option]}
+			</Button>
+		{/each}
+	</div>
+{/snippet}
 
 <List
 	data={contracts}
 	bind:search
 	bind:sort
 	{sortOptions}
+	filters={rankFilter}
 	isLoading={contractsQuery.isLoading}
 	isFetching={contractsQuery.isFetching}
 	recordHeight={ROW_HEIGHT}

@@ -118,8 +118,8 @@
 			unitError = undefined;
 
 			if (value) {
-				// a duplicate arrives without the fields that must be unique, and a form field
-				// holds a string rather than nothing.
+				// a form field holds a string rather than nothing, and the surface may open on a
+				// record that states neither.
 				form.set({ id: value.id, name: value.name ?? '', location: value.location ?? '' });
 			} else {
 				reset();

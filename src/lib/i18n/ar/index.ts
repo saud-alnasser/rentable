@@ -196,12 +196,10 @@ const ar = {
 			created: 'إنشاء {record}',
 			deleted: 'حذف {record}',
 			edited: 'تعديل {record}',
-			nothingToRedo: 'لا يوجد ما يمكن إعادته',
-			nothingToUndo: 'لا يوجد ما يمكن التراجع عنه',
-			redo: 'إعادة {change}',
+			redo: 'إعادة',
 			redone: 'تمت إعادة {change}',
 			terminated: 'إنهاء {record}',
-			undo: 'التراجع عن {change}',
+			undo: 'تراجع',
 			undone: 'تم التراجع عن {change}',
 			unterminated: 'استعادة {record}'
 		},
@@ -279,18 +277,17 @@ const ar = {
 			title: 'لا شيء يحتاج إلى إجراء اليوم.'
 		},
 
-		queue: {
-			alsoEnding: 'ينتهي أيضاً',
+		figures: {
 			collectedThisMonth: 'المحصل هذا الشهر',
-			groupCount: '{count|number} عقد',
-			groups: {
-				endingSoon: 'قريب الانتهاء',
-				overdue: 'متأخر',
-				owing: 'مستحق'
-			},
-			occupancy: '{occupied} / {total}',
 			occupiedUnits: 'الوحدات المشغولة',
-			openContract: 'افتح عقد {tenant}'
+			outstanding: 'المستحق'
+		},
+
+		sections: {
+			alsoEnding: 'ينتهي أيضاً',
+			contractCount: '{count|number} عقد',
+			openContract: 'افتح عقد {tenant}',
+			seeAll: 'عرض الكل ({count|number})'
 		},
 
 		title: 'لوحة التحكم'
@@ -547,7 +544,6 @@ const ar = {
 		},
 
 		hooks: {
-			assignUnitsSuccess: 'تمت إضافة الوحدات للعقد بنجاح!',
 			createPaymentSuccess: 'تم إنشاء الدفعة بنجاح!',
 			createSuccess: 'تم إنشاء العقد بنجاح!',
 			deletePaymentSuccess: 'تم حذف الدفعة بنجاح!',
@@ -581,6 +577,12 @@ const ar = {
 			trackSummary: 'تتبع المدفوعات وإضافة دفعات جديدة.'
 		},
 
+		ranks: {
+			endingSoon: 'قريب الانتهاء',
+			overdue: 'متأخر',
+			owing: 'مستحق'
+		},
+
 		table: {
 			paymentsManagement: 'إدارة المدفوعات',
 			restoreDescription: 'هل تريد إزالة إنهاء العقد؟',
@@ -596,15 +598,13 @@ const ar = {
 			assigned: 'المسندة',
 
 			transferDescription:
-				'انقل الوحدات بين الجانبين ثم احفظ مرة واحدة. الوحدات المرتبطة بعقد تتداخل مدته مع هذا العقد لا تُعرض.',
+				'انقل الوحدة بين الجانبين؛ كل نقل يُحفظ فور حدوثه. الوحدات المرتبطة بعقد تتداخل مدته مع هذا العقد لا تُعرض.',
 
 			lockNoticeHasPayments: 'لا يمكن تعديل الوحدات بعد تسجيل مدفوعات.',
 			lockNoticeTerminated: 'العقد منتهي ولا يمكن تعديل الوحدات.',
 
 			noAssignedUnits: 'لا توجد وحدات مرتبطة.',
-			noAvailableUnits: 'لا توجد وحدات متاحة.',
-
-			assignTitle: 'إسناد وحدات'
+			noAvailableUnits: 'لا توجد وحدات متاحة.'
 		}
 	},
 

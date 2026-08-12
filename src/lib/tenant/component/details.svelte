@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import { Button } from '$lib/design/primitive/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/design/primitive/card';
 	import { Spinner } from '$lib/design/primitive/spinner';
@@ -68,7 +69,7 @@
 		() => ({ tenantId })
 	);
 	const tenantBlockers = $derived.by(() => {
-		if (heldContractsQuery.isPending) return undefined;
+		if (heldContractsQuery.isPending) return AWAITING_BLOCKERS;
 
 		const held = heldContractsQuery.data ?? [];
 
@@ -77,7 +78,7 @@
 			: [$LL.common.deleteDialog.blockedContracts({ count: held.length })];
 	});
 
-	let formOpensOn = $state<Partial<NonNullable<typeof tenantQuery.data>> | undefined>(undefined);
+	let formOpensOn = $state<NonNullable<typeof tenantQuery.data> | undefined>(undefined);
 	let isTenantFormOpen = $state(false);
 	let isDeleteDialogOpen = $state(false);
 
@@ -120,12 +121,6 @@
 							{ label: $LL.common.labels.nationalId(), value: tenant.nationalId },
 							{ label: $LL.common.labels.phone(), value: tenant.phone }
 						]}
-						onDuplicate={() => {
-							// the identity and the phone are a tenant's unique fields, so the copy
-							// starts without them rather than with a value that cannot be saved.
-							formOpensOn = { ...tenant, id: undefined, nationalId: '', phone: '' };
-							isTenantFormOpen = true;
-						}}
 					/>
 
 					<Tooltip.Root>

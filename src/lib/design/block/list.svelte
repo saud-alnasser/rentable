@@ -62,6 +62,15 @@
 		/** Offered as the leading action when the list can create a record. */
 		onCreate?: () => void;
 		/**
+		 * A list's own narrowing controls, rendered in the toolbar between the search and the
+		 * result count.
+		 *
+		 * Search and order are every list's and are this block's own; what a list may be narrowed
+		 * *by* is the concept's — a contract has an attention rank and a tenant has nothing like
+		 * one — so the block gives the position and the concept gives the control.
+		 */
+		filters?: Snippet;
+		/**
 		 * What an export writes, and what to call the file.
 		 *
 		 * The columns are the row's own, supplied by the concept that renders it: an export
@@ -105,6 +114,7 @@
 		isLoading = false,
 		isFetching = false,
 		onCreate,
+		filters,
 		exportAs,
 		recordHeight = 56,
 		groupHeaderHeight = 36,
@@ -249,7 +259,8 @@
 			/>
 		</div>
 
-		<div class="flex shrink-0 items-center gap-3">
+		<div class="flex shrink-0 flex-wrap items-center gap-3">
+			{@render filters?.()}
 			<span class="text-xs text-muted-foreground" aria-live="polite">
 				{$LL.common.table.results({ count: data.length })}
 			</span>

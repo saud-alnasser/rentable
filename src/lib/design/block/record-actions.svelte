@@ -20,7 +20,13 @@
 	}: {
 		/** the record's stated details, in the order they are read on the surface. */
 		details: ClipboardDetail[];
-		/** open the create form pre-filled from this record. Omitted where nothing writes it. */
+		/**
+		 * open the create form pre-filled from this record.
+		 *
+		 * Omitted where nothing writes it, and where the copy would carry nothing: a record whose
+		 * stated fields are all unique to it duplicates into the create form with one value
+		 * filled in, wearing a label that promises more.
+		 */
 		onDuplicate?: () => void;
 	} = $props();
 

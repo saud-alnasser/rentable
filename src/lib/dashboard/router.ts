@@ -5,16 +5,18 @@ import { procedure } from '$lib/api/trpc';
 import { getExpectedAmountBy, getExpectedAmountInRange } from '$lib/contract/contract';
 import { serializeContract } from '$lib/contract/serialize';
 import {
-	compareDashboardQueueEntries,
-	getDashboardQueueGroup,
-	isContractEndingSoon,
 	isContractIncludedInDashboardPortfolio,
-	summarizeDashboardQueueGroups,
-	type DashboardQueueGroup,
-	type DashboardQueueGroupSummary
+	takeEntriesShownPerRank
 } from '$lib/dashboard/dashboard';
-import { and, eq, gte, lte, sql, type AnyColumn, type SQL } from 'drizzle-orm';
-import z from 'zod';
+import {
+	compareContractsByRank,
+	getContractRank,
+	isContractEndingSoon,
+	summarizeContractRanks,
+	type ContractRank,
+	type ContractRankSummary
+} from '$lib/contract/rank';
+import { and, eq, gte, lte, sql } from 'drizzle-orm';
 
 /**
  * DASHBOARD ROUTER
@@ -27,14 +29,18 @@ import z from 'zod';
  * minus the materialized `paid_amount`, and the one figure that needs payments is a scalar
  * sum, so the screen's cost is a function of how many contracts exist rather than of how
  * many payments have ever been recorded.
+ *
+ * What it *returns* is bounded by what the screen paints: a few entries per rank, beside
+ * summaries that still describe every contract under each rank. The database read stays
+ * linear in contracts, as ADR 0014 accepted — it is the response that narrows.
  */
 
-/** One contract needing action, as the queue's rows render it. */
+/** One contract needing action, as a rank's rows render it. */
 type DashboardQueueEntry = {
 	id: number;
 	govId: string;
 	status: Contract['status'];
-	group: DashboardQueueGroup;
+	rank: ContractRank;
 	tenantName: string;
 	tenantPhone: string;
 	outstandingAmount: number;
@@ -43,7 +49,7 @@ type DashboardQueueEntry = {
 	isEndingSoon: boolean;
 };
 
-/** The two figures above the queue, and nothing else. */
+/** The portfolio figures the screen's band carries, and nothing else. */
 type DashboardSummary = {
 	money: { dueThisMonth: number; collectedThisMonth: number };
 	occupancy: { totalUnits: number; occupiedUnits: number };
@@ -52,135 +58,108 @@ type DashboardSummary = {
 type DashboardData = {
 	endingSoonNoticeDays: number;
 	queue: DashboardQueueEntry[];
-	groups: DashboardQueueGroupSummary[];
+	ranks: ContractRankSummary[];
 	summary: DashboardSummary;
 };
 
-// every field the queue can be searched by, whether or not the row shows it.
-//
-// `%` and `_` are LIKE's own wildcards, so a term carrying either is escaped before it
-// becomes a pattern: a user searching for "50%" is looking for that text, not asking to
-// match everything.
-function queueSearchCondition(search: string) {
-	const pattern = `%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
-	const like = (column: SQL | AnyColumn) =>
-		sql`lower(cast(${column} as text)) like lower(${pattern}) escape '\\'`;
+export default procedure.public.query(async ({ ctx }): Promise<DashboardData> => {
+	const now = ctx.clock.now();
+	const month = getCurrentMonthBounds(now);
+	const settings = await ctx.host.settings.get();
 
-	return sql.join(
-		[
-			like(s.contract.govId),
-			like(s.tenant.name),
-			like(s.tenant.phone),
-			like(s.contract.status),
-			like(s.contract.interval),
-			like(s.contract.cost)
-		],
-		sql` or `
-	);
-}
+	const contracts = await ctx.db
+		.select({
+			contract: s.contract,
+			tenantName: s.tenant.name,
+			tenantPhone: s.tenant.phone
+		})
+		.from(s.contract)
+		.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id));
 
-export default procedure.public
-	.input(z.object({ search: z.string().optional() }).optional())
-	.query(async ({ input, ctx }): Promise<DashboardData> => {
-		const now = ctx.clock.now();
-		const month = getCurrentMonthBounds(now);
-		const settings = await ctx.host.settings.get();
-		const search = input?.search?.trim();
-
-		const searched = await ctx.db
-			.select({
-				contract: s.contract,
-				tenantName: s.tenant.name,
-				tenantPhone: s.tenant.phone
-			})
-			.from(s.contract)
-			.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
-			.where(search ? queueSearchCondition(search) : undefined);
-
-		const queue = searched
-			.flatMap(({ contract, tenantName, tenantPhone }): DashboardQueueEntry[] => {
-				const serializedContract = serializeContract(contract);
-				const outstandingAmount = Math.max(
-					getExpectedAmountBy(contract, now) - serializedContract.paidAmount,
-					0
-				);
-				const group = getDashboardQueueGroup(
-					serializedContract.status,
-					contract.end,
-					outstandingAmount,
-					now,
-					settings.endingSoonNoticeDays
-				);
-
-				if (!group) {
-					return [];
-				}
-
-				return [
-					{
-						id: contract.id,
-						govId: serializedContract.govId,
-						status: serializedContract.status,
-						group,
-						tenantName,
-						tenantPhone,
-						outstandingAmount,
-						contractEnd: serializedContract.end,
-						isEndingSoon: isContractEndingSoon(
-							serializedContract.status,
-							contract.end,
-							now,
-							settings.endingSoonNoticeDays
-						)
-					}
-				];
-			})
-			.sort(compareDashboardQueueEntries);
-
-		// the strip is a portfolio figure, so it is read over every contract rather than over
-		// the ones a search left: a total that moved as the user typed would be describing the
-		// search rather than the month. Only the columns the month's arithmetic needs.
-		const portfolio = await ctx.db
-			.select({
-				status: s.contract.status,
-				start: s.contract.start,
-				end: s.contract.end,
-				interval: s.contract.interval,
-				cost: s.contract.cost
-			})
-			.from(s.contract);
-
-		const dueThisMonth = portfolio
-			.filter(({ status }) => isContractIncludedInDashboardPortfolio(status))
-			.reduce(
-				(sum, contract) => sum + getExpectedAmountInRange(contract, month.start, month.end),
+	const ranked = contracts
+		.flatMap(({ contract, tenantName, tenantPhone }): DashboardQueueEntry[] => {
+			const serializedContract = serializeContract(contract);
+			const outstandingAmount = Math.max(
+				getExpectedAmountBy(contract, now) - serializedContract.paidAmount,
 				0
 			);
+			const rank = getContractRank(
+				serializedContract.status,
+				contract.end,
+				outstandingAmount,
+				now,
+				settings.endingSoonNoticeDays
+			);
 
-		const collected = await ctx.db
-			.select({ amount: sql<number>`coalesce(sum(${s.payment.amount}), 0)` })
-			.from(s.payment)
-			.where(and(gte(s.payment.date, month.start), lte(s.payment.date, month.end)))
-			.get();
-
-		const occupancy = await ctx.db
-			.select({
-				totalUnits: sql<number>`count(${s.unit.id})`,
-				occupiedUnits: sql<number>`count(case when ${s.unit.status} = 'occupied' then 1 end)`
-			})
-			.from(s.unit)
-			.get();
-
-		return {
-			endingSoonNoticeDays: settings.endingSoonNoticeDays,
-			queue,
-			groups: summarizeDashboardQueueGroups(queue),
-			summary: {
-				money: { dueThisMonth, collectedThisMonth: collected?.amount ?? 0 },
-				occupancy: {
-					totalUnits: occupancy?.totalUnits ?? 0,
-					occupiedUnits: occupancy?.occupiedUnits ?? 0
-				}
+			if (!rank) {
+				return [];
 			}
-		};
-	});
+
+			return [
+				{
+					id: contract.id,
+					govId: serializedContract.govId,
+					status: serializedContract.status,
+					rank,
+					tenantName,
+					tenantPhone,
+					outstandingAmount,
+					contractEnd: serializedContract.end,
+					isEndingSoon: isContractEndingSoon(
+						serializedContract.status,
+						contract.end,
+						now,
+						settings.endingSoonNoticeDays
+					)
+				}
+			];
+		})
+		.sort(compareContractsByRank);
+
+	// summarized before the entries are capped, so a rank's count and total describe every
+	// contract under it. They are what the screen's way through to the rest is figured from.
+	const ranks = summarizeContractRanks(ranked);
+
+	// the band's figures describe the portfolio, so they are read over every contract rather
+	// than over the ranked ones. Only the columns the month's arithmetic needs.
+	const portfolio = await ctx.db
+		.select({
+			status: s.contract.status,
+			start: s.contract.start,
+			end: s.contract.end,
+			interval: s.contract.interval,
+			cost: s.contract.cost
+		})
+		.from(s.contract);
+
+	const dueThisMonth = portfolio
+		.filter(({ status }) => isContractIncludedInDashboardPortfolio(status))
+		.reduce((sum, contract) => sum + getExpectedAmountInRange(contract, month.start, month.end), 0);
+
+	const collected = await ctx.db
+		.select({ amount: sql<number>`coalesce(sum(${s.payment.amount}), 0)` })
+		.from(s.payment)
+		.where(and(gte(s.payment.date, month.start), lte(s.payment.date, month.end)))
+		.get();
+
+	const occupancy = await ctx.db
+		.select({
+			totalUnits: sql<number>`count(${s.unit.id})`,
+			occupiedUnits: sql<number>`count(case when ${s.unit.status} = 'occupied' then 1 end)`
+		})
+		.from(s.unit)
+		.get();
+
+	return {
+		endingSoonNoticeDays: settings.endingSoonNoticeDays,
+		queue: takeEntriesShownPerRank(ranked),
+		ranks,
+		summary: {
+			money: { dueThisMonth, collectedThisMonth: collected?.amount ?? 0 },
+			occupancy: {
+				totalUnits: occupancy?.totalUnits ?? 0,
+				occupiedUnits: occupancy?.occupiedUnits ?? 0
+			}
+		}
+	};
+});

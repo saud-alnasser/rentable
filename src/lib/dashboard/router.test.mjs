@@ -8,16 +8,18 @@ import { test } from 'node:test';
 
 import { createApi, monthsFromNow, seedTenant } from '$lib/api/testing.mjs';
 
-// A portfolio covering every group and every reason to be in none. Statuses follow the code
+import { DASHBOARD_ENTRIES_PER_RANK } from './dashboard.ts';
+
+// A portfolio covering every rank and every reason to be in none. Statuses follow the code
 // as implemented — see the caveat in contract.test.mjs; do not "fix" these expectations here.
 // Per contract: cost, period, interval, payments —
 // A: 1000, starts today, 12m, 250 paid today  → active,     owes 750
 // B: 2000, mid-period, 12m, 500 paid today    → active,     owes 1500
-// C: 3000, starts in two months, 12m, unpaid  → scheduled,  owes nothing, in no group
+// C: 3000, starts in two months, 12m, unpaid  → scheduled,  owes nothing, in no rank
 // D: 4000, ended a month ago, 12m, unpaid     → defaulted,  owes 4000, past its end
-// E: 5000, ended two months ago, paid in full → expired,    in no group
-// F: 6000, mid-period, paid in full           → fulfilled,  ends in 9 months, in no group
-// G: 7000, mid-period, manually terminated    → terminated, in no group
+// E: 5000, ended two months ago, paid in full → expired,    in no rank
+// F: 6000, mid-period, paid in full           → fulfilled,  ends in 9 months, in no rank
+// G: 7000, mid-period, manually terminated    → terminated, in no rank
 // H: 8000, ends within a month, 12m, unpaid   → active,     owes 8000 and is ending soon
 // I: 100, ends within a month, paid in full   → fulfilled,  ends inside the notice window
 // J: 9000, two months into a quarter, unpaid  → active,     owes 9000, none of it this month
@@ -77,14 +79,14 @@ test('the queue is read overdue first, then owing, then ending soon', async () =
 	const { queue } = await api.contract.dashboard();
 
 	assert.deepEqual(
-		queue.map(({ govId, group, outstandingAmount }) => ({ govId, group, outstandingAmount })),
+		queue.map(({ govId, rank, outstandingAmount }) => ({ govId, rank, outstandingAmount })),
 		[
-			{ govId: 'GOV-D', group: 'overdue', outstandingAmount: 4000 },
-			{ govId: 'GOV-J', group: 'owing', outstandingAmount: 9000 },
-			{ govId: 'GOV-H', group: 'owing', outstandingAmount: 8000 },
-			{ govId: 'GOV-B', group: 'owing', outstandingAmount: 1500 },
-			{ govId: 'GOV-A', group: 'owing', outstandingAmount: 750 },
-			{ govId: 'GOV-I', group: 'ending-soon', outstandingAmount: 0 }
+			{ govId: 'GOV-D', rank: 'overdue', outstandingAmount: 4000 },
+			{ govId: 'GOV-J', rank: 'owing', outstandingAmount: 9000 },
+			{ govId: 'GOV-H', rank: 'owing', outstandingAmount: 8000 },
+			{ govId: 'GOV-B', rank: 'owing', outstandingAmount: 1500 },
+			{ govId: 'GOV-A', rank: 'owing', outstandingAmount: 750 },
+			{ govId: 'GOV-I', rank: 'ending-soon', outstandingAmount: 0 }
 		]
 	);
 });
@@ -100,7 +102,7 @@ test('a contract behind by cycles that fell due in earlier months is in the queu
 	assert.deepEqual(queueEntry(queue, 'GOV-J'), {
 		id: queueEntry(queue, 'GOV-J').id,
 		govId: 'GOV-J',
-		group: 'owing',
+		rank: 'owing',
 		status: 'active',
 		tenantName: queueEntry(queue, 'GOV-J').tenantName,
 		tenantPhone: queueEntry(queue, 'GOV-J').tenantPhone,
@@ -117,13 +119,13 @@ test('a contract that owes money and ends inside the notice window is under the 
 	const { queue } = await api.contract.dashboard();
 	const endingAndOwing = queueEntry(queue, 'GOV-H');
 
-	assert.equal(endingAndOwing.group, 'owing');
+	assert.equal(endingAndOwing.rank, 'owing');
 	assert.equal(endingAndOwing.isEndingSoon, true);
 	assert.equal(queueEntry(queue, 'GOV-I').isEndingSoon, true);
 	assert.equal(queueEntry(queue, 'GOV-A').isEndingSoon, false);
 });
 
-test('a contract appears in exactly one group', async () => {
+test('a contract appears in exactly one rank', async () => {
 	const api = await createApi();
 	await seedPortfolio(api);
 
@@ -133,7 +135,7 @@ test('a contract appears in exactly one group', async () => {
 });
 
 // termination locks the contract, so a debt on one is a closed matter rather than work.
-test('a terminated contract is in no group, whatever it owes', async () => {
+test('a terminated contract is in no rank, whatever it owes', async () => {
 	const api = await createApi();
 	await seedPortfolio(api);
 
@@ -142,20 +144,20 @@ test('a terminated contract is in no group, whatever it owes', async () => {
 	assert.equal(queueEntry(queue, 'GOV-G'), undefined);
 });
 
-test('each group states its contract count and its money total', async () => {
+test('each rank states its contract count and its money total', async () => {
 	const api = await createApi();
 	await seedPortfolio(api);
 
-	const { groups } = await api.contract.dashboard();
+	const { ranks } = await api.contract.dashboard();
 
-	assert.deepEqual(groups, [
-		{ group: 'overdue', contractCount: 1, totalAmount: 4000 },
-		{ group: 'owing', contractCount: 4, totalAmount: 19250 },
-		{ group: 'ending-soon', contractCount: 1, totalAmount: 0 }
+	assert.deepEqual(ranks, [
+		{ rank: 'overdue', contractCount: 1, totalAmount: 4000 },
+		{ rank: 'owing', contractCount: 4, totalAmount: 19250 },
+		{ rank: 'ending-soon', contractCount: 1, totalAmount: 0 }
 	]);
 });
 
-test('with nothing outstanding and nothing ending, the queue is empty rather than grouped', async () => {
+test('with nothing outstanding and nothing ending, the queue is empty rather than ranked', async () => {
 	const api = await createApi();
 	const tenant = await seedTenant(api);
 	const contract = await api.contract.create({
@@ -172,23 +174,41 @@ test('with nothing outstanding and nothing ending, the queue is empty rather tha
 		date: monthsFromNow(-2)
 	});
 
-	const { queue, groups } = await api.contract.dashboard();
+	const { queue, ranks } = await api.contract.dashboard();
 
 	assert.deepEqual(queue, []);
-	assert.deepEqual(groups, []);
+	assert.deepEqual(ranks, []);
 });
 
-test('the queue answers a search over the fields its rows show', async () => {
+// what crosses the IPC boundary is bounded by what the screen paints. Seven overdue contracts
+// of ascending cost: the four returned are the four largest debts, which is the rank's own
+// order rather than an arbitrary four.
+test('a rank returns at most the entries the screen shows, however many contracts are under it', async () => {
 	const api = await createApi();
-	await seedPortfolio(api);
+	const tenant = await seedTenant(api);
 
-	const searched = await api.contract.dashboard({ search: 'GOV-D' });
+	for (let index = 0; index < 7; index += 1) {
+		await api.contract.create({
+			govId: `GOV-OVERDUE-${index}`,
+			cost: 1000 + index,
+			start: monthsFromNow(-13),
+			end: monthsFromNow(-1),
+			interval: '12m',
+			tenantId: tenant.id
+		});
+	}
 
+	const { queue, ranks } = await api.contract.dashboard();
+
+	assert.equal(queue.length, DASHBOARD_ENTRIES_PER_RANK);
 	assert.deepEqual(
-		searched.queue.map(({ govId }) => govId),
-		['GOV-D']
+		queue.map(({ govId }) => govId),
+		['GOV-OVERDUE-6', 'GOV-OVERDUE-5', 'GOV-OVERDUE-4', 'GOV-OVERDUE-3']
 	);
-	assert.deepEqual(searched.groups, [{ group: 'overdue', contractCount: 1, totalAmount: 4000 }]);
+
+	// the rank still states all seven and what all seven owe: the counts are summarized before
+	// the entries are capped, which is what the screen's way through to the rest is figured from.
+	assert.deepEqual(ranks, [{ rank: 'overdue', contractCount: 7, totalAmount: 7021 }]);
 });
 
 // the strip is two figures and no others, and it carries no timestamp: the query cache is
@@ -233,7 +253,7 @@ test('the notice window comes from the host, not the desktop shell', async () =>
 	const dashboard = await api.contract.dashboard();
 
 	assert.equal(dashboard.endingSoonNoticeDays, 7);
-	// a seven-day window catches nothing in the fixture, so the renewals group empties and
+	// a seven-day window catches nothing in the fixture, so the renewals rank empties and
 	// H stops being marked as also ending while still owing.
 	assert.equal(queueEntry(dashboard.queue, 'GOV-I'), undefined);
 	assert.equal(queueEntry(dashboard.queue, 'GOV-H').isEndingSoon, false);

@@ -8,7 +8,7 @@ sources:
   - src/lib/complex/component/
   - src/lib/tenant/component/
   - src/lib/payment/
-  - src/lib/dashboard/component/queue.svelte
+  - src/lib/dashboard/component/section.svelte
   - src/routes/
   - src/lib/contract/router.ts
   - src/lib/complex/router.ts

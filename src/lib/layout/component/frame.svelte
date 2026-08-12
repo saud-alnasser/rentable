@@ -9,7 +9,7 @@
 	import LayoutBreadcrumb from '$lib/layout/component/breadcrumb.svelte';
 	import LayoutPalette, { PALETTE_SHORTCUT_HINT } from '$lib/layout/component/palette.svelte';
 	import LayoutSidebar from '$lib/layout/component/sidebar.svelte';
-	import LayoutUndoControls from '$lib/layout/component/undo-controls.svelte';
+	import LayoutUndoShortcut from '$lib/layout/component/undo-shortcut.svelte';
 	import LayoutWindowControls from '$lib/layout/component/window-controls.svelte';
 	import { toBreadcrumbTrail } from '$lib/layout/navigation';
 	import SearchIcon from '@tabler/icons-svelte/icons/search';
@@ -67,7 +67,6 @@
 					     keyboard does not change with the locale. -->
 					<Kbd dir="ltr">{PALETTE_SHORTCUT_HINT}</Kbd>
 				</Button>
-				<LayoutUndoControls />
 			</div>
 		{/if}
 
@@ -76,6 +75,10 @@
 		</div>
 	</header>
 {/snippet}
+
+<!-- outside the navigation, because a change made on a screen that carries none is still a
+     change the reader can take back. -->
+<LayoutUndoShortcut />
 
 <div lang={$locale} dir={currentDirection} class="h-screen w-screen overflow-hidden border">
 	{#if showNavigation}
