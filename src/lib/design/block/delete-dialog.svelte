@@ -137,7 +137,7 @@
 				variant={isBlocked ? 'default' : 'ghost'}
 				disabled={isSubmitting}
 				onclick={() => onOpenChange(false)}
-				class="w-full cursor-pointer sm:w-auto"
+				class="w-full sm:w-auto"
 			>
 				{isBlocked ? $LL.common.ui.close() : $LL.common.actions.cancel()}
 			</Button>
@@ -147,7 +147,7 @@
 					variant={confirmVariant}
 					disabled={!isConfirmable(confirmation.state, isSubmitting)}
 					onclick={submit}
-					class="w-full cursor-pointer sm:w-auto"
+					class="w-full sm:w-auto"
 				>
 					{#if isSubmitting}
 						{confirmLoadingLabel}

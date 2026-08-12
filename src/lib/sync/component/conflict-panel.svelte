@@ -216,7 +216,6 @@
 						{...props}
 						variant="secondary"
 						size="icon-sm"
-						class="cursor-pointer"
 						disabled={isWorking}
 						aria-label={keepLabel}
 						onclick={keepSelectedCopy}
