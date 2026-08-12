@@ -8,6 +8,8 @@ falsifies: [.claude/contexts/persistence.md]
 
 Checked against this repository at `0d8bcfd`, 2026-08-11, while designing a complex-creation
 flow that writes a complex and its units together.
+Area: the interface overhaul — map [#211](https://github.com/saud-alnasser/rentable/issues/211)
+Consumed: `.claude/contexts/persistence.md`, "Constraints" — #211/#336, landed as `1551d72`
 
 ## What the Context says
 
