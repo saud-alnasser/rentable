@@ -1,6 +1,7 @@
 <script lang="ts">
 	import api from '$lib/api/caller';
 	import { tauri } from '$lib/platform/tauri';
+	import PageFrame from '$lib/design/block/page-frame.svelte';
 	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
 	import { Button } from '$lib/design/primitive/button';
 	import * as Field from '$lib/design/primitive/field';
@@ -91,7 +92,7 @@
 {:else if settingsQuery.data && remoteSyncQuery.data}
 	<!-- one column of rows in four groups, and no tile strip: every figure the strip carried
 	     was stated again by the section that owns it, so the strip only ever said things twice. -->
-	<div class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 pt-5 pb-8">
+	<PageFrame>
 		<div class="flex flex-col gap-1">
 			<h1 class="text-3xl font-semibold tracking-tight">{$LL.settings.title()}</h1>
 			<p class="text-sm text-muted-foreground">{$LL.settings.description()}</p>
@@ -131,5 +132,5 @@
 				/>
 			</Field.Set>
 		</Field.Group>
-	</div>
+	</PageFrame>
 {/if}

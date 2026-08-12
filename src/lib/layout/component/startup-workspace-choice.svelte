@@ -96,7 +96,7 @@
 >
 	<div class="space-y-4">
 		{#if activeWorkspace}
-			<div class="rounded-2xl border bg-muted p-4">
+			<div class="rounded-2xl bg-muted p-4">
 				<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 					<div class="flex min-w-0 items-center gap-3">
 						<div

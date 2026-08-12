@@ -125,7 +125,7 @@
 						{@const Icon = side.icon}
 						<span
 							{...props}
-							class="inline-flex items-center gap-1.5 rounded-full border bg-muted px-2.5 py-1 text-xs text-muted-foreground"
+							class="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground"
 						>
 							<Icon class="size-3.5 shrink-0" aria-hidden="true" />
 							<span aria-hidden="true">{side.name}</span>
