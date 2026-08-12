@@ -2,11 +2,16 @@ import { inverseStack } from '$lib/design/inverse';
 import {
 	tauri,
 	type GoogleDriveConflictResolution,
-	type GoogleDriveLinkPreparation
+	type GoogleDriveLinkPreparation,
+	type GoogleDriveSyncOutcome
 } from '$lib/platform/tauri';
 
 import { cancelGoogleDriveLink } from './link';
-import { PendingConflictFlow, type PendingConflictDriver } from './pending-conflict';
+import {
+	PendingConflictFlow,
+	type PendingConflictDismissal,
+	type PendingConflictDriver
+} from './pending-conflict';
 
 /**
  * settling a conflict against the account it is about.
@@ -67,9 +72,13 @@ class PendingConflict {
 
 	forget = () => this.#flow.forget();
 
-	resolve = (resolution: GoogleDriveConflictResolution) => this.#flow.resolve(resolution);
+	resolve = (
+		resolution: GoogleDriveConflictResolution,
+		settle?: (outcome: GoogleDriveSyncOutcome) => Promise<void>
+	) => this.#flow.resolve(resolution, settle);
 
-	dismiss = () => this.#flow.dismiss();
+	dismiss = (settle?: (dismissal: PendingConflictDismissal) => Promise<void>) =>
+		this.#flow.dismiss(settle);
 
 	relink = () => this.#flow.relink();
 }

@@ -71,8 +71,11 @@ export function workspaceConflictSignature(state: RemoteSyncState | null): strin
  *
  * The operations return their outcome rather than announcing it, because each is
  * started by a user pressing something and finishes when it is awaited. What each
- * host does afterwards is its own: startup drives a state machine and a window,
- * settings toasts and invalidates its queries.
+ * host does with it is still its own: startup drives a state machine and a window,
+ * settings toasts and invalidates its queries. A host whose own work follows the
+ * remote's reply hands that work in rather than running it after, so the question it
+ * answers stays presented until the work is done — this owner holds the question
+ * open and still drives nobody's screen.
  *
  * Holds no reactivity of its own; {@link PendingConflictFlow.observe} notifies a
  * wrapper that does.
@@ -153,8 +156,18 @@ export class PendingConflictFlow {
 		this.#dismissedSignature = null;
 	}
 
-	/** carry out the user's choice. Resolves to `null` where there was nothing to settle. */
-	async resolve(resolution: GoogleDriveConflictResolution) {
+	/**
+	 * carry out the user's choice. Resolves to `null` where there was nothing to settle.
+	 *
+	 * `settle` is what the caller does with the answer, and it runs with the question still
+	 * presented and this flow still reporting that it is working — so a host whose own work
+	 * follows the remote's reply does not fall back to whatever it shows when nothing is
+	 * pending for the length of it. A caller with nothing to do afterwards passes none.
+	 */
+	async resolve(
+		resolution: GoogleDriveConflictResolution,
+		settle?: (outcome: GoogleDriveSyncOutcome) => Promise<void>
+	) {
 		const preparation = this.#preparation;
 
 		if (!preparation || this.#isWorking) {
@@ -165,9 +178,8 @@ export class PendingConflictFlow {
 			const result = await this.#driver.resolve(preparation, resolution);
 
 			this.#dismissedSignature = null;
-			this.#preparation = null;
 
-			return result;
+			return await this.#settled(result, settle);
 		});
 	}
 
@@ -182,8 +194,13 @@ export class PendingConflictFlow {
 	 * What is remembered is the signature of the state the conflict came with, not of
 	 * whatever the screen happens to be showing — two screens deriving it separately
 	 * is two answers to the question this owner exists to have one answer to.
+	 *
+	 * `settle` is the caller's own work, run on either outcome with the question still
+	 * presented, as {@link PendingConflictFlow.resolve}'s is.
 	 */
-	async dismiss(): Promise<PendingConflictDismissal | null> {
+	async dismiss(
+		settle?: (dismissal: PendingConflictDismissal) => Promise<void>
+	): Promise<PendingConflictDismissal | null> {
 		const preparation = this.#preparation;
 
 		if (!preparation || this.#isWorking) {
@@ -192,18 +209,14 @@ export class PendingConflictFlow {
 
 		if (shouldDeferWorkspaceConflict(preparation)) {
 			this.#dismissedSignature = workspaceConflictSignature(preparation.state);
-			this.#preparation = null;
-			this.#notify();
 
-			return { deferred: true, state: null };
+			return await this.#working(() => this.#settled({ deferred: true, state: null }, settle));
 		}
 
 		return await this.#working(async () => {
 			const state = await this.#driver.cancel();
 
-			this.#preparation = null;
-
-			return { deferred: false, state };
+			return await this.#settled({ deferred: false, state }, settle);
 		});
 	}
 
@@ -227,6 +240,29 @@ export class PendingConflictFlow {
 
 			return state;
 		});
+	}
+
+	/**
+	 * hand the answer to the caller's own work, then stop presenting the question.
+	 *
+	 * The clearing is in a `finally` because the remote has already acted by this point:
+	 * the question is answered whatever the caller's work does with the answer, and a host
+	 * whose continuation failed shows its own failure rather than the question again.
+	 */
+	async #settled<T>(answer: T, settle?: (answer: T) => Promise<void>) {
+		const settling = this.#preparation;
+
+		try {
+			await settle?.(answer);
+		} finally {
+			// what stops being presented is the question that was answered, and not whatever is
+			// pending when the work finishes: a continuation that raised a new one keeps it.
+			if (this.#preparation === settling) {
+				this.#preparation = null;
+			}
+		}
+
+		return answer;
 	}
 
 	/**

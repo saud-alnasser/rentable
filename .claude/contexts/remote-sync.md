@@ -158,6 +158,12 @@ save never evicts the copy taken before an update.
   about has moved, on whichever screen they are on next. What the user does deliberately
   reopens it — pressing Link or Sync asks about now. What each host does _around_ the
   conflict stays its own, so the owner returns outcomes rather than driving anybody's screen.
+  **A host whose own work follows the remote's reply hands that work in**, and the question
+  stays presented while it runs: settling clears the question once the answer has been acted
+  on rather than when the remote replied, so a screen with more to do does not fall back to
+  what it shows when nothing is pending for the length of it. It clears either way — the
+  remote has acted, so a host whose own work then failed shows that failure and not the
+  question again.
 - **A remote operation holds a lock, and that lock is in-process only.** It is a field on
   the in-memory sync state: acquiring refuses while one is already held, releasing clears
   it. So it serialises operations inside one running application and nothing more — it

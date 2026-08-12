@@ -300,14 +300,12 @@
 		startupError = null;
 
 		try {
-			const result = await pendingConflict.resolve(resolution);
-
-			if (!result) {
-				return;
-			}
-
-			startupRemoteSync = result.state;
-			await continueStartup(true);
+			// what follows the remote's reply is handed to the flow rather than run after it, so
+			// the panel the answer was given on stays up until the application replaces it.
+			await pendingConflict.resolve(resolution, async (outcome) => {
+				startupRemoteSync = outcome.state;
+				await continueStartup(true);
+			});
 		} catch (error) {
 			startupRecovery = null;
 			startupState = 'choose-workspace';
@@ -338,20 +336,18 @@
 		startupError = null;
 
 		try {
-			const dismissal = await pendingConflict.dismiss();
+			await pendingConflict.dismiss(async (dismissal) => {
+				// a deferral leaves the workspace working, so startup carries on and the panel stays
+				// up for it. A link undone has nowhere to carry on to: this screen is the answer.
+				if (dismissal.deferred) {
+					await continueStartup(true);
+					return;
+				}
 
-			if (!dismissal) {
-				return;
-			}
-
-			if (dismissal.deferred) {
-				await continueStartup(true);
-				return;
-			}
-
-			startupRemoteSync = dismissal.state;
-			startupState = 'choose-workspace';
-			await api.app.window.show();
+				startupRemoteSync = dismissal.state;
+				startupState = 'choose-workspace';
+				await api.app.window.show();
+			});
 		} catch (error) {
 			startupRecovery = null;
 			startupState = 'choose-workspace';
