@@ -5,8 +5,7 @@
 	import RecordSurface from '$lib/design/block/record-surface.svelte';
 	import Specification from '$lib/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
-	import { Button } from '$lib/design/primitive/button';
-	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import { useDeletePayment, useFetchPayment } from '$lib/payment/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleValueWithUnit } from '$lib/platform/locale';
@@ -72,49 +71,21 @@
 	/>
 
 	{#if !isTerminated}
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				{#snippet child({ props })}
-					<Button
-						{...props}
-						variant="outline"
-						size="icon-sm"
-						aria-label={$LL.common.actions.edit()}
-						class="rounded-full bg-secondary"
-						onclick={() => {
-							formOpensOn = payment;
-							isPaymentFormOpen = true;
-						}}
-					>
-						<SquarePenIcon class="size-4" />
-						<span class="sr-only">{$LL.common.actions.edit()}</span>
-					</Button>
-				{/snippet}
-			</Tooltip.Trigger>
-			<Tooltip.Content side="top" sideOffset={8}>{$LL.common.actions.edit()}</Tooltip.Content>
-		</Tooltip.Root>
+		<RecordActionControl
+			label={$LL.common.actions.edit()}
+			icon={SquarePenIcon}
+			onclick={() => {
+				formOpensOn = payment;
+				isPaymentFormOpen = true;
+			}}
+		/>
 
-		<!-- deleting rests as quietly as any other control here and turns red on the intent to
-		     press it; it is primary only inside the confirmation it opens
-		     (_Semantics are secondary_). -->
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				{#snippet child({ props })}
-					<Button
-						{...props}
-						variant="outline"
-						size="icon-sm"
-						aria-label={$LL.common.actions.delete()}
-						class="rounded-full bg-secondary text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive"
-						onclick={() => (isDeleteDialogOpen = true)}
-					>
-						<Trash2Icon class="size-4" />
-						<span class="sr-only">{$LL.common.actions.delete()}</span>
-					</Button>
-				{/snippet}
-			</Tooltip.Trigger>
-			<Tooltip.Content side="top" sideOffset={8}>{$LL.common.actions.delete()}</Tooltip.Content>
-		</Tooltip.Root>
+		<RecordActionControl
+			label={$LL.common.actions.delete()}
+			icon={Trash2Icon}
+			tone="destructive"
+			onclick={() => (isDeleteDialogOpen = true)}
+		/>
 	{/if}
 {/snippet}
 

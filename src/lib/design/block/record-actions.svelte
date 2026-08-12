@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
-	import { Button } from '$lib/design/primitive/button';
-	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { writeDetailsToClipboard, type ClipboardDetail } from '$lib/platform/clipboard';
 	import CopyIcon from '@lucide/svelte/icons/copy';
@@ -46,42 +45,16 @@
 	}
 </script>
 
-<Tooltip.Root>
-	<Tooltip.Trigger>
-		{#snippet child({ props })}
-			<Button
-				{...props}
-				variant="outline"
-				size="icon-sm"
-				aria-label={$LL.common.actions.copyDetails()}
-				class="rounded-full bg-secondary"
-				onclick={copyDetails}
-			>
-				<CopyIcon class="size-4" />
-				<span class="sr-only">{$LL.common.actions.copyDetails()}</span>
-			</Button>
-		{/snippet}
-	</Tooltip.Trigger>
-	<Tooltip.Content side="top" sideOffset={8}>{$LL.common.actions.copyDetails()}</Tooltip.Content>
-</Tooltip.Root>
+<RecordActionControl
+	label={$LL.common.actions.copyDetails()}
+	icon={CopyIcon}
+	onclick={copyDetails}
+/>
 
 {#if onDuplicate}
-	<Tooltip.Root>
-		<Tooltip.Trigger>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					variant="outline"
-					size="icon-sm"
-					aria-label={$LL.common.actions.duplicate()}
-					class="rounded-full bg-secondary"
-					onclick={onDuplicate}
-				>
-					<FilesIcon class="size-4" />
-					<span class="sr-only">{$LL.common.actions.duplicate()}</span>
-				</Button>
-			{/snippet}
-		</Tooltip.Trigger>
-		<Tooltip.Content side="top" sideOffset={8}>{$LL.common.actions.duplicate()}</Tooltip.Content>
-	</Tooltip.Root>
+	<RecordActionControl
+		label={$LL.common.actions.duplicate()}
+		icon={FilesIcon}
+		onclick={onDuplicate}
+	/>
 {/if}
