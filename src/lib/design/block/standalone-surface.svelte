@@ -21,6 +21,7 @@
 		description,
 		busy = false,
 		children,
+		corner,
 		actions,
 		class: className
 	}: {
@@ -32,6 +33,11 @@
 		busy?: boolean;
 		/** What this screen has to say. */
 		children?: Snippet;
+		/**
+		 * The way past this screen, as a control in the card's top corner — where a reader looks
+		 * for one. Distinct from `actions`: those answer the screen, this one leaves it.
+		 */
+		corner?: Snippet;
 		/** The buttons, in the order given. */
 		actions?: Snippet;
 		class?: string;
@@ -59,6 +65,12 @@
 					<p class="text-sm text-muted-foreground">{description}</p>
 				{/if}
 			</div>
+
+			{#if corner}
+				<div class="flex shrink-0 items-center gap-1.5">
+					{@render corner()}
+				</div>
+			{/if}
 		</div>
 
 		{#if children}

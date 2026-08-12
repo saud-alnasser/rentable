@@ -12,6 +12,7 @@
 	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import ConflictDismiss from '$lib/sync/component/conflict-dismiss.svelte';
 	import GoogleDriveLinkConflictPanel from '$lib/sync/component/conflict-panel.svelte';
 	import CloudIcon from '@lucide/svelte/icons/cloud';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
@@ -82,6 +83,20 @@
 	}
 </script>
 
+<!-- leaving the conflict unanswered leaves this screen, so it is this card's corner control and
+     not the panel's: the panel holds the answers. -->
+{#snippet corner()}
+	{#if linkConflict}
+		<ConflictDismiss
+			label={linkConflict.kind === 'link'
+				? $LL.common.actions.cancel()
+				: $LL.settings.syncConflictDeferAction()}
+			disabled={isWorking}
+			onDismiss={onCancelLinkConflict}
+		/>
+	{/if}
+{/snippet}
+
 <!-- the screen keeps its own question whether or not a conflict is present: the conflict's title
      and description belong to the panel below, which is where the answer is. Reading them here
      as well meant a reader stopped at startup met the same two sentences twice. -->
@@ -89,6 +104,7 @@
 	class="max-w-2xl"
 	title={$LL.layout.startup.accountChoiceTitle()}
 	description={$LL.layout.startup.accountChoiceDescription()}
+	{corner}
 >
 	<div class="space-y-4">
 		{#if activeWorkspace}
@@ -153,13 +169,6 @@
 			<GoogleDriveLinkConflictPanel
 				conflict={linkConflict}
 				{isWorking}
-				showCancel={true}
-				cancelLabel={linkConflict.kind === 'sync' ||
-				linkConflict.kind === 'corrupt' ||
-				linkConflict.kind === 'relink'
-					? $LL.settings.syncConflictDeferAction()
-					: $LL.common.actions.cancel()}
-				onCancel={onCancelLinkConflict}
 				onKeepLocal={onLinkKeepLocal}
 				onUseRemote={onLinkUseRemote}
 				onRelink={onRelinkGoogleDrive}
