@@ -4,8 +4,12 @@
 	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from 'svelte/elements';
 	import { tv, type VariantProps } from 'tailwind-variants';
 
+	// `cursor-pointer` is the base's rather than each caller's: Tailwind's preflight sets
+	// `cursor: default` on `button`, so without it every button in the application reads as
+	// unpressable. A disabled one needs no exception — the two `pointer-events-none` rules below
+	// mean it never receives the hover that would show a cursor at all.
 	export const buttonVariants = tv({
-		base: "focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:ring-destructive/20 aria-invalid:border-destructive inline-flex shrink-0 items-center justify-center rounded-2xl border border-transparent text-sm font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] duration-200 outline-none focus-visible:ring-3 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+		base: "focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:ring-destructive/20 aria-invalid:border-destructive inline-flex shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-transparent text-sm font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] duration-200 outline-none focus-visible:ring-3 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 		variants: {
 			variant: {
 				default: 'bg-primary text-primary-foreground hover:bg-primary/90',

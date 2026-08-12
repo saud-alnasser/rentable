@@ -32,7 +32,6 @@
 				{...props}
 				variant="outline"
 				size="icon-sm"
-				class="cursor-pointer"
 				{disabled}
 				aria-label={label}
 				onclick={onDismiss}

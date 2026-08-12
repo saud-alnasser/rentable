@@ -280,7 +280,7 @@
 						type="button"
 						variant="outline"
 						size="icon-sm"
-						class="shrink-0 cursor-pointer"
+						class="shrink-0"
 						aria-label={$LL.common.actions.add()}
 						disabled={draftRun.names.length === 0}
 						onclick={addUnits}
@@ -320,7 +320,7 @@
 									type="button"
 									variant="outline"
 									size="icon-sm"
-									class="shrink-0 cursor-pointer"
+									class="shrink-0"
 									aria-label={`${$LL.common.actions.remove()} ${unit.name}`}
 									onclick={() => removeUnit(unit.key)}
 								>
