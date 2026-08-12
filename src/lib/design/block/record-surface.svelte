@@ -112,7 +112,9 @@
 	<h2 class="shrink-0 text-xs tracking-[0.2em] text-muted-foreground uppercase">{text}</h2>
 {/snippet}
 
-<PageFrame>
+<!-- fills: a record's collections scroll inside their own panel, which they cannot do unless the
+     frame above them is exactly as tall as the window. -->
+<PageFrame fills>
 	{#if isLoading}
 		<div class="flex flex-1 items-center justify-center" aria-busy="true">
 			<div class="flex flex-col items-center gap-3">
