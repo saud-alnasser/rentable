@@ -112,6 +112,7 @@ const en = {
 			name: 'name',
 			nationalId: 'national id',
 			noticeWindowDays: 'notice window (days)',
+			occupiedUnits: 'occupied units',
 			payment: 'payment',
 			paymentDate: 'payment date',
 			paymentFulfillment: 'payment fulfillment',

@@ -96,6 +96,7 @@
 				icon={ContractIcon}
 				count={tenant.activeContractCount}
 				label={$LL.common.labels.activeContracts()}
+				tone={tenant.activeContractCount > 0 ? 'running' : 'settled'}
 			/>
 		</a>
 	{/snippet}

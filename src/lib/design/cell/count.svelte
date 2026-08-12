@@ -1,3 +1,25 @@
+<script lang="ts" module>
+	import { tv } from 'tailwind-variants';
+
+	/**
+	 * What a figure is standing for, in the tone vocabulary the status treatment declares:
+	 * `running` is live, `settled` is finished or empty.
+	 */
+	export type CountTone = 'running' | 'settled';
+
+	// the same two tones `active`/`occupied` and `vacant` carry on a status glyph, so a count
+	// and a status never disagree about what blue means.
+	const cell = tv({
+		base: 'pointer-events-auto flex shrink-0 items-center gap-1.5 text-xs',
+		variants: {
+			tone: {
+				running: 'text-primary',
+				settled: 'text-muted-foreground'
+			} satisfies Record<CountTone, string>
+		}
+	});
+</script>
+
 <script lang="ts">
 	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import { locale } from '$lib/i18n/i18n-svelte';
@@ -9,19 +31,26 @@
 	 * counted, the figure, and the quantity's own name on hover.
 	 *
 	 * The name is on the tooltip *and* on the accessible label, because they answer different
-	 * readers and a row carrying a bare glyph and a number answers neither: a door beside `12`
+	 * readers and a row carrying a bare glyph and a number answers neither: a grid beside `12`
 	 * says twelve of something.
 	 */
 	let {
 		icon: Icon,
 		count,
-		label
+		label,
+		tone = 'settled'
 	}: {
 		/** The glyph standing for what is counted. */
 		icon: IconComponent;
 		count: number;
 		/** What the figure counts, translated — shown on hover and read as the accessible name. */
 		label: string;
+		/**
+		 * Whether this figure stands for something live. The caller decides, because only the
+		 * caller knows what its own quantity means; `settled` is the tone every count carried
+		 * before any of them could say otherwise.
+		 */
+		tone?: CountTone;
 	} = $props();
 
 	const figure = $derived(formatLocaleNumber($locale, count));
@@ -32,10 +61,7 @@
 		{#snippet child({ props })}
 			<!-- pointer-events-auto for the same reason the status treatment carries it: a surface
 			     may lay a click target over its content and disable pointer events beneath. -->
-			<span
-				{...props}
-				class="pointer-events-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
-			>
+			<span {...props} class={cell({ tone })}>
 				<Icon class="size-4" aria-hidden="true" />
 				<span class="tabular-nums" aria-hidden="true">{figure}</span>
 				<span class="sr-only">{label}: {figure}</span>
