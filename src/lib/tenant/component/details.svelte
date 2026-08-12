@@ -4,6 +4,7 @@
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import RecordSurface from '$lib/design/block/record-surface.svelte';
 	import Specification from '$lib/design/block/specification.svelte';
+	import * as Cell from '$lib/design/cell';
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import { Button } from '$lib/design/primitive/button';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
@@ -59,12 +60,6 @@
 		await goto(resolve('/tenants'));
 	}
 </script>
-
-<!-- the phone number carries no label: a phone number is recognisable as one by its format
-     (_Labels are a last resort_). -->
-{#snippet identity()}
-	<span>{tenant?.phone}</span>
-{/snippet}
 
 {#snippet actions()}
 	<RecordActions
@@ -127,9 +122,20 @@
 	</Tooltip.Root>
 {/snippet}
 
+{#snippet phone()}
+	<Cell.Phone phone={tenant?.phone ?? ''} />
+{/snippet}
+
+<!-- both identifiers are labelled, and the phone number no longer reads unlabelled above the
+     name. _Labels are a last resort_ ends by carving out this case: a label is wanted where
+     several pieces of similar data have to be scannable, and two digit strings on one screen
+     are exactly that — format tells a phone number from prose, not from a national id. -->
 {#snippet fields()}
 	<Specification
-		entries={[{ label: $LL.common.labels.nationalId(), value: tenant?.nationalId ?? '' }]}
+		entries={[
+			{ label: $LL.common.labels.nationalId(), value: tenant?.nationalId ?? '' },
+			{ label: $LL.common.labels.phone(), value: phone }
+		]}
 	/>
 {/snippet}
 
@@ -144,7 +150,6 @@
 	path={resolve(`/tenants/${tenantId}`)}
 	eyebrow={$LL.common.nav.tenants()}
 	title={tenant?.name ?? ''}
-	{identity}
 	{actions}
 	{fields}
 	collections={[{ value: 'contracts', label: $LL.common.nav.contracts(), content: contracts }]}
