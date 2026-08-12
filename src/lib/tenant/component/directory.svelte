@@ -3,15 +3,25 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type api from '$lib/api/caller';
+	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
+	import RecordCardMenu, { type RecordCardAction } from '$lib/design/block/record-card-menu.svelte';
 	import * as Cell from '$lib/design/cell';
+	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import { hasCreateIntent } from '$lib/design/create-intent';
 	import type { ListSort } from '$lib/design/sort';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleNumber } from '$lib/platform/locale';
-	import { useListTenants } from '$lib/tenant/query';
-	import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
+	import { useDeleteTenant, useListTenants } from '$lib/tenant/query';
+	import {
+		isTenantDeletable,
+		TENANT_SORT_COLUMN_IDS,
+		type TenantSortColumnId
+	} from '$lib/tenant/tenant';
+	import { useListContracts } from '$lib/contract/query';
 	import { CONTRACT_ATTENTION_ORDER } from '$lib/contract/contract';
+	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import TenantForm from './form.svelte';
 	import { recordCard } from '$lib/design/block/list.svelte';
 	import { cn } from '$lib/design/tailwind';
@@ -39,12 +49,74 @@
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
 	let isTenantFormOpen = $state(false);
+	let formOpensOn = $state<TenantRecord | undefined>(undefined);
+	// the one record a card's menu is acting on, which is what makes a single confirmation and a
+	// single read of what blocks it enough for a whole directory.
+	let deleteOpensOn = $state<TenantRecord | null>(null);
 
 	const tenantsQuery = useListTenants(
 		() => search,
 		() => sort
 	);
 	const tenants = $derived(tenantsQuery.data ?? []);
+	const deleteMutation = useDeleteTenant();
+
+	// what a deletion would be refused for, read for the record being acted on and only while it
+	// is being acted on — the same reading the record's own page performs before asking.
+	const heldContractsQuery = useListContracts(
+		() => '',
+		() => null,
+		() => ({ tenantId: deleteOpensOn?.id }),
+		() => deleteOpensOn !== null
+	);
+	const deleteBlockers = $derived.by(() => {
+		if (!deleteOpensOn) {
+			return [];
+		}
+
+		// the list query hands back the previous scope's rows while the new scope loads, so a
+		// second card would otherwise be judged on what the first one held.
+		if (heldContractsQuery.isPending || heldContractsQuery.isPlaceholderData) {
+			return AWAITING_BLOCKERS;
+		}
+
+		const held = heldContractsQuery.data ?? [];
+
+		return isTenantDeletable(held)
+			? []
+			: [$LL.common.deleteDialog.blockedContracts({ count: held.length })];
+	});
+
+	// what the record's own page offers, minus opening it: a tenant is identified by fields that
+	// are unique to it, so there is nothing worth duplicating, and copying its details takes the
+	// fields in the order that page reads them rather than the order a card does.
+	const cardActions = (tenant: TenantRecord): RecordCardAction[] => [
+		{
+			label: $LL.common.actions.edit(),
+			icon: SquarePenIcon,
+			onSelect: () => {
+				formOpensOn = tenant;
+				isTenantFormOpen = true;
+			}
+		},
+		{
+			label: $LL.common.actions.delete(),
+			icon: Trash2Icon,
+			variant: 'destructive',
+			onSelect: () => {
+				deleteOpensOn = tenant;
+			}
+		}
+	];
+
+	async function deleteTenant() {
+		if (!deleteOpensOn) {
+			return;
+		}
+
+		await deleteMutation.mutateAsync(deleteOpensOn.id);
+		deleteOpensOn = null;
+	}
 
 	// built from the ids the procedure orders by, so the control cannot come to offer a key
 	// the query would reject. The record type is what makes a missing label a type error.
@@ -65,6 +137,7 @@
 			return;
 		}
 
+		formOpensOn = undefined;
 		isTenantFormOpen = true;
 		void goto(resolve('/tenants'), { replaceState: true, noScroll: true, keepFocus: true });
 	});
@@ -94,35 +167,41 @@
 		]
 	}}
 	onCreate={() => {
+		formOpensOn = undefined;
 		isTenantFormOpen = true;
 	}}
 >
 	{#snippet record(tenant: TenantRecord)}
 		{@const counts = contractCounts(tenant)}
-		<a
-			href={resolve(`/tenants/${tenant.id}`)}
-			class={cn('flex h-full items-center gap-4 px-4 hover:bg-muted/40', recordCard)}
-		>
-			<span class="flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-				<span class="truncate text-sm font-medium">{tenant.name}</span>
-				<span class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-					<span class="truncate tabular-nums">{tenant.nationalId}</span>
-					<span aria-hidden="true">&middot;</span>
-					<Cell.Phone phone={tenant.phone} />
-				</span>
-			</span>
+		<RecordCardMenu actions={cardActions(tenant)}>
+			{#snippet card(trigger)}
+				<a
+					{...trigger}
+					href={resolve(`/tenants/${tenant.id}`)}
+					class={cn('flex h-full items-center gap-4 px-4 hover:bg-muted/40', recordCard)}
+				>
+					<span class="flex min-w-0 flex-1 flex-col gap-0.5 text-start">
+						<span class="truncate text-sm font-medium">{tenant.name}</span>
+						<span class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+							<span class="truncate tabular-nums">{tenant.nationalId}</span>
+							<span aria-hidden="true">&middot;</span>
+							<Cell.Phone phone={tenant.phone} />
+						</span>
+					</span>
 
-			<!-- a figure per status, in the order the contracts directory ranks them: what needs the
-			     reader, then what is running, then what has not started, then the history behind
-			     them. Every status is shown including the ones at zero, so the six form fixed
-			     columns down the list — a cluster that varied with what each tenant happened to
-			     hold would work against exactly that. -->
-			<span class="flex shrink-0 items-center gap-3">
-				{#each CONTRACT_ATTENTION_ORDER as status (status)}
-					<Cell.StatusCount {status} count={counts[status]} />
-				{/each}
-			</span>
-		</a>
+					<!-- a figure per status, in the order the contracts directory ranks them: what needs
+					     the reader, then what is running, then what has not started, then the history
+					     behind them. Every status is shown including the ones at zero, so the six form
+					     fixed columns down the list — a cluster that varied with what each tenant
+					     happened to hold would work against exactly that. -->
+					<span class="flex shrink-0 items-center gap-3">
+						{#each CONTRACT_ATTENTION_ORDER as status (status)}
+							<Cell.StatusCount {status} count={counts[status]} />
+						{/each}
+					</span>
+				</a>
+			{/snippet}
+		</RecordCardMenu>
 	{/snippet}
 </List>
 
@@ -131,5 +210,17 @@
 	onOpenChange={(isOpen) => {
 		isTenantFormOpen = isOpen;
 	}}
-	value={undefined}
+	value={formOpensOn}
+/>
+
+<DeleteDialog
+	open={deleteOpensOn !== null}
+	onOpenChange={(isOpen) => {
+		if (!isOpen) {
+			deleteOpensOn = null;
+		}
+	}}
+	record={deleteOpensOn?.name}
+	blockers={deleteBlockers}
+	onSubmit={deleteTenant}
 />
