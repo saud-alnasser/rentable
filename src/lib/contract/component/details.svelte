@@ -1,14 +1,18 @@
+<script lang="ts" module>
+	/** Which of the contract's two collections the address arrived on. */
+	export type ContractCollection = 'payments' | 'units';
+</script>
+
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { Contract } from '$lib/platform/database/schema';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import RecordSurface from '$lib/design/block/record-surface.svelte';
+	import Specification from '$lib/design/block/specification.svelte';
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import * as Cell from '$lib/design/cell';
 	import { Button } from '$lib/design/primitive/button';
-	import { Card, CardContent, CardHeader, CardTitle } from '$lib/design/primitive/card';
-	import { Spinner } from '$lib/design/primitive/spinner';
-	import * as Tabs from '$lib/design/primitive/tabs';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import {
@@ -33,22 +37,17 @@
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import ContractUnits from './units.svelte';
-	import BackControl from '$lib/design/block/back-control.svelte';
 	import { back } from '$lib/design/back.svelte';
 	import RecordActions from '$lib/design/block/record-actions.svelte';
 	import ContractForm from './form.svelte';
 
-	type ContractDetailsSection = 'overview' | 'units' | 'payments';
-
 	let {
 		contractId,
-		initialSection = 'overview'
+		initialCollection
 	}: {
 		contractId: number;
-		initialSection?: ContractDetailsSection;
+		initialCollection?: ContractCollection;
 	} = $props();
-	// eslint-disable-next-line svelte/prefer-writable-derived
-	let activeSection = $state<ContractDetailsSection>('overview');
 
 	const intervalLabels: Record<Contract['interval'], () => string> = {
 		'1m': $LL.contracts.intervals.monthly,
@@ -58,9 +57,10 @@
 	};
 
 	const contractQuery = useFetchContract(() => contractId);
+	const contract = $derived(contractQuery.data);
 	const tenantQuery = useFetchTenant(() => ({
-		id: contractQuery.data?.tenantId,
-		enabled: Boolean(contractQuery.data?.tenantId)
+		id: contract?.tenantId,
+		enabled: Boolean(contract?.tenantId)
 	}));
 	const deleteMutation = useDeleteContract();
 
@@ -96,23 +96,19 @@
 	const formatDate = (value: number) =>
 		formatLocaleDate($locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 
-	const tabsListClass = 'grid h-auto w-full grid-cols-3';
-	const tabsTriggerClass = 'capitalize';
-
-	let tenantLabel = $derived.by(() => {
-		const contract = contractQuery.data;
-
-		if (!contract) {
-			return $LL.common.messages.unknown();
-		}
+	const tenantLabel = $derived.by(() => {
+		if (!contract) return $LL.common.messages.unknown();
 
 		return tenantQuery.data?.name?.trim() || $LL.common.labels.tenant();
 	});
+	const period = $derived(
+		contract ? `${formatDate(contract.start)} — ${formatDate(contract.end)}` : ''
+	);
 
 	async function deleteContract() {
-		if (!contractQuery.data) return;
+		if (!contract) return;
 
-		await deleteMutation.mutateAsync(contractQuery.data.id);
+		await deleteMutation.mutateAsync(contract.id);
 		// the record is gone, so the screen showing it is no longer somewhere back can return
 		// to — whatever was open before it is.
 		back.forgetCurrent();
@@ -121,275 +117,196 @@
 	}
 
 	async function terminateContract() {
-		if (!contractQuery.data) return;
+		if (!contract) return;
 
-		await terminateMutation.mutateAsync(contractQuery.data.id);
+		await terminateMutation.mutateAsync(contract.id);
 	}
 
 	async function unterminateContract() {
-		if (!contractQuery.data) return;
+		if (!contract) return;
 
-		await unterminateMutation.mutateAsync(contractQuery.data.id);
+		await unterminateMutation.mutateAsync(contract.id);
 	}
-
-	const getSectionHref = (section: ContractDetailsSection) =>
-		resolve(`/contracts/${contractId}${section === 'overview' ? '' : `?section=${section}`}`);
-
-	$effect(() => {
-		activeSection = initialSection;
-	});
-
-	$effect(() => {
-		if (activeSection === initialSection) {
-			return;
-		}
-
-		void goto(getSectionHref(activeSection), {
-			replaceState: true,
-			noScroll: true,
-			keepFocus: true
-		});
-	});
 </script>
 
-{#if contractQuery.isLoading}
-	<div class="flex min-h-full flex-1 items-center justify-center p-6">
-		<div class="flex flex-col items-center gap-3">
-			<Spinner class="size-8 text-muted-foreground" />
-			<p class="text-sm text-muted-foreground">{$LL.common.messages.loadingApp()}</p>
-		</div>
-	</div>
-{:else if !contractQuery.data}
-	<Card>
-		<CardHeader>
-			<CardTitle>{$LL.common.messages.noResults()}</CardTitle>
-		</CardHeader>
-	</Card>
-{:else}
-	{@const contract = contractQuery.data}
-	<div class="flex min-h-0 flex-1 flex-col gap-3 pb-8 sm:pb-12">
-		<div class="rounded-2xl border bg-muted p-4">
-			<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
-				<BackControl fallback={resolve('/contracts')} />
+{#snippet identity()}
+	{#if contract}
+		<Cell.Status status={contract.status} />
+		<span class="text-border">•</span>
+		<span>{period}</span>
+	{/if}
+{/snippet}
 
-				<div class="flex flex-wrap items-center justify-end gap-2">
-					<RecordActions
-						details={[
-							{ label: $LL.common.labels.tenant(), value: tenantLabel },
-							{ label: $LL.common.labels.nationalId(), value: tenantQuery.data?.nationalId ?? '' },
-							{ label: $LL.common.labels.phone(), value: tenantQuery.data?.phone ?? '' },
-							{ label: $LL.common.labels.governmentId(), value: contract.govId ?? '' },
-							{ label: $LL.common.labels.cycle(), value: intervalLabels[contract.interval]() },
-							{
-								label: $LL.common.labels.contractPeriod(),
-								value: `${formatDate(contract.start)} — ${formatDate(contract.end)}`
-							}
-						]}
-						onDuplicate={() => {
-							// the government id is a contract's unique field, so the copy starts
-							// without it rather than with a value that cannot be saved.
-							formOpensOn = { ...contract, id: undefined, govId: '' };
+{#snippet actions()}
+	<RecordActions
+		details={[
+			{ label: $LL.common.labels.tenant(), value: tenantLabel },
+			{ label: $LL.common.labels.nationalId(), value: tenantQuery.data?.nationalId ?? '' },
+			{ label: $LL.common.labels.phone(), value: tenantQuery.data?.phone ?? '' },
+			{ label: $LL.common.labels.governmentId(), value: contract?.govId ?? '' },
+			{
+				label: $LL.common.labels.cycle(),
+				value: contract ? intervalLabels[contract.interval]() : ''
+			},
+			{ label: $LL.common.labels.contractPeriod(), value: period }
+		]}
+		onDuplicate={contract
+			? () => {
+					// the government id is a contract's unique field, so the copy starts without it
+					// rather than with a value that cannot be saved.
+					formOpensOn = { ...contract, id: undefined, govId: '' };
+					contractFormRenderKey += 1;
+					isContractFormOpen = true;
+				}
+			: undefined}
+	/>
+
+	{#if contract && contract.status !== 'terminated'}
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="outline"
+						size="icon-sm"
+						aria-label={$LL.common.actions.edit()}
+						class="rounded-full bg-secondary"
+						onclick={() => {
+							formOpensOn = contract;
 							contractFormRenderKey += 1;
 							isContractFormOpen = true;
 						}}
-					/>
+					>
+						<SquarePenIcon class="size-4" />
+						<span class="sr-only">{$LL.common.actions.edit()}</span>
+					</Button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content side="top" sideOffset={8}>{$LL.common.actions.edit()}</Tooltip.Content>
+		</Tooltip.Root>
+	{/if}
 
-					{#if contract.status !== 'terminated'}
-						<Tooltip.Root>
-							<Tooltip.Trigger>
-								{#snippet child({ props })}
-									<Button
-										{...props}
-										variant="outline"
-										size="icon-sm"
-										aria-label={$LL.common.actions.edit()}
-										class="rounded-full bg-secondary"
-										onclick={() => {
-											formOpensOn = contract;
-											contractFormRenderKey += 1;
-											isContractFormOpen = true;
-										}}
-									>
-										<SquarePenIcon class="size-4" />
-										<span class="sr-only">{$LL.common.actions.edit()}</span>
-									</Button>
-								{/snippet}
-							</Tooltip.Trigger>
-							<Tooltip.Content side="top" sideOffset={8}>
-								{$LL.common.actions.edit()}
-							</Tooltip.Content>
-						</Tooltip.Root>
-					{/if}
+	<!-- terminating and deleting are secondary here and primary inside the confirmation each
+	     opens: neither is what the reader came to this screen to press
+	     (_Semantics are secondary_). -->
+	{#if contract && canManuallyTerminateContractStatus(contract.status)}
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="outline"
+						size="icon-sm"
+						aria-label={$LL.common.actions.terminate()}
+						class="rounded-full bg-secondary text-destructive hover:bg-destructive/10"
+						onclick={() => (isTerminateDialogOpen = true)}
+					>
+						<BanIcon class="size-4" />
+						<span class="sr-only">{$LL.common.actions.terminate()}</span>
+					</Button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content side="top" sideOffset={8}>{$LL.common.actions.terminate()}</Tooltip.Content>
+		</Tooltip.Root>
+	{/if}
 
-					{#if canManuallyTerminateContractStatus(contract.status)}
-						<Tooltip.Root>
-							<Tooltip.Trigger>
-								{#snippet child({ props })}
-									<Button
-										{...props}
-										variant="destructive"
-										size="icon-sm"
-										aria-label={$LL.common.actions.terminate()}
-										class="rounded-full"
-										onclick={() => (isTerminateDialogOpen = true)}
-									>
-										<BanIcon class="size-4" />
-										<span class="sr-only">{$LL.common.actions.terminate()}</span>
-									</Button>
-								{/snippet}
-							</Tooltip.Trigger>
-							<Tooltip.Content side="top" sideOffset={8}>
-								{$LL.common.actions.terminate()}
-							</Tooltip.Content>
-						</Tooltip.Root>
-					{/if}
+	{#if contract && canUnterminateContractStatus(contract.status)}
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="outline"
+						size="icon-sm"
+						aria-label={$LL.common.actions.unterminate()}
+						class="rounded-full bg-secondary"
+						onclick={() => (isUnterminateDialogOpen = true)}
+					>
+						<RotateCcwIcon class="size-4" />
+						<span class="sr-only">{$LL.common.actions.unterminate()}</span>
+					</Button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content side="top" sideOffset={8}>
+				{$LL.common.actions.unterminate()}
+			</Tooltip.Content>
+		</Tooltip.Root>
+	{/if}
 
-					{#if canUnterminateContractStatus(contract.status)}
-						<Tooltip.Root>
-							<Tooltip.Trigger>
-								{#snippet child({ props })}
-									<Button
-										{...props}
-										variant="outline"
-										size="icon-sm"
-										aria-label={$LL.common.actions.unterminate()}
-										class="rounded-full bg-secondary"
-										onclick={() => (isUnterminateDialogOpen = true)}
-									>
-										<RotateCcwIcon class="size-4" />
-										<span class="sr-only">{$LL.common.actions.unterminate()}</span>
-									</Button>
-								{/snippet}
-							</Tooltip.Trigger>
-							<Tooltip.Content side="top" sideOffset={8}>
-								{$LL.common.actions.unterminate()}
-							</Tooltip.Content>
-						</Tooltip.Root>
-					{/if}
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					variant="outline"
+					size="icon-sm"
+					aria-label={$LL.common.actions.delete()}
+					class="rounded-full bg-secondary text-destructive hover:bg-destructive/10"
+					onclick={() => (isDeleteDialogOpen = true)}
+				>
+					<Trash2Icon class="size-4" />
+					<span class="sr-only">{$LL.common.actions.delete()}</span>
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content side="top" sideOffset={8}>{$LL.common.actions.delete()}</Tooltip.Content>
+	</Tooltip.Root>
+{/snippet}
 
-					<Tooltip.Root>
-						<Tooltip.Trigger>
-							{#snippet child({ props })}
-								<Button
-									{...props}
-									variant="destructive"
-									size="icon-sm"
-									aria-label={$LL.common.actions.delete()}
-									class="rounded-full"
-									onclick={() => (isDeleteDialogOpen = true)}
-								>
-									<Trash2Icon class="size-4" />
-									<span class="sr-only">{$LL.common.actions.delete()}</span>
-								</Button>
-							{/snippet}
-						</Tooltip.Trigger>
-						<Tooltip.Content side="top" sideOffset={8}>
-							{$LL.common.actions.delete()}
-						</Tooltip.Content>
-					</Tooltip.Root>
-				</div>
-			</div>
+{#snippet phone()}
+	<span dir={localesMetadata[$locale].direction}>
+		{tenantQuery.data?.phone || $LL.common.messages.unknown()}
+	</span>
+{/snippet}
 
-			<div class="mt-4 min-w-0 space-y-2 text-start">
-				<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-					{$LL.common.nav.contracts()}
-				</p>
-				<h1 class="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{tenantLabel}</h1>
-				<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-					<Cell.Status status={contract.status} />
-					<span class="text-border">•</span>
-					<span>{formatDate(contract.start)} — {formatDate(contract.end)}</span>
-				</div>
-			</div>
-		</div>
+{#snippet fields()}
+	<Specification
+		entries={[
+			{
+				label: $LL.common.labels.nationalId(),
+				value: tenantQuery.data?.nationalId || $LL.common.messages.unknown()
+			},
+			{ label: $LL.common.labels.phone(), value: phone },
+			{
+				label: $LL.common.labels.governmentId(),
+				value: contract?.govId || $LL.common.messages.unknown()
+			},
+			{
+				label: $LL.common.labels.cycle(),
+				value: contract ? intervalLabels[contract.interval]() : ''
+			}
+		]}
+	/>
+{/snippet}
 
-		<Tabs.Root bind:value={activeSection} class="min-h-0 flex-1 gap-3">
-			<Tabs.List class={tabsListClass}>
-				<Tabs.Trigger value="overview" class={tabsTriggerClass}>
-					{$LL.common.labels.information()}
-				</Tabs.Trigger>
-				<Tabs.Trigger value="units" class={tabsTriggerClass}>
-					{$LL.common.nav.units()}
-				</Tabs.Trigger>
-				<Tabs.Trigger value="payments" class={tabsTriggerClass}>
-					{$LL.common.nav.payments()}
-				</Tabs.Trigger>
-			</Tabs.List>
+{#snippet payments()}
+	<PaymentLedger {contractId} />
+{/snippet}
 
-			<Tabs.Content value="overview" class="space-y-3 pb-1">
-				<Card class="gap-0 overflow-hidden">
-					<CardHeader class="gap-2 border-b pb-4">
-						<CardTitle class="capitalize">{$LL.common.labels.information()}</CardTitle>
-					</CardHeader>
-					<CardContent class="py-4">
-						<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 [&>*]:text-start">
-							<div class="rounded-xl border bg-muted p-4">
-								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-									{$LL.common.labels.tenant()}
-								</p>
-								<p class="mt-3 truncate text-sm font-medium">{tenantLabel}</p>
-							</div>
+{#snippet units()}
+	<ContractUnits {contractId} />
+{/snippet}
 
-							<div class="rounded-xl border bg-muted p-4">
-								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-									{$LL.common.labels.nationalId()}
-								</p>
-								<p class="mt-3 text-sm font-medium">
-									{tenantQuery.data?.nationalId || $LL.common.messages.unknown()}
-								</p>
-							</div>
+<!-- payments leads: a contract exists to be paid, and the units collection is a writing
+     surface with two search panes, which is not where a reader should land. -->
+<RecordSurface
+	isLoading={contractQuery.isLoading}
+	found={Boolean(contract)}
+	backFallback={resolve('/contracts')}
+	path={resolve(`/contracts/${contractId}`)}
+	eyebrow={$LL.common.nav.contracts()}
+	title={tenantLabel}
+	{identity}
+	{actions}
+	{fields}
+	{initialCollection}
+	collections={[
+		{ value: 'payments', label: $LL.common.nav.payments(), content: payments },
+		{ value: 'units', label: $LL.common.nav.units(), content: units }
+	]}
+/>
 
-							<div class="rounded-xl border bg-muted p-4">
-								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-									{$LL.common.labels.phone()}
-								</p>
-								<p
-									class="mt-3 text-start text-sm font-medium"
-									dir={localesMetadata[$locale].direction}
-								>
-									{tenantQuery.data?.phone || $LL.common.messages.unknown()}
-								</p>
-							</div>
-
-							<div class="rounded-xl border bg-muted p-4">
-								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-									{$LL.common.labels.governmentId()}
-								</p>
-								<p class="mt-3 text-sm font-medium">
-									{contract.govId || $LL.common.messages.unknown()}
-								</p>
-							</div>
-
-							<div class="rounded-xl border bg-muted p-4">
-								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-									{$LL.common.labels.cycle()}
-								</p>
-								<p class="mt-3 text-sm font-medium">{intervalLabels[contract.interval]()}</p>
-							</div>
-
-							<div class="rounded-xl border bg-muted p-4">
-								<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
-									{$LL.common.labels.contractPeriod()}
-								</p>
-								<p class="mt-3 text-sm font-medium">
-									{formatDate(contract.start)} — {formatDate(contract.end)}
-								</p>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-			</Tabs.Content>
-
-			<Tabs.Content value="units" class="min-h-0 flex-1 pt-1">
-				<ContractUnits {contractId} />
-			</Tabs.Content>
-
-			<Tabs.Content value="payments" class="min-h-0 flex-1 pt-1">
-				<PaymentLedger {contractId} />
-			</Tabs.Content>
-		</Tabs.Root>
-	</div>
-
+{#if contract}
 	{#key contractFormRenderKey}
 		<ContractForm
 			open={isContractFormOpen}
