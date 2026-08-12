@@ -49,9 +49,10 @@
      between two regions that each look like the page. Everything below grows to its natural
      height and the frame scrolls it.
 
-     The last card gets room of its own rather than relying on the route's padding — the band's
-     negative top margin is inside this column, and the two were cancelling. -->
-<div class="flex flex-1 flex-col gap-4 pb-6">
+     The last card takes the frame's own bottom padding, which reaches it now that the frame grows
+     with what it holds rather than standing exactly one viewport high. This column used to carry a
+     second bottom space of its own because the frame's could not be seen. -->
+<div class="flex flex-1 flex-col gap-4">
 	<!-- every figure here is a door: the band states how the month is going, and each way in lands
 	     on the page holding the detail behind it. It pins to the top of the scrollport so the month
 	     stays readable while the sections are worked — the bleed and the background are what stop
