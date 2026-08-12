@@ -65,7 +65,7 @@
 	>
 		<a
 			href={resolve('/contracts')}
-			class="flex items-center justify-around gap-4 rounded-2xl border bg-card p-4 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5"
+			class="flex items-center justify-around gap-4 rounded-2xl bg-card p-4 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5"
 		>
 			<span class="flex flex-col items-center gap-2">
 				<Cell.Ring
@@ -89,7 +89,7 @@
 
 		<a
 			href={resolve('/complexes')}
-			class="flex items-center justify-around gap-4 rounded-2xl border bg-card p-4 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5"
+			class="flex items-center justify-around gap-4 rounded-2xl bg-card p-4 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5"
 		>
 			<span class="flex flex-col items-center gap-2">
 				<Cell.Ring
@@ -108,7 +108,7 @@
 
 		<a
 			href={resolve('/contracts')}
-			class="flex flex-col justify-center gap-3 rounded-2xl border bg-card p-4 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5"
+			class="flex flex-col justify-center gap-3 rounded-2xl bg-card p-4 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5"
 		>
 			<!-- outstanding is a total rather than a proportion — there is nothing it is a share of
 			     — so it is the one figure in the band that is not a ring.

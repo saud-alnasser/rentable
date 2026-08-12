@@ -1,7 +1,8 @@
 <script lang="ts">
+	import PageFrame from '$lib/design/block/page-frame.svelte';
 	import DashboardLanding from '$lib/dashboard/component/landing.svelte';
 </script>
 
-<div class="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-3 px-5 pt-5 pb-8">
+<PageFrame>
 	<DashboardLanding />
-</div>
+</PageFrame>

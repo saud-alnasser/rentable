@@ -26,13 +26,13 @@
 		{/if}
 
 		<div class="grid gap-3 sm:grid-cols-2">
-			<div class="rounded-xl border bg-muted p-3">
+			<div class="rounded-xl bg-muted p-3">
 				<p class="text-xs tracking-wide text-muted-foreground uppercase">
 					{$LL.layout.startup.startupRecoveryBackup()}
 				</p>
 				<p class="mt-1 font-medium break-all">{recovery.backupFilename}</p>
 			</div>
-			<div class="rounded-xl border bg-muted p-3">
+			<div class="rounded-xl bg-muted p-3">
 				<p class="text-xs tracking-wide text-muted-foreground uppercase">
 					{$LL.layout.startup.previousVersion()}
 				</p>

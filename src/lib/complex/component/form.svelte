@@ -205,7 +205,7 @@
 				{:else}
 					<ul class="app-scroll flex max-h-40 flex-col gap-2 overflow-y-auto pe-1">
 						{#each unitNames as name (name)}
-							<li class="flex items-center gap-2 rounded-xl border bg-muted p-2 ps-3">
+							<li class="flex items-center gap-2 rounded-xl bg-muted p-2 ps-3">
 								<span class="min-w-0 flex-1 truncate text-sm">{name}</span>
 								<Button
 									type="button"

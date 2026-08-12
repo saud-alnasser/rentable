@@ -15,6 +15,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import BackControl from '$lib/design/block/back-control.svelte';
+	import PageFrame from '$lib/design/block/page-frame.svelte';
 	import * as Empty from '$lib/design/primitive/empty';
 	import { Spinner } from '$lib/design/primitive/spinner';
 	import * as Tabs from '$lib/design/primitive/tabs';
@@ -111,7 +112,7 @@
 	<h2 class="shrink-0 text-xs tracking-[0.2em] text-muted-foreground uppercase">{text}</h2>
 {/snippet}
 
-<div class="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-6 p-6">
+<PageFrame>
 	{#if isLoading}
 		<div class="flex flex-1 items-center justify-center" aria-busy="true">
 			<div class="flex flex-col items-center gap-3">
@@ -201,4 +202,4 @@
 			</section>
 		{/if}
 	{/if}
-</div>
+</PageFrame>

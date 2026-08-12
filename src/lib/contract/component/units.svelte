@@ -109,7 +109,7 @@
 			<ul class="app-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pe-1">
 				{#each units as unit (unit.id)}
 					<li
-						class="flex items-center gap-3 rounded-xl border bg-muted p-3 transition-colors hover:bg-accent"
+						class="flex items-center gap-3 rounded-xl bg-muted p-3 transition-colors hover:bg-accent"
 					>
 						<a
 							href={resolve(`/complexes/units/${unit.id}`)}

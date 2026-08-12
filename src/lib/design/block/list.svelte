@@ -243,7 +243,7 @@
 
 <div class="flex min-h-0 flex-1 flex-col gap-3">
 	<div
-		class="flex shrink-0 flex-col gap-3 rounded-2xl border bg-card px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+		class="flex shrink-0 flex-col gap-3 rounded-2xl bg-card px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
 	>
 		<div class="relative w-full sm:max-w-sm">
 			<SearchIcon

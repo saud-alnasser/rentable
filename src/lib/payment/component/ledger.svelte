@@ -77,9 +77,7 @@
 
 <div class="flex min-h-0 flex-1 flex-col gap-3">
 	{#if lockNotice}
-		<p
-			class="shrink-0 rounded-2xl border bg-card px-4 py-2.5 text-start text-xs text-muted-foreground"
-		>
+		<p class="shrink-0 rounded-2xl bg-card px-4 py-2.5 text-start text-xs text-muted-foreground">
 			{lockNotice}
 		</p>
 	{/if}
@@ -110,7 +108,7 @@
 		onCreate={isAddLocked ? undefined : () => openPaymentForm()}
 	>
 		{#snippet groupHeader(month: PaymentLedgerMonth)}
-			<div class="flex h-full items-center gap-3 border-b bg-muted/60 px-4">
+			<div class="flex h-full items-center gap-3 bg-muted/60 px-4">
 				<span
 					class="min-w-0 flex-1 truncate text-start text-xs font-medium tracking-wide uppercase"
 				>
@@ -176,7 +174,7 @@
 	{#if contractQuery.data}
 		{@const contract = contractQuery.data}
 		<div
-			class="flex shrink-0 flex-wrap items-end justify-between gap-x-6 gap-y-2 rounded-2xl border bg-card px-4 py-3 motion-safe:animate-in motion-safe:fade-in"
+			class="flex shrink-0 flex-wrap items-end justify-between gap-x-6 gap-y-2 rounded-2xl bg-card px-4 py-3 motion-safe:animate-in motion-safe:fade-in"
 		>
 			<div class="flex min-w-0 flex-col gap-1 text-start">
 				<span class="text-xs tracking-wide text-muted-foreground uppercase">

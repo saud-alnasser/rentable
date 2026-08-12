@@ -48,7 +48,7 @@
 	});
 </script>
 
-<section class="shrink-0 rounded-2xl border bg-card">
+<section class="shrink-0 rounded-2xl bg-card">
 	<header class="flex items-center gap-3 border-b px-4 py-3">
 		<!-- only the late rank is coloured. Two of three ranks marked as trouble is a screen with
 		     no emphasis left to spend, and overdue is the one that is already costing money. -->
