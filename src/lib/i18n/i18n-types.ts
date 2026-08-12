@@ -27,13 +27,9 @@ type RootTranslation = {
 			 */
 			actions: string
 			/**
-			 * a​s​s​i​g​n​ ​s​e​l​e​c​t​e​d
+			 * a​d​d
 			 */
-			assignSelected: string
-			/**
-			 * a​s​s​i​g​n​i​n​g​.​.​.
-			 */
-			assigning: string
+			add: string
 			/**
 			 * c​a​n​c​e​l
 			 */
@@ -472,10 +468,6 @@ type RootTranslation = {
 			 * l​o​a​d​i​n​g​ ​a​p​p​.​.​.
 			 */
 			loadingApp: string
-			/**
-			 * l​o​a​d​i​n​g​ ​c​o​m​p​l​e​x​e​s​.​.​.
-			 */
-			loadingComplexes: string
 			/**
 			 * l​o​a​d​i​n​g​ ​s​e​t​t​i​n​g​s​.​.​.
 			 */
@@ -1672,10 +1664,6 @@ type RootTranslation = {
 			 */
 			deleteSuccess: string
 			/**
-			 * u​n​i​t​ ​r​e​m​o​v​e​d​ ​f​r​o​m​ ​c​o​n​t​r​a​c​t​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
-			 */
-			removeUnitSuccess: string
-			/**
 			 * c​o​n​t​r​a​c​t​ ​r​e​s​t​o​r​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
 			restoreSuccess: string
@@ -1797,9 +1785,17 @@ type RootTranslation = {
 		}
 		units: {
 			/**
-			 * c​h​o​o​s​e​ ​a​ ​c​o​m​p​l​e​x​ ​t​o​ ​s​h​o​w​ ​u​n​i​t​s​ ​t​h​a​t​ ​a​r​e​ ​a​v​a​i​l​a​b​l​e​ ​f​o​r​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​t​i​m​e​f​r​a​m​e​.​ ​u​n​i​t​s​ ​l​i​n​k​e​d​ ​t​o​ ​o​v​e​r​l​a​p​p​i​n​g​ ​c​o​n​t​r​a​c​t​s​ ​a​r​e​ ​e​x​c​l​u​d​e​d​.
+			 * a​v​a​i​l​a​b​l​e
 			 */
-			availableDescription: string
+			available: string
+			/**
+			 * a​s​s​i​g​n​e​d
+			 */
+			assigned: string
+			/**
+			 * m​o​v​e​ ​u​n​i​t​s​ ​b​e​t​w​e​e​n​ ​t​h​e​ ​t​w​o​ ​s​i​d​e​s​,​ ​t​h​e​n​ ​s​a​v​e​ ​o​n​c​e​.​ ​u​n​i​t​s​ ​l​i​n​k​e​d​ ​t​o​ ​a​ ​c​o​n​t​r​a​c​t​ ​w​h​o​s​e​ ​t​e​r​m​ ​o​v​e​r​l​a​p​s​ ​t​h​i​s​ ​o​n​e​ ​a​r​e​ ​n​o​t​ ​o​f​f​e​r​e​d​.
+			 */
+			transferDescription: string
 			/**
 			 * c​o​n​t​r​a​c​t​s​ ​w​i​t​h​ ​r​e​g​i​s​t​e​r​e​d​ ​p​a​y​m​e​n​t​s​ ​a​r​e​ ​l​o​c​k​e​d​.​ ​y​o​u​ ​c​a​n​ ​r​e​v​i​e​w​ ​l​i​n​k​e​d​ ​u​n​i​t​s​ ​h​e​r​e​,​ ​b​u​t​ ​y​o​u​ ​c​a​n​n​o​t​ ​a​s​s​i​g​n​ ​o​r​ ​r​e​m​o​v​e​ ​u​n​i​t​s​ ​a​f​t​e​r​ ​p​a​y​m​e​n​t​s​ ​h​a​v​e​ ​b​e​e​n​ ​r​e​c​o​r​d​e​d​.
 			 */
@@ -1813,33 +1809,13 @@ type RootTranslation = {
 			 */
 			noAssignedUnits: string
 			/**
-			 * n​o​ ​u​n​i​t​s​ ​a​r​e​ ​a​v​a​i​l​a​b​l​e​ ​f​o​r​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​t​i​m​e​f​r​a​m​e​ ​i​n​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​c​o​m​p​l​e​x​.
+			 * n​o​ ​u​n​i​t​s​ ​a​r​e​ ​a​v​a​i​l​a​b​l​e​ ​f​o​r​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​t​i​m​e​f​r​a​m​e​.
 			 */
 			noAvailableUnits: string
 			/**
 			 * a​s​s​i​g​n​ ​u​n​i​t​s
 			 */
 			assignTitle: string
-			/**
-			 * r​e​m​o​v​e​ ​t​h​i​s​ ​u​n​i​t​ ​f​r​o​m​ ​t​h​e​ ​c​o​n​t​r​a​c​t​?
-			 */
-			removeDescription: string
-			/**
-			 * r​e​m​o​v​e​ ​u​n​i​t
-			 */
-			removeTitle: string
-			/**
-			 * s​e​l​e​c​t​ ​a​ ​c​o​m​p​l​e​x​ ​t​o​ ​l​o​a​d​ ​a​v​a​i​l​a​b​l​e​ ​u​n​i​t​s​.
-			 */
-			selectComplex: string
-			/**
-			 * s​e​l​e​c​t​ ​c​o​m​p​l​e​x
-			 */
-			selectComplexPlaceholder: string
-			/**
-			 * s​e​l​e​c​t​ ​a​t​ ​l​e​a​s​t​ ​o​n​e​ ​u​n​i​t​.
-			 */
-			selectUnits: string
 		}
 	}
 	settingsHooks: {
@@ -1920,13 +1896,9 @@ export type TranslationFunctions = {
 			 */
 			actions: () => LocalizedString
 			/**
-			 * assign selected
+			 * add
 			 */
-			assignSelected: () => LocalizedString
-			/**
-			 * assigning...
-			 */
-			assigning: () => LocalizedString
+			add: () => LocalizedString
 			/**
 			 * cancel
 			 */
@@ -2365,10 +2337,6 @@ export type TranslationFunctions = {
 			 * loading app...
 			 */
 			loadingApp: () => LocalizedString
-			/**
-			 * loading complexes...
-			 */
-			loadingComplexes: () => LocalizedString
 			/**
 			 * loading settings...
 			 */
@@ -3530,10 +3498,6 @@ export type TranslationFunctions = {
 			 */
 			deleteSuccess: () => LocalizedString
 			/**
-			 * unit removed from contract successfully!
-			 */
-			removeUnitSuccess: () => LocalizedString
-			/**
 			 * contract restored successfully!
 			 */
 			restoreSuccess: () => LocalizedString
@@ -3650,9 +3614,17 @@ export type TranslationFunctions = {
 		}
 		units: {
 			/**
-			 * choose a complex to show units that are available for this contract timeframe. units linked to overlapping contracts are excluded.
+			 * available
 			 */
-			availableDescription: () => LocalizedString
+			available: () => LocalizedString
+			/**
+			 * assigned
+			 */
+			assigned: () => LocalizedString
+			/**
+			 * move units between the two sides, then save once. units linked to a contract whose term overlaps this one are not offered.
+			 */
+			transferDescription: () => LocalizedString
 			/**
 			 * contracts with registered payments are locked. you can review linked units here, but you cannot assign or remove units after payments have been recorded.
 			 */
@@ -3666,33 +3638,13 @@ export type TranslationFunctions = {
 			 */
 			noAssignedUnits: () => LocalizedString
 			/**
-			 * no units are available for this contract timeframe in the selected complex.
+			 * no units are available for this contract timeframe.
 			 */
 			noAvailableUnits: () => LocalizedString
 			/**
 			 * assign units
 			 */
 			assignTitle: () => LocalizedString
-			/**
-			 * remove this unit from the contract?
-			 */
-			removeDescription: () => LocalizedString
-			/**
-			 * remove unit
-			 */
-			removeTitle: () => LocalizedString
-			/**
-			 * select a complex to load available units.
-			 */
-			selectComplex: () => LocalizedString
-			/**
-			 * select complex
-			 */
-			selectComplexPlaceholder: () => LocalizedString
-			/**
-			 * select at least one unit.
-			 */
-			selectUnits: () => LocalizedString
 		}
 	}
 	settingsHooks: {

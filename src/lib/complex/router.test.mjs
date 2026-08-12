@@ -272,9 +272,8 @@ test('deleting a unit assigned to a contract is rejected', async () => {
 	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
 	const unit = await api.complex.units.create({ name: 'A1', complexId: complex.id });
 	const contract = await seedActiveContract(api);
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: contract.id,
-		complexId: complex.id,
 		unitIds: [unit.id]
 	});
 
@@ -304,9 +303,8 @@ test('a unit assigned to a current contract is occupied', async () => {
 	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
 	const created = await api.complex.units.create({ name: 'A1', complexId: complex.id });
 	const contract = await seedActiveContract(api);
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: contract.id,
-		complexId: complex.id,
 		unitIds: [created.id]
 	});
 
@@ -326,9 +324,8 @@ test('a unit assigned only to a future (scheduled) contract is vacant', async ()
 		interval: '12m',
 		cost: 1000
 	});
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: contract.id,
-		complexId: complex.id,
 		unitIds: [created.id]
 	});
 
@@ -341,9 +338,8 @@ test('a unit becomes vacant again once its contract is terminated', async () => 
 	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
 	const created = await api.complex.units.create({ name: 'A1', complexId: complex.id });
 	const contract = await seedActiveContract(api);
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: contract.id,
-		complexId: complex.id,
 		unitIds: [created.id]
 	});
 	await api.contract.terminate({ id: contract.id });
@@ -361,7 +357,7 @@ test('a unit becomes vacant again once its contract is terminated', async () => 
 async function seedOccupiedUnit(api, complexId, name) {
 	const unit = await api.complex.units.create({ name, complexId });
 	const contract = await seedActiveContract(api);
-	await api.contract.units.assign({ contractId: contract.id, complexId, unitIds: [unit.id] });
+	await api.contract.units.set({ contractId: contract.id, unitIds: [unit.id] });
 
 	return unit;
 }
@@ -484,9 +480,8 @@ test('an occupied unit names the tenant occupying it', async () => {
 		interval: '12m',
 		cost: 1000
 	});
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: contract.id,
-		complexId: complex.id,
 		unitIds: [unit.id]
 	});
 
@@ -519,9 +514,8 @@ test('a unit whose contract has ended names no tenant', async () => {
 		interval: '12m',
 		cost: 1000
 	});
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: contract.id,
-		complexId: complex.id,
 		unitIds: [unit.id]
 	});
 
@@ -558,9 +552,8 @@ test('searching the board reaches the unit name and the occupying tenant', async
 		interval: '12m',
 		cost: 1000
 	});
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: contract.id,
-		complexId: complex.id,
 		unitIds: [occupied.id]
 	});
 

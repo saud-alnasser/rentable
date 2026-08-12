@@ -198,11 +198,10 @@ test('updating with an invalid cost is rejected', async () => {
 test('a unit can be assigned to a contract and then removed', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);
-	const { complex, unit } = await seedComplexWithUnit(api, 'A');
+	const { unit } = await seedComplexWithUnit(api, 'A');
 
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: contract.id,
-		complexId: complex.id,
 		unitIds: [unit.id]
 	});
 
@@ -210,20 +209,95 @@ test('a unit can be assigned to a contract and then removed', async () => {
 	assert.equal(assigned.length, 1);
 	assert.equal(assigned[0].id, unit.id);
 
-	await api.contract.units.remove({ contractId: contract.id, unitId: unit.id });
+	await api.contract.units.set({ contractId: contract.id, unitIds: [] });
 
 	const afterRemoval = await api.contract.units.getMany({ contractId: contract.id });
 	assert.equal(afterRemoval.length, 0);
 });
 
+test('the set is what the contract ends up holding, not what is added to it', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const complex = await api.complex.create({ name: 'Set Court', location: 'Riyadh' });
+	const first = await api.complex.units.create({ name: 'S1', complexId: complex.id });
+	const second = await api.complex.units.create({ name: 'S2', complexId: complex.id });
+
+	await api.contract.units.set({ contractId: contract.id, unitIds: [first.id] });
+	const held = await api.contract.units.set({ contractId: contract.id, unitIds: [second.id] });
+
+	assert.deepEqual(
+		held.map((unit) => unit.id),
+		[second.id]
+	);
+});
+
+test('units from more than one complex are held at once', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const one = await seedComplexWithUnit(api, 'X');
+	const other = await seedComplexWithUnit(api, 'Y');
+
+	const held = await api.contract.units.set({
+		contractId: contract.id,
+		unitIds: [one.unit.id, other.unit.id]
+	});
+
+	assert.deepEqual(held.map((unit) => unit.id).sort(), [one.unit.id, other.unit.id].sort());
+});
+
+test('the assignable set offers every unit no overlapping contract holds', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const held = await seedComplexWithUnit(api, 'P');
+	const free = await seedComplexWithUnit(api, 'Q');
+	const taken = await seedComplexWithUnit(api, 'R');
+
+	const other = await seedContract(api);
+	await api.contract.units.set({ contractId: other.id, unitIds: [taken.unit.id] });
+	await api.contract.units.set({ contractId: contract.id, unitIds: [held.unit.id] });
+
+	const assignable = await api.contract.units.getAssignableMany({ contractId: contract.id });
+	const byId = new Map(assignable.map((unit) => [unit.id, unit]));
+
+	assert.equal(byId.get(held.unit.id)?.isAssigned, true);
+	assert.equal(byId.get(free.unit.id)?.isAssigned, false);
+	assert.equal(byId.has(taken.unit.id), false, 'a unit an overlapping contract holds was offered');
+});
+
+test('the assignable search narrows on the unit name and on the complex holding it', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const tower = await api.complex.create({ name: 'Coral Tower', location: 'Jeddah' });
+	const court = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	const inTower = await api.complex.units.create({ name: 'A1', complexId: tower.id });
+	const inCourt = await api.complex.units.create({ name: 'B2', complexId: court.id });
+
+	const byComplex = await api.contract.units.getAssignableMany({
+		contractId: contract.id,
+		search: 'Coral'
+	});
+	const byUnit = await api.contract.units.getAssignableMany({
+		contractId: contract.id,
+		search: 'B2'
+	});
+
+	assert.deepEqual(
+		byComplex.map((unit) => unit.id),
+		[inTower.id]
+	);
+	assert.deepEqual(
+		byUnit.map((unit) => unit.id),
+		[inCourt.id]
+	);
+});
+
 test('assigning a unit already held by an overlapping contract is rejected', async () => {
 	const api = await createApi();
-	const { complex, unit } = await seedComplexWithUnit(api, 'B');
+	const { unit } = await seedComplexWithUnit(api, 'B');
 
 	const first = await seedContract(api);
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: first.id,
-		complexId: complex.id,
 		unitIds: [unit.id]
 	});
 
@@ -231,29 +305,28 @@ test('assigning a unit already held by an overlapping contract is rejected', asy
 
 	await assert.rejects(
 		() =>
-			api.contract.units.assign({
+			api.contract.units.set({
 				contractId: second.id,
-				complexId: complex.id,
 				unitIds: [unit.id]
 			}),
 		/overlapping contract/
 	);
 });
 
-test('removing a unit that is not assigned is rejected', async () => {
+test('a set naming a unit that does not exist is rejected', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);
 
 	await assert.rejects(
-		() => api.contract.units.remove({ contractId: contract.id, unitId: 9999 }),
-		/unit is not assigned/
+		() => api.contract.units.set({ contractId: contract.id, unitIds: [9999] }),
+		/one or more units could not be found/
 	);
 });
 
 test('a unit cannot be assigned once the contract has payments', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);
-	const { complex, unit } = await seedComplexWithUnit(api, 'C');
+	const { unit } = await seedComplexWithUnit(api, 'C');
 
 	await api.contract.payments.create({
 		contractId: contract.id,
@@ -263,9 +336,8 @@ test('a unit cannot be assigned once the contract has payments', async () => {
 
 	await assert.rejects(
 		() =>
-			api.contract.units.assign({
+			api.contract.units.set({
 				contractId: contract.id,
-				complexId: complex.id,
 				unitIds: [unit.id]
 			}),
 		/cannot change contract units after payments have been registered/
@@ -275,11 +347,10 @@ test('a unit cannot be assigned once the contract has payments', async () => {
 test('a unit cannot be removed once the contract has payments', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);
-	const { complex, unit } = await seedComplexWithUnit(api, 'D');
+	const { unit } = await seedComplexWithUnit(api, 'D');
 
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: contract.id,
-		complexId: complex.id,
 		unitIds: [unit.id]
 	});
 	await api.contract.payments.create({
@@ -289,7 +360,7 @@ test('a unit cannot be removed once the contract has payments', async () => {
 	});
 
 	await assert.rejects(
-		() => api.contract.units.remove({ contractId: contract.id, unitId: unit.id }),
+		() => api.contract.units.set({ contractId: contract.id, unitIds: [] }),
 		/cannot change contract units after payments have been registered/
 	);
 });
@@ -371,18 +442,17 @@ test('derived status is terminated once a contract is terminated', async () => {
 test('stored unit occupancy follows assignment and removal', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);
-	const { complex, unit } = await seedComplexWithUnit(api, 'E');
+	const { unit } = await seedComplexWithUnit(api, 'E');
 
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: contract.id,
-		complexId: complex.id,
 		unitIds: [unit.id]
 	});
 
 	const afterAssign = await api.contract.dashboard();
 	assert.equal(afterAssign.summary.occupancy.occupiedUnits, 1);
 
-	await api.contract.units.remove({ contractId: contract.id, unitId: unit.id });
+	await api.contract.units.set({ contractId: contract.id, unitIds: [] });
 
 	const afterRemoval = await api.contract.dashboard();
 	assert.equal(afterRemoval.summary.occupancy.occupiedUnits, 0);
@@ -390,18 +460,16 @@ test('stored unit occupancy follows assignment and removal', async () => {
 
 test('a mutation on one contract keeps a shared unit occupied by the other', async () => {
 	const api = await createApi();
-	const { complex, unit } = await seedComplexWithUnit(api, 'F');
+	const { unit } = await seedComplexWithUnit(api, 'F');
 	const past = await seedContract(api, { start: monthsFromNow(-14), end: monthsFromNow(-2) });
 	const current = await seedContract(api);
 
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: past.id,
-		complexId: complex.id,
 		unitIds: [unit.id]
 	});
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: current.id,
-		complexId: complex.id,
 		unitIds: [unit.id]
 	});
 
@@ -501,13 +569,12 @@ test('a tenant filter and a search narrow together rather than one replacing the
 
 test('the contract list narrows to the contracts that mention one unit', async () => {
 	const api = await createApi();
-	const { complex, unit } = await seedComplexWithUnit(api, 'U');
+	const { unit } = await seedComplexWithUnit(api, 'U');
 	const mentions = await seedContract(api);
 	await seedContract(api);
 
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: mentions.id,
-		complexId: complex.id,
 		unitIds: [unit.id]
 	});
 
@@ -526,9 +593,8 @@ test('a contract holding several units appears once when narrowed to one of them
 	const second = await api.complex.units.create({ name: 'M2', complexId: complex.id });
 	const contract = await seedContract(api);
 
-	await api.contract.units.assign({
+	await api.contract.units.set({
 		contractId: contract.id,
-		complexId: complex.id,
 		unitIds: [first.id, second.id]
 	});
 

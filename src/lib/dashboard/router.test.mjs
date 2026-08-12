@@ -51,7 +51,7 @@ async function seedPortfolio(api) {
 	const unit = await api.complex.units.create({ name: 'Unit 1', complexId: complex.id });
 	await api.complex.units.create({ name: 'Unit 2', complexId: complex.id });
 	await api.complex.units.create({ name: 'Unit 3', complexId: complex.id });
-	await api.contract.units.assign({ contractId: a.id, complexId: complex.id, unitIds: [unit.id] });
+	await api.contract.units.set({ contractId: a.id, unitIds: [unit.id] });
 
 	// payments after unit assignment — units lock once payments exist.
 	const pay = (contractId, amount, dateMonths) =>

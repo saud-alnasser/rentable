@@ -1,15 +1,20 @@
 <script lang="ts">
-	import { Button } from '$lib/design/primitive/button';
+	import type api from '$lib/api/caller';
 	import FieldError from '$lib/design/block/field-error.svelte';
 	import FormSurface from '$lib/design/block/form-surface.svelte';
+	import * as Cell from '$lib/design/cell';
+	import { Button } from '$lib/design/primitive/button';
 	import * as Form from '$lib/design/primitive/form';
-	import * as Select from '$lib/design/primitive/select';
+	import { Input } from '$lib/design/primitive/input';
 	import { Skeleton } from '$lib/design/primitive/skeleton';
-	import { cn } from '$lib/design/tailwind';
-	import { useFetchComplexes } from '$lib/complex/query';
-	import { useAssignContractUnits, useFetchVacantContractUnits } from '$lib/contract/query';
+	import {
+		useFetchAssignableContractUnits,
+		useFetchContractUnits,
+		useSetContractUnits
+	} from '$lib/contract/query';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import CheckIcon from '@lucide/svelte/icons/check';
+	import MinusIcon from '@lucide/svelte/icons/minus';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { TRPCError } from '@trpc/server';
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
@@ -17,11 +22,12 @@
 	import { z } from 'zod';
 
 	/**
-	 * Assigning units to a contract, on the shared form surface.
+	 * Choosing a contract's units, on the shared form surface.
 	 *
-	 * It writes, so it is a form rather than a panel inside the surface that reads
-	 * (ADR 0020, ADR 0024). What may be assigned is the procedure's to refuse — this asks for
-	 * the vacant units of one complex and reports back whatever the domain says.
+	 * It writes, so it is a form rather than a panel inside the surface that reads (ADR 0020,
+	 * ADR 0024). Both directions live here — what is available on one side, what the contract
+	 * holds on the other — and the whole set is committed once. What may be held is the
+	 * procedure's to refuse; this shows whatever the domain says.
 	 */
 	let {
 		contractId,
@@ -33,15 +39,24 @@
 		onOpenChange: (value: boolean) => void;
 	} = $props();
 
-	const AssignmentSchema = z.object({
-		complexId: z.string().min(1, $LL.contracts.units.selectComplex()),
-		unitIds: z.array(z.number()).min(1, $LL.contracts.units.selectUnits())
-	});
+	type AssignableUnit = Awaited<ReturnType<typeof api.contract.units.getAssignableMany>>[number];
+
+	const AssignmentSchema = z.object({ unitIds: z.array(z.number()) });
 
 	type AssignmentForm = z.infer<typeof AssignmentSchema>;
 
-	const assignMutation = useAssignContractUnits();
-	const complexesQuery = useFetchComplexes();
+	const setMutation = useSetContractUnits();
+
+	let search = $state('');
+
+	const assignableQuery = useFetchAssignableContractUnits(() => ({
+		contractId,
+		search,
+		enabled: open
+	}));
+	// what the contract holds today, unfiltered: the search narrows what the panes show and
+	// must not narrow what the surface opens on.
+	const heldQuery = useFetchContractUnits(() => contractId);
 
 	let { form, errors, enhance, reset, ...rest } = superForm<AssignmentForm>(
 		defaults(zod4(AssignmentSchema)),
@@ -53,11 +68,7 @@
 				if (!form.valid) return;
 
 				try {
-					await assignMutation.mutateAsync({
-						contractId,
-						complexId: Number(form.data.complexId),
-						unitIds: form.data.unitIds
-					});
+					await setMutation.mutateAsync({ contractId, unitIds: form.data.unitIds });
 
 					onOpenChange(false);
 				} catch (e) {
@@ -77,43 +88,97 @@
 
 	const superform = { form, errors, enhance, reset, ...rest };
 
-	const selectedComplexId = $derived.by(() => {
-		const parsed = Number($form.complexId);
+	const assignable = $derived(assignableQuery.data ?? []);
+	const chosen = $derived(new Set($form.unitIds));
 
-		return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-	});
-	const selectedComplex = $derived(
-		(complexesQuery.data ?? []).find((complex) => complex.id.toString() === $form.complexId)
-	);
+	const available = $derived(assignable.filter((unit) => !chosen.has(unit.id)));
+	const assigned = $derived(assignable.filter((unit) => chosen.has(unit.id)));
 
-	const vacantUnitsQuery = useFetchVacantContractUnits(() => ({
-		contractId,
-		complexId: selectedComplexId
-	}));
-	const vacantUnits = $derived(vacantUnitsQuery.data ?? []);
+	const add = (unitId: number) => ($form.unitIds = [...$form.unitIds, unitId]);
+	const remove = (unitId: number) => ($form.unitIds = $form.unitIds.filter((id) => id !== unitId));
 
-	const toggleUnit = (unitId: number) => {
-		$form.unitIds = $form.unitIds.includes(unitId)
-			? $form.unitIds.filter((id) => id !== unitId)
-			: [...$form.unitIds, unitId];
-	};
-
-	// a unit chosen in one complex means nothing in another, so the selection is dropped with
-	// the complex rather than carried into a list that no longer holds it.
-	let lastComplexId = $state<number | undefined>(undefined);
-	$effect(() => {
-		if (lastComplexId === selectedComplexId) return;
-
-		lastComplexId = selectedComplexId;
-		$form.unitIds = [];
-	});
+	// the surface opens on what the contract holds today, so the panes start where the record
+	// is rather than empty. It seeds on the opening and never again: a refetch while the sheet
+	// is open — invalidation here is repository-wide — would otherwise discard what the user
+	// has moved so far.
+	let isSeeded = $state(false);
 
 	$effect(() => {
-		if (open) {
-			reset();
+		if (!open) {
+			isSeeded = false;
+
+			return;
 		}
+
+		if (isSeeded || heldQuery.isLoading) return;
+
+		isSeeded = true;
+		reset();
+		search = '';
+		$form.unitIds = (heldQuery.data ?? []).map((unit) => unit.id);
 	});
 </script>
+
+{#snippet pane({
+	heading,
+	units,
+	empty,
+	move,
+	label,
+	icon
+}: {
+	heading: string;
+	units: AssignableUnit[];
+	empty: string;
+	/** what pressing a row's control does to it — the only difference between the two panes. */
+	move: (unitId: number) => void;
+	label: string;
+	icon: typeof PlusIcon;
+})}
+	<section class="flex min-h-0 flex-col gap-2">
+		<h3 class="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+			{heading}
+			<span class="ms-1 tracking-normal">({units.length})</span>
+		</h3>
+
+		{#if assignableQuery.isLoading}
+			<div class="flex flex-col gap-2">
+				<Skeleton class="h-14 w-full rounded-xl" />
+				<Skeleton class="h-14 w-full rounded-xl" />
+			</div>
+		{:else if units.length === 0}
+			<p class="rounded-xl border border-dashed bg-muted p-4 text-sm text-muted-foreground">
+				{empty}
+			</p>
+		{:else}
+			<ul class="app-scroll flex max-h-56 flex-col gap-2 overflow-y-auto pe-1">
+				{#each units as unit (unit.id)}
+					<li
+						class="flex items-center gap-3 rounded-xl border bg-muted p-3 transition-colors hover:bg-accent"
+					>
+						<span class="flex min-w-0 flex-1 flex-col gap-0.5 text-start">
+							<span class="truncate text-sm font-medium">{unit.name}</span>
+							<span class="truncate text-xs text-muted-foreground">{unit.complexName}</span>
+						</span>
+
+						<Cell.Status status={unit.status} />
+
+						<Button
+							type="button"
+							variant="outline"
+							size="icon-sm"
+							aria-label={`${label} ${unit.name}`}
+							onclick={() => move(unit.id)}
+						>
+							{@const Icon = icon}
+							<Icon class="size-4" />
+						</Button>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</section>
+{/snippet}
 
 <FormSurface
 	{open}
@@ -121,71 +186,39 @@
 	{enhance}
 	weight="heavy"
 	title={$LL.contracts.units.assignTitle()}
-	description={$LL.contracts.units.availableDescription()}
+	description={$LL.contracts.units.transferDescription()}
 >
 	<div class="flex flex-col gap-4">
-		<Form.Field form={superform} name="complexId" class="group relative">
-			<Form.Control>
-				<Form.Label>{$LL.common.labels.complex()}</Form.Label>
-				<Select.Root type="single" bind:value={$form.complexId}>
-					<Select.Trigger class="w-full" disabled={complexesQuery.isLoading}>
-						{selectedComplex?.name ||
-							(complexesQuery.isLoading
-								? $LL.common.messages.loadingComplexes()
-								: $LL.contracts.units.selectComplexPlaceholder())}
-					</Select.Trigger>
-					<Select.Content>
-						{#each complexesQuery.data ?? [] as complex (complex.id)}
-							<Select.Item value={complex.id.toString()} label={complex.name} />
-						{/each}
-					</Select.Content>
-				</Select.Root>
-			</Form.Control>
-			<FieldError />
-		</Form.Field>
+		<Input
+			type="search"
+			bind:value={search}
+			placeholder={$LL.common.table.searchPlaceholder()}
+			aria-label={$LL.common.ui.search()}
+		/>
 
 		<Form.Field form={superform} name="unitIds" class="group relative">
 			<Form.Control>
-				<Form.Label>{$LL.common.nav.units()}</Form.Label>
-				{#if !selectedComplexId}
-					<p class="rounded-xl border border-dashed bg-muted p-4 text-sm text-muted-foreground">
-						{$LL.contracts.units.selectComplex()}
-					</p>
-				{:else if vacantUnitsQuery.isLoading}
-					<div class="flex flex-col gap-2">
-						<Skeleton class="h-12 w-full rounded-xl" />
-						<Skeleton class="h-12 w-full rounded-xl" />
-					</div>
-				{:else if vacantUnits.length === 0}
-					<p class="rounded-xl border border-dashed bg-muted p-4 text-sm text-muted-foreground">
-						{$LL.contracts.units.noAvailableUnits()}
-					</p>
-				{:else}
-					<div class="flex flex-col gap-2">
-						{#each vacantUnits as unit (unit.id)}
-							{@const isSelected = $form.unitIds.includes(unit.id)}
-							<button
-								type="button"
-								class={cn(
-									'flex items-center gap-3 rounded-xl border bg-muted p-3 text-start transition-[background-color,border-color] hover:bg-accent',
-									isSelected && 'border-primary bg-accent ring-1 ring-primary'
-								)}
-								aria-pressed={isSelected}
-								onclick={() => toggleUnit(unit.id)}
-							>
-								<span
-									class={cn(
-										'flex size-5 shrink-0 items-center justify-center rounded-md border bg-muted text-transparent transition-colors',
-										isSelected && 'border-primary bg-primary text-primary-foreground'
-									)}
-								>
-									<CheckIcon class="size-3.5" />
-								</span>
-								<span class="min-w-0 flex-1 truncate font-medium">{unit.name}</span>
-							</button>
-						{/each}
-					</div>
-				{/if}
+				<!-- the panes stack below the shell's breakpoint, and they are start and end rather
+				     than left and right: neither the order nor the controls may depend on a
+				     physical side. -->
+				<div class="grid grid-cols-1 gap-4 shell:grid-cols-2">
+					{@render pane({
+						heading: $LL.contracts.units.available(),
+						units: available,
+						empty: $LL.contracts.units.noAvailableUnits(),
+						move: add,
+						label: $LL.common.actions.add(),
+						icon: PlusIcon
+					})}
+					{@render pane({
+						heading: $LL.contracts.units.assigned(),
+						units: assigned,
+						empty: $LL.contracts.units.noAssignedUnits(),
+						move: remove,
+						label: $LL.common.actions.remove(),
+						icon: MinusIcon
+					})}
+				</div>
 			</Form.Control>
 			<FieldError />
 		</Form.Field>
@@ -195,15 +228,13 @@
 		<Button
 			type="button"
 			variant="outline"
-			disabled={assignMutation.isPending}
+			disabled={setMutation.isPending}
 			onclick={() => onOpenChange(false)}
 		>
 			{$LL.common.actions.cancel()}
 		</Button>
-		<Button type="submit" disabled={assignMutation.isPending} class="capitalize">
-			{assignMutation.isPending
-				? $LL.common.actions.assigning()
-				: $LL.common.actions.assignSelected()}
+		<Button type="submit" disabled={setMutation.isPending} class="capitalize">
+			{setMutation.isPending ? $LL.common.actions.saving() : $LL.common.actions.save()}
 			{#if $form.unitIds.length > 0}
 				<span class="text-xs opacity-80">({$form.unitIds.length})</span>
 			{/if}
