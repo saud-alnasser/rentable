@@ -8,6 +8,8 @@ import { test } from 'node:test';
 
 import { createApi, monthsFromNow, seedTenant } from '$lib/api/testing.mjs';
 
+import { DASHBOARD_ENTRIES_PER_RANK } from './dashboard.ts';
+
 // A portfolio covering every rank and every reason to be in none. Statuses follow the code
 // as implemented — see the caveat in contract.test.mjs; do not "fix" these expectations here.
 // Per contract: cost, period, interval, payments —
@@ -178,17 +180,35 @@ test('with nothing outstanding and nothing ending, the queue is empty rather tha
 	assert.deepEqual(ranks, []);
 });
 
-test('the queue answers a search over the fields its rows show', async () => {
+// what crosses the IPC boundary is bounded by what the screen paints. Seven overdue contracts
+// of ascending cost: the four returned are the four largest debts, which is the rank's own
+// order rather than an arbitrary four.
+test('a rank returns at most the entries the screen shows, however many contracts are under it', async () => {
 	const api = await createApi();
-	await seedPortfolio(api);
+	const tenant = await seedTenant(api);
 
-	const searched = await api.contract.dashboard({ search: 'GOV-D' });
+	for (let index = 0; index < 7; index += 1) {
+		await api.contract.create({
+			govId: `GOV-OVERDUE-${index}`,
+			cost: 1000 + index,
+			start: monthsFromNow(-13),
+			end: monthsFromNow(-1),
+			interval: '12m',
+			tenantId: tenant.id
+		});
+	}
 
+	const { queue, ranks } = await api.contract.dashboard();
+
+	assert.equal(queue.length, DASHBOARD_ENTRIES_PER_RANK);
 	assert.deepEqual(
-		searched.queue.map(({ govId }) => govId),
-		['GOV-D']
+		queue.map(({ govId }) => govId),
+		['GOV-OVERDUE-6', 'GOV-OVERDUE-5', 'GOV-OVERDUE-4', 'GOV-OVERDUE-3']
 	);
-	assert.deepEqual(searched.ranks, [{ rank: 'overdue', contractCount: 1, totalAmount: 4000 }]);
+
+	// the rank still states all seven and what all seven owe: the counts are summarized before
+	// the entries are capped, which is what the screen's way through to the rest is figured from.
+	assert.deepEqual(ranks, [{ rank: 'overdue', contractCount: 7, totalAmount: 7021 }]);
 });
 
 // the strip is two figures and no others, and it carries no timestamp: the query cache is

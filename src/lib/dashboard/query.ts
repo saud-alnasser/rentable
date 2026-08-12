@@ -6,25 +6,19 @@ import { createQuery } from '@tanstack/svelte-query';
 // derived from contracts: the workspace invalidation covers the contracts prefix and this
 // with it.
 export const keys = {
-	get: [...workspacePrefixes.contracts, 'dashboard'],
-	queue: (search: string) => [...workspacePrefixes.contracts, 'dashboard', search]
+	get: [...workspacePrefixes.contracts, 'dashboard']
 } as const;
 
 /**
- * The landing screen's work queue for a search: the contracts needing action today, their
- * group headings, and the two portfolio figures above them.
+ * What the landing screen shows: a few contracts of each rank that needs attention today, what
+ * each rank holds in full, and the portfolio figures above them.
  *
- * `placeholderData` holds the previous set while a new query is in flight, so the queue
- * keeps rendering rows instead of flashing through its loading state on every keystroke.
+ * The read is bounded rather than searched — a response capped per rank cannot honestly answer a
+ * search over every contract, and finding a contract is the contracts list's job.
  */
-export function useFetchContractWorkQueue(search: () => string = () => '') {
-	return createQuery(() => {
-		const trimmedSearch = search().trim();
-
-		return {
-			queryKey: keys.queue(trimmedSearch),
-			queryFn: () => api.contract.dashboard({ search: trimmedSearch || undefined }),
-			placeholderData: <T>(previous: T) => previous
-		};
-	});
+export function useFetchContractWorkQueue() {
+	return createQuery(() => ({
+		queryKey: keys.get,
+		queryFn: () => api.contract.dashboard()
+	}));
 }
