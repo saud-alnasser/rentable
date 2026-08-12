@@ -1,4 +1,6 @@
 import * as s from '$lib/platform/database/schema';
+import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
+import { matchesSearch } from '$lib/platform/database/search';
 import { ensureIdFree } from '$lib/platform/database/identity';
 import { TenantSchema } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
@@ -172,6 +174,26 @@ export default router({
 
 		return undefined;
 	}),
+
+	/** The tenants a palette search reaches, by name, identity or phone. */
+	search: procedure.public
+		.input(RecordSearchSchema)
+		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
+			const rows = await ctx.db
+				.select({ id: s.tenant.id, label: s.tenant.name, hint: s.tenant.nationalId })
+				.from(s.tenant)
+				.where(
+					or(
+						matchesSearch(s.tenant.name, input.term),
+						matchesSearch(s.tenant.nationalId, input.term),
+						matchesSearch(s.tenant.phone, input.term)
+					)
+				)
+				.orderBy(asc(s.tenant.name), asc(s.tenant.id))
+				.limit(input.limit);
+
+			return rows;
+		}),
 
 	getMany: procedure.public
 		.input(

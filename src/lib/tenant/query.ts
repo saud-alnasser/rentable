@@ -32,8 +32,23 @@ export const keys = {
 		'list',
 		search,
 		sort ? `${sort.columnId}:${sort.direction}` : 'default'
-	]
+	],
+	search: (term: string) => [...workspacePrefixes.tenants, 'search', term]
 } as const;
+
+/** The tenants a palette search reaches. Bounded in SQL; nothing is narrowed again here. */
+export function useSearchTenants(term: () => string, limit: number) {
+	return createQuery(() => {
+		const trimmed = term().trim();
+
+		return {
+			queryKey: keys.search(trimmed),
+			enabled: trimmed.length > 0,
+			queryFn: () => api.tenant.search({ term: trimmed, limit }),
+			placeholderData: <T>(previous: T) => previous
+		};
+	});
+}
 
 // the shell's sort carries a bare string, because it is shared by lists that order by
 // different keys. This is where it becomes one of this list's own.

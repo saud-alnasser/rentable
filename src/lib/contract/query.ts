@@ -30,6 +30,7 @@ export const keys = {
 	],
 	get: (id: number) => [...workspacePrefixes.contracts, id],
 	getUnits: (id: number) => [...workspacePrefixes.contracts, 'units', id],
+	search: (term: string) => [...workspacePrefixes.contracts, 'search', term],
 	getAssignableUnits: (contractId: number, search: string) => [
 		...workspacePrefixes.contracts,
 		'units',
@@ -73,6 +74,20 @@ export function useListContracts(
 							: undefined,
 					...chosenScope
 				}),
+			placeholderData: <T>(previous: T) => previous
+		};
+	});
+}
+
+/** The contracts a palette search reaches. Bounded in SQL; nothing is narrowed again here. */
+export function useSearchContracts(term: () => string, limit: number) {
+	return createQuery(() => {
+		const trimmed = term().trim();
+
+		return {
+			queryKey: keys.search(trimmed),
+			enabled: trimmed.length > 0,
+			queryFn: () => api.contract.search({ term: trimmed, limit }),
 			placeholderData: <T>(previous: T) => previous
 		};
 	});

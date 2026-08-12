@@ -639,3 +639,34 @@ test('a refused complex name creates none of its units either', async () => {
 	);
 	assert.equal((await api.complex.getMany({}))[0].unitCount, 0);
 });
+
+// --- Palette search -------------------------------------------------------------------
+
+test('a complex is found by name or location, and a unit by either its own name or its complex', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({
+		name: 'Palm Court',
+		location: 'Riyadh',
+		units: [{ name: 'A1' }]
+	});
+	const [unit] = await api.complex.units.getMany({ complexId: complex.id });
+
+	assert.deepEqual(
+		(await api.complex.search({ term: 'Riyadh' })).map((match) => match.id),
+		[complex.id]
+	);
+	assert.deepEqual(
+		(await api.complex.units.search({ term: 'Palm' })).map((match) => match.id),
+		[unit.id]
+	);
+	assert.equal((await api.complex.units.search({ term: 'A1' }))[0].hint, 'Palm Court');
+});
+
+// the palette reaches a unit without first choosing the complex holding it.
+test('units are found across every complex at once', async () => {
+	const api = await createApi();
+	await api.complex.create({ name: 'Palm Court', location: 'Riyadh', units: [{ name: 'Shared' }] });
+	await api.complex.create({ name: 'Coral Bay', location: 'Jeddah', units: [{ name: 'Shared' }] });
+
+	assert.equal((await api.complex.units.search({ term: 'Shared' })).length, 2);
+});

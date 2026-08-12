@@ -1,7 +1,8 @@
 import api from '$lib/api/caller';
 import { declareMutation } from '$lib/design/mutation';
 import { workspacePrefixes } from '$lib/design/query';
-import { LL } from '$lib/i18n/i18n-svelte';
+import { LL, locale } from '$lib/i18n/i18n-svelte';
+import { formatLocaleNumber } from '$lib/platform/locale';
 import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
@@ -13,8 +14,35 @@ export const keys = {
 		'list',
 		contractId,
 		search
-	]
+	],
+	search: (term: string) => [...workspacePrefixes.payments, 'search', term]
 } as const;
+
+/**
+ * The payments a palette search reaches, across every contract.
+ *
+ * The amount arrives as it is stored and is rendered here, in the reader's locale — a figure
+ * shown one way in a ledger and another in the palette is two answers to the same question.
+ */
+export function useSearchPayments(term: () => string, limit: number) {
+	return createQuery(() => {
+		const trimmed = term().trim();
+
+		return {
+			queryKey: keys.search(trimmed),
+			enabled: trimmed.length > 0,
+			queryFn: async () => {
+				const matches = await api.contract.payments.search({ term: trimmed, limit });
+
+				return matches.map((match) => ({
+					...match,
+					label: formatLocaleNumber(get(locale), Number(match.label))
+				}));
+			},
+			placeholderData: <T>(previous: T) => previous
+		};
+	});
+}
 
 /** One payment, with the contract it was made against. */
 export function useFetchPayment(id: () => number) {

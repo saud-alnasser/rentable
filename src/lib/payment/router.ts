@@ -1,3 +1,4 @@
+import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
 import { ensureIdFree } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { PaymentSchema, type Payment } from '$lib/platform/database/schema';
@@ -79,6 +80,37 @@ export default router({
 			tenantName: row.tenantName
 		};
 	}),
+
+	/**
+	 * The payments a palette search reaches, by amount or by the day they were made.
+	 *
+	 * A payment has no name, so its handle is the amount as it is stored — the surface showing
+	 * it is what renders that in the reader's locale — and what places it is the contract it
+	 * was made against, which is also the only way back to it.
+	 */
+	search: procedure.public
+		.input(RecordSearchSchema)
+		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
+			const rows = await ctx.db
+				.select({
+					id: s.payment.id,
+					amount: s.payment.amount,
+					contractGovId: s.contract.govId,
+					tenantName: s.tenant.name
+				})
+				.from(s.payment)
+				.innerJoin(s.contract, eq(s.payment.contractId, s.contract.id))
+				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+				.where(paymentSearchCondition(input.term))
+				.orderBy(desc(s.payment.date), desc(s.payment.id))
+				.limit(input.limit);
+
+			return rows.map((row) => ({
+				id: row.id,
+				label: String(row.amount),
+				hint: row.contractGovId ?? row.tenantName
+			}));
+		}),
 
 	/**
 	 * A contract's payments, in one bounded query: the whole result set for a search, newest

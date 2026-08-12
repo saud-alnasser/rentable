@@ -1,4 +1,6 @@
 import type { Context } from '$lib/api/context';
+import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
+import { matchesSearch } from '$lib/platform/database/search';
 import { ensureIdFree } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/platform/database/schema';
@@ -295,6 +297,23 @@ export default router({
 		return await ctx.db.select().from(s.complex).where(eq(s.complex.id, input.id)).get();
 	}),
 
+	/** The complexes a palette search reaches, by name or location. */
+	search: procedure.public
+		.input(RecordSearchSchema)
+		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
+			return await ctx.db
+				.select({ id: s.complex.id, label: s.complex.name, hint: s.complex.location })
+				.from(s.complex)
+				.where(
+					or(
+						matchesSearch(s.complex.name, input.term),
+						matchesSearch(s.complex.location, input.term)
+					)
+				)
+				.orderBy(asc(s.complex.name), asc(s.complex.id))
+				.limit(input.limit);
+		}),
+
 	getMany: procedure.public
 		.input(
 			z.object({
@@ -351,6 +370,21 @@ export default router({
 
 			return { ...unit, status: withStatus?.status ?? unit.status };
 		}),
+
+		/** The units a palette search reaches, by their own name or the complex holding them. */
+		search: procedure.public
+			.input(RecordSearchSchema)
+			.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
+				return await ctx.db
+					.select({ id: s.unit.id, label: s.unit.name, hint: s.complex.name })
+					.from(s.unit)
+					.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+					.where(
+						or(matchesSearch(s.unit.name, input.term), matchesSearch(s.complex.name, input.term))
+					)
+					.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id))
+					.limit(input.limit);
+			}),
 
 		getMany: procedure.public
 			.input(UnitSchema.pick({ complexId: true }).extend({ search: z.string().optional() }))
