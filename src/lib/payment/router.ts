@@ -8,7 +8,7 @@ import {
 	ensureContractPaymentsCreatable
 } from '$lib/contract/contract';
 import { reconcileTouched } from '$lib/contract/reconcile';
-import { ensureValidPaymentAmount } from '$lib/payment/payment';
+import { ensurePaymentIsNotInTheFuture, ensureValidPaymentAmount } from '$lib/payment/payment';
 import { TRPCError } from '@trpc/server';
 import { and, desc, eq, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
@@ -178,6 +178,7 @@ export default router({
 			ensureContractIsNotTerminated(contract.status);
 			ensureContractPaymentsCreatable(contract, registered);
 			ensureValidPaymentAmount(input.amount);
+			ensurePaymentIsNotInTheFuture(input.date, now);
 
 			const created = await ctx.db
 				.insert(s.payment)
@@ -227,6 +228,7 @@ export default router({
 
 			ensureContractIsNotTerminated(contract.status);
 			ensureValidPaymentAmount(input.amount);
+			ensurePaymentIsNotInTheFuture(input.date, now);
 
 			const updated = await ctx.db
 				.update(s.payment)

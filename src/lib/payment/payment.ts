@@ -1,5 +1,5 @@
 import type { Payment } from '$lib/platform/database/schema';
-import type { DateLike } from '$lib/api/date';
+import { toUtcDay, type DateLike } from '$lib/api/date';
 import { TRPCError } from '@trpc/server';
 
 /**
@@ -39,6 +39,23 @@ export function ensureValidPaymentAmount(amount: number) {
 		throw new TRPCError({
 			code: 'BAD_REQUEST',
 			message: 'payment amount must be greater than zero'
+		});
+	}
+}
+
+/**
+ * A payment records money already received, so its date cannot be later than today.
+ *
+ * Compared as whole UTC days, as every date in this domain is: a payment dated today is taken
+ * whatever the time of day, and the answer does not change with the machine's timezone. Nothing
+ * here bounds how far back a date may go — a payment recorded late is ordinary, and the contract
+ * arithmetic already ignores dates outside the period.
+ */
+export function ensurePaymentIsNotInTheFuture(date: DateLike, now: DateLike) {
+	if (toUtcDay(date).getTime() > toUtcDay(now).getTime()) {
+		throw new TRPCError({
+			code: 'BAD_REQUEST',
+			message: 'a payment cannot be dated in the future'
 		});
 	}
 }
