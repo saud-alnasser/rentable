@@ -480,7 +480,10 @@ const en = {
 			duplicateUnitName: '{name:string} is already in the list.',
 			duplicateUnitNames: 'two units share a name; each needs its own.',
 			noUnitsYet: 'no units yet. add them here, or later from the complex itself.',
-			unitName: 'unit name'
+			unitName: 'unit name',
+			unitRangeEndBeforeStart: 'the last number must not be below the first.',
+			unitRangeHint: 'one name, or a run — "a 1-18" adds a 1 through a 18.',
+			unitRangeTooLarge: 'a run adds at most {max:number} units at a time.'
 		},
 
 		units: {

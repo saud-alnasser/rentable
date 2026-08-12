@@ -474,7 +474,10 @@ const ar = {
 			duplicateUnitName: '{name} موجود في القائمة بالفعل.',
 			duplicateUnitNames: 'هناك وحدتان بنفس الاسم؛ لكل وحدة اسمها.',
 			noUnitsYet: 'لا توجد وحدات بعد. أضفها هنا أو لاحقاً من المجمع نفسه.',
-			unitName: 'اسم الوحدة'
+			unitName: 'اسم الوحدة',
+			unitRangeEndBeforeStart: 'يجب ألا يقل الرقم الأخير عن الرقم الأول.',
+			unitRangeHint: 'اسم واحد، أو مجموعة — «أ 1-18» تضيف أ 1 حتى أ 18.',
+			unitRangeTooLarge: 'تضيف المجموعة الواحدة {max} وحدة كحد أقصى في المرة.'
 		},
 
 		units: {
