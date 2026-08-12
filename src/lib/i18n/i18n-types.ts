@@ -666,6 +666,51 @@ type RootTranslation = {
 			 */
 			days: RequiredParams<'count'>
 		}
+		undo: {
+			/**
+			 * c​r​e​a​t​i​n​g​ ​{​r​e​c​o​r​d​}
+			 * @param {string} record
+			 */
+			created: RequiredParams<'record'>
+			/**
+			 * d​e​l​e​t​i​n​g​ ​{​r​e​c​o​r​d​}
+			 * @param {string} record
+			 */
+			deleted: RequiredParams<'record'>
+			/**
+			 * e​d​i​t​i​n​g​ ​{​r​e​c​o​r​d​}
+			 * @param {string} record
+			 */
+			edited: RequiredParams<'record'>
+			/**
+			 * n​o​t​h​i​n​g​ ​t​o​ ​r​e​d​o
+			 */
+			nothingToRedo: string
+			/**
+			 * n​o​t​h​i​n​g​ ​t​o​ ​u​n​d​o
+			 */
+			nothingToUndo: string
+			/**
+			 * r​e​d​o​ ​{​c​h​a​n​g​e​}
+			 * @param {string} change
+			 */
+			redo: RequiredParams<'change'>
+			/**
+			 * {​c​h​a​n​g​e​}​ ​a​p​p​l​i​e​d​ ​a​g​a​i​n
+			 * @param {string} change
+			 */
+			redone: RequiredParams<'change'>
+			/**
+			 * u​n​d​o​ ​{​c​h​a​n​g​e​}
+			 * @param {string} change
+			 */
+			undo: RequiredParams<'change'>
+			/**
+			 * {​c​h​a​n​g​e​}​ ​u​n​d​o​n​e
+			 * @param {string} change
+			 */
+			undone: RequiredParams<'change'>
+		}
 		window: {
 			/**
 			 * c​l​o​s​e​ ​w​i​n​d​o​w
@@ -2506,6 +2551,44 @@ export type TranslationFunctions = {
 			 * {count} days
 			 */
 			days: (arg: { count: unknown }) => LocalizedString
+		}
+		undo: {
+			/**
+			 * creating {record}
+			 */
+			created: (arg: { record: string }) => LocalizedString
+			/**
+			 * deleting {record}
+			 */
+			deleted: (arg: { record: string }) => LocalizedString
+			/**
+			 * editing {record}
+			 */
+			edited: (arg: { record: string }) => LocalizedString
+			/**
+			 * nothing to redo
+			 */
+			nothingToRedo: () => LocalizedString
+			/**
+			 * nothing to undo
+			 */
+			nothingToUndo: () => LocalizedString
+			/**
+			 * redo {change}
+			 */
+			redo: (arg: { change: string }) => LocalizedString
+			/**
+			 * {change} applied again
+			 */
+			redone: (arg: { change: string }) => LocalizedString
+			/**
+			 * undo {change}
+			 */
+			undo: (arg: { change: string }) => LocalizedString
+			/**
+			 * {change} undone
+			 */
+			undone: (arg: { change: string }) => LocalizedString
 		}
 		window: {
 			/**

@@ -1,4 +1,5 @@
 import * as s from '$lib/platform/database/schema';
+import { ensureIdFree } from '$lib/platform/database/identity';
 import { TenantSchema } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import { CONTRACT_IN_FORCE_STATUSES } from '$lib/contract/contract';
@@ -53,10 +54,18 @@ function tenantOrderBy(sort: z.infer<typeof TenantSortSchema> | undefined): SQL[
 }
 
 export default router({
+	// an optional id, so undoing a deletion can put the row back with the identity it had — a
+	// page still open on that record is holding a reference to it (ADR 0026). Absent otherwise,
+	// and the engine assigns one.
 	create: procedure.public
 		.use(autosync())
-		.input(TenantSchema.omit({ id: true }))
+		.input(TenantSchema.partial({ id: true }))
 		.mutation(async ({ input, ctx }) => {
+			ensureIdFree(
+				input.id === undefined
+					? undefined
+					: await ctx.db.select().from(s.tenant).where(eq(s.tenant.id, input.id)).get()
+			);
 			ensureIdentityAvailable(
 				await ctx.db.select().from(s.tenant).where(eq(s.tenant.nationalId, input.nationalId)).get()
 			);

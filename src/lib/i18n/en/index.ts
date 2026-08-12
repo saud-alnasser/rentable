@@ -188,6 +188,18 @@ const en = {
 			days: '{count} days'
 		},
 
+		undo: {
+			created: 'creating {record:string}',
+			deleted: 'deleting {record:string}',
+			edited: 'editing {record:string}',
+			nothingToRedo: 'nothing to redo',
+			nothingToUndo: 'nothing to undo',
+			redo: 'redo {change:string}',
+			redone: '{change:string} applied again',
+			undo: 'undo {change:string}',
+			undone: '{change:string} undone'
+		},
+
 		window: {
 			close: 'close window',
 			minimize: 'minimize window',

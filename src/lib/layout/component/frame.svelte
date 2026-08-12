@@ -9,6 +9,7 @@
 	import LayoutBreadcrumb from '$lib/layout/component/breadcrumb.svelte';
 	import LayoutPalette, { PALETTE_SHORTCUT_HINT } from '$lib/layout/component/palette.svelte';
 	import LayoutSidebar from '$lib/layout/component/sidebar.svelte';
+	import LayoutUndoControls from '$lib/layout/component/undo-controls.svelte';
 	import LayoutWindowControls from '$lib/layout/component/window-controls.svelte';
 	import { toBreadcrumbTrail } from '$lib/layout/navigation';
 	import SearchIcon from '@tabler/icons-svelte/icons/search';
@@ -66,6 +67,7 @@
 					     keyboard does not change with the locale. -->
 					<Kbd dir="ltr">{PALETTE_SHORTCUT_HINT}</Kbd>
 				</Button>
+				<LayoutUndoControls />
 			</div>
 		{/if}
 

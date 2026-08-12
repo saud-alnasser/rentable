@@ -1,3 +1,4 @@
+import { inverseStack } from '$lib/design/inverse';
 import {
 	tauri,
 	type GoogleDriveConflictResolution,
@@ -15,10 +16,22 @@ import { PendingConflictFlow, type PendingConflictDriver } from './pending-confl
  * application already has — a remote that turned out to hold a different
  * workspace is not this one's to empty, so nothing there is touched and the
  * user links again from a workspace that is local once more.
+ *
+ * A resolution that pulls replaces the local database, so the session's inverses
+ * go with it: each is a statement about the workspace that was here (ADR 0026).
+ * This command reaches Rust directly rather than through the sync path, so it
+ * carries the clearing itself.
  */
 const googleDrivePendingConflictDriver: PendingConflictDriver = {
-	resolve: (_preparation, resolution) =>
-		tauri.remoteSync.googleDrive.resolveConflict({ resolution }),
+	resolve: async (_preparation, resolution) => {
+		const result = await tauri.remoteSync.googleDrive.resolveConflict({ resolution });
+
+		if (result.action === 'pulled') {
+			inverseStack.clear();
+		}
+
+		return result;
+	},
 	cancel: () => cancelGoogleDriveLink(),
 	reset: () => tauri.remoteSync.googleDrive.unlink()
 };

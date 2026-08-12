@@ -109,6 +109,11 @@ export function useFetchTenant(params: () => FetchTenantParams) {
 export const useCreateTenant = declareMutation({
 	mutate: (data: Parameters<typeof api.tenant.create>[0]) => api.tenant.create(data),
 	touches: ['tenants'],
+	inverse: ({ result }) => ({
+		describe: (t) => t.common.undo.created({ record: t.common.labels.tenant() }),
+		undo: () => api.tenant.delete({ id: result.id }),
+		redo: () => api.tenant.create(result)
+	}),
 	toast: {
 		success: () => get(LL).tenants.hooks.createSuccess(),
 		error: false,
@@ -119,6 +124,13 @@ export const useCreateTenant = declareMutation({
 export const useUpdateTenant = declareMutation({
 	mutate: (data: Parameters<typeof api.tenant.update>[0]) => api.tenant.update(data),
 	touches: ['tenants'],
+	capture: (variables) => api.tenant.get({ id: variables.id }),
+	inverse: ({ variables, captured }) =>
+		captured && {
+			describe: (t) => t.common.undo.edited({ record: t.common.labels.tenant() }),
+			undo: () => api.tenant.update(captured),
+			redo: () => api.tenant.update(variables)
+		},
 	toast: {
 		success: () => get(LL).tenants.hooks.updateSuccess(),
 		error: false,
@@ -129,6 +141,12 @@ export const useUpdateTenant = declareMutation({
 export const useDeleteTenant = declareMutation({
 	mutate: (id: number) => api.tenant.delete({ id }),
 	touches: ['tenants'],
+	inverse: ({ result }) =>
+		result && {
+			describe: (t) => t.common.undo.deleted({ record: t.common.labels.tenant() }),
+			undo: () => api.tenant.create(result),
+			redo: () => api.tenant.delete({ id: result.id })
+		},
 	toast: {
 		success: () => get(LL).tenants.hooks.deleteSuccess(),
 		error: false,

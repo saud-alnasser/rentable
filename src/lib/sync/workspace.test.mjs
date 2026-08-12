@@ -49,6 +49,7 @@ mock.module('$lib/platform/tauri', {
 });
 
 const { syncWorkspaceNow, syncWorkspaceBeforeExit } = await import('$lib/sync/workspace');
+const { inverseStack } = await import('$lib/design/inverse');
 
 function driveState() {
 	return {
@@ -80,6 +81,29 @@ test('a pull recomputes the statuses derived from the database it replaced', asy
 
 	assert.equal(result.action, 'pulled');
 	assert.deepEqual(calls, ['sync:false', 'sync:done', 'reconcile']);
+});
+
+// an inverse is a statement about a database, and a pull replaces the one it was written
+// against. Replaying it there would corrupt rather than undo.
+test('a pull leaves nothing on the undo stack that could be applied to it', async () => {
+	reset({ state: driveState(), action: 'pulled', preparation: null });
+	inverseStack.record({ describe: () => 'a change', undo: async () => {}, redo: async () => {} });
+
+	await syncWorkspaceNow(driveState());
+
+	assert.equal(inverseStack.undoable, null);
+	assert.equal(await inverseStack.undo(), null);
+});
+
+test('a push leaves the session’s inverses where they are', async () => {
+	reset({ state: driveState(), action: 'pushed', preparation: null });
+	inverseStack.clear();
+	inverseStack.record({ describe: () => 'a change', undo: async () => {}, redo: async () => {} });
+
+	await syncWorkspaceNow(driveState());
+
+	assert.ok(inverseStack.undoable, 'a push discarded inverses the workspace still holds');
+	inverseStack.clear();
 });
 
 test('a push leaves the local statuses alone', async () => {

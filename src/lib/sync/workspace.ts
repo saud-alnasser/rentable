@@ -1,4 +1,5 @@
 import api from '$lib/api/caller';
+import { inverseStack } from '$lib/design/inverse';
 import {
 	tauri,
 	type GoogleDriveLinkPreparation,
@@ -136,7 +137,8 @@ export async function syncWorkspaceBeforeExit(
  *
  * Derived statuses are recomputed after a pull because the database was replaced
  * underneath them — the derivation is this layer's, and Rust neither owns it nor
- * can run it.
+ * can run it. The session's inverses go for the same reason and cannot be
+ * recomputed: each is a statement about the database that was here before.
  */
 async function syncGoogleDriveWorkspace(options: {
 	manual?: boolean;
@@ -146,6 +148,7 @@ async function syncGoogleDriveWorkspace(options: {
 	);
 
 	if (outcome.action === 'pulled') {
+		inverseStack.clear();
 		await api.app.state.reconcile();
 	}
 

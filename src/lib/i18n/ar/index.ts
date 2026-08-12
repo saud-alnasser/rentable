@@ -187,6 +187,18 @@ const ar = {
 			days: '{count} أيام'
 		},
 
+		undo: {
+			created: 'إنشاء {record}',
+			deleted: 'حذف {record}',
+			edited: 'تعديل {record}',
+			nothingToRedo: 'لا يوجد ما يمكن إعادته',
+			nothingToUndo: 'لا يوجد ما يمكن التراجع عنه',
+			redo: 'إعادة {change}',
+			redone: 'تمت إعادة {change}',
+			undo: 'التراجع عن {change}',
+			undone: 'تم التراجع عن {change}'
+		},
+
 		window: {
 			close: 'إغلاق النافذة',
 			minimize: 'تصغير النافذة',

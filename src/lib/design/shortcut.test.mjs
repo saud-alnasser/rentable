@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { matchesShortcutKey } from './shortcut.ts';
+import { isEditingText, matchesShortcutKey } from './shortcut.ts';
 
 test('the character the key produces is matched, so a latin layout still fires', () => {
 	assert.equal(matchesShortcutKey({ key: 'b', code: 'KeyB' }, 'b'), true);
@@ -23,4 +23,20 @@ test('another key is not the shortcut, under either layout', () => {
 test('the character asked for decides, so two shortcuts do not answer each other', () => {
 	assert.equal(matchesShortcutKey({ key: 'k', code: 'KeyK' }, 'b'), false);
 	assert.equal(matchesShortcutKey({ key: 'ب', code: 'KeyB' }, 'k'), false);
+});
+
+test('a field that takes typing keeps its own editing shortcuts', () => {
+	assert.equal(isEditingText({ tagName: 'INPUT' }), true);
+	assert.equal(isEditingText({ tagName: 'TEXTAREA' }), true);
+});
+
+test('a control that takes typing without being an input says so, and is believed', () => {
+	assert.equal(isEditingText({ tagName: 'DIV', isContentEditable: true }), true);
+});
+
+test('everything else leaves the shortcut to the application', () => {
+	assert.equal(isEditingText({ tagName: 'BUTTON' }), false);
+	assert.equal(isEditingText({ tagName: 'DIV', isContentEditable: false }), false);
+	assert.equal(isEditingText(null), false);
+	assert.equal(isEditingText(undefined), false);
 });
