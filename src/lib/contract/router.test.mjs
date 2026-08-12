@@ -608,6 +608,62 @@ test('a contract holding several units appears once when narrowed to one of them
 	);
 });
 
+test('the contract list narrows to the contracts that hold a unit in one complex', async () => {
+	const api = await createApi();
+	const { complex, unit } = await seedComplexWithUnit(api, 'C');
+	const elsewhere = await seedComplexWithUnit(api, 'D');
+	const holds = await seedContract(api);
+	const other = await seedContract(api);
+
+	await api.contract.units.set({ contractId: holds.id, unitIds: [unit.id] });
+	await api.contract.units.set({ contractId: other.id, unitIds: [elsewhere.unit.id] });
+
+	const listed = await api.contract.getMany({ complexId: complex.id });
+
+	assert.deepEqual(
+		listed.map((contract) => contract.id),
+		[holds.id]
+	);
+});
+
+test('narrowing to a complex holding no units answers with an empty list', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'E');
+	const empty = await api.complex.create({ name: 'Empty Court', location: 'Riyadh' });
+	const holds = await seedContract(api);
+
+	await api.contract.units.set({ contractId: holds.id, unitIds: [unit.id] });
+
+	assert.deepEqual(await api.contract.getMany({ complexId: empty.id }), []);
+});
+
+test('a contract holding units in two complexes appears once in each', async () => {
+	const api = await createApi();
+	const first = await seedComplexWithUnit(api, 'F');
+	const second = await seedComplexWithUnit(api, 'G');
+	const spare = await api.complex.units.create({
+		name: 'Unit F2',
+		complexId: first.complex.id
+	});
+	const contract = await seedContract(api);
+
+	await api.contract.units.set({
+		contractId: contract.id,
+		unitIds: [first.unit.id, spare.id, second.unit.id]
+	});
+
+	// two units of this contract sit in the first complex, so a join through the assignment
+	// table would answer with the contract twice.
+	for (const complexId of [first.complex.id, second.complex.id]) {
+		const listed = await api.contract.getMany({ complexId });
+
+		assert.deepEqual(
+			listed.map((candidate) => candidate.id),
+			[contract.id]
+		);
+	}
+});
+
 test('the payment count follows a deleted payment back down', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);

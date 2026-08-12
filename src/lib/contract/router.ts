@@ -187,6 +187,15 @@ const contractHoldsUnit = (unitId: number) => sql`exists (
 	where ${s.contractUnit.contractId} = ${s.contract.id} and ${s.contractUnit.unitId} = ${unitId}
 )`;
 
+// The same question one join further out: whether the contract holds any unit in the given
+// complex. An EXISTS for the same reason — a contract holding three units in the complex would
+// otherwise become three rows, and the list's ordering cannot tell those apart.
+const contractHoldsUnitInComplex = (complexId: number) => sql`exists (
+	select 1 from ${s.contractUnit}
+	inner join ${s.unit} on ${s.unit.id} = ${s.contractUnit.unitId}
+	where ${s.contractUnit.contractId} = ${s.contract.id} and ${s.unit.complexId} = ${complexId}
+)`;
+
 const CONTRACT_SORT_COLUMNS: Record<ContractSortColumnId, SQL | AnyColumn> = {
 	tenantName: s.tenant.name,
 	govId: s.contract.govId,
@@ -615,7 +624,11 @@ export default router({
 				// the same, for the surface that asks what has been agreed over one unit. It
 				// matches through the assignment table rather than joining it, so a contract
 				// holding several units is still one row.
-				unitId: z.number().optional()
+				unitId: z.number().optional(),
+				// and the same again for a whole building, for the record that says how much runs
+				// against it. Reachable no other way: a record that loaded every contract to keep
+				// its own would be the client-side narrowing ADR 0010 refuses.
+				complexId: z.number().optional()
 			})
 		)
 		.query(async ({ input, ctx }) => {
@@ -634,6 +647,7 @@ export default router({
 					and(
 						input.tenantId !== undefined ? eq(s.contract.tenantId, input.tenantId) : undefined,
 						input.unitId !== undefined ? contractHoldsUnit(input.unitId) : undefined,
+						input.complexId !== undefined ? contractHoldsUnitInComplex(input.complexId) : undefined,
 						search ? contractSearchCondition(search) : undefined
 					)
 				)
