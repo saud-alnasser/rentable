@@ -6,6 +6,7 @@ owner: repository
 
 | Design | Status | Sources |
 | --- | --- | --- |
+| [answers-menus-and-scrollbars](answers-menus-and-scrollbars.md) | accepted | `src/lib/sync/pending-conflict.ts`, `src/lib/sync/link-session.ts`, `src/lib/layout/component/startup-workspace-choice.svelte`, `src/routes/+layout.svelte`, `src/lib/settings/component/sync.svelte`, `src/app.css`, `src/lib/design/block/list.svelte`, `src/lib/design/block/delete-dialog.svelte`, `src/lib/design/primitive/context-menu/`, `src/lib/tenant/component/directory.svelte`, `src/lib/complex/component/directory.svelte`, `src/lib/contract/component/directory.svelte`, `.claude/decisions/0025-a-row-opens-its-record-and-does-nothing-else.md` |
 | [contract-work-queue-and-directory](contract-work-queue-and-directory.md) | implemented | `src/lib/dashboard/`, `src/lib/contract/`, `src/lib/payment/component/`, `src/lib/design/block/`, `src/routes/+page.svelte`, `src/routes/contracts/+page.svelte` |
 | [counts-cards-and-confirmations](counts-cards-and-confirmations.md) | accepted | `src/lib/design/block/list.svelte`, `src/lib/design/cell/count.svelte`, `src/lib/design/block/record-surface.svelte`, `src/lib/design/primitive/alert-dialog/`, `src/lib/tenant/router.ts`, `src/lib/contract/component/units.svelte` |
 | [dashboard-as-the-days-work](dashboard-as-the-days-work.md) | superseded by contract-work-queue-and-directory.md | `src/lib/dashboard/`, `src/routes/+page.svelte`, `src/lib/design/block/`, `src/lib/design/cell/`, `src/lib/contract/` |
