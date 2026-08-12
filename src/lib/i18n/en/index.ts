@@ -551,7 +551,6 @@ const en = {
 		},
 
 		hooks: {
-			assignUnitsSuccess: 'units added to contract successfully!',
 			createPaymentSuccess: 'payment created successfully!',
 			createSuccess: 'contract created successfully!',
 			deletePaymentSuccess: 'payment deleted successfully!',
@@ -604,7 +603,7 @@ const en = {
 			assigned: 'assigned',
 
 			transferDescription:
-				'move units between the two sides, then save once. units linked to a contract whose term overlaps this one are not offered.',
+				'move a unit between the two sides; each move is saved as it happens. units linked to a contract whose term overlaps this one are not offered.',
 
 			lockNoticeHasPayments:
 				'contracts with registered payments are locked. you can review linked units here, but you cannot assign or remove units after payments have been recorded.',
@@ -612,9 +611,7 @@ const en = {
 				'terminated contracts are locked. you can review linked units here, but you cannot assign or remove units until the contract is unterminated.',
 
 			noAssignedUnits: 'no units are assigned to this contract yet.',
-			noAvailableUnits: 'no units are available for this contract timeframe.',
-
-			assignTitle: 'assign units'
+			noAvailableUnits: 'no units are available for this contract timeframe.'
 		}
 	},
 

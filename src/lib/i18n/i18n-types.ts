@@ -1693,10 +1693,6 @@ type RootTranslation = {
 		}
 		hooks: {
 			/**
-			 * u​n​i​t​s​ ​a​d​d​e​d​ ​t​o​ ​c​o​n​t​r​a​c​t​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
-			 */
-			assignUnitsSuccess: string
-			/**
 			 * p​a​y​m​e​n​t​ ​c​r​e​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
 			createPaymentSuccess: string
@@ -1842,7 +1838,7 @@ type RootTranslation = {
 			 */
 			assigned: string
 			/**
-			 * m​o​v​e​ ​u​n​i​t​s​ ​b​e​t​w​e​e​n​ ​t​h​e​ ​t​w​o​ ​s​i​d​e​s​,​ ​t​h​e​n​ ​s​a​v​e​ ​o​n​c​e​.​ ​u​n​i​t​s​ ​l​i​n​k​e​d​ ​t​o​ ​a​ ​c​o​n​t​r​a​c​t​ ​w​h​o​s​e​ ​t​e​r​m​ ​o​v​e​r​l​a​p​s​ ​t​h​i​s​ ​o​n​e​ ​a​r​e​ ​n​o​t​ ​o​f​f​e​r​e​d​.
+			 * m​o​v​e​ ​a​ ​u​n​i​t​ ​b​e​t​w​e​e​n​ ​t​h​e​ ​t​w​o​ ​s​i​d​e​s​;​ ​e​a​c​h​ ​m​o​v​e​ ​i​s​ ​s​a​v​e​d​ ​a​s​ ​i​t​ ​h​a​p​p​e​n​s​.​ ​u​n​i​t​s​ ​l​i​n​k​e​d​ ​t​o​ ​a​ ​c​o​n​t​r​a​c​t​ ​w​h​o​s​e​ ​t​e​r​m​ ​o​v​e​r​l​a​p​s​ ​t​h​i​s​ ​o​n​e​ ​a​r​e​ ​n​o​t​ ​o​f​f​e​r​e​d​.
 			 */
 			transferDescription: string
 			/**
@@ -1861,10 +1857,6 @@ type RootTranslation = {
 			 * n​o​ ​u​n​i​t​s​ ​a​r​e​ ​a​v​a​i​l​a​b​l​e​ ​f​o​r​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​t​i​m​e​f​r​a​m​e​.
 			 */
 			noAvailableUnits: string
-			/**
-			 * a​s​s​i​g​n​ ​u​n​i​t​s
-			 */
-			assignTitle: string
 		}
 	}
 	settingsHooks: {
@@ -3571,10 +3563,6 @@ export type TranslationFunctions = {
 		}
 		hooks: {
 			/**
-			 * units added to contract successfully!
-			 */
-			assignUnitsSuccess: () => LocalizedString
-			/**
 			 * payment created successfully!
 			 */
 			createPaymentSuccess: () => LocalizedString
@@ -3715,7 +3703,7 @@ export type TranslationFunctions = {
 			 */
 			assigned: () => LocalizedString
 			/**
-			 * move units between the two sides, then save once. units linked to a contract whose term overlaps this one are not offered.
+			 * move a unit between the two sides; each move is saved as it happens. units linked to a contract whose term overlaps this one are not offered.
 			 */
 			transferDescription: () => LocalizedString
 			/**
@@ -3734,10 +3722,6 @@ export type TranslationFunctions = {
 			 * no units are available for this contract timeframe.
 			 */
 			noAvailableUnits: () => LocalizedString
-			/**
-			 * assign units
-			 */
-			assignTitle: () => LocalizedString
 		}
 	}
 	settingsHooks: {
