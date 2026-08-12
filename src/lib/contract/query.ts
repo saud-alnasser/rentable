@@ -2,6 +2,7 @@ import api from '$lib/api/caller';
 import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 import { declareMutation } from '$lib/design/mutation';
 import { workspacePrefixes } from '$lib/design/query';
+import type { ContractRank } from '$lib/contract/rank';
 import type { ListSort } from '$lib/design/sort';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createQuery } from '@tanstack/svelte-query';
@@ -11,10 +12,14 @@ import { get } from 'svelte/store';
  * Which contracts a list is asking for, beyond its search and its order.
  *
  * The directory asks for all of them; a tenant's profile and a unit's view each ask for the
- * ones that concern the record being looked at. Both narrow in SQL — the surface never
- * receives a wider set to filter.
+ * ones that concern the record being looked at, and a surface that ranked a contract asks for
+ * one rank.
+ *
+ * Every one of them narrows in the procedure, so the surface never receives a wider set to
+ * filter. The first two narrow in SQL; a rank cannot, because it is decided from what the
+ * contract owes today and no column holds that.
  */
-export type ContractListScope = { tenantId?: number; unitId?: number };
+export type ContractListScope = { tenantId?: number; unitId?: number; rank?: ContractRank };
 
 export const keys = {
 	list: (search: string, sort: ListSort | null, scope: ContractListScope = {}) => [
@@ -26,7 +31,8 @@ export const keys = {
 		// unit's are different queries, and sharing a cache entry would serve one surface the
 		// other's rows.
 		scope.tenantId ?? 'all',
-		scope.unitId ?? 'all'
+		scope.unitId ?? 'all',
+		scope.rank ?? 'all'
 	],
 	get: (id: number) => [...workspacePrefixes.contracts, id],
 	getUnits: (id: number) => [...workspacePrefixes.contracts, 'units', id],
