@@ -17,6 +17,14 @@ Consumed: `.claude/decisions/0025-a-row-opens-its-record-and-does-nothing-else.m
 decision is untouched and stays live. The questions under **What stayed open** are not part of
 that claim and remain open.
 
+Consumed: `.claude/decisions/0030-the-landing-screen-is-figures-over-sections.md` — the remainder.
+All four questions under **What stayed open** are now answered, by the prototype this discussion
+called for (`.claude/evidence/prototypes/the-landing-screen-shape.md`): the screen is figures over
+sections, the admission test is *a figure routes somewhere or a section holds rows*, the two
+standing figures survive as rings, and collapsible groups resolve by removal. 0030 also overrides
+ADR 0014's own decision, which the line above correctly said was untouched at the time it was
+written.
+
 ## What was asked
 
 Whether the dashboard's grouped work queue should gain collapsible groups, or be replaced by
