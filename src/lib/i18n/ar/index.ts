@@ -186,6 +186,7 @@ const ar = {
 		},
 
 		undo: {
+			assigned: 'تغيير وحدات {record}',
 			created: 'إنشاء {record}',
 			deleted: 'حذف {record}',
 			edited: 'تعديل {record}',
@@ -193,8 +194,10 @@ const ar = {
 			nothingToUndo: 'لا يوجد ما يمكن التراجع عنه',
 			redo: 'إعادة {change}',
 			redone: 'تمت إعادة {change}',
+			terminated: 'إنهاء {record}',
 			undo: 'التراجع عن {change}',
-			undone: 'تم التراجع عن {change}'
+			undone: 'تم التراجع عن {change}',
+			unterminated: 'استعادة {record}'
 		},
 
 		window: {

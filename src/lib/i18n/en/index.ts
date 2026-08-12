@@ -187,6 +187,7 @@ const en = {
 		},
 
 		undo: {
+			assigned: 'changing the units of {record:string}',
 			created: 'creating {record:string}',
 			deleted: 'deleting {record:string}',
 			edited: 'editing {record:string}',
@@ -194,8 +195,10 @@ const en = {
 			nothingToUndo: 'nothing to undo',
 			redo: 'redo {change:string}',
 			redone: '{change:string} applied again',
+			terminated: 'terminating {record:string}',
 			undo: 'undo {change:string}',
-			undone: '{change:string} undone'
+			undone: '{change:string} undone',
+			unterminated: 'restoring {record:string}'
 		},
 
 		window: {

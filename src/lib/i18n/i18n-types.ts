@@ -660,6 +660,11 @@ type RootTranslation = {
 		}
 		undo: {
 			/**
+			 * c​h​a​n​g​i​n​g​ ​t​h​e​ ​u​n​i​t​s​ ​o​f​ ​{​r​e​c​o​r​d​}
+			 * @param {string} record
+			 */
+			assigned: RequiredParams<'record'>
+			/**
 			 * c​r​e​a​t​i​n​g​ ​{​r​e​c​o​r​d​}
 			 * @param {string} record
 			 */
@@ -693,6 +698,11 @@ type RootTranslation = {
 			 */
 			redone: RequiredParams<'change'>
 			/**
+			 * t​e​r​m​i​n​a​t​i​n​g​ ​{​r​e​c​o​r​d​}
+			 * @param {string} record
+			 */
+			terminated: RequiredParams<'record'>
+			/**
 			 * u​n​d​o​ ​{​c​h​a​n​g​e​}
 			 * @param {string} change
 			 */
@@ -702,6 +712,11 @@ type RootTranslation = {
 			 * @param {string} change
 			 */
 			undone: RequiredParams<'change'>
+			/**
+			 * r​e​s​t​o​r​i​n​g​ ​{​r​e​c​o​r​d​}
+			 * @param {string} record
+			 */
+			unterminated: RequiredParams<'record'>
 		}
 		window: {
 			/**
@@ -2522,6 +2537,10 @@ export type TranslationFunctions = {
 		}
 		undo: {
 			/**
+			 * changing the units of {record}
+			 */
+			assigned: (arg: { record: string }) => LocalizedString
+			/**
 			 * creating {record}
 			 */
 			created: (arg: { record: string }) => LocalizedString
@@ -2550,6 +2569,10 @@ export type TranslationFunctions = {
 			 */
 			redone: (arg: { change: string }) => LocalizedString
 			/**
+			 * terminating {record}
+			 */
+			terminated: (arg: { record: string }) => LocalizedString
+			/**
 			 * undo {change}
 			 */
 			undo: (arg: { change: string }) => LocalizedString
@@ -2557,6 +2580,10 @@ export type TranslationFunctions = {
 			 * {change} undone
 			 */
 			undone: (arg: { change: string }) => LocalizedString
+			/**
+			 * restoring {record}
+			 */
+			unterminated: (arg: { record: string }) => LocalizedString
 		}
 		window: {
 			/**

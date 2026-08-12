@@ -44,7 +44,13 @@ const { inverseStack } = await import('$lib/design/inverse');
 const { useCreateTenant, useUpdateTenant, useDeleteTenant } = await import('$lib/tenant/query');
 const { useCreateComplex, useDeleteComplex, useCreateUnit, useUpdateUnit, useDeleteUnit } =
 	await import('$lib/complex/query');
-const { useCreateContract, useUpdateContract } = await import('$lib/contract/query');
+const {
+	useCreateContract,
+	useUpdateContract,
+	useSetContractUnits,
+	useTerminateContract,
+	useUnterminateContract
+} = await import('$lib/contract/query');
 const { useCreatePayment, useDeletePayment } = await import('$lib/payment/query');
 const { syncWorkspaceNow } = await import('$lib/sync/workspace');
 
@@ -163,6 +169,139 @@ describe('undoing a record change', () => {
 		});
 		await inverseStack.undo();
 		assert.equal((await caller.contract.get({ id: contract.id })).cost, 1000);
+	});
+
+	// the two changes that are not row-shaped: what a contract holds, and whether it stands.
+	it('restores exactly the set of units the contract held, across complexes', async () => {
+		const tenant = await seedTenant(caller);
+		const contract = await run(useCreateContract, {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000
+		});
+		const one = await caller.complex.create({ name: 'Coral Tower', location: 'Jeddah' });
+		const other = await caller.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+		const first = await caller.complex.units.create({ name: 'A1', complexId: one.id });
+		const second = await caller.complex.units.create({ name: 'B2', complexId: other.id });
+		const third = await caller.complex.units.create({ name: 'C3', complexId: other.id });
+
+		const heldIds = async () =>
+			(await caller.contract.units.getMany({ contractId: contract.id }))
+				.map((unit) => unit.id)
+				.sort();
+
+		await run(useSetContractUnits, {
+			contractId: contract.id,
+			unitIds: [first.id, second.id]
+		});
+		await run(useSetContractUnits, { contractId: contract.id, unitIds: [third.id] });
+
+		await inverseStack.undo();
+		assert.deepEqual(await heldIds(), [first.id, second.id].sort());
+
+		await inverseStack.redo();
+		assert.deepEqual(await heldIds(), [third.id]);
+	});
+
+	it('reinstates a terminated contract through the procedure that exists for it', async () => {
+		const tenant = await seedTenant(caller);
+		const contract = await run(useCreateContract, {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000
+		});
+
+		await run(useTerminateContract, contract.id);
+		assert.equal((await caller.contract.get({ id: contract.id })).status, 'terminated');
+
+		await inverseStack.undo();
+		const reinstated = await caller.contract.get({ id: contract.id });
+
+		assert.notEqual(reinstated.status, 'terminated');
+
+		await inverseStack.redo();
+		assert.equal((await caller.contract.get({ id: contract.id })).status, 'terminated');
+	});
+
+	it('takes back reinstating a contract as readily as terminating one', async () => {
+		const tenant = await seedTenant(caller);
+		const contract = await run(useCreateContract, {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000
+		});
+
+		await caller.contract.terminate({ id: contract.id });
+		await run(useUnterminateContract, contract.id);
+
+		await inverseStack.undo();
+		assert.equal((await caller.contract.get({ id: contract.id })).status, 'terminated');
+
+		await inverseStack.redo();
+		assert.notEqual((await caller.contract.get({ id: contract.id })).status, 'terminated');
+	});
+
+	// what the control offers before it is used, in the words the user reads.
+	it('names the change each inverse would take back', async () => {
+		const translations = {
+			common: {
+				labels: { contract: () => 'contract' },
+				undo: {
+					assigned: ({ record }) => `changing the units of ${record}`,
+					terminated: ({ record }) => `terminating ${record}`,
+					unterminated: ({ record }) => `restoring ${record}`
+				}
+			}
+		};
+		const tenant = await seedTenant(caller);
+		const contract = await run(useCreateContract, {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000
+		});
+
+		await run(useSetContractUnits, { contractId: contract.id, unitIds: [] });
+		assert.equal(inverseStack.undoable.describe(translations), 'changing the units of contract');
+
+		await run(useTerminateContract, contract.id);
+		assert.equal(inverseStack.undoable.describe(translations), 'terminating contract');
+
+		await run(useUnterminateContract, contract.id);
+		assert.equal(inverseStack.undoable.describe(translations), 'restoring contract');
+	});
+
+	it('cannot apply a set-shaped inverse once the remote has replaced the workspace', async () => {
+		const linked = {
+			googleDriveReady: true,
+			workspace: { id: 'workspace-1', provider: 'googleDrive', accountId: 'account-1' }
+		};
+		const tenant = await seedTenant(caller);
+		const contract = await run(useCreateContract, {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000
+		});
+		const complex = await caller.complex.create({ name: 'Coral Tower', location: 'Jeddah' });
+		const unit = await caller.complex.units.create({ name: 'A1', complexId: complex.id });
+
+		await run(useSetContractUnits, { contractId: contract.id, unitIds: [unit.id] });
+		await run(useTerminateContract, contract.id);
+
+		remoteOutcome = { state: linked, action: 'pulled', preparation: null };
+		await syncWorkspaceNow(linked);
+
+		assert.equal(inverseStack.undoable, null);
+		assert.equal(await inverseStack.undo(), null);
 	});
 
 	// the risk this whole design carries: an inverse is a statement about a database, and the
