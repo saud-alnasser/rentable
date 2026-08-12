@@ -4,7 +4,7 @@
 	import { Badge } from '$lib/design/primitive/badge';
 	import List from '$lib/design/block/list.svelte';
 	import * as Cell from '$lib/design/cell';
-	import { isDashboardMoneyGroup, type DashboardQueueGroup } from '$lib/dashboard/dashboard';
+	import { isMoneyRank, type ContractRank } from '$lib/contract/rank';
 	import { useFetchContractWorkQueue } from '$lib/dashboard/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleRangeWithUnit } from '$lib/platform/locale';
@@ -23,14 +23,14 @@
 	const workQueue = $derived(workQueueQuery.data);
 	const queue = $derived(workQueue?.queue ?? []);
 
-	const groupLabels = $derived<Record<DashboardQueueGroup, string>>({
+	const rankLabels = $derived<Record<ContractRank, string>>({
 		overdue: $LL.dashboard.queue.groups.overdue(),
 		owing: $LL.dashboard.queue.groups.owing(),
 		'ending-soon': $LL.dashboard.queue.groups.endingSoon()
 	});
 
 	const summaryOf = $derived(
-		new Map((workQueue?.groups ?? []).map((summary) => [summary.group, summary]))
+		new Map((workQueue?.ranks ?? []).map((summary) => [summary.rank, summary]))
 	);
 
 	const collectedThisMonth = $derived(
@@ -49,7 +49,7 @@
 		})
 	);
 
-	const groupOf = (entry: QueueEntry) => ({ key: entry.group });
+	const groupOf = (entry: QueueEntry) => ({ key: entry.rank });
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col gap-3">
@@ -82,16 +82,16 @@
 		emptyTitle={$LL.dashboard.empty.title()}
 		emptyDescription={$LL.dashboard.empty.description()}
 	>
-		{#snippet groupHeader(group: { key: DashboardQueueGroup })}
+		{#snippet groupHeader(group: { key: ContractRank })}
 			{@const summary = summaryOf.get(group.key)}
 			<div class="flex h-full items-center gap-2 border-b bg-background px-4">
-				<span class="text-xs font-medium">{groupLabels[group.key]}</span>
+				<span class="text-xs font-medium">{rankLabels[group.key]}</span>
 				<span class="text-xs text-muted-foreground">
 					{$LL.dashboard.queue.groupCount({ count: summary?.contractCount ?? 0 })}
 				</span>
 				<!-- only the money groups carry a total. a renewals contract owes nothing by
 				definition, so the figure there would always read zero and say nothing. -->
-				{#if isDashboardMoneyGroup(group.key)}
+				{#if isMoneyRank(group.key)}
 					<span class="ms-auto text-xs text-muted-foreground">
 						<Cell.Money amount={summary?.totalAmount ?? 0} />
 					</span>
@@ -115,7 +115,7 @@
 					<span class="flex min-w-0 items-center gap-2">
 						<span class="truncate text-sm font-medium">{entry.tenantName}</span>
 						<Cell.Status status={entry.status} />
-						{#if entry.isEndingSoon && isDashboardMoneyGroup(entry.group)}
+						{#if entry.isEndingSoon && isMoneyRank(entry.rank)}
 							<Badge variant="outline">{$LL.dashboard.queue.alsoEnding()}</Badge>
 						{/if}
 					</span>
@@ -131,7 +131,7 @@
 				<!-- a renewals contract owes nothing by construction, so the amount position is
 				empty rather than reading zero — the same reason its group heading carries no
 				total. The row's work is the end date beside it. -->
-				{#if isDashboardMoneyGroup(entry.group)}
+				{#if isMoneyRank(entry.rank)}
 					<span class="pointer-events-none relative shrink-0 text-sm font-medium">
 						<Cell.Money amount={entry.outstandingAmount} />
 					</span>
