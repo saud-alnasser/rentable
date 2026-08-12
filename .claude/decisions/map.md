@@ -35,3 +35,5 @@ owner: repository
 | [0027](0027-a-write-that-spans-tables-is-one-batch.md) | a mutation writes more than one table, or atomicity of a multi-step write is in question | accepted | `src/lib/platform/database/`, `tauri/src/database/` |
 | [0028](0028-a-mutation-is-declared-once-on-the-caller-side.md) | a data mutation is added, or where a mutation's cache invalidation, toast, or inverse is written is in question | accepted | `src/lib/design/mutation.ts`, `src/lib/design/query.ts` |
 | [0029](0029-a-contracts-units-are-transferred-on-the-tab-that-shows-them.md) | a contract's units are being assigned, or a writing control is being put on a reading surface | accepted | `src/lib/contract/component/` |
+| [0030](0030-the-landing-screen-is-figures-over-sections.md) | the landing screen's shape or content is in question | accepted | `src/lib/dashboard/` |
+| [0031](0031-a-contracts-attention-rank-is-the-contracts-own.md) | a contract's rank, grouping or follow-up order is in question, or a surface outside the dashboard needs one | accepted | `src/lib/contract/`, `src/lib/dashboard/` |
