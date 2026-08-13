@@ -6,7 +6,8 @@
 	import { hasCreateIntent } from '$lib/design/create-intent';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
-	import RecordCardMenu, { type RecordCardAction } from '$lib/design/block/record-card-menu.svelte';
+	import RecordCardMenu from '$lib/design/block/record-card-menu.svelte';
+	import type { RecordCardAction } from '$lib/design/block/record-card.svelte';
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import type { ListSort } from '$lib/design/sort';
 	import {
