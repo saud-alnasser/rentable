@@ -16,6 +16,8 @@
 </script>
 
 <script lang="ts">
+	import { resolve } from '$app/paths';
+	import { back } from '$lib/design/back.svelte';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import {
@@ -194,6 +196,15 @@
 		confirming = null;
 	};
 
+	const deleteConfirming = () =>
+		runOnConfirming(async (id) => {
+			await deleteMutation.mutateAsync(id);
+			// the contract's own page may be behind the reader; it is not somewhere back can return
+			// to now that the record is gone. Every surface listing a contract gets this, because
+			// every one of them can be reached from that page.
+			back.forget(resolve(`/contracts/${id}`));
+		});
+
 	// opening is untracked because it advances the render key by reading it, and an effect that
 	// reads what it writes never settles.
 	$effect(() => {
@@ -231,7 +242,7 @@
 	}}
 	record={confirmingRecord}
 	blockers={deleteBlockers}
-	onSubmit={() => runOnConfirming((id) => deleteMutation.mutateAsync(id))}
+	onSubmit={deleteConfirming}
 />
 
 <DeleteDialog
