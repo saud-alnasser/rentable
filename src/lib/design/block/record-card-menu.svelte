@@ -15,6 +15,22 @@
 		variant?: 'default' | 'destructive';
 		onSelect: () => void;
 	};
+
+	/**
+	 * The trigger's props with the tab index it contributes removed.
+	 *
+	 * bits-ui gives a context-menu trigger `tabindex: -1` for the `div` it wraps content in by
+	 * default, which should not be a tab stop; `mergeProps` keeps that value unless the caller
+	 * states one of its own. Spread onto a card that is a link, it takes the card out of the tab
+	 * order — so whether a card can be focused stays the card element's own business (ADR 0034).
+	 */
+	function withoutContributedTabIndex(props: Record<string, unknown>) {
+		const cardProps = { ...props };
+
+		delete cardProps.tabindex;
+
+		return cardProps;
+	}
 </script>
 
 <script lang="ts">
@@ -24,14 +40,13 @@
 	/**
 	 * A record card's own actions, on the gesture the platform already uses for them.
 	 *
-	 * The card is the trigger rather than sitting inside one: a directory card is one line high
-	 * and already carries a name, its identifiers and a row of figures, so there is no room in
-	 * it for controls — and wrapping it in an element of its own would put a box inside a
-	 * virtualized row that lays its cards out at a declared height (ADR 0033).
+	 * The card is the trigger rather than sitting inside one, so nothing is added to a row the
+	 * list lays out at a declared height. Clicking the card still opens the record (ADR 0025),
+	 * and the card decides its own place in the tab order — the menu wrapped around it does not
+	 * get a say.
 	 *
-	 * Every action here is also a control on the record's own page. That is the condition the
-	 * decision rests on: the gesture is an accelerator, so a reader who never finds it loses
-	 * nothing, and clicking the card still opens the record (ADR 0025).
+	 * The gesture is an accelerator and holds nothing a visible control does not; the control
+	 * itself arrives with the block that owns a card's markup (ADR 0034).
 	 */
 	let {
 		actions,
@@ -47,7 +62,7 @@
 <ContextMenu.Root>
 	<ContextMenu.Trigger>
 		{#snippet child({ props })}
-			{@render card(props)}
+			{@render card(withoutContributedTabIndex(props))}
 		{/snippet}
 	</ContextMenu.Trigger>
 
