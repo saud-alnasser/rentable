@@ -198,12 +198,16 @@ export const useUnterminateContract = declareMutation({
 	}
 });
 
-export function useFetchContractUnits(contractId: () => number) {
+export function useFetchContractUnits(
+	contractId: () => number,
+	enabled: () => boolean = () => true
+) {
 	return createQuery(() => {
 		const id = contractId();
 
 		return {
 			queryKey: keys.getUnits(id),
+			enabled: enabled(),
 			queryFn: () => api.contract.units.getMany({ contractId: id })
 		};
 	});

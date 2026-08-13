@@ -17,8 +17,19 @@
 	 * it: a contract met in a tenant's profile and one met in the directory are the same
 	 * record, and a row copied per surface is where the two start to disagree.
 	 */
-	let { contract }: { contract: Awaited<ReturnType<typeof api.contract.getMany>>[number] } =
-		$props();
+	let {
+		contract,
+		trigger
+	}: {
+		contract: Awaited<ReturnType<typeof api.contract.getMany>>[number];
+		/**
+		 * props that make this card something's trigger, spread onto the card itself.
+		 *
+		 * The directory passes the ones that open the record's action menu; the two surfaces that
+		 * list a contract inside another record pass none, and the card is only a link there.
+		 */
+		trigger?: Record<string, unknown>;
+	} = $props();
 
 	const intervalLabels = $derived<Record<Contract['interval'], string>>({
 		'1m': $LL.contracts.intervals.monthly(),
@@ -32,6 +43,7 @@
 </script>
 
 <a
+	{...trigger}
 	href={resolve(`/contracts/${contract.id}`)}
 	class={cn(
 		'flex h-full items-center gap-3 px-4 hover:bg-muted/40 focus-visible:bg-muted/40 active:bg-muted/60',
