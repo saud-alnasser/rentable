@@ -87,7 +87,7 @@
 			<LayoutSidebar />
 			<Sidebar.Inset>
 				{@render titlebar()}
-				<div class="app-scroll @container/main flex min-h-0 flex-1 flex-col overflow-y-auto">
+				<div class="@container/main flex min-h-0 flex-1 flex-col overflow-y-auto">
 					{@render children?.()}
 				</div>
 			</Sidebar.Inset>
@@ -95,7 +95,7 @@
 	{:else}
 		<div class="flex h-full min-h-0 flex-col bg-background">
 			{@render titlebar()}
-			<main class="app-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-6 sm:px-6">
+			<main class="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-6 sm:px-6">
 				{@render children?.()}
 			</main>
 		</div>

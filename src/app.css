@@ -144,24 +144,32 @@ body {
 }
 
 /* ===================================== */
-/* App Scrollbar Styling                 */
+/* Scrollbar                             */
 /* ===================================== */
 
-.app-scroll::-webkit-scrollbar {
+/*
+ * every scrollable element, rather than a class each surface remembers to apply. A desktop
+ * application has one scrollbar, and the scroll containers inside `design/primitive/` are
+ * generated — a composing surface cannot reach them to apply a class, so for as long as this
+ * was opt-in the command palette scrolled in the platform's vocabulary rather than the
+ * application's, on a surface reached from every screen.
+ */
+
+*::-webkit-scrollbar {
 	width: 5px;
 	height: 5px;
 }
 
-.app-scroll::-webkit-scrollbar-track {
+*::-webkit-scrollbar-track {
 	background: transparent;
 }
 
-.app-scroll::-webkit-scrollbar-thumb {
+*::-webkit-scrollbar-thumb {
 	background: var(--color-border);
 	border-radius: 9999px;
 }
 
-.app-scroll::-webkit-scrollbar-thumb:hover {
+*::-webkit-scrollbar-thumb:hover {
 	background: var(--color-muted-foreground);
 }
 
