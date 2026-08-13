@@ -2,7 +2,7 @@
 owner: repository
 status: accepted
 load-when: a record card or list row is given an action
-sources: [src/lib/design/block/record-card-menu.svelte, src/lib/design/block/list.svelte]
+sources: [src/lib/design/block/record-card.svelte, src/lib/design/block/list.svelte]
 supersedes: [0033-a-record-cards-actions-are-a-context-menu.md]
 superseded-by: []
 ---
