@@ -90,6 +90,9 @@
 		}
 	});
 	let isHandlingStartupChoice = $state(false);
+	// which of the choices is being carried out, not merely that one is: the screen reports work
+	// on the control that started it, and every control shares the flag above for availability.
+	let isOpeningLocalWorkspace = $state(false);
 	let isSyncingWindowClose = false;
 	let isFinalizingWindowClose = false;
 	const DAY_CROSSING_CHECK_INTERVAL_MS = 60_000;
@@ -275,6 +278,7 @@
 		}
 
 		isHandlingStartupChoice = true;
+		isOpeningLocalWorkspace = true;
 		startupError = null;
 
 		try {
@@ -288,6 +292,7 @@
 			await api.app.window.show();
 		} finally {
 			isHandlingStartupChoice = false;
+			isOpeningLocalWorkspace = false;
 		}
 	}
 
@@ -495,6 +500,7 @@
 						<LayoutStartupWorkspaceChoice
 							syncState={startupRemoteSync}
 							isWorking={isHandlingStartupChoice || pendingConflict.isWorking}
+							isOpeningLocal={isOpeningLocalWorkspace}
 							isLinkingGoogleDrive={linkSession.isLinking}
 							isFinalizingGoogleDriveLink={linkSession.isFinalizing}
 							errorMessage={startupError}
