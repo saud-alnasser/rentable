@@ -2,10 +2,9 @@
 	import { resolve } from '$app/paths';
 	import { back } from '$lib/design/back.svelte';
 	import type { Payment } from '$lib/platform/database/schema';
-	import DataTableActionsDropdown from '$lib/design/block/data-table-actions-dropdown.svelte';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
-	import List, { recordCard } from '$lib/design/block/list.svelte';
-	import { cn } from '$lib/design/tailwind';
+	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
+	import List from '$lib/design/block/list.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { formatRecordDate } from '$lib/design/date';
 	import {
@@ -77,6 +76,28 @@
 		payment = record;
 		isPaymentFormOpen = true;
 	}
+
+	// a terminated contract's statement is read-only, and an empty list is how a card comes to
+	// carry no control and to leave the context gesture alone.
+	const cardActions = (entry: Payment): RecordCardAction[] =>
+		hasRowActions
+			? [
+					{
+						label: $LL.common.actions.edit(),
+						icon: SquarePenIcon,
+						onSelect: () => openPaymentForm(entry)
+					},
+					{
+						label: $LL.common.actions.delete(),
+						icon: Trash2Icon,
+						variant: 'destructive',
+						onSelect: () => {
+							payment = entry;
+							isDeleteDialogOpen = true;
+						}
+					}
+				]
+			: [];
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col gap-3">
@@ -139,45 +160,20 @@
 		{/snippet}
 
 		{#snippet record(entry: Payment)}
-			<div class={cn('relative flex h-full items-center gap-3 px-4 hover:bg-muted/40', recordCard)}>
-				<!-- the link covers the line rather than wrapping it, so the row's own menu can sit
-				     above it instead of being swallowed by its click target. -->
-				<a
-					href={resolve(`/contracts/payments/${entry.id}`)}
-					class="absolute inset-0 rounded-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-					aria-label={$LL.common.labels.payment()}
-				></a>
-				<span class="pointer-events-none relative min-w-0 flex-1 truncate text-start text-sm">
-					<Cell.Date value={entry.date} />
-				</span>
-				<span class="pointer-events-none relative shrink-0 text-end text-sm font-medium">
-					<Cell.Money amount={entry.amount} />
-				</span>
-				{#if hasRowActions}
-					<div class="relative flex size-8 shrink-0 items-center justify-center">
-						<DataTableActionsDropdown
-							menuLabel={null}
-							actions={[
-								{
-									label: $LL.common.actions.edit(),
-									icon: SquarePenIcon,
-									onclick: () => openPaymentForm(entry)
-								},
-								{ type: 'separator' as const },
-								{
-									label: $LL.common.actions.delete(),
-									icon: Trash2Icon,
-									variant: 'destructive' as const,
-									onclick: () => {
-										payment = entry;
-										isDeleteDialogOpen = true;
-									}
-								}
-							]}
-						/>
-					</div>
-				{/if}
-			</div>
+			<RecordCard
+				href={resolve(`/contracts/payments/${entry.id}`)}
+				label={$LL.common.labels.payment()}
+				actions={cardActions(entry)}
+			>
+				{#snippet content()}
+					<span class="pointer-events-none relative min-w-0 flex-1 truncate text-start text-sm">
+						<Cell.Date value={entry.date} />
+					</span>
+					<span class="pointer-events-none relative shrink-0 text-end text-sm font-medium">
+						<Cell.Money amount={entry.amount} />
+					</span>
+				{/snippet}
+			</RecordCard>
 		{/snippet}
 	</List>
 

@@ -5,11 +5,10 @@
 	import { useDeleteUnit, useListUnits } from '$lib/complex/query';
 	import { useListContracts } from '$lib/contract/query';
 	import { isUnitDeletable } from '$lib/complex/complex';
-	import DataTableActionsDropdown from '$lib/design/block/data-table-actions-dropdown.svelte';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
-	import List, { recordCard } from '$lib/design/block/list.svelte';
-	import { cn } from '$lib/design/tailwind';
+	import List from '$lib/design/block/list.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import UserIcon from '@tabler/icons-svelte/icons/user';
@@ -54,6 +53,29 @@
 			? []
 			: [$LL.common.deleteDialog.blockedContracts({ count: held.length })];
 	});
+
+	// the unit's own page carries neither of these, so a unit card's actions are the only place
+	// they are offered — which is why they are reachable both ways rather than by pointer alone
+	// (ADR 0034).
+	const cardActions = (record: UnitRecord): RecordCardAction[] => [
+		{
+			label: $LL.common.actions.edit(),
+			icon: SquarePenIcon,
+			onSelect: () => {
+				unit = record;
+				isUnitFormOpen = true;
+			}
+		},
+		{
+			label: $LL.common.actions.delete(),
+			icon: Trash2Icon,
+			variant: 'destructive',
+			onSelect: () => {
+				unit = record;
+				isDeleteDialogOpen = true;
+			}
+		}
+	];
 </script>
 
 <List
@@ -78,58 +100,30 @@
 	}}
 >
 	{#snippet record(record: UnitRecord)}
-		<div class={cn('relative flex h-full items-center gap-3 px-4 hover:bg-muted/40', recordCard)}>
-			<!-- the link covers the row rather than wrapping it, so the row's own controls can sit
-			     above it instead of being swallowed by its click target. -->
-			<a
-				href={resolve(`/complexes/units/${record.id}`)}
-				class="absolute inset-0 rounded-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-				aria-label={record.name}
-			></a>
-
-			<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-				<span class="truncate text-sm font-medium">{record.name}</span>
-				<!-- who is in it, which is the question the board this replaced existed to answer. -->
-				<span class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-					{#if record.tenantName}
-						<UserIcon class="size-3.5 shrink-0" aria-hidden="true" />
-						<span class="truncate">{record.tenantName}</span>
-					{:else}
-						<span class="truncate">{$LL.common.status.vacant()}</span>
-					{/if}
+		<RecordCard
+			href={resolve(`/complexes/units/${record.id}`)}
+			label={record.name}
+			actions={cardActions(record)}
+		>
+			{#snippet content()}
+				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
+					<span class="truncate text-sm font-medium">{record.name}</span>
+					<!-- who is in it, which is the question the board this replaced existed to answer. -->
+					<span class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+						{#if record.tenantName}
+							<UserIcon class="size-3.5 shrink-0" aria-hidden="true" />
+							<span class="truncate">{record.tenantName}</span>
+						{:else}
+							<span class="truncate">{$LL.common.status.vacant()}</span>
+						{/if}
+					</span>
 				</span>
-			</span>
 
-			<span class="pointer-events-none relative flex shrink-0 items-center gap-3">
-				<Cell.Status status={record.status} />
-			</span>
-
-			<div class="relative flex size-8 shrink-0 items-center justify-center">
-				<DataTableActionsDropdown
-					menuLabel={null}
-					actions={[
-						{
-							label: $LL.common.actions.edit(),
-							icon: SquarePenIcon,
-							onclick: () => {
-								unit = record;
-								isUnitFormOpen = true;
-							}
-						},
-						{ type: 'separator' as const },
-						{
-							label: $LL.common.actions.delete(),
-							icon: Trash2Icon,
-							variant: 'destructive' as const,
-							onclick: () => {
-								unit = record;
-								isDeleteDialogOpen = true;
-							}
-						}
-					]}
-				/>
-			</div>
-		</div>
+				<span class="pointer-events-none relative flex shrink-0 items-center gap-3">
+					<Cell.Status status={record.status} />
+				</span>
+			{/snippet}
+		</RecordCard>
 	{/snippet}
 </List>
 
