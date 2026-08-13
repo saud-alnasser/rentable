@@ -1,6 +1,6 @@
 ---
 owner: repository
-status: accepted
+status: implemented
 sources:
   - src/lib/design/block/record-card.svelte
   - src/lib/design/block/list.svelte

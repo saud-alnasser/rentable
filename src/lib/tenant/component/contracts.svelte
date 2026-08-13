@@ -2,6 +2,7 @@
 	import type api from '$lib/api/caller';
 	import List from '$lib/design/block/list.svelte';
 	import type { ListSort } from '$lib/design/sort';
+	import ContractActions from '$lib/contract/component/actions.svelte';
 	import ContractRecord from '$lib/contract/component/record.svelte';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import { useListContracts } from '$lib/contract/query';
@@ -43,18 +44,22 @@
 	});
 </script>
 
-<List
-	data={contracts}
-	bind:search
-	bind:sort
-	{sortOptions}
-	isLoading={contractsQuery.isLoading}
-	isFetching={contractsQuery.isFetching}
-	recordHeight={ROW_HEIGHT}
-	emptyTitle={$LL.tenants.contracts.emptyTitle()}
-	emptyDescription={$LL.tenants.contracts.emptyDescription()}
->
-	{#snippet record(contract: ContractRow)}
-		<ContractRecord {contract} />
+<ContractActions>
+	{#snippet children(contractActions)}
+		<List
+			data={contracts}
+			bind:search
+			bind:sort
+			{sortOptions}
+			isLoading={contractsQuery.isLoading}
+			isFetching={contractsQuery.isFetching}
+			recordHeight={ROW_HEIGHT}
+			emptyTitle={$LL.tenants.contracts.emptyTitle()}
+			emptyDescription={$LL.tenants.contracts.emptyDescription()}
+		>
+			{#snippet record(contract: ContractRow)}
+				<ContractRecord {contract} actions={contractActions.of(contract)} />
+			{/snippet}
+		</List>
 	{/snippet}
-</List>
+</ContractActions>

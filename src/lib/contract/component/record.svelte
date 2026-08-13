@@ -25,10 +25,10 @@
 		/**
 		 * what this contract offers, from `contract/component/actions.svelte`.
 		 *
-		 * A surface that has not been given the set yet passes none, and the card is only a link
-		 * there.
+		 * Stated rather than optional: all three surfaces render the one set, and a card that
+		 * could quietly be given none is how one of them would come to offer nothing again.
 		 */
-		actions?: RecordCardAction[];
+		actions: RecordCardAction[];
 	} = $props();
 
 	const intervalLabels = $derived<Record<Contract['interval'], string>>({
@@ -45,7 +45,7 @@
 		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
 </script>
 
-<RecordCard href={resolve(`/contracts/${contract.id}`)} {label} actions={actions ?? []}>
+<RecordCard href={resolve(`/contracts/${contract.id}`)} {label} {actions}>
 	{#snippet content()}
 		<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
 			<span class="truncate text-sm font-medium">{label}</span>
