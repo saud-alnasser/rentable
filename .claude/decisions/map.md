@@ -38,4 +38,5 @@ owner: repository
 | [0030](0030-the-landing-screen-is-figures-over-sections.md) | the landing screen's shape or content is in question | accepted | `src/lib/dashboard/` |
 | [0031](0031-a-contracts-attention-rank-is-the-contracts-own.md) | a contract's rank, grouping or follow-up order is in question, or a surface outside the dashboard needs one | accepted | `src/lib/contract/`, `src/lib/dashboard/` |
 | [0032](0032-a-record-surface-is-one-shell-with-a-per-concept-body.md) | a surface showing one record is being built or changed, or where a record's chrome lives is in question | accepted | `src/lib/design/block/`, `src/lib/contract/component/`, `src/lib/tenant/component/` |
-| [0033](0033-a-record-cards-actions-are-a-context-menu.md) | a record card or list row is given an action | accepted | `src/lib/design/block/list.svelte`, `src/lib/tenant/component/directory.svelte` |
+| [0033](0033-a-record-cards-actions-are-a-context-menu.md) | a record card or list row is given an action | superseded | `src/lib/design/block/list.svelte`, `src/lib/tenant/component/directory.svelte` |
+| [0034](0034-a-record-card-carries-its-actions-twice.md) | a record card or list row is given an action | accepted | `src/lib/design/block/record-card-menu.svelte`, `src/lib/design/block/list.svelte` |
