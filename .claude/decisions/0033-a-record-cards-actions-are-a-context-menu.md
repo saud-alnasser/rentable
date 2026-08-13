@@ -1,10 +1,10 @@
 ---
 owner: repository
-status: accepted
+status: superseded
 load-when: a record card or list row is given an action
 sources: [src/lib/design/block/list.svelte, src/lib/tenant/component/directory.svelte]
 supersedes: []
-superseded-by: []
+superseded-by: [0034-a-record-card-carries-its-actions-twice.md]
 ---
 
 # A record card's actions are a context menu, and every one of them is also on the record's page
