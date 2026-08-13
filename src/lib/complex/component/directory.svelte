@@ -11,8 +11,7 @@
 	import { useDeleteComplex, useFetchUnits, useListComplexes } from '$lib/complex/query';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
-	import RecordCardMenu from '$lib/design/block/record-card-menu.svelte';
-	import type { RecordCardAction } from '$lib/design/block/record-card.svelte';
+	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import { hasCreateIntent } from '$lib/design/create-intent';
@@ -25,8 +24,6 @@
 	import CircleFilledIcon from '@tabler/icons-svelte/icons/circle-filled';
 	import LayoutGridIcon from '@tabler/icons-svelte/icons/layout-grid';
 	import ComplexForm from './form.svelte';
-	import { recordCard } from '$lib/design/block/list.svelte';
-	import { cn } from '$lib/design/tailwind';
 
 	type ComplexRecord = Awaited<ReturnType<typeof api.complex.getMany>>[number];
 
@@ -168,18 +165,19 @@
 		<!-- occupancy is not on the query: a unit is occupied or vacant, so the third figure is
 		     the other two. -->
 		{@const occupiedUnitCount = complex.unitCount - complex.vacantUnitCount}
-		<RecordCardMenu actions={cardActions(complex)}>
-			{#snippet card(trigger)}
-				<a
-					{...trigger}
-					href={resolve(`/complexes/${complex.id}`)}
-					class={cn('flex h-full items-center gap-4 px-4 hover:bg-muted/40', recordCard)}
-				>
-					<span class="flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-						<span class="truncate text-sm font-medium">{complex.name}</span>
-						<span class="truncate text-xs text-muted-foreground">{complex.location}</span>
-					</span>
+		<RecordCard
+			href={resolve(`/complexes/${complex.id}`)}
+			label={complex.name}
+			actions={cardActions(complex)}
+			class="gap-4"
+		>
+			{#snippet content()}
+				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
+					<span class="truncate text-sm font-medium">{complex.name}</span>
+					<span class="truncate text-xs text-muted-foreground">{complex.location}</span>
+				</span>
 
+				<span class="pointer-events-none relative flex shrink-0 items-center gap-4">
 					<Cell.Count
 						icon={LayoutGridIcon}
 						count={complex.unitCount}
@@ -198,9 +196,9 @@
 						count={complex.vacantUnitCount}
 						label={$LL.common.labels.vacantUnits()}
 					/>
-				</a>
+				</span>
 			{/snippet}
-		</RecordCardMenu>
+		</RecordCard>
 	{/snippet}
 </List>
 

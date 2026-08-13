@@ -3,7 +3,7 @@ owner: repository
 status: accepted
 sources:
   - src/lib/design/block/record-card-menu.svelte
-  - src/lib/design/block/data-table-actions-dropdown.svelte
+  - src/lib/design/block/record-card.svelte
   - src/lib/design/block/list.svelte
   - src/lib/contract/component/record.svelte
   - src/lib/contract/component/directory.svelte

@@ -94,8 +94,8 @@
 						{#snippet child({ props })}
 							<!-- tertiary, and deliberately quiet: the reader came for the record, so the control
 							     is discoverable without competing with what the card says (_Semantics are
-							     secondary_, 60). The treatment is the one `data-table-actions-dropdown` already
-							     carries, so the two agree until that one folds in here. -->
+							     secondary_, 60). This is the only home for the treatment now — the two lists
+							     that carried their own copy of it read this block instead. -->
 							<Button
 								{...props}
 								variant="ghost"
