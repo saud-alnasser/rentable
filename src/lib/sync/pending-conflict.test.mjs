@@ -164,6 +164,52 @@ test('a resolution that fails leaves the conflict pending', async () => {
 	assert.equal(flow.isWorking, false);
 });
 
+// the reason the caller's own work is handed in rather than run afterwards: a host that
+// carries on after the remote replies would otherwise show whatever it shows with nothing
+// pending for the length of it.
+test('the question stays presented while the caller settles the answer', async () => {
+	const flow = new PendingConflictFlow(createDriver());
+	flow.present(preparation());
+	const seen = [];
+
+	await flow.resolve('local', async (outcome) => {
+		seen.push({ state: outcome.state, kind: flow.conflict?.kind, isWorking: flow.isWorking });
+	});
+
+	assert.deepEqual(seen, [{ state: NEXT_STATE, kind: 'sync', isWorking: true }]);
+	assert.equal(flow.conflict, null);
+	assert.equal(flow.isWorking, false);
+});
+
+// the remote has acted by this point, so the question is answered either way — and a host
+// whose own work failed shows that failure rather than the question again.
+test('a settling that fails still stops the question being presented', async () => {
+	const failure = new Error('startup could not continue');
+	const flow = new PendingConflictFlow(createDriver());
+	flow.present(preparation());
+
+	await assert.rejects(
+		() =>
+			flow.resolve('local', async () => {
+				throw failure;
+			}),
+		failure
+	);
+	assert.equal(flow.conflict, null);
+	assert.equal(flow.isWorking, false);
+});
+
+test('a question the settling raised is kept rather than cleared', async () => {
+	const flow = new PendingConflictFlow(createDriver());
+	flow.present(preparation());
+
+	await flow.resolve('local', async () => {
+		flow.present(preparation('corrupt', { state: MOVED_STATE }));
+	});
+
+	assert.equal(flow.conflict?.kind, 'corrupt');
+});
+
 test('resolving forgets an earlier dismissal, because the state it described is gone', async () => {
 	const flow = new PendingConflictFlow(createDriver());
 	flow.present(preparation());
@@ -217,6 +263,32 @@ test('dismissing a link conflict undoes the link and remembers nothing', async (
 	assert.equal(driver.calls.cancel, 1);
 	assert.deepEqual(dismissal, { deferred: false, state: NEXT_STATE });
 	assert.equal(flow.isDismissed(workspaceConflictSignature(STATE)), false);
+	assert.equal(flow.conflict, null);
+});
+
+test('a deferral is handed to the caller with the question still presented', async () => {
+	const flow = new PendingConflictFlow(createDriver());
+	flow.present(preparation('sync'));
+	const seen = [];
+
+	await flow.dismiss(async (dismissal) => {
+		seen.push({ ...dismissal, kind: flow.conflict?.kind, isWorking: flow.isWorking });
+	});
+
+	assert.deepEqual(seen, [{ deferred: true, state: null, kind: 'sync', isWorking: true }]);
+	assert.equal(flow.conflict, null);
+});
+
+test('an undone link is handed to the caller with the question still presented', async () => {
+	const flow = new PendingConflictFlow(createDriver());
+	flow.present(preparation('link'));
+	const seen = [];
+
+	await flow.dismiss(async (dismissal) => {
+		seen.push({ ...dismissal, kind: flow.conflict?.kind });
+	});
+
+	assert.deepEqual(seen, [{ deferred: false, state: NEXT_STATE, kind: 'link' }]);
 	assert.equal(flow.conflict, null);
 });
 
