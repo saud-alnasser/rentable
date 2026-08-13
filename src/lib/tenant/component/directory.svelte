@@ -5,7 +5,7 @@
 	import type api from '$lib/api/caller';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
-	import RecordCardMenu, { type RecordCardAction } from '$lib/design/block/record-card-menu.svelte';
+	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import { hasCreateIntent } from '$lib/design/create-intent';
@@ -23,8 +23,6 @@
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import TenantForm from './form.svelte';
-	import { recordCard } from '$lib/design/block/list.svelte';
-	import { cn } from '$lib/design/tailwind';
 
 	type TenantRecord = Awaited<ReturnType<typeof api.tenant.getMany>>[number];
 
@@ -173,35 +171,34 @@
 >
 	{#snippet record(tenant: TenantRecord)}
 		{@const counts = contractCounts(tenant)}
-		<RecordCardMenu actions={cardActions(tenant)}>
-			{#snippet card(trigger)}
-				<a
-					{...trigger}
-					href={resolve(`/tenants/${tenant.id}`)}
-					class={cn('flex h-full items-center gap-4 px-4 hover:bg-muted/40', recordCard)}
-				>
-					<span class="flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-						<span class="truncate text-sm font-medium">{tenant.name}</span>
-						<span class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-							<span class="truncate tabular-nums">{tenant.nationalId}</span>
-							<span aria-hidden="true">&middot;</span>
-							<Cell.Phone phone={tenant.phone} />
-						</span>
+		<RecordCard
+			href={resolve(`/tenants/${tenant.id}`)}
+			label={tenant.name}
+			actions={cardActions(tenant)}
+			class="gap-4"
+		>
+			{#snippet content()}
+				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
+					<span class="truncate text-sm font-medium">{tenant.name}</span>
+					<span class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+						<span class="truncate tabular-nums">{tenant.nationalId}</span>
+						<span aria-hidden="true">&middot;</span>
+						<Cell.Phone phone={tenant.phone} />
 					</span>
+				</span>
 
-					<!-- a figure per status, in the order the contracts directory ranks them: what needs
-					     the reader, then what is running, then what has not started, then the history
-					     behind them. Every status is shown including the ones at zero, so the six form
-					     fixed columns down the list — a cluster that varied with what each tenant
-					     happened to hold would work against exactly that. -->
-					<span class="flex shrink-0 items-center gap-3">
-						{#each CONTRACT_ATTENTION_ORDER as status (status)}
-							<Cell.StatusCount {status} count={counts[status]} />
-						{/each}
-					</span>
-				</a>
+				<!-- a figure per status, in the order the contracts directory ranks them: what needs the
+				     reader, then what is running, then what has not started, then the history behind
+				     them. Every status is shown including the ones at zero, so the six form fixed
+				     columns down the list — a cluster that varied with what each tenant happened to
+				     hold would work against exactly that. -->
+				<span class="pointer-events-none relative flex shrink-0 items-center gap-3">
+					{#each CONTRACT_ATTENTION_ORDER as status (status)}
+						<Cell.StatusCount {status} count={counts[status]} />
+					{/each}
+				</span>
 			{/snippet}
-		</RecordCardMenu>
+		</RecordCard>
 	{/snippet}
 </List>
 

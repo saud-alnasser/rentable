@@ -1,20 +1,5 @@
 <script lang="ts" module>
-	import type EllipsisIcon from '@lucide/svelte/icons/ellipsis';
-
-	type IconComponent = typeof EllipsisIcon;
-
-	/**
-	 * One entry of a card's menu, in the vocabulary the row menus already use.
-	 *
-	 * `onSelect` rather than a click handler because a menu item is reached by the keyboard as
-	 * well as by the pointer, and only this one fires for both.
-	 */
-	export type RecordCardAction = {
-		label: string;
-		icon: IconComponent;
-		variant?: 'default' | 'destructive';
-		onSelect: () => void;
-	};
+	import type { RecordCardAction } from './record-card.svelte';
 
 	/**
 	 * The trigger's props with the tab index it contributes removed.
@@ -45,8 +30,9 @@
 	 * and the card decides its own place in the tab order — the menu wrapped around it does not
 	 * get a say.
 	 *
-	 * The gesture is an accelerator and holds nothing a visible control does not; the control
-	 * itself arrives with the block that owns a card's markup (ADR 0034).
+	 * Superseded by `record-card.svelte`, which owns a card's markup and offers the same actions
+	 * from a visible control as well. This one holds the surfaces that have not moved across yet,
+	 * and goes when the last of them does.
 	 */
 	let {
 		actions,
