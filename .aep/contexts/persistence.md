@@ -35,8 +35,18 @@ Rust reads it explicitly, better-sqlite3 by returning native values. Neither con
 type a column was *declared* as — that type is absent for every expression, and dispatching
 on it is what made a selected aggregate arrive as null (#287).
 
-**A value the conversion cannot map fails the query.** Nothing degrades to null, because a
-null is indistinguishable from a column that was null and hides the gap that produced it.
+**A value whose storage class the conversion cannot map fails the query.** Nothing degrades to
+null, because a null is indistinguishable from a column that was null and hides the gap that
+produced it.
+
+**That promise is about storage classes, not value ranges, and the difference is load-bearing.**
+An `INTEGER` maps fine and then loses precision further down: both transports return integers as
+JavaScript doubles, exact only to 2⁵³−1, and **neither errors** — `better-sqlite3` returns a lossy
+number, and Rust's exact `i64` degrades at `JSON.parse` on the far side of the IPC boundary.
+Measured on both, 2026-08-17: `9007199254740993` reads back as `9007199254740992`. So a column
+that can exceed 2⁵³−1 is silently wrong, and no guarantee here covers it. The two transports
+agree exactly, which is the one piece of good news — a router test pins this faithfully, unlike
+the asymmetric cases below.
 
 **Only Rust tests reach the Rust half.** The TypeScript harness executes under Node, so a
 router test can pass over a conversion that is broken in the running application.

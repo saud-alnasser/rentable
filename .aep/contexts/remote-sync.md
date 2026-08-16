@@ -30,7 +30,7 @@ _sync_.
 The index describing which snapshots exist and which one is current. Exists in a local form
 and a remote form, and the two are reconciled separately. **Derived, never a source of
 truth** — the snapshots are, and a manifest that is lost or overwritten is rebuilt from the
-ones actually present (ADR 0005).
+ones actually present ([[rules/drive-concurrency]]).
 
 **Manifest reconciliation**:
 Recomputing a manifest from the snapshot files actually present. The same operation the
