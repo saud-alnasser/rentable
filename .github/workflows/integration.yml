@@ -176,13 +176,14 @@ jobs:
       - name: '🗺️ verify generated indexes'
         if: steps.memo.outputs.cache-hit != 'true'
         run: |
-          node .claude/scripts/regenerate-indexes.mjs > /dev/null
-          stale=$(git status --porcelain -- .claude/contexts/map.md .claude/decisions/map.md .claude/evidence/map.md .claude/designs/map.md .claude/tickets/map.md | cut -c4-)
+          node .aep/scripts/index.mjs > /dev/null
+          stale=$(git status --porcelain -- .aep/index.md | cut -c4-)
           if [ -n "$stale" ]; then
-            echo 'stale generated index — regenerate with: node .claude/scripts/regenerate-indexes.mjs' >&2
+            echo 'stale generated index — regenerate with: node .aep/scripts/index.mjs' >&2
             printf '%s\n' "$stale"
             exit 1
           fi
+          node .aep/scripts/validate.mjs --quiet
 
       - name: '📦 install pnpm packages'
         if: steps.memo.outputs.cache-hit != 'true'
