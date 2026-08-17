@@ -1,5 +1,13 @@
 # rentable
 
+## 0.12.1
+
+### Patch Changes
+
+- [#510](https://github.com/saud-alnasser/rentable/pull/510) [`2ed539d`](https://github.com/saud-alnasser/rentable/commit/2ed539da62f32918da194c2bac5a795ccdb5dca8) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - every release is now titled after the package it was cut from — `@rentable/desktop v0.12.1` where
+  it used to read `rentable v0.12.1` — so the releases page, the tag and the changelog all name the
+  same thing. nothing about the application itself has changed
+
 ## 0.12.0
 
 ### Minor Changes
