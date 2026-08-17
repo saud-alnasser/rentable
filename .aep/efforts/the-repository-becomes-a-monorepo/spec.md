@@ -54,8 +54,10 @@ updates exactly as it does today.
    outside its own package by hand-written relative path.
 4. Adding a package requires no change to the release workflow's structure.
 5. Versioning and changelogs are per package, and a change to one does not version another.
-6. The desktop release — its `v*.*.*` tag, its four-platform artifacts, and the updater feed
-   they publish — behaves as it does today.
+6. The desktop release — its tag, its four-platform artifacts, and the updater feed they
+   publish — behaves as it does today. **Amended 2026-08-17:** the tag itself moves to
+   `@rentable/desktop@<version>`; what must not move is the *behaviour*, which is that an
+   application installed from any earlier release still finds and applies the next one.
 7. Every existing script, check, lint, format and test invocation still runs from the repository
    root, and each also runs scoped to a single package.
 
@@ -83,10 +85,19 @@ updates exactly as it does today.
 
 # Constraints
 
-- **The updater feed and the `v*.*.*` tag scheme are a public contract.** Applications already
-  installed on users' machines read them. A restructure that changes either without a migration
-  path breaks updates for every existing install, and the breakage is discovered by users on the
-  next release rather than by CI.
+- ~~**The updater feed and the `v*.*.*` tag scheme are a public contract.**~~ **Half of this was
+  wrong, and it was the half doing the constraining. Corrected 2026-08-17** by reading the chain
+  end to end — see
+  [[efforts/the-repository-becomes-a-monorepo/evidence/research/the-updater-contract]].
+
+  **The updater feed is a public contract; the tag scheme is not.** Installed applications poll a
+  hard-coded endpoint that GitHub resolves through its latest-release pointer — most recent
+  non-draft, non-prerelease release *by date*, tag name never consulted — and the version they
+  compare is written into `latest.json` from the application, not from the tag. The contract is
+  therefore exactly three things: **the endpoint URL, `latest.json`'s `version` field sorting
+  above what is installed, and the signing key.** Change any of those without a migration path
+  and updates break for every existing install, discovered by users rather than by CI. The tag is
+  internal, and renaming it costs nothing.
 - **Node `^24.0.0` and pnpm `>=11.0.0` stay pinned**, and `packageManager` stays exact. The
   toolchain version is not a thing this effort is also changing.
 - **`$lib` and the existing import paths survive**, or move in one mechanical pass. A restructure
@@ -114,9 +125,12 @@ updates exactly as it does today.
 
 # Assumptions
 
-- **pnpm workspaces is the tool.** pnpm is already the package manager, `pnpm-workspace.yaml`
-  already exists, and the engines field already pins pnpm. Choosing a different tool is
-  possible and is decision 02's to make; this assumption is what the sizing below is against.
+- ~~**pnpm workspaces is the tool.**~~ **Amended 2026-08-17** — pnpm workspaces *declares* the
+  packages and **Turborepo runs the tasks across them.** The two are layers rather than
+  alternatives: Turborepo has no workspace of its own and reads the package manager's. So pnpm
+  stays for the reasons it was assumed — it is already the package manager, `pnpm-workspace.yaml`
+  already exists, and `engines` already pins it — and what the amendment moves is `# Interfaces`,
+  not the layout. See the amendment under `# Decisions`.
 - ~~**Tauri's `frontendDist` can point into a package directory.**~~ **Verified** — no longer an
   assumption. `frontendDist` resolves relative to `tauri.conf.json`'s own directory and already
   leaves the Tauri directory in this repository (`../build`), and the before-build hooks take an
@@ -131,13 +145,20 @@ Four questions were open when this spec was drafted. `# Architecture` and `# Tec
 answer all four; they are kept here with their answers so the reasoning is not re-derived.
 
 - ~~**Does the desktop application keep the repository's version, or get its own?**~~ **Its own.**
-  The root becomes private and unversioned, and `v*.*.*` is cut from `apps/desktop/package.json`.
-  Both changeset scripts read the root's `version` today and must be repointed — see *Technical
-  Approach*.
-- ~~**Does changesets stay single-tag, or move to per-package tags?**~~ **Single-tag, unchanged.**
-  `v*.*.*` keeps meaning the desktop release. Per-package tags are what a second *publishable*
-  package needs, and this effort publishes none; the change is deferred to the effort that first
-  needs one.
+  The root becomes private and unversioned, and the release tag is cut from
+  `apps/desktop/package.json`. Both changeset scripts read the root's `version` today and must be
+  repointed — see *Technical Approach*.
+- ~~**Does changesets stay single-tag, or move to per-package tags?**~~ ~~**Single-tag,
+  unchanged.**~~ **Per-package. Reversed 2026-08-17**, on the human's direction and on the
+  evidence that the original answer's premise was false. The tag becomes
+  `@rentable/desktop@<version>`, changesets' own workspace convention.
+
+  The first answer deferred the change because per-package tags looked like something only a
+  second *publishable* package needs, and because the `v*.*.*` scheme was believed to be part of
+  the public contract. **It is not** — see the amended constraint above. With that premise gone,
+  the deferral was buying nothing and costing a second migration later, at which point there
+  would be more releases behind it rather than fewer. The old `v*.*.*` tags stay in the
+  repository; the five published releases still point at them.
 - ~~**Where does the shared schema actually live?**~~ **It stays in the desktop application**, and
   is extracted when a second consumer exists. The removal condition is in `# Architecture`.
 - ~~**What happens to `scripts/`?**~~ **All four move to `apps/desktop/scripts/`.** Each addresses
@@ -153,7 +174,12 @@ What is genuinely still open:
 
 - **A broken updater is invisible until the release after it.** CI can prove the workflow ran;
   only a real installed application proves it updated. This is why acceptance criterion 6 names
-  a real update.
+  a real update — and why the tag change, though the evidence says it is inert, is still checked
+  by installing an old-scheme build rather than by reasoning about it a second time.
+- **A release that is left as a draft is not "latest".** GitHub's pointer excludes drafts, and
+  `release.yml` sets `releaseDraft: true` — so publishing is a human step and always has been.
+  Nothing here changes that, but it is now the single manual action standing between a green
+  release run and users receiving an update, so it is worth having written down.
 - **The restructure touches every path in the repository at once**, which makes the diff large
   and the review shallow exactly where a mistake is cheapest to make and most expensive to find.
 - **A layout chosen for today's two packages may be wrong for the API**, whose shape is not yet
@@ -207,10 +233,14 @@ version that keeps the schema and its migrations in one place.
 | `src/`, `static/`, `src/app.css` | `apps/desktop/` — unchanged internally |
 | `tauri/` | `apps/desktop/tauri/` — the crate keeps its own manifest and its own test invocation |
 | `svelte.config.js`, `vite.config.js`, `tsconfig.json`, `components.json`, `drizzle.config.ts` | `apps/desktop/` — each belongs to a SvelteKit project, and `tsconfig.json` extends `./.svelte-kit/tsconfig.json`, which is generated beside the project |
-| `package.json` | splits: `apps/desktop/package.json` takes the application's dependencies, scripts and **version**; the root keeps `private: true`, the dev tooling shared by every package, `engines` and `packageManager`, and carries **no version** |
+| `package.json` | splits: `apps/desktop/package.json` takes the application's dependencies, scripts, **version** and the name **`@rentable/desktop`**; the root **keeps the name `rentable`** along with `private: true`, the dev tooling shared by every package, `engines` and `packageManager`, and carries **no version** |
 | `pnpm-workspace.yaml` | gains `packages:`, keeping its existing `allowBuilds` |
 | `scripts/seed.ts`, `scripts/purge.ts`, `scripts/tauri-with-env.mjs`, `scripts/prototype.mjs` | `apps/desktop/scripts/` — all four address the application's database, its Tauri CLI, or its prototype switcher, and none is workspace-wide |
-| `eslint.config.js`, `.prettierrc`-equivalent config, `.changeset/` | stay at the root — they govern every package |
+| `.typesafe-i18n.json` | `apps/desktop/` — its `outputPath` is `./src/lib/i18n`, so it moves with the tree it writes into |
+| `.env`, `.env.example` | `apps/desktop/` — every value in them is the application's: the database path, the updater public key, the Google OAuth client. `dotenv` resolves `.env` against the working directory, and after the move that directory is the package |
+| `CHANGELOG.md` | `apps/desktop/` — changesets writes a changelog per versioned package, and the versioned package is the desktop application |
+| `eslint.config.js`, `.prettierrc`, `.prettierignore`, `.changeset/`, `README.md` | stay at the root — they govern every package. Three of them hold paths that follow the move: `eslint.config.js` imports `./svelte.config.js` and ignores `tauri/**` and `src/lib/i18n/i18n-*.ts`; `.prettierrc` points `tailwindStylesheet` at `./src/app.css`; `.prettierignore` lists `/static/`, `build`, `tauri/target` and the generated i18n modules |
+| `turbo.json` | **new**, at the root — the task graph. It exists because Turborepo runs the per-package tasks; see `# Interfaces` |
 | `.aep/` | stays at the root, unmoved |
 
 # Interfaces
@@ -219,21 +249,59 @@ The interface this effort actually changes is **the set of commands a person or 
 and it is the thing requirement 7 is about. It gains one rule: every script exists at the root and
 delegates, and exists in the package and does the work.
 
-- Root scripts delegate with `pnpm --filter`, so `pnpm check`, `pnpm lint`, `pnpm test`,
-  `pnpm build` and `pnpm test:rust` keep working from the repository root and fan out to every
-  package that defines them.
-- The same names in `apps/desktop/package.json` do the work for that package alone.
-- `pnpm --filter desktop <script>` is therefore the per-package form requirement 7 asks for, with
-  no second vocabulary to learn.
+**Turborepo is the delegation mechanism** — amended 2026-08-17, see `# Decisions`. What it forces
+is a split between tasks that are *per package* and tasks that are *per repository*, and both
+halves are written down here because the second is where coverage is lost silently.
+
+- **Per package, through the task graph.** `build`, `test` and `test:rust` are declared in
+  `turbo.json` and run from the root as `turbo run <task>`, fanning out to every package defining
+  the script. The same names in `apps/desktop/package.json` do the work for that package alone, and
+  `turbo run <task> --filter=./apps/desktop` is the per-package form requirement 7 asks for.
+- **Per repository, outside the task graph.** `check`, `lint` and `format` stay plain root scripts,
+  because what they check is *every file in the repository* — the root's own configuration
+  included — and a per-package task cannot see those files. Splitting them would leave the root
+  covered by a second task free to drift out of agreement with the first, and a formatting gap
+  reports nothing when it opens. `lint` and `format` are wholly repository-wide; `check` is
+  prettier repository-wide plus one `pnpm --filter ./apps/desktop check` for the typecheck, which
+  is inherently per-project because `svelte-check` reads the package's own `tsconfig.json`.
+- **Per package, delegated directly.** `dev`, `preview`, `tauri`, `prototype`, `db:*` and `i18n`
+  are interactive or long-running, so they are not tasks — there is no output to cache and the
+  graph would only add a layer between a person and a window. They stay reachable from the root as
+  `pnpm --filter ./apps/desktop <script>`, which forwards trailing arguments unchanged, so
+  `pnpm tauri dev` and `pnpm prototype /contracts?create` read exactly as [[references/tauri]]
+  documents them. **Requirement 7 is why these survive at the root at all**: it asks that *every*
+  existing invocation still run from there, not only the five CI runs.
+
+**Filtering is by path, never by package name** — `--filter=./apps/desktop`, in both tools. The
+root keeps `rentable` and the application is `@rentable/desktop`, so packages are named within the
+product's scope rather than beside it.
+
+That naming was **changed once, after the scripts were already written and passing**, and nothing
+in them had to move: the rename was two `name` fields and the whole gate stayed green. That is the
+entire argument for filtering by path. Had the scripts named the package, every one of them would
+have broken — silently, because `pnpm --filter` does not fail on a selector that matches nothing
+unless `--fail-if-no-match` is set.
 
 # Technical Approach
 
 **The Tauri build.** `apps/desktop/tauri/tauri.conf.json` keeps `frontendDist: "../build"` —
 because `tauri/` moves *with* the application, the path from the config file to the build output
-is unchanged. `beforeDevCommand` and `beforeBuildCommand` keep `pnpm dev` / `pnpm build` and gain
-an explicit `cwd` pointing at the desktop package, rather than relying on a default the reference
-does not state (recorded in the evidence file). `scripts/tauri-with-env.mjs` pins the config path
-explicitly instead of letting the CLI discover it.
+is unchanged. ~~`beforeDevCommand` and `beforeBuildCommand` gain an explicit `cwd`.~~ **Corrected
+2026-08-17 against the Tauri CLI source, during implementation** — they keep `pnpm dev` and
+`pnpm build` as plain strings and set no `cwd` at all. `run_hook` resolves
+`script_cwd.unwrap_or_else(|| frontend_dir)` and **joins a configured `cwd` to nothing**, so a
+relative value resolves against the process's working directory — which `build.rs` sets to the
+tauri directory beforehand and the `dev` path does not. One relative value cannot be right for
+both, which makes writing the field the ambiguous choice rather than the safe one. The default is
+`frontend_dir`, computed by walking for a `package.json` with the tauri directory's parent as
+fallback; under this layout both land on `apps/desktop`. Full reasoning and sources in
+[[efforts/the-repository-becomes-a-monorepo/evidence/research/tauri-frontend-path-in-a-workspace]].
+
+`scripts/tauri-with-env.mjs` pins **the working directory** to its own package rather than the
+config path, for the same reason: the CLI discovers `tauri.conf.json` by walking from the working
+directory, and `--config` merges over what it discovers rather than replacing the discovery — so
+that flag cannot pin what it was being reached for. The `.env` read is anchored the same way,
+because `dotenv` also resolves against the working directory.
 
 **Versioning and the release tag — this is the part that carries the public contract.** Today
 `.github/changeset-tag.cjs` does `require('../package.json')` and cuts `v${version}` from the
@@ -243,13 +311,33 @@ version at all, so both scripts read a field that is gone and the tag would be c
 `undefined`. Both are repointed at `apps/desktop/package.json`, and the Cargo sync follows the
 path to `apps/desktop/tauri/Cargo.toml`.
 
-**The tag scheme does not change.** `v*.*.*` continues to mean *the desktop release*, cut from the
-desktop package's version, and `release.yml`'s `git tag --list 'v*.*.*'` detection is untouched.
-This answers the spec's open question in favour of staying single-tag: the tag is read by
-already-installed applications through the updater, and a scheme change is a break that is
-discovered by users. Per-package tags are what a second *publishable* package would need, and this
-effort publishes none — so the change is deferred to the effort that first needs it, under the
-same removal-condition discipline as the schema.
+**The tag scheme changes to `@rentable/desktop@<version>`** — amended 2026-08-17, reversing the
+paragraph that stood here. The reasoning it replaced rested on the tag being read by installed
+applications; it is not, and the amended constraint above says what actually is.
+
+`changeset-tag.cjs` cuts `${name}@${version}`, **reading the name rather than spelling it** — a
+tag that disagrees with the package it came from is a release nobody can trace back, and reading
+it is also what lets a second publishable package tag itself without a second edit here.
+
+`release.yml`'s detection is the one thing the rename genuinely breaks, and it breaks quietly:
+left matching `v*.*.*` it would go on finding `v0.12.0`, see that a release already exists for it,
+set `should_publish=false`, and **never publish again**. It moves to the package's own glob, and
+gains a `release_version` output taken from **after the final `@`** — the scope means the tag
+carries an `@` of its own, so splitting on the first one yields `rentable/desktop` as the version.
+
+The release *title* stays `rentable v<version>`. Five published releases are named that way and it
+is what a person scans the releases page for; the tag moving is not a reason for the product to
+appear to have been renamed.
+
+**Names.** The root keeps `rentable` and the application becomes `@rentable/desktop`, so packages
+are named *within* the product's scope rather than beside it. This is free only because filtering
+is by workspace path — see `# Interfaces`. `apps/desktop/CHANGELOG.md` keeps its `# rentable`
+heading: changesets prepends under whatever heading it finds, and the file is 488 lines of the
+product's history.
+
+**Removal condition for the hand-rolled tag script:** when a second publishable package exists,
+`changeset tag` replaces `changeset-tag.cjs`, because it tags every versioned package without
+this one being edited per package.
 
 **Changesets** keeps `privatePackages: { version: true, tag: true }`. It versions the packages it
 finds in the workspace; the root, having no version, is not one of them.
@@ -260,9 +348,31 @@ endpoints moved together. This is the concrete payoff of not extracting the sche
 
 **CI.** `integration.yml` runs `pnpm install --frozen-lockfile`, `pnpm check`, `pnpm exec eslint .`,
 `pnpm test`, `pnpm test:rust`, `pnpm build`, and `cargo build --release --manifest-path ./tauri/Cargo.toml`.
-The first six keep working through the delegating root scripts; the two `--manifest-path` arguments
-in `integration.yml` and `release.yml` follow the crate to `apps/desktop/tauri/Cargo.toml`. The
-cache keys built from the tree hash are unaffected.
+The first six keep working through the delegating root scripts. What follows the crate is five
+paths, not two — **corrected 2026-08-17**, this plan and the ticket both said "the two
+`--manifest-path` arguments in `integration.yml` and `release.yml`" and `release.yml` has none:
+
+| Path | Where |
+| --- | --- |
+| `--manifest-path ./tauri/Cargo.toml` | `integration.yml` (1), `warm-cache.yml` (2) |
+| `workspaces: './tauri -> target'` | `integration.yml`, `warm-cache.yml` — the `rust-cache` key, and the two **must stay identical** or every pull request compiles cold |
+
+Two more workflow strings are path-bound and neither is a crate path. `integration.yml`'s
+*classify the change* step decides whether the Rust steps run at all, from
+`grep -qE '^(tauri/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.github/workflows/)'` —
+after the move nothing matches `^tauri/`, so **the Rust half of the gate would silently stop
+running**, which is the failure that fails open in the wrong direction. It gains the new prefix and
+`turbo.json`. And the *verify the shell breakpoint survived the build* step greps
+`build/_app/immutable/assets/`, which becomes `apps/desktop/build/_app/immutable/assets/`.
+
+**Turborepo's cache is added inside the existing memo, not in place of it.** They answer different
+questions and both are kept: `.integration-pass` is keyed on the whole tree's git hash and
+short-circuits the entire job when these exact bytes already passed, while `.turbo` is keyed per
+task and lets a run that *misses* the memo still reuse the tasks whose own inputs did not move — a
+`.aep/` edit no longer re-runs `build`. A `actions/cache@v6` step on `.turbo`, keyed
+`${{ runner.os }}-turbo-${{ github.sha }}` with a `${{ runner.os }}-turbo-` restore prefix, sits
+before the task steps. No remote cache: `TURBO_TOKEN` and `TURBO_TEAM` are Vercel's and this
+repository has neither.
 
 # Migration
 
@@ -275,9 +385,13 @@ Ordered, because the intermediate states have to stay buildable.
 3. Split the root `package.json`: strip the application's dependencies and scripts, remove
    `version`, add the delegating scripts, keep `engines`, `packageManager` and the shared dev
    tooling.
-4. Repoint the two changeset scripts and the two `--manifest-path` arguments.
+4. Repoint the two changeset scripts, and every path in the table under *CI* above — the three
+   `--manifest-path` arguments, the two `rust-cache` workspace keys, the change-classifier's
+   prefix list, and the built-stylesheet grep.
 5. Set the Tauri hooks' `cwd` and pin the config path in `scripts/tauri-with-env.mjs`.
-6. Regenerate the lockfile with `pnpm install`, and verify `pnpm-lock.yaml` resolves the workspace
+6. Add `turbo.json` and the root `turbo` devDependency, point the root's `build`, `test` and
+   `test:rust` at `turbo run`, and add the `.turbo` cache step to `integration.yml`.
+7. Regenerate the lockfile with `pnpm install`, and verify `pnpm-lock.yaml` resolves the workspace
    rather than a single root project.
 
 **Steps 2 and 3 are one landing.** Between them the repository does not build, and a branch that
@@ -294,8 +408,8 @@ How each acceptance criterion is actually checked.
 | 3 — Tauri builds | `pnpm tauri dev` and `pnpm tauri build` from a clean checkout, run locally on one platform and by `integration.yml`'s existing `pnpm build` + `cargo build --release` steps |
 | 4 — a package added needs no workflow edit | add a throwaway `packages/fixture` on a scratch branch, confirm changesets versions it and `release.yml` is untouched, then delete the branch |
 | 5 — per-package versioning | `pnpm changeset version` on a scratch branch with a changeset naming one package; inspect the diff; discard |
-| 6 — **the release still updates an installed app** | the one criterion no CI run can satisfy. Cut a release from the restructured tree, install the *previous* version on a real machine, and let its updater find and apply the new one. This is a manual gate and it is the reason this effort is not done when CI is green |
-| 7 — scripts run from root and per package | run all five from the root and all five under `pnpm --filter desktop`, in CI |
+| 6 — **the release still updates an installed app** | the one criterion no CI run can satisfy. Cut a release from the restructured tree, install a **`v*`-tagged** build — 0.12.0, the last of the old scheme — on a real machine, and let its updater find and apply the new one. That the *old* scheme is what gets installed is the point: it is the only check that the tag rename is as invisible to an installed application as the evidence says. Manual, post-merge, and the reason this effort is not done when CI is green |
+| 7 — scripts run from root and per package | run all five from the root, then their per-package forms: `turbo run build test test:rust --filter=./apps/desktop` for the three that are tasks, and `pnpm --filter ./apps/desktop <script>` **one script per invocation** for `check` and `lint` — `pnpm --filter` takes a single script name and treats anything after it as arguments to that script |
 
 **No test files are deleted by this effort.** [[skills/plan/depth]] requires naming coverage
 changes; there are none, because nothing is merged behind a new interface — the tests move with
@@ -317,12 +431,28 @@ their packages and keep asserting exactly what they assert now. `src/**/*.test.m
 - **The move commit is large and reads as noise.** Mitigated by step 2 doing nothing but renames,
   so `git log --follow` and `git diff -M` both stay useful, and by keeping the split (step 3) in a
   separate commit within the same landing.
-- **`pnpm --filter` name drift.** The root scripts name the package; renaming the package silently
-  breaks every root script. Mitigated by filtering on the workspace path rather than the package
-  name where pnpm allows it.
-- **A default `cwd` this plan does not rely on may still be inherited somewhere** — the Tauri CLI's
-  own project detection was not verified (recorded in the evidence file's *Not checked*). Mitigated
-  by pinning the config path explicitly in `scripts/tauri-with-env.mjs` rather than discovering it.
+- **Filter name drift.** A root script that names the package breaks silently when the package is
+  renamed — and this effort renames two things at once, so the risk is live rather than
+  hypothetical. Mitigated by filtering on the workspace path in both tools, never on the name.
+- **A cached task result is a claim that nothing relevant changed**, and Turborepo believes
+  whatever `inputs` says. `test:rust` restricted to `tauri/**` is the sharp edge: get the glob
+  wrong and a green run means "nothing was re-tested", reported identically to "everything
+  passed". This is `[[rules/engineering]]`'s *obeying a rule means letting its check fire*, and it
+  is why the `.integration-pass` memo is kept as the outer gate rather than replaced — the memo
+  is keyed on the whole tree, so it cannot be wrong about what it covers.
+- ~~**A default `cwd` this plan does not rely on may still be inherited somewhere.**~~ **Closed
+  2026-08-17** by reading the CLI source rather than working around it: the hook default is
+  `frontend_dir` and it is the value this layout wants, while the Tauri CLI's project detection
+  walks from the working directory — so the thing worth pinning is the working directory, and
+  `scripts/tauri-with-env.mjs` pins it. See *Technical Approach*.
+- **A `turbo` `inputs` glob silently opts out of git.** Turbo's default hashing enumerates
+  tracked files; naming `inputs` explicitly makes it walk the filesystem instead, so ignored
+  build output falls into the hash. Observed on `test:rust`: `["tauri/**"]` pulled **69,430**
+  `tauri/target` paths plus the live SQLite files, and the task could never cache — it paid 69k
+  stats every run to rediscover that it had changed. Mitigated by negating the machine-written
+  paths, and **checked by running it three times**: unchanged tree hits, a Rust source edit
+  misses, a frontend-only edit still hits. A cache that never misses is a check that never fires,
+  so the miss is the half worth proving.
 - **`.svelte-kit/tsconfig.json` is generated**, and `tsconfig.json` extends it by relative path.
   If `svelte-kit sync` is run from the wrong directory the extend target does not exist and the
   failure is a type error storm rather than a clear message.
@@ -350,8 +480,9 @@ existing references still resolve.
 
 ## 02 — grilling(repository): what the monorepo's layout and tooling are
 
-Status: **decided 2026-08-17 — option A.** The three approaches, their costs and the reasoning
-are in `# Architecture` above; this section keeps the question it was opened with.
+Status: **decided 2026-08-17 — option A**, **amended the same day on the tooling half.** The three
+approaches, their costs and the reasoning are in `# Architecture` above; this section keeps the
+question it was opened with, and the amendment below.
 Part of: the-repository-becomes-a-monorepo
 Type: grilling
 Blocked by: —
@@ -364,3 +495,56 @@ release workflow when there is more than one publishable thing.
 
 This is the prefactor: everything on [[efforts/a-workspace-follows-its-user/spec]] lands inside
 whatever it decides.
+
+### Amendment, 2026-08-17 — Turborepo runs the tasks
+
+**What changed.** The layout is untouched: option A stands, `apps/desktop/` is still the only
+package, the schema is still not extracted, and pnpm still declares the workspace. What moves is
+the *delegation mechanism* in `# Interfaces` — root scripts were to fan out with `pnpm --filter`,
+and now `build`, `test` and `test:rust` fan out through `turbo run` against a task graph in
+`turbo.json`, with a `.turbo` cache in CI beside the existing tree-hash memo. `check`, `lint` and
+`format` stay outside the graph, repository-wide, for the reason given in `# Interfaces`.
+
+**Who decided it, and on what.** The human, during `/implement` on #500, before any code was
+written. It is recorded here rather than folded into the *how* because
+`[[rules/change-control]]` puts a tooling choice at plan level: `/implement` builds what was
+planned or stops, and this changed what was planned.
+
+**The argument against it, kept because it is the one this spec makes elsewhere.** `# Architecture`
+refused `packages/schema` on the grounds that a boundary built before the consumer that justifies
+it is cost without substitutability. A task graph over one package is the same shape: turbo's
+fan-out, caching and `dependsOn` all describe relationships that do not exist yet, and until #497
+lands a second package the graph is a one-node graph. The counter, and the reason it was taken: the
+second package is a *named, accepted* effort rather than a speculative one, and unlike the schema
+extraction — which would rewrite twenty-plus import specifiers — adopting turbo later would cost
+one config file and five script lines. The cost of being early here is small and the cost of being
+early there was not.
+
+**What this amendment does not touch.** The tag scheme, the changeset scripts, the updater feed,
+the four-platform matrix, `frontendDist`, and the Rust crate's manifest. Turborepo is above all of
+them.
+
+### Amendment, 2026-08-17 — the names, and the release tag
+
+**What changed.** The human directed three things during the same `/implement` run: the root
+package keeps the name `rentable`, the application becomes `@rentable/desktop`, and the release
+tag moves to that package's own namespace, `@rentable/desktop@<version>`.
+
+**The premise that had to be checked first.** The spec had answered *"single-tag, unchanged"*, and
+had answered it on the strength of `# Constraints` calling the `v*.*.*` scheme a public contract.
+That claim was **wrong**, and it was load-bearing — so the change could not be sized until it was
+read end to end. It was, and the contract turns out to be the endpoint, `latest.json`'s `version`,
+and the signing key; the tag is internal. Both the constraint and the open question above are
+amended, and
+[[efforts/the-repository-becomes-a-monorepo/evidence/research/the-updater-contract]] holds the
+sources.
+
+**Consequence worth stating plainly, because it was the human's actual question:** *no migration
+mechanism is needed, and none is built.* Applications installed from any of the five `v*` releases
+find the next release through the same unchanged endpoint. A hand-made compatibility tag beside
+the new one would be machinery with no consumer — the same thing `# Architecture` refused for
+`packages/schema`, and refused for the same reason.
+
+**What it does not touch.** The endpoint, the signing key, the four-platform matrix, the release
+*title*, the changelog's heading and history, and the version series itself — `@rentable/desktop`
+continues from 0.12.0 rather than restarting.

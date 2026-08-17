@@ -52,6 +52,44 @@ by this repository for `frontendDist`, so the gap is in the documentation rather
 capability. For the hooks' default `cwd`, nothing here establishes it, so the plan sets `cwd`
 explicitly rather than inheriting a default it has not observed.
 
+## Addendum, 2026-08-17 — the hooks' default `cwd`, from the source
+
+Read during `/implement` on #500, because the conclusion above had the plan setting a field it
+had not established the semantics of. **It reverses that instruction**, so it is recorded here
+rather than acted on quietly.
+
+- **Sources.** `crates/tauri-cli/src/helpers/mod.rs`, `.../src/dev.rs`, `.../src/build.rs` and
+  `.../src/helpers/app_paths.rs` on `tauri-apps/tauri@dev`. Read 2026-08-17.
+
+**source** — `run_hook` resolves the working directory as
+`let cwd = script_cwd.unwrap_or_else(|| frontend_dir.to_owned());`, and `dev.rs` carries the same
+line for `beforeDevCommand`.
+
+**interpretation** — a configured `cwd` is handed to `Command::current_dir` **as-is. It is joined
+to nothing.** So a *relative* `cwd` in `tauri.conf.json` resolves against whatever the process's
+working directory happens to be at that moment — not against the config file, and not against the
+project. That is the ambiguity the plan was trying to remove, and writing the field is what
+introduces it.
+
+**source** — `build.rs` runs `set_current_dir(dirs.tauri)` *before* calling `run_hook`. `dev.rs`
+has no equivalent call on that path.
+
+**interpretation** — the process cwd therefore differs between `tauri build` and `tauri dev`, so
+one relative `cwd` value cannot be correct for both. The field is not merely unnecessary; a
+relative value is actively wrong.
+
+**source** — `app_paths::resolve_dirs` computes the frontend directory as
+`resolve_frontend_dir().unwrap_or_else(|| tauri.parent().unwrap().to_path_buf())`, where
+`resolve_frontend_dir` walks the tree for a `package.json`.
+
+**interpretation** — under this layout both branches land on `apps/desktop`: the walk finds
+`apps/desktop/package.json`, and the fallback is the parent of `apps/desktop/tauri`. The default
+is stable, it is the directory the hooks need, and it does not depend on the invocation.
+
+**conclusion** — **omit `cwd`.** The plan's instruction to set it explicitly was sound reasoning
+from an unread default; with the default read, the explicit form is the fragile one. The hooks
+stay `"pnpm dev"` and `"pnpm build"` as strings, and `tauri.conf.json` moves byte-identical.
+
 # Conclusion
 
 The Tauri build is not a constraint on the layout. `frontendDist` is a path relative to
@@ -64,8 +102,9 @@ by setting those two fields.
 - Whether `pnpm`'s workspace resolution and Tauri's asset embedding interact badly when the
   frontend output directory is a symlink — pnpm links workspace dependencies, and a build
   output directory is not one, so this was judged out of the path rather than verified.
-- The default `cwd` of the before-build hooks, which the reference does not state and which
-  the plan therefore does not rely on.
+- ~~The default `cwd` of the before-build hooks, which the reference does not state and which
+  the plan therefore does not rely on.~~ **Checked 2026-08-17** — see the addendum above. The
+  plan now relies on it, and does not write the field.
 - Whether the Tauri CLI's own project detection (`tauri build` invoked from a package rather
   than the repository root) changes which `tauri.conf.json` it finds. The repository invokes
   the CLI through `scripts/tauri-with-env.mjs`, so the invocation is already indirected and
