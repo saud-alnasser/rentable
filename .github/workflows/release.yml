@@ -51,7 +51,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: '� create version PR or publish tag'
-        uses: changesets/action@v1
+        uses: changesets/action@v2.1.0
         with:
           title: 'chore: version package'
           commit: 'chore: version package'
