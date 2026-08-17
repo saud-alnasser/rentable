@@ -107,6 +107,13 @@ pub enum Cell {
 
 #[derive(serde::Deserialize)]
 pub struct Sheet {
+    /// what the tab is called.
+    ///
+    /// Absent where the workbook holds one sheet: there is nothing to tell it apart from, and a
+    /// tab named after the file says the file's name twice. Present once a workbook holds
+    /// several, which is the whole of how a reader finds the tenants in a workspace.
+    #[serde(default)]
+    pub name: Option<String>,
     pub headers: Vec<String>,
     pub rows: Vec<Vec<Cell>>,
 }
@@ -139,48 +146,52 @@ pub(crate) fn to_cell(value: &str) -> String {
     }
 }
 
-/// Write `sheet` as a workbook and answer with the path it landed on.
+/// The three ways a cell is spelled, built once and lent to every sheet.
 ///
-/// The format is built here rather than on the web side: the reader the import direction needs
-/// is materially stronger in Rust, and the package that would have covered both directions in
-/// JavaScript has no patched release on the registry. The effort's evidence,
-/// `where-the-spreadsheet-format-belongs`, carries the comparison.
-///
-/// No byte-order mark, unlike the text export above — a workbook is a zip archive, and three
-/// bytes in front of it is a corrupt file rather than a hint about encoding.
-#[tauri::command]
-pub async fn export_write_workbook(
-    app: AppHandle,
-    name: String,
-    sheet: Sheet,
-) -> Result<String, Error> {
-    ensure_plain_name(&name)?;
-
-    let path = export_dir(&app)?.join(&name);
-    let mut workbook = rust_xlsxwriter::Workbook::new();
-    let worksheet = workbook.add_worksheet();
-
-    let write_failed = |error: rust_xlsxwriter::XlsxError| Error::Io {
-        message: format!("could not build {name}: {error}"),
-    };
-
+/// A format in this crate belongs to the workbook rather than to a worksheet, so one set is
+/// shared across the tabs — and a workspace whose five sheets each built their own would put
+/// five identical style definitions in the file for no reader's benefit.
+struct Formats {
     // a heading is a heading: bold, and the row frozen under it so a long sheet keeps saying
     // what its columns are. Both are what a person does to a sheet by hand the moment they open
     // one, and doing it here is the difference between a file and a dump.
-    let heading = rust_xlsxwriter::Format::new().set_bold();
-    // whole days, spelled the way the reader's own spreadsheet spells them.
-    let day = rust_xlsxwriter::Format::new().set_num_format("yyyy-mm-dd");
+    heading: rust_xlsxwriter::Format,
+    /// whole days, spelled the way the reader's own spreadsheet spells them.
+    day: rust_xlsxwriter::Format,
     // thousands separated and two places kept, so a column of amounts lines up on the decimal
     // and a total under it is a total rather than a guess.
-    let money = rust_xlsxwriter::Format::new().set_num_format("#,##0.00");
+    money: rust_xlsxwriter::Format,
+}
 
-    for (column, header) in sheet.headers.iter().enumerate() {
-        worksheet
-            .write_string_with_format(0, column as u16, to_cell(header), &heading)
-            .map_err(write_failed)?;
+impl Formats {
+    fn new() -> Self {
+        Self {
+            heading: rust_xlsxwriter::Format::new().set_bold(),
+            day: rust_xlsxwriter::Format::new().set_num_format("yyyy-mm-dd"),
+            money: rust_xlsxwriter::Format::new().set_num_format("#,##0.00"),
+        }
+    }
+}
+
+/// Lay one sheet out on one worksheet.
+///
+/// Separate from the command because a workbook now holds one sheet or five, and the two differ
+/// only in how many times this runs — a workspace whose tabs were laid out by a second copy of
+/// this loop would be a second place for the heading row to drift.
+fn write_sheet(
+    worksheet: &mut rust_xlsxwriter::Worksheet,
+    sheet: &Sheet,
+    formats: &Formats,
+) -> Result<(), rust_xlsxwriter::XlsxError> {
+    if let Some(name) = &sheet.name {
+        worksheet.set_name(name)?;
     }
 
-    worksheet.set_freeze_panes(1, 0).map_err(write_failed)?;
+    for (column, header) in sheet.headers.iter().enumerate() {
+        worksheet.write_string_with_format(0, column as u16, to_cell(header), &formats.heading)?;
+    }
+
+    worksheet.set_freeze_panes(1, 0)?;
 
     for (index, row) in sheet.rows.iter().enumerate() {
         for (column, value) in row.iter().enumerate() {
@@ -196,14 +207,13 @@ pub async fn export_write_workbook(
                     .write_number(row_index, column_index, *value)
                     .map(|_| ()),
                 Cell::Date { value } => worksheet
-                    .write_number_with_format(row_index, column_index, *value, &day)
+                    .write_number_with_format(row_index, column_index, *value, &formats.day)
                     .map(|_| ()),
                 Cell::Money { value } => worksheet
-                    .write_number_with_format(row_index, column_index, *value, &money)
+                    .write_number_with_format(row_index, column_index, *value, &formats.money)
                     .map(|_| ()),
                 Cell::Empty => Ok(()),
-            }
-            .map_err(write_failed)?;
+            }?;
         }
     }
 
@@ -211,6 +221,50 @@ pub async fn export_write_workbook(
     // the column rather than fixed, because a column of names and a column of counts are not
     // the same width and a file that needs adjusting before it can be read is half a file.
     worksheet.autofit();
+
+    Ok(())
+}
+
+/// Write `sheets` as a workbook and answer with the path it landed on.
+///
+/// One sheet is a directory; several are a workspace, which is the only single file that can
+/// hold the whole of one legibly — a tenant with their contracts and their payments is five
+/// tables, and five files handed over in the wrong order is five chances to rebuild it wrong.
+/// The tabs arrive in the order they are given, and that order is the caller's: it is the order
+/// the sheets have to be read back in.
+///
+/// The format is built here rather than on the web side: the reader the import direction needs
+/// is materially stronger in Rust, and the package that would have covered both directions in
+/// JavaScript has no patched release on the registry. The effort's evidence,
+/// `where-the-spreadsheet-format-belongs`, carries the comparison.
+///
+/// No byte-order mark, unlike the text export above — a workbook is a zip archive, and three
+/// bytes in front of it is a corrupt file rather than a hint about encoding.
+#[tauri::command]
+pub async fn export_write_workbook(
+    app: AppHandle,
+    name: String,
+    sheets: Vec<Sheet>,
+) -> Result<String, Error> {
+    ensure_plain_name(&name)?;
+
+    if sheets.is_empty() {
+        return Err(Error::InvalidInput {
+            message: "a workbook with no sheets is not a file".to_owned(),
+        });
+    }
+
+    let path = export_dir(&app)?.join(&name);
+    let mut workbook = rust_xlsxwriter::Workbook::new();
+    let formats = Formats::new();
+
+    for sheet in &sheets {
+        let worksheet = workbook.add_worksheet();
+
+        write_sheet(worksheet, sheet, &formats).map_err(|error| Error::Io {
+            message: format!("could not build {name}: {error}"),
+        })?;
+    }
 
     workbook.save(&path).map_err(|error| Error::Io {
         message: format!("could not write {}: {error}", path.display()),
@@ -281,5 +335,63 @@ mod tests {
             "a workbook starts with the zip signature"
         );
         assert_ne!(&bytes[0..3], UTF8_BOM.as_bytes());
+    }
+
+    // a workspace is five sheets in one file, and which sheet is which is the tab's name. Read
+    // back through the same library the import direction uses, because that is the only reader
+    // whose answer matters.
+    #[test]
+    fn every_sheet_lands_under_its_own_name_in_the_order_it_was_given() {
+        let sheets = vec![
+            Sheet {
+                name: Some("Tenants".to_owned()),
+                headers: vec!["name".to_owned()],
+                rows: vec![vec![Cell::Text {
+                    value: "محمد".to_owned(),
+                }]],
+            },
+            Sheet {
+                name: Some("Complexes".to_owned()),
+                headers: vec!["name".to_owned()],
+                rows: vec![vec![Cell::Text {
+                    value: "Al Nakheel".to_owned(),
+                }]],
+            },
+        ];
+
+        let mut workbook = rust_xlsxwriter::Workbook::new();
+        let formats = Formats::new();
+
+        for sheet in &sheets {
+            write_sheet(workbook.add_worksheet(), sheet, &formats).unwrap();
+        }
+
+        let bytes = workbook.save_to_buffer().unwrap();
+        let read = calamine::open_workbook_auto_from_rs(std::io::Cursor::new(bytes)).unwrap();
+
+        assert_eq!(
+            calamine::Reader::sheet_names(&read),
+            vec!["Tenants", "Complexes"]
+        );
+    }
+
+    // a sheet with no name is the directory export, which has one tab and nothing to tell it
+    // apart from. The library's own default is what it keeps.
+    #[test]
+    fn a_sheet_that_names_itself_nothing_keeps_the_default_tab_name() {
+        let sheet = Sheet {
+            name: None,
+            headers: vec!["name".to_owned()],
+            rows: vec![],
+        };
+
+        let mut workbook = rust_xlsxwriter::Workbook::new();
+
+        write_sheet(workbook.add_worksheet(), &sheet, &Formats::new()).unwrap();
+
+        let bytes = workbook.save_to_buffer().unwrap();
+        let read = calamine::open_workbook_auto_from_rs(std::io::Cursor::new(bytes)).unwrap();
+
+        assert_eq!(calamine::Reader::sheet_names(&read), vec!["Sheet1"]);
     }
 }

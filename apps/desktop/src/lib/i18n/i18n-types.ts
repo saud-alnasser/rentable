@@ -1313,6 +1313,71 @@ type RootTranslation = {
 		 */
 		openWorkspaceAction: string
 		/**
+		 * m​o​v​e​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e
+		 */
+		transferTitle: string
+		/**
+		 * w​r​i​t​e​ ​e​v​e​r​y​t​h​i​n​g​ ​—​ ​t​e​n​a​n​t​s​,​ ​c​o​m​p​l​e​x​e​s​,​ ​u​n​i​t​s​,​ ​c​o​n​t​r​a​c​t​s​ ​a​n​d​ ​p​a​y​m​e​n​t​s​ ​—​ ​t​o​ ​o​n​e​ ​w​o​r​k​b​o​o​k​,​ ​o​r​ ​r​e​a​d​ ​o​n​e​ ​b​a​c​k​ ​i​n​.​ ​r​e​c​o​r​d​s​ ​n​a​m​e​ ​e​a​c​h​ ​o​t​h​e​r​ ​b​y​ ​n​a​m​e​ ​r​a​t​h​e​r​ ​t​h​a​n​ ​b​y​ ​n​u​m​b​e​r​,​ ​s​o​ ​a​ ​f​i​l​e​ ​o​p​e​n​s​ ​o​n​ ​a​n​y​ ​m​a​c​h​i​n​e​.
+		 */
+		transferDescription: string
+		/**
+		 * i​m​p​o​r​t​ ​a​ ​w​o​r​k​s​p​a​c​e
+		 */
+		transferImportTitle: string
+		/**
+		 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​w​a​s​ ​i​m​p​o​r​t​e​d
+		 */
+		transferImportSuccess: string
+		/**
+		 * t​h​i​s​ ​f​i​l​e​ ​h​o​l​d​s​ ​n​o​ ​s​h​e​e​t​ ​t​h​i​s​ ​r​e​c​o​g​n​i​s​e​s​,​ ​s​o​ ​t​h​e​r​e​ ​i​s​ ​n​o​t​h​i​n​g​ ​t​o​ ​i​m​p​o​r​t​.
+		 */
+		transferNoSheets: string
+		/**
+		 * t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​ ​i​s​ ​m​i​s​s​i​n​g​ ​t​h​e​ ​c​o​l​u​m​n​(​s​)​:​ ​{​c​o​l​u​m​n​s​}​.​ ​n​o​t​h​i​n​g​ ​c​a​n​ ​b​e​ ​r​e​a​d​ ​f​r​o​m​ ​t​h​i​s​ ​f​i​l​e​.
+		 * @param {string} columns
+		 * @param {string} sheet
+		 */
+		transferSheetMissingColumns: RequiredParams<'columns' | 'sheet'>
+		/**
+		 * i​n​ ​t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​,​ ​r​o​w​s​ ​{​r​o​w​s​}​ ​b​o​t​h​ ​c​l​a​i​m​ ​{​i​d​e​n​t​i​t​y​}​.​ ​n​o​t​h​i​n​g​ ​w​i​l​l​ ​b​e​ ​i​m​p​o​r​t​e​d​ ​u​n​t​i​l​ ​o​n​e​ ​o​f​ ​t​h​e​m​ ​g​o​e​s​.
+		 * @param {string} identity
+		 * @param {string} rows
+		 * @param {string} sheet
+		 */
+		transferSheetCollision: RequiredParams<'identity' | 'rows' | 'sheet'>
+		/**
+		 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​o​w​(​s​)​ ​n​a​m​e​ ​a​ ​r​e​c​o​r​d​ ​n​o​ ​s​h​e​e​t​ ​h​o​l​d​s​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​i​n​ ​t​h​i​s​ ​f​i​l​e​ ​c​a​n​ ​b​e​ ​i​m​p​o​r​t​e​d​.
+		 * @param {unknown} count
+		 */
+		transferUnresolved: RequiredParams<'count|number'>
+		/**
+		 * {​s​h​e​e​t​}​ ​r​o​w​ ​{​r​o​w​|​n​u​m​b​e​r​}​ ​n​a​m​e​s​ ​{​r​e​f​e​r​e​n​c​e​}
+		 * @param {string} reference
+		 * @param {unknown} row
+		 * @param {string} sheet
+		 */
+		transferUnresolvedRow: RequiredParams<'reference' | 'row|number' | 'sheet'>
+		/**
+		 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​l​r​e​a​d​y​ ​h​e​r​e
+		 * @param {unknown} count
+		 */
+		transferSkippedHeld: RequiredParams<'count|number'>
+		/**
+		 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​m​i​s​s​i​n​g​ ​a​ ​r​e​q​u​i​r​e​d​ ​v​a​l​u​e
+		 * @param {unknown} count
+		 */
+		transferSkippedIncomplete: RequiredParams<'count|number'>
+		/**
+		 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​r​e​a​d
+		 * @param {unknown} count
+		 */
+		transferSkippedUnreadable: RequiredParams<'count|number'>
+		/**
+		 * a​n​d​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​m​o​r​e
+		 * @param {unknown} count
+		 */
+		transferMore: RequiredParams<'count|number'>
+		/**
 		 * p​r​o​t​e​c​t​e​d​ ​u​p​d​a​t​e​ ​b​a​c​k​u​p
 		 */
 		protectedUpdateBackup: string
@@ -3443,6 +3508,58 @@ export type TranslationFunctions = {
 		 * open workspace
 		 */
 		openWorkspaceAction: () => LocalizedString
+		/**
+		 * move this workspace
+		 */
+		transferTitle: () => LocalizedString
+		/**
+		 * write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.
+		 */
+		transferDescription: () => LocalizedString
+		/**
+		 * import a workspace
+		 */
+		transferImportTitle: () => LocalizedString
+		/**
+		 * the workspace was imported
+		 */
+		transferImportSuccess: () => LocalizedString
+		/**
+		 * this file holds no sheet this recognises, so there is nothing to import.
+		 */
+		transferNoSheets: () => LocalizedString
+		/**
+		 * the {sheet} sheet is missing the column(s): {columns}. nothing can be read from this file.
+		 */
+		transferSheetMissingColumns: (arg: { columns: string, sheet: string }) => LocalizedString
+		/**
+		 * in the {sheet} sheet, rows {rows} both claim {identity}. nothing will be imported until one of them goes.
+		 */
+		transferSheetCollision: (arg: { identity: string, rows: string, sheet: string }) => LocalizedString
+		/**
+		 * {count|number} row(s) name a record no sheet holds, so nothing in this file can be imported.
+		 */
+		transferUnresolved: (arg: { count: unknown }) => LocalizedString
+		/**
+		 * {sheet} row {row|number} names {reference}
+		 */
+		transferUnresolvedRow: (arg: { reference: string, row: unknown, sheet: string }) => LocalizedString
+		/**
+		 * {count|number} already here
+		 */
+		transferSkippedHeld: (arg: { count: unknown }) => LocalizedString
+		/**
+		 * {count|number} missing a required value
+		 */
+		transferSkippedIncomplete: (arg: { count: unknown }) => LocalizedString
+		/**
+		 * {count|number} could not be read
+		 */
+		transferSkippedUnreadable: (arg: { count: unknown }) => LocalizedString
+		/**
+		 * and {count|number} more
+		 */
+		transferMore: (arg: { count: unknown }) => LocalizedString
 		/**
 		 * protected update backup
 		 */

@@ -399,6 +399,24 @@ const ar = {
 		loadErrorTitle: 'الإعدادات غير متاحة حالياً',
 		openWorkspaceAction: 'فتح مساحة العمل',
 
+		transferTitle: 'نقل مساحة العمل',
+		transferDescription:
+			'اكتب كل شيء — المستأجرين والمجمعات والوحدات والعقود والمدفوعات — في ملف واحد، أو اقرأ ملفاً كهذا. تشير السجلات إلى بعضها بالأسماء لا بالأرقام، فيفتح الملف على أي جهاز.',
+		transferImportTitle: 'استيراد مساحة عمل',
+		transferImportSuccess: 'تم استيراد مساحة العمل',
+		transferNoSheets: 'لا يحتوي هذا الملف على أي ورقة معروفة، فلا شيء لاستيراده.',
+		transferSheetMissingColumns:
+			'تنقص ورقة {sheet} الأعمدة: {columns}. لا يمكن قراءة شيء من هذا الملف.',
+		transferSheetCollision:
+			'في ورقة {sheet}، يدّعي الصفان {rows} السجل نفسه {identity}. لن يُستورد شيء حتى يُحذف أحدهما.',
+		transferUnresolved:
+			'يشير {count|number} صف إلى سجل لا تحتويه أي ورقة، فلا يمكن استيراد شيء من هذا الملف.',
+		transferUnresolvedRow: 'الصف {row|number} في {sheet} يشير إلى {reference}',
+		transferSkippedHeld: '{count|number} موجود هنا أصلاً',
+		transferSkippedIncomplete: '{count|number} تنقصه قيمة مطلوبة',
+		transferSkippedUnreadable: '{count|number} تعذّرت قراءته',
+		transferMore: 'و{count|number} غيرها',
+
 		protectedUpdateBackup: 'نسخة احتياطية محمية',
 		releaseAvailable: 'يتوفر تحديث v{version}.',
 		restoreBackupTitle: 'استعادة نسخة احتياطية',

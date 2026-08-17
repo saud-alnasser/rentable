@@ -246,7 +246,7 @@
 			const path =
 				format === 'csv'
 					? await tauri.export.write(name, toCsv(exportAs.columns, data))
-					: await tauri.export.writeWorkbook(name, toExportSheet(exportAs.columns, data));
+					: await tauri.export.writeWorkbook(name, [toExportSheet(exportAs.columns, data)]);
 
 			// the path is isolated because it is written left to right whatever the sentence
 			// around it is, and an unisolated one reorders the Arabic it is spliced into.
