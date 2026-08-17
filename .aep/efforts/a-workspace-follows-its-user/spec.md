@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -12,7 +12,7 @@ A workspace is a file on one machine, and the application has never asked who is
 
 The database is local SQLite and it is of record. The only way a workspace reaches a second
 machine is a Google Drive exchange of whole-file snapshots, resolved when the two sides
-disagree by choosing a side ([[rules/drive-concurrency]]). The request context carries a
+disagree by choosing a side ([[rules/drive]], under *Concurrency*). The request context carries a
 database, a clock and a host and nothing else (`src/lib/api/context.ts:36`); the schema has no
 user table and no ownership column anywhere.
 
@@ -20,7 +20,7 @@ user table and no ownership column anywhere.
 2026-08-17, and it matters: `RemoteSyncAccount` already carries an `id`, `email`, `display_name`,
 `avatar_url`, `provider_user_id`, `token_expires_at` and `refresh_token_available`, and
 `tauri/src/sync/google/auth.rs` implements OAuth 2 with PKCE and refresh behind the credential
-boundary [[rules/drive-client-boundary]] describes. So identity is **not** built from nothing —
+boundary [[rules/drive]], under *Client boundary*, describes. So identity is **not** built from nothing —
 there is a working sign-in flow, an account shape, and a place credentials already live safely.
 What is genuinely absent is identity reaching the *domain*: the schema and the request context.
 
@@ -215,7 +215,7 @@ without reopening any decision made here. **Neither is built.**
   `SqliteRemoteDatabase<typeof schema>` and run the same row mapping, which is what lets a
   router test exercise the real boundary. A decision that forks the client type is answering
   the wrong question.* Recorded originally as ADR 0001, and **now a live rule again**:
-  [[rules/database-client-type]], restored 2026-08-17.
+  [[rules/api-layer]], under *One database client type*, restored 2026-08-17.
 - **Arabic and English, RTL and LTR, both first-class.** Sign-in, account and error surfaces
   are new surfaces and inherit this.
 - **Never `add --overwrite` or `init --reinstall`** on design primitives.
@@ -281,13 +281,13 @@ without reopening any decision made here. **Neither is built.**
 - **Turso stays the vendor.** No alternative has been evaluated, and this effort does not
   evaluate one.
 - **Rust remains present on the desktop client.** Credential handling assumes it
-  ([[rules/drive-client-boundary]]); a browser client would not have it, which is why that is an
+  ([[rules/drive]], under *Client boundary*); a browser client would not have it, which is why that is an
   open question rather than an assumption.
 
 # Open Questions
 
 - **Where does a workspace credential live on a client with no Rust process?**
-  [[rules/drive-client-boundary]] puts credentials in Rust and says there is no second place
+  [[rules/drive]], under *Client boundary*, puts credentials in Rust and says there is no second place
   they could be. A browser client has no Rust at all. Nothing here requires answering it for a
   browser client that is not being built — but the seam has to admit an answer.
 - **What does an offline client do when its token is revoked or expires?** Decision 01
@@ -315,7 +315,7 @@ without reopening any decision made here. **Neither is built.**
   fresh install with no workspace now has a fork in front of it that it has never had, and
   presenting it badly makes the account feel mandatory when it is not.
 - ~~**Where does ADR 0001 live now?**~~ **Resolved 2026-08-17.** It is
-  [[rules/database-client-type]], restored from `.claude/decisions/` in history and verified
+  [[rules/api-layer]], under *One database client type*, restored from `.claude/decisions/` in history and verified
   against the tree first: `memory.ts` does build its client through `createDatabase`, and
   `seed.ts`/`purge.ts` are still on `drizzle-orm/better-sqlite3`, so the rule's obligation and
   its named exclusion both still hold.
@@ -384,11 +384,11 @@ batch)` (`src/lib/platform/database/client.ts:47`) takes two functions and retur
 `SqliteRemoteDatabase<typeof schema>`; production passes Tauri's `invoke` (`:61`), tests pass an
 in-memory engine (`memory.ts:63`). Whichever client decision 11 selects is **wrapped into those
 same two functions**. The gate decides the *body* of `single` and `batch`, never their shape —
-which is why [[rules/database-client-type]] can be obeyed before the gate is known, and why
+which is why [[rules/api-layer]], under *One database client type*, can be obeyed before the gate is known, and why
 acceptance criterion 10 is not waiting on anything.
 
 *Rejected, and named so it is not re-proposed:* a second client type for hosted workspaces. It
-is the change [[rules/database-client-type]] exists to forbid, and it would end the property
+is the change [[rules/api-layer]], under *One database client type*, exists to forbid, and it would end the property
 that makes router tests worth running — that the test client and the production client run the
 same row mapping.
 
@@ -539,7 +539,7 @@ Two paths keep offline writes, and neither is free:
 
 What the finding settles for the rest of the map:
 
-- **Transactions survive (02, [[rules/multi-table-writes]]).** A batch stays atomic on every
+- **Transactions survive (02, [[rules/data]], under *Multi-table writes*).** A batch stays atomic on every
   transport examined — synthesised client-side as `BEGIN`/conditional statements/conditional
   `COMMIT`/`ROLLBACK` in one pipelined request. But the mode argument becomes load-bearing where
   it is inert today, and in **opposite directions** on the two stacks: `@libsql/client`'s
@@ -564,7 +564,7 @@ What the finding settles for the rest of the map:
   gives 100 databases; paid tiers are unlimited. There is no documented per-database size cap and
   **no documented concurrent-connection limit at all**. Exceeding any single quota metric blocks
   the databases outright unless overages are enabled. "Rows read" bills **scans, not results** —
-  which prices [[rules/list-reads]]'s unbounded reads directly — and sync bills 4 kB frames even
+  which prices the unbounded reads of *List reads* in [[rules/data]] directly — and sync bills 4 kB frames even
   for a one-byte row.
 - **Read latency is a non-issue on a replica and write latency is the real cost (09).** Replica
   reads are local, documented as microseconds, and not network-bound. Commits carry a documented
@@ -608,7 +608,7 @@ today's local one; multi-device convergence is the product's job rather than thi
 *Disadvantages:* it is a different engine from libSQL, so nothing about it inherits SQLite's
 track record; last-push-wins overwrites a losing writer's values silently, per statement rather
 than per row-version, which is a worse story than today's whole-side conflict resolution and
-lands squarely on [[rules/undo]]'s reasoning.
+lands squarely on the reasoning of *Undo* in [[rules/data]].
 *Risks:* pre-1.0 engine, **early preview on Turso Cloud** — the foundation of the whole
 application on a preview offering; and it is unverified whether it can target a libSQL database
 at all, which would force the engine choice as well as the client choice.
@@ -675,7 +675,7 @@ What it has to settle, in priority order:
 2. **What last-push-wins actually does to a losing writer's record.** Two devices, same
    workspace, both offline, both editing one contract, both pushing. Whether the loss is per
    statement, per row, or per field decides whether this is survivable for a payments ledger,
-   and it decides how much of [[rules/undo]]'s reasoning survives. This is also acceptance
+   and it decides how much of the reasoning of *Undo* in [[rules/data]] survives. This is also acceptance
    criterion 9.
 3. **What a genuinely offline first launch does** with `bootstrapIfEmpty` false — the documented
    path requires the remote reachable on first connect, which a fresh install on a disconnected
@@ -722,7 +722,7 @@ What it has to settle, in priority order:
    documented per-commit added-latency ceiling, this is the number that decides whether the
    architecture is usable before anything is built on it.
 
-Throwaway code goes to `src/lib/prototype/` and is deleted ([[rules/prototyping]]); the
+Throwaway code goes to `src/lib/prototype/` and is deleted ([[rules/module-layout]], under *Prototype code*); the
 write-up is what is kept.
 
 ### What it needs to run
@@ -761,7 +761,7 @@ credential path decision 05 depends on.
 5. **Question 2** — two client instances against one database, in separate directories, both
    disconnected, both editing one contract, both pushed. Record whether the loss is per
    statement, per row, or per field. This is acceptance criterion 9 and it decides how much of
-   [[rules/undo]]'s reasoning survives.
+   the reasoning of *Undo* in [[rules/data]] survives.
 6. **Question 5** — seed with `pnpm db:seed` for a realistic set, then run a whole-table
    reconcile against the remote and time it. Both reconcile paths write one `UPDATE` per changed
    row, sequentially awaited, against a documented per-commit added-latency ceiling — so this is
@@ -888,7 +888,7 @@ storage classes rather than value ranges, and the context now says so.
 | --- | --- | --- | --- | --- |
 | **A — one column, flags capped at 53, guarded by a test** | Cheapest. One `INTEGER` column; `permissions & mask` stays ordinary SQL; nothing about the schema changes when organizations arrive | The ceiling is a convention, not a type. 53 is invisible at the call site | The cliff stays silent unless the guard is written and kept. A guard that is deleted takes the protection with it | A test asserting the defined flag count ≤ 53, failing loudly on the 54th. One test, forever |
 | **B — several integer columns** | Each column stays under the ceiling; bitwise SQL survives per column | Every check spans columns; "which column holds this flag" is a mapping to keep; a new column is a migration | The cliff moves rather than closing — each column still has 53 — and now there are several of them to know about | Worse than A at every point, for the same class of protection |
-| **C — text or blob** | No ceiling; exact at any width. The proxy maps `TEXT` verbatim (`proxy.rs:68`), so no precision path exists | **Bitwise SQL is gone.** `WHERE permissions & 4` cannot be written against a string, so every check moves into application code over full rows | Pushes filtering to the client, which is the shape [[rules/list-reads]] reasons against | Parse and serialize on every read and write |
+| **C — text or blob** | No ceiling; exact at any width. The proxy maps `TEXT` verbatim (`proxy.rs:68`), so no precision path exists | **Bitwise SQL is gone.** `WHERE permissions & 4` cannot be written against a string, so every check moves into application code over full rows | Pushes filtering to the client, which is the shape [[rules/data]], under *List reads*, reasons against | Parse and serialize on every read and write |
 | **D — a row per granted permission** | No ceiling and no precision path at all. Checks are `EXISTS`, which SQLite does well; the schema documents the permission set instead of encoding it in a constant | More rows and a join. A role's whole set is an aggregate rather than a value | Lowest correctness risk of the four | Conventional relational maintenance; the most code, none of it clever |
 
 **Recommendation: A.** Not because the ceiling is comfortable but because the real objection to A
@@ -964,8 +964,8 @@ Blocked by: 11
 **Question.** A hosted remote of record makes Drive redundant as a sync mechanism while leaving
 it plausible as a user-owned backup. Whether it survives, becomes an export path, or is retired
 decides the fate of a large and carefully-built Rust surface — the manifest, conflict analysis,
-retention, the link session — and of [[rules/drive-client-boundary]],
-[[rules/drive-concurrency]], [[rules/drive-transport-testing]] and [[contexts/remote-sync]] with
+retention, the link session — and of [[rules/drive]] entire, every section of it —
+*Client boundary*, *Concurrency*, and *Transport testing* — and of [[contexts/remote-sync]] with
 it. Requirement 12 is that the answer is executed, not merely reached.
 
 **Constrained again 2026-08-17, from the other side.** Sign-in is now Google, so **the OAuth half
@@ -1013,8 +1013,8 @@ simply have no meaning there.
 **Sharpened 2026-08-17.** Sign-in is now Google OAuth executed in Rust, so *authentication itself*
 joins the list of things a browser client has no host for — and it is the one capability a
 browser client cannot simply do without. This does not have to be solved here, but 08 now has to
-say what the seam admits, because [[rules/drive-client-boundary]]'s "credentials belong in Rust
-and there is no second place they could be" was written when no browser client was contemplated.
+say what the seam admits, because *Client boundary* in [[rules/drive]] — "credentials belong in Rust
+and there is no second place they could be" — was written when no browser client was contemplated.
 
 ### The capability inventory *(worked 2026-08-17)*
 
@@ -1083,14 +1083,14 @@ true under a remote of record, or is superseded here with its reasoning stated a
 
 | Rule | What it rests on |
 | --- | --- |
-| [[rules/list-reads]] | whole result sets, argued from "there is no server" — and Turso bills rows *scanned* |
-| [[rules/query-cache]] | `staleTime: Infinity`, argued from three enumerable writers and no unseen one |
-| [[rules/undo]] | a session stack of inverses, argued from a workspace being one syncable unit resolved by choosing a side |
-| [[rules/drive-concurrency]] | concurrency detected rather than prevented, argued from Drive offering no compare-and-set |
-| [[rules/drive-client-boundary]] | credentials in Rust, which a browser client does not have |
+| [[rules/data]], under *List reads* | whole result sets, argued from "there is no server" — and Turso bills rows *scanned* |
+| [[rules/data]], under *Query cache* | `staleTime: Infinity`, argued from three enumerable writers and no unseen one |
+| [[rules/data]], under *Undo* | a session stack of inverses, argued from a workspace being one syncable unit resolved by choosing a side |
+| [[rules/drive]], under *Concurrency* | concurrency detected rather than prevented, argued from Drive offering no compare-and-set |
+| [[rules/drive]], under *Client boundary* | credentials in Rust, which a browser client does not have |
 | [[rules/api-layer]] | no repository layer — routers reach the database directly |
-| [[rules/reconcile-scope]] | reconcile scoped by trigger, priced by decision 01 at one round trip per changed row |
-| [[rules/database-client-type]] | one client type over two function types, which holds only if the chosen client can be driven through that seam — decision 11 is what tells us |
+| [[rules/data]], under *Reconcile scope* | reconcile scoped by trigger, priced by decision 01 at one round trip per changed row |
+| [[rules/api-layer]], under *One database client type* | one client type over two function types, which holds only if the chosen client can be driven through that seam — decision 11 is what tells us |
 | [[contexts/repository]] | its first Boundary is **"There is no server"**, and it changes with them |
 
 **This is bigger than it was when it was written.** The 2.x transition converted all thirty-four
@@ -1102,12 +1102,12 @@ its premise moved is worse than a stale ADR, because it is loaded and obeyed.
 first-class, the premise these rules rest on has not been *replaced* — it has been **narrowed**.
 "There is no server" stays true of a local workspace and stops being true of a hosted one, so
 the common answer is a scope rather than a supersession, and requirement 13 says so. That is
-cheaper for most of the table. It is not cheaper for [[rules/query-cache]], whose reasoning is
+cheaper for most of the table. It is not cheaper for [[rules/data]], under *Query cache*, whose reasoning is
 that the writers are enumerable and there is no unseen one: a hosted workspace has an unseen
 writer by construction — another device — and no scoping makes that go away.
 
 One ADR had no citing rule until 2026-08-17: ADR 0001, *One database client type*, restored as
-[[rules/database-client-type]] and now in the table above like the rest.
+[[rules/api-layer]], under *One database client type*, and now in the table above like the rest.
 
 **This decision also carries the organizations gate, assigned 2026-08-17.** Acceptance criterion
 15's promise — that nothing decided here forecloses organization workspaces — is checked here and
@@ -1144,7 +1144,7 @@ What the answer has to settle:
 - **What happens to a Drive link the workspace already had.** Existing installs may be linked,
   and after conversion the workspace's record of truth is somewhere Drive knows nothing about.
   Leaving both running means two sync mechanisms writing one workspace, which is the shape
-  [[rules/drive-concurrency]] exists to reason about and was never designed to survive.
+  [[rules/drive]], under *Concurrency*, exists to reason about and was never designed to survive.
 - **Whether it is interruptible and what a half-finished conversion leaves behind.** It needs a
   network by definition, and the user running it is the one most likely to have a bad one.
 - **What it costs to reverse**, which is the open question about one-way conversion. The answer

@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -195,7 +195,7 @@ hosted product with a million rows is wrong here, say so explicitly.
 
 Resolved 2026-08-04. **The shipping model does not survive: a list loads the whole result set,
 and pagination is retired from the read path** —
-[[rules/list-reads]], which carries the reasoning and
+[[rules/data]], under *List reads*, which carries the reasoning and
 the rejected options. The answer the section invited is stated there explicitly: the
 hosted-product pattern is wrong for a no-server local file.
 
@@ -243,7 +243,7 @@ Likely an ADR rather than a paragraph.
 ### Answer
 
 Resolved 2026-08-04. **Reconcile splits by trigger, never by rule** —
-[[rules/reconcile-scope]] carries the decision, the
+[[rules/data]], under *Reconcile scope*, carries the decision, the
 UTC-day argument that makes the scoped path safe, and the rejected options.
 
 What the ADR leaves to this section — the shape the build tickets work to:
@@ -286,7 +286,7 @@ on another machine, and the policy has to say what happens then.
 ### Answer
 
 Resolved 2026-08-04. **The cache is trusted until told otherwise** —
-[[rules/query-cache]] carries the
+[[rules/data]], under *Query cache*, carries the
 policy, the writer-set argument, and the rejected options (finite staleTime, join-graph-targeted
 invalidation, optimistic patches).
 
@@ -321,7 +321,7 @@ holding uniformity up, and whether it survives contact with what each list is ac
 ### Answer
 
 Resolved 2026-08-04. **Mechanism stays single, presentation goes per concept** —
-[[rules/list-presentation]] carries the decision and the
+[[rules/interface]], under *List presentation*, carries the decision and the
 rejected shapes. What that section leaves to this one:
 
 **The shapes, one per concept:**

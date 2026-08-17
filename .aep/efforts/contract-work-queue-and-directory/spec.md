@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -45,11 +45,11 @@ duplicates the other, and no debt is invisible on either.
 ## Constraints
 
 - **No schema change.** Every figure needed is already stored: the payment aggregates are
-  materialized columns ([[rules/payment-aggregates]]),
+  materialized columns ([[rules/data]], under *Payment aggregates*),
   and the tenant's name and phone already ride the contract list's join.
-- **[[rules/list-reads]] holds.** One bounded query per
+- **[[rules/data]], under *List reads*, holds.** One bounded query per
   (search, sort) state; nothing re-filtered, re-sorted or re-paginated on the client.
-- **[[rules/list-presentation]]'s seam holds**, and is
+- **The seam of *List presentation* in [[rules/interface]] holds**, and is
   consumed rather than revised: the shell owns query state, search, the result count, the create
   action, the empty and loading states, virtualization and group headers; the concept supplies a
   snippet. A shape needing a new prop on the shell is the signal it is not the same mechanism,
@@ -108,7 +108,7 @@ group opens the shared form surface with the contract already chosen, so the dis
 seeing a debt and clearing it is one click and the row leaves the queue as it is worked. A row in
 the renewals group has nothing to record and opens the contract instead. A read surface of one
 concept reaching a write surface of another is placed by
-[[rules/surface-kinds]], and the direction is
+[[rules/interface]], under *Surface kinds*, and the direction is
 already established in this codebase — the contract detail surface imports the payment module's
 own components today.
 

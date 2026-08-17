@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -22,7 +22,7 @@ the contract first.
 
 The last of those is the one that was reported. The other two are the same defect seen from
 either side: the reader has to know which surface they are on before they know how to act on
-what is in front of them, which is the condition [[rules/row-activation]]
+what is in front of them, which is the condition [[rules/interface]], under *Row activation*
 was written to end for the click and did not end for the actions.
 
 Two further faults were found while reading, both of them live:
@@ -203,5 +203,5 @@ this is the third pass of the interface overhaul's feedback and the fourth set b
 Ticket 02 carries the tenant directory as its first surface, so the block ships demonstrated
 rather than on its own. Ticket 03 carries the three that only change mechanism — the complexes
 directory, a complex's units, and a contract's payments. The decision this set implements is
-[[rules/record-card-actions]], which supersedes
+[[rules/interface]], under *Record card actions*, which supersedes
 ADR 0033.

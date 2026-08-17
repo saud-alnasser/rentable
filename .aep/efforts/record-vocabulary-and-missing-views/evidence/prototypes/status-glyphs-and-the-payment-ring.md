@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: prototype
@@ -18,7 +18,7 @@ each, on two independent switchers, on the existing `/contracts` route.
 
 ## Hypothesis
 
-**Question one.** [[rules/status-presentation]]
+**Question one.** [[rules/interface]], under *Status presentation*
 decides a status renders as an icon with no visible word. The risk it records is that nine
 glyphs must be distinguishable at a row's icon size, and that two pairs — `active`/`fulfilled`
 and `defaulted`/`expired` — differ only by whether the contract is paid in full. The expectation

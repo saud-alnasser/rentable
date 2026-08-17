@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: prototype
@@ -11,9 +11,9 @@ Verified against: Svelte 5 / SvelteKit 2, Tauri 2, `@tabler/icons-svelte` 3.46, 
 desktop app against the developer database, 2026-08-12
 Conclusion: Successful
 
-Consumed: [[rules/landing-screen]] — which overrides
+Consumed: [[rules/interface]], under *Landing screen* — which overrides
 ADR 0014's shape in prose and records the admission test. The rank ownership this forced is
-[[rules/attention-rank]].
+[[rules/interface]], under *Attention rank*.
 
 The three questions left open by
 the discussion that parked this surface,

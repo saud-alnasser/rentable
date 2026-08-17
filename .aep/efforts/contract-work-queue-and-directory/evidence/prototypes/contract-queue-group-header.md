@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: prototype
@@ -21,7 +21,7 @@ or nothing. The expectation was that one of them would win on looking — most l
 count-and-total, since a triage queue's first question is "how much of this is there and
 what is it worth". The header was assumed to be the open question, and the rest of the
 queue — rows, grouping, the shared list shell — assumed settled by
-[[rules/list-presentation]] and
+[[rules/interface]], under *List presentation*, and
 [[efforts/list-presentation-spec/spec]].
 
 ## Method
@@ -69,7 +69,7 @@ Three concrete faults surfaced, all of which predate the header question:
 
 A fourth question was opened and not settled: whether each concept's surfaces diverge **per
 operation** — create, edit, delete, not only the list. ADR 0013 covers presentation of a
-concept's *records*; [[rules/application-surfaces]]
+concept's *records*; [[rules/interface]], under *Application surfaces*
 states the read/write test for whole surfaces; neither reaches the write surfaces, which
 [[efforts/list-presentation-spec/spec]] puts out of scope. Nothing in the decision records or
 the design record notes the per-operation principle, and the reviewer was not certain it
@@ -103,7 +103,7 @@ The recorded value is the scoping error, not the three headers: **a declared inc
 answerable while the design it hangs from holds.** #250's increment was declared at design
 time against a presentation that had not yet been looked at, and looking at the presentation
 is what invalidated it — the same failure mode
-[[rules/list-presentation]] records for #249's table,
+[[rules/interface]], under *List presentation*, records for #249's table,
 one ticket later and one level down.
 
 Routed to `/design`, with the #268 collision as its first input. #250 is blocked; the code is

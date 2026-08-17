@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: context
@@ -30,7 +30,7 @@ _sync_.
 The index describing which snapshots exist and which one is current. Exists in a local form
 and a remote form, and the two are reconciled separately. **Derived, never a source of
 truth** — the snapshots are, and a manifest that is lost or overwritten is rebuilt from the
-ones actually present ([[rules/drive-concurrency]]).
+ones actually present ([[rules/drive]], under *Concurrency*).
 
 **Manifest reconciliation**:
 Recomputing a manifest from the snapshot files actually present. The same operation the

@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: rule
@@ -142,6 +142,26 @@ use it, it names an engineering domain, and `misc`, `stuff`, and `update` are no
 
 Types in use: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`,
 `test`.
+
+## An AEP artifact you change is stamped with the release that changed it
+
+Every file under `.aep/` carries `aep:` and `date:` in its frontmatter. **A change to the
+file changes both, in the same commit**: `date:` to the day, and `aep:` to the AEP release
+running when the edit was made — the one `[[protocol]]` declares.
+
+[[policies/artifacts]] requires the fields and says an upgrade stamps every *protocol-owned*
+artifact. It does not say what `aep:` means on a repository-owned one, and this is that
+answer: **the release the file was last written under.** Not the release that shipped it, and
+not a number carried forward untouched from whenever the file was created.
+
+*Why: a stale stamp is the one kind of drift nothing can detect. `owner: repository` files are
+never replaced by an upgrade, so a file edited under 2.2.0 and still declaring 2.1.1 reads as
+untouched since 2.1.1 — and the next `/aep:update` has no way to tell a genuinely old file
+apart from a recently rewritten one that lied.*
+
+Practically: after editing anything under `.aep/`, check the frontmatter before committing.
+Consolidating the rules on 2026-08-17 touched thirty-three files this way, all of them
+repository-owned, and every one needed both fields moved.
 
 ## How work lands
 

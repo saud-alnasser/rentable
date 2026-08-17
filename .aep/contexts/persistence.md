@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: context
@@ -68,7 +68,7 @@ router test can pass over a conversion that is broken in the running application
   command refuses `BEGIN`, `COMMIT` and `ROLLBACK` outright and directs the caller to batch
   execution instead. The test transport does the same, so a router test over a batch
   exercises the atomicity production has. **A write that must not half-apply issues one
-  batch** ([[rules/multi-table-writes]]); a
+  batch** ([[rules/data]], under *Multi-table writes*); a
   multi-step write sequenced as separate queries is still not atomic, and that is a choice
   the caller made rather than a limit of the boundary.
 - **A batch is built before any of it runs**, so a statement cannot read an identity an

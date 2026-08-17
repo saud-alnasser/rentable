@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: prototype
@@ -43,7 +43,7 @@ vacant — which blocks deletion on `4 unit(s) belong to it`.
 | C | **blockers inventoried, refusal implied** — the action titles the dialog, the blockers are muted rows under a counted heading, on the treatment a contract's units are transferred on. Never states a refusal. A quiet ghost `close`. |
 
 The code lived in `src/lib/prototype/` beside the switcher rather than under the protocol
-directory, which cannot serve one — [[rules/prototyping]] records why.
+directory, which cannot serve one — [[rules/module-layout]], under *Prototype code*, records why.
 
 The app was driven over the WebView2 debugging port — CDP `Runtime.evaluate` to reach the record
 and press delete, `Page.captureScreenshot` for each variant — rather than by pointer. What that

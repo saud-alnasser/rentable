@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: rule
@@ -32,6 +32,66 @@ opening one anyway creates an issue nothing can ever close by merging. Decision 
 in its effort's `spec.md`, and the map itself is a pinned issue.
 
 *Why: a ticket that no merge can close sits open forever and stops meaning anything.*
+
+## What a ticket's body looks like
+
+[[templates/ticket.template]] is the shape, and it applies here even though it is written for
+a local file — this repository has an external tracker, so the frontmatter has no home and its
+fields are carried by GitHub instead:
+
+| Template frontmatter | Where it lives here |
+| --- | --- |
+| `status` | the issue's own open/closed state — never mirrored into the body |
+| `part-of` | the sub-issue relationship to the effort's map, **and** a `Part of #<map>` line |
+| `blocked-by` | the native blocking relationship, **and** a `Blocked by:` line |
+
+So a ticket opens with one line carrying `Part of`, `Blocked by`, and which requirement and
+criterion of the spec it traces — then a link to the spec naming the sections that are
+authoritative — and then the template's five sections, in its order and under its headings:
+
+```
+## Outcome              one paragraph: what is true when this is done
+## Acceptance Criteria  checkboxes, each traceable to a criterion in the spec
+## Relevant areas       paths, and where to start reading
+## Constraints          what the implementer must respect that the spec does not say —
+                        rejected alternatives, test obligations, declared increments
+## Notes                findings accepted, decisions recorded, split provenance
+```
+
+**A declared increment — research, grilling, prototype — is a Constraint**, not a section of
+its own: it binds the implementer before building and reads as optional anywhere else.
+
+*Why the duplication in the first two rows is not mirroring: the native relationship is
+structured and queryable, the body line is what a human reads without opening the sidebar.
+`status` is the one that must never be duplicated — two places to read whether work is done is
+one place to be wrong.*
+
+## What a map's body looks like
+
+**The map is not a ticket and does not take the shape above.** It indexes an effort, so it
+takes **the spec's own section names** — [[templates/spec.template]]'s — and under each one it
+gists what the spec says and links it. A heading on the map and a heading in the spec are then
+the same subject, and a reader moves between them without translating.
+
+```
+## Problem  ## Goal  ## Scope  ## Sequence*  ## Constraints
+## Decisions  ## Open Questions  ## Risks  ## Out of scope  ## Drift found*
+```
+
+Two are the tracker's alone and are marked as such where they appear:
+
+- **Sequence** — what order the tickets are taken in, and what gates what. The sub-issue list
+  carries state and cannot carry order. **Omitted where an effort has no tickets yet.**
+- **Drift found** — what the effort discovered about the repository that no spec section owns.
+
+`Decisions` indexes the spec's Architecture and its decision sections; `Open Questions` is
+what is not yet specified. **Omit a heading rather than writing "N/A" under it**, exactly as
+the spec template says — an absent section reads as not yet reached, which is usually the
+truth.
+
+**Nothing on a map is the source of truth for anything.** Live ticket state is the sub-issue
+list, and every claim under a heading belongs to the spec. *Why: a map that starts asserting
+rather than indexing is a second spec, and it is the copy that drifts.*
 
 ## Assignment
 

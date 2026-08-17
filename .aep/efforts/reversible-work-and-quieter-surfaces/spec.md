@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -67,12 +67,12 @@ pass; and a mutation states what it is instead of repeating how it works.
 - **Every mutation reconciles and schedules a push to the remote.** Anything that reverses a
   mutation is a mutation and owes both.
 - **A write that must not half-apply issues one batch** — the boundary runs a batch inside a
-  transaction ([[rules/multi-table-writes]]).
+  transaction ([[rules/data]], under *Multi-table writes*).
 - **Routers keep reaching the database directly** — no abstraction is added at that seam
   (ADR 0002).
 - Blue is the only accent; the primitives are a permanent fork and are edited by hand, never
   regenerated (ADR 0007).
-- Lists load whole result sets ([[rules/list-reads]]),
+- Lists load whole result sets ([[rules/data]], under *List reads*),
   which is what makes finding and exporting records cheap to build and is not revisited here.
 
 ## Architecture
@@ -84,7 +84,7 @@ and its inverse — with the hook, the cache invalidation and the undo entry der
 It sits on the caller side, where the shared mutation helper already sits, and **does not
 reach into the routers**: autosync and the reconcile touch-set stay the procedure's own,
 because consolidating those is the layer ADR 0002 rejected arriving by another road.
-[[rules/mutation-declaration]] records the
+[[rules/data]], under *Mutation declaration*, records the
 boundary and what it costs.
 
 The declaration names what a mutation touches from the start, but **invalidation stays coarse
@@ -99,7 +99,7 @@ it through the ordinary procedure, so the domain rules, the reconcile and the au
 all happen as they do for anything typed. Redo re-issues the original. The stack is cleared
 whenever the workspace underneath it is replaced — a sync pull, a backup restore, a workspace
 switch — and does not outlive the session.
-[[rules/undo]] carries the reasoning and
+[[rules/data]], under *Undo*, carries the reasoning and
 the two rejected alternatives.
 
 Inverses divide in two, and the seam splits two tickets. **Row-shaped** inverses reverse a
@@ -123,7 +123,7 @@ it would do — the icon-and-tooltip vocabulary the record surfaces already spea
 
 **The palette finds records.** The surface exists and reaches only destinations; it gains the
 records themselves, grouped by concept, opening the record's own page — which is what every
-row already does ([[rules/row-activation]]).
+row already does ([[rules/interface]], under *Row activation*).
 
 **A record can be copied and duplicated.** Copying puts a stated detail on the clipboard — a
 phone number, a reference, an amount — from the record's own surface. Duplicating opens the
@@ -144,7 +144,7 @@ case one-dialog-at-a-time could not produce.
 **A contract's units are chosen by transfer, not by accumulation.** Available on one side,
 assigned on the other, moved either way, committed once. It stays a form on the shared form
 surface — it writes, so ADR 0020's line puts it there — and
-[[rules/unit-presentation]] is
+[[rules/interface]], under *Unit presentation*, is
 unaffected: the tab that *reads* the contract's units stays a directory. What changes is that
 the form now expresses removal too, so the per-row remove control and its confirmation come
 off the directory row. Below the shell breakpoint the panes stack rather than sitting side by

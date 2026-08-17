@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -56,7 +56,7 @@ action hierarchy — is the application's, not the record surface's alone.
   length between locales. Where it is silent this repository's own standards are the only
   authority, and they are not argued with.
 - **Reading surfaces take their concept's shape.** A read surface is the concept's own to
-  present ([[rules/surface-kinds]]). The
+  present ([[rules/interface]], under *Surface kinds*). The
   shell may own mechanism and chrome; what a record's body looks like stays with the module
   that owns the record.
 - **A contract's status is derived and a terminated contract is locked.** The surface reads
@@ -72,7 +72,7 @@ component becomes a body for it.** This is the shape the list already has: one b
 the query state, the search, virtualization, the empty state and the create action, and the
 module that owns the data supplies a snippet saying what one record looks like. The record
 surface is that same division one layer up, and it is recorded as
-[[rules/record-surface]]
+[[rules/interface]], under *Record surface*
 because a reader who knows ADR 0020 will otherwise read it as a contradiction.
 
 What crosses into the shell: the page frame, the loading state, the not-found state, the
@@ -200,7 +200,7 @@ mechanism rather than a taste: every collection is a virtualized list measuring 
 viewport with a bounded height, and stacking removes the bound. Each list would need an
 arbitrary fixed height inside a scrolling page — nested scroll regions on a desktop window,
 and the case the interface performance measurement already covers. De-virtualizing is not
-available either: [[rules/list-reads]] loads whole
+available either: [[rules/data]], under *List reads*, loads whole
 result sets, and the tenant directory is five figures.
 
 **Considered and rejected — keeping the switcher and quieting it.** Restyle the filled pill
@@ -224,7 +224,7 @@ first.
 field cell, a header block and a shared not-found state, composed by each concept. It
 honours ADR 0020 most literally and unpicks the least. Rejected because keeping five
 assemblies identical stops being structural and becomes discipline, which is the failure
-[[rules/list-presentation]] named when it rejected
+[[rules/interface]], under *List presentation*, named when it rejected
 the same option for lists.
 
 **Considered and rejected — folding labels into values everywhere.** The reference's

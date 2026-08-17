@@ -1,18 +1,25 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: rule
+mode: [prototype]
 paths:
   - apps/desktop/src/**
   - apps/desktop/tauri/src/**
-use-when: "adding a module, a file, or a directory under src/ or tauri/src/"
+use-when: "adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code"
 ---
 
 <!--
   Path-scoped: the `paths:` frontmatter above is the authority, and the harness
   enforces it — this rule loads when source under `apps/desktop/src/` or
   `apps/desktop/tauri/src/` is read, and costs nothing otherwise.
+
+  *Prototyping* was merged in here on 2026-08-17, from its own file. It answers
+  the same question this rule answers — where a file goes — for the one kind of
+  file that is not meant to survive, and it carries the `mode: [prototype]` that
+  file declared. Nothing was dropped or reworded; cite it as
+  `[[rules/module-layout]], under *Prototype code*`.
 -->
 
 # Module layout and naming
@@ -63,3 +70,29 @@ exception, and its segments are URL path names rather than module names.
 Where a divergence turns up anyway, `CLAUDE.md`'s rule on architectural boundaries governs
 what happens to it. What that means specifically for naming: **a rename the change is not
 about waits for its own ticket**, however small it looks from here.
+
+## Prototype code
+
+### Throwaway prototype code goes in `src/lib/prototype/`
+
+Beside `switcher.svelte`, the repository's own prototype machinery, driven by
+`pnpm prototype`. Leave it untracked, and delete it once its question is answered — the
+write-up under the effort's `evidence/prototypes/` is what survives.
+
+*Why: being untracked, it shows in `git status`, which is what stops it being committed
+silently.*
+
+### It cannot live under a gitignored protocol directory
+
+Vite serves nothing from outside the project's source tree, so importing a component from
+`.aep/position/` — or anywhere else outside `src/` — fails at transform time:
+
+```
+Failed to load url .../position/prototypes/<name>.svelte ... Does the file exist?
+```
+
+*Why: the file exists and the error still says it does not, so the failure reads as a
+missing file rather than as a path that was never servable.*
+
+Established 2026-08-12 against Vite 8.2.0 / SvelteKit 2 / Svelte 5, when a prototype
+written to the protocol directory could not be imported from a route.

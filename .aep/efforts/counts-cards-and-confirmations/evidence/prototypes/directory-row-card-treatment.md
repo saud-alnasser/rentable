@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: prototype
@@ -60,7 +60,7 @@ The card also needs horizontal inset inside the scroll viewport: setting one axi
 makes the other `auto`, so a shadow at the viewport edge is clipped rather than drawn.
 
 The code lived in `src/lib/prototype/` beside the switcher rather than under the protocol
-directory, which cannot serve one — [[rules/prototyping]] records why.
+directory, which cannot serve one — [[rules/module-layout]], under *Prototype code*, records why.
 
 ## Result
 

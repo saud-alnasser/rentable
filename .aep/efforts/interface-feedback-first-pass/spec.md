@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -55,7 +55,7 @@ that shows them, entered by being there.
 - **Reconciliation owns the derived columns.** Unit status and contract status are
   recomputed by the reconcile pass, so a per-transfer write pays a reconcile per
   transfer. The measured cost is bounded but not free.
-- **A row opens its record and does nothing else** ([[rules/row-activation]]).
+- **A row opens its record and does nothing else** ([[rules/interface]], under *Row activation*).
   The transfer panes are rows, so the transfer is an explicit control on the row and never
   the row itself.
 - **Assignment's rules stay in the contract module and are the procedure's to enforce.** A
@@ -89,11 +89,11 @@ unavailable while a write is in flight, so two transfers cannot race with stale 
 locks assignment is read from the contract and stated above the panes, as it is today.
 
 That last move puts a writing surface inside a reading one, which
-[[rules/unit-presentation]]
+[[rules/interface]], under *Unit presentation*
 placed on the shared form surface and
-[[rules/surface-kinds]] draws its line
+[[rules/interface]], under *Surface kinds*, draws its line
 through. It is therefore a Decision, recorded as
-[[rules/contract-unit-transfer]],
+[[rules/interface]], under *Contract unit transfer*,
 which overrides 0024's write half in prose and leaves the rest of both standing — the same
 way 0019 and 0024 each overrode part of 0013.
 

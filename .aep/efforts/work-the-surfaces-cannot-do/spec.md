@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -8,8 +8,15 @@ status: accepted
 
 **The map is [#487](https://github.com/saud-alnasser/rentable/issues/487)**, and its
 sub-issue list — not this file — carries live ticket state. The build tickets cut under it
-are #488–#496. This repository is branch-bound, so tickets are GitHub issues rather than
-files beside this spec ([[rules/tracker]]).
+are #488–#496, #514 and #515. This repository is branch-bound, so tickets are GitHub issues
+rather than files beside this spec ([[rules/tracker]]).
+
+*Tasks re-derived 2026-08-17. Two tickets were each carrying two acceptance criteria and two
+observable outcomes, and were split at the criterion boundary: the shared period left #492 as
+**#514**, and import left #494 as **#515**. Nothing was added to scope and nothing removed —
+the twelve criteria below are unchanged, and only which ticket answers each one moved. The
+same pass rewrote every path here for the monorepo (#499) and corrected the Architecture's
+claim that the matching comparison is written in one place.*
 
 *Reshaped to the 2.x spec template on 2026-08-17. The Problem, Goal, Constraints,
 Architecture, Approach, Acceptance Criteria, Risks and Out of Scope carried over with their
@@ -42,7 +49,7 @@ What an operator cannot do today, all of it observable without reading any code:
   with no way to ask about another.
 - **Get data in.** Every directory exports; nothing imports. The export control is a bare
   icon with no room to name a format, and the only format is CSV.
-- **See what happened.** Undo is a session stack, by decision ([[rules/undo]]). Nothing
+- **See what happened.** Undo is a session stack, by decision ([[rules/data]], under *Undo*). Nothing
   survives a restart, so "what changed on this contract last week" has no answer at all.
 - **Act on many records at once**, or **run an action from the palette** — the palette
   navigates and creates, and stops there.
@@ -108,10 +115,10 @@ Numbered 2026-08-17 to trace against the requirements above; wording otherwise u
 5. More than one list offers a filter, and filtering changes which rows the read returns
    rather than which loaded rows are displayed. *(R5 — #492)*
 6. The landing figures and the payment ledger can be asked about the same period, and agree.
-   *(R6 — #492)*
+   *(R6 — #514)*
 7. A file exported from a directory can be imported back into it, and a file whose rows
    collide with each other is refused with the offending rows named, before anything is
-   written. *(R7 — #494)*
+   written. *(R7 — #515)*
 8. Both offered formats open in Excel with Arabic text intact. *(R8 — #494)*
 9. After restarting the application, a record shows what was done to it and when. *(R9 — #495)*
 10. A list can select several records and apply one action to all of them. *(R10 — #493)*
@@ -131,9 +138,9 @@ Numbered 2026-08-17 to trace against the requirements above; wording otherwise u
   erroring.
 - **Two of the decisions this effort must obey rest on a premise about to be removed.**
   A separate platform effort ([[efforts/a-workspace-follows-its-user/spec]]) will make a
-  workspace a remote database shared by several users. [[rules/list-reads]] licenses whole
+  workspace a remote database shared by several users. [[rules/data]], under *List reads*, licenses whole
   result sets on the stated ground that there is no server and the file is local;
-  [[rules/undo]] rejected a durable journal on the single ground that a workspace is one
+  [[rules/data]], under *Undo*, rejected a durable journal on the single ground that a workspace is one
   syncable unit whose conflicts are resolved by choosing a whole side. Neither rule is wrong
   today. Both have their premise deleted by that effort, and superseding them is that
   effort's work — its decision 09 — not this one's.
@@ -147,7 +154,7 @@ Numbered 2026-08-17 to trace against the requirements above; wording otherwise u
   need a domain model that does not exist — there is no free-text column and no file storage
   anywhere in the schema — and all of them mean something different once there is a server and
   a browser client. They are a separate effort, cut after the platform effort is designed.
-- **Superseding [[rules/list-reads]] or [[rules/undo]].** Both are live and both are obeyed
+- **Superseding [[rules/data]], under *List reads*, or [[rules/data]], under *Undo*.** Both are live and both are obeyed
   here. Replacing them belongs to the effort that removes their premises.
 - **Recording contract lineage.** Renewal produces a successor; storing a link from successor
   back to predecessor is a schema change and is not required for the action to be useful.
@@ -164,7 +171,16 @@ Numbered 2026-08-17 to trace against the requirements above; wording otherwise u
   is certain. What is uncertain is the shape of the replacement, which is why every one of
   those four is to be re-read against the platform effort's decisions before it is claimed
   rather than built from this document alone. **All four now carry that dependency as a
-  blocking edge on the tracker**, recorded 2026-08-17 — #495's was missing until then.
+  blocking edge on the tracker**, recorded 2026-08-17 — #495's was missing until then. The
+  two tickets split out of that set on the same day, #514 and #515, inherit the warning
+  through the ticket each waits on.
+- **A blocking edge is only as honest as the issue it points at.** #497 — the platform
+  effort's map, and the blocker all four of those tickets name — was closed on 2026-08-17 by
+  a documentation pull request whose body carried `Closes #497`, while the effort itself was
+  merely accepted. For the rest of that day the four read as unblocked on the tracker with
+  their premise untouched. **Reopened by the same `/tasks` pass that found it.** The failure
+  mode is cheap to repeat and silent: a closing keyword in a pull request body closes a map
+  the merge did not deliver ([[references/github]] carries the constraint).
 
 # Architecture
 
@@ -173,9 +189,16 @@ platform effort does: the shortcut registry and the sheet that reads it, keyboar
 a list, verbs in the palette, and selection within a list. They touch the design system and
 the shell and no persistence at all.
 
-**Search normalization is one function with two sides.** The matching primitive already
+**Search normalization is one function with two sides.** ~~The matching primitive already
 serves every list router and the palette's record search, and it is the only place a
-comparison is built. Normalizing there covers all of them at once — but a normalized
+comparison is built.~~ **Corrected 2026-08-17 against the tree: it is not.** The same
+`lower(cast(… as text)) like lower(?) escape '\'` is written out three times — in
+`platform/database/search.ts`, as `contractSearchCondition` in `contract/router.ts`, and as
+`paymentSearchCondition` in `payment/router.ts`. The decision is untouched by that, because
+it never rested on the count: normalize at the comparison, on both sides, in SQLite. What
+changes is the size of the seam — three call sites, which #488 either converges onto one or
+normalizes three times and says so. Normalizing one of the three fixes one of the three while
+reading as fixed, which is the failure this correction exists to prevent. A normalized
 pattern only matches a normalized column, so the stored side has to be normalized too. The
 seam is therefore the primitive plus whatever produces the comparable form of a stored
 value; both halves are persistence's, and both stay in SQLite, which is the reason this item
@@ -192,11 +215,11 @@ that vocabulary, not a second mechanism.
 through Rust; import needs a reader, a validation pass, and a preview the user confirms
 before a single row is written — and the set-collision problem is the one already solved
 when a complex is created with its units, since a batch is built before any of it runs and
-cannot branch on its own results ([[rules/multi-table-writes]]). The toolbar control becomes
+cannot branch on its own results ([[rules/data]], under *Multi-table writes*). The toolbar control becomes
 a menu because a menu has room to name a direction and a format where a bare icon does not.
 
 **History reads from the mutation declaration that already exists.** Every mutation states,
-once and on the caller side, what it does and what reverses it ([[rules/mutation-declaration]]).
+once and on the caller side, what it does and what reverses it ([[rules/data]], under *Mutation declaration*).
 A journal is a second consumer of that declaration rather than a new mechanism underneath the
 domain — which is what keeps it from becoming the generic layer [[rules/api-layer]]'s
 no-repository-layer rule rejects.
@@ -217,7 +240,7 @@ tenant, units, interval and cost, and starts where the predecessor ended.
   the schema module is meant to be the single description of, and it does not travel to a
   test transport that runs under Node.
 - **Client-side filtering for the new filter vocabulary.** Directly against
-  [[rules/list-reads]]'s consequence that a loaded set is never re-filtered on the client.
+  the consequence of *List reads* in [[rules/data]] that a loaded set is never re-filtered on the client.
   Rejected without argument; it is named here only so it is not re-proposed.
 - **Extending the mutation declaration down into the routers** so a journal writes itself.
   That is the repository layer [[rules/api-layer]] rejects, arriving by another road. The
@@ -229,17 +252,22 @@ tenant, units, interval and cost, and starts where the predecessor ended.
 
 *Derived 2026-08-17 from the Architecture above; adds nothing to it.*
 
+*Paths rewritten 2026-08-17 for the monorepo layout #499 landed; the application now sits
+under `apps/desktop/`.*
+
 | Component | Area | Ticket |
 | --- | --- | --- |
-| the matching primitive, and the stored-side normalizer beside it | `src/lib/platform/database/search.ts` and the schema module | #488 |
-| the shortcut registry, and the sheet generated from it | `src/lib/design/`, `src/lib/layout/` | #489 |
-| per-record focus inside the list block | `src/lib/design/block/list.svelte` | #490 |
-| verb registration for the palette | `src/lib/layout/` | #491 |
-| the filter declaration a concept makes, against the slot the block already positions | `src/lib/design/block/list.svelte`, each concept's router | #492 |
-| selection state and the one-action-many path | `src/lib/design/block/list.svelte` | #493 |
-| the import reader, its validation pass and confirmed preview; the export control as a menu | `src/lib/design/`, `tauri/src/` | #494 |
-| the journal, as a second consumer of the mutation declaration | `src/lib/design/mutation.ts`, the schema module | #495 |
-| renewal as a contract-domain action | `src/lib/contract/` | #496 |
+| the matching comparison and its two hand-rolled copies, and the stored-side normalizer beside them | `apps/desktop/src/lib/platform/database/search.ts`, `contract/router.ts`, `payment/router.ts`, and the schema module | #488 |
+| the shortcut registry, and the sheet generated from it | `apps/desktop/src/lib/design/`, `apps/desktop/src/lib/layout/` | #489 |
+| per-record focus inside the list block | `apps/desktop/src/lib/design/block/list.svelte` | #490 |
+| verb registration for the palette | `apps/desktop/src/lib/layout/` | #491 |
+| the filter declaration a concept makes, against the slot the block already positions | `apps/desktop/src/lib/design/block/list.svelte`, each concept's router | #492 |
+| the period member of that vocabulary, spent across two routers that must agree | `apps/desktop/src/lib/dashboard/router.ts`, `apps/desktop/src/lib/payment/router.ts` | #514 |
+| selection state and the one-action-many path | `apps/desktop/src/lib/design/block/list.svelte` | #493 |
+| the export control as a menu, and the second format's writer | `apps/desktop/src/lib/design/block/list.svelte`, `apps/desktop/src/lib/design/csv.ts`, `apps/desktop/tauri/src/` | #494 |
+| the import reader, its validation pass and confirmed preview | `apps/desktop/src/lib/design/`, `apps/desktop/tauri/src/` | #515 |
+| the journal, as a second consumer of the mutation declaration | `apps/desktop/src/lib/design/mutation.ts`, the schema module | #495 |
+| renewal as a contract-domain action | `apps/desktop/src/lib/contract/` | #496 |
 
 # Data Model
 
@@ -256,8 +284,15 @@ regardless of how the rest is sequenced.
 
 **The registry is a prefactor and goes before what depends on it** — the cheat-sheet is its
 observable outcome, and both the palette's verbs and keyboard reach into a list read the
-same registration. Everything else in the set gates on nothing, except the four items waiting
-on the platform effort.
+same registration.
+
+**Two pairs gate inside the effort**, from the 2026-08-17 split: the filter vocabulary (#492)
+before the shared period that spends it (#514), and the export menu (#494) before the import
+direction that hangs off it (#515). In each pair the first also owns the decision the second
+inherits — the vocabulary's shape, and where the spreadsheet format's library lives.
+
+Everything else in the set gates on nothing, except the four items waiting on the platform
+effort.
 
 # Migration
 
@@ -280,7 +315,7 @@ findable *now*. No other item in this effort touches existing rows.
 | 4 | Component-level keyboard interaction over the list block, plus a manual pass in both locales — `dir` reverses what "next" means. |
 | 5 | A router test asserting the returned row set narrows. Asserting against the rendered set would pass for a client-side filter, which is the thing being forbidden. |
 | 6 | One test asking the landing figure and the ledger about the same period and comparing them. |
-| 7 | A round-trip test — export, re-import, compare — plus a collision test asserting **nothing was written**, which is the batch atomicity [[rules/multi-table-writes]] already guarantees. |
+| 7 | A round-trip test — export, re-import, compare — plus a collision test asserting **nothing was written**, which is the batch atomicity [[rules/data]], under *Multi-table writes*, already guarantees. |
 | 8 | **Manual, and unavoidably so.** Nothing in the suite opens Excel. Both formats, Arabic content, on a real installation. |
 | 9 | A test that writes, reopens the database, and reads the history back — the restart is the criterion, so an in-memory assertion does not cover it. |
 | 10 | A router test over a multi-record action, asserting one reconcile pass rather than one per record where that is the design. |
@@ -310,7 +345,11 @@ here so that a green suite is not mistaken for a met spec.
   dependency, binary-size and security consequences. It is declared as a research increment on
   its ticket rather than assumed here.
 - **The measured baseline is partly stale and its live half still bites.** Contract search has
-  since moved into SQL, and the component its dead-code finding named is gone — but reconcile
-  still reads every contract, payment, unit and assignment regardless of what a mutation
-  touched, and every ticket here that writes rows pays that on each write. Bulk action pays it
-  once per selected record.
+  since moved into SQL, and the component its dead-code finding named is gone. **Corrected
+  2026-08-17 against `contract/reconcile.ts`:** a mutation's reconcile is no longer whole-table
+  either — `reconcileTouched` bounds it by the touch-set's closure, and the whole-table
+  `reconcile` now runs only at startup, at a UTC-day crossing, and on a remote-sync pull. What
+  is still live is the write side: **both paths write one `UPDATE` per changed row,
+  sequentially awaited.** In process that is sub-millisecond; over a wire it is a round trip
+  each, which is what the bulk-action ticket pays per selected record unless its path is built
+  to avoid it.

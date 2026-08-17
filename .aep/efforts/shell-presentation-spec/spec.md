@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -106,7 +106,7 @@ or asked for directly, and are never inferred from how wide the window is.
 ### On ADR 0017
 
 The triage note on this issue said the sidebar performs the component swap that
-[[rules/form-surface]] rejected for forms. The
+[[rules/interface]], under *Form surface*, rejected for forms. The
 shape matches and the binding does not, and the difference is the reason 0017 gives for its
 own availability: a form's two presentations were already the same primitive underneath, so
 there was never a second component to swap to — only a second set of classes. That is not
