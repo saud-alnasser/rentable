@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -10,7 +10,7 @@ status: implemented
 
 Supersedes the earlier `ui-overhaul-spec` for the work that remains. Its data
 layer (#243–#245) and its shell (#246–#248) are built and are not revisited; what changes is
-the presentation half, on [[rules/list-presentation]]
+the presentation half, on [[rules/interface]], under *List presentation*
 and decision 07 of [[efforts/ui-overhaul/spec]].
 
 ## Problem
@@ -32,7 +32,7 @@ is rendered on top.
 
 ## Constraints
 
-- **[[rules/list-reads]] holds unchanged.** One
+- **[[rules/data]], under *List reads*, holds unchanged.** One
   bounded query per (search, sort) state; nothing re-filtered, re-sorted or re-paginated on
   the client. It is mechanism and survives every shape.
 - **Decision 03's system rules hold**; its per-list column tables do not (decision 07).

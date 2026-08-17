@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -49,7 +49,7 @@ opening it, and clicking a card still opens it.
 ## Constraints
 
 - **A row opens its record and does nothing else**
-  ([[rules/row-activation]]). The card's
+  ([[rules/interface]], under *Row activation*). The card's
   click target is unchanged, and no action is reachable only from a card.
 - **Duplicate is offered where the copy carries something** — a contract and a payment, and
   no other record, from the first pass of this feedback. A card menu offers no duplicate on

@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: reference
@@ -197,3 +197,13 @@ gh issue close <number> --reason "not planned" --comment "<one-line reason>"
 ```
 
 `--reason` takes `completed`, `not planned`, or `duplicate` — the flag's full set, per `gh issue close --help`. `--comment` posts the closing comment in the same invocation, so the closure and its reason land together rather than as two calls with a failure window between them. Which lifecycle state takes this form, and what the comment must carry, is [[rules/tracker]]'s.
+
+## Reopen an issue closed by mistake
+
+```
+gh issue reopen <number> --comment "<why it is open again>"
+```
+
+`-c`/`--comment` is the only flag it takes, per `gh issue reopen --help` on gh 2.96.0. Take the comment: a map or a ticket that goes from closed to open with no explanation reads as somebody changing their mind rather than as a correction.
+
+**The mistake this exists for is a closing keyword in a pull request body.** `Closes #42` in a docs pull request closes #42 on merge exactly as hard as a delivering one does — see the table above — and an effort map closed that way looks delivered while nothing was built. It is worse than cosmetic where other issues declare `blocked-by` it: **a closed blocker reads as a satisfied one**, so every ticket waiting on it silently joins the frontier. Reopening restores the edge; nothing else has to be re-recorded.

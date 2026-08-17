@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: prototype
@@ -60,7 +60,7 @@ key. Cycling it without disturbing the variant is what let the picture for the t
 against the two state marks beside it.
 
 The code lived in `src/lib/prototype/` beside the switcher rather than under the protocol
-directory, which cannot serve one — [[rules/prototyping]] records why.
+directory, which cannot serve one — [[rules/module-layout]], under *Prototype code*, records why.
 
 ## Result
 
@@ -122,6 +122,6 @@ second for the first. That distinction is what would decide the same question on
 which is what makes it more than a preference between three screens.
 
 Not recorded as a Decision on its own: which tone a count carries is the implementation of the
-status vocabulary [[rules/status-presentation]]
+status vocabulary [[rules/interface]], under *Status presentation*
 already establishes, extended from statuses to counts. The extension itself is the durable part
 and belongs in the design document this gated. The code is deleted.

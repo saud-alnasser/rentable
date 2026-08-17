@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -46,10 +46,10 @@ single shared surface — including the one error boundary that currently shows 
 
 ## Constraints
 
-- **[[rules/list-presentation]] does not reach here.**
+- **[[rules/interface]], under *List presentation*, does not reach here.**
   It says a list takes the shape its data has. These surfaces have no data of their own, so
   the reasoning that made five lists diverge does not apply to them, and this spec takes the
-  opposite direction deliberately — [[rules/application-surfaces]].
+  opposite direction deliberately — [[rules/interface]], under *Application surfaces*.
 - **The generated primitives stay a permanent fork** (ADR 0007).
   Everything below is built from families already installed; nothing is generated, so the
   operation ADR 0007 forbids is not approached.

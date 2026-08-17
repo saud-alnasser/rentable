@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: context
@@ -60,7 +60,7 @@ _Avoid_: rollback, restore — those belong to the protected update backup and t
 **Inverse**:
 The call that returns a workspace to the state before a given mutation, issued through the
 same procedure any other caller would use. A mutation's inverse is part of that mutation, not
-a mechanism underneath it ([[rules/undo]]).
+a mechanism underneath it ([[rules/data]], under *Undo*).
 
 ## Boundaries
 
@@ -71,7 +71,7 @@ a mechanism underneath it ([[rules/undo]]).
   TypeScript, and no command hands the web layer the client secret or a refresh token. The
   surface is six coarse operations — link, cancel a link, unlink, sync, inspect, resolve a
   conflict — and the web layer observes them rather than sequencing anything behind them.
-  What binds a change is [[rules/drive-client-boundary]].
+  What binds a change is [[rules/drive]], under *Client boundary*.
 - **Diagnostics are written locally, bounded, and stripped of recognised credentials.**
   There is no server to report to, so events go to a rotating file the user can open from
   settings. Redaction happens in the sink, on the way to disk — never at the call site. It
@@ -100,7 +100,7 @@ a mechanism underneath it ([[rules/undo]]).
   generator fixes; `error`, which decodes failures crossing the IPC boundary and has
   not been placed; and `prototype`, the repository's own prototype machinery —
   `switcher.svelte`, driven by `pnpm prototype` (`apps/desktop/scripts/prototype.mjs`). It is where
-  throwaway prototype code is written; [[rules/prototyping]] is what binds a change.
+  throwaway prototype code is written; [[rules/module-layout]], under *Prototype code*, is what binds a change.
 - **Reconciliation owns the derived columns** — contract status, the contract payment
   aggregates, and unit status. Any mutation touching contracts, payments, or unit
   assignments must reconcile, or the stored values go stale. A mutation may seed the

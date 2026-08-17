@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -53,7 +53,7 @@ what it is about exactly once.
   counts and introduces no second one.
 - **Occupancy is derivable.** A unit is `occupied` or `vacant`, so occupied is the unit count
   less the vacant count, both already on the list query.
-- **A list narrows in SQL** ([[rules/list-reads]]), so
+- **A list narrows in SQL** ([[rules/data]], under *List reads*), so
   counting a complex's contracts needs the scope in the query.
 - **The evidence for an irreversible choice may not be hover-only.** The conflict panel states
   this about itself and it binds the redesign: whichever copy is being destroyed has to be

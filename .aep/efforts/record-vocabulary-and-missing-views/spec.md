@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -73,16 +73,16 @@ contract form has.
   ADR 0021). A ring
   that fills when its data arrives is a trigger and may animate; one that fills on a timer is a
   loop and may not.
-- **One bounded query per state** ([[rules/list-reads]]).
+- **One bounded query per state** ([[rules/data]], under *List reads*).
   The three new reads filter and count in SQL. Nothing loads a set to narrow it in the browser.
 - **A count rides the list query it belongs to.** Two aggregates already do this — contracts in
   force per tenant, units and vacancies per complex — and a payment count follows them rather
   than becoming a query per row.
 - **Reconcile owns the derived columns.** The fill reads the materialized paid and expected
-  amounts ([[rules/payment-aggregates]]); nothing here
+  amounts ([[rules/data]], under *Payment aggregates*); nothing here
   recomputes a status or an aggregate at render time.
 - **Forms keep the shared surface and the field layer**
-  ([[rules/form-surface]]). Weight, presentation,
+  ([[rules/interface]], under *Form surface*). Weight, presentation,
   formsnap, superforms and zod are untouched; only the interior changes.
 - **Generated primitives are edited by hand, never regenerated**
   (ADR 0007). A genuinely new primitive may
@@ -127,11 +127,11 @@ collection and no complex name.
 board and the assignment cards both become directory rows, which puts the concept's read shape
 in one place. Assignment stops being a panel embedded in a read surface and becomes a form on
 the shared form surface — which is what
-[[rules/surface-kinds]] already predicts for
+[[rules/interface]], under *Surface kinds*, already predicts for
 a surface that writes, and what leaves the contract's units tab a directory and nothing else.
 
 **A row opens its record and does nothing else**
-([[rules/row-activation]]). Three surfaces
+([[rules/interface]], under *Row activation*). Three surfaces
 move to reach it: a unit row gains the view it can open, a ledger line gains one — a payment
 becomes a record with a page, which it has never been — and a queue row stops opening the
 payment form. A row-level action survives as an explicit control on the row rather than as the
@@ -146,7 +146,7 @@ decoration, and the standing rule for this effort is that elegance means removin
 
 **The unbounded tenant read is closed here.** Opening the contract form reads every tenant to
 filter twenty in the browser. [[efforts/ui-overhaul/evidence/research/interface-performance-baseline]]
-measured it, [[rules/list-reads]] explicitly declined
+measured it, [[rules/data]], under *List reads*, explicitly declined
 to license it and parked it as a form question, and this is the effort that owns the forms. The
 picker narrows in SQL against a bounded limit the read already accepts.
 

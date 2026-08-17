@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -55,7 +55,7 @@ dashboard becomes a view.
 - **ADR 0014's split survives and is load-bearing.** The dashboard answers *what do I do this
   morning* and empties; the contracts list answers *what is the state of every contract* and never
   does. Nothing here may collapse the two into one surface twice.
-- **A row opens its record and does nothing else** ([[rules/row-activation]]).
+- **A row opens its record and does nothing else** ([[rules/interface]], under *Row activation*).
 
 ## Architecture
 

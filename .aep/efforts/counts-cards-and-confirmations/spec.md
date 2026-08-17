@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -26,7 +26,7 @@ neither how many contracts the tenant has nor what condition any of them are in.
 on a different background from every other confirmation in the application. And the delete
 dialog tells the reader that deleting cannot be undone, which is false everywhere it appears:
 every delete in this application registers an inverse, and the reasoning for that is
-[[rules/undo]]'s own.
+that of *Undo* in [[rules/data]].
 
 **A record's collections run off the bottom of the window.** On a contract, the assigned and
 available unit lists grow past the viewport instead of scrolling, so the page scrolls as a whole
@@ -46,7 +46,7 @@ only what is true; and a record's collections get the height they were given.
   now left RTL unexercised; this effort does not get to add a fourth without saying so.
 - **The count tone vocabulary is shared with the status glyphs.** `running`/`settled` map onto
   the same two tones a status carries, deliberately, so that a count and a status never disagree
-  about what blue means ([[rules/status-presentation]],
+  about what blue means ([[rules/interface]], under *Status presentation*,
   extended to counts by the `directory-row-colour` prototype). A third tone changes the rule a
   reader has to learn, from *colour means state* to *colour means state, except where it means
   money*.

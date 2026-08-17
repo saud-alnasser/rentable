@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -82,7 +82,7 @@ sheet, a light form gets the centred panel, and narrow makes either one fill the
 Weight is declared because the alternative — measuring the form — makes the surface reflow while
 the user types.
 
-The seam is the same one [[rules/list-presentation]] drew
+The seam is the same one [[rules/interface]], under *List presentation*, drew
 for lists, and stating it that way is the point: **the shell owns the mechanism, the concept
 supplies what is inside.** Above the seam is the panel, the bands, the scroll container, the
 error summary placement, the action row and the motion. Below it are fields and buttons.
