@@ -41,6 +41,8 @@ const en = {
 			push: 'push snapshot',
 			pushing: 'pushing...',
 			remove: 'remove',
+			renew: 'renew',
+			renewing: 'renewing...',
 			restore: 'restore',
 			restoring: 'restoring...',
 			restartApp: 'restart app',
@@ -200,6 +202,7 @@ const en = {
 			edited: 'editing {record:string}',
 			redo: 'redo',
 			redone: '{change:string} applied again',
+			renewed: 'renewing {record:string}',
 			terminated: 'terminating {record:string}',
 			undo: 'undo',
 			undone: '{change:string} undone',
@@ -294,6 +297,7 @@ const en = {
 			alsoEnding: 'also ending',
 			contractCount: '{count|number} contract(s)',
 			openContract: 'open the contract for {tenant}',
+			renewContract: 'renew the contract for {tenant}',
 			seeAll: 'see all ({count|number})'
 		},
 
@@ -534,6 +538,12 @@ const en = {
 			pickDateRange: 'pick a date range',
 			periodMustMatchWholeCycles:
 				'end date must stay within {days} days before or after the calculated {interval} cycle end date.',
+			renewDescription:
+				'the tenant, units, cycle and cost carry over from the contract being renewed. set the term the renewal runs for.',
+			renewTitle: 'renew contract',
+			renewalMustFollowOriginal: 'a renewal must start after the contract it renews ends.',
+			renewalUnitsUnavailable:
+				'another contract holds one or more of these units over the selected term. choose a different term.',
 			searchAndSelectTenant: 'search and select tenant',
 			searchTenantPlaceholder: 'search tenant by name, id or phone...',
 			startDateRequired: 'start date is required.',
@@ -545,6 +555,7 @@ const en = {
 			createSuccess: 'contract created successfully!',
 			deletePaymentSuccess: 'payment deleted successfully!',
 			deleteSuccess: 'contract deleted successfully!',
+			renewSuccess: 'contract renewed successfully!',
 			restoreSuccess: 'contract restored successfully!',
 			terminateSuccess: 'contract terminated successfully!',
 			updatePaymentSuccess: 'payment updated successfully!',

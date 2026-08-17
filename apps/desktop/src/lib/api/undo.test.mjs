@@ -49,10 +49,12 @@ const { useCreateComplex, useDeleteComplex, useCreateUnit, useUpdateUnit, useDel
 const {
 	useCreateContract,
 	useUpdateContract,
+	useRenewContract,
 	useSetContractUnits,
 	useTerminateContract,
 	useUnterminateContract
 } = await import('$lib/contract/query');
+const { getContractRenewalTerm } = await import('$lib/contract/renewal');
 const { useCreatePayment, useDeletePayment } = await import('$lib/payment/query');
 const { syncWorkspaceNow } = await import('$lib/sync/workspace');
 
@@ -205,6 +207,46 @@ describe('undoing a record change', () => {
 
 		await inverseStack.redo();
 		assert.deepEqual(await heldIds(), [third.id]);
+	});
+
+	// a renewal is a creation, and is taken back like one — the successor arrives holding units,
+	// so the inverse empties it before deleting it, and putting it back restores those units.
+	it('takes back a renewal, and applies it again with the identity it had', async () => {
+		const tenant = await seedTenant(caller);
+		const contract = await run(useCreateContract, {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000
+		});
+		const complex = await caller.complex.create({ name: 'Renewal Tower', location: 'Riyadh' });
+		const unit = await caller.complex.units.create({ name: 'R1', complexId: complex.id });
+
+		await caller.contract.units.set({ contractId: contract.id, unitIds: [unit.id] });
+
+		const term = getContractRenewalTerm(contract);
+		const successor = await run(useRenewContract, {
+			contractId: contract.id,
+			start: term.start.getTime(),
+			end: term.end.getTime()
+		});
+
+		await inverseStack.undo();
+		assert.equal(await caller.contract.get({ id: successor.id }), undefined);
+		// the contract that was renewed is untouched by the renewal and by taking it back.
+		assert.deepEqual(await caller.contract.get({ id: contract.id }), contract);
+		assert.deepEqual(
+			(await caller.contract.units.getMany({ contractId: contract.id })).map((held) => held.id),
+			[unit.id]
+		);
+
+		await inverseStack.redo();
+		assert.deepEqual(await caller.contract.get({ id: successor.id }), successor);
+		assert.deepEqual(
+			(await caller.contract.units.getMany({ contractId: successor.id })).map((held) => held.id),
+			[unit.id]
+		);
 	});
 
 	it('reinstates a terminated contract through the procedure that exists for it', async () => {

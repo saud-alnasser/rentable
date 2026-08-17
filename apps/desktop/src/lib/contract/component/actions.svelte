@@ -34,6 +34,7 @@
 	import { useFetchContractPayments } from '$lib/payment/query';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import BanIcon from '@lucide/svelte/icons/ban';
+	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 	import FilesIcon from '@lucide/svelte/icons/files';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
@@ -69,6 +70,10 @@
 	let isFormOpen = $state(false);
 	let formRenderKey = $state(0);
 	let formOpensOn = $state<ContractFormValue | undefined>(undefined);
+	// the contract the form is renewing, where it was opened to renew one. Held beside what the
+	// form opens *on* rather than inside it: a renewal is opened on an identity and reads
+	// everything else off the contract itself.
+	let renewingContractId = $state<number | undefined>(undefined);
 	// the one record a card's menu is acting on and what it is being asked, which is what makes
 	// one confirmation of each kind enough for a whole list.
 	let confirming = $state<{
@@ -115,6 +120,14 @@
 
 	const openForm = (value: ContractFormValue | undefined) => {
 		formOpensOn = value;
+		renewingContractId = undefined;
+		formRenderKey += 1;
+		isFormOpen = true;
+	};
+
+	const openRenewal = (id: number) => {
+		formOpensOn = undefined;
+		renewingContractId = id;
 		formRenderKey += 1;
 		isFormOpen = true;
 	};
@@ -130,6 +143,13 @@
 				// the government id is a contract's unique field, so the copy starts without it rather
 				// than with a value that cannot be saved.
 				openForm({ ...contract, id: undefined, govId: '' })
+		},
+		{
+			// a duplicate copies the term; a renewal continues it. Both produce a new contract,
+			// which is why they sit together at the head of the menu.
+			label: $LL.common.actions.renew(),
+			icon: CalendarPlusIcon,
+			onSelect: () => openRenewal(contract.id)
 		},
 		...(contract.status === 'terminated'
 			? []
@@ -230,6 +250,7 @@
 			isFormOpen = isOpen;
 		}}
 		value={formOpensOn}
+		renewsContractId={renewingContractId}
 	/>
 {/key}
 

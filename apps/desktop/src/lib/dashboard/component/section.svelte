@@ -22,6 +22,8 @@
 	import type api from '$lib/api/caller';
 	import * as Cell from '$lib/design/cell';
 	import { Badge } from '$lib/design/primitive/badge';
+	import { Button } from '$lib/design/primitive/button';
+	import ContractForm from '$lib/contract/component/form.svelte';
 	import { isMoneyRank } from '$lib/contract/rank';
 	import { withContractRank } from '$lib/contract/rank-filter';
 	import type { DashboardSection } from '$lib/dashboard/dashboard';
@@ -46,6 +48,26 @@
 		owing: $LL.contracts.ranks.owing(),
 		'ending-soon': $LL.contracts.ranks.endingSoon()
 	});
+
+	/**
+	 * Whether this rank is the renewals one, and so offers the action that answers it.
+	 *
+	 * The other two ranks are about money and renewing one settles nothing, which is the same
+	 * split {@link isMoneyRank} already names — a rank's rows offer what its rank is for.
+	 */
+	const offersRenewal = $derived(!isMoneyRank(rank));
+
+	// the contract the renewal form was opened on. A queue row carries an identity and the
+	// figures the row shows; the form reads everything a renewal needs off the contract itself.
+	let renewingContractId = $state<number | undefined>(undefined);
+	let isRenewalFormOpen = $state(false);
+	let renewalFormRenderKey = $state(0);
+
+	const openRenewal = (id: number) => {
+		renewingContractId = id;
+		renewalFormRenderKey += 1;
+		isRenewalFormOpen = true;
+	};
 </script>
 
 <section class="shrink-0 rounded-2xl bg-card">
@@ -109,6 +131,21 @@
 						<Cell.Money amount={entry.outstandingAmount} />
 					</span>
 				{/if}
+
+				<!-- the row's own control, sitting above the link that covers the row: a row opens
+				     its record and never does a second thing, so acting on one is always an
+				     explicit control on it. -->
+				{#if offersRenewal}
+					<Button
+						variant="outline"
+						size="sm"
+						class="relative shrink-0"
+						aria-label={$LL.dashboard.sections.renewContract({ tenant: entry.tenantName })}
+						onclick={() => openRenewal(entry.id)}
+					>
+						{$LL.common.actions.renew()}
+					</Button>
+				{/if}
 			</div>
 		{/each}
 	</div>
@@ -125,3 +162,21 @@
 		</a>
 	{/if}
 </section>
+
+<!-- one form for the whole section, because a row's control acts on the one contract the reader
+     reached for. Mounted only under the rank that offers renewal. -->
+{#if offersRenewal}
+	{#key renewalFormRenderKey}
+		<ContractForm
+			open={isRenewalFormOpen}
+			onOpenChange={(isOpen) => {
+				if (!isOpen) {
+					renewalFormRenderKey += 1;
+				}
+
+				isRenewalFormOpen = isOpen;
+			}}
+			renewsContractId={renewingContractId}
+		/>
+	{/key}
+{/if}
