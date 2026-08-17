@@ -159,6 +159,14 @@ type RootTranslation = {
 			 */
 			remove: string
 			/**
+			 * r​e​n​e​w
+			 */
+			renew: string
+			/**
+			 * r​e​n​e​w​i​n​g​.​.​.
+			 */
+			renewing: string
+			/**
 			 * r​e​s​t​o​r​e
 			 */
 			restore: string
@@ -718,6 +726,11 @@ type RootTranslation = {
 			 */
 			redone: RequiredParams<'change'>
 			/**
+			 * r​e​n​e​w​i​n​g​ ​{​r​e​c​o​r​d​}
+			 * @param {string} record
+			 */
+			renewed: RequiredParams<'record'>
+			/**
 			 * t​e​r​m​i​n​a​t​i​n​g​ ​{​r​e​c​o​r​d​}
 			 * @param {string} record
 			 */
@@ -987,6 +1000,11 @@ type RootTranslation = {
 			 * @param {unknown} tenant
 			 */
 			openContract: RequiredParams<'tenant'>
+			/**
+			 * r​e​n​e​w​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​f​o​r​ ​{​t​e​n​a​n​t​}
+			 * @param {unknown} tenant
+			 */
+			renewContract: RequiredParams<'tenant'>
 			/**
 			 * s​e​e​ ​a​l​l​ ​(​{​c​o​u​n​t​|​n​u​m​b​e​r​}​)
 			 * @param {unknown} count
@@ -1654,6 +1672,22 @@ type RootTranslation = {
 			 */
 			periodMustMatchWholeCycles: RequiredParams<'days' | 'interval'>
 			/**
+			 * t​h​e​ ​t​e​n​a​n​t​,​ ​u​n​i​t​s​,​ ​c​y​c​l​e​ ​a​n​d​ ​c​o​s​t​ ​c​a​r​r​y​ ​o​v​e​r​ ​f​r​o​m​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​b​e​i​n​g​ ​r​e​n​e​w​e​d​.​ ​s​e​t​ ​t​h​e​ ​t​e​r​m​ ​t​h​e​ ​r​e​n​e​w​a​l​ ​r​u​n​s​ ​f​o​r​.
+			 */
+			renewDescription: string
+			/**
+			 * r​e​n​e​w​ ​c​o​n​t​r​a​c​t
+			 */
+			renewTitle: string
+			/**
+			 * a​ ​r​e​n​e​w​a​l​ ​m​u​s​t​ ​s​t​a​r​t​ ​a​f​t​e​r​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​i​t​ ​r​e​n​e​w​s​ ​e​n​d​s​.
+			 */
+			renewalMustFollowOriginal: string
+			/**
+			 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​s​e​ ​u​n​i​t​s​ ​o​v​e​r​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​t​e​r​m​.​ ​c​h​o​o​s​e​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​t​e​r​m​.
+			 */
+			renewalUnitsUnavailable: string
+			/**
 			 * s​e​a​r​c​h​ ​a​n​d​ ​s​e​l​e​c​t​ ​t​e​n​a​n​t
 			 */
 			searchAndSelectTenant: string
@@ -1687,6 +1721,10 @@ type RootTranslation = {
 			 * c​o​n​t​r​a​c​t​ ​d​e​l​e​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
 			deleteSuccess: string
+			/**
+			 * c​o​n​t​r​a​c​t​ ​r​e​n​e​w​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
+			 */
+			renewSuccess: string
 			/**
 			 * c​o​n​t​r​a​c​t​ ​r​e​s​t​o​r​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
@@ -2061,6 +2099,14 @@ export type TranslationFunctions = {
 			 * remove
 			 */
 			remove: () => LocalizedString
+			/**
+			 * renew
+			 */
+			renew: () => LocalizedString
+			/**
+			 * renewing...
+			 */
+			renewing: () => LocalizedString
 			/**
 			 * restore
 			 */
@@ -2608,6 +2654,10 @@ export type TranslationFunctions = {
 			 */
 			redone: (arg: { change: string }) => LocalizedString
 			/**
+			 * renewing {record}
+			 */
+			renewed: (arg: { record: string }) => LocalizedString
+			/**
 			 * terminating {record}
 			 */
 			terminated: (arg: { record: string }) => LocalizedString
@@ -2867,6 +2917,10 @@ export type TranslationFunctions = {
 			 * open the contract for {tenant}
 			 */
 			openContract: (arg: { tenant: unknown }) => LocalizedString
+			/**
+			 * renew the contract for {tenant}
+			 */
+			renewContract: (arg: { tenant: unknown }) => LocalizedString
 			/**
 			 * see all ({count|number})
 			 */
@@ -3518,6 +3572,22 @@ export type TranslationFunctions = {
 			 */
 			periodMustMatchWholeCycles: (arg: { days: unknown, interval: unknown }) => LocalizedString
 			/**
+			 * the tenant, units, cycle and cost carry over from the contract being renewed. set the term the renewal runs for.
+			 */
+			renewDescription: () => LocalizedString
+			/**
+			 * renew contract
+			 */
+			renewTitle: () => LocalizedString
+			/**
+			 * a renewal must start after the contract it renews ends.
+			 */
+			renewalMustFollowOriginal: () => LocalizedString
+			/**
+			 * another contract holds one or more of these units over the selected term. choose a different term.
+			 */
+			renewalUnitsUnavailable: () => LocalizedString
+			/**
 			 * search and select tenant
 			 */
 			searchAndSelectTenant: () => LocalizedString
@@ -3551,6 +3621,10 @@ export type TranslationFunctions = {
 			 * contract deleted successfully!
 			 */
 			deleteSuccess: () => LocalizedString
+			/**
+			 * contract renewed successfully!
+			 */
+			renewSuccess: () => LocalizedString
 			/**
 			 * contract restored successfully!
 			 */

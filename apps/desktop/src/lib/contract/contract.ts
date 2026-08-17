@@ -449,7 +449,12 @@ export function deriveUnitStatuses(
 // Each throws the user-facing BAD_REQUEST the routers previously raised inline. Routers
 // fetch the rows a rule needs and call in; the condition and its message live here.
 
-function badRequest(message: string): never {
+/**
+ * The refusal every rule in this domain raises: a `BAD_REQUEST` whose message is shown to the
+ * user verbatim. Exported so a rule kept in a sibling file — renewal's — refuses in the same
+ * shape rather than assembling a second one that only looks the same.
+ */
+export function badRequest(message: string): never {
 	throw new TRPCError({ code: 'BAD_REQUEST', message });
 }
 

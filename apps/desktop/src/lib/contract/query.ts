@@ -107,12 +107,13 @@ export function useSearchContracts(term: () => string, limit: number) {
 	});
 }
 
-export function useFetchContract(id: () => number) {
+export function useFetchContract(id: () => number, enabled: () => boolean = () => true) {
 	return createQuery(() => {
 		const freshId = id();
 
 		return {
 			queryKey: keys.get(freshId),
+			enabled: enabled(),
 			queryFn: () => api.contract.get({ id: freshId })
 		};
 	});
@@ -128,6 +129,35 @@ export const useCreateContract = declareMutation({
 	}),
 	toast: {
 		success: () => get(LL).contracts.hooks.createSuccess(),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	}
+});
+
+/**
+ * Renewing a contract: one creation, taken back like any other.
+ *
+ * It touches units as well as contracts because the successor arrives holding the predecessor's
+ * — the assignment rows go down in the same write, so the occupancy the units query answers with
+ * has moved by the time this resolves.
+ */
+export const useRenewContract = declareMutation({
+	mutate: (data: Parameters<typeof api.contract.renew>[0]) => api.contract.renew(data),
+	touches: ['contracts', 'units'],
+	inverse: ({ variables, result }) => ({
+		describe: (t) => t.common.undo.renewed({ record: t.common.labels.contract() }),
+		// the units go first: a contract still holding units refuses to be deleted, which is the
+		// rule that lets an ordinary creation's inverse be a single call.
+		undo: async () => {
+			await api.contract.units.set({ contractId: result.id, unitIds: [] });
+			await api.contract.delete({ id: result.id });
+		},
+		// renewed again with the identity it had, so a page still open on the successor is holding
+		// a reference to the record rather than to a copy of it.
+		redo: () => api.contract.renew({ ...variables, id: result.id })
+	}),
+	toast: {
+		success: () => get(LL).contracts.hooks.renewSuccess(),
 		error: false,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}

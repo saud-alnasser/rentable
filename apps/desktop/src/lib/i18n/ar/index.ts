@@ -40,6 +40,8 @@ const ar = {
 			push: 'رفع اللقطة',
 			pushing: 'جارٍ الرفع...',
 			remove: 'إزالة',
+			renew: 'تجديد',
+			renewing: 'جاري التجديد...',
 			restore: 'استعادة',
 			restoring: 'جاري الاستعادة...',
 			restartApp: 'إعادة تشغيل التطبيق',
@@ -199,6 +201,7 @@ const ar = {
 			edited: 'تعديل {record}',
 			redo: 'إعادة',
 			redone: 'تمت إعادة {change}',
+			renewed: 'تجديد {record}',
 			terminated: 'إنهاء {record}',
 			undo: 'تراجع',
 			undone: 'تم التراجع عن {change}',
@@ -290,6 +293,7 @@ const ar = {
 			alsoEnding: 'ينتهي أيضاً',
 			contractCount: '{count|number} عقد',
 			openContract: 'افتح عقد {tenant}',
+			renewContract: 'جدّد عقد {tenant}',
 			seeAll: 'عرض الكل ({count|number})'
 		},
 
@@ -530,6 +534,12 @@ const ar = {
 			pickDateRange: 'اختر نطاق تاريخ',
 			periodMustMatchWholeCycles:
 				'يجب أن يبقى تاريخ النهاية ضمن {days} أيام قبل أو بعد تاريخ نهاية دورة {interval} المحسوب.',
+			renewDescription:
+				'المستأجر والوحدات والدورة والتكلفة تنتقل من العقد الجاري تجديده. حدّد مدة التجديد.',
+			renewTitle: 'تجديد العقد',
+			renewalMustFollowOriginal: 'يجب أن يبدأ التجديد بعد انتهاء العقد الذي يجدده.',
+			renewalUnitsUnavailable:
+				'يحتفظ عقد آخر بواحدة أو أكثر من هذه الوحدات خلال المدة المحددة. اختر مدة أخرى.',
 			searchAndSelectTenant: 'ابحث واختر مستأجر',
 			searchTenantPlaceholder: 'ابحث عن مستأجر بالاسم أو الهوية أو الهاتف...',
 			startDateRequired: 'تاريخ البداية مطلوب.',
@@ -541,6 +551,7 @@ const ar = {
 			createSuccess: 'تم إنشاء العقد بنجاح!',
 			deletePaymentSuccess: 'تم حذف الدفعة بنجاح!',
 			deleteSuccess: 'تم حذف العقد بنجاح!',
+			renewSuccess: 'تم تجديد العقد بنجاح!',
 			restoreSuccess: 'تمت استعادة العقد بنجاح!',
 			terminateSuccess: 'تم إنهاء العقد بنجاح!',
 			updatePaymentSuccess: 'تم تحديث الدفعة بنجاح!',

@@ -32,6 +32,7 @@
 	import PaymentLedger from '$lib/payment/component/ledger.svelte';
 	import { useFetchTenant } from '$lib/tenant/query';
 	import BanIcon from '@lucide/svelte/icons/ban';
+	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -86,6 +87,8 @@
 	type ContractFormValue = Omit<NonNullable<typeof contractQuery.data>, 'id'> & { id?: number };
 
 	let formOpensOn = $state<ContractFormValue | undefined>(undefined);
+	// set when the form was opened to renew this contract rather than to edit or copy it.
+	let renewingContractId = $state<number | undefined>(undefined);
 	let isContractFormOpen = $state(false);
 	let contractFormRenderKey = $state(0);
 	let isDeleteDialogOpen = $state(false);
@@ -94,6 +97,20 @@
 
 	const formatDate = (value: number) =>
 		formatLocaleDate($locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
+
+	const openContractForm = (value: ContractFormValue | undefined) => {
+		formOpensOn = value;
+		renewingContractId = undefined;
+		contractFormRenderKey += 1;
+		isContractFormOpen = true;
+	};
+
+	const openRenewal = (id: number) => {
+		formOpensOn = undefined;
+		renewingContractId = id;
+		contractFormRenderKey += 1;
+		isContractFormOpen = true;
+	};
 
 	const tenantLabel = $derived.by(() => {
 		if (!contract) return $LL.common.messages.unknown();
@@ -153,22 +170,26 @@
 			? () => {
 					// the government id is a contract's unique field, so the copy starts without it
 					// rather than with a value that cannot be saved.
-					formOpensOn = { ...contract, id: undefined, govId: '' };
-					contractFormRenderKey += 1;
-					isContractFormOpen = true;
+					openContractForm({ ...contract, id: undefined, govId: '' });
 				}
 			: undefined}
 	/>
+
+	{#if contract}
+		<!-- renewal continues the term rather than copying it, so it sits beside the copy the
+		     action cluster already offers and never replaces it. -->
+		<RecordActionControl
+			label={$LL.common.actions.renew()}
+			icon={CalendarPlusIcon}
+			onclick={() => openRenewal(contract.id)}
+		/>
+	{/if}
 
 	{#if contract && contract.status !== 'terminated'}
 		<RecordActionControl
 			label={$LL.common.actions.edit()}
 			icon={SquarePenIcon}
-			onclick={() => {
-				formOpensOn = contract;
-				contractFormRenderKey += 1;
-				isContractFormOpen = true;
-			}}
+			onclick={() => openContractForm(contract)}
 		/>
 	{/if}
 
@@ -264,6 +285,7 @@
 				isContractFormOpen = isOpen;
 			}}
 			value={formOpensOn}
+			renewsContractId={renewingContractId}
 		/>
 	{/key}
 

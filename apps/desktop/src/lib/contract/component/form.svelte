@@ -34,7 +34,13 @@
 		observeContractEndDate,
 		observeContractEndDateInputs
 	} from '$lib/contract/end-date';
-	import { useCreateContract, useUpdateContract } from '$lib/contract/query';
+	import { getContractRenewalTerm } from '$lib/contract/renewal';
+	import {
+		useCreateContract,
+		useFetchContract,
+		useRenewContract,
+		useUpdateContract
+	} from '$lib/contract/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useFetchTenant, useFetchTenants } from '$lib/tenant/query';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
@@ -112,9 +118,11 @@
 
 	const CreateMutation = useCreateContract();
 	const UpdateMutation = useUpdateContract();
+	const RenewMutation = useRenewContract();
 
 	let {
 		value,
+		renewsContractId,
 		open,
 		onOpenChange
 	}: {
@@ -123,9 +131,24 @@
 		 * which is the same shape without an identity, because everything else transfers.
 		 */
 		value?: Omit<Contract, 'id'> & { id?: number };
+		/**
+		 * the contract being renewed, where the form was opened to renew one.
+		 *
+		 * Only its identity is given, because everything the successor carries is read off the
+		 * predecessor rather than assembled by whoever opened the form — three surfaces offer
+		 * renewal and one of them holds nothing but the id.
+		 */
+		renewsContractId?: number;
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
 	} = $props();
+
+	const isRenewing = $derived(renewsContractId !== undefined);
+	const predecessorQuery = useFetchContract(
+		() => renewsContractId ?? 0,
+		() => open && isRenewing
+	);
+	const predecessor = $derived(predecessorQuery.data);
 
 	const getInitialForm = (): ContractForm => ({
 		id: undefined,
@@ -168,6 +191,29 @@
 		start: formatDateInput(contract.start),
 		end: formatDateInput(contract.end)
 	});
+
+	/**
+	 * The successor a renewal starts from: the predecessor's tenant, cycle and cost, over the
+	 * term the domain proposes. Only that term is the user's to move, so the fields carrying the
+	 * other three are shown and locked rather than left out — a renewal that quietly dropped the
+	 * cost off the surface would be asking the reader to trust a figure they cannot see.
+	 */
+	const toRenewalFormValue = (contract: NonNullable<typeof predecessor>): ContractForm => {
+		const term = getContractRenewalTerm(contract);
+
+		return {
+			id: undefined,
+			// a government id is unique to one contract, so the successor starts without the
+			// predecessor's rather than with a value that cannot be saved.
+			govId: '',
+			tenantId: contract.tenantId.toString(),
+			interval: contract.interval,
+			cost: contract.cost.toString(),
+			cycles: String(term.cycles),
+			start: formatDateInput(term.start),
+			end: formatDateInput(term.end)
+		};
+	};
 
 	const toPayload = (form: ContractForm) => ({
 		...(() => {
@@ -219,7 +265,17 @@
 				}
 
 				try {
-					if (form.data.id) {
+					if (renewsContractId !== undefined) {
+						// the term and the reference are the whole of what a renewal is asked for;
+						// the tenant, the units, the cycle and the cost are the predecessor's and
+						// the procedure reads them off it.
+						await RenewMutation.mutateAsync({
+							contractId: renewsContractId,
+							govId: payload.govId,
+							start: payload.start,
+							end: payload.end
+						});
+					} else if (form.data.id) {
 						await UpdateMutation.mutateAsync({ id: form.data.id, ...payload });
 					} else {
 						await CreateMutation.mutateAsync(payload);
@@ -227,7 +283,14 @@
 					closeContractForm();
 				} catch (e) {
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
-						if (e.message.includes('government id')) {
+						// both renewal refusals are about the term, so each marks the end of it the
+						// reader has to move — a refusal shown as a banner names the problem and
+						// never the field.
+						if (e.message.includes('already assigned to an overlapping contract')) {
+							setError(form, 'end', $LL.contracts.form.renewalUnitsUnavailable());
+						} else if (e.message.includes('renewal must start after')) {
+							setError(form, 'start', $LL.contracts.form.renewalMustFollowOriginal());
+						} else if (e.message.includes('government id')) {
 							setError(form, 'govId', $LL.contracts.form.duplicateGovernmentId());
 						} else if (e.message.includes('end date')) {
 							setError(form, 'end', $LL.contracts.form.endDateAfterStart());
@@ -338,13 +401,29 @@
 		isEndDatePickerOpen = false;
 		tenantSearch = '';
 
-		const currentFormKey = value ? `edit:${value.id ?? 'duplicate'}` : 'create';
+		const currentFormKey = isRenewing
+			? `renew:${renewsContractId}`
+			: value
+				? `edit:${value.id ?? 'duplicate'}`
+				: 'create';
 
 		if (lastHydratedFormKey === currentFormKey) {
 			return;
 		}
 
-		const nextFormValue = value ? toFormValue(value) : getInitialForm();
+		// a renewal is opened on an identity alone, so there is nothing to fill the form with
+		// until the contract it renews has arrived. The key is left unrecorded so this runs
+		// again when it does.
+		if (isRenewing && !predecessor) {
+			return;
+		}
+
+		const nextFormValue =
+			isRenewing && predecessor
+				? toRenewalFormValue(predecessor)
+				: value
+					? toFormValue(value)
+					: getInitialForm();
 		const nextStartDateValue = parseCalendarDate(nextFormValue.start);
 		const nextEndDateValue = parseCalendarDate(nextFormValue.end);
 		const nextEndDateInputs = {
@@ -415,6 +494,11 @@
 
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
 
+	// one flag for the three writes this surface can be making, so the footer states it once.
+	const isSaving = $derived(
+		CreateMutation.isPending || UpdateMutation.isPending || RenewMutation.isPending
+	);
+
 	const totalExpectedAmount = $derived(Number($form.cost) * Number($form.cycles));
 	const hasTotalExpectedAmount = $derived(
 		Number.isFinite(totalExpectedAmount) && totalExpectedAmount > 0
@@ -431,7 +515,14 @@
 	);
 </script>
 
-<FormSurface {open} {onOpenChange} {enhance} weight="heavy" title={$LL.common.nav.contracts()}>
+<FormSurface
+	{open}
+	{onOpenChange}
+	{enhance}
+	weight="heavy"
+	title={isRenewing ? $LL.contracts.form.renewTitle() : $LL.common.nav.contracts()}
+	description={isRenewing ? $LL.contracts.form.renewDescription() : undefined}
+>
 	<div class="flex flex-col gap-4">
 		<!-- what the contract will be, pinned above the fields that decide it — it is sticky
 		     because the total is answered by cost and cycles, which are far enough down that a
@@ -475,6 +566,7 @@
 								<Button
 									{...props}
 									variant="outline"
+									disabled={isRenewing}
 									class={cn(
 										'w-full justify-between font-normal',
 										insetControl,
@@ -558,7 +650,7 @@
 			<Form.Field form={superform} name="interval" class="group relative">
 				<Form.Control>
 					<Form.Label>{$LL.common.labels.cycle()}</Form.Label>
-					<Select.Root type="single" bind:value={$form.interval}>
+					<Select.Root type="single" bind:value={$form.interval} disabled={isRenewing}>
 						<Select.Trigger
 							class={cn('w-full', insetControl)}
 							aria-invalid={$errors.interval ? 'true' : undefined}
@@ -582,6 +674,7 @@
 						type="number"
 						min="0.01"
 						step="0.01"
+						disabled={isRenewing}
 						value={$form.cost}
 						oninput={(event) => {
 							$form.cost = event.currentTarget.value;
@@ -728,20 +821,15 @@
 	</div>
 
 	{#snippet actions()}
-		<Button
-			type="button"
-			variant="outline"
-			disabled={CreateMutation.isPending || UpdateMutation.isPending}
-			onclick={closeContractForm}
-		>
+		<Button type="button" variant="outline" disabled={isSaving} onclick={closeContractForm}>
 			{$LL.common.actions.cancel()}
 		</Button>
-		<Button
-			type="submit"
-			disabled={CreateMutation.isPending || UpdateMutation.isPending}
-			class="capitalize"
-		>
-			{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
+		<Button type="submit" disabled={isSaving} class="capitalize">
+			{#if isRenewing}
+				{RenewMutation.isPending ? $LL.common.actions.renewing() : $LL.common.actions.renew()}
+			{:else}
+				{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
+			{/if}
 		</Button>
 	{/snippet}
 </FormSurface>
