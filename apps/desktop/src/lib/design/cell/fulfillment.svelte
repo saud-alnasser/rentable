@@ -2,7 +2,7 @@
 	import Ring from '$lib/design/cell/ring.svelte';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { formatLocaleValueWithUnit } from '$lib/platform/locale';
+	import { formatLocaleMoney } from '$lib/platform/locale';
 
 	/**
 	 * How much of an amount has been paid, as a ring carrying its own percentage.
@@ -26,8 +26,7 @@
 		note?: string;
 	} = $props();
 
-	const money = (value: number) =>
-		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
+	const money = (value: number) => formatLocaleMoney($locale, value);
 </script>
 
 <Tooltip.Root>

@@ -21,7 +21,7 @@
 	import { toast } from 'svelte-sonner';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatRecordDate } from '$lib/design/date';
-	import { formatLocaleNumber, formatLocaleRangeWithUnit } from '$lib/platform/locale';
+	import { formatLocaleMoneyRange, formatLocaleNumber } from '$lib/platform/locale';
 	import ContractActions from './actions.svelte';
 	import ContractRecord from './record.svelte';
 
@@ -161,12 +161,7 @@
 					{
 						header: $LL.common.labels.paymentFulfillment(),
 						value: (contract) =>
-							formatLocaleRangeWithUnit(
-								$locale,
-								contract.paidAmount,
-								contract.expectedAmount,
-								$LL.common.messages.sar()
-							)
+							formatLocaleMoneyRange($locale, contract.paidAmount, contract.expectedAmount)
 					}
 				]
 			}}

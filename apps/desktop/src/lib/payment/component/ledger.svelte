@@ -21,7 +21,7 @@
 		type PaymentLedgerMonth
 	} from '$lib/payment/ledger';
 	import { useDeletePayment, useListContractPayments } from '$lib/payment/query';
-	import { formatLocaleRangeWithUnit, formatLocaleValueWithUnit } from '$lib/platform/locale';
+	import { formatLocaleMoney, formatLocaleMoneyRange } from '$lib/platform/locale';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import PaymentForm from './form.svelte';
@@ -81,8 +81,7 @@
 	});
 
 	const formatMonth = (month: PaymentLedgerMonth) => formatPaymentLedgerMonth($locale, month);
-	const formatMoney = (value: number) =>
-		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
+	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
 
 	function openPaymentForm(record?: Payment) {
 		payment = record;
@@ -139,8 +138,7 @@
 				},
 				{
 					header: $LL.common.labels.amount(),
-					value: (entry) =>
-						formatLocaleValueWithUnit($locale, entry.amount, $LL.common.messages.sar())
+					value: (entry) => formatLocaleMoney($locale, entry.amount)
 				}
 			]
 		}}
@@ -211,12 +209,7 @@
 					{$LL.common.labels.paymentFulfillment()}
 				</span>
 				<span class="text-sm tabular-nums">
-					{formatLocaleRangeWithUnit(
-						$locale,
-						contract.paidAmount,
-						contract.expectedAmount,
-						$LL.common.messages.sar()
-					)}
+					{formatLocaleMoneyRange($locale, contract.paidAmount, contract.expectedAmount)}
 				</span>
 			</div>
 		</div>

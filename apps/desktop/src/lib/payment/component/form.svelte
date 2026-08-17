@@ -14,7 +14,7 @@
 		parseDateInput,
 		toCalendarDate
 	} from '$lib/design/date';
-	import { formatLocaleValueWithUnit, getIntlLocale } from '$lib/platform/locale';
+	import { formatLocaleMoney, getIntlLocale } from '$lib/platform/locale';
 	import { isWholeHalalas } from '$lib/design/money';
 	import { cn } from '$lib/design/tailwind.js';
 	import { getRemainingContractBalance } from '$lib/contract/contract';
@@ -151,8 +151,7 @@
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
 
 	const contractQuery = useFetchContract(() => contractId);
-	const formatMoney = (value: number) =>
-		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
+	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
 
 	// what the contract still owes, and what it would owe once this payment lands. The amount
 	// being typed is the one figure a reader cannot check against anything else on the surface,
