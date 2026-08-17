@@ -51,12 +51,25 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: '� create version PR or publish tag'
-        uses: changesets/action@v1
+        uses: changesets/action@v2.1.0
         with:
-          title: 'chore: version package'
-          commit: 'chore: version package'
-          version: node .github/changeset-version.cjs
-          publish: node .github/changeset-tag.cjs
+          # v2 renamed every input to kebab-case and dropped the `GITHUB_TOKEN`
+          # environment variable as a way to authenticate, so the token is passed
+          # explicitly rather than inherited from the `env:` block above.
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-title: 'chore: version package'
+          commit-message: 'chore: version package'
+          version-script: node .github/changeset-version.cjs
+          publish-script: node .github/changeset-tag.cjs
+          # v2 also creates GitHub releases and pushes git tags for whatever it detects
+          # in the publish script's output, both defaulting to true. Neither is this
+          # repository's job: `changeset-tag.cjs` cuts and pushes the tag itself, and the
+          # release belongs to `tauri-action`, which creates it from that tag with the
+          # signed updater artifacts attached. An empty release cut here would become the
+          # latest-release pointer every installed application polls — so both are turned
+          # off explicitly rather than left to a default that has already moved once.
+          create-github-releases: false
+          push-git-tags: false
 
       - name: '🔎 detect latest tag needing artifacts'
         id: detect
