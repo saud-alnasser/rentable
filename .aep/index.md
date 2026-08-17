@@ -24,6 +24,7 @@ Start at [[protocol]].
 | [[rules/boundary]] | the work touches a repository other than the one this session is in | — | — | protocol |
 | [[rules/change-control]] | an effort is in progress — planning it, deriving tasks, implementing, or reviewing | specify, plan, refine, implement, review | — | protocol |
 | [[rules/contract-unit-transfer]] | a contract's units are being assigned, or a writing control is being put on a reading surface | — | src/lib/contract/component/** | repository |
+| [[rules/database-client-type]] | a database client is constructed, a transport is added, or the shape of a row crossing the IPC boundary is in question | — | src/lib/platform/database/**, src/lib/api/context.ts | repository |
 | [[rules/drive-client-boundary]] | the request touches Drive credentials, OAuth, or where Drive network calls are made | — | tauri/src/sync/google/**, src/lib/sync/** | repository |
 | [[rules/drive-concurrency]] | two clients could write one workspace, or a manifest or snapshot conflict is being handled | — | tauri/src/sync/google/manifest.rs, tauri/src/sync/google/conflict.rs | repository |
 | [[rules/drive-transport-testing]] | a Drive transport test is being written or is failing | — | tauri/src/sync/google/test/**, tauri/src/sync/google/transport.rs | repository |
@@ -156,7 +157,7 @@ Start at [[protocol]].
 | Effort | Status | Spec | Research | Prototypes | Tickets |
 | --- | --- | --- | --- | --- | --- |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
-| a-workspace-follows-its-user | draft | [[efforts/a-workspace-follows-its-user/spec]] | 1 | 0 | 0 |
+| a-workspace-follows-its-user | accepted | [[efforts/a-workspace-follows-its-user/spec]] | 1 | 0 | 0 |
 | answers-menus-and-scrollbars | implemented | [[efforts/answers-menus-and-scrollbars/spec]] | 0 | 0 | 0 |
 | contract-work-queue-and-directory | implemented | [[efforts/contract-work-queue-and-directory/spec]] | 0 | 1 | 0 |
 | counts-cards-and-confirmations | implemented | [[efforts/counts-cards-and-confirmations/spec]] | 0 | 2 | 0 |
@@ -175,5 +176,6 @@ Start at [[protocol]].
 | sql-proxy-value-conversion | implemented | [[efforts/sql-proxy-value-conversion/spec]] | 0 | 0 | 0 |
 | surfaces-the-overhaul-left-behind | implemented | [[efforts/surfaces-the-overhaul-left-behind/spec]] | 0 | 0 | 0 |
 | the-landing-screen-is-figures-over-sections | implemented | [[efforts/the-landing-screen-is-figures-over-sections/spec]] | 0 | 1 | 0 |
+| the-repository-becomes-a-monorepo | accepted | [[efforts/the-repository-becomes-a-monorepo/spec]] | 1 | 0 | 0 |
 | ui-overhaul | implemented | [[efforts/ui-overhaul/spec]] | 3 | 0 | 0 |
 | work-the-surfaces-cannot-do | accepted | [[efforts/work-the-surfaces-cannot-do/spec]] | 0 | 0 | 0 |
