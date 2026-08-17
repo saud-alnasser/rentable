@@ -103,6 +103,21 @@ export function toFilterLabel(
 	return chosen ? `${name}: ${chosen.label(translations)}` : name;
 }
 
+/**
+ * What a filter is set to, or nothing where it is not set.
+ *
+ * Distinct from {@link toFilterLabel}, which names the filter whether or not it is in use — a
+ * control has to be labelled either way, and a file name has nothing to say about a filter
+ * nobody applied.
+ */
+export function toChosenLabel(
+	filter: ListFilter,
+	selection: FilterSelection,
+	translations: TranslationFunctions
+) {
+	return toChosenOption(filter, selection)?.label(translations);
+}
+
 /** The option a filter is set to, or nothing where it is not set. */
 export function toChosenOption(
 	filter: ListFilter,

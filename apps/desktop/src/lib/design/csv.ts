@@ -1,5 +1,5 @@
 /**
- * CSV
+ * EXPORT
  *
  * turning what a list is showing into a file another program can read.
  *
@@ -7,17 +7,70 @@
  * less than its query returns, and an export written from the query would put fields on disk
  * the user never chose to see.
  *
- * Two formats are offered now and the columns are the same for both — the difference is only
- * in what lands on disk. {@link toExportSheet} is the other rendering; the format itself is
- * built in Rust, for the reasons the effort's evidence records.
+ * **What a column carries is its kind, not its rendering.** A count crosses as a count and a
+ * date as a date, and the file's own writer decides how each is spelled. The alternative was
+ * tried first: every cell was rendered here, through the reader's locale, so `١٬٥٠٠` and
+ * `﷼ 1,500` went to disk as text. It made every figure unaddable and every date unsortable,
+ * and it stamped a locale on a file whose reader had not chosen one — a spreadsheet renders a
+ * number in whatever locale the person opening it works in, and can do nothing at all with a
+ * string that looks like one.
+ *
+ * Two formats are offered and the columns are the same for both; the difference is only in what
+ * lands on disk, and both formats are built in Rust for the reasons the effort's evidence
+ * records.
  */
-import type { ExportSheet } from '$lib/platform/tauri';
+import type { ExportCell as WireCell, ExportSheet } from '$lib/platform/tauri';
+
+/**
+ * One cell, as the kind of thing it is.
+ *
+ * A concept says *this is money* and *this is the day it fell due*; nothing here decides how
+ * either is spelled, because that is the file format's question and the two formats answer it
+ * differently.
+ */
+export type ExportValue =
+	| string
+	| number
+	| null
+	| undefined
+	| { kind: 'date'; value: Date }
+	| { kind: 'money'; value: number };
+
+/** the day a spreadsheet counts from. Serial 1 is 1900-01-01 in the format's own reckoning. */
+const SPREADSHEET_EPOCH = Date.UTC(1899, 11, 30);
+const MILLISECONDS_A_DAY = 86_400_000;
+
+/** A date as the count of days a spreadsheet holds one as. */
+function toSerialDay(value: Date) {
+	return (value.getTime() - SPREADSHEET_EPOCH) / MILLISECONDS_A_DAY;
+}
+
+/**
+ * A label as a file spells it.
+ *
+ * The interface writes its labels lowercase, deliberately and everywhere. A file is not the
+ * interface: a heading row is read by people who did not open this application and by programs
+ * that treat the first row as names, and `national id` reads as an unfinished sentence where
+ * `National Id` reads as a column. Done here rather than by every list restating its labels in
+ * two cases, and a no-op in a script that has no cases at all — which is why the Arabic
+ * headings pass through untouched.
+ */
+export function toHeading(label: string) {
+	return label.replace(/(^|\s)(\p{Ll})/gu, (match, lead: string, letter: string) => {
+		return `${lead}${letter.toUpperCase()}`;
+	});
+}
 
 /** A column of the file: what it is called, and what it reads from one record. */
-export type CsvColumn<TRecord> = {
+export type ExportColumn<TRecord> = {
+	/** what the column is called, in the reader's language. */
 	header: string;
-	value: (record: TRecord) => string;
+	/** what it reads from one record, as the kind of thing that is. */
+	value: (record: TRecord) => ExportValue;
 };
+
+/** the name the older half of this module used, kept while callers move across. */
+export type CsvColumn<TRecord> = ExportColumn<TRecord>;
 
 /** The formats a list can be written out as. */
 export const EXPORT_FORMATS = ['csv', 'xlsx'] as const;
@@ -34,6 +87,30 @@ export type ExportFormat = (typeof EXPORT_FORMATS)[number];
  */
 function opensAFormula(value: string) {
 	return /^[=@]/.test(value) || /^[+-](?![\d\s.,])/.test(value);
+}
+
+/**
+ * What a cell says in a delimited file.
+ *
+ * The machine form, not the rendered one, and for the same reason the workbook writes a number:
+ * a spreadsheet reads `1500` as a number and `2026-01-31` as a date, and reads `﷼ ١٬٥٠٠` as
+ * text. A file that is easier for a person to read at a glance and impossible for their
+ * spreadsheet to add up is the worse file.
+ */
+function toDelimitedText(value: ExportValue) {
+	if (value === null || value === undefined) {
+		return '';
+	}
+
+	if (typeof value === 'number') {
+		return String(value);
+	}
+
+	if (typeof value === 'string') {
+		return value;
+	}
+
+	return value.kind === 'money' ? String(value.value) : value.value.toISOString().slice(0, 10);
 }
 
 /**
@@ -54,13 +131,34 @@ function toField(value: string) {
  * Lines end `\r\n` because that is what the format says and what a spreadsheet on any
  * platform reads back unambiguously.
  */
-export function toCsv<TRecord>(columns: CsvColumn<TRecord>[], records: TRecord[]) {
+export function toCsv<TRecord>(columns: readonly ExportColumn<TRecord>[], records: TRecord[]) {
 	const lines = [
-		columns.map((column) => toField(column.header)),
-		...records.map((record) => columns.map((column) => toField(column.value(record))))
+		columns.map((column) => toField(toHeading(column.header))),
+		...records.map((record) =>
+			columns.map((column) => toField(toDelimitedText(column.value(record))))
+		)
 	];
 
 	return lines.map((fields) => fields.join(',')).join('\r\n');
+}
+
+/** One value as the cell the workbook writer is given. */
+function toWireCell(value: ExportValue): WireCell {
+	if (value === null || value === undefined || value === '') {
+		return { kind: 'empty' };
+	}
+
+	if (typeof value === 'number') {
+		return { kind: 'number', value };
+	}
+
+	if (typeof value === 'string') {
+		return { kind: 'text', value };
+	}
+
+	return value.kind === 'money'
+		? { kind: 'money', value: value.value }
+		: { kind: 'date', value: toSerialDay(value.value) };
 }
 
 /**
@@ -69,15 +167,15 @@ export function toCsv<TRecord>(columns: CsvColumn<TRecord>[], records: TRecord[]
  * Nothing is quoted and nothing is defused here. A cell in an archive is not delimited by
  * anything, so quoting would put the quotes themselves in the cell — and the formula guard is
  * the file format's question, answered by the writer that knows which format it is writing.
- * What this owes is the values, in the order the columns were declared.
+ * What this owes is the values, as the kinds of thing they are.
  */
 export function toExportSheet<TRecord>(
-	columns: CsvColumn<TRecord>[],
+	columns: readonly ExportColumn<TRecord>[],
 	records: TRecord[]
 ): ExportSheet {
 	return {
-		headers: columns.map((column) => column.header),
-		rows: records.map((record) => columns.map((column) => column.value(record)))
+		headers: columns.map((column) => toHeading(column.header)),
+		rows: records.map((record) => columns.map((column) => toWireCell(column.value(record))))
 	};
 }
 
@@ -87,4 +185,18 @@ export function toExportFileName(name: string, format: ExportFormat) {
 	// was. Stripping it keeps the caller's word — the concept's own name for itself — without
 	// making every list restate it.
 	return `${name.replace(/\.(csv|xlsx)$/i, '')}.${format}`;
+}
+
+/**
+ * What a file is called, given what it holds and what narrowed it.
+ *
+ * A file of five thousand tenants and a file of the eleven a search found are both `tenants`
+ * otherwise, and the second one silently replaces the first in a downloads folder. Naming what
+ * narrowed it is what keeps two exports two files — and tells a reader who comes back to it a
+ * week later that they are not looking at the whole directory.
+ */
+export function toNarrowedName(name: string, narrowing: readonly string[]) {
+	const stated = narrowing.map((part) => part.trim()).filter(Boolean);
+
+	return stated.length > 0 ? `${name} (${stated.join(', ')})` : name;
 }

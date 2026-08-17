@@ -107,6 +107,14 @@ fn to_text(cell: &Data) -> String {
         Data::Float(value) => value.to_string(),
         Data::Int(value) => value.to_string(),
         Data::Bool(value) => value.to_string(),
+        // a day, not the number of days. The export writes a date as the count the format
+        // counts in and tells the sheet to display it as a date; read back as that count it
+        // would be `46053`, which is a true answer to a question nobody asked.
+        Data::DateTime(value) => value
+            .as_datetime()
+            .map(|moment| moment.format("%Y-%m-%d").to_string())
+            .unwrap_or_else(|| value.as_f64().to_string()),
+        Data::DateTimeIso(value) => value.clone(),
         other => other.to_string(),
     }
 }
@@ -262,6 +270,27 @@ mod tests {
 
         assert_eq!(table.headers, headers);
         assert_eq!(table.rows, written.map(|row| row.to_vec()).to_vec());
+    }
+
+    // the export writes a day as the count of days the format counts in, and tells the sheet to
+    // show it as a date. Read back it has to be the day again — a reader who exported `31 Jan
+    // 2026` and imported `46053` was handed a true answer to a question nobody asked.
+    #[test]
+    fn a_date_the_export_wrote_reads_back_as_a_day_and_not_as_a_count_of_them() {
+        let mut workbook = rust_xlsxwriter::Workbook::new();
+        let worksheet = workbook.add_worksheet();
+        let day = rust_xlsxwriter::Format::new().set_num_format("yyyy-mm-dd");
+
+        worksheet.write_string(0, 0, "start").unwrap();
+        worksheet
+            .write_number_with_format(1, 0, 46_053.0, &day)
+            .unwrap();
+
+        let bytes = workbook.save_to_buffer().unwrap();
+        let mut read = calamine::open_workbook_auto_from_rs(std::io::Cursor::new(bytes)).unwrap();
+        let table = to_table(&read.worksheet_range_at(0).unwrap().unwrap());
+
+        assert_eq!(table.rows, vec![vec!["2026-01-31"]]);
     }
 
     // the same round trip for the other format, which is written on the web side. The bytes

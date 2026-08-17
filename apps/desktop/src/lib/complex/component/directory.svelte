@@ -11,13 +11,13 @@
 	import { useDeleteComplex, useFetchUnits, useListComplexes } from '$lib/complex/query';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
+	import { toNarrowedName } from '$lib/design/csv';
 	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import { hasCreateIntent } from '$lib/design/create-intent';
 	import type { ListSort } from '$lib/design/sort';
-	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { formatLocaleNumber } from '$lib/platform/locale';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import CircleDashedIcon from '@tabler/icons-svelte/icons/circle-dashed';
@@ -135,25 +135,19 @@
 	isFetching={complexesQuery.isFetching}
 	recordHeight={ROW_HEIGHT}
 	exportAs={{
-		name: `${$LL.common.nav.complexes()}.csv`,
+		name: toNarrowedName($LL.common.nav.complexes(), [search]),
 		columns: [
 			{ header: $LL.common.labels.name(), value: (complex) => complex.name },
 			{ header: $LL.common.labels.location(), value: (complex) => complex.location },
-			{
-				header: $LL.common.labels.units(),
-				value: (complex) => formatLocaleNumber($locale, complex.unitCount)
-			},
+			{ header: $LL.common.labels.units(), value: (complex) => complex.unitCount },
 			// the three figures the row shows, in the order it shows them. Occupancy is not on the
 			// query — a unit is occupied or vacant, so the third figure is the other two — which is
 			// why it has to be derived here as well rather than read off the record.
 			{
 				header: $LL.common.labels.occupiedUnits(),
-				value: (complex) => formatLocaleNumber($locale, complex.unitCount - complex.vacantUnitCount)
+				value: (complex) => complex.unitCount - complex.vacantUnitCount
 			},
-			{
-				header: $LL.common.labels.vacantUnits(),
-				value: (complex) => formatLocaleNumber($locale, complex.vacantUnitCount)
-			}
+			{ header: $LL.common.labels.vacantUnits(), value: (complex) => complex.vacantUnitCount }
 		]
 	}}
 	onCreate={() => {

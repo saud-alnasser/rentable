@@ -9,6 +9,7 @@
 	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import List from '$lib/design/block/list.svelte';
+	import { toNarrowedName } from '$lib/design/csv';
 	import * as Cell from '$lib/design/cell';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import UserIcon from '@tabler/icons-svelte/icons/user';
@@ -18,7 +19,11 @@
 
 	type UnitRecord = Awaited<ReturnType<typeof api.complex.units.getMany>>[number];
 
-	let { complexId }: { complexId: number } = $props();
+	let {
+		complexId,
+		/** what the complex is called, so a file of its units can say which building it is. */
+		complexName
+	}: { complexId: number; complexName: string } = $props();
 
 	// two lines of text and the breathing room around them; the shell lays rows out at this
 	// height rather than measuring them.
@@ -85,10 +90,14 @@
 	isFetching={unitsQuery.isFetching}
 	recordHeight={ROW_HEIGHT}
 	exportAs={{
-		// the complex is in the name: every complex has a units directory, and one file name
-		// between them would have each export replace the last silently.
-		name: `${$LL.common.nav.units()}-${complexId}.csv`,
+		// the complex is in the name rather than its id: every complex has a units directory, one
+		// file name between them would have each export replace the last silently, and a reader
+		// looking at the file a week later can tell which complex it is about.
+		name: toNarrowedName(`${$LL.common.nav.units()} — ${complexName}`, [search]),
 		columns: [
+			// the complex leads, because a file of units that never names the complex holding
+			// them is a file that cannot be read away from the screen it came off.
+			{ header: $LL.common.labels.complex(), value: () => complexName },
 			{ header: $LL.common.labels.name(), value: (unit) => unit.name },
 			{ header: $LL.common.labels.status(), value: (unit) => $LL.common.status[unit.status]() },
 			{ header: $LL.common.labels.tenant(), value: (unit) => unit.tenantName ?? '' }

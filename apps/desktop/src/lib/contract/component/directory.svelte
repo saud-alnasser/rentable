@@ -16,12 +16,11 @@
 	import { useListContracts, useTerminateManyContracts } from '$lib/contract/query';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
-	import { withFilter, type FilterSelection } from '$lib/design/filter';
+	import { toChosenLabel, withFilter, type FilterSelection } from '$lib/design/filter';
 	import BanIcon from '@lucide/svelte/icons/ban';
 	import { toast } from 'svelte-sonner';
-	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { formatRecordDate } from '$lib/design/date';
-	import { formatLocaleMoneyRange, formatLocaleNumber } from '$lib/platform/locale';
+	import { LL } from '$lib/i18n/i18n-svelte';
+	import { toNarrowedName } from '$lib/design/csv';
 	import ContractActions from './actions.svelte';
 	import ContractRecord from './record.svelte';
 
@@ -48,7 +47,6 @@
 	const contracts = $derived(contractsQuery.data ?? []);
 
 	// the same rendering the row shows, so the file reads as the screen does.
-	const formatDate = (value: number) => formatRecordDate($locale, value);
 
 	// built from the ids the procedure orders by, so the control cannot come to offer a key
 	// the query would reject. The record type is what makes a missing label a type error.
@@ -141,27 +139,41 @@
 			isFetching={contractsQuery.isFetching}
 			recordHeight={ROW_HEIGHT}
 			exportAs={{
-				name: `${$LL.common.nav.contracts()}.csv`,
+				name: toNarrowedName($LL.common.nav.contracts(), [
+					search,
+					toChosenLabel(RANK_FILTER, filters, $LL) ?? ''
+				]),
 				columns: [
 					{
 						header: $LL.common.labels.tenant(),
 						value: (contract) => contract.tenantName?.trim() || $LL.common.labels.tenant()
 					},
 					{ header: $LL.common.labels.governmentId(), value: (contract) => contract.govId.trim() },
-					{ header: $LL.common.labels.start(), value: (contract) => formatDate(contract.start) },
-					{ header: $LL.common.labels.end(), value: (contract) => formatDate(contract.end) },
+					// days, so the column sorts and a period can be asked of it. A formatted date was
+					// text: `31 Jan 2026` sorts alphabetically, which puts April before January.
 					{
-						header: $LL.common.nav.payments(),
-						value: (contract) => formatLocaleNumber($locale, contract.paymentCount)
+						header: $LL.common.labels.start(),
+						value: (contract) => ({ kind: 'date' as const, value: new Date(contract.start) })
 					},
+					{
+						header: $LL.common.labels.end(),
+						value: (contract) => ({ kind: 'date' as const, value: new Date(contract.end) })
+					},
+					{ header: $LL.common.nav.payments(), value: (contract) => contract.paymentCount },
 					{
 						header: $LL.common.labels.status(),
 						value: (contract) => $LL.common.status[contract.status]()
 					},
+					// the pair the card draws as one fraction, as two columns of money. A file is not
+					// a card: `1,500 / 18,000` is one string a spreadsheet can do nothing with, and
+					// what a reader wants of a directory of contracts is the two totals under it.
 					{
-						header: $LL.common.labels.paymentFulfillment(),
-						value: (contract) =>
-							formatLocaleMoneyRange($locale, contract.paidAmount, contract.expectedAmount)
+						header: $LL.common.labels.paid(),
+						value: (contract) => ({ kind: 'money' as const, value: contract.paidAmount })
+					},
+					{
+						header: $LL.common.labels.expected(),
+						value: (contract) => ({ kind: 'money' as const, value: contract.expectedAmount })
 					}
 				]
 			}}

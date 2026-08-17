@@ -1,5 +1,9 @@
 import api from '$lib/api/caller';
-import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
+import {
+	CONTRACT_SORT_COLUMN_IDS,
+	toContractName as toContractRecordName,
+	type ContractSortColumnId
+} from '$lib/contract/contract';
 import { declareMutation } from '$lib/design/mutation';
 import { workspacePrefixes } from '$lib/design/query';
 import type { ContractRank } from '$lib/contract/rank';
@@ -65,9 +69,9 @@ function isContractSortColumnId(columnId: string): columnId is ContractSortColum
  * tenant's name where there is none — the same fallback the delete confirmation already uses,
  * so one record is named the same way wherever it is spoken about.
  */
-function toContractName(contract: { govId?: string | null; tenantName?: string | null }) {
-	return contract.govId?.trim() || contract.tenantName?.trim() || get(LL).common.labels.contract();
-}
+/** the concept's own naming, with the translation this side happens to hold. */
+const toContractName = (contract: { govId?: string | null; tenantName?: string | null }) =>
+	toContractRecordName(contract, get(LL).common.labels.contract());
 
 /**
  * The contracts directory for a search and an order: the whole result set, each row carrying

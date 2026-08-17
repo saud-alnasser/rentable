@@ -14,14 +14,14 @@ test('the file is the headers and then the rows, in the order they were given', 
 			{ name: 'Sara', phone: '+966551234567' },
 			{ name: 'Omar', phone: '+966559999999' }
 		]),
-		'"name","phone"\r\n"Sara","+966551234567"\r\n"Omar","+966559999999"'
+		'"Name","Phone"\r\n"Sara","+966551234567"\r\n"Omar","+966559999999"'
 	);
 });
 
 test('a field carrying a comma, a quote or a newline survives it', () => {
 	assert.equal(
 		toCsv([{ header: 'note', value: (row) => row.note }], [{ note: 'a "big", tall\nplace' }]),
-		'"note"\r\n"a ""big"", tall\nplace"'
+		'"Note"\r\n"a ""big"", tall\nplace"'
 	);
 });
 
@@ -29,9 +29,9 @@ test('a field carrying a comma, a quote or a newline survives it', () => {
 test('a field a spreadsheet would run as a formula is shown instead', () => {
 	const name = [{ header: 'name', value: (row) => row.name }];
 
-	assert.equal(toCsv(name, [{ name: '=cmd()' }]), '"name"\r\n"\'=cmd()"');
-	assert.equal(toCsv(name, [{ name: '@sum(1)' }]), '"name"\r\n"\'@sum(1)"');
-	assert.equal(toCsv(name, [{ name: '-cmd()' }]), '"name"\r\n"\'-cmd()"');
+	assert.equal(toCsv(name, [{ name: '=cmd()' }]), '"Name"\r\n"\'=cmd()"');
+	assert.equal(toCsv(name, [{ name: '@sum(1)' }]), '"Name"\r\n"\'@sum(1)"');
+	assert.equal(toCsv(name, [{ name: '-cmd()' }]), '"Name"\r\n"\'-cmd()"');
 });
 
 // every tenant's phone begins with a plus, and a guard that mangled it would be worse than
@@ -39,12 +39,12 @@ test('a field a spreadsheet would run as a formula is shown instead', () => {
 test('a phone number keeps the plus it is written with', () => {
 	assert.equal(
 		toCsv([{ header: 'phone', value: (row) => row.phone }], [{ phone: '+966551234567' }]),
-		'"phone"\r\n"+966551234567"'
+		'"Phone"\r\n"+966551234567"'
 	);
 });
 
 test('a list with no rows is still a file with its headings', () => {
-	assert.equal(toCsv(columns, []), '"name","phone"');
+	assert.equal(toCsv(columns, []), '"Name","Phone"');
 });
 
 // arabic is not a second-class locale: a heading and a value in it come through untouched.
@@ -65,7 +65,7 @@ const sheetColumns = [
 test('a sheet carries the headers in the order the columns were declared', () => {
 	const sheet = toExportSheet(sheetColumns, []);
 
-	assert.deepEqual(sheet.headers, ['name', 'phone']);
+	assert.deepEqual(sheet.headers, ['Name', 'Phone']);
 	assert.deepEqual(sheet.rows, []);
 });
 
@@ -76,8 +76,14 @@ test('and one row per record, each cell in its column', () => {
 	]);
 
 	assert.deepEqual(sheet.rows, [
-		['Abby Kris', '+966512345678'],
-		['محمد', '+966598765432']
+		[
+			{ kind: 'text', value: 'Abby Kris' },
+			{ kind: 'text', value: '+966512345678' }
+		],
+		[
+			{ kind: 'text', value: 'محمد' },
+			{ kind: 'text', value: '+966598765432' }
+		]
 	]);
 });
 
@@ -90,7 +96,11 @@ test('a sheet quotes nothing and defuses nothing — a cell is not a delimited f
 		[{ value: '=cmd()' }, { value: 'a, b' }, { value: 'he said "hello"' }]
 	);
 
-	assert.deepEqual(sheet.rows, [['=cmd()'], ['a, b'], ['he said "hello"']]);
+	assert.deepEqual(sheet.rows, [
+		[{ kind: 'text', value: '=cmd()' }],
+		[{ kind: 'text', value: 'a, b' }],
+		[{ kind: 'text', value: 'he said "hello"' }]
+	]);
 });
 
 test('a file takes the extension of the format it was written as', () => {
@@ -123,6 +133,6 @@ test('a row is written as the bytes the reader is pinned to', () => {
 
 	assert.equal(
 		toCsv(columns, [{ name: '=cmd()', nationalId: '1234567890', phone: '+966512345678' }]),
-		'"name","national id","phone"\r\n"\'=cmd()","1234567890","+966512345678"'
+		'"Name","National Id","Phone"\r\n"\'=cmd()","1234567890","+966512345678"'
 	);
 });

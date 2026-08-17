@@ -15,10 +15,25 @@ export type Settings = {
 	version: string;
 };
 
-/** One sheet of a workbook, every cell already rendered as the surface shows it. */
+/**
+ * One cell of a workbook, as the kind of thing it is.
+ *
+ * Money and dates cross as figures rather than as the text a surface drew, because the file's
+ * reader is a spreadsheet: it renders a number in whatever locale the person opening it works
+ * in, and can do nothing with a string that merely looks like one. `date` is the count of days
+ * the format itself counts in.
+ */
+export type ExportCell =
+	| { kind: 'text'; value: string }
+	| { kind: 'number'; value: number }
+	| { kind: 'date'; value: number }
+	| { kind: 'money'; value: number }
+	| { kind: 'empty' };
+
+/** One sheet of a workbook: its headings, and its rows under them. */
 export type ExportSheet = {
 	headers: string[];
-	rows: string[][];
+	rows: ExportCell[][];
 };
 
 /** A file read back in: the heading row, and the rows under it, all as text. */
@@ -213,9 +228,9 @@ export const tauri = {
 		/**
 		 * Write a workbook out of the application and answer with where it landed.
 		 *
-		 * The cells cross already rendered, as strings: what a column says is decided where the
-		 * row is drawn, so the figures arrive formatted in the reader's locale and typing them
-		 * back into numbers would print `1500` where the surface showed `١٬٥٠٠`.
+		 * The cells cross as the kinds of thing they are — a count as a count, a day as a day —
+		 * and this side spells each one. A figure rendered before it crossed could not be added
+		 * up by whatever opened the file, and carried a locale that file's reader never chose.
 		 *
 		 * A second command rather than a format argument on the one above, because the two
 		 * differ in what they put on disk rather than in what they are asked for: the text one

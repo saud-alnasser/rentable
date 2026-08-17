@@ -72,14 +72,43 @@ pub async fn export_write(app: AppHandle, name: String, contents: String) -> Res
 /// already rendered.
 ///
 /// Strings throughout, and deliberately. What a column says is decided where the row is drawn —
-/// an export is written from what the reader can see rather than from the query behind it — so
-/// by the time anything reaches here the numbers have already been formatted in the reader's
-/// locale. Typing a cell back into a number would undo that and print `1500` where the surface
-/// showed `١٬٥٠٠`.
+/// One cell, as the kind of thing it is rather than as the text a surface drew for it.
+///
+/// This used to be a string, on the reasoning that an export is written from what the reader
+/// can see and typing a cell back into a number would print `1500` where the surface showed
+/// `١٬٥٠٠`. That reasoning was about the wrong reader. A spreadsheet renders a *number* in
+/// whatever locale the person opening it works in — the figure arrives as `١٬٥٠٠` for a reader
+/// who has Arabic set, and as `1,500` for one who does not — while a string arrives as a
+/// string for everyone and can be neither summed, sorted, nor filtered. The formatted text was
+/// carrying a locale the file's reader had not chosen, at the cost of the file being a
+/// spreadsheet at all.
+///
+/// So a figure crosses as a figure, a date as a date, and only what is genuinely text crosses
+/// as text. What the surface shows is unchanged — this is what the *file* holds.
+#[derive(serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum Cell {
+    Text {
+        value: String,
+    },
+    Number {
+        value: f64,
+    },
+    /// a whole day, as the count of days since the spreadsheet epoch the format already uses.
+    Date {
+        value: f64,
+    },
+    /// an amount of money, which is a number the file also says is money.
+    Money {
+        value: f64,
+    },
+    Empty,
+}
+
 #[derive(serde::Deserialize)]
 pub struct Sheet {
     pub headers: Vec<String>,
-    pub rows: Vec<Vec<String>>,
+    pub rows: Vec<Vec<Cell>>,
 }
 
 /// Whether a spreadsheet would run the cell rather than show it.
@@ -135,20 +164,53 @@ pub async fn export_write_workbook(
         message: format!("could not build {name}: {error}"),
     };
 
+    // a heading is a heading: bold, and the row frozen under it so a long sheet keeps saying
+    // what its columns are. Both are what a person does to a sheet by hand the moment they open
+    // one, and doing it here is the difference between a file and a dump.
+    let heading = rust_xlsxwriter::Format::new().set_bold();
+    // whole days, spelled the way the reader's own spreadsheet spells them.
+    let day = rust_xlsxwriter::Format::new().set_num_format("yyyy-mm-dd");
+    // thousands separated and two places kept, so a column of amounts lines up on the decimal
+    // and a total under it is a total rather than a guess.
+    let money = rust_xlsxwriter::Format::new().set_num_format("#,##0.00");
+
     for (column, header) in sheet.headers.iter().enumerate() {
         worksheet
-            .write_string(0, column as u16, to_cell(header))
+            .write_string_with_format(0, column as u16, to_cell(header), &heading)
             .map_err(write_failed)?;
     }
 
+    worksheet.set_freeze_panes(1, 0).map_err(write_failed)?;
+
     for (index, row) in sheet.rows.iter().enumerate() {
         for (column, value) in row.iter().enumerate() {
-            worksheet
-                // the header occupies row zero, so the first record is row one.
-                .write_string(index as u32 + 1, column as u16, to_cell(value))
-                .map_err(write_failed)?;
+            // the header occupies row zero, so the first record is row one.
+            let row_index = index as u32 + 1;
+            let column_index = column as u16;
+
+            match value {
+                Cell::Text { value } => worksheet
+                    .write_string(row_index, column_index, to_cell(value))
+                    .map(|_| ()),
+                Cell::Number { value } => worksheet
+                    .write_number(row_index, column_index, *value)
+                    .map(|_| ()),
+                Cell::Date { value } => worksheet
+                    .write_number_with_format(row_index, column_index, *value, &day)
+                    .map(|_| ()),
+                Cell::Money { value } => worksheet
+                    .write_number_with_format(row_index, column_index, *value, &money)
+                    .map(|_| ()),
+                Cell::Empty => Ok(()),
+            }
+            .map_err(write_failed)?;
         }
     }
+
+    // wide enough to read without the reader dragging every boundary. Measured from what is in
+    // the column rather than fixed, because a column of names and a column of counts are not
+    // the same width and a file that needs adjusting before it can be read is half a file.
+    worksheet.autofit();
 
     workbook.save(&path).map_err(|error| Error::Io {
         message: format!("could not write {}: {error}", path.display()),

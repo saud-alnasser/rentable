@@ -198,7 +198,17 @@ test('the sheet a directory exports plans back into the records it was given', (
 		{ name: 'محمد', nationalId: '1234567891', phone: '+966512345679', active: 0 }
 	];
 
-	const plan = planImport(fields, toExportSheet(columns, written), validate);
+	// the file is what stands between the two: a workbook holds a cell as the kind of thing it
+	// is, and the reader hands every one of them back as the text it renders to. Modelled here
+	// rather than skipped, because a test that fed the sheet straight in would be asserting
+	// against a shape no import ever sees.
+	const read = toExportSheet(columns, written);
+	const table = {
+		headers: read.headers,
+		rows: read.rows.map((row) => row.map((cell) => ('value' in cell ? String(cell.value) : '')))
+	};
+
+	const plan = planImport(fields, table, validate);
 
 	assert.deepEqual(
 		plan.create.map((held) => held.record),

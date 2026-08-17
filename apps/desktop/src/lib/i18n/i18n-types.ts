@@ -532,6 +532,10 @@ type RootTranslation = {
 			 */
 			end: string
 			/**
+			 * e​x​p​e​c​t​e​d
+			 */
+			expected: string
+			/**
 			 * g​o​v​e​r​n​m​e​n​t​ ​i​d
 			 */
 			governmentId: string
@@ -575,6 +579,10 @@ type RootTranslation = {
 			 * p​a​y​m​e​n​t
 			 */
 			payment: string
+			/**
+			 * p​a​i​d
+			 */
+			paid: string
 			/**
 			 * p​a​y​m​e​n​t​ ​d​a​t​e
 			 */
@@ -2685,6 +2693,10 @@ export type TranslationFunctions = {
 			 */
 			end: () => LocalizedString
 			/**
+			 * expected
+			 */
+			expected: () => LocalizedString
+			/**
 			 * government id
 			 */
 			governmentId: () => LocalizedString
@@ -2728,6 +2740,10 @@ export type TranslationFunctions = {
 			 * payment
 			 */
 			payment: () => LocalizedString
+			/**
+			 * paid
+			 */
+			paid: () => LocalizedString
 			/**
 			 * payment date
 			 */
