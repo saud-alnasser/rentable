@@ -31,7 +31,14 @@
 	import { Input } from '$lib/design/primitive/input';
 	import { Spinner } from '$lib/design/primitive/spinner';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
-	import { toCsv, type CsvColumn } from '$lib/design/csv';
+	import {
+		EXPORT_FORMATS,
+		toCsv,
+		toExportFileName,
+		toExportSheet,
+		type CsvColumn,
+		type ExportFormat
+	} from '$lib/design/csv';
 	import {
 		toChosenOption,
 		toFilterLabel,
@@ -217,13 +224,19 @@
 
 	// written from `data` rather than from a fresh read: the file is what the list is showing,
 	// under the search and the order it is showing it under.
-	async function exportRows() {
+	async function exportRows(format: ExportFormat) {
 		if (!exportAs || isExporting) return;
 
 		isExporting = true;
 
 		try {
-			const path = await tauri.export.write(exportAs.name, toCsv(exportAs.columns, data));
+			const name = toExportFileName(exportAs.name, format);
+			// which command rather than which argument: the two differ in what lands on disk, and
+			// the text one prepends a byte-order mark that would corrupt an archive.
+			const path =
+				format === 'csv'
+					? await tauri.export.write(name, toCsv(exportAs.columns, data))
+					: await tauri.export.writeWorkbook(name, toExportSheet(exportAs.columns, data));
 
 			// the path is isolated because it is written left to right whatever the sentence
 			// around it is, and an unisolated one reorders the Arabic it is spliced into.
@@ -649,16 +662,19 @@
 				</DropdownMenu.Root>
 			{/if}
 			{#if exportAs}
-				<Tooltip.Root>
-					<Tooltip.Trigger>
+				<!-- a menu rather than the bare icon it was: the icon could say *export* and nothing
+				     else, so a second format had nowhere to be named and neither had the direction.
+				     The groups are the directions, which is what leaves the import one a place to be
+				     added rather than a control to be rebuilt around it. -->
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger>
 						{#snippet child({ props })}
 							<Button
 								{...props}
 								variant="outline"
 								size="icon-sm"
-								aria-label={$LL.common.actions.export()}
-								disabled={!hasResults || isExporting}
-								onclick={exportRows}
+								aria-label={$LL.common.actions.transferData()}
+								disabled={isExporting}
 							>
 								<!-- this list, leaving. A download arrow describes fetching from somewhere
 								     remote, and there is nowhere remote: the file is written to disk here.
@@ -669,11 +685,22 @@
 								<TableExportIcon class="rtl:-scale-x-100" />
 							</Button>
 						{/snippet}
-					</Tooltip.Trigger>
-					<Tooltip.Content side="top" sideOffset={8}>
-						{$LL.common.actions.export()}
-					</Tooltip.Content>
-				</Tooltip.Root>
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content align="end">
+						<DropdownMenu.Label class="capitalize">
+							{$LL.common.actions.export()}
+						</DropdownMenu.Label>
+						<DropdownMenu.Separator />
+						{#each EXPORT_FORMATS as format (format)}
+							<DropdownMenu.Item
+								disabled={!hasResults || isExporting}
+								onSelect={() => void exportRows(format)}
+							>
+								<span class="flex-1">{$LL.common.formats[format]()}</span>
+							</DropdownMenu.Item>
+						{/each}
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
 			{/if}
 			{#if onCreate}
 				<Tooltip.Root>

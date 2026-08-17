@@ -174,6 +174,7 @@ pub fn run() {
             sync::remote_sync_google_drive_inspect,
             sync::remote_sync_google_drive_resolve_conflict,
             export::export_write,
+            export::export_write_workbook,
             update::update_prepare,
             bootstrap::bootstrap,
         ])
