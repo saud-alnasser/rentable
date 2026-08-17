@@ -1,5 +1,5 @@
 ---
-aep: 2.2.0
+aep: 2.3.0
 owner: repository
 date: 2026-08-17
 kind: reference
@@ -8,7 +8,12 @@ use-when: "working with issues, pull requests, or CI runs on GitHub"
 
 # gh — GitHub CLI
 
-Derived from: aep/github.md
+**This file is yours.** It records how `gh` is actually operated on
+`saud-alnasser/rentable`; correct it where the repository differs rather than
+deferring to what a seed said.
+
+Commands below were checked against `gh` 2.96.0. Where a version here is older,
+the gaps are the parts to re-check first.
 
 Docs: https://cli.github.com/manual/
 Fetch the docs when: a subcommand or flag you need is not listed below.
@@ -30,7 +35,7 @@ Run this before the first tracker operation of a session, not after a failure.
 gh issue create --title "<conventional title>" --body-file -
 ```
 
-**Creating an issue publishes.** It lands in a workspace other people read, so it is the human's call — the same standing rule as opening a pull request and as pushing, and for the same reason. Propose the set, get it approved, then create. `/design` has the procedure.
+**Creating an issue publishes.** It lands in a workspace other people read, so it is the human's call — the same standing rule as opening a pull request and as pushing, and for the same reason — [[policies/engineering]] carries it. Propose the whole set, show the exact titles rather than a summary, get it approved, then create. [[skills/tasks/labels]] has that procedure and applies it to labels and milestones too.
 
 `--body-file -` reads the body from stdin, which is how multi-line markdown survives intact — `--body` on a shell line does not. `-` for stdin, a path for a file.
 
@@ -39,9 +44,17 @@ Titles follow Conventional Commits, same as commit subjects: `type(scope): summa
 ## Find work
 
 ```
-gh issue list --state open --label "ready-for-agent" --json number,title,labels
+gh issue list --state open --label "🎯 status: ready" --json number,title,labels
 gh issue view <number> --comments
 ```
+
+**The labels are this repository's, not AEP's canonical names.** [[rules/tracker]]
+maps one to the other, and governs which to apply; `ready-for-agent` and the like
+are not labels here and match nothing — the filter returns `[]` rather than
+failing.
+
+**For an effort's work, this is the wrong read** — labels do not carry effort
+membership here. See *What carries an effort here* below.
 
 `--json` takes an explicit field list — there is no "all fields". `gh issue list --json` with no value prints the available field names, which is the quickest way to find one. Pair with `--jq` to filter without a second process.
 
@@ -49,14 +62,16 @@ gh issue view <number> --comments
 
 ```
 gh issue comment <number> --body-file -
-gh issue edit <number> --add-label "in-progress" --remove-label "ready-for-agent"
-gh label list                                     # read before creating any
+gh issue edit <number> --add-label "🎯 status: ready" --remove-label "📝 flag: triage"
+gh label list --limit 100                         # read before creating any; the default is 30
 gh label create "<name>" --color <hex> --description "<text>"
 ```
 
 `gh issue edit` adds and removes labels; it does not replace the set.
 
-`gh label list` is the read that comes before `gh label create`, always — `/triage` has the reuse rule. `create` fails on a name that already exists rather than editing it, so the list is what tells you whether you are adding or colliding. `--color` takes a bare hex with no leading `#`.
+**Which labels to apply, and whether to create one at all, is [[rules/tracker]]'s** — the example above is a real transition between two labels that exist.
+
+`gh label list` is the read that comes before `gh label create`, always — [[skills/tasks/labels]] has the reuse ladder. **Pass `--limit`**: the default is 30 and this repository's vocabulary is longer, so a bare call answers with a truncated list that reads as the whole one. `create` fails on a name that already exists rather than editing it, so the list is what tells you whether you are adding or colliding. `--color` takes a bare hex with no leading `#`.
 
 ## Pin and unpin an issue
 
@@ -73,7 +88,7 @@ Docs: https://docs.github.com/en/issues/tracking-your-work-with-issues/administe
 
 ## Read and set Assignment
 
-Assignment is which human owns delivering the issue. AEP reads it; it writes it only when asked (`/implement` has the rule).
+Assignment is which human owns delivering the issue. AEP reads it; it writes it only when asked ([[skills/implement]] has the rule).
 
 ```
 gh issue view <number> --json assignees,state,labels
@@ -90,7 +105,7 @@ gh issue develop <number> --name <branch>         # creates the branch ON THE RE
 gh issue develop <number> --list                  # read-only: branches linked this way
 ```
 
-`develop` creates the branch in the repository rather than locally, so it publishes — the same standing rule as pushing. It also names the branch by GitHub's convention rather than AEP's, and `--list` sees only branches created through it, so it is not the read that answers whether a ticket is claimed. That read is `git ls-remote` (see [git.md](git.md)).
+`develop` creates the branch in the repository rather than locally, so it publishes — the same standing rule as pushing. It also names the branch by GitHub's convention rather than AEP's, and `--list` sees only branches created through it, so it is not the read that answers whether a ticket is claimed. That read is `git ls-remote` (see [[references/git]]).
 
 ## Link a parent and its sub-issues
 
@@ -162,13 +177,79 @@ Read from `gh issue create --help` and `gh issue edit --help` on gh 2.96.0. This
 
 **State the edge in the issue body as well.** "Blocked by #12, #14." The native relationship is structured and queryable; the body line is what a human reads without opening the sidebar, and it is what the local-file tracker does anyway. Neither replaces the other.
 
+## What carries an effort here, and the query that finds its open work
+
+Resolved once against this tracker, per [[skills/tasks/labels]]. **Every fact
+lands on a native feature, so no label is created for any of them.**
+
+| Fact | Carrier | Read it with |
+| --- | --- | --- |
+| which effort a task belongs to | the sub-issue edge — the effort is the parent issue | `parent` in `--json` |
+| what gates a task | issue dependencies | `blockedBy` / `blocking` in `--json` |
+| open or resolved | the issue's own state | `state` |
+| obsolete | the close reason `not planned` | `stateReason`, which **reads back `NOT_PLANNED`** |
+
+**Milestones are not the carrier.** This repository has none, and the hierarchy
+already answers the question — a milestone beside it would be a second copy of
+the same fact. **No label carries it either**, and none is to be created for it;
+the vocabulary and what governs it are [[rules/tracker]]'s.
+
+The frontier — the effort's open tasks that nothing open is waiting on:
+
+```sh
+gh issue list --state open --limit 200 --json number,title,blockedBy,parent \
+  --jq '[.[] | select(.parent.number == <effort-number>)
+             | select([.blockedBy.nodes[] | select(.state == "OPEN")] | length == 0)
+             | {number, title}]'
+```
+
+The frontier is **computed from declared edges, never guessed** from which files
+a task looks like it touches — [[policies/execution]] requires exactly that.
+
+**`blockedBy`, `blocking`, and `subIssues` are connections, not arrays.** On gh
+2.96.0 each comes back as `{nodes: [...], totalCount: n}`, so the iteration is
+`.blockedBy.nodes[]`. **`parent` is the exception** — a plain object, read as
+`.parent.number`. Check the shape against the installed version before copying a
+query from elsewhere.
+
+**The wrong form fails quietly first.** Bare `.blockedBy[]` does not error: jq
+iterates the object's values and emits the nodes array, then `totalCount`. The
+*expected an object but got: array* message only appears once something
+downstream accesses a field — `.blockedBy[].number`, or `.blockedBy[] |
+select(.state == "OPEN")`. So the loud failure is the second-best case; the
+first is a query that returns a plausible answer built from the wrong values.
+
+**Filter on `state` inside `nodes`, not on the count.** `totalCount` counts
+closed blockers too, so a task whose only blocker merged last week reads as
+blocked and never joins the frontier.
+
+**Raise `--limit` deliberately.** There is no server-side parent filter, so
+`--jq` narrows a page `gh` has already truncated at 30 — and a truncated page
+filters to a short list that reads as a complete answer, with the dropped tasks
+looking like *not in this effort* rather than *not fetched*. This repository
+carries roughly fifteen open issues, so one page covers it today; `--limit 200`
+is what keeps that true as it grows.
+
+The parent's own view is the cheaper read when the edges are not needed:
+
+```sh
+gh issue view <effort-number> --json subIssues,subIssuesSummary \
+  --jq '.subIssuesSummary, (.subIssues.nodes[] | "\(.number) \(.state) \(.title)")'
+```
+
+`subIssuesSummary` is the progress read — `{completed, total, percentCompleted}`
+— and **a parent can be closed while it is short of `total`**, which is how an
+effort comes to assert it is delivered while live work sits under it. That is why
+the summary is projected alongside the children rather than fetched and dropped:
+the comparison is the point of the read.
+
 ## Open a pull request
 
 ```
 gh pr create --title "<conventional title>" --body-file - --base main
 ```
 
-AEP does not open PRs unasked — creating one publishes work, which is the human's call. Same standing rule as pushing (see [git.md](git.md)).
+AEP does not open PRs unasked — creating one publishes work, which is the human's call. Same standing rule as pushing (see [[references/git]]).
 
 What the body covers is a convention, not an invocation: [[rules/version-control]] has it.
 

@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.3.0
 owner: repository
 date: 2026-08-17
 kind: reference
@@ -8,7 +8,8 @@ use-when: "inspecting history, diffing, or recovering where a concept moved"
 
 # git — version control
 
-Derived from: aep/git.md
+**This file is yours.** It records how git is actually operated here; correct it
+where the repository differs rather than deferring to what a seed said.
 
 Docs: https://git-scm.com/docs
 Fetch the docs when: a subcommand or flag you need is not listed below.
@@ -30,7 +31,7 @@ The parsing is the part that goes wrong. Each line is `XY<space><path>`: status 
 
 ## Read a review diff
 
-`/review` has the rules. These are the reads it depends on, against a fixed point the human supplied.
+[[skills/review]] has the rules. These are the reads it depends on, against a fixed point the human supplied.
 
 ```
 git rev-parse --verify "<fixed-point>^{commit}"   # exit 1 → bad ref
@@ -67,7 +68,7 @@ cannot be tested rather than letting it fail.
 
 ## Read the current branch — which ticket this tree is building
 
-The branch is the Claim (`/implement` has the rule), so this is the read that tells an instance which ticket it was on.
+The branch is the Claim ([[skills/implement]] has the rule), so this is the read that tells an instance which ticket it was on.
 
 ```
 git branch --show-current                         # empty output → detached HEAD
@@ -101,11 +102,11 @@ git ls-remote --heads <remote> <branch>           # any output → claimed in an
 fatal: '<branch>' is already used by worktree at '<path>'
 ```
 
-That is exit 128 and it is the mechanism, not an error to work around. Report the path and stop — `/implement` has what to do next.
+That is exit 128 and it is the mechanism, not an error to work around. Report the path and stop — [[skills/implement]] has what to do next.
 
 ## Remove a spent worktree
 
-The harness creates a worktree for an isolated child; nothing removes one unless the orchestrator does. When it is spent is `/implement`'s to say — this is only how to type it.
+The harness creates a worktree for an isolated child; nothing removes one unless the orchestrator does. When it is spent is [[skills/implement]]'s to say — this is only how to type it.
 
 ```
 git worktree list --porcelain                     # what exists, and which branch each holds
@@ -159,4 +160,4 @@ git push --set-upstream <remote>    # pushes as a side effect
 
 AEP does not push. Publishing is the human's call, and it is the one action here they cannot undo locally.
 
-If a workflow appears to require a push, stop and say so. (On a Graphite repo, `gt submit` pushes too — the same rule applies; see [graphite.md](graphite.md).)
+If a workflow appears to require a push, stop and say so. (On a Graphite repo, `gt submit` pushes too — the same rule applies; see [[references/graphite]].)

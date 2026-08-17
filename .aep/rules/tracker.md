@@ -1,5 +1,5 @@
 ---
-aep: 2.2.0
+aep: 2.3.0
 owner: repository
 date: 2026-08-17
 kind: rule
@@ -99,9 +99,40 @@ GitHub assignees. Claiming is `gh issue edit <n> --add-assignee @me`.
 
 Assignment is **read and never written unasked.**
 
+## Label vocabulary
+
+Every label is `<emoji> <category>: <value>`, and there are five categories. **The
+convention is what is recorded here; the values are read from the tracker.**
+
+| Category | What it says | Who sets it |
+| --- | --- | --- |
+| `type:` | what kind of work this is | AEP, from the ticket's conventional type |
+| `flag:` | triage state, and metadata about the issue itself | triage — the human, mostly |
+| `status:` | where the work has got to | triage; see the collision below |
+| `priority:` | how urgent it is | **the human only** — AEP never assigns urgency |
+| `size:` | how large a pull request is | describes a **pull request**, not an issue |
+
+**Read the whole list before applying or proposing a label**, never the first page — the
+ladder in [[skills/tasks/labels]] requires it before anything is created, and the
+vocabulary here is longer than the default page. [[references/github]] has the invocation
+and what the flag does.
+
+*Why the values are not enumerated here: a copy of the tracker's own list is stale the
+moment somebody adds or renames one, and a reader cannot tell a stale copy from a current
+one. The categories do not move; the values do — and so does how many there are.*
+
+**The exception is the Roles table below**, which names six labels exactly. Those are not
+the vocabulary — they are the mapping from AEP's canonical roles onto it, and a mapping
+has to name both sides to say anything. It is governance, so it is maintained
+deliberately; the rest is read.
+
+**No label carries effort membership or gating.** Both are native GitHub relationships —
+[[references/github]], under *What carries an effort here*, has the carriers and the query.
+A label beside either would be a hand-maintained second copy that disagrees with the first
+the moment somebody uses GitHub's own interface.
+
 ## Roles
 
-This repository has an established emoji label vocabulary (`<emoji> <category>: <value>`).
 Every canonical role maps onto a label that **already exists** — apply these, never create
 new ones.
 
