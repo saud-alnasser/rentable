@@ -7,10 +7,14 @@
 	import List from '$lib/design/block/list.svelte';
 	import type { ListSort } from '$lib/design/sort';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
-	import { CONTRACT_RANKS, type ContractRank } from '$lib/contract/rank';
-	import { readContractRank } from '$lib/contract/rank-filter';
+	import {
+		RANK_FILTER,
+		RANK_FILTER_ID,
+		readContractRank,
+		toChosenRank
+	} from '$lib/contract/rank-filter';
 	import { useListContracts } from '$lib/contract/query';
-	import { Button } from '$lib/design/primitive/button';
+	import { withFilter, type FilterSelection } from '$lib/design/filter';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatRecordDate } from '$lib/design/date';
 	import { formatLocaleNumber, formatLocaleRangeWithUnit } from '$lib/platform/locale';
@@ -25,7 +29,9 @@
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
-	let rank = $state<ContractRank | null>(null);
+	let filters = $state<FilterSelection>({});
+
+	const rank = $derived(toChosenRank(filters));
 
 	const contractsQuery = useListContracts(
 		() => search,
@@ -33,11 +39,6 @@
 		() => (rank ? { rank } : {})
 	);
 
-	const rankLabels = $derived<Record<ContractRank, string>>({
-		overdue: $LL.contracts.ranks.overdue(),
-		owing: $LL.contracts.ranks.owing(),
-		'ending-soon': $LL.contracts.ranks.endingSoon()
-	});
 	const contracts = $derived(contractsQuery.data ?? []);
 
 	// the same rendering the row shows, so the file reads as the screen does.
@@ -74,27 +75,10 @@
 			return;
 		}
 
-		rank = requested;
+		filters = withFilter(filters, RANK_FILTER_ID, requested);
 		void goto(resolve('/contracts'), { replaceState: true, noScroll: true, keepFocus: true });
 	});
 </script>
-
-{#snippet rankFilter()}
-	<!-- pressing the chosen rank again clears it, so the control needs no separate "all" and
-	     the set of ranks is the whole vocabulary on screen. -->
-	<div class="flex items-center gap-1">
-		{#each CONTRACT_RANKS as option (option)}
-			<Button
-				variant={rank === option ? 'default' : 'outline'}
-				size="sm"
-				aria-pressed={rank === option}
-				onclick={() => (rank = rank === option ? null : option)}
-			>
-				{rankLabels[option]}
-			</Button>
-		{/each}
-	</div>
-{/snippet}
 
 <ContractActions
 	createRequested={hasCreateIntent(page.url)}
@@ -106,7 +90,8 @@
 			bind:search
 			bind:sort
 			{sortOptions}
-			filters={rankFilter}
+			bind:filters
+			filterOptions={[RANK_FILTER]}
 			isLoading={contractsQuery.isLoading}
 			isFetching={contractsQuery.isFetching}
 			recordHeight={ROW_HEIGHT}

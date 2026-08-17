@@ -5,7 +5,9 @@
 	import ContractActions from '$lib/contract/component/actions.svelte';
 	import ContractRecord from '$lib/contract/component/record.svelte';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
+	import { RANK_FILTER, toChosenRank } from '$lib/contract/rank-filter';
 	import { useListContracts } from '$lib/contract/query';
+	import type { FilterSelection } from '$lib/design/filter';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
 	/** The unit these contracts mention. */
@@ -17,11 +19,16 @@
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
+	let filters = $state<FilterSelection>({});
+
+	// the same rank the directory offers: a unit's history runs across several tenancies, and
+	// which of them is behind is the question the record is opened to answer.
+	const rank = $derived(toChosenRank(filters));
 
 	const contractsQuery = useListContracts(
 		() => search,
 		() => sort,
-		() => ({ unitId })
+		() => (rank ? { unitId, rank } : { unitId })
 	);
 	const contracts = $derived(contractsQuery.data ?? []);
 
@@ -49,6 +56,8 @@
 			bind:search
 			bind:sort
 			{sortOptions}
+			bind:filters
+			filterOptions={[RANK_FILTER]}
 			isLoading={contractsQuery.isLoading}
 			isFetching={contractsQuery.isFetching}
 			recordHeight={ROW_HEIGHT}

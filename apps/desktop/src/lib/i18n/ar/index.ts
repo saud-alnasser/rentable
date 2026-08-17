@@ -10,6 +10,7 @@ const ar = {
 			add: 'إضافة',
 			cancel: 'إلغاء',
 			checkForUpdates: 'التحقق من التحديثات',
+			clearFilter: 'إزالة هذه التصفية',
 			checkingForUpdates: 'جاري التحقق من التحديثات...',
 			connect: 'ربط',
 			connecting: 'جارٍ الربط...',
@@ -117,8 +118,10 @@ const ar = {
 			occupiedUnits: 'وحدات مشغولة',
 			payment: 'دفعة',
 			paymentDate: 'تاريخ الدفع',
+			period: 'الفترة',
 			paymentFulfillment: 'تحقق الدفع',
 			phone: 'الهاتف',
+			rank: 'الأولوية',
 			releaseDate: 'تاريخ الإصدار',
 			releaseNotes: 'ملاحظات الإصدار',
 			remainingDueBalance: 'الرصيد المتبقي',
@@ -152,6 +155,13 @@ const ar = {
 			settings: 'الإعدادات',
 			tenants: 'المستأجرون',
 			units: 'الوحدات'
+		},
+
+		periods: {
+			'last-month': 'الشهر الماضي',
+			'last-year': 'السنة الماضية',
+			'this-month': 'هذا الشهر',
+			'this-year': 'هذه السنة'
 		},
 
 		status: {

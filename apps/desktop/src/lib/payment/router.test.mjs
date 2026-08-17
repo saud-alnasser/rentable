@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createApi, monthsFromNow, seedTenant } from '$lib/api/testing.mjs';
+import { NOW, createApi, monthsFromNow, seedTenant } from '$lib/api/testing.mjs';
 
 async function seedContract(api, overrides = {}) {
 	const tenant = await seedTenant(api);
@@ -275,4 +275,115 @@ test('a payment cannot be moved into the future by an edit', async () => {
 		() => api.contract.payments.update({ id: payment.id, date: monthsFromNow(0, 1), amount: 500 }),
 		/cannot be dated in the future/
 	);
+});
+
+/**
+ * The days a period covers, computed from the harness's fixed clock the same way the router
+ * computes them — so a test says *the first of last month* rather than a literal date that is
+ * only correct on the day it was written.
+ */
+function dayOf(monthOffset, day) {
+	const base = new Date(NOW);
+
+	return Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + monthOffset, day);
+}
+
+/** the last day of the month `monthOffset` away, which is day zero of the one after it. */
+function lastDayOf(monthOffset) {
+	return dayOf(monthOffset + 1, 0);
+}
+
+// the criterion this ticket exists for, and it is asserted at the router rather than at the
+// rendered list: a filter that shortened the loaded set would pass any assertion made against
+// what is on screen, which is exactly the thing being forbidden.
+test('a period narrows which payments the read returns', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+
+	const lastMonth = await api.contract.payments.create({
+		contractId: contract.id,
+		date: dayOf(-1, 1),
+		amount: 300
+	});
+	const thisMonth = await api.contract.payments.create({
+		contractId: contract.id,
+		date: dayOf(0, 1),
+		amount: 500
+	});
+
+	const all = await api.contract.payments.getMany({ contractId: contract.id });
+	const narrowed = await api.contract.payments.getMany({
+		contractId: contract.id,
+		period: 'last-month'
+	});
+
+	assert.deepEqual(
+		all.map((payment) => payment.id).sort(),
+		[lastMonth.id, thisMonth.id].sort(),
+		'both payments exist'
+	);
+	assert.deepEqual(
+		narrowed.map((payment) => payment.id),
+		[lastMonth.id]
+	);
+});
+
+// the boundary the half-open upper bound exists for: a payment stored with a time of day on the
+// last day of the period is still inside it, and one on the first day of the next is not.
+test('a period includes the whole of its last day and none of the next', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+
+	const lastInstant = await api.contract.payments.create({
+		contractId: contract.id,
+		date: lastDayOf(-1) + 23 * 60 * 60 * 1000,
+		amount: 100
+	});
+	await api.contract.payments.create({ contractId: contract.id, date: dayOf(0, 1), amount: 200 });
+
+	const narrowed = await api.contract.payments.getMany({
+		contractId: contract.id,
+		period: 'last-month'
+	});
+
+	assert.deepEqual(
+		narrowed.map((payment) => payment.id),
+		[lastInstant.id]
+	);
+});
+
+test('a period and a search narrow together rather than one replacing the other', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+
+	const wanted = await api.contract.payments.create({
+		contractId: contract.id,
+		date: dayOf(-1, 2),
+		amount: 777
+	});
+	await api.contract.payments.create({ contractId: contract.id, date: dayOf(-1, 3), amount: 888 });
+	await api.contract.payments.create({ contractId: contract.id, date: dayOf(0, 2), amount: 777 });
+
+	const narrowed = await api.contract.payments.getMany({
+		contractId: contract.id,
+		search: '777',
+		period: 'last-month'
+	});
+
+	assert.deepEqual(
+		narrowed.map((payment) => payment.id),
+		[wanted.id]
+	);
+});
+
+test('no period returns the whole ledger, so an unset filter narrows nothing', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+
+	await api.contract.payments.create({ contractId: contract.id, date: dayOf(-1, 4), amount: 100 });
+	await api.contract.payments.create({ contractId: contract.id, date: dayOf(0, 4), amount: 200 });
+
+	const ledger = await api.contract.payments.getMany({ contractId: contract.id });
+
+	assert.equal(ledger.length, 2);
 });

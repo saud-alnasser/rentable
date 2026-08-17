@@ -7,6 +7,8 @@
 	import List from '$lib/design/block/list.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { formatRecordDate } from '$lib/design/date';
+	import { PERIOD_FILTER, type FilterSelection } from '$lib/design/filter';
+	import { isFilterPeriod } from '$lib/api/period';
 	import {
 		getRemainingContractBalance,
 		hasSatisfiedContractPaymentRequirement
@@ -36,12 +38,22 @@
 	const MONTH_HEIGHT = 34;
 
 	let search = $state('');
+	let filters = $state<FilterSelection>({});
 	let payment = $state<Payment | undefined>(undefined);
 	let isPaymentFormOpen = $state(false);
 	let isDeleteDialogOpen = $state(false);
 
+	// the statement is the surface a period was put in the vocabulary for: a ledger is read to
+	// answer *what was paid, and when*, and until now the only way to ask about one month was to
+	// type its digits into the search.
+	const period = $derived.by(() => {
+		const chosen = filters[PERIOD_FILTER.id];
+
+		return isFilterPeriod(chosen) ? chosen : undefined;
+	});
+
 	const contractQuery = useFetchContract(() => contractId);
-	const paymentsQuery = useListContractPayments(() => ({ contractId, search }));
+	const paymentsQuery = useListContractPayments(() => ({ contractId, search, period }));
 	const deleteMutation = useDeletePayment();
 
 	const payments = $derived(paymentsQuery.data ?? []);
@@ -110,6 +122,8 @@
 	<List
 		data={payments}
 		bind:search
+		bind:filters
+		filterOptions={[PERIOD_FILTER]}
 		groupOf={monthOf}
 		isLoading={paymentsQuery.isLoading}
 		isFetching={paymentsQuery.isFetching}

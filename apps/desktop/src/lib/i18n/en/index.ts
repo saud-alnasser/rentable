@@ -11,6 +11,7 @@ const en = {
 			add: 'add',
 			cancel: 'cancel',
 			checkForUpdates: 'check for updates',
+			clearFilter: 'clear this filter',
 			checkingForUpdates: 'checking for updates...',
 			connect: 'connect',
 			connecting: 'connecting...',
@@ -118,8 +119,10 @@ const en = {
 			occupiedUnits: 'occupied units',
 			payment: 'payment',
 			paymentDate: 'payment date',
+			period: 'period',
 			paymentFulfillment: 'payment fulfillment',
 			phone: 'phone',
+			rank: 'attention',
 			releaseDate: 'release date',
 			releaseNotes: 'release notes',
 			remainingDueBalance: 'remaining due balance',
@@ -153,6 +156,13 @@ const en = {
 			settings: 'settings',
 			tenants: 'tenants',
 			units: 'units'
+		},
+
+		periods: {
+			'last-month': 'last month',
+			'last-year': 'last year',
+			'this-month': 'this month',
+			'this-year': 'this year'
 		},
 
 		status: {

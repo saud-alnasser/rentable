@@ -5,7 +5,9 @@
 	import ContractActions from '$lib/contract/component/actions.svelte';
 	import ContractRecord from '$lib/contract/component/record.svelte';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
+	import { RANK_FILTER, toChosenRank } from '$lib/contract/rank-filter';
 	import { useListContracts } from '$lib/contract/query';
+	import type { FilterSelection } from '$lib/design/filter';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
 	/** The tenant whose contracts these are. */
@@ -17,11 +19,17 @@
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
+	let filters = $state<FilterSelection>({});
+
+	// the same rank the directory offers: a tenant holding several contracts is exactly where
+	// *which of these needs attention* is asked, and it was the one question this list could not
+	// answer.
+	const rank = $derived(toChosenRank(filters));
 
 	const contractsQuery = useListContracts(
 		() => search,
 		() => sort,
-		() => ({ tenantId })
+		() => (rank ? { tenantId, rank } : { tenantId })
 	);
 	const contracts = $derived(contractsQuery.data ?? []);
 
@@ -51,6 +59,8 @@
 			bind:search
 			bind:sort
 			{sortOptions}
+			bind:filters
+			filterOptions={[RANK_FILTER]}
 			isLoading={contractsQuery.isLoading}
 			isFetching={contractsQuery.isFetching}
 			recordHeight={ROW_HEIGHT}
