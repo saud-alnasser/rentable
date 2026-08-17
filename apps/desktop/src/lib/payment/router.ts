@@ -1,5 +1,6 @@
 import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
 import { ensureIdFree } from '$lib/platform/database/identity';
+import { matchesAnySearch } from '$lib/platform/database/search';
 import * as s from '$lib/platform/database/schema';
 import { PaymentSchema, type Payment } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
@@ -35,18 +36,9 @@ function serializePayment(record: typeof s.payment.$inferSelect): Payment {
 const paymentDay = sql<string>`strftime('%Y-%m-%d', ${s.payment.date} / 1000, 'unixepoch')`;
 
 // every field the ledger can be searched by, whether or not the row shows it — a field
-// dropped from a surface is never dropped from search.
-//
-// `%` and `_` are LIKE's own wildcards, so a term carrying either is escaped before it
-// becomes a pattern: a user searching for "50%" is looking for that text, not asking to
-// match everything.
-function paymentSearchCondition(search: string) {
-	const pattern = `%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
-	const like = (column: SQL | AnyColumn) =>
-		sql`lower(cast(${column} as text)) like lower(${pattern}) escape '\\'`;
-
-	return sql.join([like(s.payment.amount), like(paymentDay)], sql` or `);
-}
+// dropped from a surface is never dropped from search. The comparison itself is the shared
+// one, so a term folds and a column folds the same way here as everywhere else.
+const PAYMENT_SEARCH_COLUMNS: readonly (SQL | AnyColumn)[] = [s.payment.amount, paymentDay];
 
 export default router({
 	/**
@@ -101,7 +93,7 @@ export default router({
 				.from(s.payment)
 				.innerJoin(s.contract, eq(s.payment.contractId, s.contract.id))
 				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
-				.where(paymentSearchCondition(input.term))
+				.where(matchesAnySearch(PAYMENT_SEARCH_COLUMNS, input.term))
 				.orderBy(desc(s.payment.date), desc(s.payment.id))
 				.limit(input.limit);
 
@@ -131,7 +123,7 @@ export default router({
 				.where(
 					and(
 						eq(s.payment.contractId, input.contractId),
-						search ? paymentSearchCondition(search) : undefined
+						search ? matchesAnySearch(PAYMENT_SEARCH_COLUMNS, search) : undefined
 					)
 				)
 				// a statement reads newest first, and two payments made on one day are told apart

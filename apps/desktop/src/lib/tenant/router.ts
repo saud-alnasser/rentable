@@ -1,6 +1,6 @@
 import * as s from '$lib/platform/database/schema';
 import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
-import { matchesSearch } from '$lib/platform/database/search';
+import { matchesAnySearch } from '$lib/platform/database/search';
 import { ensureIdFree } from '$lib/platform/database/identity';
 import { TenantSchema, type Contract } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
@@ -12,7 +12,7 @@ import {
 	ensureTenantDeletable,
 	type TenantSortColumnId
 } from '$lib/tenant/tenant';
-import { asc, desc, eq, inArray, like, or, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { asc, desc, eq, inArray, like, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
 /**
@@ -50,6 +50,15 @@ const contractCountColumns = {
 	contractsExpired: contractsInStatus('expired').as('contractsExpired'),
 	contractsTerminated: contractsInStatus('terminated').as('contractsTerminated')
 } satisfies Record<`contracts${Capitalize<Contract['status']>}`, unknown>;
+
+// every field a tenant can be found by, whether or not the row shows it — a field dropped
+// from a surface is never dropped from search. One list, so the directory and the palette
+// answer the same term with the same rows.
+const TENANT_SEARCH_COLUMNS: readonly (SQL | AnyColumn)[] = [
+	s.tenant.name,
+	s.tenant.nationalId,
+	s.tenant.phone
+];
 
 const TENANT_SORT_COLUMNS: Record<TenantSortColumnId, SQL | AnyColumn> = {
 	name: s.tenant.name,
@@ -210,13 +219,7 @@ export default router({
 			const rows = await ctx.db
 				.select({ id: s.tenant.id, label: s.tenant.name, hint: s.tenant.nationalId })
 				.from(s.tenant)
-				.where(
-					or(
-						matchesSearch(s.tenant.name, input.term),
-						matchesSearch(s.tenant.nationalId, input.term),
-						matchesSearch(s.tenant.phone, input.term)
-					)
-				)
+				.where(matchesAnySearch(TENANT_SEARCH_COLUMNS, input.term))
 				.orderBy(asc(s.tenant.name), asc(s.tenant.id))
 				.limit(input.limit);
 
@@ -233,7 +236,6 @@ export default router({
 		)
 		.query(async ({ input, ctx }) => {
 			const search = input.search?.trim();
-			const searchPattern = search ? `%${search}%` : undefined;
 
 			const query = ctx.db
 				.select({
@@ -245,15 +247,7 @@ export default router({
 				})
 				.from(s.tenant)
 				.leftJoin(s.contract, eq(s.contract.tenantId, s.tenant.id))
-				.where(
-					searchPattern
-						? or(
-								like(s.tenant.nationalId, searchPattern),
-								like(s.tenant.phone, searchPattern),
-								like(s.tenant.name, searchPattern)
-							)
-						: undefined
-				)
+				.where(search ? matchesAnySearch(TENANT_SEARCH_COLUMNS, search) : undefined)
 				.groupBy(s.tenant.id)
 				.orderBy(...tenantOrderBy(input.sort));
 

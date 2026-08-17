@@ -236,6 +236,93 @@ mod tests {
         rows.into_iter().next().expect("one row").rows
     }
 
+    /// Runs a statement that arrives the way the command receives one — as JSON text, decoded
+    /// into `SQLQuery` — and answers with the first column of every row it matched.
+    ///
+    /// The round trip through JSON is the point rather than ceremony: a statement composed on
+    /// the web side carries its own literals, and non-ASCII ones have to survive the decoding
+    /// before the engine ever sees them.
+    async fn matched(pool: &Pool<Sqlite>, sql: &str, params: &[&str]) -> Vec<Value> {
+        let request = json!({ "sql": sql, "params": params });
+        let text = serde_json::to_string(&request).expect("serialize");
+        let query: SQLQuery = serde_json::from_str(&text).expect("deserialize");
+
+        execute_single_sql(pool, query)
+            .await
+            .expect("query")
+            .into_iter()
+            .map(|row| row.rows.into_iter().next().expect("one column"))
+            .collect()
+    }
+
+    /// Folds a column the way `platform/database/search.ts` does — one nested `replace()` per
+    /// substitution, over the column cast to text.
+    ///
+    /// The substitutions themselves are bound, so only the *shape* is written out here. The
+    /// table of them lives on the web side and never reaches Rust, which is exactly why this
+    /// file has to prove the shape works rather than restate the table.
+    fn folded(column: &str, substitutions: usize) -> String {
+        (0..substitutions).fold(format!("cast({column} as text)"), |folded, _| {
+            format!("replace({folded}, ?, ?)")
+        })
+    }
+
+    /// Search folds both sides of its comparison with nested `replace()` calls, and the whole
+    /// expression is composed in TypeScript and executed here.
+    ///
+    /// The router tests run the same statement against `better-sqlite3` under Node, so nothing
+    /// over there can tell whether *this* engine folds multi-byte text the same way — or
+    /// whether the Arabic the statement carries survives being decoded from JSON at all.
+    #[tokio::test]
+    async fn arabic_text_folds_in_the_engine_this_binary_ships() {
+        let pool = memory_pool(&[
+            "create table tenant (name text)",
+            // written with a hamzated alef, a fatha, and a tatweel — none of which the reader
+            // searching for this person is going to reproduce.
+            "insert into tenant (name) values ('أَحـمد'), ('سارة')",
+        ])
+        .await;
+
+        let sql = format!(
+            "select name from tenant where lower({}) like lower(?) escape '\\'",
+            folded("name", 3)
+        );
+
+        assert_eq!(
+            matched(
+                &pool,
+                &sql,
+                &["أ", "ا", "\u{0640}", "", "\u{064E}", "", "%احمد%"]
+            )
+            .await,
+            vec![json!("أَحـمد")],
+            "the stored side was not folded, so a plainly written term found nothing"
+        );
+    }
+
+    /// The `ESCAPE` clause travels as part of the statement text, and the character it names is
+    /// a backslash — which is escaped once in the JSON the statement arrives in. A pattern
+    /// carrying `%` matches that character rather than everything.
+    #[tokio::test]
+    async fn an_escaped_wildcard_matches_its_own_character() {
+        let pool = memory_pool(&[
+            "create table tenant (name text)",
+            "insert into tenant (name) values ('50% deposit'), ('Sara')",
+        ])
+        .await;
+
+        let sql = format!(
+            "select name from tenant where lower({}) like lower(?) escape '\\'",
+            folded("name", 0)
+        );
+
+        assert_eq!(
+            matched(&pool, &sql, &["%50\\%%"]).await,
+            vec![json!("50% deposit")],
+            "the percent sign acted as a wildcard instead of matching itself"
+        );
+    }
+
     #[tokio::test]
     async fn an_integer_expression_arrives_as_a_number() {
         let pool = memory_pool(&[

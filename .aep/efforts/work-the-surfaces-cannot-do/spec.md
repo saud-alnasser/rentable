@@ -1,5 +1,5 @@
 ---
-aep: 2.2.0
+aep: 2.3.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -204,6 +204,22 @@ seam is therefore the primitive plus whatever produces the comparable form of a 
 value; both halves are persistence's, and both stay in SQLite, which is the reason this item
 survives the platform change intact.
 
+**Which columns fold is the schema's answer, not the call site's** *(added 2026-08-17, from
+[[efforts/work-the-surfaces-cannot-do/evidence/prototypes/what-the-folded-search-actually-costs]])*.
+Folding every searched column on the stored side is mostly identity work: seven of the twelve
+are ASCII **by validation rather than by convention** — `identity` and `phone` are anchored
+patterns that no Arabic-Indic digit satisfies, `status` and `interval` are enums, `cost`,
+`amount` and `tenant_id` are numeric, and the ledger's day is a computed `strftime()`
+expression rather than a column at all. So a searchable column **declares whether its stored
+side can hold a substitutable character**, the declaration sits beside the column in the
+schema module, and the comparison reads it. The **term folds always** — that is what makes a
+search typed in Arabic-Indic digits find a row stored in ASCII ones, and it is the half that
+must never be conditional.
+
+*Why the declaration is not a new invariant to keep: for every column declared ASCII the
+field validator already refuses anything else, so the declaration restates a rule the write
+path enforces rather than adding one somebody must remember.*
+
 **Filters are a vocabulary the concept declares and the shell positions.** The block already
 owns the position — the slot exists and is documented as "the block gives the position and
 the concept gives the control." What is missing is the other half: a declaration a list makes
@@ -239,6 +255,27 @@ tenant, units, interval and cost, and starts where the predecessor ended.
   and the driver owns that; reaching for a custom collation puts a matching rule in the layer
   the schema module is meant to be the single description of, and it does not travel to a
   test transport that runs under Node.
+- **A stored folded twin of each searchable text column** *(measured and rejected
+  2026-08-17)*. It is the fastest shape — `tenant.name` falls from 7.0 ms to 0.4 ms — but it
+  buys a margin nobody is paying for: the measured worst case across the whole application is
+  **19.6 ms**, not the 70–145 ms #488's closing note reported, because that note timed the
+  contract directory at the seed's *tenant* count. Declaring which columns fold recovers most
+  of the same ground for no column at all. It is also dearer than it looks: SQLite refuses
+  `ALTER TABLE ADD COLUMN … STORED`, so each twin arrives by rebuilding its table against live
+  data on a workspace that syncs to Drive. **The condition that reopens this is a number** — a
+  tenant directory past roughly 30 000 rows, where the column-typed comparison would cross
+  50 ms. Reached then as a `STORED` generated column, never a backfilled one.
+- **A backfilled folded column kept in step by the write path.** Same speed as the generated
+  twin and strictly worse: it needs folding code in every insert and update, leaves every row
+  written before it unmatched by the query being fixed, and is exactly the *second list kept
+  in step by hand* that the matching module's own header warns against. Named so it is not
+  re-proposed.
+- **An index on the folded form.** Not an alternative at all, and recorded because it reads
+  like one: `explain query plan` answers `SCAN … USING COVERING INDEX`. A leading-wildcard
+  `LIKE` cannot seek a B-tree, so every shape considered here is O(rows) and an index changes
+  only how wide each row read is.
+- **A `VIRTUAL` generated column.** Computed on read, so it measures as the expression it
+  replaces — 7.5 ms against 7.0 ms. It is not an optimisation.
 - **Client-side filtering for the new filter vocabulary.** Directly against
   the consequence of *List reads* in [[rules/data]] that a loaded set is never re-filtered on the client.
   Rejected without argument; it is named here only so it is not re-proposed.
@@ -276,6 +313,14 @@ this effort. Its shape is its ticket's (#495) and is not fixed here. Everything 
 normalization aside, which changes how a stored value is written rather than what columns
 exist — reads and writes the schema as it stands.
 
+*Held deliberately on 2026-08-17, not by default.* Search normalization was re-examined
+against a stored folded column and the sentence above survived it: #488 folds at query time
+and adds no column, so it does not touch what columns exist at all. What it adds to the schema
+module is a **declaration per searchable column** of whether its stored side can hold a
+substitutable character — a statement about existing columns, carrying no data and requiring
+no migration. The measurements and the condition that would reopen the question are in
+[[efforts/work-the-surfaces-cannot-do/evidence/prototypes/what-the-folded-search-actually-costs]].
+
 # Technical Approach
 
 **The lead is search**, because it is the only item here that is closer to a defect than a
@@ -303,6 +348,13 @@ on save, repaired one record at a time, nothing corrected in bulk — and whethe
 is acceptable here is #488's to settle, because the point of this fix is that the record is
 findable *now*. No other item in this effort touches existing rows.
 
+**Settled 2026-08-17: nothing is migrated, because nothing is stored.** #488 folds both sides
+at query time, so every row written before it is matched by the new comparison on the first
+search after the update — which is the *findable now* the paragraph above asks for, reached by
+having no stored side to leave stale. The precedent the paragraph offered is therefore not
+followed, and the alternative that would have needed it is rejected under **The alternatives
+that lost**.
+
 # Testing Strategy
 
 *Derived 2026-08-17. How each acceptance criterion is checked, against
@@ -310,7 +362,7 @@ findable *now*. No other item in this effort touches existing rows.
 
 | AC | Checked by |
 | --- | --- |
-| 1, 2 | Router tests over the memory transport for the matching primitive — **and a Rust test for whatever normalization lands in the Rust half.** [[contexts/persistence]] is explicit that the TypeScript harness runs under Node, so a router test can pass over a conversion that is broken in the running application. Both sides, or the criterion is not covered. |
+| 1, 2 | Router tests over the memory transport for the matching primitive — **and a Rust test for whatever normalization lands in the Rust half.** [[contexts/persistence]] is explicit that the TypeScript harness runs under Node, so a router test can pass over a conversion that is broken in the running application. Both sides, or the criterion is not covered. **Plus one test per column declared ASCII-only**, asserting the field validator actually refuses a substitutable character: the declaration is only safe because the write path enforces it, so an unguarded declaration is the one way this design fails silently. |
 | 3 | A test that registers a shortcut and asserts it appears on the sheet — the sheet being *generated* is the criterion, so a test that hard-codes the expected list defeats it. |
 | 4 | Component-level keyboard interaction over the list block, plus a manual pass in both locales — `dir` reverses what "next" means. |
 | 5 | A router test asserting the returned row set narrows. Asserting against the rendered set would pass for a client-side filter, which is the thing being forbidden. |

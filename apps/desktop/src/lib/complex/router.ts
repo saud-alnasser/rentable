@@ -1,6 +1,6 @@
 import type { Context } from '$lib/api/context';
 import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
-import { matchesSearch } from '$lib/platform/database/search';
+import { matchesAnySearch } from '$lib/platform/database/search';
 import { ensureIdFree } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/platform/database/schema';
@@ -16,20 +16,7 @@ import {
 import { CONTRACT_OCCUPYING_STATUSES, deriveUnitStatuses } from '$lib/contract/contract';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import { TRPCError } from '@trpc/server';
-import {
-	and,
-	asc,
-	desc,
-	eq,
-	gte,
-	inArray,
-	like,
-	lt,
-	or,
-	sql,
-	type AnyColumn,
-	type SQL
-} from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { QueryBuilder } from 'drizzle-orm/sqlite-core';
 import z from 'zod';
 
@@ -41,6 +28,11 @@ import z from 'zod';
 // column the list sorts on could come to differ from the number its rows show.
 const unitCount = sql<number>`count(${s.unit.id})`;
 const vacantUnitCount = sql<number>`coalesce(sum(case when ${s.unit.status} = 'vacant' then 1 else 0 end), 0)`;
+
+// every field a complex can be found by, whether or not the row shows it — a field dropped
+// from a surface is never dropped from search. One list, so the directory and the palette
+// answer the same term with the same rows.
+const COMPLEX_SEARCH_COLUMNS: readonly (SQL | AnyColumn)[] = [s.complex.name, s.complex.location];
 
 const COMPLEX_SORT_COLUMNS: Record<ComplexSortColumnId, SQL | AnyColumn> = {
 	name: s.complex.name,
@@ -306,12 +298,7 @@ export default router({
 			return await ctx.db
 				.select({ id: s.complex.id, label: s.complex.name, hint: s.complex.location })
 				.from(s.complex)
-				.where(
-					or(
-						matchesSearch(s.complex.name, input.term),
-						matchesSearch(s.complex.location, input.term)
-					)
-				)
+				.where(matchesAnySearch(COMPLEX_SEARCH_COLUMNS, input.term))
 				.orderBy(asc(s.complex.name), asc(s.complex.id))
 				.limit(input.limit);
 		}),
@@ -325,7 +312,6 @@ export default router({
 		)
 		.query(async ({ input, ctx }) => {
 			const search = input.search?.trim();
-			const searchPattern = search ? `%${search}%` : undefined;
 
 			return await ctx.db
 				.select({
@@ -337,11 +323,7 @@ export default router({
 				})
 				.from(s.complex)
 				.leftJoin(s.unit, eq(s.unit.complexId, s.complex.id))
-				.where(
-					searchPattern
-						? or(like(s.complex.name, searchPattern), like(s.complex.location, searchPattern))
-						: undefined
-				)
+				.where(search ? matchesAnySearch(COMPLEX_SEARCH_COLUMNS, search) : undefined)
 				.groupBy(s.complex.id)
 				.orderBy(...complexOrderBy(input.sort));
 		}),
@@ -381,9 +363,7 @@ export default router({
 					.select({ id: s.unit.id, label: s.unit.name, hint: s.complex.name })
 					.from(s.unit)
 					.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
-					.where(
-						or(matchesSearch(s.unit.name, input.term), matchesSearch(s.complex.name, input.term))
-					)
+					.where(matchesAnySearch([s.unit.name, s.complex.name], input.term))
 					.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id))
 					.limit(input.limit);
 			}),
@@ -392,7 +372,6 @@ export default router({
 			.input(UnitSchema.pick({ complexId: true }).extend({ search: z.string().optional() }))
 			.query(async ({ input, ctx }) => {
 				const search = input.search?.trim();
-				const searchPattern = search ? `%${search}%` : undefined;
 				const tenantName = occupyingTenantName(ctx.clock.now());
 
 				// the board has one order and no control over it, so the search narrows what it
@@ -409,9 +388,7 @@ export default router({
 					.where(
 						and(
 							eq(s.unit.complexId, input.complexId),
-							searchPattern
-								? or(like(s.unit.name, searchPattern), like(tenantName, searchPattern))
-								: undefined
+							search ? matchesAnySearch([s.unit.name, tenantName], search) : undefined
 						)
 					)
 					.orderBy(asc(s.unit.name), asc(s.unit.id));
