@@ -121,7 +121,7 @@ git worktree prune                                # bookkeeping only — see bel
 
 ## Recover a broken Source Pointer
 
-[[rules/artifacts]] has the rule. These are the two commands that find where the concept went:
+[[policies/artifacts]] has the rule. These are the two commands that find where the concept went:
 
 ```
 git log --diff-filter=D --name-only -- <path>     # which commit deleted it

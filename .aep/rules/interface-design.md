@@ -28,7 +28,7 @@ navigation file beside it at `.aep/position/design/refactoring-ui.md`.
 **It is a reference, not a standard.** It informs a decision that is otherwise a matter of
 taste; it never overrides anything this repository has decided. Where it disagrees with
 [[rules/frontend]], another rule, or a context, this repository wins and the book is not
-argued with — precedence is [[rules/precedence]]'s, and a reference ranks below all of it.
+argued with — precedence is [[policies/authority]]'s, and a reference ranks below all of it.
 
 ## When it is opened
 
@@ -55,7 +55,7 @@ says which pages, and those pages get opened.
 
 **Never work from memory of the book.** Recalling that it says something about shadows is
 not reading what it says; a paraphrase invented at the point of use is a guess wearing a
-citation. [[rules/engineering]] binds this everywhere, and it binds here.
+citation. [[policies/engineering]] binds this everywhere, and it binds here.
 
 **A decision that leans on it names the section** — in the comment, the commit message, or
 the design document that carries the decision. "Softer icon colour to counterbalance its

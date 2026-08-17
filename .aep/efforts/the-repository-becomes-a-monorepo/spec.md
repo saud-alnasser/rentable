@@ -437,7 +437,7 @@ their packages and keep asserting exactly what they assert now. `src/**/*.test.m
 - **A cached task result is a claim that nothing relevant changed**, and Turborepo believes
   whatever `inputs` says. `test:rust` restricted to `tauri/**` is the sharp edge: get the glob
   wrong and a green run means "nothing was re-tested", reported identically to "everything
-  passed". This is `[[rules/engineering]]`'s *obeying a rule means letting its check fire*, and it
+  passed". This is `[[policies/engineering]]`'s *obeying a rule means letting its check fire*, and it
   is why the `.integration-pass` memo is kept as the outer gate rather than replaced — the memo
   is keyed on the whole tree, so it cannot be wrong about what it covers.
 - ~~**A default `cwd` this plan does not rely on may still be inherited somewhere.**~~ **Closed
@@ -459,7 +459,7 @@ their packages and keep asserting exactly what they assert now. `src/**/*.test.m
 
 ## Scope changes this plan surfaced — surfaced, then settled
 
-[[rules/change-control]] requires these to stop and be surfaced rather than folded into the HOW.
+[[policies/execution]] requires these to stop and be surfaced rather than folded into the HOW.
 Both were, and both are now resolved.
 
 - **Acceptance criterion 2's second half was unmeetable under option A.** It asked that a package
@@ -507,7 +507,7 @@ and now `build`, `test` and `test:rust` fan out through `turbo run` against a ta
 
 **Who decided it, and on what.** The human, during `/implement` on #500, before any code was
 written. It is recorded here rather than folded into the *how* because
-`[[rules/change-control]]` puts a tooling choice at plan level: `/implement` builds what was
+`[[policies/execution]]` puts a tooling choice at plan level: `/implement` builds what was
 planned or stops, and this changed what was planned.
 
 **The argument against it, kept because it is the one this spec makes elsewhere.** `# Architecture`
