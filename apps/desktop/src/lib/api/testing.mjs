@@ -18,8 +18,10 @@ export function monthsFromNow(months, days = 0) {
 
 // A fresh caller over an isolated in-memory database, the fixed clock, and a fake host.
 // The default host covers only what procedures actually read; pass `host` to override it.
-export async function createApi({ host } = {}) {
-	const db = createMemoryDatabase();
+// Pass `onStatement` to see every statement a procedure issues, for asserting what it costs
+// rather than only what it leaves behind.
+export async function createApi({ host, onStatement } = {}) {
+	const db = createMemoryDatabase(onStatement);
 	const fakeHost = host ?? {
 		settings: { get: async () => ({ endingSoonNoticeDays: 60, locale: 'en' }) }
 	};

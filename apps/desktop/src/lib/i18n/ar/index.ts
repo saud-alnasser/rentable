@@ -10,8 +10,9 @@ const ar = {
 			add: 'إضافة',
 			cancel: 'إلغاء',
 			checkForUpdates: 'التحقق من التحديثات',
-			clearFilter: 'إزالة هذه التصفية',
 			checkingForUpdates: 'جاري التحقق من التحديثات...',
+			clearFilter: 'إزالة هذه التصفية',
+			clearSelection: 'إلغاء التحديد',
 			connect: 'ربط',
 			connecting: 'جارٍ الربط...',
 			copyDetails: 'نسخ التفاصيل',
@@ -55,6 +56,7 @@ const ar = {
 			saveDatabasePath: 'حفظ مسار قاعدة البيانات',
 			saveWindow: 'حفظ النافذة',
 			saving: 'جاري الحفظ...',
+			selectRecords: 'تحديد السجلات',
 			sortBy: 'ترتيب حسب',
 			syncing: 'جارٍ المزامنة...',
 			syncNow: 'زامن الآن',
@@ -197,10 +199,12 @@ const ar = {
 			moveBetweenRecords: 'التنقل بين السجلات',
 			openRecord: 'فتح السجل المحدد',
 			pageOf: 'الصفحة {page} من {count}',
+			recordsSelected: 'تم تحديد {count|number}',
 			results: '{count|number} نتيجة',
 			rowsPerPage: 'عدد الصفوف لكل صفحة',
 			rowsSelected: '{selected} من {total} صف محدد.',
-			searchPlaceholder: 'بحث...'
+			searchPlaceholder: 'بحث...',
+			selectRecord: 'تحديد هذا السجل'
 		},
 
 		time: {
@@ -219,6 +223,7 @@ const ar = {
 			redone: 'تمت إعادة {change}',
 			renewed: 'تجديد {record}',
 			terminated: 'إنهاء {record}',
+			terminatedMany: 'إنهاء {count|number} عقد',
 			undo: 'تراجع',
 			undone: 'تم التراجع عن {change}',
 			unterminated: 'استعادة {record}'
@@ -570,6 +575,8 @@ const ar = {
 			deleteSuccess: 'تم حذف العقد بنجاح!',
 			renewSuccess: 'تم تجديد العقد بنجاح!',
 			restoreSuccess: 'تمت استعادة العقد بنجاح!',
+			terminateManyRefused: 'تعذر إنهاء {count|number}: {records}',
+			terminateManySuccess: 'تم إنهاء {count|number} عقد',
 			terminateSuccess: 'تم إنهاء العقد بنجاح!',
 			updatePaymentSuccess: 'تم تحديث الدفعة بنجاح!',
 			updateSuccess: 'تم تحديث العقد بنجاح!'
@@ -608,6 +615,8 @@ const ar = {
 			paymentsManagement: 'إدارة المدفوعات',
 			restoreDescription: 'هل تريد إزالة إنهاء العقد؟',
 			restoreTitle: 'استعادة العقد',
+			terminateManyDescription:
+				'هل تريد إنهاء العقود المحددة يدوياً؟ ينطبق ذلك على العقود السارية أو المنتهية فقط، وتُترك البقية كما هي.',
 			terminateDescription: 'هل تريد إنهاء العقد يدوياً؟',
 			terminateTitle: 'إنهاء العقد',
 			tenantFallback: 'مستأجر #{tenantId}',

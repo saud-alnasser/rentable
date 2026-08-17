@@ -9,6 +9,8 @@ import {
 	CONTRACT_ATTENTION_ORDER,
 	CONTRACT_SORT_COLUMN_IDS,
 	type ContractSortColumnId,
+	canManuallyTerminateContractStatus,
+	canUnterminateContractStatus,
 	deriveContractStatus,
 	deriveUnitStatuses,
 	ensureContractDeletable,
@@ -600,6 +602,118 @@ export default router({
 			await reconcileTouched(ctx.db, now, { contractIds: [input.id] });
 
 			return serializeContract(terminated);
+		}),
+
+	/**
+	 * Terminate every contract named, and say which of them could not be.
+	 *
+	 * **One mutation over a union touch-set, not one per record.** `reconcileTouched` already
+	 * takes a set, and both reconcile paths write one `UPDATE` per changed row, sequentially
+	 * awaited — in process that is sub-millisecond, and over a wire it is a round trip each. So
+	 * calling the single-record procedure N times would cost N reconcile passes for work one pass
+	 * does, and the platform effort prices exactly that.
+	 *
+	 * **A refusal is reported, not thrown.** A selection is a set the reader assembled by eye,
+	 * and some of it being ineligible is ordinary rather than exceptional — a status that cannot
+	 * be terminated by hand is a fact about that contract, not a failure of the request. Throwing
+	 * would undo the ones that were fine and tell the reader nothing about which.
+	 */
+	terminateMany: procedure.public
+		.use(autosync())
+		.input(z.object({ ids: z.array(z.number().int().positive()).min(1) }))
+		.mutation(async ({ input, ctx }) => {
+			const now = ctx.clock.now();
+			const ids = [...new Set(input.ids)];
+
+			const existing = await ctx.db.select().from(s.contract).where(inArray(s.contract.id, ids));
+
+			const payments = await ctx.db
+				.select()
+				.from(s.payment)
+				.where(inArray(s.payment.contractId, ids));
+			const paymentsByContractId = groupPaymentsByContractId(payments);
+
+			const found = new Set(existing.map((contract) => contract.id));
+			const terminable = existing.filter((contract) =>
+				canManuallyTerminateContractStatus(
+					deriveContractStatus(contract, paymentsByContractId.get(contract.id) ?? [], now)
+				)
+			);
+			const terminableIds = terminable.map((contract) => contract.id);
+
+			if (terminableIds.length) {
+				await ctx.db
+					.update(s.contract)
+					.set({ status: 'terminated' })
+					.where(inArray(s.contract.id, terminableIds));
+			}
+
+			// the one pass, over every contract that changed. This is the line the ticket's
+			// assertion is about, and the reason the loop above collects ids rather than acting.
+			await reconcileTouched(ctx.db, now, { contractIds: terminableIds });
+
+			return {
+				terminated: terminableIds,
+				// named rather than counted: a reader who selected twelve and changed nine needs to
+				// know which three, and the reference they know a contract by is its government id.
+				refused: ids.flatMap((id) => {
+					if (terminableIds.includes(id)) {
+						return [];
+					}
+
+					const contract = existing.find((candidate) => candidate.id === id);
+
+					return [
+						{
+							id,
+							govId: contract?.govId ?? '',
+							reason: found.has(id) ? ('not-terminable' as const) : ('missing' as const)
+						}
+					];
+				})
+			};
+		}),
+
+	/** The reverse of {@link terminateMany}, and what undoing one calls. */
+	unterminateMany: procedure.public
+		.use(autosync())
+		.input(z.object({ ids: z.array(z.number().int().positive()).min(1) }))
+		.mutation(async ({ input, ctx }) => {
+			const now = ctx.clock.now();
+			const ids = [...new Set(input.ids)];
+
+			const existing = await ctx.db.select().from(s.contract).where(inArray(s.contract.id, ids));
+
+			const payments = await ctx.db
+				.select()
+				.from(s.payment)
+				.where(inArray(s.payment.contractId, ids));
+			const paymentsByContractId = groupPaymentsByContractId(payments);
+
+			const restorable = existing.filter((contract) =>
+				canUnterminateContractStatus(contract.status)
+			);
+
+			// each one goes back to the status its own payments and period imply, exactly as the
+			// single-record procedure does — never to whatever it happened to hold before.
+			for (const contract of restorable) {
+				const restoredStatus = deriveContractStatus(
+					{ ...contract, status: 'active' },
+					paymentsByContractId.get(contract.id) ?? [],
+					now
+				);
+
+				await ctx.db
+					.update(s.contract)
+					.set({ status: restoredStatus })
+					.where(eq(s.contract.id, contract.id));
+			}
+
+			await reconcileTouched(ctx.db, now, {
+				contractIds: restorable.map((contract) => contract.id)
+			});
+
+			return { unterminated: restorable.map((contract) => contract.id) };
 		}),
 
 	unterminate: procedure.public
