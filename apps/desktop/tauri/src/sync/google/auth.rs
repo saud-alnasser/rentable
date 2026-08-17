@@ -26,8 +26,15 @@ const GOOGLE_DRIVE_SCOPE_DRIVE_METADATA: &str =
     "https://www.googleapis.com/auth/drive.metadata.readonly";
 const GOOGLE_DRIVE_SCOPE_EMAIL: &str = "email";
 const GOOGLE_DRIVE_SCOPE_PROFILE: &str = "profile";
+// The service name every stored Google Drive credential is filed under in the platform's
+// credential store. It is written out rather than composed from `CARGO_PKG_NAME`, which is what
+// it used to be: the crate was renamed to `rentable-desktop` and the entries already on users'
+// machines are under `rentable.google-drive`, so following the crate would have looked in a
+// keychain entry nobody has and signed every linked account out on update — silently, because a
+// missing credential is indistinguishable from one never granted. This value is data belonging to
+// installed machines, not a fact about the crate, and it does not move again without a migration.
 #[cfg(not(test))]
-const GOOGLE_DRIVE_KEYRING_SERVICE: &str = concat!(env!("CARGO_PKG_NAME"), ".google-drive");
+const GOOGLE_DRIVE_KEYRING_SERVICE: &str = "rentable.google-drive";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
