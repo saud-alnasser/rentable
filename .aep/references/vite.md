@@ -29,7 +29,7 @@ npx vite preview                 # serves the built output, not the source
 
 **Dev and build do not resolve identically.** The dev server serves modules
 unbundled; the build runs Rollup with tree-shaking and a different environment.
-A change that works in dev has not been shown to build (`[[rules/evidence]]`).
+A change that works in dev has not been shown to build (`[[policies/engineering]]`).
 
 ## Environment variables
 

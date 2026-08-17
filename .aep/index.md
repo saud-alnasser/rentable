@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.2.0
 owner: repository
 date: 2026-08-17
 ---
@@ -13,23 +13,27 @@ is there and when it applies, so you can decide what to read.
 
 Start at [[protocol]].
 
+## Policies
+
+| Artifact | Load when | Modes | Paths | Owner |
+| --- | --- | --- | --- | --- |
+| [[policies/artifacts]] | about to create, change, move, or remove anything under .aep/ — whose it is, where it belongs, and what shape it takes | — | .aep/**/*.md | protocol |
+| [[policies/authority]] | two sources disagree, or the work reaches a repository other than this one | — | — | protocol |
+| [[policies/engineering]] | writing code, or about to state anything about this repository you have not verified | — | — | protocol |
+| [[policies/execution]] | an effort is in progress — deriving tasks, dispatching, implementing, or reviewing | — | — | protocol |
+
 ## Rules
 
 | Artifact | Load when | Modes | Paths | Owner |
 | --- | --- | --- | --- | --- |
 | [[rules/api-layer]] | adding or changing a router, a domain module, or anything crossing the Tauri IPC boundary | — | apps/desktop/src/lib/api/**, apps/desktop/src/lib/*/router.ts, apps/desktop/src/lib/*/reconcile.ts, apps/desktop/src/lib/platform/tauri.ts, apps/desktop/src/lib/platform/database/** | repository |
 | [[rules/application-surfaces]] | a surface the application shows about itself — starting, failing, recovering, choosing a workspace — is being built or restyled | — | apps/desktop/src/lib/layout/component/**, apps/desktop/src/lib/sync/component/**, apps/desktop/src/routes/+error.svelte | repository |
-| [[rules/artifacts]] | creating or editing any Markdown artifact under .aep/ | — | .aep/**/*.md | protocol |
 | [[rules/attention-rank]] | a contract's rank, grouping or follow-up order is in question, or a surface outside the dashboard needs one | — | apps/desktop/src/lib/contract/**, apps/desktop/src/lib/dashboard/** | repository |
-| [[rules/boundary]] | the work touches a repository other than the one this session is in | — | — | protocol |
-| [[rules/change-control]] | an effort is in progress — planning it, deriving tasks, implementing, or reviewing | specify, plan, refine, implement, review | — | protocol |
 | [[rules/contract-unit-transfer]] | a contract's units are being assigned, or a writing control is being put on a reading surface | — | apps/desktop/src/lib/contract/component/** | repository |
 | [[rules/database-client-type]] | a database client is constructed, a transport is added, or the shape of a row crossing the IPC boundary is in question | — | apps/desktop/src/lib/platform/database/**, apps/desktop/src/lib/api/context.ts | repository |
 | [[rules/drive-client-boundary]] | the request touches Drive credentials, OAuth, or where Drive network calls are made | — | apps/desktop/tauri/src/sync/google/**, apps/desktop/src/lib/sync/** | repository |
 | [[rules/drive-concurrency]] | two clients could write one workspace, or a manifest or snapshot conflict is being handled | — | apps/desktop/tauri/src/sync/google/manifest.rs, apps/desktop/tauri/src/sync/google/conflict.rs | repository |
 | [[rules/drive-transport-testing]] | a Drive transport test is being written or is failing | — | apps/desktop/tauri/src/sync/google/test/**, apps/desktop/tauri/src/sync/google/transport.rs | repository |
-| [[rules/engineering]] | writing code, or making any claim about how this repository works | plan, implement, prototype, review | — | protocol |
-| [[rules/evidence]] | material uncertainty has surfaced and you are about to guess, research, or prototype | specify, plan, refine, implement, research, prototype | — | protocol |
 | [[rules/form-surface]] | a form is being presented, or a form surface has to survive a breakpoint crossing | — | apps/desktop/src/lib/design/block/form-surface.svelte | repository |
 | [[rules/frontend]] | writing or changing Svelte components, routes, styles, or client state | — | apps/desktop/src/lib/**, apps/desktop/src/routes/**, apps/desktop/src/app.css | repository |
 | [[rules/interface-design]] | designing or restyling a surface, a block, a cell, or a primitive | — | apps/desktop/src/lib/**/component/**, apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/design/cell/**, apps/desktop/src/lib/design/primitive/**, apps/desktop/src/routes/**, apps/desktop/src/app.css | repository |
@@ -39,10 +43,7 @@ Start at [[protocol]].
 | [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/ | — | apps/desktop/src/**, apps/desktop/tauri/src/** | repository |
 | [[rules/multi-table-writes]] | a mutation writes more than one table, or atomicity of a multi-step write is in question | — | apps/desktop/src/lib/platform/database/**, apps/desktop/tauri/src/database/** | repository |
 | [[rules/mutation-declaration]] | a data mutation is added, or where a mutation's cache invalidation, toast, or inverse is written is in question | — | apps/desktop/src/lib/design/mutation.ts, apps/desktop/src/lib/design/query.ts | repository |
-| [[rules/ownership]] | about to change, upgrade, prune, or install anything under .aep/ | — | — | protocol |
 | [[rules/payment-aggregates]] | a read needs a contract's paid or expected amount, or a list sorts or filters on one | — | apps/desktop/src/lib/payment/**, apps/desktop/src/lib/contract/reconcile.ts | repository |
-| [[rules/placement]] | creating a file and deciding whether it belongs to AEP or to the repository | — | — | protocol |
-| [[rules/precedence]] | two sources disagree and you are about to pick one | — | — | protocol |
 | [[rules/prototyping]] | writing throwaway prototype code in this repository, or deciding where it goes | prototype | apps/desktop/src/lib/prototype/** | repository |
 | [[rules/query-cache]] | a query's caching or invalidation behaviour is in question | — | apps/desktop/src/lib/design/query.ts | repository |
 | [[rules/reconcile-scope]] | a mutation, a sync pull, or a day crossing has to move derived state | — | apps/desktop/src/lib/contract/reconcile.ts | repository |
@@ -50,7 +51,6 @@ Start at [[protocol]].
 | [[rules/record-surface]] | a surface showing one record is being built or changed, or where a record's chrome lives is in question | — | apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/contract/component/**, apps/desktop/src/lib/tenant/component/** | repository |
 | [[rules/row-activation]] | a list row is given an action, or a row's click target is in question | — | apps/desktop/src/lib/design/block/list.svelte, apps/desktop/src/lib/dashboard/component/section.svelte | repository |
 | [[rules/status-presentation]] | a status is rendered, or a status is added to the model | — | apps/desktop/src/lib/design/cell/status.svelte | repository |
-| [[rules/sub-agents]] | dispatching sub-agents, or running as one | implement, review, research | — | protocol |
 | [[rules/surface-kinds]] | a new surface for a concept is being placed | — | apps/desktop/src/lib/design/block/** | repository |
 | [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | — | apps/desktop/src/**, apps/desktop/tauri/src/** | repository |
 | [[rules/tracker]] | creating, reading, claiming, or labelling a ticket, or deciding whether work is a ticket at all | specify, plan, implement, review | — | repository |
@@ -88,6 +88,7 @@ Start at [[protocol]].
 | [[references/shadcn-svelte]] | adding or regenerating a design primitive | — | repository |
 | [[references/svelte]] | building or running this Svelte or SvelteKit application | implement, prototype | repository |
 | [[references/tauri]] | building, running, or configuring the desktop shell | — | repository |
+| [[references/turborepo]] | running a task across this monorepo's packages, or explaining why one was skipped | implement, test | repository |
 | [[references/typescript]] | type-checking this repository, or reading what its compiler is actually configured to enforce | implement, test, review | repository |
 | [[references/vite]] | building or serving this repository with Vite | implement, prototype, test | repository |
 

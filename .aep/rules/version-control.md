@@ -183,4 +183,4 @@ means the change ships without appearing in the changelog. Dependency bumps and 
 refactors that no user can observe do not need one. [[references/changesets]] has the form.
 
 `gt submit` and `gt sync` publish and rewrite history respectively. Both are the human's
-call, like `git push` — [[rules/engineering]] carries that as a standing rule.
+call, like `git push` — [[policies/engineering]] carries that as a standing rule.

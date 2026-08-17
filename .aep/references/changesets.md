@@ -68,7 +68,7 @@ Both belong to `.github/workflows/release.yml` and both are destructive outside 
 `changeset-version.cjs` runs `changeset version`, then rewrites
 `apps/desktop/tauri/Cargo.toml`'s version to match `apps/desktop/package.json` and refreshes both
 lockfiles. `changeset-tag.cjs` **creates a git tag and pushes it** — publishing, and the human's
-call under the standing rule in [[rules/engineering]].
+call under the standing rule in [[policies/engineering]].
 
 **Both read the desktop package, never the root.** The workspace root is private and carries no
 `version` at all, so a script pointed at it would tag `undefined` — and the failure would be

@@ -493,7 +493,7 @@ decided by accident during the hosted work, and because acceptance criterion 1 c
 
 **Accepting does not make requirement 7 achievable.** It is hard, decision 11 is a go/no-go, and
 a negative result ends the hosted half of this effort. If that happens the spec is changed
-deliberately under [[rules/change-control]] rather than quietly relaxed — the requirement is what
+deliberately under [[policies/execution]] rather than quietly relaxed — the requirement is what
 would be renegotiated, in the open, and the local-mode half stands either way.
 
 Worked one per session, except research, which runs alongside. Resolving one means writing the
@@ -778,7 +778,7 @@ credential path decision 05 depends on.
   therefore a return to [[skills/plan]], not a swap of one client for another.
 - **Both A and B fail to write offline** — requirement 7 cannot be met, and **the hosted
   architecture does not ship**. That is the go/no-go. It is renegotiated with the human under
-  [[rules/change-control]], never relaxed quietly, and the local-mode half of this effort stands
+  [[policies/execution]], never relaxed quietly, and the local-mode half of this effort stands
   either way.
 - **Question 5 returns an unusable number** — the architecture may survive with reconcile
   reshaped, which is a return to [[skills/plan]] rather than an end. Record the number; do not
@@ -1069,7 +1069,7 @@ for and what acceptance criterion 15 checks. **What it costs when organizations 
 
 **What is deliberately not decided here:** what a browser client actually does for each
 *Ports differently* row above. That is the browser client's design, and no browser client is
-being built ([[rules/change-control]] — the seam is in scope, the implementation is not).
+being built ([[policies/execution]] — the seam is in scope, the implementation is not).
 
 ## 09 — grilling(design): which accepted decisions survive
 
