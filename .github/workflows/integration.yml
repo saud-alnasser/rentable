@@ -96,9 +96,10 @@ jobs:
           echo "$files"
 
           # The workflows are here because a change to this file has to be proved on the
-          # path it is changing, and the two manifests because the Rust build reaches
-          # through them for the tauri CLI.
-          if printf '%s\n' "$files" | grep -qE '^(tauri/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.github/workflows/)'; then
+          # path it is changing, and the manifests because the Rust build reaches through
+          # them for the tauri CLI. `turbo.json` joins them for the same reason: it decides
+          # which tasks run at all.
+          if printf '%s\n' "$files" | grep -qE '^(apps/desktop/tauri/|apps/desktop/package\.json$|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|turbo\.json$|\.github/workflows/)'; then
             echo 'rust=true' >> "$GITHUB_OUTPUT"
           else
             echo 'rust=false' >> "$GITHUB_OUTPUT"
@@ -137,7 +138,7 @@ jobs:
         if: steps.memo.outputs.cache-hit != 'true' && steps.changed.outputs.rust == 'true'
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './tauri -> target'
+          workspaces: './apps/desktop/tauri -> target'
           shared-key: 'integration'
           save-if: false
 
@@ -189,6 +190,22 @@ jobs:
         if: steps.memo.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
 
+      # The inner cache to the memo above's outer one, and they answer different questions.
+      # The memo is keyed on the whole tree and skips the entire job when these exact bytes
+      # already passed; this is keyed per task, so a run that misses the memo — a `.aep/` edit,
+      # say — still reuses the tasks whose own inputs did not move. `save-if` is deliberately
+      # absent: unlike the cargo cache this one is small, and turbo keys every entry by task
+      # hash rather than by name, so a pull request writing one costs little and collides with
+      # nothing. Restore falls back to the newest entry for the platform.
+      - name: '💿 turbo cache'
+        if: steps.memo.outputs.cache-hit != 'true'
+        uses: actions/cache@v6
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
       - name: '🔎 check'
         if: steps.memo.outputs.cache-hit != 'true'
         run: pnpm check
@@ -222,7 +239,7 @@ jobs:
       - name: '📐 verify the shell breakpoint survived the build'
         if: steps.memo.outputs.cache-hit != 'true'
         run: |
-          if ! grep -rq -- '--breakpoint-shell:' build/_app/immutable/assets/; then
+          if ! grep -rq -- '--breakpoint-shell:' apps/desktop/build/_app/immutable/assets/; then
             echo 'the shell breakpoint is absent from the built stylesheet — check that src/app.css still declares it under `@theme static`' >&2
             exit 1
           fi
@@ -238,7 +255,7 @@ jobs:
       # it, on `main`, within minutes of merge.
       - name: '🦀 build release binary'
         if: steps.memo.outputs.cache-hit != 'true' && steps.changed.outputs.rust == 'true'
-        run: cargo build --release --manifest-path ./tauri/Cargo.toml
+        run: cargo build --release --manifest-path ./apps/desktop/tauri/Cargo.toml
 
       # Only now is this tree known to have passed. `success()` is spelled out because
       # writing any `if` on a step replaces the implicit one, and the failure that would

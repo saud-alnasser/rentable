@@ -15,4 +15,4 @@
 # flags
 
 '📦 flag: dependencies':
-  - any: ['Cargo.lock', 'pnpm-lock.yaml']
+  - any: ['**/Cargo.lock', 'pnpm-lock.yaml']

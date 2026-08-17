@@ -5,7 +5,7 @@ import svelte from 'eslint-plugin-svelte';
 import globals from 'globals';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript-eslint';
-import svelteConfig from './svelte.config.js';
+import svelteConfig from './apps/desktop/svelte.config.js';
 
 const gitignorePath = fileURLToPath(new URL('./.gitignore', import.meta.url));
 
@@ -16,7 +16,7 @@ export default ts.config(
 		// build output nor the typesafe-i18n generated modules. Both are machine-written, so
 		// anything reported in them is unfixable at the source and `tauri/target` alone is
 		// over a hundred files of build output to walk.
-		ignores: ['tauri/**', 'src/lib/i18n/i18n-*.ts']
+		ignores: ['**/tauri/**', '**/src/lib/i18n/i18n-*.ts']
 	},
 	js.configs.recommended,
 	...ts.configs.recommended,

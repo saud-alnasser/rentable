@@ -4,7 +4,7 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/dashboard/**
+  - apps/desktop/src/lib/dashboard/**
 use-when: "the landing screen's shape or content is in question"
 ---
 

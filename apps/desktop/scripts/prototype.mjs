@@ -26,8 +26,8 @@ if (!route) {
 	process.exit(1);
 }
 
-const repository = join(import.meta.dirname, '..');
-const configPath = join(repository, 'tauri', 'tauri.conf.json');
+const packageRoot = join(import.meta.dirname, '..');
+const configPath = join(packageRoot, 'tauri', 'tauri.conf.json');
 const { build } = JSON.parse(readFileSync(configPath, 'utf8'));
 
 // the base comes out of the tracked config rather than being spelled again here: the dev
@@ -45,7 +45,7 @@ try {
 	const result = spawnSync(
 		process.execPath,
 		[join(import.meta.dirname, 'tauri-with-env.mjs'), 'dev', '--config', overridePath],
-		{ cwd: repository, stdio: 'inherit' }
+		{ cwd: packageRoot, stdio: 'inherit' }
 	);
 
 	if (result.error) {

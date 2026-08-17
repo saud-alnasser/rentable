@@ -30,6 +30,7 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       release_tag: ${{ steps.detect.outputs.release_tag }}
+      release_version: ${{ steps.detect.outputs.release_version }}
 
     steps:
       - name: '☁️ checkout repository'
@@ -64,19 +65,37 @@ jobs:
           script: |
             const { execSync } = require('node:child_process');
 
+            // The desktop package's own tag namespace. `changeset-tag.cjs` cuts
+            // `<name>@<version>`, so this is the desktop half of a workspace that may one day
+            // tag more than one package — the glob is what keeps the two from being taken for
+            // each other. `-version:refname` stays a true version sort with the prefix in
+            // place, so 0.10.1 ranks above 0.9.0 rather than below it.
+            //
+            // The pre-workspace `v*.*.*` tags are deliberately not matched, and deliberately
+            // not deleted: the five published releases still point at them. They can never be
+            // newest again, because the first tag cut under this scheme supersedes them by
+            // date — which is the only ordering the updater consults.
+            const PACKAGE_TAG_GLOB = '@rentable/desktop@*';
+
             execSync('git fetch --tags --force', { stdio: 'inherit' });
 
-            const latestVersionTag = execSync("git tag --list 'v*.*.*' --sort=-version:refname | head -n 1", {
+            const latestVersionTag = execSync(`git tag --list '${PACKAGE_TAG_GLOB}' --sort=-version:refname | head -n 1`, {
               encoding: 'utf8',
               shell: '/bin/bash',
             }).trim();
 
             if (!latestVersionTag) {
-              core.info('No version tags found. Skipping artifacts job.');
+              core.info(`No tags matching ${PACKAGE_TAG_GLOB}. Skipping artifacts job.`);
               core.setOutput('should_publish', 'false');
               core.setOutput('release_tag', '');
+              core.setOutput('release_version', '');
               return;
             }
+
+            // Everything after the *final* `@`. The package name is scoped, so it carries an
+            // `@` of its own — splitting on the first one yields "rentable/desktop" as the
+            // version and names the release after it.
+            const releaseVersion = latestVersionTag.slice(latestVersionTag.lastIndexOf('@') + 1);
 
             const { data: releases } = await github.rest.repos.listReleases({
               owner: context.repo.owner,
@@ -90,9 +109,11 @@ jobs:
 
             core.info(`Latest version tag: ${latestVersionTag}`);
             core.info(`Latest artifact tag: ${latestArtifactTag || '(none)'}`);
+            core.info(`Release version: ${releaseVersion}`);
 
             core.setOutput('should_publish', shouldPublish ? 'true' : 'false');
             core.setOutput('release_tag', latestVersionTag);
+            core.setOutput('release_version', releaseVersion);
 
   artifacts:
     needs: changesets
@@ -167,7 +188,11 @@ jobs:
         uses: tauri-apps/tauri-action@v1.0.0
         with:
           tagName: ${{ needs.changesets.outputs.release_tag }}
-          releaseName: 'rentable ${{ needs.changesets.outputs.release_tag }}'
+          # The tag moved to the workspace convention; the release *title* deliberately did
+          # not. Five published releases are named `rentable v0.11.0` and so on, and that title
+          # is what a person scans the releases page for — `rentable @rentable/desktop@0.12.1`
+          # reads as a different product. Same version either way.
+          releaseName: 'rentable v${{ needs.changesets.outputs.release_version }}'
           generateReleaseNotes: true
           uploadUpdaterJson: true
           tauriScript: pnpm tauri

@@ -4,15 +4,15 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/**
-  - tauri/src/**
+  - apps/desktop/src/**
+  - apps/desktop/tauri/src/**
 use-when: "writing or changing a test, or deciding what a change must be tested at"
 ---
 
 <!--
   Path-scoped: the `paths:` frontmatter above is the authority, and the harness
-  enforces it — this rule loads when source under `src/` or `tauri/src/` is read
-  and costs nothing otherwise.
+  enforces it — this rule loads when source under `apps/desktop/src/` or
+  `apps/desktop/tauri/src/` is read, and costs nothing otherwise.
 -->
 
 # Testing

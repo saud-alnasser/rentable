@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/platform/database/**
-  - tauri/src/database/**
+  - apps/desktop/src/lib/platform/database/**
+  - apps/desktop/tauri/src/database/**
 use-when: "a mutation writes more than one table, or atomicity of a multi-step write is in question"
 ---
 

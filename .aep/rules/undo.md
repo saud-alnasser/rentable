@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/design/**
-  - src/lib/api/**
+  - apps/desktop/src/lib/design/**
+  - apps/desktop/src/lib/api/**
 use-when: "a data mutation is added, or undo, redo, or recovering a deleted record is in question"
 ---
 

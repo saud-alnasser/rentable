@@ -13,6 +13,23 @@ SQLite database, one optional Google Drive backup. There is no server: every lay
 including the one shaped like a backend, runs inside the desktop app. A Tauri 2 (Rust)
 shell around a SvelteKit 2 / Svelte 5 frontend.
 
+## Where the application is
+
+**The repository is a pnpm workspace, and the desktop application is the package
+`apps/desktop/`.** The root holds only what governs every package — the lockfile,
+`.changeset/`, the linting and formatting configuration, `turbo.json`, and `.aep/`.
+
+**Every `src/…` and `tauri/…` path in the rest of this file, and in the rules and contexts
+beside it, is relative to `apps/desktop/`** unless it is written out in full. That is the one
+translation to hold; it is stated here rather than repeated in forty artifacts, because a path
+repeated forty times is a path that drifts in thirty-nine of them. Where a path is *typed* —
+a cargo manifest, a config the tool resolves from the working directory — the reference that
+carries the command writes it out from the root instead, because that one has to be correct as
+entered rather than as understood.
+
+Which tool runs which script, and why `check` and `lint` sit outside the task graph, is
+[[references/pnpm]].
+
 ## Vocabulary
 
 **Workspace**:
@@ -82,7 +99,7 @@ a mechanism underneath it ([[rules/undo]]).
   throughout** (#123–#126). Three directories sit outside it: `i18n`, whose path the locale
   generator fixes; `error`, which decodes failures crossing the IPC boundary and has
   not been placed; and `prototype`, the repository's own prototype machinery —
-  `switcher.svelte`, driven by `pnpm prototype` (`scripts/prototype.mjs`). It is where
+  `switcher.svelte`, driven by `pnpm prototype` (`apps/desktop/scripts/prototype.mjs`). It is where
   throwaway prototype code is written; [[rules/prototyping]] is what binds a change.
 - **Reconciliation owns the derived columns** — contract status, the contract payment
   aggregates, and unit status. Any mutation touching contracts, payments, or unit

@@ -30,13 +30,17 @@ is why CI runs `pnpm exec eslint .` directly rather than `pnpm lint` — see `es
 ## Format one file
 
 ```bash
-pnpm exec prettier --write src/lib/contract/router.ts
+pnpm exec prettier --write apps/desktop/src/lib/contract/router.ts
 ```
 
 ## What prettier does not touch
 
-`.prettierignore` excludes the lockfiles, `/static/`, `build`, `tauri/target`, the
-generated `src/lib/i18n/i18n-*.ts`, and **`/.aep/`** with **`/.claude/`**.
+`.prettierignore` excludes the lockfiles, `/apps/desktop/static/`, `build`, `**/tauri/target`,
+the generated `**/src/lib/i18n/i18n-*.ts`, `.turbo`, and **`/.aep/`** with **`/.claude/`**.
+
+The config stays at the root and most of what it names lives in `apps/desktop/`, so the entries
+are either rooted at the package or written `**/`-first. An entry still anchored at the
+repository root matches nothing and reports nothing — the failure is silent.
 
 The `.aep/` entry is load-bearing rather than cosmetic. Most files under there are installed
 verbatim from the workflow's distribution, so reflowing any of it to printWidth 100 would

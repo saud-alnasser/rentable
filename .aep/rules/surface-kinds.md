@@ -4,7 +4,7 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/design/block/**
+  - apps/desktop/src/lib/design/block/**
 use-when: "a new surface for a concept is being placed"
 ---
 

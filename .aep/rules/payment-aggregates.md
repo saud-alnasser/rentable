@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/payment/**
-  - src/lib/contract/reconcile.ts
+  - apps/desktop/src/lib/payment/**
+  - apps/desktop/src/lib/contract/reconcile.ts
 use-when: "a read needs a contract's paid or expected amount, or a list sorts or filters on one"
 ---
 

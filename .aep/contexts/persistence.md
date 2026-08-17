@@ -4,9 +4,9 @@ owner: repository
 date: 2026-08-17
 kind: context
 paths:
-  - src/lib/platform/database/**
-  - tauri/src/database/**
-  - tauri/migrations/**
+  - apps/desktop/src/lib/platform/database/**
+  - apps/desktop/tauri/src/database/**
+  - apps/desktop/tauri/migrations/**
 use-when: "the request touches the schema, migrations, or how queries reach SQLite"
 ---
 

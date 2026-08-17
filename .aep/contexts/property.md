@@ -4,7 +4,7 @@ owner: repository
 date: 2026-08-17
 kind: context
 paths:
-  - src/lib/complex/**
+  - apps/desktop/src/lib/complex/**
 use-when: "the request touches complexes or units"
 ---
 

@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/design/block/record-card.svelte
-  - src/lib/design/block/list.svelte
+  - apps/desktop/src/lib/design/block/record-card.svelte
+  - apps/desktop/src/lib/design/block/list.svelte
 use-when: "a record card or list row is given an action"
 ---
 

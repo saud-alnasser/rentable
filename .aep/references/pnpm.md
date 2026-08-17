@@ -12,8 +12,39 @@ The package manager and the entry point for every script in this repository. `en
 is on and the engines are pinned — **pnpm 11+ on Node 24**. npm and yarn will refuse or
 produce a lockfile CI rejects.
 
-Docs: <https://pnpm.io/cli/add>. Fetch when a command needs a flag not listed here —
-workspace filtering, overrides, or anything touching the lockfile.
+Docs: <https://pnpm.io/cli/add>. Fetch when a command needs a flag not listed here — overrides,
+or anything touching the lockfile.
+
+## The workspace, and which tool runs what
+
+`pnpm-workspace.yaml` declares `apps/*` and `packages/*`. There is one package today —
+**`@rentable/desktop`, the desktop application at `apps/desktop/`** — and the root is a
+private, unversioned container named `rentable`. The scope is what keeps the two distinct: the
+root holds the product's name, and every package under it is named within that scope.
+
+**pnpm declares the workspace; Turborepo runs the tasks across it.** Which of the two a script
+goes through is not arbitrary:
+
+| From the root | Goes through | Why |
+| --- | --- | --- |
+| `build`, `test`, `test:rust` | `turbo run <task>`, against `turbo.json` | per package, cacheable, and what CI spends its time on |
+| `check`, `lint`, `format` | plain root scripts | they cover *every file in the repository*, the root's own configuration included, which a per-package task cannot see |
+| `dev`, `preview`, `tauri`, `prototype`, `db:*`, `i18n` | `pnpm --filter ./apps/desktop <script>` | interactive or long-running, so there is nothing to cache; arguments are forwarded unchanged |
+
+**Filter by workspace path, never by package name** — `--filter ./apps/desktop`, in both tools.
+Naming the package couples every root script to a name that can be renamed out from under it.
+
+```bash
+pnpm --filter ./apps/desktop check      # one script per invocation — anything after
+pnpm --filter ./apps/desktop lint       # the script name is an argument TO that script
+pnpm exec turbo run test --filter=./apps/desktop
+```
+
+`turbo.json` declares `inputs` for `test:rust` explicitly. **An explicit `inputs` glob makes
+turbo walk the filesystem instead of git**, so the negations for `tauri/target`, `tauri/gen` and
+the SQLite files are what keep 69,000 machine-written paths out of the hash — without them the
+task can never cache. Adding a task with narrowed `inputs` means checking the same thing: that
+it still *misses* when the code it covers changes.
 
 ## Install dependencies
 
@@ -98,7 +129,7 @@ pnpm i18n              # watcher — does not exit
 pnpm i18n --no-watch   # one-shot: regenerate and return
 ```
 
-The type definitions and utility files under `src/lib/i18n/` are the output; edit the
+The type definitions and utility files under `apps/desktop/src/lib/i18n/` are the output; edit the
 locale files under `en/` and `ar/`, then regenerate. Use the watcher while working, and
 `--no-watch` anywhere something has to wait for it to finish — pnpm forwards the flag to
 `typesafe-i18n`, verified on 5.27.1.
@@ -106,6 +137,6 @@ locale files under `en/` and `ar/`, then regenerate. Use the watcher while worki
 **Regenerate before typechecking.** `TranslationFunctions` is generated, so a key that
 exists in `en/index.ts` does not exist on the type until the generator has run.
 
-Regenerating rewrites the whole of `src/lib/i18n/i18n-types.ts`, so it also picks up any
+Regenerating rewrites the whole of `apps/desktop/src/lib/i18n/i18n-types.ts`, so it also picks up any
 locale edit made since the last run. Expect hunks you did not author, and disclose them
 rather than reverting them — the generated file was stale, not your diff wrong.

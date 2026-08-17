@@ -4,9 +4,9 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/design/block/**
-  - src/lib/contract/component/**
-  - src/lib/tenant/component/**
+  - apps/desktop/src/lib/design/block/**
+  - apps/desktop/src/lib/contract/component/**
+  - apps/desktop/src/lib/tenant/component/**
 use-when: "a surface showing one record is being built or changed, or where a record's chrome lives is in question"
 ---
 

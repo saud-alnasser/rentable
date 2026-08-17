@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/contract/**
-  - src/lib/dashboard/**
+  - apps/desktop/src/lib/contract/**
+  - apps/desktop/src/lib/dashboard/**
 use-when: "a contract's rank, grouping or follow-up order is in question, or a surface outside the dashboard needs one"
 ---
 

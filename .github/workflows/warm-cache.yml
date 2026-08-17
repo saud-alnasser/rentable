@@ -54,7 +54,7 @@ jobs:
       - name: '💿 cargo cache'
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './tauri -> target'
+          workspaces: './apps/desktop/tauri -> target'
           shared-key: 'integration'
 
       - name: '📦 install apt packages'
@@ -83,6 +83,17 @@ jobs:
       - name: '📦 install pnpm packages'
         run: pnpm install --frozen-lockfile
 
+      # Same rule as the cargo cache above and for the same reason: a cache written on a
+      # pull request is readable by that pull request alone, so the entry every pull request
+      # restores has to be written here, on the default branch.
+      - name: '💿 turbo cache'
+        uses: actions/cache@v6
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
       - name: '🏗️ build frontend'
         run: pnpm build
 
@@ -91,7 +102,7 @@ jobs:
       # `--no-run` because this job is here to populate a cache, not to gate: the
       # tests already ran on the pull request that produced this commit.
       - name: '🦀 compile tests, debug profile'
-        run: cargo test --no-run --manifest-path ./tauri/Cargo.toml
+        run: cargo test --no-run --manifest-path ./apps/desktop/tauri/Cargo.toml
 
       - name: '🦀 compile binary, release profile'
-        run: cargo build --release --manifest-path ./tauri/Cargo.toml
+        run: cargo build --release --manifest-path ./apps/desktop/tauri/Cargo.toml

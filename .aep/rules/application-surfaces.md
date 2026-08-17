@@ -4,9 +4,9 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/layout/component/**
-  - src/lib/sync/component/**
-  - src/routes/+error.svelte
+  - apps/desktop/src/lib/layout/component/**
+  - apps/desktop/src/lib/sync/component/**
+  - apps/desktop/src/routes/+error.svelte
 use-when: "a surface the application shows about itself — starting, failing, recovering, choosing a workspace — is being built or restyled"
 ---
 

@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/platform/database/**
-  - src/lib/api/context.ts
+  - apps/desktop/src/lib/platform/database/**
+  - apps/desktop/src/lib/api/context.ts
 use-when: "a database client is constructed, a transport is added, or the shape of a row crossing the IPC boundary is in question"
 ---
 
@@ -25,7 +25,8 @@ skips it verifies a system that does not ship.*
 
 ## Development tooling is excluded, deliberately
 
-`scripts/seed.ts` and `scripts/purge.ts` build their own client on `drizzle-orm/better-sqlite3`
+`apps/desktop/scripts/seed.ts` and `apps/desktop/scripts/purge.ts` build their own client on
+`drizzle-orm/better-sqlite3`
 and keep their own use of transactions. They are development tooling, not application code, and
 they are not required to adopt the application's client type.
 

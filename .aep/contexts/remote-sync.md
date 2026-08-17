@@ -4,10 +4,10 @@ owner: repository
 date: 2026-08-17
 kind: context
 paths:
-  - tauri/src/sync/**
-  - tauri/src/backup/**
-  - tauri/src/http.rs
-  - src/lib/sync/**
+  - apps/desktop/tauri/src/sync/**
+  - apps/desktop/tauri/src/backup/**
+  - apps/desktop/tauri/src/http.rs
+  - apps/desktop/src/lib/sync/**
 use-when: "the request touches backup, Google Drive, linking, or conflicts"
 ---
 

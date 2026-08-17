@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: context
 paths:
-  - src/lib/contract/**
-  - src/lib/payment/**
+  - apps/desktop/src/lib/contract/**
+  - apps/desktop/src/lib/payment/**
 use-when: "the request touches contracts, payments, unit assignments, or any derived status"
 ---
 

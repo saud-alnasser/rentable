@@ -8,10 +8,14 @@ use-when: "adding or regenerating a design primitive"
 
 # shadcn-svelte
 
-Generates the design primitives into `src/lib/design/primitive/`. **There is no dependency
-and no `package.json` script** — unlike every other tool here, it is run through `pnpm dlx`,
-so the version is whatever `@latest` resolves to on the day it runs. Configured in
-`components.json`; what its alias keys mean in this layout is in [[rules/frontend]].
+Generates the design primitives into `apps/desktop/src/lib/design/primitive/`. **There is no
+dependency and no `package.json` script** — unlike every other tool here, it is run through
+`pnpm dlx`, so the version is whatever `@latest` resolves to on the day it runs. Configured in
+`apps/desktop/components.json`; what its alias keys mean in this layout is in
+[[rules/frontend]].
+
+**Run it from `apps/desktop/`, not the repository root.** The CLI resolves `components.json`
+and its aliases from the working directory, and the root has neither.
 
 Docs: <https://shadcn-svelte.com/docs/cli>. Fetch before any command or flag not listed
 below.

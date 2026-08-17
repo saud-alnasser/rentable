@@ -19,10 +19,14 @@ console.log('package-lock.json updated');
 const fs = require('fs');
 const path = require('path');
 
-const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
+// the version is the desktop application's, not the workspace root's — the root is private
+// and carries no `version` at all, so reading it here would cut the release from `undefined`.
+const desktop = path.resolve(__dirname, '../apps/desktop');
+
+const pkg = JSON.parse(fs.readFileSync(path.join(desktop, 'package.json'), 'utf-8'));
 const version = pkg.version;
 
-const target = path.resolve('tauri/Cargo.toml');
+const target = path.join(desktop, 'tauri/Cargo.toml');
 let cargo = fs.readFileSync(target, 'utf-8');
 
 cargo = cargo.replace(/^version\s*=\s*".*?"/m, `version = "${version}"`);
@@ -31,6 +35,6 @@ fs.writeFileSync(target, cargo);
 
 console.log(`cargo.toml version synced to package.json: ${version}`);
 
-execSync('cd tauri && cargo update');
+execSync('cargo update', { cwd: path.join(desktop, 'tauri') });
 
 console.log('cargo.lock updated');

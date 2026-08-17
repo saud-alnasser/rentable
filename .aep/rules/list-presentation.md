@@ -4,7 +4,7 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/design/block/list.svelte
+  - apps/desktop/src/lib/design/block/list.svelte
 use-when: "a list's presentation is being chosen or changed"
 ---
 
