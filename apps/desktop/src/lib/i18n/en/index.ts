@@ -219,6 +219,8 @@ const en = {
 			commandPaletteDescription: 'search for a command to run',
 			commandPaletteEmpty: 'no matches found',
 			commandPaletteGoTo: 'go to',
+			keyboardShortcuts: 'keyboard shortcuts',
+			keyboardShortcutsDescription: 'every key this application answers, wherever you are.',
 			loading: 'loading',
 			mobileSidebarDescription: 'displays the mobile sidebar.',
 			more: 'more',

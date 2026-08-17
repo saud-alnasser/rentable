@@ -218,6 +218,8 @@ const ar = {
 			commandPaletteDescription: 'ابحث عن أمر للتنفيذ',
 			commandPaletteEmpty: 'لا توجد نتائج مطابقة',
 			commandPaletteGoTo: 'الانتقال إلى',
+			keyboardShortcuts: 'اختصارات لوحة المفاتيح',
+			keyboardShortcutsDescription: 'كل اختصار يستجيب له التطبيق، أينما كنت.',
 			loading: 'جاري التحميل',
 			mobileSidebarDescription: 'يعرض الشريط الجانبي للهاتف.',
 			more: 'المزيد',

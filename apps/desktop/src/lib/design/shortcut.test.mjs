@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { isEditingText, matchesShortcutKey } from './shortcut.ts';
+import {
+	isEditingText,
+	matchesShortcut,
+	matchesShortcutKey,
+	shortcutsCollide,
+	toShortcutHint,
+	usesAppleKeyboard
+} from './shortcut.ts';
 
 test('the character the key produces is matched, so a latin layout still fires', () => {
 	assert.equal(matchesShortcutKey({ key: 'b', code: 'KeyB' }, 'b'), true);
@@ -39,4 +46,91 @@ test('everything else leaves the shortcut to the application', () => {
 	assert.equal(isEditingText({ tagName: 'DIV', isContentEditable: false }), false);
 	assert.equal(isEditingText(null), false);
 	assert.equal(isEditingText(undefined), false);
+});
+
+const held = { ctrlKey: true, metaKey: false, shiftKey: false };
+
+test('a modifier stated must match', () => {
+	assert.equal(
+		matchesShortcut({ ...held, key: 'k', code: 'KeyK' }, { key: 'k', command: true }),
+		true
+	);
+	assert.equal(
+		matchesShortcut(
+			{ ctrlKey: false, metaKey: false, shiftKey: false, key: 'k', code: 'KeyK' },
+			{ key: 'k', command: true }
+		),
+		false
+	);
+});
+
+test('a modifier stated false must not be held', () => {
+	assert.equal(
+		matchesShortcut(
+			{ ...held, shiftKey: true, key: 'z', code: 'KeyZ' },
+			{
+				key: 'z',
+				command: true,
+				shift: false
+			}
+		),
+		false
+	);
+});
+
+test('a modifier omitted is not consulted, either way', () => {
+	assert.equal(
+		matchesShortcut({ ...held, key: 'k', code: 'KeyK' }, { key: 'k', command: true }),
+		true
+	);
+	assert.equal(
+		matchesShortcut(
+			{ ...held, shiftKey: true, key: 'k', code: 'KeyK' },
+			{ key: 'k', command: true }
+		),
+		true
+	);
+});
+
+test('two combinations one keydown could fire collide', () => {
+	assert.equal(shortcutsCollide({ key: 'k', command: true }, { key: 'k', command: true }), true);
+});
+
+test('a letter in common is not a collision when a modifier separates them', () => {
+	assert.equal(
+		shortcutsCollide(
+			{ key: 'z', command: true, shift: false },
+			{ key: 'z', command: true, shift: true }
+		),
+		false
+	);
+});
+
+test('a modifier one of them does not consult overlaps both answers to it', () => {
+	assert.equal(
+		shortcutsCollide({ key: 'k', command: true }, { key: 'k', command: true, shift: true }),
+		true
+	);
+});
+
+test('different letters never collide', () => {
+	assert.equal(shortcutsCollide({ key: 'k', command: true }, { key: 'b', command: true }), false);
+});
+
+test('the hint prints what has to be pressed, and nothing that does not', () => {
+	assert.equal(toShortcutHint({ key: 'k', command: true }, false), 'Ctrl K');
+	assert.equal(toShortcutHint({ key: 'z', command: true, shift: true }, false), 'Ctrl Shift Z');
+	assert.equal(toShortcutHint({ key: 'z', command: true, shift: false }, false), 'Ctrl Z');
+	assert.equal(toShortcutHint({ key: 'j' }, false), 'J');
+});
+
+test('an apple keyboard prints the symbols it has on it', () => {
+	assert.equal(toShortcutHint({ key: 'k', command: true }, true), '⌘ K');
+	assert.equal(toShortcutHint({ key: 'z', command: true, shift: true }, true), '⌘ ⇧ Z');
+});
+
+// read at the point of use rather than at module load, which is what lets this file be imported
+// where there is no navigator at all.
+test('the keyboard is described without one being there', () => {
+	assert.equal(usesAppleKeyboard(), false);
 });

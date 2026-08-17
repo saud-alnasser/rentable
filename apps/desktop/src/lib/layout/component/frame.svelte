@@ -8,10 +8,13 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import LayoutBreadcrumb from '$lib/layout/component/breadcrumb.svelte';
 	import LayoutPalette, { PALETTE_SHORTCUT_HINT } from '$lib/layout/component/palette.svelte';
+	import LayoutShortcutListener from '$lib/layout/component/shortcut-listener.svelte';
+	import LayoutShortcutSheet from '$lib/layout/component/shortcut-sheet.svelte';
 	import LayoutSidebar from '$lib/layout/component/sidebar.svelte';
 	import LayoutUndoShortcut from '$lib/layout/component/undo-shortcut.svelte';
 	import LayoutWindowControls from '$lib/layout/component/window-controls.svelte';
 	import { toBreadcrumbTrail } from '$lib/layout/navigation';
+	import KeyboardIcon from '@tabler/icons-svelte/icons/keyboard';
 	import SearchIcon from '@tabler/icons-svelte/icons/search';
 	import type { Snippet } from 'svelte';
 
@@ -28,6 +31,7 @@
 	const hasBreadcrumb = $derived(toBreadcrumbTrail(page.url.pathname).length > 0);
 
 	let isPaletteOpen = $state(false);
+	let isShortcutSheetOpen = $state(false);
 
 	function startDragging(event: MouseEvent) {
 		if (event.button !== 0) {
@@ -67,6 +71,18 @@
 					     keyboard does not change with the locale. -->
 					<Kbd dir="ltr">{PALETTE_SHORTCUT_HINT}</Kbd>
 				</Button>
+
+				<!-- the only way into the sheet, and deliberately not a shortcut of its own: a
+				     reader who does not know the application answers keys cannot press one. -->
+				<Button
+					variant="ghost"
+					size="icon"
+					aria-label={$LL.common.ui.keyboardShortcuts()}
+					onclick={() => (isShortcutSheetOpen = true)}
+					class="text-muted-foreground"
+				>
+					<KeyboardIcon />
+				</Button>
 			</div>
 		{/if}
 
@@ -76,13 +92,16 @@
 	</header>
 {/snippet}
 
-<!-- outside the navigation, because a change made on a screen that carries none is still a
-     change the reader can take back. -->
+<!-- the application's one keyboard listener, and outside the navigation with the undo pair it
+     answers: a change made on a screen that carries no navigation is still a change the reader
+     can take back. -->
+<LayoutShortcutListener />
 <LayoutUndoShortcut />
 
 <div lang={$locale} dir={currentDirection} class="h-screen w-screen overflow-hidden border">
 	{#if showNavigation}
 		<LayoutPalette bind:open={isPaletteOpen} />
+		<LayoutShortcutSheet bind:open={isShortcutSheetOpen} />
 		<Sidebar.Provider class="h-full min-h-0 overflow-hidden">
 			<LayoutSidebar />
 			<Sidebar.Inset>
