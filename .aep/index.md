@@ -1,5 +1,5 @@
 ---
-aep: 2.3.0
+aep: 2.5.1
 owner: repository
 date: 2026-08-17
 ---
@@ -21,6 +21,7 @@ Start at [[protocol]].
 | [[policies/authority]] | two sources disagree, or the work reaches a repository other than this one | — | — | protocol |
 | [[policies/engineering]] | writing code, or about to state anything about this repository you have not verified | — | — | protocol |
 | [[policies/execution]] | an effort is in progress — deriving tasks, dispatching, implementing, or reviewing | — | — | protocol |
+| [[policies/reporting]] | authoring or auditing a skill's report, or a turn's opening or closing block does not take the shape it should | — | — | protocol |
 
 ## Rules
 
@@ -40,12 +41,12 @@ Start at [[protocol]].
 
 | Artifact | Load when | Paths | Owner |
 | --- | --- | --- | --- |
-| [[contexts/contract]] | the request touches contracts, payments, unit assignments, or any derived status | apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/** | repository |
-| [[contexts/persistence]] | the request touches the schema, migrations, or how queries reach SQLite | apps/desktop/src/lib/platform/database/**, apps/desktop/tauri/src/database/**, apps/desktop/tauri/migrations/** | repository |
-| [[contexts/property]] | the request touches complexes or units | apps/desktop/src/lib/complex/** | repository |
-| [[contexts/remote-sync]] | the request touches backup, Google Drive, linking, or conflicts | apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/backup/**, apps/desktop/tauri/src/http.rs, apps/desktop/src/lib/sync/** | repository |
+| [[contexts/desktop/contract]] | the request touches contracts, payments, unit assignments, or any derived status | apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/** | repository |
+| [[contexts/desktop/persistence]] | the request touches the schema, migrations, or how queries reach SQLite | apps/desktop/src/lib/platform/database/**, apps/desktop/tauri/src/database/**, apps/desktop/tauri/migrations/** | repository |
+| [[contexts/desktop/property]] | the request touches complexes or units | apps/desktop/src/lib/complex/** | repository |
+| [[contexts/desktop/remote-sync]] | the request touches backup, Google Drive, linking, or conflicts | apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/backup/**, apps/desktop/tauri/src/http.rs, apps/desktop/src/lib/sync/** | repository |
+| [[contexts/desktop/tenant]] | the request touches tenants, identity, or phone numbers | apps/desktop/src/lib/tenant/** | repository |
 | [[contexts/repository]] | a term, boundary, or constraint about this repository is in question, before reaching for a narrower context | — | repository |
-| [[contexts/tenant]] | the request touches tenants, identity, or phone numbers | apps/desktop/src/lib/tenant/** | repository |
 
 ## References
 

@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.3.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -219,7 +219,7 @@ Produced under conflicting constraints, per [[skills/plan/design-it-twice]].
 | --- | --- | --- | --- | --- |
 | **A — minimal workspace, deferred extraction** *(optimise for the common caller)* | One mechanical move; no import specifier changes; the workspace exists and admits packages without guessing their shape | Requirement 2 is satisfied only trivially — one consumer, one description; the extraction is still owed later | The extraction later touches 20+ importers as a second, separate disruption | Lowest — the tree stays legible and nothing is maintained that has no consumer |
 | **B — extract `packages/schema` now** *(maximise flexibility)* | The API arrives to a boundary that already exists; requirement 2 is satisfied substantively | 20+ import specifiers change inside the same commit that moves every file; `drizzle.config.ts` splits from the `tauri/migrations` it writes into | The boundary is drawn before the consumer that would justify it exists, and decisions 03/05 may put the control plane's schema somewhere else entirely | A package with one consumer is maintained on behalf of a caller that does not exist |
-| **C — extract the schema *and* its migrations together** *(design around the seam)* | Deepest of the three: one interface hides both the table description and the migration history, which [[contexts/persistence]] already says change together | Moves `tauri/migrations/` out of the Rust crate that applies them, so the Rust migration runner's path changes | Touches Rust in an effort that is otherwise a JavaScript restructure, widening the diff into the half that CI covers least | Highest now, and possibly right later — it is B's problem solved rather than B's problem shipped |
+| **C — extract the schema *and* its migrations together** *(design around the seam)* | Deepest of the three: one interface hides both the table description and the migration history, which [[contexts/desktop/persistence]] already says change together | Moves `tauri/migrations/` out of the Rust crate that applies them, so the Rust migration runner's path changes | Touches Rust in an effort that is otherwise a JavaScript restructure, widening the diff into the half that CI covers least | Highest now, and possibly right later — it is B's problem solved rather than B's problem shipped |
 
 **B loses to A on timing, not on merit.** Its boundary is the one this repository will probably
 want; it is being drawn a decision too early. **C loses to A for the same reason and costs more**,

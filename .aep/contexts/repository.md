@@ -1,5 +1,5 @@
 ---
-aep: 2.2.0
+aep: 2.3.0
 owner: repository
 date: 2026-08-17
 kind: context
@@ -120,8 +120,8 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 
 | Area | Context |
 | --- | --- |
-| contracts, payments, unit assignments, derived status | [[contexts/contract]] |
-| schema, migrations, how queries reach SQLite | [[contexts/persistence]] |
-| complexes and units | [[contexts/property]] |
-| backup, Google Drive, linking, conflicts | [[contexts/remote-sync]] |
-| tenants, identity, phone numbers | [[contexts/tenant]] |
+| contracts, payments, unit assignments, derived status | [[contexts/desktop/contract]] |
+| schema, migrations, how queries reach SQLite | [[contexts/desktop/persistence]] |
+| complexes and units | [[contexts/desktop/property]] |
+| backup, Google Drive, linking, conflicts | [[contexts/desktop/remote-sync]] |
+| tenants, identity, phone numbers | [[contexts/desktop/tenant]] |

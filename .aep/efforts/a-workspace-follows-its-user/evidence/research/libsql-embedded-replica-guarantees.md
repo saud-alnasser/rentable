@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.3.0
 owner: repository
 date: 2026-08-17
 kind: research
@@ -11,7 +11,7 @@ Verified against: Turso Cloud documentation and `turso.tech/pricing` as publishe
 
 **Extended 2026-08-17** with §7, a re-verification of the two code-derived fallback claims at the versions a fresh install resolves to today — `@libsql/client` 0.17.4 (unmoved), `libsql-js` **0.5.29** (moved), and the Rust crate `libsql` **0.9.30** that v0.5.29 pins exactly. Nothing dated 2026-08-13 was rewritten.
 
-`falsifies: []` — nothing here contradicts ADR 0027, ADR 0010 or [[contexts/persistence]]. Those are statements about the local SQLite engine reached through Tauri, and every one of them remains true of that transport. What this finding does is price a *third* transport; it retires no recorded claim.
+`falsifies: []` — nothing here contradicts ADR 0027, ADR 0010 or [[contexts/desktop/persistence]]. Those are statements about the local SQLite engine reached through Tauri, and every one of them remains true of that transport. What this finding does is price a *third* transport; it retires no recorded claim.
 
 ## 1 — Does an embedded replica accept writes while disconnected?
 

@@ -1,5 +1,5 @@
 ---
-aep: 2.2.0
+aep: 2.3.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -837,7 +837,7 @@ outgrown the storage rather than an emergency.
 
 **Question.** The proxy reads every `INTEGER` as an `i64` into a JSON number, which arrives in
 JavaScript as a double — exact only to 2⁵³−1. A single 64-bit bitflag column therefore offers
-53 usable bits before **silent** precision loss, and [[contexts/persistence]]'s promise that an
+53 usable bits before **silent** precision loss, and [[contexts/desktop/persistence]]'s promise that an
 unmappable value fails the query does not cover it, because nothing fails: the value rounds on
 the far side. Options include several integer columns, a text or blob representation, a row per
 granted permission, or capping the flag set below the ceiling. This is answerable now and does
@@ -847,7 +847,7 @@ not wait on 11.
 
 The premise above was recorded from reading `tauri/src/database/proxy.rs:66` —
 `"INTEGER" => Ok(Value::from(row.try_get::<i64, _>(index)?))`. It was **not** measured, and
-[[contexts/persistence]] is explicit that value conversion is *per-transport*, so the two halves
+[[contexts/desktop/persistence]] is explicit that value conversion is *per-transport*, so the two halves
 could have disagreed. They were run against both.
 
 | Stored | Memory transport (`better-sqlite3`) | Production wire (`JSON.parse` of Rust's i64) |
@@ -864,7 +864,7 @@ could have disagreed. They were run against both.
   `number`. Rust's i64 is exact on the wire and degrades at `JSON.parse`. Two different routes,
   one identical silent result.
 - **The two transports agree exactly**, which the premise did not establish and which matters:
-  [[contexts/persistence]] warns that a router test can pass over a conversion broken in the
+  [[contexts/desktop/persistence]] warns that a router test can pass over a conversion broken in the
   running application. That warning does **not** apply here. A router test over the memory
   transport pins this faithfully, so whatever is chosen below is testable at the cheap tier.
 - **The cliff is sharper than "53 usable bits" suggests.** A value using only bits 0–52 is
@@ -948,7 +948,7 @@ Type: grilling
 Blocked by: 11
 
 **Question.** Rust owns applying migrations today and the TypeScript side never runs them
-against the app's database ([[contexts/persistence]]). With the database hosted and several
+against the app's database ([[contexts/desktop/persistence]]). With the database hosted and several
 client versions able to connect, that ownership has to move somewhere — the API, the client on
 connect, or a deploy step — and whichever it is has to answer what an older client does when it
 meets a newer schema. That answer is requirement 11, and its check is acceptance criterion 12 —
@@ -965,7 +965,7 @@ Blocked by: 11
 it plausible as a user-owned backup. Whether it survives, becomes an export path, or is retired
 decides the fate of a large and carefully-built Rust surface — the manifest, conflict analysis,
 retention, the link session — and of [[rules/drive]] entire, every section of it —
-*Client boundary*, *Concurrency*, and *Transport testing* — and of [[contexts/remote-sync]] with
+*Client boundary*, *Concurrency*, and *Transport testing* — and of [[contexts/desktop/remote-sync]] with
 it. Requirement 12 is that the answer is executed, not merely reached.
 
 **Constrained again 2026-08-17, from the other side.** Sign-in is now Google, so **the OAuth half
@@ -973,7 +973,7 @@ of this surface is load-bearing for identity and survives whatever happens to sy
 the token refresh, the account model and the credential boundary are no longer Drive's to retire.
 What decision 07 may still retire is the *sync* surface — the manifest, conflict analysis,
 retention, the link session — and it now has to separate the two, which nothing in the code
-currently forces it to do. [[contexts/remote-sync]] treats them as one domain.
+currently forces it to do. [[contexts/desktop/remote-sync]] treats them as one domain.
 
 **Reshaped 2026-08-17, and this is the decision the two-mode choice constrains hardest.** Drive
 is the *only* route a local workspace has off its machine. With local workspaces permanently
