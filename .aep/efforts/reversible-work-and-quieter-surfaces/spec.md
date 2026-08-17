@@ -1,5 +1,5 @@
 ---
-aep: 2.2.0
+aep: 2.3.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -309,7 +309,7 @@ because that ticket makes assignment a set operation, and by 02 because that one
 stack.
 
 **05 — creating a complex creates its units.** The complex form gains a unit list and submits
-one batch; carries the correction to [[contexts/persistence]] — found as drift, since the batch
+one batch; carries the correction to [[contexts/desktop/persistence]] — found as drift, since the batch
 transport had always been a transaction while the Context asserted otherwise — because this
 is the change that moves the statement's practical half.
 
