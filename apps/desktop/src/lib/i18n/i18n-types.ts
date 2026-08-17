@@ -339,6 +339,50 @@ type RootTranslation = {
 			 */
 			xlsx: string
 		}
+		history: {
+			actions: {
+				/**
+				 * u​n​i​t​s​ ​c​h​a​n​g​e​d
+				 */
+				assigned: string
+				/**
+				 * c​r​e​a​t​e​d
+				 */
+				created: string
+				/**
+				 * d​e​l​e​t​e​d
+				 */
+				deleted: string
+				/**
+				 * e​d​i​t​e​d
+				 */
+				edited: string
+				/**
+				 * r​e​n​e​w​e​d
+				 */
+				renewed: string
+				/**
+				 * t​e​r​m​i​n​a​t​e​d
+				 */
+				terminated: string
+				/**
+				 * r​e​s​t​o​r​e​d
+				 */
+				unterminated: string
+			}
+			/**
+			 * c​h​a​n​g​e​s​ ​m​a​d​e​ ​t​o​ ​t​h​i​s​ ​r​e​c​o​r​d​ ​w​i​l​l​ ​b​e​ ​l​i​s​t​e​d​ ​h​e​r​e​.
+			 */
+			emptyDescription: string
+			/**
+			 * n​o​t​h​i​n​g​ ​h​a​s​ ​h​a​p​p​e​n​e​d​ ​t​o​ ​t​h​i​s​ ​r​e​c​o​r​d​ ​y​e​t​.
+			 */
+			emptyTitle: string
+			/**
+			 * h​i​s​t​o​r​y
+			 */
+			title: string
+		}
 		labels: {
 			/**
 			 * a​c​t​i​o​n
@@ -2388,6 +2432,50 @@ export type TranslationFunctions = {
 			 * excel workbook
 			 */
 			xlsx: () => LocalizedString
+		}
+		history: {
+			actions: {
+				/**
+				 * units changed
+				 */
+				assigned: () => LocalizedString
+				/**
+				 * created
+				 */
+				created: () => LocalizedString
+				/**
+				 * deleted
+				 */
+				deleted: () => LocalizedString
+				/**
+				 * edited
+				 */
+				edited: () => LocalizedString
+				/**
+				 * renewed
+				 */
+				renewed: () => LocalizedString
+				/**
+				 * terminated
+				 */
+				terminated: () => LocalizedString
+				/**
+				 * restored
+				 */
+				unterminated: () => LocalizedString
+			}
+			/**
+			 * changes made to this record will be listed here.
+			 */
+			emptyDescription: () => LocalizedString
+			/**
+			 * nothing has happened to this record yet.
+			 */
+			emptyTitle: () => LocalizedString
+			/**
+			 * history
+			 */
+			title: () => LocalizedString
 		}
 		labels: {
 			/**

@@ -162,6 +162,44 @@ export const paymentRelations = relations(payment, ({ one }) => ({
 	})
 }));
 
+/**
+ * What was done to a record, and when.
+ *
+ * **Data at rest, and the only schema change this effort makes.** It is written from the
+ * declaration every mutation already carries, and it is read and never replayed — nothing in
+ * the application reconstructs anything from these rows.
+ *
+ * The action is stored as the key it renders under rather than as a rendered sentence: a
+ * history read in Arabic must say what happened in Arabic, and a string frozen at the moment
+ * of writing would answer in whatever language the change was made in. The record's own name
+ * *is* frozen, deliberately — it is what the record was called when the thing happened, and it
+ * is the only way a deletion still reads afterwards.
+ */
+export const history = sqliteTable('history', {
+	id: integer('id').primaryKey().unique(),
+	at: integer('at', { mode: 'timestamp_ms' }).notNull(),
+	/** which kind of record it happened to, so a surface can ask for its own. */
+	concept: text('concept', {
+		enum: ['tenant', 'complex', 'unit', 'contract', 'payment']
+	}).notNull(),
+	recordId: integer('record_id').notNull(),
+	/** the key the entry renders under, from the vocabulary undo already names changes with. */
+	action: text('action').notNull(),
+	/** what the record was called at the time. */
+	record: text('record').notNull()
+});
+
+export const HistorySchema = z.object({
+	id: z.number(),
+	at: z.number(),
+	concept: z.enum(['tenant', 'complex', 'unit', 'contract', 'payment']),
+	recordId: z.number(),
+	action: z.string(),
+	record: z.string()
+});
+
+export type History = z.infer<typeof HistorySchema>;
+
 export const contractUnitRelations = relations(contractUnit, ({ one }) => ({
 	contract: one(contract, {
 		fields: [contractUnit.contractId],

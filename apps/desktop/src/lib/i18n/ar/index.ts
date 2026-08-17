@@ -92,6 +92,21 @@ const ar = {
 			xlsx: 'مصنف إكسل'
 		},
 
+		history: {
+			actions: {
+				assigned: 'تغيرت الوحدات',
+				created: 'أنشئ',
+				deleted: 'حذف',
+				edited: 'عدل',
+				renewed: 'جدد',
+				terminated: 'أنهي',
+				unterminated: 'أعيد'
+			},
+			emptyDescription: 'ستظهر هنا التغييرات التي تجرى على هذا السجل.',
+			emptyTitle: 'لم يحدث شيء لهذا السجل بعد.',
+			title: 'السجل الزمني'
+		},
+
 		labels: {
 			action: 'إجراء',
 			activeContracts: 'العقود السارية',

@@ -2,7 +2,11 @@
 // isolated in-memory database, a fixed clock, and a fake host. Not a `*.test.mjs` file, so
 // the test runner does not pick it up directly.
 
-import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
+import {
+	closeFileDatabase,
+	createFileDatabase,
+	createMemoryDatabase
+} from '$lib/platform/database/memory.ts';
 import { appRouter } from './router.ts';
 import { caller, context } from './trpc.ts';
 
@@ -43,4 +47,18 @@ export async function seedTenant(api) {
 		nationalId: `1000${suffix}00`.slice(0, 10),
 		phone: `+96655${suffix}000`.slice(0, 13)
 	});
+}
+
+// A caller over a database that is a real file, so a test can open it again afterwards. Only
+// durability needs it; everything else should use `createApi`.
+export async function createFileApi(path, { host } = {}) {
+	const db = createFileDatabase(path);
+	const fakeHost = host ?? {
+		settings: { get: async () => ({ endingSoonNoticeDays: 60, locale: 'en' }) }
+	};
+	const ctx = await context({ db, clock: { now: () => NOW }, host: fakeHost });
+
+	// the closer comes back with it: Windows refuses to remove a file that is still open, so a
+	// test that tidies up after itself has to let go of the handle first.
+	return { api: caller(appRouter)(ctx), close: () => closeFileDatabase(db) };
 }

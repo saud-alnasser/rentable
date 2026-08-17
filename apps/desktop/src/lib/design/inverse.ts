@@ -1,3 +1,4 @@
+import type { HistoryEntry } from '$lib/history/history';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 /**
@@ -17,6 +18,18 @@ export type Inverse = {
 	undo: () => Promise<unknown>;
 	/** apply the mutation again, with the identity it had. */
 	redo: () => Promise<unknown>;
+	/**
+	 * what moving this change leaves in the record's account, in whichever direction it moved.
+	 *
+	 * Declared here as well as on the mutation because **an inverse does not go through the
+	 * mutation's own success path** — it issues the procedure directly, so nothing else would
+	 * record it. A history that shows a contract being terminated and stays silent about it being
+	 * taken back is worse than no history: it reports something that is no longer true.
+	 *
+	 * The direction decides which way it reads, because the two are opposite events and both are
+	 * things that happened: undoing a termination *is* a restoration, and the account says so.
+	 */
+	records?: (direction: 'undo' | 'redo') => HistoryEntry | HistoryEntry[] | undefined;
 };
 
 /**

@@ -59,6 +59,17 @@ function isContractSortColumnId(columnId: string): columnId is ContractSortColum
 }
 
 /**
+ * What a contract is called in an account of what happened to it.
+ *
+ * The government id first, because it is the reference a reader knows a contract by, and the
+ * tenant's name where there is none — the same fallback the delete confirmation already uses,
+ * so one record is named the same way wherever it is spoken about.
+ */
+function toContractName(contract: { govId?: string | null; tenantName?: string | null }) {
+	return contract.govId?.trim() || contract.tenantName?.trim() || get(LL).common.labels.contract();
+}
+
+/**
  * The contracts directory for a search and an order: the whole result set, each row carrying
  * the tenant the contract is held by.
  *
@@ -125,7 +136,19 @@ export const useCreateContract = declareMutation({
 	inverse: ({ result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.contract() }),
 		undo: () => api.contract.delete({ id: result.id }),
-		redo: () => api.contract.create(result)
+		redo: () => api.contract.create(result),
+		records: (direction) => ({
+			concept: 'contract',
+			recordId: result.id,
+			action: direction === 'undo' ? 'deleted' : 'created',
+			record: toContractName(result)
+		})
+	}),
+	records: ({ result }) => ({
+		concept: 'contract',
+		recordId: result.id,
+		action: 'created',
+		record: toContractName(result)
 	}),
 	toast: {
 		success: () => get(LL).contracts.hooks.createSuccess(),
@@ -171,8 +194,21 @@ export const useUpdateContract = declareMutation({
 		captured && {
 			describe: (t) => t.common.undo.edited({ record: t.common.labels.contract() }),
 			undo: () => api.contract.update(captured),
-			redo: () => api.contract.update(variables)
+			redo: () => api.contract.update(variables),
+			// both directions are an edit: what changed differs, that it was edited does not.
+			records: () => ({
+				concept: 'contract',
+				recordId: variables.id,
+				action: 'edited',
+				record: toContractName(variables)
+			})
 		},
+	records: ({ variables }) => ({
+		concept: 'contract',
+		recordId: variables.id,
+		action: 'edited',
+		record: toContractName(variables)
+	}),
 	toast: {
 		success: () => get(LL).contracts.hooks.updateSuccess(),
 		error: false,
@@ -187,7 +223,22 @@ export const useDeleteContract = declareMutation({
 		result && {
 			describe: (t) => t.common.undo.deleted({ record: t.common.labels.contract() }),
 			undo: () => api.contract.create(result),
-			redo: () => api.contract.delete({ id: result.id })
+			redo: () => api.contract.delete({ id: result.id }),
+			records: (direction) => ({
+				concept: 'contract',
+				recordId: result.id,
+				action: direction === 'undo' ? 'created' : 'deleted',
+				record: toContractName(result)
+			})
+		},
+	// the name is frozen here for the reason the whole entry is: a moment later the record is
+	// gone, and an account that could only name what still exists could not report a deletion.
+	records: ({ result }) =>
+		result && {
+			concept: 'contract',
+			recordId: result.id,
+			action: 'deleted',
+			record: toContractName(result)
 		},
 	toast: {
 		success: () => get(LL).contracts.hooks.deleteSuccess(),
@@ -201,10 +252,22 @@ export const useTerminateContract = declareMutation({
 	touches: ['contracts', 'units'],
 	// un-terminating is the procedure that already exists to reverse this, and it recomputes the
 	// derived status rather than putting back the one the contract happened to hold.
-	inverse: ({ variables }) => ({
+	inverse: ({ variables, result }) => ({
 		describe: (t) => t.common.undo.terminated({ record: t.common.labels.contract() }),
 		undo: () => api.contract.unterminate({ id: variables }),
-		redo: () => api.contract.terminate({ id: variables })
+		redo: () => api.contract.terminate({ id: variables }),
+		records: (direction) => ({
+			concept: 'contract',
+			recordId: variables,
+			action: direction === 'undo' ? 'unterminated' : 'terminated',
+			record: toContractName(result)
+		})
+	}),
+	records: ({ result }) => ({
+		concept: 'contract',
+		recordId: result.id,
+		action: 'terminated',
+		record: toContractName(result)
 	}),
 	toast: {
 		success: () => get(LL).contracts.hooks.terminateSuccess(),
@@ -231,8 +294,24 @@ export const useTerminateManyContracts = declareMutation({
 			: {
 					describe: (t) => t.common.undo.terminatedMany({ count: result.terminated.length }),
 					undo: () => api.contract.unterminateMany({ ids: result.terminated }),
-					redo: () => api.contract.terminateMany({ ids: result.terminated })
+					redo: () => api.contract.terminateMany({ ids: result.terminated }),
+					records: (direction) =>
+						result.terminated.map((id) => ({
+							concept: 'contract' as const,
+							recordId: id,
+							action: direction === 'undo' ? ('unterminated' as const) : ('terminated' as const),
+							record: String(id)
+						}))
 				},
+	// one entry per contract that actually changed, so each record's own account carries what
+	// happened to it — a selection is how the reader acted, not something the records share.
+	records: ({ result }) =>
+		result.terminated.map((id) => ({
+			concept: 'contract' as const,
+			recordId: id,
+			action: 'terminated' as const,
+			record: String(id)
+		})),
 	toast: {
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
@@ -242,10 +321,22 @@ export const useTerminateManyContracts = declareMutation({
 export const useUnterminateContract = declareMutation({
 	mutate: (id: number) => api.contract.unterminate({ id }),
 	touches: ['contracts', 'units'],
-	inverse: ({ variables }) => ({
+	inverse: ({ variables, result }) => ({
 		describe: (t) => t.common.undo.unterminated({ record: t.common.labels.contract() }),
 		undo: () => api.contract.terminate({ id: variables }),
-		redo: () => api.contract.unterminate({ id: variables })
+		redo: () => api.contract.unterminate({ id: variables }),
+		records: (direction) => ({
+			concept: 'contract',
+			recordId: variables,
+			action: direction === 'undo' ? 'terminated' : 'unterminated',
+			record: toContractName(result)
+		})
+	}),
+	records: ({ result }) => ({
+		concept: 'contract',
+		recordId: result.id,
+		action: 'unterminated',
+		record: toContractName(result)
 	}),
 	toast: {
 		success: () => get(LL).contracts.hooks.restoreSuccess(),
