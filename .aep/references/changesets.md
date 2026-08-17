@@ -51,6 +51,22 @@ prepends under whatever heading it finds, so leaving it is what keeps that histo
 The summary lands in `CHANGELOG.md` verbatim, so write it for someone reading release notes,
 not for a reviewer reading the diff.
 
+## Where it lives
+
+**In the same branch and the same commit as the change it describes** — never on a branch of its
+own. A changeset is that change's changelog entry, so the entry and the diff it announces are one
+reviewable thing, which is what [[rules/version-control]]'s *one ticket, one branch, one commit*
+already makes the default.
+
+Separated, they can land apart: the entry merges, the change it announces does not, and the
+changelog describes a release that does not contain it.
+
+The shape this rules out is a `chore:` branch carrying nothing but a changeset — **including when
+the reason for it is that a release needs a version bump and nothing user-visible is in flight.**
+That reason feels like an exception and is not one. Either something is shipping, in which case
+the changeset belongs on its branch and describes *it*, or nothing is, in which case no changeset
+is due and the version is right where it is.
+
 ## When one is not needed
 
 Dependency bumps and internal refactors that no user can observe do not get a changeset.
