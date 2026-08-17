@@ -9,8 +9,15 @@ use-when: "building, running, or configuring the desktop shell"
 # Tauri CLI
 
 Builds and runs the desktop app. **`pnpm tauri` is not the Tauri CLI directly** — it is a
-wrapper (`scripts/tauri-with-env.mjs`) that loads `.env` and then delegates. Environment
-already set in the shell wins; the file does not override it.
+wrapper (`apps/desktop/scripts/tauri-with-env.mjs`) that loads `apps/desktop/.env` and then
+delegates. Environment already set in the shell wins; the file does not override it.
+
+The wrapper anchors both the `.env` read and the child's working directory to its own package,
+rather than inheriting whatever directory it was called from. That matters because the Tauri CLI
+finds its `tauri.conf.json` by walking up from the working directory — **`--config` cannot pin
+that**, since it merges over the discovered file rather than replacing the discovery. From the
+root, `pnpm tauri <args>` delegates with `pnpm --filter ./apps/desktop` and forwards the
+arguments unchanged, so every invocation below reads the same typed from either place.
 
 Docs: <https://tauri.app/reference/cli/>. Fetch for bundle targets, signing options, or any
 subcommand beyond the two below.
@@ -30,7 +37,7 @@ that touches data.
 pnpm prototype /contracts?create
 ```
 
-`scripts/prototype.mjs`, for looking at a prototype: same app, window opened on the route
+`apps/desktop/scripts/prototype.mjs`, for looking at a prototype: same app, window opened on the route
 given instead of `/`. The route survives the reloads the Rust watcher triggers, which is the
 whole point — clicking back to the surface under test after every restart is most of the
 friction of running a prototype.
@@ -41,7 +48,8 @@ replacement, so only `build.devUrl` is overridden and `tauri.conf.json` is never
 script writes the override to a temporary file and removes it afterwards; a run that is
 killed leaves nothing behind in the repository.
 
-The bar for switching between a prototype's variants is `src/lib/prototype/switcher.svelte`,
+The bar for switching between a prototype's variants is
+`apps/desktop/src/lib/prototype/switcher.svelte`,
 and it renders under `dev` only.
 
 ## Build a release bundle
@@ -63,4 +71,4 @@ cargo commands in `cargo.md` are minutes faster.
 `.env`. Calling `tauri` directly, without the wrapper, produces a binary built with those
 values missing — it compiles and it runs, and updates and Drive linking are quietly broken.
 
-Signing keys are CI-only secrets and are never in `.env`. Start from `.env.example`.
+Signing keys are CI-only secrets and are never in `.env`. Start from `apps/desktop/.env.example`.

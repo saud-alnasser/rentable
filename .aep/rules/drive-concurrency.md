@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - tauri/src/sync/google/manifest.rs
-  - tauri/src/sync/google/conflict.rs
+  - apps/desktop/tauri/src/sync/google/manifest.rs
+  - apps/desktop/tauri/src/sync/google/conflict.rs
 use-when: "two clients could write one workspace, or a manifest or snapshot conflict is being handled"
 ---
 

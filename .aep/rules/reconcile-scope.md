@@ -4,7 +4,7 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/contract/reconcile.ts
+  - apps/desktop/src/lib/contract/reconcile.ts
 use-when: "a mutation, a sync pull, or a day crossing has to move derived state"
 ---
 

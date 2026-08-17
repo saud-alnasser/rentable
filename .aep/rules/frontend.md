@@ -4,9 +4,9 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/**
-  - src/routes/**
-  - src/app.css
+  - apps/desktop/src/lib/**
+  - apps/desktop/src/routes/**
+  - apps/desktop/src/app.css
 use-when: "writing or changing Svelte components, routes, styles, or client state"
 ---
 

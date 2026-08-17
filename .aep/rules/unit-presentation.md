@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/complex/component/**
-  - src/lib/contract/component/**
+  - apps/desktop/src/lib/complex/component/**
+  - apps/desktop/src/lib/contract/component/**
 use-when: "a unit is being listed, or units are being assigned to a contract"
 ---
 

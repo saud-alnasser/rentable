@@ -4,7 +4,7 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/design/block/form-surface.svelte
+  - apps/desktop/src/lib/design/block/form-surface.svelte
 use-when: "a form is being presented, or a form surface has to survive a breakpoint crossing"
 ---
 

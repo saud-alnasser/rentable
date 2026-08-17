@@ -4,7 +4,7 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/contract/component/**
+  - apps/desktop/src/lib/contract/component/**
 use-when: "a contract's units are being assigned, or a writing control is being put on a reading surface"
 ---
 

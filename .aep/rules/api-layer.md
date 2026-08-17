@@ -4,18 +4,18 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/api/**
-  - src/lib/*/router.ts
-  - src/lib/*/reconcile.ts
-  - src/lib/platform/tauri.ts
-  - src/lib/platform/database/**
+  - apps/desktop/src/lib/api/**
+  - apps/desktop/src/lib/*/router.ts
+  - apps/desktop/src/lib/*/reconcile.ts
+  - apps/desktop/src/lib/platform/tauri.ts
+  - apps/desktop/src/lib/platform/database/**
 use-when: "adding or changing a router, a domain module, or anything crossing the Tauri IPC boundary"
 ---
 
 <!--
   Path-scoped: the `paths:` frontmatter above is the authority, and the harness
-  enforces it — this rule loads when a file under `src/lib/api/` is read and
-  costs nothing otherwise. A standard that must hold on every turn belongs in
+  enforces it — this rule loads when a file under `apps/desktop/src/lib/api/` is
+  read, and costs nothing otherwise. A standard that must hold on every turn belongs in
   `CLAUDE.md` or in an unscoped file beside this one instead.
 
   The layer is no longer one directory. A concept that has relocated (#123-#126)

@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/design/block/field-error.svelte
-  - src/lib/design/primitive/form/**
+  - apps/desktop/src/lib/design/block/field-error.svelte
+  - apps/desktop/src/lib/design/primitive/form/**
 use-when: "a form reports validation errors"
 ---
 

@@ -4,7 +4,7 @@ owner: repository
 date: 2026-08-17
 kind: context
 paths:
-  - src/lib/tenant/**
+  - apps/desktop/src/lib/tenant/**
 use-when: "the request touches tenants, identity, or phone numbers"
 ---
 

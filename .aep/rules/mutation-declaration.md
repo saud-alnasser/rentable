@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/design/mutation.ts
-  - src/lib/design/query.ts
+  - apps/desktop/src/lib/design/mutation.ts
+  - apps/desktop/src/lib/design/query.ts
 use-when: "a data mutation is added, or where a mutation's cache invalidation, toast, or inverse is written is in question"
 ---
 

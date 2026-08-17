@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - tauri/src/sync/google/**
-  - src/lib/sync/**
+  - apps/desktop/tauri/src/sync/google/**
+  - apps/desktop/src/lib/sync/**
 use-when: "the request touches Drive credentials, OAuth, or where Drive network calls are made"
 ---
 

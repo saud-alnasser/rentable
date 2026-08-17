@@ -6,13 +6,16 @@ bun.lock
 bun.lockb
 
 # Miscellaneous
-/static/
+/apps/desktop/static/
 
 build
-tauri/target
+**/tauri/target
 
 # i18n
-src/lib/i18n/i18n-*.ts
+**/src/lib/i18n/i18n-*.ts
+
+# Turborepo's local cache
+.turbo
 
 # Agent configuration. Most files under here are installed verbatim from the
 # workflow's distribution, so reflowing any of them to printWidth would break

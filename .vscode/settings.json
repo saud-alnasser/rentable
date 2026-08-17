@@ -57,6 +57,6 @@
 		"worktree",
 		"العربية"
 	],
-	"i18n-ally.localesPaths": ["src/lib/i18n", "src/lib/i18n/messages"],
+	"i18n-ally.localesPaths": ["apps/desktop/src/lib/i18n", "apps/desktop/src/lib/i18n/messages"],
 	"prettier.ignorePath": ".prettierignore"
 }

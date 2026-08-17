@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - tauri/src/sync/google/test/**
-  - tauri/src/sync/google/transport.rs
+  - apps/desktop/tauri/src/sync/google/test/**
+  - apps/desktop/tauri/src/sync/google/transport.rs
 use-when: "a Drive transport test is being written or is failing"
 ---
 

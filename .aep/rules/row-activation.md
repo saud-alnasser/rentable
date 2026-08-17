@@ -4,8 +4,8 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/design/block/list.svelte
-  - src/lib/dashboard/component/section.svelte
+  - apps/desktop/src/lib/design/block/list.svelte
+  - apps/desktop/src/lib/dashboard/component/section.svelte
 use-when: "a list row is given an action, or a row's click target is in question"
 ---
 

@@ -5,7 +5,7 @@ date: 2026-08-17
 kind: rule
 mode: [prototype]
 paths:
-  - src/lib/prototype/**
+  - apps/desktop/src/lib/prototype/**
 use-when: "writing throwaway prototype code in this repository, or deciding where it goes"
 ---
 

@@ -4,7 +4,7 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/design/query.ts
+  - apps/desktop/src/lib/design/query.ts
 use-when: "a query's caching or invalidation behaviour is in question"
 ---
 

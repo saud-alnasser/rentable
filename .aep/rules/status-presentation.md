@@ -4,7 +4,7 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/design/cell/status.svelte
+  - apps/desktop/src/lib/design/cell/status.svelte
 use-when: "a status is rendered, or a status is added to the model"
 ---
 

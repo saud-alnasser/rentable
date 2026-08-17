@@ -4,12 +4,12 @@ owner: repository
 date: 2026-08-17
 kind: rule
 paths:
-  - src/lib/**/component/**
-  - src/lib/design/block/**
-  - src/lib/design/cell/**
-  - src/lib/design/primitive/**
-  - src/routes/**
-  - src/app.css
+  - apps/desktop/src/lib/**/component/**
+  - apps/desktop/src/lib/design/block/**
+  - apps/desktop/src/lib/design/cell/**
+  - apps/desktop/src/lib/design/primitive/**
+  - apps/desktop/src/routes/**
+  - apps/desktop/src/app.css
 use-when: "designing or restyling a surface, a block, a cell, or a primitive"
 ---
 
