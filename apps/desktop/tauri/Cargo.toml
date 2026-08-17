@@ -1,5 +1,8 @@
 [package]
-name = "rentable"
+# `rentable-desktop` renders `@rentable/desktop` — the package this crate ships inside — in the
+# character set cargo allows. It names the crate and nothing a user ever sees: the product is
+# `tauri.conf.json`'s `productName`, still `rentable`, and the executable is the `[[bin]]` below.
+name = "rentable-desktop"
 version = "0.12.0"
 description = "a rents payment tracker"
 authors = ["saud-alnasser"]
@@ -7,11 +10,21 @@ edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+# The binary keeps the product's name, and it is named here rather than left to cargo — which
+# would derive it from the package above. Tauri bundles cargo's output binary as it finds it
+# (`mainBinaryName` exists only to rename it afterwards), so a package name reaching this field
+# would put `rentable-desktop.exe` inside every installer and change the executable an already
+# installed copy is updated over. `path` is explicit because naming a target opts out of the
+# discovery that would otherwise find `src/main.rs`.
+name = "rentable"
+path = "src/main.rs"
+
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "rentable_lib"
+name = "rentable_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
