@@ -5,6 +5,7 @@ pub mod diagnostics;
 pub mod error;
 pub mod export;
 pub mod http;
+mod import;
 pub mod persisted;
 pub mod settings;
 pub mod state;
@@ -44,6 +45,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(updater_plugin.build())
         .setup(|app| {
@@ -175,6 +177,7 @@ pub fn run() {
             sync::remote_sync_google_drive_resolve_conflict,
             export::export_write,
             export::export_write_workbook,
+            import::import_read,
             update::update_prepare,
             bootstrap::bootstrap,
         ])

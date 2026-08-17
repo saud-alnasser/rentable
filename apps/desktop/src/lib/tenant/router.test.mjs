@@ -586,3 +586,99 @@ test('a search answers at most the number of records it was asked for', async ()
 
 	assert.equal((await api.tenant.search({ term: 'Tenant', limit: 2 })).length, 2);
 });
+
+// --- import -------------------------------------------------------------------------
+
+function importable(suffix) {
+	return {
+		name: `Imported ${suffix}`,
+		nationalId: `1${String(suffix).padStart(9, '0')}`,
+		phone: `+9665${String(suffix).padStart(8, '0')}`
+	};
+}
+
+test('a set of tenants is created in one write', async () => {
+	const api = await createApi();
+
+	const created = await api.tenant.importMany({
+		records: [importable(1), importable(2), importable(3)]
+	});
+
+	assert.equal(created.length, 3);
+	assert.deepEqual((await api.tenant.getMany({})).map((tenant) => tenant.name).sort(), [
+		'Imported 1',
+		'Imported 2',
+		'Imported 3'
+	]);
+});
+
+// the criterion, and the one the ticket says matters: a partially applied import is the failure
+// this exists to prevent. The batch runs inside a transaction, so a refusal anywhere writes
+// nothing — including the rows that were fine.
+test('a set carrying one unusable record writes none of it', async () => {
+	const api = await createApi();
+	const held = await api.tenant.create(importable(1));
+
+	await assert.rejects(
+		() =>
+			api.tenant.importMany({
+				records: [importable(2), { ...importable(3), nationalId: held.nationalId }]
+			}),
+		/national id/i
+	);
+
+	// the workspace is exactly as it was: the one tenant that existed, and nothing beside it.
+	assert.deepEqual(
+		(await api.tenant.getMany({})).map((tenant) => tenant.name),
+		['Imported 1']
+	);
+});
+
+test('and a set colliding on a phone is refused the same way', async () => {
+	const api = await createApi();
+	const held = await api.tenant.create(importable(1));
+
+	await assert.rejects(
+		() => api.tenant.importMany({ records: [{ ...importable(2), phone: held.phone }] }),
+		/phone/i
+	);
+
+	assert.equal((await api.tenant.getMany({})).length, 1);
+});
+
+test('the identities already held are answered as pairs, for a file to be checked against', async () => {
+	const api = await createApi();
+	const held = await api.tenant.create(importable(4));
+
+	assert.deepEqual(await api.tenant.identities(), [[held.nationalId, held.phone]]);
+});
+
+// the round trip: what a directory writes out is what it reads back. The export renders through
+// the surface's own columns, so this asserts on the values those columns carry.
+test('a file exported from the directory imports back with no rows changed', async () => {
+	const source = await createApi();
+	const written = [importable(5), importable(6)];
+
+	for (const record of written) {
+		await source.tenant.create(record);
+	}
+
+	// what the export would put on disk: the row's own fields, as text.
+	const exported = (await source.tenant.getMany({})).map((tenant) => ({
+		name: tenant.name,
+		nationalId: tenant.nationalId,
+		phone: tenant.phone
+	}));
+
+	// a second workspace, which is what importing into a fresh one means.
+	const destination = await createApi();
+	await destination.tenant.importMany({ records: exported });
+
+	const round = (await destination.tenant.getMany({})).map((tenant) => ({
+		name: tenant.name,
+		nationalId: tenant.nationalId,
+		phone: tenant.phone
+	}));
+
+	assert.deepEqual(round, exported);
+});

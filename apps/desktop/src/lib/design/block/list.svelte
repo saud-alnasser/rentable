@@ -24,6 +24,7 @@
 
 <script lang="ts" generics="TData extends { id: number }, TGroup extends ListGroup">
 	import { browser } from '$app/environment';
+	import ExportDialog from '$lib/design/block/export-dialog.svelte';
 	import { Button } from '$lib/design/primitive/button';
 	import { Checkbox } from '$lib/design/primitive/checkbox';
 	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
@@ -32,7 +33,6 @@
 	import { Spinner } from '$lib/design/primitive/spinner';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import {
-		EXPORT_FORMATS,
 		toCsv,
 		toExportFileName,
 		toExportSheet,
@@ -70,7 +70,7 @@
 	import ChecklistIcon from '@tabler/icons-svelte/icons/list-check';
 	import ChevronDownIcon from '@tabler/icons-svelte/icons/chevron-down';
 	import FilterIcon from '@tabler/icons-svelte/icons/filter';
-	import TableExportIcon from '@tabler/icons-svelte/icons/table-export';
+	import TransferIcon from '@tabler/icons-svelte/icons/transfer';
 	import ChevronUpIcon from '@tabler/icons-svelte/icons/chevron-up';
 	import PlusIcon from '@tabler/icons-svelte/icons/plus';
 	import SearchIcon from '@tabler/icons-svelte/icons/search';
@@ -170,6 +170,14 @@
 		 */
 		recordMinWidth?: number;
 		/**
+		 * Read a file into this list.
+		 *
+		 * Given it, the toolbar's menu gains an import group beside the export one. What a file
+		 * means is the concept's — which columns it reads, what makes a row valid, and what the
+		 * write is — so this only says that the direction exists here.
+		 */
+		onImport?: () => void;
+		/**
 		 * What the surface offers for the records currently selected.
 		 *
 		 * Giving it is what turns selection on: a list with nothing to do to several records at
@@ -204,6 +212,7 @@
 		onCreate,
 		filterOptions = [],
 		filters = $bindable({}),
+		onImport,
 		selectionActions,
 		selected = $bindable([]),
 		exportAs,
@@ -221,6 +230,7 @@
 	const OVERSCAN_ROWS = 8;
 
 	let isExporting = $state(false);
+	let isExportDialogOpen = $state(false);
 
 	// written from `data` rather than from a fresh read: the file is what the list is showing,
 	// under the search and the order it is showing it under.
@@ -661,7 +671,7 @@
 					</DropdownMenu.Content>
 				</DropdownMenu.Root>
 			{/if}
-			{#if exportAs}
+			{#if exportAs || onImport}
 				<!-- a menu rather than the bare icon it was: the icon could say *export* and nothing
 				     else, so a second format had nowhere to be named and neither had the direction.
 				     The groups are the directions, which is what leaves the import one a place to be
@@ -676,29 +686,35 @@
 								aria-label={$LL.common.actions.transferData()}
 								disabled={isExporting}
 							>
-								<!-- this list, leaving. A download arrow describes fetching from somewhere
-								     remote, and there is nowhere remote: the file is written to disk here.
+								<!-- both directions, because the control now offers both: an arrow leaving a
+								     table said *export* and left the import item under a glyph contradicting
+								     it. Two arrows, one each way.
 
-								     Mirrored rather than rotated, unlike every other directional glyph here:
-								     the arrow has to swap sides, and a half turn would take the table's header
-								     row to the bottom with it. -->
-								<TableExportIcon class="rtl:-scale-x-100" />
+								     Not mirrored in the other reading direction, unlike every directional
+								     glyph here — a pair that already points both ways is the same pair
+								     reflected, and the class would only swap which arrow is on top. -->
+								<TransferIcon />
 							</Button>
 						{/snippet}
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end">
-						<DropdownMenu.Label class="capitalize">
-							{$LL.common.actions.export()}
-						</DropdownMenu.Label>
-						<DropdownMenu.Separator />
-						{#each EXPORT_FORMATS as format (format)}
+						<!-- the two directions, and nothing else. Which file an export becomes is not a
+						     third action beside them — it is a question about one of the two, and it is
+						     asked in a dialog of its own once that one is chosen. -->
+						{#if exportAs}
 							<DropdownMenu.Item
 								disabled={!hasResults || isExporting}
-								onSelect={() => void exportRows(format)}
+								onSelect={() => (isExportDialogOpen = true)}
 							>
-								<span class="flex-1">{$LL.common.formats[format]()}</span>
+								<span class="flex-1 capitalize">{$LL.common.actions.export()}</span>
 							</DropdownMenu.Item>
-						{/each}
+						{/if}
+
+						{#if onImport}
+							<DropdownMenu.Item onSelect={() => onImport?.()}>
+								<span class="flex-1 capitalize">{$LL.common.actions.import()}</span>
+							</DropdownMenu.Item>
+						{/if}
 					</DropdownMenu.Content>
 				</DropdownMenu.Root>
 			{/if}
@@ -835,3 +851,8 @@
 		{/if}
 	</div>
 </div>
+
+{#if exportAs}
+	<!-- which file this list becomes, asked once the direction is chosen. -->
+	<ExportDialog bind:open={isExportDialogOpen} {isExporting} onExport={exportRows} />
+{/if}

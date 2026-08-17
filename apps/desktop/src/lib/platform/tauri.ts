@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import {
 	openUrl as openExternalUrl,
 	revealItemInDir as revealInFileManager
@@ -16,6 +17,12 @@ export type Settings = {
 
 /** One sheet of a workbook, every cell already rendered as the surface shows it. */
 export type ExportSheet = {
+	headers: string[];
+	rows: string[][];
+};
+
+/** A file read back in: the heading row, and the rows under it, all as text. */
+export type ImportTable = {
 	headers: string[];
 	rows: string[][];
 };
@@ -217,6 +224,36 @@ export const tauri = {
 		 */
 		writeWorkbook: (name: string, sheet: ExportSheet) =>
 			invoke<string>('export_write_workbook', { name, sheet })
+	},
+	import: {
+		/**
+		 * Read a file the user chose, as a table of text.
+		 *
+		 * Asymmetric with `export.write` on purpose. An export answers *where it landed* and is
+		 * never told where to put it; an import has to be told which file, so this takes a path —
+		 * one the user picked through the dialog below, never one the web layer composed.
+		 *
+		 * What comes back is strings. Which column means what, and whether a row is a record, are
+		 * questions about tenants and contracts that the reader does not answer.
+		 */
+		read: (path: string) => invoke<ImportTable>('import_read', { path })
+	},
+	dialog: {
+		/**
+		 * Ask the user for a file, answering its path or nothing where they walked away.
+		 *
+		 * The formats offered are the ones the export writes, because the file this reads is
+		 * meant to be the file it produced.
+		 */
+		openFile: async () => {
+			const chosen = await openFileDialog({
+				multiple: false,
+				directory: false,
+				filters: [{ name: 'spreadsheet', extensions: ['csv', 'xlsx', 'xls', 'xlsm'] }]
+			});
+
+			return typeof chosen === 'string' ? chosen : null;
+		}
 	},
 	diagnostics: {
 		write: (record: DiagnosticRecord) => invoke<void>('diagnostics_write', { record })

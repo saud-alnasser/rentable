@@ -102,7 +102,7 @@ fn opens_a_formula(value: &str) -> bool {
 }
 
 /// A cell as it is written: defused where a spreadsheet would otherwise execute it.
-fn to_cell(value: &str) -> String {
+pub(crate) fn to_cell(value: &str) -> String {
     if opens_a_formula(value) {
         format!("'{value}")
     } else {
