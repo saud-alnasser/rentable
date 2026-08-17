@@ -17,16 +17,27 @@ export type UndoIntent = 'undo' | 'redo';
  * which never looked at it — and that both stand down inside a field where those keys mean the
  * text editor's own undo and always will.
  *
+ * Each says why it cannot run when the stack in that direction is empty. That is not for the
+ * keyboard, which gets a no-op either way — it is for the palette, which offers both by name
+ * and would otherwise show a reader a row that does nothing and explains nothing.
+ *
  * @param apply what each direction does. Passed in because the stack is reached through a query
  * client the shell holds and this module has no business knowing about.
+ * @param hasChange whether there is anything to apply in a direction, for the same reason: the
+ * stack's reactive face is a rune module, and this one is read by a test running under Node.
  */
-export function toUndoShortcuts(apply: (intent: UndoIntent) => void): ApplicationShortcut[] {
+export function toUndoShortcuts(
+	apply: (intent: UndoIntent) => void,
+	hasChange: (intent: UndoIntent) => boolean
+): ApplicationShortcut[] {
 	return [
 		{
 			id: 'undo',
 			scope: 'application',
 			keys: [{ key: UNDO_KEY, command: true, shift: false }],
 			describe: (translations) => translations.common.undo.undo(),
+			unavailable: (translations) =>
+				hasChange('undo') ? undefined : translations.common.undo.nothingToUndo(),
 			standsDownWhileEditing: true,
 			run: () => apply('undo')
 		},
@@ -38,6 +49,8 @@ export function toUndoShortcuts(apply: (intent: UndoIntent) => void): Applicatio
 				{ key: REDO_KEY, command: true }
 			],
 			describe: (translations) => translations.common.undo.redo(),
+			unavailable: (translations) =>
+				hasChange('redo') ? undefined : translations.common.undo.nothingToRedo(),
 			standsDownWhileEditing: true,
 			run: () => apply('redo')
 		}

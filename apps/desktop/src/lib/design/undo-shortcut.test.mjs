@@ -11,11 +11,11 @@ import { toUndoShortcuts } from './undo-shortcut.ts';
  * reaches is the registry's decision now, and asserting on the declaration alone would pass over
  * a matcher that had stopped answering.
  */
-function openStack() {
+function openStack({ has = () => true } = {}) {
 	const applied = [];
 	const registry = new ShortcutRegistry(() => {});
 
-	for (const registration of toUndoShortcuts((intent) => applied.push(intent))) {
+	for (const registration of toUndoShortcuts((intent) => applied.push(intent), has)) {
 		registry.register(registration);
 	}
 
@@ -98,11 +98,54 @@ test('anything else leaves the shortcut to the application', () => {
 	assert.equal(openStack().press({ ...held, key: 'z', code: 'KeyZ' }, null), 'undo');
 });
 
+const undoTranslations = {
+	common: {
+		undo: {
+			undo: () => 'undo',
+			redo: () => 'redo',
+			nothingToUndo: () => 'nothing to take back',
+			nothingToRedo: () => 'nothing to apply again'
+		}
+	}
+};
+
 test('the pair names both directions for the sheet', () => {
 	assert.deepEqual(
-		toUndoShortcuts(() => {}).map((registration) =>
-			registration.describe({ common: { undo: { undo: () => 'undo', redo: () => 'redo' } } })
-		),
+		toUndoShortcuts(
+			() => {},
+			() => true
+		).map((registration) => registration.describe(undoTranslations)),
 		['undo', 'redo']
 	);
+});
+
+// each direction reads its own end of the stack: a change taken back leaves nothing to undo and
+// something to apply again, and a pair that answered from one end would say the opposite of one
+// of them.
+test('each direction says why it cannot run, from its own end of the stack', () => {
+	const [undo, redo] = toUndoShortcuts(
+		() => {},
+		(intent) => intent === 'redo'
+	);
+
+	assert.equal(undo.unavailable(undoTranslations), 'nothing to take back');
+	assert.equal(redo.unavailable(undoTranslations), undefined);
+});
+
+test('and neither says anything while there is something to apply', () => {
+	const [undo, redo] = toUndoShortcuts(
+		() => {},
+		() => true
+	);
+
+	assert.equal(undo.unavailable(undoTranslations), undefined);
+	assert.equal(redo.unavailable(undoTranslations), undefined);
+});
+
+// the keydown never consults it: a shortcut whose work is a no-op is a no-op either way, and
+// there is nobody listening for a reason.
+test('an empty stack still answers the keydown, and moves nothing', () => {
+	const stack = openStack({ has: () => false });
+
+	assert.equal(stack.press({ ...held, key: 'z', code: 'KeyZ' }), 'undo');
 });
