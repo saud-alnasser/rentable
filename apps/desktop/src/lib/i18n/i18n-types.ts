@@ -642,6 +642,10 @@ type RootTranslation = {
 		}
 		table: {
 			/**
+			 * s​e​a​r​c​h​ ​t​h​i​s​ ​l​i​s​t
+			 */
+			focusSearch: string
+			/**
 			 * g​o​ ​t​o​ ​f​i​r​s​t​ ​p​a​g​e
 			 */
 			goToFirstPage: string
@@ -657,6 +661,14 @@ type RootTranslation = {
 			 * g​o​ ​t​o​ ​p​r​e​v​i​o​u​s​ ​p​a​g​e
 			 */
 			goToPreviousPage: string
+			/**
+			 * m​o​v​e​ ​b​e​t​w​e​e​n​ ​r​e​c​o​r​d​s
+			 */
+			moveBetweenRecords: string
+			/**
+			 * o​p​e​n​ ​t​h​e​ ​f​o​c​u​s​e​d​ ​r​e​c​o​r​d
+			 */
+			openRecord: string
 			/**
 			 * p​a​g​e​ ​{​p​a​g​e​}​ ​o​f​ ​{​c​o​u​n​t​}
 			 * @param {unknown} count
@@ -2582,6 +2594,10 @@ export type TranslationFunctions = {
 		}
 		table: {
 			/**
+			 * search this list
+			 */
+			focusSearch: () => LocalizedString
+			/**
 			 * go to first page
 			 */
 			goToFirstPage: () => LocalizedString
@@ -2597,6 +2613,14 @@ export type TranslationFunctions = {
 			 * go to previous page
 			 */
 			goToPreviousPage: () => LocalizedString
+			/**
+			 * move between records
+			 */
+			moveBetweenRecords: () => LocalizedString
+			/**
+			 * open the focused record
+			 */
+			openRecord: () => LocalizedString
 			/**
 			 * page {page} of {count}
 			 */

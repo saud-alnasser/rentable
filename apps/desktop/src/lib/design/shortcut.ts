@@ -8,6 +8,24 @@
  * The registry that holds them is `shortcut-registry.ts`; nothing here knows it exists.
  */
 
+/** the physical keys whose name is not derived from the character sitting on them. */
+const PHYSICAL_KEYS: Record<string, string> = { '/': 'Slash' };
+
+/**
+ * The physical key a shortcut's character sits on, as `KeyboardEvent.code` names it.
+ *
+ * A letter's is its own name under `Key`. A key that is named rather than typed — `ArrowDown`,
+ * `Enter` — reports the same string as both `key` and `code`, so it is its own answer. What is
+ * left is punctuation, where the two disagree and the mapping has to be stated.
+ */
+function toPhysicalKey(character: string) {
+	if (character.length > 1) {
+		return character;
+	}
+
+	return PHYSICAL_KEYS[character] ?? `Key${character.toUpperCase()}`;
+}
+
 /**
  * Whether a keydown carries the given shortcut character, ignoring modifiers.
  *
@@ -16,10 +34,11 @@
  * locale this application treats as first-class; accepting either half also keeps it live
  * under a layout that moves the character somewhere else.
  *
- * @param character the shortcut's character, as a single lowercase letter.
+ * @param character the shortcut's character — a single lowercase letter, a punctuation mark, or
+ * the name of a key that types nothing.
  */
 export function matchesShortcutKey(event: Pick<KeyboardEvent, 'key' | 'code'>, character: string) {
-	return event.key === character || event.code === `Key${character.toUpperCase()}`;
+	return event.key === character || event.code === toPhysicalKey(character);
 }
 
 /** the elements that take typing, and whose own editing shortcuts a surface must not take. */
@@ -56,7 +75,10 @@ export function isEditingText(target?: EventTarget | null) {
  * silently take `ctrl shift k` away from a reader who has been pressing it.
  */
 export type ShortcutCombination = {
-	/** the shortcut's character, as a single lowercase letter. */
+	/**
+	 * the shortcut's character — a single lowercase letter, a punctuation mark, or the name a key
+	 * that types nothing reports, as `ArrowDown` and `Enter` do.
+	 */
 	key: string;
 	/** ctrl on a PC keyboard and command on an Apple one; either satisfies it. */
 	command?: boolean;
@@ -116,6 +138,20 @@ const APPLE_MODIFIERS = { command: '⌘', shift: '⇧' };
 const KEYBOARD_MODIFIERS = { command: 'Ctrl', shift: 'Shift' };
 
 /**
+ * what a key is printed as, where the name it reports is not what a reader would look for.
+ *
+ * The arrows are the glyphs on the keys themselves, which is shorter than their names and is
+ * the same in both locales — the sheet prints the keyboard, not the language.
+ */
+const PRINTED_KEYS: Record<string, string> = {
+	ArrowUp: '↑',
+	ArrowDown: '↓',
+	ArrowLeft: '←',
+	ArrowRight: '→',
+	Enter: 'Enter'
+};
+
+/**
  * Whether the keyboard prints modifier symbols rather than modifier words.
  *
  * Read at the point of use rather than at module load: this file is imported by tests running
@@ -147,5 +183,5 @@ export function toShortcutHint(combination: ShortcutCombination, isAppleKeyboard
 		held.push(modifiers.shift);
 	}
 
-	return [...held, combination.key.toUpperCase()].join(' ');
+	return [...held, PRINTED_KEYS[combination.key] ?? combination.key.toUpperCase()].join(' ');
 }
