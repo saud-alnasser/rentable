@@ -1,5 +1,5 @@
 ---
-aep: 2.1.1
+aep: 2.3.0
 owner: repository
 date: 2026-08-17
 kind: reference
@@ -8,7 +8,8 @@ use-when: "branching, committing, or restacking — gt replaces git commit here"
 
 # gt — Graphite (stacked changes)
 
-Derived from: aep/graphite.md
+**This file is yours.** It records how `gt` is actually operated here; correct it
+where the repository differs rather than deferring to what a seed said.
 
 Docs: https://graphite.com/docs
 Fetch the docs when: a subcommand or flag you need is not listed below.
@@ -32,7 +33,7 @@ gt log --stack          # NOT a probe: initialises the repo, then exits 0
 
 Verified on gt 1.8.6 in a repo that had never seen `gt`. It printed `Graphite has not been initialized, attempting to setup now...`, set trunk to `main`, then failed with `ERROR: Cannot perform this operation on untracked branch <name>` — and wrote `.graphite_repo_config`, `.graphite_metadata.db`, `.graphite_pr_info`, and `.gtlocalprinfo` into `.git/`, **and exited 0** — so a probe keyed on a non-zero exit reads an uninitialised repo as initialised, having just made that true. Nothing lands in the tracked tree, so `git status` stays clean and the change is invisible where you would look for it.
 
-On a repo that is not on Graphite, use [git.md](git.md) and don't offer to initialize one unasked.
+On a repo that is not on Graphite, use [[references/git]] and don't offer to initialize one unasked.
 
 ## The model
 
@@ -46,7 +47,7 @@ The consequence that matters: **one branch is one commit's worth of reviewable c
 gt create <name> -m "type(scope): summary"
 ```
 
-`gt create` branches *and* commits in one step — it is not `git checkout -b`. It commits what is staged; `-a` stages everything tracked first, and carries the same objection as `git commit -a` (see [git.md](git.md)), so stage explicitly instead.
+`gt create` branches *and* commits in one step — it is not `git checkout -b`. It commits what is staged; `-a` stages everything tracked first, and carries the same objection as `git commit -a` (see [[references/git]]), so stage explicitly instead.
 
 Stacking is implicit: the new branch sits on top of whatever is checked out. To stack on something else, check that out first or pass `-o, --onto <branch>`.
 
