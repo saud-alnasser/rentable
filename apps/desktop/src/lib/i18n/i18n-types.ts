@@ -777,6 +777,14 @@ type RootTranslation = {
 			 */
 			commandPaletteGoTo: string
 			/**
+			 * k​e​y​b​o​a​r​d​ ​s​h​o​r​t​c​u​t​s
+			 */
+			keyboardShortcuts: string
+			/**
+			 * e​v​e​r​y​ ​k​e​y​ ​t​h​i​s​ ​a​p​p​l​i​c​a​t​i​o​n​ ​a​n​s​w​e​r​s​,​ ​w​h​e​r​e​v​e​r​ ​y​o​u​ ​a​r​e​.
+			 */
+			keyboardShortcutsDescription: string
+			/**
 			 * l​o​a​d​i​n​g
 			 */
 			loading: string
@@ -2655,6 +2663,14 @@ export type TranslationFunctions = {
 			 * go to
 			 */
 			commandPaletteGoTo: () => LocalizedString
+			/**
+			 * keyboard shortcuts
+			 */
+			keyboardShortcuts: () => LocalizedString
+			/**
+			 * every key this application answers, wherever you are.
+			 */
+			keyboardShortcutsDescription: () => LocalizedString
 			/**
 			 * loading
 			 */

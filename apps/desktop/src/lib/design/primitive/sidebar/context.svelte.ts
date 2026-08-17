@@ -1,5 +1,5 @@
 import { IsBelowShellBreakpoint } from '$lib/design/is-below-shell-breakpoint.svelte.js';
-import { matchesShortcutKey } from '$lib/design/shortcut.js';
+import { shortcuts } from '$lib/design/shortcut-registry.svelte.js';
 import { getContext, setContext } from 'svelte';
 import { SIDEBAR_KEYBOARD_SHORTCUT } from './constants.js';
 
@@ -43,20 +43,24 @@ class SidebarState {
 				this.openDrawer = false;
 			}
 		});
+
+		// registered rather than listened for: this was the one shortcut hidden inside a
+		// primitive, and nothing outside it could tell the application answered a key at all.
+		$effect(() =>
+			shortcuts.register({
+				id: 'sidebar.toggle',
+				scope: 'application',
+				keys: [{ key: SIDEBAR_KEYBOARD_SHORTCUT, command: true }],
+				describe: (translations) => translations.common.ui.toggleSidebar(),
+				run: this.toggle
+			})
+		);
 	}
 
 	/** Whether the navigation is presenting as an overlay drawer rather than as a rail. */
 	get presentsAsDrawer() {
 		return this.#isBelowShellBreakpoint.current;
 	}
-
-	// Event handler to apply to the `<svelte:window>`
-	handleShortcutKeydown = (e: KeyboardEvent) => {
-		if (matchesShortcutKey(e, SIDEBAR_KEYBOARD_SHORTCUT) && (e.metaKey || e.ctrlKey)) {
-			e.preventDefault();
-			this.toggle();
-		}
-	};
 
 	setOpenDrawer = (value: boolean) => {
 		this.openDrawer = value;

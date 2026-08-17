@@ -1,14 +1,17 @@
 <script lang="ts" module>
-	/** The key that opens and closes the palette, held with ctrl or command. */
-	const SHORTCUT_KEY = 'k';
+	import {
+		toShortcutHint,
+		usesAppleKeyboard,
+		type ShortcutCombination
+	} from '$lib/design/shortcut';
+
+	/** The keys that open and close the palette. */
+	const SHORTCUT_KEYS: ShortcutCombination = { key: 'k', command: true };
 
 	// the modifier is whichever one the platform's own shortcuts use, and both are accepted,
 	// so the hint has to name the one the reader will reach for rather than a fixed word.
-	const isAppleKeyboard =
-		typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
-
 	/** What a trigger prints for the shortcut this palette listens for. */
-	export const PALETTE_SHORTCUT_HINT = `${isAppleKeyboard ? '⌘' : 'Ctrl'} ${SHORTCUT_KEY.toUpperCase()}`;
+	export const PALETTE_SHORTCUT_HINT = toShortcutHint(SHORTCUT_KEYS, usesAppleKeyboard());
 </script>
 
 <script lang="ts">
@@ -16,7 +19,7 @@
 	import type { ResolvedPathname } from '$app/types';
 	import { withCreateIntent } from '$lib/design/create-intent';
 	import * as Command from '$lib/design/primitive/command';
-	import { matchesShortcutKey } from '$lib/design/shortcut.js';
+	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 	import { primaryDestinations, secondaryDestinations } from '$lib/layout/destination';
@@ -73,17 +76,18 @@
 		}
 	});
 
-	function handleShortcut(event: KeyboardEvent) {
-		if (!matchesShortcutKey(event, SHORTCUT_KEY) || !(event.metaKey || event.ctrlKey)) {
-			return;
-		}
-
-		event.preventDefault();
-		open = !open;
-	}
+	// registered rather than listened for: the keydown reaches the application's one listener,
+	// and the sheet reads what is registered here without being told about it.
+	$effect(() =>
+		shortcuts.register({
+			id: 'palette.toggle',
+			scope: 'application',
+			keys: [SHORTCUT_KEYS],
+			describe: (translations) => translations.common.ui.commandPalette(),
+			run: () => (open = !open)
+		})
+	);
 </script>
-
-<svelte:window onkeydown={handleShortcut} />
 
 <Command.Dialog bind:open shouldFilter={false}>
 	<Command.Input bind:value={term} placeholder={$LL.common.table.searchPlaceholder()} />

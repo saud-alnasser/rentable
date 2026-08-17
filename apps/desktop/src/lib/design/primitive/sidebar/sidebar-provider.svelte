@@ -23,7 +23,9 @@
 		onOpenChange?: (open: boolean) => void;
 	} = $props();
 
-	const sidebar = setSidebar({
+	// the toggle's keys are registered by the state this creates, and answered by the
+	// application's one listener; there is no window listener of this primitive's own.
+	setSidebar({
 		open: () => open,
 		setOpen: (value: boolean) => {
 			open = value;
@@ -34,8 +36,6 @@
 		}
 	});
 </script>
-
-<svelte:window onkeydown={sidebar.handleShortcutKeydown} />
 
 <Tooltip.Provider delayDuration={0}>
 	<div
