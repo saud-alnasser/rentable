@@ -1,6 +1,6 @@
 import type { Database } from '$lib/api/context';
 import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
-import { matchesSearch } from '$lib/platform/database/search';
+import { matchesAnySearch } from '$lib/platform/database/search';
 import { ensureIdFree } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ContractSchema } from '$lib/platform/database/schema';
@@ -37,7 +37,7 @@ import dashboard from '$lib/dashboard/router';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import payment from '$lib/payment/router';
 import { TRPCError } from '@trpc/server';
-import { and, asc, desc, eq, inArray, like, or, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
 // status and the payment aggregates are derived columns: reconcile owns them, so no
@@ -248,29 +248,17 @@ function contractOrderBy(sort: z.infer<typeof ContractSortSchema> | undefined): 
 }
 
 // every field the list can be searched by, whether or not the row shows it — a field dropped
-// from a surface is never dropped from search.
-//
-// `%` and `_` are LIKE's own wildcards, so a term carrying either is escaped before it
-// becomes a pattern: a user searching for "50%" is looking for that text, not asking to
-// match everything.
-function contractSearchCondition(search: string) {
-	const pattern = `%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
-	const like = (column: SQL | AnyColumn) =>
-		sql`lower(cast(${column} as text)) like lower(${pattern}) escape '\\'`;
-
-	return sql.join(
-		[
-			like(s.contract.govId),
-			like(s.tenant.name),
-			like(s.tenant.phone),
-			like(s.contract.tenantId),
-			like(s.contract.status),
-			like(s.contract.interval),
-			like(s.contract.cost)
-		],
-		sql` or `
-	);
-}
+// from a surface is never dropped from search. The comparison itself is the shared one, so a
+// term folds and a column folds the same way here as everywhere else.
+const CONTRACT_SEARCH_COLUMNS: readonly (SQL | AnyColumn)[] = [
+	s.contract.govId,
+	s.tenant.name,
+	s.tenant.phone,
+	s.contract.tenantId,
+	s.contract.status,
+	s.contract.interval,
+	s.contract.cost
+];
 
 export default router({
 	create: procedure.public
@@ -563,9 +551,7 @@ export default router({
 				.select({ id: s.contract.id, govId: s.contract.govId, tenantName: s.tenant.name })
 				.from(s.contract)
 				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
-				.where(
-					or(matchesSearch(s.contract.govId, input.term), matchesSearch(s.tenant.name, input.term))
-				)
+				.where(matchesAnySearch([s.contract.govId, s.tenant.name], input.term))
 				.orderBy(desc(s.contract.id))
 				.limit(input.limit);
 
@@ -648,7 +634,7 @@ export default router({
 						input.tenantId !== undefined ? eq(s.contract.tenantId, input.tenantId) : undefined,
 						input.unitId !== undefined ? contractHoldsUnit(input.unitId) : undefined,
 						input.complexId !== undefined ? contractHoldsUnitInComplex(input.complexId) : undefined,
-						search ? contractSearchCondition(search) : undefined
+						search ? matchesAnySearch(CONTRACT_SEARCH_COLUMNS, search) : undefined
 					)
 				)
 				.orderBy(...contractOrderBy(input.sort));
@@ -730,7 +716,6 @@ export default router({
 				const now = ctx.clock.now();
 				const contract = await selectContract(ctx.db, input.contractId);
 				const search = input.search?.trim();
-				const searchPattern = search ? `%${search}%` : undefined;
 
 				const units = await ctx.db
 					.select({
@@ -741,11 +726,7 @@ export default router({
 					})
 					.from(s.unit)
 					.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
-					.where(
-						searchPattern
-							? or(like(s.unit.name, searchPattern), like(s.complex.name, searchPattern))
-							: undefined
-					)
+					.where(search ? matchesAnySearch([s.unit.name, s.complex.name], search) : undefined)
 					.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id));
 
 				const unitIds = units.map((unit) => unit.id);

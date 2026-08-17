@@ -1,5 +1,5 @@
 import { identityField, phone } from '$lib/tenant/tenant';
-import { relations } from 'drizzle-orm';
+import { relations, type AnyColumn } from 'drizzle-orm';
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import z from 'zod';
 
@@ -22,6 +22,23 @@ export const TenantSchema = z.object({
 });
 
 export type Tenant = z.infer<typeof TenantSchema>;
+
+/**
+ * The text columns whose stored side cannot hold a character search folding would change,
+ * declared here because only the schema knows — and placed beside the schema above, which is
+ * what makes it true: `identityField` anchors to `[12]\d{9}` and the phone pattern to
+ * `\+9665…[0-9]{7}`, and neither `\d` nor `[0-9]` matches an Arabic-Indic digit. A value that
+ * would fold differently is refused on the way in, so folding these on read compares a column
+ * against itself.
+ *
+ * Only text columns appear. A numeric column and an enum are recognised from their own
+ * definition rather than listed here — see `storedSideCanFold` in `./search`.
+ *
+ * **Removing a column from this list is always safe; adding one is not.** An entry whose
+ * validator stops enforcing ASCII makes that column silently unfindable by a search typed in
+ * the other spelling, which is why each entry owes a test that its validator still refuses one.
+ */
+export const ASCII_ONLY_COLUMNS: readonly AnyColumn[] = [tenant.nationalId, tenant.phone];
 
 export const complex = sqliteTable('complex', {
 	id: integer('id').primaryKey().unique(),
