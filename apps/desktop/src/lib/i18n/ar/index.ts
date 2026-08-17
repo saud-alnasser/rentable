@@ -301,7 +301,7 @@ const ar = {
 		},
 
 		figures: {
-			collectedThisMonth: 'المحصل هذا الشهر',
+			collected: 'المحصل',
 			occupiedUnits: 'الوحدات المشغولة',
 			outstanding: 'المستحق'
 		},

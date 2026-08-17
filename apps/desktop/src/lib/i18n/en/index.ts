@@ -305,7 +305,7 @@ const en = {
 		},
 
 		figures: {
-			collectedThisMonth: 'collected this month',
+			collected: 'collected',
 			occupiedUnits: 'occupied units',
 			outstanding: 'outstanding'
 		},

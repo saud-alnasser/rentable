@@ -69,7 +69,8 @@ export function useSetEndingSoonNoticeDays(
 
 			await Promise.all([
 				client.invalidateQueries({ queryKey: keys.settings }),
-				client.invalidateQueries({ queryKey: dashboardKeys.get })
+				// the prefix, so the screen is refreshed whichever period it is currently showing.
+				client.invalidateQueries({ queryKey: dashboardKeys.all })
 			]);
 
 			onMutationSuccess(opts);

@@ -1,7 +1,8 @@
 import * as s from '$lib/platform/database/schema';
 import { type Contract } from '$lib/platform/database/schema';
-import { getCurrentMonthBounds } from '$lib/api/date';
+import { FILTER_PERIODS, toPeriodRange } from '$lib/api/period';
 import { procedure } from '$lib/api/trpc';
+import { isPaymentWithinPeriod } from '$lib/payment/period';
 import { getExpectedAmountBy, getExpectedAmountInRange } from '$lib/contract/contract';
 import { serializeContract } from '$lib/contract/serialize';
 import {
@@ -16,7 +17,8 @@ import {
 	type ContractRank,
 	type ContractRankSummary
 } from '$lib/contract/rank';
-import { and, eq, gte, lte, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
+import z from 'zod';
 
 /**
  * DASHBOARD ROUTER
@@ -51,7 +53,13 @@ type DashboardQueueEntry = {
 
 /** The portfolio figures the screen's band carries, and nothing else. */
 type DashboardSummary = {
-	money: { dueThisMonth: number; collectedThisMonth: number };
+	/**
+	 * what was expected and what came in, over the period asked about.
+	 *
+	 * Named for what they are rather than for a month: the screen used to be able to answer about
+	 * the current one and nothing else, so *this month* was part of what the figures meant.
+	 */
+	money: { due: number; collected: number };
 	occupancy: { totalUnits: number; occupiedUnits: number };
 };
 
@@ -62,104 +70,128 @@ type DashboardData = {
 	summary: DashboardSummary;
 };
 
-export default procedure.public.query(async ({ ctx }): Promise<DashboardData> => {
-	const now = ctx.clock.now();
-	const month = getCurrentMonthBounds(now);
-	const settings = await ctx.host.settings.get();
+/**
+ * What the screen may be asked, which is only ever *when*.
+ *
+ * Optional, and optional inside: the landing screen is opened without asking for anything, and
+ * the answer it gets then is the current month — the one thing it could answer about before it
+ * took a period at all.
+ */
+const DashboardInputSchema = z
+	.object({
+		/** which span of time the money figures answer about, from the vocabulary the lists offer. */
+		period: z.enum(FILTER_PERIODS).optional()
+	})
+	.optional();
 
-	const contracts = await ctx.db
-		.select({
-			contract: s.contract,
-			tenantName: s.tenant.name,
-			tenantPhone: s.tenant.phone
-		})
-		.from(s.contract)
-		.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id));
+export default procedure.public
+	.input(DashboardInputSchema)
+	.query(async ({ input, ctx }): Promise<DashboardData> => {
+		const now = ctx.clock.now();
+		const range = toPeriodRange(input?.period ?? 'this-month', now);
+		const settings = await ctx.host.settings.get();
 
-	const ranked = contracts
-		.flatMap(({ contract, tenantName, tenantPhone }): DashboardQueueEntry[] => {
-			const serializedContract = serializeContract(contract);
-			const outstandingAmount = Math.max(
-				getExpectedAmountBy(contract, now) - serializedContract.paidAmount,
+		const contracts = await ctx.db
+			.select({
+				contract: s.contract,
+				tenantName: s.tenant.name,
+				tenantPhone: s.tenant.phone
+			})
+			.from(s.contract)
+			.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id));
+
+		const ranked = contracts
+			.flatMap(({ contract, tenantName, tenantPhone }): DashboardQueueEntry[] => {
+				const serializedContract = serializeContract(contract);
+				const outstandingAmount = Math.max(
+					getExpectedAmountBy(contract, now) - serializedContract.paidAmount,
+					0
+				);
+				const rank = getContractRank(
+					serializedContract.status,
+					contract.end,
+					outstandingAmount,
+					now,
+					settings.endingSoonNoticeDays
+				);
+
+				if (!rank) {
+					return [];
+				}
+
+				return [
+					{
+						id: contract.id,
+						govId: serializedContract.govId,
+						status: serializedContract.status,
+						rank,
+						tenantName,
+						tenantPhone,
+						outstandingAmount,
+						contractEnd: serializedContract.end,
+						isEndingSoon: isContractEndingSoon(
+							serializedContract.status,
+							contract.end,
+							now,
+							settings.endingSoonNoticeDays
+						)
+					}
+				];
+			})
+			.sort(compareContractsByRank);
+
+		// summarized before the entries are capped, so a rank's count and total describe every
+		// contract under it. They are what the screen's way through to the rest is figured from.
+		const ranks = summarizeContractRanks(ranked);
+
+		// the band's figures describe the portfolio, so they are read over every contract rather
+		// than over the ranked ones. Only the columns the month's arithmetic needs.
+		const portfolio = await ctx.db
+			.select({
+				status: s.contract.status,
+				start: s.contract.start,
+				end: s.contract.end,
+				interval: s.contract.interval,
+				cost: s.contract.cost
+			})
+			.from(s.contract);
+
+		const due = portfolio
+			.filter(({ status }) => isContractIncludedInDashboardPortfolio(status))
+			.reduce(
+				(sum, contract) => sum + getExpectedAmountInRange(contract, range.start, range.end),
 				0
 			);
-			const rank = getContractRank(
-				serializedContract.status,
-				contract.end,
-				outstandingAmount,
-				now,
-				settings.endingSoonNoticeDays
-			);
 
-			if (!rank) {
-				return [];
-			}
+		// the same condition the payment statement is read with, imported rather than written again:
+		// the criterion this answers is that the two surfaces *agree*, and two clauses written to one
+		// intention are two chances to write it differently. It also fixes what the pair of bounds
+		// here used to do — `<= end` at midnight dropped every payment made during the last day of
+		// the month.
+		const collected = await ctx.db
+			.select({ amount: sql<number>`coalesce(sum(${s.payment.amount}), 0)` })
+			.from(s.payment)
+			.where(isPaymentWithinPeriod(input?.period ?? 'this-month', now))
+			.get();
 
-			return [
-				{
-					id: contract.id,
-					govId: serializedContract.govId,
-					status: serializedContract.status,
-					rank,
-					tenantName,
-					tenantPhone,
-					outstandingAmount,
-					contractEnd: serializedContract.end,
-					isEndingSoon: isContractEndingSoon(
-						serializedContract.status,
-						contract.end,
-						now,
-						settings.endingSoonNoticeDays
-					)
+		const occupancy = await ctx.db
+			.select({
+				totalUnits: sql<number>`count(${s.unit.id})`,
+				occupiedUnits: sql<number>`count(case when ${s.unit.status} = 'occupied' then 1 end)`
+			})
+			.from(s.unit)
+			.get();
+
+		return {
+			endingSoonNoticeDays: settings.endingSoonNoticeDays,
+			queue: takeEntriesShownPerRank(ranked),
+			ranks,
+			summary: {
+				money: { due, collected: collected?.amount ?? 0 },
+				occupancy: {
+					totalUnits: occupancy?.totalUnits ?? 0,
+					occupiedUnits: occupancy?.occupiedUnits ?? 0
 				}
-			];
-		})
-		.sort(compareContractsByRank);
-
-	// summarized before the entries are capped, so a rank's count and total describe every
-	// contract under it. They are what the screen's way through to the rest is figured from.
-	const ranks = summarizeContractRanks(ranked);
-
-	// the band's figures describe the portfolio, so they are read over every contract rather
-	// than over the ranked ones. Only the columns the month's arithmetic needs.
-	const portfolio = await ctx.db
-		.select({
-			status: s.contract.status,
-			start: s.contract.start,
-			end: s.contract.end,
-			interval: s.contract.interval,
-			cost: s.contract.cost
-		})
-		.from(s.contract);
-
-	const dueThisMonth = portfolio
-		.filter(({ status }) => isContractIncludedInDashboardPortfolio(status))
-		.reduce((sum, contract) => sum + getExpectedAmountInRange(contract, month.start, month.end), 0);
-
-	const collected = await ctx.db
-		.select({ amount: sql<number>`coalesce(sum(${s.payment.amount}), 0)` })
-		.from(s.payment)
-		.where(and(gte(s.payment.date, month.start), lte(s.payment.date, month.end)))
-		.get();
-
-	const occupancy = await ctx.db
-		.select({
-			totalUnits: sql<number>`count(${s.unit.id})`,
-			occupiedUnits: sql<number>`count(case when ${s.unit.status} = 'occupied' then 1 end)`
-		})
-		.from(s.unit)
-		.get();
-
-	return {
-		endingSoonNoticeDays: settings.endingSoonNoticeDays,
-		queue: takeEntriesShownPerRank(ranked),
-		ranks,
-		summary: {
-			money: { dueThisMonth, collectedThisMonth: collected?.amount ?? 0 },
-			occupancy: {
-				totalUnits: occupancy?.totalUnits ?? 0,
-				occupiedUnits: occupancy?.occupiedUnits ?? 0
 			}
-		}
-	};
-});
+		};
+	});

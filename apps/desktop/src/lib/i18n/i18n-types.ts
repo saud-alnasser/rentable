@@ -1031,9 +1031,9 @@ type RootTranslation = {
 		}
 		figures: {
 			/**
-			 * c​o​l​l​e​c​t​e​d​ ​t​h​i​s​ ​m​o​n​t​h
+			 * c​o​l​l​e​c​t​e​d
 			 */
-			collectedThisMonth: string
+			collected: string
 			/**
 			 * o​c​c​u​p​i​e​d​ ​u​n​i​t​s
 			 */
@@ -3008,9 +3008,9 @@ export type TranslationFunctions = {
 		}
 		figures: {
 			/**
-			 * collected this month
+			 * collected
 			 */
-			collectedThisMonth: () => LocalizedString
+			collected: () => LocalizedString
 			/**
 			 * occupied units
 			 */
