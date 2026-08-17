@@ -31,6 +31,7 @@ jobs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       release_tag: ${{ steps.detect.outputs.release_tag }}
       release_version: ${{ steps.detect.outputs.release_version }}
+      release_package: ${{ steps.detect.outputs.release_package }}
 
     steps:
       - name: '☁️ checkout repository'
@@ -102,13 +103,22 @@ jobs:
               core.setOutput('should_publish', 'false');
               core.setOutput('release_tag', '');
               core.setOutput('release_version', '');
+              core.setOutput('release_package', '');
               return;
             }
 
-            // Everything after the *final* `@`. The package name is scoped, so it carries an
-            // `@` of its own — splitting on the first one yields "rentable/desktop" as the
-            // version and names the release after it.
-            const releaseVersion = latestVersionTag.slice(latestVersionTag.lastIndexOf('@') + 1);
+            // The tag is `<name>@<version>` and the split is on the *final* `@`, because the
+            // package name is scoped and carries an `@` of its own — splitting on the first
+            // one yields "rentable/desktop" as the version and names the release after it.
+            //
+            // Both halves are outputs, and the name half is read here rather than spelled in
+            // the title below for the reason `changeset-tag.cjs` reads it rather than spelling
+            // it: a release that names a package other than the one it was cut from is a
+            // release nobody can trace back. It is also requirement 4 — a second publishable
+            // package titles its own releases without an edit to this file.
+            const separator = latestVersionTag.lastIndexOf('@');
+            const releasePackage = latestVersionTag.slice(0, separator);
+            const releaseVersion = latestVersionTag.slice(separator + 1);
 
             const { data: releases } = await github.rest.repos.listReleases({
               owner: context.repo.owner,
@@ -122,11 +132,13 @@ jobs:
 
             core.info(`Latest version tag: ${latestVersionTag}`);
             core.info(`Latest artifact tag: ${latestArtifactTag || '(none)'}`);
+            core.info(`Release package: ${releasePackage}`);
             core.info(`Release version: ${releaseVersion}`);
 
             core.setOutput('should_publish', shouldPublish ? 'true' : 'false');
             core.setOutput('release_tag', latestVersionTag);
             core.setOutput('release_version', releaseVersion);
+            core.setOutput('release_package', releasePackage);
 
   artifacts:
     needs: changesets
@@ -201,11 +213,13 @@ jobs:
         uses: tauri-apps/tauri-action@v1.0.0
         with:
           tagName: ${{ needs.changesets.outputs.release_tag }}
-          # The tag moved to the workspace convention; the release *title* deliberately did
-          # not. Five published releases are named `rentable v0.11.0` and so on, and that title
-          # is what a person scans the releases page for — `rentable @rentable/desktop@0.12.1`
-          # reads as a different product. Same version either way.
-          releaseName: 'rentable v${{ needs.changesets.outputs.release_version }}'
+          # The title names the package the release was cut from, so the releases page, the tag
+          # and the changelog all name the same thing. Both halves come from the tag — nothing
+          # here spells a package — and they are recomposed rather than used whole, because the
+          # tag joins them with `@` and a title reading `@rentable/desktop@0.12.1` is a tag on a
+          # page of titles. The five releases named `rentable v0.11.0` and so on keep those
+          # names — this changes what is cut next, not what is published.
+          releaseName: '${{ needs.changesets.outputs.release_package }} v${{ needs.changesets.outputs.release_version }}'
           generateReleaseNotes: true
           uploadUpdaterJson: true
           tauriScript: pnpm tauri

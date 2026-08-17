@@ -325,9 +325,26 @@ set `should_publish=false`, and **never publish again**. It moves to the package
 gains a `release_version` output taken from **after the final `@`** — the scope means the tag
 carries an `@` of its own, so splitting on the first one yields `rentable/desktop` as the version.
 
-The release *title* stays `rentable v<version>`. Five published releases are named that way and it
-is what a person scans the releases page for; the tag moving is not a reason for the product to
-appear to have been renamed.
+~~The release *title* stays `rentable v<version>`.~~ **The title follows the tag. Reversed
+2026-08-17**, on the human's direction, to `@rentable/desktop v<version>`.
+
+The paragraph this replaces argued that a person scans the releases page for the product's name
+and that the tag moving was no reason for the product to appear renamed. What it missed is that
+the page had stopped agreeing with itself: the tag, the changelog heading and the title named
+three different things, and the title was the only one of the three still carrying the
+pre-workspace name. Naming the package in it is what makes a release traceable to the package it
+was cut from — the same argument `changeset-tag.cjs` is built on, applied one field later.
+
+**Both halves are read off the tag, and nothing in `release.yml` spells a package.** The detection
+step already split on the final `@` for the version; it now keeps the name half too and publishes
+it as a `release_package` output, and the title recomposes the two. Reading rather than spelling is
+the rule `changeset-tag.cjs` is built on — a release naming a package other than the one it was cut
+from is a release nobody can trace back — and it is also requirement 4: a second publishable
+package titles its own releases with no edit to the workflow.
+
+Recomposed rather than used whole, because the tag joins name and version with `@`, and
+`@rentable/desktop@0.12.1` on a page of titles reads as a tag rather than as a release. The five
+published `rentable v*` releases keep their names; this changes what is cut next.
 
 **Names.** The root keeps `rentable` and the application becomes `@rentable/desktop`, so packages
 are named *within* the product's scope rather than beside it. This is free only because filtering
@@ -545,6 +562,9 @@ find the next release through the same unchanged endpoint. A hand-made compatibi
 the new one would be machinery with no consumer — the same thing `# Architecture` refused for
 `packages/schema`, and refused for the same reason.
 
-**What it does not touch.** The endpoint, the signing key, the four-platform matrix, the release
-*title*, the changelog's heading and history, and the version series itself — `@rentable/desktop`
-continues from 0.12.0 rather than restarting.
+**What it does not touch.** The endpoint, the signing key, the four-platform matrix, the
+changelog's heading and history, and the version series itself — `@rentable/desktop` continues
+from 0.12.0 rather than restarting. ~~The release *title*~~ was on this list and **came off it
+later the same day** — see the reversal under `# Technical Approach`. It belongs to the same
+question the tag does, and answering the two differently is what left the releases page naming
+the package one way and the product another.
