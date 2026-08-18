@@ -76,6 +76,23 @@ test('a workspace names the database its data lives in', () => {
 	assert.ok(columnNamed(columns, 'database_hostname').notNull);
 });
 
+/**
+ * Decision 06's column: how far this workspace's database has been migrated.
+ *
+ * **Not null with a default of zero**, because a workspace's database is created empty and every
+ * record is written at zero — there is no moment at which "we do not know" is the truth, and a
+ * nullable column would have made the mint carry a case that never happens. The authority is the
+ * hosted database's own ledger; this is what the mint compares against without opening it.
+ */
+test('a workspace says how far its database has been migrated', () => {
+	const { columns } = configOf('workspace');
+	const version = columnNamed(columns, 'schema_version');
+
+	assert.equal(version.getSQLType(), 'integer');
+	assert.equal(version.notNull, true);
+	assert.equal(version.default, 0, 'a workspace database is created empty');
+});
+
 test('one membership per account per workspace', () => {
 	const { primaryKeys } = configOf('membership');
 

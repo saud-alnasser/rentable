@@ -7,6 +7,7 @@ import type { Database } from '../database/database.ts';
 import { MALFORMED, Refusal, refusalBody, UNAUTHENTICATED, UNAVAILABLE } from '../failure.ts';
 import type { VerifyGoogleIdentity } from '../account/google.ts';
 import type { Account, Workspace } from '../database/schema.ts';
+import type { ConnectToWorkspaceDatabase } from '../workspace/migration.ts';
 import type { TursoPlatform } from '../workspace/turso.ts';
 import { createWorkspace, mintWorkspaceToken } from '../workspace/workspace.ts';
 
@@ -29,6 +30,11 @@ export type ControlPlane = {
 	db: Database;
 	verifyIdentity: VerifyGoogleIdentity;
 	platform: TursoPlatform;
+	/**
+	 * how a hosted workspace's *own* database is opened, which the mint does when it has a
+	 * migration to apply to one. Never the control plane's database, and never a replica.
+	 */
+	connectToWorkspace: ConnectToWorkspaceDatabase;
 	now?: () => number;
 };
 
@@ -145,6 +151,37 @@ const makeWorkspace = async (
 	json(response, 201, { workspace: wireWorkspace(created) });
 };
 
+/**
+ * What the client was built against, off its request.
+ *
+ * **It is required rather than defaulted**, and a default is the thing to resist here: any number
+ * chosen for a client that did not say is a guess about which schema it understands, and the
+ * whole of decision 06 is that guessing is what diverges a replica. A caller that omits it is a
+ * caller with a defect, and it is told so.
+ *
+ * **The floor is one, not zero, and zero is the value that would have been dangerous.** A
+ * workspace is created at `0` with an empty database, so a mint at `0` is the *equal* case: it
+ * would issue a full-access token for a database with no tables in it, and a client holding that
+ * would have nothing to sync and every reason to build the schema itself — which is decision 06's
+ * rejected option B, arriving through the one door left open. No real client can send it either:
+ * the desktop derives its version by counting migrations and there has never been a release with
+ * none. So the first mint on a workspace always migrates, and a database a token exists for
+ * always has a schema.
+ */
+const schemaVersionIn = (body: Record<string, unknown>): number => {
+	const version = body.schemaVersion;
+
+	if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
+		throw new Refusal(
+			MALFORMED,
+			400,
+			'say which schema version this application was built against'
+		);
+	}
+
+	return version;
+};
+
 const mint = async (
 	plane: ControlPlane,
 	request: IncomingMessage,
@@ -152,10 +189,12 @@ const mint = async (
 	workspaceId: string
 ) => {
 	const account = await asking(plane, request);
+	const schemaVersion = schemaVersionIn(await readJsonBody(request));
 
-	const minted = await mintWorkspaceToken(plane.db, plane.platform, {
+	const minted = await mintWorkspaceToken(plane.db, plane.platform, plane.connectToWorkspace, {
 		workspaceId,
 		accountId: account.id,
+		schemaVersion,
 		now: (plane.now ?? Date.now)()
 	});
 

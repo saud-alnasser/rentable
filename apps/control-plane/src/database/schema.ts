@@ -56,7 +56,12 @@ export const account = sqliteTable('account', {
  * moment at which a workspace exists without one. A nullable pair would have made every reader
  * carry a state that only a crash produces.
  *
- * The schema version this workspace is migrated to is #557's column, and it is not here yet.
+ * **`schemaVersion` is how far its database has been migrated, and it is this database's index of
+ * a fact that lives in that one.** The authority is the hosted database's own `__migrations__`
+ * ledger, written exactly as the Rust runner writes a local workspace's; this column is what the
+ * mint compares against without opening a connection, and it is re-derived from the ledger
+ * whenever a migration runs. A crash between applying a migration and updating it therefore
+ * leaves a number that is too low, which costs one wasted look and corrects itself.
  */
 export const workspace = sqliteTable('workspace', {
 	id: text('id').primaryKey(),
@@ -68,6 +73,11 @@ export const workspace = sqliteTable('workspace', {
 	databaseName: text('database_name').notNull().unique(),
 	/** what a client syncs against, without a scheme — `libsql://` is prepended where it is used. */
 	databaseHostname: text('database_hostname').notNull(),
+	/**
+	 * how many of the workspace migrations its database has had applied — `0` for one just
+	 * created, which is every workspace at the moment its record is written.
+	 */
+	schemaVersion: integer('schema_version').notNull().default(0),
 	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
 });

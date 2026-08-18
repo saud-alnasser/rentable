@@ -2,15 +2,15 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { workspaceMigrationsFolder } from '@rentable/workspace-migrations';
 import BetterSqlite3 from 'better-sqlite3';
 
 import type { Database } from '$lib/api/context';
 import { createDatabase, type Method, type Row } from './client';
 
-const MIGRATIONS_DIR = path.resolve(
-	path.dirname(fileURLToPath(import.meta.url)),
-	'../../../../tauri/migrations'
-);
+// The package, not `tauri/migrations/` — that directory is generated from this one by
+// `tauri/build.rs`, so reading it here would make a test depend on a cargo build having run.
+const MIGRATIONS_DIR = fileURLToPath(workspaceMigrationsFolder);
 
 function applyMigrations(sqlite: BetterSqlite3.Database) {
 	// a database opened a second time already has them, and the generated migrations create

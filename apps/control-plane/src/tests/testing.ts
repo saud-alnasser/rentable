@@ -3,11 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createClient } from '@libsql/client';
+import { createClient, type Client } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 
 import type { GoogleIdentity, VerifyGoogleIdentity } from '../account/google.ts';
 import type { ControlPlane } from '../server/server.ts';
+import type { ConnectToWorkspaceDatabase } from '../workspace/migration.ts';
 import type { TursoPlatform } from '../workspace/turso.ts';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 
@@ -104,6 +105,59 @@ export const tursoInMemory = ({ refuse = false }: { refuse?: boolean } = {}) => 
 				databases.delete(name);
 			}
 		} satisfies TursoPlatform
+	};
+};
+
+/**
+ * Hosted workspace databases, on files this test owns.
+ *
+ * **The third database, and the one the migration path is about** — not the control plane's own,
+ * and not a replica of anybody's. It is the *same libSQL client* a deployed control plane opens
+ * against Turso, against a `file:` URL instead of a `libsql://` one, so the migration under test
+ * is applied by the code that ships, statement by statement, to a real SQLite database. What a
+ * live account would add is the network and Turso's own token check; what happens to the schema
+ * is exercised here.
+ *
+ * `opened` is every url that was connected to, so a test can assert that a mint that should not
+ * have migrated did not open anything at all.
+ */
+export const workspaceDatabases = async () => {
+	const directory = await mkdtemp(join(tmpdir(), 'workspace-databases-'));
+	const clients: Client[] = [];
+	const opened: string[] = [];
+
+	// A file per url, named by it — Turso's hostnames are legal filenames once the dots are gone,
+	// and two connections to one workspace have to reach one database or nothing is being tested.
+	const fileFor = (url: string) => join(directory, `${url.replace(/[^a-z0-9]+/gi, '-')}.db`);
+
+	const connect: ConnectToWorkspaceDatabase = ({ url }) => {
+		opened.push(url);
+
+		const client = createClient({ url: `file:${fileFor(url)}` });
+		clients.push(client);
+
+		return client;
+	};
+
+	return {
+		connect,
+		opened,
+		/** what is in one of them afterwards, read with a client of the test's own. */
+		open: (url: string) => {
+			const client = createClient({ url: `file:${fileFor(url)}` });
+			clients.push(client);
+
+			return client;
+		},
+		close: async () => {
+			for (const client of clients) {
+				client.close();
+			}
+
+			await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }).catch(
+				() => {}
+			);
+		}
 	};
 };
 

@@ -59,6 +59,9 @@ importers:
       '@libsql/client':
         specifier: ^0.17.0
         version: 0.17.4
+      '@rentable/workspace-migrations':
+        specifier: workspace:*
+        version: link:../../packages/workspace-migrations
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -81,6 +84,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@rentable/workspace-migrations':
+        specifier: workspace:*
+        version: link:../../packages/workspace-migrations
       '@tabler/icons-svelte':
         specifier: ^3.46.0
         version: 3.46.0(svelte@5.56.9(@typescript-eslint/types@8.67.0))
@@ -232,6 +238,8 @@ importers:
       vite:
         specifier: ^8.2.0
         version: 8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
+
+  packages/workspace-migrations: {}
 
 packages:
 

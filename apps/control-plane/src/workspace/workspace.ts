@@ -1,9 +1,22 @@
 import { and, eq } from 'drizzle-orm';
 
 import type { Database } from '../database/database.ts';
-import { NO_SUCH_WORKSPACE, NOT_A_MEMBER, Refusal } from '../failure.ts';
+import {
+	CLIENT_OUT_OF_DATE,
+	NO_SUCH_WORKSPACE,
+	NOT_A_MEMBER,
+	Refusal,
+	SERVICE_OUT_OF_DATE
+} from '../failure.ts';
 import { ADMINISTRATION_BY_ROLE } from './permission.ts';
 import { membership, workspace, type Workspace } from '../database/schema.ts';
+import {
+	migrateWorkspaceDatabase,
+	MIGRATION_TOKEN_LIFETIME,
+	targetSchemaVersion,
+	versionOfWorkspaceDatabase,
+	type ConnectToWorkspaceDatabase
+} from './migration.ts';
 import type { TursoPlatform } from './turso.ts';
 
 /**
@@ -119,7 +132,57 @@ export type MintedToken = {
 };
 
 /**
- * Mint a token for one member of one workspace.
+ * Bring one workspace's database up to `upTo`, and record where it got to.
+ *
+ * **This is the only place the control plane opens a workspace database**, and it opens it with a
+ * token it mints for the occasion — the same Platform API call a client's token comes from, for
+ * half an hour rather than three days, and never handed to anybody. The connection is closed
+ * whether or not the migration succeeded.
+ *
+ * **The record is written from the database's own ledger rather than from what was asked for**,
+ * including when the migration fails part-way: the ledger is the authority and this column is an
+ * index of it, so leaving the two disagreeing would leave the mint deciding on a number that is
+ * too low — and too low is the direction that lets an older client through. A migration that dies
+ * after applying two of four files therefore records 2, and the next attempt starts from there.
+ */
+export const migrateWorkspaceTo = async (
+	db: Database,
+	platform: TursoPlatform,
+	connect: ConnectToWorkspaceDatabase,
+	record: Workspace,
+	{ upTo, now }: { upTo: number; now: number }
+): Promise<number> => {
+	const client = connect({
+		url: `libsql://${record.databaseHostname}`,
+		authToken: await platform.mintToken(record.databaseName, MIGRATION_TOKEN_LIFETIME)
+	});
+
+	const reached = async (at: number) => {
+		await db
+			.update(workspace)
+			.set({ schemaVersion: at, updatedAt: new Date(now) })
+			.where(eq(workspace.id, record.id));
+
+		return at;
+	};
+
+	try {
+		return await reached(
+			await migrateWorkspaceDatabase(client, upTo, { database: record.databaseName })
+		);
+	} catch (failure: unknown) {
+		// Best effort, and it is the same database that just failed — where it cannot be read
+		// either, the column stays where it was and the guard in the mint is what covers it.
+		await versionOfWorkspaceDatabase(client).then(reached, () => undefined);
+
+		throw failure;
+	} finally {
+		client.close();
+	}
+};
+
+/**
+ * Mint a token for one member of one workspace, at a schema both sides understand.
  *
  * **Membership is consulted on every mint, which is what makes removal work at all.** There is
  * no state to expire and nothing to propagate: the account either has a row for this workspace
@@ -127,11 +190,36 @@ export type MintedToken = {
  * {@link TOKEN_LIFETIME}. Decision 05 settled that the token is good for the whole workspace
  * database — a disconnected client writes to a replica, so anything finer would be a promise
  * enforced by a server it is not talking to.
+ *
+ * **The schema is settled here too, and decision 06 put it here on purpose.** The client says
+ * which schema version it was built against, and there are four answers — three of them the
+ * decision's own:
+ *
+ * - the version the workspace is already at — mint, and nothing is opened;
+ * - **newer** — apply the migrations the workspace is missing, up to the client's version, then
+ *   mint. This is the ordinary upgrade path: the first client to arrive after a deploy pays for
+ *   the migration, and it is by definition online;
+ * - **older** — refuse, and issue no token. An older client that synced would replicate a schema
+ *   it does not understand and then write against columns it does not know about; by the time a
+ *   write failed its replica would already have diverged, and the divergence is what would have
+ *   to be repaired. Withholding the credential stops it before the first byte;
+ * - newer than anything this build ships a migration for — refuse as well, because there is
+ *   nothing to migrate *with*. It is this service that is behind, so it says so and says retry.
+ *
+ * **A migration that fails takes the mint with it**, which is decision 06's named risk rather
+ * than a defect to design away: the user cannot *sync* until it succeeds, and their local
+ * workspace carries on untouched, which is what makes it survivable.
  */
 export const mintWorkspaceToken = async (
 	db: Database,
 	platform: TursoPlatform,
-	{ workspaceId, accountId, now }: { workspaceId: string; accountId: string; now: number }
+	connect: ConnectToWorkspaceDatabase,
+	{
+		workspaceId,
+		accountId,
+		schemaVersion,
+		now
+	}: { workspaceId: string; accountId: string; schemaVersion: number; now: number }
 ): Promise<MintedToken> => {
 	const [record] = await db.select().from(workspace).where(eq(workspace.id, workspaceId)).limit(1);
 
@@ -147,6 +235,45 @@ export const mintWorkspaceToken = async (
 
 	if (!belongs) {
 		throw new Refusal(NOT_A_MEMBER, 403, 'you are no longer a member of that workspace');
+	}
+
+	if (schemaVersion < record.schemaVersion) {
+		throw new Refusal(
+			CLIENT_OUT_OF_DATE,
+			409,
+			'this workspace has moved on to a newer version. update the application to open it'
+		);
+	}
+
+	if (schemaVersion > (await targetSchemaVersion())) {
+		throw new Refusal(
+			SERVICE_OUT_OF_DATE,
+			503,
+			'this workspace is still catching up to your version. try again in a moment'
+		);
+	}
+
+	if (schemaVersion > record.schemaVersion) {
+		const reached = await migrateWorkspaceTo(db, platform, connect, record, {
+			upTo: schemaVersion,
+			now
+		});
+
+		// **The refusal is decided again here, against the version the database actually reached.**
+		// The column is an index of the workspace database's own ledger and it can lag it — a
+		// sweep running while this mint runs is the ordinary way, and a process that died between
+		// applying a migration and recording it is the other. A client that passed the test above
+		// against a stale number would otherwise trigger a migration that applies nothing, correct
+		// the column upward, and be handed a credential for a schema it does not understand:
+		// exactly the divergence the first refusal exists to prevent, reached by the one path that
+		// skipped it.
+		if (reached > schemaVersion) {
+			throw new Refusal(
+				CLIENT_OUT_OF_DATE,
+				409,
+				'this workspace has moved on to a newer version. update the application to open it'
+			);
+		}
 	}
 
 	return {
