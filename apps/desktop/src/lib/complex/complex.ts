@@ -30,6 +30,37 @@ export const isUnitDeletable = (assignments: unknown[]) => assignments.length ==
  * @param names the unit names as submitted, in order.
  * @throws a `BAD_REQUEST` naming the first name that repeats.
  */
+/**
+ * The row an update wrote back, or the refusal that it wrote none.
+ *
+ * An update matching no row writes nothing and answers with nothing, which reads at every call
+ * site as success. That is survivable while this machine is the only writer, and it stops being
+ * survivable the moment another device can delete a record between this one reading it and
+ * writing it. The caller that meets it first is an inverse — see [[rules/data]], under *Undo*,
+ * which is where the reasoning lives and which requires this to fail visibly rather than
+ * silently write nothing, and requires it not to put the row back.
+ */
+export function ensureComplexStillExists<T>(complex: T | undefined | null): T {
+	if (!complex) {
+		badRequest('this complex is no longer in the workspace — reload to see what changed');
+	}
+
+	return complex;
+}
+
+/** The same, for a unit. See {@link ensureComplexStillExists} for why it is here at all. */
+export function ensureUnitStillExists<T>(unit: T | undefined | null): T {
+	if (!unit) {
+		badRequest('this unit is no longer in the workspace — reload to see what changed');
+	}
+
+	return unit;
+}
+
+function badRequest(message: string): never {
+	throw new TRPCError({ code: 'BAD_REQUEST', message });
+}
+
 export function ensureUnitNamesDistinct(names: string[]) {
 	const seen = new Set<string>();
 

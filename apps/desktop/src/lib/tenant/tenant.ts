@@ -55,6 +55,24 @@ export function ensurePhoneAvailable(conflicting: unknown) {
 }
 
 /**
+ * The row an update wrote back, or the refusal that it wrote none.
+ *
+ * An update matching no row writes nothing and answers with nothing, which reads at every call
+ * site as success. That is survivable while this machine is the only writer, and it stops being
+ * survivable the moment another device can delete a record between this one reading it and
+ * writing it. The caller that meets it first is an inverse — see [[rules/data]], under *Undo*,
+ * which is where the reasoning lives and which requires this to fail visibly rather than
+ * silently write nothing, and requires it not to put the row back.
+ */
+export function ensureTenantStillExists<T>(tenant: T | undefined | null): T {
+	if (!tenant) {
+		badRequest('this tenant is no longer in the workspace — reload to see what changed');
+	}
+
+	return tenant;
+}
+
+/**
  * Whether a tenant may be deleted: no contract may mention it.
  *
  * The predicate is exported beside the rule that enforces it so a surface can say what blocks

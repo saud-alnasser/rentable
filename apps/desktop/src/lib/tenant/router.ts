@@ -10,6 +10,7 @@ import {
 	ensureIdentityAvailable,
 	ensurePhoneAvailable,
 	ensureTenantDeletable,
+	ensureTenantStillExists,
 	type TenantSortColumnId
 } from '$lib/tenant/tenant';
 import { asc, desc, eq, inArray, like, sql, type AnyColumn, type SQL } from 'drizzle-orm';
@@ -155,7 +156,9 @@ export default router({
 			// Drizzle refuses an empty set clause. An update naming no field means "change
 			// nothing" rather than a bad request, so it reads back instead of writing.
 			if (Object.keys(values).length === 0) {
-				return await ctx.db.select().from(s.tenant).where(eq(s.tenant.id, input.id)).get();
+				return ensureTenantStillExists(
+					await ctx.db.select().from(s.tenant).where(eq(s.tenant.id, input.id)).get()
+				);
 			}
 
 			const updated = await ctx.db
@@ -165,7 +168,7 @@ export default router({
 				.returning()
 				.get();
 
-			return updated;
+			return ensureTenantStillExists(updated);
 		}),
 
 	delete: procedure.public
@@ -185,7 +188,7 @@ export default router({
 				.returning()
 				.get();
 
-			return deleted;
+			return ensureTenantStillExists(deleted);
 		}),
 
 	get: procedure.public.input(TenantSchema.partial()).query(async ({ input, ctx }) => {

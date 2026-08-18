@@ -8,7 +8,9 @@ import { autosync, procedure, router } from '$lib/api/trpc';
 import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
 import {
 	COMPLEX_SORT_COLUMN_IDS,
+	ensureComplexStillExists,
 	ensureUnitNamesDistinct,
+	ensureUnitStillExists,
 	isComplexDeletable,
 	isUnitDeletable,
 	type ComplexSortColumnId
@@ -253,7 +255,9 @@ export default router({
 			// Drizzle refuses an empty set clause. An update naming no field means "change
 			// nothing" rather than a bad request, so it reads back instead of writing.
 			if (Object.keys(values).length === 0) {
-				return await ctx.db.select().from(s.complex).where(eq(s.complex.id, input.id)).get();
+				return ensureComplexStillExists(
+					await ctx.db.select().from(s.complex).where(eq(s.complex.id, input.id)).get()
+				);
 			}
 
 			const updated = await ctx.db
@@ -263,7 +267,7 @@ export default router({
 				.returning()
 				.get();
 
-			return updated;
+			return ensureComplexStillExists(updated);
 		}),
 
 	delete: procedure.public
@@ -466,7 +470,9 @@ export default router({
 				// Drizzle refuses an empty set clause. An update naming no field means "change
 				// nothing" rather than a bad request, so it reads back instead of writing.
 				if (Object.keys(values).length === 0) {
-					return await ctx.db.select().from(s.unit).where(eq(s.unit.id, input.id)).get();
+					return ensureUnitStillExists(
+						await ctx.db.select().from(s.unit).where(eq(s.unit.id, input.id)).get()
+					);
 				}
 
 				const updated = await ctx.db
@@ -476,7 +482,7 @@ export default router({
 					.returning()
 					.get();
 
-				return updated;
+				return ensureUnitStillExists(updated);
 			}),
 
 		delete: procedure.public
