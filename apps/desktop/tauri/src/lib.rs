@@ -169,6 +169,8 @@ pub fn run() {
             sync::remote_sync_state_get,
             sync::remote_sync_snapshot_now,
             sync::remote_sync_autosave_now,
+            sync::google_sign_in,
+            sync::google_sign_out,
             sync::remote_sync_google_drive_link,
             sync::remote_sync_google_drive_cancel_link_attempt,
             sync::remote_sync_google_drive_unlink,

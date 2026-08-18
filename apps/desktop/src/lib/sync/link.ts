@@ -1,22 +1,30 @@
 import api from '$lib/api/caller';
 import { inverseStack } from '$lib/design/inverse';
 import { tauri, type GoogleDriveLinkPreparation, type RemoteSyncState } from '$lib/platform/tauri';
-import { toTauriErrorCode } from '$lib/error/tauri';
+
+import { isGoogleSignInCancellation } from './sign-in';
 
 /**
  * whether a rejection is the user having abandoned a link rather than something
- * to report. Rust says so with a code, so the branch does not read prose.
+ * to report.
+ *
+ * The same answer as {@link isGoogleSignInCancellation} and deliberately the
+ * same implementation: a link that has to sign in is abandoned at the consent
+ * screen, and a link that reuses an identity is abandoned in this application.
+ * One code covers both, and two readings of it would drift.
  */
 export function isGoogleDriveLinkCancellation(error: unknown) {
-	return toTauriErrorCode(error) === 'cancelled';
+	return isGoogleSignInCancellation(error);
 }
 
 /**
- * link the workspace to a Google account, from the consent screen to the
- * question the remote's contents raise.
+ * link the workspace to a Google account, from whatever identity is available to
+ * the question the remote's contents raise.
  *
- * Outstanding for as long as the user takes. The workspace is linked either way;
- * the preparation says whether anything may transfer yet.
+ * Outstanding for as long as the user takes over a consent screen — and where
+ * this machine is already signed in, no consent screen opens at all. The
+ * workspace is linked either way; the preparation says whether anything may
+ * transfer yet.
  */
 export function linkGoogleDriveWorkspace(): Promise<GoogleDriveLinkPreparation> {
 	return tauri.remoteSync.googleDrive.link();

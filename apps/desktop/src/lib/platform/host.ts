@@ -184,8 +184,15 @@ export type GoogleDriveSyncOutcome = {
 	preparation: GoogleDriveLinkPreparation | null;
 };
 
-/** how far a link attempt has got. linking is one call, so progress arrives on an event instead of a return. */
-export type GoogleDriveLinkPhase = 'authorizing' | 'finalizing';
+/**
+ * how far a sign-in has got. signing in is one call, so progress arrives on an event instead of
+ * a return.
+ *
+ * It belongs to signing in rather than to linking, and that is observable: a link that reuses
+ * an identity this machine already holds emits nothing at all, because nothing about it is
+ * outstanding in a browser.
+ */
+export type GoogleSignInPhase = 'authorizing' | 'finalizing';
 
 export type Recovery = {
 	targetVersion: string;
@@ -230,6 +237,31 @@ export type Unlisten = () => void;
  */
 export type Host = {
 	bootstrap: () => Promise<Recovery>;
+	/**
+	 * who this machine is signed in as.
+	 *
+	 * Its own capability, and not a step inside `remoteSync.googleDrive.link`, which is where it
+	 * lived until 2026-08-18. A workspace of record remotely has an owner and a local one has
+	 * none, so identity has to be reachable without choosing a folder — and a client that is not
+	 * this shell needs it before it needs anything else.
+	 */
+	auth: {
+		google: {
+			/**
+			 * sign in with google, end to end. outstanding for as long as the user takes
+			 * over the consent screen; rejects with a `cancelled` error where they
+			 * abandon it. no folder is chosen and the workspace is untouched.
+			 */
+			signIn: () => Promise<RemoteSyncState>;
+			/**
+			 * give up the identity this machine holds. whatever is linked under it stays
+			 * linked and says what it is waiting for. rejects where nobody is signed in.
+			 */
+			signOut: () => Promise<RemoteSyncState>;
+			/** watch how far a sign-in has got. resolves to its own removal. */
+			onPhase: (listener: (phase: GoogleSignInPhase) => void) => Promise<Unlisten>;
+		};
+	};
 	window: {
 		show: () => Promise<void>;
 		hide: () => Promise<void>;
@@ -306,9 +338,10 @@ export type Host = {
 		autosaveNow: () => Promise<RemoteSyncState>;
 		googleDrive: {
 			/**
-			 * link this workspace to a google account, end to end. outstanding for as
-			 * long as the user takes over the consent screen; rejects with a
-			 * `cancelled` error where they abandon it.
+			 * link this workspace to a google account, end to end. signs in first only
+			 * where this machine holds no identity to link under, so a caller that is
+			 * already signed in sees no consent screen and no phase. rejects with a
+			 * `cancelled` error where the user abandons it.
 			 */
 			link: () => Promise<GoogleDriveLinkPreparation>;
 			/** abandon the link that is outstanding, and undo one already recorded. */
@@ -336,8 +369,6 @@ export type Host = {
 			resolveConflict: (input: {
 				resolution: GoogleDriveConflictResolution;
 			}) => Promise<GoogleDriveSyncOutcome>;
-			/** watch how far a link has got. resolves to its own removal. */
-			onLinkPhase: (listener: (phase: GoogleDriveLinkPhase) => void) => Promise<Unlisten>;
 		};
 	};
 };

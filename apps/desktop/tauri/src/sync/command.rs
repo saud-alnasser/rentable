@@ -2,7 +2,8 @@ use crate::{backup::BackupSource, diagnostics, error::Error, state::AppState};
 
 use super::inspection::GoogleDriveLinkPreparation;
 use super::link::{
-    cancel_google_drive_link, link_google_drive_workspace, unlink_google_drive_workspace,
+    cancel_google_drive_link, link_google_drive_workspace, sign_in_with_google, sign_out_of_google,
+    unlink_google_drive_workspace,
 };
 use super::store::RemoteSyncState;
 use super::sync::{
@@ -89,12 +90,39 @@ pub async fn remote_sync_autosave_now(
     Ok(state)
 }
 
-/// Link this workspace to a Google account, end to end.
+/// Sign in with Google, and nothing else.
+///
+/// No folder is chosen and the workspace is untouched — this establishes who
+/// somebody is, which is a thing this application can hold on its own. Linking a
+/// Drive folder is a second command that consumes the result.
 ///
 /// Outstanding for as long as the user takes over the consent screen; progress
-/// arrives on [`GOOGLE_DRIVE_LINK_PHASE_EVENT`].
+/// arrives on [`GOOGLE_SIGN_IN_PHASE_EVENT`].
 ///
-/// [`GOOGLE_DRIVE_LINK_PHASE_EVENT`]: super::link::GOOGLE_DRIVE_LINK_PHASE_EVENT
+/// [`GOOGLE_SIGN_IN_PHASE_EVENT`]: super::link::GOOGLE_SIGN_IN_PHASE_EVENT
+#[tauri::command]
+pub async fn google_sign_in(
+    app: tauri::AppHandle,
+    app_state: tauri::State<'_, AppState>,
+) -> Result<RemoteSyncState, Error> {
+    sign_in_with_google(&app, app_state.inner()).await
+}
+
+/// Give up the identity this machine holds.
+///
+/// Whatever is linked under it stays linked and says what it is waiting for.
+/// Signing out of a machine that holds no identity is refused.
+#[tauri::command]
+pub async fn google_sign_out(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<RemoteSyncState, Error> {
+    sign_out_of_google(app_state.inner()).await
+}
+
+/// Link this workspace to a Google account, end to end.
+///
+/// Signs in first only where this machine holds no identity to link under; where
+/// it does, no consent screen opens and no phase is emitted.
 #[tauri::command]
 pub async fn remote_sync_google_drive_link(
     app: tauri::AppHandle,
