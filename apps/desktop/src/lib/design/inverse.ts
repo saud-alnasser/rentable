@@ -35,10 +35,13 @@ export type Inverse = {
 /**
  * The session's inverses, newest last.
  *
- * Last in, first out, and that ordering is load-bearing rather than conventional: the engine
- * hands out the next id above the highest in use, so deleting the highest-numbered record and
- * creating another takes the freed id. Undoing that deletion could only collide by reaching
- * past the creation that took the id — which a stack cannot do.
+ * Last in, first out, and it stays that way now for a weaker reason than it was written for.
+ * It used to be load-bearing: the engine handed out the next id above the highest in use, so
+ * deleting the highest-numbered record and creating another took the freed id, and undoing
+ * that deletion could only collide by reaching past the creation that took it — which a stack
+ * cannot do. **An identity is minted by whoever creates the record now, so a freed one is
+ * never handed out again and that collision is gone.** The ordering is kept because undo and
+ * redo mean last-in-first-out to a person, which is reason enough.
  *
  * Cleared whenever the workspace underneath it is replaced. An inverse is a statement about a
  * database, and a sync pull, a backup restore or a workspace switch replaces the one it was

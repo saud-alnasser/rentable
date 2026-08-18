@@ -56,7 +56,7 @@
 	// judging it on the figure here would state the same rule a second time, outside the module
 	// that owns it.
 	const heldUnitsQuery = useFetchUnits(
-		() => deleteOpensOn?.id ?? 0,
+		() => deleteOpensOn?.id ?? '',
 		() => deleteOpensOn !== null
 	);
 	const deleteBlockers = $derived.by(() => {

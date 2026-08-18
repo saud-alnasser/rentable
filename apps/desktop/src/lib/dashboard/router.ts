@@ -39,7 +39,7 @@ import z from 'zod';
 
 /** One contract needing action, as a rank's rows render it. */
 type DashboardQueueEntry = {
-	id: number;
+	id: string;
 	govId: string;
 	status: Contract['status'];
 	rank: ContractRank;

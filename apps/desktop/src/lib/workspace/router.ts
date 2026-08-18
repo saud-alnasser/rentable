@@ -1,6 +1,7 @@
 import * as s from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import { reconcileTouched } from '$lib/contract/reconcile';
+import { newId } from '$lib/platform/database/identity';
 import {
 	toContractReference,
 	toGovIdFromReference,
@@ -11,7 +12,7 @@ import {
 	type WorkspaceTransfer
 } from '$lib/workspace/workspace';
 import { TRPCError } from '@trpc/server';
-import { asc, eq, max } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import z from 'zod';
 
 /**
@@ -67,13 +68,8 @@ const WorkspaceTransferSchema = z.object({
 	payments: z.array(TransferPaymentSchema)
 });
 
-/** The next identity the engine would assign, which is one above the highest in use. */
-function nextId(highest: number | null | undefined) {
-	return (highest ?? 0) + 1;
-}
-
 /** The id a name stands for, or a refusal naming what could not be found. */
-function resolve(ids: Map<string, number>, name: string, what: string) {
+function resolve(ids: Map<string, string>, name: string, what: string) {
 	const id = ids.get(toTransferKey(name));
 
 	if (id === undefined) {
@@ -133,7 +129,7 @@ export default router({
 			.from(s.payment)
 			.orderBy(asc(s.payment.date), asc(s.payment.id));
 
-		const unitsOf = new Map<number, string[]>();
+		const unitsOf = new Map<string, string[]>();
 
 		for (const assignment of assignments) {
 			const held = unitsOf.get(assignment.contractId) ?? [];
@@ -238,9 +234,9 @@ export default router({
 	 *
 	 * **Every identity is decided before the batch is built.** A batch cannot branch on its own
 	 * results, so a unit cannot ask for the id of the complex inserted two statements above it —
-	 * the ids are assigned here, counting up from the highest in use, which is the rule the
-	 * engine itself applies and the one the renewal path already follows for a contract and its
-	 * assignments.
+	 * the ids are minted here, one per row, which is what every other creation path does too.
+	 * This used to read the highest id in use per concept and count up from it; that is five
+	 * queries and a contiguous-block allocation that a client-minted identity removes.
 	 *
 	 * The statements run in the order the schema allows: a complex before the units in it, a
 	 * tenant before the contracts naming them, a contract before its assignments and its
@@ -256,26 +252,6 @@ export default router({
 		.input(WorkspaceTransferSchema)
 		.mutation(async ({ input, ctx }) => {
 			const now = ctx.clock.now();
-			const highestTenant = await ctx.db
-				.select({ value: max(s.tenant.id) })
-				.from(s.tenant)
-				.get();
-			const highestComplex = await ctx.db
-				.select({ value: max(s.complex.id) })
-				.from(s.complex)
-				.get();
-			const highestUnit = await ctx.db
-				.select({ value: max(s.unit.id) })
-				.from(s.unit)
-				.get();
-			const highestContract = await ctx.db
-				.select({ value: max(s.contract.id) })
-				.from(s.contract)
-				.get();
-			const highestPayment = await ctx.db
-				.select({ value: max(s.payment.id) })
-				.from(s.payment)
-				.get();
 
 			// what a name resolves to, whether the record is already here or is about to be. The
 			// two are indistinguishable to the row that names it, which is the whole point of a
@@ -313,24 +289,24 @@ export default router({
 				heldContracts.map((contract) => [toTransferKey(toContractReference(contract)), contract.id])
 			);
 
-			const tenantRows = input.tenants.map((tenant, index) => {
-				const id = nextId(highestTenant?.value) + index;
+			const tenantRows = input.tenants.map((tenant) => {
+				const id = newId();
 
 				tenantIds.set(toTransferKey(tenant.nationalId), id);
 
 				return { id, name: tenant.name, nationalId: tenant.nationalId, phone: tenant.phone };
 			});
 
-			const complexRows = input.complexes.map((complex, index) => {
-				const id = nextId(highestComplex?.value) + index;
+			const complexRows = input.complexes.map((complex) => {
+				const id = newId();
 
 				complexIds.set(toTransferKey(complex.name), id);
 
 				return { id, name: complex.name, location: complex.location };
 			});
 
-			const unitRows = input.units.map((unit, index) => {
-				const id = nextId(highestUnit?.value) + index;
+			const unitRows = input.units.map((unit) => {
+				const id = newId();
 
 				unitIds.set(toTransferKey(unit.complex, unit.name), id);
 
@@ -345,8 +321,8 @@ export default router({
 				};
 			});
 
-			const contractRows = input.contracts.map((contract, index) => {
-				const id = nextId(highestContract?.value) + index;
+			const contractRows = input.contracts.map((contract) => {
+				const id = newId();
 
 				contractIds.set(toTransferKey(contract.reference), id);
 
@@ -373,8 +349,8 @@ export default router({
 				}))
 			);
 
-			const paymentRows = input.payments.map((payment, index) => ({
-				id: nextId(highestPayment?.value) + index,
+			const paymentRows = input.payments.map((payment) => ({
+				id: newId(),
 				date: new Date(payment.date),
 				amount: payment.amount,
 				contractId: resolve(contractIds, payment.contract, 'contract')

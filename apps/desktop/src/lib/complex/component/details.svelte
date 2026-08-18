@@ -19,7 +19,7 @@
 	import ComplexForm from './form.svelte';
 	import UnitDirectory from './unit-directory.svelte';
 
-	let { complexId }: { complexId: number } = $props();
+	let { complexId }: { complexId: string } = $props();
 
 	const complexQuery = useFetchComplex(() => complexId);
 	const complex = $derived(complexQuery.data);

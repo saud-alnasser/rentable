@@ -1,7 +1,7 @@
 import { FILTER_PERIODS } from '$lib/api/period';
 import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
 import { isPaymentWithinPeriod } from '$lib/payment/period';
-import { ensureIdFree } from '$lib/platform/database/identity';
+import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import { matchesAnySearch } from '$lib/platform/database/search';
 import * as s from '$lib/platform/database/schema';
 import { PaymentSchema, type Payment } from '$lib/platform/database/schema';
@@ -193,6 +193,7 @@ export default router({
 				.insert(s.payment)
 				.values({
 					...input,
+					id: input.id ?? newId(),
 					date: new Date(input.date)
 				})
 				.returning()

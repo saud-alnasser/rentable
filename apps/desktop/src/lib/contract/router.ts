@@ -1,7 +1,7 @@
 import type { Database } from '$lib/api/context';
 import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
 import { matchesAnySearch } from '$lib/platform/database/search';
-import { ensureIdFree } from '$lib/platform/database/identity';
+import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ContractSchema } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
@@ -40,7 +40,7 @@ import dashboard from '$lib/dashboard/router';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import payment from '$lib/payment/router';
 import { TRPCError } from '@trpc/server';
-import { and, asc, desc, eq, inArray, max, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
 // status and the payment aggregates are derived columns: reconcile owns them, so no
@@ -66,25 +66,25 @@ const ContractUpdateSchema = ContractSchema.omit({
 // The optional id is the same one `create` takes, and for the same reason (ADR 0026): redoing a
 // renewal that was undone puts the successor back with the identity it had.
 const ContractRenewSchema = ContractSchema.pick({ govId: true, start: true, end: true }).extend({
-	contractId: z.number(),
-	id: z.number().optional()
+	contractId: z.string(),
+	id: z.string().optional()
 });
 
-const ContractUnitsGetManySchema = z.object({ contractId: z.number() });
+const ContractUnitsGetManySchema = z.object({ contractId: z.string() });
 const ContractAssignableUnitsSchema = z.object({
-	contractId: z.number(),
+	contractId: z.string(),
 	search: z.string().optional()
 });
 // the whole set, not an addition to it: an empty array is the contract holding no units, which
 // is what removing the last one means.
 const ContractUnitsSetSchema = z.object({
-	contractId: z.number(),
-	unitIds: z.array(z.number())
+	contractId: z.string(),
+	unitIds: z.array(z.string())
 });
 
 // fetches the assignment rows (joined with their contracts) for the given units — the
 // shape every derivation and overlap rule takes.
-async function selectAssignmentsForUnits(db: Database, unitIds: number[]) {
+async function selectAssignmentsForUnits(db: Database, unitIds: string[]) {
 	if (unitIds.length === 0) {
 		return [];
 	}
@@ -105,13 +105,13 @@ async function selectAssignmentsForUnits(db: Database, unitIds: number[]) {
 }
 
 // fetches the payment rows registered against a contract, for rules that lock on them.
-async function selectPaymentsForContract(db: Database, contractId: number) {
+async function selectPaymentsForContract(db: Database, contractId: string) {
 	return await db.select().from(s.payment).where(eq(s.payment.contractId, contractId));
 }
 
 // the contract a unit procedure is about, refused rather than returned absent: every one of
 // them reads a rule off it, and there is no answer to give for a contract that is not there.
-async function selectContract(db: Database, contractId: number) {
+async function selectContract(db: Database, contractId: string) {
 	const contract = await db.select().from(s.contract).where(eq(s.contract.id, contractId)).get();
 
 	if (!contract) {
@@ -123,7 +123,7 @@ async function selectContract(db: Database, contractId: number) {
 
 // the units a contract holds, each carrying the complex holding it and its derived status —
 // the shape both the directory that reads them and the surface that writes them answer with.
-async function selectContractUnits(db: Database, contractId: number, now: number) {
+async function selectContractUnits(db: Database, contractId: string, now: number) {
 	const units = await db
 		.select({
 			id: s.unit.id,
@@ -196,7 +196,7 @@ const contractPaymentCount = sql<number>`(
 // Whether the contract has the given unit assigned to it, as an EXISTS rather than a join:
 // joining the assignment table would multiply a contract holding several units into one row
 // per unit, and the list's own ordering has no way to tell those apart.
-const contractHoldsUnit = (unitId: number) => sql`exists (
+const contractHoldsUnit = (unitId: string) => sql`exists (
 	select 1 from ${s.contractUnit}
 	where ${s.contractUnit.contractId} = ${s.contract.id} and ${s.contractUnit.unitId} = ${unitId}
 )`;
@@ -204,7 +204,7 @@ const contractHoldsUnit = (unitId: number) => sql`exists (
 // The same question one join further out: whether the contract holds any unit in the given
 // complex. An EXISTS for the same reason — a contract holding three units in the complex would
 // otherwise become three rows, and the list's ordering cannot tell those apart.
-const contractHoldsUnitInComplex = (complexId: number) => sql`exists (
+const contractHoldsUnitInComplex = (complexId: string) => sql`exists (
 	select 1 from ${s.contractUnit}
 	inner join ${s.unit} on ${s.unit.id} = ${s.contractUnit.unitId}
 	where ${s.contractUnit.contractId} = ${s.contract.id} and ${s.unit.complexId} = ${complexId}
@@ -327,6 +327,7 @@ export default router({
 				.insert(s.contract)
 				.values({
 					...input,
+					id: input.id ?? newId(),
 					govId: normalizedGovId,
 					status: initialStatus,
 					paidAmount,
@@ -400,7 +401,7 @@ export default router({
 			// the successor does not exist yet, so no assignment is its own to be exempt from the
 			// check — including the predecessor's, which is checked like any other contract's and
 			// clears because the rule above already put the new term after the old one.
-			ensureUnitsAssignable(await selectAssignmentsForUnits(ctx.db, unitIds), successor, 0);
+			ensureUnitsAssignable(await selectAssignmentsForUnits(ctx.db, unitIds), successor, '');
 
 			const contractShape = {
 				status: 'active' as const,
@@ -411,11 +412,13 @@ export default router({
 			};
 			const initialStatus = deriveContractStatus(contractShape, [], now);
 			const { paidAmount, expectedAmount } = getContractPaymentSummary(contractShape, []);
+			const successorId = successor.id ?? newId();
 			// typed as the row being written rather than left to inference: a derived status read
 			// out of a variable widens to `string` in a standalone object, where the same value
 			// passed straight to `values()` keeps the union the column is declared with.
 			const values: typeof s.contract.$inferInsert = {
 				...successor,
+				id: successorId,
 				govId: normalizedGovId,
 				status: initialStatus,
 				paidAmount,
@@ -432,24 +435,11 @@ export default router({
 				return serializeContract(created);
 			}
 
-			// the assignment rows name the successor by an identity resolved before the batch is
-			// built, because a batch cannot branch on its own results and a contract has no
-			// required unique field to look the inserted row back up by — the complex that names
-			// its units by its own name has one, and this does not. `last_insert_rowid()` is not
-			// that identity either: every assignment row inserted after the contract replaces it.
-			// The engine's own rule is the next id above the highest in use, which is the rule
-			// `ensureIdFree` is written against, so stating it changes nothing about the row.
-			const highestId = await ctx.db
-				.select({ value: max(s.contract.id) })
-				.from(s.contract)
-				.get();
-			const successorId = successor.id ?? (highestId?.value ?? 0) + 1;
-
+			// the assignment rows name the successor by an identity the caller already holds: it is
+			// minted above rather than by the engine, so the batch states it in both places.
+			// Nothing has to be read back to learn it, which is what this used to do.
 			const [[created]] = await ctx.db.batch([
-				ctx.db
-					.insert(s.contract)
-					.values({ ...values, id: successorId })
-					.returning(),
+				ctx.db.insert(s.contract).values(values).returning(),
 				...unitIds.map((unitId) =>
 					ctx.db.insert(s.contractUnit).values({ contractId: successorId, unitId }).returning()
 				)
@@ -620,7 +610,7 @@ export default router({
 	 */
 	terminateMany: procedure.public
 		.use(autosync())
-		.input(z.object({ ids: z.array(z.number().int().positive()).min(1) }))
+		.input(z.object({ ids: z.array(ContractSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
 			const now = ctx.clock.now();
 			const ids = [...new Set(input.ids)];
@@ -677,7 +667,7 @@ export default router({
 	/** The reverse of {@link terminateMany}, and what undoing one calls. */
 	unterminateMany: procedure.public
 		.use(autosync())
-		.input(z.object({ ids: z.array(z.number().int().positive()).min(1) }))
+		.input(z.object({ ids: z.array(ContractSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
 			const now = ctx.clock.now();
 			const ids = [...new Set(input.ids)];
@@ -850,15 +840,15 @@ export default router({
 				// person rents. Filtered here rather than by the caller: a directory that loaded
 				// every contract to keep one tenant's would be the client-side narrowing
 				// ADR 0010 exists to refuse.
-				tenantId: z.number().optional(),
+				tenantId: z.string().optional(),
 				// the same, for the surface that asks what has been agreed over one unit. It
 				// matches through the assignment table rather than joining it, so a contract
 				// holding several units is still one row.
-				unitId: z.number().optional(),
+				unitId: z.string().optional(),
 				// and the same again for a whole building, for the record that says how much runs
 				// against it. Reachable no other way: a record that loaded every contract to keep
 				// its own would be the client-side narrowing ADR 0010 refuses.
-				complexId: z.number().optional()
+				complexId: z.string().optional()
 			})
 		)
 		.query(async ({ input, ctx }) => {

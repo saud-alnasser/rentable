@@ -24,9 +24,9 @@ import { get } from 'svelte/store';
  * contract owes today and no column holds that.
  */
 export type ContractListScope = {
-	tenantId?: number;
-	unitId?: number;
-	complexId?: number;
+	tenantId?: string;
+	unitId?: string;
+	complexId?: string;
 	rank?: ContractRank;
 };
 
@@ -44,10 +44,10 @@ export const keys = {
 		scope.complexId ?? 'all',
 		scope.rank ?? 'all'
 	],
-	get: (id: number) => [...workspacePrefixes.contracts, id],
-	getUnits: (id: number) => [...workspacePrefixes.contracts, 'units', id],
+	get: (id: string) => [...workspacePrefixes.contracts, id],
+	getUnits: (id: string) => [...workspacePrefixes.contracts, 'units', id],
 	search: (term: string) => [...workspacePrefixes.contracts, 'search', term],
-	getAssignableUnits: (contractId: number, search: string) => [
+	getAssignableUnits: (contractId: string, search: string) => [
 		...workspacePrefixes.contracts,
 		'units',
 		'assignable',
@@ -122,7 +122,7 @@ export function useSearchContracts(term: () => string, limit: number) {
 	});
 }
 
-export function useFetchContract(id: () => number, enabled: () => boolean = () => true) {
+export function useFetchContract(id: () => string, enabled: () => boolean = () => true) {
 	return createQuery(() => {
 		const freshId = id();
 
@@ -221,7 +221,7 @@ export const useUpdateContract = declareMutation({
 });
 
 export const useDeleteContract = declareMutation({
-	mutate: (id: number) => api.contract.delete({ id }),
+	mutate: (id: string) => api.contract.delete({ id }),
 	touches: ['contracts'],
 	inverse: ({ result }) =>
 		result && {
@@ -252,7 +252,7 @@ export const useDeleteContract = declareMutation({
 });
 
 export const useTerminateContract = declareMutation({
-	mutate: (id: number) => api.contract.terminate({ id }),
+	mutate: (id: string) => api.contract.terminate({ id }),
 	touches: ['contracts', 'units'],
 	// un-terminating is the procedure that already exists to reverse this, and it recomputes the
 	// derived status rather than putting back the one the contract happened to hold.
@@ -288,7 +288,7 @@ export const useTerminateContract = declareMutation({
  * contracts it refused were never terminated and must not be un-terminated on the way back.
  */
 export const useTerminateManyContracts = declareMutation({
-	mutate: (ids: number[]) => api.contract.terminateMany({ ids }),
+	mutate: (ids: string[]) => api.contract.terminateMany({ ids }),
 	touches: ['contracts', 'units'],
 	inverse: ({ result }) =>
 		// nothing changed, so there is nothing to offer taking back. An undo entry for a no-op is
@@ -323,7 +323,7 @@ export const useTerminateManyContracts = declareMutation({
 });
 
 export const useUnterminateContract = declareMutation({
-	mutate: (id: number) => api.contract.unterminate({ id }),
+	mutate: (id: string) => api.contract.unterminate({ id }),
 	touches: ['contracts', 'units'],
 	inverse: ({ variables, result }) => ({
 		describe: (t) => t.common.undo.unterminated({ record: t.common.labels.contract() }),
@@ -350,7 +350,7 @@ export const useUnterminateContract = declareMutation({
 });
 
 export function useFetchContractUnits(
-	contractId: () => number,
+	contractId: () => string,
 	enabled: () => boolean = () => true
 ) {
 	return createQuery(() => {
@@ -372,7 +372,7 @@ export function useFetchContractUnits(
  * the panes keep their rows instead of emptying on every keystroke.
  */
 export function useFetchAssignableContractUnits(
-	params: () => { contractId: number; search?: string }
+	params: () => { contractId: string; search?: string }
 ) {
 	return createQuery(() => {
 		const { contractId, search } = params();

@@ -22,7 +22,7 @@
 	].join(' ');
 </script>
 
-<script lang="ts" generics="TData extends { id: number }, TGroup extends ListGroup">
+<script lang="ts" generics="TData extends { id: string }, TGroup extends ListGroup">
 	import { browser } from '$app/environment';
 	import ExportDialog from '$lib/design/block/export-dialog.svelte';
 	import { Button } from '$lib/design/primitive/button';
@@ -184,7 +184,7 @@
 		 * once has no reason to offer selecting them. The snippet is handed the ids in the order
 		 * the list is showing them, and the concept owns the controls and whatever they confirm.
 		 */
-		selectionActions?: Snippet<[readonly number[]]>;
+		selectionActions?: Snippet<[readonly string[]]>;
 		/**
 		 * The records selected, by id.
 		 *
@@ -192,7 +192,7 @@
 		 * scrolling past it: the row is unmounted and re-created, and the id is the one thing about
 		 * it that does not change.
 		 */
-		selected?: number[];
+		selected?: string[];
 		/** What the empty state says when the list has no records to show. */
 		emptyTitle?: string;
 		/** An optional line under it, where the list can say why it is empty. */
@@ -321,13 +321,13 @@
 	const selectedIds = $derived(new Set(selected));
 	// where a run starts from: the last record the reader picked without holding shift. Reset
 	// whenever the selection is emptied, so a run never reaches back to a record from before.
-	let runAnchor = $state<number | null>(null);
+	let runAnchor = $state<string | null>(null);
 	// read at the moment of the change rather than from the event, because the checkbox reports
 	// its new state and not what was held down to produce it.
 	let isExtending = $state(false);
 
 	/** Take a record in or out of the selection, extending from the anchor while shift is held. */
-	function chooseRecord(id: number) {
+	function chooseRecord(id: string) {
 		if (isExtending && runAnchor !== null) {
 			const from = orderedIds.indexOf(runAnchor);
 			const to = orderedIds.indexOf(id);

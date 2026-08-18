@@ -64,7 +64,7 @@ export type PaletteVerb =
 			 */
 			subject: string;
 			/** do it, on the record the reader chose. */
-			run: (recordId: number) => void;
+			run: (recordId: string) => void;
 	  });
 
 /** The member of {@link PaletteVerb} that has to ask before it can run. */

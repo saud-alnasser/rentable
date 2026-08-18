@@ -1,7 +1,7 @@
 import * as s from '$lib/platform/database/schema';
 import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
 import { matchesAnySearch } from '$lib/platform/database/search';
-import { ensureIdFree } from '$lib/platform/database/identity';
+import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import { TenantSchema, type Contract } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import { CONTRACT_IN_FORCE_STATUSES } from '$lib/contract/contract';
@@ -112,7 +112,11 @@ export default router({
 				await ctx.db.select().from(s.tenant).where(eq(s.tenant.phone, input.phone)).get()
 			);
 
-			const created = await ctx.db.insert(s.tenant).values(input).returning().get();
+			const created = await ctx.db
+				.insert(s.tenant)
+				.values({ ...input, id: input.id ?? newId() })
+				.returning()
+				.get();
 
 			return created;
 		}),

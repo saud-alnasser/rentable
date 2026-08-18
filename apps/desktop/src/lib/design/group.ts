@@ -29,7 +29,7 @@ export type ListRow<TData, TGroup extends ListGroup> =
  * Row keys are derived from record ids, so a header's key survives the group's label
  * changing and stays unique when a key repeats.
  */
-export function listRows<TData extends { id: number }, TGroup extends ListGroup>(
+export function listRows<TData extends { id: string }, TGroup extends ListGroup>(
 	data: readonly TData[],
 	groupOf?: (record: TData) => TGroup,
 	recordsPerRow = 1

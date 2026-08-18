@@ -6,14 +6,14 @@ import z from 'zod';
 // tables
 
 export const tenant = sqliteTable('tenant', {
-	id: integer('id').primaryKey().unique(),
+	id: text('id').primaryKey().unique(),
 	nationalId: text('national_id').unique().notNull(),
 	name: text('name').notNull(),
 	phone: text('phone').unique().notNull()
 });
 
 export const TenantSchema = z.object({
-	id: z.number(),
+	id: z.string(),
 	name: z.string(),
 	nationalId: identityField(
 		'national identity number must start with 1 or 2; and be 10 digits long'
@@ -41,13 +41,13 @@ export type Tenant = z.infer<typeof TenantSchema>;
 export const ASCII_ONLY_COLUMNS: readonly AnyColumn[] = [tenant.nationalId, tenant.phone];
 
 export const complex = sqliteTable('complex', {
-	id: integer('id').primaryKey().unique(),
+	id: text('id').primaryKey().unique(),
 	name: text('name').unique().notNull(),
 	location: text('location').notNull()
 });
 
 export const ComplexSchema = z.object({
-	id: z.number(),
+	id: z.string(),
 	name: z.string(),
 	location: z.string()
 });
@@ -55,23 +55,23 @@ export const ComplexSchema = z.object({
 export type Complex = z.infer<typeof ComplexSchema>;
 
 export const unit = sqliteTable('unit', {
-	id: integer('id').primaryKey().unique(),
+	id: text('id').primaryKey().unique(),
 	name: text('name').notNull(),
 	status: text('status', { enum: ['occupied', 'vacant'] }).notNull(),
-	complexId: integer('complex_id').notNull()
+	complexId: text('complex_id').notNull()
 });
 
 export const UnitSchema = z.object({
-	id: z.number(),
+	id: z.string(),
 	name: z.string(),
 	status: z.enum(['occupied', 'vacant']),
-	complexId: z.number()
+	complexId: z.string()
 });
 
 export type Unit = z.infer<typeof UnitSchema>;
 
 export const contract = sqliteTable('contract', {
-	id: integer('id').primaryKey().unique(),
+	id: text('id').primaryKey().unique(),
 	govId: text('gov_id').unique(),
 	status: text('status', {
 		enum: ['scheduled', 'active', 'terminated', 'fulfilled', 'expired', 'defaulted']
@@ -82,11 +82,11 @@ export const contract = sqliteTable('contract', {
 	cost: real('cost_per_interval').notNull(),
 	paidAmount: real('paid_amount').notNull().default(0),
 	expectedAmount: real('expected_amount').notNull().default(0),
-	tenantId: integer('tenant_id').notNull()
+	tenantId: text('tenant_id').notNull()
 });
 
 export const ContractSchema = z.object({
-	id: z.number(),
+	id: z.string(),
 	govId: z.string().optional(),
 	status: z.enum(['scheduled', 'active', 'terminated', 'fulfilled', 'expired', 'defaulted']),
 	start: z.number(),
@@ -95,35 +95,35 @@ export const ContractSchema = z.object({
 	cost: z.number(),
 	paidAmount: z.number(),
 	expectedAmount: z.number(),
-	tenantId: z.number()
+	tenantId: z.string()
 });
 
 export type Contract = z.infer<typeof ContractSchema>;
 
 export const payment = sqliteTable('payment', {
-	id: integer('id').primaryKey().unique(),
+	id: text('id').primaryKey().unique(),
 	date: integer('date', { mode: 'timestamp_ms' }).notNull(),
 	amount: real('amount').notNull(),
-	contractId: integer('contract_id').notNull()
+	contractId: text('contract_id').notNull()
 });
 
 export const PaymentSchema = z.object({
-	id: z.number(),
+	id: z.string(),
 	date: z.number(),
 	amount: z.number(),
-	contractId: z.number()
+	contractId: z.string()
 });
 
 export type Payment = z.infer<typeof PaymentSchema>;
 
 export const contractUnit = sqliteTable('contract_unit', {
-	contractId: integer('contract_id').notNull(),
-	unitId: integer('unit_id').notNull()
+	contractId: text('contract_id').notNull(),
+	unitId: text('unit_id').notNull()
 });
 
 export const ContractUnitSchema = z.object({
-	contractId: z.number(),
-	unitId: z.number()
+	contractId: z.string(),
+	unitId: z.string()
 });
 
 export type ContractUnit = z.infer<typeof ContractUnitSchema>;
@@ -176,13 +176,13 @@ export const paymentRelations = relations(payment, ({ one }) => ({
  * is the only way a deletion still reads afterwards.
  */
 export const history = sqliteTable('history', {
-	id: integer('id').primaryKey().unique(),
+	id: text('id').primaryKey().unique(),
 	at: integer('at', { mode: 'timestamp_ms' }).notNull(),
 	/** which kind of record it happened to, so a surface can ask for its own. */
 	concept: text('concept', {
 		enum: ['tenant', 'complex', 'unit', 'contract', 'payment']
 	}).notNull(),
-	recordId: integer('record_id').notNull(),
+	recordId: text('record_id').notNull(),
 	/** the key the entry renders under, from the vocabulary undo already names changes with. */
 	action: text('action').notNull(),
 	/** what the record was called at the time. */
@@ -190,10 +190,10 @@ export const history = sqliteTable('history', {
 });
 
 export const HistorySchema = z.object({
-	id: z.number(),
+	id: z.string(),
 	at: z.number(),
 	concept: z.enum(['tenant', 'complex', 'unit', 'contract', 'payment']),
-	recordId: z.number(),
+	recordId: z.string(),
 	action: z.string(),
 	record: z.string()
 });

@@ -46,7 +46,7 @@
 		contractId,
 		initialCollection
 	}: {
-		contractId: number;
+		contractId: string;
 		initialCollection?: ContractCollection;
 	} = $props();
 
@@ -85,11 +85,11 @@
 	const terminateMutation = useTerminateContract();
 	const unterminateMutation = useUnterminateContract();
 
-	type ContractFormValue = Omit<NonNullable<typeof contractQuery.data>, 'id'> & { id?: number };
+	type ContractFormValue = Omit<NonNullable<typeof contractQuery.data>, 'id'> & { id?: string };
 
 	let formOpensOn = $state<ContractFormValue | undefined>(undefined);
 	// set when the form was opened to renew this contract rather than to edit or copy it.
-	let renewingContractId = $state<number | undefined>(undefined);
+	let renewingContractId = $state<string | undefined>(undefined);
 	let isContractFormOpen = $state(false);
 	let contractFormRenderKey = $state(0);
 	let isDeleteDialogOpen = $state(false);
@@ -106,7 +106,7 @@
 		isContractFormOpen = true;
 	};
 
-	const openRenewal = (id: number) => {
+	const openRenewal = (id: string) => {
 		formOpensOn = undefined;
 		renewingContractId = id;
 		contractFormRenderKey += 1;

@@ -111,7 +111,7 @@ export type RecordVerb = Declared & {
 	 */
 	subject: string;
 	/** do it, on the record the reader chose. */
-	run: (recordId: number) => void;
+	run: (recordId: string) => void;
 };
 
 /** A registration, as the registry holds it. */

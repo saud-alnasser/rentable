@@ -14,13 +14,13 @@ type FetchTenantsParams = {
 };
 
 type FetchTenantParams = {
-	id: number | undefined;
+	id: string | undefined;
 	enabled?: boolean;
 };
 
 export const keys = {
 	all: workspacePrefixes.tenants,
-	get: (id: number) => [...workspacePrefixes.tenants, 'detail', id],
+	get: (id: string) => [...workspacePrefixes.tenants, 'detail', id],
 	getMany: (search?: string, limit?: number) => [
 		...workspacePrefixes.tenants,
 		'list',
@@ -110,7 +110,7 @@ export function useFetchTenant(params: () => FetchTenantParams) {
 		const { id, enabled = true } = params();
 
 		return {
-			queryKey: keys.get(id ?? 0),
+			queryKey: keys.get(id ?? ''),
 			enabled: enabled && Boolean(id),
 			queryFn: async () => {
 				if (!id) return undefined;
@@ -154,7 +154,7 @@ export const useUpdateTenant = declareMutation({
 });
 
 export const useDeleteTenant = declareMutation({
-	mutate: (id: number) => api.tenant.delete({ id }),
+	mutate: (id: string) => api.tenant.delete({ id }),
 	touches: ['tenants'],
 	inverse: ({ result }) =>
 		result && {

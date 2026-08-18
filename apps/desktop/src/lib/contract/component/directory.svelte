@@ -36,7 +36,7 @@
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
 	let filters = $state<FilterSelection>({});
-	let selected = $state<number[]>([]);
+	let selected = $state<string[]>([]);
 	let isTerminateManyOpen = $state(false);
 	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
 
@@ -116,7 +116,7 @@
 	}
 </script>
 
-{#snippet selectionActions(ids: readonly number[])}
+{#snippet selectionActions(ids: readonly string[])}
 	<!-- the same control a record's own action cluster wears, so an action means the same thing
 	     and looks the same whether it is aimed at one record or at nine. -->
 	<RecordActionControl

@@ -11,7 +11,7 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 
 	/** The unit these contracts mention. */
-	let { unitId }: { unitId: number } = $props();
+	let { unitId }: { unitId: string } = $props();
 
 	type ContractRow = Awaited<ReturnType<typeof api.contract.getMany>>[number];
 

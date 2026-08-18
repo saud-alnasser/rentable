@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { createApi, createFileApi } from '$lib/api/testing.mjs';
+import { createApi, createFileApi, unusedId } from '$lib/api/testing.mjs';
 
 /** A database that is a real file, and the way back to it once this one is done with. */
 function workspaceFile() {
@@ -16,10 +16,18 @@ function workspaceFile() {
 	};
 }
 
+// the records these entries are about. Named rather than written inline: most of these tests
+// turn on which record an entry belongs to, and an identity is unreadable at a glance where
+// `1` and `2` were not.
+const FIRST = unusedId();
+const SECOND = unusedId();
+const THIRD = unusedId();
+const NEVER_WRITTEN_ABOUT = unusedId();
+
 function entry(overrides = {}) {
 	return {
 		concept: 'contract',
-		recordId: 1,
+		recordId: FIRST,
 		action: 'created',
 		record: 'CT-001',
 		...overrides
@@ -31,7 +39,7 @@ test('an entry is read back for the record it was written against', async () => 
 
 	await api.history.append({ entries: [entry()] });
 
-	const entries = await api.history.getMany({ concept: 'contract', recordId: 1 });
+	const entries = await api.history.getMany({ concept: 'contract', recordId: FIRST });
 
 	assert.equal(entries.length, 1);
 	assert.equal(entries[0].action, 'created');
@@ -42,13 +50,13 @@ test('an entry is read back for the record it was written against', async () => 
 test('and never for another record, or another kind of record with the same id', async () => {
 	const api = await createApi();
 
-	await api.history.append({ entries: [entry({ recordId: 1 })] });
-	await api.history.append({ entries: [entry({ recordId: 2, record: 'CT-002' })] });
+	await api.history.append({ entries: [entry({ recordId: FIRST })] });
+	await api.history.append({ entries: [entry({ recordId: SECOND, record: 'CT-002' })] });
 	await api.history.append({
-		entries: [entry({ concept: 'tenant', recordId: 1, record: 'Abby Kris' })]
+		entries: [entry({ concept: 'tenant', recordId: FIRST, record: 'Abby Kris' })]
 	});
 
-	const entries = await api.history.getMany({ concept: 'contract', recordId: 1 });
+	const entries = await api.history.getMany({ concept: 'contract', recordId: FIRST });
 
 	assert.deepEqual(
 		entries.map((held) => held.record),
@@ -63,7 +71,7 @@ test('entries are read most recent first', async () => {
 	await api.history.append({ entries: [entry({ action: 'edited' })] });
 	await api.history.append({ entries: [entry({ action: 'terminated' })] });
 
-	const entries = await api.history.getMany({ concept: 'contract', recordId: 1 });
+	const entries = await api.history.getMany({ concept: 'contract', recordId: FIRST });
 
 	// the clock is fixed, so all three carry the same instant — which is exactly the case the
 	// tie-break on identity exists for.
@@ -93,7 +101,7 @@ test('the account survives a restart', async () => {
 		const after = await createFileApi(workspace.path);
 
 		try {
-			const entries = await after.api.history.getMany({ concept: 'contract', recordId: 1 });
+			const entries = await after.api.history.getMany({ concept: 'contract', recordId: FIRST });
 
 			assert.deepEqual(
 				entries.map((held) => held.action),
@@ -113,7 +121,7 @@ test('an entry carries when it happened, from the clock rather than the caller',
 
 	await api.history.append({ entries: [entry()] });
 
-	const [held] = await api.history.getMany({ concept: 'contract', recordId: 1 });
+	const [held] = await api.history.getMany({ concept: 'contract', recordId: FIRST });
 
 	assert.equal(typeof held.at, 'number');
 	assert.ok(held.at > 0);
@@ -126,7 +134,7 @@ test('an action outside the vocabulary is stored rather than refused', async () 
 
 	await api.history.append({ entries: [entry({ action: 'invented' })] });
 
-	const [held] = await api.history.getMany({ concept: 'contract', recordId: 1 });
+	const [held] = await api.history.getMany({ concept: 'contract', recordId: FIRST });
 
 	assert.equal(held.action, 'invented');
 });
@@ -134,7 +142,10 @@ test('an action outside the vocabulary is stored rather than refused', async () 
 test('a record with no history answers with none rather than failing', async () => {
 	const api = await createApi();
 
-	assert.deepEqual(await api.history.getMany({ concept: 'contract', recordId: 999 }), []);
+	assert.deepEqual(
+		await api.history.getMany({ concept: 'contract', recordId: NEVER_WRITTEN_ABOUT }),
+		[]
+	);
 });
 
 /**
@@ -152,9 +163,11 @@ test('the workspace grows by a reported amount per entry', async () => {
 	try {
 		const empty = statSync(workspace.path).size;
 
+		const records = Array.from({ length: 50 }, () => unusedId());
+
 		for (let index = 0; index < entries; index += 1) {
 			await opened.api.history.append({
-				entries: [entry({ recordId: (index % 50) + 1, record: `CT-${index}`, action: 'edited' })]
+				entries: [entry({ recordId: records[index % 50], record: `CT-${index}`, action: 'edited' })]
 			});
 		}
 
@@ -181,19 +194,23 @@ test('a set of entries is appended together, one per record', async () => {
 
 	await api.history.append({
 		entries: [
-			entry({ recordId: 1, record: 'CT-1', action: 'terminated' }),
-			entry({ recordId: 2, record: 'CT-2', action: 'terminated' }),
-			entry({ recordId: 3, record: 'CT-3', action: 'terminated' })
+			entry({ recordId: FIRST, record: 'CT-1', action: 'terminated' }),
+			entry({ recordId: SECOND, record: 'CT-2', action: 'terminated' }),
+			entry({ recordId: THIRD, record: 'CT-3', action: 'terminated' })
 		]
 	});
 
-	for (const recordId of [1, 2, 3]) {
+	for (const [label, recordId] of [
+		['CT-1', FIRST],
+		['CT-2', SECOND],
+		['CT-3', THIRD]
+	]) {
 		const held = await api.history.getMany({ concept: 'contract', recordId });
 
 		assert.deepEqual(
 			held.map((each) => each.record),
-			[`CT-${recordId}`],
-			`contract ${recordId} carries its own entry and nobody else's`
+			[label],
+			`${label} carries its own entry and nobody else's`
 		);
 	}
 });
@@ -210,7 +227,7 @@ test('a search narrows an account to the changes it names', async () => {
 
 	const narrowed = await api.history.getMany({
 		concept: 'contract',
-		recordId: 1,
+		recordId: FIRST,
 		search: 'terminat'
 	});
 

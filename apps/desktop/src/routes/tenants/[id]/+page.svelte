@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import TenantDetails from '$lib/tenant/component/details.svelte';
 
-	const tenantId = Number(page.params.id);
+	const tenantId = page.params.id ?? '';
 </script>
 
 <TenantDetails {tenantId} />

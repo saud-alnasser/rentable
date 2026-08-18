@@ -59,11 +59,11 @@
 
 	// the contract the renewal form was opened on. A queue row carries an identity and the
 	// figures the row shows; the form reads everything a renewal needs off the contract itself.
-	let renewingContractId = $state<number | undefined>(undefined);
+	let renewingContractId = $state<string | undefined>(undefined);
 	let isRenewalFormOpen = $state(false);
 	let renewalFormRenderKey = $state(0);
 
-	const openRenewal = (id: number) => {
+	const openRenewal = (id: string) => {
 		renewingContractId = id;
 		renewalFormRenderKey += 1;
 		isRenewalFormOpen = true;

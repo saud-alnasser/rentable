@@ -16,10 +16,10 @@
  * @param wasHeld the side it was pressed on: held units leave the set, offered ones join it.
  */
 export function toTransferredUnitIds(
-	heldUnitIds: readonly number[],
-	unitId: number,
+	heldUnitIds: readonly string[],
+	unitId: string,
 	wasHeld: boolean
-): number[] {
+): string[] {
 	const remaining = heldUnitIds.filter((id) => id !== unitId);
 
 	return wasHeld ? remaining : [...remaining, unitId];

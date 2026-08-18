@@ -1,4 +1,5 @@
 import { procedure, router } from '$lib/api/trpc';
+import { newId } from '$lib/platform/database/identity';
 import { matchesAnySearch } from '$lib/platform/database/search';
 import * as s from '$lib/platform/database/schema';
 import { HistorySchema } from '$lib/platform/database/schema';
@@ -44,6 +45,7 @@ export default router({
 			// there is a wire here.
 			await ctx.db.insert(s.history).values(
 				input.entries.map((entry) => ({
+					id: newId(),
 					at,
 					concept: entry.concept,
 					recordId: entry.recordId,

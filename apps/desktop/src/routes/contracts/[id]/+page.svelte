@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import ContractDetails, { type ContractCollection } from '$lib/contract/component/details.svelte';
 
-	const contractId = Number(page.params.id);
+	const contractId = page.params.id ?? '';
 	let initialCollection: ContractCollection = $derived(
 		page.url.searchParams.get('section') === 'units' ? 'units' : 'payments'
 	);

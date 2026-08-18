@@ -17,7 +17,7 @@ export const RecordSearchSchema = z.object({
 
 /** One record a search found: what it is called, and what places it. */
 export type RecordMatch = {
-	id: number;
+	id: string;
 	/** the record's own handle — a name, a reference, an amount. */
 	label: string;
 	/** what places it: the complex a unit is in, the tenant a contract is held by. */

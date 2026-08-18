@@ -44,7 +44,7 @@ export type ListMovement = 'previous' | 'next' | 'up' | 'down';
  * land, and leaving it in would make every move past a group boundary a special case. Their
  * indices are still what the rows carry, so a position always names a row the virtualizer knows.
  */
-export function toRecordRows<TData extends { id: number }, TGroup extends ListGroup>(
+export function toRecordRows<TData extends { id: string }, TGroup extends ListGroup>(
 	rows: readonly ListRow<TData, TGroup>[]
 ): ListRecordRow[] {
 	return rows.flatMap((row, index) =>

@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { appRouter } from '$lib/api/router.ts';
 import { caller, context } from '$lib/api/trpc.ts';
+import { isRecordId, newId } from './identity.ts';
 import { createMemoryDatabase } from './memory.ts';
 import { mapRows } from './client.ts';
 import * as s from './schema.ts';
@@ -25,7 +26,7 @@ test('a procedure runs end-to-end against a fresh in-memory database', async () 
 
 	assert.equal(created.name, 'Sara');
 	assert.equal(created.nationalId, '1234567890');
-	assert.ok(created.id > 0);
+	assert.ok(isRecordId(created.id));
 
 	const fetched = await api.tenant.get({ id: created.id });
 	assert.deepEqual(fetched, created);
@@ -34,7 +35,7 @@ test('a procedure runs end-to-end against a fresh in-memory database', async () 
 test('each in-memory database starts empty and isolated from the last', async () => {
 	const api = await createApi();
 
-	const fetched = await api.tenant.get({ id: 1 });
+	const fetched = await api.tenant.get({ id: newId() });
 
 	assert.equal(fetched, undefined);
 });
@@ -100,8 +101,8 @@ test('a batch that succeeds commits every statement in it', async () => {
 	const db = createMemoryDatabase();
 
 	await db.batch([
-		db.insert(s.complex).values({ name: 'Palm Court', location: 'Riyadh' }),
-		db.insert(s.complex).values({ name: 'Coral Tower', location: 'Jeddah' })
+		db.insert(s.complex).values({ id: newId(), name: 'Palm Court', location: 'Riyadh' }),
+		db.insert(s.complex).values({ id: newId(), name: 'Coral Tower', location: 'Jeddah' })
 	]);
 
 	assert.deepEqual((await db.select().from(s.complex)).map((complex) => complex.name).sort(), [

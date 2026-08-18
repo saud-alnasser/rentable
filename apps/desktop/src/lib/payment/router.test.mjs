@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { NOW, createApi, monthsFromNow, seedTenant } from '$lib/api/testing.mjs';
+import { NOW, createApi, monthsFromNow, seedTenant, unusedId } from '$lib/api/testing.mjs';
 
 async function seedContract(api, overrides = {}) {
 	const tenant = await seedTenant(api);
@@ -179,7 +179,7 @@ test('a payment is read with the contract it was made against', async () => {
 test('reading a payment that does not exist answers with nothing rather than failing', async () => {
 	const api = await createApi();
 
-	assert.equal(await api.contract.payments.get({ id: 9999 }), undefined);
+	assert.equal(await api.contract.payments.get({ id: unusedId() }), undefined);
 });
 
 test('recording a payment increases the contract paid amount', async () => {
@@ -200,7 +200,12 @@ test('a payment against a missing contract is rejected', async () => {
 	const api = await createApi();
 
 	await assert.rejects(
-		() => api.contract.payments.create({ contractId: 9999, date: monthsFromNow(0), amount: 500 }),
+		() =>
+			api.contract.payments.create({
+				contractId: unusedId(),
+				date: monthsFromNow(0),
+				amount: 500
+			}),
 		/contract does not exist/
 	);
 });

@@ -52,7 +52,7 @@
 		 * cards in it.
 		 */
 		gridded?: boolean;
-		onTransfer: (unitId: number, wasHeld: boolean) => void;
+		onTransfer: (unitId: string, wasHeld: boolean) => void;
 	} = $props();
 
 	// the card's own height, and the space between one card and the next. The gap rides inside the

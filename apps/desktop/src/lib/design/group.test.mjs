@@ -4,9 +4,9 @@ import test from 'node:test';
 import { listRows } from './group.ts';
 
 const payments = [
-	{ id: 1, month: 'august' },
-	{ id: 2, month: 'august' },
-	{ id: 3, month: 'july' }
+	{ id: 'p1', month: 'august' },
+	{ id: 'p2', month: 'august' },
+	{ id: 'p3', month: 'july' }
 ];
 
 const byMonth = (payment) => ({ key: payment.month, label: payment.month });
@@ -15,9 +15,9 @@ test('an ungrouped list is one row per record, in the order it was given', () =>
 	assert.deepEqual(
 		listRows(payments).map((row) => [row.kind, row.key]),
 		[
-			['record', 'record:1'],
-			['record', 'record:2'],
-			['record', 'record:3']
+			['record', 'record:p1'],
+			['record', 'record:p2'],
+			['record', 'record:p3']
 		]
 	);
 });
@@ -26,11 +26,11 @@ test('a header row opens each run of records sharing a group key', () => {
 	assert.deepEqual(
 		listRows(payments, byMonth).map((row) => [row.kind, row.key]),
 		[
-			['header', 'group:1'],
-			['record', 'record:1'],
-			['record', 'record:2'],
-			['header', 'group:3'],
-			['record', 'record:3']
+			['header', 'group:p1'],
+			['record', 'record:p1'],
+			['record', 'record:p2'],
+			['header', 'group:p3'],
+			['record', 'record:p3']
 		]
 	);
 });
@@ -46,20 +46,20 @@ test('a header carries the group its accessor returned', () => {
 // deliberately put somewhere else.
 test('a group key that returns after another group opens a second group', () => {
 	const interleaved = [
-		{ id: 1, month: 'august' },
-		{ id: 2, month: 'july' },
-		{ id: 3, month: 'august' }
+		{ id: 'p1', month: 'august' },
+		{ id: 'p2', month: 'july' },
+		{ id: 'p3', month: 'august' }
 	];
 
 	assert.deepEqual(
 		listRows(interleaved, byMonth).map((row) => [row.kind, row.key]),
 		[
-			['header', 'group:1'],
-			['record', 'record:1'],
-			['header', 'group:2'],
-			['record', 'record:2'],
-			['header', 'group:3'],
-			['record', 'record:3']
+			['header', 'group:p1'],
+			['record', 'record:p1'],
+			['header', 'group:p2'],
+			['record', 'record:p2'],
+			['header', 'group:p3'],
+			['record', 'record:p3']
 		]
 	);
 });
@@ -79,14 +79,14 @@ test('a row carries the one record in it when the list is one record wide', () =
 test('a list several records wide fills each row before opening the next', () => {
 	assert.deepEqual(
 		listRows(payments, undefined, 2).map((row) => row.records.map((record) => record.id)),
-		[[1, 2], [3]]
+		[['p1', 'p2'], ['p3']]
 	);
 });
 
 test('a row is keyed by the first record in it, so a key never repeats', () => {
 	assert.deepEqual(
 		listRows(payments, undefined, 2).map((row) => row.key),
-		['record:1', 'record:3']
+		['record:p1', 'record:p3']
 	);
 });
 
@@ -97,13 +97,13 @@ test('a group opens a new row rather than filling the one before it', () => {
 		listRows(payments, byMonth, 2).map((row) =>
 			row.kind === 'header' ? row.group.key : row.records.map((record) => record.id)
 		),
-		['august', [1, 2], 'july', [3]]
+		['august', ['p1', 'p2'], 'july', ['p3']]
 	);
 });
 
 test('a width below one record per row is treated as one', () => {
 	assert.deepEqual(
 		listRows(payments, undefined, 0).map((row) => row.records.map((record) => record.id)),
-		[[1], [2], [3]]
+		[['p1'], ['p2'], ['p3']]
 	);
 });

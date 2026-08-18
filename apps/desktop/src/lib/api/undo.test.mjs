@@ -115,26 +115,46 @@ describe('undoing a record change', () => {
 		assert.deepEqual(await caller.tenant.get({ id: tenant.id }), tenant);
 	});
 
-	// the engine hands out the next id above the highest in use, so a creation after a
-	// deletion takes the freed id. Reaching the deletion means undoing that creation first.
-	it('does not collide when a later creation took the deleted row’s id', async () => {
+	// This used to assert the opposite. The engine handed out the next id above the highest
+	// in use, so a creation after a deletion took the freed id and an undo had to reach past
+	// it. A client-minted identity is nobody's second choice, so the collision is gone — and
+	// what is asserted is that it is gone, since a test deleted outright would leave the
+	// undo path looking untested for a hazard that was real until this release.
+	it('does not hand a deleted row’s identity to the next creation', async () => {
 		const first = await seedTenant(caller);
-		const highest = await seedTenant(caller);
+		const deleted = await seedTenant(caller);
 
-		await run(useDeleteTenant, highest.id);
+		await run(useDeleteTenant, deleted.id);
 		const replacement = await run(useCreateTenant, {
 			name: 'Replacement',
 			nationalId: '1999999999',
 			phone: '+966559999999'
 		});
 
-		assert.equal(replacement.id, highest.id, 'the freed id is expected to be handed out again');
+		assert.notEqual(replacement.id, deleted.id, 'a freed identity is not handed out again');
 
 		await inverseStack.undo();
 		await inverseStack.undo();
 
-		assert.deepEqual(await caller.tenant.get({ id: highest.id }), highest);
+		assert.deepEqual(await caller.tenant.get({ id: deleted.id }), deleted);
 		assert.deepEqual(await caller.tenant.get({ id: first.id }), first);
+	});
+
+	// and the guard that collision justified is still load-bearing, because a caller may
+	// state an identity — which is how an undo puts a row back as the record it was.
+	it('refuses a stated identity another record already holds', async () => {
+		const held = await seedTenant(caller);
+
+		await assert.rejects(
+			() =>
+				caller.tenant.create({
+					id: held.id,
+					name: 'Impostor',
+					nationalId: '1999999999',
+					phone: '+966559999999'
+				}),
+			/another record already holds that id/
+		);
 	});
 
 	it('takes back a complex, a unit, a contract and a payment alike', async () => {

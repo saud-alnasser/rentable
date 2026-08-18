@@ -15,20 +15,20 @@ test('getPaidAmount sums every payment received', () => {
 
 test('groupPaymentsByContractId keeps row order within each contract', () => {
 	const grouped = groupPaymentsByContractId([
-		{ id: 1, contractId: 7 },
-		{ id: 2, contractId: 9 },
-		{ id: 3, contractId: 7 }
+		{ id: 'p1', contractId: 'c7' },
+		{ id: 'p2', contractId: 'c9' },
+		{ id: 'p3', contractId: 'c7' }
 	]);
 
 	assert.deepEqual(
-		grouped.get(7).map((payment) => payment.id),
-		[1, 3]
+		grouped.get('c7').map((payment) => payment.id),
+		['p1', 'p3']
 	);
 	assert.deepEqual(
-		grouped.get(9).map((payment) => payment.id),
-		[2]
+		grouped.get('c9').map((payment) => payment.id),
+		['p2']
 	);
-	assert.equal(grouped.get(11), undefined);
+	assert.equal(grouped.get('c11'), undefined);
 });
 
 test('ensureValidPaymentAmount rejects an amount that is not positive', () => {

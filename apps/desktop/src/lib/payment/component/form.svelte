@@ -54,9 +54,9 @@
 		open,
 		onOpenChange
 	}: {
-		contractId: number;
+		contractId: string;
 		/** the payment being edited, or the details a new one starts from when duplicating. */
-		value?: Omit<Payment, 'id'> & { id?: number };
+		value?: Omit<Payment, 'id'> & { id?: string };
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
 	} = $props();
