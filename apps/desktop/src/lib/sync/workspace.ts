@@ -27,6 +27,14 @@ export function getWorkspaceFromSyncState(
 	return syncState?.workspace ?? null;
 }
 
+/**
+ * whether to offer the fork between keeping the workspace on this machine and putting it
+ * somewhere it can be reached from another.
+ *
+ * A workspace that has already been put somewhere — Drive or hosted — has answered the
+ * question, so only a `local` one is asked. **`hosted` is not merely "not local" here**: it is
+ * an answer, and re-asking somebody who has given one is the defect this reads for.
+ */
 export function shouldChooseWorkspaceMode(syncState?: RemoteSyncState | null) {
 	const workspace = getWorkspaceFromSyncState(syncState);
 	return Boolean(syncState?.googleDriveReady && workspace?.provider === 'local');
@@ -47,6 +55,11 @@ export function shouldDeferWorkspaceConflict(preparation?: GoogleDriveLinkPrepar
  */
 export async function inspectWorkspaceSyncState(syncState: RemoteSyncState) {
 	const workspace = getWorkspaceFromSyncState(syncState);
+
+	// a hosted workspace answers `null` for a different reason than a local one, and the
+	// reason is worth keeping: there is nothing to inspect because the two sides do not hold
+	// whole snapshots to compare. Divergence there is resolved per column as it arrives, not
+	// reported to the user as a choice between two files.
 	if (workspace?.provider !== 'googleDrive' || !syncState.googleDriveReady) {
 		return null;
 	}
@@ -81,6 +94,10 @@ export async function syncWorkspaceNow(
 		return { state, action: 'autosaved', preparation: null };
 	}
 
+	// A hosted workspace's replica pushes on its own rather than on this call, so there is
+	// nothing for the dispatcher to do — the transport that makes that true is #548, and until
+	// it lands this branch is what a hosted workspace gets: nothing, said explicitly, rather
+	// than a Drive sync it has no account for.
 	if (workspace.provider !== 'googleDrive' || !syncState.googleDriveReady) {
 		return { state: syncState, action: 'none', preparation: null };
 	}
@@ -129,6 +146,9 @@ export async function syncWorkspaceBeforeExit(
 		return { state, action: 'autosaved', preparation: null };
 	}
 
+	// hosted, or Drive with the account not ready. Neither takes a local snapshot: the first
+	// has its record of truth elsewhere already, and the second is waiting on a credential
+	// rather than on a copy.
 	return { state: syncState, action: 'none', preparation: null };
 }
 

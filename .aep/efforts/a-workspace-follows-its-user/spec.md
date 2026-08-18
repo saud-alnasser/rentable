@@ -879,6 +879,15 @@ fiction, and the fiction is indistinguishable from a real user at every call sit
 discriminator rather than by memory, and the count is recorded so that a later reader can tell
 whether the tree has moved under this plan.
 
+**Corrected 2026-08-18, while #544 was being built: seven is the whole population of the *sync
+dispatcher*, and there are two more outside it.** `settings/component/sync.svelte:297` labels the
+provider and `layout/component/startup-workspace-choice.svelte:155` badges it, and both did it by
+elimination — `=== 'googleDrive' ? … : local`. A third value falls into the `else` there, so a
+workspace of record somewhere else would have read on screen as one kept on this machine. Both
+now name every value. **The count was not wrong about what it counted**; it was read as the whole
+population because nothing said what population it was, which is the shape this table exists to
+prevent.
+
 **Re-verified 2026-08-18, and this is what that record was for.** Thirty-one commits landed
 between writing the table and re-reading it. Six of the seven citations still resolve exactly —
 `client.ts:47`, `context.ts:27`, `:36`, `:52`, `store.rs:32`, and all seven discriminator sites

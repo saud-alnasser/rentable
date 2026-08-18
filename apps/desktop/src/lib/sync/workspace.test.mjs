@@ -48,7 +48,12 @@ mock.module('$lib/platform/tauri', {
 	}
 });
 
-const { syncWorkspaceNow, syncWorkspaceBeforeExit } = await import('$lib/sync/workspace');
+const {
+	syncWorkspaceNow,
+	syncWorkspaceBeforeExit,
+	inspectWorkspaceSyncState,
+	shouldChooseWorkspaceMode
+} = await import('$lib/sync/workspace');
 const { inverseStack } = await import('$lib/design/inverse');
 
 function driveState() {
@@ -167,5 +172,58 @@ test('a second sync waits for the first rather than colliding with it', async ()
 		calls,
 		['sync:false', 'sync:done', 'sync:true', 'sync:done'],
 		'two syncs overlapped, so the second would have found the lock held'
+	);
+});
+
+// THE THIRD VALUE
+//
+// `provider` has three values now, and every branch that reads it has to answer for the one
+// that is neither `local` nor `googleDrive`. These are not tests that the hosted transport
+// works — it does not exist yet (#548). They are tests that the existing dispatcher does not
+// mistake a hosted workspace for a Drive one or for an unlinked one, which is what a
+// `!== 'googleDrive'` and a `=== 'local'` respectively would do if nobody checked.
+
+function hostedState() {
+	return {
+		googleDriveReady: true,
+		workspace: { id: 'workspace-1', provider: 'hosted', accountId: 'account-1' }
+	};
+}
+
+test('a hosted workspace is not asked to choose a mode it has already chosen', () => {
+	assert.equal(shouldChooseWorkspaceMode(hostedState()), false);
+	assert.equal(
+		shouldChooseWorkspaceMode({ googleDriveReady: true, workspace: { provider: 'local' } }),
+		true,
+		'the local workspace is the one still to be asked'
+	);
+});
+
+test('a hosted workspace has nothing to inspect, and asks Drive nothing', async () => {
+	reset();
+
+	assert.equal(await inspectWorkspaceSyncState(hostedState()), null);
+	assert.deepEqual(calls, [], 'a Drive inspection was issued for a workspace with no Drive');
+});
+
+test('a hosted workspace neither syncs through Drive nor takes a local snapshot', async () => {
+	reset();
+
+	const result = await syncWorkspaceNow(hostedState(), { manual: true, autosaveLocal: true });
+
+	assert.equal(result.action, 'none');
+	assert.deepEqual(calls, [], 'the dispatcher acted on a workspace it has no transport for');
+});
+
+test('a hosted workspace takes no snapshot on the way out either', async () => {
+	reset();
+
+	const result = await syncWorkspaceBeforeExit(hostedState());
+
+	assert.equal(result.action, 'none');
+	assert.deepEqual(
+		calls,
+		[],
+		'a hosted workspace was autosaved to this machine as though it were local'
 	);
 });

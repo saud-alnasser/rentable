@@ -152,9 +152,13 @@
 						<Tooltip.Root>
 							<Tooltip.Trigger>
 								<Badge variant="outline">
-									{activeWorkspace.provider === 'googleDrive'
-										? $LL.settings.syncWorkspaceStatusSynced()
-										: $LL.settings.syncProviderLocal()}
+									{#if activeWorkspace.provider === 'googleDrive'}
+										{$LL.settings.syncWorkspaceStatusSynced()}
+									{:else if activeWorkspace.provider === 'hosted'}
+										{$LL.settings.syncProviderHosted()}
+									{:else}
+										{$LL.settings.syncProviderLocal()}
+									{/if}
 								</Badge>
 							</Tooltip.Trigger>
 							<Tooltip.Content>{activeAccount?.email ?? activeWorkspace.name}</Tooltip.Content>

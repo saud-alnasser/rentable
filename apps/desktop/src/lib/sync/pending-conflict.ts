@@ -39,6 +39,8 @@ export type PendingConflictDismissal = {
 export function workspaceConflictSignature(state: RemoteSyncState | null): string | null {
 	const workspace = state?.workspace;
 
+	// a pending conflict is a Drive shape: two whole snapshots that disagree and a user asked
+	// to choose. A hosted workspace has neither half of that, so it has none to hold.
 	if (!workspace || workspace.provider !== 'googleDrive') {
 		return null;
 	}

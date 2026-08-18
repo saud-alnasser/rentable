@@ -514,6 +514,7 @@ const en = {
 		syncProfilesTitle: 'workspace profiles',
 		syncProviderGoogleDrive: 'Google Drive',
 		syncProviderLocal: 'local workspace',
+		syncProviderHosted: 'hosted workspace',
 		syncReconnectDescription: 'Google Drive authorization expired. Please reconnect the account.',
 		syncRelinkRequiredAction: 'reset remote & relink',
 		syncRelinkRequiredDescription:

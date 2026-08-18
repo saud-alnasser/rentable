@@ -76,7 +76,16 @@ export type BackupEntry = {
 	recoveryKind?: 'sync' | 'update' | null;
 };
 
-export type RemoteSyncProvider = 'local' | 'googleDrive';
+/**
+ * where a workspace's record of truth is.
+ *
+ * `hosted` is additive: a store persisted before it existed holds one of the other two and
+ * still deserialises, and `local` is both the default and what an unconfigured install
+ * already had. The Rust side is `RemoteSyncProvider` in `tauri/src/sync/store.rs`, and the
+ * two are one type across the boundary — a value added on one side and not the other is a
+ * mismatch nothing would report.
+ */
+export type RemoteSyncProvider = 'local' | 'googleDrive' | 'hosted';
 
 export type RemoteSyncAccountStatus = 'pending' | 'ready' | 'needsReconnect';
 
