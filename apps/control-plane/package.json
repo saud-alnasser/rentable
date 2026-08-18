@@ -1,0 +1,29 @@
+{
+	"private": true,
+	"name": "@rentable/control-plane",
+	"version": "0.0.0",
+	"description": "accounts, workspaces, and membership for a hosted workspace",
+	"type": "module",
+	"scripts": {
+		"dev": "tsx watch ./src/main.ts",
+		"start": "tsx ./src/main.ts",
+		"build": "tsc -p ./tsconfig.build.json",
+		"check": "tsc -p ./tsconfig.json",
+		"lint": "eslint .",
+		"test": "node --import tsx --test \"src/**/*.test.mjs\"",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "drizzle-kit migrate",
+		"db:studio": "drizzle-kit studio"
+	},
+	"dependencies": {
+		"@libsql/client": "^0.17.0",
+		"dotenv": "^17.4.2",
+		"drizzle-orm": "^0.45.2"
+	},
+	"devDependencies": {
+		"@types/node": "^24.13.3",
+		"drizzle-kit": "^0.31.10",
+		"tsx": "^4.23.1",
+		"typescript": "^6.0.3"
+	}
+}

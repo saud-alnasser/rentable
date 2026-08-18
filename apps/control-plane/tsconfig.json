@@ -1,0 +1,23 @@
+{
+	// The checking configuration. It covers the tests as well as the source, which is why
+	// `allowJs`/`checkJs` are on: the tests are `.mjs` importing `.ts` directly, the same
+	// shape `apps/desktop` uses, and a test excluded from the typecheck is a test that can
+	// drift away from the module it pins without anything saying so.
+	"compilerOptions": {
+		"target": "es2023",
+		"lib": ["es2023"],
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"types": ["node"],
+		"allowJs": true,
+		"checkJs": true,
+		"allowImportingTsExtensions": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"noEmit": true
+	},
+	"include": ["src/**/*.ts", "src/**/*.mjs", "drizzle.config.ts"]
+}

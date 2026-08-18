@@ -1,12 +1,13 @@
 ---
-aep: 2.2.0
+aep: 2.5.1
 owner: repository
-date: 2026-08-17
+date: 2026-08-18
 kind: rule
 mode: [prototype]
 paths:
   - apps/desktop/src/**
   - apps/desktop/tauri/src/**
+  - apps/control-plane/src/**
 use-when: "adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code"
 ---
 
@@ -26,6 +27,12 @@ use-when: "adding a module, a file, or a directory under src/ or tauri/src/, inc
 
 One concept per file. Prefer a directory over a verbose filename. Prefer concise,
 descriptive names over abbreviations.
+
+**`apps/control-plane/src/` joined the paths above on 2026-08-18 with #549, and only the
+table below has a subject there.** It is flat — no concept in it has children yet — and the
+sections on Rust and on prototype code cover nothing in that package. The forbidden names are
+the part worth carrying: a second package with no naming rule is precisely where a `utils.ts`
+appears.
 
 A module name states a concept, so these names are not available:
 
