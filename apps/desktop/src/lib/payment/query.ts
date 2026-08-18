@@ -1,4 +1,5 @@
 import api from '$lib/api/caller';
+import type { FilterPeriod } from '$lib/api/period';
 import { declareMutation } from '$lib/design/mutation';
 import { workspacePrefixes } from '$lib/design/query';
 import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -9,11 +10,14 @@ import { get } from 'svelte/store';
 export const keys = {
 	get: (id: number) => [...workspacePrefixes.payments, 'one', id],
 	getMany: (contractId: number) => [...workspacePrefixes.payments, contractId],
-	list: (contractId: number, search: string) => [
+	// the period is part of the key because it is part of the question: two periods are two
+	// result sets, and sharing a key would serve one of them under the other's name.
+	list: (contractId: number, search: string, period: FilterPeriod | undefined) => [
 		...workspacePrefixes.payments,
 		'list',
 		contractId,
-		search
+		search,
+		period ?? null
 	],
 	search: (term: string) => [...workspacePrefixes.payments, 'search', term]
 } as const;
@@ -78,17 +82,20 @@ export function useFetchContractPayments(
  * `placeholderData` holds the previous set while a new query is in flight, so the ledger
  * keeps rendering rows instead of flashing through its loading state on every keystroke.
  */
-export function useListContractPayments(params: () => { contractId: number; search?: string }) {
+export function useListContractPayments(
+	params: () => { contractId: number; search?: string; period?: FilterPeriod }
+) {
 	return createQuery(() => {
-		const { contractId, search } = params();
+		const { contractId, search, period } = params();
 		const trimmedSearch = search?.trim() ?? '';
 
 		return {
-			queryKey: keys.list(contractId, trimmedSearch),
+			queryKey: keys.list(contractId, trimmedSearch, period),
 			queryFn: () =>
 				api.contract.payments.getMany({
 					contractId,
-					search: trimmedSearch || undefined
+					search: trimmedSearch || undefined,
+					period
 				}),
 			placeholderData: <T>(previous: T) => previous
 		};

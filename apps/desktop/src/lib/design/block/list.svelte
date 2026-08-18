@@ -31,6 +31,14 @@
 	import { Spinner } from '$lib/design/primitive/spinner';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import { toCsv, type CsvColumn } from '$lib/design/csv';
+	import {
+		toChosenOption,
+		toFilterLabel,
+		toFilterOptions,
+		withFilter,
+		type FilterSelection,
+		type ListFilter
+	} from '$lib/design/filter';
 	import { listRows, type ListGroup } from '$lib/design/group';
 	import {
 		nextPosition,
@@ -50,11 +58,14 @@
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { tauri } from '$lib/platform/tauri';
 	import ArrowsSortIcon from '@tabler/icons-svelte/icons/arrows-sort';
+	import CheckIcon from '@tabler/icons-svelte/icons/check';
 	import ChevronDownIcon from '@tabler/icons-svelte/icons/chevron-down';
+	import FilterIcon from '@tabler/icons-svelte/icons/filter';
 	import TableExportIcon from '@tabler/icons-svelte/icons/table-export';
 	import ChevronUpIcon from '@tabler/icons-svelte/icons/chevron-up';
 	import PlusIcon from '@tabler/icons-svelte/icons/plus';
 	import SearchIcon from '@tabler/icons-svelte/icons/search';
+	import XIcon from '@tabler/icons-svelte/icons/x';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { toast } from 'svelte-sonner';
 	import { tick, type Snippet } from 'svelte';
@@ -104,14 +115,24 @@
 		/** Offered as the leading action when the list can create a record. */
 		onCreate?: () => void;
 		/**
-		 * A list's own narrowing controls, rendered in the toolbar between the search and the
-		 * result count.
+		 * The narrowings this list offers, declared rather than drawn.
 		 *
 		 * Search and order are every list's and are this block's own; what a list may be narrowed
 		 * *by* is the concept's — a contract has an attention rank and a tenant has nothing like
-		 * one — so the block gives the position and the concept gives the control.
+		 * one. So the concept says what it offers and the block draws all of them the same way,
+		 * exactly as `sortOptions` and `sort` already work. This slot used to be a snippet, and
+		 * the one surface that filled it built its own control; every list offering a filter that
+		 * way would have looked like a different application on each screen.
 		 */
-		filters?: Snippet;
+		filterOptions?: readonly ListFilter[];
+		/**
+		 * What the list is narrowed to — a filter's id against the value chosen for it.
+		 *
+		 * The value reaches the concept's read and the narrowing happens there. Nothing in this
+		 * block ever shortens `data`: a filter over what was loaded answers a different question
+		 * than a filter over what exists, and [[rules/data]], under *List reads*, forbids it.
+		 */
+		filters?: FilterSelection;
 		/**
 		 * What an export writes, and what to call the file.
 		 *
@@ -156,7 +177,8 @@
 		isLoading = false,
 		isFetching = false,
 		onCreate,
-		filters,
+		filterOptions = [],
+		filters = $bindable({}),
 		exportAs,
 		recordHeight = 56,
 		groupHeaderHeight = 36,
@@ -293,6 +315,9 @@
 	$effect(() => {
 		void search;
 		void sort;
+		// and a narrowing is a new list for the same reason: the rows the read returns are a
+		// different set, so the row the keyboard was on may not be among them.
+		void filters;
 
 		focused = null;
 
@@ -399,17 +424,89 @@
 		</div>
 
 		<div class="flex shrink-0 flex-wrap items-center gap-3">
-			{@render filters?.()}
 			<span class="text-xs text-muted-foreground" aria-live="polite">
 				{$LL.common.table.results({ count: data.length })}
 			</span>
+
+			<!-- with the other controls rather than before the count: narrowing, ordering, exporting
+			     and creating are the four things the toolbar does, and the count is what the list
+			     currently is. Standing between them made the filter read as part of the reading
+			     rather than as one of the controls. -->
+			{#each filterOptions as filter (filter.id)}
+				{@const chosen = toChosenOption(filter, filters)}
+				<!-- an icon, like the sort control beside it: both are ways of asking the same list a
+				     narrower question, and one of them wearing a word made the toolbar read as
+				     though they were different kinds of thing.
+
+				     A narrowed list says so by the control being filled rather than by printing the
+				     value beside it. What it is narrowed *to* is on the menu, checked — and it is
+				     also the control's accessible name, so a reader who cannot see the fill is told
+				     the value rather than that a filter exists. -->
+				<div class="flex items-center gap-1.5">
+					<DropdownMenu.Root>
+						<DropdownMenu.Trigger>
+							{#snippet child({ props })}
+								<Button
+									{...props}
+									variant={chosen ? 'default' : 'outline'}
+									size="icon-sm"
+									aria-label={toFilterLabel(filter, filters, $LL)}
+								>
+									<FilterIcon />
+								</Button>
+							{/snippet}
+						</DropdownMenu.Trigger>
+						<DropdownMenu.Content align="end">
+							<DropdownMenu.Label class="capitalize">{filter.label($LL)}</DropdownMenu.Label>
+							<DropdownMenu.Separator />
+							{#each toFilterOptions(filter) as option (option.id)}
+								<DropdownMenu.Item
+									onSelect={() => {
+										// choosing what is already chosen clears it, so the menu needs no
+										// entry of its own for "all" and the vocabulary is the whole list.
+										filters = withFilter(
+											filters,
+											filter.id,
+											chosen?.id === option.id ? undefined : option.id
+										);
+									}}
+								>
+									<span class="flex-1 capitalize">{option.label($LL)}</span>
+									{#if chosen?.id === option.id}
+										<CheckIcon class="size-3.5" />
+									{/if}
+								</DropdownMenu.Item>
+							{/each}
+
+							<!-- an entry of its own rather than only the toggle above it: pressing the
+							     chosen value again clears it, but nothing on the screen says so, and a
+							     reader who cannot get back to the whole list is stuck inside a subset. -->
+							{#if chosen}
+								<DropdownMenu.Separator />
+								<DropdownMenu.Item
+									onSelect={() => (filters = withFilter(filters, filter.id, undefined))}
+								>
+									<XIcon class="size-3.5" />
+									<span class="flex-1">{$LL.common.actions.clearFilter()}</span>
+								</DropdownMenu.Item>
+							{/if}
+						</DropdownMenu.Content>
+					</DropdownMenu.Root>
+				</div>
+			{/each}
+
 			{#if sortOptions.length > 0}
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger>
 						{#snippet child({ props })}
+							<!-- filled while a sort is chosen, on the same rule as the filter beside it:
+							     a control that decides which records the reader is looking at, or in
+							     what order, says so by being filled. The export and create controls
+							     stay outlined however often they are used — they act on the list rather
+							     than deciding what it holds. -->
 							<Button
 								{...props}
-								variant="outline"
+								variant={sort ? 'default' : 'outline'}
 								size="icon-sm"
 								aria-label={activeSortLabel
 									? `${$LL.common.actions.sortBy()}: ${activeSortLabel}`

@@ -39,6 +39,10 @@ type RootTranslation = {
 			 */
 			checkForUpdates: string
 			/**
+			 * c​l​e​a​r​ ​t​h​i​s​ ​f​i​l​t​e​r
+			 */
+			clearFilter: string
+			/**
 			 * c​h​e​c​k​i​n​g​ ​f​o​r​ ​u​p​d​a​t​e​s​.​.​.
 			 */
 			checkingForUpdates: string
@@ -447,6 +451,10 @@ type RootTranslation = {
 			 */
 			paymentDate: string
 			/**
+			 * p​e​r​i​o​d
+			 */
+			period: string
+			/**
 			 * p​a​y​m​e​n​t​ ​f​u​l​f​i​l​l​m​e​n​t
 			 */
 			paymentFulfillment: string
@@ -454,6 +462,10 @@ type RootTranslation = {
 			 * p​h​o​n​e
 			 */
 			phone: string
+			/**
+			 * a​t​t​e​n​t​i​o​n
+			 */
+			rank: string
 			/**
 			 * r​e​l​e​a​s​e​ ​d​a​t​e
 			 */
@@ -567,6 +579,24 @@ type RootTranslation = {
 			 * u​n​i​t​s
 			 */
 			units: string
+		}
+		periods: {
+			/**
+			 * l​a​s​t​ ​m​o​n​t​h
+			 */
+			'last-month': string
+			/**
+			 * l​a​s​t​ ​y​e​a​r
+			 */
+			'last-year': string
+			/**
+			 * t​h​i​s​ ​m​o​n​t​h
+			 */
+			'this-month': string
+			/**
+			 * t​h​i​s​ ​y​e​a​r
+			 */
+			'this-year': string
 		}
 		status: {
 			/**
@@ -2008,6 +2038,10 @@ export type TranslationFunctions = {
 			 */
 			checkForUpdates: () => LocalizedString
 			/**
+			 * clear this filter
+			 */
+			clearFilter: () => LocalizedString
+			/**
 			 * checking for updates...
 			 */
 			checkingForUpdates: () => LocalizedString
@@ -2416,6 +2450,10 @@ export type TranslationFunctions = {
 			 */
 			paymentDate: () => LocalizedString
 			/**
+			 * period
+			 */
+			period: () => LocalizedString
+			/**
 			 * payment fulfillment
 			 */
 			paymentFulfillment: () => LocalizedString
@@ -2423,6 +2461,10 @@ export type TranslationFunctions = {
 			 * phone
 			 */
 			phone: () => LocalizedString
+			/**
+			 * attention
+			 */
+			rank: () => LocalizedString
 			/**
 			 * release date
 			 */
@@ -2535,6 +2577,24 @@ export type TranslationFunctions = {
 			 * units
 			 */
 			units: () => LocalizedString
+		}
+		periods: {
+			/**
+			 * last month
+			 */
+			'last-month': () => LocalizedString
+			/**
+			 * last year
+			 */
+			'last-year': () => LocalizedString
+			/**
+			 * this month
+			 */
+			'this-month': () => LocalizedString
+			/**
+			 * this year
+			 */
+			'this-year': () => LocalizedString
 		}
 		status: {
 			/**
