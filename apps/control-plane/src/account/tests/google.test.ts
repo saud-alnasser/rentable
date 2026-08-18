@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import type { VerifyGoogleIdentity } from '../google.ts';
 
-import { GOOGLE_UNREACHABLE, INCOMPLETE, NOT_VERIFIED, Refusal } from '../failure.ts';
+import { GOOGLE_UNREACHABLE, INCOMPLETE, NOT_VERIFIED, Refusal } from '../../failure.ts';
 import { verifyAgainstGoogle } from '../google.ts';
 
 const answering =

@@ -1,6 +1,6 @@
-import type { Database } from './database.ts';
+import type { Database } from '../database/database.ts';
 import type { GoogleIdentity } from './google.ts';
-import { account, type Account } from './schema.ts';
+import { account, type Account } from '../database/schema.ts';
 
 /**
  * Find the account a Google identity belongs to, or make one.

@@ -1,9 +1,9 @@
 import { and, eq } from 'drizzle-orm';
 
-import type { Database } from './database.ts';
-import { NO_SUCH_WORKSPACE, NOT_A_MEMBER, Refusal } from './failure.ts';
+import type { Database } from '../database/database.ts';
+import { NO_SUCH_WORKSPACE, NOT_A_MEMBER, Refusal } from '../failure.ts';
 import { ADMINISTRATION_BY_ROLE } from './permission.ts';
-import { membership, workspace, type Workspace } from './schema.ts';
+import { membership, workspace, type Workspace } from '../database/schema.ts';
 import type { TursoPlatform } from './turso.ts';
 
 /**

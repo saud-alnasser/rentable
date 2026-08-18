@@ -1,4 +1,4 @@
-import { GOOGLE_UNREACHABLE, INCOMPLETE, NOT_VERIFIED, Refusal } from './failure.ts';
+import { GOOGLE_UNREACHABLE, INCOMPLETE, NOT_VERIFIED, Refusal } from '../failure.ts';
 
 /** who Google says an access token belongs to. */
 export type GoogleIdentity = {

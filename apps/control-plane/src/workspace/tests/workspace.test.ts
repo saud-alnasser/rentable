@@ -3,13 +3,13 @@ import test from 'node:test';
 
 import { and, eq, sql } from 'drizzle-orm';
 
-import type { Database } from '../database.ts';
+import type { Database } from '../../database/database.ts';
 
-import { signInWithGoogle } from '../account.ts';
-import { NO_SUCH_WORKSPACE, NOT_A_MEMBER, Refusal } from '../failure.ts';
+import { signInWithGoogle } from '../../account/account.ts';
+import { NO_SUCH_WORKSPACE, NOT_A_MEMBER, Refusal } from '../../failure.ts';
 import { ADMINISTRATION_BY_ROLE, permits } from '../permission.ts';
-import { membership, workspace } from '../schema.ts';
-import { freshDatabase, SOMEBODY, tursoInMemory } from './testing.ts';
+import { membership, workspace } from '../../database/schema.ts';
+import { freshDatabase, SOMEBODY, tursoInMemory } from '../../tests/testing.ts';
 import {
 	createWorkspace,
 	databaseNameFor,

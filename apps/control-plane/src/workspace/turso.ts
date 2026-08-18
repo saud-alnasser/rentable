@@ -1,4 +1,4 @@
-import { Refusal, WORKSPACE_UNAVAILABLE } from './failure.ts';
+import { Refusal, WORKSPACE_UNAVAILABLE } from '../failure.ts';
 
 /**
  * Turso's Platform API, as this service uses it.

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { signInWithGoogle } from '../account.ts';
-import { freshDatabase, SOMEBODY } from './testing.ts';
+import { freshDatabase, SOMEBODY } from '../../tests/testing.ts';
 
 const AT = Date.UTC(2026, 7, 18, 12, 0, 0);
 

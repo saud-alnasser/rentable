@@ -42,7 +42,7 @@ not print it, do not commit it, and do not assume it is the one production uses.
 ## Commands
 
 There is no CLI in this repository's path. Everything is HTTP, from
-`apps/control-plane/src/turso.ts`, against `https://api.turso.tech`, with
+`apps/control-plane/src/workspace/turso.ts`, against `https://api.turso.tech`, with
 `Authorization: Bearer <TURSO_API_TOKEN>`.
 
 ```
@@ -76,7 +76,7 @@ The hostname carries no scheme. `libsql://` is prepended where it is used — th
 
 ## Verification
 
-`apps/control-plane/src/tests/turso.test.ts` runs the real client against a fake `fetch` and pins the
+`apps/control-plane/src/workspace/tests/turso.test.ts` runs the real client against a fake `fetch` and pins the
 path, the credential, the query parameters and the shape read back.
 
 **Run live against this account 2026-08-18, at the human's request**, creating one database,

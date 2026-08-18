@@ -28,11 +28,11 @@ use-when: "adding a module, a file, or a directory under src/ or tauri/src/, inc
 One concept per file. Prefer a directory over a verbose filename. Prefer concise,
 descriptive names over abbreviations.
 
-**`apps/control-plane/src/` joined the paths above on 2026-08-18 with #549, and only the
-table below has a subject there.** It is flat — no concept in it has children yet — and the
-sections on Rust and on prototype code cover nothing in that package. The forbidden names are
-the part worth carrying: a second package with no naming rule is precisely where a `utils.ts`
-appears.
+**`apps/control-plane/src/` joined the paths above on 2026-08-18 with #549**, and the sections
+on Rust and on prototype code cover nothing in it. Everything else does. It was flat for two
+tickets and is grouped by concept since #560 — `account/`, `database/`, `server/`, `workspace/`,
+with the entrypoint and the refusal vocabulary left at the root because they belong to no one
+concept.
 
 A module name states a concept, so these names are not available:
 
