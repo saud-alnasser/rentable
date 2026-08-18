@@ -32,6 +32,23 @@ test('the character asked for decides, so two shortcuts do not answer each other
 	assert.equal(matchesShortcutKey({ key: 'ب', code: 'KeyB' }, 'k'), false);
 });
 
+// a key that types nothing reports the same string as both halves, so its own name is the whole
+// answer and there is nothing to derive.
+test('a named key is matched by the name it reports', () => {
+	assert.equal(matchesShortcutKey({ key: 'ArrowDown', code: 'ArrowDown' }, 'ArrowDown'), true);
+	assert.equal(matchesShortcutKey({ key: 'Enter', code: 'NumpadEnter' }, 'Enter'), true);
+	assert.equal(matchesShortcutKey({ key: 'ArrowUp', code: 'ArrowUp' }, 'ArrowDown'), false);
+});
+
+// the layout the application is built for is the case this exists for: an arabic keyboard prints
+// something else on the key `/` sits on, and the shortcut is dead there if only the character is
+// compared.
+test('a punctuation key is matched by the key it sits on as well as the mark it produces', () => {
+	assert.equal(matchesShortcutKey({ key: '/', code: 'Slash' }, '/'), true);
+	assert.equal(matchesShortcutKey({ key: 'ؤ', code: 'Slash' }, '/'), true);
+	assert.equal(matchesShortcutKey({ key: '.', code: 'Period' }, '/'), false);
+});
+
 test('a field that takes typing keeps its own editing shortcuts', () => {
 	assert.equal(isEditingText({ tagName: 'INPUT' }), true);
 	assert.equal(isEditingText({ tagName: 'TEXTAREA' }), true);
@@ -122,6 +139,16 @@ test('the hint prints what has to be pressed, and nothing that does not', () => 
 	assert.equal(toShortcutHint({ key: 'z', command: true, shift: true }, false), 'Ctrl Shift Z');
 	assert.equal(toShortcutHint({ key: 'z', command: true, shift: false }, false), 'Ctrl Z');
 	assert.equal(toShortcutHint({ key: 'j' }, false), 'J');
+});
+
+// upper-casing a key's own name prints ARROWDOWN, which is not on any keyboard.
+test('a key with a glyph on it is printed as that glyph, in either locale', () => {
+	assert.equal(toShortcutHint({ key: 'ArrowUp' }, false), '↑');
+	assert.equal(toShortcutHint({ key: 'ArrowDown' }, false), '↓');
+	assert.equal(toShortcutHint({ key: 'ArrowLeft' }, false), '←');
+	assert.equal(toShortcutHint({ key: 'ArrowRight' }, false), '→');
+	assert.equal(toShortcutHint({ key: 'Enter' }, false), 'Enter');
+	assert.equal(toShortcutHint({ key: '/' }, false), '/');
 });
 
 test('an apple keyboard prints the symbols it has on it', () => {

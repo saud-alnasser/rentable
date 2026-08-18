@@ -178,10 +178,13 @@ const ar = {
 		},
 
 		table: {
+			focusSearch: 'البحث في هذه القائمة',
 			goToFirstPage: 'اذهب للصفحة الأولى',
 			goToLastPage: 'اذهب للصفحة الأخيرة',
 			goToNextPage: 'اذهب للصفحة التالية',
 			goToPreviousPage: 'اذهب للصفحة السابقة',
+			moveBetweenRecords: 'التنقل بين السجلات',
+			openRecord: 'فتح السجل المحدد',
 			pageOf: 'الصفحة {page} من {count}',
 			results: '{count|number} نتيجة',
 			rowsPerPage: 'عدد الصفوف لكل صفحة',

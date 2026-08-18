@@ -179,10 +179,13 @@ const en = {
 		},
 
 		table: {
+			focusSearch: 'search this list',
 			goToFirstPage: 'go to first page',
 			goToLastPage: 'go to last page',
 			goToNextPage: 'go to next page',
 			goToPreviousPage: 'go to previous page',
+			moveBetweenRecords: 'move between records',
+			openRecord: 'open the focused record',
 			pageOf: 'page {page} of {count}',
 			results: '{count|number} result(s)',
 			rowsPerPage: 'rows per page',
