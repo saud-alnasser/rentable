@@ -63,6 +63,7 @@ const en = {
 			syncNow: 'sync',
 			unlink: 'unlink',
 			terminate: 'terminate',
+			transferData: 'import and export',
 			terminating: 'terminating...',
 			unterminate: 'unterminate',
 			update: 'update',
@@ -85,6 +86,11 @@ const en = {
 			notFound: 'the item could not be found.',
 			preconditionFailed: 'something has to be ready before this can run.',
 			timedOut: 'the operation took too long and stopped.'
+		},
+
+		formats: {
+			csv: 'csv',
+			xlsx: 'excel workbook'
 		},
 
 		labels: {

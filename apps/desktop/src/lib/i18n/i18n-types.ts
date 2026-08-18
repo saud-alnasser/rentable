@@ -247,6 +247,10 @@ type RootTranslation = {
 			 */
 			terminate: string
 			/**
+			 * i​m​p​o​r​t​ ​a​n​d​ ​e​x​p​o​r​t
+			 */
+			transferData: string
+			/**
 			 * t​e​r​m​i​n​a​t​i​n​g​.​.​.
 			 */
 			terminating: string
@@ -324,6 +328,16 @@ type RootTranslation = {
 			 * t​h​e​ ​o​p​e​r​a​t​i​o​n​ ​t​o​o​k​ ​t​o​o​ ​l​o​n​g​ ​a​n​d​ ​s​t​o​p​p​e​d​.
 			 */
 			timedOut: string
+		}
+		formats: {
+			/**
+			 * c​s​v
+			 */
+			csv: string
+			/**
+			 * e​x​c​e​l​ ​w​o​r​k​b​o​o​k
+			 */
+			xlsx: string
 		}
 		labels: {
 			/**
@@ -2283,6 +2297,10 @@ export type TranslationFunctions = {
 			 */
 			terminate: () => LocalizedString
 			/**
+			 * import and export
+			 */
+			transferData: () => LocalizedString
+			/**
 			 * terminating...
 			 */
 			terminating: () => LocalizedString
@@ -2360,6 +2378,16 @@ export type TranslationFunctions = {
 			 * the operation took too long and stopped.
 			 */
 			timedOut: () => LocalizedString
+		}
+		formats: {
+			/**
+			 * csv
+			 */
+			csv: () => LocalizedString
+			/**
+			 * excel workbook
+			 */
+			xlsx: () => LocalizedString
 		}
 		labels: {
 			/**

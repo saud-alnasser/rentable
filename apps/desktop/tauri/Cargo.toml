@@ -36,6 +36,11 @@ tauri-plugin-opener = { version = "2.5.4" }
 tauri-plugin-fs = { version = "2.5.1" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151" }
+# writing the spreadsheet format the export menu offers beside csv. Chosen in Rust rather
+# than as a webview library — see the effort's evidence, `where-the-spreadsheet-format-belongs`:
+# the best-covered npm package has no patched release on the registry, and the reader the
+# import direction needs is materially stronger here than anything on that side.
+rust_xlsxwriter = { version = "0.98.2" }
 tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread", "time"] }
 # `sqlite-bundled` compiles SQLite into the binary, so there is no system library
 # to depend on. No TLS feature is selected because nothing here speaks to a remote

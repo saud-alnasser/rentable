@@ -1,5 +1,5 @@
 ---
-aep: 2.3.0
+aep: 2.4.0
 owner: repository
 date: 2026-08-17
 kind: spec
@@ -392,10 +392,16 @@ here so that a green suite is not mistaken for a met spec.
   normalized on save, repaired one record at a time, nothing corrected in bulk — and the same
   answer may not be acceptable for search, where the point is that the record is findable
   now. Found early by searching for a pre-existing record rather than a freshly written one.
-- **Reading xlsx is materially heavier than writing it**, and whether that reader is a
+- ~~**Reading xlsx is materially heavier than writing it**, and whether that reader is a
   JavaScript library or a Rust crate is an unmade architecture decision with different
   dependency, binary-size and security consequences. It is declared as a research increment on
-  its ticket rather than assumed here.
+  its ticket rather than assumed here.~~ **Answered 2026-08-17 by that increment, in Rust** —
+  `rust_xlsxwriter` to write and `calamine` to read, recorded with its sources in
+  [[efforts/work-the-surfaces-cannot-do/evidence/research/where-the-spreadsheet-format-belongs]].
+  The npm package that would have covered both directions has **no patched release on the
+  registry** against two high advisories, which decided it rather than weighing it. #515 reads
+  the answer rather than re-deciding it, and inherits one unclosed item: binary size was not
+  measured, so the release-profile compile in `integration` is what will show it.
 - **The measured baseline is partly stale and its live half still bites.** Contract search has
   since moved into SQL, and the component its dead-code finding named is gone. **Corrected
   2026-08-17 against `contract/reconcile.ts`:** a mutation's reconcile is no longer whole-table

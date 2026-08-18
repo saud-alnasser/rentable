@@ -14,6 +14,12 @@ export type Settings = {
 	version: string;
 };
 
+/** One sheet of a workbook, every cell already rendered as the surface shows it. */
+export type ExportSheet = {
+	headers: string[];
+	rows: string[][];
+};
+
 export type DiagnosticRecord = {
 	level: 'info' | 'warn' | 'error';
 	event: string;
@@ -196,7 +202,21 @@ export const tauri = {
 		 * The name is a file name and never a path: where an export may go is Rust's to
 		 * decide, and the web layer has no say in it.
 		 */
-		write: (name: string, contents: string) => invoke<string>('export_write', { name, contents })
+		write: (name: string, contents: string) => invoke<string>('export_write', { name, contents }),
+		/**
+		 * Write a workbook out of the application and answer with where it landed.
+		 *
+		 * The cells cross already rendered, as strings: what a column says is decided where the
+		 * row is drawn, so the figures arrive formatted in the reader's locale and typing them
+		 * back into numbers would print `1500` where the surface showed `١٬٥٠٠`.
+		 *
+		 * A second command rather than a format argument on the one above, because the two
+		 * differ in what they put on disk rather than in what they are asked for: the text one
+		 * prepends a byte-order mark, and a workbook is an archive that three bytes in front of
+		 * would corrupt.
+		 */
+		writeWorkbook: (name: string, sheet: ExportSheet) =>
+			invoke<string>('export_write_workbook', { name, sheet })
 	},
 	diagnostics: {
 		write: (record: DiagnosticRecord) => invoke<void>('diagnostics_write', { record })

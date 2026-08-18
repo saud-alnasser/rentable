@@ -62,6 +62,7 @@ const ar = {
 			syncNow: 'زامن الآن',
 			unlink: 'إلغاء الربط',
 			terminate: 'إنهاء',
+			transferData: 'الاستيراد والتصدير',
 			terminating: 'جاري الإنهاء...',
 			unterminate: 'إلغاء الإنهاء',
 			update: 'تحديث',
@@ -84,6 +85,11 @@ const ar = {
 			notFound: 'تعذر العثور على العنصر.',
 			preconditionFailed: 'يجب تجهيز شيء ما قبل تنفيذ هذا الإجراء.',
 			timedOut: 'استغرقت العملية وقتاً طويلاً وتوقفت.'
+		},
+
+		formats: {
+			csv: 'csv',
+			xlsx: 'مصنف إكسل'
 		},
 
 		labels: {
