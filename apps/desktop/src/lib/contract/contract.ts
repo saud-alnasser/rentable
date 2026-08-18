@@ -550,3 +550,17 @@ export function ensureUnitsAssignable(
 		badRequest('one or more selected units are already assigned to an overlapping contract');
 	}
 }
+
+/**
+ * What a contract is called, wherever one has to be named outside its own page.
+ *
+ * Its reference where it has one, the tenant holding it otherwise, and the concept's own word
+ * where it has neither — a contract is identified by what a person would say, never by the row
+ * id, which means nothing to anyone reading a history entry or a file.
+ */
+export function toContractName(
+	contract: { govId?: string | null; tenantName?: string | null },
+	fallback: string
+) {
+	return contract.govId?.trim() || contract.tenantName?.trim() || fallback;
+}

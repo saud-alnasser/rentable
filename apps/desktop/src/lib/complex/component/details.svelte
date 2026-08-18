@@ -126,7 +126,7 @@
 {/snippet}
 
 {#snippet units()}
-	<UnitDirectory {complexId} />
+	<UnitDirectory {complexId} complexName={complex?.name ?? ''} />
 {/snippet}
 
 <RecordSurface

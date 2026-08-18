@@ -10,9 +10,9 @@
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import { hasCreateIntent } from '$lib/design/create-intent';
 	import type { ListSort } from '$lib/design/sort';
-	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { formatLocaleNumber } from '$lib/platform/locale';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import api from '$lib/api/caller';
+	import { toNarrowedName } from '$lib/design/csv';
 	import { toImportIdentity, type ImportField } from '$lib/design/import';
 	import { useDeleteTenant, useImportTenants, useListTenants } from '$lib/tenant/query';
 	import {
@@ -199,7 +199,7 @@
 	isFetching={tenantsQuery.isFetching}
 	recordHeight={ROW_HEIGHT}
 	exportAs={{
-		name: `${$LL.common.nav.tenants()}.csv`,
+		name: toNarrowedName($LL.common.nav.tenants(), [search]),
 		columns: [
 			{ header: $LL.common.labels.name(), value: (tenant) => tenant.name },
 			{ header: $LL.common.labels.nationalId(), value: (tenant) => tenant.nationalId },
@@ -207,9 +207,13 @@
 			// the export follows the row, because the columns are the row's: a reader exports what
 			// they are looking at, and a file short of a figure that is on screen is the defect the
 			// complexes export already has.
+			//
+			// The counts cross as counts. Rendered through the locale they were text, and a column
+			// of text is a column nothing can total — which is the first thing anyone does to a
+			// directory of tenants in a spreadsheet.
 			...CONTRACT_ATTENTION_ORDER.map((status) => ({
 				header: $LL.common.status[status](),
-				value: (tenant: TenantRecord) => formatLocaleNumber($locale, contractCounts(tenant)[status])
+				value: (tenant: TenantRecord) => contractCounts(tenant)[status]
 			}))
 		]
 	}}

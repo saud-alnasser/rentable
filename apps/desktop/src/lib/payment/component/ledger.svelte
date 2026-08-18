@@ -6,12 +6,13 @@
 	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
 	import List from '$lib/design/block/list.svelte';
 	import * as Cell from '$lib/design/cell';
-	import { formatRecordDate } from '$lib/design/date';
-	import { PERIOD_FILTER, type FilterSelection } from '$lib/design/filter';
+	import { toNarrowedName } from '$lib/design/csv';
+	import { PERIOD_FILTER, toChosenLabel, type FilterSelection } from '$lib/design/filter';
 	import { isFilterPeriod } from '$lib/api/period';
 	import {
 		getRemainingContractBalance,
-		hasSatisfiedContractPaymentRequirement
+		hasSatisfiedContractPaymentRequirement,
+		toContractName
 	} from '$lib/contract/contract';
 	import { useFetchContract } from '$lib/contract/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -60,6 +61,14 @@
 	const monthOf = $derived(paymentLedgerMonths(payments));
 
 	const isTerminated = $derived(contractQuery.data?.status === 'terminated');
+	// what this ledger is a ledger of, named the way anything outside a contract's own page
+	// names one.
+	const contractName = $derived(
+		contractQuery.data
+			? toContractName(contractQuery.data, $LL.common.labels.contract())
+			: $LL.common.labels.contract()
+	);
+	const tenantName = $derived(contractQuery.data?.tenantName?.trim() ?? '');
 	const isFullyPaid = $derived(
 		contractQuery.data
 			? hasSatisfiedContractPaymentRequirement(
@@ -130,15 +139,26 @@
 		groupHeaderHeight={MONTH_HEIGHT}
 		emptyDescription={isAddLocked ? undefined : $LL.contracts.payments.trackSummary()}
 		exportAs={{
-			name: `${$LL.common.nav.payments()}.csv`,
+			// the contract is in the name, because a ledger is one contract's and a file called
+			// `payments` says nothing about which. What narrowed it follows, so a period asked for
+			// and then exported does not silently replace the whole ledger beside it.
+			name: toNarrowedName(`${$LL.common.nav.payments()} — ${contractName}`, [
+				search,
+				toChosenLabel(PERIOD_FILTER, filters, $LL) ?? ''
+			]),
 			columns: [
+				// what a row belongs to, before what the row is. A ledger read on screen sits under
+				// the contract's own page and needs neither; the same rows in a file have left that
+				// page behind, and two ledgers in one folder are indistinguishable without them.
+				{ header: $LL.common.labels.contract(), value: () => contractName },
+				{ header: $LL.common.labels.tenant(), value: () => tenantName },
 				{
 					header: $LL.common.labels.paymentDate(),
-					value: (entry) => formatRecordDate($locale, entry.date)
+					value: (entry) => ({ kind: 'date' as const, value: new Date(entry.date) })
 				},
 				{
 					header: $LL.common.labels.amount(),
-					value: (entry) => formatLocaleMoney($locale, entry.amount)
+					value: (entry) => ({ kind: 'money' as const, value: entry.amount })
 				}
 			]
 		}}

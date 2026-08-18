@@ -44,7 +44,9 @@ rust_xlsxwriter = { version = "0.98.2" }
 # reading the same format back. The pair was chosen together in the effort's evidence,
 # `where-the-spreadsheet-format-belongs` — reading is the heavier half and this is the
 # strongest artifact in that comparison.
-calamine = { version = "0.36.1" }
+# `dates` is what turns a date cell back into a date rather than the count of days the
+# format stores one as.
+calamine = { version = "0.36.1", features = ["dates"] }
 # choosing the file to import. Export answers where a file landed and never asks; import
 # has to ask, and a path typed into the web layer is a path the web layer chose.
 tauri-plugin-dialog = { version = "2.7.2" }
