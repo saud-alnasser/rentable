@@ -6,7 +6,10 @@ import {
 	paymentLedgerMonths
 } from '../ledger.ts';
 
-const payment = (year, month, day, amount) => ({ date: Date.UTC(year, month - 1, day), amount });
+const payment = (year: number, month: number, day: number, amount: number) => ({
+	date: Date.UTC(year, month - 1, day),
+	amount
+});
 
 test('a month group carries the first of its month and what its rows add up to', () => {
 	const payments = [payment(2026, 3, 20, 500), payment(2026, 3, 2, 400)];

@@ -12,7 +12,7 @@ const LTR_ISOLATE = '⁦';
 const POP_ISOLATE = '⁩';
 
 /** what the reader would see, with the invisible direction marks taken back out. */
-function visible(text) {
+function visible(text: string) {
 	return text.replaceAll(LTR_ISOLATE, '').replaceAll(POP_ISOLATE, '').replaceAll('\u00a0', ' ');
 }
 

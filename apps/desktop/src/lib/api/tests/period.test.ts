@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { FILTER_PERIODS, isFilterPeriod, toPeriodRange } from '../period.ts';
+import { FILTER_PERIODS, type FilterPeriod, isFilterPeriod, toPeriodRange } from '../period.ts';
 
 /** a period's range, as two `YYYY-MM-DD` strings, which is how a range is read at a glance. */
-function rangeOf(period, now) {
+function rangeOf(period: FilterPeriod, now: number) {
 	const { start, end } = toPeriodRange(period, now);
 
 	return [start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)];

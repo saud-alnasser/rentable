@@ -1,8 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { i18nObject } from '$lib/i18n/i18n-util.ts';
+import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
+
+import type { ShortcutKeydown } from '../shortcut.ts';
 import { ShortcutRegistry } from '../shortcut-registry.ts';
-import { toUndoShortcuts } from '../undo-shortcut.ts';
+import { toUndoShortcuts, type UndoIntent } from '../undo-shortcut.ts';
+
+/**
+ * What a keydown reached, carrying the two properties a shortcut standing down while text is
+ * typed is decided by. A real `EventTarget`, because that is what an event carries.
+ */
+function eventTarget(element: { tagName: string; isContentEditable?: boolean }): EventTarget {
+	return Object.assign(new EventTarget(), element);
+}
 
 /**
  * The undo pair, registered, and what a keydown moves the stack by.
@@ -11,8 +23,8 @@ import { toUndoShortcuts } from '../undo-shortcut.ts';
  * reaches is the registry's decision now, and asserting on the declaration alone would pass over
  * a matcher that had stopped answering.
  */
-function openStack({ has = () => true } = {}) {
-	const applied = [];
+function openStack({ has = () => true }: { has?: (intent: UndoIntent) => boolean } = {}) {
+	const applied: UndoIntent[] = [];
 	const registry = new ShortcutRegistry(() => {});
 
 	for (const registration of toUndoShortcuts((intent) => applied.push(intent), has)) {
@@ -21,7 +33,7 @@ function openStack({ has = () => true } = {}) {
 
 	return {
 		applied,
-		press: (event, target) => {
+		press: (event: ShortcutKeydown, target?: EventTarget | null) => {
 			for (const shortcut of registry.answering(event, target)) {
 				shortcut.run();
 			}
@@ -76,15 +88,18 @@ test('another key is not the shortcut either', () => {
 
 // where the caret is, ctrl+z means the text editor's own undo and always will.
 test('a field that takes typing keeps the shortcut', () => {
-	assert.equal(openStack().press({ ...held, key: 'z', code: 'KeyZ' }, { tagName: 'INPUT' }), null);
 	assert.equal(
-		openStack().press({ ...held, key: 'y', code: 'KeyY' }, { tagName: 'TEXTAREA' }),
+		openStack().press({ ...held, key: 'z', code: 'KeyZ' }, eventTarget({ tagName: 'INPUT' })),
+		null
+	);
+	assert.equal(
+		openStack().press({ ...held, key: 'y', code: 'KeyY' }, eventTarget({ tagName: 'TEXTAREA' })),
 		null
 	);
 	assert.equal(
 		openStack().press(
 			{ ...held, key: 'z', code: 'KeyZ' },
-			{ tagName: 'DIV', isContentEditable: true }
+			eventTarget({ tagName: 'DIV', isContentEditable: true })
 		),
 		null
 	);
@@ -92,22 +107,17 @@ test('a field that takes typing keeps the shortcut', () => {
 
 test('anything else leaves the shortcut to the application', () => {
 	assert.equal(
-		openStack().press({ ...held, key: 'z', code: 'KeyZ' }, { tagName: 'BUTTON' }),
+		openStack().press({ ...held, key: 'z', code: 'KeyZ' }, eventTarget({ tagName: 'BUTTON' })),
 		'undo'
 	);
 	assert.equal(openStack().press({ ...held, key: 'z', code: 'KeyZ' }, null), 'undo');
 });
 
-const undoTranslations = {
-	common: {
-		undo: {
-			undo: () => 'undo',
-			redo: () => 'redo',
-			nothingToUndo: () => 'nothing to take back',
-			nothingToRedo: () => 'nothing to apply again'
-		}
-	}
-};
+// a registration names itself from the whole of what a locale answers with, so the loaded
+// locale is what a test hands it rather than a four-key shape nothing ever passes. English says
+// the same words, so what is asserted below is unchanged.
+loadLocale('en');
+const undoTranslations = i18nObject('en');
 
 test('the pair names both directions for the sheet', () => {
 	assert.deepEqual(
@@ -128,6 +138,8 @@ test('each direction says why it cannot run, from its own end of the stack', () 
 		(intent) => intent === 'redo'
 	);
 
+	assert.ok(undo.unavailable);
+	assert.ok(redo.unavailable);
 	assert.equal(undo.unavailable(undoTranslations), 'nothing to take back');
 	assert.equal(redo.unavailable(undoTranslations), undefined);
 });
@@ -138,6 +150,8 @@ test('and neither says anything while there is something to apply', () => {
 		() => true
 	);
 
+	assert.ok(undo.unavailable);
+	assert.ok(redo.unavailable);
 	assert.equal(undo.unavailable(undoTranslations), undefined);
 	assert.equal(redo.unavailable(undoTranslations), undefined);
 });

@@ -1,25 +1,40 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ShortcutRegistry, toShortcutSheetEntries } from '../shortcut-registry.ts';
+import { i18nObject } from '$lib/i18n/i18n-util.ts';
+import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 
-/** enough of the translations for a description to read, without the generated bundle. */
-const translations = {
-	common: {
-		ui: { toggleSidebar: () => 'toggle sidebar', commandPalette: () => 'command palette' },
-		undo: { undo: () => 'undo' }
-	}
-};
+import type { ShortcutCombination } from '../shortcut.ts';
+import {
+	ShortcutRegistry,
+	toShortcutSheetEntries,
+	type ApplicationShortcut,
+	type ShortcutCollision
+} from '../shortcut-registry.ts';
+
+// a registration describes itself from the whole of what a locale answers with, so the loaded
+// locale is what a test hands it rather than a two-key shape nothing ever passes.
+loadLocale('en');
+const translations = i18nObject('en');
+
+/** what a keydown reached, as a real `EventTarget` carrying what decides an editing field. */
+function eventTarget(element: { tagName: string; isContentEditable?: boolean }): EventTarget {
+	return Object.assign(new EventTarget(), element);
+}
 
 /** a registry and the collisions it reported, so a test can assert on both. */
 function openRegistry() {
-	const reported = [];
+	const reported: ShortcutCollision[] = [];
 
 	return { registry: new ShortcutRegistry((collision) => reported.push(collision)), reported };
 }
 
 /** an application shortcut with everything a test does not care about filled in. */
-function shortcut(id, keys, extra = {}) {
+function shortcut(
+	id: string,
+	keys: [ShortcutCombination, ...ShortcutCombination[]],
+	extra: Partial<ApplicationShortcut> = {}
+): ApplicationShortcut {
 	return { id, scope: 'application', keys, describe: () => id, run: () => {}, ...extra };
 }
 
@@ -60,7 +75,8 @@ test('the sheet reads its descriptions from the translations it is handed', () =
 		})
 	);
 
-	const arabic = { common: { ui: { toggleSidebar: () => 'تبديل الشريط الجانبي' } } };
+	loadLocale('ar');
+	const arabic = i18nObject('ar');
 
 	assert.equal(
 		toShortcutSheetEntries(registry.registered, arabic, false)[0].description,
@@ -292,11 +308,12 @@ test('a shortcut that stands down while text is typed stands down', () => {
 	);
 
 	assert.deepEqual(
-		registry.answering({ ...held, key: 'z', code: 'KeyZ' }, { tagName: 'INPUT' }),
+		registry.answering({ ...held, key: 'z', code: 'KeyZ' }, eventTarget({ tagName: 'INPUT' })),
 		[]
 	);
 	assert.equal(
-		registry.answering({ ...held, key: 'z', code: 'KeyZ' }, { tagName: 'BUTTON' }).length,
+		registry.answering({ ...held, key: 'z', code: 'KeyZ' }, eventTarget({ tagName: 'BUTTON' }))
+			.length,
 		1
 	);
 });
@@ -307,7 +324,8 @@ test('one that does not, does not', () => {
 	registry.register(shortcut('palette.toggle', [{ key: 'k', command: true }]));
 
 	assert.equal(
-		registry.answering({ ...held, key: 'k', code: 'KeyK' }, { tagName: 'INPUT' }).length,
+		registry.answering({ ...held, key: 'k', code: 'KeyK' }, eventTarget({ tagName: 'INPUT' }))
+			.length,
 		1
 	);
 });

@@ -1,9 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { NOW, createApi, monthsFromNow, seedTenant, unusedId } from '$lib/api/tests/testing.ts';
+import {
+	NOW,
+	type Api,
+	createApi,
+	monthsFromNow,
+	seedTenant,
+	unusedId
+} from '$lib/api/tests/testing.ts';
 
-async function seedContract(api, overrides = {}) {
+/** What `contract.create` takes — read off the procedure, so a fixture cannot drift from it. */
+type ContractInput = Parameters<Api['contract']['create']>[0];
+
+async function seedContract(api: Api, overrides: Partial<ContractInput> = {}) {
 	const tenant = await seedTenant(api);
 
 	return api.contract.create({
@@ -167,6 +177,7 @@ test('a payment is read with the contract it was made against', async () => {
 
 	const payment = await api.contract.payments.get({ id: created.id });
 
+	assert.ok(payment, 'the payment just created reads back');
 	assert.equal(payment.id, created.id);
 	assert.equal(payment.amount, 500);
 	assert.equal(payment.contractId, contract.id);
@@ -193,6 +204,8 @@ test('recording a payment increases the contract paid amount', async () => {
 	});
 
 	const reloaded = await api.contract.get({ id: contract.id });
+
+	assert.ok(reloaded, 'the contract the payment was made against reads back');
 	assert.equal(reloaded.paidAmount, 500);
 });
 
@@ -287,14 +300,14 @@ test('a payment cannot be moved into the future by an edit', async () => {
  * computes them — so a test says *the first of last month* rather than a literal date that is
  * only correct on the day it was written.
  */
-function dayOf(monthOffset, day) {
+function dayOf(monthOffset: number, day: number) {
 	const base = new Date(NOW);
 
 	return Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + monthOffset, day);
 }
 
 /** the last day of the month `monthOffset` away, which is day zero of the one after it. */
-function lastDayOf(monthOffset) {
+function lastDayOf(monthOffset: number) {
 	return dayOf(monthOffset + 1, 0);
 }
 

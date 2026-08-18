@@ -1,18 +1,33 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createApi, monthsFromNow, seedTenant, unusedId } from '$lib/api/tests/testing.ts';
+import {
+	type Api,
+	createApi,
+	monthsFromNow,
+	seedTenant,
+	unusedId
+} from '$lib/api/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
+import type { ContractSortColumnId } from '$lib/contract/contract.ts';
+import type { ContractRank } from '$lib/contract/rank.ts';
 import { getContractRenewalTerm } from '$lib/contract/renewal.ts';
+import type { ListSort } from '$lib/design/sort.ts';
 
-async function seedComplexWithUnit(api, label) {
+/** what a contract is created from, and what one comes back as, as the caller states them. */
+type ContractInput = Parameters<Api['contract']['create']>[0];
+type CreatedContract = Awaited<ReturnType<Api['contract']['create']>>;
+/** the sort a contracts list may be asked for, as the procedure states it. */
+type ContractSort = NonNullable<NonNullable<Parameters<Api['contract']['getMany']>[0]>['sort']>;
+
+async function seedComplexWithUnit(api: Api, label: string) {
 	const complex = await api.complex.create({ name: `Complex ${label}`, location: 'Riyadh' });
 	const unit = await api.complex.units.create({ name: `Unit ${label}`, complexId: complex.id });
 
 	return { complex, unit };
 }
 
-async function seedContract(api, overrides = {}) {
+async function seedContract(api: Api, overrides: Partial<ContractInput> = {}) {
 	const tenant = await seedTenant(api);
 
 	return api.contract.create({
@@ -199,7 +214,7 @@ test('updating with an invalid cost is rejected', async () => {
 
 // the term a renewal proposes, as the surfaces compute it: the day after the predecessor's
 // last, over the same cycles. Stated once here so the assertions read as the screen does.
-function renewalTerm(contract) {
+function renewalTerm(contract: CreatedContract) {
 	return getContractRenewalTerm({
 		start: contract.start,
 		end: contract.end,
@@ -207,7 +222,11 @@ function renewalTerm(contract) {
 	});
 }
 
-async function renew(api, contract, overrides = {}) {
+async function renew(
+	api: Api,
+	contract: CreatedContract,
+	overrides: Partial<Parameters<Api['contract']['renew']>[0]> = {}
+) {
 	const term = renewalTerm(contract);
 
 	return api.contract.renew({
@@ -273,8 +292,8 @@ test('the successor carries the original’s units', async () => {
 	const carried = await api.contract.units.getMany({ contractId: successor.id });
 
 	assert.deepEqual(
-		carried.map((unit) => unit.id).sort((left, right) => left - right),
-		[first.id, second.id].sort((left, right) => left - right)
+		carried.map((unit) => unit.id).sort((left, right) => left.localeCompare(right)),
+		[first.id, second.id].sort((left, right) => left.localeCompare(right))
 	);
 });
 
@@ -677,6 +696,7 @@ test('derived status is fulfilled within the period once fully paid', async () =
 	});
 
 	const reloaded = await api.contract.get({ id: contract.id });
+	assert.ok(reloaded);
 	assert.equal(reloaded.status, 'fulfilled');
 });
 
@@ -698,6 +718,7 @@ test('derived status is expired after the period once fully paid', async () => {
 	});
 
 	const reloaded = await api.contract.get({ id: contract.id });
+	assert.ok(reloaded);
 	assert.equal(reloaded.status, 'expired');
 });
 
@@ -756,6 +777,7 @@ test('a mutation on one contract keeps a shared unit occupied by the other', asy
 	});
 
 	const reloadedPast = await api.contract.get({ id: past.id });
+	assert.ok(reloadedPast);
 	assert.equal(reloadedPast.status, 'expired');
 
 	const dashboard = await api.contract.dashboard();
@@ -785,6 +807,7 @@ test('the contract list carries the payment aggregates after a payment', async (
 	const contracts = await api.contract.getMany({});
 	const listed = contracts.find((candidate) => candidate.id === contract.id);
 
+	assert.ok(listed);
 	assert.equal(listed.paidAmount, 400);
 	assert.equal(listed.expectedAmount, 1000);
 });
@@ -798,12 +821,12 @@ test('the contract list carries how many payments are recorded against each cont
 	await api.contract.payments.create({ contractId: paid.id, date: monthsFromNow(0), amount: 200 });
 
 	const contracts = await api.contract.getMany({});
-	const listed = (id) => contracts.find((candidate) => candidate.id === id);
+	const listed = (id: string) => contracts.find((candidate) => candidate.id === id);
 
-	assert.equal(listed(paid.id).paymentCount, 2);
+	assert.equal(listed(paid.id)?.paymentCount, 2);
 	// a contract nobody has paid is counted as zero rather than dropped from the list — the
 	// count rides the row, so a missing one would be a contract missing from the directory.
-	assert.equal(listed(untouched.id).paymentCount, 0);
+	assert.equal(listed(untouched.id)?.paymentCount, 0);
 });
 
 test('the contract list narrows to one tenant when asked', async () => {
@@ -953,7 +976,7 @@ test('the payment count follows a deleted payment back down', async () => {
 
 	const listed = (await api.contract.getMany({})).find((candidate) => candidate.id === contract.id);
 
-	assert.equal(listed.paymentCount, 0);
+	assert.equal(listed?.paymentCount, 0);
 });
 
 test('updating the cost updates the expected amount on reads', async () => {
@@ -972,6 +995,7 @@ test('updating the cost updates the expected amount on reads', async () => {
 	assert.equal(updated.expectedAmount, 2500);
 
 	const reloaded = await api.contract.get({ id: contract.id });
+	assert.ok(reloaded);
 	assert.equal(reloaded.expectedAmount, 2500);
 });
 
@@ -983,7 +1007,7 @@ test('updating the cost updates the expected amount on reads', async () => {
 
 // Seeds one contract per status, created in an order that is not the order they come back
 // in — so a test asserting attention order cannot pass on insertion order by accident.
-async function seedOneContractPerStatus(api) {
+async function seedOneContractPerStatus(api: Api) {
 	const scheduled = await seedContract(api, {
 		govId: 'GOV-SCHEDULED',
 		start: monthsFromNow(2),
@@ -1088,7 +1112,7 @@ test('the directory orders by every key the sort control offers', async () => {
 		cost: 1000
 	});
 
-	const orderBy = async (columnId, direction) =>
+	const orderBy = async (columnId: ContractSortColumnId, direction: ListSort['direction']) =>
 		(await api.contract.getMany({ sort: { columnId, direction } })).map((contract) => contract.id);
 
 	assert.deepEqual(await orderBy('tenantName', 'asc'), [amalContract.id, zaidContract.id]);
@@ -1129,9 +1153,13 @@ test('ordering the directory by status follows the attention ranking', async () 
 test('the directory refuses to order by a column the sort control does not offer', async () => {
 	const api = await createApi();
 
-	await assert.rejects(() =>
-		api.contract.getMany({ sort: { columnId: 'paidAmount', direction: 'asc' } })
-	);
+	// `paidAmount` is outside the sort vocabulary, so it cannot be named in the caller's own
+	// type — the vocabulary *is* the type. It arrives here the way a reader's chosen column
+	// really does, as the plain string of a `ListSort`, with the vocabulary guard the query
+	// layer applies skipped: what is asserted is that the procedure refuses it on its own.
+	const chosen: ListSort = { columnId: 'paidAmount', direction: 'asc' };
+
+	await assert.rejects(() => api.contract.getMany({ sort: chosen as ContractSort }));
 });
 
 test('contracts tied on the chosen order fall back to the directory order', async () => {
@@ -1173,6 +1201,7 @@ test('searching the contract list narrows it and keeps the chosen order', async 
 	const seeded = await seedOneContractPerStatus(api);
 	const tenant = await api.tenant.get({ id: seeded.active.tenantId });
 
+	assert.ok(tenant);
 	assert.deepEqual(
 		(await api.contract.getMany({ search: 'GOV-ACTIVE' })).map((contract) => contract.id),
 		[seeded.active.id]
@@ -1250,6 +1279,7 @@ test('a contract is found by its reference or by the tenant holding it', async (
 	const contract = await seedContract(api, { govId: 'GOV-42' });
 	const tenant = await api.tenant.get({ id: contract.tenantId });
 
+	assert.ok(tenant);
 	assert.deepEqual(
 		(await api.contract.search({ term: 'GOV-4' })).map((match) => match.id),
 		[contract.id]
@@ -1266,6 +1296,7 @@ test('a contract with no reference is found under the tenant holding it', async 
 	const contract = await seedContract(api);
 	const tenant = await api.tenant.get({ id: contract.tenantId });
 
+	assert.ok(tenant);
 	assert.deepEqual(
 		(await api.contract.search({ term: tenant.name })).map((match) => match.label),
 		[tenant.name]
@@ -1294,10 +1325,10 @@ test('a payment is found by its amount, across every contract', async () => {
 
 // One contract per rank plus one in none, so a filter that answered with everything or with
 // nothing is distinguishable from one that answered correctly.
-async function seedRankedPortfolio(api) {
+async function seedRankedPortfolio(api: Api) {
 	const tenant = await seedTenant(api);
 
-	const contract = (govId, cost, startMonths, endMonths) =>
+	const contract = (govId: string, cost: number, startMonths: number, endMonths: number) =>
 		api.contract.create({
 			govId,
 			cost,
@@ -1326,7 +1357,7 @@ test('the contracts list narrows to one attention rank', async () => {
 	const api = await createApi();
 	await seedRankedPortfolio(api);
 
-	const govIds = async (rank) =>
+	const govIds = async (rank: ContractRank) =>
 		(await api.contract.getMany({ rank })).map((contract) => contract.govId);
 
 	assert.deepEqual(await govIds('overdue'), ['RANK-OVERDUE']);
@@ -1361,7 +1392,7 @@ test('a rank with no chosen sort answers in the rank’s own order', async () =>
 	const api = await createApi();
 	const tenant = await seedTenant(api);
 
-	const contract = (govId, cost) =>
+	const contract = (govId: string, cost: number) =>
 		api.contract.create({
 			govId,
 			cost,
@@ -1385,7 +1416,7 @@ test('a chosen sort still wins over the rank’s own order', async () => {
 	const api = await createApi();
 	const tenant = await seedTenant(api);
 
-	const contract = (govId, cost) =>
+	const contract = (govId: string, cost: number) =>
 		api.contract.create({
 			govId,
 			cost,
@@ -1411,8 +1442,8 @@ test('a chosen sort still wins over the rank’s own order', async () => {
 });
 
 /** Every statement a block of work issued, so a test can say what it cost. */
-async function withStatementLog(run) {
-	const statements = [];
+async function withStatementLog(run: (api: Api, drain: () => string[]) => Promise<void>) {
+	const statements: string[] = [];
 	const api = await createApi({ onStatement: (sql) => statements.push(sql) });
 
 	await run(api, () => statements.splice(0, statements.length));
@@ -1421,7 +1452,7 @@ async function withStatementLog(run) {
 }
 
 /** how many statements of a kind were issued against the contract table. */
-function countMatching(statements, pattern) {
+function countMatching(statements: readonly string[], pattern: RegExp) {
 	return statements.filter((sql) => pattern.test(sql)).length;
 }
 
@@ -1437,7 +1468,7 @@ test('several contracts are terminated by one action', async () => {
 	assert.deepEqual(result.refused, []);
 
 	for (const id of [first.id, second.id, third.id]) {
-		assert.equal((await api.contract.get({ id })).status, 'terminated');
+		assert.equal((await api.contract.get({ id }))?.status, 'terminated');
 	}
 });
 
@@ -1445,7 +1476,7 @@ test('several contracts are terminated by one action', async () => {
 // three contracts one at a time and terminating them together leave the same three rows, and
 // differ by two reconcile passes — which over a wire is a round trip per changed row.
 test('terminating many reconciles once, not once per record', async () => {
-	const ids = [];
+	const ids: string[] = [];
 	const oneByOne = await withStatementLog(async (api, drain) => {
 		for (let index = 0; index < 3; index += 1) {
 			ids.push((await seedContract(api)).id);
@@ -1501,7 +1532,7 @@ test('a contract that cannot be terminated is named, and the rest still are', as
 		[already.id]
 	);
 	assert.equal(result.refused[0].reason, 'not-terminable');
-	assert.equal((await api.contract.get({ id: terminable.id })).status, 'terminated');
+	assert.equal((await api.contract.get({ id: terminable.id }))?.status, 'terminated');
 });
 
 test('an id that names no contract is refused as missing rather than failing the action', async () => {
@@ -1531,7 +1562,10 @@ test('un-terminating many puts every one of them back', async () => {
 	assert.deepEqual(restored.unterminated.sort(), [first.id, second.id].sort());
 
 	for (const id of [first.id, second.id]) {
-		assert.notEqual((await api.contract.get({ id })).status, 'terminated');
+		const putBack = await api.contract.get({ id });
+
+		assert.ok(putBack);
+		assert.notEqual(putBack.status, 'terminated');
 	}
 });
 
@@ -1544,10 +1578,13 @@ test('and it recomputes each status rather than putting back the one it held', a
 
 	const restored = await api.contract.get({ id: contract.id });
 	const untouched = await seedContract(api);
+	const neverTerminated = await api.contract.get({ id: untouched.id });
 
 	// the same fixture, never terminated: whatever the domain derives for one it derives for
 	// the other, which is what "recomputed" means here.
-	assert.equal(restored.status, (await api.contract.get({ id: untouched.id })).status);
+	assert.ok(restored);
+	assert.ok(neverTerminated);
+	assert.equal(restored.status, neverTerminated.status);
 });
 
 test('terminating the same contract twice in one selection acts on it once', async () => {

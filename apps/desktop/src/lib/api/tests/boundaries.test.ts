@@ -30,11 +30,11 @@ const LIB_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const API_ROOT = join(LIB_ROOT, 'api');
 const REQUEST_TIME_MODULES = ['router.ts', 'reconcile.ts'];
 
-function toPosix(path) {
+function toPosix(path: string) {
 	return path.split(sep).join('/');
 }
 
-function labelled(file) {
+function labelled(file: string) {
 	return { file, label: toPosix(relative(LIB_ROOT, file)) };
 }
 
@@ -60,7 +60,7 @@ function apiSourceFiles() {
 
 // files whose full content matches the pattern, minus the allowed ones. every allowed
 // file must still exist — an exception expires with the code it excuses.
-function offenders(pattern, allowed) {
+function offenders(pattern: RegExp, allowed: readonly string[]) {
 	const files = apiSourceFiles();
 
 	for (const entry of allowed) {
@@ -79,7 +79,7 @@ function offenders(pattern, allowed) {
 
 // a static value import, re-export, or side-effect import from any of the given module
 // paths; `import type` is erased at runtime and stays allowed.
-function valueImportFrom(...modulePaths) {
+function valueImportFrom(...modulePaths: string[]) {
 	const from = modulePaths.map((path) => path.replaceAll('/', '\\/')).join('|');
 
 	return new RegExp(

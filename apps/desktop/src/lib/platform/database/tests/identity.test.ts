@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
+import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
 import { isRecordId, newId } from '../identity.ts';
 
 // IDENTITY
@@ -30,7 +30,7 @@ test('two records created with no shared state take different identities', async
  * `history` is in the list because it is the table nothing would object to: its rows are only
  * ever inserted, nothing joins them at write time, and no constraint would notice a duplicate.
  */
-async function seedEveryConcept(api, label) {
+async function seedEveryConcept(api: Api, label: string) {
 	const tenant = await seedTenant(api);
 	const complex = await api.complex.create({ name: `Complex ${label}`, location: 'Riyadh' });
 	const unit = await api.complex.units.create({ name: `Unit ${label}`, complexId: complex.id });
@@ -68,12 +68,22 @@ async function seedEveryConcept(api, label) {
 	};
 }
 
+/** the identity each concept was minted with, keyed by the concept it belongs to. */
+type Minted = Awaited<ReturnType<typeof seedEveryConcept>>;
+
 test('two workspaces populate every concept without minting a single shared identity', async () => {
 	const [one, two] = await Promise.all([createApi(), createApi()]);
 
 	const [here, there] = await Promise.all([seedEveryConcept(one, 'A'), seedEveryConcept(two, 'B')]);
 
-	const concepts = ['tenant', 'complex', 'unit', 'contract', 'payment', 'history'];
+	const concepts: (keyof Minted)[] = [
+		'tenant',
+		'complex',
+		'unit',
+		'contract',
+		'payment',
+		'history'
+	];
 
 	// counted rather than spot-checked, and per concept, so a concept that quietly created
 	// nothing cannot pass by leaving the totals looking right
@@ -81,7 +91,7 @@ test('two workspaces populate every concept without minting a single shared iden
 		for (const [where, minted] of [
 			['the first workspace', here],
 			['the second workspace', there]
-		]) {
+		] satisfies [string, Minted][]) {
 			assert.ok(
 				isRecordId(minted[concept]),
 				`${where} should have minted a well-formed identity for its ${concept}, got ${minted[concept]}`

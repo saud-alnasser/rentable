@@ -1,23 +1,30 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ShortcutRegistry, toShortcutSheetEntries } from '../../design/shortcut-registry.ts';
+import { i18nObject } from '$lib/i18n/i18n-util.ts';
+import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
+import {
+	ShortcutRegistry,
+	type ApplicationShortcut,
+	type RecordVerb,
+	type ShortcutCollision,
+	type ShortcutRegistration,
+	toShortcutSheetEntries
+} from '../../design/shortcut-registry.ts';
 import { matchesTerm, toPaletteVerbs } from '../palette.ts';
 
-/** enough of the translations for a name and a reason to read, without the generated bundle. */
-const translations = {
-	common: {
-		actions: { renewContract: () => 'renew a contract' },
-		undo: { undo: () => 'undo', nothingToUndo: () => 'nothing to take back' },
-		ui: { commandPalette: () => 'command palette', toggleSidebar: () => 'toggle sidebar' }
-	}
-};
+// the loaded locale rather than a hand-written stand-in: a name and a reason are read from the
+// whole of `TranslationFunctions`, and the three-key object this used to pass was a shape
+// nothing ever hands it. English says the same words, so what is asserted is unchanged.
+loadLocale('en');
+
+const translations = i18nObject('en');
 
 /**
  * A registry holding exactly what a test hands it, and a record of everything the shell would
  * have done — so a test can say what ran and, just as importantly, what did not.
  */
-function registryOf(...registrations) {
+function registryOf(...registrations: ShortcutRegistration[]) {
 	const registry = new ShortcutRegistry(() => {});
 
 	for (const registration of registrations) {
@@ -28,7 +35,7 @@ function registryOf(...registrations) {
 }
 
 /** the shortcut that toggles the navigation: an ordinary application shortcut, with keys. */
-function sidebarToggle(ran = []) {
+function sidebarToggle(ran: string[] = []): ApplicationShortcut {
 	return {
 		id: 'sidebar.toggle',
 		scope: 'application',
@@ -39,7 +46,7 @@ function sidebarToggle(ran = []) {
 }
 
 /** the action that has to ask which contract before it can do anything. */
-function renewContract(ran = []) {
+function renewContract(ran: string[] = []): RecordVerb {
 	return {
 		id: 'contract.renew',
 		scope: 'record',
@@ -88,15 +95,20 @@ test('and nor is a shortcut that says it is not offered', () => {
 // palette hands it nothing it could navigate with — no path, no href, no router — so the only
 // thing a row can do is the work the registration declared.
 test('running an action does its work and nothing else — no navigation happens', () => {
-	const ran = [];
-	const navigated = [];
+	const ran: string[] = [];
+	const navigated: string[] = [];
 	const verbs = toPaletteVerbs(registryOf(sidebarToggle(ran)).registered, translations, false);
+	const [verb] = verbs;
 
-	verbs[0].run();
+	// naming no destination is also what says the row runs on nothing: the two members of a
+	// verb differ in exactly this, so the row carrying no subject is the one `run` takes
+	// nothing for — which is why this is asserted before it is run rather than after.
+	assert.ok(verb.subject === undefined, 'nothing about the row names a destination');
+
+	verb.run();
 
 	assert.deepEqual(ran, ['sidebar.toggle']);
 	assert.deepEqual(navigated, []);
-	assert.equal(verbs[0].subject, undefined, 'nothing about the row names a destination');
 });
 
 test('an action that acts on a record names the concept it has to ask for', () => {
@@ -107,10 +119,12 @@ test('an action that acts on a record names the concept it has to ask for', () =
 });
 
 test('and is given the record the reader chose, rather than failing without one', () => {
-	const ran = [];
+	const ran: string[] = [];
 	const verbs = toPaletteVerbs(registryOf(renewContract(ran)).registered, translations, false);
+	const [verb] = verbs;
 
-	verbs[0].run(42);
+	assert.ok(verb.subject !== undefined, 'the row asks for a record before it runs');
+	verb.run('42');
 
 	assert.deepEqual(ran, ['contract.renew:42']);
 });
@@ -165,7 +179,7 @@ test('an action with no keys reaches the palette and stays off the shortcut shee
 // two registrations that share no keydown cannot collide, and an action reached by no keydown
 // shares one with nothing.
 test('an action with no keys collides with nothing', () => {
-	const collisions = [];
+	const collisions: ShortcutCollision[] = [];
 	const registry = new ShortcutRegistry((collision) => collisions.push(collision));
 
 	registry.register(renewContract());

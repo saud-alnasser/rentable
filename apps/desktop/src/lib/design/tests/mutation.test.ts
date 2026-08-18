@@ -1,43 +1,78 @@
 import assert from 'node:assert/strict';
-import { TRPCError } from '@trpc/server';
 import { describe, it, mock } from 'node:test';
+
+import { TRPCError } from '@trpc/server';
+
+import type { Inverse } from '$lib/design/inverse.ts';
+import type { MutationDeclaration } from '$lib/design/mutation.ts';
+import { bindingOf } from '$lib/design/tests/testing.ts';
 
 // both dependencies reach a `.svelte` file, which this harness cannot load. the substitutes
 // are also the assertions: what the toast was asked to render, and which options the hook
 // handed to the query client.
-const raised = [];
-const dismissed = [];
+
+/** the control an announcement carries when the change behind it can be moved back. */
+type UndoOfferAction = { label: string; onClick: () => Promise<void> | undefined };
+
+/** what an announcement carrying an offer is raised with. */
+type UndoOfferOptions = { action: UndoOfferAction; duration: number };
+
+/** one announcement the substituted toast was asked to render. */
+type Announcement = {
+	level: 'success' | 'error';
+	message: string;
+	options?: UndoOfferOptions;
+};
+
+const raised: Announcement[] = [];
+const dismissed: (string | number)[] = [];
 
 mock.module('svelte-sonner', {
 	exports: {
 		toast: {
 			// an announcement carrying nothing is recorded as the bare pair, so a test about the
 			// message is not also a test about the options an offer adds.
-			success: (message, options) => {
+			success: (message: string, options?: UndoOfferOptions) => {
 				raised.push(
 					options ? { level: 'success', message, options } : { level: 'success', message }
 				);
 
 				return raised.length;
 			},
-			error: (message) => raised.push({ level: 'error', message }),
-			dismiss: (id) => dismissed.push(id)
+			error: (message: string) => raised.push({ level: 'error', message }),
+			dismiss: (id: string | number) => dismissed.push(id)
 		}
 	}
 });
 
-let boundClient;
+/** the query keys the client was asked to invalidate, newest last. */
+const invalidated: (readonly unknown[] | null)[] = [];
+
+/**
+ * The client every hook is handed here.
+ *
+ * `invalidateQueries` is the whole of what the mutation layer asks a client for, and what it
+ * was asked to invalidate is what these tests assert on.
+ */
+const recordingClient = {
+	invalidateQueries: async (filters?: { queryKey?: readonly unknown[] }) => {
+		invalidated.push(filters?.queryKey ?? null);
+	}
+};
 
 mock.module('@tanstack/svelte-query', {
 	exports: {
-		useQueryClient: () => boundClient,
-		createMutation: (options) => options()
+		useQueryClient: () => recordingClient,
+		createMutation: (options: () => unknown) => options()
 	}
 });
 
 const { applyRedo, applyUndo, declareMutation } = await import('$lib/design/mutation');
 const { workspacePrefixes } = await import('$lib/design/query');
 const { inverseStack } = await import('$lib/design/inverse');
+// reached through the library's own accessor, so the client arrives typed as the one the
+// mutation layer takes — and is the recorder above, because the library is substituted.
+const { useQueryClient } = await import('@tanstack/svelte-query');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { setLocale } = await import('$lib/i18n/i18n-svelte');
 
@@ -46,33 +81,26 @@ const { setLocale } = await import('$lib/i18n/i18n-svelte');
 loadLocale('en');
 setLocale('en');
 
-function recordingClient() {
-	const invalidated = [];
-
-	return {
-		invalidated,
-		invalidateQueries: async (filters) => {
-			invalidated.push(filters?.queryKey ?? null);
-		}
-	};
-}
-
-function bind(declaration) {
-	boundClient = recordingClient();
+function bind<TVariables, TResult, TCaptured = void>(
+	declaration: MutationDeclaration<TVariables, TResult, TCaptured>
+) {
 	// the stack goes first: emptying it withdraws whatever offer the previous test left on
 	// screen, and that withdrawal belongs to that test rather than to this one.
 	inverseStack.clear();
 	raised.length = 0;
 	dismissed.length = 0;
+	invalidated.length = 0;
 
-	return { mutation: declareMutation(declaration)(), client: boundClient };
+	// the hook answers with the binding it handed the substituted library, which is what a test
+	// drives — still typed by the variables and the result the declaration made concrete.
+	return { mutation: bindingOf(declareMutation(declaration)), client: useQueryClient() };
 }
 
 describe('a declared mutation', () => {
 	it('calls the procedure it declared', async () => {
-		const called = [];
+		const called: number[] = [];
 		const { mutation } = bind({
-			mutate: async (id) => {
+			mutate: async (id: number) => {
 				called.push(id);
 				return { id };
 			},
@@ -84,16 +112,16 @@ describe('a declared mutation', () => {
 	});
 
 	it('invalidates every workspace prefix on success', async () => {
-		const { mutation, client } = bind({
+		const { mutation } = bind({
 			mutate: async () => undefined,
 			touches: ['tenants']
 		});
 
-		await mutation.onSuccess();
+		await mutation.onSuccess(undefined, undefined, undefined);
 
 		for (const prefix of Object.values(workspacePrefixes)) {
 			assert.ok(
-				client.invalidated.some((key) => JSON.stringify(key) === JSON.stringify(prefix)),
+				invalidated.some((key) => JSON.stringify(key) === JSON.stringify(prefix)),
 				`expected the ${JSON.stringify(prefix)} prefix to be invalidated`
 			);
 		}
@@ -107,15 +135,15 @@ describe('a declared mutation', () => {
 		const prefixCount = Object.values(workspacePrefixes).length;
 
 		for (const returned of [undefined, false, { id: 4 }]) {
-			const { mutation, client } = bind({
+			const { mutation } = bind({
 				mutate: async () => returned,
 				touches: ['contracts']
 			});
 
-			await mutation.onSuccess(returned);
+			await mutation.onSuccess(returned, undefined, undefined);
 
 			assert.equal(
-				client.invalidated.length,
+				invalidated.length,
 				prefixCount,
 				`expected a procedure returning ${JSON.stringify(returned)} to invalidate regardless`
 			);
@@ -129,7 +157,7 @@ describe('a declared mutation', () => {
 			toast: { success: () => 'tenant saved' }
 		});
 
-		await mutation.onSuccess();
+		await mutation.onSuccess(undefined, undefined, undefined);
 
 		assert.deepEqual(raised, [{ level: 'success', message: 'tenant saved' }]);
 	});
@@ -164,14 +192,14 @@ describe('a declared mutation', () => {
 			touches: ['units']
 		});
 
-		await mutation.onSuccess();
+		await mutation.onSuccess(undefined, undefined, undefined);
 		mutation.onError(new Error('SQLITE_BUSY'));
 
 		assert.deepEqual(raised, []);
 	});
 });
 
-function reversible(change, calls = []) {
+function reversible(change: string, calls: string[] = []): Inverse {
 	return {
 		describe: () => change,
 		undo: async () => calls.push(`undo ${change}`),
@@ -180,7 +208,7 @@ function reversible(change, calls = []) {
 }
 
 /** a declaration that announces itself and can be taken back — the ordinary record change. */
-function takeBackable(change, calls) {
+function takeBackable(change: string, calls?: string[]): MutationDeclaration<void, undefined> {
 	return {
 		mutate: async () => undefined,
 		touches: ['tenants'],
@@ -193,11 +221,14 @@ describe('the offer to take a change back', () => {
 	it('rides on the announcement the change already makes', async () => {
 		const { mutation } = bind(takeBackable('deleting a tenant'));
 
-		await mutation.onSuccess();
+		await mutation.onSuccess(undefined, undefined, undefined);
+
+		const announcement = raised[0];
 
 		assert.equal(raised.length, 1);
-		assert.equal(raised[0].message, 'deleting a tenant done');
-		assert.equal(raised[0].options.action.label, 'undo');
+		assert.equal(announcement.message, 'deleting a tenant done');
+		assert.ok(announcement.options);
+		assert.equal(announcement.options.action.label, 'undo');
 	});
 
 	it('is absent from a change that declares no inverse', async () => {
@@ -207,7 +238,7 @@ describe('the offer to take a change back', () => {
 			toast: { success: () => 'settings saved' }
 		});
 
-		await mutation.onSuccess();
+		await mutation.onSuccess(undefined, undefined, undefined);
 
 		assert.deepEqual(raised, [{ level: 'success', message: 'settings saved' }]);
 	});
@@ -219,37 +250,49 @@ describe('the offer to take a change back', () => {
 			inverse: () => reversible('deleting a tenant')
 		});
 
-		await mutation.onSuccess();
+		await mutation.onSuccess(undefined, undefined, undefined);
 
 		assert.deepEqual(raised, []);
 	});
 
 	it('takes the change back, and the announcement of that offers to apply it again', async () => {
-		const calls = [];
-		const { mutation, client } = bind(takeBackable('deleting a tenant', calls));
+		const calls: string[] = [];
+		const { mutation } = bind(takeBackable('deleting a tenant', calls));
 
-		await mutation.onSuccess();
-		await raised[0].options.action.onClick();
+		await mutation.onSuccess(undefined, undefined, undefined);
+
+		const offered = raised[0];
+
+		assert.ok(offered.options);
+		await offered.options.action.onClick();
+
+		const undone = raised.at(-1);
 
 		assert.deepEqual(calls, ['undo deleting a tenant']);
-		assert.equal(raised.at(-1).message, 'deleting a tenant undone');
-		assert.equal(raised.at(-1).options.action.label, 'redo');
+		assert.ok(undone);
+		assert.equal(undone.message, 'deleting a tenant undone');
+		assert.ok(undone.options);
+		assert.equal(undone.options.action.label, 'redo');
 
-		await raised.at(-1).options.action.onClick();
+		await undone.options.action.onClick();
+
+		const applied = raised.at(-1);
 
 		assert.deepEqual(calls, ['undo deleting a tenant', 'redo deleting a tenant']);
-		assert.equal(raised.at(-1).message, 'deleting a tenant applied again');
-		assert.equal(raised.at(-1).options.action.label, 'undo');
-		assert.ok(client.invalidated.length > 0);
+		assert.ok(applied);
+		assert.equal(applied.message, 'deleting a tenant applied again');
+		assert.ok(applied.options);
+		assert.equal(applied.options.action.label, 'undo');
+		assert.ok(invalidated.length > 0);
 	});
 
 	it('withdraws the offer outstanding when a newer change makes one', async () => {
 		const { mutation } = bind(takeBackable('deleting a tenant'));
 
-		await mutation.onSuccess();
+		await mutation.onSuccess(undefined, undefined, undefined);
 		const first = raised.length;
 
-		await mutation.onSuccess();
+		await mutation.onSuccess(undefined, undefined, undefined);
 
 		assert.deepEqual(dismissed, [first]);
 	});
@@ -258,27 +301,30 @@ describe('the offer to take a change back', () => {
 	// replaces the one it was written against — the stack is emptied, and an offer still on
 	// screen names a change nothing can take back.
 	it('leaves with the stack, and does nothing if pressed anyway', async () => {
-		const calls = [];
+		const calls: string[] = [];
 		const { mutation } = bind(takeBackable('deleting a tenant', calls));
 
-		await mutation.onSuccess();
+		await mutation.onSuccess(undefined, undefined, undefined);
 		const offered = raised.length;
 
 		inverseStack.clear();
 
 		assert.deepEqual(dismissed, [offered]);
 
-		await raised[0].options.action.onClick();
+		const announcement = raised[0];
+
+		assert.ok(announcement.options);
+		await announcement.options.action.onClick();
 
 		assert.deepEqual(calls, []);
 		assert.equal(raised.length, 1);
 	});
 
 	it('reaches the keyboard, which names no change and moves whatever is on top', async () => {
-		const calls = [];
+		const calls: string[] = [];
 		const { mutation, client } = bind(takeBackable('editing a tenant', calls));
 
-		await mutation.onSuccess();
+		await mutation.onSuccess(undefined, undefined, undefined);
 		await applyUndo(client);
 
 		assert.deepEqual(calls, ['undo editing a tenant']);

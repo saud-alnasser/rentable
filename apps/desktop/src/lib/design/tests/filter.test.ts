@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { i18nObject } from '$lib/i18n/i18n-util.ts';
+import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import {
 	PERIOD_FILTER,
+	type ChoiceFilter,
 	hasAnyFilter,
 	toChosenOption,
 	toFilterLabel,
@@ -10,21 +13,15 @@ import {
 	withFilter
 } from '../filter.ts';
 
-/** enough of the translations for a label to read, without the generated bundle. */
-const translations = {
-	common: {
-		labels: { period: () => 'period', rank: () => 'attention' },
-		periods: {
-			'this-month': () => 'this month',
-			'last-month': () => 'last month',
-			'this-year': () => 'this year',
-			'last-year': () => 'last year'
-		}
-	}
-};
+// the loaded locale rather than a hand-written stand-in: a label reads the whole of
+// `TranslationFunctions`, and the four-key object this used to pass was a shape nothing ever
+// hands it. English says the same words, so what is asserted is unchanged.
+loadLocale('en');
+
+const translations = i18nObject('en');
 
 /** a concept's own filter: a fixed set of values it defines itself. */
-const rankFilter = {
+const rankFilter: ChoiceFilter = {
 	kind: 'choice',
 	id: 'rank',
 	label: (t) => t.common.labels.rank(),

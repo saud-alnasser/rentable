@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import type { ContractRank } from '../rank.ts';
 import { CONTRACT_RANK_PARAM, readContractRank, withContractRank } from '../rank-filter.ts';
 
 test('the contracts list path carries the rank as a search parameter', () => {
@@ -11,7 +12,7 @@ test('the contracts list path carries the rank as a search parameter', () => {
 });
 
 test('a link built for a rank is read back as that rank', () => {
-	for (const rank of ['overdue', 'owing', 'ending-soon']) {
+	for (const rank of ['overdue', 'owing', 'ending-soon'] satisfies ContractRank[]) {
 		const url = new URL(withContractRank('/contracts', rank), 'http://localhost');
 
 		assert.equal(readContractRank(url), rank);

@@ -1,6 +1,7 @@
 {
 	"extends": "./.svelte-kit/tsconfig.json",
 	"compilerOptions": {
+		"allowImportingTsExtensions": true,
 		"allowJs": true,
 		"checkJs": true,
 		"esModuleInterop": true,
@@ -12,13 +13,7 @@
 		"moduleResolution": "bundler"
 	},
 	// `exclude` is not merged with the generated config's, so its seven service-worker entries
-	// are copied here verbatim and the last line is the only one that is ours.
-	//
-	// **The tests are excluded, and that is the status quo rather than a decision.** They were
-	// `.test.mjs` until #559, and the generated `include` above lists `.js`, `.ts` and `.svelte`
-	// — never `.mjs` — so not one of them has ever been type-checked. Renaming them to `.ts`
-	// would have swept 852 errors into this command in a change that only moved files. #561
-	// types them and removes this line; until it lands, a desktop test is checked by running it.
+	// are copied here verbatim.
 	"exclude": [
 		"node_modules/**",
 		"src/service-worker.js",
@@ -26,8 +21,7 @@
 		"src/service-worker.ts",
 		"src/service-worker/**/*.ts",
 		"src/service-worker.d.ts",
-		"src/service-worker/**/*.d.ts",
-		"src/**/tests/**"
+		"src/service-worker/**/*.d.ts"
 	]
 	// Path aliases are handled by https://kit.svelte.dev/docs/configuration#alias
 	// except $lib which is handled by https://kit.svelte.dev/docs/configuration#files

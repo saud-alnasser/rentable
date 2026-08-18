@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { doesRenewalFollowPredecessor, getContractRenewalTerm } from '$lib/contract/renewal.ts';
 
-const utc = (year, month, day) => Date.UTC(year, month - 1, day);
+const utc = (year: number, month: number, day: number) => Date.UTC(year, month - 1, day);
 
 // --- The term a renewal proposes ------------------------------------------------------
 
@@ -55,7 +55,11 @@ test('the proposed end is the calculated cycle boundary, not an inherited overri
 });
 
 test('proposing a term does not alter the contract it was read from', () => {
-	const predecessor = { start: utc(2025, 1, 1), end: utc(2025, 12, 31), interval: '12m' };
+	const predecessor: Parameters<typeof getContractRenewalTerm>[0] = {
+		start: utc(2025, 1, 1),
+		end: utc(2025, 12, 31),
+		interval: '12m'
+	};
 	const before = { ...predecessor };
 
 	getContractRenewalTerm(predecessor);

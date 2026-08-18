@@ -1,12 +1,32 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { PendingConflictFlow, workspaceConflictSignature } from '../pending-conflict.ts';
+import type {
+	GoogleDriveConflictKind,
+	GoogleDriveConflictResolution,
+	GoogleDriveLinkPreparation,
+	RemoteSyncAccount,
+	RemoteSyncState,
+	RemoteSyncWorkspace
+} from '$lib/platform/host.ts';
+import { fakeAccount, fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
 
-function syncState(overrides = {}, accountOverrides = {}) {
-	return {
-		accounts: [{ id: 'account', status: 'ready', lastError: null, ...accountOverrides }],
-		workspace: {
+import {
+	PendingConflictFlow,
+	workspaceConflictSignature,
+	type PendingConflictDismissal,
+	type PendingConflictDriver
+} from '../pending-conflict.ts';
+
+function syncState(
+	overrides: Partial<RemoteSyncWorkspace> = {},
+	accountOverrides: Partial<RemoteSyncAccount> = {}
+): RemoteSyncState {
+	return fakeSyncState({
+		accounts: [
+			fakeAccount({ id: 'account', status: 'ready', lastError: null, ...accountOverrides })
+		],
+		workspace: fakeWorkspace({
 			id: 'workspace',
 			accountId: 'account',
 			provider: 'googleDrive',
@@ -16,33 +36,52 @@ function syncState(overrides = {}, accountOverrides = {}) {
 			remoteHeadFileId: 'head',
 			remoteHeadRevision: 'revision',
 			...overrides
-		}
-	};
+		})
+	});
 }
 
 const STATE = syncState();
 const MOVED_STATE = syncState({ remoteHeadRevision: 'a newer revision' });
 const NEXT_STATE = syncState({ lastSyncedAt: 9 });
 
-function preparation(kind = 'sync', overrides = {}) {
+function preparation(
+	kind: GoogleDriveConflictKind = 'sync',
+	overrides: Partial<GoogleDriveLinkPreparation> = {}
+): GoogleDriveLinkPreparation {
 	return {
 		state: STATE,
 		requiresResolution: true,
 		recommendedMode: 'push',
-		conflict: { kind, accountEmail: 'someone@example.com', message: null },
+		conflict: {
+			kind,
+			accountEmail: 'someone@example.com',
+			localSnapshotAt: null,
+			remoteUpdatedAt: null,
+			remoteFilename: null,
+			message: null
+		},
 		...overrides
 	};
 }
 
+/** what the driver was asked to settle, and how. */
+type DriverCalls = {
+	resolve: { prepared: GoogleDriveLinkPreparation; resolution: GoogleDriveConflictResolution }[];
+	cancel: number;
+	reset: RemoteSyncState[];
+};
+
 /** a driver whose every step is settled by the test, so ordering is exercised rather than timing. */
-function createDriver(overrides = {}) {
-	const calls = { resolve: [], cancel: 0, reset: [] };
+function createDriver(
+	overrides: Partial<PendingConflictDriver> = {}
+): PendingConflictDriver & { calls: DriverCalls } {
+	const calls: DriverCalls = { resolve: [], cancel: 0, reset: [] };
 
 	return {
 		calls,
 		resolve: async (prepared, resolution) => {
 			calls.resolve.push({ prepared, resolution });
-			return { state: NEXT_STATE, action: 'pushed' };
+			return { state: NEXT_STATE, action: 'pushed', preparation: null };
 		},
 		cancel: async () => {
 			calls.cancel += 1;
@@ -56,7 +95,7 @@ function createDriver(overrides = {}) {
 	};
 }
 
-const ALL_KINDS = ['link', 'sync', 'corrupt', 'relink'];
+const ALL_KINDS = ['link', 'sync', 'corrupt', 'relink'] satisfies GoogleDriveConflictKind[];
 
 // --- Presenting -----------------------------------------------------------------------
 
@@ -170,7 +209,11 @@ test('a resolution that fails leaves the conflict pending', async () => {
 test('the question stays presented while the caller settles the answer', async () => {
 	const flow = new PendingConflictFlow(createDriver());
 	flow.present(preparation());
-	const seen = [];
+	const seen: {
+		state: RemoteSyncState;
+		kind: GoogleDriveConflictKind | undefined;
+		isWorking: boolean;
+	}[] = [];
 
 	await flow.resolve('local', async (outcome) => {
 		seen.push({ state: outcome.state, kind: flow.conflict?.kind, isWorking: flow.isWorking });
@@ -236,7 +279,7 @@ for (const kind of ALL_KINDS) {
 
 // --- Dismissing -----------------------------------------------------------------------
 
-for (const kind of ['sync', 'corrupt', 'relink']) {
+for (const kind of ['sync', 'corrupt', 'relink'] satisfies GoogleDriveConflictKind[]) {
 	test(`dismissing a ${kind} conflict remembers it and undoes nothing`, async () => {
 		const driver = createDriver();
 		const flow = new PendingConflictFlow(driver);
@@ -269,7 +312,10 @@ test('dismissing a link conflict undoes the link and remembers nothing', async (
 test('a deferral is handed to the caller with the question still presented', async () => {
 	const flow = new PendingConflictFlow(createDriver());
 	flow.present(preparation('sync'));
-	const seen = [];
+	const seen: (PendingConflictDismissal & {
+		kind: GoogleDriveConflictKind | undefined;
+		isWorking: boolean;
+	})[] = [];
 
 	await flow.dismiss(async (dismissal) => {
 		seen.push({ ...dismissal, kind: flow.conflict?.kind, isWorking: flow.isWorking });
@@ -282,7 +328,7 @@ test('a deferral is handed to the caller with the question still presented', asy
 test('an undone link is handed to the caller with the question still presented', async () => {
 	const flow = new PendingConflictFlow(createDriver());
 	flow.present(preparation('link'));
-	const seen = [];
+	const seen: (PendingConflictDismissal & { kind: GoogleDriveConflictKind | undefined })[] = [];
 
 	await flow.dismiss(async (dismissal) => {
 		seen.push({ ...dismissal, kind: flow.conflict?.kind });
@@ -328,7 +374,7 @@ test('relinking clears the workspace and leaves nothing pending', async () => {
 	assert.equal(flow.conflict, null);
 });
 
-for (const kind of ['link', 'sync', 'corrupt']) {
+for (const kind of ['link', 'sync', 'corrupt'] satisfies GoogleDriveConflictKind[]) {
 	test(`relinking is refused for a ${kind} conflict`, async () => {
 		const driver = createDriver();
 		const flow = new PendingConflictFlow(driver);
@@ -343,12 +389,12 @@ for (const kind of ['link', 'sync', 'corrupt']) {
 // --- One operation at a time ----------------------------------------------------------
 
 test('an operation started while another is outstanding is refused', async () => {
-	let settle;
-	const driver = createDriver({
+	let settle: (() => void) | undefined;
+	const driver: PendingConflictDriver & { calls: DriverCalls } = createDriver({
 		resolve: (prepared, resolution) =>
 			new Promise((resolve) => {
 				driver.calls.resolve.push({ prepared, resolution });
-				settle = () => resolve({ state: NEXT_STATE, action: 'pushed' });
+				settle = () => resolve({ state: NEXT_STATE, action: 'pushed', preparation: null });
 			})
 	});
 	const flow = new PendingConflictFlow(driver);
@@ -360,6 +406,7 @@ test('an operation started while another is outstanding is refused', async () =>
 	assert.equal(await flow.resolve('remote'), null);
 	assert.equal(await flow.dismiss(), null);
 
+	assert.ok(settle, 'the driver was asked to resolve, so the test holds its settlement');
 	settle();
 	await outstanding;
 

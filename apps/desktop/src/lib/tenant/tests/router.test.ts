@@ -1,8 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createApi, monthsFromNow, seedTenant, unusedId } from '$lib/api/tests/testing.ts';
+import {
+	type Api,
+	createApi,
+	monthsFromNow,
+	seedTenant,
+	unusedId
+} from '$lib/api/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
+import type { ListSort } from '$lib/design/sort.ts';
+import type { TenantSortColumnId } from '$lib/tenant/tenant.ts';
+
+/** what a tenant's row looks like on the directory list, and the sort it may be asked for. */
+type ListedTenant = Awaited<ReturnType<Api['tenant']['getMany']>>[number];
+type TenantSort = NonNullable<NonNullable<Parameters<Api['tenant']['getMany']>[0]>['sort']>;
 
 const NATIONAL_ID = '1234567890';
 const IQAMA = '2345678901';
@@ -315,7 +327,11 @@ test('deleting a tenant that has a contract is rejected', async () => {
 // reader's, and the figure per contract status is an aggregate on the same query. Both are
 // asserted here because both are what the list may not redo on the client.
 
-async function seedContract(api, tenantId, overrides = {}) {
+async function seedContract(
+	api: Api,
+	tenantId: string,
+	overrides: Partial<Parameters<Api['contract']['create']>[0]> = {}
+) {
 	return api.contract.create({
 		tenantId,
 		start: monthsFromNow(-1),
@@ -327,7 +343,7 @@ async function seedContract(api, tenantId, overrides = {}) {
 }
 
 /** the six figures off a listed row, named by status so a mis-keyed one reads as one. */
-const statusCounts = (listed) => ({
+const statusCounts = (listed: ListedTenant) => ({
 	scheduled: listed.contractsScheduled,
 	active: listed.contractsActive,
 	fulfilled: listed.contractsFulfilled,
@@ -463,7 +479,7 @@ test('the directory orders by every key the sort control offers', async () => {
 
 	await seedContract(api, zaid.id);
 
-	const orderBy = async (columnId, direction) =>
+	const orderBy = async (columnId: TenantSortColumnId, direction: ListSort['direction']) =>
 		(await api.tenant.getMany({ sort: { columnId, direction } })).map((tenant) => tenant.id);
 
 	assert.deepEqual(await orderBy('name', 'asc'), [amal.id, zaid.id]);
@@ -502,7 +518,13 @@ test('tenants tied on the chosen order fall back to the directory order', async 
 test('the directory refuses to order by a column the control does not offer', async () => {
 	const api = await createApi();
 
-	await assert.rejects(() => api.tenant.getMany({ sort: { columnId: 'phone', direction: 'asc' } }));
+	// `phone` is outside the sort vocabulary, so it cannot be named in the caller's own type —
+	// the vocabulary *is* the type. It arrives here the way a reader's chosen column really
+	// does, as the plain string of a `ListSort`, with the vocabulary guard the query layer
+	// applies skipped: what is asserted is that the procedure refuses it on its own.
+	const chosen: ListSort = { columnId: 'phone', direction: 'asc' };
+
+	await assert.rejects(() => api.tenant.getMany({ sort: chosen as TenantSort }));
 });
 
 test('searching the directory narrows it and keeps the chosen order', async () => {

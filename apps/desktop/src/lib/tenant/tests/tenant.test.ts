@@ -48,6 +48,8 @@ for (const value of [
 
 test('each caller supplies its own message, so the locale is not fixed here', () => {
 	const arabic = identityField('رقم الهوية غير صالح');
+	const result = arabic.safeParse('nope');
 
-	assert.equal(arabic.safeParse('nope').error.issues[0].message, 'رقم الهوية غير صالح');
+	assert.ok(result.error);
+	assert.equal(result.error.issues[0].message, 'رقم الهوية غير صالح');
 });

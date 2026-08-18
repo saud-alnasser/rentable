@@ -1,9 +1,18 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { i18nObject } from '$lib/i18n/i18n-util.ts';
+import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
+
 import { InverseStack } from '../inverse.ts';
 
-function inverse(name, log = []) {
+// an inverse names the change in the reader's language, and takes the whole of what a locale
+// answers with — so the loaded locale is what a test hands it, rather than a stand-in shape
+// nothing ever passes.
+loadLocale('en');
+const translations = i18nObject('en');
+
+function inverse(name: string, log: string[] = []) {
 	return {
 		describe: () => name,
 		undo: async () => log.push(`undo:${name}`),
@@ -22,7 +31,7 @@ describe('the inverse stack', () => {
 
 	it('takes back the newest change first', async () => {
 		const stack = new InverseStack();
-		const log = [];
+		const log: string[] = [];
 
 		stack.record(inverse('first', log));
 		stack.record(inverse('second', log));
@@ -38,7 +47,7 @@ describe('the inverse stack', () => {
 	// id — and reaching the deletion means undoing that creation first, which frees it again.
 	it('cannot reach a change past a newer one', async () => {
 		const stack = new InverseStack();
-		const log = [];
+		const log: string[] = [];
 
 		stack.record(inverse('deletion', log));
 		stack.record(inverse('creation', log));
@@ -46,12 +55,12 @@ describe('the inverse stack', () => {
 		await stack.undo();
 
 		assert.deepEqual(log, ['undo:creation']);
-		assert.equal(stack.undoable?.describe(), 'deletion');
+		assert.equal(stack.undoable?.describe(translations), 'deletion');
 	});
 
 	it('applies a taken-back change again, newest first', async () => {
 		const stack = new InverseStack();
-		const log = [];
+		const log: string[] = [];
 
 		stack.record(inverse('first', log));
 		stack.record(inverse('second', log));
@@ -61,7 +70,7 @@ describe('the inverse stack', () => {
 		await stack.redo();
 
 		assert.deepEqual(log, ['undo:second', 'undo:first', 'redo:first']);
-		assert.equal(stack.redoable?.describe(), 'second');
+		assert.equal(stack.redoable?.describe(translations), 'second');
 	});
 
 	it('makes a taken-back change unreachable once something new happens', async () => {
@@ -87,15 +96,15 @@ describe('the inverse stack', () => {
 		stack.record(refused);
 
 		await assert.rejects(() => stack.undo(), /the row is gone/);
-		assert.equal(stack.undoable?.describe(), 'refused');
+		assert.equal(stack.undoable?.describe(translations), 'refused');
 		assert.equal(stack.redoable, null);
 	});
 
 	it('applies nothing while an inverse is already being applied', async () => {
 		const stack = new InverseStack();
-		const log = [];
-		let release;
-		const held = new Promise((resolve) => (release = resolve));
+		const log: string[] = [];
+		let release = () => {};
+		const held = new Promise<void>((resolve) => (release = () => resolve()));
 
 		stack.record(inverse('first', log));
 		stack.record({
@@ -133,8 +142,8 @@ describe('the inverse stack', () => {
 	// user. What it was taken from no longer exists, so it has nowhere to land.
 	it('drops an inverse the workspace was replaced underneath', async () => {
 		const stack = new InverseStack();
-		let release;
-		const held = new Promise((resolve) => (release = resolve));
+		let release = () => {};
+		const held = new Promise<void>((resolve) => (release = () => resolve()));
 
 		stack.record({
 			describe: () => 'in flight',
@@ -157,9 +166,9 @@ describe('the inverse stack', () => {
 	// one is in flight and record onto this very stack.
 	it('takes back the change it was applying, not whatever arrived meanwhile', async () => {
 		const stack = new InverseStack();
-		const log = [];
-		let release;
-		const held = new Promise((resolve) => (release = resolve));
+		const log: string[] = [];
+		let release = () => {};
+		const held = new Promise<void>((resolve) => (release = () => resolve()));
 
 		stack.record({
 			describe: () => 'in flight',
@@ -174,8 +183,8 @@ describe('the inverse stack', () => {
 		stack.record(inverse('arrived meanwhile', log));
 		release();
 
-		assert.equal((await outstanding)?.describe(), 'in flight');
-		assert.equal(stack.undoable?.describe(), 'arrived meanwhile');
+		assert.equal((await outstanding)?.describe(translations), 'in flight');
+		assert.equal(stack.undoable?.describe(translations), 'arrived meanwhile');
 	});
 
 	it('tells an observer about every change', async () => {

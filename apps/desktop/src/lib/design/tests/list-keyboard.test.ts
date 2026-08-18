@@ -1,27 +1,25 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { i18nObject } from '$lib/i18n/i18n-util.ts';
+import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import { nextPosition, toListMovement, toListShortcuts, toRecordRows } from '../list-keyboard.ts';
 import { toShortcutSheetEntries } from '../shortcut-registry.ts';
 
-/** enough of the translations for a description to read, without the generated bundle. */
-const translations = {
-	common: {
-		table: {
-			focusSearch: () => 'search this list',
-			moveBetweenRecords: () => 'move between records',
-			openRecord: () => 'open the focused record'
-		}
-	}
-};
+// the loaded locale rather than a hand-written stand-in: a description reads the whole of
+// `TranslationFunctions`, and the three-key object this used to pass was a shape nothing ever
+// hands it. English says the same words, so what is asserted is unchanged.
+loadLocale('en');
+
+const translations = i18nObject('en');
 
 /** a list of plain records, laid out one to a row. */
-function record(id) {
+function record(id: string) {
 	return { id };
 }
 
 test('every row of a plain list holds one record', () => {
-	assert.deepEqual(toRecordRows([{ kind: 'record', records: [record(1)] }]), [
+	assert.deepEqual(toRecordRows([{ kind: 'record', key: 'record:1', records: [record('1')] }]), [
 		{ row: 0, count: 1 }
 	]);
 });
@@ -30,10 +28,10 @@ test('every row of a plain list holds one record', () => {
 // virtualizer scrolls to, which is the whole reason a position carries a row rather than a count.
 test('a group header is not a row focus can land on, and does not shift the ones that are', () => {
 	const recordRows = toRecordRows([
-		{ kind: 'header' },
-		{ kind: 'record', records: [record(1)] },
-		{ kind: 'header' },
-		{ kind: 'record', records: [record(2)] }
+		{ kind: 'header', key: 'group:1', group: { key: 'a' } },
+		{ kind: 'record', key: 'record:1', records: [record('1')] },
+		{ kind: 'header', key: 'group:2', group: { key: 'b' } },
+		{ kind: 'record', key: 'record:2', records: [record('2')] }
 	]);
 
 	assert.deepEqual(recordRows, [
@@ -43,9 +41,12 @@ test('a group header is not a row focus can land on, and does not shift the ones
 });
 
 test('a row of a grid holds as many records as were laid out across it', () => {
-	assert.deepEqual(toRecordRows([{ kind: 'record', records: [record(1), record(2), record(3)] }]), [
-		{ row: 0, count: 3 }
-	]);
+	assert.deepEqual(
+		toRecordRows([
+			{ kind: 'record', key: 'record:1', records: [record('1'), record('2'), record('3')] }
+		]),
+		[{ row: 0, count: 3 }]
+	);
 });
 
 test('an empty list has nowhere to move to', () => {
@@ -189,6 +190,7 @@ test('the search key puts the cursor in the field', () => {
 		(registration) => registration.id === 'list.search'
 	);
 
+	assert.ok(search?.scope === 'application', 'the search key is the application’s to answer');
 	search.run();
 
 	assert.equal(focused, 1);
@@ -213,6 +215,7 @@ test('the search key stands down where text is being typed, since it is a charac
 		(registration) => registration.id === 'list.search'
 	);
 
+	assert.ok(search?.scope === 'application', 'the search key is the application’s to answer');
 	assert.equal(search.standsDownWhileEditing, true);
 });
 

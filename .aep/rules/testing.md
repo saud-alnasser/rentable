@@ -1,7 +1,7 @@
 ---
 aep: 2.5.1
 owner: repository
-date: 2026-08-18
+date: 2026-08-19
 kind: rule
 paths:
   - apps/desktop/src/**
@@ -47,12 +47,22 @@ Two levels are covered, and they are not interchangeable:
   in-memory database. Not mocked: the in-memory client is type-identical to production, so
   the language boundary is exercised rather than stubbed.
 
-**The desktop's tests are not type-checked, and the control plane's are.** `svelte-kit sync`
-generates an `include` of `.js`, `.ts` and `.svelte` and never `.mjs`, so for as long as the
-desktop's tests were `.test.mjs` not one of them was ever checked; renaming them surfaced 852
-errors and `apps/desktop/tsconfig.json` excludes `src/**/tests/**` until #561 clears them.
-**Write a new test as though it were checked** — annotations rather than `any` — because #561
-is what decides whether it was, and a test written loose today is work for that ticket.
+**Every test here is type-checked, the desktop's included.** `svelte-kit sync` generates an
+`include` of `.js`, `.ts` and `.svelte` and never `.mjs`, so for as long as the desktop's tests
+were `.test.mjs` not one of them was ever checked; renaming them surfaced 852 errors, and #561
+cleared them and took the exclusion back out of `apps/desktop/tsconfig.json` (2026-08-18).
+**So write a new test as though the compiler reads it, because it does** — annotations rather
+than `any`, and a fixture in the shape production actually produces.
+
+**A fixture for a declared interface is shared, not written out per file.** Four scaffolding
+modules hold them: `platform/tests/testing.ts` builds a whole `Host` and the remote-sync
+payloads it speaks in, `api/tests/testing.ts` the router caller, `design/tests/testing.ts` the
+binding a declared mutation hands the query library, and `workspace/tests/file.ts` the file a
+workspace transfer crosses as. **A hand-written partial of any of them is a shape nothing
+produces** — a two-key `Settings`, a `TranslationFunctions` with three of its hundreds, a
+`RemoteSyncState` with a field the type does not have — and correcting those was most of what
+#561 turned out to be. A test needing the real translations loads the locale
+(`loadLocale('en')`, then `i18nObject('en')`) rather than standing one in.
 
 Commands are in [[references/node-test]], including the single-file invocation.
 

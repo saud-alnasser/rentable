@@ -3,9 +3,12 @@ import test from 'node:test';
 
 import { toCsv, toExportFileName, toExportSheet } from '../csv.ts';
 
+/** the tenant's own columns, which is the shape every export below is written from. */
+type Tenant = { name: string; phone: string };
+
 const columns = [
-	{ header: 'name', value: (row) => row.name },
-	{ header: 'phone', value: (row) => row.phone }
+	{ header: 'name', value: (row: Tenant) => row.name },
+	{ header: 'phone', value: (row: Tenant) => row.phone }
 ];
 
 test('the file is the headers and then the rows, in the order they were given', () => {
@@ -27,7 +30,7 @@ test('a field carrying a comma, a quote or a newline survives it', () => {
 
 // a spreadsheet reads a leading =, @, or a non-numeric + or - as the start of a formula.
 test('a field a spreadsheet would run as a formula is shown instead', () => {
-	const name = [{ header: 'name', value: (row) => row.name }];
+	const name = [{ header: 'name', value: (row: { name: string }) => row.name }];
 
 	assert.equal(toCsv(name, [{ name: '=cmd()' }]), '"Name"\r\n"\'=cmd()"');
 	assert.equal(toCsv(name, [{ name: '@sum(1)' }]), '"Name"\r\n"\'@sum(1)"');
@@ -58,8 +61,8 @@ test('arabic text passes through unchanged', () => {
 // --- the workbook's rendering of the same columns -------------------------------------
 
 const sheetColumns = [
-	{ header: 'name', value: (record) => record.name },
-	{ header: 'phone', value: (record) => record.phone }
+	{ header: 'name', value: (record: Tenant) => record.name },
+	{ header: 'phone', value: (record: Tenant) => record.phone }
 ];
 
 test('a sheet carries the headers in the order the columns were declared', () => {
@@ -120,15 +123,18 @@ test('a dot that is not an extension is left in the name', () => {
 	assert.equal(toExportFileName('contracts.2026', 'csv'), 'contracts.2026.csv');
 });
 
+/** the tenant as the round trip below writes one: the three columns the file carries. */
+type IdentifiedTenant = { name: string; nationalId: string; phone: string };
+
 // the half of the round trip that lives on this side. The reader that takes this file back off
 // disk is in Rust and cannot call `toCsv`, so both suites assert against the same literal —
 // there, `a_delimited_file_the_export_wrote_reads_back_as_the_row_it_was_given`. Change one and
 // the other fails, which is what makes the pair a round trip rather than two opinions.
 test('a row is written as the bytes the reader is pinned to', () => {
 	const columns = [
-		{ header: 'name', value: (tenant) => tenant.name },
-		{ header: 'national id', value: (tenant) => tenant.nationalId },
-		{ header: 'phone', value: (tenant) => tenant.phone }
+		{ header: 'name', value: (tenant: IdentifiedTenant) => tenant.name },
+		{ header: 'national id', value: (tenant: IdentifiedTenant) => tenant.nationalId },
+		{ header: 'phone', value: (tenant: IdentifiedTenant) => tenant.phone }
 	];
 
 	assert.equal(
