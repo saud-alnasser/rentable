@@ -292,6 +292,41 @@ without reopening any decision made here. **Neither is built.**
    not cost you your workspace — worth keeping, and much lighter. **The referential-integrity
    checks it grew are not lost**: they belong to criterion 17, which is where replication
    correctness is actually decided.*
+   **Discharged as a gate on this effort 2026-08-18, by direction, and kept as a release check.**
+   The human directed that the previous version has no users, that no breakage story is owed to
+   it, and that this effort is moving to a new architecture rather than carrying an old one
+   forward. That withdraws the one thing still holding this criterion up. It was restored in the
+   morning **because** it manufactures a populated pre-effort workspace, and the whole reason to
+   manufacture one was to have something the identity migration must not break; a manufactured
+   subject that nobody has asked for is a subject the direction is entitled to withdraw.
+
+   **The direction does not delete the checks, and it did not have to — they were already met
+   somewhere better.** Every bullet above but two is discharged by #541's Rust migration harness,
+   which runs the shipped runner over a workspace populated as the old schema and asserts them
+   directly rather than by inspection:
+
+   - the count per concept is identical → `a_populated_workspace_crosses_the_identity_migration_whole`;
+   - every reference resolves to the record it named, all five reference columns → the same test,
+     each joined through the mapping the migration built;
+   - **`history`** → the same test, and the orphan pass it exercises is the one a deliberate
+     mutation showed was load-bearing rather than defensive;
+   - **a workspace interrupted mid-migration** → answered from the code, in `apply_migration`,
+     which commits a file's statements and its `__migrations__` row in one transaction. Unchanged,
+     and the identity migration is one file, which is what that answer required.
+
+   **The two that remain are the two that need a real install**: the updater's own
+   check-download-relaunch, which the rehearsal went around by driving `msiexec`, and
+   `prepare_update`'s protected snapshot being present afterwards and restoring to the workspace
+   as it stood. **They become a release check rather than an effort gate** — owed to the first
+   real user, run at the release that first carries this effort, and recorded here when it runs.
+   That is what requirement 1 has said since it was rewritten: a forward promise rather than a
+   rescue.
+
+   **And it releases the ordering this criterion imposed.** The last pre-effort release was being
+   kept alive because this criterion needed it as its subject. Nothing needs it now. Deleting it
+   publishes a change to what this project offers the world, so it stays the human's to do rather
+   than something this discharge quietly authorises.
+
 2. The workspace's mode is visible to the user and choosable by them — neither mode is reached
    only by editing configuration. `RemoteSyncState.workspace` stays singular and the application
    still opens one database file; a search of the tree finds no workspace list and no switcher.
@@ -1322,6 +1357,17 @@ a negative result ends the hosted half of this effort. If that happens the spec 
 deliberately under [[policies/execution]] rather than quietly relaxed — the requirement is what
 would be renegotiated, in the open, and the local-mode half stands either way.
 
+**The last four were taken under a standing instruction, and that is recorded rather than
+disguised** *(2026-08-18)*. [[protocol]]'s *Humans decide* forbids choosing silently between two
+reasonable architectures; it does not forbid the human delegating a batch of them, which is what
+happened here — the direction was to work the effort to its end without interruption and, where a
+decision was needed, to take the recommended one. So 06, 07, 09 and 12 each carry a
+**recommendation argued in full with its rejected alternatives named**, and each was then taken.
+**Every one of them is reversible by reading its own reasoning and disagreeing with it**, which is
+the property that makes a delegated decision different from an assumed one. Where a decision would
+have changed the *product* rather than its construction it is flagged at the decision itself —
+decision 07 is the only one of the four that does, and it is flagged there.
+
 Worked one per session, except research, which runs alongside. Resolving one means writing the
 answer here and appending one line to the map's **Decisions so far**;
 [#497](https://github.com/saud-alnasser/rentable/issues/497) gists and links, and nothing here
@@ -1910,7 +1956,9 @@ seam that makes it a change rather than a rewrite.
 
 ## 06 — grilling(persistence): who applies migrations to a hosted workspace
 
-Status: open
+Status: **decided 2026-08-18 — the control-plane API owns a hosted workspace's schema, and the
+token mint is where it acts.** *Taken under the standing instruction recorded at the head of this
+section, on the recommendation written below.*
 Part of: a-workspace-follows-its-user
 Type: grilling
 Blocked by: — *(was 11, decided 2026-08-18)*
@@ -1922,9 +1970,67 @@ connect, or a deploy step — and whichever it is has to answer what an older cl
 meets a newer schema. That answer is requirement 11, and its check is acceptance criterion 12 —
 which also holds this decision to leaving a local workspace's migrations exactly where they are.
 
+**The named owner requirement 11 asks for is the control-plane API.** It is the only party that
+knows every workspace database, already holds a credential that reaches each one, and is already
+in the credential path continuously and the data path never (*Architecture*). Nothing else on
+this map has all three, and the third is what makes this cheap: the API does not have to be put
+anywhere new to do the job.
+
+**Where it acts: at the token mint, not at deploy time alone.** A client that wants to sync asks
+the API for a workspace token. The API compares the workspace record's schema version against the
+version the running API targets, applies whatever migrations are missing to that workspace
+database, and only then issues the token. A deploy that ships a migration therefore does not have
+to sweep an unbounded and growing set of databases before it is safe — each workspace takes its
+migration the next time somebody opens it, and a workspace nobody opens costs nothing. *A sweep
+is still available and is kept as a mechanism rather than as the owner: it is how a migration
+reaches workspaces ahead of their users, which matters for anything with a deadline.*
+
+**What an older client does, which is requirement 11's second half.** The client sends the schema
+version it was built against with its token request, and there are three answers:
+
+- the client's version equals the workspace's — mint;
+- the client's version is **newer** — migrate the workspace up to it, then mint. This is the
+  ordinary upgrade path and it is why the mint is the right place: the first client to arrive
+  after a deploy is the one that pays for the migration, and it is by definition online;
+- the client's version is **older** than the workspace's — **refuse, typed**, naming the action:
+  update the application. The client shows that message and issues no write, because it never
+  received a token.
+
+**Refusing at the mint rather than at the write is the whole of the reasoning.** An older client
+allowed to sync would replicate a schema it does not understand and then write against columns it
+does not know about; by the time a write fails, its local replica has already diverged and the
+divergence is what has to be repaired. Withholding the credential stops it before the first byte,
+and it does so through a mechanism this architecture already has rather than a second one built
+to answer the same question.
+
+| | Advantages | Disadvantages | Risks | Maintenance |
+| --- | --- | --- | --- | --- |
+| **A — the API, at the token mint** *(chosen)* | One named owner, and nothing races because one process holds the credential. Migration is lazy per workspace, so cost tracks use. The refusal path for an old client falls out of the mechanism rather than being built beside it | A workspace's first open after a deploy pays for the migration, so that open is slower and needs a network it already needed | The mint is now inside the migration's failure path — a migration that fails leaves a user unable to **sync**, rather than merely unmigrated. Local work continues, which is what makes it survivable | One migration runner in the API and one schema-version column on the workspace record |
+| **B — the client applies on connect** | No API work at all; a runner already exists in Rust | **Several client versions racing to apply DDL to one database.** An old client never applies, a new one applies while an old one is live, and the DDL then replicates to every other replica with no coordination | High, and silent | Every client kind reimplements it, including the ones that have no Rust |
+| **C — a deploy step sweeping every workspace** | Simple to reason about, and the whole estate sits at one version | Cannot answer for a workspace created after it ran, and the sweep grows without bound | A partial sweep leaves the estate at two versions with nothing recording which is which | An operational procedure rather than code, which is the kind that rots unwatched |
+
+**Chosen: A.** B is disqualified by concurrency rather than by cost — it is the cheapest to build
+and the only one that can corrupt a workspace. C is kept as a mechanism inside A and rejected as
+the owner.
+
+**A local workspace's migrations do not move.** Rust applies them at launch from
+`tauri/migrations/`, exactly as today; [[contexts/desktop/persistence]] is unchanged for
+local-of-record, and acceptance criterion 12 holds this decision to that in as many words.
+
+**What it costs when organizations arrive** *(acceptance criterion 15)*: nothing. A workspace
+database is per workspace regardless of how many people are in it, and the mint already runs per
+member — the same comparison runs, per member, against the same workspace record.
+
+**Removal condition.** None that this effort can reach. If the data path ever moves through the
+API — the shape *Architecture* names and rejects — migration ownership is already where that
+shape would want it, and this decision does not have to be revisited.
+
 ## 07 — grilling(sync): what becomes of Google Drive sync
 
-Status: open
+Status: **decided 2026-08-18 — Drive stays, scoped explicitly to local workspaces, and the OAuth
+half is extracted out of it.** *Taken under the standing instruction above. This is the one of the
+four that changes what a user is promised, so it is the one to disagree with first if any of them
+is wrong.*
 Part of: a-workspace-follows-its-user
 Type: grilling
 Blocked by: — *(was 11, decided 2026-08-18)*
@@ -1975,6 +2081,67 @@ local workspace" is **false as stated**.
 
 **Whatever is chosen, the OAuth half still survives it** — that was settled above and is
 untouched by any of this.
+
+**Answered 2026-08-18. Drive stays, and it is a local workspace's route off its machine.**
+*Taken under the standing instruction recorded at the head of this section, on the recommendation
+written below.* The three-way is decided against the two options that would cost more than they
+return:
+
+- **Retiring it and leaving local users the whole-workspace export is a product regression for
+  exactly the population requirement 2 exists to protect.** The export is a human action producing
+  a spreadsheet that names records rather than carrying their ids, and it deliberately refuses to
+  carry derived state. Drive is automatic, continuous, versioned, retained, and preserves the
+  workspace exactly. A local user who loses a laptop between exports loses everything since the
+  last one — and requirement 2 makes that population permanent rather than transitional.
+  **Cheapest to execute is not the same as cheapest to own**, and this spec's own framing of the
+  third option as "the cheapest to execute and the one that most changes what a local user is
+  promised" contains the answer: the second half is the price, and it is charged to the users who
+  did not opt into the new mode.
+- **Retirement does not buy the deletion it looks like it buys.** Sign-in is Google, so the OAuth
+  client, the token refresh, the account model and the credential boundary survive whatever
+  happens to sync — settled 2026-08-17 and untouched since. What retirement actually removes is
+  the manifest, conflict analysis, retention and the link session: working, tested Rust with a
+  rule and a context already written against it, deleted to save maintaining code that is not
+  currently costing anything.
+- **Replacing it with something else is the most expensive answer and it competes with this
+  effort's own.** A local workspace that wants automatic multi-device sync has an answer already —
+  convert to hosted, requirement 6. Building a second sync mechanism for the mode that
+  deliberately has no account spends this effort's budget arguing with its goal.
+
+**What executing it means, because requirement 12 says decided is not enough.** Three things, and
+each is a real change rather than a restatement:
+
+1. **[[rules/drive]] is scoped, not superseded.** Every section stays true and each gains the mode
+   it is true of: *Client boundary* is about credentials and holds in both modes; *Concurrency*
+   and *Transport testing* are about local-workspace Drive sync and say so. That is decision 09's
+   mechanism, and 09 is where it is carried out.
+2. **Authentication separates from sync.** Signing in happens *inside*
+   `remoteSync.googleDrive.link()` today, so a user cannot have a Google identity without linking
+   a Drive folder — false the moment sign-in exists for a hosted workspace that will never use
+   Drive. Decision 08 established the extraction was needed whichever way this landed; this
+   decision makes it certain rather than likely, and it is a ticket.
+3. **A hosted workspace is not offered Drive at all.** Linking, unlinking and sync reporting are
+   local-mode surfaces. A hosted workspace's sync is the replica's, and offering both would put
+   two mechanisms on one workspace — the shape *Concurrency* was never designed to survive, and
+   the same reasoning by which decision 12 unlinks Drive at conversion.
+
+**What acceptance criterion 13 now demands, concretely.** The demonstration is over Drive, on two
+installations, because Drive is the route chosen — the export does not stand in for it, and the
+criterion already says so. Its second half, *name what the route loses*, is answered by
+*Concurrency*: Drive resolves divergence by choosing a side, per whole snapshot. **A local
+workspace synced through Drive loses, on the losing side, every change made since the snapshot
+that won.** That is a whole-workspace loss, and it is far coarser than the per-column loss
+decision 11 measured for a hosted workspace. It is the honest price of the mode that has no
+server. It is not new — what is new is that it is written where a criterion can check it, instead
+of being derivable by a reader who happened to open the right rule.
+
+**What it costs when organizations arrive** *(acceptance criterion 15)*: nothing, and this is the
+cleanest row on the map. Drive is local-only and an organization workspace is hosted by
+construction, so no organization ever meets this surface.
+
+**Removal condition.** If a later release retires local-of-record entirely — explicitly out of
+scope for this effort — Drive goes with it and nothing else has to be unpicked. The scoping done
+here is what makes that a deletion rather than an untangling.
 
 ## 08 — grilling(platform): what a non-desktop client does for host capabilities
 
@@ -2066,7 +2233,9 @@ being built ([[policies/execution]] — the seam is in scope, the implementation
 
 ## 09 — grilling(design): which accepted decisions survive
 
-Status: open
+Status: **decided 2026-08-18 — ten rows scoped or restated, one supersession, one code change, and
+the organizations sketch acceptance criterion 15 waits on.** *Taken under the standing instruction
+above.*
 Part of: a-workspace-follows-its-user
 Type: grilling
 Blocked by: — *(was 11 and 05; both decided 2026-08-18)*
@@ -2141,9 +2310,169 @@ standing warning to be re-read against whatever this decision produces. **They a
 code rather than pending work** — complete 2026-08-18 — so the warning is discharged by re-reading
 the tree, not by constraining a build. 09 does that re-reading.
 
+**Answered 2026-08-18.** *Taken under the standing instruction recorded at the head of this
+section.* **Ten rows, one supersession, one code change, and the organizations sketch.** The
+common answer the 2026-08-17 reshaping predicted holds: the premise was narrowed rather than
+replaced, so most of the table is scoped rather than rewritten. The exceptions are named
+individually, because a table that says *scoped* nine times and hides the tenth is the failure
+this decision exists to prevent.
+
+| Rule | Verdict | What changes in the file |
+| --- | --- | --- |
+| [[rules/data]], *List reads* | **Holds, in both modes, with its *why* restated** | one sentence |
+| [[rules/data]], *Query cache* | **Holds — by extending the writer list, not by relaxing the cache** | the writer enumeration gains a fourth |
+| [[rules/data]], *Undo* | **Holds, and costs one code change in hosted mode** | a named exception |
+| [[rules/data]], *Reconcile scope* | **Holds unchanged**; decision 01's pricing of it is superseded by the replica | nothing |
+| [[rules/data]], *Payment aggregates*, *Mutation declaration*, *Multi-table writes* | **Untouched.** None of the three ever rested on there being no server | nothing |
+| [[rules/drive]], *Client boundary* | **Holds, and generalises beyond Drive** | scope widened |
+| [[rules/drive]], *Concurrency* | **Holds, scoped to local-workspace Drive sync** | one clause |
+| [[rules/drive]], *Transport testing* | **Holds, scoped the same way** | one clause |
+| [[rules/api-layer]], no repository layer | **Holds**, and it is what makes a third transport free | nothing |
+| [[rules/api-layer]], *One database client type* | **Holds, and the gate confirmed the thing it depended on** | one sentence |
+| [[contexts/repository]], first Boundary | **Superseded** — the only outright supersession on this map | rewritten |
+
+**List reads.** The rule holds and its argument gets *stronger* under a hosted database rather
+than weaker. Its stated *why* is "there is no server", which stops being true of a hosted
+workspace; what replaces it is better than what it loses. Reads are served from the **local
+replica**, so a list read is still a local query at local latency — decision 01 established it and
+decision 11's run measured it. And Turso bills rows **scanned**, not rows returned, so the
+declared filters #528 landed, which narrow the read in SQL rather than filtering loaded rows, are
+precisely what keeps a whole-result-set read from being billed as a full-table scan. **The rule
+that looked like the most exposed row on this table is the one the hosted mode most rewards.**
+What would genuinely break it is a read that went over the wire per keystroke, and nothing in this
+architecture does.
+
+**Query cache.** This is the row the 2026-08-17 pass called the one no scoping makes go away, and
+that assessment was right about the premise and wrong about the conclusion. The reasoning under
+`staleTime: Infinity` is that the writers are enumerable and each announces itself — **not that
+there are only three of them.** A hosted workspace has an unseen writer by construction, another
+device, and the rule already carries the shape that answers it: the second of its three writers is
+*a remote-sync pull reconciles fully and then invalidates the root*. Hosted mode adds a fourth
+writer of exactly that kind — the replica's own pull — and the cache stays trusted because the
+enumeration stayed complete. **The rule survives by naming the writer rather than by relaxing the
+cache**, and that is the whole of it: `staleTime: Infinity` with an unannounced writer is a bug,
+and with an announced one it is the same rule it always was. *What it costs if this is got wrong:
+a stale surface, never a wrong write. The window is between another device's push and this
+device's next pull, and closing it is the pull's job.*
+
+**Undo.** The rule holds and this is the row that costs code. Undo is a **session** stack of
+inverses replayed through the real procedures, so it never depended on the workspace being one
+syncable unit — it depended on the inverse still making sense when it runs. Under the per-column
+merge decision 11 measured, an inverse issued after another device changed a *different* column
+does exactly the right thing, and one issued after another device changed the *same* column
+overwrites their value, which is what any ordinary edit would have done and is not undo's problem.
+**The exception is the one decision 11 also measured: a row deleted on another device takes a
+concurrent edit with it, whole and with no error on either side.** So an inverse naming a row that
+no longer exists must **fail visibly rather than silently write nothing** — and it must not
+recreate the row, because recreating it would resurrect a record somebody deleted. That is a
+change to the inverse path in hosted mode, it is small, and it is a ticket. **Local mode is
+unaffected**: nothing can delete a row out from under a local session.
+
+**Reconcile scope.** Unchanged. The rule is written against the *trigger* rather than the
+mechanism, so "a remote-sync pull" gains a second source and needs no new words. What is
+superseded is decision 01's **pricing** of it — one round trip per changed row — which was a price
+for reading over the wire. Reconcile reads the local replica, so a whole-table pass costs what it
+costs today and decision 11's run says so in as many words: nothing over the wire, followed by one
+batched push.
+
+**Payment aggregates, Mutation declaration, Multi-table writes.** Untouched, and listed here so a
+reader can see they were considered rather than skipped. Materialised aggregates are argued from
+the cost of computing them per request; a mutation declared once is argued from duplication; a
+multi-table write batched is argued from atomicity, which the transport gives in both modes.
+Nothing in any of the three cites the absence of a server.
+
+**Drive, *Client boundary*.** Holds, and **generalises**: it becomes the rule for every credential
+this application holds rather than Drive's alone. A workspace sync token is a credential, and it
+lives on the same side of the same boundary for the same reason — the credential boundary and the
+network boundary have to be the same boundary. *(A client with no Rust is decision 08's inventory,
+and is not this effort's to build.)*
+
+**Drive, *Concurrency* and *Transport testing*.** Both hold and both are scoped to
+local-workspace Drive sync, per decision 07. Neither was ever about the domain; both are about the
+Drive transport, which decision 07 keeps and which a hosted workspace never touches.
+
+**API layer, no repository layer.** Holds, and it is the quiet reason most of this effort is
+affordable. Routers reach the database directly, so a hosted workspace changes *what `db` is* and
+not *what a router does*. A repository layer would have been the thing every hosted-mode change
+had to be threaded through.
+
+**API layer, *One database client type*.** Holds, and the condition it was flagged with on
+2026-08-17 — "which holds only if the chosen client can be driven through that seam" — is
+discharged: decision 11's run drove `@tursodatabase/sync` through `createDatabase(single, batch)`
+against a live database. Acceptance criterion 10 is the standing check.
+
+**`contexts/repository`, first Boundary — superseded.** It reads **"There is no server. The API
+layer is a direct caller executing in the webview. The only process boundary it crosses is Tauri's
+IPC into Rust — never HTTP."** Two of those three sentences survive and the first does not. What
+replaces it, and requirement 13 and acceptance criterion 14 are what check that it lands: a local
+workspace has no server and the sentence is true of it word for word; a hosted workspace has a
+remote of record and a control-plane API, and **neither is in the data path** — the API layer still
+executes in the webview, reads and writes still reach a local file, and the only HTTP in the
+picture belongs to the replica's own sync and to the credential the API mints. **The application
+still never makes an HTTP call to fetch a record.** That is the property the original boundary was
+really protecting, and it is worth more than the sentence that stated it.
+
+*Why this is a supersession and not a scoping, when so much else here scoped cleanly:* a context's
+Boundaries are read as facts about the repository rather than as rules with a scope, and
+[[contexts/repository]] is the file every other artifact is read against. A boundary that is true
+of one mode and false of the other cannot be left standing with a footnote — a reader who takes it
+at face value and finds "never HTTP" builds against it.
+
+### The organizations sketch — acceptance criterion 15
+
+*The criterion is met when the sketch exists and names nothing that would have to be unpicked.
+Here it is, and it names one addition and no unpicking.*
+
+**How an organization workspace would be added.**
+
+1. **The control-plane database gains an `organization` table**, and its `membership` row moves
+   from *(account, workspace)* to *(account, workspace, role, permissions)* — which is what
+   decision 04's capped bitfield column already is and where decision 05 already put it.
+2. **A workspace record's owner becomes an account *or* an organization.** One nullable column
+   more, on a table this effort creates anyway.
+3. **The workspace database is unchanged**, and this is the load-bearing claim of the whole
+   sketch. No domain table gains an owner column, because the workspace database is already the
+   unit of ownership and a member's access is decided *before a token is minted*, not per row.
+4. **Sign-in is unchanged.** A user signs in as themselves and reaches the workspaces they are a
+   member of; today that list has one entry.
+5. **The mint is unchanged in shape.** Today it asks *is this the owner*; then it asks *is this a
+   member*, which is decision 05's chosen first shape already written down.
+6. **Permissions stay coarse**, knowingly. An organization is where that cost is actually felt,
+   and *Architecture* accepts it in advance with its reasoning: fine-grained per-record
+   permissions and offline writes are mutually exclusive, and requirement 7 chose.
+
+**Every decision on this map, re-read against that sketch:**
+
+| Decision | What it would cost an organization |
+| --- | --- |
+| **01, 10, 11** — replica, client, gate | Nothing. All three are per workspace database and indifferent to how many people hold a token against it |
+| **03** — control plane built here, as an API | Nothing. The sketch **needs** exactly this and could not be drawn without it |
+| **04** — permission bitfield, capped at 53 | Nothing. It was sized for this and has never had a second use |
+| **05** — membership grants full workspace access; roles govern administration | Nothing. It **is** the organization answer, chosen in advance of the need |
+| **06** — the API owns migrations, at the mint | Nothing. Per workspace; the mint already runs per member |
+| **07** — Drive stays, local-only | Nothing. An organization workspace is hosted by construction and never meets it |
+| **08** — `Host` is a declared interface | Nothing, and it helps: an organization's second client kind is exactly what the inversion was for |
+| **09** — this decision | Nothing. The rules above are scoped by **mode**, never by tenancy, so an organization workspace inherits the hosted scoping unchanged |
+| **12** — conversion | Nothing. A personal workspace becoming an organization's is a change to the **owner row in the control plane**, not a data move — precisely because membership lives there and the workspace database carries none of it |
+| **13** — UUIDv7 identity | Nothing, and it helps hardest: an organization has more concurrent writers, which is what the scheme exists for |
+
+**One addition, named rather than buried.** A person in two organizations wants two workspaces on
+one machine, and requirement 2 says an installation holds exactly one. That is *Out of Scope*'s
+"more than one workspace per installation" and it is an **addition, not an unpicking**: the mode
+discriminator, the session, the transport and the conversion are all per workspace already, and
+what is missing is a workspace list and a switcher — which acceptance criterion 2 currently
+forbids finding in the tree, deliberately and for this release. Adding one later changes no
+decision above; it changes a criterion this effort wrote for itself.
+
+**So the answer is: nothing would have to be unpicked.** Acceptance criterion 15 is met by this
+sketch, and by decision 06's, 07's and 12's own organizations lines, which are the per-decision
+half of the same promise.
+
 ## 12 — grilling(persistence): how a local workspace becomes a hosted one
 
-Status: open — **opened 2026-08-17**, when local workspaces became permanently first-class
+Status: **decided 2026-08-18 — a row-by-row copy through the existing client seam, ids carried
+verbatim, and the mode flips only after the copy verifies.** *Opened 2026-08-17, when local
+workspaces became permanently first-class. Taken under the standing instruction above.*
 Part of: a-workspace-follows-its-user
 Type: grilling
 Blocked by: 03 *(was 11 and 03; 11 decided 2026-08-18)*
@@ -2180,6 +2509,81 @@ What the answer has to settle:
   network by definition, and the user running it is the one most likely to have a bad one.
 - **What it costs to reverse**, which is the open question about one-way conversion. The answer
   here is what makes that question cheap or expensive to revisit later.
+
+**Answered 2026-08-18. A row-by-row copy through the existing client seam, ids carried verbatim,
+and the mode flips only after the copy verifies.** *Taken under the standing instruction recorded
+at the head of this section.*
+
+**The obvious candidate is the wrong one, and it is worth saying why first.** #536's
+whole-workspace export and import already moves a workspace between two databases, in write order,
+as one batch — and it is disqualified here for exactly the reason it was named: it resolves
+records **by name** and mints fresh ids on the far side. Under requirement 16 a record's identity
+is the record's own, and `history.record_id` carries no foreign key, so a workspace converted that
+way would arrive with every row renumbered and every history entry pointing at nothing, with
+nothing in the schema to catch it. The local file kept as a safety copy under acceptance criterion
+6 would then describe different rows than the workspace it came from — the failure that criterion
+exists to make visible. **The export stays what it is: a user-facing exchange format, not a
+migration tool.**
+
+**What is chosen instead: a row-by-row copy through `createDatabase`'s two functions**, table by
+table in write order, issued as batches, with every column carried verbatim — ids included.
+**Requirement 16 is what makes this simple**: after #541 an identity is already a client-minted
+UUIDv7, so *carry it* is the whole of the id story and there is nothing to remap. This is the one
+place the identity work pays for itself twice — it was done for replication, and it turns
+conversion from a translation into a copy.
+
+Rejected, and named so neither is re-proposed:
+
+- **A dump-and-replay.** Correct, and it needs a SQL dump the desktop would have to produce and
+  the hosted database to accept statement by statement. It buys nothing the copy does not give and
+  it goes around the one client type acceptance criterion 10 protects.
+- **A file the provider seeds a database from.** The provider can create a database from a dump at
+  a URL, which means putting the whole of a user's workspace through infrastructure this
+  repository would then have to operate, secure and pay for, for the duration of the upload. The
+  copy needs no third party and no bucket.
+
+**Whether it is interruptible, and what a half-finished conversion leaves behind.** The conversion
+runs against a freshly created, empty hosted database and **never writes to the local file**. The
+mode flips at the very end, after a verification pass — a per-concept count comparison and a
+spot-value comparison, which is acceptance criterion 6's check run as part of the conversion
+rather than only in a test. So there are exactly two states to be found in afterwards: *mode still
+local, and a partial hosted database exists* — resumable, because the copy is idempotent by
+primary key, or discardable, because the provider database can be deleted and made again; or
+*mode hosted, and the copy verified*. **There is no state in which a user's records live anywhere
+but the local file until the copy has been checked**, which is the property that makes a bad
+network survivable, and the user running this is the one most likely to have one.
+
+**What happens to the local file afterwards.** It stays where it is and the application stops
+treating it as the workspace. It is not opened, it is not listed as a second workspace, and
+acceptance criterion 2's *a search of the tree finds no workspace list and no switcher* is
+unaffected. What the application says about it is one line in settings — the file, the date it was
+converted, and a reveal-in-folder action, the shape the export already uses. **What it must not do
+is offer to open it**, because an offer to open it is the switcher this effort does not have.
+
+**What happens to a Drive link the workspace already had.** It is unlinked as part of the
+conversion, deliberately and visibly. Decision 07 keeps Drive as the local workspace's route off
+its machine; a hosted workspace's record of truth is somewhere Drive knows nothing about, and
+leaving both running puts two sync mechanisms on one workspace — the shape [[rules/drive]], under
+*Concurrency*, was never designed to survive. Snapshots already in Drive are left alone as
+historical backups: they are the user's, and the conversion does not delete anything. The link
+session ends and the folder is not written again.
+
+**What it costs to reverse**, which is the open question this decision was asked to make cheap or
+expensive. Converting hosted back to local is *Out of Scope* here, and this choice is what keeps
+it cheap: the same copier run the other way, over a client type that is identical in both
+directions, against records whose ids never changed. **Nothing in this decision makes reversal a
+rewrite** — and had the export route been taken, reversal would have been a second renumbering on
+top of the first.
+
+**What it costs when organizations arrive** *(acceptance criterion 15)*: nothing. A personal
+workspace becoming an organization's is a change to the owner row in the control plane rather than
+a data move, precisely because membership lives in the control plane and the workspace database
+carries none of it. Decision 09's sketch works the same point from the other side.
+
+**Removal condition.** If a provider-side import ever accepts a whole SQLite file with no
+intermediary, it is strictly better for a large workspace and this decision should be re-read.
+The verification pass and the flip-the-mode-last ordering survive that change unaltered; only the
+copy loop is replaced.
 
 ## 13 — grilling(persistence): what a record's identity is under replication
 
