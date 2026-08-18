@@ -11,8 +11,9 @@ const en = {
 			add: 'add',
 			cancel: 'cancel',
 			checkForUpdates: 'check for updates',
-			clearFilter: 'clear this filter',
 			checkingForUpdates: 'checking for updates...',
+			clearFilter: 'clear this filter',
+			clearSelection: 'clear selection',
 			connect: 'connect',
 			connecting: 'connecting...',
 			copyDetails: 'copy details',
@@ -56,6 +57,7 @@ const en = {
 			saveDatabasePath: 'save database path',
 			saveWindow: 'save window',
 			saving: 'saving...',
+			selectRecords: 'select records',
 			sortBy: 'sort by',
 			syncing: 'syncing...',
 			syncNow: 'sync',
@@ -198,10 +200,12 @@ const en = {
 			moveBetweenRecords: 'move between records',
 			openRecord: 'open the focused record',
 			pageOf: 'page {page} of {count}',
+			recordsSelected: '{count|number} selected',
 			results: '{count|number} result(s)',
 			rowsPerPage: 'rows per page',
 			rowsSelected: '{selected} of {total} row(s) selected.',
-			searchPlaceholder: 'search...'
+			searchPlaceholder: 'search...',
+			selectRecord: 'select this record'
 		},
 
 		time: {
@@ -220,6 +224,7 @@ const en = {
 			redone: '{change:string} applied again',
 			renewed: 'renewing {record:string}',
 			terminated: 'terminating {record:string}',
+			terminatedMany: 'terminating {count|number} contract(s)',
 			undo: 'undo',
 			undone: '{change:string} undone',
 			unterminated: 'restoring {record:string}'
@@ -574,6 +579,8 @@ const en = {
 			deleteSuccess: 'contract deleted successfully!',
 			renewSuccess: 'contract renewed successfully!',
 			restoreSuccess: 'contract restored successfully!',
+			terminateManyRefused: '{count|number} could not be terminated: {records:string}',
+			terminateManySuccess: '{count|number} contract(s) terminated',
 			terminateSuccess: 'contract terminated successfully!',
 			updatePaymentSuccess: 'payment updated successfully!',
 			updateSuccess: 'contract updated successfully!'
@@ -615,6 +622,8 @@ const en = {
 			restoreDescription:
 				'are you sure you want to remove the manual termination from this contract?',
 			restoreTitle: 'restore contract',
+			terminateManyDescription:
+				'are you sure you want to manually terminate the selected contracts? this only works for active or past ones, and the rest are left alone.',
 			terminateDescription:
 				'are you sure you want to manually terminate this contract? this only works for active or past contracts.',
 			terminateTitle: 'terminate contract',

@@ -25,6 +25,7 @@
 <script lang="ts" generics="TData extends { id: number }, TGroup extends ListGroup">
 	import { browser } from '$app/environment';
 	import { Button } from '$lib/design/primitive/button';
+	import { Checkbox } from '$lib/design/primitive/checkbox';
 	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
 	import * as Empty from '$lib/design/primitive/empty';
 	import { Input } from '$lib/design/primitive/input';
@@ -59,6 +60,7 @@
 	import { tauri } from '$lib/platform/tauri';
 	import ArrowsSortIcon from '@tabler/icons-svelte/icons/arrows-sort';
 	import CheckIcon from '@tabler/icons-svelte/icons/check';
+	import ChecklistIcon from '@tabler/icons-svelte/icons/list-check';
 	import ChevronDownIcon from '@tabler/icons-svelte/icons/chevron-down';
 	import FilterIcon from '@tabler/icons-svelte/icons/filter';
 	import TableExportIcon from '@tabler/icons-svelte/icons/table-export';
@@ -160,6 +162,22 @@
 		 * scrolling sideways. A list that leaves it unset is one record wide.
 		 */
 		recordMinWidth?: number;
+		/**
+		 * What the surface offers for the records currently selected.
+		 *
+		 * Giving it is what turns selection on: a list with nothing to do to several records at
+		 * once has no reason to offer selecting them. The snippet is handed the ids in the order
+		 * the list is showing them, and the concept owns the controls and whatever they confirm.
+		 */
+		selectionActions?: Snippet<[readonly number[]]>;
+		/**
+		 * The records selected, by id.
+		 *
+		 * By id rather than by position, which is what lets a selection survive a virtualized list
+		 * scrolling past it: the row is unmounted and re-created, and the id is the one thing about
+		 * it that does not change.
+		 */
+		selected?: number[];
 		/** What the empty state says when the list has no records to show. */
 		emptyTitle?: string;
 		/** An optional line under it, where the list can say why it is empty. */
@@ -179,6 +197,8 @@
 		onCreate,
 		filterOptions = [],
 		filters = $bindable({}),
+		selectionActions,
+		selected = $bindable([]),
 		exportAs,
 		recordHeight = 56,
 		groupHeaderHeight = 36,
@@ -256,6 +276,46 @@
 	const rows = $derived(listRows(data, groupHeader ? groupOf : undefined, columns));
 	const recordRows = $derived(toRecordRows(rows));
 	const direction = $derived(localesMetadata[$locale].direction);
+
+	// selection is a mode the reader turns on, not a set of controls every list wears. A checkbox
+	// against every row on every screen is a permanent invitation to an action almost nobody is
+	// taking, and it costs the rows their alignment to carry it.
+	let isSelecting = $state(false);
+	const isSelectable = $derived(Boolean(selectionActions) && isSelecting);
+	// the ids in the order the list is showing them, which is what a run between two records
+	// means. Read off the laid-out rows rather than off `data`, so it is the order on screen.
+	const orderedIds = $derived(
+		rows.flatMap((row) => (row.kind === 'record' ? row.records.map((item) => item.id) : []))
+	);
+	const selectedIds = $derived(new Set(selected));
+	// where a run starts from: the last record the reader picked without holding shift. Reset
+	// whenever the selection is emptied, so a run never reaches back to a record from before.
+	let runAnchor = $state<number | null>(null);
+	// read at the moment of the change rather than from the event, because the checkbox reports
+	// its new state and not what was held down to produce it.
+	let isExtending = $state(false);
+
+	/** Take a record in or out of the selection, extending from the anchor while shift is held. */
+	function chooseRecord(id: number) {
+		if (isExtending && runAnchor !== null) {
+			const from = orderedIds.indexOf(runAnchor);
+			const to = orderedIds.indexOf(id);
+
+			if (from !== -1 && to !== -1) {
+				const run = orderedIds.slice(Math.min(from, to), Math.max(from, to) + 1);
+
+				// added to what is held rather than replacing it: a reader assembling a selection out
+				// of several runs is doing something ordinary, and a run that cleared the rest would
+				// throw away the work between them.
+				selected = [...new Set([...selected, ...run])];
+
+				return;
+			}
+		}
+
+		runAnchor = id;
+		selected = selectedIds.has(id) ? selected.filter((held) => held !== id) : [...selected, id];
+	}
 	const sortableColumnIds = $derived(sortOptions.map((option) => option.id));
 	const hasResults = $derived(rows.length > 0);
 	const isAwaitingFirstResults = $derived(isLoading && !hasResults);
@@ -320,6 +380,11 @@
 		void filters;
 
 		focused = null;
+		// the selection goes too. It is a set of records the reader picked out of what they could
+		// see, and once the read returns something else it holds records that are no longer on
+		// screen — acting on those is acting on records nobody is looking at.
+		selected = [];
+		runAnchor = null;
 
 		void tick().then(() => {
 			get(virtualizer).scrollToOffset(0);
@@ -403,6 +468,33 @@
      without leaving the keyboard. It is not an interactive element and is not becoming one: what
      it holds are already tab stops of their own, and giving the container a role would announce a
      control that is not there. -->
+{#snippet selectableRecord(item: TData)}
+	{#if isSelectable}
+		<!-- the checkbox sits beside the card rather than on it: the card is the concept's and is
+		     one tab stop that opens the record, and a control inside it would be a second thing to
+		     press in the place a reader presses to open. -->
+		<div class="flex h-full items-center gap-2">
+			<!-- shift is read here rather than from the checkbox, which reports the state it is
+			     moving to and nothing about what was held down to move it. -->
+			<div
+				onpointerdown={(event) => (isExtending = event.shiftKey)}
+				onkeydown={(event) => (isExtending = event.shiftKey)}
+				class="shrink-0"
+				role="none"
+			>
+				<Checkbox
+					checked={selectedIds.has(item.id)}
+					onCheckedChange={() => chooseRecord(item.id)}
+					aria-label={$LL.common.table.selectRecord()}
+				/>
+			</div>
+			<div class="h-full min-w-0 flex-1">{@render record(item)}</div>
+		</div>
+	{:else}
+		{@render record(item)}
+	{/if}
+{/snippet}
+
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="flex min-h-0 flex-1 flex-col gap-3" onkeydown={handleKeydown}>
 	<div
@@ -495,6 +587,28 @@
 				</div>
 			{/each}
 
+			{#if selectionActions}
+				<!-- beside the filter, and filled while it is on, like every other control here that
+				     changes what the reader is working with. Leaving the mode puts the selection down
+				     with it: a set held invisibly is a set the next action would act on by surprise. -->
+				<Button
+					variant={isSelecting ? 'default' : 'outline'}
+					size="icon-sm"
+					aria-pressed={isSelecting}
+					aria-label={$LL.common.actions.selectRecords()}
+					onclick={() => {
+						isSelecting = !isSelecting;
+
+						if (!isSelecting) {
+							selected = [];
+							runAnchor = null;
+						}
+					}}
+				>
+					<ChecklistIcon />
+				</Button>
+			{/if}
+
 			{#if sortOptions.length > 0}
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger>
@@ -584,6 +698,49 @@
 		</div>
 	</div>
 
+	<!-- present only while something is selected, and above the rows rather than floating over
+	     them: what it offers is destructive, and a bar that covers the last row is a bar that
+	     hides one of the records it is about to act on. -->
+	{#if isSelectable && selected.length > 0}
+		<div
+			class="flex shrink-0 flex-wrap items-center gap-3 rounded-2xl bg-secondary px-3 py-2 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1"
+		>
+			<span class="text-sm font-medium" aria-live="polite">
+				{$LL.common.table.recordsSelected({ count: selected.length })}
+			</span>
+
+			<div class="ms-auto flex flex-wrap items-center gap-1.5">
+				{@render selectionActions?.(selected)}
+
+				<!-- the same treatment the concept's own controls wear, so the row reads as one
+				     cluster of actions rather than as icons with a word bolted on the end. -->
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="outline"
+								size="icon-sm"
+								class="rounded-full bg-secondary"
+								aria-label={$LL.common.actions.clearSelection()}
+								onclick={() => {
+									selected = [];
+									runAnchor = null;
+								}}
+							>
+								<XIcon class="size-4" />
+								<span class="sr-only">{$LL.common.actions.clearSelection()}</span>
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content side="top" sideOffset={8}>
+						{$LL.common.actions.clearSelection()}
+					</Tooltip.Content>
+				</Tooltip.Root>
+			</div>
+		</div>
+	{/if}
+
 	<!-- no frame of its own: the cards carry their own edges, and a bordered box drawn around
 	     bordered rows is the arrangement _Use fewer borders_ (238) exists to replace. -->
 	<div class="min-h-0 flex-1 overflow-hidden rounded-3xl">
@@ -629,7 +786,7 @@
 									{@render groupHeader?.(row.group)}
 								{:else if columns === 1}
 									<div data-record="0" class="h-full">
-										{@render record(row.records[0])}
+										{@render selectableRecord(row.records[0])}
 									</div>
 								{:else}
 									<div
@@ -638,7 +795,7 @@
 									>
 										{#each row.records as item, column (item.id)}
 											<div data-record={column} class="h-full min-w-0">
-												{@render record(item)}
+												{@render selectableRecord(item)}
 											</div>
 										{/each}
 									</div>

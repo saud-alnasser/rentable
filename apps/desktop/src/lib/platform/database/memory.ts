@@ -55,16 +55,30 @@ function execute(
  * real SQLite database built from the project's migrations. the proxy driver runs over
  * the in-memory engine through the same row mapping as the app, batches inside a
  * transaction as the Rust layer does, and is meant for tests only.
+ *
+ * @param onStatement called with every statement that reaches the engine, in order. It exists
+ * so a test can assert what a procedure *costs* rather than only what it leaves behind: a bulk
+ * action that reconciles once and one that reconciles per record end in the same state, and the
+ * difference between them is a round trip per record the moment there is a wire here.
  */
-export function createMemoryDatabase(): Database {
+export function createMemoryDatabase(onStatement?: (sql: string) => void): Database {
 	const sqlite = new BetterSqlite3(':memory:');
 	applyMigrations(sqlite);
+	const record = (sql: string) => onStatement?.(sql);
 
 	return createDatabase(
-		async (sql, params, method) => execute(sqlite, sql, params, method),
+		async (sql, params, method) => {
+			record(sql);
+
+			return execute(sqlite, sql, params, method);
+		},
 		async (queries) =>
 			sqlite.transaction(() =>
-				queries.map((query) => execute(sqlite, query.sql, query.params, query.method))
+				queries.map((query) => {
+					record(query.sql);
+
+					return execute(sqlite, query.sql, query.params, query.method);
+				})
 			)()
 	);
 }

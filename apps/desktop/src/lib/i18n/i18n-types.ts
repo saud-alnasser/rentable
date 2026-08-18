@@ -39,13 +39,17 @@ type RootTranslation = {
 			 */
 			checkForUpdates: string
 			/**
+			 * c​h​e​c​k​i​n​g​ ​f​o​r​ ​u​p​d​a​t​e​s​.​.​.
+			 */
+			checkingForUpdates: string
+			/**
 			 * c​l​e​a​r​ ​t​h​i​s​ ​f​i​l​t​e​r
 			 */
 			clearFilter: string
 			/**
-			 * c​h​e​c​k​i​n​g​ ​f​o​r​ ​u​p​d​a​t​e​s​.​.​.
+			 * c​l​e​a​r​ ​s​e​l​e​c​t​i​o​n
 			 */
-			checkingForUpdates: string
+			clearSelection: string
 			/**
 			 * c​o​n​n​e​c​t
 			 */
@@ -218,6 +222,10 @@ type RootTranslation = {
 			 * s​a​v​i​n​g​.​.​.
 			 */
 			saving: string
+			/**
+			 * s​e​l​e​c​t​ ​r​e​c​o​r​d​s
+			 */
+			selectRecords: string
 			/**
 			 * s​o​r​t​ ​b​y
 			 */
@@ -710,6 +718,11 @@ type RootTranslation = {
 			 */
 			pageOf: RequiredParams<'count' | 'page'>
 			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​s​e​l​e​c​t​e​d
+			 * @param {unknown} count
+			 */
+			recordsSelected: RequiredParams<'count|number'>
+			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​s​u​l​t​(​s​)
 			 * @param {unknown} count
 			 */
@@ -728,6 +741,10 @@ type RootTranslation = {
 			 * s​e​a​r​c​h​.​.​.
 			 */
 			searchPlaceholder: string
+			/**
+			 * s​e​l​e​c​t​ ​t​h​i​s​ ​r​e​c​o​r​d
+			 */
+			selectRecord: string
 		}
 		time: {
 			/**
@@ -789,6 +806,11 @@ type RootTranslation = {
 			 * @param {string} record
 			 */
 			terminated: RequiredParams<'record'>
+			/**
+			 * t​e​r​m​i​n​a​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)
+			 * @param {unknown} count
+			 */
+			terminatedMany: RequiredParams<'count|number'>
 			/**
 			 * u​n​d​o
 			 */
@@ -1788,6 +1810,17 @@ type RootTranslation = {
 			 */
 			restoreSuccess: string
 			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​t​e​r​m​i​n​a​t​e​d​:​ ​{​r​e​c​o​r​d​s​}
+			 * @param {unknown} count
+			 * @param {string} records
+			 */
+			terminateManyRefused: RequiredParams<'count|number' | 'records'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​t​e​r​m​i​n​a​t​e​d
+			 * @param {unknown} count
+			 */
+			terminateManySuccess: RequiredParams<'count|number'>
+			/**
 			 * c​o​n​t​r​a​c​t​ ​t​e​r​m​i​n​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
 			terminateSuccess: string
@@ -1899,6 +1932,10 @@ type RootTranslation = {
 			 * r​e​s​t​o​r​e​ ​c​o​n​t​r​a​c​t
 			 */
 			restoreTitle: string
+			/**
+			 * a​r​e​ ​y​o​u​ ​s​u​r​e​ ​y​o​u​ ​w​a​n​t​ ​t​o​ ​m​a​n​u​a​l​l​y​ ​t​e​r​m​i​n​a​t​e​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​c​o​n​t​r​a​c​t​s​?​ ​t​h​i​s​ ​o​n​l​y​ ​w​o​r​k​s​ ​f​o​r​ ​a​c​t​i​v​e​ ​o​r​ ​p​a​s​t​ ​o​n​e​s​,​ ​a​n​d​ ​t​h​e​ ​r​e​s​t​ ​a​r​e​ ​l​e​f​t​ ​a​l​o​n​e​.
+			 */
+			terminateManyDescription: string
 			/**
 			 * a​r​e​ ​y​o​u​ ​s​u​r​e​ ​y​o​u​ ​w​a​n​t​ ​t​o​ ​m​a​n​u​a​l​l​y​ ​t​e​r​m​i​n​a​t​e​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​?​ ​t​h​i​s​ ​o​n​l​y​ ​w​o​r​k​s​ ​f​o​r​ ​a​c​t​i​v​e​ ​o​r​ ​p​a​s​t​ ​c​o​n​t​r​a​c​t​s​.
 			 */
@@ -2038,13 +2075,17 @@ export type TranslationFunctions = {
 			 */
 			checkForUpdates: () => LocalizedString
 			/**
+			 * checking for updates...
+			 */
+			checkingForUpdates: () => LocalizedString
+			/**
 			 * clear this filter
 			 */
 			clearFilter: () => LocalizedString
 			/**
-			 * checking for updates...
+			 * clear selection
 			 */
-			checkingForUpdates: () => LocalizedString
+			clearSelection: () => LocalizedString
 			/**
 			 * connect
 			 */
@@ -2217,6 +2258,10 @@ export type TranslationFunctions = {
 			 * saving...
 			 */
 			saving: () => LocalizedString
+			/**
+			 * select records
+			 */
+			selectRecords: () => LocalizedString
 			/**
 			 * sort by
 			 */
@@ -2706,6 +2751,10 @@ export type TranslationFunctions = {
 			 */
 			pageOf: (arg: { count: unknown, page: unknown }) => LocalizedString
 			/**
+			 * {count|number} selected
+			 */
+			recordsSelected: (arg: { count: unknown }) => LocalizedString
+			/**
 			 * {count|number} result(s)
 			 */
 			results: (arg: { count: unknown }) => LocalizedString
@@ -2721,6 +2770,10 @@ export type TranslationFunctions = {
 			 * search...
 			 */
 			searchPlaceholder: () => LocalizedString
+			/**
+			 * select this record
+			 */
+			selectRecord: () => LocalizedString
 		}
 		time: {
 			/**
@@ -2773,6 +2826,10 @@ export type TranslationFunctions = {
 			 * terminating {record}
 			 */
 			terminated: (arg: { record: string }) => LocalizedString
+			/**
+			 * terminating {count|number} contract(s)
+			 */
+			terminatedMany: (arg: { count: unknown }) => LocalizedString
 			/**
 			 * undo
 			 */
@@ -3746,6 +3803,14 @@ export type TranslationFunctions = {
 			 */
 			restoreSuccess: () => LocalizedString
 			/**
+			 * {count|number} could not be terminated: {records}
+			 */
+			terminateManyRefused: (arg: { count: unknown, records: string }) => LocalizedString
+			/**
+			 * {count|number} contract(s) terminated
+			 */
+			terminateManySuccess: (arg: { count: unknown }) => LocalizedString
+			/**
 			 * contract terminated successfully!
 			 */
 			terminateSuccess: () => LocalizedString
@@ -3853,6 +3918,10 @@ export type TranslationFunctions = {
 			 * restore contract
 			 */
 			restoreTitle: () => LocalizedString
+			/**
+			 * are you sure you want to manually terminate the selected contracts? this only works for active or past ones, and the rest are left alone.
+			 */
+			terminateManyDescription: () => LocalizedString
 			/**
 			 * are you sure you want to manually terminate this contract? this only works for active or past contracts.
 			 */

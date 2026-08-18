@@ -1408,3 +1408,152 @@ test('a chosen sort still wins over the rank’s own order', async () => {
 		['SMALL', 'MIDDLE', 'LARGE']
 	);
 });
+
+/** Every statement a block of work issued, so a test can say what it cost. */
+async function withStatementLog(run) {
+	const statements = [];
+	const api = await createApi({ onStatement: (sql) => statements.push(sql) });
+
+	await run(api, () => statements.splice(0, statements.length));
+
+	return statements;
+}
+
+/** how many statements of a kind were issued against the contract table. */
+function countMatching(statements, pattern) {
+	return statements.filter((sql) => pattern.test(sql)).length;
+}
+
+test('several contracts are terminated by one action', async () => {
+	const api = await createApi();
+	const first = await seedContract(api);
+	const second = await seedContract(api);
+	const third = await seedContract(api);
+
+	const result = await api.contract.terminateMany({ ids: [first.id, second.id, third.id] });
+
+	assert.deepEqual(result.terminated.sort(), [first.id, second.id, third.id].sort());
+	assert.deepEqual(result.refused, []);
+
+	for (const id of [first.id, second.id, third.id]) {
+		assert.equal((await api.contract.get({ id })).status, 'terminated');
+	}
+});
+
+// the assertion the ticket exists for, and it is about cost rather than outcome: terminating
+// three contracts one at a time and terminating them together leave the same three rows, and
+// differ by two reconcile passes — which over a wire is a round trip per changed row.
+test('terminating many reconciles once, not once per record', async () => {
+	const ids = [];
+	const oneByOne = await withStatementLog(async (api, drain) => {
+		for (let index = 0; index < 3; index += 1) {
+			ids.push((await seedContract(api)).id);
+		}
+
+		drain();
+
+		for (const id of ids) {
+			await api.contract.terminate({ id });
+		}
+	});
+
+	const together = await withStatementLog(async (api, drain) => {
+		const seeded = [];
+
+		for (let index = 0; index < 3; index += 1) {
+			seeded.push((await seedContract(api)).id);
+		}
+
+		drain();
+
+		await api.contract.terminateMany({ ids: seeded });
+	});
+
+	// the reconcile pass reads the contracts it is about; one pass reads them once.
+	const passesOneByOne = countMatching(oneByOne, /select .* from "contract" where/i);
+	const passesTogether = countMatching(together, /select .* from "contract" where/i);
+
+	assert.ok(
+		passesTogether < passesOneByOne,
+		`one action should read less than three: ${passesTogether} against ${passesOneByOne}`
+	);
+	assert.ok(
+		together.length < oneByOne.length,
+		`one action should cost fewer statements: ${together.length} against ${oneByOne.length}`
+	);
+});
+
+// a selection is assembled by eye, so some of it being ineligible is ordinary. The rest must
+// still be applied, and the reader must be told which ones were not.
+test('a contract that cannot be terminated is named, and the rest still are', async () => {
+	const api = await createApi();
+	const terminable = await seedContract(api);
+	const already = await seedContract(api);
+
+	await api.contract.terminate({ id: already.id });
+
+	const result = await api.contract.terminateMany({ ids: [terminable.id, already.id] });
+
+	assert.deepEqual(result.terminated, [terminable.id]);
+	assert.deepEqual(
+		result.refused.map((entry) => entry.id),
+		[already.id]
+	);
+	assert.equal(result.refused[0].reason, 'not-terminable');
+	assert.equal((await api.contract.get({ id: terminable.id })).status, 'terminated');
+});
+
+test('an id that names no contract is refused as missing rather than failing the action', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	const result = await api.contract.terminateMany({ ids: [contract.id, 9999] });
+
+	assert.deepEqual(result.terminated, [contract.id]);
+	assert.deepEqual(
+		result.refused.map((entry) => ({ id: entry.id, reason: entry.reason })),
+		[{ id: 9999, reason: 'missing' }]
+	);
+});
+
+// undoing a bulk action reverses all of it: the inverse is built from what the procedure
+// reported it changed, so it puts back exactly those and nothing it refused.
+test('un-terminating many puts every one of them back', async () => {
+	const api = await createApi();
+	const first = await seedContract(api);
+	const second = await seedContract(api);
+
+	const terminated = await api.contract.terminateMany({ ids: [first.id, second.id] });
+	const restored = await api.contract.unterminateMany({ ids: terminated.terminated });
+
+	assert.deepEqual(restored.unterminated.sort(), [first.id, second.id].sort());
+
+	for (const id of [first.id, second.id]) {
+		assert.notEqual((await api.contract.get({ id })).status, 'terminated');
+	}
+});
+
+test('and it recomputes each status rather than putting back the one it held', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	await api.contract.terminateMany({ ids: [contract.id] });
+	await api.contract.unterminateMany({ ids: [contract.id] });
+
+	const restored = await api.contract.get({ id: contract.id });
+	const untouched = await seedContract(api);
+
+	// the same fixture, never terminated: whatever the domain derives for one it derives for
+	// the other, which is what "recomputed" means here.
+	assert.equal(restored.status, (await api.contract.get({ id: untouched.id })).status);
+});
+
+test('terminating the same contract twice in one selection acts on it once', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	const result = await api.contract.terminateMany({ ids: [contract.id, contract.id] });
+
+	assert.deepEqual(result.terminated, [contract.id]);
+	assert.deepEqual(result.refused, []);
+});

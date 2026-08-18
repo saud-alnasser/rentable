@@ -13,8 +13,12 @@
 		readContractRank,
 		toChosenRank
 	} from '$lib/contract/rank-filter';
-	import { useListContracts } from '$lib/contract/query';
+	import { useListContracts, useTerminateManyContracts } from '$lib/contract/query';
+	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import { withFilter, type FilterSelection } from '$lib/design/filter';
+	import BanIcon from '@lucide/svelte/icons/ban';
+	import { toast } from 'svelte-sonner';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatRecordDate } from '$lib/design/date';
 	import { formatLocaleNumber, formatLocaleRangeWithUnit } from '$lib/platform/locale';
@@ -30,6 +34,8 @@
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
 	let filters = $state<FilterSelection>({});
+	let selected = $state<number[]>([]);
+	let isTerminateManyOpen = $state(false);
 
 	const rank = $derived(toChosenRank(filters));
 
@@ -78,7 +84,44 @@
 		filters = withFilter(filters, RANK_FILTER_ID, requested);
 		void goto(resolve('/contracts'), { replaceState: true, noScroll: true, keepFocus: true });
 	});
+
+	const terminateMany = useTerminateManyContracts();
+
+	/** Terminate everything selected, and say what could not be. */
+	async function terminateSelection() {
+		const result = await terminateMany.mutateAsync(selected);
+
+		// the refusals are the reader's to see rather than a count to be inferred: they selected
+		// these by eye, and *which three of the twelve* is the only useful form of the answer. The
+		// reference they know a contract by is its government id.
+		if (result.refused.length > 0) {
+			toast.warning(
+				$LL.contracts.hooks.terminateManyRefused({
+					count: result.refused.length,
+					records: result.refused.map((entry) => entry.govId.trim() || String(entry.id)).join(', ')
+				})
+			);
+		}
+
+		if (result.terminated.length > 0) {
+			toast.success($LL.contracts.hooks.terminateManySuccess({ count: result.terminated.length }));
+		}
+
+		isTerminateManyOpen = false;
+		selected = [];
+	}
 </script>
+
+{#snippet selectionActions(ids: readonly number[])}
+	<!-- the same control a record's own action cluster wears, so an action means the same thing
+	     and looks the same whether it is aimed at one record or at nine. -->
+	<RecordActionControl
+		label={`${$LL.common.actions.terminate()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
+		icon={BanIcon}
+		tone="destructive"
+		onclick={() => (isTerminateManyOpen = true)}
+	/>
+{/snippet}
 
 <ContractActions
 	createRequested={hasCreateIntent(page.url)}
@@ -92,6 +135,8 @@
 			{sortOptions}
 			bind:filters
 			filterOptions={[RANK_FILTER]}
+			bind:selected
+			{selectionActions}
 			isLoading={contractsQuery.isLoading}
 			isFetching={contractsQuery.isFetching}
 			recordHeight={ROW_HEIGHT}
@@ -133,3 +178,18 @@
 		</List>
 	{/snippet}
 </ContractActions>
+
+<!-- one confirmation for the whole selection, not one per record: the reader is being asked a
+     single question about a set they assembled, and asking it twelve times is asking a different
+     question twelve times. What it names is the count, because the records are on screen behind
+     it and the number is what they cannot see for themselves. -->
+<DeleteDialog
+	open={isTerminateManyOpen}
+	onOpenChange={(isOpen) => (isTerminateManyOpen = isOpen)}
+	record={$LL.common.table.recordsSelected({ count: selected.length })}
+	title={$LL.contracts.table.terminateTitle()}
+	description={$LL.contracts.table.terminateManyDescription()}
+	confirmLabel={$LL.common.actions.terminate()}
+	confirmLoadingLabel={$LL.common.actions.terminating()}
+	onSubmit={terminateSelection}
+/>

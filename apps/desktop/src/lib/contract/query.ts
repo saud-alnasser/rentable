@@ -213,6 +213,32 @@ export const useTerminateContract = declareMutation({
 	}
 });
 
+/**
+ * Terminate every selected contract, as one change.
+ *
+ * **One undo entry, not one per record.** The inverse is built from what the procedure reports
+ * it actually changed, so taking the action back reverses all of it and nothing else — the
+ * contracts it refused were never terminated and must not be un-terminated on the way back.
+ */
+export const useTerminateManyContracts = declareMutation({
+	mutate: (ids: number[]) => api.contract.terminateMany({ ids }),
+	touches: ['contracts', 'units'],
+	inverse: ({ result }) =>
+		// nothing changed, so there is nothing to offer taking back. An undo entry for a no-op is
+		// a control that appears to have done something.
+		result.terminated.length === 0
+			? undefined
+			: {
+					describe: (t) => t.common.undo.terminatedMany({ count: result.terminated.length }),
+					undo: () => api.contract.unterminateMany({ ids: result.terminated }),
+					redo: () => api.contract.terminateMany({ ids: result.terminated })
+				},
+	toast: {
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	}
+});
+
 export const useUnterminateContract = declareMutation({
 	mutate: (id: number) => api.contract.unterminate({ id }),
 	touches: ['contracts', 'units'],
