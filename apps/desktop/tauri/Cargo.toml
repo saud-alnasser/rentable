@@ -41,6 +41,13 @@ serde_json = { version = "1.0.151" }
 # the best-covered npm package has no patched release on the registry, and the reader the
 # import direction needs is materially stronger here than anything on that side.
 rust_xlsxwriter = { version = "0.98.2" }
+# reading the same format back. The pair was chosen together in the effort's evidence,
+# `where-the-spreadsheet-format-belongs` — reading is the heavier half and this is the
+# strongest artifact in that comparison.
+calamine = { version = "0.36.1" }
+# choosing the file to import. Export answers where a file landed and never asks; import
+# has to ask, and a path typed into the web layer is a path the web layer chose.
+tauri-plugin-dialog = { version = "2.7.2" }
 tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread", "time"] }
 # `sqlite-bundled` compiles SQLite into the binary, so there is no system library
 # to depend on. No TLS feature is selected because nothing here speaks to a remote

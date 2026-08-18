@@ -16,6 +16,7 @@ const ar = {
 			connect: 'ربط',
 			connecting: 'جارٍ الربط...',
 			copyDetails: 'نسخ التفاصيل',
+			chooseFile: 'اختر ملفاً...',
 			create: 'إنشاء',
 			createBackup: 'إنشاء نسخة احتياطية',
 			creating: 'جاري الإنشاء...',
@@ -28,6 +29,7 @@ const ar = {
 			duplicate: 'نسخة جديدة',
 			edit: 'تعديل',
 			export: 'تصدير',
+			import: 'استيراد',
 			installingUpdate: 'جاري تثبيت التحديث...',
 			link: 'ربط',
 			linking: 'جارٍ الربط...',
@@ -87,9 +89,27 @@ const ar = {
 			timedOut: 'استغرقت العملية وقتاً طويلاً وتوقفت.'
 		},
 
+		export: {
+			description: 'إلى أي ملف يتحول هذا؟'
+		},
+
 		formats: {
 			csv: 'csv',
 			xlsx: 'مصنف إكسل'
+		},
+
+		import: {
+			title: 'استيراد {record}',
+			missingColumns: 'هذا الملف تنقصه الأعمدة: {columns}. لا يمكن قراءة شيء منه.',
+			collision: 'الصفان {rows} يحملان {identity} نفسه. لن يُستورد شيء حتى يُحذف أحدهما.',
+			nothingToCreate: 'كل صف في هذا الملف موجود هنا أصلاً أو لا يمكن قراءته، فلا شيء ليُستورد.',
+			willCreate: 'سيتم إنشاء {count|number} سجل',
+			willReject: 'سيتم تخطي {count|number} صف',
+			rejectedRow: 'الصف {row|number}',
+			reasons: {
+				duplicateOfExisting: '{detail} موجود هنا أصلاً',
+				missingValue: 'لا يوجد {detail}'
+			}
 		},
 
 		history: {
@@ -237,6 +257,7 @@ const ar = {
 			created: 'إنشاء {record}',
 			deleted: 'حذف {record}',
 			edited: 'تعديل {record}',
+			imported: 'استيراد {count|number} سجل',
 			nothingToRedo: 'لا يوجد ما يمكن إعادته',
 			nothingToUndo: 'لا يوجد ما يمكن التراجع عنه',
 			redo: 'إعادة',
@@ -532,6 +553,7 @@ const ar = {
 		hooks: {
 			createSuccess: 'تم إنشاء المستأجر بنجاح!',
 			deleteSuccess: 'تم حذف المستأجر بنجاح!',
+			importSuccess: 'تم استيراد المستأجرين بنجاح!',
 			updateSuccess: 'تم تحديث المستأجر بنجاح!'
 		},
 

@@ -63,6 +63,10 @@ type RootTranslation = {
 			 */
 			copyDetails: string
 			/**
+			 * c​h​o​o​s​e​ ​a​ ​f​i​l​e​.​.​.
+			 */
+			chooseFile: string
+			/**
 			 * c​r​e​a​t​e
 			 */
 			create: string
@@ -110,6 +114,10 @@ type RootTranslation = {
 			 * e​x​p​o​r​t
 			 */
 			'export': string
+			/**
+			 * i​m​p​o​r​t
+			 */
+			'import': string
 			/**
 			 * i​n​s​t​a​l​l​i​n​g​ ​u​p​d​a​t​e​.​.​.
 			 */
@@ -329,6 +337,12 @@ type RootTranslation = {
 			 */
 			timedOut: string
 		}
+		'export': {
+			/**
+			 * w​h​i​c​h​ ​f​i​l​e​ ​s​h​o​u​l​d​ ​t​h​i​s​ ​b​e​c​o​m​e​?
+			 */
+			description: string
+		}
 		formats: {
 			/**
 			 * c​s​v
@@ -338,6 +352,55 @@ type RootTranslation = {
 			 * e​x​c​e​l​ ​w​o​r​k​b​o​o​k
 			 */
 			xlsx: string
+		}
+		'import': {
+			/**
+			 * i​m​p​o​r​t​ ​{​r​e​c​o​r​d​}
+			 * @param {string} record
+			 */
+			title: RequiredParams<'record'>
+			/**
+			 * t​h​i​s​ ​f​i​l​e​ ​i​s​ ​m​i​s​s​i​n​g​ ​t​h​e​ ​c​o​l​u​m​n​(​s​)​:​ ​{​c​o​l​u​m​n​s​}​.​ ​n​o​t​h​i​n​g​ ​c​a​n​ ​b​e​ ​r​e​a​d​ ​f​r​o​m​ ​i​t​.
+			 * @param {string} columns
+			 */
+			missingColumns: RequiredParams<'columns'>
+			/**
+			 * r​o​w​s​ ​{​r​o​w​s​}​ ​b​o​t​h​ ​c​l​a​i​m​ ​{​i​d​e​n​t​i​t​y​}​.​ ​n​o​t​h​i​n​g​ ​w​i​l​l​ ​b​e​ ​i​m​p​o​r​t​e​d​ ​u​n​t​i​l​ ​o​n​e​ ​o​f​ ​t​h​e​m​ ​g​o​e​s​.
+			 * @param {string} identity
+			 * @param {string} rows
+			 */
+			collision: RequiredParams<'identity' | 'rows'>
+			/**
+			 * e​v​e​r​y​ ​r​o​w​ ​i​n​ ​t​h​i​s​ ​f​i​l​e​ ​i​s​ ​a​l​r​e​a​d​y​ ​h​e​r​e​ ​o​r​ ​c​a​n​n​o​t​ ​b​e​ ​r​e​a​d​,​ ​s​o​ ​t​h​e​r​e​ ​i​s​ ​n​o​t​h​i​n​g​ ​t​o​ ​i​m​p​o​r​t​.
+			 */
+			nothingToCreate: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)​ ​w​i​l​l​ ​b​e​ ​c​r​e​a​t​e​d
+			 * @param {unknown} count
+			 */
+			willCreate: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​o​w​(​s​)​ ​w​i​l​l​ ​b​e​ ​s​k​i​p​p​e​d
+			 * @param {unknown} count
+			 */
+			willReject: RequiredParams<'count|number'>
+			/**
+			 * r​o​w​ ​{​r​o​w​|​n​u​m​b​e​r​}
+			 * @param {unknown} row
+			 */
+			rejectedRow: RequiredParams<'row|number'>
+			reasons: {
+				/**
+				 * {​d​e​t​a​i​l​}​ ​i​s​ ​a​l​r​e​a​d​y​ ​h​e​r​e
+				 * @param {string} detail
+				 */
+				duplicateOfExisting: RequiredParams<'detail'>
+				/**
+				 * n​o​ ​{​d​e​t​a​i​l​}
+				 * @param {string} detail
+				 */
+				missingValue: RequiredParams<'detail'>
+			}
 		}
 		history: {
 			actions: {
@@ -833,6 +896,11 @@ type RootTranslation = {
 			 * @param {string} record
 			 */
 			edited: RequiredParams<'record'>
+			/**
+			 * i​m​p​o​r​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)
+			 * @param {unknown} count
+			 */
+			imported: RequiredParams<'count|number'>
 			/**
 			 * n​o​t​h​i​n​g​ ​t​o​ ​a​p​p​l​y​ ​a​g​a​i​n
 			 */
@@ -1660,6 +1728,10 @@ type RootTranslation = {
 			 */
 			deleteSuccess: string
 			/**
+			 * t​e​n​a​n​t​s​ ​i​m​p​o​r​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
+			 */
+			importSuccess: string
+			/**
 			 * t​e​n​a​n​t​ ​u​p​d​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
 			updateSuccess: string
@@ -2153,6 +2225,10 @@ export type TranslationFunctions = {
 			 */
 			copyDetails: () => LocalizedString
 			/**
+			 * choose a file...
+			 */
+			chooseFile: () => LocalizedString
+			/**
 			 * create
 			 */
 			create: () => LocalizedString
@@ -2200,6 +2276,10 @@ export type TranslationFunctions = {
 			 * export
 			 */
 			'export': () => LocalizedString
+			/**
+			 * import
+			 */
+			'import': () => LocalizedString
 			/**
 			 * installing update...
 			 */
@@ -2419,6 +2499,12 @@ export type TranslationFunctions = {
 			 */
 			timedOut: () => LocalizedString
 		}
+		'export': {
+			/**
+			 * which file should this become?
+			 */
+			description: () => LocalizedString
+		}
 		formats: {
 			/**
 			 * csv
@@ -2428,6 +2514,46 @@ export type TranslationFunctions = {
 			 * excel workbook
 			 */
 			xlsx: () => LocalizedString
+		}
+		'import': {
+			/**
+			 * import {record}
+			 */
+			title: (arg: { record: string }) => LocalizedString
+			/**
+			 * this file is missing the column(s): {columns}. nothing can be read from it.
+			 */
+			missingColumns: (arg: { columns: string }) => LocalizedString
+			/**
+			 * rows {rows} both claim {identity}. nothing will be imported until one of them goes.
+			 */
+			collision: (arg: { identity: string, rows: string }) => LocalizedString
+			/**
+			 * every row in this file is already here or cannot be read, so there is nothing to import.
+			 */
+			nothingToCreate: () => LocalizedString
+			/**
+			 * {count|number} record(s) will be created
+			 */
+			willCreate: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} row(s) will be skipped
+			 */
+			willReject: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * row {row|number}
+			 */
+			rejectedRow: (arg: { row: unknown }) => LocalizedString
+			reasons: {
+				/**
+				 * {detail} is already here
+				 */
+				duplicateOfExisting: (arg: { detail: string }) => LocalizedString
+				/**
+				 * no {detail}
+				 */
+				missingValue: (arg: { detail: string }) => LocalizedString
+			}
 		}
 		history: {
 			actions: {
@@ -2910,6 +3036,10 @@ export type TranslationFunctions = {
 			 * editing {record}
 			 */
 			edited: (arg: { record: string }) => LocalizedString
+			/**
+			 * importing {count|number} record(s)
+			 */
+			imported: (arg: { count: unknown }) => LocalizedString
 			/**
 			 * nothing to apply again
 			 */
@@ -3710,6 +3840,10 @@ export type TranslationFunctions = {
 			 * tenant deleted successfully!
 			 */
 			deleteSuccess: () => LocalizedString
+			/**
+			 * tenants imported successfully!
+			 */
+			importSuccess: () => LocalizedString
 			/**
 			 * tenant updated successfully!
 			 */

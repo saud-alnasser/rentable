@@ -117,6 +117,61 @@ export default router({
 			return created;
 		}),
 
+	/**
+	 * The identities already held, so an import can say which of its rows duplicate a record
+	 * rather than discovering it one failed write at a time.
+	 *
+	 * Read as a set rather than checked row by row: a file of five hundred rows would otherwise
+	 * be five hundred round trips before a single one is written, which is the cost the bulk
+	 * action ticket already reckoned with.
+	 */
+	identities: procedure.public.query(async ({ ctx }) => {
+		const held = await ctx.db
+			.select({ nationalId: s.tenant.nationalId, phone: s.tenant.phone })
+			.from(s.tenant);
+
+		return held.map((tenant) => [tenant.nationalId, tenant.phone]);
+	}),
+
+	/**
+	 * Create every tenant a file named, in one write.
+	 *
+	 * **One batch, so a refusal creates nothing.** The boundary runs a batch inside a
+	 * transaction, and a batch is built before any of it runs and cannot branch on its own
+	 * results ([[rules/data]], under *Multi-table writes*) — which is exactly why the validation
+	 * that decides what goes in here happens before it, on the caller's side, against the whole
+	 * set at once.
+	 *
+	 * It re-checks what it is given rather than trusting the plan: the plan was made against the
+	 * workspace as it was when the file was opened, and the reader may have created a tenant by
+	 * hand in between.
+	 */
+	importMany: procedure.public
+		.use(autosync())
+		.input(z.object({ records: z.array(TenantSchema.omit({ id: true })).min(1) }))
+		.mutation(async ({ input, ctx }) => {
+			const held = await ctx.db
+				.select({ nationalId: s.tenant.nationalId, phone: s.tenant.phone })
+				.from(s.tenant);
+			const takenIdentities = new Set(held.map((tenant) => tenant.nationalId));
+			const takenPhones = new Set(held.map((tenant) => tenant.phone));
+
+			for (const record of input.records) {
+				ensureIdentityAvailable(takenIdentities.has(record.nationalId) ? record : undefined);
+				ensurePhoneAvailable(takenPhones.has(record.phone) ? record : undefined);
+			}
+
+			// the input is refused empty, so the first statement is what gives the batch the
+			// non-empty shape its type asks for — the rest follow it.
+			const [first, ...rest] = input.records;
+			const created = await ctx.db.batch([
+				ctx.db.insert(s.tenant).values(first).returning(),
+				...rest.map((record) => ctx.db.insert(s.tenant).values(record).returning())
+			]);
+
+			return created.flat();
+		}),
+
 	update: procedure.public
 		.use(autosync())
 		.input(TenantSchema.partial({ name: true, nationalId: true, phone: true }))

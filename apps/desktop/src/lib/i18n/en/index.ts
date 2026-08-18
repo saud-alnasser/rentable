@@ -17,6 +17,7 @@ const en = {
 			connect: 'connect',
 			connecting: 'connecting...',
 			copyDetails: 'copy details',
+			chooseFile: 'choose a file...',
 			create: 'create',
 			createBackup: 'create backup',
 			creating: 'creating...',
@@ -29,6 +30,7 @@ const en = {
 			duplicate: 'duplicate',
 			edit: 'edit',
 			export: 'export',
+			import: 'import',
 			installingUpdate: 'installing update...',
 			link: 'link',
 			linking: 'linking...',
@@ -88,9 +90,30 @@ const en = {
 			timedOut: 'the operation took too long and stopped.'
 		},
 
+		export: {
+			description: 'which file should this become?'
+		},
+
 		formats: {
 			csv: 'csv',
 			xlsx: 'excel workbook'
+		},
+
+		import: {
+			title: 'import {record:string}',
+			missingColumns:
+				'this file is missing the column(s): {columns:string}. nothing can be read from it.',
+			collision:
+				'rows {rows:string} both claim {identity:string}. nothing will be imported until one of them goes.',
+			nothingToCreate:
+				'every row in this file is already here or cannot be read, so there is nothing to import.',
+			willCreate: '{count|number} record(s) will be created',
+			willReject: '{count|number} row(s) will be skipped',
+			rejectedRow: 'row {row|number}',
+			reasons: {
+				duplicateOfExisting: '{detail:string} is already here',
+				missingValue: 'no {detail:string}'
+			}
 		},
 
 		history: {
@@ -240,6 +263,7 @@ const en = {
 			created: 'creating {record:string}',
 			deleted: 'deleting {record:string}',
 			edited: 'editing {record:string}',
+			imported: 'importing {count|number} record(s)',
 			nothingToRedo: 'nothing to apply again',
 			nothingToUndo: 'nothing to take back',
 			redo: 'redo',
@@ -538,6 +562,7 @@ const en = {
 		hooks: {
 			createSuccess: 'tenant created successfully!',
 			deleteSuccess: 'tenant deleted successfully!',
+			importSuccess: 'tenants imported successfully!',
 			updateSuccess: 'tenant updated successfully!'
 		},
 

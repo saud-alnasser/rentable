@@ -109,3 +109,20 @@ test('and a name that already carries one does not gain a second', () => {
 test('a dot that is not an extension is left in the name', () => {
 	assert.equal(toExportFileName('contracts.2026', 'csv'), 'contracts.2026.csv');
 });
+
+// the half of the round trip that lives on this side. The reader that takes this file back off
+// disk is in Rust and cannot call `toCsv`, so both suites assert against the same literal —
+// there, `a_delimited_file_the_export_wrote_reads_back_as_the_row_it_was_given`. Change one and
+// the other fails, which is what makes the pair a round trip rather than two opinions.
+test('a row is written as the bytes the reader is pinned to', () => {
+	const columns = [
+		{ header: 'name', value: (tenant) => tenant.name },
+		{ header: 'national id', value: (tenant) => tenant.nationalId },
+		{ header: 'phone', value: (tenant) => tenant.phone }
+	];
+
+	assert.equal(
+		toCsv(columns, [{ name: '=cmd()', nationalId: '1234567890', phone: '+966512345678' }]),
+		'"name","national id","phone"\r\n"\'=cmd()","1234567890","+966512345678"'
+	);
+});
