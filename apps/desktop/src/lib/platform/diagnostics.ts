@@ -1,8 +1,8 @@
 /**
  * The interface's half of the diagnostics this machine keeps.
  *
- * There is no server to send an event to, so an event raised here is handed to
- * the same local file everything else writes to, over the Tauri boundary.
+ * Nothing collects events from this application, so an event raised here is handed
+ * to the same local file everything else writes to, over the Tauri boundary.
  * Redaction happens on the far side of that boundary rather than here: one
  * implementation of what counts as a secret, in the process that owns the file.
  */

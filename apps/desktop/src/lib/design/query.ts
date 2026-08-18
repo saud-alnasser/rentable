@@ -3,12 +3,14 @@ import type { QueryClient } from '@tanstack/svelte-query';
 /**
  * WORKSPACE QUERY CACHE
  *
- * there is no server and no writer this application cannot see, so workspace data is
- * cached indefinitely and kept truthful by its writers instead of by refetching on
- * every mount. the writers are enumerable: every data mutation announces itself through
- * `invalidateWorkspaceData`, and a pass that rewrites derived state with no touch-set to
- * name — a remote-sync pull, a UTC-day crossing — announces itself through
- * `invalidateRoot`. a mutation path that skips its writer shows wrong data, not slow
+ * every writer of workspace data announces itself, so the data is cached indefinitely and
+ * kept truthful by those writers instead of by refetching on every mount. the enumeration
+ * being *complete* is what the policy rests on, not the enumeration being short: every data
+ * mutation announces itself through `invalidateWorkspaceData`, and a pass that rewrites
+ * derived state with no touch-set to name — a remote-sync pull, a UTC-day crossing — announces
+ * itself through `invalidateRoot`. a workspace whose record of truth is remote adds a writer
+ * this machine cannot see, another device, and it announces itself the same way: through the
+ * pull that brings its rows in. a mutation path that skips its writer shows wrong data, not slow
  * data, which is why the prefixes below are defined once: the domain query modules
  * compose their key sets from them, so the keys and the invalidation that must match
  * them cannot drift apart.

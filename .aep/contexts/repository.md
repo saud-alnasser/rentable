@@ -1,7 +1,7 @@
 ---
-aep: 2.3.0
+aep: 2.5.1
 owner: repository
-date: 2026-08-17
+date: 2026-08-18
 kind: context
 use-when: "a term, boundary, or constraint about this repository is in question, before reaching for a narrower context"
 ---
@@ -9,9 +9,9 @@ use-when: "a term, boundary, or constraint about this repository is in question,
 # Context — rentable
 
 An offline-first desktop tracker for rents payments — one bilingual application, one local
-SQLite database, one optional Google Drive backup. There is no server: every layer,
-including the one shaped like a backend, runs inside the desktop app. A Tauri 2 (Rust)
-shell around a SvelteKit 2 / Svelte 5 frontend.
+SQLite database, one optional Google Drive backup. Every layer, including the one shaped
+like a backend, runs inside the desktop app. A Tauri 2 (Rust) shell around a SvelteKit 2 /
+Svelte 5 frontend.
 
 ## Where the application is
 
@@ -64,8 +64,16 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 
 ## Boundaries
 
-- **There is no server.** The API layer is a direct caller executing in the webview. The
-  only process boundary it crosses is Tauri's IPC into Rust — never HTTP.
+- **The application never makes an HTTP call to fetch a record.** *Superseded 2026-08-18; it
+  read "There is no server", and [[efforts/a-workspace-follows-its-user/spec]], decision 09, is where that was
+  decided.* The API layer is a direct caller executing in the webview, and that part is
+  unchanged. **A local workspace has no server at all**, and the old sentence is true of it word
+  for word: the only process boundary it crosses is Tauri's IPC into Rust — never HTTP. **A
+  hosted workspace has a remote of record and a control-plane API, and neither is in the data
+  path** — reads and writes still reach a local file, the replica syncs on its own, and the API
+  is in the credential path only. The property the old boundary was protecting therefore survives
+  the premise that stated it, which is why this is superseded in place rather than footnoted: a
+  reader who takes "never HTTP" at face value builds against a sentence rather than a rule.
 - **Credentials never cross the IPC boundary.** Google Drive HTTP and OAuth belong in Rust,
   and there is no longer a second place they could be: no Drive network code remains in
   TypeScript, and no command hands the web layer the client secret or a refresh token. The
@@ -73,8 +81,9 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   conflict — and the web layer observes them rather than sequencing anything behind them.
   What binds a change is [[rules/drive]], under *Client boundary*.
 - **Diagnostics are written locally, bounded, and stripped of recognised credentials.**
-  There is no server to report to, so events go to a rotating file the user can open from
-  settings. Redaction happens in the sink, on the way to disk — never at the call site. It
+  Nothing collects diagnostics anywhere — not even for a hosted workspace, whose control-plane
+  API is in the credential path and nothing else — so events go to a rotating file the user can
+  open from settings. Redaction happens in the sink, on the way to disk — never at the call site. It
   works by **recognising** the credential shapes this application handles, so it bounds the
   damage rather than guaranteeing none: a value known to be secret still must not be put in
   an event.

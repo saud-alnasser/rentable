@@ -1,6 +1,7 @@
 //! writing what a surface is showing out of the application.
 //!
-//! There is no server, so a file is the only way anything here reaches another program. The
+//! Nothing here is reachable from another program, so a file is the only way anything here
+//! reaches one. The
 //! web layer composes the text and the user chooses where it lands; this puts it there.
 //!
 //! The destination used to be this module's: a plain name from the web layer joined onto the

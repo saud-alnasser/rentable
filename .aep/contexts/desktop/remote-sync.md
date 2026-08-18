@@ -1,7 +1,7 @@
 ---
-aep: 2.2.0
+aep: 2.5.1
 owner: repository
-date: 2026-08-17
+date: 2026-08-18
 kind: context
 paths:
   - apps/desktop/tauri/src/sync/**
@@ -13,8 +13,15 @@ use-when: "the request touches backup, Google Drive, linking, or conflicts"
 
 # Remote sync
 
-Getting a workspace off this machine and back onto it. Two subjects share the machinery:
-local backup, and exchange with Google Drive.
+Getting a **local** workspace off this machine and back onto it. Two subjects share the
+machinery: local backup, and exchange with Google Drive.
+
+**Local-only since 2026-08-18** — decision 07 of [[efforts/a-workspace-follows-its-user/spec]]. Drive stays and it
+is what a local workspace gets; a hosted workspace replicates through its own client and never
+reaches anything in here. **The one part of this surface that is not local-only is the OAuth
+session**: sign-in is Google, so the account, the token refresh and the credential boundary are
+load-bearing for identity in both modes and are being separated out of `link()` (#543). Read
+*Link* below knowing that it is about to stop meaning two things at once.
 
 ## Language
 

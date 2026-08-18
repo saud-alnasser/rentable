@@ -1,7 +1,7 @@
 //! structured diagnostics, written locally and bounded.
 //!
-//! There is no server, so a failure on someone's machine is investigable only
-//! if that machine kept a record of it. Every event is one JSON object on one
+//! Nothing collects diagnostics from this application, so a failure on someone's
+//! machine is investigable only if that machine kept a record of it. Every event is one JSON object on one
 //! line: greppable, parseable without a format definition travelling beside it,
 //! and still readable by the person who has to send it in.
 //!

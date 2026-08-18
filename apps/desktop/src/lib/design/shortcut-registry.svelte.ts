@@ -13,7 +13,7 @@ import { recordDiagnosticError } from '$lib/platform/diagnostics';
 class Shortcuts {
 	#registry = new ShortcutRegistry((collision) =>
 		// a collision is a fault in the application rather than in what the reader did, and there
-		// is no server to tell. The local diagnostics file is where everything else of that kind
+		// is nobody to tell. The local diagnostics file is where everything else of that kind
 		// goes, and the sheet shows the duplicate at the same time.
 		recordDiagnosticError('shortcut.collision', {
 			held: collision.held,
