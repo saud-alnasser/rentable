@@ -1,11 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
+import { open as openFileDialog, save as saveFileDialog } from '@tauri-apps/plugin-dialog';
 import {
 	openUrl as openExternalUrl,
 	revealItemInDir as revealInFileManager
 } from '@tauri-apps/plugin-opener';
 import { check, type DownloadEvent, type Update as TauriUpdate } from '@tauri-apps/plugin-updater';
+
+import { withExtension } from '$lib/platform/path';
 
 export type Settings = {
 	endingSoonNoticeDays: number;
@@ -228,14 +230,15 @@ export const tauri = {
 	},
 	export: {
 		/**
-		 * Write text out of the application and answer with where it landed.
+		 * Write text to the path the user chose, and answer with where it landed.
 		 *
-		 * The name is a file name and never a path: where an export may go is Rust's to
-		 * decide, and the web layer has no say in it.
+		 * The path is theirs, from the save dialog below — symmetric with `import.read`, which
+		 * is handed one from the open dialog. Where a file may go stopped being this layer's
+		 * question, and Rust's, the moment the reader was asked.
 		 */
-		write: (name: string, contents: string) => invoke<string>('export_write', { name, contents }),
+		write: (path: string, contents: string) => invoke<string>('export_write', { path, contents }),
 		/**
-		 * Write a workbook out of the application and answer with where it landed.
+		 * Write a workbook to the path the user chose, and answer with where it landed.
 		 *
 		 * The cells cross as the kinds of thing they are — a count as a count, a day as a day —
 		 * and this side spells each one. A figure rendered before it crossed could not be added
@@ -246,16 +249,16 @@ export const tauri = {
 		 * prepends a byte-order mark, and a workbook is an archive that three bytes in front of
 		 * would corrupt.
 		 */
-		writeWorkbook: (name: string, sheets: ExportSheet[]) =>
-			invoke<string>('export_write_workbook', { name, sheets })
+		writeWorkbook: (path: string, sheets: ExportSheet[]) =>
+			invoke<string>('export_write_workbook', { path, sheets })
 	},
 	import: {
 		/**
 		 * Read a file the user chose, as a table of text.
 		 *
-		 * Asymmetric with `export.write` on purpose. An export answers *where it landed* and is
-		 * never told where to put it; an import has to be told which file, so this takes a path —
-		 * one the user picked through the dialog below, never one the web layer composed.
+		 * Symmetric with `export.write`: both take a path the user picked through a dialog below,
+		 * never one the web layer composed. Which file to read and which file to write are the
+		 * same question asked in two directions, and both are the reader's to answer.
 		 *
 		 * What comes back is strings. Which column means what, and whether a row is a record, are
 		 * questions about tenants and contracts that the reader does not answer.
@@ -285,6 +288,27 @@ export const tauri = {
 			});
 
 			return typeof chosen === 'string' ? chosen : null;
+		},
+		/**
+		 * Ask the user where a file goes, answering its path or nothing where they walked away.
+		 *
+		 * The mirror of `openFile`, and the reason an export no longer decides for itself. The
+		 * name the caller composed is what the dialog opens on, so a reader with no opinion
+		 * presses one control; the extension it already carries decides the filter, because the
+		 * format was chosen before this was asked.
+		 *
+		 * The extension is put back where the platform's dialog let the reader take it off. It
+		 * is not the file's format — which command wrote it is — so a workbook named `.txt` is
+		 * still a workbook, and it is a workbook nothing on the reader's machine will open.
+		 */
+		saveFile: async (defaultName: string) => {
+			const extension = defaultName.split('.').pop() ?? '';
+			const chosen = await saveFileDialog({
+				defaultPath: defaultName,
+				filters: extension ? [{ name: extension, extensions: [extension] }] : []
+			});
+
+			return typeof chosen === 'string' ? withExtension(chosen, extension) : null;
 		}
 	},
 	diagnostics: {

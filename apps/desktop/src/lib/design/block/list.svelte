@@ -240,13 +240,21 @@
 		isExporting = true;
 
 		try {
-			const name = toExportFileName(exportAs.name, format);
+			// where the file goes is the reader's, and the name this composes is only what the
+			// dialog opens on. Walking away from it is not a failed export — nothing was written
+			// and there is nothing to say about it.
+			const chosen = await tauri.dialog.saveFile(toExportFileName(exportAs.name, format));
+
+			if (!chosen) {
+				return;
+			}
+
 			// which command rather than which argument: the two differ in what lands on disk, and
 			// the text one prepends a byte-order mark that would corrupt an archive.
 			const path =
 				format === 'csv'
-					? await tauri.export.write(name, toCsv(exportAs.columns, data))
-					: await tauri.export.writeWorkbook(name, [toExportSheet(exportAs.columns, data)]);
+					? await tauri.export.write(chosen, toCsv(exportAs.columns, data))
+					: await tauri.export.writeWorkbook(chosen, [toExportSheet(exportAs.columns, data)]);
 
 			// the path is isolated because it is written left to right whatever the sentence
 			// around it is, and an unisolated one reorders the Arabic it is spliced into.

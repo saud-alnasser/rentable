@@ -58,10 +58,18 @@
 		isExporting = true;
 
 		try {
+			// asked before the workspace is read: a reader who walked away from the dialog has not
+			// asked for anything, and reading five tables to throw them away is work nobody wanted.
+			const chosen = await tauri.dialog.saveFile(WORKSPACE_FILE);
+
+			if (!chosen) {
+				return;
+			}
+
 			// read now rather than from a cache: the file is what the workspace is at the moment
 			// the reader asked for it, and nothing on this screen was showing any of it.
 			const transfer = await api.workspace.get();
-			const path = await tauri.export.writeWorkbook(WORKSPACE_FILE, toSheets(transfer));
+			const path = await tauri.export.writeWorkbook(chosen, toSheets(transfer));
 
 			toast.success($LL.common.messages.exported({ path: isolateDirection(path) }));
 

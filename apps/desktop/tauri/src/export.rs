@@ -1,11 +1,15 @@
 //! writing what a surface is showing out of the application.
 //!
 //! There is no server, so a file is the only way anything here reaches another program. The
-//! web layer composes the text; this decides where a file may land and puts it there.
+//! web layer composes the text and the user chooses where it lands; this puts it there.
+//!
+//! The destination used to be this module's: a plain name from the web layer joined onto the
+//! downloads directory, with a guard refusing anything that could have escaped it. That guard
+//! was the shape of the old answer rather than a safety property — the reader now names the
+//! file through the platform's own save dialog, exactly as the import half is told which file
+//! to read through its open one, and a path the user picked is a path this writes to.
 
-use std::path::PathBuf;
-
-use tauri::{AppHandle, Manager};
+use std::path::Path;
 
 use crate::error::Error;
 
@@ -16,52 +20,34 @@ use crate::error::Error;
 /// and every other reader ignores it.
 const UTF8_BOM: &str = "\u{feff}";
 
-/// Where an exported file goes: the user's downloads directory, or their documents directory
-/// where the platform has no downloads one.
-fn export_dir(app: &AppHandle) -> Result<PathBuf, Error> {
-    let paths = app.path();
-
-    paths
-        .download_dir()
-        .or_else(|_| paths.document_dir())
-        .map_err(|error| Error::Io {
-            message: format!("no directory to export into: {error}"),
-        })
-}
-
-/// Refuse a name that would place the file anywhere but the export directory.
+/// Refuse a destination that names no file.
 ///
-/// The name comes from the web layer, which composes it from a surface's own words — so it
-/// is not hostile, and it is also not checked anywhere else.
-fn ensure_plain_name(name: &str) -> Result<(), Error> {
-    // the colon is here for Windows: `join` treats `C:name` as a drive-relative path and
-    // discards the directory it was joined onto.
-    let is_plain = !name.is_empty()
-        && !name.contains(['/', '\\', ':', '\0'])
-        && name != "."
-        && name != ".."
-        && !name.starts_with('.');
-
-    if is_plain {
-        return Ok(());
+/// The path comes back from the platform's save dialog, so it is the reader's own answer and
+/// not something to second-guess. What is still worth checking is that it is an answer at all:
+/// an empty string reaches the filesystem as an error whose text says nothing about what went
+/// wrong, and a directory would be reported as a permission failure on one platform and a
+/// missing file on another.
+fn ensure_destination(path: &Path) -> Result<(), Error> {
+    if path.as_os_str().is_empty() || path.is_dir() {
+        return Err(Error::InvalidInput {
+            message: format!("'{}' is not a file to write", path.display()),
+        });
     }
 
-    Err(Error::InvalidInput {
-        message: format!("'{name}' is not a file name"),
-    })
+    Ok(())
 }
 
 /// Write `contents` as a UTF-8 file and answer with the path it landed on.
 ///
-/// An existing file of the same name is replaced: exporting the same directory twice is a
-/// refresh rather than a second copy.
+/// An existing file at that path is replaced, which is what the save dialog already warned the
+/// reader about before handing this the path.
 #[tauri::command]
-pub async fn export_write(app: AppHandle, name: String, contents: String) -> Result<String, Error> {
-    ensure_plain_name(&name)?;
+pub async fn export_write(path: String, contents: String) -> Result<String, Error> {
+    let path = Path::new(&path);
 
-    let path = export_dir(&app)?.join(&name);
+    ensure_destination(path)?;
 
-    std::fs::write(&path, format!("{UTF8_BOM}{contents}")).map_err(|error| Error::Io {
+    std::fs::write(path, format!("{UTF8_BOM}{contents}")).map_err(|error| Error::Io {
         message: format!("could not write {}: {error}", path.display()),
     })?;
 
@@ -241,12 +227,10 @@ fn write_sheet(
 /// No byte-order mark, unlike the text export above — a workbook is a zip archive, and three
 /// bytes in front of it is a corrupt file rather than a hint about encoding.
 #[tauri::command]
-pub async fn export_write_workbook(
-    app: AppHandle,
-    name: String,
-    sheets: Vec<Sheet>,
-) -> Result<String, Error> {
-    ensure_plain_name(&name)?;
+pub async fn export_write_workbook(path: String, sheets: Vec<Sheet>) -> Result<String, Error> {
+    let path = Path::new(&path);
+
+    ensure_destination(path)?;
 
     if sheets.is_empty() {
         return Err(Error::InvalidInput {
@@ -254,7 +238,6 @@ pub async fn export_write_workbook(
         });
     }
 
-    let path = export_dir(&app)?.join(&name);
     let mut workbook = rust_xlsxwriter::Workbook::new();
     let formats = Formats::new();
 
@@ -262,11 +245,11 @@ pub async fn export_write_workbook(
         let worksheet = workbook.add_worksheet();
 
         write_sheet(worksheet, sheet, &formats).map_err(|error| Error::Io {
-            message: format!("could not build {name}: {error}"),
+            message: format!("could not build {}: {error}", path.display()),
         })?;
     }
 
-    workbook.save(&path).map_err(|error| Error::Io {
+    workbook.save(path).map_err(|error| Error::Io {
         message: format!("could not write {}: {error}", path.display()),
     })?;
 
@@ -277,20 +260,86 @@ pub async fn export_write_workbook(
 mod tests {
     use super::*;
 
-    #[test]
-    fn a_plain_name_is_accepted() {
-        assert!(ensure_plain_name("tenants.csv").is_ok());
-        assert!(ensure_plain_name("المستأجرون.csv").is_ok());
+    /// A destination under the temporary directory, unique to the test that asked for it.
+    ///
+    /// The same shape the rest of the crate's file tests use, and the parent is made here
+    /// because the save dialog is what would otherwise have made it exist.
+    fn unique_path(name: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir()
+            .join("rentable-tests")
+            .join(format!("{name}-{nanos}"));
+
+        std::fs::create_dir_all(path.parent().expect("temp file should have parent"))
+            .expect("failed to create temp parent");
+
+        path
     }
 
+    // the reader names the file, so any path they can name is one to write to — including one
+    // outside the downloads directory this used to be confined to, which is the whole point.
     #[test]
-    fn a_name_that_would_leave_the_export_directory_is_refused() {
-        for name in ["", ".", "..", ".hidden", "a/b.csv", "a\\b.csv", "C:b.csv"] {
-            assert!(
-                ensure_plain_name(name).is_err(),
-                "expected '{name}' to be refused"
-            );
-        }
+    fn a_path_the_reader_chose_is_a_destination() {
+        assert!(ensure_destination(&unique_path("chosen.csv")).is_ok());
+        assert!(ensure_destination(&unique_path("المستأجرون.csv")).is_ok());
+    }
+
+    // not a guard against the reader, who picked through a dialog: a guard against a destination
+    // that is not a file, which the filesystem would otherwise report as something unrelated.
+    #[test]
+    fn a_destination_that_names_no_file_is_refused() {
+        assert!(ensure_destination(Path::new("")).is_err());
+        assert!(
+            ensure_destination(&std::env::temp_dir()).is_err(),
+            "a directory is not a file to write"
+        );
+    }
+
+    // the acceptance criterion the whole change is: the file lands where it was told and
+    // nowhere else. Both writers, because they put different bytes on disk.
+    #[test]
+    fn a_file_lands_on_the_path_it_was_given() {
+        let text = unique_path("export-lands.csv");
+        let book = unique_path("export-lands.xlsx");
+
+        tokio::runtime::Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                export_write(
+                    text.to_string_lossy().into_owned(),
+                    "\"Name\"\r\n\"محمد\"".to_owned(),
+                )
+                .await
+                .expect("the text export should have been written");
+
+                export_write_workbook(
+                    book.to_string_lossy().into_owned(),
+                    vec![Sheet {
+                        name: None,
+                        headers: vec!["name".to_owned()],
+                        rows: vec![vec![Cell::Text {
+                            value: "محمد".to_owned(),
+                        }]],
+                    }],
+                )
+                .await
+                .expect("the workbook should have been written");
+            });
+
+        assert!(
+            std::fs::read_to_string(&text)
+                .expect("the text export should be readable")
+                .starts_with(UTF8_BOM),
+            "a delimited file still leads with the byte-order mark"
+        );
+        assert_eq!(
+            &std::fs::read(&book).expect("the workbook should be readable")[0..2],
+            b"PK",
+            "a workbook is still an archive"
+        );
     }
 
     #[test]
