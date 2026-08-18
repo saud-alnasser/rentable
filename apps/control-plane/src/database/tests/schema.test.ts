@@ -23,8 +23,39 @@ const columnNamed = (columns: ReturnType<typeof configOf>['columns'], name: stri
 // "No domain table" is the property the whole architecture rests on — the API is in the
 // credential path and never in the data path, and a table describing a contract here is the
 // first step of the shape that was rejected. Nothing else in the tree would object to one.
-test('the control plane describes accounts, workspaces and membership, and nothing else', () => {
-	assert.deepEqual(tables.map(getTableName).sort(), ['account', 'membership', 'workspace']);
+test('the control plane describes accounts, workspaces, membership and sessions, and nothing else', () => {
+	assert.deepEqual(tables.map(getTableName).sort(), [
+		'account',
+		'membership',
+		'session',
+		'workspace'
+	]);
+});
+
+// Requirement 15's window, in the one place a client cannot reach. Every column here exists to
+// answer *is this sign-in still good*, and a column that answered anything else would mean the
+// session had started describing a person rather than a credential.
+test('a session is a credential with a window and nothing else', () => {
+	const { columns, foreignKeys } = configOf('session');
+
+	assert.deepEqual(columns.map((column) => column.name).sort(), [
+		'account_id',
+		'created_at',
+		'expires_at',
+		'id',
+		'renewed_at',
+		'token_digest'
+	]);
+
+	assert.ok(columnNamed(columns, 'expires_at').notNull, 'a session with no expiry is a flag');
+	assert.ok(
+		columnNamed(columns, 'token_digest').isUnique,
+		'two sessions could answer to one token'
+	);
+	assert.deepEqual(
+		foreignKeys.map((key) => getTableName(key.reference().foreignTable)),
+		['account']
+	);
 });
 
 test('an account is identified by Google, and by nothing else', () => {

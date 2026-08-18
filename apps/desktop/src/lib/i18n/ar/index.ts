@@ -720,7 +720,9 @@ const ar = {
 		profileSwitched: 'تم تبديل مساحة العمل بنجاح!',
 		rollbackRestored: 'تم استعادة النسخة المحمية!',
 		snapshotCreated: 'تم إنشاء اللقطة بنجاح!',
-		startupRecoveryCleared: 'تم مسح الاسترداد ويمكن المحاولة مجدداً.'
+		startupRecoveryCleared: 'تم مسح الاسترداد ويمكن المحاولة مجدداً.',
+		sessionExpired:
+			'مساحة العمل هذه غير متصلة منذ ثلاثة أيام. سجّل الدخول بحساب Google مجدداً لمتابعة المزامنة — لم يُفقد أي شيء سجّلته.'
 	}
 } satisfies Translation;
 

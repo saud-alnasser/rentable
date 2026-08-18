@@ -1,7 +1,7 @@
 ---
 aep: 2.5.1
 owner: repository
-date: 2026-08-18
+date: 2026-08-19
 kind: spec
 status: accepted
 ---
@@ -1104,13 +1104,38 @@ minting a token and attempting to delete it. Four things confirmed and one found
   rather than hypothetical, and a permanent refusal from Turso no longer advises a retry that
   cannot succeed. [[references/turso]] carries it.
 
-**Every route but `/health` takes the Google access token as `Authorization: Bearer`, and
-`/account/sign-in` was moved onto the same header.** *This corrects #555, one commit later*: it
-read the token from a JSON body, which was fine while it was the only route and became two ways
-of saying one thing the moment there was a second. There is no session token yet — that is #550's,
-and this is what it will replace — so identity is re-established from Google per request. Signing
-in is not a precondition for the other routes either: each performs it, so a client whose first
-request creates a workspace reaches the account it would have reached.
+**Every route but `/health` takes `Authorization: Bearer`, and there are two credentials on
+it.** *`/account/sign-in` was moved onto the same header by #556, correcting #555 one commit
+later*: it read the token from a JSON body, which was fine while it was the only route and became
+two ways of saying one thing the moment there was a second.
+
+**The session exists, and #550 built it.** A Google access token is what somebody signs in with;
+it buys a session — a token the control plane issues, held in a `session` row as a SHA-256 digest,
+good for three days, and told apart from Google's on the wire by an `rws_` prefix. **Every route
+renews the session it was reached with**, which is what makes requirement 15's *any connection
+inside the window renews it* a property of the API rather than of any one route;
+`POST /session/refresh` is there for a client that is doing nothing else. Signing in is still not
+a precondition for the other routes: each performs it, so a client whose first request creates a
+workspace reaches the account it would have reached and is issued a session on the way.
+
+**What the session replaced is re-verifying with Google on every request.** The cost, accepted:
+a Google token revoked mid-window is unnoticed until the session runs out — which is the bound
+removing somebody already had, and part of why the window is three days rather than thirty.
+
+**Two windows, and they are started by different calls.** The session's is moved by any reach;
+the Turso credential the replica syncs with is restarted only by the mint. Equal lengths do not
+make them one clock, so **the mint answers with both** and is the renewal a client holding a
+workspace uses, and **the client believes the earlier of the two numbers it holds**. Left
+unstated, this reads as one window and a client goes on replicating after the credential that
+carries replication has died.
+
+**What remains open, and it is a spec question rather than a defect**: `asking` accepts a Google
+access token on any route, and the desktop holds a Google refresh token behind the credential
+boundary. So a client whose three-day window has closed can obtain a fresh access token with no
+user interaction and start a new session silently. Whether requirement 15's *asks for a sign-in*
+means **the client reaches the API again** — satisfied — or **the user acts** — not satisfied —
+was not decided here. #550 recorded it rather than choosing, and the refusal string it wrote
+(*sign in with google again*) is written for the second reading.
 
 **Acceptance criterion 5 — no route returns a domain row — is asserted structurally rather than
 route by route**, because the failure it guards against arrives *with* a new route and a list of

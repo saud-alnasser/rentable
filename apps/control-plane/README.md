@@ -11,10 +11,12 @@ table here, and a schema test fails if one appears.
 
 ## What exists today, and what does not
 
-Signing in, creating a workspace, minting the token a client syncs with, and settling that
-workspace's schema before the token goes out. **Nothing is deployed, and nothing on the desktop
-calls any of it** — a local-only workspace reaches no account, and the occasion to reach this
-arrives with the mode choice rather than with signing in to Google.
+Signing in, the session that sign-in buys, creating a workspace, minting the token a client
+syncs with, and settling that workspace's schema before the token goes out. **Nothing is
+deployed.** The desktop reaches this only where its build was told a URL
+(`RENTABLE_CONTROL_PLANE_URL`), which no build is today — a local-only workspace reaches no
+account, and the occasion to reach this arrives with the mode choice rather than with signing in
+to Google.
 
 |                                                                     |      |
 | ------------------------------------------------------------------- | ---- |
@@ -39,9 +41,11 @@ src/
 │   └── google.ts       verifying an access token against Google
 ├── database/
 │   ├── database.ts     the connection, and the type every module takes
-│   └── schema.ts       the three tables
+│   └── schema.ts       the four tables
 ├── server/
 │   └── server.ts       routing, and the one place a refusal becomes a status
+├── session/
+│   └── session.ts      the three-day window: issuing, renewing, declining to renew
 └── workspace/          a database on Turso, and who may reach it
     ├── migration.ts    bringing one *workspace* database up to a schema version
     ├── permission.ts   the administration bitfield
@@ -69,18 +73,42 @@ become one. tRPC's whole return is inference into a TypeScript client, and there
 
 ```
 GET  /health                    -> {"status":"ok"}
-POST /account/sign-in           -> {"account":{...}}
+POST /account/sign-in           -> {"account":{...},"session":{"token":"rws_...","expiresAt":0}}
+POST /session/refresh           -> {"account":{...},"session":{"token":"rws_...","expiresAt":0}}
 POST /workspace                 <- {"name":"..."}   -> 201 {"workspace":{...}}
 POST /workspace/{id}/token      <- {"schemaVersion":4}
                                 -> {"token":"...","url":"libsql://...","expiresAt":0}
 ```
 
-**Every route but `/health` takes `Authorization: Bearer <google access token>`.** There is no
-session token — one is #550's, and this is the thing it will replace — so identity is
-re-established from Google on each request. It costs one round trip, and it is what _the API is
-in the credential path continuously_ actually means. Signing in is not a precondition for the
-other routes either: they perform it, so a client whose first request is `POST /workspace`
-reaches the account it would have reached.
+**Every route but `/health` takes `Authorization: Bearer <credential>`, and there are two
+kinds.** A Google access token is what somebody signs in with; it buys a **session** — a token
+this control plane issued, good for three days, and told apart from Google's by its `rws_`
+prefix. Either identifies on any route, so a client whose first request is `POST /workspace`
+still reaches the account it would have reached. **A session is issued by the two routes that
+hand one back** and not by the others, which would otherwise write a row per request for a
+client that never asked for one.
+
+**The session is what replaced re-verifying with Google on every request** (#550). What that
+costs is that a Google token revoked mid-window is not noticed until the session runs out —
+the same bound removing somebody already had, and the reason the window is three days rather
+than thirty.
+
+### The window, which is requirement 15
+
+**Every route renews the session it was reached with**, so _any connection inside the window
+restarts the window_, implemented once rather than remembered at each route. `POST
+/session/refresh` exists for the client that is doing nothing else: open, in sync, and with a
+window quietly running down.
+
+A client three days out of contact has nothing left to present, and `session_expired` says so
+and names the way back. **The window is a lifetime issued here, never a flag the client sets** —
+a flag is a window the client can decline to close, and what a client actually needs is minted
+on this side.
+
+**Declining to renew is how somebody is removed**, per account and effective at their next
+reach. Turso's own revocation is bulk-only and rotates every token in its group with no
+published propagation time, which cannot remove one member; this can, within one window. The
+administrative surface that decides to is a later ticket's — `declineRenewal` is the mechanism.
 
 A refusal is `{"error":{"code":"...","message":"..."}}`, and **the code is the part a client acts
 on** — the message is for a person and names what to do.
@@ -91,6 +119,7 @@ on** — the message is for a person and names what to do.
 | `identity_not_verified` | 401      | Google refused the token. Sign in again                           |
 | `google_unreachable`    | 503      | The control plane could not ask Google. Retry with the same token |
 | `identity_incomplete`   | 502      | Google answered without a subject. A defect, not a stale token    |
+| `session_expired`       | 401      | Never issued, run out, or declined. Sign in with Google again     |
 | `not_a_member`          | 403      | This account does not belong to that workspace. Nothing to retry  |
 | `no_such_workspace`     | 404      | No workspace by that id                                           |
 | `client_out_of_date`    | 409      | The workspace is on a newer schema. Update the application        |
@@ -262,7 +291,7 @@ choosing a client that would have to be replaced to deploy is not the same as de
 
 ## The schema
 
-Three tables, in `src/database/schema.ts`, and `src/database/tests/schema.test.ts` is what
+Four tables, in `src/database/schema.ts`, and `src/database/tests/schema.test.ts` is what
 holds them to it.
 
 - **`account`** — somebody Google vouched for. Google's `sub` is stored beside the email
@@ -278,6 +307,11 @@ holds them to it.
   that workspace's data**. Decision 05: a member's client holds a replica it writes to
   offline, so the only place a per-record rule could be enforced is a server it is by
   definition not talking to.
+- **`session`** — a sign-in that is still good, and the three days it has left. The token is
+  stored as a **SHA-256 digest and never as itself**: it is a bearer credential, so a readable
+  copy of every live one is the worst row this database could carry, and the digest answers the
+  only question asked of it. Renewing moves `expires_at` and keeps the token, which is why
+  `renewed_at` sits beside `created_at` — the window is measured from the second.
 
 **Foreign keys are declared here and are absent from the workspace schema**, which is a
 difference rather than an inconsistency: this database is single and always online, where the

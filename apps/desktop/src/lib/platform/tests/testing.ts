@@ -80,6 +80,8 @@ export function fakeSyncState(overrides: Partial<RemoteSyncState> = {}): RemoteS
 		workspace: fakeWorkspace(),
 		startupPromptEnabled: false,
 		googleDriveReady: false,
+		controlPlaneReady: false,
+		session: null,
 		deviceId: 'device',
 		...overrides
 	};
@@ -161,6 +163,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			getState: refuse('remoteSync.getState'),
 			snapshotNow: refuse('remoteSync.snapshotNow'),
 			autosaveNow: refuse('remoteSync.autosaveNow'),
+			renewSession: refuse('remoteSync.renewSession'),
 			googleDrive: {
 				link: refuse('remoteSync.googleDrive.link'),
 				cancelLinkAttempt: refuse('remoteSync.googleDrive.cancelLinkAttempt'),

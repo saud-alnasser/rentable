@@ -29,6 +29,7 @@ use crate::{
     state::AppState,
 };
 
+use super::control;
 use super::google::files::DriveFiles;
 use super::inspection::{
     GoogleDriveLinkPreparation, inspect_google_drive_workspace, linked_google_drive_account_id,
@@ -108,17 +109,26 @@ pub async fn sign_in_with_google(
         }
     };
 
-    let mut remote_sync = app_state.remote_sync.write().await;
+    {
+        let mut remote_sync = app_state.remote_sync.write().await;
 
-    // the sign-in stood on its own, so nothing may take it back on the strength
-    // of having started it — `forget_google_sign_in_session` is where that is
-    // argued.
-    remote_sync.forget_google_sign_in_session(lookup(&session_id))?;
+        // the sign-in stood on its own, so nothing may take it back on the strength
+        // of having started it — `forget_google_sign_in_session` is where that is
+        // argued.
+        remote_sync.forget_google_sign_in_session(lookup(&session_id))?;
+    }
 
     diagnostics::info("sync.signIn.completed")
         .with("account", identity.account_id.as_str())
         .write();
 
+    // and the second half of what signing in is worth (#550): a session, so that *signed in
+    // three days ago* is a lifetime this machine was issued rather than a flag it sets about
+    // itself. Best effort — `establish_session` argues why a failure here is not a failed
+    // sign-in.
+    control::establish_session(app_state, &identity.account_id, &identity.access_token).await;
+
+    let mut remote_sync = app_state.remote_sync.write().await;
     remote_sync.get_state().await
 }
 

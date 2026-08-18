@@ -1,7 +1,7 @@
 ---
 aep: 2.5.1
 owner: repository
-date: 2026-08-18
+date: 2026-08-19
 kind: context
 paths:
   - apps/desktop/tauri/src/sync/**
@@ -13,8 +13,10 @@ use-when: "the request touches backup, Google Drive, linking, or conflicts"
 
 # Remote sync
 
-Getting a **local** workspace off this machine and back onto it. Two subjects share the
-machinery: local backup, and exchange with Google Drive.
+Getting a workspace off this machine and back onto it. **Three subjects share the machinery**:
+local backup, exchange with Google Drive, and — since #550 — the session a hosted workspace
+replicates under. The first is not going anywhere; the second is retiring; the third is what
+replaces it.
 
 > **The Drive half of this is being retired.** Decision 07 of [[efforts/a-workspace-follows-its-user/spec]],
 > directed by the human on 2026-08-18: **Google Drive sync is dropped in favour of Turso sync.**
@@ -44,6 +46,22 @@ both, which is exactly why an account could not exist without a folder
 **Autosync**:
 The push to the remote scheduled after a successful mutation. Remote, like every use of
 _sync_.
+
+**Session**:
+How much longer this machine may go on replicating without hearing from the control plane. **A
+lifetime that was issued elsewhere, never a claim this application makes about itself** — the
+control plane sets the moment and refuses a credential past it, so a client cannot extend its own
+window by believing in a later one. Reaching the control plane at any point inside the window
+restarts it from the reach. A local workspace has none, because it never signed in.
+_Avoid_: calling it a sign-in — signing in is the act, and the session is the three days it is
+worth. And _avoid_ "the session token" for anything on the TypeScript side, which never holds one
+
+**Window**:
+The two moments a session is measured by, and the earlier one governs. One is how much longer the
+control plane will renew the sign-in; the other is how much longer the credential the replica
+actually syncs with lives. They are started by different calls — a refresh moves the first alone,
+a mint restarts both — so they are two numbers rather than one, and treating them as one is how a
+client comes to replicate on a credential that has died.
 
 **Manifest**:
 The index describing which snapshots exist and which one is current. Exists in a local form
@@ -96,6 +114,22 @@ save never evicts the copy taken before an update.
   state read used to delete exactly those, which was consistent while signing in *was* linking.
   It does not any more, and the guard is a test rather than a comment: the failure it prevents is
   a sign-in undone by the next state read, which is invisible without a second read.
+- **The session's expiry crosses to TypeScript and the session's token does not.** The same
+  boundary as below, and the split is what makes the window usable at all: the side that decides
+  whether to keep replicating needs two numbers, and the side that presents a credential needs
+  the credential. So Rust holds the session token in the platform credential store, under a
+  service name of its own rather than beside Google's, and `RemoteSyncState` carries the two
+  moments — facts *about* a credential rather than one, exactly as `tokenExpiresAt` already was.
+  **The window is persisted rather than held for the run of the process**, because requirement 15
+  is three days and not three days of one sitting: a window that started again at each launch
+  would ask a disconnected user to sign in on the second morning, while the control plane would
+  still have renewed it.
+- **Renewing is something the application does, not something the control plane offers.** The
+  sync dispatcher reaches the control plane on the hosted path before it decides whether to
+  replicate, and the autosync manager already schedules that on a timer and on the machine coming
+  back online. **Being unable to reach it is not a failure** — the window stays where it was and
+  the client goes on until it closes on its own — where a *refusal* is the opposite and gives the
+  session up. A client that treated the two alike would sign somebody out for being on a train.
 - **Credentials belong in Rust and never cross the IPC boundary.** The constraint the whole
   domain was reshaped around, and it is met. OAuth is Rust's — the `state`, the PKCE
   verifier, the code exchange, and token refresh never leave the process — and the two

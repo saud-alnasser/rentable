@@ -34,6 +34,16 @@ export const MALFORMED = 'malformed_request';
 export const UNAVAILABLE = 'unavailable';
 /** asking to act as somebody without presenting a credential at all. */
 export const UNAUTHENTICATED = 'unauthenticated';
+/**
+ * the session presented is not one this control plane will renew.
+ *
+ * Never issued, run out, or declined — one code for all three, because the client's move is the
+ * same for each and telling them apart tells whoever holds a string they should not have whether
+ * it was ever real. Distinct from {@link UNAUTHENTICATED}, which is presenting nothing at all,
+ * and from {@link NOT_VERIFIED}, which is Google refusing: this one means *sign in again*, and
+ * only this one means the three-day window closed.
+ */
+export const SESSION_EXPIRED = 'session_expired';
 /** a workspace this account is not a member of. Membership is the whole of the answer. */
 export const NOT_A_MEMBER = 'not_a_member';
 export const NO_SUCH_WORKSPACE = 'no_such_workspace';

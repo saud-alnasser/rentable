@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
 
-import type { GoogleDriveLinkPreparation, GoogleDriveSyncOutcome } from '$lib/platform/host.ts';
+import type {
+	GoogleDriveLinkPreparation,
+	GoogleDriveSyncOutcome,
+	RemoteSyncState,
+	SessionWindow
+} from '$lib/platform/host.ts';
 import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
 
 // both substitutes reach code this harness cannot load — the api caller opens a
@@ -15,6 +20,12 @@ let syncOutcome: GoogleDriveSyncOutcome = {
 	preparation: null
 };
 let syncGate: Promise<void> | null = null;
+
+// what the shell reports, and what reaching the control plane does to it. This is the seam the
+// application actually uses — the window is read off `getState`/`renewSession`, never written by
+// a test reaching past them, which is what makes these cover the shipped path.
+let shellState: RemoteSyncState = fakeSyncState();
+let renewsTo: RemoteSyncState | 'unreachable' | null = null;
 
 mock.module('$lib/api/caller', {
 	exports: {
@@ -34,7 +45,20 @@ mock.module('$lib/platform/tauri', {
 	exports: {
 		tauri: {
 			remoteSync: {
-				getState: async () => fakeSyncState(),
+				getState: async () => shellState,
+				renewSession: async () => {
+					calls.push('renewSession');
+
+					if (renewsTo === 'unreachable') {
+						throw new Error('the control plane could not be reached');
+					}
+
+					if (renewsTo) {
+						shellState = renewsTo;
+					}
+
+					return shellState;
+				},
 				autosaveNow: async () => {
 					calls.push('autosaveNow');
 					return fakeSyncState({ workspace: fakeWorkspace({ provider: 'local' }) });
@@ -63,6 +87,22 @@ const {
 } = await import('$lib/sync/workspace');
 const { inverseStack } = await import('$lib/design/inverse');
 
+const A_DAY = 24 * 60 * 60 * 1000;
+
+/** a window the control plane issued, `days` from now. */
+function window(days: number): SessionWindow {
+	const at = Date.now() + days * A_DAY;
+	return { accountId: 'account-1', expiresAt: at, replicaExpiresAt: at, updatedAt: Date.now() };
+}
+
+function hostedShell(session: SessionWindow | null): RemoteSyncState {
+	return fakeSyncState({
+		googleDriveReady: false,
+		workspace: fakeWorkspace({ id: 'workspace-1', provider: 'hosted', accountId: 'account-1' }),
+		session
+	});
+}
+
 function driveState() {
 	return fakeSyncState({
 		googleDriveReady: true,
@@ -77,6 +117,8 @@ function driveState() {
 function reset(outcome?: GoogleDriveSyncOutcome) {
 	calls.length = 0;
 	syncGate = null;
+	renewsTo = null;
+	shellState = fakeSyncState();
 	syncOutcome = outcome ?? { state: driveState(), action: 'none', preparation: null };
 }
 
@@ -240,22 +282,114 @@ test('a hosted workspace has nothing to inspect, and asks Drive nothing', async 
 
 test('a hosted workspace neither syncs through Drive nor takes a local snapshot', async () => {
 	reset();
+	shellState = hostedShell(window(3));
 
-	const result = await syncWorkspaceNow(hostedState(), { manual: true, autosaveLocal: true });
-
-	assert.equal(result.action, 'none');
-	assert.deepEqual(calls, [], 'the dispatcher acted on a workspace it has no transport for');
-});
-
-test('a hosted workspace takes no snapshot on the way out either', async () => {
-	reset();
-
-	const result = await syncWorkspaceBeforeExit(hostedState());
+	const result = await syncWorkspaceNow(shellState, { manual: true, autosaveLocal: true });
 
 	assert.equal(result.action, 'none');
 	assert.deepEqual(
 		calls,
-		[],
+		['renewSession'],
+		'the dispatcher acted on a workspace it has no transport for'
+	);
+});
+
+test('a hosted workspace takes no snapshot on the way out either', async () => {
+	reset();
+	shellState = hostedShell(window(3));
+
+	const result = await syncWorkspaceBeforeExit(shellState);
+
+	assert.equal(result.action, 'none');
+	assert.deepEqual(
+		calls,
+		['renewSession'],
 		'a hosted workspace was autosaved to this machine as though it were local'
 	);
+});
+
+// #550, acceptance criterion 16, through the shipped path: the dispatcher renews, then reads the
+// window off the state the shell reports. Nothing here writes a session directly.
+test('a hosted workspace out of contact for three days asks for a sign-in', async () => {
+	reset();
+	shellState = hostedShell(window(-1));
+	renewsTo = 'unreachable';
+
+	const result = await syncWorkspaceNow(shellState, { manual: true, autosaveLocal: true });
+
+	assert.equal(result.action, 'signInRequired');
+	assert.deepEqual(calls, ['renewSession'], 'the dispatcher never tried to renew');
+});
+
+test('it asks on the way out as well, rather than leaving one door open', async () => {
+	reset();
+	shellState = hostedShell(window(-1));
+	renewsTo = 'unreachable';
+
+	assert.equal((await syncWorkspaceBeforeExit(shellState)).action, 'signInRequired');
+});
+
+// Criterion 2, and the reach that makes it pass: the window had run out on this machine, the
+// control plane was reachable, and renewing restarted it. **Nothing but the renewal changed** —
+// the same dispatch on the same state asks where the reach fails and does not where it succeeds.
+test('a reach inside the window renews it, and the dispatcher stops asking', async () => {
+	reset();
+	shellState = hostedShell(window(-1));
+	renewsTo = hostedShell(window(3));
+
+	const result = await syncWorkspaceNow(shellState, { manual: true });
+
+	assert.deepEqual(calls, ['renewSession']);
+	assert.equal(result.action, 'none', 'it asked for a sign-in it had just renewed past');
+	assert.equal(result.state, renewsTo, 'the caller was handed the window it no longer holds');
+});
+
+// The third criterion, and the one an expiry fails outright if it is got wrong: producing the
+// refusal costs nothing written during the window. Every route the dispatcher has to a write is
+// on `calls` — the autosave, the Drive sync, the reconcile — and the undo stack is the one piece
+// of session state a pull is allowed to clear.
+test('nothing written during the window is discarded to produce the refusal', async () => {
+	reset();
+	shellState = hostedShell(window(-1));
+	renewsTo = 'unreachable';
+	inverseStack.clear();
+	inverseStack.record({ describe: () => 'a payment', undo: async () => {}, redo: async () => {} });
+
+	const state = shellState;
+	const result = await syncWorkspaceNow(state, { manual: true, autosaveLocal: true });
+
+	assert.equal(result.action, 'signInRequired');
+	assert.deepEqual(
+		calls,
+		['renewSession'],
+		'the refusal wrote, snapshotted or reconciled something'
+	);
+	assert.ok(inverseStack.undoable, 'the refusal threw away work the session could still undo');
+	assert.equal(
+		result.state,
+		state,
+		'the refusal handed back a workspace other than the one it was given'
+	);
+
+	inverseStack.clear();
+});
+
+// The last clause of criterion 16, run through the same dispatcher. A local workspace never
+// reaches the control plane at all, whatever this machine happens to be holding.
+test('a local workspace run through the same path never asks for anything', async () => {
+	for (const session of [null, window(-1), window(3)]) {
+		reset();
+		shellState = fakeSyncState({
+			googleDriveReady: false,
+			workspace: fakeWorkspace({ provider: 'local' }),
+			session
+		});
+
+		const localState = shellState;
+
+		assert.equal((await syncWorkspaceNow(localState)).action, 'none');
+		assert.equal((await syncWorkspaceNow(localState, { autosaveLocal: true })).action, 'autosaved');
+		assert.equal((await syncWorkspaceBeforeExit(localState)).action, 'autosaved');
+		assert.ok(!calls.includes('renewSession'), 'a local workspace reached the control plane');
+	}
 });

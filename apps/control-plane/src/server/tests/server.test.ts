@@ -9,8 +9,10 @@ import {
 	MALFORMED,
 	NOT_VERIFIED,
 	Refusal,
+	SESSION_EXPIRED,
 	UNAUTHENTICATED
 } from '../../failure.ts';
+import { declineRenewal } from '../../session/session.ts';
 import { targetSchemaVersion } from '../../workspace/migration.ts';
 import {
 	freshDatabase,
@@ -22,6 +24,7 @@ import {
 } from '../../tests/testing.ts';
 
 const AT = Date.UTC(2026, 7, 18, 12, 0, 0);
+const A_DAY = 24 * 60 * 60 * 1000;
 
 /**
  * What a route answers with, whichever half of it. `fetch` types a decoded body as `unknown` and
@@ -45,6 +48,7 @@ type Answer = {
 		createdAt: number;
 		updatedAt: number;
 	};
+	session?: { token: string; expiresAt: number };
 	token?: string;
 	url?: string;
 	expiresAt?: number;
@@ -61,21 +65,38 @@ const withControlPlane = async (
 		db: Database;
 		turso: ReturnType<typeof tursoInMemory>;
 		hosted: Awaited<ReturnType<typeof workspaceDatabases>>;
+		/**
+		 * move the clock the routes read.
+		 *
+		 * Requirement 15 is three days passing, and the only reason it is testable at all is that
+		 * the control plane takes `now` as an argument rather than reaching for `Date.now`. This
+		 * moves that argument and nothing on the machine.
+		 */
+		moveClockTo: (moment: number) => void;
 	}) => Promise<void>,
 	turso: ReturnType<typeof tursoInMemory> = tursoInMemory()
 ) => {
 	const { db, close: closeDatabase } = await freshDatabase();
 	const hosted = await workspaceDatabases();
+	let now = AT;
 	const { url, close } = await runningControlPlane({
 		db,
 		verifyIdentity,
 		platform: turso.platform,
 		connectToWorkspace: hosted.connect,
-		now: () => AT
+		now: () => now
 	});
 
 	try {
-		await run({ url, db, turso, hosted });
+		await run({
+			url,
+			db,
+			turso,
+			hosted,
+			moveClockTo: (moment) => {
+				now = moment;
+			}
+		});
 	} finally {
 		await close();
 		await hosted.close();
@@ -339,5 +360,249 @@ test('a mint that does not say which schema it was built against is malformed', 
 			assert.equal(response.status, 400);
 			assert.equal((await answerOf(response)).error?.code, MALFORMED);
 		}
+	});
+});
+
+// #550, acceptance criterion 16. Everything below moves the clock rather than waiting, which is
+// the property the design was chosen for: the window is a lifetime issued here, so a test can
+// advance past it without advancing anything on the machine.
+
+test('signing in hands back a session, and the window on it is three days', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		const { session } = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.ok(session, 'signing in handed back no session');
+		assert.equal(session.expiresAt, AT + 3 * A_DAY);
+		assert.ok(
+			session.token.startsWith('rws_'),
+			'a session token is not tellable from a google one'
+		);
+	});
+});
+
+// The session is what replaces asking Google on every request, which is what this file's
+// `asking` did until now.
+test('a session is the credential afterwards, and google is not asked again', async () => {
+	let googleAsked = 0;
+	const countingVouches: VerifyGoogleIdentity = async () => {
+		googleAsked += 1;
+		return SOMEBODY;
+	};
+
+	await withControlPlane(countingVouches, async ({ url }) => {
+		const { session } = await answerOf(await post(url, '/account/sign-in'));
+		assert.ok(session);
+
+		const response = await post(url, '/workspace', {
+			token: session.token,
+			body: { name: 'Riyadh' }
+		});
+
+		assert.equal(response.status, 201);
+		assert.equal(googleAsked, 1, 'the session still cost a round trip to google');
+	});
+});
+
+// Criterion 16, the half that must not ask: one successful reach inside the window, and the
+// window restarts from the reach rather than from the sign-in.
+test('a reach inside the window renews the session and restarts the window', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, moveClockTo }) => {
+		const { session } = await answerOf(await post(url, '/account/sign-in'));
+		assert.ok(session);
+
+		const almostOut = AT + 3 * A_DAY - 1;
+		moveClockTo(almostOut);
+
+		const refreshed = await answerOf(await post(url, '/session/refresh', { token: session.token }));
+
+		assert.ok(refreshed.session);
+		assert.equal(refreshed.session.expiresAt, almostOut + 3 * A_DAY);
+		assert.equal(refreshed.session.token, session.token);
+
+		// six days after signing in, three after the one reach, and it is still good.
+		moveClockTo(almostOut + 3 * A_DAY - 1);
+		assert.equal((await post(url, '/session/refresh', { token: session.token })).status, 200);
+	});
+});
+
+// Criterion 16, the half that must ask. Sign in, never reach again, move the clock past the
+// window: the refusal is typed, and it names the action to take.
+test('a session nobody reached for three days is refused, and it names the action', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, moveClockTo }) => {
+		const { session } = await answerOf(await post(url, '/account/sign-in'));
+		assert.ok(session);
+
+		moveClockTo(AT + 3 * A_DAY);
+
+		const response = await post(url, '/session/refresh', { token: session.token });
+
+		assert.equal(response.status, 401);
+
+		const { error } = await answerOf(response);
+
+		assert.ok(error);
+		assert.equal(error.code, SESSION_EXPIRED);
+		assert.match(error.message, /sign in with google again/);
+	});
+});
+
+// Expiry stops replication and takes nothing away. The refusal is the mint declining to hand out
+// a fresh workspace token — no database is removed, no membership is dropped, and the account is
+// still there to be signed back in to.
+test('an expired session stops the mint and takes nothing away', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, moveClockTo, turso }) => {
+		const { account, session } = await answerOf(await post(url, '/account/sign-in'));
+		const { workspace } = await answerOf(
+			await post(url, '/workspace', { body: { name: 'Riyadh' } })
+		);
+
+		assert.ok(account && session && workspace);
+
+		moveClockTo(AT + 3 * A_DAY);
+
+		const refused = await post(url, `/workspace/${workspace.id}/token`, {
+			token: session.token,
+			body: { schemaVersion: await targetSchemaVersion() }
+		});
+
+		assert.equal(refused.status, 401);
+		assert.equal((await answerOf(refused)).error?.code, SESSION_EXPIRED);
+		assert.deepEqual(turso.deleted, [], 'a workspace database was removed to produce a refusal');
+
+		// and signing in again is the whole of the way back: the same account, the same workspace.
+		const back = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.equal(back.account?.id, account.id);
+		assert.ok(back.session);
+
+		const minted = await post(url, `/workspace/${workspace.id}/token`, {
+			token: back.session.token,
+			body: { schemaVersion: await targetSchemaVersion() }
+		});
+
+		assert.equal(minted.status, 200);
+	});
+});
+
+// Revocation, as this repository can do it: per account, at the next reach, bounded by the
+// window rather than by anything the vendor propagates.
+test('declining to renew ends the session at the next reach', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, db }) => {
+		const { account, session } = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.ok(account && session);
+		assert.equal((await post(url, '/session/refresh', { token: session.token })).status, 200);
+		assert.equal(await declineRenewal(db, account.id), 1);
+
+		const refused = await post(url, '/session/refresh', { token: session.token });
+
+		assert.equal(refused.status, 401);
+		assert.equal((await answerOf(refused)).error?.code, SESSION_EXPIRED);
+	});
+});
+
+test('refreshing with no credential is unauthenticated rather than expired', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		const response = await post(url, '/session/refresh', { token: null });
+
+		assert.equal(response.status, 401);
+		assert.equal((await answerOf(response)).error?.code, UNAUTHENTICATED);
+	});
+});
+
+// #4 of the review: `asking` renews on every route, so every route that acts as somebody has to
+// say so. A route that renewed silently leaves the client holding a number three days stale, and
+// the client stops replicating on a window that had already moved.
+test('every route that acts as somebody answers with the window it just moved', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, moveClockTo }) => {
+		const { session } = await answerOf(await post(url, '/account/sign-in'));
+		assert.ok(session);
+
+		const atCreate = AT + 1 * A_DAY;
+		moveClockTo(atCreate);
+
+		const created = await answerOf(
+			await post(url, '/workspace', { token: session.token, body: { name: 'Riyadh' } })
+		);
+
+		assert.ok(created.workspace);
+		assert.equal(
+			created.session?.expiresAt,
+			atCreate + 3 * A_DAY,
+			'creating renewed and said nothing'
+		);
+
+		const atMint = AT + 2 * A_DAY;
+		moveClockTo(atMint);
+
+		const minted = await answerOf(
+			await post(url, `/workspace/${created.workspace.id}/token`, {
+				token: session.token,
+				body: { schemaVersion: await targetSchemaVersion() }
+			})
+		);
+
+		assert.equal(minted.session?.expiresAt, atMint + 3 * A_DAY, 'minting renewed and said nothing');
+	});
+});
+
+// #5 of the review: the session and the replica credential are started by different calls, so
+// equal *lengths* prove nothing. The mint is the renewal a client holding a workspace uses
+// precisely because it is the one call that restarts both — asserted here as one moment, not as
+// two numbers that happen to be three days.
+test('the mint restarts both windows together, and says so in one answer', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, moveClockTo }) => {
+		const { session } = await answerOf(await post(url, '/account/sign-in'));
+		const { workspace } = await answerOf(
+			await post(url, '/workspace', { body: { name: 'Riyadh' } })
+		);
+
+		assert.ok(session && workspace);
+
+		const atMint = AT + 2 * A_DAY;
+		moveClockTo(atMint);
+
+		const minted = await answerOf(
+			await post(url, `/workspace/${workspace.id}/token`, {
+				token: session.token,
+				body: { schemaVersion: await targetSchemaVersion() }
+			})
+		);
+
+		assert.equal(minted.expiresAt, atMint + 3 * A_DAY, 'the replica credential');
+		assert.equal(minted.session?.expiresAt, atMint + 3 * A_DAY, 'the session');
+		assert.equal(
+			minted.expiresAt,
+			minted.session?.expiresAt,
+			'the mint left the two windows on different clocks'
+		);
+	});
+});
+
+// And the drift the fix exists for, demonstrated rather than described: refreshing moves one
+// window and not the other. The control plane is right to allow it — a client with no workspace
+// has nothing to mint — and it is why the desktop keeps both numbers and believes the earlier.
+test('refreshing moves the session and leaves the replica credential where it was', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, moveClockTo }) => {
+		const { session } = await answerOf(await post(url, '/account/sign-in'));
+		const { workspace } = await answerOf(
+			await post(url, '/workspace', { body: { name: 'Riyadh' } })
+		);
+
+		assert.ok(session && workspace);
+
+		const minted = await answerOf(
+			await post(url, `/workspace/${workspace.id}/token`, {
+				token: session.token,
+				body: { schemaVersion: await targetSchemaVersion() }
+			})
+		);
+
+		moveClockTo(AT + 2 * A_DAY);
+
+		const refreshed = await answerOf(await post(url, '/session/refresh', { token: session.token }));
+
+		assert.equal(refreshed.session?.expiresAt, AT + 5 * A_DAY, 'the session did not move');
+		assert.equal(minted.expiresAt, AT + 3 * A_DAY, 'and the replica credential still dies here');
 	});
 });

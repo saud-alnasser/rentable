@@ -167,6 +167,7 @@ pub fn run() {
             backup::backup_restore,
             backup::backup_delete,
             sync::remote_sync_state_get,
+            sync::remote_sync_renew_session,
             sync::remote_sync_snapshot_now,
             sync::remote_sync_autosave_now,
             sync::google_sign_in,

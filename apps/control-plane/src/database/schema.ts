@@ -110,16 +110,51 @@ export const membership = sqliteTable(
 	(table) => [primaryKey({ columns: [table.workspaceId, table.accountId] })]
 );
 
+/**
+ * A sign-in that is still good, and the three days it has left.
+ *
+ * **This is requirement 15's window, and it is a row here rather than a flag on the client.**
+ * A client asserts nothing about how long ago it signed in: it presents what this table issued,
+ * and what decides whether that is still good is `expires_at` against a clock this process
+ * supplies. A window the client could decline to close is the shape the requirement rules out.
+ *
+ * **The token is stored as a SHA-256 digest and never as itself.** A session token is a bearer
+ * credential — whoever holds it is the account — so a readable copy of every live one is the
+ * worst row this database could carry. The digest answers the only question asked of it, which
+ * is whether a presented token is one that was issued.
+ *
+ * **Renewing moves `expires_at` and keeps the token.** Rotating on every reach is the other
+ * reasonable choice and it costs the client a stored write per request, for a property this
+ * repository does not need: a session already dies of the window, and *declining to renew* is
+ * how somebody is removed. `renewed_at` sits beside `created_at` because the two answer
+ * different questions — when somebody signed in, and when they were last heard from — and the
+ * window is measured from the second.
+ */
+export const session = sqliteTable('session', {
+	id: text('id').primaryKey(),
+	accountId: text('account_id')
+		.notNull()
+		.references(() => account.id),
+	/** SHA-256 of the token, hex. Never the token, for the reason above. */
+	tokenDigest: text('token_digest').notNull().unique(),
+	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+	/** the last successful reach. The window runs from here, not from `created_at`. */
+	renewedAt: integer('renewed_at', { mode: 'timestamp_ms' }).notNull(),
+	expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull()
+});
+
 export type Account = typeof account.$inferSelect;
 export type Workspace = typeof workspace.$inferSelect;
 export type Membership = typeof membership.$inferSelect;
+export type Session = typeof session.$inferSelect;
 export type Role = Membership['role'];
 
 // relations
 
 export const accountRelations = relations(account, ({ many }) => ({
 	owned: many(workspace),
-	memberships: many(membership)
+	memberships: many(membership),
+	sessions: many(session)
 }));
 
 export const workspaceRelations = relations(workspace, ({ one, many }) => ({
@@ -137,6 +172,13 @@ export const membershipRelations = relations(membership, ({ one }) => ({
 	}),
 	account: one(account, {
 		fields: [membership.accountId],
+		references: [account.id]
+	})
+}));
+
+export const sessionRelations = relations(session, ({ one }) => ({
+	account: one(account, {
+		fields: [session.accountId],
 		references: [account.id]
 	})
 }));
