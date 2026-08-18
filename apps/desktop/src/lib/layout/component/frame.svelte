@@ -8,6 +8,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import LayoutBreadcrumb from '$lib/layout/component/breadcrumb.svelte';
 	import LayoutPalette, { PALETTE_SHORTCUT_HINT } from '$lib/layout/component/palette.svelte';
+	import LayoutRecordVerbs from '$lib/layout/component/record-verbs.svelte';
 	import LayoutShortcutListener from '$lib/layout/component/shortcut-listener.svelte';
 	import LayoutShortcutSheet from '$lib/layout/component/shortcut-sheet.svelte';
 	import LayoutSidebar from '$lib/layout/component/sidebar.svelte';
@@ -101,6 +102,9 @@
 <div lang={$locale} dir={currentDirection} class="h-screen w-screen overflow-hidden border">
 	{#if showNavigation}
 		<LayoutPalette bind:open={isPaletteOpen} />
+		<!-- beside the palette, because the palette is the only thing that runs these and what
+		     they open has to survive it closing. -->
+		<LayoutRecordVerbs />
 		<LayoutShortcutSheet bind:open={isShortcutSheetOpen} />
 		<Sidebar.Provider class="h-full min-h-0 overflow-hidden">
 			<LayoutSidebar />

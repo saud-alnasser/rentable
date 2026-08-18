@@ -163,6 +163,10 @@ type RootTranslation = {
 			 */
 			renew: string
 			/**
+			 * r​e​n​e​w​ ​a​ ​c​o​n​t​r​a​c​t
+			 */
+			renewContract: string
+			/**
 			 * r​e​n​e​w​i​n​g​.​.​.
 			 */
 			renewing: string
@@ -729,6 +733,14 @@ type RootTranslation = {
 			 */
 			edited: RequiredParams<'record'>
 			/**
+			 * n​o​t​h​i​n​g​ ​t​o​ ​a​p​p​l​y​ ​a​g​a​i​n
+			 */
+			nothingToRedo: string
+			/**
+			 * n​o​t​h​i​n​g​ ​t​o​ ​t​a​k​e​ ​b​a​c​k
+			 */
+			nothingToUndo: string
+			/**
 			 * r​e​d​o
 			 */
 			redo: string
@@ -789,6 +801,10 @@ type RootTranslation = {
 			 * c​o​m​m​a​n​d​ ​p​a​l​e​t​t​e
 			 */
 			commandPalette: string
+			/**
+			 * t​y​p​e​ ​t​o​ ​f​i​n​d​ ​t​h​e​ ​r​e​c​o​r​d​ ​t​h​i​s​ ​r​u​n​s​ ​o​n​.
+			 */
+			commandPaletteChooseRecord: string
 			/**
 			 * s​e​a​r​c​h​ ​f​o​r​ ​a​ ​c​o​m​m​a​n​d​ ​t​o​ ​r​u​n
 			 */
@@ -2116,6 +2132,10 @@ export type TranslationFunctions = {
 			 */
 			renew: () => LocalizedString
 			/**
+			 * renew a contract
+			 */
+			renewContract: () => LocalizedString
+			/**
 			 * renewing...
 			 */
 			renewing: () => LocalizedString
@@ -2670,6 +2690,14 @@ export type TranslationFunctions = {
 			 */
 			edited: (arg: { record: string }) => LocalizedString
 			/**
+			 * nothing to apply again
+			 */
+			nothingToRedo: () => LocalizedString
+			/**
+			 * nothing to take back
+			 */
+			nothingToUndo: () => LocalizedString
+			/**
 			 * redo
 			 */
 			redo: () => LocalizedString
@@ -2725,6 +2753,10 @@ export type TranslationFunctions = {
 			 * command palette
 			 */
 			commandPalette: () => LocalizedString
+			/**
+			 * type to find the record this runs on.
+			 */
+			commandPaletteChooseRecord: () => LocalizedString
 			/**
 			 * search for a command to run
 			 */
