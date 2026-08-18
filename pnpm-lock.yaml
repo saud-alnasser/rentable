@@ -111,6 +111,9 @@ importers:
       '@trpc/server':
         specifier: ^11.18.0
         version: 11.18.0(typescript@6.0.3)
+      '@tursodatabase/sync':
+        specifier: 0.7.2
+        version: 0.7.2
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@libsql/client@0.17.4)(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.3)
@@ -1418,6 +1421,40 @@ packages:
     resolution: {integrity: sha512-PMk6zQN0csUFklLe+1hz/5G9uU1YmV0cEIey2R/bSeA6o69qcBTlN4A3jOqkgenOO5dOpMHmq2sEUZo8r1+Ssg==}
     cpu: [arm64]
     os: [win32]
+
+  '@tursodatabase/database-common@0.7.2':
+    resolution: {integrity: sha512-c4uWaA5m7nyDemUrjvX6lQQ89cBxv1jCv7nmwq5JoagyXgbMxDeBfLcY7N5kn0oEcnD0Y+cf09S0wKEXKFKbfg==}
+
+  '@tursodatabase/serverless@0.2.4':
+    resolution: {integrity: sha512-kqf3FINvTGx8N1iH/4e1Dkbr/om5q9qitshzvljtQXwZFQIsVP/mDE76mGg9U2dg/ElOZKFKtT1VXDgd39Dr1w==}
+
+  '@tursodatabase/sync-common@0.7.2':
+    resolution: {integrity: sha512-cme6b5EeYQ4YbPtILpfJQyIrv39FSEAMhk5614MKBpeb2Auv1K89k22lEKvC8uARuXptFDbs5iFplIoXpcQHTg==}
+
+  '@tursodatabase/sync-darwin-arm64@0.7.2':
+    resolution: {integrity: sha512-Zx7nDYrupnX0AUwIoaQkSP7KwuPMUYRfonXxo/H3f19VLGRr+3xtFh0+YyImYKkw4EkHmYNtIjZ6ZMkz1BaeOg==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@tursodatabase/sync-linux-arm64-gnu@0.7.2':
+    resolution: {integrity: sha512-DBILAo7fhMuuSLdulMEuQu6ABlxRGSobHwGSqX0C+Ljrm/Y+8slmue/lXvNDKfky0t8I/iUAvXMeFY6V+UEn9w==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@tursodatabase/sync-linux-x64-gnu@0.7.2':
+    resolution: {integrity: sha512-ACqB5GAwixdNoFodPJ01D5J76MNlTwCVnxy6c+K1LI6e5SLsI+Ti/1OM6/w2RDZZkiXxj4DRWi0HzEFFh430Yg==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@tursodatabase/sync-win32-x64-msvc@0.7.2':
+    resolution: {integrity: sha512-H/kGlR+aRIV0RyUT4L3I/QcseSswuWYNc9SB4KN6fIAc3WJPiTUO5y3abSj8ZVQDtlIbGOqH9LBBKY+oLIWwpA==}
+    cpu: [x64]
+    os: [win32]
+
+  '@tursodatabase/sync@0.7.2':
+    resolution: {integrity: sha512-qGfywPShGgx5luHzY4WOHTJNvkLj8b6ZNFuzw+AbMpUho6XB3E3titcINdqlogJcLrjDR1ripQjylIbPpqJKyg==}
 
   '@types/better-sqlite3@9.6.0':
     resolution: {integrity: sha512-ZEEwBSgMu7GYJOynoagg5X9JbxfL6dTJDsgViJIqh67jV44kyOr9RXfmFjLK5rzC4MWssP06t9hu/JwGDnUbCg==}
@@ -3871,6 +3908,37 @@ snapshots:
 
   '@turbo/windows-arm64@2.10.10':
     optional: true
+
+  '@tursodatabase/database-common@0.7.2': {}
+
+  '@tursodatabase/serverless@0.2.4': {}
+
+  '@tursodatabase/sync-common@0.7.2':
+    dependencies:
+      '@tursodatabase/database-common': 0.7.2
+      '@tursodatabase/serverless': 0.2.4
+
+  '@tursodatabase/sync-darwin-arm64@0.7.2':
+    optional: true
+
+  '@tursodatabase/sync-linux-arm64-gnu@0.7.2':
+    optional: true
+
+  '@tursodatabase/sync-linux-x64-gnu@0.7.2':
+    optional: true
+
+  '@tursodatabase/sync-win32-x64-msvc@0.7.2':
+    optional: true
+
+  '@tursodatabase/sync@0.7.2':
+    dependencies:
+      '@tursodatabase/database-common': 0.7.2
+      '@tursodatabase/sync-common': 0.7.2
+    optionalDependencies:
+      '@tursodatabase/sync-darwin-arm64': 0.7.2
+      '@tursodatabase/sync-linux-arm64-gnu': 0.7.2
+      '@tursodatabase/sync-linux-x64-gnu': 0.7.2
+      '@tursodatabase/sync-win32-x64-msvc': 0.7.2
 
   '@types/better-sqlite3@9.6.0':
     dependencies:

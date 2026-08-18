@@ -1,7 +1,7 @@
 ---
-aep: 2.1.1
+aep: 2.5.1
 owner: repository
-date: 2026-08-17
+date: 2026-08-19
 kind: reference
 use-when: "linting, or a CI lint failure has to be reproduced locally"
 ---
@@ -64,6 +64,27 @@ hand-authored and stay linted.
 
 To exclude something, add it to `.gitignore` if it genuinely should not be tracked, and
 otherwise extend the `ignores` entry. Never `.eslintignore`.
+
+### A worktree is walked, and only in the main checkout
+
+`includeIgnoreFile` reads **the root `.gitignore` and no other**. `.aep/worktrees/` is ignored
+by a *nested* file — `.aep/.gitignore:7` — so git ignores it and ESLint does not. A lint run in
+the main checkout while a worktree exists therefore reports on files belonging to another
+branch, and a **half-deleted** worktree fails the run outright:
+
+```
+Error: ENOENT: no such file or directory, open '...\.aep\worktrees\548\apps\desktop\src\...'
+    at readAndVerifyFile (eslint-helpers.js)
+```
+
+ESLint listed the path and then could not read it. On Windows that state is easy to reach:
+`git worktree remove` fails with *Filename too long* on deep `node_modules` paths, deregisters
+the worktree, and leaves the directory behind.
+
+**It never fires in CI**, which clones without worktrees, and never *inside* a worktree, where
+`.aep/worktrees/` does not exist. So it is a main-checkout-only failure that reads as a code
+problem and is not one — observed 2026-08-19 with four worktrees present. Deleting the leftover
+directory clears it; adding `'**/.aep/worktrees/**'` to the `ignores` entry would prevent it.
 
 ## Markdown is not linted
 
