@@ -200,7 +200,12 @@ export function toSheetName(name: string) {
 	return name.replace(SHEET_NAME_FORBIDDEN, ' ').trim().slice(0, SHEET_NAME_LIMIT);
 }
 
-/** What a file of this format is called, given what the list calls itself. */
+/**
+ * What a file of this format is called, given what the list calls itself.
+ *
+ * The name the save dialog opens on rather than the name the file ends up with — the reader
+ * can type over it, and the format is already decided by the time they see it.
+ */
 export function toExportFileName(name: string, format: ExportFormat) {
 	// the name a list gives already carries `.csv`, from when that was the only format there
 	// was. Stripping it keeps the caller's word — the concept's own name for itself — without
@@ -212,9 +217,9 @@ export function toExportFileName(name: string, format: ExportFormat) {
  * What a file is called, given what it holds and what narrowed it.
  *
  * A file of five thousand tenants and a file of the eleven a search found are both `tenants`
- * otherwise, and the second one silently replaces the first in a downloads folder. Naming what
- * narrowed it is what keeps two exports two files — and tells a reader who comes back to it a
- * week later that they are not looking at the whole directory.
+ * otherwise, so the second is offered the first's name and replaces it unless the reader
+ * notices. Naming what narrowed it is what keeps two exports two files — and tells a reader who
+ * comes back to it a week later that they are not looking at the whole directory.
  */
 export function toNarrowedName(name: string, narrowing: readonly string[]) {
 	const stated = narrowing.map((part) => part.trim()).filter(Boolean);

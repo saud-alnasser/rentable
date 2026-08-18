@@ -1,9 +1,9 @@
 //! reading a file back into the application.
 //!
-//! The mirror of `export`, and the halves are deliberately asymmetric: an export answers
-//! *where it landed* and never asks anything, while an import has to be told which file — so
-//! this one takes a path the user chose through a dialog rather than a name the web layer
-//! composed.
+//! The mirror of `export`, and symmetric with it: both are handed a path the user chose
+//! through a dialog — this one the file to read, that one the file to write — rather than a
+//! name the web layer composed. The asymmetry that used to be here was the export deciding
+//! its own destination, and it was the reader's decision all along.
 //!
 //! What it returns is a table of strings and nothing else. Which column means what, whether a
 //! row is valid, and whether the set collides with itself are all questions about tenants and
