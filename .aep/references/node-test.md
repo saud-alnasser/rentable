@@ -1,16 +1,20 @@
 ---
-aep: 2.1.1
+aep: 2.5.1
 owner: repository
-date: 2026-08-17
+date: 2026-08-18
 kind: reference
 use-when: "running or writing the TypeScript test suite"
 ---
 
 # node:test (TypeScript tests)
 
-The TypeScript test runner. Tests are `.test.mjs` but import `.ts` source directly, so they
-only run under `tsx` — that is what resolves the `$lib` alias and the TypeScript imports.
-Running them with bare `node --test` fails on the first import.
+The TypeScript test runner. Tests are `.test.ts`, under a `tests/` directory beside the code
+they cover, and they import `.ts` source directly — so they only run under `tsx`, which is what
+resolves the `$lib` alias and the TypeScript imports. Running them with bare `node --test`
+fails on the first import.
+
+They were `.test.mjs` beside their subject until #559 (2026-08-18); a path in an older document
+that still reads that way is stale rather than a second convention.
 
 Docs: <https://nodejs.org/api/test.html>. Fetch for filtering or concurrency — neither of
 which this repository currently uses.
@@ -24,7 +28,7 @@ pnpm test
 ## Run one file
 
 ```bash
-node --import tsx --test src/lib/contract/router.test.mjs
+node --import tsx --test src/lib/contract/tests/router.test.ts
 ```
 
 This is the command to use while working. `--import tsx` is not optional.
@@ -32,7 +36,7 @@ This is the command to use while working. `--import tsx` is not optional.
 ## Mocking a module
 
 ```bash
-node --import tsx --test --experimental-test-module-mocks src/lib/error/toast.test.mjs
+node --import tsx --test --experimental-test-module-mocks src/lib/error/tests/toast.test.ts
 ```
 
 `mock.module()` is behind `--experimental-test-module-mocks` — without it the call throws
@@ -48,7 +52,7 @@ latter is deprecated and warns.
 ## Run one test by name
 
 ```bash
-node --import tsx --test --test-name-pattern "derived status is scheduled" src/lib/contract/router.test.mjs
+node --import tsx --test --test-name-pattern "derived status is scheduled" src/lib/contract/tests/router.test.ts
 ```
 
 The pattern is a regular expression matched against the test name.

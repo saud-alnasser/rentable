@@ -76,7 +76,7 @@ The hostname carries no scheme. `libsql://` is prepended where it is used — th
 
 ## Verification
 
-`apps/control-plane/src/turso.test.mjs` runs the real client against a fake `fetch` and pins the
+`apps/control-plane/src/tests/turso.test.ts` runs the real client against a fake `fetch` and pins the
 path, the credential, the query parameters and the shape read back.
 
 **Run live against this account 2026-08-18, at the human's request**, creating one database,
