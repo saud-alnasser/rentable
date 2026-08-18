@@ -32,12 +32,21 @@ export type ExportCell =
 
 /** One sheet of a workbook: its headings, and its rows under them. */
 export type ExportSheet = {
+	/**
+	 * what the tab is called.
+	 *
+	 * Left out where the workbook holds one sheet — there is nothing to tell it apart from.
+	 * Given where it holds several, which is how a reader finds the tenants inside a workspace.
+	 */
+	name?: string;
 	headers: string[];
 	rows: ExportCell[][];
 };
 
 /** A file read back in: the heading row, and the rows under it, all as text. */
 export type ImportTable = {
+	/** the sheet it came off, or the file's own name where the format has no sheets. */
+	name: string;
 	headers: string[];
 	rows: string[][];
 };
@@ -237,8 +246,8 @@ export const tauri = {
 		 * prepends a byte-order mark, and a workbook is an archive that three bytes in front of
 		 * would corrupt.
 		 */
-		writeWorkbook: (name: string, sheet: ExportSheet) =>
-			invoke<string>('export_write_workbook', { name, sheet })
+		writeWorkbook: (name: string, sheets: ExportSheet[]) =>
+			invoke<string>('export_write_workbook', { name, sheets })
 	},
 	import: {
 		/**
@@ -251,7 +260,15 @@ export const tauri = {
 		 * What comes back is strings. Which column means what, and whether a row is a record, are
 		 * questions about tenants and contracts that the reader does not answer.
 		 */
-		read: (path: string) => invoke<ImportTable>('import_read', { path })
+		read: (path: string) => invoke<ImportTable>('import_read', { path }),
+		/**
+		 * Read every sheet of a file the user chose.
+		 *
+		 * What a whole workspace arrives as. The tables come back in the file's own order and each
+		 * says which sheet it is — the caller matches them by that name and never by position,
+		 * because a reader who dragged the tabs about handed over the same workspace.
+		 */
+		readBook: (path: string) => invoke<ImportTable[]>('import_read_book', { path })
 	},
 	dialog: {
 		/**

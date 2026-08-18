@@ -171,12 +171,33 @@ function toWireCell(value: ExportValue): WireCell {
  */
 export function toExportSheet<TRecord>(
 	columns: readonly ExportColumn<TRecord>[],
-	records: TRecord[]
+	records: TRecord[],
+	name?: string
 ): ExportSheet {
 	return {
+		// a tab name only where the workbook holds more than one sheet. A directory's export is
+		// one table and naming its only tab after the file says the file's name twice.
+		...(name === undefined ? {} : { name: toSheetName(name) }),
 		headers: columns.map((column) => toHeading(column.header)),
 		rows: records.map((record) => columns.map((column) => toWireCell(column.value(record))))
 	};
+}
+
+/** the characters a workbook refuses in a tab name, and the length it refuses beyond. */
+const SHEET_NAME_FORBIDDEN = /[[\]:*?/\\]/g;
+const SHEET_NAME_LIMIT = 31;
+
+/**
+ * A concept's own name, as a tab may be called.
+ *
+ * The format's rule rather than this application's: a tab may not hold `[]:*?/\` and may not run
+ * past thirty-one characters, and a workbook whose sheet breaks either is a file nothing opens.
+ * Applied here rather than in the writer because the name is a translated word — the writer
+ * would only be able to refuse it, and refusing an export because a language spells a concept
+ * long is not an answer anyone can act on.
+ */
+export function toSheetName(name: string) {
+	return name.replace(SHEET_NAME_FORBIDDEN, ' ').trim().slice(0, SHEET_NAME_LIMIT);
 }
 
 /** What a file of this format is called, given what the list calls itself. */

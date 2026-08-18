@@ -37,6 +37,9 @@ export type ImportField<TRecord> = {
 	 *
 	 * A column that names none takes no part in the collision check — two tenants may share a
 	 * name, and only the identity columns decide whether a file is claiming one record twice.
+	 *
+	 * **A concept whose fields declare none has no identity at all**, and no two of its rows are
+	 * ever the same record.
 	 */
 	identity?: boolean;
 };
@@ -73,6 +76,23 @@ export type ImportPlan<TRecord> = {
 	missingColumns: string[];
 };
 
+/** What a concept says about its own file, beyond what its columns already say. */
+export type ImportOptions = {
+	/**
+	 * whether two rows of one file may legitimately be the same record.
+	 *
+	 * False for almost everything, and left so: two tenants claiming one national id is a
+	 * contradiction only the reader can settle, and the file is refused until they do. True for
+	 * a payment — two of the same amount against the same contract on the same day are two
+	 * payments, and refusing the second would refuse a file that is telling the truth.
+	 *
+	 * It says nothing about what is already held. A row matching a record the workspace has is
+	 * still turned away whichever way this is set: that is the same file being read a second
+	 * time, not a second payment being made.
+	 */
+	rowsMayRepeat?: boolean;
+};
+
 /** Whether a plan may be carried out at all. */
 export function isImportable<TRecord>(plan: ImportPlan<TRecord>) {
 	return plan.missingColumns.length === 0 && plan.collisions.length === 0 && plan.create.length > 0;
@@ -105,12 +125,14 @@ function comparable(value: string) {
  * nothing where it is fine. The domain's, never restated here.
  * @param existing the identities already held, so a row that duplicates one is rejected rather
  * than failing at the write.
+ * @param options what the concept says about its own file, beyond what its columns say.
  */
 export function planImport<TRecord extends Record<string, string>>(
 	fields: readonly ImportField<TRecord>[],
 	table: { headers: string[]; rows: string[][] },
 	validate: (record: TRecord) => string | undefined,
-	existing: ReadonlySet<string> = new Set()
+	existing: ReadonlySet<string> = new Set(),
+	options: ImportOptions = {}
 ): ImportPlan<TRecord> {
 	const headings = table.headers.map(comparable);
 	const columnOf = new Map<string, number>();
@@ -138,6 +160,10 @@ export function planImport<TRecord extends Record<string, string>>(
 
 	const create: { row: number; record: TRecord }[] = [];
 	const rejected: ImportRejection[] = [];
+	// whether two rows can be the same record at all. A concept declaring no identity column has
+	// no answer to "is this one already here?" — every row is its own record, and running the
+	// checks below against an empty key would make the whole file one collision.
+	const isIdentified = fields.some((field) => field.identity);
 	// where each identity was first seen, so a collision can name both rows rather than the
 	// second one alone — the reader has to look at the pair to choose between them.
 	const seen = new Map<string, number[]>();
@@ -174,6 +200,12 @@ export function planImport<TRecord extends Record<string, string>>(
 			return;
 		}
 
+		if (!isIdentified) {
+			create.push({ row, record });
+
+			return;
+		}
+
 		const identityValues = fields
 			.filter((field) => field.identity)
 			.map((field) => comparable(record[field.id]));
@@ -189,9 +221,11 @@ export function planImport<TRecord extends Record<string, string>>(
 		create.push({ row, record });
 	});
 
-	const collisions = [...seen.entries()]
-		.filter(([, rows]) => rows.length > 1)
-		.map(([identity, rows]) => ({ rows, identity: JSON.parse(identity)[0] ?? '' }));
+	const collisions = options.rowsMayRepeat
+		? []
+		: [...seen.entries()]
+				.filter(([, rows]) => rows.length > 1)
+				.map(([identity, rows]) => ({ rows, identity: JSON.parse(identity)[0] ?? '' }));
 
 	return {
 		create: collisions.length > 0 ? [] : create,

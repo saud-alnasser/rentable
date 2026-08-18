@@ -17,6 +17,7 @@
 	import SettingsSync from '$lib/settings/component/sync.svelte';
 	import SettingsUpdates from '$lib/settings/component/updates.svelte';
 	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
+	import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
 	import { toast } from 'svelte-sonner';
 
 	const settingsQuery = useFetchSettings();
@@ -111,7 +112,13 @@
 
 			<Field.Set>
 				<Field.Legend>{$LL.settings.groupWorkspace()}</Field.Legend>
-				<SettingsSync syncState={remoteSyncQuery.data} />
+				<Field.Group>
+					<SettingsSync syncState={remoteSyncQuery.data} />
+					<Field.Separator />
+					<!-- beside sync and backups, because all three are answers to the same question:
+					     where this workspace lives, and how it gets somewhere else. -->
+					<WorkspaceTransfer />
+				</Field.Group>
 			</Field.Set>
 
 			<Separator />

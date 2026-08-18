@@ -178,6 +178,7 @@ pub fn run() {
             export::export_write,
             export::export_write_workbook,
             import::import_read,
+            import::import_read_book,
             update::update_prepare,
             bootstrap::bootstrap,
         ])

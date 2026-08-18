@@ -18,6 +18,12 @@ use crate::error::Error;
 /// A file as a table: the header row, and the rows under it.
 #[derive(serde::Serialize)]
 pub struct Table {
+    /// what the sheet this came off is called, or the file's own name where it had no tabs.
+    ///
+    /// Carried because a workbook holding a whole workspace is five tables and the only thing
+    /// telling them apart is the tab — matching them up by position would make a file whose
+    /// sheets were dragged into another order import into the wrong tables.
+    pub name: String,
     pub headers: Vec<String>,
     pub rows: Vec<Vec<String>>,
 }
@@ -66,7 +72,7 @@ fn undefuse(value: &str) -> String {
         .to_owned()
 }
 
-fn read_delimited(contents: &str) -> Table {
+fn read_delimited(contents: &str, name: &str) -> Table {
     let mut lines = contents
         .strip_prefix(UTF8_BOM)
         .unwrap_or(contents)
@@ -91,7 +97,11 @@ fn read_delimited(contents: &str) -> Table {
         })
         .collect();
 
-    Table { headers, rows }
+    Table {
+        name: name.to_owned(),
+        headers,
+        rows,
+    }
 }
 
 /// One cell of a workbook, as the text the surface would have shown.
@@ -120,13 +130,14 @@ fn to_text(cell: &Data) -> String {
 }
 
 /// One sheet as a table: the first row is the heading, the rest are records.
-fn to_table(sheet: &calamine::Range<Data>) -> Table {
+fn to_table(sheet: &calamine::Range<Data>, name: &str) -> Table {
     let mut rows = sheet
         .rows()
         .map(|row| row.iter().map(to_text).collect::<Vec<_>>());
     let headers = rows.next().unwrap_or_default();
 
     Table {
+        name: name.to_owned(),
         headers,
         // a workbook keeps its shape, so a trailing blank row is a row of empty cells rather
         // than a short one — and it is not a record.
@@ -136,27 +147,20 @@ fn to_table(sheet: &calamine::Range<Data>) -> Table {
     }
 }
 
-fn read_workbook(path: &Path) -> Result<Table, Error> {
-    let mut workbook = calamine::open_workbook_auto(path).map_err(|error| Error::Io {
-        message: format!("could not read {}: {error}", path.display()),
-    })?;
-
-    let sheet = workbook
-        .worksheet_range_at(0)
-        .ok_or_else(|| Error::InvalidInput {
-            message: "the workbook has no sheets".to_owned(),
-        })?
-        .map_err(|error| Error::Io {
-            message: format!("could not read the first sheet: {error}"),
-        })?;
-
-    Ok(to_table(&sheet))
+/// What a delimited file's one table is called: the file's own name, without its extension.
+///
+/// A csv has no tabs to be named by, and a workspace read out of one would otherwise have to be
+/// matched by position. It is the file the reader chose, so the name they gave it is the best
+/// answer available.
+fn file_stem(path: &Path) -> String {
+    path.file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_owned()
 }
 
-/// Read a file the user chose, as a table of text.
-#[tauri::command]
-pub async fn import_read(path: String) -> Result<Table, Error> {
-    let path = Path::new(&path);
+/// Every sheet of a file, in the order the file holds them.
+fn read_tables(path: &Path) -> Result<Vec<Table>, Error> {
     let extension = path
         .extension()
         .and_then(|value| value.to_str())
@@ -169,22 +173,74 @@ pub async fn import_read(path: String) -> Result<Table, Error> {
                 message: format!("could not read {}: {error}", path.display()),
             })?;
 
-            Ok(read_delimited(&contents))
+            Ok(vec![read_delimited(&contents, &file_stem(path))])
         }
-        "xlsx" | "xls" | "xlsm" => read_workbook(path),
+        "xlsx" | "xls" | "xlsm" => {
+            let mut workbook = calamine::open_workbook_auto(path).map_err(|error| Error::Io {
+                message: format!("could not read {}: {error}", path.display()),
+            })?;
+            let names = Reader::sheet_names(&workbook).to_vec();
+            let mut tables = Vec::with_capacity(names.len());
+
+            for name in names {
+                let sheet = workbook
+                    .worksheet_range(&name)
+                    .map_err(|error| Error::Io {
+                        message: format!("could not read the sheet '{name}': {error}"),
+                    })?;
+
+                tables.push(to_table(&sheet, &name));
+            }
+
+            Ok(tables)
+        }
         _ => Err(Error::InvalidInput {
             message: format!("'{extension}' is not a file this can read"),
         }),
     }
 }
 
+/// Read a file the user chose, as a table of text.
+///
+/// The first sheet, because what asks for this is one directory reading a file of its own
+/// records — a workbook of several is a workspace, and `import_read_book` is what reads one.
+#[tauri::command]
+pub async fn import_read(path: String) -> Result<Table, Error> {
+    let tables = read_tables(Path::new(&path))?;
+
+    tables
+        .into_iter()
+        .next()
+        .ok_or_else(|| Error::InvalidInput {
+            message: "the workbook has no sheets".to_owned(),
+        })
+}
+
+/// Read every sheet of a file the user chose.
+///
+/// Which sheet is which is the caller's question and is answered by the name each table
+/// carries, never by its position: a reader who dragged the tabs into another order still
+/// handed over the same workspace.
+#[tauri::command]
+pub async fn import_read_book(path: String) -> Result<Vec<Table>, Error> {
+    read_tables(Path::new(&path))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// A delimited fixture, under a name no assertion here is about.
+    ///
+    /// The name a table carries is the sheet it came off, and a csv has no sheets — every test
+    /// below is about the rows, so the file's own name is stated once here rather than in each.
+    fn read_fixture(contents: &str) -> Table {
+        read_delimited(contents, "tenants")
+    }
+
     #[test]
     fn a_delimited_file_is_read_as_its_headers_and_its_rows() {
-        let table = read_delimited("\"name\",\"phone\"\r\n\"Abby Kris\",\"+966512345678\"");
+        let table = read_fixture("\"name\",\"phone\"\r\n\"Abby Kris\",\"+966512345678\"");
 
         assert_eq!(table.headers, vec!["name", "phone"]);
         assert_eq!(table.rows, vec![vec!["Abby Kris", "+966512345678"]]);
@@ -192,14 +248,14 @@ mod tests {
 
     #[test]
     fn the_byte_order_mark_the_export_writes_is_not_part_of_the_first_heading() {
-        let table = read_delimited("\u{feff}\"name\"\r\n\"Abby Kris\"");
+        let table = read_fixture("\u{feff}\"name\"\r\n\"Abby Kris\"");
 
         assert_eq!(table.headers, vec!["name"]);
     }
 
     #[test]
     fn a_quoted_field_keeps_its_commas_and_its_doubled_quotes() {
-        let table = read_delimited("\"a\"\r\n\"one, two\"\r\n\"he said \"\"hello\"\"\"");
+        let table = read_fixture("\"a\"\r\n\"one, two\"\r\n\"he said \"\"hello\"\"\"");
 
         assert_eq!(
             table.rows,
@@ -211,7 +267,7 @@ mod tests {
     // round trip grows an apostrophe every time it is made.
     #[test]
     fn a_defused_cell_comes_back_as_the_text_it_was() {
-        let table = read_delimited("\"a\"\r\n\"'=cmd()\"\r\n\"'@SUM(A1)\"");
+        let table = read_fixture("\"a\"\r\n\"'=cmd()\"\r\n\"'@SUM(A1)\"");
 
         assert_eq!(table.rows, vec![vec!["=cmd()"], vec!["@SUM(A1)"]]);
     }
@@ -226,7 +282,7 @@ mod tests {
 
     #[test]
     fn a_blank_line_is_not_a_row() {
-        let table = read_delimited("\"a\"\r\n\"one\"\r\n\r\n");
+        let table = read_fixture("\"a\"\r\n\"one\"\r\n\r\n");
 
         assert_eq!(table.rows, vec![vec!["one"]]);
     }
@@ -266,7 +322,7 @@ mod tests {
 
         let bytes = workbook.save_to_buffer().unwrap();
         let mut read = calamine::open_workbook_auto_from_rs(std::io::Cursor::new(bytes)).unwrap();
-        let table = to_table(&read.worksheet_range_at(0).unwrap().unwrap());
+        let table = to_table(&read.worksheet_range_at(0).unwrap().unwrap(), "Sheet1");
 
         assert_eq!(table.headers, headers);
         assert_eq!(table.rows, written.map(|row| row.to_vec()).to_vec());
@@ -288,7 +344,7 @@ mod tests {
 
         let bytes = workbook.save_to_buffer().unwrap();
         let mut read = calamine::open_workbook_auto_from_rs(std::io::Cursor::new(bytes)).unwrap();
-        let table = to_table(&read.worksheet_range_at(0).unwrap().unwrap());
+        let table = to_table(&read.worksheet_range_at(0).unwrap().unwrap(), "Sheet1");
 
         assert_eq!(table.rows, vec![vec!["2026-01-31"]]);
     }
@@ -298,7 +354,7 @@ mod tests {
     // literal is the contract between two suites that cannot call each other.
     #[test]
     fn a_delimited_file_the_export_wrote_reads_back_as_the_row_it_was_given() {
-        let table = read_delimited(
+        let table = read_fixture(
             "\u{feff}\"name\",\"national id\",\"phone\"\r\n\"'=cmd()\",\"1234567890\",\"+966512345678\"",
         );
 
@@ -309,9 +365,39 @@ mod tests {
         );
     }
 
+    // a workspace is many sheets in one file, and the tab is the only thing saying which table
+    // is which. Written by the export's own writer, so what this asserts is the pair agreeing.
+    #[test]
+    fn every_sheet_of_a_workbook_is_read_under_its_own_name() {
+        let mut workbook = rust_xlsxwriter::Workbook::new();
+
+        for (name, heading, value) in [("Tenants", "name", "محمد"), ("Complexes", "name", "Al Nakheel")] {
+            let worksheet = workbook.add_worksheet();
+
+            worksheet.set_name(name).unwrap();
+            worksheet.write_string(0, 0, heading).unwrap();
+            worksheet.write_string(1, 0, value).unwrap();
+        }
+
+        let bytes = workbook.save_to_buffer().unwrap();
+        let mut read = calamine::open_workbook_auto_from_rs(std::io::Cursor::new(bytes)).unwrap();
+        let names = Reader::sheet_names(&read).to_vec();
+        let tables = names
+            .iter()
+            .map(|name| to_table(&read.worksheet_range(name).unwrap(), name))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            tables.iter().map(|table| table.name.as_str()).collect::<Vec<_>>(),
+            vec!["Tenants", "Complexes"]
+        );
+        assert_eq!(tables[0].rows, vec![vec!["محمد"]]);
+        assert_eq!(tables[1].rows, vec![vec!["Al Nakheel"]]);
+    }
+
     #[test]
     fn arabic_text_survives_the_read() {
-        let table = read_delimited("\"الاسم\"\r\n\"محمد\"");
+        let table = read_fixture("\"الاسم\"\r\n\"محمد\"");
 
         assert_eq!(table.headers, vec!["الاسم"]);
         assert_eq!(table.rows, vec![vec!["محمد"]]);

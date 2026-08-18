@@ -2,6 +2,7 @@ import complex from '$lib/complex/router';
 import contract from '$lib/contract/router';
 import history from '$lib/history/router';
 import tenant from '$lib/tenant/router';
+import workspace from '$lib/workspace/router';
 import app from './app';
 import { router } from './trpc';
 
@@ -17,7 +18,8 @@ export const appRouter = router({
 	tenant,
 	complex,
 	contract,
-	history
+	history,
+	workspace
 });
 
 export type AppRouter = typeof appRouter;

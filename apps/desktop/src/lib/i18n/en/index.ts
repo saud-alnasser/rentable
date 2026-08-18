@@ -408,6 +408,24 @@ const en = {
 		loadErrorTitle: 'settings are unavailable right now',
 		openWorkspaceAction: 'open workspace',
 
+		transferTitle: 'move this workspace',
+		transferDescription:
+			'write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.',
+		transferImportTitle: 'import a workspace',
+		transferImportSuccess: 'the workspace was imported',
+		transferNoSheets: 'this file holds no sheet this recognises, so there is nothing to import.',
+		transferSheetMissingColumns:
+			'the {sheet:string} sheet is missing the column(s): {columns:string}. nothing can be read from this file.',
+		transferSheetCollision:
+			'in the {sheet:string} sheet, rows {rows:string} both claim {identity:string}. nothing will be imported until one of them goes.',
+		transferUnresolved:
+			'{count|number} row(s) name a record no sheet holds, so nothing in this file can be imported.',
+		transferUnresolvedRow: '{sheet:string} row {row|number} names {reference:string}',
+		transferSkippedHeld: '{count|number} already here',
+		transferSkippedIncomplete: '{count|number} missing a required value',
+		transferSkippedUnreadable: '{count|number} could not be read',
+		transferMore: 'and {count|number} more',
+
 		protectedUpdateBackup: 'protected update backup',
 		releaseAvailable: 'update v{version} is available.',
 		restoreBackupTitle: 'restore backup',
