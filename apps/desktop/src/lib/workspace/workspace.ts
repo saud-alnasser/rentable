@@ -32,9 +32,17 @@ import { identity as nationalIdPattern, phone as phonePattern } from '$lib/tenan
  * **Nothing here writes, and nothing here is derived.** The whole resolution happens in the
  * planning pass, against the file and the workspace at once, because a batch is built before
  * any of it runs and cannot branch on its own results ([[rules/data]], under *Multi-table
- * writes*). A reference that cannot be resolved refuses the file whole rather than dropping one
- * row: the row it named is what another row exists for, and importing the half that resolved
- * would build a workspace the file never described.
+ * writes*). A reference that cannot be resolved drops the row that made it, and in a file
+ * carrying several sheets it refuses the file whole as well: the row it named is what another
+ * row exists for, and importing the half that resolved would build a workspace the file never
+ * described.
+ *
+ * **A directory reads one sheet of the same file.** Importing into the units directory is this
+ * pass scoped to units — the same columns, the same identities, the same resolution against the
+ * workspace and against what the file itself creates. It is one declaration rather than five,
+ * which is the duplication a per-directory import would otherwise have arrived at: a file of
+ * units states its complex by name whether it came out of a workspace or out of a list, and two
+ * places deciding what that name means is two places for them to disagree.
  *
  * **The file's headings are written in English and read in both languages.** A directory's
  * export is a document for a person and is written in the language they are reading in (#523).
@@ -168,6 +176,33 @@ export function emptyTransfer(): WorkspaceTransfer {
 	return { tenants: [], complexes: [], units: [], contracts: [], payments: [] };
 }
 
+/**
+ * What a transfer asks the workspace to write.
+ *
+ * What a record holds and nothing it derives: a contract's status, its paid and its expected
+ * amount and a unit's status are recomputed from the term and the payments, and a file that
+ * could assert them could put a workspace into a state its own rows contradict. Written here
+ * rather than by each surface that confirms an import, so there is one answer to which fields
+ * cross and five surfaces cannot come to disagree about it.
+ */
+export function toTransferInput(transfer: WorkspaceTransfer) {
+	return {
+		tenants: transfer.tenants,
+		complexes: transfer.complexes,
+		units: transfer.units.map((unit) => ({ complex: unit.complex, name: unit.name })),
+		contracts: transfer.contracts.map((contract) => ({
+			reference: contract.reference,
+			tenant: contract.tenant,
+			units: contract.units,
+			start: contract.start,
+			end: contract.end,
+			interval: contract.interval,
+			cost: contract.cost
+		})),
+		payments: transfer.payments
+	};
+}
+
 /** How many records a transfer holds, across all five concepts. */
 export function countTransfer(transfer: WorkspaceTransfer) {
 	return TRANSFER_CONCEPTS.reduce((total, concept) => total + transfer[concept].length, 0);
@@ -251,13 +286,25 @@ const COMPLEX_FIELDS: readonly ImportField<ComplexRow>[] = [
 	{ id: 'location', headers: ['Location', 'الموقع'], required: true }
 ];
 
+// the second spelling of each is what a directory's own export writes. The transfer's sheet says
+// `Unit`, because a sheet sitting beside four others has to say which record the column is
+// about; the units directory says `Name`, because on a list of units nothing else it could be.
+// Both name the same column, so both are read.
 const UNIT_FIELDS: readonly ImportField<UnitRow>[] = [
-	{ id: 'complex', headers: ['Complex', 'المجمع'], required: true, identity: true },
-	{ id: 'name', headers: ['Unit', 'الوحدة'], required: true, identity: true }
+	{ id: 'complex', headers: ['Complex', 'المجمع', 'مجمع'], required: true, identity: true },
+	{ id: 'name', headers: ['Unit', 'الوحدة', 'Name', 'الاسم'], required: true, identity: true }
 ];
 
 const CONTRACT_FIELDS: readonly ImportField<ContractRow>[] = [
-	{ id: 'reference', headers: ['Contract', 'العقد'], required: true, identity: true },
+	// `Government Id` is what the contracts directory calls the same column: a contract's
+	// reference *is* its government number wherever it has one, and a directory of contracts
+	// shows the number rather than the fallback.
+	{
+		id: 'reference',
+		headers: ['Contract', 'العقد', 'Government Id', 'المعرف الحكومي'],
+		required: true,
+		identity: true
+	},
 	{ id: 'tenant', headers: ['Tenant', 'المستأجر'], required: true },
 	{ id: 'units', headers: ['Units', 'الوحدات'] },
 	{ id: 'start', headers: ['Start', 'البداية'], required: true },
@@ -270,8 +317,16 @@ const CONTRACT_FIELDS: readonly ImportField<ContractRow>[] = [
 // the same amount against the same contract on the same day are two payments, while one matching
 // a payment already recorded is this file being read a second time.
 const PAYMENT_FIELDS: readonly ImportField<PaymentRow>[] = [
-	{ id: 'contract', headers: ['Contract', 'العقد'], required: true, identity: true },
-	{ id: 'date', headers: ['Date', 'التاريخ'], required: true, identity: true },
+	{ id: 'contract', headers: ['Contract', 'العقد', 'عقد'], required: true, identity: true },
+	// a ledger is a statement of payments, so its own export calls the column `Payment Date`
+	// where the transfer's sheet — which already sits under a tab saying Payments — calls it
+	// `Date`.
+	{
+		id: 'date',
+		headers: ['Date', 'التاريخ', 'Payment Date', 'تاريخ الدفع'],
+		required: true,
+		identity: true
+	},
 	{ id: 'amount', headers: ['Amount', 'المبلغ'], required: true, identity: true }
 ];
 
@@ -339,6 +394,14 @@ export type WorkspaceSheetPlan = {
 	rejected: ImportRejection[];
 	collisions: ImportCollision[];
 	missingColumns: string[];
+	/**
+	 * whether the columns it is missing are ones a row is identified by.
+	 *
+	 * The difference between a sheet this cannot read at all and one it can read but cannot
+	 * create from — the second is what a directory's own export is, and it still has to be able
+	 * to say that it would change nothing.
+	 */
+	unreadable: boolean;
 };
 
 /** A row naming a record nothing answers to. */
@@ -354,17 +417,28 @@ export type UnresolvedReference = {
 export type WorkspacePlan = {
 	sheets: WorkspaceSheetPlan[];
 	unresolved: UnresolvedReference[];
+	/**
+	 * whether an unresolved reference refuses the whole file rather than only the row that made
+	 * it.
+	 *
+	 * A question about the file rather than about the reference. A workspace file's sheets depend
+	 * on each other — a contract dropped for a unit nothing answers to takes its payments with it
+	 * — so what survived would be a workspace the file never described, and it is refused whole.
+	 * A file of one concept has nothing in it that could depend on the dropped row, so the row is
+	 * turned away like any other bad row and the rest of the file still goes in.
+	 */
+	refusedWhole: boolean;
 	/** what would be written, or nothing at all where the file is refused. */
 	transfer: WorkspaceTransfer;
 };
 
 /** Whether a plan may be carried out at all. */
 export function isWorkspaceImportable(plan: WorkspacePlan) {
-	const refused = plan.sheets.some(
-		(sheet) => sheet.missingColumns.length > 0 || sheet.collisions.length > 0
-	);
+	const refused = plan.sheets.some((sheet) => sheet.unreadable || sheet.collisions.length > 0);
 
-	return !refused && plan.unresolved.length === 0 && countTransfer(plan.transfer) > 0;
+	// a file refused whole has had its transfer emptied, so the count below is what says so —
+	// there is no second place holding that answer.
+	return !refused && countTransfer(plan.transfer) > 0;
 }
 
 /**
@@ -381,11 +455,28 @@ export function toTransferKey(...values: string[]) {
 
 const key = toTransferKey;
 
-/** The table a concept's sheet is, out of the file's own tabs. */
-function tableFor(tables: readonly ImportTable[], concept: TransferConcept) {
+/**
+ * The table a concept's sheet is, out of the file's own tabs.
+ *
+ * By name, never by position: a reader who dragged the tabs into another order handed over the
+ * same workspace. The exception is a file of one table read for one concept — a directory's own
+ * export is a single sheet whose tab is named by whatever wrote it, `Sheet1` from a workbook and
+ * the file's own name from a delimited file, and neither says what the rows are. What says it
+ * there is the directory the reader opened the file from.
+ */
+function tableFor(
+	tables: readonly ImportTable[],
+	concept: TransferConcept,
+	concepts: readonly TransferConcept[]
+) {
 	const accepted = SHEET_NAMES[concept].accepted.map((name) => key(name));
+	const named = tables.find((table) => accepted.includes(key(table.name)));
 
-	return tables.find((table) => accepted.includes(key(table.name)));
+	if (named || concepts.length > 1 || tables.length !== 1) {
+		return named;
+	}
+
+	return tables[0];
 }
 
 /** A number a file states, or nothing where the cell is not one. */
@@ -409,12 +500,20 @@ function toNumber(value: string) {
  * file's other sheets and against the workspace. Both, because a file may create a complex and
  * the units in it at once, and may equally add a unit to a complex the workspace already holds.
  *
+ * The same pass serves a directory, which is the whole workspace scoped to one concept: a file
+ * of units is the workspace file's Units sheet on its own, read by the same declaration and
+ * resolved against the same workspace. What differs is only what a dropped row costs — see
+ * `refusedWhole`.
+ *
  * @param tables the file, as the reader handed it over: one table per sheet, each named.
  * @param held what the workspace already has, by the same names the file uses.
+ * @param concepts which of them this file is being read for. Every one by default, which is a
+ * whole workspace; one, which is a directory.
  */
 export function planWorkspaceImport(
 	tables: readonly ImportTable[],
-	held: WorkspaceHeld = emptyHeld()
+	held: WorkspaceHeld = emptyHeld(),
+	concepts: readonly TransferConcept[] = TRANSFER_CONCEPTS
 ): WorkspacePlan {
 	const sheets: WorkspaceSheetPlan[] = [];
 	const unresolved: UnresolvedReference[] = [];
@@ -428,7 +527,14 @@ export function planWorkspaceImport(
 		existing: ReadonlySet<string>,
 		options: ImportOptions = {}
 	) => {
-		const table = tableFor(tables, concept);
+		// a concept outside the scope gets no line at all, rather than a line saying its sheet was
+		// absent: a file read for one directory was never asked for the other four, and reporting
+		// them missing would read as four faults.
+		if (!concepts.includes(concept)) {
+			return [];
+		}
+
+		const table = tableFor(tables, concept, concepts);
 
 		if (!table) {
 			sheets.push({
@@ -437,7 +543,8 @@ export function planWorkspaceImport(
 				create: 0,
 				rejected: [],
 				collisions: [],
-				missingColumns: []
+				missingColumns: [],
+				unreadable: false
 			});
 
 			return [];
@@ -451,7 +558,8 @@ export function planWorkspaceImport(
 			create: plan.create.length,
 			rejected: plan.rejected,
 			collisions: plan.collisions,
-			missingColumns: plan.missingColumns
+			missingColumns: plan.missingColumns,
+			unreadable: plan.isUnreadable
 		});
 
 		return plan.create;
@@ -626,12 +734,17 @@ export function planWorkspaceImport(
 		});
 	}
 
-	// a reference nothing answers to refuses the file whole rather than dropping the row that
-	// named it: the row it pointed at is what that row exists for, and writing the half that
-	// resolved would build a workspace the file never described.
+	// a reference nothing answers to always drops the row that made it. Whether it also refuses
+	// the file is a question about the file rather than about the reference: a workspace file's
+	// sheets depend on each other, so what survived would be a workspace the file never described
+	// — but a file of one concept holds nothing that could have depended on the dropped row, and
+	// turning away the rest of it would refuse a file that is almost entirely right.
+	const refusedWhole = unresolved.length > 0 && concepts.length > 1;
+
 	return {
 		sheets,
 		unresolved,
-		transfer: unresolved.length > 0 ? emptyTransfer() : transfer
+		refusedWhole,
+		transfer: refusedWhole ? emptyTransfer() : transfer
 	};
 }

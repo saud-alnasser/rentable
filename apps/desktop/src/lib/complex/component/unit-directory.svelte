@@ -12,6 +12,9 @@
 	import { toNarrowedName } from '$lib/design/csv';
 	import * as Cell from '$lib/design/cell';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
+	import { useImportRecords } from '$lib/workspace/query';
+	import { toTransferInput } from '$lib/workspace/workspace';
 	import UserIcon from '@tabler/icons-svelte/icons/user';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -33,6 +36,7 @@
 	let unit = $state<UnitRecord | undefined>(undefined);
 	let isUnitFormOpen = $state(false);
 	let isDeleteDialogOpen = $state(false);
+	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
 
 	const unitsQuery = useListUnits(
 		() => complexId,
@@ -40,6 +44,7 @@
 	);
 	const units = $derived(unitsQuery.data ?? []);
 	const deleteMutation = useDeleteUnit();
+	const importMutation = useImportRecords();
 
 	// what a deletion would be refused for, read before the question is asked rather than
 	// after the destructive control is pressed.
@@ -103,6 +108,7 @@
 			{ header: $LL.common.labels.tenant(), value: (unit) => unit.tenantName ?? '' }
 		]
 	}}
+	onImport={() => void importDialog?.choose()}
 	onCreate={() => {
 		unit = undefined;
 		isUnitFormOpen = true;
@@ -161,5 +167,19 @@
 			// to now that the record is gone.
 			back.forget(resolve(`/complexes/units/${unit.id}`));
 		}
+	}}
+/>
+
+<!-- a file of units names the complex each unit is in, and that name is what decides where the
+     unit lands — not this screen. The two are the same complex whenever the file came off this
+     list, and where they are not, the file is right: a row naming a complex the workspace does
+     not hold is turned away with the name it could not find, and the rest of the file still goes
+     in. -->
+<DirectoryImportDialog
+	bind:this={importDialog}
+	title={$LL.common.import.title({ record: $LL.common.nav.units() })}
+	concept="units"
+	onConfirm={async (transfer) => {
+		await importMutation.mutateAsync(toTransferInput(transfer));
 	}}
 />

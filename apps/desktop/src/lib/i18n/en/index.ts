@@ -112,8 +112,27 @@ const en = {
 			rejectedRow: 'row {row|number}',
 			reasons: {
 				duplicateOfExisting: '{detail:string} is already here',
-				missingValue: 'no {detail:string}'
-			}
+				missingValue: 'no {detail:string}',
+				invalid: '{detail:string} cannot be read',
+				unresolved: 'names {detail:string}, which is not here'
+			},
+			incompleteColumns:
+				'this file carries no {columns:string}, so no record can be created from it — only recognised as one already here.',
+			skippedUnresolved: '{count|number} naming a record that is not here',
+			noSheets: 'this file holds no sheet this recognises, so there is nothing to import.',
+			sheetMissingColumns:
+				'the {sheet:string} sheet is missing the column(s): {columns:string}. nothing can be read from this file.',
+			sheetIncompleteColumns:
+				'the {sheet:string} sheet carries no {columns:string}, so no record can be created from it — only recognised as one already here.',
+			sheetCollision:
+				'in the {sheet:string} sheet, rows {rows:string} both claim {identity:string}. nothing will be imported until one of them goes.',
+			unresolvedRefused:
+				'{count|number} row(s) name a record no sheet holds, so nothing in this file can be imported.',
+			unresolvedRow: '{sheet:string} row {row|number} names {reference:string}',
+			skippedHeld: '{count|number} already here',
+			skippedIncomplete: '{count|number} missing a required value',
+			skippedUnreadable: '{count|number} could not be read',
+			more: 'and {count|number} more'
 		},
 
 		history: {
@@ -265,7 +284,6 @@ const en = {
 			created: 'creating {record:string}',
 			deleted: 'deleting {record:string}',
 			edited: 'editing {record:string}',
-			imported: 'importing {count|number} record(s)',
 			nothingToRedo: 'nothing to apply again',
 			nothingToUndo: 'nothing to take back',
 			redo: 'redo',
@@ -412,19 +430,7 @@ const en = {
 		transferDescription:
 			'write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.',
 		transferImportTitle: 'import a workspace',
-		transferImportSuccess: 'the workspace was imported',
-		transferNoSheets: 'this file holds no sheet this recognises, so there is nothing to import.',
-		transferSheetMissingColumns:
-			'the {sheet:string} sheet is missing the column(s): {columns:string}. nothing can be read from this file.',
-		transferSheetCollision:
-			'in the {sheet:string} sheet, rows {rows:string} both claim {identity:string}. nothing will be imported until one of them goes.',
-		transferUnresolved:
-			'{count|number} row(s) name a record no sheet holds, so nothing in this file can be imported.',
-		transferUnresolvedRow: '{sheet:string} row {row|number} names {reference:string}',
-		transferSkippedHeld: '{count|number} already here',
-		transferSkippedIncomplete: '{count|number} missing a required value',
-		transferSkippedUnreadable: '{count|number} could not be read',
-		transferMore: 'and {count|number} more',
+		transferImportSuccess: 'the file was imported',
 
 		protectedUpdateBackup: 'protected update backup',
 		releaseAvailable: 'update v{version} is available.',
@@ -582,7 +588,6 @@ const en = {
 		hooks: {
 			createSuccess: 'tenant created successfully!',
 			deleteSuccess: 'tenant deleted successfully!',
-			importSuccess: 'tenants imported successfully!',
 			updateSuccess: 'tenant updated successfully!'
 		},
 

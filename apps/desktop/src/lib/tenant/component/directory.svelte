@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
-	import ImportDialog from '$lib/design/block/import-dialog.svelte';
+	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
 	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
 	import * as Cell from '$lib/design/cell';
@@ -11,17 +11,16 @@
 	import { hasCreateIntent } from '$lib/design/create-intent';
 	import type { ListSort } from '$lib/design/sort';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import api from '$lib/api/caller';
+	import type api from '$lib/api/caller';
 	import { toNarrowedName } from '$lib/design/csv';
-	import { toImportIdentity, type ImportField } from '$lib/design/import';
-	import { useDeleteTenant, useImportTenants, useListTenants } from '$lib/tenant/query';
+	import { useDeleteTenant, useListTenants } from '$lib/tenant/query';
 	import {
-		identity,
 		isTenantDeletable,
-		phone,
 		TENANT_SORT_COLUMN_IDS,
 		type TenantSortColumnId
 	} from '$lib/tenant/tenant';
+	import { useImportRecords } from '$lib/workspace/query';
+	import { toTransferInput } from '$lib/workspace/workspace';
 	import { useListContracts } from '$lib/contract/query';
 	import { CONTRACT_ATTENTION_ORDER } from '$lib/contract/contract';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
@@ -29,9 +28,6 @@
 	import TenantForm from './form.svelte';
 
 	type TenantRecord = Awaited<ReturnType<typeof api.tenant.getMany>>[number];
-
-	/** the three columns a file of tenants is read into, before any of it is a tenant. */
-	type ImportedTenant = { name: string; nationalId: string; phone: string };
 
 	// two lines of text and the breathing room around them; the shell lays rows out at this
 	// height rather than measuring them.
@@ -58,7 +54,7 @@
 	// the one record a card's menu is acting on, which is what makes a single confirmation and a
 	// single read of what blocks it enough for a whole directory.
 	let deleteOpensOn = $state<TenantRecord | null>(null);
-	let importDialog = $state<ReturnType<typeof ImportDialog> | undefined>(undefined);
+	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
 
 	const tenantsQuery = useListTenants(
 		() => search,
@@ -66,47 +62,7 @@
 	);
 	const tenants = $derived(tenantsQuery.data ?? []);
 	const deleteMutation = useDeleteTenant();
-	const importMutation = useImportTenants();
-
-	// what a tenant is made of, in every language a file of them may have been exported in — the
-	// same three labels the export writes, read back through whichever one the file carries.
-	//
-	// The counts the export also writes are not here: they are what the tenant's contracts add up
-	// to rather than anything a tenant holds, so a file carrying them imports as a file of
-	// tenants and the columns are ignored.
-	const importFields = $derived<readonly ImportField<ImportedTenant>[]>([
-		{
-			id: 'name',
-			headers: [$LL.common.labels.name(), 'name', 'الاسم'],
-			required: true
-		},
-		{
-			id: 'nationalId',
-			headers: [$LL.common.labels.nationalId(), 'national id', 'الهوية الوطنية'],
-			required: true,
-			identity: true
-		},
-		{
-			id: 'phone',
-			headers: [$LL.common.labels.phone(), 'phone', 'الهاتف'],
-			required: true,
-			identity: true
-		}
-	]);
-
-	// the domain's own patterns, asked here rather than restated: the router refuses the same
-	// rows, and a preview promising a write the boundary would reject is worse than no preview.
-	const validateImported = (record: ImportedTenant) => {
-		if (!identity.test(record.nationalId)) {
-			return $LL.tenants.form.invalidNationalId();
-		}
-
-		// the country code is the one the pattern accepts, and a file carries the whole number
-		// rather than the two halves the form splits it into.
-		return phone.test(record.phone)
-			? undefined
-			: $LL.tenants.form.invalidPhone({ countryCode: '+966' });
-	};
+	const importMutation = useImportRecords();
 
 	// what a deletion would be refused for, read for the record being acted on and only while it
 	// is being acted on — the same reading the record's own page performs before asking.
@@ -276,20 +232,16 @@
 	onSubmit={deleteTenant}
 />
 
-<!-- the file the export wrote, coming back in. Mounted here rather than inside the list because
-     what a file of tenants is — which columns, what makes a row valid, what already exists — is
-     the concept's, and the shell only says that the direction is offered. -->
-<ImportDialog
+<!-- the file the export wrote, coming back in. What a file of tenants is — which columns, what
+     makes a row valid, what already exists — is declared once for the whole transfer and read
+     from there rather than restated here: a tenant named in a file of tenants and one named by a
+     contract are the same national id, and two places deciding what that means is two places for
+     them to disagree. -->
+<DirectoryImportDialog
 	bind:this={importDialog}
 	title={$LL.common.import.title({ record: $LL.common.nav.tenants() })}
-	fields={importFields}
-	validate={validateImported}
-	existingIdentities={async () => {
-		const held = await api.tenant.identities();
-
-		return new Set(held.map((values) => toImportIdentity(values)));
-	}}
-	onConfirm={async (records) => {
-		await importMutation.mutateAsync(records);
+	concept="tenants"
+	onConfirm={async (transfer) => {
+		await importMutation.mutateAsync(toTransferInput(transfer));
 	}}
 />

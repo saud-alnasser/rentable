@@ -18,6 +18,9 @@
 	import { hasCreateIntent } from '$lib/design/create-intent';
 	import type { ListSort } from '$lib/design/sort';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
+	import { useImportRecords } from '$lib/workspace/query';
+	import { toTransferInput } from '$lib/workspace/workspace';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import CircleDashedIcon from '@tabler/icons-svelte/icons/circle-dashed';
@@ -38,6 +41,7 @@
 	// the one record a card's menu is acting on, which is what makes a single confirmation and a
 	// single read of what blocks it enough for a whole directory.
 	let deleteOpensOn = $state<ComplexRecord | null>(null);
+	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
 
 	const complexesQuery = useListComplexes(
 		() => search,
@@ -45,6 +49,7 @@
 	);
 	const complexes = $derived(complexesQuery.data ?? []);
 	const deleteMutation = useDeleteComplex();
+	const importMutation = useImportRecords();
 
 	// what a deletion would be refused for, read for the record being acted on and only while it
 	// is being acted on. The row carries a unit count, and the rule is the domain's to apply —
@@ -150,6 +155,7 @@
 			{ header: $LL.common.labels.vacantUnits(), value: (complex) => complex.vacantUnitCount }
 		]
 	}}
+	onImport={() => void importDialog?.choose()}
 	onCreate={() => {
 		formOpensOn = undefined;
 		isComplexFormOpen = true;
@@ -214,4 +220,18 @@
 	record={deleteOpensOn?.name}
 	blockers={deleteBlockers}
 	onSubmit={deleteComplex}
+/>
+
+<!-- the file the export wrote, coming back in. What a file of complexes is — which columns, what
+     makes two rows one record — is declared once for the whole transfer and read from there
+     rather than restated here: a complex named in a file of units and a complex named in a file
+     of complexes are the same name, and two places deciding what it means is two places for them
+     to disagree. -->
+<DirectoryImportDialog
+	bind:this={importDialog}
+	title={$LL.common.import.title({ record: $LL.common.nav.complexes() })}
+	concept="complexes"
+	onConfirm={async (transfer) => {
+		await importMutation.mutateAsync(toTransferInput(transfer));
+	}}
 />

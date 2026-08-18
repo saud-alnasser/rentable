@@ -23,6 +23,9 @@
 	} from '$lib/payment/ledger';
 	import { useDeletePayment, useListContractPayments } from '$lib/payment/query';
 	import { formatLocaleMoney, formatLocaleMoneyRange } from '$lib/platform/locale';
+	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
+	import { useImportRecords } from '$lib/workspace/query';
+	import { toTransferInput } from '$lib/workspace/workspace';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import PaymentForm from './form.svelte';
@@ -43,6 +46,7 @@
 	let payment = $state<Payment | undefined>(undefined);
 	let isPaymentFormOpen = $state(false);
 	let isDeleteDialogOpen = $state(false);
+	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
 
 	// the statement is the surface a period was put in the vocabulary for: a ledger is read to
 	// answer *what was paid, and when*, and until now the only way to ask about one month was to
@@ -56,6 +60,7 @@
 	const contractQuery = useFetchContract(() => contractId);
 	const paymentsQuery = useListContractPayments(() => ({ contractId, search, period }));
 	const deleteMutation = useDeletePayment();
+	const importMutation = useImportRecords();
 
 	const payments = $derived(paymentsQuery.data ?? []);
 	const monthOf = $derived(paymentLedgerMonths(payments));
@@ -162,6 +167,7 @@
 				}
 			]
 		}}
+		onImport={isAddLocked ? undefined : () => void importDialog?.choose()}
 		onCreate={isAddLocked ? undefined : () => openPaymentForm()}
 	>
 		{#snippet groupHeader(month: PaymentLedgerMonth)}
@@ -260,5 +266,22 @@
 			// return to now that the record is gone.
 			back.forget(resolve(`/contracts/payments/${payment.id}`));
 		}
+	}}
+/>
+
+<!-- a statement, coming back in. Each row names the contract it is against and that name is what
+     places it, this contract included — a payment is nothing without one, and a statement read on
+     the wrong contract's page would be the quietest way to put money against the wrong term.
+
+     A payment has no name of its own, so what makes one recognisable is its contract, its day and
+     its amount together. That is also what keeps a statement imported twice from paying the
+     contract twice, while leaving two genuine payments of the same amount on the same day as the
+     two payments they are. -->
+<DirectoryImportDialog
+	bind:this={importDialog}
+	title={$LL.common.import.title({ record: $LL.common.nav.payments() })}
+	concept="payments"
+	onConfirm={async (transfer) => {
+		await importMutation.mutateAsync(toTransferInput(transfer));
 	}}
 />

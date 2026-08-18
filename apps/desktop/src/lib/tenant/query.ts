@@ -136,33 +136,6 @@ export const useCreateTenant = declareMutation({
 	}
 });
 
-/**
- * Create every tenant a file named, in one write.
- *
- * The inverse deletes what it created, one call at a time — the same shape a complex's creation
- * uses to take its units back out. Redoing sends the records again rather than the rows, because
- * what was agreed to was the set the preview showed.
- */
-export const useImportTenants = declareMutation({
-	mutate: (records: Parameters<typeof api.tenant.importMany>[0]['records']) =>
-		api.tenant.importMany({ records }),
-	touches: ['tenants'],
-	inverse: ({ variables, result }) => ({
-		describe: (t) => t.common.undo.imported({ count: result.length }),
-		undo: async () => {
-			for (const tenant of result) {
-				await api.tenant.delete({ id: tenant.id });
-			}
-		},
-		redo: () => api.tenant.importMany({ records: variables })
-	}),
-	toast: {
-		success: () => get(LL).tenants.hooks.importSuccess(),
-		error: false,
-		unexpected: () => get(LL).common.messages.unexpectedError()
-	}
-});
-
 export const useUpdateTenant = declareMutation({
 	mutate: (data: Parameters<typeof api.tenant.update>[0]) => api.tenant.update(data),
 	touches: ['tenants'],

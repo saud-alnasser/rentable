@@ -16,6 +16,14 @@ import { foldSearchText } from '$lib/platform/database/search';
  * — is rejected, named, and the rest of the file still goes in. **A file whose own rows collide
  * with each other** is refused entirely: the reader assembled that file, the two rows claiming
  * one identity are both theirs, and choosing between them is not something this can do quietly.
+ *
+ * A third case sits between them and is why the two questions a column answers are kept apart.
+ * **A file may be readable without being complete.** A directory's export is written for a
+ * person to read: it carries the figures that were on the row and not the fields a record is
+ * made of, so it can say which records it is about without being able to make one. Read back it
+ * has to report, truthfully, that it would change nothing — which it can only do if the columns
+ * a row is identified by are what decide whether the file can be read, and the columns a record
+ * is built from decide only whether a row can be created.
  */
 
 /** One column an import reads, and what it is called in a file. */
@@ -74,6 +82,19 @@ export type ImportPlan<TRecord> = {
 	collisions: ImportCollision[];
 	/** the headings the file was missing, which is a fault of the file rather than of a row. */
 	missingColumns: string[];
+	/**
+	 * whether what is missing leaves the file unreadable as records of this concept at all.
+	 *
+	 * True only where a column a row is *identified* by is absent: without it nothing in the file
+	 * can be matched against what is already here, so every row would read as new and a file
+	 * imported twice would double the workspace. A column a row needs only in order to be
+	 * *created* is a lesser fault — it is reported, the rows that would have needed it are turned
+	 * away one at a time, and the rows this workspace already holds are still recognised. That is
+	 * what lets a file written to be read by a person — a directory's export, which carries the
+	 * columns that were on the row and not the ones a record is made of — still be read back and
+	 * report, truthfully, that it would change nothing.
+	 */
+	isUnreadable: boolean;
 };
 
 /** What a concept says about its own file, beyond what its columns already say. */
@@ -137,6 +158,7 @@ export function planImport<TRecord extends Record<string, string>>(
 	const headings = table.headers.map(comparable);
 	const columnOf = new Map<string, number>();
 	const missingColumns: string[] = [];
+	let isUnreadable = false;
 
 	for (const field of fields) {
 		const index = headings.findIndex((heading) =>
@@ -144,9 +166,14 @@ export function planImport<TRecord extends Record<string, string>>(
 		);
 
 		if (index === -1) {
-			if (field.required) {
+			// a column the file has to carry, either because a row is nothing without it or because
+			// one row cannot be told from another without it.
+			if (field.required || field.identity) {
 				missingColumns.push(field.headers[0]);
 			}
+
+			// and only the second of those decides whether the file can be read at all.
+			isUnreadable ||= field.identity === true;
 
 			continue;
 		}
@@ -154,8 +181,8 @@ export function planImport<TRecord extends Record<string, string>>(
 		columnOf.set(field.id, index);
 	}
 
-	if (missingColumns.length > 0) {
-		return { create: [], rejected: [], collisions: [], missingColumns };
+	if (isUnreadable) {
+		return { create: [], rejected: [], collisions: [], missingColumns, isUnreadable };
 	}
 
 	const create: { row: number; record: TRecord }[] = [];
@@ -186,6 +213,23 @@ export function planImport<TRecord extends Record<string, string>>(
 			record[field.id] = value as TRecord[typeof field.id];
 		}
 
+		const identityValues = fields
+			.filter((field) => field.identity)
+			.map((field) => comparable(record[field.id]));
+		const identity = toImportIdentity(identityValues);
+
+		// what is already here is answered before anything else about the row. A row naming a
+		// record this workspace holds is not going to be created, so whether the rest of it is
+		// complete or well-formed decides nothing — and asking the questions in the other order is
+		// what made a file written for a person report every one of its rows as broken. Such a file
+		// carries the columns that were on the row rather than the ones a record is made of, and
+		// every row in it is already here.
+		if (isIdentified && existing.has(identity)) {
+			rejected.push({ row, reason: 'duplicate-of-existing', detail: identityValues[0] ?? '' });
+
+			return;
+		}
+
 		if (missingValue) {
 			rejected.push({ row, reason: 'missing-value', detail: missingValue });
 
@@ -206,17 +250,6 @@ export function planImport<TRecord extends Record<string, string>>(
 			return;
 		}
 
-		const identityValues = fields
-			.filter((field) => field.identity)
-			.map((field) => comparable(record[field.id]));
-		const identity = toImportIdentity(identityValues);
-
-		if (existing.has(identity)) {
-			rejected.push({ row, reason: 'duplicate-of-existing', detail: identityValues[0] ?? '' });
-
-			return;
-		}
-
 		seen.set(identity, [...(seen.get(identity) ?? []), row]);
 		create.push({ row, record });
 	});
@@ -231,6 +264,7 @@ export function planImport<TRecord extends Record<string, string>>(
 		create: collisions.length > 0 ? [] : create,
 		rejected,
 		collisions,
-		missingColumns
+		missingColumns,
+		isUnreadable
 	};
 }

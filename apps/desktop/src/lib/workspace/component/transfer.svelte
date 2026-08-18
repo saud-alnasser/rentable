@@ -8,11 +8,12 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
-	import { useImportWorkspace } from '$lib/workspace/query';
+	import { useImportRecords } from '$lib/workspace/query';
 	import {
 		TRANSFER_COLUMNS,
 		TRANSFER_CONCEPTS,
 		toSheetTitle,
+		toTransferInput,
 		type WorkspaceTransfer
 	} from '$lib/workspace/workspace';
 	import { toast } from 'svelte-sonner';
@@ -33,7 +34,7 @@
 	let isExporting = $state(false);
 	let importDialog = $state<ReturnType<typeof WorkspaceImportDialog> | undefined>(undefined);
 
-	const importMutation = useImportWorkspace();
+	const importMutation = useImportRecords();
 
 	/** Every sheet of the file, in the order the reader has to read them back in. */
 	function toSheets(transfer: WorkspaceTransfer) {
@@ -96,23 +97,6 @@
 <WorkspaceImportDialog
 	bind:this={importDialog}
 	onConfirm={async (transfer) => {
-		await importMutation.mutateAsync({
-			tenants: transfer.tenants,
-			complexes: transfer.complexes,
-			units: transfer.units.map((unit) => ({ complex: unit.complex, name: unit.name })),
-			// what the file carried and the workspace derives are two different things: a status,
-			// a paid amount and an expected amount are what the term and the payments make them,
-			// so only what a contract actually holds crosses.
-			contracts: transfer.contracts.map((contract) => ({
-				reference: contract.reference,
-				tenant: contract.tenant,
-				units: contract.units,
-				start: contract.start,
-				end: contract.end,
-				interval: contract.interval,
-				cost: contract.cost
-			})),
-			payments: transfer.payments
-		});
+		await importMutation.mutateAsync(toTransferInput(transfer));
 	}}
 />

@@ -108,8 +108,26 @@ const ar = {
 			rejectedRow: 'الصف {row|number}',
 			reasons: {
 				duplicateOfExisting: '{detail} موجود هنا أصلاً',
-				missingValue: 'لا يوجد {detail}'
-			}
+				missingValue: 'لا يوجد {detail}',
+				invalid: 'تعذّرت قراءة {detail}',
+				unresolved: 'يشير إلى {detail} وهو غير موجود هنا'
+			},
+			incompleteColumns:
+				'هذا الملف لا يحمل {columns}، فلا يمكن إنشاء أي سجل منه — يمكن فقط التعرف على ما هو موجود هنا أصلاً.',
+			skippedUnresolved: '{count|number} يشير إلى سجل غير موجود هنا',
+			noSheets: 'لا يحتوي هذا الملف على أي ورقة معروفة، فلا شيء لاستيراده.',
+			sheetMissingColumns: 'تنقص ورقة {sheet} الأعمدة: {columns}. لا يمكن قراءة شيء من هذا الملف.',
+			sheetIncompleteColumns:
+				'لا تحمل ورقة {sheet} العمود {columns}، فلا يمكن إنشاء أي سجل منها — يمكن فقط التعرف على ما هو موجود هنا أصلاً.',
+			sheetCollision:
+				'في ورقة {sheet}، يدّعي الصفان {rows} السجل نفسه {identity}. لن يُستورد شيء حتى يُحذف أحدهما.',
+			unresolvedRefused:
+				'يشير {count|number} صف إلى سجل لا تحتويه أي ورقة، فلا يمكن استيراد شيء من هذا الملف.',
+			unresolvedRow: 'الصف {row|number} في {sheet} يشير إلى {reference}',
+			skippedHeld: '{count|number} موجود هنا أصلاً',
+			skippedIncomplete: '{count|number} تنقصه قيمة مطلوبة',
+			skippedUnreadable: '{count|number} تعذّرت قراءته',
+			more: 'و{count|number} غيرها'
 		},
 
 		history: {
@@ -259,7 +277,6 @@ const ar = {
 			created: 'إنشاء {record}',
 			deleted: 'حذف {record}',
 			edited: 'تعديل {record}',
-			imported: 'استيراد {count|number} سجل',
 			nothingToRedo: 'لا يوجد ما يمكن إعادته',
 			nothingToUndo: 'لا يوجد ما يمكن التراجع عنه',
 			redo: 'إعادة',
@@ -403,19 +420,7 @@ const ar = {
 		transferDescription:
 			'اكتب كل شيء — المستأجرين والمجمعات والوحدات والعقود والمدفوعات — في ملف واحد، أو اقرأ ملفاً كهذا. تشير السجلات إلى بعضها بالأسماء لا بالأرقام، فيفتح الملف على أي جهاز.',
 		transferImportTitle: 'استيراد مساحة عمل',
-		transferImportSuccess: 'تم استيراد مساحة العمل',
-		transferNoSheets: 'لا يحتوي هذا الملف على أي ورقة معروفة، فلا شيء لاستيراده.',
-		transferSheetMissingColumns:
-			'تنقص ورقة {sheet} الأعمدة: {columns}. لا يمكن قراءة شيء من هذا الملف.',
-		transferSheetCollision:
-			'في ورقة {sheet}، يدّعي الصفان {rows} السجل نفسه {identity}. لن يُستورد شيء حتى يُحذف أحدهما.',
-		transferUnresolved:
-			'يشير {count|number} صف إلى سجل لا تحتويه أي ورقة، فلا يمكن استيراد شيء من هذا الملف.',
-		transferUnresolvedRow: 'الصف {row|number} في {sheet} يشير إلى {reference}',
-		transferSkippedHeld: '{count|number} موجود هنا أصلاً',
-		transferSkippedIncomplete: '{count|number} تنقصه قيمة مطلوبة',
-		transferSkippedUnreadable: '{count|number} تعذّرت قراءته',
-		transferMore: 'و{count|number} غيرها',
+		transferImportSuccess: 'تم استيراد الملف',
 
 		protectedUpdateBackup: 'نسخة احتياطية محمية',
 		releaseAvailable: 'يتوفر تحديث v{version}.',
@@ -573,7 +578,6 @@ const ar = {
 		hooks: {
 			createSuccess: 'تم إنشاء المستأجر بنجاح!',
 			deleteSuccess: 'تم حذف المستأجر بنجاح!',
-			importSuccess: 'تم استيراد المستأجرين بنجاح!',
 			updateSuccess: 'تم تحديث المستأجر بنجاح!'
 		},
 

@@ -7,6 +7,7 @@ import {
 	isWorkspaceImportable,
 	planWorkspaceImport,
 	toContractReference,
+	toIsoDay,
 	toUnitParts,
 	toUnitReference
 } from './workspace.ts';
@@ -44,6 +45,62 @@ function aWorkspace() {
 function sheetOf(plan, concept) {
 	return plan.sheets.find((sheet) => sheet.concept === concept);
 }
+
+/** the same workspace as the names it would report holding. */
+function heldWorkspace(workspace) {
+	return {
+		tenants: workspace.tenants.map((tenant) => [tenant.nationalId, tenant.phone]),
+		complexes: workspace.complexes.map((complex) => complex.name),
+		units: workspace.units.map((unit) => [unit.complex, unit.name]),
+		contracts: workspace.contracts.map((contract) => contract.reference),
+		payments: workspace.payments.map((payment) => [
+			payment.contract,
+			toIsoDay(payment.date),
+			String(payment.amount)
+		])
+	};
+}
+
+/**
+ * What each directory's own export puts on disk, for the workspace `aWorkspace` describes.
+ *
+ * Restated here rather than read from the four components, which a test running under node cannot
+ * import — the same arrangement the Rust suite's delimited fixture already uses, and for the same
+ * reason: it is the contract between two halves that cannot call each other. The headings are the
+ * half that matters, because they are what the reading side matches on.
+ *
+ * The tab is `Sheet1` throughout, which is what a workbook of one sheet is called by the writer
+ * that made it. Nothing about the name says what the rows are — the directory the file was opened
+ * from is what says that.
+ */
+const DIRECTORY_FILES = {
+	// `complex/component/directory.svelte`
+	complexes: {
+		name: 'Sheet1',
+		headers: ['Name', 'Location', 'Units', 'Occupied Units', 'Vacant Units'],
+		rows: [['Al Nakheel', 'Riyadh', '1', '1', '0']]
+	},
+	// `complex/component/unit-directory.svelte` — the unit's own name under `Name`, where the
+	// workspace's Units sheet says `Unit`.
+	units: {
+		name: 'Sheet1',
+		headers: ['Complex', 'Name', 'Status', 'Tenant'],
+		rows: [['Al Nakheel', 'A1', 'occupied', 'Abby Kris']]
+	},
+	// `contract/component/directory.svelte` — a document rather than a file a contract could be
+	// built from: no interval, no cost, and the tenant by the name a person reads.
+	contracts: {
+		name: 'Sheet1',
+		headers: ['Tenant', 'Government Id', 'Start', 'End', 'Payments', 'Status', 'Paid', 'Expected'],
+		rows: [['Abby Kris', 'GOV-1', '2026-01-01', '2026-12-31', '1', 'active', '1500', '18000']]
+	},
+	// `payment/component/ledger.svelte`
+	payments: {
+		name: 'Sheet1',
+		headers: ['Contract', 'Tenant', 'Payment Date', 'Amount'],
+		rows: [['GOV-1', 'Abby Kris', '2026-01-02', '1500']]
+	}
+};
 
 test('a workspace written to a file plans back as the same records', () => {
 	const workspace = aWorkspace();
@@ -238,6 +295,135 @@ test('a contract with no government number is named by its tenant and the day it
 test('a unit reference splits at the last separator, so a complex may carry one', () => {
 	assert.deepEqual(toUnitParts(toUnitReference('Al Nakheel', 'A1')), ['Al Nakheel', 'A1']);
 	assert.deepEqual(toUnitParts('North / South / A1'), ['North / South', 'A1']);
+});
+
+// a directory is the same transfer scoped to one concept. What follows is that scope: the file
+// each directory writes coming back into it, the reference a row makes being resolved, and a row
+// that names nothing costing the row rather than the file.
+
+test('the file each directory exports imports back into it, changing nothing', () => {
+	const workspace = aWorkspace();
+	const held = heldWorkspace(workspace);
+
+	for (const [concept, table] of Object.entries(DIRECTORY_FILES)) {
+		const plan = planWorkspaceImport([table], held, [concept]);
+		const sheet = sheetOf(plan, concept);
+
+		// the file is read — its rows are recognised as records, and as records already here.
+		assert.equal(sheet.present, true, concept);
+		assert.equal(sheet.unreadable, false, concept);
+		assert.deepEqual(sheet.collisions, [], concept);
+		assert.deepEqual(plan.unresolved, [], concept);
+		assert.equal(
+			sheet.rejected.every((rejection) => rejection.reason === 'duplicate-of-existing'),
+			true,
+			concept
+		);
+
+		// and it would do nothing, which is the whole criterion: an export of a list can never
+		// quietly double it.
+		assert.equal(sheet.create, 0, concept);
+		assert.equal(isWorkspaceImportable(plan), false, concept);
+	}
+});
+
+// the contracts directory writes a document for a person: it carries the figures that were on the
+// row and not the fields a contract is made of. It still has to be able to say which contracts it
+// is about, which is what separates a file that cannot be read from one that cannot be built from.
+test('a file missing a column a record is built from still says which records it holds', () => {
+	const workspace = aWorkspace();
+	const plan = planWorkspaceImport([DIRECTORY_FILES.contracts], heldWorkspace(workspace), [
+		'contracts'
+	]);
+	const sheet = sheetOf(plan, 'contracts');
+
+	assert.deepEqual(sheet.missingColumns, ['Interval', 'Cost']);
+	assert.equal(sheet.unreadable, false);
+	assert.equal(sheet.rejected[0].reason, 'duplicate-of-existing');
+});
+
+test('a directory reports its own concept and is not asked about the other four', () => {
+	const plan = planWorkspaceImport([DIRECTORY_FILES.complexes], emptyHeld(), ['complexes']);
+
+	assert.deepEqual(
+		plan.sheets.map((sheet) => sheet.concept),
+		['complexes']
+	);
+	assert.equal(plan.transfer.complexes.length, 1);
+});
+
+// the criterion: the row is turned away naming what it could not find, and the rest of the file
+// still goes in. A file of one concept holds nothing that could have depended on the dropped row,
+// which is what separates it from a workspace file — there, the same reference refuses the lot.
+test('a row naming a record the workspace does not hold is turned away, and the rest imports', () => {
+	const plan = planWorkspaceImport(
+		[
+			{
+				...DIRECTORY_FILES.units,
+				rows: [
+					['Al Nakheel', 'A2', 'vacant', ''],
+					['Palm Court', 'B1', 'vacant', '']
+				]
+			}
+		],
+		{ ...emptyHeld(), complexes: ['Al Nakheel'] },
+		['units']
+	);
+
+	assert.deepEqual(plan.unresolved, [{ concept: 'units', row: 3, reference: 'Palm Court' }]);
+	assert.equal(plan.refusedWhole, false);
+	assert.ok(isWorkspaceImportable(plan));
+	assert.deepEqual(plan.transfer.units, [{ complex: 'Al Nakheel', name: 'A2', status: 'vacant' }]);
+});
+
+// AC5, made observable: the workspace's Units sheet and the units directory's own file spell the
+// unit's name under different headings, and one declaration reads both into the same records.
+test('a sheet of the workspace file and a directory file of the same concept read alike', () => {
+	const held = { ...emptyHeld(), complexes: ['Al Nakheel'] };
+	const fromSheet = planWorkspaceImport(
+		[
+			{
+				name: 'Units',
+				headers: ['Complex', 'Unit', 'Status'],
+				rows: [['Al Nakheel', 'A2', 'vacant']]
+			}
+		],
+		held,
+		['units']
+	);
+	const fromDirectory = planWorkspaceImport(
+		[{ ...DIRECTORY_FILES.units, rows: [['Al Nakheel', 'A2', 'vacant', '']] }],
+		held,
+		['units']
+	);
+
+	assert.deepEqual(fromSheet.transfer.units, fromDirectory.transfer.units);
+	assert.equal(fromDirectory.transfer.units.length, 1);
+});
+
+// a directory's file is one table whose tab was named by whatever wrote it. Read for one concept
+// that is the sheet; read for a workspace it is a tab nothing recognises, which is what keeps a
+// list's export from being mistaken for a workspace.
+test('a single table is the sheet a directory asked for, and no sheet of a workspace', () => {
+	const held = { ...emptyHeld(), complexes: ['Al Nakheel'] };
+	const asDirectory = planWorkspaceImport([DIRECTORY_FILES.complexes], held, ['complexes']);
+	const asWorkspace = planWorkspaceImport([DIRECTORY_FILES.complexes], held);
+
+	assert.equal(sheetOf(asDirectory, 'complexes').present, true);
+	assert.ok(asWorkspace.sheets.every((sheet) => !sheet.present));
+});
+
+// and a tab that does name its concept is still read by that name, even alone: a delimited file
+// carries the name the reader gave it, and `complexes.csv` says what it is.
+test('a table named after its concept is read by that name', () => {
+	const plan = planWorkspaceImport(
+		[{ ...DIRECTORY_FILES.complexes, name: 'complexes' }],
+		emptyHeld(),
+		['complexes']
+	);
+
+	assert.equal(sheetOf(plan, 'complexes').present, true);
+	assert.equal(plan.transfer.complexes.length, 1);
 });
 
 test('a file with no sheet this recognises has nothing to import', () => {
