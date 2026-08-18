@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { isFilterPeriod, type FilterPeriod } from '$lib/api/period';
 	import * as Cell from '$lib/design/cell';
+	import { PERIOD_FILTER, toFilterOptions } from '$lib/design/filter';
+	import { Button } from '$lib/design/primitive/button';
+	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
 	import * as Empty from '$lib/design/primitive/empty';
 	import { Spinner } from '$lib/design/primitive/spinner';
 	import { toDashboardSections } from '$lib/dashboard/dashboard';
@@ -8,6 +12,8 @@
 	import DashboardSectionCard from '$lib/dashboard/component/section.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleRangeWithUnit } from '$lib/platform/locale';
+	import CheckIcon from '@tabler/icons-svelte/icons/check';
+	import ChevronDownIcon from '@tabler/icons-svelte/icons/chevron-down';
 	import CoinIcon from '@tabler/icons-svelte/icons/coin';
 
 	/**
@@ -19,10 +25,22 @@
 	 * from this screen for going unread; anything added here that neither opens a page nor lists
 	 * records is the beginning of that happening again.
 	 */
-	const workQueueQuery = useFetchContractWorkQueue();
+	// the period the money figures answer about. It opens on the current month, which is what
+	// this band could say and nothing else before it took one.
+	let period = $state<FilterPeriod>('this-month');
+
+	const workQueueQuery = useFetchContractWorkQueue(() => period);
 	const workQueue = $derived(workQueueQuery.data);
 
 	const money = $derived(workQueue?.summary.money);
+
+	// the vocabulary a list offers, read through the same declaration rather than restated here.
+	// The screen that has to agree with this one is a list, and a second table of periods beside
+	// this one is how two surfaces come to mean different things by the same word.
+	const periodOptions = $derived(toFilterOptions(PERIOD_FILTER));
+	const periodLabel = $derived(
+		periodOptions.find((option) => option.id === period)?.label($LL) ?? ''
+	);
 	const occupancy = $derived(workQueue?.summary.occupancy);
 	const ranks = $derived(workQueue?.ranks ?? []);
 
@@ -64,29 +82,66 @@
 	<div
 		class="-mx-5 -mt-5 grid gap-3 bg-background px-5 pt-5 pb-3 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2 sm:sticky sm:top-0 sm:z-10 sm:grid-cols-2 shell:grid-cols-3"
 	>
-		<a
-			href={resolve('/contracts')}
-			class="flex items-center justify-around gap-4 rounded-2xl bg-card p-4 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5"
-		>
-			<span class="flex flex-col items-center gap-2">
-				<Cell.Ring
-					size="hero"
-					value={money?.collectedThisMonth ?? 0}
-					total={money?.dueThisMonth ?? 0}
-				/>
-				<span class="text-center text-xs text-muted-foreground">
-					{$LL.dashboard.figures.collectedThisMonth()}
+		<!-- the money card carries the control, because the period is what its two figures mean and
+		     nothing else on the band answers about time. It sits outside the link rather than
+		     inside it: a button within an anchor is not a thing a browser can be asked to render,
+		     and pressing one would follow the link on the way past. -->
+		<div class="flex flex-col gap-2 rounded-2xl bg-card p-4 sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<span class="truncate text-xs text-muted-foreground">
+					{$LL.dashboard.figures.collected()}
 				</span>
-			</span>
-			<span class="flex min-w-0 flex-col gap-1 text-start">
-				<span class="truncate text-sm font-semibold tabular-nums">
-					<Cell.Money amount={money?.collectedThisMonth ?? 0} />
+
+				<!-- the chosen period is on the control, not behind it: every figure beside it is a
+				     number without a span of time attached, and a band that does not say which span
+				     is a band that can be read wrong without looking wrong. -->
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger>
+						{#snippet child({ props })}
+							<Button {...props} variant="ghost" size="sm" class="h-6 gap-1 px-2 text-xs">
+								<span class="capitalize">{periodLabel}</span>
+								<ChevronDownIcon class="size-3" />
+							</Button>
+						{/snippet}
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content align="end">
+						<DropdownMenu.Label class="capitalize">
+							{PERIOD_FILTER.label($LL)}
+						</DropdownMenu.Label>
+						<DropdownMenu.Separator />
+						{#each periodOptions as option (option.id)}
+							<DropdownMenu.Item
+								onSelect={() => {
+									if (isFilterPeriod(option.id)) {
+										period = option.id;
+									}
+								}}
+							>
+								<span class="flex-1 capitalize">{option.label($LL)}</span>
+								{#if option.id === period}
+									<CheckIcon class="size-3.5" />
+								{/if}
+							</DropdownMenu.Item>
+						{/each}
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
+			</div>
+
+			<a
+				href={resolve('/contracts')}
+				class="-m-1 flex items-center justify-around gap-4 rounded-xl p-1 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+			>
+				<Cell.Ring size="hero" value={money?.collected ?? 0} total={money?.due ?? 0} />
+				<span class="flex min-w-0 flex-col gap-1 text-start">
+					<span class="truncate text-sm font-semibold tabular-nums">
+						<Cell.Money amount={money?.collected ?? 0} />
+					</span>
+					<span class="truncate text-xs text-muted-foreground tabular-nums">
+						<Cell.Money amount={money?.due ?? 0} />
+					</span>
 				</span>
-				<span class="truncate text-xs text-muted-foreground tabular-nums">
-					<Cell.Money amount={money?.dueThisMonth ?? 0} />
-				</span>
-			</span>
-		</a>
+			</a>
+		</div>
 
 		<a
 			href={resolve('/complexes')}

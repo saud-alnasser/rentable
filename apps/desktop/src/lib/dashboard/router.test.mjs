@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { createApi, monthsFromNow, seedTenant } from '$lib/api/testing.mjs';
+import { NOW, createApi, monthsFromNow, seedTenant } from '$lib/api/testing.mjs';
 
 import { DASHBOARD_ENTRIES_PER_RANK } from './dashboard.ts';
 
@@ -221,10 +221,7 @@ test('the strip carries exactly two figures and no timestamp', async () => {
 	const dashboard = await api.contract.dashboard();
 
 	assert.deepEqual(Object.keys(dashboard.summary).sort(), ['money', 'occupancy']);
-	assert.deepEqual(Object.keys(dashboard.summary.money).sort(), [
-		'collectedThisMonth',
-		'dueThisMonth'
-	]);
+	assert.deepEqual(Object.keys(dashboard.summary.money).sort(), ['collected', 'due']);
 	assert.deepEqual(Object.keys(dashboard.summary.occupancy).sort(), [
 		'occupiedUnits',
 		'totalUnits'
@@ -240,7 +237,7 @@ test('the two strip figures are pinned', async () => {
 
 	// due: only A has a cycle falling due this month (its start). collected: every payment
 	// dated inside the month, which is the three dated today (250 + 500 + 0).
-	assert.deepEqual(summary.money, { dueThisMonth: 1000, collectedThisMonth: 750 });
+	assert.deepEqual(summary.money, { due: 1000, collected: 750 });
 	assert.deepEqual(summary.occupancy, { totalUnits: 3, occupiedUnits: 1 });
 });
 
@@ -278,4 +275,100 @@ test('the read never loads payment rows', () => {
 	assert.doesNotMatch(source, /from '\$lib\/payment\/payment'/);
 	assert.doesNotMatch(source, /getOutstandingExpectedAmount/);
 	assert.match(source, /sum\(\$\{s\.payment\.amount\}\)/);
+});
+
+/**
+ * The days a period covers, computed from the harness's fixed clock the same way the routers
+ * compute them — so a test says *the first of last month* rather than a literal date that is
+ * only correct on the day it was written.
+ */
+function dayOf(monthOffset, day) {
+	const base = new Date(NOW);
+
+	return Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + monthOffset, day);
+}
+
+/** A contract with room for the payments a period test puts against it. */
+async function seedPayableContract(api) {
+	const tenant = await seedTenant(api);
+
+	return api.contract.create({
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 100000
+	});
+}
+
+test('the money figures can be asked about a period other than the current month', async () => {
+	const api = await createApi();
+	const contract = await seedPayableContract(api);
+
+	await api.contract.payments.create({ contractId: contract.id, date: dayOf(-1, 2), amount: 300 });
+	await api.contract.payments.create({ contractId: contract.id, date: dayOf(0, 2), amount: 500 });
+
+	const thisMonth = await api.contract.dashboard({ period: 'this-month' });
+	const lastMonth = await api.contract.dashboard({ period: 'last-month' });
+
+	assert.equal(thisMonth.summary.money.collected, 500);
+	assert.equal(lastMonth.summary.money.collected, 300);
+});
+
+test('asking for nothing is asking about the current month, as it always was', async () => {
+	const api = await createApi();
+	const contract = await seedPayableContract(api);
+
+	await api.contract.payments.create({ contractId: contract.id, date: dayOf(-1, 3), amount: 300 });
+	await api.contract.payments.create({ contractId: contract.id, date: dayOf(0, 3), amount: 500 });
+
+	const unasked = await api.contract.dashboard();
+	const asked = await api.contract.dashboard({ period: 'this-month' });
+
+	assert.deepEqual(unasked.summary.money, asked.summary.money);
+});
+
+// the criterion, and the reason this ticket is separate from the one that built the vocabulary:
+// each surface accepting a period proves nothing on its own. The two are read by two different
+// routers and they have to answer with the same money.
+test('the landing figure and the ledger report the same money over one period', async () => {
+	const api = await createApi();
+	const contract = await seedPayableContract(api);
+
+	// two inside last month and one outside it, so agreeing on a total is not agreeing on
+	// everything that exists.
+	await api.contract.payments.create({ contractId: contract.id, date: dayOf(-1, 4), amount: 120 });
+	await api.contract.payments.create({ contractId: contract.id, date: dayOf(-1, 19), amount: 380 });
+	await api.contract.payments.create({ contractId: contract.id, date: dayOf(0, 4), amount: 999 });
+
+	for (const period of ['this-month', 'last-month', 'this-year', 'last-year']) {
+		const { summary } = await api.contract.dashboard({ period });
+		const ledger = await api.contract.payments.getMany({ contractId: contract.id, period });
+		const ledgerTotal = ledger.reduce((sum, payment) => sum + payment.amount, 0);
+
+		assert.equal(summary.money.collected, ledgerTotal, `the two surfaces disagree about ${period}`);
+	}
+});
+
+// the boundary the shared condition exists for: the landing figure used to stop at midnight on
+// the last day of the span, so a payment taken that afternoon was money the ledger listed and
+// the band did not count.
+test('and they agree about a payment made during the last day of the period', async () => {
+	const api = await createApi();
+	const contract = await seedPayableContract(api);
+
+	const lastInstant = dayOf(0, 0) + 17 * 60 * 60 * 1000;
+	await api.contract.payments.create({ contractId: contract.id, date: lastInstant, amount: 640 });
+
+	const { summary } = await api.contract.dashboard({ period: 'last-month' });
+	const ledger = await api.contract.payments.getMany({
+		contractId: contract.id,
+		period: 'last-month'
+	});
+
+	assert.equal(summary.money.collected, 640);
+	assert.deepEqual(
+		ledger.map((payment) => payment.amount),
+		[640]
+	);
 });

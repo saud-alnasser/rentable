@@ -1,6 +1,6 @@
-import { addUtcDays } from '$lib/api/date';
-import { FILTER_PERIODS, toPeriodRange } from '$lib/api/period';
+import { FILTER_PERIODS } from '$lib/api/period';
 import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
+import { isPaymentWithinPeriod } from '$lib/payment/period';
 import { ensureIdFree } from '$lib/platform/database/identity';
 import { matchesAnySearch } from '$lib/platform/database/search';
 import * as s from '$lib/platform/database/schema';
@@ -13,7 +13,7 @@ import {
 import { reconcileTouched } from '$lib/contract/reconcile';
 import { ensurePaymentIsNotInTheFuture, ensureValidPaymentAmount } from '$lib/payment/payment';
 import { TRPCError } from '@trpc/server';
-import { and, desc, eq, gte, lt, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { and, desc, eq, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
 /**
@@ -130,9 +130,6 @@ export default router({
 		)
 		.query(async ({ input, ctx }) => {
 			const search = input.search?.trim();
-			// resolved against the clock on the context rather than the machine's, so a test can
-			// ask what *last month* means on a chosen day.
-			const period = input.period ? toPeriodRange(input.period, ctx.clock.now()) : undefined;
 			const payments = await ctx.db
 				.select()
 				.from(s.payment)
@@ -140,11 +137,10 @@ export default router({
 					and(
 						eq(s.payment.contractId, input.contractId),
 						search ? matchesAnySearch(PAYMENT_SEARCH_COLUMNS, search) : undefined,
-						// half-open at the top: a period's end is a whole day, and a payment is stored
-						// with whatever time of day it was given, so `<= end` would drop every payment
-						// made after midnight on the last day of the span.
-						period ? gte(s.payment.date, period.start) : undefined,
-						period ? lt(s.payment.date, addUtcDays(period.end, 1)) : undefined
+						// the same condition the landing screen's collected figure is read with, which
+						// is what makes the two agree rather than merely intend to. The clock comes
+						// from the context, so a test can ask what *last month* means on a chosen day.
+						input.period ? isPaymentWithinPeriod(input.period, ctx.clock.now()) : undefined
 					)
 				)
 				// a statement reads newest first, and two payments made on one day are told apart
