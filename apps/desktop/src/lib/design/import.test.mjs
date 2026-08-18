@@ -83,6 +83,37 @@ test('a file missing a column it needs is refused as a file, not row by row', ()
 	assert.equal(isImportable(plan), false);
 });
 
+// the other half of that rule, and the one that lets a file written for a person come back. A
+// column a record is only *built* from leaves the file readable: it can still say which records
+// it is about, and it is the rows rather than the file that cannot be acted on.
+test('a file missing only a column a record is built from is still read', () => {
+	const plan = planImport(
+		fields,
+		table([['1234567890', '+966512345678']], ['national id', 'phone']),
+		validate
+	);
+
+	assert.deepEqual(plan.missingColumns, ['name']);
+	assert.equal(plan.isUnreadable, false);
+	assert.deepEqual(plan.rejected, [{ row: 2, reason: 'missing-value', detail: 'name' }]);
+	assert.equal(isImportable(plan), false);
+});
+
+// and a row that names a record already here is answered before the file is asked whether it
+// could build one: nothing is going to be created from it, so what else it says decides nothing.
+test('a row already here is recognised even where the file could build nothing', () => {
+	const plan = planImport(
+		fields,
+		table([['1234567890', '+966512345678']], ['national id', 'phone']),
+		validate,
+		new Set([toImportIdentity(['1234567890', '+966512345678'])])
+	);
+
+	assert.deepEqual(plan.rejected, [
+		{ row: 2, reason: 'duplicate-of-existing', detail: '1234567890' }
+	]);
+});
+
 test('a row missing a value is rejected and named, and the rest still go in', () => {
 	const plan = planImport(
 		fields,

@@ -26,12 +26,16 @@
 	/**
 	 * Reading a whole workspace out of one file: choose it, see what each sheet would do, agree.
 	 *
-	 * The directory dialog's shape, one row per concept rather than one panel — a workspace file
-	 * is five tables and a single figure over all of them would hide which one is empty. What is
-	 * different is the refusal: a directory turns away a bad row and imports the rest, and here a
-	 * reference nothing answers to refuses the whole file. The row it named is what another row
-	 * exists for, and writing the half that resolved would build a workspace the file never
-	 * described.
+	 * **A line per sheet**, which is what a workspace file needs and a directory's does not: five
+	 * tables under one figure would hide which of them is empty. A directory reads one concept and
+	 * has its own dialog for it — `directory-import-dialog.svelte` — because a panel repeating a
+	 * concept's name back at a reader standing on that concept's list is this shape worn by
+	 * something that has one row in it.
+	 *
+	 * The two also differ in what a reference nothing answers to costs. Here it refuses the whole
+	 * file: the row it named is what another row exists for, and writing the half that resolved
+	 * would build a workspace the file never described. In a file of one concept nothing can
+	 * depend on the dropped row, so the row is turned away and the rest still goes in.
 	 */
 	let {
 		open = $bindable(false),
@@ -47,13 +51,17 @@
 	let plan = $state<WorkspacePlan | null>(null);
 	let fileName = $state('');
 
-	// the file is at fault rather than any row in it: a sheet missing a heading, two of its rows
-	// claiming one record, or a row naming something nothing answers to. Nothing in it can be
-	// read, so what each sheet would have done is moot.
+	// the file is at fault rather than any row in it: a sheet with no column to tell its rows
+	// apart, two rows claiming one record, or — across several sheets — a row naming something
+	// nothing answers to. Nothing in it can be read, so what each sheet would have done is moot.
+	//
+	// A sheet merely missing a column a record is *built* from is not one of these. It can still
+	// say which records it is about, which is what a directory's own export coming back is, and
+	// the summary below is exactly what that reader needs to see.
 	const isFileRefused = $derived(
 		plan !== null &&
-			(plan.unresolved.length > 0 ||
-				plan.sheets.some((sheet) => sheet.missingColumns.length > 0 || sheet.collisions.length > 0))
+			(plan.refusedWhole ||
+				plan.sheets.some((sheet) => sheet.unreadable || sheet.collisions.length > 0))
 	);
 	const offersImport = $derived(plan !== null && isWorkspaceImportable(plan));
 	const canConfirm = $derived(offersImport && !isWriting);
@@ -92,11 +100,11 @@
 	function toSkipLabel(skip: { reason: ImportRejection['reason']; count: number }) {
 		switch (skip.reason) {
 			case 'duplicate-of-existing':
-				return $LL.settings.transferSkippedHeld({ count: skip.count });
+				return $LL.common.import.skippedHeld({ count: skip.count });
 			case 'missing-value':
-				return $LL.settings.transferSkippedIncomplete({ count: skip.count });
+				return $LL.common.import.skippedIncomplete({ count: skip.count });
 			default:
-				return $LL.settings.transferSkippedUnreadable({ count: skip.count });
+				return $LL.common.import.skippedUnreadable({ count: skip.count });
 		}
 	}
 
@@ -123,7 +131,9 @@
 			case 'missing-value':
 				return $LL.common.import.reasons.missingValue({ detail: rejection.detail });
 			default:
-				return rejection.detail;
+				// what a concept refuses a row for is the value it could not read, not a sentence: the
+				// declaration is one for both languages and cannot compose one. The sentence is here.
+				return $LL.common.import.reasons.invalid({ detail: rejection.detail });
 		}
 	}
 
@@ -196,14 +206,24 @@
 		     scrolls as one, holding a summary rather than a transcript, is what fixes both. -->
 		<div class="flex min-h-0 flex-col gap-4 overflow-y-auto px-6 py-5">
 			{#if plan}
+				<!-- a column absent, said two ways because it costs two different things. Where the
+				     column is one a row is identified by, the file cannot be read and that is the
+				     whole answer. Where it is one a record is only *built* from, the file can still
+				     say which records it is about — which is what a directory's own export is coming
+				     back — so it is a caution over a summary rather than a refusal instead of one. -->
 				{#each plan.sheets.filter((sheet) => sheet.missingColumns.length > 0) as sheet (sheet.concept)}
-					<Callout variant="error" class="flex items-start gap-3">
+					<Callout variant={sheet.unreadable ? 'error' : 'warning'} class="flex items-start gap-3">
 						<Columns3Icon class="mt-0.5 size-4 shrink-0" />
 						<span class="min-w-0">
-							{$LL.settings.transferSheetMissingColumns({
-								sheet: toConceptName(sheet.concept),
-								columns: sheet.missingColumns.join(', ')
-							})}
+							{sheet.unreadable
+								? $LL.common.import.sheetMissingColumns({
+										sheet: toConceptName(sheet.concept),
+										columns: sheet.missingColumns.join(', ')
+									})
+								: $LL.common.import.sheetIncompleteColumns({
+										sheet: toConceptName(sheet.concept),
+										columns: sheet.missingColumns.join(', ')
+									})}
 						</span>
 					</Callout>
 				{/each}
@@ -217,7 +237,7 @@
 						<Callout variant="error" class="flex items-start gap-3">
 							<CopyXIcon class="mt-0.5 size-4 shrink-0" />
 							<span class="min-w-0">
-								{$LL.settings.transferSheetCollision({
+								{$LL.common.import.sheetCollision({
 									sheet: toConceptName(sheet.concept),
 									rows: collision.rows.join(', '),
 									identity: collision.identity
@@ -228,27 +248,29 @@
 
 					{#if sheet.collisions.length > NAMED_ROWS}
 						<p class="text-xs text-muted-foreground">
-							{$LL.settings.transferMore({ count: sheet.collisions.length - NAMED_ROWS })}
+							{$LL.common.import.more({ count: sheet.collisions.length - NAMED_ROWS })}
 						</p>
 					{/if}
 				{/each}
 
 				{#if plan.unresolved.length > 0}
-					<!-- the criterion: a reference nothing answers to names its sheet and its row, and
-					     the file is refused whole before anything is written. Only the first few are
-					     listed — one broken reference is usually a hundred, and a dialog that scrolls
-					     for a page says no more than one that names the first of them. -->
+					<!-- the criterion: a reference nothing answers to names its sheet and its row, and the
+					     file is refused whole before anything is written — these sheets depend on each
+					     other, and a workspace assembled out of the half that resolved is one the file never
+					     described. Only the first few rows are listed: one broken reference is usually a
+					     hundred, and a dialog that scrolls for a page says no more than one that names the
+					     first of them. -->
 					<Callout variant="error" class="flex flex-col gap-2">
 						<span class="flex items-start gap-3">
 							<UnlinkIcon class="mt-0.5 size-4 shrink-0" />
 							<span class="min-w-0">
-								{$LL.settings.transferUnresolved({ count: plan.unresolved.length })}
+								{$LL.common.import.unresolvedRefused({ count: plan.unresolved.length })}
 							</span>
 						</span>
 						<ul class="flex flex-col gap-1 ps-7 text-xs">
 							{#each plan.unresolved.slice(0, NAMED_ROWS) as reference (`${reference.concept}-${reference.row}-${reference.reference}`)}
 								<li>
-									{$LL.settings.transferUnresolvedRow({
+									{$LL.common.import.unresolvedRow({
 										sheet: toConceptName(reference.concept),
 										row: reference.row,
 										reference: reference.reference
@@ -256,7 +278,7 @@
 								</li>
 							{/each}
 							{#if plan.unresolved.length > NAMED_ROWS}
-								<li>{$LL.settings.transferMore({ count: plan.unresolved.length - NAMED_ROWS })}</li>
+								<li>{$LL.common.import.more({ count: plan.unresolved.length - NAMED_ROWS })}</li>
 							{/if}
 						</ul>
 					</Callout>
@@ -315,7 +337,7 @@
 											{/each}
 											{#if toNameable(sheet).length > named.length}
 												<li>
-													{$LL.settings.transferMore({
+													{$LL.common.import.more({
 														count: toNameable(sheet).length - named.length
 													})}
 												</li>
@@ -329,7 +351,7 @@
 						{#if !offersImport}
 							<p class="border-t border-background/60 p-4 text-sm text-muted-foreground">
 								{countTransfer(plan.transfer) === 0 && shown.length === 0
-									? $LL.settings.transferNoSheets()
+									? $LL.common.import.noSheets()
 									: $LL.common.import.nothingToCreate()}
 							</p>
 						{/if}

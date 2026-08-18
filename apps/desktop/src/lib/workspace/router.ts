@@ -404,8 +404,18 @@ export default router({
 			// contracts make it. Recomputed here rather than trusted from a column anyone could
 			// have edited, and scoped to what was written — which is what [[rules/data]], under
 			// *Reconcile scope*, asks of a mutation.
+			//
+			// The touch-set is every contract this write reached, not only the ones it created: a
+			// payment resolves against a contract already here as readily as against one two
+			// statements above it, and a file that only adds payments creates no contract at all.
+			// Scoped to the created rows alone, a ledger read back into a contract would move its
+			// money and leave its paid amount and its status saying otherwise. The units follow
+			// from the contracts, which the pass closes over on its own.
 			await reconcileTouched(ctx.db, now, {
-				contractIds: contractRows.map((row) => row.id),
+				contractIds: [
+					...contractRows.map((row) => row.id),
+					...paymentRows.map((row) => row.contractId)
+				],
 				unitIds: unitRows.map((row) => row.id)
 			});
 

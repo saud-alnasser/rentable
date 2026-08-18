@@ -3,26 +3,13 @@ import test from 'node:test';
 
 import { createApi, monthsFromNow } from '$lib/api/testing.mjs';
 import { toTables } from './file.mjs';
-import { emptyHeld, isWorkspaceImportable, planWorkspaceImport } from './workspace.ts';
-
-/** what a transfer carries into the write: only what a record actually holds. */
-function toInput(transfer) {
-	return {
-		tenants: transfer.tenants,
-		complexes: transfer.complexes,
-		units: transfer.units.map((unit) => ({ complex: unit.complex, name: unit.name })),
-		contracts: transfer.contracts.map((contract) => ({
-			reference: contract.reference,
-			tenant: contract.tenant,
-			units: contract.units,
-			start: contract.start,
-			end: contract.end,
-			interval: contract.interval,
-			cost: contract.cost
-		})),
-		payments: transfer.payments
-	};
-}
+import {
+	emptyHeld,
+	isWorkspaceImportable,
+	planWorkspaceImport,
+	toIsoDay,
+	toTransferInput as toInput
+} from './workspace.ts';
 
 /**
  * A workspace built through the ordinary procedures: a tenant, a complex with a unit, a
@@ -162,6 +149,30 @@ test('a duplicate identity refuses the whole write, creating nothing', async () 
 	assert.deepEqual(await api.workspace.get(), before);
 });
 
+// a tenant is unique on two columns, and the second one is the quiet half: a file whose rows are
+// all new by national id can still carry a phone number somebody already has. Carried over from
+// the tenant-only import this replaced, which asserted both.
+test('a phone another tenant already holds refuses the write the same way', async () => {
+	const api = await createApi();
+
+	await seedWorkspace(api);
+
+	const before = await api.workspace.get();
+
+	await assert.rejects(
+		api.workspace.importWhole({
+			tenants: [{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966512345678' }],
+			complexes: [],
+			units: [],
+			contracts: [],
+			payments: []
+		}),
+		/phone|UNIQUE/i
+	);
+
+	assert.deepEqual(await api.workspace.get(), before);
+});
+
 test('what the workspace holds is reported by the names a file uses', async () => {
 	const api = await createApi();
 
@@ -189,4 +200,41 @@ test('a file read into a workspace that already holds its records adds nothing',
 	// every row of it is already here, so there is nothing to agree to — which is what stops a
 	// reader importing the same file twice and doubling their workspace.
 	assert.equal(isWorkspaceImportable(plan), false);
+});
+
+// a directory writes into a workspace that is mostly already there, which is what makes the
+// touch-set a different question than it was for a workspace read into an empty machine: a file
+// of payments creates no contract at all, and the contract it moves is one that was already here.
+test('payments read into a ledger move the contract they are against', async () => {
+	const api = await createApi();
+
+	await seedWorkspace(api);
+
+	const [before] = await api.contract.getMany({});
+
+	assert.equal(before.paidAmount, 1500);
+
+	const plan = planWorkspaceImport(
+		[
+			{
+				name: 'Sheet1',
+				headers: ['Contract', 'Tenant', 'Payment Date', 'Amount'],
+				rows: [['GOV-1', 'Abby Kris', toIsoDay(monthsFromNow(1)), '2500']]
+			}
+		],
+		await api.workspace.held(),
+		['payments']
+	);
+
+	assert.ok(isWorkspaceImportable(plan));
+
+	await api.workspace.importWhole(toInput(plan.transfer));
+
+	const [after] = await api.contract.getMany({});
+
+	// the criterion behind the criterion: the money moved *and* the derived column that reports it
+	// moved with it. Reconciled over the contracts the payments named rather than over the ones
+	// the write created, of which there were none.
+	assert.equal(after.paidAmount, 4000);
+	assert.equal(after.paymentCount, 2);
 });

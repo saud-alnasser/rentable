@@ -21,6 +21,9 @@
 	import { toast } from 'svelte-sonner';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { toNarrowedName } from '$lib/design/csv';
+	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
+	import { useImportRecords } from '$lib/workspace/query';
+	import { toTransferInput } from '$lib/workspace/workspace';
 	import ContractActions from './actions.svelte';
 	import ContractRecord from './record.svelte';
 
@@ -35,6 +38,9 @@
 	let filters = $state<FilterSelection>({});
 	let selected = $state<number[]>([]);
 	let isTerminateManyOpen = $state(false);
+	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
+
+	const importMutation = useImportRecords();
 
 	const rank = $derived(toChosenRank(filters));
 
@@ -177,6 +183,7 @@
 					}
 				]
 			}}
+			onImport={() => void importDialog?.choose()}
 			onCreate={contractActions.create}
 		>
 			{#snippet record(contract: ContractRow)}
@@ -199,4 +206,21 @@
 	confirmLabel={$LL.common.actions.terminate()}
 	confirmLoadingLabel={$LL.common.actions.terminating()}
 	onSubmit={terminateSelection}
+/>
+
+<!-- a file of contracts, coming in. A contract points at more than any other record here — its
+     tenant, and every unit it holds — and each is named rather than numbered, so each is resolved
+     against the workspace before a single row is written.
+
+     The file this directory writes is a document for a person: it carries the figures that were
+     on the row and not the fields a contract is made of, so it can say which contracts it is
+     about without being able to make one. Read back it reports exactly that, which is the point
+     — an export of this list can never quietly double it. -->
+<DirectoryImportDialog
+	bind:this={importDialog}
+	title={$LL.common.import.title({ record: $LL.common.nav.contracts() })}
+	concept="contracts"
+	onConfirm={async (transfer) => {
+		await importMutation.mutateAsync(toTransferInput(transfer));
+	}}
 />

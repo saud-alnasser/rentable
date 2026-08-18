@@ -400,7 +400,82 @@ type RootTranslation = {
 				 * @param {string} detail
 				 */
 				missingValue: RequiredParams<'detail'>
+				/**
+				 * {​d​e​t​a​i​l​}​ ​c​a​n​n​o​t​ ​b​e​ ​r​e​a​d
+				 * @param {string} detail
+				 */
+				invalid: RequiredParams<'detail'>
+				/**
+				 * n​a​m​e​s​ ​{​d​e​t​a​i​l​}​,​ ​w​h​i​c​h​ ​i​s​ ​n​o​t​ ​h​e​r​e
+				 * @param {string} detail
+				 */
+				unresolved: RequiredParams<'detail'>
 			}
+			/**
+			 * t​h​i​s​ ​f​i​l​e​ ​c​a​r​r​i​e​s​ ​n​o​ ​{​c​o​l​u​m​n​s​}​,​ ​s​o​ ​n​o​ ​r​e​c​o​r​d​ ​c​a​n​ ​b​e​ ​c​r​e​a​t​e​d​ ​f​r​o​m​ ​i​t​ ​—​ ​o​n​l​y​ ​r​e​c​o​g​n​i​s​e​d​ ​a​s​ ​o​n​e​ ​a​l​r​e​a​d​y​ ​h​e​r​e​.
+			 * @param {string} columns
+			 */
+			incompleteColumns: RequiredParams<'columns'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​n​a​m​i​n​g​ ​a​ ​r​e​c​o​r​d​ ​t​h​a​t​ ​i​s​ ​n​o​t​ ​h​e​r​e
+			 * @param {unknown} count
+			 */
+			skippedUnresolved: RequiredParams<'count|number'>
+			/**
+			 * t​h​i​s​ ​f​i​l​e​ ​h​o​l​d​s​ ​n​o​ ​s​h​e​e​t​ ​t​h​i​s​ ​r​e​c​o​g​n​i​s​e​s​,​ ​s​o​ ​t​h​e​r​e​ ​i​s​ ​n​o​t​h​i​n​g​ ​t​o​ ​i​m​p​o​r​t​.
+			 */
+			noSheets: string
+			/**
+			 * t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​ ​i​s​ ​m​i​s​s​i​n​g​ ​t​h​e​ ​c​o​l​u​m​n​(​s​)​:​ ​{​c​o​l​u​m​n​s​}​.​ ​n​o​t​h​i​n​g​ ​c​a​n​ ​b​e​ ​r​e​a​d​ ​f​r​o​m​ ​t​h​i​s​ ​f​i​l​e​.
+			 * @param {string} columns
+			 * @param {string} sheet
+			 */
+			sheetMissingColumns: RequiredParams<'columns' | 'sheet'>
+			/**
+			 * t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​ ​c​a​r​r​i​e​s​ ​n​o​ ​{​c​o​l​u​m​n​s​}​,​ ​s​o​ ​n​o​ ​r​e​c​o​r​d​ ​c​a​n​ ​b​e​ ​c​r​e​a​t​e​d​ ​f​r​o​m​ ​i​t​ ​—​ ​o​n​l​y​ ​r​e​c​o​g​n​i​s​e​d​ ​a​s​ ​o​n​e​ ​a​l​r​e​a​d​y​ ​h​e​r​e​.
+			 * @param {string} columns
+			 * @param {string} sheet
+			 */
+			sheetIncompleteColumns: RequiredParams<'columns' | 'sheet'>
+			/**
+			 * i​n​ ​t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​,​ ​r​o​w​s​ ​{​r​o​w​s​}​ ​b​o​t​h​ ​c​l​a​i​m​ ​{​i​d​e​n​t​i​t​y​}​.​ ​n​o​t​h​i​n​g​ ​w​i​l​l​ ​b​e​ ​i​m​p​o​r​t​e​d​ ​u​n​t​i​l​ ​o​n​e​ ​o​f​ ​t​h​e​m​ ​g​o​e​s​.
+			 * @param {string} identity
+			 * @param {string} rows
+			 * @param {string} sheet
+			 */
+			sheetCollision: RequiredParams<'identity' | 'rows' | 'sheet'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​o​w​(​s​)​ ​n​a​m​e​ ​a​ ​r​e​c​o​r​d​ ​n​o​ ​s​h​e​e​t​ ​h​o​l​d​s​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​i​n​ ​t​h​i​s​ ​f​i​l​e​ ​c​a​n​ ​b​e​ ​i​m​p​o​r​t​e​d​.
+			 * @param {unknown} count
+			 */
+			unresolvedRefused: RequiredParams<'count|number'>
+			/**
+			 * {​s​h​e​e​t​}​ ​r​o​w​ ​{​r​o​w​|​n​u​m​b​e​r​}​ ​n​a​m​e​s​ ​{​r​e​f​e​r​e​n​c​e​}
+			 * @param {string} reference
+			 * @param {unknown} row
+			 * @param {string} sheet
+			 */
+			unresolvedRow: RequiredParams<'reference' | 'row|number' | 'sheet'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​l​r​e​a​d​y​ ​h​e​r​e
+			 * @param {unknown} count
+			 */
+			skippedHeld: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​m​i​s​s​i​n​g​ ​a​ ​r​e​q​u​i​r​e​d​ ​v​a​l​u​e
+			 * @param {unknown} count
+			 */
+			skippedIncomplete: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​r​e​a​d
+			 * @param {unknown} count
+			 */
+			skippedUnreadable: RequiredParams<'count|number'>
+			/**
+			 * a​n​d​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​m​o​r​e
+			 * @param {unknown} count
+			 */
+			more: RequiredParams<'count|number'>
 		}
 		history: {
 			actions: {
@@ -905,11 +980,6 @@ type RootTranslation = {
 			 */
 			edited: RequiredParams<'record'>
 			/**
-			 * i​m​p​o​r​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)
-			 * @param {unknown} count
-			 */
-			imported: RequiredParams<'count|number'>
-			/**
 			 * n​o​t​h​i​n​g​ ​t​o​ ​a​p​p​l​y​ ​a​g​a​i​n
 			 */
 			nothingToRedo: string
@@ -1325,58 +1395,9 @@ type RootTranslation = {
 		 */
 		transferImportTitle: string
 		/**
-		 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​w​a​s​ ​i​m​p​o​r​t​e​d
+		 * t​h​e​ ​f​i​l​e​ ​w​a​s​ ​i​m​p​o​r​t​e​d
 		 */
 		transferImportSuccess: string
-		/**
-		 * t​h​i​s​ ​f​i​l​e​ ​h​o​l​d​s​ ​n​o​ ​s​h​e​e​t​ ​t​h​i​s​ ​r​e​c​o​g​n​i​s​e​s​,​ ​s​o​ ​t​h​e​r​e​ ​i​s​ ​n​o​t​h​i​n​g​ ​t​o​ ​i​m​p​o​r​t​.
-		 */
-		transferNoSheets: string
-		/**
-		 * t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​ ​i​s​ ​m​i​s​s​i​n​g​ ​t​h​e​ ​c​o​l​u​m​n​(​s​)​:​ ​{​c​o​l​u​m​n​s​}​.​ ​n​o​t​h​i​n​g​ ​c​a​n​ ​b​e​ ​r​e​a​d​ ​f​r​o​m​ ​t​h​i​s​ ​f​i​l​e​.
-		 * @param {string} columns
-		 * @param {string} sheet
-		 */
-		transferSheetMissingColumns: RequiredParams<'columns' | 'sheet'>
-		/**
-		 * i​n​ ​t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​,​ ​r​o​w​s​ ​{​r​o​w​s​}​ ​b​o​t​h​ ​c​l​a​i​m​ ​{​i​d​e​n​t​i​t​y​}​.​ ​n​o​t​h​i​n​g​ ​w​i​l​l​ ​b​e​ ​i​m​p​o​r​t​e​d​ ​u​n​t​i​l​ ​o​n​e​ ​o​f​ ​t​h​e​m​ ​g​o​e​s​.
-		 * @param {string} identity
-		 * @param {string} rows
-		 * @param {string} sheet
-		 */
-		transferSheetCollision: RequiredParams<'identity' | 'rows' | 'sheet'>
-		/**
-		 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​o​w​(​s​)​ ​n​a​m​e​ ​a​ ​r​e​c​o​r​d​ ​n​o​ ​s​h​e​e​t​ ​h​o​l​d​s​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​i​n​ ​t​h​i​s​ ​f​i​l​e​ ​c​a​n​ ​b​e​ ​i​m​p​o​r​t​e​d​.
-		 * @param {unknown} count
-		 */
-		transferUnresolved: RequiredParams<'count|number'>
-		/**
-		 * {​s​h​e​e​t​}​ ​r​o​w​ ​{​r​o​w​|​n​u​m​b​e​r​}​ ​n​a​m​e​s​ ​{​r​e​f​e​r​e​n​c​e​}
-		 * @param {string} reference
-		 * @param {unknown} row
-		 * @param {string} sheet
-		 */
-		transferUnresolvedRow: RequiredParams<'reference' | 'row|number' | 'sheet'>
-		/**
-		 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​l​r​e​a​d​y​ ​h​e​r​e
-		 * @param {unknown} count
-		 */
-		transferSkippedHeld: RequiredParams<'count|number'>
-		/**
-		 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​m​i​s​s​i​n​g​ ​a​ ​r​e​q​u​i​r​e​d​ ​v​a​l​u​e
-		 * @param {unknown} count
-		 */
-		transferSkippedIncomplete: RequiredParams<'count|number'>
-		/**
-		 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​r​e​a​d
-		 * @param {unknown} count
-		 */
-		transferSkippedUnreadable: RequiredParams<'count|number'>
-		/**
-		 * a​n​d​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​m​o​r​e
-		 * @param {unknown} count
-		 */
-		transferMore: RequiredParams<'count|number'>
 		/**
 		 * p​r​o​t​e​c​t​e​d​ ​u​p​d​a​t​e​ ​b​a​c​k​u​p
 		 */
@@ -1800,10 +1821,6 @@ type RootTranslation = {
 			 * t​e​n​a​n​t​ ​d​e​l​e​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
 			deleteSuccess: string
-			/**
-			 * t​e​n​a​n​t​s​ ​i​m​p​o​r​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
-			 */
-			importSuccess: string
 			/**
 			 * t​e​n​a​n​t​ ​u​p​d​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
@@ -2626,7 +2643,63 @@ export type TranslationFunctions = {
 				 * no {detail}
 				 */
 				missingValue: (arg: { detail: string }) => LocalizedString
+				/**
+				 * {detail} cannot be read
+				 */
+				invalid: (arg: { detail: string }) => LocalizedString
+				/**
+				 * names {detail}, which is not here
+				 */
+				unresolved: (arg: { detail: string }) => LocalizedString
 			}
+			/**
+			 * this file carries no {columns}, so no record can be created from it — only recognised as one already here.
+			 */
+			incompleteColumns: (arg: { columns: string }) => LocalizedString
+			/**
+			 * {count|number} naming a record that is not here
+			 */
+			skippedUnresolved: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * this file holds no sheet this recognises, so there is nothing to import.
+			 */
+			noSheets: () => LocalizedString
+			/**
+			 * the {sheet} sheet is missing the column(s): {columns}. nothing can be read from this file.
+			 */
+			sheetMissingColumns: (arg: { columns: string, sheet: string }) => LocalizedString
+			/**
+			 * the {sheet} sheet carries no {columns}, so no record can be created from it — only recognised as one already here.
+			 */
+			sheetIncompleteColumns: (arg: { columns: string, sheet: string }) => LocalizedString
+			/**
+			 * in the {sheet} sheet, rows {rows} both claim {identity}. nothing will be imported until one of them goes.
+			 */
+			sheetCollision: (arg: { identity: string, rows: string, sheet: string }) => LocalizedString
+			/**
+			 * {count|number} row(s) name a record no sheet holds, so nothing in this file can be imported.
+			 */
+			unresolvedRefused: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {sheet} row {row|number} names {reference}
+			 */
+			unresolvedRow: (arg: { reference: string, row: unknown, sheet: string }) => LocalizedString
+			/**
+			 * {count|number} already here
+			 */
+			skippedHeld: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} missing a required value
+			 */
+			skippedIncomplete: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} could not be read
+			 */
+			skippedUnreadable: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * and {count|number} more
+			 */
+			more: (arg: { count: unknown }) => LocalizedString
 		}
 		history: {
 			actions: {
@@ -3118,10 +3191,6 @@ export type TranslationFunctions = {
 			 */
 			edited: (arg: { record: string }) => LocalizedString
 			/**
-			 * importing {count|number} record(s)
-			 */
-			imported: (arg: { count: unknown }) => LocalizedString
-			/**
 			 * nothing to apply again
 			 */
 			nothingToRedo: () => LocalizedString
@@ -3521,45 +3590,9 @@ export type TranslationFunctions = {
 		 */
 		transferImportTitle: () => LocalizedString
 		/**
-		 * the workspace was imported
+		 * the file was imported
 		 */
 		transferImportSuccess: () => LocalizedString
-		/**
-		 * this file holds no sheet this recognises, so there is nothing to import.
-		 */
-		transferNoSheets: () => LocalizedString
-		/**
-		 * the {sheet} sheet is missing the column(s): {columns}. nothing can be read from this file.
-		 */
-		transferSheetMissingColumns: (arg: { columns: string, sheet: string }) => LocalizedString
-		/**
-		 * in the {sheet} sheet, rows {rows} both claim {identity}. nothing will be imported until one of them goes.
-		 */
-		transferSheetCollision: (arg: { identity: string, rows: string, sheet: string }) => LocalizedString
-		/**
-		 * {count|number} row(s) name a record no sheet holds, so nothing in this file can be imported.
-		 */
-		transferUnresolved: (arg: { count: unknown }) => LocalizedString
-		/**
-		 * {sheet} row {row|number} names {reference}
-		 */
-		transferUnresolvedRow: (arg: { reference: string, row: unknown, sheet: string }) => LocalizedString
-		/**
-		 * {count|number} already here
-		 */
-		transferSkippedHeld: (arg: { count: unknown }) => LocalizedString
-		/**
-		 * {count|number} missing a required value
-		 */
-		transferSkippedIncomplete: (arg: { count: unknown }) => LocalizedString
-		/**
-		 * {count|number} could not be read
-		 */
-		transferSkippedUnreadable: (arg: { count: unknown }) => LocalizedString
-		/**
-		 * and {count|number} more
-		 */
-		transferMore: (arg: { count: unknown }) => LocalizedString
 		/**
 		 * protected update backup
 		 */
@@ -3973,10 +4006,6 @@ export type TranslationFunctions = {
 			 * tenant deleted successfully!
 			 */
 			deleteSuccess: () => LocalizedString
-			/**
-			 * tenants imported successfully!
-			 */
-			importSuccess: () => LocalizedString
 			/**
 			 * tenant updated successfully!
 			 */
