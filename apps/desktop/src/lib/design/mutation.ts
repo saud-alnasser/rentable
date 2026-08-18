@@ -1,4 +1,7 @@
+import api from '$lib/api/caller';
 import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
+import { historyKeys, type HistoryEntry } from '$lib/history/history';
+import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { inverseStack, type Inverse } from '$lib/design/inverse';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
@@ -63,6 +66,23 @@ export type MutationDeclaration<TVariables, TResult, TCaptured = void> = {
 		result: TResult;
 		captured: TCaptured;
 	}) => Inverse | undefined;
+	/**
+	 * what this mutation leaves in the record's history, given the same three things.
+	 *
+	 * **A second consumer of this declaration, never a mechanism underneath it.** The journal is
+	 * written from here for the same reason the undo entry is: pushing it down into the routers
+	 * so it wrote itself would be the repository layer [[rules/api-layer]] rejects, arriving by
+	 * another road.
+	 *
+	 * A mutation declaring none leaves no history and nothing fails — the same cost {@link
+	 * inverse} already accepts, and the reason a mutation added without a declaration is absent
+	 * from the account rather than able to break it.
+	 */
+	records?: (change: {
+		variables: TVariables;
+		result: TResult;
+		captured: TCaptured;
+	}) => HistoryEntry | HistoryEntry[] | undefined;
 };
 
 function resolveToastMessage(message: ToastMessage) {
@@ -188,6 +208,11 @@ async function applyInverse(client: QueryClient, direction: OfferDirection) {
 
 		await invalidateWorkspaceData(client);
 
+		// an inverse issues its procedure directly rather than through a declared mutation, so
+		// this is the only place that can record it. Without it the account shows a change and
+		// stays silent about it being taken back.
+		recordHistory(client, applied.records?.(direction));
+
 		const translations = get(LL);
 		const change = applied.describe(translations);
 
@@ -222,6 +247,33 @@ export function applyRedo(client: QueryClient) {
 }
 
 /**
+ * Append what happened to a record's account, and tell whatever is showing it.
+ *
+ * Never awaited into the change it describes: the change is what the reader asked for, and an
+ * account that could not be written is a smaller failure than a change refused because its
+ * account could not be. The invalidation afterwards is what stops a surface reading one change
+ * behind — an entry is written after the workspace invalidation has already run.
+ */
+function recordHistory(client: QueryClient, recorded: HistoryEntry | HistoryEntry[] | undefined) {
+	const entries = recorded ? [recorded].flat() : [];
+
+	if (entries.length === 0) {
+		return;
+	}
+
+	void api.history
+		.append({ entries })
+		.then(() => client.invalidateQueries({ queryKey: historyKeys.all }))
+		.catch((failure) => {
+			recordDiagnosticError('history.append', {
+				concept: entries[0].concept,
+				recordId: entries.map((entry) => entry.recordId).join(','),
+				detail: failure instanceof Error ? failure.message : String(failure)
+			});
+		});
+}
+
+/**
  * The invalidation is unconditional: a mutation that changed nothing costs one redundant local
  * refetch, where a mutation that changed something and skipped it shows the user a row that is
  * no longer there.
@@ -243,6 +295,13 @@ function bindMutation<TVariables, TResult, TCaptured>(
 			if (inverse) {
 				inverseStack.record(inverse);
 			}
+
+			// appended after the work landed, and never awaited into it: the change is what the
+			// reader asked for, and an account that could not be written is a smaller failure than
+			// a change refused because its account could not be.
+			const entry = declaration.records?.({ variables, result, captured });
+
+			recordHistory(client, entry);
 
 			onMutationSuccess(opts, inverse && { client, change: inverse, direction: 'undo' });
 		},

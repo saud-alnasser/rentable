@@ -4,6 +4,7 @@
 </script>
 
 <script lang="ts">
+	import RecordHistory from '$lib/history/component/record-history.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { Contract } from '$lib/platform/database/schema';
@@ -256,6 +257,10 @@
 
 <!-- payments leads: a contract exists to be paid, and the units collection is a writing
      surface with two search panes, which is not where a reader should land. -->
+{#snippet history()}
+	<RecordHistory concept="contract" recordId={contractId} />
+{/snippet}
+
 <RecordSurface
 	isLoading={contractQuery.isLoading}
 	found={Boolean(contract)}
@@ -269,7 +274,8 @@
 	{initialCollection}
 	collections={[
 		{ value: 'payments', label: $LL.common.nav.payments(), content: payments },
-		{ value: 'units', label: $LL.common.nav.units(), content: units }
+		{ value: 'units', label: $LL.common.nav.units(), content: units },
+		{ value: 'history', label: $LL.common.history.title(), content: history }
 	]}
 />
 

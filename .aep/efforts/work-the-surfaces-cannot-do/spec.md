@@ -240,6 +240,36 @@ A journal is a second consumer of that declaration rather than a new mechanism u
 domain — which is what keeps it from becoming the generic layer [[rules/api-layer]]'s
 no-repository-layer rule rejects.
 
+**Does a durable history contradict [[rules/data]], under *Undo*? No** *(the grilling #495
+declares, run 2026-08-17 because the platform effort's decision 09 — which would have answered
+it — is still open, blocked on 11 and 05)*.
+
+Read against the original ADR 0026 rather than against the rule's summary of itself, because the
+two differ. The rule as written justifies a session stack on *no second write path*; the ADR's
+rejection of the alternative is narrower and more specific:
+
+> **A durable journal of before/after row images** … Rejected for what it does at the remote
+> boundary: a workspace is one syncable unit, and a conflict is already resolved by choosing a
+> whole side. A history that crosses that boundary has to answer **whose history survives when
+> the remote copy wins**, and there is no answer that is not either "discard it" — which is this
+> decision, at greater cost — or a merge this application has deliberately never had.
+
+Both grounds are about **replaying**. What was rejected is a journal used to *reverse* work: it
+has to answer whose history survives because that answer decides what can still be undone. A
+history that is only ever read has the same question put to it and answers it trivially — the
+winner's, exactly as with every other row, because it travels as part of the very unit whose
+story it tells. Discarding the losing side's account alongside the losing side's data is the
+same rule applied to the same unit, not a conflict with it.
+
+So the rule is neither contradicted nor superseded, and this ticket does not touch undo: the
+session stack stays exactly as decided. What #495 adds is a second, read-only consumer of the
+same declaration. Decision 09 remains free to reach its own conclusion about *Undo*; nothing
+built here depends on which way it goes.
+
+*Carried forward from that reading: 09 names [[rules/data]], under *Query cache* — not *Undo* —
+as the one rule scoping does not rescue, because a hosted workspace has an unseen writer by
+construction.*
+
 **Renewal is a contract-domain action.** It produces a successor rather than moving an
 existing contract's end date: a contract's expected amount and its whole derived status
 model are computed from its period, so extending a period that already has payments against
@@ -383,6 +413,14 @@ here so that a green suite is not mistaken for a met spec.
   anything today, and a workspace travels to Drive as a whole file. Detection is the workspace
   file size across a seeded run. Retention is explicitly out of scope, which makes the growth
   a thing to watch rather than a thing solved here.
+
+  **Measured 2026-08-17, so retention has a number to argue from: ~57 bytes an entry** — 500
+  entries grew a workspace from 73 728 to 102 400 bytes. The figure is reported by
+  `history/router.test.mjs` on every run rather than pinned, because the effort does not own
+  retention and a threshold here would fail for a change nobody asked about. What it says in
+  round terms: a workspace doing a hundred changes a day gains about 2 MB a year, against the
+  1.4 MB the seeded workspace weighs today. That is the shape of the problem — slow, and not
+  slow enough to leave forever.
 
 # Technical Risks
 

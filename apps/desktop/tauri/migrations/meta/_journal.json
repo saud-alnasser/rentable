@@ -15,6 +15,13 @@
 			"when": 1785806562559,
 			"tag": "0001_perpetual_molly_hayes",
 			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "6",
+			"when": 1786995070135,
+			"tag": "0002_puzzling_sunfire",
+			"breakpoints": true
 		}
 	]
 }

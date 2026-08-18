@@ -13,6 +13,17 @@ const MIGRATIONS_DIR = path.resolve(
 );
 
 function applyMigrations(sqlite: BetterSqlite3.Database) {
+	// a database opened a second time already has them, and the generated migrations create
+	// tables unconditionally — so running them again on an existing file is an error rather
+	// than a no-op. Reopening one is the whole point of the file-backed client below.
+	const built = sqlite
+		.prepare("select count(*) as tables from sqlite_master where type = 'table'")
+		.get() as { tables: number };
+
+	if (built.tables > 0) {
+		return;
+	}
+
 	const files = readdirSync(MIGRATIONS_DIR)
 		.filter((name) => name.endsWith('.sql'))
 		.sort();
@@ -62,10 +73,50 @@ function execute(
  * difference between them is a round trip per record the moment there is a wire here.
  */
 export function createMemoryDatabase(onStatement?: (sql: string) => void): Database {
-	const sqlite = new BetterSqlite3(':memory:');
+	return createFileDatabase(':memory:', onStatement);
+}
+
+/**
+ * The same client over a database that is a real file, so a test can close it and open it
+ * again.
+ *
+ * It exists for the one criterion an in-memory database cannot cover: a durable history is
+ * durable or it is not, and the only way to tell is to stop reading the connection that wrote
+ * it. Everything else about it is `createMemoryDatabase`'s — same migrations, same row mapping,
+ * same transaction batching.
+ */
+export function createFileDatabase(path: string, onStatement?: (sql: string) => void): Database {
+	const sqlite = new BetterSqlite3(path);
 	applyMigrations(sqlite);
 	const record = (sql: string) => onStatement?.(sql);
+	const client = buildClient(sqlite, record);
 
+	openHandles.set(client, sqlite);
+
+	return client;
+}
+
+/**
+ * the engine behind each client, so a test can let go of the file.
+ *
+ * Weak, so forgetting to close one costs nothing: a test that never calls {@link
+ * closeFileDatabase} leaks a handle until the process ends, which is the behaviour every other
+ * test here already has.
+ */
+const openHandles = new WeakMap<Database, BetterSqlite3.Database>();
+
+/**
+ * Release the file a client is holding.
+ *
+ * Windows refuses to remove a file that is still open, so a test that writes to a temporary
+ * directory and tidies up afterwards has to close before it deletes.
+ */
+export function closeFileDatabase(db: Database) {
+	openHandles.get(db)?.close();
+	openHandles.delete(db);
+}
+
+function buildClient(sqlite: BetterSqlite3.Database, record: (sql: string) => void): Database {
 	return createDatabase(
 		async (sql, params, method) => {
 			record(sql);
