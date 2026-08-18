@@ -23,17 +23,21 @@ use-when: "the request touches Drive credentials, Drive network calls, a manifes
 
 # Google Drive sync
 
-**Scoped to local workspaces 2026-08-18** — decision 07 of [[efforts/a-workspace-follows-its-user/spec]]. Drive
-**stays**, and it is what a local workspace gets: the automatic, continuous, versioned, retained
-route off one machine. A **hosted** workspace is not offered Drive at all — its record of truth is
-somewhere Drive knows nothing about, and two sync mechanisms on one workspace is the shape
-*Concurrency* below was never designed to survive. That is also why a conversion unlinks Drive
-rather than leaving both running.
-
-**What this route loses, written here so it is not discovered later.** Drive resolves divergence
-by choosing a side, per whole snapshot: **the losing side loses every change made since the
-snapshot that won.** That is far coarser than the per-column loss a hosted workspace has, and it
-is the honest price of the mode that has no server.
+> **This surface is being retired.** Decision 07 of [[efforts/a-workspace-follows-its-user/spec]], directed by the
+> human on 2026-08-18: **Google Drive sync is dropped in favour of Turso sync.** The rule below
+> still binds every change to the code while the code exists — a surface on its way out is not a
+> surface it is safe to break — but **nothing here is to be extended**, and a request to add to
+> the manifest, the conflict analysis, the retention or the link session is a request to build
+> something that is scheduled for deletion.
+>
+> **What is not going with it:** *Client boundary*, which decision 09 widened from Drive's
+> credentials to **every** credential this application holds — a workspace sync token is one, and
+> that section outlives this file. And the OAuth half — `google/auth.rs`, the token refresh, the
+> account model — which is load-bearing for sign-in and is being lifted out of the link flow
+> first, because deleting the link session before that extraction would take identity with it.
+>
+> *Scoped rather than retired earlier the same day, on a recommendation the human reversed. The
+> reasoning both ways is in the decision.*
 
 ## Client boundary
 
@@ -64,9 +68,11 @@ from the snapshots actually present rather than refusing the write. Do not add a
 *Why: Drive v3 offers no compare-and-set — no ETag, no precondition, no reserved status code —
 so a lock can only inherit the same race at the moment it is acquired.*
 
-**Scoped 2026-08-18 to local-workspace Drive sync**, per decision 07. A hosted workspace does not
-reach this code, and its divergence is resolved by the replica per column rather than here per
-snapshot.
+**Retiring 2026-08-18**, with the transport it describes — decision 07, reversed by the human.
+The fact stays true of Drive and stops being a fact about this application: Drive v3 offers no
+compare-and-set, so anywhere a lock is reached for against it, the lock inherits the race. **What
+replaces this concern rather than answering it**: a replica resolves divergence per column as it
+arrives, so there is no pair of whole snapshots for anybody to choose between.
 
 Scoped to `manifest.rs` and `conflict.rs`.
 
@@ -82,8 +88,10 @@ trait, and never contact the live Google Drive API from a test.
 *Why: a mocked trait tests the mock's idea of HTTP, so the serialisation and status handling
 that actually break in production are never exercised.*
 
-**Scoped 2026-08-18 to local-workspace Drive sync**, per decision 07. It says nothing about how a
-hosted workspace's transport is tested.
+**Retiring 2026-08-18**, with the transport it describes — decision 07, reversed by the human.
+The reasoning is worth carrying forward even though the code is not: a mocked transport trait
+tests the mock's idea of HTTP, so whatever tests the replacement transport tests it against
+something that can actually reject a request.
 
 Scoped to `google/test/**` and `google/transport.rs`. What a change must be tested at more
 generally is [[rules/testing]]'s.

@@ -16,12 +16,19 @@ use-when: "the request touches backup, Google Drive, linking, or conflicts"
 Getting a **local** workspace off this machine and back onto it. Two subjects share the
 machinery: local backup, and exchange with Google Drive.
 
-**Local-only since 2026-08-18** — decision 07 of [[efforts/a-workspace-follows-its-user/spec]]. Drive stays and it
-is what a local workspace gets; a hosted workspace replicates through its own client and never
-reaches anything in here. **The one part of this surface that is not local-only is the OAuth
-session**: sign-in is Google, so the account, the token refresh and the credential boundary are
-load-bearing for identity in both modes and are being separated out of `link()` (#543). Read
-*Link* below knowing that it is about to stop meaning two things at once.
+> **The Drive half of this is being retired.** Decision 07 of [[efforts/a-workspace-follows-its-user/spec]],
+> directed by the human on 2026-08-18: **Google Drive sync is dropped in favour of Turso sync.**
+> Read everything below about the manifest, conflict analysis, retention and the link session as
+> a description of code that exists today and is scheduled to go.
+>
+> **What stays**: local backup and snapshots, which are not Drive's and never were; and the OAuth
+> session, because sign-in is Google — the account, the token refresh and the credential boundary
+> are load-bearing for identity and are being separated out of `link()` (#543) **before** the
+> deletion, not after, since deleting the link session first would take identity with it.
+>
+> Read *Link* below knowing it currently means two things at once and is about to mean one.
+>
+> *Recorded as local-only earlier the same day, on a recommendation the human reversed.*
 
 ## Language
 
