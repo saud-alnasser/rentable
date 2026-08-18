@@ -167,7 +167,6 @@ const en = {
 			loadingSettings: 'loading settings...',
 			never: 'never',
 			noResults: 'no results.',
-			sar: 'sar',
 			unexpectedError: 'unexpected error occurred!',
 			unknown: 'unknown'
 		},

@@ -16,7 +16,7 @@
 		parseDateInput,
 		toCalendarDate
 	} from '$lib/design/date';
-	import { formatLocaleValueWithUnit, getIntlLocale } from '$lib/platform/locale';
+	import { formatLocaleMoney, getIntlLocale } from '$lib/platform/locale';
 	import { isWholeHalalas } from '$lib/design/money';
 	import { cn } from '$lib/design/tailwind.js';
 	import {
@@ -503,8 +503,7 @@
 	const hasTotalExpectedAmount = $derived(
 		Number.isFinite(totalExpectedAmount) && totalExpectedAmount > 0
 	);
-	const formatMoney = (value: number) =>
-		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
+	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
 
 	// a range needs both ends, and a half-set period reads as one date rather than as a range
 	// missing a half — the em dash already means "nothing here" everywhere else in this panel.

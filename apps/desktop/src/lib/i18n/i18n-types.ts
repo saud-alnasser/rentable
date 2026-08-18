@@ -600,10 +600,6 @@ type RootTranslation = {
 			 */
 			noResults: string
 			/**
-			 * s​a​r
-			 */
-			sar: string
-			/**
 			 * u​n​e​x​p​e​c​t​e​d​ ​e​r​r​o​r​ ​o​c​c​u​r​r​e​d​!
 			 */
 			unexpectedError: string
@@ -2692,10 +2688,6 @@ export type TranslationFunctions = {
 			 * no results.
 			 */
 			noResults: () => LocalizedString
-			/**
-			 * sar
-			 */
-			sar: () => LocalizedString
 			/**
 			 * unexpected error occurred!
 			 */

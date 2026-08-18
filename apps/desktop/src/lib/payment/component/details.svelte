@@ -8,7 +8,7 @@
 	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import { useDeletePayment, useFetchPayment } from '$lib/payment/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { formatLocaleValueWithUnit } from '$lib/platform/locale';
+	import { formatLocaleMoney } from '$lib/platform/locale';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { back } from '$lib/design/back.svelte';
@@ -31,8 +31,7 @@
 	// decides whether the surface offers the action.
 	const isTerminated = $derived(payment?.contractStatus === 'terminated');
 
-	const formatMoney = (value: number) =>
-		formatLocaleValueWithUnit($locale, value, $LL.common.messages.sar());
+	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
 
 	async function deletePayment() {
 		if (!payment) return;

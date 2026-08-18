@@ -164,7 +164,6 @@ const ar = {
 			loadingSettings: 'جاري تحميل الإعدادات...',
 			never: 'أبدًا',
 			noResults: 'لا توجد نتائج.',
-			sar: 'ريال',
 			unexpectedError: 'حدث خطأ غير متوقع!',
 			unknown: 'غير معروف'
 		},
