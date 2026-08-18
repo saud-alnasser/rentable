@@ -15,6 +15,13 @@
 			"when": 1787064368459,
 			"tag": "0001_remarkable_venus",
 			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "6",
+			"when": 1787065340002,
+			"tag": "0002_superb_giant_man",
+			"breakpoints": true
 		}
 	]
 }

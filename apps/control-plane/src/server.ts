@@ -4,9 +4,11 @@ import { sql } from 'drizzle-orm';
 
 import { signInWithGoogle } from './account.ts';
 import type { Database } from './database.ts';
-import { MALFORMED, Refusal, refusalBody, UNAVAILABLE } from './failure.ts';
+import { MALFORMED, Refusal, refusalBody, UNAUTHENTICATED, UNAVAILABLE } from './failure.ts';
 import type { VerifyGoogleIdentity } from './google.ts';
-import type { Account } from './schema.ts';
+import type { Account, Workspace } from './schema.ts';
+import type { TursoPlatform } from './turso.ts';
+import { createWorkspace, mintWorkspaceToken } from './workspace.ts';
 
 /**
  * The control plane's HTTP surface.
@@ -26,6 +28,7 @@ import type { Account } from './schema.ts';
 export type ControlPlane = {
 	db: Database;
 	verifyIdentity: VerifyGoogleIdentity;
+	platform: TursoPlatform;
 	now?: () => number;
 };
 
@@ -37,7 +40,7 @@ const json = (response: ServerResponse, status: number, body: unknown) => {
 };
 
 /** an account as it goes over the wire — timestamps as epoch milliseconds, as the desktop reads them. */
-const wire = (record: Account) => ({
+const wireAccount = (record: Account) => ({
 	id: record.id,
 	email: record.email,
 	displayName: record.displayName,
@@ -46,6 +49,47 @@ const wire = (record: Account) => ({
 	createdAt: record.createdAt.getTime(),
 	updatedAt: record.updatedAt.getTime()
 });
+
+/**
+ * a workspace as it goes over the wire.
+ *
+ * The database's *name* stays here: it is what the Platform API calls it by, and a client that
+ * holds it holds the one argument every administrative call to Turso takes. The hostname is
+ * what a client actually needs, and it gets it as part of a mint rather than on its own.
+ */
+const wireWorkspace = (record: Workspace) => ({
+	id: record.id,
+	name: record.name,
+	ownerAccountId: record.ownerAccountId,
+	createdAt: record.createdAt.getTime(),
+	updatedAt: record.updatedAt.getTime()
+});
+
+/**
+ * Who is asking.
+ *
+ * **The Google access token is the credential on every route that acts as somebody**, presented
+ * the way a credential conventionally is. There is no session token yet — one is #550's, and
+ * this is the thing it replaces — so identity is re-established from Google on each request. It
+ * costs one round trip and it is honest: *Architecture* has the API in the credential path
+ * continuously, and this is what that sentence buys.
+ */
+const asking = async (plane: ControlPlane, request: IncomingMessage): Promise<Account> => {
+	const header = request.headers.authorization ?? '';
+	const [scheme, ...rest] = header.split(' ');
+	const token = rest.join(' ').trim();
+
+	if (scheme?.toLowerCase() !== 'bearer' || token === '') {
+		throw new Refusal(UNAUTHENTICATED, 401, 'sign in with google before asking for this');
+	}
+
+	const identity = await plane.verifyIdentity(token);
+
+	// Signing in *is* the identification, so every route performs it rather than looking an
+	// account up: a person whose first request is not `/account/sign-in` still reaches the account
+	// they would have reached, and their profile is as fresh on one route as on another.
+	return signInWithGoogle(plane.db, identity, (plane.now ?? Date.now)());
+};
 
 const readJsonBody = async (request: IncomingMessage): Promise<Record<string, unknown>> => {
 	const chunks: Buffer[] = [];
@@ -76,17 +120,46 @@ const readJsonBody = async (request: IncomingMessage): Promise<Record<string, un
 };
 
 const signIn = async (plane: ControlPlane, request: IncomingMessage, response: ServerResponse) => {
-	const body = await readJsonBody(request);
-	const accessToken = typeof body.accessToken === 'string' ? body.accessToken.trim() : '';
+	json(response, 200, { account: wireAccount(await asking(plane, request)) });
+};
 
-	if (accessToken === '') {
-		throw new Refusal(MALFORMED, 400, 'a sign-in needs a google access token');
+const makeWorkspace = async (
+	plane: ControlPlane,
+	request: IncomingMessage,
+	response: ServerResponse
+) => {
+	const account = await asking(plane, request);
+	const body = await readJsonBody(request);
+	const name = typeof body.name === 'string' ? body.name.trim() : '';
+
+	if (name === '') {
+		throw new Refusal(MALFORMED, 400, 'a workspace needs a name');
 	}
 
-	const identity = await plane.verifyIdentity(accessToken);
-	const record = await signInWithGoogle(plane.db, identity, (plane.now ?? Date.now)());
+	const created = await createWorkspace(plane.db, plane.platform, {
+		accountId: account.id,
+		name,
+		now: (plane.now ?? Date.now)()
+	});
 
-	json(response, 200, { account: wire(record) });
+	json(response, 201, { workspace: wireWorkspace(created) });
+};
+
+const mint = async (
+	plane: ControlPlane,
+	request: IncomingMessage,
+	response: ServerResponse,
+	workspaceId: string
+) => {
+	const account = await asking(plane, request);
+
+	const minted = await mintWorkspaceToken(plane.db, plane.platform, {
+		workspaceId,
+		accountId: account.id,
+		now: (plane.now ?? Date.now)()
+	});
+
+	json(response, 200, minted);
 };
 
 const health = async (plane: ControlPlane, response: ServerResponse) => {
@@ -115,6 +188,19 @@ export const controlPlaneServer = (plane: ControlPlane): Server =>
 
 			if (request.method === 'POST' && request.url === '/account/sign-in') {
 				return signIn(plane, request, response);
+			}
+
+			if (request.method === 'POST' && request.url === '/workspace') {
+				return makeWorkspace(plane, request, response);
+			}
+
+			// Not decoded: a workspace id is a UUID, so there is nothing to unescape, and
+			// `decodeURIComponent` throws on a malformed escape — which would turn a nonsense path
+			// into a 500 where it should be a 404.
+			const minting = /^\/workspace\/([^/]+)\/token$/.exec(request.url ?? '');
+
+			if (request.method === 'POST' && minting?.[1]) {
+				return mint(plane, request, response, minting[1]);
 			}
 
 			json(response, 404, { error: { code: 'no_such_route', message: 'there is nothing here' } });
