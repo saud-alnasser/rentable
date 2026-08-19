@@ -1,5 +1,4 @@
 pub mod commands;
-pub mod migrations;
 pub mod proxy;
 pub mod version;
 
@@ -58,10 +57,20 @@ impl Database {
         }
     }
 
+    /// Open this machine's database as a plain file.
+    ///
+    /// **It applies no migrations, and that is requirement 11 rather than an omission.** The
+    /// control plane owns a workspace's schema and applies it at the token mint; the replica
+    /// receives it as replicated pages. A client that applied DDL of its own would not merely
+    /// duplicate that work — DDL issued through the sync connection is captured as CDC and
+    /// replicates, so one client's migration would reach every other replica.
+    ///
+    /// `tauri/migrations/` stays in the tree as the input `build.rs` counts to produce
+    /// `WORKSPACE_SCHEMA_VERSION`, which is the number this client sends to the mint. Nothing
+    /// reads it at launch.
     pub async fn connect(&mut self) -> Result<(), Error> {
         let settings = self.settings.read().await;
         let db_path = settings.database_path.clone();
-        let migration_dir = settings.migration_dir.clone();
 
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -77,8 +86,6 @@ impl Database {
         let pool = SqlitePoolOptions::new()
             .connect_with(connect_options)
             .await?;
-
-        migrations::run(&pool, &migration_dir).await?;
 
         self.engine = Some(Engine::Local(pool));
 
@@ -346,6 +353,13 @@ impl Database {
         }
     }
 
+    /// Whether this database holds the application's schema yet.
+    ///
+    /// **One question, and both arms are asked it the same way.** It used to be two: the pool was
+    /// asked whether `__migrations__` existed — this client's own ledger of the migrations it had
+    /// applied — and the replica could not be, because a replica applies none. The client applies
+    /// none either now, so that ledger answers nothing on either side and the question is the one
+    /// it always meant.
     pub async fn is_ready(&self) -> bool {
         match self.engine.as_ref() {
             Some(Engine::Local(pool)) => Self::is_pool_ready(pool).await,
@@ -355,31 +369,25 @@ impl Database {
     }
 
     async fn is_pool_ready(pool: &Pool<Sqlite>) -> bool {
-        let row: Option<i32> = sqlx::query_scalar(migrations::TABLE_EXISTS)
+        let tables: Option<i64> = sqlx::query_scalar(Self::HAS_A_SCHEMA)
             .fetch_one(pool)
             .await
             .ok();
 
-        matches!(row, Some(1))
+        matches!(tables, Some(tables) if tables > 0)
     }
 
-    /// The same question, asked of the replica, and it cannot be asked the same way.
+    /// The same question, asked of the replica, which cannot be asked it through `sqlx`.
     ///
-    /// **`migrations::TABLE_EXISTS` is the wrong probe here and would never be true.** It looks
-    /// for `__migrations__`, which is this client's own ledger of migrations it applied — and a
-    /// replica applies none. Its schema is the control plane's, arriving as replicated pages, and
-    /// nothing in it is called that. A readiness probe that is permanently false is worse than
-    /// none: the two callers respond to it by reconnecting.
-    ///
-    /// So the question becomes the one it always meant — *does this file hold the application's
-    /// schema yet* — asked of any table that is not the engine's own bookkeeping. A replica that
-    /// has never pulled holds `turso_cdc` and its kin and nothing else, and is not ready.
+    /// **A readiness probe that is permanently false is worse than none**: the two callers respond
+    /// to a false by reconnecting, and on a replica that is refused. A replica that has never
+    /// pulled holds `turso_cdc` and its kin and nothing else, and is not ready.
     async fn is_replica_ready(database: &turso::sync::Database) -> bool {
         let Ok(connection) = database.connect().await else {
             return false;
         };
 
-        let Ok(mut rows) = connection.query(Self::REPLICA_HAS_A_SCHEMA, ()).await else {
+        let Ok(mut rows) = connection.query(Self::HAS_A_SCHEMA, ()).await else {
             return false;
         };
 
@@ -393,7 +401,7 @@ impl Database {
         )
     }
 
-    /// Whether the replica holds a schema of the application's rather than only the engine's.
+    /// Whether a database holds a schema of the application's rather than only the engine's.
     ///
     /// **Written by exclusion rather than by naming a table**, because the tables belong to
     /// `packages/workspace-migrations`. A copy of one of their names here would be a second place
@@ -407,7 +415,7 @@ impl Database {
     /// pre-release crate's internals and it will move — which is why the staleness is the other
     /// way round here: a table the engine adds outside these prefixes fails
     /// `a_replica_that_has_pulled_nothing_is_not_ready` rather than shipping.
-    const REPLICA_HAS_A_SCHEMA: &'static str = "SELECT count(*) FROM sqlite_master \
+    const HAS_A_SCHEMA: &'static str = "SELECT count(*) FROM sqlite_master \
          WHERE type = 'table' \
          AND name NOT LIKE 'sqlite!_%' ESCAPE '!' \
          AND name NOT LIKE 'turso!_%' ESCAPE '!' \
@@ -464,10 +472,10 @@ mod tests {
     /// **A machine that has signed in and not yet pulled has no schema, and says so.**
     ///
     /// The probe this replaced looked for `__migrations__`, the ledger of migrations this client
-    /// applied — and on the hosted path it applies none, so that probe answers *not ready* for a
-    /// replica holding the whole workspace. Both callers of `is_ready` respond to a false by
-    /// reconnecting, which on a replica is refused, so the failure would present as a snapshot
-    /// that could never be taken rather than as a wrong answer.
+    /// applied — and it applies none, so that probe answers *not ready* for a replica holding the
+    /// whole workspace. Both callers of `is_ready` respond to a false by reconnecting, which on a
+    /// replica is refused, so the failure would present as a snapshot that could never be taken
+    /// rather than as a wrong answer.
     #[tokio::test]
     async fn a_replica_that_has_pulled_nothing_is_not_ready() {
         let (directory, database) = replica("readiness-empty").await;
@@ -500,6 +508,55 @@ mod tests {
 
         drop(connection);
         drop(database);
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+
+    /// **The other arm answers the same question, and the answer moves when a schema arrives.**
+    ///
+    /// A pool used to be asked whether `__migrations__` existed — a table the runner created as it
+    /// applied the first file, and which nothing creates now. A probe still keyed on it would
+    /// answer *not ready* for every database on this side, whatever is in it.
+    #[tokio::test]
+    async fn a_database_with_no_schema_in_it_is_not_ready() {
+        use crate::{persisted::Persisted, settings::Settings};
+        use std::sync::Arc;
+        use tokio::sync::RwLock;
+
+        let directory = std::env::temp_dir().join(format!(
+            "rentable-readiness-local-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|elapsed| elapsed.as_nanos())
+                .unwrap_or_default()
+        ));
+        std::fs::create_dir_all(&directory).expect("scratch directory");
+
+        let mut settings =
+            Persisted::<Settings>::load(directory.join("settings.json")).expect("settings");
+        settings.database_path = directory.join("app.db");
+
+        let mut database = Database::new(Arc::new(RwLock::new(settings)));
+        database.connect().await.expect("the database should open");
+
+        assert!(
+            !database.is_ready().await,
+            "a database with nothing in it reported itself ready"
+        );
+
+        database
+            .execute_single_sql(crate::database::proxy::SQLQuery {
+                sql: "CREATE TABLE tenant (id TEXT PRIMARY KEY, name TEXT)".to_string(),
+                params: Vec::new(),
+            })
+            .await
+            .expect("the schema should apply");
+
+        assert!(
+            database.is_ready().await,
+            "a database holding the application's schema reported itself not ready"
+        );
+
+        database.disconnect().await;
         let _ = std::fs::remove_dir_all(&directory);
     }
 

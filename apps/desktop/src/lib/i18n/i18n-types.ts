@@ -3620,7 +3620,7 @@ export type TranslationFunctions = {
 		 */
 		createdAt: (arg: { value: unknown }) => LocalizedString;
 		/**
-		 * backups are stored in the app backup directory and can be restored below. protected update backups are created automatically before migrations run.
+		 * backups are stored in the app backup directory and can be restored below. protected update backups are created automatically before an update is installed.
 		 */
 		createBackupDescription: () => LocalizedString;
 		/**
@@ -3732,7 +3732,7 @@ export type TranslationFunctions = {
 		 */
 		noBackups: () => LocalizedString;
 		/**
-		 * leave this empty to use the default path above. saving reconnects immediately, and startup reruns migrations on the selected database path.
+		 * leave this empty to use the default path above. saving reconnects immediately, and startup opens the selected database path.
 		 */
 		pathOverrideDescription: () => LocalizedString;
 		/**

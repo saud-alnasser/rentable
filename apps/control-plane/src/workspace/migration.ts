@@ -9,12 +9,13 @@ import { Refusal, WORKSPACE_UNAVAILABLE } from '../failure.ts';
 /**
  * Bringing a **hosted workspace database** up to a schema version.
  *
- * **Three databases are in play in this package and this file talks to exactly one of them.**
+ * **Two databases are in play in this package and this file talks to exactly one of them.**
  * `database/database.ts` is the control plane's *own* database — accounts, workspaces,
- * membership — migrated by drizzle-kit from `../../migrations`. `apps/desktop/tauri/` migrates a
- * *local* workspace with a Rust runner, at launch, and decision 06 leaves that exactly where it
- * is. What is here is the third: the Turso database one hosted workspace's ledger lives in,
- * reached over libSQL with a token this service minted for it, and touched only to apply DDL.
+ * membership — migrated by drizzle-kit from `../../migrations`. What is here is the other: the
+ * Turso database one workspace's ledger lives in, reached over libSQL with a token this service
+ * minted for it, and touched only to apply DDL. **It is the only runner there is** — requirement
+ * 11 took the desktop's away, so a workspace's schema is applied here and reaches a machine as
+ * replicated pages.
  * **No row of anybody's ledger is read or written here** — the API is in the credential path
  * continuously and in the data path never, and applying a schema is not the data path.
  *
@@ -42,15 +43,16 @@ import { Refusal, WORKSPACE_UNAVAILABLE } from '../failure.ts';
 const FOLDER = workspaceMigrationsFolder;
 
 /**
- * The ledger, written exactly as `apps/desktop/tauri/src/database/migrations.rs` writes it —
- * same table, same column names, same key.
+ * What this service has applied to a workspace database, kept in the database it applied it to.
  *
- * **That identity is the point, not a coincidence.** A hosted workspace's database is replicated
- * onto machines whose Rust runner knows one way to decide whether a migration has been applied.
- * A hosted database carrying the same ledger tells that runner the truth: everything is applied,
- * so it applies nothing. A hosted database carrying no ledger would have it start at `0000` and
- * fail on a table that already exists, which is a working replica broken by the runner that was
- * meant to prepare it.
+ * **The ledger is the authority and the workspace record is an index of it**, which is why it
+ * lives here rather than only in the control plane's own tables: a mint that failed partway
+ * leaves the two disagreeing, and the one that was written by the statements that actually ran is
+ * the one to believe.
+ *
+ * *It is shaped exactly as the desktop's own runner wrote it — same table, same columns, same key
+ * — because that runner used to read it off the replica to decide what to apply. It applies
+ * nothing now (requirement 11), so the shape is inherited rather than owed to anybody.*
  */
 const LEDGER =
 	'CREATE TABLE IF NOT EXISTS __migrations__(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);';

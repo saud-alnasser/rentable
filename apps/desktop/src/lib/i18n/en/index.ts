@@ -417,7 +417,7 @@ const en = {
 		createdAt: 'created {value}',
 
 		createBackupDescription:
-			'backups are stored in the app backup directory and can be restored below. protected update backups are created automatically before migrations run.',
+			'backups are stored in the app backup directory and can be restored below. protected update backups are created automatically before an update is installed.',
 		createBackupTitle: 'create backup',
 
 		databaseDescription:
@@ -462,7 +462,7 @@ const en = {
 		noBackups: 'no backups are available yet.',
 
 		pathOverrideDescription:
-			'leave this empty to use the default path above. saving reconnects immediately, and startup reruns migrations on the selected database path.',
+			'leave this empty to use the default path above. saving reconnects immediately, and startup opens the selected database path.',
 		pathOverridePlaceholder: 'leave empty to use the default database path',
 		latestSnapshot: 'latest snapshot',
 		snapshotNow: 'snapshot',
