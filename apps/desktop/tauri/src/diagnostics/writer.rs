@@ -260,8 +260,11 @@ mod tests {
         let log = DiagnosticLog::new(directory.clone(), limits).expect("failed to open the log");
         let oversized = "x".repeat(512);
 
-        log.append(event("backup.createFailed").with("error", &oversized), 1)
-            .expect("failed to append");
+        log.append(
+            event("startup.database.unavailable").with("error", &oversized),
+            1,
+        )
+        .expect("failed to append");
 
         let contents = std::fs::read_to_string(directory.join("rentable.log"))
             .expect("failed to read the log");

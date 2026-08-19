@@ -127,9 +127,9 @@ function withdrawOutstandingOffer() {
 	}
 }
 
-// the stack is emptied whenever the workspace underneath it is replaced — a sync pull, a
-// backup restore, a workspace switch. An offer still on screen then names a change nothing
-// can move, so it leaves with the stack rather than waiting to be pressed and refuse.
+// the stack is emptied whenever the workspace underneath it is replaced, which is a workspace
+// switch. An offer still on screen then names a change nothing can move, so it leaves with the
+// stack rather than waiting to be pressed and refuse.
 inverseStack.observe(() => {
 	if (!inverseStack.undoable && !inverseStack.redoable) {
 		withdrawOutstandingOffer();

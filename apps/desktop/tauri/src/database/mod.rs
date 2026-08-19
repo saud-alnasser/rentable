@@ -3,14 +3,10 @@ pub mod proxy;
 pub mod version;
 
 use sqlx::{
-    AssertSqlSafe, Pool, Sqlite,
+    Pool, Sqlite,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
 };
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{path::Path, sync::Arc};
 use tokio::sync::RwLock;
 
 use crate::{
@@ -187,8 +183,9 @@ impl Database {
     /// after it invisible to change capture. Rebuilding the replica instead is not available:
     /// the URL and the token that built it are the caller's and were never kept.
     ///
-    /// Both callers reach this while deciding whether to take a snapshot, which the replica
-    /// refuses anyway, so nothing is lost by refusing here first.
+    /// **Nothing on the workspace path calls it.** Its callers were the snapshot writer and the
+    /// restore, and both retired with the backup surface (#569); what is left is the seeded and
+    /// test paths, where the arm is `Local` and the refusal never fires.
     pub async fn reconnect(&mut self) -> Result<(), Error> {
         match self.engine.as_ref() {
             Some(Engine::Workspace(_)) => {
@@ -203,137 +200,6 @@ impl Database {
         self.connect().await
     }
 
-    pub async fn create_backup(&self, backup_path: &Path) -> Result<(), Error> {
-        match self.engine.as_ref().ok_or_else(Self::not_connected)? {
-            Engine::Local(pool) => Self::create_backup_from_pool(pool, backup_path).await,
-            Engine::Workspace(_) => Err(Self::not_on_a_replica("copy the database out")),
-        }
-    }
-
-    async fn create_backup_from_pool(pool: &Pool<Sqlite>, backup_path: &Path) -> Result<(), Error> {
-        if let Some(parent) = backup_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-
-        if backup_path.exists() {
-            fs::remove_file(backup_path)?;
-        }
-
-        // `VACUUM INTO` takes no bind parameter, so the destination has to be written into
-        // the statement. Asserted safe: the path is chosen by the application rather than
-        // supplied by a caller, and the quote doubling above is SQLite's own escaping for
-        // a string literal.
-        let escaped_path = backup_path.to_string_lossy().replace('\'', "''");
-        sqlx::query(AssertSqlSafe(format!("VACUUM INTO '{}'", escaped_path)))
-            .execute(pool)
-            .await?;
-
-        Ok(())
-    }
-
-    pub async fn restore_backup(&mut self, backup_path: &Path) -> Result<(), Error> {
-        match self.engine.as_ref() {
-            // Refused before anything is deleted. What this does is purge the file and copy
-            // another one over it, and on a replica that is not a restore — it is a replica
-            // replaced by a plain SQLite file the engine has no change history for.
-            Some(Engine::Workspace(_)) => {
-                return Err(Self::not_on_a_replica("replace the database wholesale"));
-            }
-            // Matched rather than tested with `matches!`, so this method owes an answer for a
-            // third arm the same way every other one here does.
-            Some(Engine::Local(_)) | None => {}
-        }
-
-        let settings = self.settings.read().await;
-
-        let db_path = settings.database_path.clone();
-
-        drop(settings);
-
-        self.disconnect().await;
-
-        Self::purge_related_paths(&db_path).unwrap_or_else(|error| {
-            Self::panic_restore_failure(
-                "purging current database files",
-                &db_path,
-                backup_path,
-                error,
-            )
-        });
-
-        if let Some(parent) = db_path.parent() {
-            fs::create_dir_all(parent).unwrap_or_else(|error| {
-                Self::panic_restore_failure(
-                    "creating restore destination directory",
-                    &db_path,
-                    backup_path,
-                    error,
-                )
-            });
-        }
-
-        fs::copy(backup_path, &db_path).unwrap_or_else(|error| {
-            Self::panic_restore_failure(
-                "copying the selected backup into place",
-                &db_path,
-                backup_path,
-                error,
-            )
-        });
-
-        self.connect().await.unwrap_or_else(|error| {
-            Self::panic_restore_failure(
-                "reconnecting to the restored database",
-                &db_path,
-                backup_path,
-                error,
-            )
-        });
-
-        Ok(())
-    }
-
-    fn panic_restore_failure(
-        phase: &str,
-        db_path: &Path,
-        backup_path: &Path,
-        error: impl std::fmt::Display,
-    ) -> ! {
-        panic!(
-            "fatal: backup restore entered an unrecoverable state during {} (active database: {}, backup: {}): {}",
-            phase,
-            db_path.display(),
-            backup_path.display(),
-            error,
-        );
-    }
-
-    fn get_related_paths(db_path: &Path) -> Vec<PathBuf> {
-        let db_path = db_path.to_path_buf();
-        let suffixes = ["-wal", "-shm", "-journal"];
-
-        let mut paths = vec![db_path.clone()];
-        let base = db_path.to_string_lossy().into_owned();
-
-        for suffix in suffixes {
-            paths.push(PathBuf::from(format!("{}{}", base, suffix)));
-        }
-
-        paths
-    }
-
-    fn purge_related_paths(db_path: &Path) -> Result<(), Error> {
-        for path in Self::get_related_paths(db_path) {
-            if path.exists() {
-                std::fs::remove_file(&path).map_err(|e| Error::Io {
-                    message: format!("failed to delete {}: {}", path.to_string_lossy(), e),
-                })?;
-            }
-        }
-
-        Ok(())
-    }
-
     fn not_connected() -> Error {
         Error::PreconditionFailed {
             message: "database not connected".to_string(),
@@ -342,9 +208,10 @@ impl Database {
 
     /// What a caller gets for asking the replica to do something only a plain file can do.
     ///
-    /// Both refusals are one rule: nothing but the engine opens the replica. They read as gaps,
-    /// and the surfaces behind them — a snapshot on disk, a restore from one — are the surface a
-    /// hosted workspace retires. It retires on its own ticket rather than here.
+    /// One rule: nothing but the engine opens the replica. There were three refusals until #569,
+    /// and the other two guarded a snapshot on disk and a restore from one. Those retired with
+    /// the surface that asked for them, so what is left is reopening the file as a plain
+    /// database, which is the rule stated directly rather than a gap where a feature was.
     fn not_on_a_replica(what: &str) -> Error {
         Error::PreconditionFailed {
             message: format!(

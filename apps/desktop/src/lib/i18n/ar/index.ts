@@ -18,9 +18,7 @@ const ar = {
 			copyDetails: 'نسخ التفاصيل',
 			chooseFile: 'اختر ملفاً...',
 			create: 'إنشاء',
-			createBackup: 'إنشاء نسخة احتياطية',
 			creating: 'جاري الإنشاء...',
-			creatingBackup: 'جاري إنشاء نسخة احتياطية...',
 			customizeColumns: 'تخصيص الأعمدة',
 			delete: 'حذف',
 			deleting: 'جاري الحذف...',
@@ -36,10 +34,6 @@ const ar = {
 			openPayments: 'فتح المدفوعات',
 			openPreviousRelease: 'فتح الإصدار السابق',
 			proceed: 'متابعة',
-			pull: 'سحب البعيد',
-			pulling: 'جارٍ السحب...',
-			push: 'رفع اللقطة',
-			pushing: 'جارٍ الرفع...',
 			remove: 'إزالة',
 			renew: 'تجديد',
 			renewContract: 'تجديد عقد',
@@ -148,7 +142,6 @@ const ar = {
 			amount: 'المبلغ',
 			appVersion: 'إصدار التطبيق',
 			availableVersion: 'الإصدار المتاح',
-			backupCount: 'عدد النسخ الاحتياطية',
 			complex: 'مجمع',
 			contract: 'عقد',
 			contractEnds: 'ينتهي العقد',
@@ -168,7 +161,6 @@ const ar = {
 			governmentId: 'المعرف الحكومي',
 			information: 'المعلومات',
 			governmentIdOptional: 'المعرف الحكومي (اختياري)',
-			lastBackupTime: 'آخر وقت نسخة احتياطية',
 			location: 'الموقع',
 			name: 'الاسم',
 			nationalId: 'الهوية الوطنية',
@@ -198,7 +190,6 @@ const ar = {
 			exported: 'تم التصدير إلى {path}',
 			loadingApp: 'جاري تحميل التطبيق...',
 			loadingSettings: 'جاري تحميل الإعدادات...',
-			never: 'أبدًا',
 			noResults: 'لا توجد نتائج.',
 			unexpectedError: 'حدث خطأ غير متوقع!',
 			unknown: 'غير معروف'
@@ -355,15 +346,8 @@ const ar = {
 			recoveryDescription:
 				'اكتشف rentable حالة استرداد تحديث أثناء تشغيل الإصدار v{version}. أعد محاولة التشغيل أو افتح الإصدار السابق إذا كنت بحاجة إلى إعادة تثبيته.',
 			recoveryDetails:
-				'تم إنشاء النسخة الاحتياطية المحمية من الإصدار v{backupVersion}. إذا استمر فشل التشغيل، فأعد تثبيت الإصدار السابق قبل فتح rentable مرة أخرى.',
-			recoveryRequiredTitle: 'مطلوب استرداد التحديث',
-			recoverySnapshotNotUpdated: 'تم التراجع ولكن لم يتم تحديث لقطة الاسترداد.',
-			restoredBackup: 'تمت استعادة النسخة الاحتياطية',
-			rolledBackDescription:
-				'تمت استعادة النسخة الاحتياطية المحمية وتم قفل التطبيق حتى إعادة تثبيت الإصدار السابق.',
-			rolledBackDetails: 'افتح إصدار github السابق، أعد تثبيته، ثم شغل rentable مرة أخرى.',
-			rolledBackTitle: 'تم التراجع عن التحديث',
-			startupRecoveryBackup: 'نسخة احتياطية'
+				'لا شيء مما سُجّل في مساحة العمل هذه في خطر: فهي محفوظة نيابةً عنك ولدى هذا الجهاز نسخة منها. وإذا استمر فشل التشغيل، فأعد تثبيت الإصدار v{previousVersion} قبل فتح rentable مرة أخرى.',
+			recoveryRequiredTitle: 'مطلوب استرداد التحديث'
 		}
 	},
 
@@ -394,17 +378,8 @@ const ar = {
 		accountDescription:
 			'هذا الجهاز مسجل الدخول بالحساب أدناه. تسجيل الخروج يغلق مساحة العمل على هذا الجهاز وحده — تبقى مساحة العمل كما هي، ويعيد تسجيل الدخول فتحها.',
 		accountSignedInAs: 'مسجل الدخول باسم',
-		aboutDescription: 'معلومات التطبيق الحالية ووقت آخر مزامنة وآخر لقطة استرداد.',
 		aboutTitle: 'حول',
 		createdAt: 'تم الإنشاء {value}',
-
-		createBackupDescription:
-			'تُحفظ النسخ الاحتياطية في مجلد نسخ التطبيق، ويمكن استعادتها من الأسفل. كما تُنشأ نسخة احتياطية محمية تلقائياً قبل تثبيت أي تحديث.',
-		createBackupTitle: 'إنشاء نسخة احتياطية',
-
-		databaseDescription:
-			'بدّل قاعدة البيانات النشطة، أو ارجع إلى المسار الافتراضي، أو أنشئ نسخاً احتياطية، أو استعد نسخاً سابقة.',
-		databaseTitle: 'مسار قاعدة البيانات والنسخ الاحتياطية',
 
 		diagnosticsDescription:
 			'يحفظ رينتابل سجلاً بما يجري على هذا الجهاز، ليمكن تتبع أي عطل بعد وقوعه. لا تغادر الملفات هذا الجهاز، وحجمها محدود، وتُحذف كلمات المرور ورموز الحسابات قبل كتابة أي شيء.',
@@ -434,23 +409,17 @@ const ar = {
 		transferImportTitle: 'استيراد مساحة عمل',
 		transferImportSuccess: 'تم استيراد الملف',
 
-		protectedUpdateBackup: 'نسخة احتياطية محمية',
 		releaseAvailable: 'يتوفر تحديث v{version}.',
-		restoreBackupTitle: 'استعادة نسخة احتياطية',
 
 		restartNotice:
 			'تم تثبيت التحديث. قد يتم إغلاق التطبيق تلقائياً أثناء التثبيت، أو أعد تشغيله لإكمال التحديث.',
 
-		noBackups: 'لا توجد نسخ احتياطية بعد.',
-
 		pathOverrideDescription:
 			'عند تركه فارغاً سيُستخدم المسار الافتراضي أعلاه. عند الحفظ يُعاد الاتصال فوراً، ويُفتح مسار قاعدة البيانات المحدد عند بدء التشغيل.',
 		pathOverridePlaceholder: 'اتركه فارغاً لاستخدام المسار الافتراضي',
-		latestSnapshot: 'أحدث لقطة',
-		snapshotNow: 'إنشاء لقطة الآن',
 		syncAutomationDescription:
-			'يحتفظ رينتابل بلقطة حديثة من مساحة العمل هذه ليمكن استردادها، ويحذف الأقدم منها. لا حاجة لعمل أي شيء هنا.',
-		syncAutomationTitle: 'اللقطات محفوظة نيابةً عنك',
+			'مساحة العمل هذه محفوظة نيابةً عنك، وكل تغيير يصل إليها فور إجرائه. لا حاجة لعمل أي شيء هنا.',
+		syncAutomationTitle: 'مساحة العمل هذه محفوظة نيابةً عنك',
 		syncAccountStatusNeedsReconnect: 'يحتاج إلى إعادة ربط',
 		syncSignInPending:
 			'لم يُهيّأ تسجيل الدخول بحساب Google في هذه النسخة بعد، فلا يمكن لهذه المساحة الوصول إلى الخدمة التي تحفظها.',
@@ -638,15 +607,10 @@ const ar = {
 	},
 
 	settingsHooks: {
-		backupCreated: 'تم إنشاء النسخة الاحتياطية!',
-		backupDeleted: 'تم حذف النسخة الاحتياطية!',
-		backupRestored: 'تمت استعادة النسخة الاحتياطية!',
 		databasePathReset: 'تم إعادة تعيين المسار!',
 		databasePathUpdated: 'تم تحديث المسار!',
 		endingSoonUpdated: 'تم تحديث فترة الإشعار!',
 		profileSwitched: 'تم تبديل مساحة العمل بنجاح!',
-		rollbackRestored: 'تم استعادة النسخة المحمية!',
-		snapshotCreated: 'تم إنشاء اللقطة بنجاح!',
 		workspaceUpToDate: 'مساحة العمل محدّثة!',
 		startupRecoveryCleared: 'تم مسح الاسترداد ويمكن المحاولة مجدداً.',
 		sessionExpired:

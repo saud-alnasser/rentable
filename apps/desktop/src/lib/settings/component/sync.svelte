@@ -7,21 +7,17 @@
 	import { Badge, type BadgeVariant } from '$lib/design/primitive/badge';
 	import { Button } from '$lib/design/primitive/button';
 	import { Callout } from '$lib/design/primitive/callout';
-	import { formatLocaleDate } from '$lib/platform/locale';
 	import { cn } from '$lib/design/tailwind.js';
-	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { useCreateWorkspaceSnapshot, useSyncWorkspace } from '$lib/settings/query';
+	import { LL } from '$lib/i18n/i18n-svelte';
+	import { useSyncWorkspace } from '$lib/settings/query';
 	import { signedInAccount } from '$lib/sync/account';
-	import HardDriveIcon from '@lucide/svelte/icons/hard-drive';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 
 	let { syncState }: { syncState: RemoteSyncState } = $props();
 
-	const createWorkspaceSnapshotMutation = useCreateWorkspaceSnapshot();
 	const syncWorkspaceMutation = useSyncWorkspace();
 	const settingsInsetPanelClass = 'rounded-2xl border bg-muted p-4 text-start';
 
-	const isSnapshotPending = $derived(createWorkspaceSnapshotMutation.isPending);
 	const isSyncing = $derived(syncWorkspaceMutation.isPending);
 
 	const activeWorkspace = $derived.by(() => syncState.workspace);
@@ -37,31 +33,12 @@
 	 */
 	const activeAccount = $derived.by(() => signedInAccount(syncState));
 
-	async function snapshotNow() {
-		try {
-			await createWorkspaceSnapshotMutation.mutateAsync();
-		} catch {
-			/* ignore */
-		}
-	}
-
 	async function syncNow() {
 		try {
 			await syncWorkspaceMutation.mutateAsync();
 		} catch {
 			/* ignore */
 		}
-	}
-
-	function formatTimestamp(value: number | null | undefined) {
-		if (!value) {
-			return $LL.common.messages.never();
-		}
-
-		return formatLocaleDate($locale, value, {
-			dateStyle: 'medium',
-			timeStyle: 'short'
-		});
 	}
 
 	function getAvatarLabel(workspace: RemoteSyncWorkspace, account: RemoteSyncAccount | null) {
@@ -131,33 +108,14 @@
 							</p>
 						</div>
 					</div>
-
-					<!-- each fact once: the header already carries the account, so what is left is when
-					     this workspace was last written. -->
-					<dl class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-						<div class="min-w-0">
-							<dt class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
-								{$LL.settings.latestSnapshot()}
-							</dt>
-							<dd class="mt-1 font-medium">
-								{formatTimestamp(activeWorkspace.lastSnapshotAt ?? null)}
-							</dd>
-						</div>
-					</dl>
 				</div>
 
 				<div class="w-full max-w-md space-y-3 text-start">
 					<p class="text-sm text-muted-foreground">{$LL.settings.syncWorkspaceDescription()}</p>
-					<div class="grid gap-2 sm:grid-cols-2">
-						<Button onclick={() => void snapshotNow()} disabled={isSnapshotPending}>
-							<HardDriveIcon class="size-4" />
-							{isSnapshotPending ? $LL.common.actions.creating() : $LL.settings.snapshotNow()}
-						</Button>
-						<Button variant="outline" onclick={() => void syncNow()} disabled={isSyncing}>
-							<RefreshCwIcon class="size-4" />
-							{isSyncing ? $LL.common.actions.working() : $LL.common.actions.syncNow()}
-						</Button>
-					</div>
+					<Button variant="outline" onclick={() => void syncNow()} disabled={isSyncing}>
+						<RefreshCwIcon class="size-4" />
+						{isSyncing ? $LL.common.actions.working() : $LL.common.actions.syncNow()}
+					</Button>
 				</div>
 			</div>
 

@@ -25,24 +25,16 @@
 			<Callout variant="error">{recovery.updateError}</Callout>
 		{/if}
 
-		<div class="grid gap-3 sm:grid-cols-2">
-			<div class="rounded-xl bg-muted p-3">
-				<p class="text-xs tracking-wide text-muted-foreground uppercase">
-					{$LL.layout.startup.startupRecoveryBackup()}
-				</p>
-				<p class="mt-1 font-medium break-all">{recovery.backupFilename}</p>
-			</div>
-			<div class="rounded-xl bg-muted p-3">
-				<p class="text-xs tracking-wide text-muted-foreground uppercase">
-					{$LL.layout.startup.previousVersion()}
-				</p>
-				<p class="mt-1 font-medium">{recovery.backupVersion || $LL.common.messages.unknown()}</p>
-			</div>
+		<div class="rounded-xl bg-muted p-3">
+			<p class="text-xs tracking-wide text-muted-foreground uppercase">
+				{$LL.layout.startup.previousVersion()}
+			</p>
+			<p class="mt-1 font-medium">{recovery.previousVersion || $LL.common.messages.unknown()}</p>
 		</div>
 
 		<p class="text-sm text-muted-foreground">
 			{$LL.layout.startup.recoveryDetails({
-				backupVersion: recovery.backupVersion || $LL.common.messages.unknown()
+				previousVersion: recovery.previousVersion || $LL.common.messages.unknown()
 			})}
 		</p>
 	</div>
@@ -51,11 +43,11 @@
 		<Button
 			variant="outline"
 			onclick={() => {
-				if (recovery.backupReleaseUrl) {
-					void tauri.opener.openUrl(recovery.backupReleaseUrl);
+				if (recovery.previousReleaseUrl) {
+					void tauri.opener.openUrl(recovery.previousReleaseUrl);
 				}
 			}}
-			disabled={!recovery.backupReleaseUrl}
+			disabled={!recovery.previousReleaseUrl}
 		>
 			{$LL.common.actions.openPreviousRelease()}
 		</Button>

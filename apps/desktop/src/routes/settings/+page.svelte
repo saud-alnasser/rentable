@@ -125,8 +125,8 @@
 				<Field.Group>
 					<SettingsSync syncState={remoteSyncQuery.data} />
 					<Field.Separator />
-					<!-- beside sync and backups, because all three are answers to the same question:
-					     where this workspace lives, and how it gets somewhere else. -->
+					<!-- beside sync, because both are answers to the same question: where this
+					     workspace lives, and how it gets somewhere else. -->
 					<WorkspaceTransfer />
 				</Field.Group>
 			</Field.Set>

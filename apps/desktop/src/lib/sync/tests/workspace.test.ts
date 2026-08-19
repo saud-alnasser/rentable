@@ -37,10 +37,6 @@ mock.module('$lib/platform/tauri', {
 					}
 
 					return shellState;
-				},
-				autosaveNow: async () => {
-					calls.push('autosaveNow');
-					return fakeSyncState({ workspace: fakeWorkspace() });
 				}
 			}
 		}
@@ -114,7 +110,7 @@ test('a dispatch reaches the control plane and does nothing else', async () => {
 	);
 });
 
-test('the last dispatch of a session takes no snapshot on the way out', async () => {
+test('the last dispatch of a session writes nothing on the way out', async () => {
 	reset();
 	shellState = hostedShell(window(3));
 
@@ -124,7 +120,7 @@ test('the last dispatch of a session takes no snapshot on the way out', async ()
 	assert.deepEqual(
 		calls,
 		['renewSession'],
-		'the workspace was autosaved to this machine on the way out'
+		'the last dispatch did something other than ask about the window'
 	);
 });
 
@@ -178,7 +174,7 @@ test('nothing written during the window is discarded to produce the refusal', as
 	const result = await syncWorkspaceNow(state);
 
 	assert.equal(result.action, 'signInRequired');
-	assert.deepEqual(calls, ['renewSession'], 'the refusal wrote or snapshotted something');
+	assert.deepEqual(calls, ['renewSession'], 'the refusal wrote something');
 	assert.ok(inverseStack.undoable, 'the refusal threw away work the session could still undo');
 	assert.equal(
 		result.state,

@@ -15,8 +15,8 @@ import type { QueryClient } from '@tanstack/svelte-query';
  * compose their key sets from them, so the keys and the invalidation that must match
  * them cannot drift apart.
  *
- * settings, backups, and remote-sync state are outside this policy and keep their own
- * keys and invalidations.
+ * settings and remote-sync state are outside this policy and keep their own keys and
+ * invalidations.
  */
 
 /** the key prefix of each data concept — the single authority the key sets build on. */

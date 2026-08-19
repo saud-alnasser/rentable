@@ -44,8 +44,8 @@ export type Inverse = {
  * redo mean last-in-first-out to a person, which is reason enough.
  *
  * Cleared whenever the workspace underneath it is replaced. An inverse is a statement about a
- * database, and a sync pull, a backup restore or a workspace switch replaces the one it was
- * written against; replaying it there would corrupt rather than undo.
+ * database, and a workspace switch replaces the one it was written against; replaying it there
+ * would corrupt rather than undo.
  */
 export class InverseStack {
 	#undoable: Inverse[] = [];

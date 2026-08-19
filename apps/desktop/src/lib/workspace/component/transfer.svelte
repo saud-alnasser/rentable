@@ -22,8 +22,8 @@
 	 * A whole workspace, out as one file and back in from one.
 	 *
 	 * It sits in the settings screen's workspace group rather than on any directory's toolbar,
-	 * beside the backup and sync controls that are the other two answers to *where does this
-	 * workspace live*. A directory's toolbar is the wrong place by construction: a workspace is
+	 * beside the sync controls that are the other answer to *where does this workspace live*.
+	 * A directory's toolbar is the wrong place by construction: a workspace is
 	 * not a list, and a control on the tenants screen that quietly wrote every contract and
 	 * payment as well would be lying about its scope.
 	 */

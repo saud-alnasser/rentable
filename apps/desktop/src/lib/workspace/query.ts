@@ -29,8 +29,9 @@ import { get } from 'svelte/store';
  * stack of inverses replayed through the real procedures ([[rules/data]], under *Undo*), and the
  * inverse of a file's worth of records is thousands of deletions issued in an order the schema
  * allows — which is not a thing to hang off a toast that disappears in eight seconds. A file
- * imported is not a change taken back; it is undone by restoring a backup, which is what the
- * group above the transfer on the settings screen exists for.
+ * imported is not a change taken back, and since #569 there is nothing in the application that
+ * takes it back either: the record of truth is in Turso, whose point-in-time restore belongs to
+ * whoever administers the account rather than to this screen.
  */
 export const useImportRecords = declareMutation({
 	mutate: (transfer: Parameters<typeof api.workspace.importWhole>[0]) =>

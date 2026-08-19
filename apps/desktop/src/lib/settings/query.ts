@@ -1,8 +1,6 @@
 import api from '$lib/api/caller';
 import { tauri, type RemoteSyncState } from '$lib/platform/tauri';
 import { syncWorkspaceBeforeExit, syncWorkspaceNow } from '$lib/sync/workspace';
-import { invalidateRoot } from '$lib/design/query';
-import { inverseStack } from '$lib/design/inverse';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { keys as dashboardKeys } from '$lib/dashboard/query';
 import { LL } from '$lib/i18n/i18n-svelte';
@@ -13,7 +11,6 @@ import { get } from 'svelte/store';
 export const keys = {
 	all: ['settings'],
 	settings: ['settings', 'data'],
-	backups: ['settings', 'backups'],
 	remoteSync: ['settings', 'remote-sync']
 } as const;
 
@@ -21,13 +18,6 @@ export function useFetchSettings() {
 	return createQuery(() => ({
 		queryKey: keys.settings,
 		queryFn: () => api.app.settings.get()
-	}));
-}
-
-export function useFetchBackups() {
-	return createQuery(() => ({
-		queryKey: keys.backups,
-		queryFn: () => api.app.backup.list()
 	}));
 }
 
@@ -60,104 +50,6 @@ export function useSetEndingSoonNoticeDays(
 				// the prefix, so the screen is refreshed whichever period it is currently showing.
 				client.invalidateQueries({ queryKey: dashboardKeys.all })
 			]);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useCreateBackup(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).settingsHooks.backupCreated(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => api.app.backup.create(),
-		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.backups });
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useDeleteBackup(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).settingsHooks.backupDeleted(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ filename }: { filename: string }) => api.app.backup.delete({ filename }),
-		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.backups });
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useRestoreBackup(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).settingsHooks.backupRestored(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		// the inverses go with the database they were statements about: a restore replaces the
-		// workspace, so replaying one there would corrupt rather than undo (ADR 0026).
-		mutationFn: async ({ filename }: { filename: string }) => {
-			const result = await api.app.backup.restore({ filename });
-			inverseStack.clear();
-			await api.app.state.reconcile();
-
-			return result;
-		},
-		onSuccess: async () => {
-			await invalidateRoot(client);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useCreateWorkspaceSnapshot(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).settingsHooks.snapshotCreated(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => api.app.remoteSync.snapshotNow(),
-		onSuccess: async (state) => {
-			client.setQueryData(keys.remoteSync, state);
-			await client.invalidateQueries({ queryKey: keys.backups });
-			await client.invalidateQueries({ queryKey: keys.remoteSync });
 
 			onMutationSuccess(opts);
 		},

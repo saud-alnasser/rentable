@@ -32,7 +32,7 @@ pub enum Error {
     /// other variant here.
     Cancelled { message: String },
     /// stored or remote content failed verification (a content hash mismatch,
-    /// an app-version mismatch, a corrupt manifest).
+    /// an app-version mismatch).
     Integrity { message: String },
     /// a filesystem operation failed.
     Io { message: String },
@@ -205,12 +205,12 @@ mod tests {
         let error = Error::Io {
             message: "permission denied".to_string(),
         }
-        .with_context("failed to delete recovery backup");
+        .with_context("failed to write the recovery record");
 
         assert_eq!(
             error,
             Error::Io {
-                message: "permission denied; additionally failed to delete recovery backup"
+                message: "permission denied; additionally failed to write the recovery record"
                     .to_string()
             }
         );

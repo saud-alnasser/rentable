@@ -2,7 +2,7 @@ import type { Recovery } from '$lib/platform/tauri';
 import { procedure, router } from '$lib/api/trpc';
 import { reconcile } from '$lib/contract/reconcile';
 import settings from '$lib/settings/router';
-import { backup, remoteSync } from '$lib/sync/router';
+import { remoteSync } from '$lib/sync/router';
 import z from 'zod';
 
 export default router({
@@ -10,7 +10,6 @@ export default router({
 		return await ctx.host.bootstrap();
 	}),
 	settings,
-	backup,
 	remoteSync,
 	update: {
 		prepare: procedure.public

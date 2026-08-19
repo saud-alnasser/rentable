@@ -19,9 +19,7 @@ const en = {
 			copyDetails: 'copy details',
 			chooseFile: 'choose a file...',
 			create: 'create',
-			createBackup: 'create backup',
 			creating: 'creating...',
-			creatingBackup: 'creating backup...',
 			customizeColumns: 'customize columns',
 			delete: 'delete',
 			deleting: 'deleting...',
@@ -37,10 +35,6 @@ const en = {
 			openPayments: 'open payments',
 			openPreviousRelease: 'open previous release',
 			proceed: 'proceed',
-			pull: 'pull remote',
-			pulling: 'pulling...',
-			push: 'push snapshot',
-			pushing: 'pushing...',
 			remove: 'remove',
 			renew: 'renew',
 			renewContract: 'renew a contract',
@@ -155,7 +149,6 @@ const en = {
 			amount: 'amount',
 			appVersion: 'app version',
 			availableVersion: 'available version',
-			backupCount: 'backup count',
 			complex: 'complex',
 			contract: 'contract',
 			contractEnds: 'contract ends',
@@ -175,7 +168,6 @@ const en = {
 			governmentId: 'government id',
 			information: 'information',
 			governmentIdOptional: 'government id (optional)',
-			lastBackupTime: 'last backup time',
 			location: 'location',
 			name: 'name',
 			nationalId: 'national id',
@@ -205,7 +197,6 @@ const en = {
 			exported: 'exported to {path:string}',
 			loadingApp: 'loading app...',
 			loadingSettings: 'loading settings...',
-			never: 'never',
 			noResults: 'no results.',
 			unexpectedError: 'unexpected error occurred!',
 			unknown: 'unknown'
@@ -364,16 +355,8 @@ const en = {
 			recoveryDescription:
 				'rentable detected update recovery while starting v{version}. retry startup, or open the previous release if you need to reinstall it.',
 			recoveryDetails:
-				'the protected backup was created from v{backupVersion}. if startup still fails, reinstall the previous release before opening rentable again.',
-			recoveryRequiredTitle: 'update recovery required',
-			recoverySnapshotNotUpdated: 'rollback completed but the recovery snapshot was not updated.',
-			restoredBackup: 'restored backup',
-			rolledBackDescription:
-				'the protected database backup has been restored and the app is locked until you reinstall the previous release.',
-			rolledBackDetails:
-				'open the previous github release, reinstall it, then launch rentable again.',
-			rolledBackTitle: 'update rolled back',
-			startupRecoveryBackup: 'backup'
+				'nothing recorded in this workspace is at risk: it is kept for you and this machine holds a copy. if startup still fails, reinstall v{previousVersion} before opening rentable again.',
+			recoveryRequiredTitle: 'update recovery required'
 		}
 	},
 
@@ -404,17 +387,8 @@ const en = {
 		accountDescription:
 			'this machine is signed in as the account below. signing out closes the workspace on this machine only — it stays where it is, and signing back in opens it again.',
 		accountSignedInAs: 'signed in as',
-		aboutDescription: 'current app details and the latest synchronization and snapshot timestamps.',
 		aboutTitle: 'about',
 		createdAt: 'created {value}',
-
-		createBackupDescription:
-			'backups are stored in the app backup directory and can be restored below. protected update backups are created automatically before an update is installed.',
-		createBackupTitle: 'create backup',
-
-		databaseDescription:
-			'switch the active database, fall back to the default path, create backups, and restore earlier backups.',
-		databaseTitle: 'database path and backups',
 
 		diagnosticsDescription:
 			'rentable keeps a record of what it does on this machine, so a failure can be looked into afterwards. the files never leave this machine, they are limited in size, and passwords and account tokens are removed before anything is written.',
@@ -444,23 +418,17 @@ const en = {
 		transferImportTitle: 'import a workspace',
 		transferImportSuccess: 'the file was imported',
 
-		protectedUpdateBackup: 'protected update backup',
 		releaseAvailable: 'update v{version} is available.',
-		restoreBackupTitle: 'restore backup',
 
 		restartNotice:
 			'the update has been installed. on windows the app may close automatically during installation; otherwise restart rentable to finish switching versions.',
 
-		noBackups: 'no backups are available yet.',
-
 		pathOverrideDescription:
 			'leave this empty to use the default path above. saving reconnects immediately, and startup opens the selected database path.',
 		pathOverridePlaceholder: 'leave empty to use the default database path',
-		latestSnapshot: 'latest snapshot',
-		snapshotNow: 'snapshot',
 		syncAutomationDescription:
-			'rentable keeps a recent snapshot of this workspace so it can be recovered, and clears out the older ones. there is nothing to do here.',
-		syncAutomationTitle: 'snapshots are kept for you',
+			'this workspace is kept for you, and every change reaches it as you make it. there is nothing to do here.',
+		syncAutomationTitle: 'this workspace is kept for you',
 		syncAccountStatusNeedsReconnect: 'needs reconnect',
 		syncSignInPending:
 			'signing in with Google is not configured in this build yet, so this workspace cannot reach the service that keeps it.',
@@ -653,15 +621,10 @@ const en = {
 	},
 
 	settingsHooks: {
-		backupCreated: 'backup created successfully!',
-		backupDeleted: 'backup deleted successfully!',
-		backupRestored: 'backup restored successfully!',
 		databasePathReset: 'database path reset to default successfully!',
 		databasePathUpdated: 'database path updated successfully!',
 		endingSoonUpdated: 'ending soon notice window updated successfully!',
 		profileSwitched: 'workspace switched successfully!',
-		rollbackRestored: 'protected update backup restored successfully!',
-		snapshotCreated: 'snapshot created successfully!',
 		workspaceUpToDate: 'this workspace is up to date!',
 		startupRecoveryCleared:
 			'startup recovery cleared. retrying the current version is now allowed.',

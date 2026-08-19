@@ -1067,8 +1067,11 @@ mod tests {
                     signed_in.state.workspace.name, "Primary workspace",
                     "signing in wrote something onto the workspace"
                 );
-                assert!(
-                    signed_in.state.workspace.last_snapshot_at.is_none(),
+                // `last_snapshot_at` was the witness here until the backup surface retired
+                // (#569). What is left that a write would move is `updated_at`, which the
+                // reconcile only advances when the workspace itself changes.
+                assert_eq!(
+                    signed_in.state.workspace.updated_at, signed_in.state.workspace.created_at,
                     "signing in touched the workspace"
                 );
 

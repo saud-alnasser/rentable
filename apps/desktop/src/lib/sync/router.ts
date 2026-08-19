@@ -1,49 +1,19 @@
-import type { BackupEntry, RemoteSyncState } from '$lib/platform/tauri';
-import { autosync, procedure, router } from '$lib/api/trpc';
-import z from 'zod';
+import type { RemoteSyncState } from '$lib/platform/tauri';
+import { procedure, router } from '$lib/api/trpc';
 
 /**
  * SYNC ROUTER
  *
  * getting a workspace off this machine and back onto it, mounted by the app router at
- * `app.backup` and `app.remoteSync`. Two routers rather than one because the paths are
- * two, and one file because backup and sync produce the same snapshots — a change to
- * what a snapshot is touches both.
+ * `app.remoteSync`.
+ *
+ * *It carried a `backup` router beside this one, because backup and sync produced the same
+ * snapshots. The backup surface retired with #569 and Turso holds the record, so there are no
+ * snapshots for the two to have in common and only the window is left to ask about.*
  */
-
-export const backup = router({
-	create: procedure.public.mutation(async ({ ctx }): Promise<BackupEntry> => {
-		return ctx.host.backup.create();
-	}),
-	list: procedure.public.query(async ({ ctx }): Promise<BackupEntry[]> => {
-		return ctx.host.backup.list();
-	}),
-	delete: procedure.public
-		.input(
-			z.object({
-				filename: z.string().trim().min(1)
-			})
-		)
-		.mutation(async ({ input, ctx }) => {
-			return ctx.host.backup.delete(input.filename);
-		}),
-	restore: procedure.public
-		.use(autosync())
-		.input(
-			z.object({
-				filename: z.string().trim().min(1)
-			})
-		)
-		.mutation(async ({ input, ctx }) => {
-			return ctx.host.backup.restore(input.filename);
-		})
-});
 
 export const remoteSync = router({
 	getState: procedure.public.query(async ({ ctx }): Promise<RemoteSyncState> => {
 		return ctx.host.remoteSync.getState();
-	}),
-	snapshotNow: procedure.public.mutation(async ({ ctx }): Promise<RemoteSyncState> => {
-		return ctx.host.remoteSync.snapshotNow();
 	})
 });

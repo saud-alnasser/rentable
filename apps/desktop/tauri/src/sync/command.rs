@@ -1,21 +1,16 @@
-use crate::{backup::BackupSource, diagnostics, error::Error, state::AppState};
+use crate::{error::Error, state::AppState};
 
 use super::control::renew_session as renew_control_plane_session;
 use super::sign_in::{sign_in_with_google, sign_out_of_google};
 use super::store::RemoteSyncState;
-use super::workspace::sync_backup_manifest_to_active_workspace;
 
 #[tauri::command]
 pub async fn remote_sync_state_get(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<RemoteSyncState, Error> {
-    let state = {
-        let mut remote_sync = app_state.remote_sync.write().await;
-        remote_sync.get_state().await?
-    };
+    let mut remote_sync = app_state.remote_sync.write().await;
 
-    sync_backup_manifest_to_active_workspace(app_state.inner(), &state).await?;
-    Ok(state)
+    remote_sync.get_state().await
 }
 /// Reach the control plane and restart the window, where there is one to restart.
 ///
@@ -35,72 +30,6 @@ pub async fn remote_sync_renew_session(
 
     let mut remote_sync = app_state.remote_sync.write().await;
     remote_sync.get_state().await
-}
-
-#[tauri::command]
-pub async fn remote_sync_snapshot_now(
-    app_state: tauri::State<'_, AppState>,
-) -> Result<RemoteSyncState, Error> {
-    let workspace = {
-        let mut remote_sync = app_state.remote_sync.write().await;
-        remote_sync.get_state().await?.workspace
-    };
-    let entry = {
-        let mut backup = app_state.backup.write().await;
-        backup.sync_manifest_workspace(Some(&workspace))?;
-        backup.create(false).await?
-    };
-
-    let mut remote_sync = app_state.remote_sync.write().await;
-    remote_sync.record_snapshot_for_workspace(&entry)?;
-    let state = remote_sync.get_state().await?;
-    drop(remote_sync);
-
-    diagnostics::info("sync.snapshot.recorded")
-        .with("workspace", state.workspace.id.as_str())
-        .with("filename", entry.filename.as_str())
-        .write();
-
-    {
-        let mut backup = app_state.backup.write().await;
-        let _ = backup.cleanup_retained().await;
-    }
-
-    Ok(state)
-}
-#[tauri::command]
-pub async fn remote_sync_autosave_now(
-    app_state: tauri::State<'_, AppState>,
-) -> Result<RemoteSyncState, Error> {
-    let workspace = {
-        let mut remote_sync = app_state.remote_sync.write().await;
-        remote_sync.get_state().await?.workspace
-    };
-
-    let entry = {
-        let mut backup = app_state.backup.write().await;
-        backup.sync_manifest_workspace(Some(&workspace))?;
-        backup
-            .create_managed(BackupSource::Autosave, None, false)
-            .await?
-    };
-
-    let mut remote_sync = app_state.remote_sync.write().await;
-    remote_sync.record_snapshot_for_workspace(&entry)?;
-    let state = remote_sync.get_state().await?;
-    drop(remote_sync);
-
-    diagnostics::info("sync.autosave.recorded")
-        .with("workspace", state.workspace.id.as_str())
-        .with("filename", entry.filename.as_str())
-        .write();
-
-    {
-        let mut backup = app_state.backup.write().await;
-        let _ = backup.cleanup_retained().await;
-    }
-
-    Ok(state)
 }
 
 /// Sign in with Google, and nothing else.

@@ -1,5 +1,5 @@
 ---
-aep: 2.5.1
+aep: 2.7.0
 owner: repository
 date: 2026-08-19
 kind: rule
@@ -58,7 +58,7 @@ and Rust already spends `test/` on shared scaffolding, so the two would collide.
 ## A Rust directory is rooted by `mod.rs`
 
 A module with children is a `<concept>/` directory whose root is `mod.rs` — `sync/mod.rs`,
-`sync/google/mod.rs`, `backup/mod.rs`. Never `<concept>.rs` beside `<concept>/`.
+`sync/google/mod.rs`, `database/mod.rs`. Never `<concept>.rs` beside `<concept>/`.
 
 The crate is on edition 2024, where both spellings compile, so this is a choice rather than a
 constraint. It is made this way because the alternative writes the concept's name twice and
