@@ -1066,6 +1066,58 @@ made.
 local-only workspace reaches no account, and the occasion to sign in to the control plane arrives
 with the mode choice (#553), not with signing in to Google.
 
+***A workspace and its token were built 2026-08-18 by #556.*** Creating a workspace creates a
+database of its own on Turso, a record naming it, and the asking account's membership as owner;
+`POST /workspace/{id}/token` mints a Turso token scoped to that one database.
+
+**The token lives three days, and that number is requirement 15 rather than a tuning choice.**
+The requirement is that a signed-in client survives three days without a connection and that any
+connection inside the window renews it — so the window *is* the expiry, and picking a different
+number would be picking a different requirement. #550 demonstrates it and gets to disagree.
+
+**Membership is read on every mint, which is the whole of how somebody is removed.** Decision 01
+found Turso's own revocation is bulk-only and rotates every token in its group with no published
+propagation time, so it cannot remove one person. Declining to renew can: per-user, effective at
+the next refresh, bounded by the token lifetime. There is nothing to propagate and nothing to
+expire — the account either has a row when it next asks or it does not.
+
+**The database is created before the record naming it, and removed again if that record cannot be
+written.** The other order leaves a workspace naming no database, which every reader then has to
+carry for a state only a crash produces; this order leaves at worst an unreferenced database, and
+only where the removal also fails, which is logged. The record and the owner's membership are one
+transaction, because the failure *between* them is worse than either alone — a workspace nobody
+is a member of is one nobody can reach and nobody can delete.
+
+***Run against the live Turso account 2026-08-18, at the human's request***, creating a database,
+minting a token and attempting to delete it. Four things confirmed and one found:
+
+- `expiration=3d` yields a token whose `exp - iat` is exactly 259200 seconds, and whose `id`
+  claim is the database's own id — so *scoped to one database* and *short-lived* are properties
+  of the credential rather than promises about it.
+- The documented capitalised `Hostname` is real, the hostname carries the organization slug, and
+  a `ws-<uuid>` name is 39 of the 64 characters Turso allows.
+- **A delete-protected group refuses to delete the databases inside it**, answering about the
+  group rather than about what was asked, on a database whose own protection is off. This
+  account's group is protected, so **the cleanup path cannot run here**: an interrupted creation
+  leaves an unreferenced database behind, logged, until somebody removes it by hand. The code was
+  already best-effort and is unchanged in shape; what changed is that its failure is now known
+  rather than hypothetical, and a permanent refusal from Turso no longer advises a retry that
+  cannot succeed. [[references/turso]] carries it.
+
+**Every route but `/health` takes the Google access token as `Authorization: Bearer`, and
+`/account/sign-in` was moved onto the same header.** *This corrects #555, one commit later*: it
+read the token from a JSON body, which was fine while it was the only route and became two ways
+of saying one thing the moment there was a second. There is no session token yet — that is #550's,
+and this is what it will replace — so identity is re-established from Google per request. Signing
+in is not a precondition for the other routes either: each performs it, so a client whose first
+request creates a workspace reaches the account it would have reached.
+
+**Acceptance criterion 5 — no route returns a domain row — is asserted structurally rather than
+route by route**, because the failure it guards against arrives *with* a new route and a list of
+routes covers only the ones somebody remembered. A domain row could come from a domain table in
+this database, which one test fixes at exactly three, or from a module imported out of the desktop
+application, which a second test forbids. There is nowhere else it could come from.
+
 *What #555 did **not** satisfy, stated rather than quietly reinterpreted:* its acceptance
 criterion that an account carry **at least what `RemoteSyncAccount` already carries** is not met
 on its letter. That type has sixteen fields and the control-plane account has seven; the nine

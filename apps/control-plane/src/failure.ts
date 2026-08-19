@@ -32,3 +32,10 @@ export const INCOMPLETE = 'identity_incomplete';
 export const GOOGLE_UNREACHABLE = 'google_unreachable';
 export const MALFORMED = 'malformed_request';
 export const UNAVAILABLE = 'unavailable';
+/** asking to act as somebody without presenting a credential at all. */
+export const UNAUTHENTICATED = 'unauthenticated';
+/** a workspace this account is not a member of. Membership is the whole of the answer. */
+export const NOT_A_MEMBER = 'not_a_member';
+export const NO_SUCH_WORKSPACE = 'no_such_workspace';
+/** Turso could not be reached or would not answer. Distinct from Google for the same reason. */
+export const WORKSPACE_UNAVAILABLE = 'workspace_unavailable';

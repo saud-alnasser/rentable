@@ -48,12 +48,15 @@ export const account = sqliteTable('account', {
 });
 
 /**
- * A workspace the control plane knows about.
+ * A workspace the control plane knows about, and the database its data actually lives in.
  *
- * **Where its data actually lives is deliberately not here yet.** The database this record
- * points at is created by #556 and the schema version it carries is #557's, and both are
- * columns on this table when those tickets add them. A record with a `libsql://` hostname on
- * it before anything creates one would be a column that is null on every row.
+ * *The two database columns arrived with #556, which is what creates one.* They are not null,
+ * which is a choice about failure rather than about the schema: creating a workspace creates
+ * the database first and removes it again if the record cannot be written, so there is no
+ * moment at which a workspace exists without one. A nullable pair would have made every reader
+ * carry a state that only a crash produces.
+ *
+ * The schema version this workspace is migrated to is #557's column, and it is not here yet.
  */
 export const workspace = sqliteTable('workspace', {
 	id: text('id').primaryKey(),
@@ -61,6 +64,10 @@ export const workspace = sqliteTable('workspace', {
 	ownerAccountId: text('owner_account_id')
 		.notNull()
 		.references(() => account.id),
+	/** the database's name in the Turso organization. Every Platform API call names it by this. */
+	databaseName: text('database_name').notNull().unique(),
+	/** what a client syncs against, without a scheme — `libsql://` is prepended where it is used. */
+	databaseHostname: text('database_hostname').notNull(),
 	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
 });

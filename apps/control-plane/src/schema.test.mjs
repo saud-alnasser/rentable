@@ -67,6 +67,20 @@ test('a workspace belongs to an account, and the reference is declared', () => {
 	);
 });
 
+// A workspace with no database is a state only a crash produces, and creating one removes the
+// database again rather than leaving the record half-written. So the columns are not null, and
+// no reader has to carry the case.
+test('a workspace names the database its data lives in', () => {
+	const { columns } = configOf('workspace');
+
+	assert.ok(columnNamed(columns, 'database_name').notNull);
+	assert.ok(
+		columnNamed(columns, 'database_name').isUnique,
+		'two workspaces could share a database'
+	);
+	assert.ok(columnNamed(columns, 'database_hostname').notNull);
+});
+
 test('one membership per account per workspace', () => {
 	const { primaryKeys } = configOf('membership');
 

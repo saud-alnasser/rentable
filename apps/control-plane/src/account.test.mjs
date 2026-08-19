@@ -20,7 +20,7 @@ test('signing in the first time makes the account', async () => {
 		assert.equal(created.updatedAt.getTime(), AT);
 		assert.ok(created.id, 'the account was given no identity');
 	} finally {
-		close();
+		await close();
 	}
 });
 
@@ -36,7 +36,7 @@ test('the same person signing in twice reaches the same account', async () => {
 		assert.equal(second.createdAt.getTime(), AT, 'the account was remade rather than found');
 		assert.equal(second.updatedAt.getTime(), AT + 1000);
 	} finally {
-		close();
+		await close();
 	}
 });
 
@@ -55,7 +55,7 @@ test('an email that changed does not make a second account', async () => {
 		assert.equal(after.email, 'amal.nasser@example.com', 'the profile went stale');
 		assert.equal(after.displayName, 'Amal N.');
 	} finally {
-		close();
+		await close();
 	}
 });
 
@@ -76,7 +76,7 @@ test('an address reassigned to somebody else is a second account, not a refused 
 		assert.notEqual(replacement.id, departed.id);
 		assert.equal(replacement.email, departed.email, 'they hold the same address');
 	} finally {
-		close();
+		await close();
 	}
 });
 
@@ -94,7 +94,7 @@ test('two first sign-ins at once make one account, not a collision', async () =>
 
 		assert.equal(one.id, other.id);
 	} finally {
-		close();
+		await close();
 	}
 });
 
@@ -111,6 +111,6 @@ test('two people are two accounts', async () => {
 
 		assert.notEqual(other.id, one.id);
 	} finally {
-		close();
+		await close();
 	}
 });

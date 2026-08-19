@@ -67,6 +67,7 @@ Start at [[protocol]].
 | [[references/svelte]] | building or running this Svelte or SvelteKit application | implement, prototype | repository |
 | [[references/tauri]] | building, running, or configuring the desktop shell | — | repository |
 | [[references/turborepo]] | running a task across this monorepo's packages, or explaining why one was skipped | implement, test | repository |
+| [[references/turso]] | provisioning a workspace database, minting a token to sync with one, or reading what the control plane does to Turso | — | repository |
 | [[references/typescript]] | type-checking this repository, or reading what its compiler is actually configured to enforce | implement, test, review | repository |
 | [[references/vite]] | building or serving this repository with Vite | implement, prototype, test | repository |
 
