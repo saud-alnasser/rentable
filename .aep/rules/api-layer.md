@@ -78,10 +78,19 @@ skips it verifies a system that does not ship.*
 
 **The condition this rule carried is discharged** *(2026-08-18)*. It was flagged in
 [[efforts/a-workspace-follows-its-user/spec]] as holding "only if the chosen client can be driven through that
-seam"; the gate drove the chosen sync client through `createDatabase(single, batch)` against a
-live database and it went through unchanged. **A hosted workspace is a third caller at this
+seam"; the gate drove a sync client through `createDatabase(single, batch)` against a live
+database and it went through unchanged. **A hosted workspace is a third caller at this
 factory, never a second kind of client** — which is what makes the whole of that effort
 affordable, and what a review is expected to check.
+
+*The evidence behind that sentence has been superseded and the conclusion has not* (2026-08-19,
+#565). What the gate drove was `@tursodatabase/sync`, in Node, and that is not the client this
+application ships: the sync engine runs in the Rust layer behind `db_execute_single_sql` and
+`db_execute_batch_sql`, so the two functions the factory receives still call `invoke` and what
+changed is the engine behind the command. **The seam is therefore less at risk than the gate
+found, not more** — a transport that never reaches the factory cannot fork the client type. What
+the move does cost is a second row mapping, in `tauri/src/database/proxy.rs`, which is held to
+the first by a Rust test rather than by this rule.
 
 ### Development tooling is excluded, deliberately
 

@@ -27,7 +27,7 @@ pub(crate) fn build_client(timeout: Duration) -> Result<reqwest::Client, Error> 
 /// Idempotent, and called from each construction site rather than once at
 /// startup: a client built before a startup step had run would panic, and
 /// nothing in the type system would have said so.
-fn install_crypto_provider() {
+pub(crate) fn install_crypto_provider() {
     if rustls::crypto::CryptoProvider::get_default().is_none() {
         // this fails only where another thread installed one in the meantime,
         // which is the outcome the call wanted anyway.

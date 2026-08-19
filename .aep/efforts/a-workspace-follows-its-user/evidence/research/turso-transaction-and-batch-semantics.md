@@ -24,10 +24,14 @@ load-bearing rather than academic.
   `src/transaction.rs`, `src/sync.rs`.
 - `turso_sync_engine` **0.7.2** crate source, same registry, same day — `src/database_tape.rs`,
   `src/database_sync_engine.rs`, `src/database_replay_generator.rs`.
+- **`turso` and `turso_sync_engine` 0.8.0-pre.4**, added to `apps/desktop/tauri/Cargo.toml` and
+  read the same day, building #565 — `src/connection.rs`, `src/transaction.rs`, `src/rows.rs`,
+  `src/value.rs`, `src/params.rs`, `src/sync.rs`, and `database_tape.rs` /
+  `database_sync_engine.rs` in the engine crate. Compiled and executed, not only read: the two
+  tests in `apps/desktop/tauri/src/database/proxy.rs` run against a real engine.
 
-**Both are 0.7.2, and #565 mandates 0.8.0-pre.4.** That version is not in the local registry and
-was not fetched. Everything below is true *of 0.7.2* and is a well-founded expectation of
-0.8.0-pre.4 rather than an observation about it — see *Not checked*.
+*Written first against 0.7.2 alone, because the version #565 mandates was not in the registry.
+The second reading is what closed that, and the corrections it forced are marked below.*
 
 # Findings
 
@@ -67,25 +71,62 @@ take a change id whose transaction has not landed.
 The boundary is represented, carried, and replayed, and the scan is bounded so a half-written
 transaction is not read. That is the property #565's Notes ask about.
 
-**conclusion — the question is answered in the affirmative for 0.7.2**, on both halves: the
-transaction and batch semantics exist, and a transaction's changes are captured with a commit
-boundary that the replay path honours.
+**conclusion — the question is answered in the affirmative**, on both halves: the transaction and
+batch semantics exist, and a transaction's changes are captured with a commit boundary that the
+replay path honours. *Reached from 0.7.2 and since confirmed at 0.8.0-pre.4, where the API above
+is unchanged.*
+
+# What 0.8.0-pre.4 changed about the answer *(2026-08-19, building #565)*
+
+**source — `execute_batch` opens no transaction, and the name is the trap.**
+`Connection::execute_batch(&self, sql)` calls `prepare_execute_batch`, which loops
+`conn.prepare_first(sql)` and executes each statement it splits out, one at a time, with no
+`BEGIN` anywhere (`turso-0.8.0-pre.4/src/connection.rs:130, 162-175`). It also takes one string
+and binds nothing. **This corrects the expectation the first reading left open** — the batch
+transport opens its own `Transaction` rather than reaching for the call whose name matches.
+
+**source — a transaction that is dropped does not roll back when it is dropped.** `Drop` stores
+the drop behaviour in `Connection::dangling_tx`, and the rollback is performed by
+`maybe_handle_dangling_tx()` on the connection's **next use**
+(`transaction.rs:222-235`, `connection.rs`). On a connection shared between requests the next use
+is another request, which would then pay for this one — so the batch path rolls back explicitly
+rather than leaving it to the drop.
+
+**source — the engine arms change capture itself, on every connection it hands out.**
+`DatabaseTape::connect` issues `PRAGMA capture_data_changes_conn('full,turso_cdc')` for each new
+connection (`turso_sync_engine-0.8.0-pre.4/src/database_tape.rs:33, 156, 172-186`), and
+`DatabaseSyncEngine::connect_rw` — which `sync::Database::connect()` reaches through the sdk kit
+— is `main_tape.connect(coro)` (`database_sync_engine.rs:3175-3183`). **This reframes the fourth
+gap rather than answering it as asked**: a caller never arms the pragma, so how arming it inside
+an open transaction behaves is not a question this application can reach. What matters is the
+consequence already in the constraints — a connection obtained any other way is one whose writes
+cannot be pushed.
+
+**observation — a row carries its storage class as a value, not as a type name.**
+`Row::get_value(idx)` answers with `turso::Value`, a five-variant enum over exactly the classes
+SQLite defines (`rows.rs:76-96`, `value.rs:5-12`). The declared column type is not reachable from
+it. That makes the three properties `proxy.rs`'s `value_at` maintains by hand — storage class not
+declared type, null matched first, no silent fallback — structural on this side rather than
+maintained.
+
+**observation — an engine built with no remote URL is a usable local database.**
+`sync::Builder::build()` passes `remote_url: None` straight through
+(`sync.rs:348-370`), and with `bootstrap_if_empty(false)` the result opens, accepts DDL, accepts
+writes, and answers queries with no network involved. Observed by running it: both tests in
+`proxy.rs` are built on exactly that engine.
 
 # Not checked
 
-- **0.8.0-pre.4, which is the version #565 mandates.** Not in the local registry and not fetched.
-  The finding above is 0.7.2's. The 0.7.2 → 0.8.0-pre.4 change that mattered to decision 10 was a
-  WAL-epoch durability fix (PR #8103), which is not obviously near this API — but *not obviously
-  near* is inference, and the read is one `cargo add` away once #565 is being built.
-- **Whether `execute_batch` itself opens a transaction.** `prepare_execute_batch` was not read;
-  only the call site was. It matters because if it does not, the batch path must open one
-  explicitly, and if it does, opening a second would be the nesting `Transaction::new` exists to
-  prevent.
+*Three of the five entries this section opened with are closed above. What is left is what a
+second reading of the crate cannot answer.*
+
 - **Push granularity in the non-MVCC path.** The commit boundary was traced through the *logical
   MVCC* apply path. Whether the ordinary push — which the earlier research established is WAL
-  frame-based — preserves the same boundary was not established.
+  frame-based — preserves the same boundary was not established, at either version.
 - **Behaviour at 6,500 statements.** Nothing here is a measurement. Whether one batch of that size
   is affordable in memory, in WAL growth, or in push size is unmeasured, and #536's import is the
-  case that would find out.
-- **Whether `PRAGMA capture_data_changes_conn` interacts with an open transaction** — for instance
-  whether arming it inside one is honoured for that transaction's own writes.
+  case that would find out. The rollback test proves the batch is *one unit*; it proves nothing
+  about what one unit of that size costs.
+- **Any of it against a live remote.** Every observation above is of an engine with no remote URL.
+  Push, pull, rotation and conflict through this API are acceptance criterion 9's, and they need
+  a workspace the control plane minted.
