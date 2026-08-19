@@ -1,23 +1,32 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it, mock } from 'node:test';
 
-import { createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
+import type { CreateMutationResult } from '@tanstack/svelte-query';
+import { get } from 'svelte/store';
+
+import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
+import { bindingOf } from '$lib/design/tests/testing.ts';
+import type { GoogleDriveSyncOutcome } from '$lib/platform/host.ts';
+import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
 
 // The declarations live beside the query hooks, which reach `.svelte` files this harness
 // cannot load. Substituting the three dependencies leaves the declaration itself real: the
 // procedures it calls are the ones a typed action goes through, over an in-memory database.
-let caller;
+//
+// The caller is rebound before every test, so the substitute reads it through a proxy rather
+// than closing over the one this file started with.
+let caller: Api = await createApi();
 
 mock.module('$lib/api/caller', {
 	exports: {
-		default: new Proxy({}, { get: (_, concept) => caller[concept] })
+		default: new Proxy(caller, { get: (_target, concept) => Reflect.get(caller, concept) })
 	}
 });
 
 mock.module('@tanstack/svelte-query', {
 	exports: {
 		useQueryClient: () => ({ invalidateQueries: async () => {} }),
-		createMutation: (options) => options(),
+		createMutation: (options: () => unknown) => options(),
 		createQuery: () => ({})
 	}
 });
@@ -28,7 +37,11 @@ mock.module('svelte-sonner', {
 
 // the remote is the one thing that cannot be real here: it is a process boundary. What it
 // reports is all the sync path reads, so the pull below is the pull the application takes.
-let remoteOutcome = { state: {}, action: 'none', preparation: null };
+let remoteOutcome: GoogleDriveSyncOutcome = {
+	state: fakeSyncState(),
+	action: 'none',
+	preparation: null
+};
 
 mock.module('$lib/platform/tauri', {
 	exports: {
@@ -63,13 +76,28 @@ const {
 const { getContractRenewalTerm } = await import('$lib/contract/renewal');
 const { useCreatePayment, useDeletePayment } = await import('$lib/payment/query');
 const { syncWorkspaceNow } = await import('$lib/sync/workspace');
+const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
+const { LL, setLocale } = await import('$lib/i18n/i18n-svelte');
+
+// an inverse names itself in the reader's language, so what a control would offer is only
+// assertable once a locale is loaded — the same two calls the application makes at startup.
+loadLocale('en');
+setLocale('en');
 
 /**
  * Drive one declared mutation the way the query client does — capture, call, then settle —
  * so what the test exercises is the declaration rather than a transcription of it.
+ *
+ * The hook's declared type is the real query library's result, which is not what it answers
+ * with here — the library is substituted above, and what comes back is the binding
+ * `declareMutation` handed it. That type still says which variables and which result, which is
+ * what keeps every call below typed by the procedure it declared.
  */
-async function run(hook, variables) {
-	const mutation = hook();
+async function run<TVariables, TResult, TCaptured>(
+	hook: () => CreateMutationResult<TResult, Error, TVariables, TCaptured>,
+	variables: TVariables
+): Promise<TResult> {
+	const mutation = bindingOf(hook);
 	const captured = await mutation.onMutate?.(variables);
 	const result = await mutation.mutationFn(variables);
 
@@ -102,13 +130,13 @@ describe('undoing a record change', () => {
 		const tenant = await seedTenant(caller);
 
 		await run(useUpdateTenant, { id: tenant.id, name: 'Renamed' });
-		assert.equal((await caller.tenant.get({ id: tenant.id })).name, 'Renamed');
+		assert.equal((await caller.tenant.get({ id: tenant.id }))?.name, 'Renamed');
 
 		await inverseStack.undo();
-		assert.equal((await caller.tenant.get({ id: tenant.id })).name, tenant.name);
+		assert.equal((await caller.tenant.get({ id: tenant.id }))?.name, tenant.name);
 
 		await inverseStack.redo();
-		assert.equal((await caller.tenant.get({ id: tenant.id })).name, 'Renamed');
+		assert.equal((await caller.tenant.get({ id: tenant.id }))?.name, 'Renamed');
 	});
 
 	it('takes back a deletion, putting the row back with the identity it had', async () => {
@@ -219,11 +247,11 @@ describe('undoing a record change', () => {
 
 		await run(useDeletePayment, payment.id);
 		await inverseStack.undo();
-		assert.equal((await caller.contract.payments.get({ id: payment.id })).amount, 1000);
+		assert.equal((await caller.contract.payments.get({ id: payment.id }))?.amount, 1000);
 
 		await run(useUpdateUnit, { id: unit.id, complexId: complex.id, name: 'A2' });
 		await inverseStack.undo();
-		assert.equal((await caller.complex.units.get({ id: unit.id })).name, 'A1');
+		assert.equal((await caller.complex.units.get({ id: unit.id }))?.name, 'A1');
 
 		await run(useUpdateContract, {
 			id: contract.id,
@@ -235,7 +263,7 @@ describe('undoing a record change', () => {
 			cost: 2000
 		});
 		await inverseStack.undo();
-		assert.equal((await caller.contract.get({ id: contract.id })).cost, 1000);
+		assert.equal((await caller.contract.get({ id: contract.id }))?.cost, 1000);
 	});
 
 	// the two changes that are not row-shaped: what a contract holds, and whether it stands.
@@ -323,15 +351,18 @@ describe('undoing a record change', () => {
 		});
 
 		await run(useTerminateContract, contract.id);
-		assert.equal((await caller.contract.get({ id: contract.id })).status, 'terminated');
+		assert.equal((await caller.contract.get({ id: contract.id }))?.status, 'terminated');
 
 		await inverseStack.undo();
 		const reinstated = await caller.contract.get({ id: contract.id });
 
+		// the row first, then its status: `notEqual` is satisfied by a contract that is not there
+		// at all, and "the contract came back" is the whole of what this test is about.
+		assert.ok(reinstated, 'the contract was not put back');
 		assert.notEqual(reinstated.status, 'terminated');
 
 		await inverseStack.redo();
-		assert.equal((await caller.contract.get({ id: contract.id })).status, 'terminated');
+		assert.equal((await caller.contract.get({ id: contract.id }))?.status, 'terminated');
 	});
 
 	it('takes back reinstating a contract as readily as terminating one', async () => {
@@ -348,24 +379,22 @@ describe('undoing a record change', () => {
 		await run(useUnterminateContract, contract.id);
 
 		await inverseStack.undo();
-		assert.equal((await caller.contract.get({ id: contract.id })).status, 'terminated');
+		assert.equal((await caller.contract.get({ id: contract.id }))?.status, 'terminated');
 
 		await inverseStack.redo();
-		assert.notEqual((await caller.contract.get({ id: contract.id })).status, 'terminated');
+		const reinstated = await caller.contract.get({ id: contract.id });
+
+		// as above: a contract that is gone would satisfy `notEqual` and say nothing.
+		assert.ok(reinstated, 'the contract was not put back');
+		assert.notEqual(reinstated.status, 'terminated');
 	});
 
 	// what the control offers before it is used, in the words the user reads.
 	it('names the change each inverse would take back', async () => {
-		const translations = {
-			common: {
-				labels: { contract: () => 'contract' },
-				undo: {
-					assigned: ({ record }) => `changing the units of ${record}`,
-					terminated: ({ record }) => `terminating ${record}`,
-					unterminated: ({ record }) => `restoring ${record}`
-				}
-			}
-		};
+		// the loaded locale rather than a hand-written stand-in: `describe` takes the whole of
+		// `TranslationFunctions`, and the three-key object this used to pass was a shape nothing
+		// ever hands it. English says the same words, so what is asserted is unchanged.
+		const translations = get(LL);
 		const tenant = await seedTenant(caller);
 		const contract = await run(useCreateContract, {
 			tenantId: tenant.id,
@@ -376,20 +405,20 @@ describe('undoing a record change', () => {
 		});
 
 		await run(useSetContractUnits, { contractId: contract.id, unitIds: [] });
-		assert.equal(inverseStack.undoable.describe(translations), 'changing the units of contract');
+		assert.equal(inverseStack.undoable?.describe(translations), 'changing the units of contract');
 
 		await run(useTerminateContract, contract.id);
-		assert.equal(inverseStack.undoable.describe(translations), 'terminating contract');
+		assert.equal(inverseStack.undoable?.describe(translations), 'terminating contract');
 
 		await run(useUnterminateContract, contract.id);
-		assert.equal(inverseStack.undoable.describe(translations), 'restoring contract');
+		assert.equal(inverseStack.undoable?.describe(translations), 'restoring contract');
 	});
 
 	it('cannot apply a set-shaped inverse once the remote has replaced the workspace', async () => {
-		const linked = {
+		const linked = fakeSyncState({
 			googleDriveReady: true,
-			workspace: { id: 'workspace-1', provider: 'googleDrive', accountId: 'account-1' }
-		};
+			workspace: fakeWorkspace({ provider: 'googleDrive', accountId: 'account' })
+		});
 		const tenant = await seedTenant(caller);
 		const contract = await run(useCreateContract, {
 			tenantId: tenant.id,
@@ -425,7 +454,7 @@ describe('undoing a record change', () => {
 		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), []);
 
 		await inverseStack.redo();
-		assert.equal((await caller.complex.get({ id: complex.id })).name, 'Palm Court');
+		assert.equal((await caller.complex.get({ id: complex.id }))?.name, 'Palm Court');
 		assert.deepEqual(
 			(await caller.complex.units.getMany({ complexId: complex.id })).map((unit) => unit.id),
 			complex.units.map((unit) => unit.id)
@@ -435,10 +464,10 @@ describe('undoing a record change', () => {
 	// the risk this whole design carries: an inverse is a statement about a database, and the
 	// remote can replace that database underneath the running session.
 	it('can apply nothing once the remote has replaced the workspace', async () => {
-		const linked = {
+		const linked = fakeSyncState({
 			googleDriveReady: true,
-			workspace: { id: 'workspace-1', provider: 'googleDrive', accountId: 'account-1' }
-		};
+			workspace: fakeWorkspace({ provider: 'googleDrive', accountId: 'account' })
+		});
 
 		const tenant = await run(useCreateTenant, {
 			name: 'Sara',
@@ -475,6 +504,6 @@ describe('undoing a record change', () => {
 		assert.deepEqual(await caller.complex.get({ id: complex.id }), row);
 
 		await inverseStack.undo();
-		assert.equal((await caller.complex.units.get({ id: unit.id })).name, 'A1');
+		assert.equal((await caller.complex.units.get({ id: unit.id }))?.name, 'A1');
 	});
 });

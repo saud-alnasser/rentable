@@ -1,15 +1,30 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { listRows } from '../group.ts';
+import { type ListGroup, type ListRow, listRows } from '../group.ts';
 
-const payments = [
+/** the record a list of payments is laid out from — an id, and what it is grouped by. */
+type Payment = { id: string; month: string };
+
+const payments: Payment[] = [
 	{ id: 'p1', month: 'august' },
 	{ id: 'p2', month: 'august' },
 	{ id: 'p3', month: 'july' }
 ];
 
-const byMonth = (payment) => ({ key: payment.month, label: payment.month });
+const byMonth = (payment: Payment) => ({ key: payment.month, label: payment.month });
+
+/**
+ * the records a row holds, asserting on the way past that it is a row of records.
+ *
+ * A row is either a header or records, and only the second carries any — so reading them at
+ * all is a claim about which row this is, and the claim is made rather than assumed.
+ */
+function recordsOf(row: ListRow<Payment, ListGroup>): Payment[] {
+	assert.ok(row.kind === 'record', `expected a row of records, got a ${row.kind}`);
+
+	return row.records;
+}
 
 test('an ungrouped list is one row per record, in the order it was given', () => {
 	assert.deepEqual(
@@ -38,6 +53,7 @@ test('a header row opens each run of records sharing a group key', () => {
 test('a header carries the group its accessor returned', () => {
 	const [header] = listRows(payments, byMonth);
 
+	assert.ok(header.kind === 'header', 'the first row of a grouped list opens its first group');
 	assert.deepEqual(header.group, { key: 'august', label: 'august' });
 });
 
@@ -70,15 +86,16 @@ test('an empty result set produces no rows at all, grouped or not', () => {
 });
 
 test('a row carries the one record in it when the list is one record wide', () => {
-	assert.deepEqual(
-		listRows(payments).map((row) => row.records),
-		[[payments[0]], [payments[1]], [payments[2]]]
-	);
+	assert.deepEqual(listRows(payments).map(recordsOf), [
+		[payments[0]],
+		[payments[1]],
+		[payments[2]]
+	]);
 });
 
 test('a list several records wide fills each row before opening the next', () => {
 	assert.deepEqual(
-		listRows(payments, undefined, 2).map((row) => row.records.map((record) => record.id)),
+		listRows(payments, undefined, 2).map((row) => recordsOf(row).map((record) => record.id)),
 		[['p1', 'p2'], ['p3']]
 	);
 });
@@ -103,7 +120,7 @@ test('a group opens a new row rather than filling the one before it', () => {
 
 test('a width below one record per row is treated as one', () => {
 	assert.deepEqual(
-		listRows(payments, undefined, 0).map((row) => row.records.map((record) => record.id)),
+		listRows(payments, undefined, 0).map((row) => recordsOf(row).map((record) => record.id)),
 		[['p1'], ['p2'], ['p3']]
 	);
 });

@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
+import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
+import type { ComplexSortColumnId } from '$lib/complex/complex.ts';
+import type { ListSort } from '$lib/design/sort.ts';
 
-async function seedActiveContract(api) {
+/** the sort a complexes list may be asked for, as the procedure states it. */
+type ComplexSort = NonNullable<NonNullable<Parameters<Api['complex']['getMany']>[0]>['sort']>;
+
+async function seedActiveContract(api: Api) {
 	const tenant = await seedTenant(api);
 
 	return api.contract.create({
@@ -16,7 +21,7 @@ async function seedActiveContract(api) {
 	});
 }
 
-async function readUnit(api, id) {
+async function readUnit(api: Api, id: string) {
 	const unit = await api.complex.units.get({ id });
 
 	return unit;
@@ -201,7 +206,7 @@ test('updating a unit accepts a stored status, but the read status stays derived
 
 	// but a read derives the status from assignments and ignores the authored value.
 	const read = await readUnit(api, created.id);
-	assert.equal(read.status, 'vacant');
+	assert.equal(read?.status, 'vacant');
 });
 
 test('updating a unit to a name used by another unit in the complex is rejected', async () => {
@@ -301,7 +306,7 @@ test('an unassigned unit is vacant', async () => {
 	const created = await api.complex.units.create({ name: 'A1', complexId: complex.id });
 
 	const unit = await readUnit(api, created.id);
-	assert.equal(unit.status, 'vacant');
+	assert.equal(unit?.status, 'vacant');
 });
 
 test('a unit assigned to a current contract is occupied', async () => {
@@ -315,7 +320,7 @@ test('a unit assigned to a current contract is occupied', async () => {
 	});
 
 	const unit = await readUnit(api, created.id);
-	assert.equal(unit.status, 'occupied');
+	assert.equal(unit?.status, 'occupied');
 });
 
 test('a unit assigned only to a future (scheduled) contract is vacant', async () => {
@@ -336,7 +341,7 @@ test('a unit assigned only to a future (scheduled) contract is vacant', async ()
 	});
 
 	const unit = await readUnit(api, created.id);
-	assert.equal(unit.status, 'vacant');
+	assert.equal(unit?.status, 'vacant');
 });
 
 test('a unit becomes vacant again once its contract is terminated', async () => {
@@ -351,7 +356,7 @@ test('a unit becomes vacant again once its contract is terminated', async () => 
 	await api.contract.terminate({ id: contract.id });
 
 	const unit = await readUnit(api, created.id);
-	assert.equal(unit.status, 'vacant');
+	assert.equal(unit?.status, 'vacant');
 });
 
 // --- The complexes directory ---------------------------------------------------------
@@ -360,7 +365,7 @@ test('a unit becomes vacant again once its contract is terminated', async () => 
 // reader's, and the unit and vacant counts are aggregates on the same query. Both are
 // asserted here because both are what the list may not redo on the client.
 
-async function seedOccupiedUnit(api, complexId, name) {
+async function seedOccupiedUnit(api: Api, complexId: string, name: string) {
 	const unit = await api.complex.units.create({ name, complexId });
 	const contract = await seedActiveContract(api);
 	await api.contract.units.set({ contractId: contract.id, unitIds: [unit.id] });
@@ -412,7 +417,7 @@ test('the directory orders by every key the sort control offers', async () => {
 	await api.complex.units.create({ name: 'A2', complexId: amber.id });
 	await seedOccupiedUnit(api, zahra.id, 'B1');
 
-	const orderBy = async (columnId, direction) =>
+	const orderBy = async (columnId: ComplexSortColumnId, direction: ListSort['direction']) =>
 		(await api.complex.getMany({ sort: { columnId, direction } })).map((complex) => complex.id);
 
 	assert.deepEqual(await orderBy('name', 'asc'), [amber.id, zahra.id]);
@@ -444,7 +449,13 @@ test('complexes tied on the chosen order fall back to the directory order', asyn
 test('the directory refuses to order by a column the control does not offer', async () => {
 	const api = await createApi();
 
-	await assert.rejects(() => api.complex.getMany({ sort: { columnId: 'id', direction: 'asc' } }));
+	// `id` is outside the sort vocabulary, so it cannot be named in the caller's own type —
+	// the vocabulary *is* the type. It arrives here the way a reader's chosen column really
+	// does, as the plain string of a `ListSort`, with the vocabulary guard the query layer
+	// applies skipped: what is asserted is that the procedure refuses it on its own.
+	const chosen: ListSort = { columnId: 'id', direction: 'asc' };
+
+	await assert.rejects(() => api.complex.getMany({ sort: chosen as ComplexSort }));
 });
 
 test('searching the directory narrows it by name and by location', async () => {

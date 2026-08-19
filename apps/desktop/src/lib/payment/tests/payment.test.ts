@@ -21,11 +21,11 @@ test('groupPaymentsByContractId keeps row order within each contract', () => {
 	]);
 
 	assert.deepEqual(
-		grouped.get('c7').map((payment) => payment.id),
+		grouped.get('c7')?.map((payment) => payment.id),
 		['p1', 'p3']
 	);
 	assert.deepEqual(
-		grouped.get('c9').map((payment) => payment.id),
+		grouped.get('c9')?.map((payment) => payment.id),
 		['p2']
 	);
 	assert.equal(grouped.get('c11'), undefined);

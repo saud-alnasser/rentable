@@ -3,15 +3,17 @@ import { test } from 'node:test';
 
 import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
-import { toErrorDetail, toErrorMessage, toErrorText } from '$lib/error/message';
-import { TAURI_ERROR_CODES } from '$lib/error/tauri';
+import { i18nObject } from '$lib/i18n/i18n-util.ts';
+import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
+import { toErrorDetail, toErrorMessage, toErrorText } from '$lib/error/message.ts';
+import { TAURI_ERROR_CODES } from '$lib/error/tauri.ts';
 
-const translations = {
-	common: {
-		errors: Object.fromEntries(TAURI_ERROR_CODES.map((code) => [code, () => `translated ${code}`])),
-		messages: { unexpectedError: () => 'unexpected error occurred!' }
-	}
-};
+// the loaded locale rather than a hand-written stand-in: these functions take the whole of
+// `TranslationFunctions`, and the two-key object this used to pass was a shape nothing ever
+// hands them. The titles below are therefore the words english actually says.
+loadLocale('en');
+
+const translations = i18nObject('en');
 
 test('every code the rust surface can send has an english and an arabic message', () => {
 	for (const code of TAURI_ERROR_CODES) {
@@ -39,7 +41,7 @@ test('a value carrying no readable prose has no detail', () => {
 
 test('a command failure is titled from its code and keeps the rust prose as detail', () => {
 	assert.deepEqual(toErrorMessage({ code: 'integrity', message: 'hash mismatch' }, translations), {
-		title: 'translated integrity',
+		title: 'the data does not match what was expected.',
 		detail: 'hash mismatch'
 	});
 });
@@ -61,7 +63,7 @@ test('a value carrying nothing readable falls back to the unexpected-error messa
 test('flattening joins the title and the detail, isolating the untranslated prose', () => {
 	assert.equal(
 		toErrorText({ code: 'integrity', message: 'hash mismatch' }, translations),
-		'translated integrity — ⁨hash mismatch⁩'
+		'the data does not match what was expected. — ⁨hash mismatch⁩'
 	);
 });
 
@@ -87,7 +89,7 @@ test('a caller fallback never displaces a code the failure actually carried', ()
 	assert.deepEqual(
 		toErrorMessage({ code: 'io', message: '  ' }, translations, 'failed to start the app.'),
 		{
-			title: 'translated io',
+			title: 'a file could not be read or written.',
 			detail: null
 		}
 	);

@@ -1,8 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { toTables } from '../file.mjs';
+import type { ImportTable } from '$lib/platform/host.ts';
+
+import { toTables } from './file.ts';
 import {
+	type TransferConcept,
+	type TransferContract,
+	type WorkspaceHeld,
+	type WorkspacePlan,
+	type WorkspaceSheetPlan,
+	type WorkspaceTransfer,
 	emptyHeld,
 	isWorkspaceImportable,
 	planWorkspaceImport,
@@ -17,9 +25,9 @@ const START = Date.UTC(2026, 0, 1);
 const END = Date.UTC(2026, 11, 31);
 
 /** a workspace with one of everything, and every reference between them. */
-function aWorkspace() {
+function aWorkspace(): WorkspaceTransfer {
 	const tenant = { name: 'Abby Kris', nationalId: '1234567890', phone: '+966512345678' };
-	const contract = {
+	const contract: TransferContract = {
 		reference: 'GOV-1',
 		tenant: tenant.nationalId,
 		units: [toUnitReference('Al Nakheel', 'A1')],
@@ -42,12 +50,18 @@ function aWorkspace() {
 }
 
 /** the sheet a plan reports for one concept. */
-function sheetOf(plan, concept) {
-	return plan.sheets.find((sheet) => sheet.concept === concept);
+function sheetOf(plan: WorkspacePlan, concept: TransferConcept): WorkspaceSheetPlan {
+	const sheet = plan.sheets.find((each) => each.concept === concept);
+
+	// a plan read for a concept always carries that concept's line, so a plan that does not is a
+	// failure of the subject rather than a shape a caller below has to answer for.
+	assert.ok(sheet, `the plan reports no sheet for ${concept}`);
+
+	return sheet;
 }
 
 /** the same workspace as the names it would report holding. */
-function heldWorkspace(workspace) {
+function heldWorkspace(workspace: WorkspaceTransfer): WorkspaceHeld {
 	return {
 		tenants: workspace.tenants.map((tenant) => [tenant.nationalId, tenant.phone]),
 		complexes: workspace.complexes.map((complex) => complex.name),
@@ -61,6 +75,9 @@ function heldWorkspace(workspace) {
 	};
 }
 
+/** the four concepts a directory of its own writes a file for. Tenants has no directory. */
+const DIRECTORY_CONCEPTS = ['complexes', 'units', 'contracts', 'payments'] as const;
+
 /**
  * What each directory's own export puts on disk, for the workspace `aWorkspace` describes.
  *
@@ -73,7 +90,7 @@ function heldWorkspace(workspace) {
  * that made it. Nothing about the name says what the rows are — the directory the file was opened
  * from is what says that.
  */
-const DIRECTORY_FILES = {
+const DIRECTORY_FILES: Record<(typeof DIRECTORY_CONCEPTS)[number], ImportTable> = {
 	// `complex/component/directory.svelte`
 	complexes: {
 		name: 'Sheet1',
@@ -305,8 +322,8 @@ test('the file each directory exports imports back into it, changing nothing', (
 	const workspace = aWorkspace();
 	const held = heldWorkspace(workspace);
 
-	for (const [concept, table] of Object.entries(DIRECTORY_FILES)) {
-		const plan = planWorkspaceImport([table], held, [concept]);
+	for (const concept of DIRECTORY_CONCEPTS) {
+		const plan = planWorkspaceImport([DIRECTORY_FILES[concept]], held, [concept]);
 		const sheet = sheetOf(plan, concept);
 
 		// the file is read — its rows are recognised as records, and as records already here.

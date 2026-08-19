@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import type { ContractRank, ContractRankSummary } from '$lib/contract/rank.ts';
+
 import {
 	DASHBOARD_ENTRIES_PER_RANK,
 	isContractIncludedInDashboardPortfolio,
@@ -8,9 +10,13 @@ import {
 	toDashboardSections
 } from '../dashboard.ts';
 
-const summaryOf = (rank, contractCount, totalAmount = 0) => ({ rank, contractCount, totalAmount });
+const summaryOf = (
+	rank: ContractRank,
+	contractCount: number,
+	totalAmount = 0
+): ContractRankSummary => ({ rank, contractCount, totalAmount });
 
-const entriesOf = (rank, count) =>
+const entriesOf = (rank: ContractRank, count: number) =>
 	Array.from({ length: count }, (_, index) => ({ rank, id: `${rank}-${index}` }));
 
 test('dashboard portfolio helper excludes terminated contracts from the live portfolio size', () => {

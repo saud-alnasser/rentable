@@ -1,13 +1,20 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
 
+import type { GoogleDriveLinkPreparation, GoogleDriveSyncOutcome } from '$lib/platform/host.ts';
+import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
+
 // both substitutes reach code this harness cannot load — the api caller opens a
 // database, the facade calls into tauri — and both are also the assertion: what
 // the dispatcher asked for, and in what order.
-const calls = [];
+const calls: string[] = [];
 
-let syncOutcome = { state: { workspace: {} }, action: 'none', preparation: null };
-let syncGate = null;
+let syncOutcome: GoogleDriveSyncOutcome = {
+	state: fakeSyncState(),
+	action: 'none',
+	preparation: null
+};
+let syncGate: Promise<void> | null = null;
 
 mock.module('$lib/api/caller', {
 	exports: {
@@ -27,13 +34,13 @@ mock.module('$lib/platform/tauri', {
 	exports: {
 		tauri: {
 			remoteSync: {
-				getState: async () => ({ workspace: {} }),
+				getState: async () => fakeSyncState(),
 				autosaveNow: async () => {
 					calls.push('autosaveNow');
-					return { workspace: { provider: 'local' } };
+					return fakeSyncState({ workspace: fakeWorkspace({ provider: 'local' }) });
 				},
 				googleDrive: {
-					sync: async (input) => {
+					sync: async (input?: { manual?: boolean }) => {
 						calls.push(`sync:${input?.manual ?? false}`);
 						if (syncGate) {
 							await syncGate;
@@ -57,13 +64,17 @@ const {
 const { inverseStack } = await import('$lib/design/inverse');
 
 function driveState() {
-	return {
+	return fakeSyncState({
 		googleDriveReady: true,
-		workspace: { id: 'workspace-1', provider: 'googleDrive', accountId: 'account-1' }
-	};
+		workspace: fakeWorkspace({
+			id: 'workspace-1',
+			provider: 'googleDrive',
+			accountId: 'account-1'
+		})
+	});
 }
 
-function reset(outcome) {
+function reset(outcome?: GoogleDriveSyncOutcome) {
 	calls.length = 0;
 	syncGate = null;
 	syncOutcome = outcome ?? { state: driveState(), action: 'none', preparation: null };
@@ -120,7 +131,19 @@ test('a push leaves the local statuses alone', async () => {
 });
 
 test('a sync needing a decision reports it and transfers nothing', async () => {
-	const preparation = { requiresResolution: true, conflict: { kind: 'sync' } };
+	const preparation: GoogleDriveLinkPreparation = {
+		state: driveState(),
+		requiresResolution: true,
+		recommendedMode: 'push',
+		conflict: {
+			kind: 'sync',
+			accountEmail: 'someone@example.com',
+			localSnapshotAt: null,
+			remoteUpdatedAt: null,
+			remoteFilename: null,
+			message: null
+		}
+	};
 	reset({ state: driveState(), action: 'none', preparation });
 
 	const result = await syncWorkspaceNow(driveState());
@@ -131,7 +154,10 @@ test('a sync needing a decision reports it and transfers nothing', async () => {
 });
 
 test('an unlinked workspace is snapshotted locally only where the caller asked', async () => {
-	const localState = { googleDriveReady: false, workspace: { id: 'w', provider: 'local' } };
+	const localState = fakeSyncState({
+		googleDriveReady: false,
+		workspace: fakeWorkspace({ id: 'w', provider: 'local' })
+	});
 
 	reset();
 	assert.equal((await syncWorkspaceNow(localState)).action, 'none');
@@ -158,8 +184,8 @@ test('a second sync waits for the first rather than colliding with it', async ()
 	reset();
 
 	let release = () => {};
-	syncGate = new Promise((resolve) => {
-		release = resolve;
+	syncGate = new Promise<void>((resolve) => {
+		release = () => resolve();
 	});
 
 	const first = syncWorkspaceNow(driveState());
@@ -184,16 +210,22 @@ test('a second sync waits for the first rather than colliding with it', async ()
 // `!== 'googleDrive'` and a `=== 'local'` respectively would do if nobody checked.
 
 function hostedState() {
-	return {
+	return fakeSyncState({
 		googleDriveReady: true,
-		workspace: { id: 'workspace-1', provider: 'hosted', accountId: 'account-1' }
-	};
+		workspace: fakeWorkspace({
+			id: 'workspace-1',
+			provider: 'hosted',
+			accountId: 'account-1'
+		})
+	});
 }
 
 test('a hosted workspace is not asked to choose a mode it has already chosen', () => {
 	assert.equal(shouldChooseWorkspaceMode(hostedState()), false);
 	assert.equal(
-		shouldChooseWorkspaceMode({ googleDriveReady: true, workspace: { provider: 'local' } }),
+		shouldChooseWorkspaceMode(
+			fakeSyncState({ googleDriveReady: true, workspace: fakeWorkspace({ provider: 'local' }) })
+		),
 		true,
 		'the local workspace is the one still to be asked'
 	);

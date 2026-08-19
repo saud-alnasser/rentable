@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, it, mock } from 'node:test';
+
+import type {
+	DefaultError,
+	InvalidateQueryFilters,
+	OmitKeyof,
+	QueryKey,
+	QueryObserverOptions
+} from '@tanstack/svelte-query';
 
 import {
 	invalidateRoot,
@@ -8,20 +16,42 @@ import {
 	workspacePrefixes
 } from '../query.ts';
 
-function recordingClient() {
-	const invalidated = [];
-	const defaulted = [];
+// `QueryClient` holds private state, so nothing assembled by hand is one — a recorder has to
+// extend the class itself. The library reaches a `.svelte` file this harness cannot load, so
+// the class comes from a substitute, which is all a recorder needs of it: what the writers
+// under test call is overridden below, and the base is never asked for anything else.
+mock.module('@tanstack/svelte-query', { exports: { QueryClient: class {} } });
 
-	return {
-		invalidated,
-		defaulted,
-		invalidateQueries: async (filters) => {
-			invalidated.push(filters?.queryKey ?? null);
-		},
-		setQueryDefaults: (queryKey, options) => {
-			defaulted.push({ queryKey, options });
-		}
-	};
+const { QueryClient } = await import('@tanstack/svelte-query');
+
+/** a client that answers nothing and remembers everything the writers asked it for. */
+class RecordingClient extends QueryClient {
+	/** the key of every invalidation, in order — `null` where the pass named none. */
+	readonly invalidated: (QueryKey | null)[] = [];
+	/** every cache default set, as the prefix it was set on and what was set. */
+	readonly defaulted: { queryKey: QueryKey; options: { staleTime?: unknown } }[] = [];
+
+	override async invalidateQueries(filters?: InvalidateQueryFilters): Promise<void> {
+		this.invalidated.push(filters?.queryKey ?? null);
+	}
+
+	override setQueryDefaults<
+		TQueryFnData = unknown,
+		TError = DefaultError,
+		TData = TQueryFnData,
+		TQueryData = TQueryFnData
+	>(
+		queryKey: QueryKey,
+		options: Partial<
+			OmitKeyof<QueryObserverOptions<TQueryFnData, TError, TData, TQueryData>, 'queryKey'>
+		>
+	): void {
+		this.defaulted.push({ queryKey, options });
+	}
+}
+
+function recordingClient() {
+	return new RecordingClient();
 }
 
 describe('the workspace query cache', () => {

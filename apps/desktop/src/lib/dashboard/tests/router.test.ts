@@ -6,9 +6,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { NOW, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
+import { NOW, type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
+import { fakeHost, fakeSettings } from '$lib/platform/tests/testing.ts';
 
 import { DASHBOARD_ENTRIES_PER_RANK } from '../dashboard.ts';
+
+/** What `contract.create` takes, and one line of the queue — both read off the procedures. */
+type ContractInput = Parameters<Api['contract']['create']>[0];
+type QueueEntry = Awaited<ReturnType<Api['contract']['dashboard']>>['queue'][number];
 
 // A portfolio covering every rank and every reason to be in none. Statuses follow the code
 // as implemented — see the caveat in contract.test.mjs; do not "fix" these expectations here.
@@ -23,10 +28,17 @@ import { DASHBOARD_ENTRIES_PER_RANK } from '../dashboard.ts';
 // H: 8000, ends within a month, 12m, unpaid   → active,     owes 8000 and is ending soon
 // I: 100, ends within a month, paid in full   → fulfilled,  ends inside the notice window
 // J: 9000, two months into a quarter, unpaid  → active,     owes 9000, none of it this month
-async function seedPortfolio(api) {
+async function seedPortfolio(api: Api) {
 	const tenant = await seedTenant(api);
 
-	const contract = async (govId, cost, startMonths, endMonths, interval = '12m', endDays = 0) =>
+	const contract = async (
+		govId: string,
+		cost: number,
+		startMonths: number,
+		endMonths: number,
+		interval: ContractInput['interval'] = '12m',
+		endDays = 0
+	) =>
 		api.contract.create({
 			govId,
 			cost,
@@ -56,7 +68,7 @@ async function seedPortfolio(api) {
 	await api.contract.units.set({ contractId: a.id, unitIds: [unit.id] });
 
 	// payments after unit assignment — units lock once payments exist.
-	const pay = (contractId, amount, dateMonths) =>
+	const pay = (contractId: string, amount: number, dateMonths: number) =>
 		api.contract.payments.create({ contractId, amount, date: monthsFromNow(dateMonths) });
 
 	// past payments sit two months back: one month back can overflow into the current
@@ -70,7 +82,8 @@ async function seedPortfolio(api) {
 	await api.contract.terminate({ id: g.id });
 }
 
-const queueEntry = (queue, govId) => queue.find((entry) => entry.govId === govId);
+const queueEntry = (queue: readonly QueueEntry[], govId: string) =>
+	queue.find((entry) => entry.govId === govId);
 
 test('the queue is read overdue first, then owing, then ending soon', async () => {
 	const api = await createApi();
@@ -98,16 +111,18 @@ test('a contract behind by cycles that fell due in earlier months is in the queu
 	await seedPortfolio(api);
 
 	const { queue } = await api.contract.dashboard();
+	const quarterly = queueEntry(queue, 'GOV-J');
 
-	assert.deepEqual(queueEntry(queue, 'GOV-J'), {
-		id: queueEntry(queue, 'GOV-J').id,
+	assert.ok(quarterly, 'GOV-J is in the queue');
+	assert.deepEqual(quarterly, {
+		id: quarterly.id,
 		govId: 'GOV-J',
 		rank: 'owing',
 		status: 'active',
-		tenantName: queueEntry(queue, 'GOV-J').tenantName,
-		tenantPhone: queueEntry(queue, 'GOV-J').tenantPhone,
+		tenantName: quarterly.tenantName,
+		tenantPhone: quarterly.tenantPhone,
 		outstandingAmount: 9000,
-		contractEnd: queueEntry(queue, 'GOV-J').contractEnd,
+		contractEnd: quarterly.contractEnd,
 		isEndingSoon: false
 	});
 });
@@ -119,10 +134,11 @@ test('a contract that owes money and ends inside the notice window is under the 
 	const { queue } = await api.contract.dashboard();
 	const endingAndOwing = queueEntry(queue, 'GOV-H');
 
+	assert.ok(endingAndOwing, 'GOV-H is in the queue');
 	assert.equal(endingAndOwing.rank, 'owing');
 	assert.equal(endingAndOwing.isEndingSoon, true);
-	assert.equal(queueEntry(queue, 'GOV-I').isEndingSoon, true);
-	assert.equal(queueEntry(queue, 'GOV-A').isEndingSoon, false);
+	assert.equal(queueEntry(queue, 'GOV-I')?.isEndingSoon, true);
+	assert.equal(queueEntry(queue, 'GOV-A')?.isEndingSoon, false);
 });
 
 test('a contract appears in exactly one rank', async () => {
@@ -242,8 +258,9 @@ test('the two strip figures are pinned', async () => {
 });
 
 test('the notice window comes from the host, not the desktop shell', async () => {
+	const settings = fakeSettings({ endingSoonNoticeDays: 7 });
 	const api = await createApi({
-		host: { settings: { get: async () => ({ endingSoonNoticeDays: 7, locale: 'en' }) } }
+		host: fakeHost({ settings: { get: async () => settings, set: async () => settings } })
 	});
 	await seedPortfolio(api);
 
@@ -253,7 +270,7 @@ test('the notice window comes from the host, not the desktop shell', async () =>
 	// a seven-day window catches nothing in the fixture, so the renewals rank empties and
 	// H stops being marked as also ending while still owing.
 	assert.equal(queueEntry(dashboard.queue, 'GOV-I'), undefined);
-	assert.equal(queueEntry(dashboard.queue, 'GOV-H').isEndingSoon, false);
+	assert.equal(queueEntry(dashboard.queue, 'GOV-H')?.isEndingSoon, false);
 });
 
 test('the aggregation is identical across repeated calls', async () => {
@@ -282,14 +299,14 @@ test('the read never loads payment rows', () => {
  * compute them — so a test says *the first of last month* rather than a literal date that is
  * only correct on the day it was written.
  */
-function dayOf(monthOffset, day) {
+function dayOf(monthOffset: number, day: number) {
 	const base = new Date(NOW);
 
 	return Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + monthOffset, day);
 }
 
 /** A contract with room for the payments a period test puts against it. */
-async function seedPayableContract(api) {
+async function seedPayableContract(api: Api) {
 	const tenant = await seedTenant(api);
 
 	return api.contract.create({
@@ -341,7 +358,7 @@ test('the landing figure and the ledger report the same money over one period', 
 	await api.contract.payments.create({ contractId: contract.id, date: dayOf(-1, 19), amount: 380 });
 	await api.contract.payments.create({ contractId: contract.id, date: dayOf(0, 4), amount: 999 });
 
-	for (const period of ['this-month', 'last-month', 'this-year', 'last-year']) {
+	for (const period of ['this-month', 'last-month', 'this-year', 'last-year'] as const) {
 		const { summary } = await api.contract.dashboard({ period });
 		const ledger = await api.contract.payments.getMany({ contractId: contract.id, period });
 		const ledgerTotal = ledger.reduce((sum, payment) => sum + payment.amount, 0);

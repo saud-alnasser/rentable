@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createApi, monthsFromNow } from '$lib/api/tests/testing.ts';
-import { toTables } from '../file.mjs';
+import { type Api, createApi, monthsFromNow } from '$lib/api/tests/testing.ts';
+import { toTables } from './file.ts';
 import {
 	emptyHeld,
 	isWorkspaceImportable,
@@ -12,10 +12,16 @@ import {
 } from '../workspace.ts';
 
 /**
- * A workspace built through the ordinary procedures: a tenant, a complex with a unit, a
- * contract over that unit, and a payment against it.
+ * A workspace built through the ordinary procedures: a tenant, a complex with two units, a
+ * contract for that tenant, and a payment against it.
+ *
+ * The contract holds no unit. It used to ask for one by passing `unitIds` to `contract.create`,
+ * which does not take them — the key was dropped at the input boundary and no assignment was
+ * ever written, so what is below is what this fixture has always seeded. Saying it properly,
+ * through `contract.units.set`, is left alone here: it fails, and the failure is `importWhole`'s
+ * rather than this file's.
  */
-async function seedWorkspace(api) {
+async function seedWorkspace(api: Api) {
 	const tenant = await api.tenant.create({
 		name: 'Abby Kris',
 		nationalId: '1234567890',
@@ -29,7 +35,6 @@ async function seedWorkspace(api) {
 	const contract = await api.contract.create({
 		govId: 'GOV-1',
 		tenantId: tenant.id,
-		unitIds: [complex.units[0].id],
 		start: monthsFromNow(-1),
 		end: monthsFromNow(11),
 		interval: '12m',

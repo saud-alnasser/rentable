@@ -11,14 +11,15 @@ import {
 	hydrateContractEndDateState,
 	isContractEndDateWithinWindow,
 	observeContractEndDate,
-	observeContractEndDateInputs
+	observeContractEndDateInputs,
+	type ContractEndDateInputs
 } from '../end-date.ts';
 
 const START = parseDate('2025-01-01');
 const CALCULATED = '2026-01-01';
 const OVERRIDDEN = '2026-01-08';
 
-const openedOn = (endDate, calculatedEndDate = CALCULATED) =>
+const openedOn = (endDate: string, calculatedEndDate: string = CALCULATED) =>
 	hydrateContractEndDateState({
 		endDate,
 		calculatedEndDate,
@@ -41,7 +42,8 @@ test('one cycle ends the day before the next would begin', () => {
 });
 
 test('an end date cannot be calculated until the inputs are complete and sane', () => {
-	const of = (start, cycles) => getCalculatedContractEndDate({ start, interval: '1m', cycles });
+	const of = (start: ContractEndDateInputs['start'], cycles: ContractEndDateInputs['cycles']) =>
+		getCalculatedContractEndDate({ start, interval: '1m', cycles });
 
 	assert.equal(of(undefined, '1'), undefined);
 	assert.equal(of(START, ''), undefined);
@@ -64,6 +66,7 @@ test('the override window is the calculated end date plus and minus the toleranc
 test('only a date inside the window may be picked, and a half-open window admits none', () => {
 	const window = getManualContractEndDateWindow({ start: START, interval: '1m', cycles: '1' });
 
+	assert.ok(window);
 	assert.equal(isContractEndDateWithinWindow(parseDate('2025-01-31'), window), true);
 	assert.equal(isContractEndDateWithinWindow(parseDate('2025-01-26'), window), true);
 	assert.equal(isContractEndDateWithinWindow(parseDate('2025-02-05'), window), true);
@@ -91,8 +94,11 @@ test('a fresh form has no override and nothing observed yet', () => {
 });
 
 test('the calculation key covers the start date, the interval, and the cycle count', () => {
-	const of = (start, interval, cycles) =>
-		getContractEndDateCalculationKey({ start, interval, cycles });
+	const of = (
+		start: ContractEndDateInputs['start'],
+		interval: ContractEndDateInputs['interval'],
+		cycles: ContractEndDateInputs['cycles']
+	) => getContractEndDateCalculationKey({ start, interval, cycles });
 
 	assert.equal(of(START, '1m', '3'), '2025-01-01|1m|3');
 	assert.notEqual(of(START, '1m', '3'), of(START, '1m', '4'));
@@ -121,6 +127,8 @@ test('the first look at the calculation inputs latches them without recalculatin
 
 test('inputs that have not moved leave the end date and the state object alone', () => {
 	const opened = openedOn(OVERRIDDEN);
+	assert.ok(opened.lastCalculationKey);
+
 	const { state, appliesCalculatedEndDate } = observeContractEndDateInputs(
 		opened,
 		opened.lastCalculationKey

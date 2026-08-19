@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { appRouter } from '$lib/api/router.ts';
 import { caller, context } from '$lib/api/trpc.ts';
+import { fakeHost } from '$lib/platform/tests/testing.ts';
 import { isRecordId, newId } from '../identity.ts';
 import { createMemoryDatabase } from '../memory.ts';
 import { mapRows } from '../client.ts';
@@ -10,7 +11,7 @@ import * as s from '../schema.ts';
 
 async function createApi() {
 	const db = createMemoryDatabase();
-	const ctx = await context({ db, clock: { now: () => 0 }, host: {} });
+	const ctx = await context({ db, clock: { now: () => 0 }, host: fakeHost() });
 
 	return caller(appRouter)(ctx);
 }
@@ -87,10 +88,10 @@ test('a batch that fails part way leaves nothing of itself behind', async () => 
 
 	await assert.rejects(() =>
 		db.batch([
-			db.insert(s.complex).values({ name: 'Palm Court', location: 'Riyadh' }),
+			db.insert(s.complex).values({ id: newId(), name: 'Palm Court', location: 'Riyadh' }),
 			// the second statement takes a name the first just took, and complex names are unique
 			// in the schema rather than only in the router.
-			db.insert(s.complex).values({ name: 'Palm Court', location: 'Jeddah' })
+			db.insert(s.complex).values({ id: newId(), name: 'Palm Court', location: 'Jeddah' })
 		])
 	);
 

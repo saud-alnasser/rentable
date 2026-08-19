@@ -1,37 +1,42 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
 
-import { TAURI_ERROR_CODES } from '$lib/error/tauri';
+import { i18nObject } from '$lib/i18n/i18n-util.ts';
+import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 
 // svelte-sonner reaches a `.svelte` file, which this harness cannot load. the
 // substitute is also the assertion: what the toast was asked to render.
-const raised = [];
+type RaisedToast = { title: string; options: { description: string | undefined } };
+
+const raised: RaisedToast[] = [];
 
 mock.module('svelte-sonner', {
 	exports: {
 		toast: {
-			error: (title, options) => raised.push({ title, options })
+			error: (title: string, options: { description: string | undefined }) => {
+				raised.push({ title, options });
+			}
 		}
 	}
 });
 
 const { showErrorToast } = await import('$lib/error/toast');
 
-const translations = {
-	common: {
-		errors: Object.fromEntries(TAURI_ERROR_CODES.map((code) => [code, () => `translated ${code}`])),
-		messages: { unexpectedError: () => 'unexpected error occurred!' }
-	}
-};
+// the loaded locale rather than a hand-written stand-in: `showErrorToast` takes the whole of
+// `TranslationFunctions`, and the two-key object this used to pass was a shape nothing ever
+// hands it. The titles below are therefore the words english actually says.
+loadLocale('en');
+
+const translations = i18nObject('en');
 
 test('a failure that crossed the tauri boundary is titled from its code and keeps its prose', () => {
 	raised.length = 0;
 
-	showErrorToast({ code: TAURI_ERROR_CODES[0], message: 'the drive said no' }, translations);
+	showErrorToast({ code: 'notConfigured', message: 'the drive said no' }, translations);
 
 	assert.deepEqual(raised, [
 		{
-			title: `translated ${TAURI_ERROR_CODES[0]}`,
+			title: 'this feature is not set up yet.',
 			options: { description: 'the drive said no' }
 		}
 	]);

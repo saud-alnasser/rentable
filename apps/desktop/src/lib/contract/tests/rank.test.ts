@@ -8,11 +8,13 @@ import {
 	getContractRank,
 	isContractEndingSoon,
 	isMoneyRank,
-	summarizeContractRanks
+	summarizeContractRanks,
+	type ContractRank,
+	type ContractRankOrder
 } from '../rank.ts';
 
 const NOW = new Date('2026-01-15T00:00:00.000Z');
-const day = (value) => new Date(`${value}T00:00:00.000Z`);
+const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
 test('the ranks are ordered overdue, owing, then ending soon', () => {
 	assert.deepEqual([...CONTRACT_RANKS], ['overdue', 'owing', 'ending-soon']);
@@ -59,7 +61,12 @@ test('a scheduled or expired contract with nothing outstanding has no rank', () 
 });
 
 test('the money ranks order by largest outstanding, then soonest end, then tenant', () => {
-	const entry = (rank, outstandingAmount, contractEnd, tenantName) => ({
+	const entry = (
+		rank: ContractRank,
+		outstandingAmount: number,
+		contractEnd: string,
+		tenantName: string
+	): ContractRankOrder => ({
 		rank,
 		outstandingAmount,
 		contractEnd: day(contractEnd).getTime(),
@@ -82,8 +89,18 @@ test('the money ranks order by largest outstanding, then soonest end, then tenan
 });
 
 test('two money entries tied on outstanding and end date fall to the tenant name', () => {
-	const left = { rank: 'owing', outstandingAmount: 500, contractEnd: 0, tenantName: 'Amal' };
-	const right = { rank: 'owing', outstandingAmount: 500, contractEnd: 0, tenantName: 'Basma' };
+	const left: ContractRankOrder = {
+		rank: 'owing',
+		outstandingAmount: 500,
+		contractEnd: 0,
+		tenantName: 'Amal'
+	};
+	const right: ContractRankOrder = {
+		rank: 'owing',
+		outstandingAmount: 500,
+		contractEnd: 0,
+		tenantName: 'Basma'
+	};
 
 	assert.ok(compareContractsByRank(left, right) < 0);
 });

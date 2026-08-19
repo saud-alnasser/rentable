@@ -3,12 +3,21 @@ import { describe, it } from 'node:test';
 
 import { BackTrail, toScreen } from '../back.ts';
 
+/**
+ * a record's url with a section on it — the whole url the shell hands over, of which the path
+ * is the part a screen is keyed by.
+ *
+ * Named rather than written out at each call because it is a url and not a path: the shell
+ * passes `page.url`, which carries everything after the path too.
+ */
+const sectionOfARecord = { pathname: '/tenants/4', search: '?section=contracts' };
+
 // the section of a detail view is a query parameter, and moving between the sections of a
 // record is not leaving it.
 describe('what counts as a screen', () => {
 	it('is the path, and never what follows it', () => {
 		assert.equal(toScreen({ pathname: '/tenants/4' }), '/tenants/4');
-		assert.equal(toScreen({ pathname: '/tenants/4', search: '?section=contracts' }), '/tenants/4');
+		assert.equal(toScreen(sectionOfARecord), '/tenants/4');
 	});
 });
 
@@ -39,7 +48,7 @@ describe('where back returns to', () => {
 
 		trail.visit('/contracts/9');
 		trail.visit(toScreen({ pathname: '/tenants/4' }));
-		trail.visit(toScreen({ pathname: '/tenants/4', search: '?section=contracts' }));
+		trail.visit(toScreen(sectionOfARecord));
 
 		assert.equal(trail.current, '/tenants/4');
 		assert.equal(trail.previous, '/contracts/9');

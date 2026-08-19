@@ -2,20 +2,23 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { toExportSheet } from '../csv.ts';
-import { isImportable, planImport, toImportIdentity } from '../import.ts';
+import { type ImportField, isImportable, planImport, toImportIdentity } from '../import.ts';
+
+/** the record every file here is read as: the three columns a tenant is made of. */
+type Tenant = { name: string; nationalId: string; phone: string };
 
 /** the tenant's own columns, which is the shape every import here takes. */
-const fields = [
+const fields: ImportField<Tenant>[] = [
 	{ id: 'name', headers: ['name', 'الاسم'], required: true },
 	{ id: 'nationalId', headers: ['national id', 'الهوية الوطنية'], required: true, identity: true },
 	{ id: 'phone', headers: ['phone', 'الهاتف'], required: true, identity: true }
 ];
 
 /** enough of a rule to tell a valid row from a broken one. */
-const validate = (record) =>
+const validate = (record: Tenant) =>
 	/^[12]\d{9}$/.test(record.nationalId) ? undefined : 'national id is not valid';
 
-function table(rows, headers = ['name', 'national id', 'phone']) {
+function table(rows: string[][], headers = ['name', 'national id', 'phone']) {
 	return { headers, rows };
 }
 
@@ -212,17 +215,20 @@ test('a short row is treated as one missing its later values', () => {
 	assert.deepEqual(plan.rejected, [{ row: 2, reason: 'missing-value', detail: 'national id' }]);
 });
 
+/** a tenant as the directory exports one: its own columns, and a count that was on the row. */
+type ExportedTenant = Tenant & { active: number };
+
 // the other half of the round trip: what the directory writes out is what this reads back in.
 // The file itself is Rust's on both sides — what is asserted here is that the columns the export
 // declares are the columns the import finds, which is where a heading changed on one side and
 // not the other would show up.
 test('the sheet a directory exports plans back into the records it was given', () => {
 	const columns = [
-		{ header: 'name', value: (tenant) => tenant.name },
-		{ header: 'national id', value: (tenant) => tenant.nationalId },
-		{ header: 'phone', value: (tenant) => tenant.phone },
+		{ header: 'name', value: (tenant: ExportedTenant) => tenant.name },
+		{ header: 'national id', value: (tenant: ExportedTenant) => tenant.nationalId },
+		{ header: 'phone', value: (tenant: ExportedTenant) => tenant.phone },
 		// the counts the tenants export also writes, which an import does not read.
-		{ header: 'active', value: (tenant) => String(tenant.active) }
+		{ header: 'active', value: (tenant: ExportedTenant) => String(tenant.active) }
 	];
 	const written = [
 		{ name: 'Abby Kris', nationalId: '1234567890', phone: '+966512345678', active: 2 },

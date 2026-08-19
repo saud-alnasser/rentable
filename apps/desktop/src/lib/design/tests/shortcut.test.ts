@@ -49,18 +49,28 @@ test('a punctuation key is matched by the key it sits on as well as the mark it 
 	assert.equal(matchesShortcutKey({ key: '.', code: 'Period' }, '/'), false);
 });
 
+/**
+ * What a keydown reached, carrying the two properties {@link isEditingText} reads off it.
+ *
+ * A real `EventTarget` rather than an object shaped like an element: an event carries the one
+ * and not the other, and the properties this puts on it are the ones a real element would have.
+ */
+function eventTarget(element: { tagName: string; isContentEditable?: boolean }): EventTarget {
+	return Object.assign(new EventTarget(), element);
+}
+
 test('a field that takes typing keeps its own editing shortcuts', () => {
-	assert.equal(isEditingText({ tagName: 'INPUT' }), true);
-	assert.equal(isEditingText({ tagName: 'TEXTAREA' }), true);
+	assert.equal(isEditingText(eventTarget({ tagName: 'INPUT' })), true);
+	assert.equal(isEditingText(eventTarget({ tagName: 'TEXTAREA' })), true);
 });
 
 test('a control that takes typing without being an input says so, and is believed', () => {
-	assert.equal(isEditingText({ tagName: 'DIV', isContentEditable: true }), true);
+	assert.equal(isEditingText(eventTarget({ tagName: 'DIV', isContentEditable: true })), true);
 });
 
 test('everything else leaves the shortcut to the application', () => {
-	assert.equal(isEditingText({ tagName: 'BUTTON' }), false);
-	assert.equal(isEditingText({ tagName: 'DIV', isContentEditable: false }), false);
+	assert.equal(isEditingText(eventTarget({ tagName: 'BUTTON' })), false);
+	assert.equal(isEditingText(eventTarget({ tagName: 'DIV', isContentEditable: false })), false);
 	assert.equal(isEditingText(null), false);
 	assert.equal(isEditingText(undefined), false);
 });

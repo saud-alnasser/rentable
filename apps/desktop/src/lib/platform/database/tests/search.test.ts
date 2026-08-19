@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createApi, monthsFromNow, NOW } from '$lib/api/tests/testing.ts';
+import { type Api, createApi, monthsFromNow, NOW } from '$lib/api/tests/testing.ts';
 import { formatLocaleNumber } from '$lib/platform/locale.ts';
 import { foldSearchText } from '$lib/platform/database/search.ts';
 import * as s from '$lib/platform/database/schema.ts';
+import type { ZodString } from 'zod';
 
 const PHONE = '+966551234567';
 
@@ -12,7 +13,7 @@ let sequence = 0;
 
 // A tenant with a chosen name and an identity nobody else in the file holds, so a fixture
 // never fails on a uniqueness constraint rather than on what it is asserting.
-async function seedNamed(api, name) {
+async function seedNamed(api: Api, name: string) {
 	sequence += 1;
 	const suffix = String(sequence).padStart(4, '0');
 
@@ -23,7 +24,7 @@ async function seedNamed(api, name) {
 	});
 }
 
-async function seedContract(api, { cost, govId }) {
+async function seedContract(api: Api, { cost, govId }: { cost: number; govId: string }) {
 	const tenant = await seedNamed(api, `Tenant ${cost}`);
 
 	return api.contract.create({
@@ -36,7 +37,7 @@ async function seedContract(api, { cost, govId }) {
 	});
 }
 
-const ids = (matches) => matches.map((match) => match.id);
+const ids = <T extends { id: string }>(matches: readonly T[]) => matches.map((match) => match.id);
 
 // -- the folding itself -------------------------------------------------------------------
 
@@ -179,7 +180,7 @@ test('folding a search does not fold what is stored', async () => {
 	const tenant = await seedNamed(api, 'أَحْمد');
 
 	assert.equal(tenant.name, 'أَحْمد');
-	assert.equal((await api.tenant.get({ id: tenant.id })).name, 'أَحْمد');
+	assert.equal((await api.tenant.get({ id: tenant.id }))?.name, 'أَحْمد');
 });
 
 // -- the comparisons that were three ------------------------------------------------------
@@ -366,7 +367,7 @@ test('a searched contract list stays inside the tenant it was narrowed to', asyn
 test('every column declared ASCII-only has a validator that refuses a foldable character', () => {
 	// The declaration is safe *because* the write path enforces it. If a validator is ever
 	// loosened, this fails here rather than as a record nobody can find months later.
-	const refusals = [
+	const refusals: [name: string, field: ZodString, arabicIndic: string][] = [
 		['nationalId', s.TenantSchema.shape.nationalId, '١٢٣٤٥٦٧٨٩٠'],
 		['phone', s.TenantSchema.shape.phone, '+٩٦٦٥٠١٢٣٤٥٦٧']
 	];
@@ -422,7 +423,7 @@ test('skipping the stored fold changes nothing about what is found', async () =>
 		interval: '1m',
 		cost: 1500
 	});
-	const found = async (search) => ids(await api.contract.getMany({ search }));
+	const found = async (search: string) => ids(await api.contract.getMany({ search }));
 
 	assert.deepEqual(await found('1500'), [contract.id], 'a real column');
 	assert.deepEqual(await found('١٥٠٠'), [contract.id], 'a real column, typed in Arabic-Indic');

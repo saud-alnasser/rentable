@@ -1,11 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { LinkSessionFlow } from '../link-session.ts';
+import type { GoogleDriveLinkPreparation, RemoteSyncState } from '$lib/platform/host.ts';
+import { fakeSyncState } from '$lib/platform/tests/testing.ts';
 
-const STATE = { accounts: [], workspaces: [] };
+import {
+	LinkSessionFlow,
+	type LinkSessionDriver,
+	type LinkSessionHandlers
+} from '../link-session.ts';
 
-function preparation(overrides = {}) {
+const STATE = fakeSyncState();
+
+function preparation(
+	overrides: Partial<GoogleDriveLinkPreparation> = {}
+): GoogleDriveLinkPreparation {
 	return {
 		state: STATE,
 		requiresResolution: false,
@@ -20,9 +29,14 @@ class Cancellation extends Error {}
 /** let every already-settled continuation run, without waiting on one that never settles. */
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+/** what the driver was asked for, counted. */
+type DriverCalls = { link: number; cancel: number };
+
 /** a driver whose every step is settled by the test, so ordering is exercised rather than timing. */
-function createDriver(overrides = {}) {
-	const calls = { link: 0, cancel: 0 };
+function createDriver(
+	overrides: Partial<LinkSessionDriver> = {}
+): LinkSessionDriver & { calls: DriverCalls } {
+	const calls: DriverCalls = { link: 0, cancel: 0 };
 
 	return {
 		calls,
@@ -38,17 +52,40 @@ function createDriver(overrides = {}) {
 	};
 }
 
-function createHandlers(overrides = {}) {
-	const seen = { state: [], resolutionRequired: [], resolved: [], failure: [], cancelled: 0 };
+/** what each handler was handed, in the order it was handed over. */
+type HandlerRecord = {
+	state: RemoteSyncState[];
+	resolutionRequired: GoogleDriveLinkPreparation[];
+	resolved: GoogleDriveLinkPreparation[];
+	failure: unknown[];
+	cancelled: number;
+};
+
+function createHandlers(
+	overrides: Partial<LinkSessionHandlers> = {}
+): LinkSessionHandlers & { seen: HandlerRecord } {
+	const seen: HandlerRecord = {
+		state: [],
+		resolutionRequired: [],
+		resolved: [],
+		failure: [],
+		cancelled: 0
+	};
 
 	return {
 		seen,
-		onState: (state) => seen.state.push(state),
-		onResolutionRequired: (value) => seen.resolutionRequired.push(value),
+		onState: (state) => {
+			seen.state.push(state);
+		},
+		onResolutionRequired: (value) => {
+			seen.resolutionRequired.push(value);
+		},
 		resolve: async (value) => {
 			seen.resolved.push(value);
 		},
-		onFailure: (error) => seen.failure.push(error),
+		onFailure: (error) => {
+			seen.failure.push(error);
+		},
 		onCancelled: () => {
 			seen.cancelled += 1;
 		},
@@ -168,20 +205,22 @@ test('a failure that is not a cancellation is reported', async () => {
 
 // --- Supersession ---------------------------------------------------------------------
 
+/** one attempt's outstanding link, and the handles the test settles it through. */
+type PendingLink = {
+	settle: (preparation: GoogleDriveLinkPreparation) => void;
+	onAuthorized: () => void;
+};
+
 /** a driver handing each attempt its own pending link, so one can be settled alone. */
-function createSupersedingDriver() {
-	const pending = [];
+function createSupersedingDriver(): LinkSessionDriver & { pending: PendingLink[] } {
+	const pending: PendingLink[] = [];
 
 	return {
 		pending,
-		link: (onAuthorized) => {
-			let settle;
-			const promise = new Promise((resolve) => {
-				settle = resolve;
-			});
-			pending.push({ settle, onAuthorized });
-			return promise;
-		},
+		link: (onAuthorized) =>
+			new Promise<GoogleDriveLinkPreparation>((resolve) => {
+				pending.push({ settle: resolve, onAuthorized });
+			}),
 		cancel: async () => {},
 		isCancellation: (error) => error instanceof Cancellation
 	};
