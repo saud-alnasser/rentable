@@ -2,7 +2,7 @@
 
 An offline-first desktop tracker for rents payments — a Tauri 2 (Rust) shell around a
 SvelteKit 2 / Svelte 5 frontend, with a local SQLite database and optional Google Drive
-backup. There is no server; everything runs in the desktop app.
+backup. Everything runs in the desktop app.
 
 ## Start here
 

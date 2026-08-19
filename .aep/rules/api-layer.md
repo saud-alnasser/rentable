@@ -76,6 +76,13 @@ constructing a second kind of client.**
 *Why: the proxy row-mapping is real logic sitting on the language boundary, and a test that
 skips it verifies a system that does not ship.*
 
+**The condition this rule carried is discharged** *(2026-08-18)*. It was flagged in
+[[efforts/a-workspace-follows-its-user/spec]] as holding "only if the chosen client can be driven through that
+seam"; the gate drove the chosen sync client through `createDatabase(single, batch)` against a
+live database and it went through unchanged. **A hosted workspace is a third caller at this
+factory, never a second kind of client** — which is what makes the whole of that effort
+affordable, and what a review is expected to check.
+
 ### Development tooling is excluded, deliberately
 
 `apps/desktop/scripts/seed.ts` and `apps/desktop/scripts/purge.ts` build their own client on
