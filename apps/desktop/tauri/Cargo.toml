@@ -73,6 +73,7 @@ rustls = { version = "0.23.43", default-features = false, features = ["ring", "s
 # so this needs no per-target block. The alternative is naming `keyring-core` plus each
 # store crate directly, which buys control this crate has no use for.
 keyring = { version = "4.1.6", default-features = false, features = ["v1"] }
+turso = { version = "0.8.0-pre.4", default-features = false, features = ["sync"] }
 
 # the Drive transport is tested against a real HTTP server on loopback rather
 # than a mocked transport, so header construction, retry, and error mapping are

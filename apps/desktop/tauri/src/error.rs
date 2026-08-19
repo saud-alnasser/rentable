@@ -119,6 +119,19 @@ impl From<sqlx::Error> for Error {
     }
 }
 
+/// **Everything the replica engine can fail with is a database failure here, including a push
+/// conflict.** `turso::Error` has no conflict variant: the sync engine constructs one, handles it
+/// nowhere, and flattens it to a string on the way out, so telling a conflict from an unreachable
+/// remote means matching prose. Nothing on this path pushes, so nothing here needs to — and a
+/// mapping that guessed would be a guess a caller then branched on.
+impl From<turso::Error> for Error {
+    fn from(error: turso::Error) -> Self {
+        Self::Database {
+            message: error.to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Error;
