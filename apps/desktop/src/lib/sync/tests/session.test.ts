@@ -11,15 +11,23 @@ const AT = Date.UTC(2026, 7, 18, 12, 0, 0);
 const A_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * a window the control plane issued, three days out. `replicaExpiresAt` follows `expiresAt`
- * because that is what the mint answers with — the two are only apart where something moved one
- * of them alone, which is what the drift tests below do on purpose.
+ * a window the control plane issued, three days out and a month of sign-in behind it.
+ *
+ * `replicaExpiresAt` follows `expiresAt` because that is what the mint answers with — the two are
+ * only apart where something moved one of them alone, which is what the drift tests below do on
+ * purpose. `absoluteExpiresAt` runs from the sign-in rather than from this moment, because a
+ * refresh does not move it; `signedInAt` is how a test says the sign-in was longer ago.
  */
-function issuedAt(moment: number, replicaAt: number | null = moment): SessionWindow {
+function issuedAt(
+	moment: number,
+	replicaAt: number | null = moment,
+	signedInAt: number = moment
+): SessionWindow {
 	return {
 		accountId: 'account-1',
 		expiresAt: moment + 3 * A_DAY,
 		replicaExpiresAt: replicaAt === null ? null : replicaAt + 3 * A_DAY,
+		absoluteExpiresAt: signedInAt + 30 * A_DAY,
 		updatedAt: moment
 	};
 }
@@ -73,6 +81,7 @@ test('the credential that carries replication governs, even where the session ou
 		accountId: 'account-1',
 		expiresAt: AT + 5 * A_DAY,
 		replicaExpiresAt: AT + 3 * A_DAY,
+		absoluteExpiresAt: AT + 30 * A_DAY,
 		updatedAt: AT + 2 * A_DAY
 	};
 
@@ -95,6 +104,7 @@ test('a session that closes first ends the window too', () => {
 		accountId: 'account-1',
 		expiresAt: AT + 2 * A_DAY,
 		replicaExpiresAt: AT + 5 * A_DAY,
+		absoluteExpiresAt: AT + 30 * A_DAY,
 		updatedAt: AT
 	};
 
@@ -108,6 +118,36 @@ test('a session that closes first ends the window too', () => {
 // of length zero — nothing has started it.
 test('a window with nothing minted yet runs on the session alone', () => {
 	assert.deepEqual(replicationStanding({ session: issuedAt(AT, null), now: AT + A_DAY }), {
+		kind: 'live',
+		until: AT + 3 * A_DAY
+	});
+});
+// **The third moment, and the one no reach can move.** A client that has reached every day holds
+// a refresh window three days out and a replica credential to match; what it must still believe
+// is the month behind them. Read only the first two and the application goes on working a year
+// after the sign-in it is working under ran out.
+test('the absolute lifetime governs, however faithfully the client has been reaching', () => {
+	// signed in a month ago, refreshed a moment ago: both sliding windows are wide open.
+	const aged = issuedAt(AT + 30 * A_DAY, AT + 30 * A_DAY, AT);
+
+	assert.deepEqual(replicationStanding({ session: aged, now: AT + 30 * A_DAY - 1 }), {
+		kind: 'live',
+		until: AT + 30 * A_DAY
+	});
+
+	assert.deepEqual(
+		replicationStanding({ session: aged, now: AT + 30 * A_DAY }),
+		{ kind: 'signInRequired', action: 'signInWithGoogle' },
+		'a month of faithful reaching carried the sign-in past its lifetime'
+	);
+});
+
+// And it does not shorten anything: a sign-in with a month to run leaves the refresh window to
+// decide, which is the ordinary case and would be broken by a `min` over the wrong operand.
+test('a sign-in with a month left leaves the refresh window in charge', () => {
+	const fresh = issuedAt(AT);
+
+	assert.deepEqual(replicationStanding({ session: fresh, now: AT + 3 * A_DAY - 1 }), {
 		kind: 'live',
 		until: AT + 3 * A_DAY
 	});

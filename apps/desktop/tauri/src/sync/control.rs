@@ -12,11 +12,13 @@
 //! the two moments, which are facts *about* credentials rather than credentials, exactly as
 //! `RemoteSyncAccount::token_expires_at` already is.
 //!
-//! **Two windows, and the client believes the earlier.** `expires_at` is how much longer the
-//! control plane will renew this sign-in; `replica_expires_at` is how much longer the credential
-//! the replica actually syncs with lives. They are started by different calls — a refresh moves
-//! the first alone, a mint restarts both — so equal lengths do not make them one clock, and the
-//! side that decides whether to keep replicating has to hold both.
+//! **Three moments, and the client believes the earliest.** `expires_at` is the refresh window —
+//! how much longer this machine may work without reaching the control plane; `replica_expires_at` is how much longer the credential
+//! the replica actually syncs with lives; `absolute_expires_at` is when the sign-in itself dies
+//! and no refresh extends it. They are started by different calls — a refresh moves the first
+//! alone, a mint restarts the first two, and nothing moves the third — so equal lengths do not
+//! make them one clock, and the side that decides whether to keep replicating has to hold all
+//! three.
 //!
 //! **Absent configuration is not a failure.** `RENTABLE_CONTROL_PLANE_URL` is unset on every
 //! machine today and there is no deployment, so `sign_in` skips this entirely and a workspace
@@ -86,10 +88,14 @@ pub(crate) struct StoredControlPlaneSession {
 pub struct SessionWindow {
     /// which account this session belongs to, so a sign-out takes the right one.
     pub account_id: String,
-    /// when the control plane stops renewing this sign-in, as it said.
+    /// the refresh window: how much longer this machine may work without reaching the control
+    /// plane. Moved by every reach, and what locks the application when it closes.
     pub expires_at: i64,
     /// when the credential the replica syncs with dies. `None` until something has minted one.
     pub replica_expires_at: Option<i64>,
+    /// when the sign-in itself dies, whatever this machine does. Set when the person signed in
+    /// and never moved, so past it the lock is lifted only by signing in with Google again.
+    pub absolute_expires_at: i64,
     pub updated_at: i64,
 }
 
@@ -100,6 +106,7 @@ pub(crate) struct IssuedSession {
     pub expires_at: i64,
     /// present only where the answer carried one — the mint's does, a refresh's does not.
     pub replica_expires_at: Option<i64>,
+    pub absolute_expires_at: i64,
 }
 
 #[derive(Deserialize)]
@@ -107,6 +114,8 @@ struct WireSession {
     token: String,
     #[serde(rename = "expiresAt")]
     expires_at: i64,
+    #[serde(rename = "absoluteExpiresAt")]
+    absolute_expires_at: i64,
 }
 
 #[derive(Deserialize)]
@@ -133,6 +142,14 @@ struct WireRefusalBody {
 /// Matched rather than inferred from the status, because a 401 is also what an absent credential
 /// and a Google token it would not take answer with, and only this one means *the window closed*.
 const SESSION_EXPIRED: &str = "session_expired";
+
+/// the control plane's code for a sign-in that has reached its absolute lifetime.
+///
+/// **Separate from `SESSION_EXPIRED` because the two ask different things of the person.** A
+/// closed refresh window is settled by a network coming back and costs nobody a keystroke; this
+/// one is settled only by signing in with Google again. Collapsing them would either leave
+/// somebody waiting for a network that cannot help, or send them back to Google after a weekend.
+const SESSION_LIFETIME_REACHED: &str = "session_lifetime_reached";
 
 /// Reach the control plane, presenting whatever credential this call has.
 ///
@@ -173,6 +190,7 @@ async fn call(base_url: &str, path: &str, bearer: &str) -> Result<IssuedSession,
         token: session.token,
         expires_at: session.expires_at,
         replica_expires_at: answer.replica_expires_at,
+        absolute_expires_at: session.absolute_expires_at,
     })
 }
 
@@ -190,6 +208,9 @@ fn refusal(status: u16, body: &str) -> Error {
     match code {
         Some((code, message)) if code == SESSION_EXPIRED => Error::Forbidden {
             message: format!("the control plane will not renew this sign-in: {message}"),
+        },
+        Some((code, message)) if code == SESSION_LIFETIME_REACHED => Error::Forbidden {
+            message: format!("this sign-in has reached its lifetime: {message}"),
         },
         // A refusal on the merits. Retrying with the same credential cannot help, so it is not a
         // `Network` error even though it arrived over one.
@@ -234,6 +255,11 @@ impl RemoteSync {
     /// session and mints nothing, so forgetting the replica window on a refresh would make the
     /// client believe it may replicate until the session ends — which is precisely the drift the
     /// two fields exist to prevent.
+    ///
+    /// **The absolute lifetime is taken as answered and never merged with what was held.** Every
+    /// answer carries it and no call moves it, so a held value differing from the answered one is
+    /// the control plane having been told something this machine has not — a re-sign-in on
+    /// another day — and the answer is the newer of the two.
     pub(crate) fn record_control_plane_session(
         &mut self,
         account_id: &str,
@@ -262,6 +288,7 @@ impl RemoteSync {
                 held.filter(|held| held.account_id == account_id)
                     .and_then(|held| held.replica_expires_at)
             }),
+            absolute_expires_at: issued.absolute_expires_at,
             updated_at: now,
         };
 
@@ -498,8 +525,19 @@ mod tests {
     const AT: i64 = 1_787_054_400_000;
 
     fn signed_in_body(expires_at: i64) -> String {
+        signed_in_body_signed_at(expires_at, AT)
+    }
+
+    /// The same answer, with the sign-in it is running under said separately.
+    ///
+    /// The absolute lifetime runs from when the person signed in and no refresh moves it, so a
+    /// refresh's answer carries a moment that has nothing to do with the window it just restarted
+    /// — which is exactly the case a fixture that derived one from the other could not express.
+    fn signed_in_body_signed_at(expires_at: i64, signed_in_at: i64) -> String {
+        let absolute_expires_at = signed_in_at + 30 * A_DAY;
+
         format!(
-            r#"{{"account":{{"id":"account-1"}},"session":{{"token":"rws_a-token","expiresAt":{expires_at}}}}}"#
+            r#"{{"account":{{"id":"account-1"}},"session":{{"token":"rws_a-token","expiresAt":{expires_at},"absoluteExpiresAt":{absolute_expires_at}}}}}"#
         )
     }
 
@@ -521,6 +559,7 @@ mod tests {
         assert_eq!(issued.token, "rws_a-token");
         assert_eq!(issued.expires_at, AT + 3 * A_DAY);
         assert_eq!(issued.replica_expires_at, None);
+        assert_eq!(issued.absolute_expires_at, AT + 30 * A_DAY);
 
         let request = server.request(0);
         assert_eq!(request.method, "POST");
@@ -556,9 +595,10 @@ mod tests {
     #[tokio::test]
     async fn an_answer_carrying_both_windows_yields_both() {
         let body = format!(
-            r#"{{"token":"turso","url":"libsql://x","expiresAt":{},"session":{{"token":"rws_a-token","expiresAt":{}}}}}"#,
+            r#"{{"token":"turso","url":"libsql://x","expiresAt":{},"session":{{"token":"rws_a-token","expiresAt":{},"absoluteExpiresAt":{}}}}}"#,
             AT + 3 * A_DAY,
-            AT + 3 * A_DAY
+            AT + 3 * A_DAY,
+            AT + 30 * A_DAY
         );
         let server = TestDriveServer::start(vec![ScriptedResponse::new(200, body)]).await;
 
@@ -568,6 +608,55 @@ mod tests {
 
         assert_eq!(issued.expires_at, AT + 3 * A_DAY);
         assert_eq!(issued.replica_expires_at, Some(AT + 3 * A_DAY));
+        assert_eq!(issued.absolute_expires_at, AT + 30 * A_DAY);
+    }
+
+    /// A refresh restarts the window and leaves the sign-in where it is, which is the whole of
+    /// requirement 15's second window seen from this side. It is asserted on the wire because
+    /// nothing else here would notice a control plane that started sliding the month.
+    #[tokio::test]
+    async fn a_refresh_restarts_the_window_and_leaves_the_sign_in_where_it_is() {
+        let server = TestDriveServer::start(vec![ScriptedResponse::new(
+            200,
+            signed_in_body_signed_at(AT + 29 * A_DAY, AT),
+        )])
+        .await;
+
+        let issued = super::refresh(&server.url(""), "rws_a-token")
+            .await
+            .expect("renewing failed");
+
+        assert_eq!(issued.expires_at, AT + 29 * A_DAY);
+        assert_eq!(
+            issued.absolute_expires_at,
+            AT + 30 * A_DAY,
+            "a refresh carried the sign-in past the month it was issued under"
+        );
+    }
+
+    /// The two refusals are separate errors on the wire, and the difference is what the person is
+    /// asked to do: wait for a network, or go back to Google. Both land as `Forbidden` — a retry
+    /// helps neither — and the wording is what carries the distinction to the surface.
+    #[tokio::test]
+    async fn a_sign_in_past_its_lifetime_is_refused_in_its_own_words() {
+        let server = TestDriveServer::start(vec![ScriptedResponse::new(
+            401,
+            r#"{"error":{"code":"session_lifetime_reached","message":"this sign-in is a month old"}}"#,
+        )])
+        .await;
+
+        let error = super::refresh(&server.url(""), "rws_aged")
+            .await
+            .expect_err("a sign-in past its lifetime was accepted");
+
+        let Error::Forbidden { message } = &error else {
+            panic!("a sign-in past its lifetime came back as {error:?}, which a retry would chase");
+        };
+
+        assert!(
+            message.contains("reached its lifetime"),
+            "the refusal reads as a closed refresh window: {message}"
+        );
     }
 
     /// A window that closed is not a network failure, and the difference is the user's next
@@ -665,6 +754,7 @@ mod tests {
                     token: "rws_a-token".to_string(),
                     expires_at: AT + 3 * A_DAY,
                     replica_expires_at: Some(AT + 3 * A_DAY),
+                    absolute_expires_at: AT + 30 * A_DAY,
                 };
 
                 {
@@ -737,6 +827,7 @@ mod tests {
                             token: "rws_a-token".to_string(),
                             expires_at: AT + 3 * A_DAY,
                             replica_expires_at: Some(AT + 3 * A_DAY),
+                            absolute_expires_at: AT + 30 * A_DAY,
                         },
                     )
                     .expect("failed to record the mint");
@@ -748,6 +839,7 @@ mod tests {
                             token: "rws_a-token".to_string(),
                             expires_at: AT + 5 * A_DAY,
                             replica_expires_at: None,
+                            absolute_expires_at: AT + 30 * A_DAY,
                         },
                     )
                     .expect("failed to record the refresh");

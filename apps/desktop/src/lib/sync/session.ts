@@ -22,11 +22,14 @@ import type { RemoteSyncState, SessionWindow } from '$lib/platform/host';
  * (`tauri/src/sync/control.rs`) and the token stays in the credential store, which is why what
  * arrives here is two numbers and no credential.
  *
- * **Two moments, and the earlier governs.** `expiresAt` is how much longer the control plane will
- * renew this sign-in; `replicaExpiresAt` is how much longer the credential the replica syncs with
- * lives. They are started by different calls — a refresh moves the first alone, a mint restarts
- * both — so equal lengths never made them one clock. A client reading only the session's would go
- * on believing it may replicate after the credential that carries replication had died.
+ * **Three moments, and the earliest governs.** `expiresAt` is the refresh window — how much longer
+ * this machine may work without reaching the control plane. `replicaExpiresAt` is how much longer
+ * the credential the replica syncs with lives. `absoluteExpiresAt` is when the sign-in itself dies
+ * and no refresh extends it. They are started by different calls — a refresh moves the first
+ * alone, a mint restarts the first two, and nothing moves the third — so equal lengths never made
+ * them one clock. A client reading only the session's would go on believing it may replicate after
+ * the credential that carries replication had died; one reading only the first two would believe
+ * it a month after the sign-in it is working under had run out.
  *
  * **Expiry stops replication and nothing else.** Past the window the workspace is still open,
  * still readable and still writable — it is a database on this machine — and what is refused is
@@ -70,14 +73,18 @@ export type ReplicationStanding =
 /**
  * the last moment this machine may still replicate, given everything it holds.
  *
- * The earlier of the two, and `replicaExpiresAt` being absent means *nothing has been minted
+ * The earliest of the three, and `replicaExpiresAt` being absent means *nothing has been minted
  * yet* rather than *no limit* — which is the state a workspace is in between signing in and its
- * first mint, and it does not constrain a window that has not started.
+ * first mint, and it does not constrain a window that has not started. `absoluteExpiresAt` is
+ * never absent: every answer carries it, and a sign-in with no lifetime is the unbounded sliding
+ * window requirement 15 exists to close.
  */
 function windowClosesAt(session: SessionWindow): number {
+	const renewable = Math.min(session.expiresAt, session.absoluteExpiresAt);
+
 	return session.replicaExpiresAt === null
-		? session.expiresAt
-		: Math.min(session.expiresAt, session.replicaExpiresAt);
+		? renewable
+		: Math.min(renewable, session.replicaExpiresAt);
 }
 
 /**

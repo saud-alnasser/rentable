@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { eq } from 'drizzle-orm';
 
-import { Refusal, SESSION_EXPIRED } from '../../failure.ts';
+import { Refusal, SESSION_EXPIRED, SESSION_LIFETIME_REACHED } from '../../failure.ts';
 import { freshDatabase, SOMEBODY } from '../../tests/testing.ts';
 import { signInWithGoogle } from '../../account/account.ts';
 import { session } from '../../database/schema.ts';
@@ -12,6 +12,7 @@ import {
 	forgetExpiredSessions,
 	looksLikeSessionToken,
 	resumeSession,
+	SESSION_ABSOLUTE_LIFETIME_MS,
 	SESSION_LIFETIME_MS,
 	startSession
 } from '../session.ts';
@@ -98,33 +99,108 @@ test('a reach inside the window restarts the window from the reach', async () =>
 });
 
 // Acceptance criterion 16, the half that must ask.
-test('a session nobody reached for three days is refused, and the refusal names the action', async () => {
+// **This asserted the opposite until 2026-08-19.** It read *a session nobody reached for three
+// days is refused, and the refusal names the action*, which was right while three days was the
+// only window. Requirement 15 replaced it: past three days the *client* locks itself, and when a
+// network returns it presents the same token and refreshes with nobody typing anything. A build
+// that refused here would make every reconnection a Google sign-in, which acceptance criterion 16
+// names as the likeliest way to get this wrong.
+test('a session nobody reached for three days still refreshes, and nobody types anything', async () => {
 	await withDatabase(async (db) => {
 		const account = await anAccount(db);
 		const issued = await startSession(db, account.id, AT);
 
-		const refusal = await resumeSession(db, issued.token, AT + 3 * A_DAY).then(
+		const resumed = await resumeSession(db, issued.token, AT + 4 * A_DAY);
+
+		assert.equal(resumed.session.token, issued.token, 'the client was made to sign in again');
+		assert.equal(
+			resumed.session.expiresAt,
+			AT + 4 * A_DAY + SESSION_LIFETIME_MS,
+			'the refresh window did not restart from the reach'
+		);
+		assert.equal(
+			resumed.session.absoluteExpiresAt,
+			issued.absoluteExpiresAt,
+			'the reach moved the absolute lifetime'
+		);
+	});
+});
+
+// The other half of criterion 16, and the one this ticket exists for: reaching faithfully does
+// not buy a longer sign-in. A renewal that touched `absolute_expires_at` would pass every other
+// test in this file and fail only this one.
+test('reaching every day does not carry the sign-in past its month', async () => {
+	await withDatabase(async (db) => {
+		const account = await anAccount(db);
+		const issued = await startSession(db, account.id, AT);
+
+		for (let day = 1; day * A_DAY < SESSION_ABSOLUTE_LIFETIME_MS; day += 1) {
+			const resumed = await resumeSession(db, issued.token, AT + day * A_DAY);
+			assert.equal(resumed.session.absoluteExpiresAt, issued.absoluteExpiresAt);
+		}
+
+		const refusal = await resumeSession(db, issued.token, AT + SESSION_ABSOLUTE_LIFETIME_MS).then(
 			() => null,
 			(error: unknown) => error
 		);
 
-		assert.ok(refusal instanceof Refusal, 'an expired session was taken up again');
-		assert.equal(refusal.code, SESSION_EXPIRED);
+		assert.ok(refusal instanceof Refusal, 'a month of daily reaches slid the window past a month');
+		assert.equal(refusal.code, SESSION_LIFETIME_REACHED);
 		assert.equal(refusal.status, 401);
 		assert.match(refusal.message, /sign in with google again/);
 	});
 });
 
-// The boundary itself, because "three days" is where an off-by-one costs somebody a sign-in.
-test('the last millisecond of the window is inside it and the first one after is not', async () => {
+// The two refusals ask different things of the person — reconnect, or go back to Google — so a
+// client that could not tell them apart would either wait for a network that will not help, or
+// throw somebody back to Google after a long weekend.
+test('a sign-in that reached its month is refused by a different code than an unknown token', async () => {
+	await withDatabase(async (db) => {
+		const account = await anAccount(db);
+		const issued = await startSession(db, account.id, AT);
+
+		const aged = await resumeSession(db, issued.token, AT + SESSION_ABSOLUTE_LIFETIME_MS).then(
+			() => null,
+			(error: unknown) => error
+		);
+		const unknown = await resumeSession(db, 'rws_never-issued', AT).then(
+			() => null,
+			(error: unknown) => error
+		);
+
+		assert.ok(aged instanceof Refusal && unknown instanceof Refusal);
+		assert.equal(aged.code, SESSION_LIFETIME_REACHED);
+		assert.equal(unknown.code, SESSION_EXPIRED);
+	});
+});
+
+// The boundary itself, because a month is where an off-by-one costs somebody a working sign-in.
+test('the last millisecond of the lifetime is inside it and the first one after is not', async () => {
 	await withDatabase(async (db) => {
 		const account = await anAccount(db);
 		const inside = await startSession(db, account.id, AT);
 		const outside = await startSession(db, account.id, AT);
 
-		await resumeSession(db, inside.token, AT + 3 * A_DAY - 1);
+		await resumeSession(db, inside.token, AT + SESSION_ABSOLUTE_LIFETIME_MS - 1);
 
-		await assert.rejects(() => resumeSession(db, outside.token, AT + 3 * A_DAY), Refusal);
+		await assert.rejects(
+			() => resumeSession(db, outside.token, AT + SESSION_ABSOLUTE_LIFETIME_MS),
+			Refusal
+		);
+	});
+});
+
+// The refresh window may not be issued past the sign-in that carries it: the client locks itself
+// on this number, so one reaching past the absolute lifetime would have it working after its
+// sign-in had died, and then refused with no warning.
+test('a refresh window is never issued past the absolute lifetime', async () => {
+	await withDatabase(async (db) => {
+		const account = await anAccount(db);
+		const issued = await startSession(db, account.id, AT);
+
+		const late = await resumeSession(db, issued.token, AT + SESSION_ABSOLUTE_LIFETIME_MS - A_DAY);
+
+		assert.equal(late.session.expiresAt, issued.absoluteExpiresAt);
 	});
 });
 
@@ -152,16 +228,25 @@ test('declining to renew ends the session at the next reach and not before', asy
 	});
 });
 
-test('a session that ran out is removable, and a live one is left alone', async () => {
+// The sweep keys on the absolute lifetime, not the refresh window. Removing a row three days past
+// its last reach would take away the silent reconnection requirement 15 asks for: the session
+// would be gone before the client that could still have used it came back online.
+test('a sign-in past its month is removable, and one merely out of contact is left alone', async () => {
 	await withDatabase(async (db) => {
 		const account = await anAccount(db);
-		const stale = await startSession(db, account.id, AT);
-		const live = await startSession(db, account.id, AT + 2 * A_DAY);
+		const aged = await startSession(db, account.id, AT);
+		const quiet = await startSession(db, account.id, AT + A_DAY);
 
-		assert.equal(await forgetExpiredSessions(db, AT + 3 * A_DAY), 1);
+		assert.equal(await forgetExpiredSessions(db, AT + SESSION_ABSOLUTE_LIFETIME_MS), 1);
 
-		await assert.rejects(() => resumeSession(db, stale.token, AT + 3 * A_DAY), Refusal);
-		assert.ok(await resumeSession(db, live.token, AT + 3 * A_DAY));
+		await assert.rejects(
+			() => resumeSession(db, aged.token, AT + SESSION_ABSOLUTE_LIFETIME_MS),
+			Refusal
+		);
+		assert.ok(
+			await resumeSession(db, quiet.token, AT + SESSION_ABSOLUTE_LIFETIME_MS),
+			'a session nobody had reached for weeks was swept before it could reconnect'
+		);
 	});
 });
 

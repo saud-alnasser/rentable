@@ -88,7 +88,13 @@ const A_DAY = 24 * 60 * 60 * 1000;
 /** a window the control plane issued, `days` from now. */
 function window(days: number): SessionWindow {
 	const at = Date.now() + days * A_DAY;
-	return { accountId: 'account-1', expiresAt: at, replicaExpiresAt: at, updatedAt: Date.now() };
+	return {
+		accountId: 'account-1',
+		expiresAt: at,
+		replicaExpiresAt: at,
+		absoluteExpiresAt: Date.now() + 30 * A_DAY,
+		updatedAt: Date.now()
+	};
 }
 
 /**

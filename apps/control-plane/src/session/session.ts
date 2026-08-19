@@ -1,17 +1,24 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { and, eq, gt, lte } from 'drizzle-orm';
+import { and, eq, gt, lte, sql } from 'drizzle-orm';
 
 import type { Database } from '../database/database.ts';
-import { Refusal, SESSION_EXPIRED } from '../failure.ts';
+import { Refusal, SESSION_EXPIRED, SESSION_LIFETIME_REACHED } from '../failure.ts';
 import { account, session, type Account } from '../database/schema.ts';
 
 /**
- * How long a session lasts without being heard from.
+ * How long a client may work without being heard from.
  *
- * **Three days, and it is requirement 15's window rather than a number chosen beside it.** A
- * signed-in client works offline for three days; any reach inside the window renews it and the
- * window restarts from the renewal; past three days with no contact the client has nothing left
- * to present and has to sign in with Google again.
+ * **Three days, and it is requirement 15's refresh window rather than a number chosen beside it.**
+ * A signed-in client works offline for three days; any reach inside the window renews it and the
+ * window restarts from the renewal; past three days with no contact the application locks behind
+ * the login page **until a network is available**.
+ *
+ * **Passing it does not kill the session**, and that changed on 2026-08-19 with the requirement.
+ * The lock is a gate rather than a sign-out: when the network returns, the client presents the
+ * same token and refreshes with nobody typing anything. What ends a session is
+ * {@link SESSION_ABSOLUTE_LIFETIME_MS} or {@link declineRenewal}. A build that refused a token
+ * past this window would make every reconnection a Google sign-in, which acceptance criterion 16
+ * fails outright.
  *
  * It is deliberately the same number as `TOKEN_LIFETIME` in `../workspace/workspace.ts`, which
  * is what a workspace's *data* credential expires after. **Equal lengths are not the same thing
@@ -24,6 +31,20 @@ import { account, session, type Account } from '../database/schema.ts';
  * #550 checked the number itself against the requirement and agrees with it.
  */
 export const SESSION_LIFETIME_MS = 3 * 24 * 60 * 60 * 1000;
+
+/**
+ * How long a sign-in lasts however faithfully the client keeps reaching.
+ *
+ * **One month, directed by the human on 2026-08-19**: *"each month the user must re-login."* Set
+ * when the person signs in and never moved, so the refresh window above slides inside this one
+ * rather than past it. Without it a user who opens the application daily stays signed in forever,
+ * which is what this repository shipped until now.
+ *
+ * Thirty days rather than a calendar month: a calendar month is not a duration, and a session
+ * that lasted 28 days in February and 31 in March would be a different guarantee depending on
+ * when somebody signed in.
+ */
+export const SESSION_ABSOLUTE_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * The prefix every session token carries.
@@ -43,13 +64,21 @@ export const looksLikeSessionToken = (token: string) => token.startsWith(SESSION
 export type IssuedSession = {
 	token: string;
 	/**
-	 * when this stops being renewable, as epoch milliseconds.
+	 * the refresh window, as epoch milliseconds — how much longer this client may work without
+	 * reaching here.
 	 *
 	 * **Issued here, so the client cannot move it.** The client holds it in order to know when to
 	 * stop trying and say what to do, which is a courtesy rather than the enforcement — the
 	 * enforcement is that a token past this moment is refused whatever the client believes.
 	 */
 	expiresAt: number;
+	/**
+	 * when this sign-in stops being renewable at all, as epoch milliseconds.
+	 *
+	 * Never moves. A client holding both believes the earlier, which past this moment is always
+	 * this one — and unlike {@link IssuedSession.expiresAt}, reaching the API does not help.
+	 */
+	absoluteExpiresAt: number;
 };
 
 const digestOf = (token: string) => createHash('sha256').update(token).digest('hex');
@@ -76,7 +105,13 @@ export const startSession = async (
 	now: number
 ): Promise<IssuedSession> => {
 	const token = newToken();
-	const expiresAt = now + SESSION_LIFETIME_MS;
+	const absoluteExpiresAt = now + SESSION_ABSOLUTE_LIFETIME_MS;
+
+	// The refresh window never reaches past the absolute one. It would make no difference to what
+	// this process accepts — renewal is gated on the absolute lifetime — but the client locks
+	// itself on the refresh window, and a client told it may work until Tuesday when its sign-in
+	// dies on Monday would go on working and then be refused.
+	const expiresAt = Math.min(now + SESSION_LIFETIME_MS, absoluteExpiresAt);
 
 	await db.insert(session).values({
 		id: crypto.randomUUID(),
@@ -84,10 +119,11 @@ export const startSession = async (
 		tokenDigest: digestOf(token),
 		createdAt: new Date(now),
 		renewedAt: new Date(now),
-		expiresAt: new Date(expiresAt)
+		expiresAt: new Date(expiresAt),
+		absoluteExpiresAt: new Date(absoluteExpiresAt)
 	});
 
-	return { token, expiresAt };
+	return { token, expiresAt, absoluteExpiresAt };
 };
 
 /**
@@ -108,18 +144,42 @@ export const resumeSession = async (
 	token: string,
 	now: number
 ): Promise<{ account: Account; session: IssuedSession }> => {
-	const expiresAt = now + SESSION_LIFETIME_MS;
-
 	// One statement, and the window is part of the `where` rather than of a branch after it: a
 	// session read as live and then renewed is two statements a request could expire between,
-	// and this way an expired row is simply not matched and no row comes back.
+	// and this way a dead row is simply not matched and no row comes back.
+	//
+	// **The gate is the absolute lifetime, not the refresh window.** A client that has been
+	// offline for a week is exactly the case requirement 15 asks to serve silently, so its token
+	// is still good and this hands it a fresh refresh window. What it cannot outlive is the month.
 	const [renewed] = await db
 		.update(session)
-		.set({ renewedAt: new Date(now), expiresAt: new Date(expiresAt) })
-		.where(and(eq(session.tokenDigest, digestOf(token)), gt(session.expiresAt, new Date(now))))
+		.set({
+			renewedAt: new Date(now),
+			expiresAt: sql`min(${now + SESSION_LIFETIME_MS}, ${session.absoluteExpiresAt})`
+		})
+		.where(
+			and(eq(session.tokenDigest, digestOf(token)), gt(session.absoluteExpiresAt, new Date(now)))
+		)
 		.returning();
 
 	if (!renewed) {
+		// The extra read is on the failure path only, and it is what makes the two refusals
+		// tell apart: a token whose month is up asks for a Google re-login, while one that was
+		// never issued or was declined asks for a sign-in and nothing more specific.
+		const [held] = await db
+			.select({ absoluteExpiresAt: session.absoluteExpiresAt })
+			.from(session)
+			.where(eq(session.tokenDigest, digestOf(token)))
+			.limit(1);
+
+		if (held) {
+			throw new Refusal(
+				SESSION_LIFETIME_REACHED,
+				401,
+				'this sign-in is a month old. sign in with google again to carry on'
+			);
+		}
+
 		throw new Refusal(
 			SESSION_EXPIRED,
 			401,
@@ -144,7 +204,14 @@ export const resumeSession = async (
 		);
 	}
 
-	return { account: holder, session: { token, expiresAt } };
+	return {
+		account: holder,
+		session: {
+			token,
+			expiresAt: renewed.expiresAt.getTime(),
+			absoluteExpiresAt: renewed.absoluteExpiresAt.getTime()
+		}
+	};
 };
 
 /**
@@ -168,15 +235,19 @@ export const declineRenewal = async (db: Database, accountId: string): Promise<n
 /**
  * Remove sessions that ran out, and answer how many.
  *
- * Nothing calls this on a timer yet and nothing needs to: an expired row is already inert,
- * because {@link resumeSession} will not match it. It exists so that whatever ends up running
- * maintenance has one honest place to call, rather than writing a `delete` against this table
- * from somewhere that does not know what the window is.
+ * **The absolute lifetime is what makes a row removable, not the refresh window.** A session
+ * three days past its last reach is still refreshable and sweeping it would take away the silent
+ * reconnection requirement 15 asks for; a session past its month can never be presented again.
+ *
+ * Nothing calls this on a timer yet and nothing needs to: a dead row is already inert, because
+ * {@link resumeSession} will not match it. It exists so that whatever ends up running maintenance
+ * has one honest place to call, rather than writing a `delete` against this table from somewhere
+ * that does not know what the windows are.
  */
 export const forgetExpiredSessions = async (db: Database, now: number): Promise<number> => {
 	const removed = await db
 		.delete(session)
-		.where(lte(session.expiresAt, new Date(now)))
+		.where(lte(session.absoluteExpiresAt, new Date(now)))
 		.returning();
 
 	return removed.length;

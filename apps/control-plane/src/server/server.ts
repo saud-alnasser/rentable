@@ -152,14 +152,16 @@ const readJsonBody = async (request: IncomingMessage): Promise<Record<string, un
 /**
  * a session as it goes over the wire.
  *
- * The expiry rides with the token because the client needs it to know when to stop trying and
- * say what to do. **It is not what enforces the window** — this process refuses a token past its
- * moment whatever the client believes about it — which is why the client is given the number
- * rather than trusted to keep one.
+ * **Both of the session's moments ride with the token, and they are not the same kind of thing.**
+ * `expiresAt` is the refresh window: how much longer this client may work without reaching here,
+ * which it obeys by locking itself, and which a reach moves. `absoluteExpiresAt` is when the
+ * sign-in stops being renewable at all — enforced here, whatever the client believes, which is
+ * why the client is given the number rather than trusted to keep one.
  */
 const wireSession = (issued: IssuedSession) => ({
 	token: issued.token,
-	expiresAt: issued.expiresAt
+	expiresAt: issued.expiresAt,
+	absoluteExpiresAt: issued.absoluteExpiresAt
 });
 
 /**

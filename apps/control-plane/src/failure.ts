@@ -40,10 +40,25 @@ export const UNAUTHENTICATED = 'unauthenticated';
  * Never issued, run out, or declined — one code for all three, because the client's move is the
  * same for each and telling them apart tells whoever holds a string they should not have whether
  * it was ever real. Distinct from {@link UNAUTHENTICATED}, which is presenting nothing at all,
- * and from {@link NOT_VERIFIED}, which is Google refusing: this one means *sign in again*, and
- * only this one means the three-day window closed.
+ * and from {@link NOT_VERIFIED}, which is Google refusing, and from
+ * {@link SESSION_LIFETIME_REACHED}, which is the sign-in having reached a month.
  */
 export const SESSION_EXPIRED = 'session_expired';
+/**
+ * the sign-in itself is a month old, and no refresh extends it.
+ *
+ * **Distinct from {@link SESSION_EXPIRED} because the two ask different things of the person.**
+ * An expired refresh window is satisfied by reconnecting — the client refreshes silently and
+ * nobody types anything. This one is satisfied only by a real Google re-login, so a client that
+ * treated them alike would either sit waiting for a network that will not help, or throw somebody
+ * back to Google every time they came back from a long weekend.
+ *
+ * **It tells a caller that the token it holds was once real**, which {@link SESSION_EXPIRED} is
+ * worded to avoid. That is accepted deliberately: requirement 15 asks for the distinction, and
+ * what leaks is only that some token presented here was issued at least a month ago — not whose,
+ * and not anything that can be presented again.
+ */
+export const SESSION_LIFETIME_REACHED = 'session_lifetime_reached';
 /** a workspace this account is not a member of. Membership is the whole of the answer. */
 export const NOT_A_MEMBER = 'not_a_member';
 export const NO_SUCH_WORKSPACE = 'no_such_workspace';

@@ -52,18 +52,23 @@ How much longer this machine may go on replicating without hearing from the cont
 lifetime that was issued elsewhere, never a claim this application makes about itself** — the
 control plane sets the moment and refuses a credential past it, so a client cannot extend its own
 window by believing in a later one. Reaching the control plane at any point inside the window
-restarts it from the reach. A build that was never told where a control plane is has none, because
-there is nowhere to sign in — which is the only case left, now that no workspace is of record on
-this machine.
+restarts it from the reach, up to the absolute lifetime it was signed in under. A build that was
+never told where a control plane is has none, because there is nowhere to sign in — which is the
+only case left, now that no workspace is of record on this machine.
 _Avoid_: calling it a sign-in — signing in is the act, and the session is the three days it is
 worth. And _avoid_ "the session token" for anything on the TypeScript side, which never holds one
 
 **Window**:
-The two moments a session is measured by, and the earlier one governs. One is how much longer the
-control plane will renew the sign-in; the other is how much longer the credential the replica
-actually syncs with lives. They are started by different calls — a refresh moves the first alone,
-a mint restarts both — so they are two numbers rather than one, and treating them as one is how a
-client comes to replicate on a credential that has died.
+The three moments a session is measured by, and the earliest one governs. The *refresh window* is
+how much longer this machine may work without reaching the control plane; the *replica credential*
+is how much longer the token the replica syncs with lives; the *absolute lifetime* is when the
+sign-in itself dies and no refresh extends it. They are started by different calls — a refresh
+moves the first alone, a mint restarts the first two, and **nothing moves the third** — so they are
+three numbers rather than one, and treating any two as one is how a client comes to replicate on a
+credential that has died, or to work a year under a sign-in that ran out in a month.
+_Avoid_: calling the refresh window the session's expiry. Passing it does not end the session —
+past it the application locks and a returning network lifts the lock with nobody typing anything,
+which is the whole difference between a gate and a sign-out.
 
 **Manifest**:
 The index describing which snapshots exist and which one is current. Exists in a local form

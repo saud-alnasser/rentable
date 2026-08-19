@@ -111,7 +111,7 @@ export const membership = sqliteTable(
 );
 
 /**
- * A sign-in that is still good, and the three days it has left.
+ * A sign-in that is still good, and the two windows it is measured by.
  *
  * **This is requirement 15's window, and it is a row here rather than a flag on the client.**
  * A client asserts nothing about how long ago it signed in: it presents what this table issued,
@@ -122,6 +122,14 @@ export const membership = sqliteTable(
  * credential — whoever holds it is the account — so a readable copy of every live one is the
  * worst row this database could carry. The digest answers the only question asked of it, which
  * is whether a presented token is one that was issued.
+ *
+ * **Two windows, and only one of them is renewed.** `expires_at` is the refresh window — how
+ * much longer a client may go on working without reaching this process — and a reach moves it.
+ * `absolute_expires_at` is set once, when the person signs in, and **nothing moves it**: past it a
+ * real Google re-login is required however faithfully the client has been reaching the API. So
+ * the gate on renewal is the absolute one, and the refresh window is what the *client* obeys —
+ * a client that has been offline for four days still refreshes silently, which is exactly what
+ * requirement 15 asks for and what a single sliding window could not give.
  *
  * **Renewing moves `expires_at` and keeps the token.** Rotating on every reach is the other
  * reasonable choice and it costs the client a stored write per request, for a property this
@@ -140,7 +148,15 @@ export const session = sqliteTable('session', {
 	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 	/** the last successful reach. The window runs from here, not from `created_at`. */
 	renewedAt: integer('renewed_at', { mode: 'timestamp_ms' }).notNull(),
-	expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull()
+	/** the refresh window. Moved by every reach, and what the client locks itself on. */
+	expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+	/**
+	 * the absolute lifetime. Set at sign-in and never moved, and the one renewal is gated on.
+	 *
+	 * A renewal that touched this would recreate the unbounded sliding window it exists to close,
+	 * and nothing would fail — the test that catches it reaches every day for a month.
+	 */
+	absoluteExpiresAt: integer('absolute_expires_at', { mode: 'timestamp_ms' }).notNull()
 });
 
 export type Account = typeof account.$inferSelect;

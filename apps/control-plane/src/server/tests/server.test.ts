@@ -10,6 +10,7 @@ import {
 	NOT_VERIFIED,
 	Refusal,
 	SESSION_EXPIRED,
+	SESSION_LIFETIME_REACHED,
 	UNAUTHENTICATED
 } from '../../failure.ts';
 import { declineRenewal } from '../../session/session.ts';
@@ -48,7 +49,7 @@ type Answer = {
 		createdAt: number;
 		updatedAt: number;
 	};
-	session?: { token: string; expiresAt: number };
+	session?: { token: string; expiresAt: number; absoluteExpiresAt: number };
 	token?: string;
 	url?: string;
 	expiresAt?: number;
@@ -427,12 +428,49 @@ test('a reach inside the window renews the session and restarts the window', asy
 
 // Criterion 16, the half that must ask. Sign in, never reach again, move the clock past the
 // window: the refusal is typed, and it names the action to take.
-test('a session nobody reached for three days is refused, and it names the action', async () => {
+// **Criterion 16's first bullet, through the route a client actually reaches.** This asserted a
+// refusal at three days until 2026-08-19; requirement 15 made three days the window the *client*
+// locks itself on, and reconnecting past it refreshes with nobody typing anything.
+test('a session nobody reached for three days refreshes over the wire, and asks for nothing', async () => {
 	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, moveClockTo }) => {
 		const { session } = await answerOf(await post(url, '/account/sign-in'));
 		assert.ok(session);
 
-		moveClockTo(AT + 3 * A_DAY);
+		moveClockTo(AT + 4 * A_DAY);
+
+		const response = await post(url, '/session/refresh', { token: session.token });
+
+		assert.equal(response.status, 200);
+
+		const refreshed = await answerOf(response);
+
+		assert.ok(refreshed.session);
+		assert.equal(refreshed.session.token, session.token, 'the client was handed a new sign-in');
+		assert.equal(
+			refreshed.session.absoluteExpiresAt,
+			session.absoluteExpiresAt,
+			'reconnecting moved the absolute lifetime'
+		);
+	});
+});
+
+// Criterion 16's second bullet: the month, and it is reached by reaching faithfully rather than
+// by going quiet.
+test('a sign-in a month old is refused however faithfully it has been reaching', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, moveClockTo }) => {
+		const { session } = await answerOf(await post(url, '/account/sign-in'));
+		assert.ok(session);
+
+		for (let day = 1; day < 30; day += 1) {
+			moveClockTo(AT + day * A_DAY);
+			assert.equal(
+				(await post(url, '/session/refresh', { token: session.token })).status,
+				200,
+				`the daily reach on day ${day} was refused`
+			);
+		}
+
+		moveClockTo(AT + 30 * A_DAY);
 
 		const response = await post(url, '/session/refresh', { token: session.token });
 
@@ -441,7 +479,7 @@ test('a session nobody reached for three days is refused, and it names the actio
 		const { error } = await answerOf(response);
 
 		assert.ok(error);
-		assert.equal(error.code, SESSION_EXPIRED);
+		assert.equal(error.code, SESSION_LIFETIME_REACHED, 'the refusal reads as an expired window');
 		assert.match(error.message, /sign in with google again/);
 	});
 });
@@ -449,7 +487,7 @@ test('a session nobody reached for three days is refused, and it names the actio
 // Expiry stops replication and takes nothing away. The refusal is the mint declining to hand out
 // a fresh workspace token — no database is removed, no membership is dropped, and the account is
 // still there to be signed back in to.
-test('an expired session stops the mint and takes nothing away', async () => {
+test('a sign-in past its month stops the mint and takes nothing away', async () => {
 	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, moveClockTo, turso }) => {
 		const { account, session } = await answerOf(await post(url, '/account/sign-in'));
 		const { workspace } = await answerOf(
@@ -458,7 +496,7 @@ test('an expired session stops the mint and takes nothing away', async () => {
 
 		assert.ok(account && session && workspace);
 
-		moveClockTo(AT + 3 * A_DAY);
+		moveClockTo(AT + 30 * A_DAY);
 
 		const refused = await post(url, `/workspace/${workspace.id}/token`, {
 			token: session.token,
@@ -466,7 +504,7 @@ test('an expired session stops the mint and takes nothing away', async () => {
 		});
 
 		assert.equal(refused.status, 401);
-		assert.equal((await answerOf(refused)).error?.code, SESSION_EXPIRED);
+		assert.equal((await answerOf(refused)).error?.code, SESSION_LIFETIME_REACHED);
 		assert.deepEqual(turso.deleted, [], 'a workspace database was removed to produce a refusal');
 
 		// and signing in again is the whole of the way back: the same account, the same workspace.
