@@ -35,10 +35,11 @@ test('the control plane describes accounts, workspaces, membership and sessions,
 // Requirement 15's window, in the one place a client cannot reach. Every column here exists to
 // answer *is this sign-in still good*, and a column that answered anything else would mean the
 // session had started describing a person rather than a credential.
-test('a session is a credential with a window and nothing else', () => {
+test('a session is a credential with two windows and nothing else', () => {
 	const { columns, foreignKeys } = configOf('session');
 
 	assert.deepEqual(columns.map((column) => column.name).sort(), [
+		'absolute_expires_at',
 		'account_id',
 		'created_at',
 		'expires_at',
@@ -48,6 +49,10 @@ test('a session is a credential with a window and nothing else', () => {
 	]);
 
 	assert.ok(columnNamed(columns, 'expires_at').notNull, 'a session with no expiry is a flag');
+	assert.ok(
+		columnNamed(columns, 'absolute_expires_at').notNull,
+		'a session with no absolute lifetime is one that slides forever'
+	);
 	assert.ok(
 		columnNamed(columns, 'token_digest').isUnique,
 		'two sessions could answer to one token'

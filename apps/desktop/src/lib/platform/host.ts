@@ -119,21 +119,24 @@ export type RemoteSyncProfile = RemoteSyncWorkspace;
 /**
  * how much longer this machine may go on replicating, as the control plane issued it.
  *
- * **The two moments cross and the token does not.** A session token is a bearer credential and
+ * **The moments cross and the token does not.** A session token is a bearer credential and
  * stays behind the credential boundary in Rust; these are facts *about* a credential rather than
  * one, exactly as `RemoteSyncAccount.tokenExpiresAt` already is — and the side that decides
  * whether to keep replicating cannot decide without them.
  *
- * **Two, because they are started by different calls.** `expiresAt` is how much longer the
- * control plane will renew this sign-in; `replicaExpiresAt` is how much longer the credential the
- * replica actually syncs with lives. A refresh moves the first alone and a mint restarts both, so
- * equal lengths do not make them one clock and the earlier of the two is what governs.
- * `replicaExpiresAt` is `null` until something has minted one.
+ * **Three, because they are started by different calls.** `expiresAt` is the refresh window — how
+ * much longer this machine may work without reaching the control plane. `replicaExpiresAt` is how
+ * much longer the credential the replica actually syncs with lives. `absoluteExpiresAt` is when
+ * the sign-in itself dies and no refresh extends it. A refresh moves the first alone, a mint
+ * restarts the first two, and **nothing moves the third** — so equal lengths do not make them one
+ * clock, and the earliest of them is what governs. `replicaExpiresAt` is `null` until something
+ * has minted one.
  */
 export type SessionWindow = {
 	accountId: string;
 	expiresAt: number;
 	replicaExpiresAt: number | null;
+	absoluteExpiresAt: number;
 	updatedAt: number;
 };
 
