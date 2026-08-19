@@ -132,6 +132,11 @@ without reopening any decision made here. **Neither is built.**
   binding form: a local workspace must keep a way off its machine, and whatever Drive becomes is
   measured against that rather than against being irreplaceable. Decision 07 carries the
   difference.
+
+  **Decided 2026-08-18: Drive sync retires in favour of Turso sync**, directed by the human. The
+  weaker form above is what a local workspace is left with, exactly as written — the export is the
+  way off the machine, manual and not an equal substitute, and that is now the arrangement rather
+  than the fallback.
 - **The rules resting on "there is no server."** Which survive the premise change, which are
   **scoped to local workspaces** rather than superseded, and the first Boundary of
   [[contexts/repository]] with them.
@@ -180,6 +185,14 @@ without reopening any decision made here. **Neither is built.**
     migrations stay Rust's, as they are today.
 12. Google Drive's fate is decided **and executed** — the surface is not left running with no
     stated purpose — and whatever it becomes still serves local workspaces.
+
+    **Decided 2026-08-18: it retires, in favour of Turso sync** *(decision 07, directed by the
+    human)*. **The second clause is what the retirement has to answer**, and it does not answer it
+    by keeping anything: what serves a local workspace afterwards is its local snapshots and the
+    whole-workspace export and import, which is a manual route that loses everything since the
+    last export. That is the cost, accepted knowingly, and *Risks* carries it. **The requirement
+    is not softened by the reversal** — "executed" now means the Rust sync surface and its user
+    surfaces are deleted, not merely stopped being recommended.
 13. Every rule and boundary resting on "there is no server" is restated as still true, scoped
     explicitly to local workspaces, or superseded with its reasoning written afresh.
 14. Organization workspaces are not built, and nothing built here forecloses them.
@@ -388,6 +401,16 @@ without reopening any decision made here. **Neither is built.**
     route loses.** Name it. Drive carries the workspace exactly; the whole-workspace export names
     records instead of carrying ids and recomputes every derived value on the far side, so a
     workspace that arrives by that route is equivalent in content and not identical in rows.
+
+    **Resolved 2026-08-18 by the human's reversal of decision 07: Drive sync is retired, so the
+    clause about keeping Drive does not fire and the export is not standing in for anything — it
+    *is* the local workspace's route.** So this criterion is now **two demonstrations rather than
+    one**, because the two modes no longer share a route: a local workspace exported on one
+    installation and imported on another, and a hosted workspace reaching a second installation
+    through Turso. And what each loses is named and is not the same size — **per column for the
+    hosted route, and everything since the last export for the local one.** The second number is
+    the larger by a wide margin and it is the price of the reversal, recorded here because this is
+    where a criterion can check that it was stated rather than discovered.
 
     *Rewritten twice. 2026-08-17: the original ("can still reach its remote by whatever route the
     decision leaves it") passed whatever decision 07 decided, which is not a criterion. **2026-08-18:
@@ -695,11 +718,19 @@ without reopening any decision made here. **Neither is built.**
   a path that still compiles, is never exercised, and breaks in a release nobody tested it in.
   The mitigation belongs in the testing strategy `/plan` writes, and it is the reason acceptance
   criteria 7, 8 and 12 name both modes explicitly.
-- **Identity and backup now share one provider, and one of them may be leaving.** Sign-in is
-  Google and Drive sync may be retired by decision 07 — so the application would keep a Google
-  dependency for authentication while removing the feature that dependency was originally built
+- **Identity and backup shared one provider, and ~~one of them may be leaving~~ one of them is
+  leaving.** *Realised 2026-08-18: decision 07 retires Drive sync.* The application keeps a Google
+  dependency for authentication while deleting the feature that dependency was originally built
   for. It shows up as a user asked to connect Google for a Drive backup they no longer get, or as
-  an OAuth scope set that outlives its justification and nobody prunes.
+  **an OAuth scope set that outlives its justification and nobody prunes** — which is now a
+  concrete obligation on the retirement rather than a hazard: the Drive scopes go when the Drive
+  code does, and the sign-in scopes stay.
+- **A local workspace's off-machine route is now manual, and nothing warns a user who is not
+  exporting.** *Added 2026-08-18 with the retirement.* Drive was automatic, continuous and
+  retained; the export is a thing a person remembers to do. It shows up as a lost laptop costing
+  everything since the last export, which was never a risk while Drive was running. **The
+  mitigation is requirement 6** — converting to hosted — and the risk is what remains for a user
+  who does not.
 - **Requiring a Google account excludes whoever does not have one**, and unlike the account
   requirement generally, this one cannot be answered with "then use local mode" for a user who
   specifically wants their workspace on two machines. It shows up as a user who wants the product
@@ -1377,6 +1408,12 @@ the property that makes a delegated decision different from an assumed one. Wher
 have changed the *product* rather than its construction it is flagged at the decision itself —
 decision 07 is the only one of the four that does, and it is flagged there.
 
+**And 07 was in fact reversed, within the day** — the human dropped Drive sync in favour of Turso
+sync. **That is the flag working rather than the delegation failing**, and it is recorded here as
+well as at the decision because it is the evidence for how much weight the other three should
+carry: the one that changed the product came back, and the three that changed only its
+construction did not.
+
 Worked one per session, except research, which runs alongside. Resolving one means writing the
 answer here and appending one line to the map's **Decisions so far**;
 [#497](https://github.com/saud-alnasser/rentable/issues/497) gists and links, and nothing here
@@ -2036,10 +2073,11 @@ shape would want it, and this decision does not have to be revisited.
 
 ## 07 — grilling(sync): what becomes of Google Drive sync
 
-Status: **decided 2026-08-18 — Drive stays, scoped explicitly to local workspaces, and the OAuth
-half is extracted out of it.** *Taken under the standing instruction above. This is the one of the
-four that changes what a user is promised, so it is the one to disagree with first if any of them
-is wrong.*
+Status: **decided 2026-08-18 by the human — Google Drive sync is retired, and Turso sync
+replaces it.** *This reverses the recommendation taken under the standing instruction earlier the
+same day, which kept Drive scoped to local workspaces. That recommendation is kept in full below,
+as a rejected option with its reasoning — it was flagged at the time as the one of the four that
+changes what a user is promised, and it is the one the human came back through.*
 Part of: a-workspace-follows-its-user
 Type: grilling
 Blocked by: — *(was 11, decided 2026-08-18)*
@@ -2091,10 +2129,86 @@ local workspace" is **false as stated**.
 **Whatever is chosen, the OAuth half still survives it** — that was settled above and is
 untouched by any of this.
 
-**Answered 2026-08-18. Drive stays, and it is a local workspace's route off its machine.**
-*Taken under the standing instruction recorded at the head of this section, on the recommendation
-written below.* The three-way is decided against the two options that would cost more than they
-return:
+**Answered 2026-08-18, and then reversed by the human the same day. Google Drive sync is
+retired, and Turso sync is what replaces it.** *The recommendation below was taken under the
+standing instruction and was wrong about what the human wanted; it is kept in full, as a rejected
+option with its reasoning intact, because the spec records rejected options rather than deleting
+them — and because whoever reopens this needs the argument against, not a note that there was
+one.*
+
+**The direction, verbatim:** *"google-drive sync will be dropped in favor of turso sync."*
+
+So the three-way resolves to the third option, with the second half of its framing accepted rather
+than avoided: it is the cheapest to execute **and** the one that most changes what a local user is
+promised, and the human has taken both halves knowingly. The flag this section carried — *07 is
+the only one of the four that changes what a user is promised* — is what the reversal came back
+through, which is the whole reason it was flagged.
+
+**What a workspace gets off its machine now, per mode.** This is the part the reversal has to
+answer, because "dropped" alone does not say what stands in its place:
+
+- **A hosted workspace** replicates through Turso. That is the answer to the whole effort, and it
+  is now the *only* automatic one.
+- **A local workspace** keeps its local snapshots — the backup machinery is not Drive's and does
+  not go with it — and the whole-workspace export and import (#536) as its route to another
+  machine. **It is a manual route and it loses things**, named rather than left to be discovered:
+  it names records instead of carrying their ids, so a workspace that arrives that way is
+  equivalent in content and not identical in rows; it deliberately refuses to carry derived state,
+  recomputing status, paid and expected amounts and unit status on the far side; and **a user who
+  loses a laptop between exports loses everything since the last one.**
+- **A local workspace that wants better than that converts** — requirement 6, which is the answer
+  the effort was built to give and which retirement now makes the only one.
+
+**Requirement 2 is unaffected and that is worth stating plainly.** Local-of-record stays
+first-class and permanent, a user may keep it indefinitely with no account, and nothing here
+retires the mode. What is retired is one mode's *automatic off-machine route*, not the mode.
+
+**What survives retirement, and it is more than it looks.** Sign-in is Google — decision 03,
+directed 2026-08-17 and independent of this — so `tauri/src/sync/google/auth.rs`, the OAuth 2 +
+PKCE flow, the token refresh, `RemoteSyncAccount` and the credential boundary are all load-bearing
+for identity and are **not** Drive's to take with it. Local backup, snapshots and the protected
+update snapshot are separate machinery and stay. Retirement removes the *sync* surface: the
+manifest, conflict analysis, retention, the link session, and the Drive transport.
+
+**What executing it means, because requirement 12 says decided is not enough.** Four things:
+
+1. **The Drive sync surface is deleted, and the OAuth half is lifted out of it first.** That
+   ordering is not optional: signing in happens *inside* `remoteSync.googleDrive.link()` today, so
+   deleting the link session before the extraction takes identity with it. #543 is the extraction
+   and it is now a prerequisite for the deletion rather than a tidy-up beside it.
+2. **[[rules/drive]] is superseded, not scoped.** *Concurrency* and *Transport testing* describe a
+   transport that will not exist; they go with it, with their reasoning recorded as retired rather
+   than silently dropped. ***Client boundary* does not go** — decision 09 widened it from Drive's
+   credentials to every credential this application holds, and a workspace sync token is one. It
+   survives its file and moves.
+3. **[[contexts/desktop/remote-sync]] loses its Drive half** and keeps local backup and the OAuth
+   session.
+4. **The surfaces go too** — linking, unlinking, conflict resolution, sync reporting. Requirement
+   12's *the surface is not left running with no stated purpose* is what this clause is for, and a
+   retired mechanism whose buttons are still on screen fails it exactly as a kept one with no
+   purpose would.
+
+**What acceptance criterion 13 now demands, and it is a different demonstration.** The route
+decision 07 chose is the whole-workspace export and import for a local workspace, and Turso for a
+hosted one. So the criterion's *demonstrated end to end on two installations, by the route this
+decision chose* is now **two demonstrations, not one** — because there are two modes and they no
+longer share a route. And its second half, *name what the route loses*, is answered above for the
+export and by decision 11 for Turso: **per column for the hosted route, and everything since the
+last export for the local one.** The local number is the larger of the two by a wide margin, and
+that is the price of the reversal stated where a criterion can check it.
+
+**What it costs when organizations arrive** *(acceptance criterion 15)*: nothing, and retirement
+makes it cleaner rather than worse. An organization workspace is hosted by construction, and there
+is now one sync mechanism in the product rather than two.
+
+**Removal condition.** None — this deletes a mechanism rather than deferring one. What *would*
+reopen it is a local-of-record user population large enough that a manual export is a support
+problem; there is none today, and the release data behind *Problem* says there is none at all.
+
+### The recommendation this reversed, kept whole
+
+*Recorded 2026-08-18 under the standing instruction, and overruled the same day. Everything below
+argued for keeping Drive scoped to local workspaces.*
 
 - **Retiring it and leaving local users the whole-workspace export is a product regression for
   exactly the population requirement 2 exists to protect.** The export is a human action producing
@@ -2102,55 +2216,21 @@ return:
   carry derived state. Drive is automatic, continuous, versioned, retained, and preserves the
   workspace exactly. A local user who loses a laptop between exports loses everything since the
   last one — and requirement 2 makes that population permanent rather than transitional.
-  **Cheapest to execute is not the same as cheapest to own**, and this spec's own framing of the
-  third option as "the cheapest to execute and the one that most changes what a local user is
-  promised" contains the answer: the second half is the price, and it is charged to the users who
-  did not opt into the new mode.
+  **Cheapest to execute is not the same as cheapest to own.**
 - **Retirement does not buy the deletion it looks like it buys.** Sign-in is Google, so the OAuth
   client, the token refresh, the account model and the credential boundary survive whatever
-  happens to sync — settled 2026-08-17 and untouched since. What retirement actually removes is
-  the manifest, conflict analysis, retention and the link session: working, tested Rust with a
-  rule and a context already written against it, deleted to save maintaining code that is not
-  currently costing anything.
+  happens to sync. What retirement actually removes is the manifest, conflict analysis, retention
+  and the link session: working, tested Rust with a rule and a context already written against it.
 - **Replacing it with something else is the most expensive answer and it competes with this
   effort's own.** A local workspace that wants automatic multi-device sync has an answer already —
-  convert to hosted, requirement 6. Building a second sync mechanism for the mode that
-  deliberately has no account spends this effort's budget arguing with its goal.
+  convert to hosted, requirement 6.
 
-**What executing it means, because requirement 12 says decided is not enough.** Three things, and
-each is a real change rather than a restatement:
-
-1. **[[rules/drive]] is scoped, not superseded.** Every section stays true and each gains the mode
-   it is true of: *Client boundary* is about credentials and holds in both modes; *Concurrency*
-   and *Transport testing* are about local-workspace Drive sync and say so. That is decision 09's
-   mechanism, and 09 is where it is carried out.
-2. **Authentication separates from sync.** Signing in happens *inside*
-   `remoteSync.googleDrive.link()` today, so a user cannot have a Google identity without linking
-   a Drive folder — false the moment sign-in exists for a hosted workspace that will never use
-   Drive. Decision 08 established the extraction was needed whichever way this landed; this
-   decision makes it certain rather than likely, and it is a ticket.
-3. **A hosted workspace is not offered Drive at all.** Linking, unlinking and sync reporting are
-   local-mode surfaces. A hosted workspace's sync is the replica's, and offering both would put
-   two mechanisms on one workspace — the shape *Concurrency* was never designed to survive, and
-   the same reasoning by which decision 12 unlinks Drive at conversion.
-
-**What acceptance criterion 13 now demands, concretely.** The demonstration is over Drive, on two
-installations, because Drive is the route chosen — the export does not stand in for it, and the
-criterion already says so. Its second half, *name what the route loses*, is answered by
-*Concurrency*: Drive resolves divergence by choosing a side, per whole snapshot. **A local
-workspace synced through Drive loses, on the losing side, every change made since the snapshot
-that won.** That is a whole-workspace loss, and it is far coarser than the per-column loss
-decision 11 measured for a hosted workspace. It is the honest price of the mode that has no
-server. It is not new — what is new is that it is written where a criterion can check it, instead
-of being derivable by a reader who happened to open the right rule.
-
-**What it costs when organizations arrive** *(acceptance criterion 15)*: nothing, and this is the
-cleanest row on the map. Drive is local-only and an organization workspace is hosted by
-construction, so no organization ever meets this surface.
-
-**Removal condition.** If a later release retires local-of-record entirely — explicitly out of
-scope for this effort — Drive goes with it and nothing else has to be unpicked. The scoping done
-here is what makes that a deletion rather than an untangling.
+**Why it was overruled, as far as this can be read from the direction rather than guessed:** the
+first argument prices a regression against a population, and *Problem* establishes that the
+population is empty. The second prices deletion against maintenance, and a mechanism kept for
+users who do not exist is maintained for nobody. **The argument was sound and its premise was the
+one this spec had already struck.** That is worth recording precisely, because it is the second
+time on this effort that a conclusion outlived the installed base it rested on.
 
 ## 08 — grilling(platform): what a non-desktop client does for host capabilities
 
@@ -2333,9 +2413,9 @@ this decision exists to prevent.
 | [[rules/data]], *Undo* | **Holds, and costs one code change in hosted mode** | a named exception |
 | [[rules/data]], *Reconcile scope* | **Holds unchanged**; decision 01's pricing of it is superseded by the replica | nothing |
 | [[rules/data]], *Payment aggregates*, *Mutation declaration*, *Multi-table writes* | **Untouched.** None of the three ever rested on there being no server | nothing |
-| [[rules/drive]], *Client boundary* | **Holds, and generalises beyond Drive** | scope widened |
-| [[rules/drive]], *Concurrency* | **Holds, scoped to local-workspace Drive sync** | one clause |
-| [[rules/drive]], *Transport testing* | **Holds, scoped the same way** | one clause |
+| [[rules/drive]], *Client boundary* | **Holds, and generalises beyond Drive** — it outlives its file | moves |
+| [[rules/drive]], *Concurrency* | ~~Holds, scoped~~ **Retired with the transport it describes** *(2026-08-18)* | deleted, with its reasoning recorded |
+| [[rules/drive]], *Transport testing* | ~~Holds, scoped~~ **Retired the same way** *(2026-08-18)* | deleted, with its reasoning recorded |
 | [[rules/api-layer]], no repository layer | **Holds**, and it is what makes a third transport free | nothing |
 | [[rules/api-layer]], *One database client type* | **Holds, and the gate confirmed the thing it depended on** | one sentence |
 | [[contexts/repository]], first Boundary | **Superseded** — the only outright supersession on this map | rewritten |
@@ -2394,11 +2474,18 @@ Nothing in any of the three cites the absence of a server.
 this application holds rather than Drive's alone. A workspace sync token is a credential, and it
 lives on the same side of the same boundary for the same reason — the credential boundary and the
 network boundary have to be the same boundary. *(A client with no Rust is decision 08's inventory,
-and is not this effort's to build.)*
+and is not this effort's to build.)* **It therefore outlives the file it is in**: decision 07
+retires the rest of [[rules/drive]], and this section moves rather than going with it.
 
-**Drive, *Concurrency* and *Transport testing*.** Both hold and both are scoped to
-local-workspace Drive sync, per decision 07. Neither was ever about the domain; both are about the
-Drive transport, which decision 07 keeps and which a hosted workspace never touches.
+**Drive, *Concurrency* and *Transport testing*.** ~~Both hold and both are scoped to
+local-workspace Drive sync.~~ **Retired 2026-08-18 with the transport they describe**, after the
+human reversed decision 07. Both are about the Drive transport rather than about the domain, and
+that transport is being deleted — a rule describing code that does not exist is worse than no
+rule, because it is loaded and obeyed by whoever next touches something near it. **Their reasoning
+is recorded as retired rather than deleted silently**: Drive v3 offers no compare-and-set, which
+is why concurrency there was detected and repaired rather than prevented; and a mocked transport
+trait tests the mock's idea of HTTP, which is why the transport was tested against a real local
+server. Both facts stay true of Drive. Neither is a fact about this application any more.
 
 **API layer, no repository layer.** Holds, and it is the quiet reason most of this effort is
 affordable. Routers reach the database directly, so a hosted workspace changes *what `db` is* and
@@ -2569,13 +2656,19 @@ unaffected. What the application says about it is one line in settings — the f
 converted, and a reveal-in-folder action, the shape the export already uses. **What it must not do
 is offer to open it**, because an offer to open it is the switcher this effort does not have.
 
-**What happens to a Drive link the workspace already had.** It is unlinked as part of the
-conversion, deliberately and visibly. Decision 07 keeps Drive as the local workspace's route off
-its machine; a hosted workspace's record of truth is somewhere Drive knows nothing about, and
-leaving both running puts two sync mechanisms on one workspace — the shape [[rules/drive]], under
-*Concurrency*, was never designed to survive. Snapshots already in Drive are left alone as
-historical backups: they are the user's, and the conversion does not delete anything. The link
-session ends and the folder is not written again.
+**What happens to a Drive link the workspace already had.** *Simplified 2026-08-18 by the reversal
+of decision 07, which retires Drive sync outright.* There is no link to unlink by the time a
+conversion exists: retirement happens on this effort, ahead of conversion, so a converting
+workspace has no Drive relationship to end. **What the retirement itself owes is a separate
+obligation and it is decision 07's, not this one's** — snapshots already in a user's Drive are the
+user's, and retiring the mechanism does not delete them.
+
+*What this clause used to say, kept because the reasoning is the reason the ordering matters:* the
+conversion unlinked Drive deliberately and visibly, because leaving both running would put two
+sync mechanisms on one workspace — the shape [[rules/drive]], under *Concurrency*, was never
+designed to survive. **Retirement makes the problem not arise rather than solving it**, which is
+the cheapest form of an answer and worth noticing as a second, unadvertised gain of the
+reversal.
 
 **What it costs to reverse**, which is the open question this decision was asked to make cheap or
 expensive. Converting hosted back to local is *Out of Scope* here, and this choice is what keeps
