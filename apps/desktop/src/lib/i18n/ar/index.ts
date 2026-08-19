@@ -503,6 +503,7 @@ const ar = {
 		syncProfilesTitle: 'ملفات العمل',
 		syncProviderGoogleDrive: 'Google Drive',
 		syncProviderLocal: 'مساحة عمل محلية',
+		syncProviderHosted: 'مساحة عمل مستضافة',
 		syncReconnectDescription: 'انتهت صلاحية تفويض Google Drive. يُرجى إعادة ربط الحساب.',
 		syncRelinkRequiredAction: 'تصفير البعيد وإعادة الربط',
 		syncRelinkRequiredDescription:

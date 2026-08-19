@@ -294,10 +294,18 @@
 		linkConflict ? getConflictPresentation(linkConflict, $LL) : undefined
 	);
 
+	// named rather than reached by elimination. `provider` has three values, and a two-arm
+	// conditional would have labelled the one it does not name as whichever arm it fell into —
+	// a workspace of record somewhere else, reading on screen as one kept on this machine.
 	function getProviderLabel(provider: RemoteSyncProvider) {
-		return provider === 'googleDrive'
-			? $LL.settings.syncProviderGoogleDrive()
-			: $LL.settings.syncProviderLocal();
+		switch (provider) {
+			case 'googleDrive':
+				return $LL.settings.syncProviderGoogleDrive();
+			case 'hosted':
+				return $LL.settings.syncProviderHosted();
+			case 'local':
+				return $LL.settings.syncProviderLocal();
+		}
 	}
 
 	function getAvatarLabel(workspace: RemoteSyncWorkspace, account: RemoteSyncAccount | null) {

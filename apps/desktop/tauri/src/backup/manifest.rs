@@ -384,6 +384,7 @@ pub(super) fn sanitize_optional_string(value: Option<String>) -> Option<String> 
 pub(super) fn sanitize_manifest_provider(value: &str) -> String {
     match value.trim() {
         "googleDrive" => "googleDrive".to_string(),
+        "hosted" => "hosted".to_string(),
         _ => "local".to_string(),
     }
 }
@@ -392,6 +393,7 @@ pub(super) fn remote_sync_provider_name(provider: &RemoteSyncProvider) -> &str {
     match provider {
         RemoteSyncProvider::Local => "local",
         RemoteSyncProvider::GoogleDrive => "googleDrive",
+        RemoteSyncProvider::Hosted => "hosted",
     }
 }
 

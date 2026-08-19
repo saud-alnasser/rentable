@@ -1630,6 +1630,10 @@ type RootTranslation = {
 		 */
 		syncProviderLocal: string
 		/**
+		 * h​o​s​t​e​d​ ​w​o​r​k​s​p​a​c​e
+		 */
+		syncProviderHosted: string
+		/**
 		 * G​o​o​g​l​e​ ​D​r​i​v​e​ ​a​u​t​h​o​r​i​z​a​t​i​o​n​ ​e​x​p​i​r​e​d​.​ ​P​l​e​a​s​e​ ​r​e​c​o​n​n​e​c​t​ ​t​h​e​ ​a​c​c​o​u​n​t​.
 		 */
 		syncReconnectDescription: string
@@ -3817,6 +3821,10 @@ export type TranslationFunctions = {
 		 * local workspace
 		 */
 		syncProviderLocal: () => LocalizedString
+		/**
+		 * hosted workspace
+		 */
+		syncProviderHosted: () => LocalizedString
 		/**
 		 * Google Drive authorization expired. Please reconnect the account.
 		 */

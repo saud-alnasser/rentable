@@ -33,6 +33,13 @@ pub enum RemoteSyncProvider {
     #[default]
     Local,
     GoogleDrive,
+    /// Of record remotely, replicated onto this machine.
+    ///
+    /// Additive to the serde representation on purpose: a store written before this variant
+    /// existed holds `"local"` or `"googleDrive"` and deserialises unchanged, and `Local` is
+    /// both the default and the value an unconfigured install already had. That is what makes
+    /// an update cost nobody their workspace structurally rather than by care.
+    Hosted,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -526,6 +533,37 @@ mod tests {
     #[test]
     fn slugify_is_stable() {
         assert_eq!(slugify("Person Example+1"), "person-example-1");
+    }
+
+    /// The whole of what "additive to the serde representation" is worth, asserted rather than
+    /// reasoned about: a store written before `Hosted` existed holds one of the other two
+    /// strings, and adding a variant must not change what those two mean. A rename or a
+    /// reordering would pass every other test in this file and fail this one.
+    #[test]
+    fn a_store_written_before_hosted_existed_still_reads_as_what_it_was() {
+        for (written, expected) in [
+            ("\"local\"", RemoteSyncProvider::Local),
+            ("\"googleDrive\"", RemoteSyncProvider::GoogleDrive),
+            ("\"hosted\"", RemoteSyncProvider::Hosted),
+        ] {
+            let read: RemoteSyncProvider =
+                serde_json::from_str(written).expect("a persisted provider should still read");
+
+            assert_eq!(read, expected, "{written} changed meaning");
+            assert_eq!(
+                serde_json::to_string(&expected).expect("a provider should write"),
+                written,
+                "{written} no longer round-trips"
+            );
+        }
+    }
+
+    /// `Local` is both the default and the value an unconfigured install already had. That is
+    /// what makes an update cost nobody their workspace structurally rather than by care, so it
+    /// is pinned here rather than left to the `#[default]` attribute being noticed in review.
+    #[test]
+    fn an_absent_provider_is_still_local() {
+        assert_eq!(RemoteSyncProvider::default(), RemoteSyncProvider::Local);
     }
 
     #[test]

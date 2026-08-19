@@ -410,3 +410,15 @@ test('an account that has gone wrong produces a different signature', () => {
 		workspaceConflictSignature(syncState({}, { status: 'needsReconnect' }))
 	);
 });
+
+// a hosted workspace has no whole-snapshot conflict to describe: the two sides do not exchange
+// files, so there is never a pair for the user to choose between. The signature is what the
+// dismissal is remembered against, so a hosted workspace answering one would be remembering an
+// answer to a question nobody could have been asked.
+test('a hosted workspace has no conflict signature', () => {
+	assert.equal(workspaceConflictSignature(syncState({ provider: 'hosted' })), null);
+	assert.ok(
+		workspaceConflictSignature(syncState()),
+		'the Drive workspace still has one, so the check above is not passing by accident'
+	);
+});
