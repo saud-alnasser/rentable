@@ -1,7 +1,7 @@
 ---
-aep: 2.3.0
+aep: 2.5.1
 owner: repository
-date: 2026-08-17
+date: 2026-08-18
 kind: spec
 status: accepted
 ---
@@ -71,21 +71,45 @@ without reopening any decision made here. **Neither is built.**
   Google**, reusing the OAuth 2 + PKCE flow, refresh handling and account shape that already
   exist in Rust. Decision 03 works out what that means for the user record and the control plane;
   it does not reopen the choice of provider.
-- **The control plane.** Users, workspaces and membership: one always-online multi-tenant
-  database, whether this repository builds it or buys it.
+- **The control plane, and it is built here.** Users, workspaces and membership: one
+  always-online multi-tenant database behind **an API this repository designs**, which also
+  creates each workspace database and mints the token a client syncs with. *Directed by the human
+  2026-08-18; the "whether this repository builds it or buys it" this bullet used to end on is
+  answered.* Designed here, deployed elsewhere — see *Out of Scope*.
+- **Where the data path runs, and where it does not.** Offline-capable clients sync **directly**
+  with their workspace database; the API is in the credential path continuously and in the data
+  path never. It is the property three requirements rest on, and *Architecture* has the reasoning.
 - **Workspace persistence.** A hosted database of record with a local replica, reached through
   the transport seam that already exists — `createDatabase(single, batch)` at
   `src/lib/platform/database/client.ts:47` takes two function types, production passes Tauri's
   `invoke` and tests pass an in-memory engine, and a hosted workspace is a third caller at that
   same seam.
+- **What a hosted workspace replicates, and `history` is the question that forces it**
+  *(added 2026-08-18)*. #532 landed a durable `history` table, so the workspace now holds a
+  record of what was done to it as well as the records themselves. **It replicates** — a user
+  who opens their workspace on a second machine and finds no account of what they did on the
+  first has been handed half a workspace, and requirement 4 says the workspace follows them.
+  Stating it costs a line; leaving it implicit gets it decided by whoever first writes the sync
+  configuration.
+
+  **The consequence is not free and belongs here rather than in a footnote.** History is the
+  first table in this schema whose rows are only ever inserted and never updated, which is the
+  worst shape under last-push-wins: two devices' histories do not merge into one longer history,
+  one replaces the other, and what is lost is the very record that would have said so. It is
+  the same finding as *Risks*' identity collision seen from the other side, and decision 11's
+  question 2b covers both.
 - **The workspace discriminator.** `provider` is `local | googleDrive` today and is load-bearing
   in the sync flows (`src/lib/sync/workspace.ts:32`). A hosted workspace is a third value of it,
   and every flow that branches on it answers for the new one.
 - **Migrations against a hosted workspace.** Who applies them, and what a client older than the
   schema it meets does about it.
-- **Google Drive sync's fate**, now constrained: a local workspace's only route off its machine
-  is Drive, so whatever Drive becomes has to keep serving local workspaces for as long as they
-  are first-class.
+- **Google Drive sync's fate.** *Restated 2026-08-18, because the constraint that shaped it is
+  no longer true as written.* It said a local workspace's only route off its machine is Drive.
+  Since #536 a workspace **exports and imports whole**, so there is a second route — manual, a
+  spreadsheet, and deliberately not an equal substitute. What survives is the weaker and still
+  binding form: a local workspace must keep a way off its machine, and whatever Drive becomes is
+  measured against that rather than against being irreplaceable. Decision 07 carries the
+  difference.
 - **The rules resting on "there is no server."** Which survive the premise change, which are
   **scoped to local workspaces** rather than superseded, and the first Boundary of
   [[contexts/repository]] with them.
@@ -130,6 +154,18 @@ without reopening any decision made here. **Neither is built.**
 13. Every rule and boundary resting on "there is no server" is restated as still true, scoped
     explicitly to local workspaces, or superseded with its reasoning written afresh.
 14. Organization workspaces are not built, and nothing built here forecloses them.
+15. **A session survives three days without a connection, and any connection inside that window
+    renews it.** *Directed by the human 2026-08-18, promoted from an open question to a
+    requirement.* A signed-in desktop client works offline for three days; reaching the API at
+    any point inside the window renews the session and the window restarts from there. Past
+    three days with no contact, a hosted workspace requires signing in again. **A local
+    workspace is unaffected and has no session to expire** — it never signed in.
+16. **A record's identity is assigned so that two replicas cannot produce the same one.**
+    *Directed 2026-08-18.* Today every primary key is a rowid taking the next id above the
+    highest in use, which is correct for a single writer and collides by construction for two.
+    **One scheme covers both modes**, applied to existing installs by a migration when the update
+    lands — chosen by the human over keeping rowids locally and re-identifying at conversion.
+    The scheme is decision 13's; that it is one scheme, migrated, is settled here.
 
 # Acceptance Criteria
 
@@ -139,6 +175,17 @@ without reopening any decision made here. **Neither is built.**
    protects people who already use the application, and no CI run can stand in for it** — it
    needs a real installed build and a real update, exactly as the monorepo effort's release
    criterion does.
+
+   **It got materially heavier on 2026-08-18 and is no longer a smoke test.** Requirement 16's
+   scheme is migrated onto existing installs, so this update now **rewrites the primary key of
+   every row in a populated workspace** on a machine whose owner chose nothing. So the criterion
+   adds: every foreign key still resolves to the record it named before the update — contracts to
+   tenants, assignments to contracts and units, payments to contracts, and **every `history` row
+   to the record it describes**; the count per concept is identical before and after; and a
+   workspace interrupted mid-migration opens afterwards, either fully migrated or untouched, and
+   never half of each. *Why this is stated as a criterion rather than a risk: it is the one place
+   where the requirement protecting the installed base and the requirement making replication
+   correct are pointed at the same rows.*
 2. The workspace's mode is visible to the user and choosable by them — neither mode is reached
    only by editing configuration. `RemoteSyncState.workspace` stays singular and the application
    still opens one database file; a search of the tree finds no workspace list and no switcher.
@@ -159,8 +206,11 @@ without reopening any decision made here. **Neither is built.**
 8. With the network disconnected, recording a payment succeeds in **both** modes; for a hosted
    workspace, after both devices reconnect the payment is present on the second.
 9. Where the chosen client resolves divergence by overwriting, a test demonstrates **exactly what
-   a losing writer loses** — per statement, per row, or per field — and that answer is written
-   into this spec rather than discovered later.
+   a losing writer loses** — per statement, per row, per field, or **per record identity** — and
+   that answer is written into this spec rather than discovered later. *Extended 2026-08-18: the
+   fourth term was missing, and it is the one this schema makes likeliest. See* Risks *and
+   decision 11's question 2.* The test covers **two devices creating unrelated records**, not
+   only two editing one — the second is the contended case and the first is the guaranteed one.
 10. `createDatabase` still returns one client type. Production, test and hosted transports all
     satisfy it, and a search of the tree finds no second database client type.
 11. A procedure needing the acting user reads it from the context, and
@@ -172,9 +222,22 @@ without reopening any decision made here. **Neither is built.**
     demonstrated by the existing Rust migration tests still passing unchanged.
 13. Whatever Drive becomes is true in the tree, and **a local workspace's data still reaches a
     second machine and comes back** — demonstrated end to end on two installations, by whatever
-    route decision 07 leaves it. *Rewritten 2026-08-17: the previous wording ("can still reach its
-    remote by whatever route the decision leaves it") passed whatever decision 07 decided, which
-    is not a criterion.*
+    route decision 07 leaves it, **and the route demonstrated is the one decision 07 chose.**
+    Where the answer keeps Drive in any form, the demonstration is over Drive; a workspace moved
+    by export and import does not stand in for it.
+
+    Additionally, and this is the half that has teeth: **the demonstration covers what the chosen
+    route loses.** Name it. Drive carries the workspace exactly; the whole-workspace export names
+    records instead of carrying ids and recomputes every derived value on the far side, so a
+    workspace that arrives by that route is equivalent in content and not identical in rows.
+
+    *Rewritten twice. 2026-08-17: the original ("can still reach its remote by whatever route the
+    decision leaves it") passed whatever decision 07 decided, which is not a criterion. **2026-08-18:
+    the replacement had gone stale within the day** — #536 landed a whole-workspace export and
+    import, so "data reaches a second machine and comes back" became true of this application
+    with Drive deleted and no decision taken at all. A criterion that a broken version passes is
+    the defect this one keeps acquiring, which is why the route is now named and the loss is now
+    part of what is shown.*
 14. Each affected rule file either states that it still holds, states the mode it is now scoped
     to, or is superseded in place. A search for "there is no server" returns only text that is
     still true when it is read.
@@ -186,6 +249,19 @@ without reopening any decision made here. **Neither is built.**
     *Rewritten 2026-08-17 — the previous wording ("no schema, seam or credential shape is
     introduced that makes them a rewrite rather than an addition") could not fail, had no owner,
     and would have passed by default at review.*
+16. **A signed-in client with no network works for three days and then asks for a sign-in; one
+    that reconnected inside the window does not.** *(requirement 15)* Tested by moving the clock
+    rather than by waiting: sign in, disconnect, advance past the window, and the application
+    asks; repeat with one successful reach inside the window, and it does not. The refusal names
+    the action to take, and **no write made during the window is discarded to produce it** — an
+    expiry that eats unsynced work fails this criterion. **A local workspace run through the
+    same test never asks for anything.**
+17. **Two clients, each disconnected, each creating records the other has never seen, produce
+    records that are all present and all distinct after both sync.** *(requirement 16)* Counted,
+    not spot-checked: the number of records afterwards equals the number created. Run for every
+    concept the schema carries, `history` included, since it is the table whose rows are only
+    inserted. **The pre-migration behaviour is captured as a failing test first** — the collision
+    is demonstrated before it is fixed, so the fix is shown to be what closed it.
 
 # Constraints
 
@@ -250,12 +326,40 @@ without reopening any decision made here. **Neither is built.**
   because it is the exclusion most likely to be built by accident once membership is designed.
 - **Shipping a web or mobile client.** The destination is readiness, not a second client. No
   package for one is created speculatively.
-- **Building or deploying an API service.** Room is made for one; nothing is deployed here. If
-  decision 03 lands on a hosted identity service, no service is written at all.
+- **The control-plane dashboard website.** Named by the human 2026-08-18 as part of the shape and
+  **not built here.** It is the always-online surface the *Architecture* describes reaching the
+  API directly, and naming it is what stops the API being designed as though the desktop were its
+  only caller. *Why this is a separate exclusion from the line above: a dashboard administering
+  accounts and workspaces is not a client of a workspace database, so "no web client" does not
+  already cover it — and an exclusion that has to be inferred is the one that gets built.*
+- ~~**Building or deploying an API service.**~~ **Struck 2026-08-18, and this is the largest
+  change this re-specify makes.** The human directed the shape: *"the api is used for sync/backup
+  and for auth"*, and *"there's an online db for all accounts auth and workspaces association."*
+  So an API service is **this effort's to design**, and the control-plane question decision 03
+  was to weigh — build it or buy a hosted identity service — is answered in favour of building.
+
+  **What is still excluded, and the line is narrower than it was:** nothing is *deployed* by this
+  effort, and no production environment, domain, or operational surface is stood up here. The
+  API is designed, and how it reaches users is a later effort's. *Why this is not a silent scope
+  expansion: it is written here as a struck exclusion with the direction quoted, so a reader can
+  see exactly what moved and who moved it.*
 - **The domain model.** Contract statuses, payment rules, unit assignment and the Saudi identity
   forms are untouched.
-- **Everything in [[efforts/work-the-surfaces-cannot-do/spec]] (#487).** Deliberately built
-  after this one.
+- **Everything in [[efforts/work-the-surfaces-cannot-do/spec]] (#487).** It is still out of
+  scope — but **it was built *before* this effort, not after, and it is complete as of
+  2026-08-18.** *Corrected 2026-08-18: this line used to read "deliberately built after this
+  one", which is now false in the only direction that matters.*
+
+  **The declared edge was wrong rather than violated.** Its tickets #492, #493, #494 and #495
+  each carried `blocked-by: #497` and every one of them shipped without a single platform
+  decision being made — because none of them needed one. The dependency was asserted when
+  this effort was expected to run first and was never tested; the tracker is the record that
+  it did not hold. So the standing warning under decision 09 changes direction: those four are
+  **landed code to re-read against whatever 09 produces**, not unbuilt work waiting on it.
+
+  Three things it landed are now inputs to this effort rather than exclusions from it, and each
+  is written where it lands: a durable `history` table, a whole-workspace export and import, and
+  server-side list filtering. They are the reason this spec was re-opened on 2026-08-18.
 
 # Assumptions
 
@@ -278,6 +382,13 @@ without reopening any decision made here. **Neither is built.**
   sign-in to Google on 2026-08-17. It is an assumption rather than a fact because nobody has
   checked it against the actual user base, and for a Saudi rents tracker it is plausible without
   being established. A local workspace is unaffected — it needs no account of any kind.
+- ~~**Record identity is assignable independently on two replicas.**~~ **Never written down, and
+  false — added and struck in one line, 2026-08-18.** It was never stated because nothing in a
+  single-writer local file made it a question; it was load-bearing under every hosted decision
+  regardless. Every primary key is a bare rowid taking the next id above the highest in use, so
+  two replicas agree on the id and disagree on the record. It is struck rather than omitted
+  because a reader who does not see it here will assume, as this spec did, that identity is
+  somebody else's problem. *Risks* has the consequence and decision 11's question 2b tests it.
 - **Turso stays the vendor.** No alternative has been evaluated, and this effort does not
   evaluate one.
 - **Rust remains present on the desktop client.** Credential handling assumes it
@@ -297,9 +408,13 @@ without reopening any decision made here. **Neither is built.**
 - **What does a genuinely offline first launch do**, before any successful connect has happened?
   The documented path wants the remote reachable on first connect, which a fresh install on a
   disconnected machine does not have.
-- **Is three days the session window, or a placeholder?** The map records three days without a
-  connection before a session goes stale and requires one. Whether that is a requirement or a
-  first guess has not been settled, and it is a product decision rather than a technical one.
+- ~~**Is three days the session window, or a placeholder?**~~ **Answered 2026-08-18 by the
+  human: it is a requirement, and it comes with its mechanism.** Three days without any contact
+  ends the session; any connection inside the window renews it and restarts the window. Now
+  requirement 15, checked by acceptance criterion 16. What is *not* settled by that answer, and
+  is decision 03's: what the session actually is on the wire, and what the client holds while
+  offline so that "signed in three days ago" is a fact it can prove rather than a flag it sets
+  itself.
 - **What does a reconcile pass cost over the wire?** Both reconcile paths write one `UPDATE` per
   changed row, sequentially awaited, and the whole-table pass runs at every application start.
   Against a documented per-commit added-latency ceiling of 100/50/25/10 ms by plan, this is the
@@ -322,6 +437,28 @@ without reopening any decision made here. **Neither is built.**
 
 # Risks
 
+- **Two replicas of one workspace assign the same record ids, and nothing in the schema
+  prevents it** *(found 2026-08-18, verified in the tree)*. Every table's primary key is
+  `integer('id').primaryKey()` — a bare SQLite rowid, with no `AUTOINCREMENT` anywhere in the
+  schema or the migrations — so a new row takes the next id above the highest in use. The
+  application says so in its own code and relies on it: `importWhole` reads `max(id)` for all
+  five concepts (`src/lib/workspace/router.ts:260-276`) and renewal reads `max(contract.id)`
+  (`src/lib/contract/router.ts:443`), whose comment states the rule outright — *"The engine's own
+  rule is the next id above the highest in use."*
+
+  Against a local file that is correct and always has been. Against **two disconnected replicas
+  of one hosted workspace it is a guaranteed collision**: both compute the same next id for
+  different records, and under last-push-wins one insert overwrites the other. **Two payments
+  become one payment**, with no contention, no shared record, and nothing to point at. It is
+  strictly worse than the case decision 11 was written to measure, and it needs no user to do
+  anything unusual.
+
+  It shows up as a ledger that is short by however many records the losing device created
+  offline. **This does not decide the gate on its own** — every remedy is known and none is
+  exotic — but every one of them is a change to the identity of every row in a schema that is
+  already populated on the installed base, which is requirement 1's territory. See decision 11,
+  question 2.
+
 - **The chosen client is pre-1.0 and in early preview on Turso Cloud.** This puts the foundation
   of the whole application on a preview offering, and a breaking change in it is a change to the
   layer everything else stands on. It shows up as an upgrade that cannot be taken and cannot be
@@ -341,11 +478,23 @@ without reopening any decision made here. **Neither is built.**
   It shows up as months of decisions (03, 05, 06, 07, 09, 12) that were all blocked on a gate
   that then closed. **The mitigation is to run decision 11 before working any of them**, which is
   what its priority order already says and what the sizing has said since the spec was written.
-- **The update that reaches existing machines is the highest-consequence moment in this effort.**
-  It arrives unprompted, on machines holding real rent records, through an updater. Everything
-  else here fails in front of someone who chose to try it; this fails in front of someone who
-  chose nothing. It shows up as an application that opens to a sign-in screen where a workspace
-  used to be.
+- **The update that reaches existing machines is the highest-consequence moment in this effort,
+  and on 2026-08-18 it got heavier.** It arrives unprompted, on machines holding real rent
+  records, through an updater. Everything else here fails in front of someone who chose to try
+  it; this fails in front of someone who chose nothing. It shows up as an application that opens
+  to a sign-in screen where a workspace used to be.
+
+  **It now also rewrites every primary key in that workspace.** Requirement 16's scheme applies
+  to both modes and is migrated onto existing installs — **chosen deliberately by the human over
+  the alternative of leaving local rowids alone and re-identifying only at conversion**, with
+  this cost stated at the time. So the update mutates the identity of every row and every
+  foreign key referencing one, on a populated database, unattended, with no user watching. The
+  failure is not a crash: it is a contract pointing at the wrong tenant, or a `history` row
+  describing a record that is now a different record. **It shows up as a workspace that opens
+  fine and is quietly wrong**, which is the worst available shape for this application, and it is
+  why acceptance criterion 1 now checks referential integrity per concept rather than checking
+  that the application starts. The mitigation is that the migration is Rust's, runs in one
+  transaction, and is the thing criterion 1 exists to exercise on a real populated install.
 - **Two permanent modes double the surface every decision has to answer for**, and the second
   mode is the one nobody is excited to build. It shows up as local-of-record quietly rotting —
   a path that still compiles, is never exercised, and breaks in a release nobody tested it in.
@@ -369,15 +518,85 @@ without reopening any decision made here. **Neither is built.**
 
 # Architecture
 
-**This section is deliberately partial, and the boundary is stated rather than implied.**
-*Written 2026-08-17.* It covers only what holds **whichever way decision 11 lands** — including
-if the gate closes and no hosted workspace ever ships. Everything downstream of the gate
-(the control plane, migrations, Drive's fate, the local-to-hosted conversion) is **absent, not
-omitted**: decisions 03, 05, 06, 07 and 12 own it, and writing it now would be guessing at an
-architecture that may be deleted rather than revised.
+**This section was partial and is now mostly whole.** *Written 2026-08-17, extended 2026-08-18
+after the human directed the shape.* It used to cover only what held whichever way decision 11
+landed, because the control plane, the data path and the credential model were all downstream of
+the gate. They are no longer: the human settled them directly, and what remains downstream of
+decision 11 is **whether the chosen sync client can deliver what this architecture asks of it**,
+not what the architecture is. Decisions 06, 07 and 12 are still absent rather than omitted.
+
+## The shape, as directed
+
+**Three tiers, and the middle one is never in the data path.**
+
+1. **A workspace database per workspace, hosted on Turso.** Of record remotely, replicated
+   locally. Offline-capable clients — desktop today, mobile later — hold a replica and sync
+   **directly** with Turso. *Why not through the API: every read and write would cross
+   infrastructure this repository operates and pays for, to add nothing the vendor is not
+   already doing.*
+2. **A control-plane API and its database, built here.** Accounts, Google sign-in, workspace
+   records, membership, workspace-database creation, and **minting the token a client syncs
+   with**. Always-online clients — the control-plane dashboard site — read and write through it
+   directly, because it already holds the credentials that make that possible.
+3. **The desktop client**, which is what exists today, gaining a mode and a session.
+
+**The API is in the credential path continuously and in the data path never.** That single
+property is what makes the recommendation work, and three requirements land on it:
+
+- **Requirement 15 is enforced by token lifetime rather than asserted by the client.** Tokens are
+  short-lived and refreshed against the API. A client that cannot reach the API cannot renew,
+  and when its token expires it cannot sync — local work continues, replication stops. *Why this
+  matters: a three-day window implemented as a client-side flag is a window the client can
+  simply not close. Implemented as a TTL, the client cannot fake it, because the thing it needs
+  is issued elsewhere.*
+- **Revocation gets an answer the vendor does not give.** Decision 01 established Turso's own
+  revocation is bulk-only and rotates every token in its group, with no published propagation
+  time — unusable for removing one member. **Declining to renew is per-user and takes effect at
+  the next refresh**, which is a bound this repository sets rather than inherits.
+- **A second client kind stops being a rewrite.** An always-online client needs no vendor SDK
+  and holds no workspace token; it uses the API. An offline-capable one syncs direct. The seam
+  differs by whether a client can go offline, which is the real distinction — not by which
+  device it runs on.
+
+**The cost, accepted knowingly: permissions on a shared workspace are coarse.** A disconnected
+client holds a credential good for its whole workspace database for the length of its offline
+window, so **membership grants full workspace access and roles govern administration only**.
+Fine-grained per-record permissions and offline writes are mutually exclusive; routing data
+through the API would not fix it, only move the enforcement point to a server the offline client
+is by definition not talking to. This is decision 05's first shape, chosen.
+
+*Rejected, and named so it is not re-proposed:* **all data through the API.** It buys enforceable
+fine-grained permissions and vendor independence, and costs this repository the convergence
+engine and the offline write queue — the work decision 10 chose its client specifically to avoid
+— plus the infrastructure usage the direct path exists to avoid. It is the right answer only
+where fine-grained permissions outrank offline writes, and requirement 7 says they do not.
+
+## Identity comes before all of it
+
+**Nothing above is safe while two replicas can assign one id.** Requirement 16, and it is
+upstream of the data path rather than part of it: route sync through Turso and two records merge;
+route it through the API and the convergence code has to invent an identity scheme anyway.
+
+**A record's identity is a UUIDv7 held as `TEXT`, generated on the client that creates the
+record.** *Chosen by the human 2026-08-18 from four options; the alternatives and their costs are
+decision 13.* Time-ordered, so inserts stay sequential and index locality behaves like the rowid
+it replaces; generated with no coordination, so it works offline by construction, which is the
+property per-device ranges cannot offer without putting the API back in the write path.
+
+**One scheme covers both modes and is migrated onto existing installs** — also the human's
+choice, over leaving local rowids alone and re-identifying at conversion. What it costs is in
+*Risks* and in acceptance criterion 1, and it is the largest single hazard this effort carries.
+
+**It deletes code rather than adding it**, which is worth stating because it is the one cheerful
+consequence: `importWhole` reads `max(id)` for five concepts (`src/lib/workspace/router.ts:260-276`)
+and renewal reads `max(contract.id)` and reasons at length about why `last_insert_rowid()` will
+not serve (`src/lib/contract/router.ts:435-446`). A client-generated identity is known before the
+insert, so both disappear.
+
+## What was settled 2026-08-17 and still holds
 
 Four things are settled by the code that exists, and each was checked in the tree rather than
-recalled.
+recalled — re-verified 2026-08-18 against a tree thirty-one commits further on.
 
 **A hosted workspace is a third caller at a seam that already exists.** `createDatabase(single,
 batch)` (`src/lib/platform/database/client.ts:47`) takes two functions and returns one
@@ -421,14 +640,56 @@ fiction, and the fiction is indistinguishable from a real user at every call sit
 | Component | Where | What changes |
 | --- | --- | --- |
 | the transport seam | `src/lib/platform/database/client.ts:47` | **Nothing.** It already admits a third caller; this is recorded so it is not "improved" |
-| the mode discriminator | `tauri/src/sync/store.rs:32`, mirrored `src/lib/platform/tauri.ts:37` | one added enum variant, on both sides of the boundary |
+| the mode discriminator | `tauri/src/sync/store.rs:32`, mirrored `src/lib/platform/tauri.ts:76` | one added enum variant, on both sides of the boundary |
 | the flows that branch on it | `src/lib/sync/workspace.ts:32,50,75,84,121,127`; `src/lib/sync/pending-conflict.ts:42` | **seven call sites**, each of which must answer for the third value |
 | the request context | `src/lib/api/context.ts:36` and its builder at `:52` | one optional member |
-| the host port | `src/lib/api/context.ts:27` | decision 08's inversion, if taken |
+| the host port | `src/lib/api/context.ts:27` | decision 08's inversion, **taken** — declared interface, Tauri facade satisfies it |
+| **every primary and foreign key** | `src/lib/platform/database/schema.ts` — six `id` columns at `:9,44,58,74,104,179`, plus `contract_unit`, `payment.contractId` and `history.recordId` | `integer` becomes `text`, requirement 16. **The widest-reaching change in the effort** |
+| **the two `max(id)` call sites** | `src/lib/workspace/router.ts:260-276`, `src/lib/contract/router.ts:443` | **deleted.** A client-generated id is known before the insert |
+| **the control-plane API** | new, a second package under `apps/` | accounts, sign-in, workspace records, membership, database creation, token minting |
+| **the session** | new, desktop side | a short-lived token, refreshed against the API; expiry is what enforces requirement 15 |
 
 **Seven is the whole population, not a sample.** Every site was found by searching for the
 discriminator rather than by memory, and the count is recorded so that a later reader can tell
 whether the tree has moved under this plan.
+
+**Re-verified 2026-08-18, and this is what that record was for.** Thirty-one commits landed
+between writing the table and re-reading it. Six of the seven citations still resolve exactly —
+`client.ts:47`, `context.ts:27`, `:36`, `:52`, `store.rs:32`, and all seven discriminator sites
+at `workspace.ts:32,50,75,84,121,127` and `pending-conflict.ts:42`. **One moved**: the TypeScript
+mirror of the discriminator is `tauri.ts:76`, not `:37`, because the export and import work grew
+that file above it. Corrected in the row. The count of seven is unchanged, and it is still the
+whole population.
+
+# Data Model
+
+*Written 2026-08-18, after the shape was directed. Two databases, and they share nothing.*
+
+**The workspace database** is today's schema with one change applied uniformly: every `id`
+becomes `text` holding a UUIDv7, and every column referencing one follows —
+`contract_unit.contractId` and `.unitId`, `payment.contractId`, and `history.recordId`. Nothing
+else about the domain moves; requirement 13's *Out of Scope* keeps contract statuses, payment
+rules and unit assignment untouched.
+
+**`history` is the table to watch**, and it is worth its own line because it is the newest and
+the least like the others. Its rows are only ever inserted, its `recordId` points at a record it
+does not constrain with a foreign key, and it stores `record` — the name a record had at the
+time — precisely so that a deleted record still reads. Under the identity migration its
+`record_id` values must be remapped by the *same* mapping applied to the records themselves, or
+every history entry in a converted workspace silently points at nothing. **Nothing in the schema
+would catch that**, because there is no foreign key to violate — which is why acceptance
+criterion 1 names history explicitly.
+
+**The control-plane database** holds accounts, workspaces, membership, and nothing about the
+domain. It is a separate description rather than a second consumer of the domain schema — **which
+answers the question the monorepo effort's plan left open**: its removal condition for extracting
+the schema into a package was "a second consumer exists", and the control plane is not one. The
+schema stays where it is, in `apps/desktop/`, until something else consumes it.
+
+**Permissions are one `INTEGER` column capped at bits 0–52**, per decision 04, and they live on
+the membership row in the control plane. That decision was taken against the domain schema's
+transports; it applies unchanged here, and the control plane is where it was always going to
+land.
 
 # Migration
 
@@ -436,11 +697,34 @@ whether the tree has moved under this plan.
 a new version to a machine that holds real records and made no choice about architecture — the
 single highest-consequence moment in this effort, per *Risks*.
 
-What makes it safe is stated above and is structural: `RemoteSyncProvider::Local` is the serde
-default *and* the existing value, so a persisted store written by `v0.12.0` deserializes into
-the new enum untouched. `Database::FILENAME` stays `"app.db"` and `RemoteSyncState.workspace`
-stays singular, both by *Out of Scope*. **No data migration runs, because nothing about an
-existing local workspace changes.**
+Part of it is still safe structurally: `RemoteSyncProvider::Local` is the serde default *and* the
+existing value, so a persisted store written by `v0.12.0` deserializes into the new enum
+untouched. `Database::FILENAME` stays `"app.db"` and `RemoteSyncState.workspace` stays singular,
+both by *Out of Scope*.
+
+**But "no data migration runs" is no longer true, and it was the load-bearing sentence here.**
+*Corrected 2026-08-18.* Requirement 16 applies one identity scheme to both modes and migrates it
+onto existing installs, so **a real data migration now runs on every machine that takes this
+update** — rewriting the primary key of every row in a populated workspace, unattended.
+
+What holds it together, and each of these is an obligation on whoever builds it rather than a
+description of something that exists:
+
+- **It is Rust's, like every other migration a local workspace has** — requirement 11's second
+  half, unchanged, and the half that does not wait on decision 06.
+- **It runs in one transaction.** A workspace is fully migrated or untouched; there is no
+  third state, which is what acceptance criterion 1's interruption case checks.
+- **The mapping is built once and applied everywhere.** Old id to new UUIDv7, per concept, then
+  applied to the records, to `contract_unit` on both columns, to `payment.contractId`, and to
+  `history.recordId`. **History has no foreign key to violate**, so nothing would catch it being
+  missed — it is listed last here and first in the criterion for that reason.
+- **The old file is not the safety net.** A user who takes an update does not have a copy of what
+  they had before it. Whatever backup this migration takes before rewriting keys is part of the
+  work, not an operational nicety.
+
+*Why this is stated at length: the previous version of this section said no migration ran, and a
+reader who skims it would carry that belief into the build. The sentence is struck rather than
+edited quietly.*
 
 A local workspace's migrations stay Rust's, exactly as now — that is requirement 11's second
 half, and it is the half that does not wait on decision 06.
@@ -457,7 +741,9 @@ The local-to-hosted conversion is **decision 12's and is not planned here.**
 | 2 | A search of the tree for a workspace list or switcher, returning nothing; plus that `RemoteSyncState.workspace` is still singular and `Database::FILENAME` still `"app.db"` |
 | 10 | A search of the tree finding one database client type, and the existing router tests still passing over `createMemoryDatabase()` unchanged — the second being the real check, since it is what a forked client type would break |
 | 11 | `src/lib/api/context.test.mjs`, which already exists, covering a request carrying identity **and one carrying none** — the second being an ordinary local-workspace request rather than an error case |
-| 12 (local half) | The existing Rust migration tests, still passing **unchanged**. Unchanged is the assertion; a passing rewritten test proves nothing here |
+| 12 (local half) | The existing Rust migration tests, still passing **unchanged**. Unchanged is the assertion; a passing rewritten test proves nothing here. *Note 2026-08-18: the identity migration adds a new Rust migration and its own tests — that is additive, and does not license rewriting the existing ones* |
+| 16 | A test that **moves the clock rather than waiting**: sign in, disconnect, advance past three days, and the application asks for a sign-in; repeat with one reach inside the window, and it does not. It is a clock test because `Clock` is already injected into the context (`src/lib/api/context.ts:36`), so no new seam is needed for it |
+| 17 | Two clients, separate directories, both disconnected, each creating records the other has never seen, both synced — then a count per concept, `history` included. **Written first as a failing test against the rowid schema**, so the collision is demonstrated before it is fixed |
 | 14 | A search for "there is no server" returning only text that is still true when read. Decision 09 owns the rewriting; this is how the result is checked |
 
 **The mode nobody is excited to build is the one that rots** — *Risks* says so, and it is why
@@ -485,11 +771,28 @@ written, above, explicitly scoped as the half that holds whichever way the gate 
 was true of everything that *builds a hosted workspace*, which is most of the effort, and it is
 still true of decisions 03, 05, 06, 07 and 12.
 
-**The partial architecture cuts no tickets, and that is not a defect in it.** Adding an enum
-variant nothing constructs, and an optional field nothing populates, has no observable outcome —
-so under [[rules/tracker]] there is no branch to cut and nothing for [[skills/implement]] to
-take. It is written because it is *true now*, because writing it early is what stops it being
-decided by accident during the hosted work, and because acceptance criterion 1 can be run today.
+**The partial architecture cuts *some* tickets — reversed by the human, 2026-08-18.** This
+paragraph used to say it cut none, and that the gate-free half would wait. The effort stays
+**one effort** rather than splitting, and the half that does not wait on decision 11 is cut into
+work now. *Why the reversal: the spec's own Testing Strategy says every gate-free criterion is
+runnable today "before a line of hosted code exists", and the risk it names — local-of-record
+rotting into a path that compiles and is never exercised — is paid by waiting, not by building.*
+
+**The old reasoning was right about two items and wrong as a general claim.** [[rules/tracker]]'s
+test is whether work produces **a branch that lands as one unit of review** — not whether the
+outcome is visible to a user. Applying that test item by item, and this is what
+[[skills/tasks]] inherits rather than re-derives:
+
+| Gate-free item | Branch-shaped? |
+| --- | --- |
+| **Decision 08's `Host` inversion** — declare the interface, have the Tauri facade satisfy it | **Yes.** A real diff at `src/lib/api/context.ts:27`, decided already, and the compiler holds it honest. The clearest ticket on this effort today |
+| **Separating authentication from Drive sync** | **Probably** — 08 established it is needed whichever way 07 and 11 land, since sign-in is Google and the OAuth half survives regardless. It sits inside decision 07's territory, so `/tasks` confirms rather than assumes |
+| **The `Hosted` enum variant and its seven call sites** | **No, and this is the item the old reasoning got right.** Seven branches answering for a value nothing constructs is dead code with a test suite. It waits on the gate |
+| **The optional identity member on `Context`** | **No**, for the same reason, and acceptance criterion 11 makes it sharper: a test covering "a request carrying identity" cannot be written while nothing can carry any |
+| **Decision 09's rule re-scoping** | **No, not yet.** Scoping a rule to local workspaces requires knowing what a hosted one does, which is 11's and 05's |
+| **Acceptance criterion 1** — the real updater against a populated `v0.12.0` | **Not a ticket at all** — it produces no branch, so under [[rules/tracker]] it is a verification rather than work. It is still the highest-value thing runnable today, and it belongs to whoever runs it rather than to a merge |
+
+So the frontier is small and it is not empty, which is the point.
 
 **Accepting does not make requirement 7 achievable.** It is hard, decision 11 is a go/no-go, and
 a negative result ends the hosted half of this effort. If that happens the spec is changed
@@ -592,6 +895,15 @@ the requirement. The choice is **contingent** rather than settled: decision 11 c
 target a database this application can actually create, and confirms the fallback is real before
 the fallback is needed. If 11 comes back against it, option B is the fallback.
 
+**Option A's price rose again on 2026-08-18, and not because of the vendor.** Last-push-wins
+was weighed here as a conflict-resolution policy — bad, knowingly accepted. The finding recorded
+under *Risks* is that this schema hands it a conflict it was never weighed against: two
+disconnected replicas assign identical ids to unrelated records, so "last push wins" silently
+merges two records rather than resolving one. **Nothing about that is option A's fault** — B and
+D meet it too, and D meets it while this repository is the one writing the merge. It does not
+re-rank the four options; it means the ranking was never the whole question. Decision 11's
+question 2b is where it is settled.
+
 **Option C is excluded as of 2026-08-17.** It was listed here as the trade of last resort, and
 the trade was put to the human explicitly once local mode made it survivable — and refused.
 Requirement 7 is hard in both modes. C therefore stops being a fallback and becomes an outcome
@@ -653,8 +965,17 @@ the vendor.
 
 ## 11 — prototype(persistence): confirm the chosen client against a live database
 
-Status: open — **this is the gate, and invoking it is the user's.** As of 2026-08-17 it is a
-**go/no-go on the hosted architecture**, not a confirmation: requirement 7 is hard, option C is
+Status: open — **this is the gate, and invoking it is the user's.**
+
+**What changed on 2026-08-18: the architecture stopped waiting on this and this stopped deciding
+it.** The human directed the shape directly — Turso carries workspace sync, the API owns identity
+and mints the credential, permissions are coarse — so decisions 03 and 05 are no longer blocked
+here, and 11 confirms that the chosen client can serve an architecture that is now written rather
+than choosing one. **It remains a go/no-go**, because requirement 7 is unchanged and a client
+that cannot write offline still ends the hosted half. It also gained a question the directed
+architecture created: number 5, token rotation, which the whole credential model rests on.
+
+As of 2026-08-17 it is a **go/no-go on the hosted architecture**, not a confirmation: requirement 7 is hard, option C is
 rejected, so a prototype that finds no client can write offline against a hosted database ends
 the hosted half of this effort rather than downgrading it. Local mode is unaffected either way.
 Part of: a-workspace-follows-its-user
@@ -672,11 +993,33 @@ What it has to settle, in priority order:
    documentation shows `turso://` URLs throughout and never states whether a `libsql://`
    database can be a sync target. If it cannot, choosing offline writes also means choosing the
    early-preview engine, and decision 10 is a different decision than the one recorded.
-2. **What last-push-wins actually does to a losing writer's record.** Two devices, same
-   workspace, both offline, both editing one contract, both pushing. Whether the loss is per
-   statement, per row, or per field decides whether this is survivable for a payments ledger,
-   and it decides how much of the reasoning of *Undo* in [[rules/data]] survives. This is also acceptance
-   criterion 9.
+2. **What last-push-wins actually does to a losing writer's record — and it now has two halves,
+   the second of which was missing** *(reshaped 2026-08-18)*.
+
+   **2a, the contended case, as originally written.** Two devices, same workspace, both offline,
+   both editing one contract, both pushing. Whether the loss is per statement, per row, or per
+   field decides whether this is survivable for a payments ledger, and it decides how much of
+   the reasoning of *Undo* in [[rules/data]] survives.
+
+   **2b, the uncontended case, and it is the one that is guaranteed.** Two devices, same
+   workspace, both offline, each creating a record the other has never seen — one records a
+   payment in Riyadh, one records a different payment in Jeddah — both pushing. **The schema
+   gives them the same id**, because every primary key is a bare rowid and a new row takes the
+   next above the highest in use (*Risks*, and the code cited there). So this needs no shared
+   record, no contention, and no unusual behaviour: it is what two people using the product
+   normally produces. Record what survives the push and what is gone.
+
+   **Run 2b first.** It is cheaper to set up than 2a, it fails harder, and if it fails there is
+   no reading of 2a that rescues the architecture as the schema currently stands. Both are
+   acceptance criterion 9.
+
+   **If 2b is confirmed lost, this stops being a client question.** No choice among Turso
+   products fixes two replicas agreeing on an id; the remedies all live in this repository's
+   schema — client-assigned identity that does not collide, ranges partitioned per device, or a
+   composite key — and each is a change to the identity of every row in a database already
+   populated on real machines. **That collides with requirement 1**, which is why it is named
+   here before the gate runs rather than discovered inside it. It is a return to
+   [[skills/plan]] with a schema question, not a swap of one client for another.
 3. **What a genuinely offline first launch does** with `bootstrapIfEmpty` false — the documented
    path requires the remote reachable on first connect, which a fresh install on a disconnected
    machine does not have.
@@ -717,7 +1060,20 @@ What it has to settle, in priority order:
    builder drops `syncInterval` in the offline branch is answerable by reading the package source
    at a named version, which is research rather than prototype. It de-risks the fallback before
    the fallback is needed.
-5. **What a reconcile pass costs over the wire.** The whole-table pass runs at every application
+5. **Can the client's auth token be rotated without re-bootstrapping the replica?** *(added
+   2026-08-18, and it is new work the directed architecture created.)* The whole credential
+   model rests on **short-lived tokens refreshed against the API** — that is how requirement 15
+   is enforced by a lifetime instead of a client-side flag, and how removing a member takes
+   effect (*Architecture*, decision 05). It assumes the sync client will accept a replacement
+   token for a replica it is already holding, and **nothing establishes that**. If a rotation
+   forces a re-bootstrap, every refresh re-downloads the workspace, and short-lived tokens go
+   from being the mechanism to being unaffordable — which would put the three-day window back to
+   being something the client asserts about itself.
+
+   *Why it is a gate question rather than a research one: decision 01's evidence covers token
+   scoping and revocation from the documentation; this is behaviour under rotation, which only
+   running it establishes.*
+6. **What a reconcile pass costs over the wire.** The whole-table pass runs at every application
    start and both paths write one `UPDATE` per changed row, sequentially awaited. With a
    documented per-commit added-latency ceiling, this is the number that decides whether the
    architecture is usable before anything is built on it.
@@ -758,14 +1114,30 @@ credential path decision 05 depends on.
    the preview engine.
 4. **Question 3** — a first launch with `bootstrapIfEmpty` false and no network, before any
    successful connect. This is the fresh-install-on-a-disconnected-machine case.
-5. **Question 2** — two client instances against one database, in separate directories, both
-   disconnected, both editing one contract, both pushed. Record whether the loss is per
-   statement, per row, or per field. This is acceptance criterion 9 and it decides how much of
-   the reasoning of *Undo* in [[rules/data]] survives.
-6. **Question 5** — seed with `pnpm db:seed` for a realistic set, then run a whole-table
+5. **Question 2b, then 2a** — two client instances against one database, in separate
+   directories, both disconnected, both pushed. **2b first**: each creates a record the other
+   has never seen, and the answer is how many records exist afterwards. **2a second**: both edit
+   one contract, and the answer is whether the loss is per statement, per row, or per field.
+   This is acceptance criterion 9 and it decides how much of the reasoning of *Undo* in
+   [[rules/data]] survives. A negative 2b stops the run here and returns to [[skills/plan]] with
+   a schema question — there is no point pricing 2a against a schema that is about to change.
+6. **Question 5** — mint a short-lived token, sync, let it expire, mint a replacement and hand it
+   to the client already holding the replica. Record whether it resumes or re-bootstraps, and how
+   much it transfers when it does. **This is the question the credential model rests on**, and it
+   is cheap once question 1 has produced a database.
+7. **Question 6** — seed with `pnpm db:seed` for a realistic set, then run a whole-table
    reconcile against the remote and time it. Both reconcile paths write one `UPDATE` per changed
    row, sequentially awaited, against a documented per-commit added-latency ceiling — so this is
    a number, and the number decides whether the architecture is usable.
+
+   **Time the whole-workspace import too** *(added 2026-08-18)*. It did not exist when this
+   procedure was written: #536 landed a five-sheet import that resolves every reference before
+   the write and then issues the whole thing as **one batch**, measured in the running
+   application at 5,000 tenants, 10 complexes, 80 units, 941 contracts and 591 payments. That is
+   a single transaction of roughly six and a half thousand statements, and it is also the shape
+   decision 12's local-to-hosted conversion would most naturally reuse — so its cost against a
+   remote is a number this effort needs whether or not conversion ends up using it. Sync bills
+   4 kB frames even for a one-byte row (decision 01), which prices it a second way.
 
 ### What each outcome means
 
@@ -780,16 +1152,36 @@ credential path decision 05 depends on.
   architecture does not ship**. That is the go/no-go. It is renegotiated with the human under
   [[policies/execution]], never relaxed quietly, and the local-mode half of this effort stands
   either way.
-- **Question 5 returns an unusable number** — the architecture may survive with reconcile
+- **Question 6 returns an unusable number** — the architecture may survive with reconcile
   reshaped, which is a return to [[skills/plan]] rather than an end. Record the number; do not
   design the fix inside the prototype.
 
 ## 03 — grilling(persistence): what a user is, and where the control plane lives
 
-Status: open
+Status: **mostly directed 2026-08-18 — the control plane is built here, as an API.** What remains
+open is narrow and is named at the foot of this section.
 Part of: a-workspace-follows-its-user
 Type: grilling
-Blocked by: 11
+Blocked by: — *(was 11; the human directed the shape rather than waiting for the gate)*
+
+**Directed by the human, 2026-08-18:** *"the api is used for sync/backup and for auth"*, and
+*"there's an online db for all accounts auth and workspaces association."* So the control plane
+is **one always-online database behind an API this repository builds**, holding accounts,
+workspace records and membership — not a hosted identity service, and not bought. It also mints
+the token a client syncs with, which is what puts it in the credential path without putting it
+in the data path (*Architecture*).
+
+**And it answers the monorepo effort's open removal condition.** Its plan defers extracting the
+database schema into a package until a second consumer exists, and named this decision as what
+would produce one. **It does not**: the control plane describes accounts and membership, not the
+domain, so it is a separate description rather than a second consumer. The extraction stays
+deferred and its condition stays unfired.
+
+**What is still open here**, and it is now a design question rather than an architectural one:
+what a user record holds beyond what `RemoteSyncAccount` already carries; what the session is on
+the wire, given requirement 15 makes it a token with a lifetime; and what the client holds while
+offline so that *signed in three days ago* is something it can prove rather than a flag it sets
+about itself.
 
 **Question.** What a user record holds, and whether the control plane is built here or is a
 hosted identity service. Also: what the request context becomes, given it carries no identity
@@ -923,10 +1315,33 @@ tests run over — but it means the hosted client is not a new source of this pr
 
 ## 05 — grilling(api): where the domain runs once organizations arrive
 
-Status: open
+Status: **decided 2026-08-18 — the first shape: membership grants full workspace access, and
+roles govern administration only.**
 Part of: a-workspace-follows-its-user
 Type: grilling
-Blocked by: 11
+Blocked by: — *(was 11)*
+
+**The decision, so it is not read out of the prose below.** A member of a shared workspace has
+full access to its data. Roles govern *administration* — inviting, removing, changing settings —
+and not which records a member may read or write. **Fine-grained per-record permissions are not
+available to an offline-capable client and this effort stops pretending otherwise.**
+
+*Chosen by the human 2026-08-18, with the cost stated: it is the price of requirement 7 on a
+shared workspace.* The reasoning is the question below, unchanged — a client that writes to a
+local replica offline holds a credential good for that whole workspace database for the length
+of the offline window, so the enforcement point would have to be a server it is by definition
+not talking to.
+
+**Routing data through the API would not have rescued it**, which is worth recording because it
+is the obvious counter-proposal: it moves the enforcement point onto a server the offline client
+still is not talking to. The only shape that makes fine-grained permissions enforceable is
+denying shared workspaces an offline replica — put to the human as an option 2026-08-18 and not
+taken.
+
+**What removing a member does**, since it follows directly: access ends when their token is next
+due for renewal and the API declines it, which is bounded by the token lifetime rather than
+immediate. That bound is this repository's to set, and it is the same mechanism requirement 15
+runs on.
 
 **Question.** A client that writes to a local replica offline necessarily holds a credential
 good for that whole workspace database for the length of the offline window. So a bitflag
@@ -975,13 +1390,38 @@ What decision 07 may still retire is the *sync* surface — the manifest, confli
 retention, the link session — and it now has to separate the two, which nothing in the code
 currently forces it to do. [[contexts/desktop/remote-sync]] treats them as one domain.
 
-**Reshaped 2026-08-17, and this is the decision the two-mode choice constrains hardest.** Drive
-is the *only* route a local workspace has off its machine. With local workspaces permanently
-first-class, "retire it" is no longer one of three open options — retiring Drive would strand
-every local workspace on one device, which is the problem this effort exists to solve, reimposed
-on the users who did not opt into the new mode. So the real question narrows to: does Drive
-stay as it is for local workspaces, or is it replaced by something else that serves them? A
-hosted workspace almost certainly does not need it either way.
+**Reshaped 2026-08-17, and this is the decision the two-mode choice constrains hardest.** With
+local workspaces permanently first-class, retiring Drive would strand every local workspace on
+one device — the problem this effort exists to solve, reimposed on the users who did not opt
+into the new mode. So the real question narrows to: does Drive stay as it is for local
+workspaces, or is it replaced by something else that serves them? A hosted workspace almost
+certainly does not need it either way.
+
+**And the premise under that narrowing broke on 2026-08-18.** It rested on Drive being the
+*only* route a local workspace has off its machine. #536 landed a whole-workspace export and
+import — five sheets in write order, round-tripped in the running application against 5,000
+tenants and 941 contracts — so there is now a second route, and "retiring Drive strands every
+local workspace" is **false as stated**.
+
+**What that does and does not change**, because the difference is the decision:
+
+- It **reopens** retirement as an option. It was closed by an argument that no longer holds, and
+  a closed option nobody re-opened when its reason expired is the failure this spec records
+  rejected options to avoid.
+- It does **not** make the two routes equivalent, and the gap is not small. Drive is automatic,
+  continuous, versioned and retained, and it preserves the workspace exactly. The export is a
+  human action producing a spreadsheet; it **names records rather than carrying their ids**, and
+  it deliberately refuses to carry derived state — status, paid and expected amounts, unit
+  status are recomputed on the far side rather than trusted. A user who loses a laptop between
+  exports loses everything since the last one.
+- So the choice is now a real three-way rather than the two the narrowing left, and **it is the
+  human's**: Drive stays as it is for local workspaces; Drive is replaced by something that
+  serves them; or Drive retires and the whole-workspace export is what a local workspace gets.
+  Each answer prices differently against requirement 12 — the third is the cheapest to execute
+  and the one that most changes what a local user is promised.
+
+**Whatever is chosen, the OAuth half still survives it** — that was settled above and is
+untouched by any of this.
 
 ## 08 — grilling(platform): what a non-desktop client does for host capabilities
 
@@ -1117,8 +1557,27 @@ criterion is met when the sketch exists and the answer is *nothing*. *Why it liv
 already the decision that re-reads every other one against a changed premise, and a promise with
 no owner is a promise that passes by default.*
 
-Tickets #492, #493, #494 and #495 on [[efforts/work-the-surfaces-cannot-do/spec]] (#487) carry a
-standing warning to be re-read against whatever this decision produces.
+**Three of the rules in that table now have landed code under them that was not there when it
+was written** *(2026-08-18)*, and in each case the code moved the premise rather than the rule:
+
+- ***List reads*** — #528 landed declared filters that narrow the read rather than the loaded
+  rows. The rule's *why* is still "there is no server", and the new fact cuts **for** it against
+  a hosted database rather than against it: Turso bills rows *scanned*, and a filter that reaches
+  SQL is the thing that stops a full read being billed. 09 should say so instead of treating the
+  rule as pure exposure.
+- ***Undo*** — #532 landed a durable `history` table (`schema.ts:178`). Undo is still a session
+  stack of inverses and the rule is unchanged, but the reasoning under it — a workspace is one
+  syncable unit resolved by choosing a side — now has an append-only table of its own to answer
+  for. **History is the first table in this schema whose rows are only ever inserted**, which is
+  the shape that collides worst under last-push-wins (*Risks*): two devices' histories do not
+  merge, one replaces the other, and the entry that says what happened is the thing lost.
+- ***Query cache*** — unchanged, and still the row this decision cannot make cheap. Noted here
+  only so that a reader does not assume the 2026-08-18 pass softened it.
+
+Tickets #492, #493, #494 and #495 on [[efforts/work-the-surfaces-cannot-do/spec]] (#487) carried a
+standing warning to be re-read against whatever this decision produces. **They are now landed
+code rather than pending work** — complete 2026-08-18 — so the warning is discharged by re-reading
+the tree, not by constraining a build. 09 does that re-reading.
 
 ## 12 — grilling(persistence): how a local workspace becomes a hosted one
 
@@ -1138,6 +1597,16 @@ What the answer has to settle:
   something else migrated. Whether the conversion is a row-by-row copy through the client, a
   file upload the provider accepts, or a dump-and-replay decides how long it takes and what it
   can fail halfway through.
+
+  **A fourth route exists now and did not when this was written** *(2026-08-18)*: #536's
+  whole-workspace export and import already moves a whole workspace between two databases, in
+  write order, resolving every reference before the write and issuing the result as one batch.
+  It is the obvious thing to reach for and **it is not obviously right**, which is exactly why it
+  is named here rather than assumed: it names records instead of carrying their ids, so a
+  converted workspace's rows come out with **different ids from the ones they had** — every
+  history entry points at `record_id`, and the local file kept as a safety copy under acceptance
+  criterion 6 would no longer describe the same rows as the hosted workspace it came from. 12
+  decides whether that is acceptable, repairable, or disqualifying.
 - **What happens to the local file afterwards.** Acceptance criterion 6 says it is not destroyed
   as part of the conversion — so it becomes a stale copy of a workspace that has moved, and
   something has to say what the application does when it finds one.
@@ -1149,3 +1618,47 @@ What the answer has to settle:
   network by definition, and the user running it is the one most likely to have a bad one.
 - **What it costs to reverse**, which is the open question about one-way conversion. The answer
   here is what makes that question cheap or expensive to revisit later.
+
+## 13 — grilling(persistence): what a record's identity is under replication
+
+Status: **decided 2026-08-18 — a UUIDv7 held as `TEXT`, generated on the client that creates the
+record, one scheme for both modes, migrated onto existing installs.**
+Part of: a-workspace-follows-its-user
+Type: grilling
+Blocked by: —
+
+**Opened and closed on 2026-08-18**, because the premise was found rather than asked. Every
+primary key in this schema is a bare rowid taking the next id above the highest in use — verified
+in the tree, and stated by the application in its own code at `src/lib/contract/router.ts:435-446`.
+That is correct for one writer and collides by construction for two, so two replicas of one
+hosted workspace assign the same id to different records and last-push-wins merges them. *Risks*
+carries the consequence; this is where the answer lives.
+
+**It is upstream of the data path rather than part of it.** Sync through the vendor and two
+records merge; sync through an API this repository writes and the convergence code has to invent
+an identity scheme anyway. No choice at decision 10 or decision 11 reaches it.
+
+**Question.** What replaces the rowid, given the scheme must be assignable with no coordination
+— a client creating a record offline cannot ask anything what the next id is.
+
+| | Advantages | Disadvantages | Risks | Maintenance |
+| --- | --- | --- | --- | --- |
+| **A — UUIDv7 as `TEXT`** *(chosen)* | Time-ordered, so inserts stay sequential and index locality behaves like the rowid it replaces. No coordination, so offline creation works by construction. A standard, understood by every tool that understands UUID | 36 characters per key instead of 8 bytes, on every key and every foreign key. The table stops being an `INTEGER PRIMARY KEY` rowid alias | Size and index behaviour at scale — bounded here: the largest real workspace measured is 5,000 tenants and 941 contracts | One generator, called at the point of creation. The two `max(id)` call sites are **deleted** |
+| **B — ULID as `TEXT`** | The same properties in 26 characters, case-insensitive base32, easier to read in a log | Not a standard the way UUID is, so nothing understands it natively | Low, and the same as A | The same as A, plus owning the encoding |
+| **C — per-device integer ranges** | Keeps integer keys and the rowid alias entirely | A device that exhausts its block offline **cannot create records** | Allocation needs the API, which puts a network dependency back into the write path that requirement 7 exists to keep out | Block allocation, exhaustion, and reclamation — all new, all this repository's |
+| **D — composite key: device plus counter** | Keeps integers, needs no coordination at all | **Every primary key becomes two columns, so every foreign key does too** — `contract_unit`, `payment`, and every `history` row. Every join widens | Low correctness risk, highest blast radius on code that exists | The most invasive of the four by a wide margin |
+
+**Chosen: A**, by the human, on the recommendation recorded here. B is A with a worse
+interoperability story and no offsetting gain. C reintroduces exactly the network dependency in
+the write path that requirement 7 exists to remove. D is safe and correct and touches nearly
+every query in the application to buy an integer nobody needs.
+
+**What it costs when organizations arrive** *(acceptance criterion 15)*: nothing. Identity is
+orthogonal to membership, and a workspace with several members needs collision-free ids more
+than a personal one does — a second writer stops being one person on two laptops and becomes two
+people at once.
+
+**Removal condition.** None — this replaces a scheme rather than deferring one. What *is*
+conditional is the migration: if requirement 16 is ever narrowed back to hosted workspaces only,
+the local schema keeps rowids and the remapping moves into decision 12's conversion. That path
+was offered on 2026-08-18 and not taken.
