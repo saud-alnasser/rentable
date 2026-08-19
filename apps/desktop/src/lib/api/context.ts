@@ -1,5 +1,7 @@
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 
+import type { Host } from '$lib/platform/host';
+
 /**
  * DATABASE
  *
@@ -21,10 +23,11 @@ export type Clock = {
 /**
  * HOST
  *
- * the desktop shell, as the shape of the existing Tauri facade — a port over what is
- * already there, not a new abstraction.
+ * what the API may ask of the shell it runs in. Declared in `$lib/platform/host` and
+ * satisfied by the Tauri facade, rather than read off that facade with `typeof` — so there
+ * is an interface for a client that is not the desktop shell to implement.
  */
-export type Host = typeof import('$lib/platform/tauri').tauri;
+export type { Host };
 
 /**
  * CONTEXT

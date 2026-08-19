@@ -1,12 +1,13 @@
 ---
-aep: 2.2.0
+aep: 2.5.1
 owner: repository
-date: 2026-08-17
+date: 2026-08-18
 kind: rule
 paths:
   - apps/desktop/src/lib/api/**
   - apps/desktop/src/lib/*/router.ts
   - apps/desktop/src/lib/*/reconcile.ts
+  - apps/desktop/src/lib/platform/host.ts
   - apps/desktop/src/lib/platform/tauri.ts
   - apps/desktop/src/lib/platform/database/**
 use-when: "adding or changing a router, a domain module, a database client or transport, or anything crossing the Tauri IPC boundary"

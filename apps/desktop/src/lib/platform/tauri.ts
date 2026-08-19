@@ -5,198 +5,63 @@ import {
 	openUrl as openExternalUrl,
 	revealItemInDir as revealInFileManager
 } from '@tauri-apps/plugin-opener';
-import { check, type DownloadEvent, type Update as TauriUpdate } from '@tauri-apps/plugin-updater';
+import { check, type Update as TauriUpdate } from '@tauri-apps/plugin-updater';
 
+import type {
+	AvailableUpdate,
+	BackupEntry,
+	DiagnosticRecord,
+	ExportSheet,
+	GoogleDriveConflictResolution,
+	GoogleDriveLinkPhase,
+	GoogleDriveLinkPreparation,
+	GoogleDriveSyncOutcome,
+	Host,
+	ImportTable,
+	Recovery,
+	RemoteSyncState,
+	Settings,
+	SettingsChangeset
+} from '$lib/platform/host';
 import { withExtension } from '$lib/platform/path';
 
-export type Settings = {
-	endingSoonNoticeDays: number;
-	databasePath: string;
-	diagnosticsDir: string;
-	locale: string | null;
-	version: string;
-};
-
 /**
- * One cell of a workbook, as the kind of thing it is.
+ * The payload types belong to the port rather than to this implementation of it, and are
+ * re-exported because the rest of the application already reaches for them here.
  *
- * Money and dates cross as figures rather than as the text a surface drew, because the file's
- * reader is a spreadsheet: it renders a number in whatever locale the person opening it works
- * in, and can do nothing with a string that merely looks like one. `date` is the count of days
- * the format itself counts in.
+ * `Host` itself is deliberately not among them. Re-exporting it would put the port back
+ * behind the facade, and a second client kind reaching it that way would pull every
+ * `@tauri-apps` package into its graph to read one type — which is the thing the separate
+ * module exists to prevent.
  */
-export type ExportCell =
-	| { kind: 'text'; value: string }
-	| { kind: 'number'; value: number }
-	| { kind: 'date'; value: number }
-	| { kind: 'money'; value: number }
-	| { kind: 'empty' };
-
-/** One sheet of a workbook: its headings, and its rows under them. */
-export type ExportSheet = {
-	/**
-	 * what the tab is called.
-	 *
-	 * Left out where the workbook holds one sheet — there is nothing to tell it apart from.
-	 * Given where it holds several, which is how a reader finds the tenants inside a workspace.
-	 */
-	name?: string;
-	headers: string[];
-	rows: ExportCell[][];
-};
-
-/** A file read back in: the heading row, and the rows under it, all as text. */
-export type ImportTable = {
-	/** the sheet it came off, or the file's own name where the format has no sheets. */
-	name: string;
-	headers: string[];
-	rows: string[][];
-};
-
-export type DiagnosticRecord = {
-	level: 'info' | 'warn' | 'error';
-	event: string;
-	fields: Record<string, string>;
-};
-
-export type SettingsChangeset = {
-	endingSoonNoticeDays?: number;
-	locale?: string;
-};
-
-export type BackupEntry = {
-	filename: string;
-	isProtected: boolean;
-	createdAt: number;
-	version: string;
-	source: 'manual' | 'autosave' | 'recovery';
-	recoveryKind?: 'sync' | 'update' | null;
-};
-
-export type RemoteSyncProvider = 'local' | 'googleDrive';
-
-export type RemoteSyncAccountStatus = 'pending' | 'ready' | 'needsReconnect';
-
-export type RemoteSyncAccount = {
-	id: string;
-	provider: RemoteSyncProvider;
-	status: RemoteSyncAccountStatus;
-	email: string;
-	displayName: string;
-	avatarUrl: string | null;
-	providerUserId: string | null;
-	driveQuotaBytes: number | null;
-	driveUsageBytes: number | null;
-	appUsageBytes: number | null;
-	tokenExpiresAt: number | null;
-	refreshTokenAvailable: boolean;
-	lastSyncedAt: number | null;
-	lastError: string | null;
-	createdAt: number;
-	updatedAt: number;
-};
-
-export type RemoteSyncWorkspace = {
-	id: string;
-	accountId: string | null;
-	provider: RemoteSyncProvider;
-	name: string;
-	localDatabasePath: string;
-	remoteFolderId: string | null;
-	remoteManifestFileId: string | null;
-	remoteHeadFileId: string | null;
-	remoteHeadRevision: string | null;
-	lastRemoteUpdatedAt: number | null;
-	lastSyncedAt: number | null;
-	lastSnapshotAt: number | null;
-	lastSnapshotFilename: string | null;
-	lastError: string | null;
-	createdAt: number;
-	updatedAt: number;
-};
-
-export type RemoteSyncProfile = RemoteSyncWorkspace;
-
-export type RemoteSyncState = {
-	accounts: RemoteSyncAccount[];
-	workspace: RemoteSyncWorkspace;
-	startupPromptEnabled: boolean;
-	googleDriveReady: boolean;
-	deviceId: string;
-};
-
-export type GoogleDriveConflictKind = 'link' | 'sync' | 'corrupt' | 'relink';
-
-/** which side of a conflict the user chose. */
-export type GoogleDriveConflictResolution = 'local' | 'remote';
-
-/** which way a conflict is recommended to be settled. narrower than a sync mode: "decide for me" is not an answer to a conflict. */
-export type GoogleDriveRecommendedMode = 'push' | 'pull';
-
-/** what the user is being asked, and everything the interface needs to ask it. */
-export type GoogleDriveLinkConflict = {
-	kind: GoogleDriveConflictKind;
-	accountEmail: string;
-	localSnapshotAt: number | null;
-	remoteUpdatedAt: number | null;
-	remoteFilename: string | null;
-	/** why, where the reason is more specific than the kind's own wording. `null` leaves the interface to say it, in the user's language. */
-	message: string | null;
-};
-
-/**
- * the situation on the remote, and what to do about it.
- *
- * `requiresResolution` is the whole point: false means the caller may proceed,
- * true means nothing transfers until the user has chosen.
- */
-export type GoogleDriveLinkPreparation = {
-	state: RemoteSyncState;
-	requiresResolution: boolean;
-	recommendedMode: GoogleDriveRecommendedMode;
-	conflict: GoogleDriveLinkConflict | null;
-};
-
-/** what a sync run did. */
-export type GoogleDriveSyncAction = 'none' | 'pushed' | 'pulled';
-
-/**
- * what a sync run did, and what it could not do without asking.
- *
- * `preparation` is present only where the two sides could not be reconciled
- * without the user, and nothing transferred when it is.
- */
-export type GoogleDriveSyncOutcome = {
-	state: RemoteSyncState;
-	action: GoogleDriveSyncAction;
-	preparation: GoogleDriveLinkPreparation | null;
-};
-
-/** how far a link attempt has got. linking is one call, so progress arrives on an event instead of a return. */
-export type GoogleDriveLinkPhase = 'authorizing' | 'finalizing';
+export type {
+	AvailableUpdate,
+	BackupEntry,
+	DiagnosticRecord,
+	ExportCell,
+	ExportSheet,
+	GoogleDriveConflictKind,
+	GoogleDriveConflictResolution,
+	GoogleDriveLinkConflict,
+	GoogleDriveLinkPhase,
+	GoogleDriveLinkPreparation,
+	GoogleDriveRecommendedMode,
+	GoogleDriveSyncAction,
+	GoogleDriveSyncOutcome,
+	ImportTable,
+	Recovery,
+	RemoteSyncAccount,
+	RemoteSyncAccountStatus,
+	RemoteSyncProfile,
+	RemoteSyncProvider,
+	RemoteSyncState,
+	RemoteSyncWorkspace,
+	Settings,
+	SettingsChangeset,
+	UpdaterDownloadEvent
+} from '$lib/platform/host';
 
 const GOOGLE_DRIVE_LINK_PHASE_EVENT = 'rentable:google-drive-link-phase';
-
-export type Recovery = {
-	targetVersion: string;
-	backupVersion: string;
-	backupFilename: string;
-	updateError: string | null;
-	status: 'pending' | 'applied' | 'obsolete';
-	backupReleaseUrl: string;
-};
-
-export type AvailableUpdate = {
-	currentVersion: string;
-	version: string;
-	date: string | null;
-	body: string | null;
-	rawJson: Record<string, unknown>;
-	downloadAndInstall: (onEvent?: (event: DownloadEvent) => void) => Promise<void>;
-	close: () => Promise<void>;
-};
-
-export type UpdaterDownloadEvent = DownloadEvent;
 
 function mapUpdate(update: TauriUpdate): AvailableUpdate {
 	return {
@@ -376,4 +241,4 @@ export const tauri = {
 				)
 		}
 	}
-};
+} satisfies Host;
