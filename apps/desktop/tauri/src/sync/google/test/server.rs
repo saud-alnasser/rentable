@@ -1,9 +1,13 @@
-//! a real HTTP server on loopback, for tests that need the transport's actual
-//! request on the wire.
+//! a real HTTP server on loopback, for tests that need Google's actual request on the wire.
 //!
-//! Chosen over a mocked transport because header construction, retry, and
-//! error mapping are exactly the parts that break, and a mock asserts against
-//! the description of a request rather than against the request.
+//! Chosen over a mocked client because header construction and error mapping are exactly the
+//! parts that break, and a mock asserts against the description of a request rather than
+//! against the request.
+//!
+//! **It outlived what it was built for.** This was the Drive transport's harness, and
+//! [[rules/credentials]]'s *Transport testing* is the section that argued for it; the transport
+//! retired with Drive sync (decision 07) and the reasoning did not, so the one Google request
+//! this application still issues on the sign-in path is tested here rather than mocked.
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -47,24 +51,6 @@ impl ScriptedResponse {
         Self::Hangup
     }
 
-    pub(in crate::sync) fn with_header(self, name: &str, value: &str) -> Self {
-        match self {
-            Self::Respond {
-                status,
-                mut headers,
-                body,
-            } => {
-                headers.push((name.to_string(), value.to_string()));
-
-                Self::Respond {
-                    status,
-                    headers,
-                    body,
-                }
-            }
-            Self::Hangup => Self::Hangup,
-        }
-    }
 }
 
 /// one request as it arrived, kept so a test can assert on what was actually
@@ -75,7 +61,6 @@ pub(in crate::sync) struct RecordedRequest {
     /// the request-target: the path and, where there was one, the query.
     pub target: String,
     headers: Vec<(String, String)>,
-    pub body: Vec<u8>,
 }
 
 impl RecordedRequest {
@@ -85,10 +70,6 @@ impl RecordedRequest {
             .iter()
             .find(|(header, _)| header.eq_ignore_ascii_case(name))
             .map(|(_, value)| value.as_str())
-    }
-
-    pub(in crate::sync) fn body_as_text(&self) -> String {
-        String::from_utf8_lossy(&self.body).to_string()
     }
 }
 
@@ -105,22 +86,22 @@ struct ServerState {
 ///
 /// Nothing shuts it down: `#[tokio::test]` drops the runtime when the test
 /// ends, which cancels the accept loop and every connection it spawned.
-pub(in crate::sync) struct TestDriveServer {
+pub(in crate::sync) struct ScriptedServer {
     base_url: String,
     state: Arc<Mutex<ServerState>>,
 }
 
-impl TestDriveServer {
+impl ScriptedServer {
     /// bind, start accepting, and answer each request with the next scripted
     /// entry. Returns once the port is known, so the first request a test makes
     /// cannot outrun the listener.
     pub(in crate::sync) async fn start(script: Vec<ScriptedResponse>) -> Self {
         let listener = TcpListener::bind(("127.0.0.1", 0))
             .await
-            .expect("failed to bind the test drive server");
+            .expect("failed to bind the scripted google server");
         let address = listener
             .local_addr()
-            .expect("failed to read the test drive server address");
+            .expect("failed to read the scripted google server address");
 
         let state = Arc::new(Mutex::new(ServerState {
             script: script.into(),
@@ -177,7 +158,7 @@ impl TestDriveServer {
             .get(index)
             .unwrap_or_else(|| {
                 panic!(
-                    "the test drive server received {} requests, not {}",
+                    "the scripted google server received {} requests, not {}",
                     state.recorded.len(),
                     index + 1
                 )
@@ -188,7 +169,7 @@ impl TestDriveServer {
     fn locked(&self) -> std::sync::MutexGuard<'_, ServerState> {
         self.state
             .lock()
-            .expect("the test drive server lock was poisoned")
+            .expect("the scripted google server lock was poisoned")
     }
 }
 
@@ -199,7 +180,7 @@ struct Hangup;
 
 impl std::fmt::Display for Hangup {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("the test drive server dropped the connection")
+        formatter.write_str("the scripted google server dropped the connection")
     }
 }
 
@@ -225,23 +206,19 @@ async fn answer(
             )
         })
         .collect();
-    let body = request
-        .into_body()
-        .collect()
-        .await
-        .map(|body| body.to_bytes().to_vec())
-        .unwrap_or_default();
+    // the body is drained rather than kept: nothing asserts on what was sent, and a recorder
+    // holding bodies nobody reads is a buffer per request for a property no test has.
+    let _ = request.into_body().collect().await;
 
     let scripted = {
         let mut state = state
             .lock()
-            .expect("the test drive server lock was poisoned");
+            .expect("the scripted google server lock was poisoned");
 
         state.recorded.push(RecordedRequest {
             method,
             target,
             headers,
-            body,
         });
 
         state.script.pop_front()
@@ -260,7 +237,7 @@ async fn answer(
         return Ok(Response::builder()
             .status(SCRIPT_EXHAUSTED_STATUS)
             .body(Full::new(Bytes::from_static(
-                b"the test drive server was asked for more responses than it was given",
+                b"the scripted google server was asked for more responses than it was given",
             )))
             .expect("failed to build the script-exhausted response"));
     };

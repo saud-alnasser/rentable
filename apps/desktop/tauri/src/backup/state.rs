@@ -88,16 +88,12 @@ impl Backup {
         workspace: Option<&RemoteSyncWorkspace>,
     ) -> Result<(), Error> {
         match workspace {
-            // Manifest identity, and nothing branches on it — a workspace that names a Drive
-            // account is on Drive, and every other workspace is of record in Turso. The mode
-            // this read once is gone; the three strings stay legal so an existing manifest
-            // still reads.
+            // Manifest identity, and nothing branches on it. It named which provider held the
+            // workspace while there were two; Drive sync retired and there is one, so what is
+            // written is a constant. An existing manifest saying `googleDrive` or `local`
+            // still reads — `set_manifest_identity` writes rather than validates.
             Some(workspace) => self.set_manifest_identity(
-                if workspace.account_id.is_some() {
-                    "googleDrive"
-                } else {
-                    "hosted"
-                },
+                "hosted",
                 Some(workspace.id.clone()),
                 Some(workspace.name.clone()),
             ),

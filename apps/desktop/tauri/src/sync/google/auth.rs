@@ -16,16 +16,12 @@ use std::sync::Mutex;
 
 use crate::error::Error;
 
-use super::super::store::{RemoteSync, StoredGoogleDriveCredentials, sanitize_optional_string};
-use super::transport::GOOGLE_DRIVE_API_BASE_URL;
+use super::super::store::{RemoteSync, StoredGoogleCredentials, sanitize_optional_string};
 
-const GOOGLE_DRIVE_AUTHORIZE_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
-const GOOGLE_DRIVE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
-const GOOGLE_DRIVE_SCOPE_DRIVE_FILE: &str = "https://www.googleapis.com/auth/drive.file";
-const GOOGLE_DRIVE_SCOPE_DRIVE_METADATA: &str =
-    "https://www.googleapis.com/auth/drive.metadata.readonly";
-const GOOGLE_DRIVE_SCOPE_EMAIL: &str = "email";
-const GOOGLE_DRIVE_SCOPE_PROFILE: &str = "profile";
+const GOOGLE_AUTHORIZE_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
+const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
+const GOOGLE_SCOPE_EMAIL: &str = "email";
+const GOOGLE_SCOPE_PROFILE: &str = "profile";
 /// What makes this an OpenID Connect request, and it is asked for on behalf of a server this
 /// file never talks to. The control-plane API identifies an account by Google's `sub` claim,
 /// and it is OpenID Connect that defines `sub` and requires it in a UserInfo answer. Without
@@ -36,7 +32,7 @@ const GOOGLE_DRIVE_SCOPE_PROFILE: &str = "profile";
 /// resource of its own. The grant also yields an `id_token`, which nothing here reads and
 /// `GoogleTokenResponse` ignores, having no `deny_unknown_fields`.
 const GOOGLE_SCOPE_OPENID: &str = "openid";
-// The service name every stored Google Drive credential is filed under in the platform's
+// The service name every stored Google credential is filed under in the platform's
 // credential store. It is written out rather than composed from `CARGO_PKG_NAME`, which is what
 // it used to be: the crate was renamed to `rentable-desktop` and the entries already on users'
 // machines are under `rentable.google-drive`, so following the crate would have looked in a
@@ -44,43 +40,41 @@ const GOOGLE_SCOPE_OPENID: &str = "openid";
 // missing credential is indistinguishable from one never granted. This value is data belonging to
 // installed machines, not a fact about the crate, and it does not move again without a migration.
 #[cfg(not(test))]
-const GOOGLE_DRIVE_KEYRING_SERVICE: &str = "rentable.google-drive";
+const GOOGLE_KEYRING_SERVICE: &str = "rentable.google-drive";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GoogleDriveConfig {
+pub struct GoogleOAuthConfig {
     pub client_id: Option<String>,
     pub client_secret: Option<String>,
     pub authorize_endpoint: String,
     pub token_endpoint: String,
-    pub drive_api_base_url: String,
     pub scopes: Vec<String>,
 }
 
 impl RemoteSync {
-    pub fn get_google_drive_config(&self) -> GoogleDriveConfig {
-        GoogleDriveConfig {
+    pub fn google_oauth_config(&self) -> GoogleOAuthConfig {
+        GoogleOAuthConfig {
             client_id: google_oauth_client_id(),
             client_secret: google_oauth_client_secret(),
-            authorize_endpoint: GOOGLE_DRIVE_AUTHORIZE_ENDPOINT.to_string(),
-            token_endpoint: GOOGLE_DRIVE_TOKEN_ENDPOINT.to_string(),
-            drive_api_base_url: GOOGLE_DRIVE_API_BASE_URL.to_string(),
-            scopes: google_drive_scopes(),
+            authorize_endpoint: GOOGLE_AUTHORIZE_ENDPOINT.to_string(),
+            token_endpoint: GOOGLE_TOKEN_ENDPOINT.to_string(),
+            scopes: google_sign_in_scopes(),
         }
     }
 
-    pub(crate) fn upsert_google_drive_credentials(
+    pub(crate) fn upsert_google_credentials(
         &self,
         account_id: &str,
         access_token: Option<String>,
         refresh_token: Option<String>,
         token_expires_at: Option<i64>,
         updated_at: i64,
-    ) -> Result<StoredGoogleDriveCredentials, Error> {
+    ) -> Result<StoredGoogleCredentials, Error> {
         let access_token = sanitize_optional_string(access_token);
         let refresh_token = sanitize_optional_string(refresh_token);
-        let mut credentials = self.load_google_drive_credentials(account_id)?.unwrap_or(
-            StoredGoogleDriveCredentials {
+        let mut credentials = self.load_google_credentials(account_id)?.unwrap_or(
+            StoredGoogleCredentials {
                 account_id: account_id.to_string(),
                 access_token: String::new(),
                 refresh_token: String::new(),
@@ -102,58 +96,58 @@ impl RemoteSync {
 
         if credentials.access_token.trim().is_empty() {
             return Err(Error::InvalidInput {
-                message: "google drive access token is required".to_string(),
+                message: "google access token is required".to_string(),
             });
         }
 
-        self.save_google_drive_credentials(&credentials)?;
+        self.save_google_credentials(&credentials)?;
 
         Ok(credentials)
     }
 
     #[cfg(not(test))]
-    pub(crate) fn load_google_drive_credentials(
+    pub(crate) fn load_google_credentials(
         &self,
         account_id: &str,
-    ) -> Result<Option<StoredGoogleDriveCredentials>, Error> {
-        let entry = self.google_drive_keyring_entry(account_id)?;
+    ) -> Result<Option<StoredGoogleCredentials>, Error> {
+        let entry = self.google_keyring_entry(account_id)?;
         let payload = match entry.get_password() {
             Ok(payload) => payload,
             Err(KeyringError::NoEntry) => return Ok(None),
             Err(error) => return Err(format_keyring_error("read", account_id, error)),
         };
 
-        serde_json::from_str::<StoredGoogleDriveCredentials>(&payload)
+        serde_json::from_str::<StoredGoogleCredentials>(&payload)
             .map(Some)
             .map_err(|error| Error::Integrity {
                 message: format!(
-                    "failed to decode stored google drive credentials for {account_id}: {error}"
+                    "failed to decode stored google credentials for {account_id}: {error}"
                 ),
             })
     }
 
     #[cfg(test)]
-    pub(crate) fn load_google_drive_credentials(
+    pub(crate) fn load_google_credentials(
         &self,
         account_id: &str,
-    ) -> Result<Option<StoredGoogleDriveCredentials>, Error> {
-        let store = test_google_drive_credentials_store()
+    ) -> Result<Option<StoredGoogleCredentials>, Error> {
+        let store = test_google_credentials_store()
             .lock()
             .map_err(|_| Error::Internal {
-                message: "failed to lock test google drive credentials store".to_string(),
+                message: "failed to lock the test google credentials store".to_string(),
             })?;
 
         Ok(store.get(account_id).cloned())
     }
 
     #[cfg(not(test))]
-    pub(crate) fn save_google_drive_credentials(
+    pub(crate) fn save_google_credentials(
         &self,
-        credentials: &StoredGoogleDriveCredentials,
+        credentials: &StoredGoogleCredentials,
     ) -> Result<(), Error> {
-        let entry = self.google_drive_keyring_entry(&credentials.account_id)?;
+        let entry = self.google_keyring_entry(&credentials.account_id)?;
         let payload = serde_json::to_string(credentials).map_err(|error| Error::Internal {
-            message: format!("failed to encode google drive credentials: {error}"),
+            message: format!("failed to encode google credentials: {error}"),
         })?;
 
         entry
@@ -162,15 +156,15 @@ impl RemoteSync {
     }
 
     #[cfg(test)]
-    pub(crate) fn save_google_drive_credentials(
+    pub(crate) fn save_google_credentials(
         &self,
-        credentials: &StoredGoogleDriveCredentials,
+        credentials: &StoredGoogleCredentials,
     ) -> Result<(), Error> {
         let mut store =
-            test_google_drive_credentials_store()
+            test_google_credentials_store()
                 .lock()
                 .map_err(|_| Error::Internal {
-                    message: "failed to lock test google drive credentials store".to_string(),
+                    message: "failed to lock the test google credentials store".to_string(),
                 })?;
 
         store.insert(credentials.account_id.clone(), credentials.clone());
@@ -178,8 +172,8 @@ impl RemoteSync {
     }
 
     #[cfg(not(test))]
-    pub(crate) fn delete_google_drive_credentials(&self, account_id: &str) -> Result<(), Error> {
-        let entry = self.google_drive_keyring_entry(account_id)?;
+    pub(crate) fn delete_google_credentials(&self, account_id: &str) -> Result<(), Error> {
+        let entry = self.google_keyring_entry(account_id)?;
 
         match entry.delete_credential() {
             Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
@@ -188,12 +182,12 @@ impl RemoteSync {
     }
 
     #[cfg(test)]
-    pub(crate) fn delete_google_drive_credentials(&self, account_id: &str) -> Result<(), Error> {
+    pub(crate) fn delete_google_credentials(&self, account_id: &str) -> Result<(), Error> {
         let mut store =
-            test_google_drive_credentials_store()
+            test_google_credentials_store()
                 .lock()
                 .map_err(|_| Error::Internal {
-                    message: "failed to lock test google drive credentials store".to_string(),
+                    message: "failed to lock the test google credentials store".to_string(),
                 })?;
 
         store.remove(account_id);
@@ -201,8 +195,8 @@ impl RemoteSync {
     }
 
     #[cfg(not(test))]
-    fn google_drive_keyring_entry(&self, account_id: &str) -> Result<KeyringEntry, Error> {
-        KeyringEntry::new(GOOGLE_DRIVE_KEYRING_SERVICE, account_id)
+    fn google_keyring_entry(&self, account_id: &str) -> Result<KeyringEntry, Error> {
+        KeyringEntry::new(GOOGLE_KEYRING_SERVICE, account_id)
             .map_err(|error| format_keyring_error("create", account_id, error))
     }
 }
@@ -242,7 +236,7 @@ pub(crate) fn pkce_challenge(verifier: &str) -> String {
 /// listening on: Google matches it against the one replayed at the code
 /// exchange, and a mismatch is rejected there rather than here.
 pub(crate) fn build_authorization_url(
-    config: &GoogleDriveConfig,
+    config: &GoogleOAuthConfig,
     client_id: &str,
     redirect_uri: &str,
     state: &str,
@@ -480,29 +474,37 @@ fn google_oauth_client_secret() -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn google_drive_scopes() -> Vec<String> {
+/// what this application asks a person to grant.
+///
+/// **Three, and none of them is Drive's.** `drive.file` and `drive.metadata.readonly` went with
+/// Drive sync (decision 07), which is the concrete obligation the spec's *Risks* names: an
+/// application still asking for access to somebody's files after deleting the code that used
+/// them is asking for something it cannot spend.
+///
+/// What is left is what identity needs. `openid` is not decoration beside `email` and
+/// `profile` — the control-plane API keys an account on the `sub` claim, and that claim is
+/// *undefined* in a plain OAuth 2 grant rather than merely absent.
+fn google_sign_in_scopes() -> Vec<String> {
     vec![
-        GOOGLE_DRIVE_SCOPE_DRIVE_FILE.to_string(),
-        GOOGLE_DRIVE_SCOPE_DRIVE_METADATA.to_string(),
         GOOGLE_SCOPE_OPENID.to_string(),
-        GOOGLE_DRIVE_SCOPE_EMAIL.to_string(),
-        GOOGLE_DRIVE_SCOPE_PROFILE.to_string(),
+        GOOGLE_SCOPE_EMAIL.to_string(),
+        GOOGLE_SCOPE_PROFILE.to_string(),
     ]
 }
 
 #[cfg(not(test))]
 fn format_keyring_error(action: &str, account_id: &str, error: KeyringError) -> Error {
     Error::Credential {
-        message: format!("failed to {action} google drive credentials for {account_id}: {error}"),
+        message: format!("failed to {action} google credentials for {account_id}: {error}"),
     }
 }
 
 #[cfg(test)]
-fn test_google_drive_credentials_store()
--> &'static Mutex<HashMap<String, StoredGoogleDriveCredentials>> {
+fn test_google_credentials_store()
+-> &'static Mutex<HashMap<String, StoredGoogleCredentials>> {
     use std::sync::OnceLock;
 
-    static STORE: OnceLock<Mutex<HashMap<String, StoredGoogleDriveCredentials>>> = OnceLock::new();
+    static STORE: OnceLock<Mutex<HashMap<String, StoredGoogleCredentials>>> = OnceLock::new();
 
     STORE.get_or_init(|| Mutex::new(HashMap::new()))
 }
@@ -584,8 +586,8 @@ mod tests {
     use crate::error::Error;
 
     use super::{
-        GoogleDriveConfig, GoogleTokenResponse, access_token_is_fresh, authorization_code_form,
-        build_authorization_url, google_drive_scopes, parse_token_response, pkce_challenge,
+        GoogleOAuthConfig, GoogleTokenResponse, access_token_is_fresh, authorization_code_form,
+        build_authorization_url, google_sign_in_scopes, parse_token_response, pkce_challenge,
         random_url_safe_token, refresh_token_form,
     };
 
@@ -595,7 +597,7 @@ mod tests {
     /// on a machine nobody is looking at.
     #[test]
     fn the_sign_in_asks_for_openid_so_a_subject_is_promised() {
-        let scopes = google_drive_scopes();
+        let scopes = google_sign_in_scopes();
 
         assert!(
             scopes.iter().any(|scope| scope == "openid"),
@@ -604,17 +606,29 @@ mod tests {
         assert!(scopes.iter().any(|scope| scope == "email"));
         assert!(scopes.iter().any(|scope| scope == "profile"));
     }
-    fn oauth_config() -> GoogleDriveConfig {
-        GoogleDriveConfig {
+
+    /// **An application that deleted Drive does not go on asking for somebody's files.**
+    ///
+    /// The spec's *Risks* names an OAuth scope set outliving its justification as the concrete
+    /// thing decision 07 owes, and a scope is not the kind of thing whose absence is visible:
+    /// the consent screen would go on asking, the grant would go on being given, and nothing
+    /// in this application would ever use it.
+    #[test]
+    fn the_sign_in_asks_for_nothing_of_drives() {
+        let scopes = google_sign_in_scopes();
+
+        assert!(
+            !scopes.iter().any(|scope| scope.contains("drive")),
+            "a drive scope survived the transport it was granted for: {scopes:?}"
+        );
+    }
+    fn oauth_config() -> GoogleOAuthConfig {
+        GoogleOAuthConfig {
             client_id: Some("client-id".to_string()),
             client_secret: Some("client-secret".to_string()),
             authorize_endpoint: "https://accounts.google.com/o/oauth2/v2/auth".to_string(),
             token_endpoint: "https://oauth2.googleapis.com/token".to_string(),
-            drive_api_base_url: "https://www.googleapis.com/drive/v3".to_string(),
-            scopes: vec![
-                "https://www.googleapis.com/auth/drive.file".to_string(),
-                "email".to_string(),
-            ],
+            scopes: vec!["openid".to_string(), "email".to_string()],
         }
     }
 
@@ -684,7 +698,7 @@ mod tests {
         );
         assert_eq!(
             parameters.get("scope").map(String::as_str),
-            Some("https://www.googleapis.com/auth/drive.file email")
+            Some("openid email")
         );
         assert_eq!(
             parameters.get("access_type").map(String::as_str),

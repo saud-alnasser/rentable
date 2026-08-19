@@ -3,7 +3,6 @@
 	import api, { forgetContext } from '$lib/api/caller';
 	import {
 		tauri,
-		type GoogleDriveConflictResolution,
 		type GoogleSignInPhase,
 		type Recovery,
 		type RemoteSyncState
@@ -14,21 +13,12 @@
 		listenForSignOut,
 		signInWithGoogle
 	} from '$lib/sync/sign-in';
-	import { startGoogleDriveAutosyncManager } from '$lib/sync/autosync';
-	import {
-		getWorkspaceFromSyncState,
-		inspectWorkspaceSyncState,
-		isGoogleDriveLinked,
-		syncWorkspaceBeforeExit,
-		syncWorkspaceNow,
-		syncWorkspaceRemoteNow
-	} from '$lib/sync/workspace';
+	import { startWorkspaceSyncManager } from '$lib/sync/autosync';
+	import { syncWorkspaceBeforeExit, syncWorkspaceNow } from '$lib/sync/workspace';
 	import { toUtcDay } from '$lib/api/date';
 	import { invalidateRoot, trustWorkspaceData } from '$lib/design/query';
 	import { keys as settingsKeys } from '$lib/settings/query';
 	import { TooltipProvider } from '$lib/design/primitive/tooltip';
-	import { LinkSession } from '$lib/sync/link-session.svelte';
-	import { pendingConflict } from '$lib/sync/pending-conflict.svelte';
 	import SonnerProvider from '$lib/design/provider/sonner.svelte';
 	import { toast } from 'svelte-sonner';
 	import { toErrorText } from '$lib/error/message';
@@ -44,7 +34,6 @@
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
 	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
 	import LayoutStartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
-	import LayoutStartupWorkspaceChoice from '$lib/layout/component/startup-workspace-choice.svelte';
 	import { listenForWindowCloseRequests } from '$lib/layout/event';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -61,51 +50,22 @@
 	});
 	trustWorkspaceData(queryClient);
 
-	type StartupState = 'loading' | 'sign-in' | 'choose-workspace' | 'ready' | 'error' | 'recovery';
+	/**
+	 * *`choose-workspace` went with Google Drive sync (decision 07). It offered two things — open
+	 * the workspace kept on this machine, or link a Drive folder — and there is one workspace,
+	 * created at sign-up, with nothing to choose between.*
+	 */
+	type StartupState = 'loading' | 'sign-in' | 'ready' | 'error' | 'recovery';
 
 	let isI18nReady = $state(false);
 	let startupState = $state<StartupState>('loading');
 	let startupError = $state<string | null>(null);
 	let startupRecovery = $state<Recovery | null>(null);
 	let startupRemoteSync = $state<RemoteSyncState | null>(null);
-	const linkSession = new LinkSession({
-		onState: (state) => {
-			startupRemoteSync = state;
-			queryClient.setQueryData(settingsKeys.remoteSync, state);
-		},
-		onResolutionRequired: async (preparation) => {
-			pendingConflict.present(preparation);
-			startupState = 'choose-workspace';
-			await tauri.window.show();
-		},
-		resolve: async () => {
-			const result = await syncWorkspaceRemoteNow();
-			startupRemoteSync = result.state;
-			pendingConflict.clear();
-			await continueStartup(true);
-		},
-		onFailure: async (error) => {
-			startupRecovery = null;
-			startupState = 'choose-workspace';
-			pendingConflict.clear();
-			startupError = getErrorMessage(error);
-			await tauri.window.show();
-		},
-		onCancelled: async () => {
-			startupRemoteSync = await tauri.remoteSync.getState().catch(() => startupRemoteSync);
-			if (startupRemoteSync) {
-				queryClient.setQueryData(settingsKeys.remoteSync, startupRemoteSync);
-			}
-		}
-	});
 	// which of the two the wall is saying, and it is only read while the wall is up.
 	let signInReason = $state<'noAccount' | 'windowClosed'>('noAccount');
 	let isSigningIn = $state(false);
 	let signInPhase = $state<GoogleSignInPhase | null>(null);
-	let isHandlingStartupChoice = $state(false);
-	// which of the choices is being carried out, not merely that one is: the screen reports work
-	// on the control that started it, and every control shares the flag above for availability.
-	let isOpeningLocalWorkspace = $state(false);
 	let isSyncingWindowClose = false;
 	let isFinalizingWindowClose = false;
 	const DAY_CROSSING_CHECK_INTERVAL_MS = 60_000;
@@ -191,7 +151,6 @@
 	 */
 	async function raiseSignInWall(reason: 'noAccount' | 'windowClosed') {
 		queryClient.clear();
-		pendingConflict.clear();
 		startupError = null;
 		startupRecovery = null;
 		signInReason = reason;
@@ -283,7 +242,7 @@
 		}
 	}
 
-	async function continueStartup(skipRemoteSync = false) {
+	async function continueStartup() {
 		const recovery = await api.app.bootstrap();
 
 		if (applyRecoveryState(recovery)) {
@@ -291,16 +250,7 @@
 			return;
 		}
 
-		if (!skipRemoteSync) {
-			const result = await syncWorkspaceNow(startupRemoteSync);
-			startupRemoteSync = result.state;
-
-			if (pendingConflict.present(result.preparation)) {
-				startupState = 'choose-workspace';
-				await tauri.window.show();
-				return;
-			}
-		}
+		startupRemoteSync = (await syncWorkspaceNow(startupRemoteSync)).state;
 
 		const { reconciledAt } = await api.app.state.reconcile();
 		lastReconciledUtcDay = toUtcDay(reconciledAt).getTime();
@@ -336,14 +286,10 @@
 	}
 
 	async function startApp() {
-		await linkSession.cancel();
-
 		startupState = 'loading';
 		startupError = null;
 		startupRecovery = null;
 		startupRemoteSync = null;
-		pendingConflict.clear();
-		isHandlingStartupChoice = false;
 
 		try {
 			// the shell's own settings, read off the shell. It carries the locale the sign-in screen
@@ -361,26 +307,13 @@
 			isI18nReady = true;
 			startupRemoteSync = await tauri.remoteSync.getState();
 
-			// **The wall, and everything below this line is behind it.** The Drive inspection reads
-			// the workspace, the bootstrap opens the database and the reconcile writes to it — so
-			// criterion 3 is this ordering rather than a screen: none of it runs before there is an
-			// account. The locale is loaded above it just as deliberately, because the wall itself
-			// has to be readable in the language its reader chose.
+			// **The wall, and everything below this line is behind it.** The bootstrap opens the
+			// database and the reconcile writes to it — so criterion 3 is this ordering rather than
+			// a screen: none of it runs before there is an account. The locale is loaded above it
+			// just as deliberately, because the wall itself has to be readable in the language its
+			// reader chose.
 			if (!(await admit())) {
 				return;
-			}
-
-			if (isGoogleDriveLinked(getWorkspaceFromSyncState(startupRemoteSync))) {
-				const inspectedLink = await inspectWorkspaceSyncState(startupRemoteSync);
-				if (inspectedLink) {
-					startupRemoteSync = inspectedLink.state;
-
-					if (pendingConflict.present(inspectedLink)) {
-						startupState = 'choose-workspace';
-						await tauri.window.show();
-						return;
-					}
-				}
 			}
 
 			await continueStartup();
@@ -393,151 +326,11 @@
 		}
 	}
 
-	async function openLocalWorkspace() {
-		if (isHandlingStartupChoice || linkSession.isFinalizing) {
-			return;
-		}
-
-		isHandlingStartupChoice = true;
-		isOpeningLocalWorkspace = true;
-		startupError = null;
-
-		try {
-			await linkSession.cancel();
-			pendingConflict.clear();
-			await continueStartup();
-		} catch (error) {
-			startupRecovery = null;
-			startupState = 'error';
-			startupError = getErrorMessage(error);
-			await tauri.window.show();
-		} finally {
-			isHandlingStartupChoice = false;
-			isOpeningLocalWorkspace = false;
-		}
-	}
-
-	async function resolveStartupLink(resolution: GoogleDriveConflictResolution) {
-		if (isHandlingStartupChoice) {
-			return;
-		}
-
-		isHandlingStartupChoice = true;
-		startupError = null;
-
-		try {
-			// what follows the remote's reply is handed to the flow rather than run after it, so
-			// the panel the answer was given on stays up until the application replaces it.
-			await pendingConflict.resolve(resolution, async (outcome) => {
-				startupRemoteSync = outcome.state;
-				await continueStartup(true);
-			});
-		} catch (error) {
-			startupRecovery = null;
-			startupState = 'choose-workspace';
-			startupError = getErrorMessage(error);
-			await tauri.window.show();
-		} finally {
-			isHandlingStartupChoice = false;
-		}
-	}
-
-	async function cancelStartupLinkConflict() {
-		if (linkSession.isFinalizing) {
-			return;
-		}
-
-		if (linkSession.isAuthorizing) {
-			await linkSession.cancel();
-			startupState = 'choose-workspace';
-			await tauri.window.show();
-			return;
-		}
-
-		if (isHandlingStartupChoice) {
-			return;
-		}
-
-		isHandlingStartupChoice = true;
-		startupError = null;
-
-		try {
-			await pendingConflict.dismiss(async (dismissal) => {
-				// a deferral leaves the workspace working, so startup carries on and the panel stays
-				// up for it. A link undone has nowhere to carry on to: this screen is the answer.
-				if (dismissal.deferred) {
-					await continueStartup(true);
-					return;
-				}
-
-				startupRemoteSync = dismissal.state;
-				startupState = 'choose-workspace';
-				await tauri.window.show();
-			});
-		} catch (error) {
-			startupRecovery = null;
-			startupState = 'choose-workspace';
-			startupError = getErrorMessage(error);
-			await tauri.window.show();
-		} finally {
-			isHandlingStartupChoice = false;
-		}
-	}
-
-	async function relinkBrokenGoogleDriveAtStartup() {
-		if (isHandlingStartupChoice) {
-			return;
-		}
-
-		isHandlingStartupChoice = true;
-		startupError = null;
-
-		try {
-			const state = await pendingConflict.relink();
-
-			if (!state) {
-				return;
-			}
-
-			startupRemoteSync = state;
-			queryClient.setQueryData(settingsKeys.remoteSync, startupRemoteSync);
-			linkSession.begin();
-			startupState = 'choose-workspace';
-			await tauri.window.show();
-		} catch (error) {
-			startupRecovery = null;
-			startupState = 'choose-workspace';
-			startupError = getErrorMessage(error);
-			await tauri.window.show();
-		} finally {
-			isHandlingStartupChoice = false;
-		}
-	}
-
-	async function linkGoogleDriveAtStartup() {
-		if (isHandlingStartupChoice || linkSession.isFinalizing) {
-			return;
-		}
-
-		if (linkSession.isAuthorizing) {
-			await linkSession.cancel();
-			await tauri.window.show();
-			return;
-		}
-
-		startupError = null;
-
-		// the user asked to link, so an answer they waved away earlier is not the answer to this.
-		pendingConflict.forget();
-		pendingConflict.clear();
-		linkSession.begin();
-	}
-
 	onMount(() => {
 		const appWindow = getCurrentWindow();
 		let unlistenCloseRequested: (() => void) | undefined;
 		let stopListeningForCloseRequests: (() => void) | undefined;
-		const stopAutosyncManager = startGoogleDriveAutosyncManager({
+		const stopWorkspaceSyncManager = startWorkspaceSyncManager({
 			onResult: async (detail) => {
 				const state = await tauri.remoteSync.getState().catch(() => null);
 				if (state) {
@@ -553,13 +346,7 @@
 				if (detail.action === 'signInRequired') {
 					toast.error($LL.settingsHooks.sessionExpired());
 					await queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync });
-				} else if (detail.action === 'pulled') {
-					await invalidateRoot(queryClient);
-				} else if (
-					detail.action === 'pushed' ||
-					detail.action === 'none' ||
-					detail.action === 'error'
-				) {
+				} else {
 					await Promise.all([
 						queryClient.invalidateQueries({ queryKey: settingsKeys.backups }),
 						queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync })
@@ -572,7 +359,6 @@
 				// the held context names an account this machine no longer has credentials for, and
 				// nothing else in the process would ever notice.
 				forgetContext();
-				await linkSession.cancel();
 				startupRemoteSync = await tauri.remoteSync.getState().catch(() => null);
 				await raiseSignInWall('noAccount');
 			})();
@@ -601,8 +387,7 @@
 
 		return () => {
 			clearInterval(dayCrossingInterval);
-			void linkSession.cancel();
-			stopAutosyncManager();
+			stopWorkspaceSyncManager();
 			stopListeningForSignOut();
 			unlistenCloseRequested?.();
 			stopListeningForCloseRequests?.();
@@ -643,23 +428,6 @@
 							phase={signInPhase}
 							errorMessage={startupError}
 							onSignIn={() => void signIn()}
-						/>
-					{:else if startupState === 'choose-workspace' && startupRemoteSync}
-						<LayoutStartupWorkspaceChoice
-							syncState={startupRemoteSync}
-							isWorking={isHandlingStartupChoice || pendingConflict.isWorking}
-							isOpeningLocal={isOpeningLocalWorkspace}
-							isLinkingGoogleDrive={linkSession.isLinking}
-							isFinalizingGoogleDriveLink={linkSession.isFinalizing}
-							errorMessage={startupError}
-							linkConflict={pendingConflict.conflict}
-							onOpenLocal={() => void openLocalWorkspace()}
-							onLinkGoogleDrive={() => void linkGoogleDriveAtStartup()}
-							onCancelGoogleDriveLink={() => void cancelStartupLinkConflict()}
-							onLinkKeepLocal={() => void resolveStartupLink('local')}
-							onLinkUseRemote={() => void resolveStartupLink('remote')}
-							onRelinkGoogleDrive={() => void relinkBrokenGoogleDriveAtStartup()}
-							onCancelLinkConflict={() => void cancelStartupLinkConflict()}
 						/>
 					{:else if startupState === 'recovery' && startupRecovery}
 						<LayoutStartupRecovery recovery={startupRecovery} onRetry={() => void startApp()} />

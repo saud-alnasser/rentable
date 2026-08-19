@@ -6,8 +6,7 @@ import { get } from 'svelte/store';
 
 import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
 import { bindingOf } from '$lib/design/tests/testing.ts';
-import type { GoogleDriveSyncOutcome } from '$lib/platform/host.ts';
-import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
+import { fakeSyncState } from '$lib/platform/tests/testing.ts';
 
 // The declarations live beside the query hooks, which reach `.svelte` files this harness
 // cannot load. Substituting the three dependencies leaves the declaration itself real: the
@@ -35,21 +34,16 @@ mock.module('svelte-sonner', {
 	exports: { toast: { success: () => {}, error: () => {}, dismiss: () => {} } }
 });
 
-// the remote is the one thing that cannot be real here: it is a process boundary. What it
-// reports is all the sync path reads, so the pull below is the pull the application takes.
-let remoteOutcome: GoogleDriveSyncOutcome = {
-	state: fakeSyncState(),
-	action: 'none',
-	preparation: null
-};
+// the remote is the one thing that cannot be real here: it is a process boundary, and what it
+// reports is all the sync path reads.
+const remoteState = { state: fakeSyncState() };
 
 mock.module('$lib/platform/tauri', {
 	exports: {
 		tauri: {
 			remoteSync: {
-				getState: async () => remoteOutcome.state,
-				autosaveNow: async () => remoteOutcome.state,
-				googleDrive: { sync: async () => remoteOutcome }
+				getState: async () => remoteState.state,
+				autosaveNow: async () => remoteState.state
 			}
 		}
 	}
@@ -75,7 +69,6 @@ const {
 } = await import('$lib/contract/query');
 const { getContractRenewalTerm } = await import('$lib/contract/renewal');
 const { useCreatePayment, useDeletePayment } = await import('$lib/payment/query');
-const { syncWorkspaceNow } = await import('$lib/sync/workspace');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { LL, setLocale } = await import('$lib/i18n/i18n-svelte');
 
@@ -414,32 +407,6 @@ describe('undoing a record change', () => {
 		assert.equal(inverseStack.undoable?.describe(translations), 'restoring contract');
 	});
 
-	it('cannot apply a set-shaped inverse once the remote has replaced the workspace', async () => {
-		const linked = fakeSyncState({
-			googleDriveReady: true,
-			workspace: fakeWorkspace({ accountId: 'account' })
-		});
-		const tenant = await seedTenant(caller);
-		const contract = await run(useCreateContract, {
-			tenantId: tenant.id,
-			start: monthsFromNow(-1),
-			end: monthsFromNow(11),
-			interval: '12m',
-			cost: 1000
-		});
-		const complex = await caller.complex.create({ name: 'Coral Tower', location: 'Jeddah' });
-		const unit = await caller.complex.units.create({ name: 'A1', complexId: complex.id });
-
-		await run(useSetContractUnits, { contractId: contract.id, unitIds: [unit.id] });
-		await run(useTerminateContract, contract.id);
-
-		remoteOutcome = { state: linked, action: 'pulled', preparation: null };
-		await syncWorkspaceNow(linked);
-
-		assert.equal(inverseStack.undoable, null);
-		assert.equal(await inverseStack.undo(), null);
-	});
-
 	// a complex created with its units is the one creation whose inverse is not a single
 	// delete: a complex still holding units refuses to be deleted.
 	it('takes back a complex created with its units, and puts them all back', async () => {
@@ -458,33 +425,6 @@ describe('undoing a record change', () => {
 		assert.deepEqual(
 			(await caller.complex.units.getMany({ complexId: complex.id })).map((unit) => unit.id),
 			complex.units.map((unit) => unit.id)
-		);
-	});
-
-	// the risk this whole design carries: an inverse is a statement about a database, and the
-	// remote can replace that database underneath the running session.
-	it('can apply nothing once the remote has replaced the workspace', async () => {
-		const linked = fakeSyncState({
-			googleDriveReady: true,
-			workspace: fakeWorkspace({ accountId: 'account' })
-		});
-
-		const tenant = await run(useCreateTenant, {
-			name: 'Sara',
-			nationalId: '1234567890',
-			phone: '+966551234567'
-		});
-
-		assert.ok(inverseStack.undoable, 'the creation left nothing to take back');
-
-		remoteOutcome = { state: linked, action: 'pulled', preparation: null };
-		await syncWorkspaceNow(linked);
-
-		assert.equal(inverseStack.undoable, null);
-		assert.equal(await inverseStack.undo(), null);
-		assert.ok(
-			await caller.tenant.get({ id: tenant.id }),
-			'the row is expected to survive: nothing was undone, the stack was emptied'
 		);
 	});
 

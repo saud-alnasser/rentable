@@ -1,53 +1,65 @@
 import { tauri } from '$lib/platform/tauri';
 import {
-	emitGoogleDriveAutosyncResult,
-	listenForGoogleDriveAutosyncRequests,
-	type GoogleDriveAutosyncRequest,
-	type GoogleDriveAutosyncResult
+	emitWorkspaceSyncResult,
+	listenForWorkspaceSyncRequests,
+	type WorkspaceSyncRequest,
+	type WorkspaceSyncEventResult
 } from '$lib/sync/event';
-import { syncWorkspaceRemoteNow } from '$lib/sync/workspace';
+import { syncWorkspaceNow } from '$lib/sync/workspace';
 import { toErrorText } from '$lib/error/message';
 import { toTauriErrorCode } from '$lib/error/tauri';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { get } from 'svelte/store';
 
-const AUTOSYNC_DEBOUNCE_MS = 20_000;
+const SYNC_DEBOUNCE_MS = 20_000;
 const INITIAL_RETRY_MS = 15_000;
 const MAX_RETRY_MS = 15 * 60_000;
 
 /**
- * the failures no amount of waiting settles. Each ends when someone acts, not
- * when a retry succeeds: the account has to be linked again, the file is not
- * this application's to write, the bytes disagree with what the index claims of
- * them, or another machine holds the workspace. A sync merely needing the
- * user's decision is not among them — that comes back as a preparation rather
- * than a failure, and never reaches here.
+ * the failures no amount of waiting settles. Each ends when someone acts, not when a retry
+ * succeeds.
+ *
+ * *It named four Drive failures — the account needing to be linked again, a file this
+ * application may not write, bytes disagreeing with the index, and another machine holding the
+ * workspace. What reaches here now is the control-plane reach, and a refusal from it is
+ * `preconditionFailed`: the session was declined rather than missed, and retrying against a
+ * decision is how a client asks the same question forever.*
  */
-const SETTLED_WITHOUT_RETRY = new Set(['preconditionFailed', 'forbidden', 'integrity', 'busy']);
+const SETTLED_WITHOUT_RETRY = new Set(['preconditionFailed', 'forbidden', 'busy']);
 
 function shouldRetryAfter(error: unknown) {
 	const code = toTauriErrorCode(error);
 	return code === null || !SETTLED_WITHOUT_RETRY.has(code);
 }
 
-export function startGoogleDriveAutosyncManager(input: {
-	onResult?: (detail: GoogleDriveAutosyncResult) => Promise<void> | void;
+/**
+ * keep this machine's window open, on a timer and whenever the network comes back.
+ *
+ * **This was the Drive autosync manager and it schedules the same way**, because what it
+ * schedules is the same shape: work that must be coalesced, must not overlap itself, and must
+ * be retried on a widening delay while the reason for failing is one that time can settle.
+ * What it dispatches is no longer a push — a replica pushes its own writes — but the reach at
+ * the control plane that renews the session, which requirement 15 needs to happen without
+ * anybody thinking about it.
+ */
+export function startWorkspaceSyncManager(input: {
+	onResult?: (detail: WorkspaceSyncEventResult) => Promise<void> | void;
 }) {
 	let timer: number | null = null;
 	let isRunning = false;
 	let shouldRunAgain = false;
 	let retryDelayMs = INITIAL_RETRY_MS;
 
-	const schedule = (request: GoogleDriveAutosyncRequest = {}) => {
+	const schedule = (request: WorkspaceSyncRequest = {}) => {
 		if (timer !== null) {
 			window.clearTimeout(timer);
 		}
 
-		timer = window.setTimeout(() => void run(), request.immediate ? 0 : AUTOSYNC_DEBOUNCE_MS);
+		timer = window.setTimeout(() => void run(), request.immediate ? 0 : SYNC_DEBOUNCE_MS);
 	};
 
-	const handleResult = async (detail: GoogleDriveAutosyncResult) => {
-		emitGoogleDriveAutosyncResult(detail);
+	const handleResult = async (detail: WorkspaceSyncEventResult) => {
+		emitWorkspaceSyncResult(detail);
 		await input.onResult?.(detail);
 	};
 
@@ -65,7 +77,7 @@ export function startGoogleDriveAutosyncManager(input: {
 		isRunning = true;
 
 		try {
-			const result = await syncWorkspaceRemoteNow();
+			const result = await syncWorkspaceNow();
 			retryDelayMs = INITIAL_RETRY_MS;
 			await handleResult({ action: result.action, errorMessage: null });
 		} catch (error) {
@@ -88,9 +100,7 @@ export function startGoogleDriveAutosyncManager(input: {
 		}
 	};
 
-	const stopListeningForRequests = listenForGoogleDriveAutosyncRequests((detail) =>
-		schedule(detail)
-	);
+	const stopListeningForRequests = listenForWorkspaceSyncRequests((detail) => schedule(detail));
 	const handleOnline = () => schedule({ immediate: true, reason: 'online' });
 	window.addEventListener('online', handleOnline);
 

@@ -1,17 +1,20 @@
 ---
-aep: 2.5.1
+aep: 2.6.0
 owner: repository
-date: 2026-08-18
+date: 2026-08-19
 kind: context
 use-when: "a term, boundary, or constraint about this repository is in question, before reaching for a narrower context"
 ---
 
 # Context — rentable
 
-An offline-first desktop tracker for rents payments — one bilingual application, one local
-SQLite database, one optional Google Drive backup. Every layer, including the one shaped
+An offline-first desktop tracker for rents payments — one bilingual application, one workspace,
+held locally as a replica of a database the service keeps. Every layer, including the one shaped
 like a backend, runs inside the desktop app. A Tauri 2 (Rust) shell around a SvelteKit 2 /
 Svelte 5 frontend.
+
+*It read "one local SQLite database, one optional Google Drive backup" until 2026-08-19. Drive
+sync retired (#554) and the record of truth moved.*
 
 ## Where the application is
 
@@ -81,12 +84,14 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   is in the credential path only. The property the old boundary was protecting therefore survives
   the premise that stated it, which is why this is superseded in place rather than footnoted: a
   reader who takes "never HTTP" at face value builds against a sentence rather than a rule.
-- **Credentials never cross the IPC boundary.** Google Drive HTTP and OAuth belong in Rust,
-  and there is no longer a second place they could be: no Drive network code remains in
-  TypeScript, and no command hands the web layer the client secret or a refresh token. The
-  surface is six coarse operations — link, cancel a link, unlink, sync, inspect, resolve a
-  conflict — and the web layer observes them rather than sequencing anything behind them.
-  What binds a change is [[rules/drive]], under *Client boundary*.
+- **Credentials never cross the IPC boundary.** Every network call that spends one is Rust's —
+  Google's OAuth and profile read, and the control plane's — and no command hands the web layer a
+  client secret, a refresh token or a session token. The surface is coarse operations the web
+  layer observes rather than sequences: signing in, signing out, and reaching the control plane.
+  What binds a change is [[rules/credentials]], under *Client boundary*.
+
+  *It read "Google Drive HTTP and OAuth" over six operations — link, cancel a link, unlink, sync,
+  inspect, resolve a conflict — until Drive sync retired (#554, 2026-08-19).*
 - **Diagnostics are written locally, bounded, and stripped of recognised credentials.**
   Nothing collects diagnostics anywhere — not even for a hosted workspace, whose control-plane
   API is in the credential path and nothing else — so events go to a rotating file the user can
@@ -139,5 +144,5 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 | contracts, payments, unit assignments, derived status | [[contexts/desktop/contract]] |
 | schema, migrations, how queries reach SQLite | [[contexts/desktop/persistence]] |
 | complexes and units | [[contexts/desktop/property]] |
-| backup, Google Drive, linking, conflicts | [[contexts/desktop/remote-sync]] |
+| signing in, the session a workspace replicates under, local backup | [[contexts/desktop/remote-sync]] |
 | tenants, identity, phone numbers | [[contexts/desktop/tenant]] |

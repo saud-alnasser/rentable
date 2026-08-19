@@ -1,4 +1,4 @@
-import { requestGoogleDriveAutosync } from '$lib/sync/event';
+import { requestWorkspaceSync } from '$lib/sync/event';
 import { initTRPC } from '@trpc/server';
 import { ZodError } from 'zod';
 import { context } from './context';
@@ -65,18 +65,18 @@ export const middleware = {
 
 		return result;
 	}),
-	scheduleGoogleDriveAutosync: t.middleware(async ({ next }) => {
+	scheduleWorkspaceSync: t.middleware(async ({ next }) => {
 		const result = await next();
 
 		if (result.ok) {
-			requestGoogleDriveAutosync();
+			requestWorkspaceSync();
 		}
 
 		return result;
 	})
 };
 
-export const autosync = () => middleware.scheduleGoogleDriveAutosync;
+export const autosync = () => middleware.scheduleWorkspaceSync;
 
 /**
  * PROCEDURES

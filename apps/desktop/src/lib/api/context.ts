@@ -80,11 +80,11 @@ const systemClock: Clock = {
 /**
  * who the shell says is acting, or nobody.
  *
- * **It reads who is signed in, not which folder is linked.** It used to resolve through
- * `workspace.accountId`, whose only writer in the tree is `link_workspace_to_google_drive` — so
- * it could answer only for a workspace linked to a Drive folder, and answered nothing for the
- * ordinary signed-in machine. `signedInAccount` reads the account rows instead, and is the same
- * read the sign-in wall admits on, so the two cannot come to disagree about who is here.
+ * **It reads who is signed in.** It used to resolve through `workspace.accountId`, which only a
+ * Google Drive link ever wrote — so it could answer only for a workspace linked to a folder, and
+ * answered nothing for the ordinary signed-in machine. Drive sync retired and the field went with
+ * it; `signedInAccount` reads the account rows, which is the same read the sign-in wall admits
+ * on, so the two cannot come to disagree about who is here.
  *
  * A shell that cannot be reached answers nobody rather than throwing here. The refusal belongs
  * to the caller below, which states it once for both ways of having no acting user: a client

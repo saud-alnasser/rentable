@@ -12,7 +12,7 @@ A workspace is a file on one machine, and the application has never asked who is
 
 The database is local SQLite and it is of record. The only way a workspace reaches a second
 machine is a Google Drive exchange of whole-file snapshots, resolved when the two sides
-disagree by choosing a side ([[rules/drive]], under *Concurrency*). The request context carries a
+disagree by choosing a side ([[rules/credentials]], under *Concurrency*). The request context carries a
 database, a clock and a host and nothing else (`src/lib/api/context.ts:36`); the schema has no
 user table and no ownership column anywhere.
 
@@ -20,7 +20,7 @@ user table and no ownership column anywhere.
 2026-08-17, and it matters: `RemoteSyncAccount` already carries an `id`, `email`, `display_name`,
 `avatar_url`, `provider_user_id`, `token_expires_at` and `refresh_token_available`, and
 `tauri/src/sync/google/auth.rs` implements OAuth 2 with PKCE and refresh behind the credential
-boundary [[rules/drive]], under *Client boundary*, describes. So identity is **not** built from nothing —
+boundary [[rules/credentials]], under *Client boundary*, describes. So identity is **not** built from nothing —
 there is a working sign-in flow, an account shape, and a place credentials already live safely.
 What is genuinely absent is identity reaching the *domain*: the schema and the request context.
 
@@ -766,7 +766,7 @@ its replacement.*
   application out, or discontinues the sync product takes every user's workspace with it. The
   *Open Questions* entry on an exit route is where this stops being a shrug.
 - **Rust remains present on the desktop client.** Credential handling assumes it
-  ([[rules/drive]], under *Client boundary*), and as of 2026-08-19 **so does the sync engine** — it
+  ([[rules/credentials]], under *Client boundary*), and as of 2026-08-19 **so does the sync engine** — it
   runs in the Rust layer behind the existing `db_execute_*` commands. A browser client would have
   neither, which is why that is an open question rather than an assumption.
 - **The Rust crate behaves as the npm binding did.** *Added 2026-08-19.* Every measurement in
@@ -786,7 +786,7 @@ its replacement.*
 # Open Questions
 
 - **Where does a workspace credential live on a client with no Rust process?**
-  [[rules/drive]], under *Client boundary*, puts credentials in Rust and says there is no second
+  [[rules/credentials]], under *Client boundary*, puts credentials in Rust and says there is no second
   place they could be. A browser client has no Rust at all. Nothing here requires answering it for
   a browser client that is not being built — but the seam has to admit an answer.
 
@@ -1992,7 +1992,7 @@ which artifact delivers it.
 
 | | Advantages | Disadvantages | Risks | Maintenance |
 | --- | --- | --- | --- | --- |
-| **A — the `turso` crate in Rust** *(chosen)* | Coexists with `sqlx` — **demonstrated, not inferred**: both link into one binary and run, reporting SQLite 3.51.3 and 3.50.4 from one process. Deferred open and token rotation are **named builder methods** with in-crate tests, where JavaScript had a callback convention. Credentials never cross IPC, which is where [[rules/drive]] already puts them | Two row mappings in `proxy.rs` that must agree, with nothing forcing them to. +154 crates. `simsimd` is a non-optional C dependency of `turso_core` on every desktop target | Every one of decision 11's measurements was taken through the NAPI binding; none has been re-run through the Rust API. Same engine, so they are expected to carry — **inference, not observation** | One more arm on every method of `Database` |
+| **A — the `turso` crate in Rust** *(chosen)* | Coexists with `sqlx` — **demonstrated, not inferred**: both link into one binary and run, reporting SQLite 3.51.3 and 3.50.4 from one process. Deferred open and token rotation are **named builder methods** with in-crate tests, where JavaScript had a callback convention. Credentials never cross IPC, which is where [[rules/credentials]] already puts them | Two row mappings in `proxy.rs` that must agree, with nothing forcing them to. +154 crates. `simsimd` is a non-optional C dependency of `turso_core` on every desktop target | Every one of decision 11's measurements was taken through the NAPI binding; none has been re-run through the Rust API. Same engine, so they are expected to carry — **inference, not observation** | One more arm on every method of `Database` |
 | **B — `@tursodatabase/sync-wasm`** | Published, identical surface, one import specifier different. Runs in the WebView with no Node | **Moves where the replica's files live**, away from the `localDatabasePath` Rust owns — and the engine writes six sidecars beside the database. Credentials would cross IPC into the web layer | Puts the record of truth inside a WebView's storage, which is not a place this repository has ever kept one | A second place files live, forever |
 | **C — a Node sidecar** | Runs the validated npm package unchanged, so decision 11's evidence carries exactly | A third process to ship, supervise, and **sign per platform**. Doubles the installer's moving parts | A supervised child process is a whole class of failure this application does not currently have | Highest of the three |
 | **D — `sqlx` on turso's C-ABI shim** | Dissolves the two-engine problem entirely: one engine, one file, one mapping | The enabling symbols are **no-op stubs** (`update_hook`, `commit_hook`, `rollback_hook` return NULL). `PRAGMA foreign_keys` is **intercepted and answered with `SELECT 1`** rather than enforced — its own author flags it temporary. The shim is **not published on crates.io** | Foreign keys answered rather than enforced, on a payments ledger | Building a cdylib out of the vendor's repository |
@@ -2446,7 +2446,7 @@ refuses to accept it as a sync route.
 **Question.** A hosted remote of record makes Drive redundant as a sync mechanism while leaving
 it plausible as a user-owned backup. Whether it survives, becomes an export path, or is retired
 decides the fate of a large and carefully-built Rust surface — the manifest, conflict analysis,
-retention, the link session — and of [[rules/drive]] entire, every section of it —
+retention, the link session — and of [[rules/credentials]] entire, every section of it —
 *Client boundary*, *Concurrency*, and *Transport testing* — and of [[contexts/desktop/remote-sync]] with
 it. Requirement 12 is that the answer is executed, not merely reached.
 
@@ -2537,7 +2537,7 @@ manifest, conflict analysis, retention, the link session, and the Drive transpor
    ordering is not optional: signing in happens *inside* `remoteSync.googleDrive.link()` today, so
    deleting the link session before the extraction takes identity with it. #543 is the extraction
    and it is now a prerequisite for the deletion rather than a tidy-up beside it.
-2. **[[rules/drive]] is superseded, not scoped.** *Concurrency* and *Transport testing* describe a
+2. **[[rules/credentials]] is superseded, not scoped.** *Concurrency* and *Transport testing* describe a
    transport that will not exist; they go with it, with their reasoning recorded as retired rather
    than silently dropped. ***Client boundary* does not go** — decision 09 widened it from Drive's
    credentials to every credential this application holds, and a workspace sync token is one. It
@@ -2623,7 +2623,7 @@ simply have no meaning there.
 **Sharpened 2026-08-17.** Sign-in is now Google OAuth executed in Rust, so *authentication itself*
 joins the list of things a browser client has no host for — and it is the one capability a
 browser client cannot simply do without. This does not have to be solved here, but 08 now has to
-say what the seam admits, because *Client boundary* in [[rules/drive]] — "credentials belong in Rust
+say what the seam admits, because *Client boundary* in [[rules/credentials]] — "credentials belong in Rust
 and there is no second place they could be" — was written when no browser client was contemplated.
 
 ### The capability inventory *(worked 2026-08-17)*
@@ -2707,8 +2707,8 @@ true under a remote of record, or is superseded here with its reasoning stated a
 | [[rules/data]], under *List reads* | whole result sets, argued from "there is no server" — and Turso bills rows *scanned* |
 | [[rules/data]], under *Query cache* | `staleTime: Infinity`, argued from three enumerable writers and no unseen one |
 | [[rules/data]], under *Undo* | a session stack of inverses, argued from a workspace being one syncable unit resolved by choosing a side |
-| [[rules/drive]], under *Concurrency* | concurrency detected rather than prevented, argued from Drive offering no compare-and-set |
-| [[rules/drive]], under *Client boundary* | credentials in Rust, which a browser client does not have |
+| [[rules/credentials]], under *Concurrency* | concurrency detected rather than prevented, argued from Drive offering no compare-and-set |
+| [[rules/credentials]], under *Client boundary* | credentials in Rust, which a browser client does not have |
 | [[rules/api-layer]] | no repository layer — routers reach the database directly |
 | [[rules/data]], under *Reconcile scope* | reconcile scoped by trigger, priced by decision 01 at one round trip per changed row |
 | [[rules/api-layer]], under *One database client type* | one client type over two function types, which holds only if the chosen client can be driven through that seam — decision 11 is what tells us |
@@ -2774,9 +2774,9 @@ this decision exists to prevent.
 | [[rules/data]], *Undo* | **Holds, and costs one code change in hosted mode** | a named exception |
 | [[rules/data]], *Reconcile scope* | **Holds unchanged**; decision 01's pricing of it is superseded by the replica | nothing |
 | [[rules/data]], *Payment aggregates*, *Mutation declaration*, *Multi-table writes* | **Untouched.** None of the three ever rested on there being no server | nothing |
-| [[rules/drive]], *Client boundary* | **Holds, and generalises beyond Drive** — it outlives its file | moves |
-| [[rules/drive]], *Concurrency* | ~~Holds, scoped~~ **Retired with the transport it describes** *(2026-08-18)* | deleted, with its reasoning recorded |
-| [[rules/drive]], *Transport testing* | ~~Holds, scoped~~ **Retired the same way** *(2026-08-18)* | deleted, with its reasoning recorded |
+| [[rules/credentials]], *Client boundary* | **Holds, and generalises beyond Drive** — it outlives its file | moves |
+| [[rules/credentials]], *Concurrency* | ~~Holds, scoped~~ **Retired with the transport it describes** *(2026-08-18)* | deleted, with its reasoning recorded |
+| [[rules/credentials]], *Transport testing* | ~~Holds, scoped~~ **Retired the same way** *(2026-08-18)* | deleted, with its reasoning recorded |
 | [[rules/api-layer]], no repository layer | **Holds**, and it is what makes a third transport free | nothing |
 | [[rules/api-layer]], *One database client type* | **Holds, and the gate confirmed the thing it depended on** | one sentence |
 | [[contexts/repository]], first Boundary | **Superseded** — the only outright supersession on this map | rewritten |
@@ -2836,7 +2836,7 @@ this application holds rather than Drive's alone. A workspace sync token is a cr
 lives on the same side of the same boundary for the same reason — the credential boundary and the
 network boundary have to be the same boundary. *(A client with no Rust is decision 08's inventory,
 and is not this effort's to build.)* **It therefore outlives the file it is in**: decision 07
-retires the rest of [[rules/drive]], and this section moves rather than going with it.
+retires the rest of [[rules/credentials]], and this section moves rather than going with it.
 
 **Drive, *Concurrency* and *Transport testing*.** ~~Both hold and both are scoped to
 local-workspace Drive sync.~~ **Retired 2026-08-18 with the transport they describe**, after the
@@ -2996,7 +2996,7 @@ What the answer has to settle:
 - **What happens to a Drive link the workspace already had.** Existing installs may be linked,
   and after conversion the workspace's record of truth is somewhere Drive knows nothing about.
   Leaving both running means two sync mechanisms writing one workspace, which is the shape
-  [[rules/drive]], under *Concurrency*, exists to reason about and was never designed to survive.
+  [[rules/credentials]], under *Concurrency*, exists to reason about and was never designed to survive.
 - **Whether it is interruptible and what a half-finished conversion leaves behind.** It needs a
   network by definition, and the user running it is the one most likely to have a bad one.
 - **What it costs to reverse**, which is the open question about one-way conversion. The answer
@@ -3061,7 +3061,7 @@ user's, and retiring the mechanism does not delete them.
 
 *What this clause used to say, kept because the reasoning is the reason the ordering matters:* the
 conversion unlinked Drive deliberately and visibly, because leaving both running would put two
-sync mechanisms on one workspace — the shape [[rules/drive]], under *Concurrency*, was never
+sync mechanisms on one workspace — the shape [[rules/credentials]], under *Concurrency*, was never
 designed to survive. **Retirement makes the problem not arise rather than solving it**, which is
 the cheapest form of an answer and worth noticing as a second, unadvertised gain of the
 reversal.
