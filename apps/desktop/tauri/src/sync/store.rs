@@ -16,8 +16,11 @@ use crate::{
 };
 
 use super::{
-    google::auth::google_oauth_client_id, google::transport::GoogleDriveSyncCompleteInput,
-    lock::GoogleDriveSyncLock, session::GoogleSignInSession,
+    control::{SessionWindow, control_plane_url},
+    google::auth::google_oauth_client_id,
+    google::transport::GoogleDriveSyncCompleteInput,
+    lock::GoogleDriveSyncLock,
+    session::GoogleSignInSession,
 };
 
 pub struct RemoteSync {
@@ -119,6 +122,13 @@ pub struct RemoteSyncStore {
     pub workspace: RemoteSyncWorkspace,
     pub startup_prompt_enabled: bool,
     pub device_id: String,
+    /// how much longer this machine may go on replicating (#550).
+    ///
+    /// **Persisted rather than held for the run of the process**, which is the whole of what
+    /// requirement 15 asks for: a signed-in client works offline for *three days*, and a window
+    /// that started again at every launch would be a window measured in one sitting. Absent on
+    /// every machine that has not signed in to a control plane, which today is all of them.
+    pub control_plane_session: Option<SessionWindow>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -128,6 +138,16 @@ pub struct RemoteSyncState {
     pub workspace: RemoteSyncWorkspace,
     pub startup_prompt_enabled: bool,
     pub google_drive_ready: bool,
+    /// whether this build was told where a control plane is. Reported for the same reason
+    /// `google_drive_ready` is: a capability the caller can see, rather than one it discovers
+    /// by a call failing.
+    pub control_plane_ready: bool,
+    /// the window, and **never the token that goes with it** (#550).
+    ///
+    /// Two moments cross the boundary and the credential does not. They are facts *about* a
+    /// credential rather than one, exactly as `RemoteSyncAccount::token_expires_at` already is,
+    /// and the side that decides whether to keep replicating cannot do so without them.
+    pub session: Option<SessionWindow>,
     pub device_id: String,
 }
 
@@ -138,6 +158,7 @@ impl Default for RemoteSyncStore {
             workspace: RemoteSyncWorkspace::default(),
             startup_prompt_enabled: true,
             device_id: String::new(),
+            control_plane_session: None,
         }
     }
 }
@@ -197,6 +218,16 @@ impl Persistable for RemoteSyncStore {
         }
 
         self.accounts.retain(|account| !account.id.is_empty());
+
+        // A window naming no account cannot be signed out of and cannot be renewed, so it is
+        // not a window — it is a row nothing can act on, and keeping it would leave a hosted
+        // workspace asking for a sign-in it had no way to complete.
+        if let Some(session) = self.control_plane_session.as_mut() {
+            session.account_id = sanitize_string(&session.account_id);
+        }
+
+        self.control_plane_session
+            .take_if(|session| session.account_id.is_empty() || session.expires_at <= 0);
     }
 }
 
@@ -397,6 +428,8 @@ impl RemoteSync {
             workspace: self.store.workspace.clone(),
             startup_prompt_enabled: self.store.startup_prompt_enabled,
             google_drive_ready: google_oauth_client_id().is_some(),
+            control_plane_ready: control_plane_url().is_some(),
+            session: self.store.control_plane_session.clone(),
             device_id: self.store.device_id.clone(),
         }
     }

@@ -4,7 +4,12 @@ export type GoogleDriveAutosyncRequest = {
 };
 
 export type GoogleDriveAutosyncResult = {
-	action: 'none' | 'pushed' | 'pulled' | 'error';
+	/**
+	 * `signInRequired` is a hosted workspace's three-day window having closed with no contact
+	 * (#550). It is listed beside `error` and is not one: nothing failed, and a retry settles it
+	 * only in the sense that reaching the control plane is exactly what renews the session.
+	 */
+	action: 'none' | 'pushed' | 'pulled' | 'signInRequired' | 'error';
 	errorMessage: string | null;
 };
 

@@ -8,8 +8,18 @@ import {
 	type RemoteSyncWorkspace
 } from '$lib/platform/tauri';
 import { enqueueGoogleDriveOperation } from '$lib/sync/queue';
+import { workspaceReplicationStanding } from '$lib/sync/session';
 
-export type WorkspaceSyncAction = GoogleDriveSyncAction | 'autosaved';
+/**
+ * what a dispatch did, or declined to do.
+ *
+ * `signInRequired` is the third kind and it is neither a success nor a failure: the workspace is
+ * of record somewhere else, the three-day window closed with no contact, and replication is off
+ * until somebody signs in again. It is an *answer* rather than a thrown error because nothing
+ * went wrong — waiting does not settle it and retrying does not either, so a caller that treated
+ * it as a failure would retry forever and say nothing useful.
+ */
+export type WorkspaceSyncAction = GoogleDriveSyncAction | 'autosaved' | 'signInRequired';
 
 export type WorkspaceSyncResult = {
 	state: RemoteSyncState;
@@ -18,8 +28,36 @@ export type WorkspaceSyncResult = {
 };
 
 export type WorkspaceRemoteSyncResult = Omit<WorkspaceSyncResult, 'action'> & {
-	action: GoogleDriveSyncAction;
+	action: GoogleDriveSyncAction | 'signInRequired';
 };
+
+/**
+ * what a hosted workspace's dispatch amounts to, after trying to renew.
+ *
+ * **Renewing first is what makes *any connection inside the window renews it* a thing the
+ * application does** rather than a thing the control plane would do if anybody called it. This
+ * runs on every dispatch, and the autosync manager already schedules those on a timer and on the
+ * machine coming back online — so a client that is doing anything at all stays signed in without
+ * anybody thinking about it. Being offline is not a failure: the window stays where it was and
+ * this goes on to read it.
+ *
+ * One reading, used by both dispatchers, so the two cannot answer the window differently.
+ * Nothing is written, nothing is snapshotted and nothing is cleared on either side of the
+ * branch — an expiry that cost somebody an unsynced write would be the failure this ticket's
+ * third criterion exists to catch.
+ */
+async function hostedOutcome(syncState: RemoteSyncState): Promise<WorkspaceSyncResult> {
+	// A renewal that could not happen leaves the state exactly as it was, so the fallback is the
+	// state this dispatch was given rather than an error path.
+	const renewed = await tauri.remoteSync.renewSession().catch(() => syncState);
+	const standing = workspaceReplicationStanding(renewed);
+
+	return {
+		state: renewed,
+		action: standing.kind === 'signInRequired' ? 'signInRequired' : 'none',
+		preparation: null
+	};
+}
 
 export function getWorkspaceFromSyncState(
 	syncState?: RemoteSyncState | null
@@ -98,6 +136,15 @@ export async function syncWorkspaceNow(
 	// nothing for the dispatcher to do — the transport that makes that true is #548, and until
 	// it lands this branch is what a hosted workspace gets: nothing, said explicitly, rather
 	// than a Drive sync it has no account for.
+	//
+	// What it does answer for is the window (#550). Past three days with no contact the session
+	// is gone and replication stops until somebody signs in again — and the workspace is left
+	// exactly as it is, because the refusal is a decision not to send rather than anything done
+	// to what is here.
+	if (workspace.provider === 'hosted') {
+		return await hostedOutcome(syncState);
+	}
+
 	if (workspace.provider !== 'googleDrive' || !syncState.googleDriveReady) {
 		return { state: syncState, action: 'none', preparation: null };
 	}
@@ -146,9 +193,12 @@ export async function syncWorkspaceBeforeExit(
 		return { state, action: 'autosaved', preparation: null };
 	}
 
-	// hosted, or Drive with the account not ready. Neither takes a local snapshot: the first
-	// has its record of truth elsewhere already, and the second is waiting on a credential
-	// rather than on a copy.
+	if (workspace.provider === 'hosted') {
+		return await hostedOutcome(syncState);
+	}
+
+	// Drive with the account not ready. It takes no local snapshot: it is waiting on a
+	// credential rather than on a copy.
 	return { state: syncState, action: 'none', preparation: null };
 }
 

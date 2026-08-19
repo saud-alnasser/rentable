@@ -23,6 +23,7 @@
 	import { LinkSession } from '$lib/sync/link-session.svelte';
 	import { pendingConflict } from '$lib/sync/pending-conflict.svelte';
 	import SonnerProvider from '$lib/design/provider/sonner.svelte';
+	import { toast } from 'svelte-sonner';
 	import { toErrorText } from '$lib/error/message';
 	import LL, { locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
@@ -424,7 +425,15 @@
 					queryClient.setQueryData(settingsKeys.remoteSync, state);
 				}
 
-				if (detail.action === 'pulled') {
+				// The window closed with no contact, so replication has stopped and the workspace is
+				// otherwise untouched — nothing recorded during it was discarded, which is what the
+				// sentence says as well as what the code does. It is raised here rather than left to
+				// the arms below because it is the one outcome the user has to act on, and an
+				// invalidation is not an answer to it.
+				if (detail.action === 'signInRequired') {
+					toast.error($LL.settingsHooks.sessionExpired());
+					await queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync });
+				} else if (detail.action === 'pulled') {
 					await invalidateRoot(queryClient);
 				} else if (
 					detail.action === 'pushed' ||

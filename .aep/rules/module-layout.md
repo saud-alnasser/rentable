@@ -1,7 +1,7 @@
 ---
 aep: 2.5.1
 owner: repository
-date: 2026-08-18
+date: 2026-08-19
 kind: rule
 mode: [prototype]
 paths:
@@ -30,9 +30,10 @@ descriptive names over abbreviations.
 
 **`apps/control-plane/src/` joined the paths above on 2026-08-18 with #549**, and the sections
 on Rust and on prototype code cover nothing in it. Everything else does. It was flat for two
-tickets and is grouped by concept since #560 — `account/`, `database/`, `server/`, `workspace/`,
-with the entrypoint and the refusal vocabulary left at the root because they belong to no one
-concept.
+tickets and is grouped by concept since #560 — `account/`, `database/`, `server/`, `session/`,
+`workspace/`, with the entrypoint and the refusal vocabulary left at the root because they belong
+to no one concept. *`session/` arrived with #550, which is what made the three-day window a
+credential the control plane issues rather than a flag a client sets.*
 
 A module name states a concept, so these names are not available:
 

@@ -18,6 +18,7 @@ import { inverseStack } from '$lib/design/inverse';
 import { keys as dashboardKeys } from '$lib/dashboard/query';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import { toast } from 'svelte-sonner';
 import { get } from 'svelte/store';
 
 export const keys = {
@@ -398,7 +399,13 @@ export function useSyncGoogleDriveWorkspace(
 			}
 
 			if (!('preparation' in result) || !result.preparation) {
-				if (result.action === 'none') {
+				// The user pressed Sync on a workspace whose window has closed. It is not a
+				// success and it is not a failure — nothing went wrong and nothing was lost —
+				// so it is neither of the two toasts below but the sentence naming the one
+				// thing they can do about it.
+				if (result.action === 'signInRequired') {
+					toast.error(get(LL).settingsHooks.sessionExpired());
+				} else if (result.action === 'none') {
 					onMutationSuccess({
 						toast: {
 							success: () => get(LL).settingsHooks.googleDriveAlreadyUpToDate()

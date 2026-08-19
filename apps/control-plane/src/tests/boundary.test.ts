@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
  * Testing it route by route would only cover the routes somebody remembered to list, and the
  * failure this guards against arrives *with* a new route. So it is asserted structurally
  * instead: a domain row would have to come from a domain table in this database — which
- * `schema.test.ts` fixes at exactly three, none of them the domain's — or from a module
+ * `schema.test.ts` fixes at exactly four, none of them the domain's — or from a module
  * imported out of the desktop application, which is what this file forbids. There is nowhere
  * else it could come from.
  *
@@ -84,7 +84,11 @@ test('the control plane imports nothing out of the desktop application', async (
 
 // The other half of the same guard. A domain table declared anywhere in this package — not only
 // in schema.ts — would give a route something to return.
-test('no table is declared here but the three the control plane owns', async () => {
+//
+// *Four since #550, and the fourth is a credential rather than a record.* `session` holds a
+// digest, an account and a window; it describes no tenant, no contract and no payment, so the
+// property this test exists for is unchanged and only the number moved.
+test('no table is declared here but the four the control plane owns', async () => {
 	const declared = [];
 
 	for (const file of await filesUnder(source)) {
@@ -95,7 +99,7 @@ test('no table is declared here but the three the control plane owns', async () 
 		}
 	}
 
-	assert.deepEqual(declared.sort(), ['account', 'membership', 'workspace']);
+	assert.deepEqual(declared.sort(), ['account', 'membership', 'session', 'workspace']);
 });
 
 /**

@@ -129,11 +129,36 @@ export type RemoteSyncWorkspace = {
 
 export type RemoteSyncProfile = RemoteSyncWorkspace;
 
+/**
+ * how much longer this machine may go on replicating, as the control plane issued it.
+ *
+ * **The two moments cross and the token does not.** A session token is a bearer credential and
+ * stays behind the credential boundary in Rust; these are facts *about* a credential rather than
+ * one, exactly as `RemoteSyncAccount.tokenExpiresAt` already is — and the side that decides
+ * whether to keep replicating cannot decide without them.
+ *
+ * **Two, because they are started by different calls.** `expiresAt` is how much longer the
+ * control plane will renew this sign-in; `replicaExpiresAt` is how much longer the credential the
+ * replica actually syncs with lives. A refresh moves the first alone and a mint restarts both, so
+ * equal lengths do not make them one clock and the earlier of the two is what governs.
+ * `replicaExpiresAt` is `null` until something has minted one.
+ */
+export type SessionWindow = {
+	accountId: string;
+	expiresAt: number;
+	replicaExpiresAt: number | null;
+	updatedAt: number;
+};
+
 export type RemoteSyncState = {
 	accounts: RemoteSyncAccount[];
 	workspace: RemoteSyncWorkspace;
 	startupPromptEnabled: boolean;
 	googleDriveReady: boolean;
+	/** whether this build was told where a control plane is. A capability, reported like the one above. */
+	controlPlaneReady: boolean;
+	/** the window this machine holds, or nothing where it holds no session. */
+	session: SessionWindow | null;
 	deviceId: string;
 };
 
@@ -336,6 +361,15 @@ export type Host = {
 		getState: () => Promise<RemoteSyncState>;
 		snapshotNow: () => Promise<RemoteSyncState>;
 		autosaveNow: () => Promise<RemoteSyncState>;
+		/**
+		 * reach the control plane and restart the window, where there is one to restart.
+		 *
+		 * This is *reaching the API inside the window*, as a call the application makes. Being
+		 * offline is not a failure — the window stays where it was and the client goes on
+		 * replicating until it closes on its own. A control plane that **declines** to renew is
+		 * different: the session is given up, and the answer says so by carrying no window.
+		 */
+		renewSession: () => Promise<RemoteSyncState>;
 		googleDrive: {
 			/**
 			 * link this workspace to a google account, end to end. signs in first only

@@ -35,6 +35,7 @@ function shellReporting({
 			getState: async () => state,
 			snapshotNow: async () => state,
 			autosaveNow: async () => state,
+			renewSession: async () => state,
 			googleDrive: fakeHost().remoteSync.googleDrive
 		}
 	});

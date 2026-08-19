@@ -5,6 +5,12 @@ import { sql } from 'drizzle-orm';
 import { signInWithGoogle } from '../account/account.ts';
 import type { Database } from '../database/database.ts';
 import { MALFORMED, Refusal, refusalBody, UNAUTHENTICATED, UNAVAILABLE } from '../failure.ts';
+import {
+	looksLikeSessionToken,
+	resumeSession,
+	startSession,
+	type IssuedSession
+} from '../session/session.ts';
 import type { VerifyGoogleIdentity } from '../account/google.ts';
 import type { Account, Workspace } from '../database/schema.ts';
 import type { ConnectToWorkspaceDatabase } from '../workspace/migration.ts';
@@ -72,15 +78,29 @@ const wireWorkspace = (record: Workspace) => ({
 });
 
 /**
- * Who is asking.
+ * Who is asking, and how much longer they may keep asking.
  *
- * **The Google access token is the credential on every route that acts as somebody**, presented
- * the way a credential conventionally is. There is no session token yet — one is #550's, and
- * this is the thing it replaces — so identity is re-established from Google on each request. It
- * costs one round trip and it is honest: *Architecture* has the API in the credential path
- * continuously, and this is what that sentence buys.
+ * **Two credentials arrive on the same header and the prefix tells them apart** (#550). A Google
+ * access token is what somebody signs in with, and it buys a *session* — a token this control
+ * plane issued, good for three days, and renewed by the very act of being presented. Every route
+ * below therefore renews the session it was reached with, which is requirement 15's *any
+ * connection inside the window renews it*, implemented once here rather than remembered at each
+ * route.
+ *
+ * **The session is what replaces re-verifying with Google on every request**, which is what this
+ * function did until #550: a round trip to Google per request, so that a client which had signed
+ * in a minute ago proved it again. What it costs to stop is that a Google token revoked mid-window
+ * is not noticed until the session runs out — which is the same bound *Architecture* already
+ * accepts for removing somebody, and the reason it is three days and not thirty.
+ *
+ * A route reached with a Google token is still served: signing in *is* the identification, so a
+ * client whose first request is not `/account/sign-in` reaches the account it would have
+ * reached. It is not *given* a session by such a route — see {@link askingForASession}.
  */
-const asking = async (plane: ControlPlane, request: IncomingMessage): Promise<Account> => {
+const asking = async (
+	plane: ControlPlane,
+	request: IncomingMessage
+): Promise<{ account: Account; session: IssuedSession }> => {
 	const header = request.headers.authorization ?? '';
 	const [scheme, ...rest] = header.split(' ');
 	const token = rest.join(' ').trim();
@@ -89,12 +109,16 @@ const asking = async (plane: ControlPlane, request: IncomingMessage): Promise<Ac
 		throw new Refusal(UNAUTHENTICATED, 401, 'sign in with google before asking for this');
 	}
 
-	const identity = await plane.verifyIdentity(token);
+	const now = (plane.now ?? Date.now)();
 
-	// Signing in *is* the identification, so every route performs it rather than looking an
-	// account up: a person whose first request is not `/account/sign-in` still reaches the account
-	// they would have reached, and their profile is as fresh on one route as on another.
-	return signInWithGoogle(plane.db, identity, (plane.now ?? Date.now)());
+	if (looksLikeSessionToken(token)) {
+		return await resumeSession(plane.db, token, now);
+	}
+
+	const identity = await plane.verifyIdentity(token);
+	const account = await signInWithGoogle(plane.db, identity, now);
+
+	return { account, session: await startSession(plane.db, account.id, now) };
 };
 
 const readJsonBody = async (request: IncomingMessage): Promise<Record<string, unknown>> => {
@@ -125,8 +149,45 @@ const readJsonBody = async (request: IncomingMessage): Promise<Record<string, un
 	}
 };
 
-const signIn = async (plane: ControlPlane, request: IncomingMessage, response: ServerResponse) => {
-	json(response, 200, { account: wireAccount(await asking(plane, request)) });
+/**
+ * a session as it goes over the wire.
+ *
+ * The expiry rides with the token because the client needs it to know when to stop trying and
+ * say what to do. **It is not what enforces the window** — this process refuses a token past its
+ * moment whatever the client believes about it — which is why the client is given the number
+ * rather than trusted to keep one.
+ */
+const wireSession = (issued: IssuedSession) => ({
+	token: issued.token,
+	expiresAt: issued.expiresAt
+});
+
+/**
+ * Say who this is, and hand back a session to go on with.
+ *
+ * **Two routes, one handler, and they are not collapsed into one route.** `POST
+ * /account/sign-in` is where a Google token is exchanged for a session; `POST /session/refresh`
+ * is where a session is renewed on its own. They behave identically because `asking` already
+ * accepts either credential — but a client calls them for different reasons, and a refusal from
+ * the second means *the window closed* where the same refusal from the first would mean *Google
+ * said no*. Forcing a difference in the bodies to justify two names would be inventing one.
+ *
+ * The refresh exists for the client that is doing nothing else: open, in sync, and with a window
+ * quietly running down, which would otherwise have to invent a reason to call something in order
+ * to stay signed in. Every other route renews the session it was reached with anyway, so a client
+ * that is doing anything at all never needs it.
+ *
+ * The refusal is `resumeSession`'s and it names the action to take: past the window there is
+ * nothing left to renew, and signing in with Google is the only way back.
+ */
+const identify = async (
+	plane: ControlPlane,
+	request: IncomingMessage,
+	response: ServerResponse
+) => {
+	const { account, session } = await asking(plane, request);
+
+	json(response, 200, { account: wireAccount(account), session: wireSession(session) });
 };
 
 const makeWorkspace = async (
@@ -134,7 +195,7 @@ const makeWorkspace = async (
 	request: IncomingMessage,
 	response: ServerResponse
 ) => {
-	const account = await asking(plane, request);
+	const { account, session } = await asking(plane, request);
 	const body = await readJsonBody(request);
 	const name = typeof body.name === 'string' ? body.name.trim() : '';
 
@@ -148,7 +209,7 @@ const makeWorkspace = async (
 		now: (plane.now ?? Date.now)()
 	});
 
-	json(response, 201, { workspace: wireWorkspace(created) });
+	json(response, 201, { workspace: wireWorkspace(created), session: wireSession(session) });
 };
 
 /**
@@ -188,7 +249,7 @@ const mint = async (
 	response: ServerResponse,
 	workspaceId: string
 ) => {
-	const account = await asking(plane, request);
+	const { account, session } = await asking(plane, request);
 	const schemaVersion = schemaVersionIn(await readJsonBody(request));
 
 	const minted = await mintWorkspaceToken(plane.db, plane.platform, plane.connectToWorkspace, {
@@ -198,7 +259,14 @@ const mint = async (
 		now: (plane.now ?? Date.now)()
 	});
 
-	json(response, 200, minted);
+	// **Both windows, in one answer, and that is the whole of why the mint is the renewal a
+	// client uses.** `expiresAt` is the Turso credential the replica actually syncs with;
+	// `session.expiresAt` is how much longer this control plane will hand out another. Reached
+	// here they restart together, so a client that renews by minting has one clock rather than
+	// two that drift. `/session/refresh` moves only the second, which is why a client holding a
+	// workspace does not renew through it — and why the client keeps both numbers and believes
+	// the earlier.
+	json(response, 200, { ...minted, session: wireSession(session) });
 };
 
 const health = async (plane: ControlPlane, response: ServerResponse) => {
@@ -225,8 +293,11 @@ export const controlPlaneServer = (plane: ControlPlane): Server =>
 				return health(plane, response);
 			}
 
-			if (request.method === 'POST' && request.url === '/account/sign-in') {
-				return signIn(plane, request, response);
+			if (
+				request.method === 'POST' &&
+				(request.url === '/account/sign-in' || request.url === '/session/refresh')
+			) {
+				return identify(plane, request, response);
 			}
 
 			if (request.method === 'POST' && request.url === '/workspace') {

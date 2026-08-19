@@ -1,5 +1,6 @@
 use crate::{backup::BackupSource, diagnostics, error::Error, state::AppState};
 
+use super::control::renew_session as renew_control_plane_session;
 use super::inspection::GoogleDriveLinkPreparation;
 use super::link::{
     cancel_google_drive_link, link_google_drive_workspace, sign_in_with_google, sign_out_of_google,
@@ -24,6 +25,26 @@ pub async fn remote_sync_state_get(
     sync_backup_manifest_to_active_workspace(app_state.inner(), &state).await?;
     Ok(state)
 }
+/// Reach the control plane and restart the window, where there is one to restart.
+///
+/// **This is *reaching the API inside the window*, as a call the application actually makes.**
+/// The sync dispatcher runs it on the hosted path before it decides whether to replicate, and
+/// the autosync manager already schedules that on a timer and on the machine coming back online
+/// — so a client that is doing anything at all renews without anybody thinking about it.
+///
+/// Answers with the state, so the caller reads the window it just moved rather than the one it
+/// had. Being offline is not a failure: the window stays where it was and the client goes on
+/// replicating until it closes on its own.
+#[tauri::command]
+pub async fn remote_sync_renew_session(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<RemoteSyncState, Error> {
+    renew_control_plane_session(app_state.inner()).await?;
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    remote_sync.get_state().await
+}
+
 #[tauri::command]
 pub async fn remote_sync_snapshot_now(
     app_state: tauri::State<'_, AppState>,

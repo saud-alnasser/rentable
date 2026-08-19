@@ -669,6 +669,8 @@ mod tests {
             workspace: linked_workspace(),
             startup_prompt_enabled: true,
             google_drive_ready: true,
+            control_plane_ready: false,
+            session: None,
             device_id: "device-1".to_string(),
         }
     }

@@ -220,6 +220,7 @@ export const tauri = {
 		getState: () => invoke<RemoteSyncState>('remote_sync_state_get'),
 		snapshotNow: () => invoke<RemoteSyncState>('remote_sync_snapshot_now'),
 		autosaveNow: () => invoke<RemoteSyncState>('remote_sync_autosave_now'),
+		renewSession: () => invoke<RemoteSyncState>('remote_sync_renew_session'),
 		googleDrive: {
 			/**
 			 * link this workspace to a google account, end to end. outstanding for as

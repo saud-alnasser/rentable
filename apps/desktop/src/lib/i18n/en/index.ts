@@ -736,7 +736,10 @@ const en = {
 		profileSwitched: 'workspace switched successfully!',
 		rollbackRestored: 'protected update backup restored successfully!',
 		snapshotCreated: 'snapshot created successfully!',
-		startupRecoveryCleared: 'startup recovery cleared. retrying the current version is now allowed.'
+		startupRecoveryCleared:
+			'startup recovery cleared. retrying the current version is now allowed.',
+		sessionExpired:
+			'this workspace has been offline for three days. sign in with Google again to keep it in sync — nothing you recorded has been lost.'
 	}
 } satisfies BaseTranslation;
 

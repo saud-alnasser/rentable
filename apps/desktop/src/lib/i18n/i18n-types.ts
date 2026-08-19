@@ -2266,6 +2266,10 @@ type RootTranslation = {
 		 * s​t​a​r​t​u​p​ ​r​e​c​o​v​e​r​y​ ​c​l​e​a​r​e​d​.​ ​r​e​t​r​y​i​n​g​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​v​e​r​s​i​o​n​ ​i​s​ ​n​o​w​ ​a​l​l​o​w​e​d​.
 		 */
 		startupRecoveryCleared: string
+		/**
+		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​h​a​s​ ​b​e​e​n​ ​o​f​f​l​i​n​e​ ​f​o​r​ ​t​h​r​e​e​ ​d​a​y​s​.​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​ ​G​o​o​g​l​e​ ​a​g​a​i​n​ ​t​o​ ​k​e​e​p​ ​i​t​ ​i​n​ ​s​y​n​c​ ​—​ ​n​o​t​h​i​n​g​ ​y​o​u​ ​r​e​c​o​r​d​e​d​ ​h​a​s​ ​b​e​e​n​ ​l​o​s​t​.
+		 */
+		sessionExpired: string
 	}
 }
 
@@ -4443,6 +4447,10 @@ export type TranslationFunctions = {
 		 * startup recovery cleared. retrying the current version is now allowed.
 		 */
 		startupRecoveryCleared: () => LocalizedString
+		/**
+		 * this workspace has been offline for three days. sign in with Google again to keep it in sync — nothing you recorded has been lost.
+		 */
+		sessionExpired: () => LocalizedString
 	}
 }
 

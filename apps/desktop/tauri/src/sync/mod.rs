@@ -1,4 +1,5 @@
 mod command;
+mod control;
 pub mod google;
 mod inspection;
 mod link;
@@ -9,4 +10,5 @@ mod sync;
 mod workspace;
 
 pub use command::*;
+pub use control::SessionWindow;
 pub use store::{RemoteSync, RemoteSyncProvider, RemoteSyncWorkspace};
