@@ -1,17 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { Database } from '../database.ts';
-import type { VerifyGoogleIdentity } from '../google.ts';
+import type { Database } from '../../database/database.ts';
+import type { VerifyGoogleIdentity } from '../../account/google.ts';
 
-import { MALFORMED, NOT_VERIFIED, Refusal, UNAUTHENTICATED } from '../failure.ts';
+import { MALFORMED, NOT_VERIFIED, Refusal, UNAUTHENTICATED } from '../../failure.ts';
 import {
 	freshDatabase,
 	googleVouchingFor,
 	runningControlPlane,
 	SOMEBODY,
 	tursoInMemory
-} from './testing.ts';
+} from '../../tests/testing.ts';
 
 const AT = Date.UTC(2026, 7, 18, 12, 0, 0);
 

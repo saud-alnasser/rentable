@@ -27,6 +27,30 @@ time it is asked, so deleting a membership row ends that person's access within 
 lifetime and nobody else's. The administrative surface that does the deleting is a later
 ticket's.
 
+## The tree
+
+```
+src/
+├── main.ts             reads the environment, wires the parts, listens
+├── failure.ts          the refusal vocabulary — a code, a status, a message
+├── account/            who somebody is
+│   ├── account.ts      the upsert a sign-in is
+│   └── google.ts       verifying an access token against Google
+├── database/
+│   ├── database.ts     the connection, and the type every module takes
+│   └── schema.ts       the three tables
+├── server/
+│   └── server.ts       routing, and the one place a refusal becomes a status
+└── workspace/          a database on Turso, and who may reach it
+    ├── permission.ts   the administration bitfield
+    ├── turso.ts        the Platform API, the only outbound call this makes
+    └── workspace.ts    creating one, and minting the token to sync with it
+```
+
+Tests are `tests/` under the directory they cover. Two are package-wide and sit in `src/tests/`:
+the scaffolding, and the boundary test that reads the whole tree for a domain table or an import
+that leaves.
+
 ## The routes
 
 **Plain JSON over HTTP.** The desktop's tRPC runs in-process inside the webview with no HTTP
@@ -146,7 +170,8 @@ choosing a client that would have to be replaced to deploy is not the same as de
 
 ## The schema
 
-Three tables, in `src/schema.ts`, and `src/tests/schema.test.ts` is what holds them to it.
+Three tables, in `src/database/schema.ts`, and `src/database/tests/schema.test.ts` is what
+holds them to it.
 
 - **`account`** — somebody Google vouched for. Google's `sub` is stored beside the email
   because it survives an email change. The profile is refreshed on every sign-in: Google is the
@@ -173,7 +198,8 @@ silently — so a 54th flag would corrupt the first flags ever defined, on every
 written. When a 54th is genuinely wanted the column becomes a row per granted permission, which
 decision 04 records as a migration rather than a rewrite.
 
-`src/permission.ts` also **sums powers of two where an `OR` would read more naturally**, and
+`src/workspace/permission.ts` also **sums powers of two where an `OR` would read more
+naturally**, and
 divides where an `AND` would. JavaScript's bitwise operators coerce to a signed 32-bit integer,
 so `1 << 40` is `256` — a ceiling twenty-two bits below the one decision 04 chose, and one it
 did not name. A test pins it.

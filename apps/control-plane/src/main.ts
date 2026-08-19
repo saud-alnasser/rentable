@@ -4,10 +4,10 @@
 // them for this one.
 import 'dotenv/config';
 
-import { connect, database, databaseUrl } from './database.ts';
-import { verifyAgainstGoogle } from './google.ts';
-import { controlPlaneServer } from './server.ts';
-import { tursoPlatform } from './turso.ts';
+import { connect, database, databaseUrl } from './database/database.ts';
+import { verifyAgainstGoogle } from './account/google.ts';
+import { controlPlaneServer } from './server/server.ts';
+import { tursoPlatform } from './workspace/turso.ts';
 
 /**
  * The control plane, running.

@@ -5,7 +5,7 @@ export default defineConfig({
 	// `turso` rather than `sqlite`: the same dialect over libSQL, which is what lets one
 	// generated migration apply to the local file and to the hosted database unchanged.
 	dialect: 'turso',
-	schema: './src/schema.ts',
+	schema: './src/database/schema.ts',
 	out: './migrations',
 	verbose: false,
 	strict: true,

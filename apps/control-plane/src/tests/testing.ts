@@ -6,12 +6,12 @@ import { fileURLToPath } from 'node:url';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 
-import type { GoogleIdentity, VerifyGoogleIdentity } from '../google.ts';
-import type { ControlPlane } from '../server.ts';
-import type { TursoPlatform } from '../turso.ts';
+import type { GoogleIdentity, VerifyGoogleIdentity } from '../account/google.ts';
+import type { ControlPlane } from '../server/server.ts';
+import type { TursoPlatform } from '../workspace/turso.ts';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 
-import * as schema from '../schema.ts';
+import * as schema from '../database/schema.ts';
 
 /**
  * An empty control-plane database, migrated, in memory.
@@ -115,7 +115,7 @@ export const tursoInMemory = ({ refuse = false }: { refuse?: boolean } = {}) => 
  * route ran at all.
  */
 export const runningControlPlane = async (plane: ControlPlane) => {
-	const { controlPlaneServer } = await import('../server.ts');
+	const { controlPlaneServer } = await import('../server/server.ts');
 	const server = controlPlaneServer(plane);
 
 	await new Promise((listening) => {

@@ -979,7 +979,7 @@ schema stays where it is, in `apps/desktop/`, until something else consumes it.
 
 ***Built 2026-08-18 by #549, so the paragraph above now describes code.*** It is
 `@rentable/control-plane` at `apps/control-plane/`, and its schema is three tables — `account`,
-`workspace`, `membership` — with `apps/control-plane/src/tests/schema.test.ts` asserting that the set
+`workspace`, `membership` — with `apps/control-plane/src/database/tests/schema.test.ts` asserting that the set
 is exactly those three. **"No domain table" is therefore a test rather than an intention**, which
 matters because nothing else in the tree would object to one: a contract table here is the first
 step of the shape *Architecture* rejects, and it would arrive looking like a convenience.
@@ -2094,7 +2094,7 @@ cheap.
 
 It costs nothing to avoid, which is why this is a note rather than a reopening: **distinct
 powers of two sum to exactly what an OR of them produces**, and a single bit reads back as
-`Math.floor(permissions / 2 ** bit) % 2`. `apps/control-plane/src/permission.ts` is written that
+`Math.floor(permissions / 2 ** bit) % 2`. `apps/control-plane/src/workspace/permission.ts` is written that
 way and `permission.test.ts` pins the reason, so the next person to reach for `|` finds a test
 saying why it is not there.
 

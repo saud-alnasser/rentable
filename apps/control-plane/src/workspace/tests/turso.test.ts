@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { Refusal, WORKSPACE_UNAVAILABLE } from '../failure.ts';
+import { Refusal, WORKSPACE_UNAVAILABLE } from '../../failure.ts';
 import { tursoPlatform } from '../turso.ts';
 
 /**

@@ -1,4 +1,4 @@
-import type { Role } from './schema.ts';
+import type { Role } from '../database/schema.ts';
 
 /**
  * What a member may do *to* a workspace, as opposed to what they may do *in* one.

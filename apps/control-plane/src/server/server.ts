@@ -2,13 +2,13 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 
 import { sql } from 'drizzle-orm';
 
-import { signInWithGoogle } from './account.ts';
-import type { Database } from './database.ts';
-import { MALFORMED, Refusal, refusalBody, UNAUTHENTICATED, UNAVAILABLE } from './failure.ts';
-import type { VerifyGoogleIdentity } from './google.ts';
-import type { Account, Workspace } from './schema.ts';
-import type { TursoPlatform } from './turso.ts';
-import { createWorkspace, mintWorkspaceToken } from './workspace.ts';
+import { signInWithGoogle } from '../account/account.ts';
+import type { Database } from '../database/database.ts';
+import { MALFORMED, Refusal, refusalBody, UNAUTHENTICATED, UNAVAILABLE } from '../failure.ts';
+import type { VerifyGoogleIdentity } from '../account/google.ts';
+import type { Account, Workspace } from '../database/schema.ts';
+import type { TursoPlatform } from '../workspace/turso.ts';
+import { createWorkspace, mintWorkspaceToken } from '../workspace/workspace.ts';
 
 /**
  * The control plane's HTTP surface.
