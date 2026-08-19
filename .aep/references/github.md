@@ -1,7 +1,7 @@
 ---
-aep: 2.3.0
+aep: 2.6.0
 owner: repository
-date: 2026-08-17
+date: 2026-08-19
 kind: reference
 use-when: "working with issues, pull requests, or CI runs on GitHub"
 ---
@@ -222,6 +222,24 @@ first is a query that returns a plausible answer built from the wrong values.
 **Filter on `state` inside `nodes`, not on the count.** `totalCount` counts
 closed blockers too, so a task whose only blocker merged last week reads as
 blocked and never joins the frontier.
+
+**An open blocker that already has a branch does not block.** [[rules/version-control]]
+makes `blocked-by` mean *stack on top of 01*, not *wait until 01 is resolved* — so a
+ticket whose blockers are all built is buildable now, stacked on them. The query above
+cannot see that: it filters on issue state, and an issue stays open until its pull
+request merges. On a stack of a dozen unmerged branches it therefore answers **almost
+nothing is ready**, which is the opposite of true.
+
+So the query gives a *conservative* frontier, and the buildable one is that answer plus
+every ticket whose open blockers all have branches:
+
+```sh
+git branch --format='%(refname:short)'   # a branch carrying a ticket id is that ticket, claimed and built
+```
+
+*Why this is not a defect in the query: state is the right filter for "is this work
+done", and it is what closes an effort. It is the wrong filter for "may I start", which
+on a stacked repository is a question about branches. Read both.*
 
 **Raise `--limit` deliberately.** There is no server-side parent filter, so
 `--jq` narrows a page `gh` has already truncated at 30 — and a truncated page
