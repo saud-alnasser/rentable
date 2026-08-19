@@ -36,13 +36,25 @@ that is a file copy. Three costs follow:
 - **Organizations are unreachable for the same reason.** Multiple people on one property
   portfolio needs identity, membership and a shared record of truth, none of which exist.
 
-**And this is not a greenfield application.** rentable has shipped since at least April 2026 —
-five public releases, `v0.12.0` most recently — and it ships with an updater that delivers new
-versions to machines already running it. Every one of those installs holds a local SQLite
-workspace that is currently of record, and some are linked to a Google Drive folder. Whatever
-this effort does arrives on those machines through an update the user did not opt into by
-reading a spec. **The problem therefore includes the installed base**, and an approach that only
-describes what a fresh install does has answered half of it.
+~~**And this is not a greenfield application.**~~ **Struck 2026-08-18. There is no installed
+base.** The human withdrew the assumption it rested on, and the release data corroborates it:
+every running install polls `latest.json` on the newest release, and that asset on `v0.13.0`
+has been fetched **twice, both times by this session**. Nothing has ever asked this application
+for an update. The one release that looks like a population — `v0.10.1`, 39 installer
+downloads — spreads them almost evenly across rpm, deb, AppImage, dmg, msi and exe with
+exactly one download on every `.sig` file, which is a scraper's shape and not a user base's;
+`v0.11.0` and `v0.11.1` have no installer downloads at all between them.
+
+It is struck rather than deleted because it was load-bearing for a full day and shaped
+requirement 1, acceptance criterion 1, the first Constraint and two Risks. A reader who finds
+those in the history and not the reason they went should be able to see it here.
+
+**So the problem is a greenfield one after all**, and every version prior to this effort's is
+to be deleted rather than carried — **after acceptance criterion 1 has used the last of them
+as its subject, not before** *(sequenced 2026-08-18; the criterion has the reasoning)*. What this changes is only *arrival*: no data has to survive
+this change, so the effort keeps its architecture and loses its migration. What it does **not**
+change is the shape of the product — see the first Constraint, which now rests on the one
+justification it always had independently.
 
 # Goal
 
@@ -53,7 +65,8 @@ and the application stays fully usable with no network.
 **A local workspace stays exactly what it is.** Where the record of truth lives becomes a
 property of the workspace rather than of the application, and both values are first-class: a
 user may keep a local workspace forever, without an account, and nothing about this effort
-degrades it. An existing install crossing this update keeps working with no action taken.
+degrades it. **Confirmed by the human 2026-08-18, after the installed base turned out not to
+exist**: two permanent modes are wanted on their own merits, not as a compatibility story.
 
 When this lands, a second client kind could be added and organization workspaces could be added
 without reopening any decision made here. **Neither is built.**
@@ -63,8 +76,17 @@ without reopening any decision made here. **Neither is built.**
 - **Two records of truth, both first-class.** A workspace is local-of-record or hosted-of-record,
   and the application supports both for as long as both exist. This is the decision that shapes
   every other item in this list: each one below answers for two modes, not one.
-- **The adoption path.** What an existing local workspace does when the update arrives (nothing,
-  by requirement), and how a user converts one to a hosted workspace when they choose to.
+- **The adoption path**, ~~what an existing local workspace does when the update arrives
+  (nothing, by requirement), and~~ how a user converts a local workspace to a hosted one when
+  they choose to. *Half struck 2026-08-18: there is no existing local workspace but a
+  developer's, so "what it does when the update arrives" is not a thing this effort has to
+  answer for anybody. **The conversion half is untouched and is the whole bullet now** — it is
+  requirement 6, and decision 12 is open on it.*
+
+  *This bullet is the one the 2026-08-18 respecify missed. It edited Problem, Goal,
+  Requirements, Acceptance Criteria, Constraints, Assumptions, Risks, Architecture, Migration
+  and Decisions, and left Scope alone — recorded because a section that survives a premise
+  change untouched is usually the one nobody re-read, not the one that needed no change.*
 - **Identity, and it starts from Google.** A user record, how long a session lasts, and what the
   request context carries as a result — including what it carries when there is no user because
   the workspace is local. **How they authenticate is directed as of 2026-08-17: sign in with
@@ -116,9 +138,16 @@ without reopening any decision made here. **Neither is built.**
 
 # Requirements
 
-1. **An existing local workspace survives the update untouched.** After the new version arrives
-   through the updater, the application opens the same workspace, with the same data, and needs
-   no account and no action from the user.
+1. **An update never asks for an account, a network, or a manual step in order to reopen a
+   workspace the user already had.** After a new version arrives through the updater, the
+   application opens the same workspace, with the same data, and needs nothing from the user.
+
+   *Rewritten 2026-08-18. It read "An existing local workspace survives the update untouched",
+   and existed to protect an installed base that turns out to be empty. **The promise is kept
+   rather than struck**, because it is the one requirement here that is not about the hosted
+   architecture at all: it is what the updater owes anyone, and it starts owing it the day the
+   first person installs this. What it loses is its urgency, not its truth — it is now a
+   forward promise rather than a rescue.*
 2. **An installation holds exactly one workspace, and that workspace has a mode.** It is
    local-of-record or hosted-of-record, both are first-class, and a user may keep it local
    indefinitely without an account. Converting changes the mode of the one workspace; it does not
@@ -163,29 +192,106 @@ without reopening any decision made here. **Neither is built.**
 16. **A record's identity is assigned so that two replicas cannot produce the same one.**
     *Directed 2026-08-18.* Today every primary key is a rowid taking the next id above the
     highest in use, which is correct for a single writer and collides by construction for two.
-    **One scheme covers both modes**, applied to existing installs by a migration when the update
-    lands — chosen by the human over keeping rowids locally and re-identifying at conversion.
-    The scheme is decision 13's; that it is one scheme, migrated, is settled here.
+    **One scheme covers both modes.** The scheme is decision 13's; that it is one scheme is
+    settled here.
+
+    **It is applied by a migration when the update lands.** *Amended twice on 2026-08-18, and
+    the second amendment reverses the first.* The clause was struck in the morning on the
+    grounds that there are no existing installs to apply it to; it is restored because
+    **acceptance criterion 1 manufactures one deliberately** and requires its data to survive.
+    A migration owed to a criterion is owed exactly as hard as one owed to a user — the
+    criterion was written to stand in for the user.
+
+    *What the round trip settles, so it is not re-litigated: collapsing `0000`–`0002` into a
+    single migration with `TEXT` keys from the start is **not** available, because the pair
+    criterion 1 names includes a release that already applied all three. The identity change is
+    an added migration, never a rewritten one — which is also what acceptance criterion 12's
+    "unchanged" has always required, and it now has a reason rather than an inheritance.*
 
 # Acceptance Criteria
 
-1. **Install `v0.12.0`, populate it with contracts and payments, link it to Drive, then update
-   to the new version through the real updater.** Every record is present, every surface works,
-   no sign-in is asked for, and the Drive link still syncs. **This is the criterion that
-   protects people who already use the application, and no CI run can stand in for it** — it
-   needs a real installed build and a real update, exactly as the monorepo effort's release
-   criterion does.
+1. **Install the previous release, populate it, and update to the current one through the real
+   updater: the same workspace opens, with the same data, and nothing asks for a sign-in.**
+   *(requirement 1)* No CI run substitutes for it — it needs a real installed build and a real
+   update, exactly as the monorepo effort's release criterion does.
 
-   **It got materially heavier on 2026-08-18 and is no longer a smoke test.** Requirement 16's
-   scheme is migrated onto existing installs, so this update now **rewrites the primary key of
-   every row in a populated workspace** on a machine whose owner chose nothing. So the criterion
-   adds: every foreign key still resolves to the record it named before the update — contracts to
-   tenants, assignments to contracts and units, payments to contracts, and **every `history` row
-   to the record it describes**; the count per concept is identical before and after; and a
-   workspace interrupted mid-migration opens afterwards, either fully migrated or untouched, and
-   never half of each. *Why this is stated as a criterion rather than a risk: it is the one place
-   where the requirement protecting the installed base and the requirement making replication
-   correct are pointed at the same rows.*
+   **Rehearsed 2026-08-18. Not met, and it cannot be met until this effort has a release.**
+   *Corrected by [[skills/refine]] the same day — it read "Run 2026-08-18, and it passes".*
+   The run was `v0.12.0` into `v0.13.0`, and **neither build contains a line of this effort**:
+   no `TEXT` keys, no `Hosted` variant, no session. What it exercised is the updater, the
+   artifact `latest.json` resolves to, and the migration runner. What requirement 1 is actually
+   exposed to is **the update that carries requirement 16**, and that update does not exist yet.
+   A criterion recorded as passing by a run that could not have exercised the change it guards
+   is the defect criteria 13 and 15 were each rewritten for, arriving a third time.
+
+   **So the criterion is discharged by one specific pair and no other**: the last release before
+   this effort, updated into the release that carries it. *Directed by the human 2026-08-18.*
+   **This orders the release deletion**, which until now was a clause in *Problem* with no
+   sequence attached: the last pre-effort release is the subject of this run and is deleted
+   after it, not before. Deleting it first does not make the criterion pass — it makes it
+   unrunnable, which reads the same at review and is not the same thing.
+
+   **And it checks the migration, not merely the launch** *(restored 2026-08-18, after the
+   human directed the migration be written in full)*. The morning's respecify moved these
+   checks out of here on the grounds that criterion 17 covers referential integrity. **It does
+   not** — 17 covers two replicas *creating* records that must stay distinct, which is a
+   different failure from a remap of records that already exist. Between the two, the identity
+   migration's correctness had no criterion at all for a few hours. So this criterion adds,
+   against the populated pre-effort workspace, after the update:
+
+   - **The count per concept is identical** before and after. Tenants, complexes, units,
+     contracts, assignments, payments, and `history` rows.
+   - **Every reference still resolves to the record it named before the update** — contracts to
+     tenants, `contract_unit` on both columns, payments to contracts, and **every `history` row
+     to the record it describes**, with the one legitimate exception that a deleted record's
+     history entry is meant to dangle.
+   - **`history` is the one to check first and it is the one nothing would catch.** It has no
+     foreign key, so a `record_id` left unmapped violates nothing, fails no query, and shows up
+     as a workspace that opens fine and quietly describes the wrong records. *Data Model* says
+     the same thing from the other side.
+   - **A workspace interrupted mid-migration opens afterwards**, fully migrated or untouched,
+     never half of each. **Already answered from the code**, and the answer holds for the new
+     migration only if it is written as one file: `tauri/src/database/migrations.rs`, in
+     `apply_migration`, commits a file's statements and its `__migrations__` row in one
+     transaction. *That is a constraint on how the identity migration is written, not a
+     property it inherits* — split across two files, the guarantee is gone and nothing warns.
+   - **The snapshot the updater took before installing is present afterwards, and restores to
+     the workspace as it stood before the migration.** *Added 2026-08-18 by [[skills/tasks]],
+     directed by the human.* The backup was an obligation in *Migration* that **no criterion
+     checked** — the gap shape this spec has now hit three times, where an obligation nothing
+     exercises reads at review as covered. It is invisible while the migration succeeds, which
+     is exactly when nobody notices it was never taken. **It is checked against
+     `prepare_update`'s existing protected snapshot rather than against any file on disk**, and
+     that wording is load-bearing: the rehearsal drove `msiexec` directly and so took none. The
+     run that discharges this criterion goes through the in-app updater, or this bullet is
+     checking nothing.
+
+   **What the rehearsal is worth keeping for**, since it is real and it was not free: the
+   procedure is known to work end to end, so the run at release time is a repeat rather than a
+   first attempt, and one of its findings is permanent. A `v0.12.0` install was populated with
+   5,000 tenants, 10
+   complexes, 95 units, 1,177 contracts, 1,729 assignments and 709 payments, then updated in
+   place to `v0.13.0`. Migration `0002` applied; every count identical; all five references
+   resolving at zero dangling; `history` created and empty. The application's own diagnostics
+   record three launches and no error event — `applied: 2`, then `applied: 0` on a workspace
+   already migrated, then `applied: 1`. **The interruption clause is answered from the code
+   rather than the run**: `tauri/src/database/migrations.rs`, in `apply_migration`, commits a
+   file's statements and its `__migrations__` row in one transaction, so a file is all-or-nothing
+   and the next launch resumes from the journal.
+
+   **Two gaps, named rather than left to be assumed closed.** The run drove `msiexec` on the
+   exact artifact `latest.json` names for `windows-x86_64`, so the endpoint, the version
+   comparison, the artifact choice and the install are all verified and **the plugin's own
+   check-download-relaunch is not**. And Drive was never linked, so a Drive link surviving an
+   update is unverified. Both are cheap to close and neither is load-bearing for this effort.
+
+   *Rewritten 2026-08-18. It required `v0.12.0` specifically, required a Drive link, and carried
+   a second paragraph making it the check that "protects people who already use the
+   application" against a primary-key rewrite on their machines. There is nobody to protect and
+   there is no rewrite to survive, so what is left is the ordinary promise that an update does
+   not cost you your workspace — worth keeping, and much lighter. **The referential-integrity
+   checks it grew are not lost**: they belong to criterion 17, which is where replication
+   correctness is actually decided.*
 2. The workspace's mode is visible to the user and choosable by them — neither mode is reached
    only by editing configuration. `RemoteSyncState.workspace` stays singular and the application
    still opens one database file; a search of the tree finds no workspace list and no switcher.
@@ -211,6 +317,16 @@ without reopening any decision made here. **Neither is built.**
    fourth term was missing, and it is the one this schema makes likeliest. See* Risks *and
    decision 11's question 2.* The test covers **two devices creating unrelated records**, not
    only two editing one — the second is the contended case and the first is the guaranteed one.
+
+   **Half of this is answered and the criterion did not say so** *(2026-08-18)*. Decision 11
+   measured it live: the contended loss is **per column**, not per statement, row or field,
+   and a row deleted under a concurrent edit is taken whole with no error on either side. The
+   uncontended case is the identity collision, and requirement 16 closes it. So *"that answer
+   is written into this spec"* **is satisfied** — it is in decision 11 and in decision 09's
+   preamble. What is **not** satisfied is *"a test demonstrates"*: the demonstration was a
+   prototype, and [[rules/module-layout]] had it deleted. **A criterion met by a deleted
+   prototype is not met**, so what remains here is a kept test, and the finding it must
+   reproduce is now known in advance rather than being what the test discovers.
 10. `createDatabase` still returns one client type. Production, test and hosted transports all
     satisfy it, and a search of the tree finds no second database client type.
 11. A procedure needing the acting user reads it from the context, and
@@ -219,7 +335,14 @@ without reopening any decision made here. **Neither is built.**
 12. Applying a migration to a hosted workspace is a documented path that has been exercised end
     to end. A client older than the workspace schema shows a message naming the action to take,
     and issues no write. A local workspace's migrations are applied by Rust exactly as now,
-    demonstrated by the existing Rust migration tests still passing unchanged.
+    demonstrated by ~~the existing Rust migration tests~~ **a Rust migration harness, which does
+    not exist yet and is part of this work**, still passing unchanged thereafter.
+
+    *Corrected 2026-08-18 by [[skills/plan]], against the tree.* `database/migrations.rs` and
+    `database/mod.rs` contain no tests at all. This criterion has read since it was written as
+    though its local half were already covered by something that has never existed — **the one
+    shape of defect this spec has now caught four times.** *Technical Approach* says what the
+    harness owes.
 13. Whatever Drive becomes is true in the tree, and **a local workspace's data still reaches a
     second machine and comes back** — demonstrated end to end on two installations, by whatever
     route decision 07 leaves it, **and the route demonstrated is the one decision 07 chose.**
@@ -265,12 +388,23 @@ without reopening any decision made here. **Neither is built.**
 
 # Constraints
 
-- **No existing install may break, and none may be forced to change.** The update reaches
-  machines through an updater, not through a decision the user made about architecture. *Why:
-  the application has shipped five public releases and holds real people's rent records; a
-  migration that requires an account, a network, or a manual step in order to reopen data the
-  user already had is a data-loss event with a friendly name.* This is what makes the local mode
-  a constraint rather than a preference.
+- **No install may be forced to change.** An update reaches a machine through an updater, not
+  through a decision its user made about architecture, so a version that requires an account, a
+  network, or a manual step in order to reopen data the user already had is a data-loss event
+  with a friendly name.
+
+  *Amended 2026-08-18. This opened "No existing install may break" and justified itself with
+  five shipped releases holding real people's rent records. **Neither half survives** — there
+  are no existing installs and no real records on them. The constraint is kept because it is
+  about what an updater owes anyone it ever reaches, which is a property of shipping an
+  auto-updating desktop application and not of having shipped one already.*
+
+  **What this no longer does is carry the local mode.** It used to be "what makes the local mode
+  a constraint rather than a preference", and that reasoning is void: with no installed base,
+  local-of-record is not protecting anyone. The mode survives on the Constraint below it —
+  offline-first, and an account required for a hosted workspace and for nothing else —
+  **confirmed as wanted on those merits by the human, 2026-08-18**, when the alternative of
+  making hosted the only mode was put to them and refused.
 - **Two modes are a permanent shape, not a transition period.** *Why: it would be cheap to
   treat local-of-record as a compatibility shim to be removed in a later release, and that is a
   different product than the one chosen here. A decision that only works if local is temporary
@@ -375,9 +509,21 @@ without reopening any decision made here. **Neither is built.**
   It does not require one: an account is required for a hosted workspace and for nothing else,
   and local workspaces stay first-class. The assumption was load-bearing while it stood, which
   is why it is struck rather than deleted.
-- **Real users other than the author run the published releases**, so the installed base is a
-  population rather than a machine. Stated by the human, 2026-08-17. It is what makes
-  requirement 1 and its acceptance criterion first-class rather than an operational note.
+- ~~**Real users other than the author run the published releases**, so the installed base is a
+  population rather than a machine.~~ **Withdrawn by the human 2026-08-18, and false.** It was
+  stated by the human on 2026-08-17 and it was load-bearing for a day.
+
+  **Checked rather than merely withdrawn**, because it had shaped four sections: every running
+  install polls `latest.json` on the newest release, and that asset on `v0.13.0` has two
+  fetches, both from the session that went looking. Nothing has ever asked this application for
+  an update. `v0.10.1`'s 39 installer downloads spread evenly across all six platforms with
+  exactly one download per `.sig`, which is a scraper; `v0.11.0` and `v0.11.1` have none.
+
+  It is struck rather than deleted because the requirement, criterion, Constraint and Risks it
+  produced are all still visible in this file's history, and a reader who finds them without
+  this line will not know why they were ever written. **This is the assumption doing its job**:
+  it was recorded as an assumption rather than absorbed into a requirement, it named what
+  depended on it, and when it fell the blast radius was already written down.
 - **Every hosted-workspace user has, or will create, a Google account.** Follows from directing
   sign-in to Google on 2026-08-17. It is an assumption rather than a fact because nobody has
   checked it against the actual user base, and for a Saudi rents tracker it is plausible without
@@ -429,6 +575,15 @@ without reopening any decision made here. **Neither is built.**
 - **What does the mode choice look like the first time a new user opens the application?** A
   fresh install with no workspace now has a fork in front of it that it has never had, and
   presenting it badly makes the account feel mandatory when it is not.
+
+  **This got materially more important on 2026-08-18, and the respecify recorded only the
+  subtraction.** With no installed base, **every user this application will ever have arrives
+  through this screen** — there is no population that inherits a workspace and never sees the
+  fork. So the first-run choice stops being an edge case for newcomers and becomes the only
+  route anyone takes into the product, and requirement 2's *both modes are first-class* is
+  decided here in practice whatever the spec says. *Recorded because the withdrawal was written
+  up as four strikes and no promotions, and a premise change that only ever removes weight is
+  a premise change that was read in one direction.*
 - ~~**Where does ADR 0001 live now?**~~ **Resolved 2026-08-17.** It is
   [[rules/api-layer]], under *One database client type*, restored from `.claude/decisions/` in history and verified
   against the tree first: `memory.ts` does build its client through `createDatabase`, and
@@ -455,9 +610,9 @@ without reopening any decision made here. **Neither is built.**
 
   It shows up as a ledger that is short by however many records the losing device created
   offline. **This does not decide the gate on its own** — every remedy is known and none is
-  exotic — but every one of them is a change to the identity of every row in a schema that is
-  already populated on the installed base, which is requirement 1's territory. See decision 11,
-  question 2.
+  exotic — and as of 2026-08-18 it is also no longer expensive: the remedy changes the identity
+  of every row in a schema **that nothing is running**, so it costs a schema change rather than
+  a migration over other people's data. See decision 11, question 2, which measured it live.
 
 - **The chosen client is pre-1.0 and in early preview on Turso Cloud.** This puts the foundation
   of the whole application on a preview offering, and a breaking change in it is a change to the
@@ -478,23 +633,28 @@ without reopening any decision made here. **Neither is built.**
   It shows up as months of decisions (03, 05, 06, 07, 09, 12) that were all blocked on a gate
   that then closed. **The mitigation is to run decision 11 before working any of them**, which is
   what its priority order already says and what the sizing has said since the spec was written.
-- **The update that reaches existing machines is the highest-consequence moment in this effort,
-  and on 2026-08-18 it got heavier.** It arrives unprompted, on machines holding real rent
-  records, through an updater. Everything else here fails in front of someone who chose to try
-  it; this fails in front of someone who chose nothing. It shows up as an application that opens
-  to a sign-in screen where a workspace used to be.
+- ~~**The update that reaches existing machines is the highest-consequence moment in this
+  effort.**~~ **Struck 2026-08-18 — it was the largest risk here, and it is gone.** It reached
+  no machines. It said the update arrives unprompted on machines holding real rent records, and
+  that requirement 16's key rewrite would mutate every row and every reference on a populated
+  database with no user watching — showing up not as a crash but as **a workspace that opens
+  fine and is quietly wrong**. Every word of that followed from the installed-base assumption,
+  and the assumption is withdrawn.
 
-  **It now also rewrites every primary key in that workspace.** Requirement 16's scheme applies
-  to both modes and is migrated onto existing installs — **chosen deliberately by the human over
-  the alternative of leaving local rowids alone and re-identifying only at conversion**, with
-  this cost stated at the time. So the update mutates the identity of every row and every
-  foreign key referencing one, on a populated database, unattended, with no user watching. The
-  failure is not a crash: it is a contract pointing at the wrong tenant, or a `history` row
-  describing a record that is now a different record. **It shows up as a workspace that opens
-  fine and is quietly wrong**, which is the worst available shape for this application, and it is
-  why acceptance criterion 1 now checks referential integrity per concept rather than checking
-  that the application starts. The mitigation is that the migration is Rust's, runs in one
-  transaction, and is the thing criterion 1 exists to exercise on a real populated install.
+  It is struck rather than deleted because it is the reason the identity work was sequenced
+  first and sized largest, and because **the failure mode it names is still real** — it is
+  simply no longer reachable by this route. If this application ever ships a change to identity
+  *after* it has users, this risk comes back exactly as written, and the cheapest way to keep
+  that knowledge is to leave it here legible rather than to recover it from history.
+
+  **What is left in its place is smaller, and it is not nothing** *(resized 2026-08-18, after
+  the migration was restored)*. The keys still change over a populated workspace, and
+  acceptance criterion 1 requires exactly that to be demonstrated — so the migration is written
+  and must be correct. What shrank is who pays for a defect: **one test run rather than a
+  stranger's ledger.** The failure mode is unchanged and still the worst shape available here —
+  a workspace that opens fine and is quietly wrong, with a `history` table that has no foreign
+  key to catch it — and it is now *cheap to discover*, which is a different thing from being
+  acceptable to ship. Treating it as gone rather than as resized is how it would come back.
 - **Two permanent modes double the surface every decision has to answer for**, and the second
   mode is the one nobody is excited to build. It shows up as local-of-record quietly rotting —
   a path that still compiles, is never exercised, and breaks in a release nobody tested it in.
@@ -512,9 +672,18 @@ without reopening any decision made here. **Neither is built.**
 - **Turso's schema-propagation feature is deprecated for new users** — the one feature built for
   exactly the per-workspace shape this effort chose. It shows up at decision 06 as an absence
   rather than an obstacle.
-- **Nine open decisions are a lot of unresolved architecture for one spec.** It shows up as a
-  plan that cannot be written until several sessions have run, which is why the sizing below
-  reports the top floor and stays there.
+- ~~**Nine open decisions are a lot of unresolved architecture for one spec.**~~ **Four, as of
+  2026-08-18 — 06, 07, 09 and 12, plus a narrow remainder on 03.** Counted off the `Status:`
+  lines rather than recalled. The risk is **reduced rather than discharged**: a plan still
+  cannot be written while 06 and 07 are open, since one decides who owns a hosted schema and
+  the other decides whether a whole Rust surface survives. What has changed is that it is no
+  longer *several sessions* of unresolved architecture, and the sizing floor no longer rests
+  on the count.
+
+  *The sentence also ended "which is why the sizing below reports the top floor", and there is
+  no sizing section in this file. [[skills/specify]] reports the floor per turn; it was never
+  written here. A cross-reference to a section that does not exist is the cheapest kind of
+  defect to leave and the most annoying to meet, so it is removed rather than repaired.*
 
 # Architecture
 
@@ -591,9 +760,17 @@ decision 13.* Time-ordered, so inserts stay sequential and index locality behave
 it replaces; generated with no coordination, so it works offline by construction, which is the
 property per-device ranges cannot offer without putting the API back in the write path.
 
-**One scheme covers both modes and is migrated onto existing installs** — also the human's
-choice, over leaving local rowids alone and re-identifying at conversion. What it costs is in
-*Risks* and in acceptance criterion 1, and it is the largest single hazard this effort carries.
+**One scheme covers both modes, and it is migrated onto a populated workspace** — also the
+human's choice, over leaving local rowids alone and re-identifying at conversion. What it costs
+is in *Risks* and in acceptance criterion 1, and **it is the largest single piece of work on
+this effort.**
+
+*Struck 2026-08-18 on the grounds that there are no existing installs, and restored the same
+day.* The strike was right that no stranger's machine takes this migration and wrong that
+nothing does: criterion 1 requires a populated pre-effort workspace to survive into the release
+carrying this scheme, so the migration is written, and written in full. **What genuinely did
+change is the blast radius, not the obligation** — a defect here now costs one test run rather
+than a stranger's ledger, which makes it cheaper to discover and no more acceptable to ship.
 
 **It deletes code rather than adding it**, which is worth stating because it is the one cheerful
 consequence: `importWhole` reads `max(id)` for five concepts (`src/lib/workspace/router.ts:260-276`)
@@ -621,14 +798,20 @@ same row mapping.
 
 **The mode is a third value of a discriminator that is already load-bearing.**
 `RemoteSyncProvider` is `Local | GoogleDrive` (`tauri/src/sync/store.rs:32`), `#[default] Local`,
-`#[serde(rename_all = "camelCase")]`, mirrored in TypeScript at `src/lib/platform/tauri.ts:37`.
+`#[serde(rename_all = "camelCase")]`, mirrored in TypeScript at
+`apps/desktop/src/lib/platform/host.ts:79`. *(Corrected 2026-08-18. It read `tauri.ts:37`; #540
+moved every payload type out of the facade and into the port, so this effort's own first
+shipped ticket is what moved it.)*
 Adding a `Hosted` variant is **additive to the serde representation**: an existing install's
 persisted store contains `"local"` or `"googleDrive"` and continues to deserialize unchanged.
 
-**This is what makes requirement 1 hold structurally rather than by care**, and it is worth
-stating plainly because it is the requirement with the highest consequence: an existing install
-that knows nothing of this effort deserializes to `Local`, which is exactly what it was, because
-`Local` is both the existing value and the default.
+**This is what makes requirement 1 hold structurally rather than by care**: an install that
+knows nothing of this effort deserializes to `Local`, which is exactly what it was, because
+`Local` is both the existing value and the default. *Amended 2026-08-18 — this also called it
+"the requirement with the highest consequence", which it no longer is, there being no installs
+to have consequences for. **The structural property is worth keeping anyway**: it costs nothing
+and it is what will make requirement 1 hold for the first real user rather than for a
+hypothetical one.*
 
 **Identity is an optional field on a context that is built by defaulting.** `Context` is
 `{ db, clock, host }` (`src/lib/api/context.ts:36`), and `context()` already supplies each
@@ -648,11 +831,11 @@ fiction, and the fiction is indistinguishable from a real user at every call sit
 | Component | Where | What changes |
 | --- | --- | --- |
 | the transport seam | `src/lib/platform/database/client.ts:47` | **Nothing.** It already admits a third caller; this is recorded so it is not "improved" |
-| the mode discriminator | `tauri/src/sync/store.rs:32`, mirrored `src/lib/platform/tauri.ts:76` | one added enum variant, on both sides of the boundary |
+| the mode discriminator | `tauri/src/sync/store.rs:32`, mirrored `apps/desktop/src/lib/platform/host.ts:79` | one added enum variant, on both sides of the boundary |
 | the flows that branch on it | `src/lib/sync/workspace.ts:32,50,75,84,121,127`; `src/lib/sync/pending-conflict.ts:42` | **seven call sites**, each of which must answer for the third value |
 | the request context | `src/lib/api/context.ts:36` and its builder at `:52` | one optional member |
 | the host port | `src/lib/api/context.ts:27` | decision 08's inversion, **taken** — declared interface, Tauri facade satisfies it |
-| **every primary and foreign key** | `src/lib/platform/database/schema.ts` — six `id` columns at `:9,44,58,74,104,179`, plus `contract_unit`, `payment.contractId` and `history.recordId` | `integer` becomes `text`, requirement 16. **The widest-reaching change in the effort** |
+| **every primary and foreign key** | `src/lib/platform/database/schema.ts` — **twelve columns**: six `id`, plus `unit.complexId`, `contract.tenantId`, `payment.contractId`, `history.recordId` and both `contract_unit` columns | `integer` becomes `text`, requirement 16. **The widest-reaching change in the effort.** *Corrected 2026-08-18: this listed ten and omitted `unit.complex_id` and `contract.tenant_id`. Counted by generating the migration rather than by reading the file* |
 | **the two `max(id)` call sites** | `src/lib/workspace/router.ts:260-276`, `src/lib/contract/router.ts:443` | **deleted.** A client-generated id is known before the insert |
 | **the control-plane API** | new, a second package under `apps/` | accounts, sign-in, workspace records, membership, database creation, token minting |
 | **the session** | new, desktop side | a short-lived token, refreshed against the API; expiry is what enforces requirement 15 |
@@ -665,8 +848,14 @@ whether the tree has moved under this plan.
 between writing the table and re-reading it. Six of the seven citations still resolve exactly —
 `client.ts:47`, `context.ts:27`, `:36`, `:52`, `store.rs:32`, and all seven discriminator sites
 at `workspace.ts:32,50,75,84,121,127` and `pending-conflict.ts:42`. **One moved**: the TypeScript
-mirror of the discriminator is `tauri.ts:76`, not `:37`, because the export and import work grew
-that file above it. Corrected in the row. The count of seven is unchanged, and it is still the
+mirror of the discriminator is `apps/desktop/src/lib/platform/host.ts:79`.
+
+*Corrected again 2026-08-18, and the first correction was wrong.* It read `tauri.ts:76`, which
+was a guess at a line inside a file the type had already left: #540 moved every payload type
+out of the facade and into the port, and `tauri.ts:56` now only re-exports it. **The row and
+the *Architecture* section had been corrected two different ways in one file**, which is worse
+than either being stale — a reader checking one and not the other finds a citation that
+resolves. Read in the tree, both now say `host.ts:79`. The count of seven is unchanged, and it is still the
 whole population.
 
 # Data Model
@@ -699,11 +888,260 @@ the membership row in the control plane. That decision was taken against the dom
 transports; it applies unchanged here, and the control plane is where it was always going to
 land.
 
+# Technical Approach
+
+*Written 2026-08-18 by [[skills/plan]]. **This plans one slice**: requirement 16 and the identity
+migration acceptance criterion 1 now requires. The hosted half is not planned here and cannot be
+— decisions 06, 07, 09 and 12 are open, and each of them decides something the hosted approach
+would have to be written against. What follows waits on none of them.*
+
+## What the migration runner actually permits
+
+Every claim in this subsection was measured against the runner on 2026-08-18, not read off its
+name. `apply_migration` (`apps/desktop/tauri/src/database/migrations.rs:125`) is **not a
+passthrough**: it parses the whole file with `sqlparser` 0.62's `SQLiteDialect` and executes each
+statement **re-emitted through `Display`**. Three consequences, and the second is the one that
+would have been found at the worst possible moment.
+
+- **The file is all-or-nothing, and that is free.** A file's statements and its `__migrations__`
+  row commit in one transaction, so an interrupted update resumes from the journal. This is what
+  acceptance criterion 1's interruption clause rests on — *and it holds only while the identity
+  change is **one file***. Split across two, the guarantee is silently gone.
+- **`PRAGMA foreign_keys=OFF` does not parse at all.** `Expected: a concrete value, found: OFF`,
+  at line 1 column 21 — and because parsing precedes execution, **the entire file is rejected and
+  nothing is applied.**
+- **So `pnpm db:generate`'s output cannot be applied by this repository.** Run against a schema
+  with `text` ids, drizzle-kit 0.31.10 emits exactly the SQLite recreate pattern, PRAGMA pair
+  included. That file was generated and fed to the real parser: **rejected whole.** Strip the two
+  PRAGMA lines and all **38** statements parse and round-trip faithfully — `CREATE TABLE` with
+  backticks, `INSERT … SELECT` with joins, `DROP TABLE`, `ALTER TABLE … RENAME TO`,
+  `CREATE UNIQUE INDEX`, correlated `UPDATE`, and `CREATE TABLE … AS SELECT`.
+
+**The PRAGMA was never doing anything here anyway, and that is the more important finding.** This
+schema declares drizzle `relations()`, which is a query-layer construct — **not** `references()`.
+There is no `FOREIGN KEY` clause in any of the three migrations and none in the database. So:
+
+> **Nothing in this database will catch a bad remap. Not for `history`, and not for anything
+> else.** The spec has said for a day that `history` has no foreign key to violate, phrased as
+> though the others do. **None of them do** — `contract.tenant_id`, `unit.complex_id`,
+> `payment.contract_id` and both `contract_unit` columns are conventions, not constraints. The
+> entire burden of catching a wrong remap falls on acceptance criterion 1 and on the tests below.
+
+## Where the identity values come from
+
+**Chosen by the human 2026-08-18, from three options: generated in SQL, inside one migration
+file.** Rejected, and named so they are not re-proposed: *a Rust data-migration step journalled
+alongside the SQL files* — real UUIDv7 from the `uuid` crate and unit-testable, but it buys a
+second migration mechanism, an ordering rule between two kinds of step, and the re-establishment
+of an atomicity property option A inherits for nothing; and *registering a `uuid7()` scalar
+function on the pool* — which keeps the file declarative but requires the function to exist
+forever, since migrations replay on every fresh database, and whose feasibility on sqlx 0.9 was
+never established.
+
+**The expression, and it was run rather than reasoned about:**
+
+```sql
+printf('%08x-%04x-7%03x-%s%03x-%012x',
+       CAST(unixepoch('now','subsec')*1000 AS INTEGER)/65536,
+       CAST(unixepoch('now','subsec')*1000 AS INTEGER)%65536,
+       random() & 4095,
+       substr('89ab', (random() & 3)+1, 1),
+       random() & 4095,
+       random() & 281474976710655)
+```
+
+Against SQLite 3.50.4 over 5,000 rows: **5,000 generated, 5,000 distinct, 0 malformed**, version
+nibble `7`, variant nibble in `[89ab]`, embedded timestamp accurate to 4 ms. `random() & mask` is
+used rather than `abs(random()) % n` deliberately — `abs()` on `i64::MIN` raises an integer
+overflow in SQLite, and a bitwise mask is total.
+
+`unixepoch(…, 'subsec')` needs SQLite 3.42; the bundled engine is `libsqlite3-sys` 0.37.0, well
+past it. **The one-line check belongs in the harness below**, not in a reviewer's memory.
+
+**What the timestamp means for migrated rows, and what had to change because of it.**
+*Corrected 2026-08-18, by `/plan`, after `/implement` measured the tree.* Every row that exists at
+migration time gets the **same** 48-bit prefix — `unixepoch('now','subsec')` is constant within a
+single statement, measured at 1 distinct value across 2,000 rows of one `INSERT … SELECT`. This
+paragraph used to say they "sort together" and call that correct. **It is not sufficient.**
+`contract/router.ts:799` orders the palette's contract search by `desc(contract.id)` **alone** — a
+primary sort, not a tiebreaker — so rows sharing a prefix fall back to whatever follows it, and
+with the expression above that is randomness. Migrated contracts would come back shuffled, once,
+permanently.
+
+**So the migration mints its ids from the old one rather than at random.** Chosen by the human
+2026-08-18 over accepting the shuffle and over rewriting the query:
+
+```sql
+printf('%08x-%04x-7%03x-%s%03x-%012x',
+       CAST(unixepoch('now','subsec')*1000 AS INTEGER)/65536,
+       CAST(unixepoch('now','subsec')*1000 AS INTEGER)%65536,
+       0, '8', 0,
+       "id")
+```
+
+**Everything between the timestamp and the seed is fixed, and that is the whole point.** The first
+form tried kept `rand_a` and the variant's low bits random and seeded only the last group — **it
+does not work**, because those bits sort *before* the seed. Measured over 2,000 rows: the random
+form preserved the old order for none of them, breaking at the very first row; the form above
+preserved it for all 2,000, with 2,000 distinct values and none malformed. Old id 1 yields
+`01a01462-658c-7000-8000-000000000001` — version nibble `7`, variant nibble `8`, both valid.
+
+**What this costs, and the condition under which it stops being acceptable.** A migrated id is
+fully determined by the migration instant and the old rowid, so two *different* workspaces
+migrating in the same millisecond with overlapping rowids would mint the same ids. That is
+harmless while a migrated workspace never merges with another — and making one workspace out of
+two is **decision 12's** (local-to-hosted conversion), which is not planned here. **If decision 12
+ever lands, this is the line to revisit**, and the fix is a per-workspace constant in `rand_a`
+rather than a zero. Records created *after* the migration are unaffected either way: they come
+from the TypeScript generator, which is fully random below the timestamp, and they are what
+acceptance criterion 17 is about.
+
+## The migration, in order
+
+One file. The order is load-bearing at three points, each marked.
+
+1. **Build `idmap(concept, old, new)`** from the six concepts that own an identity — `tenant`,
+   `complex`, `unit`, `contract`, `payment`, `history`. ⚠ **Before any table is dropped.**
+2. **Add the orphans, and this is the case the plan found rather than inherited.** A `history`
+   row whose record was deleted points at an id no live row has — legitimately, by design, since
+   `history.record` exists precisely so a deleted record still reads. Those references have no
+   entry in step 1, so a join would drop them and `record_id` is `NOT NULL`. Minting a fresh id
+   per row is also wrong: **two entries about the same deleted record would stop being about the
+   same record**, and grouping a deleted record's history breaks. So each distinct orphaned
+   `(concept, record_id)` gets **one** new identity:
+
+   ```sql
+   INSERT INTO `idmap` ("concept", "old", "new")
+   SELECT "concept", "record_id", <uuid7>
+   FROM (SELECT DISTINCT h."concept" AS "concept", h."record_id" AS "record_id"
+         FROM `history` h
+         WHERE NOT EXISTS (SELECT 1 FROM `idmap` m
+                           WHERE m."concept" = h."concept" AND m."old" = h."record_id"));
+   ```
+
+   The subquery is required: `DISTINCT` over a row containing the generated id would not collapse
+   anything, because every row's id differs.
+3. **Rebuild each of the seven tables** on drizzle's own `__new_x` pattern — its generated file is
+   the starting point and stays the shape of record — but with each `INSERT … SELECT` routed
+   through `idmap` instead of copying the old integer.
+4. **`history` resolves both of its identities in one statement**, its own and its target, and
+   after step 2 both joins are inner:
+
+   ```sql
+   INSERT INTO `__new_history` ("id","at","concept","record_id","action","record")
+   SELECT hm."new", h."at", h."concept", rm."new", h."action", h."record"
+   FROM `history` h
+   JOIN `idmap` hm ON hm."concept" = 'history' AND hm."old" = h."id"
+   JOIN `idmap` rm ON rm."concept" = h."concept"  AND rm."old" = h."record_id";
+   ```
+
+   *`history.concept` is what makes this exact* — the row says which table its target lives in,
+   so there is no ambiguity to resolve and no guess to make.
+5. **`contract_unit` has no identity of its own.** Both its columns are references and both
+   remap; it is the only table where the rebuild is entirely about other tables' ids.
+6. **Recreate every unique index**, including the redundant `x_id_unique` on each primary key that
+   `0000` established and drizzle still emits.
+7. ⚠ **`DROP TABLE idmap` last.** It is the migration's working state and nothing outside the file
+   may see it.
+
+⚠ **The two PRAGMA lines drizzle emits are deleted.** They are inert here and they are fatal to
+the parser. *This means the file is hand-finished after generation — a documented step now,
+rather than something the next person rediscovers by watching a release fail.*
+
+## The runtime half, which the migration does not cover
+
+**With a `TEXT` primary key SQLite stops assigning ids**, so every insert must supply one.
+Decision 13 puts generation on the client that creates the record, so a UUIDv7 generator is added
+on the TypeScript side and called at each of those sites.
+
+**The inventory below replaces the one this section carried.** *Rewritten 2026-08-18, after
+`/implement` claimed this work, converted the schema, read the compiler and stopped.* The previous
+version named 18 insert sites and 21 Zod fields. **Both counts are exactly right, and neither is
+the work**: converting the twelve columns and twelve schema Zod fields alone raises **35 type
+errors across seven files**.
+
+| Surface | Count | Where |
+| --- | --- | --- |
+| columns `integer` → `text` | 12 | `platform/database/schema.ts` |
+| `z.number()` id fields → `z.string()` | 21 | 12 in the schema, 9 in the `complex` and `contract` routers |
+| insert sites that must now supply an id | 18 | six routers |
+| id-typed `number` / `number[]` annotations | **58** | across `src/lib`, excluding tests and the schema |
+| generic constraints over an id | **3** | `design/group.ts:32`, `design/list-keyboard.ts:47`, `payment/payment.ts:24` |
+| `Number(page.params.id)` in route pages | **6** | `src/routes/**/[id]/+page.svelte` |
+| `Number(…)` coercions in a form | **2** | `contract/component/form.svelte:230,336` |
+| `Number.isInteger(id) && id > 0` validity gates | **5** | `complex/query.ts:143`, `history/query.ts:18`, `payment/query.ts:59`, `tenant/component/details.svelte:24,25` |
+| `orderBy(… .id)` uses | 19 | preserved by UUIDv7 — one needs care, below |
+| numeric id literals in tests | 49 | nine `*.test.mjs` files |
+
+*The 58 is counted rather than grepped: a first sweep answered 61, and three of those were
+`design/import.ts`'s file row numbers and the carousel's scroll positions, which are not ids.*
+
+**`contract/reconcile.ts` is in that table and appeared in no earlier version of this section** —
+`TouchSet`'s two id arrays and `selectAssignmentsForUnits`. It is the file a reader would not
+think to open, because it derives state rather than storing any.
+
+**The three generic constraints are mechanical, and that is measured rather than assumed.** They
+read as the most alarming row in the table: `TData extends { id: number }` on two shared design
+primitives constrains every list and keyboard-navigable table in the application. Reading the
+bodies rather than the signatures settles it — `listRows` uses `record.id` only inside a template
+literal, `toRecordRows` never touches it at all, and `groupPaymentsByContractId` uses it as a
+`Map` key. **All three treat an id as an opaque handle**, and all three behave identically for a
+string. They are three signature edits, not a design-system change.
+
+**The validity gate needs a replacement, and that is a decision rather than a translation.**
+`Number.isInteger(id) && id > 0` answers *is this a real id yet* while a route parameter is still
+resolving, and it distinguishes a malformed id from an absent one. **Chosen by the human
+2026-08-18: one shared `isRecordId()`, built on the regex this repository already declares** —
+`design/identifier.ts` carries `regex.identifier.uuid`. Rejected, and named so they are not
+re-proposed: *plain truthiness at each site*, which stops telling malformed from absent; and
+*parsing at the route boundary with Zod*, which restructures six pages for a check that has one
+home.
+
+**Ordering by id survives, because UUIDv7 was chosen for exactly that.** Nineteen queries order by
+an id, all but one as a tiebreaker after a name or a date, and hex UUIDv7 sorts lexicographically
+in creation order. **The exception is `contract/router.ts:799`** — the palette's contract search,
+ordered by `desc(contract.id)` alone. It is the reason the migration seeds its ids from the old
+ones; *Where the identity values come from* has that expression and what it costs.
+
+**Two call sites are deleted rather than changed**, which *Architecture* already records:
+`importWhole`'s `max(id)` reads (`src/lib/workspace/router.ts:260-276`) and renewal's
+`max(contract.id)` (`src/lib/contract/router.ts:443`). A client-generated identity is known before
+the insert, so the reasoning both of them carry about `last_insert_rowid()` stops applying.
+
+**And two things get simpler, which is worth knowing before reading them as risk.** `importWhole`
+loses five `max(id)` reads *and* the contiguous-block allocation they feed — one `newId()` per row
+replaces the lot. `complex.create` loses the subquery that names a complex by its unique name from
+inside a batch: a client-generated identity is known before the batch is built, so the comment
+explaining why it could not be is no longer true and goes with it.
+
+**The order to build it in, because the compiler will not find everything.** Schema first, then
+follow the type errors outward; they cover every row of the table above except three. **The route
+pages, the five validity gates and the 49 test literals are not all compiler-visible** — a
+`Number(…)` coercion produces a `number` that fails at the call site rather than at the coercion,
+and a test literal is only caught when the test runs.
+
 # Migration
 
+> **Invalidated for four hours on 2026-08-18, and restored in full the same day.** This section
+> carried a banner saying no data had to survive this change and nothing had to be rewritten in
+> place. That followed from the installed base being withdrawn, and it was wrong — not about
+> the installed base, but about what makes a migration owed. **Acceptance criterion 1 requires
+> a populated pre-effort workspace to open, with the same data, on the release that carries
+> requirement 16.** So the migration runs over populated rows and remaps every reference,
+> whether or not anyone but the person running the criterion ever sees it. *Directed by the
+> human 2026-08-18, from three options, at the widest of them: write it in full, backup step
+> included.*
+>
+> **The record is left here rather than tidied because the mistake is instructive.** A
+> withdrawn premise looks like it cancels everything downstream of it, and it does not — the
+> obligations below were never owed *only* to an installed base, they were owed to the promise
+> that data survives an update. That promise outlived the population it was written for.
+
 **The migration this effort must survive is not one it performs.** It is the updater delivering
-a new version to a machine that holds real records and made no choice about architecture — the
-single highest-consequence moment in this effort, per *Risks*.
+a new version to a machine holding a populated workspace whose owner made no choice about
+architecture. *Restated 2026-08-18: that machine is no longer a stranger's, it is criterion 1's
+test machine — and the obligations are identical, because the criterion was written to stand in
+for the stranger rather than to be easier than one.*
 
 Part of it is still safe structurally: `RemoteSyncProvider::Local` is the serde default *and* the
 existing value, so a persisted store written by `v0.12.0` deserializes into the new enum
@@ -711,9 +1149,14 @@ untouched. `Database::FILENAME` stays `"app.db"` and `RemoteSyncState.workspace`
 both by *Out of Scope*.
 
 **But "no data migration runs" is no longer true, and it was the load-bearing sentence here.**
-*Corrected 2026-08-18.* Requirement 16 applies one identity scheme to both modes and migrates it
-onto existing installs, so **a real data migration now runs on every machine that takes this
-update** — rewriting the primary key of every row in a populated workspace, unattended.
+*Corrected 2026-08-18.* Requirement 16 applies one identity scheme to both modes, so **a real
+data migration runs on every machine that takes this update** — rewriting the primary key of
+every row in a populated workspace, unattended.
+
+**And at least one such machine exists on purpose.** The population is empty, so the honest
+reading is that this migration is written for a test rather than for users. That does not
+reduce a single obligation below it: a migration correct only under observation is not correct,
+and the criterion exists precisely because nobody will be watching the second time.
 
 What holds it together, and each of these is an obligation on whoever builds it rather than a
 description of something that exists:
@@ -726,9 +1169,35 @@ description of something that exists:
   applied to the records, to `contract_unit` on both columns, to `payment.contractId`, and to
   `history.recordId`. **History has no foreign key to violate**, so nothing would catch it being
   missed — it is listed last here and first in the criterion for that reason.
-- **The old file is not the safety net.** A user who takes an update does not have a copy of what
-  they had before it. Whatever backup this migration takes before rewriting keys is part of the
-  work, not an operational nicety.
+- **The old file is not the safety net** — and **the application already builds the net.**
+  *Corrected 2026-08-18 by [[skills/tasks]], reading the tree.* This bullet said the backup was
+  work to be built, and the plan written earlier the same day named `create_backup_from_pool` as
+  where it would hook. **Both were wrong, and they were wrong in the direction that costs most:
+  they would have added a second backup mechanism beside one that already does the job.**
+
+  What exists: `update.rs`'s `prepare_update` creates a **protected** snapshot —
+  `BackupSource::Recovery` with `BackupRecoveryKind::Update` — and
+  `settings/component/updates.svelte:107` awaits it **before** `downloadAndInstall`. So the copy
+  is taken before the new version is installed, and therefore before the migration ever runs. On
+  success `complete()` releases the protection and ordinary retention keeps the last
+  `UPDATE_RECOVERY_RETENTION_LIMIT` = **3**, so the pre-migration workspace survives roughly
+  three update generations and is restorable through the recovery path already built for it.
+
+  **So no backup ticket is cut**, decided by the human 2026-08-18 over a narrower ticket and
+  over building it anyway. The obligation as this section words it — *a user who takes an update
+  does not have a copy of what they had before it* — is exactly what that mechanism provides.
+
+  **The one path it does not cover is an install that bypasses the in-app updater**, which is
+  how acceptance criterion 1 was rehearsed: the run drove `msiexec` on the artifact directly, so
+  no snapshot was taken. That run is manual and its operator can copy the file by hand, which is
+  why it does not justify a second mechanism — **but it is the reason criterion 1's backup check
+  is worded against the snapshot the updater takes rather than against any file on disk.**
+
+  *This is the second plan-level statement in one day that the tree contradicted, after the
+  claim that the design primitives' `{ id: number }` constraint was architectural. Both were
+  written from the spec rather than from the source, and both were caught by reading it. The
+  identity ticket has no seam either way: schema, migration and every call site fail to build
+  unless they move together, which is why it stays one ticket however large it reads.*
 
 *Why this is stated at length: the previous version of this section said no migration ran, and a
 reader who skims it would carry that belief into the build. The sentence is struck rather than
@@ -745,7 +1214,7 @@ The local-to-hosted conversion is **decision 12's and is not planned here.**
 
 | AC | Checked by |
 | --- | --- |
-| 1 | **Manual, and unavoidably so.** Install `v0.12.0`, populate it, link it to Drive, update through the real updater. No CI run substitutes for it — it needs a real installed build, a real update, and a real populated workspace, exactly as the monorepo effort's release criterion does. It is also the criterion that can be run **before any hosted work exists**, and should be |
+| 1 | **Manual, unavoidably so, and not met.** Install the last pre-effort release, populate it, update through the real updater. No CI run substitutes for it. **Rehearsed 2026-08-18 on `v0.12.0` → `v0.13.0` — a pair containing none of this effort's changes**, so the procedure is proven and the criterion is not. It is discharged only at this effort's release. Three things stay open: the plugin's own check-download-relaunch, a Drive link surviving an update, and the real subject |
 | 2 | A search of the tree for a workspace list or switcher, returning nothing; plus that `RemoteSyncState.workspace` is still singular and `Database::FILENAME` still `"app.db"` |
 | 10 | A search of the tree finding one database client type, and the existing router tests still passing over `createMemoryDatabase()` unchanged — the second being the real check, since it is what a forked client type would break |
 | 11 | `src/lib/api/context.test.mjs`, which already exists, covering a request carrying identity **and one carrying none** — the second being an ordinary local-workspace request rather than an error case |
@@ -762,6 +1231,43 @@ compiles and is never exercised.
 
 **Two criteria in this table cannot be automated at all** — 1 entirely, and the tree searches in
 2, 10 and 14 only partly. They are named so a green suite is not mistaken for a met spec.
+
+## The Rust migration tests do not exist
+
+*Found 2026-08-18 by [[skills/plan]], reading the tree rather than the spec.* Acceptance criterion
+12 promises a local workspace's migrations are *"demonstrated by the existing Rust migration tests
+still passing unchanged"*, and the row above says *"Unchanged is the assertion; a passing rewritten
+test proves nothing here."*
+
+**There are no Rust migration tests.** `database/migrations.rs` and `database/mod.rs` contain no
+`#[test]` or `#[tokio::test]` at all; the only tested file under `database/` is `proxy.rs`, whose
+eight tests are about value conversion. **So criterion 12's cheap half cannot be run, and has
+never been run.** It reads at review as the part already covered, which is the worst way for a
+criterion to be wrong.
+
+**This is not an argument for weakening the criterion.** It is the criterion that guards the one
+mechanism this whole effort's local half rests on, and the identity migration is about to become
+the largest thing that mechanism has ever carried. What changes is that **building the harness is
+part of this work rather than an assumption about it**, and criterion 12's `unchanged` starts
+meaning something the day after it exists.
+
+**What the harness has to do**, and each item is derived from something measured above rather than
+from good practice in general:
+
+| Check | Why it is here |
+| --- | --- |
+| Apply the real migration files to a fixture database through the **real `migrations::run`** | The runner parses and re-emits every statement; a test that executes the SQL directly tests something the application does not do |
+| Assert every generated id matches the UUIDv7 grammar — `[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}` | The identity lives in a `printf` format string, which is the one real cost of the chosen option. This is what pays it back |
+| Assert count per concept is identical across the migration, and all ids distinct | Acceptance criterion 1, mechanised |
+| Assert every reference resolves — including `history.record_id` **and** that orphaned entries still group by their target | Nothing in the database will catch any of this, and the orphan case is the one the plan had to invent |
+| Assert `unixepoch('now','subsec')` is supported by the bundled engine | A version floor is worth one assertion and no reviewer's memory |
+| Assert the identity change is **one file**, and interrupting it leaves the workspace untouched | The all-or-nothing guarantee is a property of one file, not of the migration |
+| Assert migrated rows come back in the order their rowids had | `contract/router.ts:799` sorts a user-facing search by id alone, and the seeded expression is what preserves it. A regression here is invisible in every other query |
+
+**It does not replace acceptance criterion 1.** The harness runs against a fixture; criterion 1
+runs a real installed build through a real updater, and *Testing Strategy*'s note that two criteria
+cannot be automated at all still stands.
+
 
 # Decisions
 
@@ -798,7 +1304,7 @@ outcome is visible to a user. Applying that test item by item, and this is what
 | **The `Hosted` enum variant and its seven call sites** | **No, and this is the item the old reasoning got right.** Seven branches answering for a value nothing constructs is dead code with a test suite. It waits on the gate |
 | **The optional identity member on `Context`** | **No**, for the same reason, and acceptance criterion 11 makes it sharper: a test covering "a request carrying identity" cannot be written while nothing can carry any |
 | **Decision 09's rule re-scoping** | **No, not yet.** Scoping a rule to local workspaces requires knowing what a hosted one does, which is 11's and 05's |
-| **Acceptance criterion 1** — the real updater against a populated `v0.12.0` | **Not a ticket at all** — it produces no branch, so under [[rules/tracker]] it is a verification rather than work. It is still the highest-value thing runnable today, and it belongs to whoever runs it rather than to a merge |
+| **Acceptance criterion 1** — the real updater against a populated install | **Not a ticket at all** — it produces no branch, so under [[rules/tracker]] it is a verification rather than work. **Rehearsed 2026-08-18 and still open**: the run used a release pair predating this effort, so it proved the procedure and not the criterion. It is no longer runnable today — it waits on this effort having a release. The result is recorded at the criterion itself, there being no `evidence/` kind for a criterion run ([[protocol]] declares exactly `research` and `prototypes`) |
 
 So the frontier is small and it is not empty, which is the point.
 
@@ -827,8 +1333,11 @@ decision 08 is no longer blocked.
 
 **Two things reshaped these questions on 2026-08-17**, after most of them were written, and each
 affected section says so at its head: local workspaces stay first-class, so every question below
-answers for **two modes**; and the installed base is real, so *what happens to what already
-exists* is a requirement rather than a footnote.
+answers for **two modes**; and ~~the installed base is real, so *what happens to what already
+exists* is a requirement rather than a footnote~~ — **the second half is struck 2026-08-18.**
+There is no installed base, and *what happens to what already exists* is a question about a
+developer's seeded database. **Two modes survive that unchanged**, confirmed by the human on
+the same day: they were never held up by the installed base alone.
 
 ## 01 — research(persistence): what a libSQL embedded replica actually guarantees
 
@@ -1682,7 +2191,12 @@ it has been run. See
 [[efforts/a-workspace-follows-its-user/evidence/prototypes/turso-sync-against-a-live-database]].
 
 Status: **decided 2026-08-18 — a UUIDv7 held as `TEXT`, generated on the client that creates the
-record, one scheme for both modes, migrated onto existing installs.**
+record, one scheme for both modes, migrated onto a populated workspace.** *The delivery clause
+was struck and restored on 2026-08-18: struck because there are no existing installs, restored
+because acceptance criterion 1 requires a populated pre-effort workspace to survive into this
+effort's release. **The choice of scheme was never in question in either direction** — it
+answers how two replicas avoid producing one identity, which has nothing to do with who is
+running v0.12.0.*
 Part of: a-workspace-follows-its-user
 Type: grilling
 Blocked by: —
