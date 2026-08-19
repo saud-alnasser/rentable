@@ -11,4 +11,4 @@ mod workspace;
 
 pub use command::*;
 pub use control::SessionWindow;
-pub use store::{RemoteSync, RemoteSyncProvider, RemoteSyncWorkspace};
+pub use store::{RemoteSync, RemoteSyncWorkspace};

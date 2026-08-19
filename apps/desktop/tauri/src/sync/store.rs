@@ -32,21 +32,6 @@ pub struct RemoteSync {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
-pub enum RemoteSyncProvider {
-    #[default]
-    Local,
-    GoogleDrive,
-    /// Of record remotely, replicated onto this machine.
-    ///
-    /// Additive to the serde representation on purpose: a store written before this variant
-    /// existed holds `"local"` or `"googleDrive"` and deserialises unchanged, and `Local` is
-    /// both the default and the value an unconfigured install already had. That is what makes
-    /// an update cost nobody their workspace structurally rather than by care.
-    Hosted,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "camelCase")]
 pub enum RemoteSyncAccountStatus {
     #[default]
     Pending,
@@ -58,7 +43,6 @@ pub enum RemoteSyncAccountStatus {
 #[serde(default, rename_all = "camelCase")]
 pub struct RemoteSyncAccount {
     pub id: String,
-    pub provider: RemoteSyncProvider,
     pub status: RemoteSyncAccountStatus,
     pub email: String,
     pub display_name: String,
@@ -80,7 +64,6 @@ pub struct RemoteSyncAccount {
 pub struct RemoteSyncWorkspace {
     pub id: String,
     pub account_id: Option<String>,
-    pub provider: RemoteSyncProvider,
     pub name: String,
     pub local_database_path: PathBuf,
     /// which workspace the remote holds, as the remote itself names it.
@@ -298,7 +281,6 @@ impl RemoteSync {
             workspace_id
         };
 
-        self.store.workspace.provider = RemoteSyncProvider::GoogleDrive;
         self.store.workspace.remote_workspace_id = Some(remote_workspace_id);
         self.store.workspace.remote_folder_id = Some(sanitize_string(&input.remote_folder_id));
         self.store.workspace.remote_manifest_file_id =
@@ -378,18 +360,18 @@ impl RemoteSync {
             .map(|account| account.id.clone())
             .collect::<HashSet<_>>();
 
-        let missing_linked_account = self.store.workspace.provider
-            == RemoteSyncProvider::GoogleDrive
-            && self
-                .store
-                .workspace
-                .account_id
-                .as_ref()
-                .map(|account_id| !known_account_ids.contains(account_id))
-                .unwrap_or(true);
+        // A workspace names a Drive account or it names none. Naming one nothing knows about
+        // is the broken case, and it is now read off the link itself rather than off a mode:
+        // an unlinked workspace has no account_id, so it never enters this arm.
+        let missing_linked_account = self
+            .store
+            .workspace
+            .account_id
+            .as_ref()
+            .is_some_and(|account_id| !known_account_ids.contains(account_id));
 
         if missing_linked_account {
-            Self::reset_workspace_to_local(&mut self.store.workspace, now);
+            Self::clear_google_drive_link(&mut self.store.workspace, now);
             changed = true;
         }
 
@@ -438,7 +420,6 @@ impl RemoteSync {
         RemoteSyncWorkspace {
             id: format!("workspace-{}", now),
             account_id: None,
-            provider: RemoteSyncProvider::Local,
             name: "Primary workspace".to_string(),
             local_database_path: path,
             remote_workspace_id: None,
@@ -456,9 +437,8 @@ impl RemoteSync {
         }
     }
 
-    pub(super) fn reset_workspace_to_local(workspace: &mut RemoteSyncWorkspace, now: i64) {
+    pub(super) fn clear_google_drive_link(workspace: &mut RemoteSyncWorkspace, now: i64) {
         workspace.account_id = None;
-        workspace.provider = RemoteSyncProvider::Local;
         workspace.remote_workspace_id = None;
         workspace.remote_folder_id = None;
         workspace.remote_manifest_file_id = None;
@@ -527,7 +507,7 @@ mod tests {
 
     use tokio::{runtime::Runtime, sync::RwLock};
 
-    use super::{RemoteSync, RemoteSyncProvider, slugify};
+    use super::{RemoteSync, RemoteSyncStore, slugify};
     use crate::{persisted::Persisted, settings::Settings};
 
     fn unique_dir(name: &str) -> PathBuf {
@@ -546,35 +526,29 @@ mod tests {
         assert_eq!(slugify("Person Example+1"), "person-example-1");
     }
 
-    /// The whole of what "additive to the serde representation" is worth, asserted rather than
-    /// reasoned about: a store written before `Hosted` existed holds one of the other two
-    /// strings, and adding a variant must not change what those two mean. A rename or a
-    /// reordering would pass every other test in this file and fail this one.
+    /// A store written while the mode existed still reads, and that is the whole of the
+    /// migration: `provider` is **dropped rather than migrated**, because `RemoteSyncStore` and
+    /// every struct under it derive `Deserialize` without `deny_unknown_fields`, so serde
+    /// ignores a field no type claims. An install holding `"local"` or `"googleDrive"` loads
+    /// unchanged and writes the field away on its next commit.
+    ///
+    /// Asserted rather than reasoned about: adding `deny_unknown_fields` anywhere on this path
+    /// would make every store on a developer machine unreadable, and nothing else in this file
+    /// would notice.
     #[test]
-    fn a_store_written_before_hosted_existed_still_reads_as_what_it_was() {
-        for (written, expected) in [
-            ("\"local\"", RemoteSyncProvider::Local),
-            ("\"googleDrive\"", RemoteSyncProvider::GoogleDrive),
-            ("\"hosted\"", RemoteSyncProvider::Hosted),
-        ] {
-            let read: RemoteSyncProvider =
-                serde_json::from_str(written).expect("a persisted provider should still read");
+    fn a_store_written_while_the_mode_existed_still_reads() {
+        for written in ["\"local\"", "\"googleDrive\"", "\"hosted\""] {
+            let store: RemoteSyncStore = serde_json::from_str(&format!(
+                "{{\"workspace\":{{\"id\":\"workspace-1\",\"provider\":{written},\"name\":\"Primary workspace\"}},\"accounts\":[{{\"id\":\"account-1\",\"provider\":{written},\"email\":\"person@example.com\"}}]}}"
+            ))
+            .expect("a store written with a provider should still read");
 
-            assert_eq!(read, expected, "{written} changed meaning");
             assert_eq!(
-                serde_json::to_string(&expected).expect("a provider should write"),
-                written,
-                "{written} no longer round-trips"
+                store.workspace.id, "workspace-1",
+                "{written} lost the workspace"
             );
+            assert_eq!(store.accounts.len(), 1, "{written} lost the account");
         }
-    }
-
-    /// `Local` is both the default and the value an unconfigured install already had. That is
-    /// what makes an update cost nobody their workspace structurally rather than by care, so it
-    /// is pinned here rather than left to the `#[default]` attribute being noticed in review.
-    #[test]
-    fn an_absent_provider_is_still_local() {
-        assert_eq!(RemoteSyncProvider::default(), RemoteSyncProvider::Local);
     }
 
     #[test]
@@ -598,7 +572,6 @@ mod tests {
 
                 let state = remote_sync.get_state().await.expect("failed to get state");
                 assert_eq!(state.workspace.local_database_path, root.join("app.db"));
-                assert_eq!(state.workspace.provider, RemoteSyncProvider::Local);
 
                 let _ = std::fs::remove_dir_all(&root);
             });

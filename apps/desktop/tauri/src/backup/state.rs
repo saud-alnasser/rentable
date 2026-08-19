@@ -9,8 +9,8 @@ use crate::{
 
 use super::manifest::{
     BackupEntry, BackupManifest, BackupManifestLoadOutcome, BackupRecoveryKind, BackupSource,
-    head_snapshot_entry, load_backup_manifest, remote_sync_provider_name,
-    sanitize_manifest_provider, sanitize_optional_string,
+    head_snapshot_entry, load_backup_manifest, sanitize_manifest_provider,
+    sanitize_optional_string,
 };
 
 /// a backup manager for a database
@@ -88,12 +88,20 @@ impl Backup {
         workspace: Option<&RemoteSyncWorkspace>,
     ) -> Result<(), Error> {
         match workspace {
+            // Manifest identity, and nothing branches on it — a workspace that names a Drive
+            // account is on Drive, and every other workspace is of record in Turso. The mode
+            // this read once is gone; the three strings stay legal so an existing manifest
+            // still reads.
             Some(workspace) => self.set_manifest_identity(
-                remote_sync_provider_name(&workspace.provider),
+                if workspace.account_id.is_some() {
+                    "googleDrive"
+                } else {
+                    "hosted"
+                },
                 Some(workspace.id.clone()),
                 Some(workspace.name.clone()),
             ),
-            None => self.set_manifest_identity("local", None, None),
+            None => self.set_manifest_identity("hosted", None, None),
         }
     }
 

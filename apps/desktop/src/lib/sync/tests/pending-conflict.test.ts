@@ -29,7 +29,6 @@ function syncState(
 		workspace: fakeWorkspace({
 			id: 'workspace',
 			accountId: 'account',
-			provider: 'googleDrive',
 			lastSnapshotAt: 1,
 			lastSyncedAt: 2,
 			lastRemoteUpdatedAt: 3,
@@ -144,13 +143,13 @@ test('a conflict describing a state that has moved since is raised', async () =>
 });
 
 test('a conflict about a workspace that describes no state is never taken for a dismissed one', async () => {
-	const local = preparation('sync', { state: syncState({ provider: 'local' }) });
+	const unlinked = preparation('sync', { state: syncState({ accountId: null }) });
 	const flow = new PendingConflictFlow(createDriver());
-	flow.present(local);
+	flow.present(unlinked);
 	await flow.dismiss();
 
 	assert.equal(flow.isDismissed(null), false);
-	assert.equal(flow.present(local), true);
+	assert.equal(flow.present(unlinked), true);
 });
 
 test('forgetting a dismissal lets the same conflict be raised again', async () => {
@@ -435,8 +434,8 @@ test('every state change notifies the observer', async () => {
 
 // --- The signature --------------------------------------------------------------------
 
-test('a workspace that is not on Drive describes no conflict', () => {
-	assert.equal(workspaceConflictSignature(syncState({ provider: 'local' })), null);
+test('a workspace naming no Drive account describes no conflict', () => {
+	assert.equal(workspaceConflictSignature(syncState({ accountId: null })), null);
 	assert.equal(workspaceConflictSignature(null), null);
 });
 
@@ -458,12 +457,13 @@ test('an account that has gone wrong produces a different signature', () => {
 	);
 });
 
-// a hosted workspace has no whole-snapshot conflict to describe: the two sides do not exchange
-// files, so there is never a pair for the user to choose between. The signature is what the
-// dismissal is remembered against, so a hosted workspace answering one would be remembering an
-// answer to a question nobody could have been asked.
-test('a hosted workspace has no conflict signature', () => {
-	assert.equal(workspaceConflictSignature(syncState({ provider: 'hosted' })), null);
+// a workspace of record in Turso has no whole-snapshot conflict to describe: the two sides do
+// not exchange files, so there is never a pair for the user to choose between. The signature is
+// what the dismissal is remembered against, so answering one would be remembering an answer to a
+// question nobody could have been asked. Naming no Drive account is what says so, now that no
+// mode does.
+test('a workspace of record in Turso has no conflict signature', () => {
+	assert.equal(workspaceConflictSignature(syncState({ accountId: null })), null);
 	assert.ok(
 		workspaceConflictSignature(syncState()),
 		'the Drive workspace still has one, so the check above is not passing by accident'

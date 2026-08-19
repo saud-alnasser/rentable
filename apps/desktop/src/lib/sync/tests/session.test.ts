@@ -25,14 +25,13 @@ function issuedAt(moment: number, replicaAt: number | null = moment): SessionWin
 }
 
 /** the state the shell reports, which is where the window actually comes from. */
-function shellReporting(provider: string, session: SessionWindow | null) {
-	return { workspace: { provider }, session } as never;
+function shellReporting(session: SessionWindow | null) {
+	return { workspace: {}, session } as never;
 }
 
 // Acceptance criterion 16, the half that must ask. The clock moves and nothing else does.
 test('a hosted workspace three days out of contact asks for a sign-in, and names the action', () => {
 	const standing = replicationStanding({
-		provider: 'hosted',
 		session: issuedAt(AT),
 		now: AT + 3 * A_DAY
 	});
@@ -45,14 +44,10 @@ test('a hosted workspace three days out of contact asks for a sign-in, and names
 test('a reach inside the window restarts the window, and it does not ask', () => {
 	const reachedAt = AT + 3 * A_DAY - 1;
 
-	assert.equal(
-		replicationStanding({ provider: 'hosted', session: issuedAt(AT), now: reachedAt }).kind,
-		'live'
-	);
+	assert.equal(replicationStanding({ session: issuedAt(AT), now: reachedAt }).kind, 'live');
 
 	assert.deepEqual(
 		replicationStanding({
-			provider: 'hosted',
 			session: issuedAt(reachedAt),
 			now: reachedAt + 3 * A_DAY - 1
 		}),
@@ -65,14 +60,8 @@ test('a reach inside the window restarts the window, and it does not ask', () =>
 test('the last millisecond of the window is inside it and the first one after is not', () => {
 	const session = issuedAt(AT);
 
-	assert.equal(
-		replicationStanding({ provider: 'hosted', session, now: AT + 3 * A_DAY - 1 }).kind,
-		'live'
-	);
-	assert.equal(
-		replicationStanding({ provider: 'hosted', session, now: AT + 3 * A_DAY }).kind,
-		'signInRequired'
-	);
+	assert.equal(replicationStanding({ session, now: AT + 3 * A_DAY - 1 }).kind, 'live');
+	assert.equal(replicationStanding({ session, now: AT + 3 * A_DAY }).kind, 'signInRequired');
 });
 
 // **The two windows are started by different calls, so equal lengths prove nothing.** Sign in and
@@ -87,16 +76,13 @@ test('the credential that carries replication governs, even where the session ou
 		updatedAt: AT + 2 * A_DAY
 	};
 
-	assert.deepEqual(
-		replicationStanding({ provider: 'hosted', session: drifted, now: AT + 3 * A_DAY - 1 }),
-		{
-			kind: 'live',
-			until: AT + 3 * A_DAY
-		}
-	);
+	assert.deepEqual(replicationStanding({ session: drifted, now: AT + 3 * A_DAY - 1 }), {
+		kind: 'live',
+		until: AT + 3 * A_DAY
+	});
 
 	assert.deepEqual(
-		replicationStanding({ provider: 'hosted', session: drifted, now: AT + 3 * A_DAY }),
+		replicationStanding({ session: drifted, now: AT + 3 * A_DAY }),
 		{ kind: 'signInRequired', action: 'signInWithGoogle' },
 		'the client believed a session that outlived the credential it needed'
 	);
@@ -113,7 +99,7 @@ test('a session that closes first ends the window too', () => {
 	};
 
 	assert.equal(
-		replicationStanding({ provider: 'hosted', session: drifted, now: AT + 2 * A_DAY }).kind,
+		replicationStanding({ session: drifted, now: AT + 2 * A_DAY }).kind,
 		'signInRequired'
 	);
 });
@@ -121,39 +107,23 @@ test('a session that closes first ends the window too', () => {
 // Between signing in and the first mint there is no replica credential, and that is not a window
 // of length zero — nothing has started it.
 test('a window with nothing minted yet runs on the session alone', () => {
-	assert.deepEqual(
-		replicationStanding({ provider: 'hosted', session: issuedAt(AT, null), now: AT + A_DAY }),
-		{ kind: 'live', until: AT + 3 * A_DAY }
-	);
+	assert.deepEqual(replicationStanding({ session: issuedAt(AT, null), now: AT + A_DAY }), {
+		kind: 'live',
+		until: AT + 3 * A_DAY
+	});
 });
 
-// Acceptance criterion 16's last clause, and the one that has to hold for every value of the
-// clock rather than for a chosen one: a local workspace is asked for nothing, ever.
-test('a local workspace is never asked for anything, at any point in or past the window', () => {
-	for (const now of [AT, AT + A_DAY, AT + 3 * A_DAY, AT + 3650 * A_DAY]) {
-		assert.deepEqual(replicationStanding({ provider: 'local', session: null, now }), {
-			kind: 'unsessioned'
-		});
-
-		// and it stays unasked even where this machine happens to be holding a window — somebody
-		// may be signed in to Google with a purely local workspace, and the mode is what decides.
-		assert.deepEqual(replicationStanding({ provider: 'local', session: issuedAt(AT), now }), {
-			kind: 'unsessioned'
-		});
-	}
-});
-
-test('a workspace kept on Drive has no session to expire either', () => {
-	assert.deepEqual(
-		replicationStanding({ provider: 'googleDrive', session: null, now: AT + 3650 * A_DAY }),
-		{ kind: 'unsessioned' }
-	);
-});
+// Acceptance criterion 16's last clause used to read *a local workspace is asked for nothing,
+// ever*, and it was two tests: one for a workspace kept on this machine and one for a workspace
+// kept on Drive. **Both were about the mode, and there is no mode** — every workspace is of record
+// in Turso, so every workspace answers to the window. They are not replaced by weaker versions of
+// themselves; what survives of them is the guard below, which is about a state that has not
+// loaded rather than about a kind of workspace.
 
 // A hosted workspace holding nothing has not signed in, which is the same move as one whose
 // window closed. Told apart, the two would need two answers and the user has one thing to do.
-test('a hosted workspace holding no session asks the same thing an expired one does', () => {
-	assert.deepEqual(replicationStanding({ provider: 'hosted', session: null, now: AT }), {
+test('a workspace holding no session asks the same thing an expired one does', () => {
+	assert.deepEqual(replicationStanding({ session: null, now: AT }), {
 		kind: 'signInRequired',
 		action: 'signInWithGoogle'
 	});
@@ -162,17 +132,10 @@ test('a hosted workspace holding no session asks the same thing an expired one d
 // The window comes off the state the shell reports, which is what makes it survive a restart:
 // Rust persists it beside the workspace, so reopening the application reads the same one back.
 test('the standing is read off the state the shell reports', () => {
+	assert.equal(workspaceReplicationStanding(shellReporting(issuedAt(AT)), AT + A_DAY).kind, 'live');
 	assert.equal(
-		workspaceReplicationStanding(shellReporting('hosted', issuedAt(AT)), AT + A_DAY).kind,
-		'live'
-	);
-	assert.equal(
-		workspaceReplicationStanding(shellReporting('hosted', issuedAt(AT)), AT + 3 * A_DAY).kind,
+		workspaceReplicationStanding(shellReporting(issuedAt(AT)), AT + 3 * A_DAY).kind,
 		'signInRequired'
-	);
-	assert.equal(
-		workspaceReplicationStanding(shellReporting('local', null), AT + 3 * A_DAY).kind,
-		'unsessioned'
 	);
 	assert.equal(
 		workspaceReplicationStanding(null, AT).kind,

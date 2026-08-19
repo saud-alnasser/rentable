@@ -1,4 +1,4 @@
-import type { RemoteSyncProvider, RemoteSyncState, SessionWindow } from '$lib/platform/host';
+import type { RemoteSyncState, SessionWindow } from '$lib/platform/host';
 
 /**
  * THE SESSION
@@ -33,10 +33,10 @@ import type { RemoteSyncProvider, RemoteSyncState, SessionWindow } from '$lib/pl
  * sending it anywhere. Nothing here discards a write to produce that refusal, and nothing here
  * touches the database at all.
  *
- * **A local workspace never enters this path.** It has no session because it never signed in, and
- * `provider` is what decides that — not whether somebody happens to be signed in to Google, which
- * they may well be with a purely local workspace. The rule below branches on the mode first, so a
- * local workspace's answer never depends on a session at all.
+ * **Every workspace enters this path.** It used to branch on the mode first, so a workspace kept
+ * on this machine was answered without consulting a session at all. There is no such workspace:
+ * one record of truth means the session is the only thing that decides, and a client holding none
+ * has not signed in rather than having nothing to sign in to.
  */
 
 export type { SessionWindow };
@@ -44,9 +44,12 @@ export type { SessionWindow };
 /**
  * whether this workspace may replicate, and what to do where it may not.
  *
- * `unsessioned` is the ordinary answer and not a degraded one: a local workspace has no session
- * to expire, and a workspace kept on Drive is not replicating through the control plane either.
- * Neither is ever asked for anything on this path.
+ * `unsessioned` **narrowed rather than went away.** It used to mean *this workspace has no session
+ * to expire* — true of one kept on this machine and of one kept on Drive, and untrue of anything
+ * now. What it means is *the shell has not reported yet*, which {@link replicationStanding} cannot
+ * produce and only {@link workspaceReplicationStanding} can: a state still loading is not a client
+ * that failed to sign in, and answering it with a demand would put the login page in front of
+ * every launch for as long as the first read takes.
  */
 export type ReplicationStanding =
 	| { kind: 'unsessioned' }
@@ -78,25 +81,18 @@ function windowClosesAt(session: SessionWindow): number {
 }
 
 /**
- * Where a workspace stands, given the mode it is in, the window held for it, and the time.
+ * Where a workspace stands, given the window held for it and the time.
  *
  * Pure, and the clock is an argument: requirement 15 is three days passing, so a test has to be
  * able to move past the window without moving the machine's clock.
  */
 export function replicationStanding({
-	provider,
 	session,
 	now
 }: {
-	provider: RemoteSyncProvider | null | undefined;
 	session: SessionWindow | null;
 	now: number;
 }): ReplicationStanding {
-	// the mode first, and nothing about the session is consulted for the modes that have none.
-	if (provider !== 'hosted') {
-		return { kind: 'unsessioned' };
-	}
-
 	if (session) {
 		const until = windowClosesAt(session);
 
@@ -108,7 +104,7 @@ export function replicationStanding({
 	}
 
 	// no session at all, or one that ran out. Both leave the same move to make, and the two are
-	// deliberately not told apart: a hosted workspace holding nothing has not signed in either.
+	// deliberately not told apart: a workspace holding nothing has not signed in either.
 	return { kind: 'signInRequired', action: 'signInWithGoogle' };
 }
 
@@ -123,9 +119,12 @@ export function workspaceReplicationStanding(
 	state: RemoteSyncState | null | undefined,
 	now: number = Date.now()
 ): ReplicationStanding {
+	if (!state) {
+		return { kind: 'unsessioned' };
+	}
+
 	return replicationStanding({
-		provider: state?.workspace?.provider,
-		session: state?.session ?? null,
+		session: state.session ?? null,
 		now
 	});
 }

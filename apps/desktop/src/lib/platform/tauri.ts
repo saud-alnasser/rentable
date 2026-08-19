@@ -53,7 +53,6 @@ export type {
 	RemoteSyncAccount,
 	RemoteSyncAccountStatus,
 	RemoteSyncProfile,
-	RemoteSyncProvider,
 	RemoteSyncState,
 	RemoteSyncWorkspace,
 	Settings,

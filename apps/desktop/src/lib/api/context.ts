@@ -92,16 +92,12 @@ const systemClock: Clock = {
 async function actingIdentity(host: Host): Promise<Identity | undefined> {
 	let state;
 
-	// only the asking is guarded, and deliberately: a failure to read the mode is an
+	// only the asking is guarded, and deliberately: a failure to reach the shell is an
 	// unanswered question, while a failure to make sense of the answer is a defect, and
-	// swallowing the second inside the first would report it as an ordinary local request.
+	// swallowing the second inside the first would report it as a request nobody made.
 	try {
 		state = await host.remoteSync.getState();
 	} catch {
-		return undefined;
-	}
-
-	if (state.workspace.provider !== 'hosted') {
 		return undefined;
 	}
 

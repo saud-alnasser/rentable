@@ -21,8 +21,7 @@ use super::google::transport::{
     GoogleDriveApplyPullInput, GoogleDrivePreparedPush, GoogleDriveSyncCompleteInput,
 };
 use super::store::{
-    RemoteSyncProvider, RemoteSyncState, sanitize_filename, sanitize_optional_string,
-    sanitize_string,
+    RemoteSyncState, sanitize_filename, sanitize_optional_string, sanitize_string,
 };
 
 pub(crate) async fn sync_backup_manifest_to_active_workspace(
@@ -104,17 +103,12 @@ pub(crate) async fn prepare_local_push(
         let mut remote_sync = app_state.remote_sync.write().await;
         let workspace = remote_sync.get_state().await?.workspace;
 
-        if workspace.provider != RemoteSyncProvider::GoogleDrive {
-            return Err(Error::PreconditionFailed {
-                message: "workspace is not linked to Google Drive".to_string(),
-            });
-        }
-
+        // Naming an account is what being linked to Drive is, now that no mode says so.
         let account_id = workspace
             .account_id
             .clone()
             .ok_or_else(|| Error::PreconditionFailed {
-                message: "workspace is missing a linked Google Drive account".to_string(),
+                message: "workspace is not linked to Google Drive".to_string(),
             })?;
 
         (workspace, account_id)

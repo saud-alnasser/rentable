@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { RemoteSyncAccount, RemoteSyncProvider } from '$lib/platform/host.ts';
+import type { RemoteSyncAccount } from '$lib/platform/host.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import {
 	fakeAccount,
@@ -17,17 +17,15 @@ import { context } from '../context.ts';
 // built from used to be the whole of it, and a context that read a fourth would have been
 // covered by a shape the shell never produces.
 function shellReporting({
-	provider = 'hosted',
 	accountId = 'account',
 	accounts
 }: {
-	provider?: RemoteSyncProvider;
 	accountId?: string | null;
 	accounts?: RemoteSyncAccount[];
 } = {}) {
 	const state = fakeSyncState({
-		accounts: accounts ?? [fakeAccount({ provider: 'hosted' })],
-		workspace: fakeWorkspace({ provider, accountId })
+		accounts: accounts ?? [fakeAccount()],
+		workspace: fakeWorkspace({ accountId })
 	});
 
 	return fakeHost({
@@ -87,30 +85,22 @@ test('a hosted workspace gives the request the person acting', async () => {
 	});
 });
 
-// the second half of the pair, and the half that matters: a local workspace has no owner, so a
-// request carrying no identity is the ordinary case and not a failure to find one.
-test('a local workspace leaves the key absent rather than present and holding nothing', async () => {
+// the second half of the pair, and the half that matters: a workspace naming no account has no
+// owner yet, so a request carrying no identity is the ordinary case and not a failure to find one.
+//
+// **This used to be the local-workspace case**, and it was the mode that answered it. There is no
+// mode: what is left is a store that names nobody, which is what an install looks like before
+// anyone signs in. Its companion — *being signed in does not give a local request an actor* —
+// went with the mode it pinned, because there is no longer a workspace an account can fail to own.
+test('a workspace naming no account leaves the key absent rather than present and holding nothing', async () => {
 	const ctx = await context({
 		db: createMemoryDatabase(),
 		clock: { now: () => 0 },
-		host: shellReporting({ provider: 'local' })
+		host: shellReporting({ accountId: null })
 	});
 
 	assert.equal(ctx.identity, undefined);
-	assert.ok(!('identity' in ctx), 'a local request grew an identity key holding nothing');
-});
-
-// signing in is its own act, so somebody may be signed in with a purely local workspace. The
-// mode decides whether a request has an actor, and this pins that it is the mode and not the
-// account — the same conflation this effort took apart one ticket ago.
-test('being signed in does not give a local request an actor', async () => {
-	const ctx = await context({
-		db: createMemoryDatabase(),
-		clock: { now: () => 0 },
-		host: shellReporting({ provider: 'googleDrive', accountId: 'account' })
-	});
-
-	assert.equal(ctx.identity, undefined);
+	assert.ok(!('identity' in ctx), 'an unowned request grew an identity key holding nothing');
 });
 
 // a hosted workspace naming an account nobody holds is not an actor either. It is the shape a
