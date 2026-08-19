@@ -236,6 +236,9 @@ test('a sign-in past its month is removable, and one merely out of contact is le
 		const account = await anAccount(db);
 		const aged = await startSession(db, account.id, AT);
 		const quiet = await startSession(db, account.id, AT + A_DAY);
+		// the third case, added with #607: a sign-in from this morning. It was implied by the two
+		// above and never stated, which criterion 20 enumerates separately for a reason.
+		const live = await startSession(db, account.id, AT + SESSION_ABSOLUTE_LIFETIME_MS - A_DAY);
 
 		assert.equal(await forgetExpiredSessions(db, AT + SESSION_ABSOLUTE_LIFETIME_MS), 1);
 
@@ -246,6 +249,10 @@ test('a sign-in past its month is removable, and one merely out of contact is le
 		assert.ok(
 			await resumeSession(db, quiet.token, AT + SESSION_ABSOLUTE_LIFETIME_MS),
 			'a session nobody had reached for weeks was swept before it could reconnect'
+		);
+		assert.ok(
+			await resumeSession(db, live.token, AT + SESSION_ABSOLUTE_LIFETIME_MS),
+			'a sign-in from this morning was swept'
 		);
 	});
 });
