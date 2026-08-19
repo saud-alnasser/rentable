@@ -293,6 +293,50 @@ nobody re-read.*
     today and neither may be deleted silently: the updater takes a protected snapshot before
     installing, and `startup-recovery.svelte` offers a route back from a workspace that will not
     open. Each is either shown to be unnecessary under a remote record of truth, or replaced.
+18. **Declining to renew is invokable on a running control plane, per account.** *Added
+    2026-08-19 from a review of #550 (#564), and not yet accepted — this file's `status` covers
+    the seventeen above it.*
+
+    *Architecture* rests on this and the vendor gives no help: Turso's own revocation is
+    bulk-only, rotates every token in its group, and has no published propagation time (decision
+    01), which cannot remove one member of one workspace. **Declining to renew is what this
+    repository offers instead.** `declineRenewal` exists in
+    `apps/control-plane/src/session/session.ts`, is tested, and is reachable from **no route, no
+    command and no timer** — so on a deployed control plane there is no way to perform it. **An
+    answer nobody can call is not an answer**, and the requirement is that it becomes callable,
+    not that it becomes a product.
+
+    **What it buys is bounded, and the bound is already accepted rather than a shortfall.** A
+    Turso token already minted is the vendor's to honour for its three days, so declining takes
+    effect within one token lifetime — the bound *Architecture* names, and the reason the window
+    is three days rather than thirty. A requirement promising immediacy would be promising
+    something this shape cannot deliver.
+
+    **Who decides to remove somebody, and through what interface, is not this.** Requirement 14's
+    organization work owns that surface.
+19. **The control plane's own database does not grow without bound.** *Added 2026-08-19 (#564),
+    and not yet accepted.*
+
+    A `session` row is written on every sign-in and on **every request that presents a Google
+    access token** — `asking` in `server/server.ts` starts one whenever the credential is not
+    already a session. Nothing removes a row. `forgetExpiredSessions` exists, keys on the
+    absolute lifetime rather than the refresh window — the only correct key, since a session
+    three days past its last reach is still refreshable — and is reachable from a test and from
+    nowhere else.
+
+    **An expired row is inert, so this is accrual and not a correctness failure**: `resumeSession`
+    does not match one. That is why the requirement is about growth rather than behaviour. A table
+    nobody prunes is a bill and an incident nobody has scheduled, on the one database here that is
+    single, always online, and has no replica to lose.
+
+    *Found while specifying this, and it is drift rather than a second defect:*
+    `apps/control-plane/README.md` says a session is issued by "the two routes that hand one back
+    and not by the others, which would otherwise write a row per request". **Both halves are false
+    now.** Every route hands a session back — #557's mint returns one too — and none of them
+    decline to issue, so a row per request is exactly what happens. `server/server.ts:98` links
+    `askingForASession` to explain the behaviour, and **that function was never written**. Nothing
+    is broken by it — the rows go to the client rather than being orphaned — but the file that
+    says how many are written is wrong, and it is the file somebody would size this against.
 
 # Acceptance Criteria
 
@@ -474,6 +518,25 @@ its replacement.*
     and exercised; `startup-recovery.svelte`'s job is either shown to be impossible under a remote
     record of truth or is done by something else. **Deleting either without an answer fails this
     criterion**, which is the whole reason it exists.
+19. **Declining renewal for one account is performed against a running control plane, by
+    whoever operates it, with no code change and no hand-written `delete`.** *(requirement 18 —
+    new 2026-08-19.)* Performed for one named account: that account's sessions end and no other
+    account's do; the invocation answers how many ended, so *nobody was signed in* is
+    distinguishable from *somebody was and is not now*; a client holding one of those sessions is
+    refused at its next reach with `session_expired` and mints no further workspace token.
+    **The account is named by something an operator actually holds** — an invocation that takes
+    only an internal id, when what an operator has is an email address, is one they will get
+    wrong.
+
+    *An invocation demonstrated only by a test fails this criterion*, and that is the whole reason
+    it exists: #550's mechanism was tested, and being tested is precisely the state being
+    corrected.
+20. **Pruning is invokable, and it removes what is dead and nothing else.** *(requirement 19 —
+    new 2026-08-19.)* Run against a database holding all three: a session past its absolute
+    lifetime is gone; a session **three days past its last reach but inside its month** survives,
+    because requirement 15 promises it is still refreshable and removing it would fail criterion
+    16; a live session survives. The invocation answers how many it removed. Tested by moving the
+    clock rather than by waiting.
 
 # Constraints
 
@@ -536,6 +599,16 @@ its replacement.*
   seam that already exists; a decision that introduces a new persistence layer instead has
   mistaken the size of the change.* *Amended 2026-08-19: the seam holds, and what moved is which
   side of the Tauri boundary the engine sits on — see decision 10.*
+- **Maintenance is invoked, never scheduled here.** *Added 2026-08-19 (#564).* *Why: nothing is
+  deployed and deployment is out of scope, so a timer would be a schedule with nowhere to run and
+  a second thing to be wrong about.* `pnpm --filter ./apps/control-plane sweep` is the precedent
+  this effort already set — a command a person runs on a day they picked — and **a second
+  mechanism for the same job is one too many**. What shape the invocation takes is
+  [[modes/plan]]'s and is not settled here.
+- **An operation that removes rows answers how many it removed.** *Added 2026-08-19 (#564).*
+  *Why: both mechanisms already do, and it is not decoration — it is what tells "nobody was signed
+  in" from "somebody was and is not now". An operator who cannot tell those apart has run a
+  command and learned nothing.*
 
 # Out of Scope
 
@@ -609,6 +682,29 @@ its replacement.*
   Three things it landed are now inputs to this effort rather than exclusions from it, and each is
   written where it lands: a durable `history` table, a whole-workspace export and import, and
   server-side list filtering. They are the reason this spec was re-opened on 2026-08-18.
+- **The surface that decides to remove somebody.** *Added 2026-08-19 (#564).* Requirement 18 is
+  that declining to renew can be *performed*. Who is entitled to decide it, and through what
+  interface, belongs with organizations and membership administration — requirement 14, not built
+  here. *Why this needs saying: the mechanism and the surface are one sentence apart, and
+  building the second while reaching for the first is how an unowned administrative surface
+  appears.*
+- **An operator identity, and an audit trail.** *Added 2026-08-19 (#564).* The control plane has
+  exactly one caller class — an account holder, identified by Google — and no notion of an
+  administrator, no credential for one, and nothing recording who did what. **A route would need
+  all three.** That is a cost for [[modes/plan]] to weigh against the command, not a thing this
+  effort builds on the way past.
+- **Scheduling any of it, and deploying anything.** *Added 2026-08-19 (#564), and it does not
+  reverse the exclusion above.* What is in scope is that the operation can be performed at all;
+  when, how often, and by what runner belongs to the later effort that stands the service up.
+- **A user-facing "sign out everywhere".** *Added 2026-08-19 (#564).* The same mechanism would
+  serve it, and the requirement is not it: this is an operator being able to act, not a person
+  managing their own devices. Named because it is one route away.
+- **Anything else that accrues.** *Added 2026-08-19 (#564).* The ticket asks for maintenance
+  "and whatever else accrues", and `session` is the only table that grows without a user asking
+  it to. `account`, `workspace` and `membership` grow one row per thing somebody made, which is
+  data rather than garbage; a workspace database nobody deletes is decision 12's territory.
+  **A requirement to prune "whatever accrues" would have no acceptance criterion**, which is the
+  definition of a wish.
 
 # Assumptions
 
@@ -678,6 +774,14 @@ its replacement.*
   taken through the NAPI binding at 0.7.2. The Rust crate is the same engine at the same version
   number, so they are expected to carry, **but that is inference and not observation**. Acceptance
   criterion 9's kept test is what converts it.
+- **Whoever runs the control plane can reach the machine it runs on.** *Added 2026-08-19
+  (#564).* A command a person runs assumes a person with a shell, where the process and its
+  database are. It is unverifiable today because nothing is deployed, and it is written down
+  rather than absorbed because **it is the whole difference between a command and a route**: the
+  second needs no shell and costs an operator credential this repository does not have.
+- **One person operates this.** *Added 2026-08-19 (#564).* One author, one caller class, no
+  second administrator — so nothing here has to answer who acted. It is an assumption rather than
+  a fact because requirement 14's organization work is the thing that ends it.
 
 # Open Questions
 
@@ -739,6 +843,12 @@ its replacement.*
   tree first: `memory.ts` does build its client through `createDatabase`, and `seed.ts`/`purge.ts`
   are still on `drizzle-orm/better-sqlite3`, so the rule's obligation and its named exclusion both
   still hold.
+- **Does declining to renew owe a record of itself?** *Added 2026-08-19 (#564).* It deletes rows
+  and answers a count, and **the rows that would have said somebody was removed are the ones it
+  removes** — so afterwards nothing anywhere says a decision was made, by whom, or when. Under one
+  operator that is tolerable; under requirement 14's organizations it is not, and the cheap moment
+  to settle it is before the invocation exists rather than after. **This is a product call and it
+  is the human's.**
 
 # Risks
 
@@ -860,6 +970,16 @@ its replacement.*
   *The sentence also ended "which is why the sizing below reports the top floor", and there is no
   sizing section in this file. A cross-reference to a section that does not exist is the cheapest
   kind of defect to leave and the most annoying to meet, so it is removed rather than repaired.*
+- **Declining renewal for the wrong account is silent until somebody is locked out.** *Added
+  2026-08-19 (#564).* The operation takes an account, ends every session it has, and answers a
+  number that looks identical whether it was the right one. There is no undo worth the name — the
+  person signs in again — but there is no signal either, so it surfaces hours later as a user
+  reporting that the application asked them to sign in.
+- **A prune written against the wrong window would eat live sessions.** *Added 2026-08-19
+  (#564).* `forgetExpiredSessions` keys on the absolute lifetime, which is correct; a caller that
+  writes its own `delete` against `expires_at` instead removes exactly the sessions requirement 15
+  promises are refreshable. It shows up as criterion 16 failing on a machine that was merely
+  offline for a weekend.
 
 # Architecture
 
