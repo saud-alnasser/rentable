@@ -4,6 +4,8 @@
 // them for this one.
 import 'dotenv/config';
 
+import { createClient } from '@libsql/client';
+
 import { connect, database, databaseUrl } from './database/database.ts';
 import { verifyAgainstGoogle } from './account/google.ts';
 import { controlPlaneServer } from './server/server.ts';
@@ -17,7 +19,7 @@ import { tursoPlatform } from './workspace/turso.ts';
  * arguments — so the tests run the real routes, and only this file reaches for a real network, a
  * real file, and somebody's cloud account.
  *
- * Settling a hosted workspace's schema at the mint is #557. Nothing is deployed.
+ * Nothing is deployed.
  */
 const port = Number(process.env.PORT ?? 4000);
 
@@ -50,7 +52,11 @@ const server = controlPlaneServer({
 		apiToken: required('TURSO_API_TOKEN'),
 		organization: required('TURSO_ORG'),
 		group: required('TURSO_GROUP')
-	})
+	}),
+	// A *workspace's* database, opened with a token minted for the occasion — not this process's
+	// own database, which is the client above, and not a replica of anybody's. It is the same
+	// libSQL client either way, which is what makes a test over a file worth running.
+	connectToWorkspace: ({ url, authToken }) => createClient({ url, authToken })
 });
 
 server.listen(port, () => {

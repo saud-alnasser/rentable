@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod migrations;
 pub mod proxy;
+pub mod version;
 
 use sqlx::{
     AssertSqlSafe, Pool, Sqlite,

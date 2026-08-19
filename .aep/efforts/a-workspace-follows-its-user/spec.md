@@ -1127,6 +1127,89 @@ of which would be a lie on a row this database owns. Decision 03's own instructi
 from reusing them and report what it costs*, which is what `Data Model` above does. The letter of
 the criterion is unmet and the departure is recorded here rather than accepted silently.
 
+***A hosted workspace's schema was settled at the mint 2026-08-18 by #557**, which is decision 06
+built.* The workspace record carries `schema_version`, the client sends the version it was built
+against with its token request, and the mint answers in one of four ways: equal — mint; newer —
+migrate that workspace database up to the client's version, then mint; older — refuse
+`client_out_of_date` and issue no token; newer than anything the running API ships a migration
+for — refuse `service_out_of_date`.
+
+**The refusal is decided twice, and the second time is against the version the workspace database
+actually reached.** *A defect found in review: the first commit compared the client against the
+workspace **record**, which is an index of the database's own ledger and can lag it — a sweep
+running while a mint runs is the ordinary way there. A client above the stale number passed the
+test, triggered a migration that applied nothing, corrected the column upward, and was handed a
+credential for a schema it did not understand.* The migration therefore answers with where the
+database got to, and a mint whose migration reached higher than the client asked for refuses. The
+same failure path now records the version reached even when a migration fails part-way, so the
+column does not lag the ledger after a failure at all.
+
+**The fourth answer is not in decision 06 and the mechanism produces it anyway.** The API cannot
+migrate a workspace to a version it holds no migration for, and minting at its own version would
+hand a newer client a database missing the columns it is about to write to — the same divergence
+the refusal exists to stop, arriving from the other side. It is retryable, because the deploy
+carrying those migrations is what ends it.
+
+**The mint migrates up to the *client's* version and no further, where the sweep migrates to the
+API's.** Decision 06's sentence about applying "whatever migrations are missing" reads against
+the API's target, and taking a workspace there at a mint would refuse the very client that just
+paid for it — an API is deployed before its clients update, so the target is routinely ahead of
+whoever is asking. So the target is a **ceiling** at the mint and a **destination** in the sweep,
+and the sweep taking a workspace past a client is not a side effect: it is what a deadline means,
+and it is why nothing runs it automatically.
+
+**Where the client's number comes from is a build, not a memory.** It is the count of `.sql` files
+in `packages/workspace-migrations`, derived on each side from that one directory: counted at
+runtime by the API, and counted into the desktop binary by `tauri/build.rs`. A migration generated
+moves it and nothing else can.
+
+***`packages/workspace-migrations` exists as of this ticket's review, and it discharges the
+monorepo effort's removal condition.*** That spec deferred extracting the schema with a condition
+written into it — *"the schema is extracted into its own package the moment a second consumer
+exists"* — and named decisions 03 and 05 as what would produce one. **Decision 03 answered for
+the control plane's *own* schema, which is a different description and rightly stayed separate.
+The *workspace* schema is the question it did not answer, and decision 06 produced its second
+consumer**: a hosted workspace's migrations are applied by the API, and they are the same
+migrations the desktop applies to a local one.
+
+**The first commit copied them into `apps/control-plane/` instead, and both halves of its
+reasoning were wrong.** The copy was to be held identical by a test — but the test was hashed
+only against the control plane's own files, so the commit that broke it (a desktop migration
+added, the copy forgotten) would not have run it: green, and then a desktop at version 5 against
+an API target of 4, which refuses **every** client until somebody notices. And the reason given
+for copying — that this package's boundary test forbids reaching for a workspace package — was
+false on its face: the clause banned every `@rentable/` specifier rather than the desktop
+application, and it is this package's own test, one line the same commit was free to narrow. It
+is narrowed now to permit exactly `@rentable/workspace-migrations`, which carries no module and no
+row and so threatens nothing acceptance criterion 5 rests on.
+
+**What holds the arrangement together is where each guard is hashed.** `turbo.json` now names the
+package in the `inputs` of both the control plane's `test` and the desktop's `test:rust`, so a
+change to a migration re-runs the tests that read it — which is the property the copy's guard
+never had. `apps/desktop/tauri/migrations/` remains, generated by `tauri/build.rs` from the
+package and gitignored, because the Rust runner takes a directory, Tauri bundles one, and the
+`#542` harness resolves one from `CARGO_MANIFEST_DIR` — none of which could follow the migrations
+into a package without changing a harness this criterion requires to pass **unchanged**.
+
+**A hosted database carries the same `__migrations__` ledger a local one carries**, written as
+`apps/desktop/tauri/src/database/migrations.rs` writes it. Not tidiness: a replica reaches
+machines whose Rust runner decides what to apply by reading exactly that table, and a hosted
+database with no ledger would have it start at `0000` and fail on a table that already exists —
+a working replica broken by the thing meant to prepare it. **The record's `schema_version` is
+this database's index of that ledger and is written from it**, never from what a client asked
+for, so a migration that fails part-way is recorded as where it actually got to.
+
+**A workspace is created at version 0 and no client may ask for it.** The mint's floor is 1, which
+is the smallest version any build can produce — so the first token on a workspace is always
+preceded by a migration, and a full-access token never exists for a database with no tables in it.
+A client holding one would have nothing to sync and every reason to build the schema itself, which
+is decision 06's rejected option B arriving through the one door that would have been left open.
+
+**A local workspace's migrations did not move**, which acceptance criterion 12 holds this to in as
+many words: `database/migrations.rs` is untouched and the #542 harness passes unchanged — verified
+against a tree with `tauri/migrations/` deleted, which `build.rs` restores from the package before
+the tests run.
+
 **Permissions are one `INTEGER` column capped at bits 0–52**, per decision 04, and they live on
 the membership row in the control plane. That decision was taken against the domain schema's
 transports; it applies unchanged here, and the control plane is where it was always going to

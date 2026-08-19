@@ -39,3 +39,21 @@ export const NOT_A_MEMBER = 'not_a_member';
 export const NO_SUCH_WORKSPACE = 'no_such_workspace';
 /** Turso could not be reached or would not answer. Distinct from Google for the same reason. */
 export const WORKSPACE_UNAVAILABLE = 'workspace_unavailable';
+/**
+ * the client was built against an older schema than the workspace has been migrated to.
+ *
+ * **Nothing retries this and no token goes out with it.** Decision 06: a client allowed to sync
+ * against a schema it does not understand replicates it and then writes against columns it does
+ * not know about, and by the time a write fails its replica has already diverged. The action is
+ * for a person — update the application — which is why the message names it.
+ */
+export const CLIENT_OUT_OF_DATE = 'client_out_of_date';
+/**
+ * the client was built against a *newer* schema than this build of the API ships a migration for.
+ *
+ * The other side of the same guard, and the only honest answer: this service cannot migrate a
+ * workspace to a version it holds no migration for, and minting at its own version would hand a
+ * newer client a database missing the columns it is about to write to. It is a moment that
+ * passes — the deploy carrying those migrations is what ends it — so it says try again.
+ */
+export const SERVICE_OUT_OF_DATE = 'service_out_of_date';

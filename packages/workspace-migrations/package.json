@@ -1,0 +1,19 @@
+{
+	"private": true,
+	"name": "@rentable/workspace-migrations",
+	"version": "0.0.0",
+	"description": "the migrations a workspace database is built from, local or hosted",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./index.d.ts",
+			"default": "./index.js"
+		},
+		"./migrations/*": "./migrations/*"
+	},
+	"files": [
+		"index.js",
+		"index.d.ts",
+		"migrations"
+	]
+}

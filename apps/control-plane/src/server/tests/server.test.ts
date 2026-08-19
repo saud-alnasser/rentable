@@ -4,13 +4,21 @@ import test from 'node:test';
 import type { Database } from '../../database/database.ts';
 import type { VerifyGoogleIdentity } from '../../account/google.ts';
 
-import { MALFORMED, NOT_VERIFIED, Refusal, UNAUTHENTICATED } from '../../failure.ts';
+import {
+	CLIENT_OUT_OF_DATE,
+	MALFORMED,
+	NOT_VERIFIED,
+	Refusal,
+	UNAUTHENTICATED
+} from '../../failure.ts';
+import { targetSchemaVersion } from '../../workspace/migration.ts';
 import {
 	freshDatabase,
 	googleVouchingFor,
 	runningControlPlane,
 	SOMEBODY,
-	tursoInMemory
+	tursoInMemory,
+	workspaceDatabases
 } from '../../tests/testing.ts';
 
 const AT = Date.UTC(2026, 7, 18, 12, 0, 0);
@@ -52,21 +60,25 @@ const withControlPlane = async (
 		url: string;
 		db: Database;
 		turso: ReturnType<typeof tursoInMemory>;
+		hosted: Awaited<ReturnType<typeof workspaceDatabases>>;
 	}) => Promise<void>,
 	turso: ReturnType<typeof tursoInMemory> = tursoInMemory()
 ) => {
 	const { db, close: closeDatabase } = await freshDatabase();
+	const hosted = await workspaceDatabases();
 	const { url, close } = await runningControlPlane({
 		db,
 		verifyIdentity,
 		platform: turso.platform,
+		connectToWorkspace: hosted.connect,
 		now: () => AT
 	});
 
 	try {
-		await run({ url, db, turso });
+		await run({ url, db, turso, hosted });
 	} finally {
 		await close();
+		await hosted.close();
 		await closeDatabase();
 	}
 };
@@ -225,7 +237,11 @@ test('the mint issues a token for that one database, with a lifetime', async () 
 
 		assert.ok(workspace);
 
-		const response = await post(url, `/workspace/${workspace.id}/token`);
+		// A workspace is created at version 0 with an empty database, so the first mint always
+		// migrates — there is no version a client may send that would skip it.
+		const response = await post(url, `/workspace/${workspace.id}/token`, {
+			body: { schemaVersion: await targetSchemaVersion() }
+		});
 
 		assert.equal(response.status, 200);
 
@@ -234,6 +250,94 @@ test('the mint issues a token for that one database, with a lifetime', async () 
 		assert.ok(minted.token);
 		assert.equal(minted.url, `libsql://ws-${workspace.id}-org.aws-eu-west-1.turso.io`);
 		assert.equal(minted.expiresAt, AT + 3 * 24 * 60 * 60 * 1000);
-		assert.deepEqual(turso.minted, [{ database: `ws-${workspace.id}`, expiration: '3d' }]);
+		// Two: the half-hour token this service migrated the empty database with, then the
+		// client's own three-day one.
+		assert.deepEqual(turso.minted, [
+			{ database: `ws-${workspace.id}`, expiration: '30m' },
+			{ database: `ws-${workspace.id}`, expiration: '3d' }
+		]);
+	});
+});
+
+const aWorkspace = async (url: string) => {
+	await post(url, '/account/sign-in');
+	const { workspace } = await answerOf(await post(url, '/workspace', { body: { name: 'Riyadh' } }));
+
+	assert.ok(workspace);
+
+	return workspace;
+};
+
+/**
+ * Acceptance criterion 12, over the wire: a migration reaches a hosted workspace, and the client
+ * that asked for it gets its token afterwards rather than instead.
+ */
+test('a client ahead of its workspace has it migrated, and then mints', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, hosted }) => {
+		const workspace = await aWorkspace(url);
+		const schemaVersion = await targetSchemaVersion();
+
+		const response = await post(url, `/workspace/${workspace.id}/token`, {
+			body: { schemaVersion }
+		});
+
+		assert.equal(response.status, 200);
+		assert.ok((await answerOf(response)).token);
+
+		const { rows } = await hosted
+			.open(`libsql://ws-${workspace.id}-org.aws-eu-west-1.turso.io`)
+			.execute("select name from sqlite_master where type = 'table' and name = 'payment'");
+
+		assert.equal(rows.length, 1, 'the workspace database was never migrated');
+	});
+});
+
+/**
+ * The refusal as a client actually meets it: a code it can act on, a message a person reads, and
+ * **no token in the body** — so it issues no write, because it never received a credential.
+ */
+test('a client behind its workspace is refused by code, and holds no token', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, turso }) => {
+		const workspace = await aWorkspace(url);
+
+		// The newer client goes first and takes the workspace with it, which is what leaves the
+		// older one behind. Nothing here reaches past the routes to arrange it.
+		await post(url, `/workspace/${workspace.id}/token`, {
+			body: { schemaVersion: await targetSchemaVersion() }
+		});
+
+		const minted = turso.minted.length;
+		const response = await post(url, `/workspace/${workspace.id}/token`, {
+			body: { schemaVersion: (await targetSchemaVersion()) - 1 }
+		});
+
+		assert.equal(response.status, 409);
+
+		const answer = await answerOf(response);
+
+		assert.equal(answer.error?.code, CLIENT_OUT_OF_DATE);
+		assert.match(answer.error?.message ?? '', /update the application/);
+		assert.equal(answer.token, undefined, 'a refused client was handed a token');
+		assert.equal(turso.minted.length, minted, 'a refused client cost a mint at Turso');
+	});
+});
+
+// A default would be a guess about which schema a client understands, and guessing is the thing
+// decision 06 exists to stop.
+test('a mint that does not say which schema it was built against is malformed', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		const workspace = await aWorkspace(url);
+
+		for (const body of [
+			{},
+			{ schemaVersion: 'four' },
+			{ schemaVersion: -1 },
+			{ schemaVersion: 1.5 }
+		]) {
+			const response = await post(url, `/workspace/${workspace.id}/token`, { body });
+
+			assert.equal(response.status, 400);
+			assert.equal((await answerOf(response)).error?.code, MALFORMED);
+		}
 	});
 });
