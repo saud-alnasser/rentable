@@ -32,13 +32,17 @@ export type { Host };
 /**
  * IDENTITY
  *
- * who is acting, where the workspace has an owner at all.
+ * who is acting.
  *
- * A hosted workspace has one and a local workspace has none, so this is **absent in the
- * ordinary case rather than in an error case** — a local-only user never signs in, and the
- * application knows of no user in that case. The rejected shape was a required identity with
- * an anonymous placeholder standing in for those users: it makes every local request carry a
- * fiction, and the fiction is indistinguishable from a real user at every call site.
+ * **Optional as this is written, and no longer for the reason it was made optional.** It was
+ * absent in the ordinary case because a local-only workspace had no owner; that population is
+ * gone, and #571 puts a sign-in in front of the whole application, so by the time any surface
+ * calls a procedure there is an account. Making it required is #567, and it is a real change
+ * rather than a formality — `actingIdentity` below still resolves through the Drive link.
+ *
+ * What none of that reopens is the shape that was rejected: a required identity with an
+ * anonymous placeholder standing in. It makes a request carry a fiction, and the fiction is
+ * indistinguishable from a real user at every call site.
  *
  * What a *user record* holds is not settled here — it is the control plane's, and it arrives
  * with the accounts it describes. These three fields are what this application can already
@@ -63,11 +67,11 @@ export type Context = {
 	clock: Clock;
 	host: Host;
 	/**
-	 * who is acting, where the workspace has an owner.
+	 * who is acting.
 	 *
 	 * Optional, and the key is **omitted** rather than set to `undefined` — so a procedure
-	 * reading it sees the same shape a local request has always had, and no existing procedure
-	 * has to learn that identity exists in order to keep working.
+	 * reading it sees the shape every request has always had, and no existing procedure has to
+	 * learn that identity exists in order to keep working. #567 is where that stops being true.
 	 */
 	identity?: Identity;
 };
@@ -79,15 +83,15 @@ const systemClock: Clock = {
 /**
  * who the shell says is acting, or nothing.
  *
- * **A question the shell may be unable to answer**, and an unanswered one is not a hosted
- * workspace: this runs while the application is still starting, and a client that is not the
- * desktop shell may not offer the capability at all. Refusing to build a context over it would
- * fail the boot of a local-only workspace over an identity that workspace does not have and no
- * procedure is going to ask for.
+ * **A question the shell may be unable to answer**, and an unanswered one is not a failure: this
+ * runs while the application is still starting, and a client that is not the desktop shell may
+ * not offer the capability at all.
  *
- * The mode is what decides, not the sign-in. Somebody may be signed in to Google with a purely
- * local workspace — signing in is its own act — and that person is not *acting as* anybody as
- * far as a request is concerned.
+ * **It reads the Drive link, and that is wrong rather than subtle.** `workspace.accountId` has
+ * one writer in the tree — `link_workspace_to_google_drive` — so as written this can answer only
+ * for a workspace linked to a Drive folder, and answers nothing for the ordinary signed-in
+ * machine. The read that belongs here is `signedInAccount` in `$lib/sync/sign-in`, and swapping
+ * it is #567's, along with making the result required.
  */
 async function actingIdentity(host: Host): Promise<Identity | undefined> {
 	let state;
@@ -113,21 +117,20 @@ async function actingIdentity(host: Host): Promise<Identity | undefined> {
 }
 
 /**
- * builds the context with its dependencies supplied. each defaults to the real
- * capability, so `context()` with no arguments answers as it always has for existing
- * callers — it now asks the shell what mode the workspace is in on the way, which a
- * local workspace answers with no identity.
+ * builds the context with its dependencies supplied. each defaults to the real capability, so
+ * `context()` with no arguments answers as it always has for existing callers — it asks the
+ * shell who is acting on the way.
  * the database and host singletons pull in the Tauri runtime, so they are imported
  * lazily and only when not supplied — importing this module stays free of it.
  *
  * `identity` is read from `overrides` by key rather than by value, because absent and
  * `undefined` mean the same thing to a caller and only the key can say which was meant.
  *
- * **This is built once, at module load** (`./caller`), so the identity it resolves is the one
- * the workspace had then. That costs nothing today — nothing can turn a workspace hosted while
- * the application is running — and it stops being free the moment something can: converting a
- * local workspace (#551) and choosing a mode (#553) are where that has to be answered, by
- * rebuilding the context or by restarting.
+ * **Built on first use rather than at module load, and forgotten when the identity changes.**
+ * It used to be built while `./caller` was being imported, which fixed the identity it resolved
+ * for the life of the process — free while nothing could change one, and no longer free now that
+ * signing in is a screen inside the running application. `forgetContext` in `./caller` is the
+ * other half, and signing in and out are the two moments that call it.
  */
 export const context = async (overrides: Partial<Context> = {}): Promise<Context> => {
 	const db = overrides.db ?? (await import('$lib/platform/database/client')).db;

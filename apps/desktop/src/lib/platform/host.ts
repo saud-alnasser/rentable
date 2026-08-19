@@ -256,9 +256,9 @@ export type Host = {
 	 * who this machine is signed in as.
 	 *
 	 * Its own capability, and not a step inside `remoteSync.googleDrive.link`, which is where it
-	 * lived until 2026-08-18. A workspace of record remotely has an owner and a local one has
-	 * none, so identity has to be reachable without choosing a folder — and a client that is not
-	 * this shell needs it before it needs anything else.
+	 * lived until 2026-08-18. It is now the first thing the application asks for and the only
+	 * way past its opening screen (#571), so it has to be reachable without choosing a folder
+	 * — and a client that is not this shell needs it before it needs anything else.
 	 */
 	auth: {
 		google: {

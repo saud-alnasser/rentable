@@ -1,12 +1,19 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import api from '$lib/api/caller';
+	import api, { forgetContext } from '$lib/api/caller';
 	import {
 		tauri,
 		type GoogleDriveConflictResolution,
+		type GoogleSignInPhase,
 		type Recovery,
 		type RemoteSyncState
 	} from '$lib/platform/tauri';
+	import { workspaceAdmission } from '$lib/sync/admission';
+	import {
+		isGoogleSignInCancellation,
+		listenForSignOut,
+		signInWithGoogle
+	} from '$lib/sync/sign-in';
 	import { startGoogleDriveAutosyncManager } from '$lib/sync/autosync';
 	import {
 		getWorkspaceFromSyncState,
@@ -36,6 +43,7 @@
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
 	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
+	import LayoutStartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
 	import LayoutStartupWorkspaceChoice from '$lib/layout/component/startup-workspace-choice.svelte';
 	import { listenForWindowCloseRequests } from '$lib/layout/event';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
@@ -53,7 +61,7 @@
 	});
 	trustWorkspaceData(queryClient);
 
-	type StartupState = 'loading' | 'choose-workspace' | 'ready' | 'error' | 'recovery';
+	type StartupState = 'loading' | 'sign-in' | 'choose-workspace' | 'ready' | 'error' | 'recovery';
 
 	let isI18nReady = $state(false);
 	let startupState = $state<StartupState>('loading');
@@ -90,6 +98,10 @@
 			}
 		}
 	});
+	// which of the two the wall is saying, and it is only read while the wall is up.
+	let signInReason = $state<'noAccount' | 'windowClosed'>('noAccount');
+	let isSigningIn = $state(false);
+	let signInPhase = $state<GoogleSignInPhase | null>(null);
 	let isHandlingStartupChoice = $state(false);
 	// which of the choices is being carried out, not merely that one is: the screen reports work
 	// on the control that started it, and every control shares the flag above for availability.
@@ -169,6 +181,108 @@
 		}
 	}
 
+	/**
+	 * Put the sign-in wall up, and leave it up.
+	 *
+	 * Everything the application knows how to draw is behind it, so this clears what was drawn
+	 * for whoever was here before: the query cache holds a workspace this machine may no longer
+	 * read, and a screen rendered from it after a sign-out is the criterion failing quietly
+	 * rather than loudly.
+	 */
+	async function raiseSignInWall(reason: 'noAccount' | 'windowClosed') {
+		queryClient.clear();
+		pendingConflict.clear();
+		startupError = null;
+		startupRecovery = null;
+		signInReason = reason;
+		startupState = 'sign-in';
+		await api.app.window.show();
+	}
+
+	/**
+	 * Whether startup may carry on, raising the wall where it may not.
+	 *
+	 * Every caller reads `if (!(await admit())) return`, because there is nothing to fall through
+	 * to: what follows an unadmitted machine is the wall, and it is already up by then.
+	 */
+	async function admit() {
+		const admission = workspaceAdmission(startupRemoteSync);
+
+		if (admission.kind !== 'signInRequired') {
+			return true;
+		}
+
+		await raiseSignInWall(admission.reason);
+
+		return false;
+	}
+
+	/**
+	 * Sign in at the wall, and go straight on into the application on the far side of it.
+	 *
+	 * The two failures are kept apart deliberately. A sign-in that fails leaves the wall up and
+	 * says why on it — the person is still standing at it, and an error screen would take away
+	 * the control they need. A startup that fails after a sign-in has succeeded is the ordinary
+	 * failure every other path here reports, and reads as one.
+	 */
+	async function signIn() {
+		if (isSigningIn) {
+			return;
+		}
+
+		isSigningIn = true;
+		signInPhase = 'authorizing';
+		startupError = null;
+
+		// opened before the call and closed after it: an event that arrives with nobody listening
+		// is the only way this screen can miss the moment the consent screen was answered.
+		const unlistenPhase = await tauri.auth.google.onPhase((phase) => {
+			signInPhase = phase;
+		});
+
+		try {
+			startupRemoteSync = await signInWithGoogle();
+		} catch (error) {
+			// abandoning the consent screen is an answer rather than a failure, and says nothing:
+			// the person closed that window themselves and is looking at this one.
+			if (!isGoogleSignInCancellation(error)) {
+				startupError = getErrorMessage(error);
+			}
+
+			return;
+		} finally {
+			unlistenPhase();
+			isSigningIn = false;
+			signInPhase = null;
+		}
+
+		queryClient.setQueryData(settingsKeys.remoteSync, startupRemoteSync);
+
+		// the context was built while nobody was signed in, so it belongs to nobody. Nothing else
+		// rebuilds it, and it outlives this screen by the whole run of the process.
+		forgetContext();
+
+		if (!(await admit())) {
+			// signed in with Google, and still not through: the consent screen was answered and the
+			// control plane was not reached, so this machine holds an identity and no session. It
+			// must not read as never having signed in, or the answer is to answer the consent screen
+			// again — which lands in exactly the same place.
+			startupError = $LL.layout.signIn.incomplete();
+
+			return;
+		}
+
+		try {
+			startupState = 'loading';
+			await continueStartup();
+		} catch (error) {
+			startupRecovery = null;
+			startupState = 'error';
+			startupError = getErrorMessage(error);
+			await api.app.window.show();
+		}
+	}
+
 	async function continueStartup(skipRemoteSync = false) {
 		const recovery = await api.app.bootstrap();
 
@@ -243,6 +357,15 @@
 
 			isI18nReady = true;
 			startupRemoteSync = await api.app.remoteSync.getState();
+
+			// **The wall, and everything below this line is behind it.** The Drive inspection reads
+			// the workspace, the bootstrap opens the database and the reconcile writes to it — so
+			// criterion 3 is this ordering rather than a screen: none of it runs before there is an
+			// account. The locale is loaded above it just as deliberately, because the wall itself
+			// has to be readable in the language its reader chose.
+			if (!(await admit())) {
+				return;
+			}
 
 			if (isGoogleDriveLinked(getWorkspaceFromSyncState(startupRemoteSync))) {
 				const inspectedLink = await inspectWorkspaceSyncState(startupRemoteSync);
@@ -441,6 +564,16 @@
 				}
 			}
 		});
+		const stopListeningForSignOut = listenForSignOut(() => {
+			void (async () => {
+				// the held context names an account this machine no longer has credentials for, and
+				// nothing else in the process would ever notice.
+				forgetContext();
+				await linkSession.cancel();
+				startupRemoteSync = await tauri.remoteSync.getState().catch(() => null);
+				await raiseSignInWall('noAccount');
+			})();
+		});
 		const handleWindowCloseRequest = () => {
 			void finalizeWindowClose(startupState !== 'ready');
 		};
@@ -467,6 +600,7 @@
 			clearInterval(dayCrossingInterval);
 			void linkSession.cancel();
 			stopAutosyncManager();
+			stopListeningForSignOut();
 			unlistenCloseRequested?.();
 			stopListeningForCloseRequests?.();
 		};
@@ -499,6 +633,14 @@
 				<LayoutFrame {currentDirection} showNavigation={startupState === 'ready'}>
 					{#if startupState === 'loading'}
 						<LayoutStartupLoading />
+					{:else if startupState === 'sign-in'}
+						<LayoutStartupSignIn
+							reason={signInReason}
+							{isSigningIn}
+							phase={signInPhase}
+							errorMessage={startupError}
+							onSignIn={() => void signIn()}
+						/>
 					{:else if startupState === 'choose-workspace' && startupRemoteSync}
 						<LayoutStartupWorkspaceChoice
 							syncState={startupRemoteSync}

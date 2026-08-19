@@ -6,14 +6,14 @@
 	/**
 	 * The surface the application shows when it cannot yet show the application.
 	 *
-	 * Six screens render through it — starting, failing to start, recovering, choosing a
+	 * Seven screens render through it — starting, signing in, failing to start, recovering, choosing a
 	 * workspace, settings failing to load, and an unhandled route error — because none of them
 	 * presents a concept's records: they present the application's own state, which converges
 	 * where a concept's surfaces diverge (ADR 0015). It owns the centring, the one width and
-	 * the geometry, so the six cannot come to disagree about any of them the way seven
-	 * hand-rolled copies already had.
+	 * the geometry, so no screen can come to disagree with another about any of them the way
+	 * seven hand-rolled copies already had.
 	 *
-	 * The seam is the body: everything around it is identical for all six, and what crosses it
+	 * The seam is the body: everything around it is identical for all seven, and what crosses it
 	 * is whatever that screen has to say.
 	 */
 	let {
@@ -45,7 +45,7 @@
 </script>
 
 <div class="flex min-h-full flex-1 items-center justify-center p-4">
-	<!-- one width for all six. The three that disagreed did so because each chose its own. -->
+	<!-- one width for all seven. The three that disagreed did so because each chose its own. -->
 	<div
 		class={cn(
 			'w-full max-w-lg rounded-3xl bg-card p-6 text-start shadow-xl ring-1 ring-foreground/10',
