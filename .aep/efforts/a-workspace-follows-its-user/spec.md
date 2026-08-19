@@ -879,12 +879,31 @@ to have consequences for. **The structural property is worth keeping anyway**: i
 and it is what will make requirement 1 hold for the first real user rather than for a
 hypothetical one.*
 
-**Identity is an optional field on a context that is built by defaulting.** `Context` is
-`{ db, clock, host }` (`src/lib/api/context.ts:36`), and `context()` already supplies each
-dependency from an override or a real capability (`:52`). Identity enters as a fourth member
-that is **absent in the ordinary case**, not an error case — a local-only user never signs in,
-and requirement 3 makes that population the one being protected. What a user *holds* is decision
-03's; that the field is optional is already directed and does not wait on the gate.
+**Identity is an optional field on a context that is built by defaulting.** ***Built 2026-08-18
+by #547, so this is now a description of the code rather than of a plan.*** `Context` was
+`{ db, clock, host }` and is now `{ db, clock, host, identity? }`, with `context()` supplying
+each dependency from an override or a real capability exactly as before. Identity is a fourth
+member that is **absent in the ordinary case**, not an error case — a local-only user never
+signs in, and requirement 3 makes that population the one being protected. What a user *holds*
+is decision 03's; that the field is optional was already directed and did not wait on the gate.
+
+Three things the build settled that the plan had left open, each because the code forced the
+question:
+
+- **The key is omitted rather than set to `undefined`**, so a local request has the shape it has
+  always had and no existing procedure has to learn that identity exists.
+- **The mode decides, not the sign-in.** Somebody may be signed in to Google with a purely local
+  workspace — #543 made signing in its own act — and that person is not *acting as* anybody as
+  far as a request is concerned. Identity is present only where the provider is `hosted`.
+- **A shell that cannot answer has not said the workspace is hosted.** The read runs while the
+  application is still starting, and a client that is not the desktop shell may not offer the
+  capability at all; failing to build a context over it would fail the boot of a local workspace
+  over an identity it does not have.
+
+**What the build did *not* settle, and it is named where the code is**: the context is built once
+at module load, so the identity it resolves is the one the workspace had then. That costs nothing
+while nothing can turn a workspace hosted mid-session, and it stops being free at #551 and #553 —
+whichever of them creates the transition owns rebuilding the context or restarting.
 
 *Rejected:* a required identity with an anonymous placeholder for local workspaces. Decision 03
 already names it as "the harder of the two failures" — it makes every local request carry a
