@@ -108,7 +108,17 @@ on this side.
 **Declining to renew is how somebody is removed**, per account and effective at their next
 reach. Turso's own revocation is bulk-only and rotates every token in its group with no
 published propagation time, which cannot remove one member; this can, within one window. The
-administrative surface that decides to is a later ticket's — `declineRenewal` is the mechanism.
+administrative surface that decides to is a later ticket's — `declineRenewal` is the mechanism,
+and whoever operates this control plane reaches it with a command (#606):
+
+```sh
+pnpm --filter ./apps/control-plane decline somebody@example.com
+```
+
+It names the account by an address rather than by an id, because that is what an operator holds;
+an address naming more than one account is refused, because `account.email` has no unique index
+and acting on both would end a stranger's sessions. **It ends sessions and does not bar an
+account** — signing in with Google again starts a new one.
 
 A refusal is `{"error":{"code":"...","message":"..."}}`, and **the code is the part a client acts
 on** — the message is for a person and names what to do.
