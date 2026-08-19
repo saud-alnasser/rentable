@@ -13,9 +13,9 @@ import type {
 	DiagnosticRecord,
 	ExportSheet,
 	GoogleDriveConflictResolution,
-	GoogleDriveLinkPhase,
 	GoogleDriveLinkPreparation,
 	GoogleDriveSyncOutcome,
+	GoogleSignInPhase,
 	Host,
 	ImportTable,
 	Recovery,
@@ -43,11 +43,11 @@ export type {
 	GoogleDriveConflictKind,
 	GoogleDriveConflictResolution,
 	GoogleDriveLinkConflict,
-	GoogleDriveLinkPhase,
 	GoogleDriveLinkPreparation,
 	GoogleDriveRecommendedMode,
 	GoogleDriveSyncAction,
 	GoogleDriveSyncOutcome,
+	GoogleSignInPhase,
 	ImportTable,
 	Recovery,
 	RemoteSyncAccount,
@@ -61,7 +61,8 @@ export type {
 	UpdaterDownloadEvent
 } from '$lib/platform/host';
 
-const GOOGLE_DRIVE_LINK_PHASE_EVENT = 'rentable:google-drive-link-phase';
+/** the Rust side is `GOOGLE_SIGN_IN_PHASE_EVENT` in `tauri/src/sync/link.rs`, and the two are one name. */
+const GOOGLE_SIGN_IN_PHASE_EVENT = 'rentable:google-sign-in-phase';
 
 function mapUpdate(update: TauriUpdate): AvailableUpdate {
 	return {
@@ -197,6 +198,24 @@ export const tauri = {
 		delete: (filename: string) => invoke<void>('backup_delete', { filename }),
 		restore: (filename: string) => invoke<void>('backup_restore', { filename })
 	},
+	auth: {
+		google: {
+			/**
+			 * sign in with google, end to end. outstanding for as long as the user takes
+			 * over the consent screen; rejects with a `cancelled` error where they
+			 * abandon it. no folder is chosen and the workspace is untouched.
+			 */
+			signIn: () => invoke<RemoteSyncState>('google_sign_in'),
+			/**
+			 * give up the identity this machine holds. whatever is linked under it stays
+			 * linked and says what it is waiting for. rejects where nobody is signed in.
+			 */
+			signOut: () => invoke<RemoteSyncState>('google_sign_out'),
+			/** watch how far a sign-in has got. resolves to its own removal. */
+			onPhase: (listener: (phase: GoogleSignInPhase) => void) =>
+				listen<GoogleSignInPhase>(GOOGLE_SIGN_IN_PHASE_EVENT, (event) => listener(event.payload))
+		}
+	},
 	remoteSync: {
 		getState: () => invoke<RemoteSyncState>('remote_sync_state_get'),
 		snapshotNow: () => invoke<RemoteSyncState>('remote_sync_snapshot_now'),
@@ -233,12 +252,7 @@ export const tauri = {
 			 * remote is read again, so answering twice settles the same way.
 			 */
 			resolveConflict: (input: { resolution: GoogleDriveConflictResolution }) =>
-				invoke<GoogleDriveSyncOutcome>('remote_sync_google_drive_resolve_conflict', { input }),
-			/** watch how far a link has got. resolves to its own removal. */
-			onLinkPhase: (listener: (phase: GoogleDriveLinkPhase) => void) =>
-				listen<GoogleDriveLinkPhase>(GOOGLE_DRIVE_LINK_PHASE_EVENT, (event) =>
-					listener(event.payload)
-				)
+				invoke<GoogleDriveSyncOutcome>('remote_sync_google_drive_resolve_conflict', { input })
 		}
 	}
 } satisfies Host;

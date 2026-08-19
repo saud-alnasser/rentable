@@ -13,10 +13,15 @@ import {
  * The phase subscription is opened before the link and closed after it, because
  * an event that arrives with nobody listening is the only way the interface can
  * miss the moment the user answered the consent screen.
+ *
+ * The phases are signing in's, not linking's, and a link that reuses an identity
+ * this machine already holds emits none of them. That is not a subscription that
+ * misses anything: there is no consent screen to report on, and the flow goes
+ * from begun to settled without ever being outstanding.
  */
 const googleDriveLinkSessionDriver: LinkSessionDriver = {
 	link: async (onAuthorized) => {
-		const unlisten = await tauri.remoteSync.googleDrive.onLinkPhase((phase) => {
+		const unlisten = await tauri.auth.google.onPhase((phase) => {
 			if (phase === 'finalizing') {
 				onAuthorized();
 			}

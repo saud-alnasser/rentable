@@ -23,18 +23,23 @@ machinery: local backup, and exchange with Google Drive.
 >
 > **What stays**: local backup and snapshots, which are not Drive's and never were; and the OAuth
 > session, because sign-in is Google — the account, the token refresh and the credential boundary
-> are load-bearing for identity and are being separated out of `link()` (#543) **before** the
-> deletion, not after, since deleting the link session first would take identity with it.
->
-> Read *Link* below knowing it currently means two things at once and is about to mean one.
+> are load-bearing for identity. **That separation has happened** (#543, 2026-08-18): signing in is
+> its own command and linking consumes what it produces, so the deletion can take the link session
+> without taking identity with it.
 >
 > *Recorded as local-only earlier the same day, on a recommendation the human reversed.*
 
 ## Language
 
+**Sign in**:
+Establishing who somebody is, and the OAuth session that performs it. A _machine_ is signed in
+or it is not, and at most one identity is held. Nothing about a workspace follows from it.
+
 **Link**:
-Connecting a workspace to a remote account, and the OAuth session that performs it. A
-workspace is _linked_ or _unlinked_.
+Connecting a workspace to a remote folder, under an identity that already exists. A workspace
+is _linked_ or _unlinked_.
+_Avoid_: using it for the sign-in — the two were one call until 2026-08-18 and the word carried
+both, which is exactly why an account could not exist without a folder
 
 **Autosync**:
 The push to the remote scheduled after a successful mutation. Remote, like every use of
@@ -65,6 +70,24 @@ save never evicts the copy taken before an update.
 
 ## Boundaries
 
+- **Signing in and linking are two acts, and the ordering between them is a precondition
+  rather than a sequence.** A link consumes an identity; where this machine holds none it signs
+  one in on the way past, and where it holds one no consent screen opens at all. Nothing on the
+  linking path can establish an account, which is what stops linking from quietly becoming the
+  only way to have one again — a link named under an identity that is not held is refused.
+  Abandoning an attempt undoes what that attempt did and no more: an identity it signed in goes
+  with it, an identity it merely used does not.
+- **Signing out is not disconnecting Drive.** It drops the credentials and keeps the account row,
+  so a workspace still linked stays linked, cannot sync, and says which of the two things to do
+  about it — the settings surface already renders that sentence beside a *needs reconnect* badge.
+  Removing the row instead would reset the workspace to local on the next reconcile, which is
+  disconnecting Drive without being asked to. Disconnecting Drive does give up the identity, and
+  that direction is not the same conflation: a person who wants this application to stop talking
+  to their Google account is asking for both.
+- **An account no workspace links is an identity, not litter.** The reconcile that runs on every
+  state read used to delete exactly those, which was consistent while signing in *was* linking.
+  It does not any more, and the guard is a test rather than a comment: the failure it prevents is
+  a sign-in undone by the next state read, which is invisible without a second read.
 - **Credentials belong in Rust and never cross the IPC boundary.** The constraint the whole
   domain was reshaped around, and it is met. OAuth is Rust's — the `state`, the PKCE
   verifier, the code exchange, and token refresh never leave the process — and the two

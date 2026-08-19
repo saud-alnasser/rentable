@@ -17,13 +17,13 @@ use crate::{
 
 use super::{
     google::auth::google_oauth_client_id, google::transport::GoogleDriveSyncCompleteInput,
-    lock::GoogleDriveSyncLock, session::GoogleDriveLinkSession,
+    lock::GoogleDriveSyncLock, session::GoogleSignInSession,
 };
 
 pub struct RemoteSync {
     pub(super) settings: Arc<RwLock<Persisted<Settings>>>,
     pub(super) store: Persisted<RemoteSyncStore>,
-    pub(super) auth_sessions: Arc<Mutex<HashMap<String, GoogleDriveLinkSession>>>,
+    pub(super) auth_sessions: Arc<Mutex<HashMap<String, GoogleSignInSession>>>,
     pub(super) google_drive_sync_lock: Option<GoogleDriveSyncLock>,
 }
 
@@ -330,36 +330,17 @@ impl RemoteSync {
             changed = true;
         }
 
-        let linked_google_drive_account_ids: HashSet<String> = self
-            .store
-            .workspace
-            .account_id
-            .clone()
-            .filter(|_| self.store.workspace.provider == RemoteSyncProvider::GoogleDrive)
-            .into_iter()
-            .collect();
-
-        let removed_google_drive_account_ids = self
-            .store
-            .accounts
-            .iter()
-            .filter(|account| {
-                account.provider == RemoteSyncProvider::GoogleDrive
-                    && !linked_google_drive_account_ids.contains(&account.id)
-            })
-            .map(|account| account.id.clone())
-            .collect::<Vec<_>>();
-
-        self.store.accounts.retain(|account| {
-            account.provider != RemoteSyncProvider::GoogleDrive
-                || linked_google_drive_account_ids.contains(&account.id)
-        });
-
-        for removed_account_id in removed_google_drive_account_ids {
-            let _ = self.delete_google_drive_credentials(&removed_account_id);
-        }
-
-        let retained_google_drive_account_ids = self
+        // an account no workspace links is an identity, not litter.
+        //
+        // Until 2026-08-18 this reconcile deleted every Google account the
+        // workspace was not linked to, along with its credentials — which was
+        // consistent while signing in *was* linking, because an account with no
+        // link had been reached by no route. Signing in is its own act now, so
+        // that same account is somebody who signed in and has not chosen a
+        // folder, and pruning it would undo the act on the next state read.
+        // What removes an account is asking to: disconnecting Drive, or
+        // abandoning the attempt that established it.
+        let known_account_ids = self
             .store
             .accounts
             .iter()
@@ -373,7 +354,7 @@ impl RemoteSync {
                 .workspace
                 .account_id
                 .as_ref()
-                .map(|account_id| !retained_google_drive_account_ids.contains(account_id))
+                .map(|account_id| !known_account_ids.contains(account_id))
                 .unwrap_or(true);
 
         if missing_linked_account {
@@ -514,10 +495,7 @@ mod tests {
     use tokio::{runtime::Runtime, sync::RwLock};
 
     use super::{RemoteSync, RemoteSyncProvider, slugify};
-    use crate::{
-        persisted::Persisted, settings::Settings,
-        sync::google::auth::clear_test_google_drive_credentials_store,
-    };
+    use crate::{persisted::Persisted, settings::Settings};
 
     fn unique_dir(name: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()
@@ -568,8 +546,6 @@ mod tests {
 
     #[test]
     fn initializes_default_workspace_from_managed_database_path() {
-        clear_test_google_drive_credentials_store();
-
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
@@ -597,8 +573,6 @@ mod tests {
 
     #[test]
     fn reconcile_tracks_managed_database_path_changes() {
-        clear_test_google_drive_credentials_store();
-
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {

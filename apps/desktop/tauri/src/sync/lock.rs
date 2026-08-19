@@ -80,12 +80,7 @@ mod tests {
     use tokio::{runtime::Runtime, sync::RwLock};
 
     use super::{GoogleDriveSyncLockAcquireInput, GoogleDriveSyncLockReleaseInput};
-    use crate::{
-        error::Error,
-        persisted::Persisted,
-        settings::Settings,
-        sync::{RemoteSync, google::auth::clear_test_google_drive_credentials_store},
-    };
+    use crate::{error::Error, persisted::Persisted, settings::Settings, sync::RemoteSync};
 
     fn unique_dir(name: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()
@@ -117,8 +112,6 @@ mod tests {
 
     #[test]
     fn sync_lock_acquire_returns_a_workspace_scoped_lease() {
-        clear_test_google_drive_credentials_store();
-
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
@@ -143,8 +136,6 @@ mod tests {
 
     #[test]
     fn sync_lock_requires_a_workspace_id() {
-        clear_test_google_drive_credentials_store();
-
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
@@ -170,8 +161,6 @@ mod tests {
 
     #[test]
     fn sync_lock_is_exclusive_and_names_the_holder() {
-        clear_test_google_drive_credentials_store();
-
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
@@ -204,8 +193,6 @@ mod tests {
 
     #[test]
     fn sync_lock_release_frees_only_with_the_matching_lease() {
-        clear_test_google_drive_credentials_store();
-
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {

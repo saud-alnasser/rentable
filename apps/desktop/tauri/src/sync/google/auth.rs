@@ -496,13 +496,6 @@ fn test_google_drive_credentials_store()
     STORE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-#[cfg(test)]
-pub(crate) fn clear_test_google_drive_credentials_store() {
-    if let Ok(mut store) = test_google_drive_credentials_store().lock() {
-        store.clear();
-    }
-}
-
 pub(crate) fn parse_http_request_path(request: &str) -> Option<&str> {
     let first_line = request.lines().next()?;
     let mut segments = first_line.split_whitespace();
