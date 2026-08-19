@@ -34,7 +34,9 @@ ticket's.
 migrations/             this database's own, generated and applied by drizzle-kit
 src/
 ├── main.ts             reads the environment, wires the parts, listens
-├── sweep.ts            the same wiring for the one command a person runs by hand
+├── sweep.ts            the same wiring, for a command a person runs by hand
+├── decline.ts          the same, for ending one account's sessions
+├── prune.ts            the same, for removing sign-ins that reached their month
 ├── failure.ts          the refusal vocabulary — a code, a status, a message
 ├── account/            who somebody is
 │   ├── account.ts      the upsert a sign-in is
@@ -84,9 +86,16 @@ POST /workspace/{id}/token      <- {"schemaVersion":4}
 kinds.** A Google access token is what somebody signs in with; it buys a **session** — a token
 this control plane issued, good for three days, and told apart from Google's by its `rws_`
 prefix. Either identifies on any route, so a client whose first request is `POST /workspace`
-still reaches the account it would have reached. **A session is issued by the two routes that
-hand one back** and not by the others, which would otherwise write a row per request for a
-client that never asked for one.
+still reaches the account it would have reached.
+
+**Every route hands a session back, and a request carrying a Google access token starts one.** So
+a client that keeps presenting its Google token writes a session row per request. _Until #607 this
+paragraph claimed the opposite: that two routes issued a session and the others deliberately did
+not. It was describing a behaviour nobody wrote, and `server.ts` linked an `askingForASession`
+that does not exist._ What actually bounds the growth is the client: the desktop sends its Google token
+once at sign-in and `rws_` on every call after it, so a sign-in costs about one row. That is an
+assumption about a well-behaved client rather than something this service enforces, and it is
+recorded as one in the spec. What accrues anyway is removed by `pnpm prune-sessions`, below.
 
 **The session is what replaced re-verifying with Google on every request** (#550). What that
 costs is that a Google token revoked mid-window is not noticed until the session runs out —
@@ -272,6 +281,15 @@ running it can see it and a caller cannot.
 
 `pnpm sweep` migrates **every** workspace to the schema version this build ships, which is the
 one thing the mint will not do — see below. It is run by a person, never by a deploy.
+
+`pnpm decline <email>` ends one account's sessions, and `pnpm prune-sessions` removes sign-ins
+that have reached their month. **All three are invoked and none is scheduled**: nothing is
+deployed, so a timer would be a schedule with nowhere to run. Each answers how many rows it
+touched, because an operator who cannot tell _nothing was there_ from _something was and is not
+now_ has run a command and learned nothing.
+
+The second is `prune-sessions` and not `prune` because `pnpm prune` is one of pnpm's own commands
+and would shadow it, running package pruning instead and never reaching the script.
 
 `pnpm start` runs it once without the watcher. `pnpm build` emits JavaScript to `build/`;
 nothing consumes that yet, and it is there so `turbo run build` proves the package compiles to

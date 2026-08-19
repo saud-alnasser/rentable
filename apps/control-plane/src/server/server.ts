@@ -94,8 +94,16 @@ const wireWorkspace = (record: Workspace) => ({
  * accepts for removing somebody, and the reason it is three days and not thirty.
  *
  * A route reached with a Google token is still served: signing in *is* the identification, so a
- * client whose first request is not `/account/sign-in` reaches the account it would have
- * reached. It is not *given* a session by such a route — see {@link askingForASession}.
+ * client whose first request is not `/account/sign-in` reaches the account it would have reached.
+ *
+ * **It is given a session by such a route, and every route hands one back.** The link that used to
+ * sit here pointed at an `askingForASession` that was never written, and the behaviour it was
+ * meant to describe was never built either: a request carrying a Google access token starts a
+ * session, so a client that keeps presenting one writes a row per request. The desktop presents
+ * `rws_` after its first request and is the only client, which is what bounds the accrual, and
+ * the spec records that as an assumption rather than as something enforced here. Requirement 19
+ * answers what accumulates by pruning it (`../prune.ts`); making this route reuse a live session
+ * instead was put to the human and declined as scope.
  */
 const asking = async (
 	plane: ControlPlane,
