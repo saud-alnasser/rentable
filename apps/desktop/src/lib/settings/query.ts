@@ -1,20 +1,9 @@
 import api from '$lib/api/caller';
-import {
-	tauri,
-	type GoogleDriveConflictResolution,
-	type RemoteSyncState
-} from '$lib/platform/tauri';
-import { unlinkGoogleDriveWorkspace } from '$lib/sync/link';
-import { pendingConflict } from '$lib/sync/pending-conflict.svelte';
-import {
-	inspectWorkspaceSyncState,
-	syncWorkspaceBeforeExit,
-	syncWorkspaceRemoteNow,
-	type WorkspaceRemoteSyncResult
-} from '$lib/sync/workspace';
-import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
+import { tauri, type RemoteSyncState } from '$lib/platform/tauri';
+import { syncWorkspaceBeforeExit, syncWorkspaceNow } from '$lib/sync/workspace';
 import { invalidateRoot } from '$lib/design/query';
 import { inverseStack } from '$lib/design/inverse';
+import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { keys as dashboardKeys } from '$lib/dashboard/query';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
@@ -27,8 +16,6 @@ export const keys = {
 	backups: ['settings', 'backups'],
 	remoteSync: ['settings', 'remote-sync']
 } as const;
-
-export type SyncGoogleDriveWorkspaceResult = WorkspaceRemoteSyncResult;
 
 export function useFetchSettings() {
 	return createQuery(() => ({
@@ -221,18 +208,17 @@ export function useRestartApp(opts: MutationOptions = {}) {
  * ask whether the workspace and its remote have diverged. resolves to `null`
  * when the workspace is not on a remote that can diverge.
  */
-export function useInspectWorkspaceSyncState(opts: MutationOptions = {}) {
-	return createMutation(() => ({
-		mutationFn: (syncState: RemoteSyncState) => inspectWorkspaceSyncState(syncState),
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e: Error) => onMutationError(opts, e)
-	}));
-}
-
-export function useResolveGoogleDriveLink(
+/**
+ * reach the control plane and keep this machine replicating.
+ *
+ * *It was `useSyncGoogleDriveWorkspace` and pushed or pulled a whole workspace. Drive sync
+ * retired (decision 07); a replica pushes its own writes, so what a person pressing Sync asks
+ * for is the one thing left that a person can be waiting on — the window.*
+ */
+export function useSyncWorkspace(
 	opts: MutationOptions = {
 		toast: {
-			success: () => get(LL).settingsHooks.googleDriveLinked(),
+			success: () => get(LL).settingsHooks.workspaceUpToDate(),
 			error: true,
 			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
@@ -241,180 +227,20 @@ export function useResolveGoogleDriveLink(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: () => syncWorkspaceRemoteNow(),
+		mutationFn: () => syncWorkspaceNow(),
 		onSuccess: async (result) => {
 			client.setQueryData(keys.remoteSync, result.state);
-
-			if (result.action === 'pulled') {
-				await invalidateRoot(client);
-			} else {
-				await Promise.all([
-					client.invalidateQueries({ queryKey: keys.remoteSync }),
-					client.invalidateQueries({ queryKey: keys.backups })
-				]);
-			}
-
-			onMutationSuccess(opts);
-		},
-		onError: async (e) => {
 			await client.invalidateQueries({ queryKey: keys.remoteSync });
-			onMutationError(opts, e);
-		}
-	}));
-}
 
-/** settle the conflict waiting on the user, the way they chose. */
-export function useResolvePendingConflict(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).settingsHooks.googleDriveLinked(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (resolution: GoogleDriveConflictResolution) => pendingConflict.resolve(resolution),
-		onSuccess: async (result) => {
-			if (!result) {
+			// The window has closed. It is not a success and it is not a failure — nothing went
+			// wrong and nothing was lost — so it is neither of the two toasts but the sentence
+			// naming the one thing they can do about it.
+			if (result.action === 'signInRequired') {
+				toast.error(get(LL).settingsHooks.sessionExpired());
 				return;
 			}
 
-			client.setQueryData(keys.remoteSync, result.state);
-
-			if (result.action === 'pulled') {
-				await invalidateRoot(client);
-			} else {
-				await Promise.all([
-					client.invalidateQueries({ queryKey: keys.remoteSync }),
-					client.invalidateQueries({ queryKey: keys.backups })
-				]);
-			}
-
 			onMutationSuccess(opts);
-		},
-		onError: async (e) => {
-			await client.invalidateQueries({ queryKey: keys.remoteSync });
-			onMutationError(opts, e);
-		}
-	}));
-}
-
-/**
- * set the conflict aside, undoing the link where there is one to undo. The state being set
- * aside is remembered, so the same question is not asked again until it changes.
- */
-export function useDismissPendingConflict(opts: MutationOptions = {}) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => pendingConflict.dismiss(),
-		onSuccess: async (dismissal) => {
-			if (dismissal && !dismissal.deferred && dismissal.state) {
-				client.setQueryData(keys.remoteSync, dismissal.state);
-				await invalidateRoot(client);
-			}
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-/** clear a workspace whose remote link no longer works, so it can be linked again. */
-export function useRelinkPendingConflict(
-	opts: MutationOptions = {
-		toast: {
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => pendingConflict.relink(),
-		onSuccess: (state) => {
-			if (state) {
-				client.setQueryData(keys.remoteSync, state);
-			}
-
-			onMutationSuccess(opts);
-		},
-		onError: (e: Error) => onMutationError(opts, e)
-	}));
-}
-
-export function useUnlinkGoogleDriveWorkspace(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).settingsHooks.googleDriveUnlinked(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => unlinkGoogleDriveWorkspace(),
-		onSuccess: async (state) => {
-			client.setQueryData(keys.remoteSync, state);
-			await invalidateRoot(client);
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useSyncGoogleDriveWorkspace(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).settingsHooks.googleDriveSynchronized(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-	const mutationFn = async ({
-		manual
-	}: { manual?: boolean } = {}): Promise<SyncGoogleDriveWorkspaceResult> =>
-		syncWorkspaceRemoteNow(undefined, { manual });
-
-	return createMutation(() => ({
-		mutationFn,
-		onSuccess: async (result) => {
-			client.setQueryData(keys.remoteSync, result.state);
-
-			if (result.action === 'pulled') {
-				await invalidateRoot(client);
-			} else {
-				await Promise.all([
-					client.invalidateQueries({ queryKey: keys.remoteSync }),
-					client.invalidateQueries({ queryKey: keys.backups })
-				]);
-			}
-
-			if (!('preparation' in result) || !result.preparation) {
-				// The user pressed Sync on a workspace whose window has closed. It is not a
-				// success and it is not a failure — nothing went wrong and nothing was lost —
-				// so it is neither of the two toasts below but the sentence naming the one
-				// thing they can do about it.
-				if (result.action === 'signInRequired') {
-					toast.error(get(LL).settingsHooks.sessionExpired());
-				} else if (result.action === 'none') {
-					onMutationSuccess({
-						toast: {
-							success: () => get(LL).settingsHooks.googleDriveAlreadyUpToDate()
-						}
-					});
-				} else {
-					onMutationSuccess(opts);
-				}
-			}
 		},
 		onError: async (e) => {
 			await client.invalidateQueries({ queryKey: keys.remoteSync });

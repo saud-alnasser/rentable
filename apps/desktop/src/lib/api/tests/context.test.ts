@@ -14,19 +14,19 @@ import { context } from '../context.ts';
 
 // a shell reporting the account this machine is signed in as.
 //
-// The state is written out in full by the fixtures behind it. **`workspace.accountId` is left
-// alone on purpose**: it is the Drive link, it is not who is signed in, and a fixture that set it
-// would let a context reading the wrong field pass every test below.
+// The state is written out in full by the fixtures behind it. *It used to set
+// `workspace.accountId` to `null` deliberately — that field was the Drive link rather than who
+// was signed in, and a fixture that set it would have let a context reading the wrong field pass
+// every test below. The field went with Drive sync, so there is one place left to read.*
 function shellReporting(accounts: RemoteSyncAccount[] = [fakeAccount()]) {
-	const state = fakeSyncState({ accounts, workspace: fakeWorkspace({ accountId: null }) });
+	const state = fakeSyncState({ accounts, workspace: fakeWorkspace() });
 
 	return fakeHost({
 		remoteSync: {
 			getState: async () => state,
 			snapshotNow: async () => state,
 			autosaveNow: async () => state,
-			renewSession: async () => state,
-			googleDrive: fakeHost().remoteSync.googleDrive
+			renewSession: async () => state
 		}
 	});
 }

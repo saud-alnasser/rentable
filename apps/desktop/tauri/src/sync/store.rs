@@ -18,8 +18,6 @@ use crate::{
 use super::{
     control::{SessionWindow, control_plane_url},
     google::auth::google_oauth_client_id,
-    google::transport::GoogleDriveSyncCompleteInput,
-    lock::GoogleDriveSyncLock,
     session::GoogleSignInSession,
 };
 
@@ -27,7 +25,6 @@ pub struct RemoteSync {
     pub(super) settings: Arc<RwLock<Persisted<Settings>>>,
     pub(super) store: Persisted<RemoteSyncStore>,
     pub(super) auth_sessions: Arc<Mutex<HashMap<String, GoogleSignInSession>>>,
-    pub(super) google_drive_sync_lock: Option<GoogleDriveSyncLock>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -47,13 +44,14 @@ pub struct RemoteSyncAccount {
     pub email: String,
     pub display_name: String,
     pub avatar_url: Option<String>,
+    /// who Google says this is - the OpenID `sub` claim, which is what the control-plane API
+    /// keys an account by.
+    ///
+    /// *It held Drive's `permissionId` until Drive sync retired: the same person under a scheme
+    /// nothing else here spoke. One scheme is left and it is the API's.*
     pub provider_user_id: Option<String>,
-    pub drive_quota_bytes: Option<i64>,
-    pub drive_usage_bytes: Option<i64>,
-    pub app_usage_bytes: Option<i64>,
     pub token_expires_at: Option<i64>,
     pub refresh_token_available: bool,
-    pub last_synced_at: Option<i64>,
     pub last_error: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
@@ -63,24 +61,8 @@ pub struct RemoteSyncAccount {
 #[serde(default, rename_all = "camelCase")]
 pub struct RemoteSyncWorkspace {
     pub id: String,
-    pub account_id: Option<String>,
     pub name: String,
     pub local_database_path: PathBuf,
-    /// which workspace the remote holds, as the remote itself names it.
-    ///
-    /// Recorded when a sync settles, and compared against what a later reading
-    /// finds: a folder that answers for this workspace while naming a different
-    /// one is intact but is not the remote this workspace agreed with, and no
-    /// direction between them is safe to choose without the user. Absent for a
-    /// workspace linked before this was recorded, which is why a disagreement
-    /// needs both sides — an install that never wrote one cannot be wrong about it.
-    pub remote_workspace_id: Option<String>,
-    pub remote_folder_id: Option<String>,
-    pub remote_manifest_file_id: Option<String>,
-    pub remote_head_file_id: Option<String>,
-    pub remote_head_revision: Option<String>,
-    pub last_remote_updated_at: Option<i64>,
-    pub last_synced_at: Option<i64>,
     pub last_snapshot_at: Option<i64>,
     pub last_snapshot_filename: Option<String>,
     pub last_error: Option<String>,
@@ -90,7 +72,7 @@ pub struct RemoteSyncWorkspace {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
-pub struct StoredGoogleDriveCredentials {
+pub struct StoredGoogleCredentials {
     pub account_id: String,
     pub access_token: String,
     pub refresh_token: String,
@@ -120,9 +102,14 @@ pub struct RemoteSyncState {
     pub accounts: Vec<RemoteSyncAccount>,
     pub workspace: RemoteSyncWorkspace,
     pub startup_prompt_enabled: bool,
-    pub google_drive_ready: bool,
+    /// whether this build was given an OAuth client to sign in with.
+    ///
+    /// *It was `google_drive_ready` and reported this same fact: the client id is the OAuth
+    /// registration's, and it was Drive's only in the sense that Drive was the only thing that
+    /// spent it.*
+    pub google_sign_in_ready: bool,
     /// whether this build was told where a control plane is. Reported for the same reason
-    /// `google_drive_ready` is: a capability the caller can see, rather than one it discovers
+    /// `google_sign_in_ready` is: a capability the caller can see, rather than one it discovers
     /// by a call failing.
     pub control_plane_ready: bool,
     /// the window, and **never the token that goes with it** (#550).
@@ -166,18 +153,7 @@ impl Persistable for RemoteSyncStore {
         }
 
         self.workspace.id = sanitize_string(&self.workspace.id);
-        self.workspace.account_id = sanitize_optional_string(self.workspace.account_id.clone());
         self.workspace.name = sanitize_string(&self.workspace.name);
-        self.workspace.remote_workspace_id =
-            sanitize_optional_string(self.workspace.remote_workspace_id.clone());
-        self.workspace.remote_folder_id =
-            sanitize_optional_string(self.workspace.remote_folder_id.clone());
-        self.workspace.remote_manifest_file_id =
-            sanitize_optional_string(self.workspace.remote_manifest_file_id.clone());
-        self.workspace.remote_head_file_id =
-            sanitize_optional_string(self.workspace.remote_head_file_id.clone());
-        self.workspace.remote_head_revision =
-            sanitize_optional_string(self.workspace.remote_head_revision.clone());
         self.workspace.last_snapshot_filename =
             sanitize_optional_string(self.workspace.last_snapshot_filename.clone());
         self.workspace.last_error = sanitize_optional_string(self.workspace.last_error.clone());
@@ -226,7 +202,6 @@ impl RemoteSync {
             settings,
             store,
             auth_sessions: Arc::new(Mutex::new(HashMap::new())),
-            google_drive_sync_lock: None,
         };
         this.reconcile().await?;
         Ok(this)
@@ -245,69 +220,6 @@ impl RemoteSync {
         self.store.workspace.last_snapshot_at = Some(entry.created_at);
         self.store.workspace.last_snapshot_filename = Some(entry.filename.clone());
         self.store.workspace.updated_at = timestamp::now();
-
-        self.store.commit()
-    }
-
-    pub fn mark_google_drive_synced(
-        &mut self,
-        input: GoogleDriveSyncCompleteInput,
-    ) -> Result<(), Error> {
-        let workspace_id = sanitize_string(&input.workspace_id);
-        let workspace_name = sanitize_optional_string(input.workspace_name);
-        let account_id = sanitize_string(&input.account_id);
-        let synced_at = timestamp::now();
-
-        if self.store.workspace.account_id.as_deref() != Some(account_id.as_str()) {
-            return Err(Error::Forbidden {
-                message: "workspace is not linked to the requested google drive account"
-                    .to_string(),
-            });
-        }
-
-        if !workspace_id.is_empty() {
-            self.store.workspace.id = workspace_id.clone();
-        }
-
-        if let Some(workspace_name) = workspace_name {
-            self.store.workspace.name = workspace_name;
-        }
-
-        // the caller names the workspace the remote holds; a remote that named
-        // none is one this machine is seeding, so its identity is this workspace's.
-        let remote_workspace_id = if workspace_id.is_empty() {
-            self.store.workspace.id.clone()
-        } else {
-            workspace_id
-        };
-
-        self.store.workspace.remote_workspace_id = Some(remote_workspace_id);
-        self.store.workspace.remote_folder_id = Some(sanitize_string(&input.remote_folder_id));
-        self.store.workspace.remote_manifest_file_id =
-            Some(sanitize_string(&input.remote_manifest_file_id));
-        self.store.workspace.remote_head_file_id =
-            Some(sanitize_string(&input.remote_head_file_id));
-        self.store.workspace.remote_head_revision =
-            Some(sanitize_string(&input.remote_head_revision));
-        self.store.workspace.last_remote_updated_at = Some(input.remote_updated_at);
-        self.store.workspace.last_synced_at = Some(synced_at);
-        self.store.workspace.last_error = None;
-        self.store.workspace.updated_at = synced_at;
-
-        if let Some(account) = self
-            .store
-            .accounts
-            .iter_mut()
-            .find(|account| account.id == account_id)
-        {
-            account.status = RemoteSyncAccountStatus::Ready;
-            account.drive_quota_bytes = input.drive_quota_bytes.or(account.drive_quota_bytes);
-            account.drive_usage_bytes = input.drive_usage_bytes.or(account.drive_usage_bytes);
-            account.app_usage_bytes = input.app_usage_bytes.or(account.app_usage_bytes);
-            account.last_synced_at = Some(synced_at);
-            account.last_error = None;
-            account.updated_at = synced_at;
-        }
 
         self.store.commit()
     }
@@ -343,43 +255,19 @@ impl RemoteSync {
             changed = true;
         }
 
-        // an account no workspace links is an identity, not litter.
+        // an account nothing links is an identity, not litter.
         //
-        // Until 2026-08-18 this reconcile deleted every Google account the
-        // workspace was not linked to, along with its credentials — which was
-        // consistent while signing in *was* linking, because an account with no
-        // link had been reached by no route. Signing in is its own act now, so
-        // that same account is somebody who signed in and has not chosen a
-        // folder, and pruning it would undo the act on the next state read.
-        // What removes an account is asking to: disconnecting Drive, or
-        // abandoning the attempt that established it.
-        let known_account_ids = self
-            .store
-            .accounts
-            .iter()
-            .map(|account| account.id.clone())
-            .collect::<HashSet<_>>();
-
-        // A workspace names a Drive account or it names none. Naming one nothing knows about
-        // is the broken case, and it is now read off the link itself rather than off a mode:
-        // an unlinked workspace has no account_id, so it never enters this arm.
-        let missing_linked_account = self
-            .store
-            .workspace
-            .account_id
-            .as_ref()
-            .is_some_and(|account_id| !known_account_ids.contains(account_id));
-
-        if missing_linked_account {
-            Self::clear_google_drive_link(&mut self.store.workspace, now);
-            changed = true;
-        }
-
+        // Until 2026-08-18 this reconcile deleted every Google account the workspace was not
+        // linked to, along with its credentials — which was consistent while signing in *was*
+        // linking, because an account with no link had been reached by no route. Signing in is
+        // its own act now, and with Drive retired there is no link for one to be missing from:
+        // an account row is somebody who signed in, and pruning it would undo the act on the
+        // next state read.
         let mut refresh_token_account_ids = HashSet::new();
 
         for account_id in self.store.accounts.iter().map(|account| account.id.clone()) {
             if self
-                .load_google_drive_credentials(&account_id)?
+                .load_google_credentials(&account_id)?
                 .map(|credentials| !credentials.refresh_token.trim().is_empty())
                 .unwrap_or(false)
             {
@@ -409,7 +297,7 @@ impl RemoteSync {
             accounts: self.store.accounts.clone(),
             workspace: self.store.workspace.clone(),
             startup_prompt_enabled: self.store.startup_prompt_enabled,
-            google_drive_ready: google_oauth_client_id().is_some(),
+            google_sign_in_ready: google_oauth_client_id().is_some(),
             control_plane_ready: control_plane_url().is_some(),
             session: self.store.control_plane_session.clone(),
             device_id: self.store.device_id.clone(),
@@ -419,35 +307,14 @@ impl RemoteSync {
     pub(super) fn default_workspace(path: PathBuf, now: i64) -> RemoteSyncWorkspace {
         RemoteSyncWorkspace {
             id: format!("workspace-{}", now),
-            account_id: None,
             name: "Primary workspace".to_string(),
             local_database_path: path,
-            remote_workspace_id: None,
-            remote_folder_id: None,
-            remote_manifest_file_id: None,
-            remote_head_file_id: None,
-            remote_head_revision: None,
-            last_remote_updated_at: None,
-            last_synced_at: None,
             last_snapshot_at: None,
             last_snapshot_filename: None,
             last_error: None,
             created_at: now,
             updated_at: now,
         }
-    }
-
-    pub(super) fn clear_google_drive_link(workspace: &mut RemoteSyncWorkspace, now: i64) {
-        workspace.account_id = None;
-        workspace.remote_workspace_id = None;
-        workspace.remote_folder_id = None;
-        workspace.remote_manifest_file_id = None;
-        workspace.remote_head_file_id = None;
-        workspace.remote_head_revision = None;
-        workspace.last_remote_updated_at = None;
-        workspace.last_synced_at = None;
-        workspace.last_error = None;
-        workspace.updated_at = now;
     }
 }
 
@@ -459,18 +326,6 @@ pub(super) fn sanitize_optional_string(value: Option<String>) -> Option<String> 
     value
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-}
-
-pub(super) fn sanitize_filename(value: &str) -> String {
-    value
-        .chars()
-        .map(|character| match character {
-            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '-',
-            other => other,
-        })
-        .collect::<String>()
-        .trim()
-        .to_string()
 }
 
 pub(super) fn slugify(value: &str) -> String {

@@ -32,10 +32,7 @@ const en = {
 			export: 'export',
 			import: 'import',
 			installingUpdate: 'installing update...',
-			link: 'link',
-			linking: 'linking...',
 			newRecord: 'new record',
-			openLocal: 'open local workspace',
 			openMenu: 'open menu',
 			openPayments: 'open payments',
 			openPreviousRelease: 'open previous release',
@@ -64,7 +61,6 @@ const en = {
 			sortBy: 'sort by',
 			syncing: 'syncing...',
 			syncNow: 'sync',
-			unlink: 'unlink',
 			terminate: 'terminate',
 			transferData: 'import and export',
 			terminating: 'terminating...',
@@ -180,7 +176,6 @@ const en = {
 			information: 'information',
 			governmentIdOptional: 'government id (optional)',
 			lastBackupTime: 'last backup time',
-			lastSyncTime: 'last sync time',
 			location: 'location',
 			name: 'name',
 			nationalId: 'national id',
@@ -360,10 +355,7 @@ const en = {
 		},
 
 		startup: {
-			accountChoiceDescription:
-				'open the current workspace locally, or link Google Drive now to turn it into a synced workspace.',
 			accountChoiceEmpty: 'no workspace profiles are available yet.',
-			accountChoiceTitle: 'workspace',
 			failedToStartDescription:
 				'there was a problem connecting the database or running startup sync.',
 			failedToStartFallback: 'failed to start the app.',
@@ -469,94 +461,13 @@ const en = {
 		syncAutomationDescription:
 			'rentable keeps a recent snapshot of this workspace so it can be recovered, and clears out the older ones. there is nothing to do here.',
 		syncAutomationTitle: 'snapshots are kept for you',
-		syncAccountsDescription:
-			'linked Google Drive accounts stay available for workspace switching, sync, and startup selection.',
-		syncAccountsTitle: 'linked Google Drive accounts',
 		syncAccountStatusNeedsReconnect: 'needs reconnect',
+		syncSignInPending:
+			'signing in with Google is not configured in this build yet, so this workspace cannot reach the service that keeps it.',
 		syncAccountStatusPending: 'awaiting authorization',
-		syncAccountStatusReady: 'ready to sync',
-		syncAppDriveUsageDescription: 'rentable sync storage: {value}',
-		syncConnectedAccountLabel: 'linked Google Drive',
-		syncConflictDeferAction: 'open without syncing for now',
-		syncCorruptDescription:
-			'Google Drive metadata can no longer be read safely. Repair the remote workspace with your current local workspace before syncing again.',
-		syncCorruptKeepLocalAction: 'repair remote with local',
-		syncCorruptLocalDescription:
-			'use this device as the source of truth and write a clean manifest back to Google Drive.',
-		syncCorruptRemoteDescription:
-			'the Google Drive metadata for {email} is corrupted, so the remote copy cannot be trusted until it is repaired.',
-		syncCorruptShortDescription:
-			'Google Drive metadata is corrupted. Repair the remote workspace with your local copy before syncing again.',
-		syncCorruptTitle: 'repair Google Drive metadata',
-		syncAlreadyRunningDescription:
-			'another Google Drive sync is already running. please wait for it to finish and try again.',
-		syncConflictDescription:
-			'this workspace changed locally and in Google Drive since the last sync. choose which copy should continue before syncing again.',
-		syncConflictLatestBadge: 'latest',
-		syncConflictKeepLocalAction: 'keep local & sync',
-		syncConflictLocalDescription:
-			'keep this device as the source of truth and overwrite the current Google Drive snapshot with the local workspace.',
-		syncConflictRemoteDescription:
-			'replace this device with the Google Drive snapshot linked to {email}.',
-		syncConflictShortDescription:
-			'this workspace diverged locally and remotely. choose which side should win before syncing again.',
-		syncConflictTitle: 'resolve the sync conflict',
-		syncConflictUseRemoteAction: 'use remote & sync',
-		syncGoogleDrivePending:
-			'Google Drive account linking is not configured in this build yet. The workspace and snapshot foundation is ready for it.',
-		syncLinkConflictDescription:
-			'this workspace already has both a local snapshot and a Google Drive snapshot. choose which copy should continue before sync starts.',
-		syncLinkConflictLocalDescription:
-			'continue with this device and overwrite Google Drive with the latest local snapshot.',
-		syncLinkConflictRemoteDescription:
-			'replace this device with the Google Drive snapshot linked to {email}.',
-		syncLinkConflictShortDescription:
-			'finish linking by choosing whether the local or remote snapshot should become the synced workspace.',
-		syncLinkConflictTitle: 'choose which workspace copy to keep',
-		syncLinkKeepLocalAction: 'keep local & link',
-		syncLinkUseRemoteAction: 'use remote & link',
-		syncLastRemoteDescription: 'latest remote update {value}',
-		syncLastSnapshotDescription: 'latest snapshot {value}',
-		syncLinkDescription:
-			'link Google Drive so this workspace syncs when the app starts, and can be recovered if this machine is lost. if both sides already hold a copy, you choose which one to keep.',
-		syncLinkFinalizingDescription:
-			'Google authorization was received. Rentable is finishing the Google Drive link and checking the remote workspace now.',
-		syncLinkFinalizingTitle: 'Finishing Google Drive link',
-		syncLinkPendingDescription:
-			'complete the Google sign-in in your browser. if Google Drive already has a snapshot for this workspace, you will choose local or remote next.',
-		syncLinkPendingTitle: 'Waiting for Google authorization',
-		syncLinkTimedOutDescription:
-			'Google Drive authorization took too long to finish. Start the link again when you are ready.',
-		syncNotLinkedDescription: 'the current workspace is not linked to Google Drive.',
-		syncNoLinkedAccounts: 'no Google Drive accounts are linked yet.',
-		syncProfilesDescription:
-			'each workspace keeps its own local database path and latest recovery snapshot.',
-		syncProfilesTitle: 'workspace profiles',
-		syncProviderGoogleDrive: 'Google Drive',
-		syncProviderLocal: 'local workspace',
 		syncProviderHosted: 'hosted workspace',
-		syncReconnectDescription: 'Google Drive authorization expired. Please reconnect the account.',
-		syncRelinkRequiredAction: 'reset remote & relink',
-		syncRelinkRequiredDescription:
-			'the linked Google Drive workspace is missing its manifest and the remaining remote snapshots cannot be trusted as-is. to continue safely, reset the broken remote copy and link Google Drive again. this clears the current remote snapshot files before relinking.',
-		syncRelinkRequiredLocalDescription:
-			'keep the current local workspace on this device, clear the broken remote copy, and start a fresh Google Drive link.',
-		syncRelinkRequiredRemoteDescription:
-			'the remaining Google Drive snapshot files for {email} cannot be turned back into a safe remote manifest automatically.',
-		syncRelinkRequiredShortDescription:
-			'the linked Google Drive copy is broken and must be relinked before sync can continue.',
-		syncRelinkRequiredTitle: 'relink the broken Google Drive workspace',
-		syncRemoteStateChangedDescription:
-			'Google Drive changed while syncing. Retry with the latest remote state.',
-		syncRemoteSnapshotUnavailableDescription:
-			'no remote snapshot is available in Google Drive for this workspace yet.',
-		syncUnlinkDescription:
-			'unlinking keeps this workspace on this machine and stops it syncing to Google Drive. you can link it again later.',
-		syncUnlinkDialogDescription:
-			'this keeps your local workspace and stops future Google Drive syncs until you link again.',
-		syncUnlinkDialogTitle: 'unlink Google Drive?',
-		syncWorkspaceChangedDescription:
-			'the active workspace changed before Google Drive sync could start.',
+		syncWorkspaceDescription:
+			'this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.',
 		syncWorkspaceStatusSynced: 'synced',
 		localeDescription: 'the interface changes as soon as you pick one.',
 		localeLabel: 'display language',
@@ -748,14 +659,10 @@ const en = {
 		databasePathReset: 'database path reset to default successfully!',
 		databasePathUpdated: 'database path updated successfully!',
 		endingSoonUpdated: 'ending soon notice window updated successfully!',
-		googleDriveAlreadyUpToDate: 'Google Drive workspace is already up to date!',
-		googleDriveDisconnected: 'Google Drive account disconnected successfully!',
-		googleDriveLinked: 'Google Drive workspace linked successfully!',
-		googleDriveUnlinked: 'Google Drive workspace unlinked successfully!',
-		googleDriveSynchronized: 'Google Drive workspace synchronized successfully!',
 		profileSwitched: 'workspace switched successfully!',
 		rollbackRestored: 'protected update backup restored successfully!',
 		snapshotCreated: 'snapshot created successfully!',
+		workspaceUpToDate: 'this workspace is up to date!',
 		startupRecoveryCleared:
 			'startup recovery cleared. retrying the current version is now allowed.',
 		sessionExpired:

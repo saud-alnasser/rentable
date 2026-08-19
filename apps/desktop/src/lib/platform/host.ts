@@ -84,13 +84,16 @@ export type RemoteSyncAccount = {
 	email: string;
 	displayName: string;
 	avatarUrl: string | null;
+	/**
+	 * who Google says this is — the OpenID `sub` claim, which is what the control-plane API
+	 * keys an account by.
+	 *
+	 * *It held Drive's `permissionId` until Drive sync retired: the same person under a scheme
+	 * nothing else here spoke.*
+	 */
 	providerUserId: string | null;
-	driveQuotaBytes: number | null;
-	driveUsageBytes: number | null;
-	appUsageBytes: number | null;
 	tokenExpiresAt: number | null;
 	refreshTokenAvailable: boolean;
-	lastSyncedAt: number | null;
 	lastError: string | null;
 	createdAt: number;
 	updatedAt: number;
@@ -98,23 +101,14 @@ export type RemoteSyncAccount = {
 
 export type RemoteSyncWorkspace = {
 	id: string;
-	accountId: string | null;
 	name: string;
 	localDatabasePath: string;
-	remoteFolderId: string | null;
-	remoteManifestFileId: string | null;
-	remoteHeadFileId: string | null;
-	remoteHeadRevision: string | null;
-	lastRemoteUpdatedAt: number | null;
-	lastSyncedAt: number | null;
 	lastSnapshotAt: number | null;
 	lastSnapshotFilename: string | null;
 	lastError: string | null;
 	createdAt: number;
 	updatedAt: number;
 };
-
-export type RemoteSyncProfile = RemoteSyncWorkspace;
 
 /**
  * how much longer this machine may go on replicating, as the control plane issued it.
@@ -144,7 +138,8 @@ export type RemoteSyncState = {
 	accounts: RemoteSyncAccount[];
 	workspace: RemoteSyncWorkspace;
 	startupPromptEnabled: boolean;
-	googleDriveReady: boolean;
+	/** whether this build was given an OAuth client to sign in with. */
+	googleSignInReady: boolean;
 	/** whether this build was told where a control plane is. A capability, reported like the one above. */
 	controlPlaneReady: boolean;
 	/** the window this machine holds, or nothing where it holds no session. */
@@ -152,60 +147,9 @@ export type RemoteSyncState = {
 	deviceId: string;
 };
 
-export type GoogleDriveConflictKind = 'link' | 'sync' | 'corrupt' | 'relink';
-
-/** which side of a conflict the user chose. */
-export type GoogleDriveConflictResolution = 'local' | 'remote';
-
-/** which way a conflict is recommended to be settled. narrower than a sync mode: "decide for me" is not an answer to a conflict. */
-export type GoogleDriveRecommendedMode = 'push' | 'pull';
-
-/** what the user is being asked, and everything the interface needs to ask it. */
-export type GoogleDriveLinkConflict = {
-	kind: GoogleDriveConflictKind;
-	accountEmail: string;
-	localSnapshotAt: number | null;
-	remoteUpdatedAt: number | null;
-	remoteFilename: string | null;
-	/** why, where the reason is more specific than the kind's own wording. `null` leaves the interface to say it, in the user's language. */
-	message: string | null;
-};
-
-/**
- * the situation on the remote, and what to do about it.
- *
- * `requiresResolution` is the whole point: false means the caller may proceed,
- * true means nothing transfers until the user has chosen.
- */
-export type GoogleDriveLinkPreparation = {
-	state: RemoteSyncState;
-	requiresResolution: boolean;
-	recommendedMode: GoogleDriveRecommendedMode;
-	conflict: GoogleDriveLinkConflict | null;
-};
-
-/** what a sync run did. */
-export type GoogleDriveSyncAction = 'none' | 'pushed' | 'pulled';
-
-/**
- * what a sync run did, and what it could not do without asking.
- *
- * `preparation` is present only where the two sides could not be reconciled
- * without the user, and nothing transferred when it is.
- */
-export type GoogleDriveSyncOutcome = {
-	state: RemoteSyncState;
-	action: GoogleDriveSyncAction;
-	preparation: GoogleDriveLinkPreparation | null;
-};
-
 /**
  * how far a sign-in has got. signing in is one call, so progress arrives on an event instead of
  * a return.
- *
- * It belongs to signing in rather than to linking, and that is observable: a link that reuses
- * an identity this machine already holds emits nothing at all, because nothing about it is
- * outstanding in a browser.
  */
 export type GoogleSignInPhase = 'authorizing' | 'finalizing';
 
@@ -255,22 +199,22 @@ export type Host = {
 	/**
 	 * who this machine is signed in as.
 	 *
-	 * Its own capability, and not a step inside `remoteSync.googleDrive.link`, which is where it
-	 * lived until 2026-08-18. It is now the first thing the application asks for and the only
-	 * way past its opening screen (#571), so it has to be reachable without choosing a folder
-	 * — and a client that is not this shell needs it before it needs anything else.
+	 * Its own capability, and not a step inside linking a Drive folder, which is where it lived
+	 * until 2026-08-18 — and the folder went with Drive sync. It is the first thing the
+	 * application asks for and the only way past its opening screen (#571), so a client that is
+	 * not this shell needs it before it needs anything else.
 	 */
 	auth: {
 		google: {
 			/**
 			 * sign in with google, end to end. outstanding for as long as the user takes
 			 * over the consent screen; rejects with a `cancelled` error where they
-			 * abandon it. no folder is chosen and the workspace is untouched.
+			 * abandon it.
 			 */
 			signIn: () => Promise<RemoteSyncState>;
 			/**
-			 * give up the identity this machine holds. whatever is linked under it stays
-			 * linked and says what it is waiting for. rejects where nobody is signed in.
+			 * give up the identity this machine holds. the account row stays, saying what it
+			 * is waiting for. rejects where nobody is signed in.
 			 */
 			signOut: () => Promise<RemoteSyncState>;
 			/** watch how far a sign-in has got. resolves to its own removal. */
@@ -360,39 +304,5 @@ export type Host = {
 		 * different: the session is given up, and the answer says so by carrying no window.
 		 */
 		renewSession: () => Promise<RemoteSyncState>;
-		googleDrive: {
-			/**
-			 * link this workspace to a google account, end to end. signs in first only
-			 * where this machine holds no identity to link under, so a caller that is
-			 * already signed in sees no consent screen and no phase. rejects with a
-			 * `cancelled` error where the user abandons it.
-			 */
-			link: () => Promise<GoogleDriveLinkPreparation>;
-			/** abandon the link that is outstanding, and undo one already recorded. */
-			cancelLinkAttempt: () => Promise<RemoteSyncState>;
-			/** disconnect this workspace, keeping one current snapshot of it on this machine. */
-			unlink: () => Promise<RemoteSyncState>;
-			/**
-			 * exchange this workspace with the account it is linked to, end to end.
-			 * `manual` says the user asked, which decides what the snapshot a push
-			 * sends counts as. rejects with a `busy` error where a sync is already
-			 * running.
-			 */
-			sync: (input?: { manual?: boolean }) => Promise<GoogleDriveSyncOutcome>;
-			/**
-			 * ask what the remote holds for this workspace, and whether the two
-			 * sides can be reconciled without the user. resolves to `null` where
-			 * the workspace is not on Drive.
-			 */
-			inspect: () => Promise<GoogleDriveLinkPreparation | null>;
-			/**
-			 * settle the conflict the user was asked about, the way they chose.
-			 * `local` keeps this machine's copy, `remote` keeps the remote's. The
-			 * remote is read again, so answering twice settles the same way.
-			 */
-			resolveConflict: (input: {
-				resolution: GoogleDriveConflictResolution;
-			}) => Promise<GoogleDriveSyncOutcome>;
-		};
 	};
 };

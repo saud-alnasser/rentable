@@ -18,9 +18,9 @@ import type { RemoteSyncAccount, RemoteSyncState } from '$lib/platform/host';
  * who this machine is signed in as, or nobody.
  *
  * **Read off the account rows rather than off the workspace, and that is the point.** The only
- * writer of `workspace.accountId` in the tree is `link_workspace_to_google_drive`, so every read
- * that goes through it can answer only for a workspace linked to a Drive folder — which is not
- * what *who is signed in* means, and after #554 will not be a thing that exists.
+ * writer of `workspace.accountId` was the Google Drive link, so every read that went through it
+ * could answer only for a workspace linked to a folder — which is not what *who is signed in*
+ * means. Drive sync retired and took the field with it.
  *
  * **A row is not a sign-in.** The row outlives the credentials deliberately: Rust keeps it so that
  * whatever was linked under it can still say what it is waiting for. `needsReconnect` is written

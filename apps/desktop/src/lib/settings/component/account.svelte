@@ -12,10 +12,11 @@
 	/**
 	 * Who this machine is signed in as, and the way back out.
 	 *
-	 * **Its own group rather than a row under sync**, because it is not about Google Drive: the
-	 * account is who the workspace belongs to, and it outlives the Drive surface beside it. It
-	 * reads `signedInAccount` for the same reason — going through `workspace.accountId` would ask
-	 * which folder is linked, which is a different question with a different answer.
+	 * **Its own group rather than a row under sync**, because the account is who the workspace
+	 * belongs to rather than a setting of how it travels — which is why it outlived the Google
+	 * Drive surface it used to sit beside. It reads `signedInAccount` for the same reason: going
+	 * through `workspace.accountId` asked which folder was linked, which was a different question
+	 * with a different answer, and is a field that went with Drive.
 	 *
 	 * The way back in is not here. Signing out raises the sign-in wall, and the wall owns signing in.
 	 */

@@ -12,9 +12,6 @@ import type {
 	BackupEntry,
 	DiagnosticRecord,
 	ExportSheet,
-	GoogleDriveConflictResolution,
-	GoogleDriveLinkPreparation,
-	GoogleDriveSyncOutcome,
 	GoogleSignInPhase,
 	Host,
 	ImportTable,
@@ -40,19 +37,11 @@ export type {
 	DiagnosticRecord,
 	ExportCell,
 	ExportSheet,
-	GoogleDriveConflictKind,
-	GoogleDriveConflictResolution,
-	GoogleDriveLinkConflict,
-	GoogleDriveLinkPreparation,
-	GoogleDriveRecommendedMode,
-	GoogleDriveSyncAction,
-	GoogleDriveSyncOutcome,
 	GoogleSignInPhase,
 	ImportTable,
 	Recovery,
 	RemoteSyncAccount,
 	RemoteSyncAccountStatus,
-	RemoteSyncProfile,
 	RemoteSyncState,
 	RemoteSyncWorkspace,
 	Settings,
@@ -60,7 +49,7 @@ export type {
 	UpdaterDownloadEvent
 } from '$lib/platform/host';
 
-/** the Rust side is `GOOGLE_SIGN_IN_PHASE_EVENT` in `tauri/src/sync/link.rs`, and the two are one name. */
+/** the Rust side is `GOOGLE_SIGN_IN_PHASE_EVENT` in `tauri/src/sync/sign_in.rs`, and the two are one name. */
 const GOOGLE_SIGN_IN_PHASE_EVENT = 'rentable:google-sign-in-phase';
 
 function mapUpdate(update: TauriUpdate): AvailableUpdate {
@@ -202,12 +191,12 @@ export const tauri = {
 			/**
 			 * sign in with google, end to end. outstanding for as long as the user takes
 			 * over the consent screen; rejects with a `cancelled` error where they
-			 * abandon it. no folder is chosen and the workspace is untouched.
+			 * abandon it.
 			 */
 			signIn: () => invoke<RemoteSyncState>('google_sign_in'),
 			/**
-			 * give up the identity this machine holds. whatever is linked under it stays
-			 * linked and says what it is waiting for. rejects where nobody is signed in.
+			 * give up the identity this machine holds. the account row stays, saying what it
+			 * is waiting for. rejects where nobody is signed in.
 			 */
 			signOut: () => invoke<RemoteSyncState>('google_sign_out'),
 			/** watch how far a sign-in has got. resolves to its own removal. */
@@ -219,40 +208,6 @@ export const tauri = {
 		getState: () => invoke<RemoteSyncState>('remote_sync_state_get'),
 		snapshotNow: () => invoke<RemoteSyncState>('remote_sync_snapshot_now'),
 		autosaveNow: () => invoke<RemoteSyncState>('remote_sync_autosave_now'),
-		renewSession: () => invoke<RemoteSyncState>('remote_sync_renew_session'),
-		googleDrive: {
-			/**
-			 * link this workspace to a google account, end to end. outstanding for as
-			 * long as the user takes over the consent screen; rejects with a
-			 * `cancelled` error where they abandon it.
-			 */
-			link: () => invoke<GoogleDriveLinkPreparation>('remote_sync_google_drive_link'),
-			/** abandon the link that is outstanding, and undo one already recorded. */
-			cancelLinkAttempt: () =>
-				invoke<RemoteSyncState>('remote_sync_google_drive_cancel_link_attempt'),
-			/** disconnect this workspace, keeping one current snapshot of it on this machine. */
-			unlink: () => invoke<RemoteSyncState>('remote_sync_google_drive_unlink'),
-			/**
-			 * exchange this workspace with the account it is linked to, end to end.
-			 * `manual` says the user asked, which decides what the snapshot a push
-			 * sends counts as. rejects with a `busy` error where a sync is already
-			 * running.
-			 */
-			sync: (input?: { manual?: boolean }) =>
-				invoke<GoogleDriveSyncOutcome>('remote_sync_google_drive_sync', { input }),
-			/**
-			 * ask what the remote holds for this workspace, and whether the two
-			 * sides can be reconciled without the user. resolves to `null` where
-			 * the workspace is not on Drive.
-			 */
-			inspect: () => invoke<GoogleDriveLinkPreparation | null>('remote_sync_google_drive_inspect'),
-			/**
-			 * settle the conflict the user was asked about, the way they chose.
-			 * `local` keeps this machine's copy, `remote` keeps the remote's. The
-			 * remote is read again, so answering twice settles the same way.
-			 */
-			resolveConflict: (input: { resolution: GoogleDriveConflictResolution }) =>
-				invoke<GoogleDriveSyncOutcome>('remote_sync_google_drive_resolve_conflict', { input })
-		}
+		renewSession: () => invoke<RemoteSyncState>('remote_sync_renew_session')
 	}
 } satisfies Host;

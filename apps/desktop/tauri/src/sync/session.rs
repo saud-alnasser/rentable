@@ -51,14 +51,14 @@ pub struct GoogleSignInSessionResult {
     pub error: Option<String>,
 }
 
-/// An access token for the Drive calls still made from the web layer.
+/// An access token, handed to the caller that has to present one.
 ///
-/// Nothing on *this* path hands over a refresh token or the client secret. That
-/// is not yet true of the surface as a whole — `get_google_drive_account_auth`
-/// and `get_google_drive_config` still return them — and closing that is #118.
+/// Nothing on *this* path hands over a refresh token or the client secret. That is not yet true
+/// of the surface as a whole — `google_account_auth` and `google_oauth_config` still return
+/// them — and closing that is #118.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GoogleDriveAccessToken {
+pub struct GoogleAccessToken {
     pub access_token: String,
 }
 
@@ -76,10 +76,8 @@ pub struct GoogleSignInCompleteInput {
     pub email: String,
     pub display_name: String,
     pub avatar_url: Option<String>,
+    /// the OpenID `sub` claim, read from Google's `userinfo` endpoint.
     pub provider_user_id: Option<String>,
-    pub drive_quota_bytes: Option<i64>,
-    pub drive_usage_bytes: Option<i64>,
-    pub app_usage_bytes: Option<i64>,
 }
 
 /// who a completed sign-in turned out to be, and the state that now holds them.
@@ -93,13 +91,6 @@ pub struct GoogleSignIn {
     pub state: RemoteSyncState,
 }
 
-/// which identity a workspace is being linked to Drive under.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GoogleDriveLinkInput {
-    pub account_id: String,
-}
-
 /// which identity is being given up.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -109,60 +100,17 @@ pub struct GoogleSignOutInput {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GoogleDriveAccountAuthInput {
+pub struct GoogleAccountAuthInput {
     pub account_id: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GoogleDriveAccountAuth {
+pub struct GoogleAccountAuth {
     pub account_id: String,
     pub access_token: String,
     pub refresh_token: String,
     pub token_expires_at: Option<i64>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GoogleDriveAccountUpdateInput {
-    pub account_id: String,
-    pub email: Option<String>,
-    pub display_name: Option<String>,
-    pub avatar_url: Option<String>,
-    pub provider_user_id: Option<String>,
-    pub drive_quota_bytes: Option<i64>,
-    pub drive_usage_bytes: Option<i64>,
-    pub app_usage_bytes: Option<i64>,
-    pub access_token: Option<String>,
-    pub refresh_token: Option<String>,
-    pub token_expires_at: Option<i64>,
-    pub status: Option<RemoteSyncAccountStatus>,
-    pub error: Option<String>,
-}
-
-/// an update that changes nothing, for a caller to fill the fields it means.
-pub(super) fn account_update(account_id: &str) -> GoogleDriveAccountUpdateInput {
-    GoogleDriveAccountUpdateInput {
-        account_id: account_id.to_string(),
-        email: None,
-        display_name: None,
-        avatar_url: None,
-        provider_user_id: None,
-        drive_quota_bytes: None,
-        drive_usage_bytes: None,
-        app_usage_bytes: None,
-        access_token: None,
-        refresh_token: None,
-        token_expires_at: None,
-        status: None,
-        error: None,
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GoogleDriveDisconnectInput {
-    pub account_id: String,
 }
 
 /// Why a sign-in did not produce an authorization code. Each is a distinct
@@ -246,17 +194,6 @@ pub(super) struct GoogleSignInSession {
     /// known. The profile read that names that account needs an access token,
     /// so the redemption necessarily happens first.
     pub(super) tokens: Option<GoogleOAuthTokens>,
-    /// the identity this attempt signed in, where the attempt is one whose
-    /// abandonment has to undo it.
-    ///
-    /// Signing in is its own act, so most sign-ins are nobody's to take back:
-    /// an identity that was already there when a link started, or one a person
-    /// established deliberately on its own, survives that link being abandoned.
-    /// What this marks is the third case — a link that had to sign in on the way
-    /// past — because backing out of it must leave no credential behind that the
-    /// person never asked for. The standalone sign-in drops its session on
-    /// success rather than marking it, which is why nothing here can reach one.
-    pub(super) established_account_id: Option<String>,
 }
 
 impl GoogleSignInSession {
@@ -343,7 +280,8 @@ impl GoogleSignInSession {
 /// `last_error` beside a *needs reconnect* badge — so this is written as the
 /// sentence somebody reads there, and it names **both** ways out rather than
 /// only the one that keeps syncing.
-const SIGNED_OUT_MESSAGE: &str = "signed out of google. sign in again to keep syncing this workspace with google drive, or disconnect drive to stop";
+const SIGNED_OUT_MESSAGE: &str =
+    "signed out of google. sign in again to keep this workspace syncing on this machine";
 
 const GOOGLE_SIGN_IN_POLL_INTERVAL: Duration = Duration::from_millis(200);
 const GOOGLE_SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
@@ -362,10 +300,10 @@ impl RemoteSync {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let port = listener.local_addr()?.port();
 
-        let session_id = format!("google-drive-link-{}", timestamp::now());
+        let session_id = format!("google-sign-in-{}", timestamp::now());
         let redirect_uri = format!("http://127.0.0.1:{port}/callback");
         let authorization_url = build_authorization_url(
-            &self.get_google_drive_config(),
+            &self.google_oauth_config(),
             &client_id,
             &redirect_uri,
             &expected_state,
@@ -389,7 +327,6 @@ impl RemoteSync {
                     authorization_code: None,
                     error: None,
                     tokens: None,
-                    established_account_id: None,
                 },
             );
         }
@@ -441,16 +378,15 @@ impl RemoteSync {
         })
     }
 
-    /// Abandon one sign-in, and say which identity that leaves nobody holding.
+    /// Abandon one sign-in.
     ///
-    /// The answer is `Some` only where this attempt is the one that established
-    /// the account — see [`GoogleSignInSession::established_account_id`]. It is
-    /// taken rather than read, so two callers cannot both decide to forget the
-    /// same identity.
+    /// *It used to answer with the identity the attempt had established, so that a link
+    /// abandoning itself could take that identity back. Nothing signs in on the way past
+    /// anything now, so an identity a sign-in recorded is one somebody asked for.*
     pub fn cancel_google_sign_in(
         &mut self,
         input: GoogleSignInSessionLookupInput,
-    ) -> Result<Option<String>, Error> {
+    ) -> Result<(), Error> {
         let session_id = sanitize_string(&input.session_id);
 
         if session_id.is_empty() {
@@ -465,12 +401,12 @@ impl RemoteSync {
             .map_err(|_| oauth_sessions_poisoned())?;
 
         let Some(session) = sessions.get_mut(&session_id) else {
-            return Ok(None);
+            return Ok(());
         };
 
         session.cancel();
 
-        Ok(session.established_account_id.take())
+        Ok(())
     }
 
     /// Drop a sign-in that finished on its own account.
@@ -494,51 +430,18 @@ impl RemoteSync {
         Ok(())
     }
 
-    /// Cancel every sign-in this process is holding, and say which identities
-    /// that leaves nobody holding.
-    ///
-    /// The caller that abandons a link is the user, and a user abandons *the*
-    /// link rather than a session identifier they have never seen. At most one
-    /// attempt is outstanding in practice; cancelling by session id is for the
-    /// flow that started one and knows which.
-    ///
-    /// A session that has *already* been authorized is cancelled too, and that
-    /// is the case worth stating: the window between the consent screen closing
-    /// and the account being recorded is short but reachable, and a session left
-    /// alone through it links a workspace the user just asked not to link.
-    /// [`GoogleSignInSession::cancel`] drops the tokens, so a completion
-    /// racing this one cannot succeed on them afterwards.
-    pub fn cancel_google_sign_ins(&mut self) -> Result<Vec<String>, Error> {
-        let mut sessions = self
-            .auth_sessions
-            .lock()
-            .map_err(|_| oauth_sessions_poisoned())?;
-
-        let mut established = Vec::new();
-
-        for session in sessions.values_mut() {
-            session.cancel();
-
-            if let Some(account_id) = session.established_account_id.take() {
-                established.push(account_id);
-            }
-        }
-
-        Ok(established)
-    }
-
     /// Redeem the authorization code this session captured, and hold what it
     /// yields until the account is known.
     ///
-    /// Returns only the access token, which the caller still needs for the
-    /// Drive profile read. The refresh token is kept on the session and reaches
-    /// storage through [`complete_google_sign_in`].
+    /// Returns only the access token, which the caller still needs for the profile read. The
+    /// refresh token is kept on the session and reaches storage through
+    /// [`complete_google_sign_in`].
     ///
     /// [`complete_google_sign_in`]: Self::complete_google_sign_in
     pub async fn exchange_google_sign_in_code(
         &mut self,
         input: GoogleSignInSessionLookupInput,
-    ) -> Result<GoogleDriveAccessToken, Error> {
+    ) -> Result<GoogleAccessToken, Error> {
         let session_id = sanitize_string(&input.session_id);
 
         let Some(client_id) = google_oauth_client_id() else {
@@ -578,7 +481,7 @@ impl RemoteSync {
         };
 
         let (authorization_code, code_verifier, redirect_uri) = redemption;
-        let config = self.get_google_drive_config();
+        let config = self.google_oauth_config();
         let form = authorization_code_form(
             &client_id,
             config.client_secret.as_deref(),
@@ -601,25 +504,23 @@ impl RemoteSync {
             session.tokens = Some(tokens);
         }
 
-        Ok(GoogleDriveAccessToken { access_token })
+        Ok(GoogleAccessToken { access_token })
     }
 
     /// Record the person an authorization turned out to belong to.
     ///
-    /// **This touches no workspace.** Signing in establishes who somebody is;
-    /// what that identity is then used for — a Drive folder, and later a hosted
-    /// workspace — is a second act with its own call. The two ran as one until
-    /// 2026-08-18, which is why an account could not exist unless a workspace
-    /// was linked to it.
+    /// **This touches no workspace.** Signing in establishes who somebody is; what that
+    /// identity is then used for is a second act with its own call. The two ran as one until
+    /// 2026-08-18 — signing in happened inside linking a Drive folder — which is why an account
+    /// could not exist unless a workspace was linked to one.
     ///
-    /// `establishes_identity_for_attempt` says whether abandoning the attempt
-    /// that called this should take the identity back with it. A link that had
-    /// to sign in on the way past passes `true`; a person signing in on purpose
-    /// passes `false`, and stays signed in whatever becomes of anything else.
+    /// *It took a second argument until Drive sync retired: whether abandoning the attempt
+    /// that called this should take the identity back with it. A link that had to sign in on
+    /// the way past passed `true` and a person signing in on purpose passed `false`. Only one
+    /// caller is left and it is the second, so the flag and the marker it set are gone.*
     pub async fn complete_google_sign_in(
         &mut self,
         input: GoogleSignInCompleteInput,
-        establishes_identity_for_attempt: bool,
     ) -> Result<GoogleSignIn, Error> {
         let now = timestamp::now();
         let email = sanitize_string(&input.email).to_lowercase();
@@ -678,9 +579,6 @@ impl RemoteSync {
             account.display_name = resolved_display_name.clone();
             account.avatar_url = avatar_url.clone();
             account.provider_user_id = provider_user_id.clone();
-            account.drive_quota_bytes = input.drive_quota_bytes;
-            account.drive_usage_bytes = input.drive_usage_bytes;
-            account.app_usage_bytes = input.app_usage_bytes;
             account.token_expires_at = token_expires_at;
             account.refresh_token_available = refresh_token
                 .as_ref()
@@ -690,6 +588,11 @@ impl RemoteSync {
             account.updated_at = now;
             account.id.clone()
         } else {
+            // **The prefix outlived Drive and is kept for the same reason the keyring service
+            // name is** (`google/auth.rs`): it is a key on installed machines. The credentials
+            // for this account are filed under this id, so renaming it would look in an entry
+            // nobody has and sign the person out — silently, because a missing credential is
+            // indistinguishable from one never granted.
             let account_id = format!("google-drive-{}", slugify(&email));
             self.store.accounts.push(RemoteSyncAccount {
                 id: account_id.clone(),
@@ -698,15 +601,11 @@ impl RemoteSync {
                 display_name: resolved_display_name.clone(),
                 avatar_url: avatar_url.clone(),
                 provider_user_id: provider_user_id.clone(),
-                drive_quota_bytes: input.drive_quota_bytes,
-                drive_usage_bytes: input.drive_usage_bytes,
-                app_usage_bytes: input.app_usage_bytes,
                 token_expires_at,
                 refresh_token_available: refresh_token
                     .as_ref()
                     .map(|token| !token.is_empty())
                     .unwrap_or(false),
-                last_synced_at: None,
                 last_error: None,
                 created_at: now,
                 updated_at: now,
@@ -714,7 +613,7 @@ impl RemoteSync {
             account_id
         };
 
-        let credentials = self.upsert_google_drive_credentials(
+        let credentials = self.upsert_google_credentials(
             &account_id,
             Some(access_token),
             refresh_token,
@@ -732,17 +631,6 @@ impl RemoteSync {
         }
 
         self.sign_out_of_every_other_google_account(&account_id, now)?;
-
-        if establishes_identity_for_attempt {
-            let mut sessions = self
-                .auth_sessions
-                .lock()
-                .map_err(|_| oauth_sessions_poisoned())?;
-
-            if let Some(session) = sessions.get_mut(&sanitize_string(&input.session_id)) {
-                session.established_account_id = Some(account_id.clone());
-            }
-        }
 
         self.store.commit()?;
 
@@ -777,7 +665,7 @@ impl RemoteSync {
             .collect::<Vec<_>>();
 
         for other in others {
-            self.delete_google_drive_credentials(&other)?;
+            self.delete_google_credentials(&other)?;
 
             if let Some(account) = self
                 .store
@@ -796,63 +684,6 @@ impl RemoteSync {
         Ok(())
     }
 
-    /// Link this workspace to a Google account that already exists.
-    ///
-    /// The account is not created here and no authorization runs: the identity
-    /// is a precondition rather than a side effect, which is the whole of what
-    /// separating the two acts bought. A link asked for under an identity this
-    /// machine does not hold is refused rather than quietly signing somebody in.
-    pub async fn link_workspace_to_google_drive(
-        &mut self,
-        input: GoogleDriveLinkInput,
-    ) -> Result<RemoteSyncState, Error> {
-        let account_id = sanitize_string(&input.account_id);
-        let now = timestamp::now();
-
-        let display_name = self
-            .store
-            .accounts
-            .iter()
-            .find(|account| account.id == account_id)
-            .map(|account| account.display_name.clone())
-            .ok_or_else(|| Error::NotFound {
-                message: "google account not found".to_string(),
-            })?;
-
-        if self.store.workspace.id.is_empty() {
-            self.store.workspace = Self::default_workspace(self.current_database_path().await, now);
-        }
-
-        self.store.workspace.account_id = Some(account_id);
-
-        if self.store.workspace.name.trim().is_empty() {
-            self.store.workspace.name = display_name;
-        }
-
-        self.store.workspace.updated_at = now;
-        self.store.workspace.last_error = None;
-
-        self.store.commit()?;
-        self.get_state().await
-    }
-
-    /// Reset this workspace to local, keeping the identity it was linked under.
-    ///
-    /// The counterpart to [`link_workspace_to_google_drive`]: it undoes that
-    /// call and nothing else. Disconnecting Drive for good is
-    /// [`disconnect_google_drive_account`], which also gives up the identity —
-    /// a person who wants this application to stop talking to their Google
-    /// account is asking for both.
-    ///
-    /// [`link_workspace_to_google_drive`]: Self::link_workspace_to_google_drive
-    /// [`disconnect_google_drive_account`]: Self::disconnect_google_drive_account
-    pub async fn unlink_workspace_from_google_drive(&mut self) -> Result<RemoteSyncState, Error> {
-        Self::clear_google_drive_link(&mut self.store.workspace, timestamp::now());
-
-        self.store.commit()?;
-        self.get_state().await
-    }
-
     /// The Google account this machine is signed in as, where it still holds a
     /// credential for one.
     ///
@@ -863,7 +694,7 @@ impl RemoteSync {
     pub fn signed_in_google_account(&self) -> Result<Option<RemoteSyncAccount>, Error> {
         for account in self.store.accounts.iter() {
             let held = self
-                .load_google_drive_credentials(&account.id)?
+                .load_google_credentials(&account.id)?
                 .map(|credentials| {
                     !credentials.access_token.trim().is_empty()
                         || !credentials.refresh_token.trim().is_empty()
@@ -878,16 +709,13 @@ impl RemoteSync {
         Ok(None)
     }
 
-    /// Give up the identity, keeping the account row and whatever is linked
-    /// under it.
+    /// Give up the identity, keeping the account row.
     ///
-    /// The credentials go and the link stays, deliberately. A workspace whose
-    /// Drive link outlives the sign-in is not broken and is not silently
-    /// severed either — it is waiting on a person, and the account says so in
-    /// terms the settings surface already renders: `NeedsReconnect`, with a
-    /// message naming both ways out. Removing the row instead would reset the
-    /// workspace to local on the next reconcile, which is disconnecting Drive
-    /// without being asked to.
+    /// The credentials go and the row stays, deliberately. A machine that has signed out is
+    /// waiting on a person rather than broken, and the row is what lets it say so in terms the
+    /// settings surface already renders: `NeedsReconnect`, with a message naming what to do.
+    /// Removing the row instead would leave a machine that had never seen anybody, which is a
+    /// different thing and is not what happened.
     pub async fn sign_out_of_google(
         &mut self,
         input: GoogleSignOutInput,
@@ -910,24 +738,24 @@ impl RemoteSync {
         account.last_error = Some(SIGNED_OUT_MESSAGE.to_string());
         account.updated_at = now;
 
-        self.delete_google_drive_credentials(&account_id)?;
+        self.delete_google_credentials(&account_id)?;
         self.store.commit()?;
         self.get_state().await
     }
 
-    pub fn get_google_drive_account_auth(
+    pub fn google_account_auth(
         &self,
-        input: GoogleDriveAccountAuthInput,
-    ) -> Result<GoogleDriveAccountAuth, Error> {
+        input: GoogleAccountAuthInput,
+    ) -> Result<GoogleAccountAuth, Error> {
         let account_id = sanitize_string(&input.account_id);
 
         let credentials = self
-            .load_google_drive_credentials(&account_id)?
+            .load_google_credentials(&account_id)?
             .ok_or_else(|| Error::NotFound {
-                message: "google drive credentials not found".to_string(),
+                message: "google credentials not found".to_string(),
             })?;
 
-        Ok(GoogleDriveAccountAuth {
+        Ok(GoogleAccountAuth {
             account_id,
             access_token: credentials.access_token.clone(),
             refresh_token: credentials.refresh_token.clone(),
@@ -938,19 +766,19 @@ impl RemoteSync {
     /// The stored access token for an account, where it is still usable.
     ///
     /// `None` means it has to be refreshed. Split from
-    /// [`refresh_google_drive_access_token`] so the common case — a token that
+    /// [`refresh_google_access_token`] so the common case — a token that
     /// is simply still valid — answers under a read lock, rather than holding
     /// every other remote-sync operation behind a network round trip.
     ///
-    /// [`refresh_google_drive_access_token`]: Self::refresh_google_drive_access_token
-    pub fn fresh_google_drive_access_token(
+    /// [`refresh_google_access_token`]: Self::refresh_google_access_token
+    pub fn fresh_google_access_token(
         &self,
-        input: &GoogleDriveAccountAuthInput,
+        input: &GoogleAccountAuthInput,
     ) -> Result<Option<String>, Error> {
         let credentials = self
-            .load_google_drive_credentials(&sanitize_string(&input.account_id))?
+            .load_google_credentials(&sanitize_string(&input.account_id))?
             .ok_or_else(|| Error::NotFound {
-                message: "google drive credentials not found".to_string(),
+                message: "google credentials not found".to_string(),
             })?;
 
         Ok(access_token_is_fresh(
@@ -966,23 +794,23 @@ impl RemoteSync {
     /// The exchange happens here, so the refresh token and the client secret
     /// are never handed to the caller. A `PreconditionFailed` means the account
     /// has to be linked again — nothing the caller retries will change it.
-    pub async fn refresh_google_drive_access_token(
+    pub async fn refresh_google_access_token(
         &mut self,
-        input: GoogleDriveAccountAuthInput,
-    ) -> Result<GoogleDriveAccessToken, Error> {
+        input: GoogleAccountAuthInput,
+    ) -> Result<GoogleAccessToken, Error> {
         let account_id = sanitize_string(&input.account_id);
         let credentials = self
-            .load_google_drive_credentials(&account_id)?
+            .load_google_credentials(&account_id)?
             .ok_or_else(|| Error::NotFound {
-                message: "google drive credentials not found".to_string(),
+                message: "google credentials not found".to_string(),
             })?;
 
-        let config = self.get_google_drive_config();
+        let config = self.google_oauth_config();
         let refresh_token = credentials.refresh_token.trim();
 
         let (Some(client_id), false) = (google_oauth_client_id(), refresh_token.is_empty()) else {
             return Err(Error::PreconditionFailed {
-                message: "google drive authorization has expired".to_string(),
+                message: "google authorization has expired".to_string(),
             });
         };
 
@@ -991,7 +819,7 @@ impl RemoteSync {
         let tokens = request_google_tokens(&config.token_endpoint, &form, now).await?;
         let access_token = tokens.access_token.clone();
 
-        let stored = self.upsert_google_drive_credentials(
+        let stored = self.upsert_google_credentials(
             &account_id,
             Some(tokens.access_token),
             tokens.refresh_token,
@@ -1016,112 +844,9 @@ impl RemoteSync {
 
         self.store.commit()?;
 
-        Ok(GoogleDriveAccessToken { access_token })
+        Ok(GoogleAccessToken { access_token })
     }
 
-    pub async fn update_google_drive_account(
-        &mut self,
-        input: GoogleDriveAccountUpdateInput,
-    ) -> Result<RemoteSyncState, Error> {
-        let GoogleDriveAccountUpdateInput {
-            account_id,
-            email,
-            display_name,
-            avatar_url,
-            provider_user_id,
-            drive_quota_bytes,
-            drive_usage_bytes,
-            app_usage_bytes,
-            access_token,
-            refresh_token,
-            token_expires_at,
-            status,
-            error,
-        } = input;
-
-        let account_id = sanitize_string(&account_id);
-        let now = timestamp::now();
-        let should_update_credentials =
-            access_token.is_some() || refresh_token.is_some() || token_expires_at.is_some();
-
-        let account_index = self
-            .store
-            .accounts
-            .iter()
-            .position(|account| account.id == account_id)
-            .ok_or_else(|| Error::NotFound {
-                message: "google drive account not found".to_string(),
-            })?;
-
-        {
-            let account = &mut self.store.accounts[account_index];
-
-            if let Some(email) = email {
-                let email = sanitize_string(&email).to_lowercase();
-                if !email.is_empty() {
-                    account.email = email;
-                }
-            }
-
-            if let Some(display_name) = display_name {
-                let display_name = sanitize_string(&display_name);
-                if !display_name.is_empty() {
-                    account.display_name = display_name;
-                }
-            }
-
-            if let Some(avatar_url) = avatar_url {
-                account.avatar_url = sanitize_optional_string(Some(avatar_url));
-            }
-
-            if let Some(provider_user_id) = provider_user_id {
-                account.provider_user_id = sanitize_optional_string(Some(provider_user_id));
-            }
-
-            account.drive_quota_bytes = drive_quota_bytes.or(account.drive_quota_bytes);
-            account.drive_usage_bytes = drive_usage_bytes.or(account.drive_usage_bytes);
-            account.app_usage_bytes = app_usage_bytes.or(account.app_usage_bytes);
-            account.token_expires_at = token_expires_at.or(account.token_expires_at);
-            account.status = status.unwrap_or(RemoteSyncAccountStatus::Ready);
-            account.last_error = sanitize_optional_string(error);
-            account.updated_at = now;
-        }
-
-        if should_update_credentials {
-            let credentials = self.upsert_google_drive_credentials(
-                &account_id,
-                access_token,
-                sanitize_optional_string(refresh_token),
-                token_expires_at,
-                now,
-            )?;
-
-            self.store.accounts[account_index].refresh_token_available =
-                !credentials.refresh_token.trim().is_empty();
-        }
-
-        self.store.commit()?;
-        self.get_state().await
-    }
-
-    pub async fn disconnect_google_drive_account(
-        &mut self,
-        input: GoogleDriveDisconnectInput,
-    ) -> Result<RemoteSyncState, Error> {
-        let account_id = sanitize_string(&input.account_id);
-
-        self.store
-            .accounts
-            .retain(|account| account.id != account_id);
-        self.delete_google_drive_credentials(&account_id)?;
-
-        if self.store.workspace.account_id.as_deref() == Some(account_id.as_str()) {
-            Self::clear_google_drive_link(&mut self.store.workspace, timestamp::now());
-        }
-
-        self.store.commit()?;
-        self.get_state().await
-    }
 }
 
 fn handle_google_sign_in_callback(
@@ -1192,8 +917,7 @@ fn handle_google_sign_in_callback(
             // the user cancelled between this connection being accepted and the
             // outcome being applied. The page states what actually holds, not
             // what this callback proposed.
-            "Google Drive linking already finished in the app. You can close this window."
-                .to_string()
+            "Signing in already finished in the app. You can close this window.".to_string()
         }
     };
 
@@ -1232,17 +956,15 @@ mod tests {
     use tokio::{runtime::Runtime, sync::RwLock};
 
     use super::{
-        GoogleDriveAccountAuthInput, GoogleDriveLinkInput, GoogleSignInCompleteInput,
-        GoogleSignInFailure, GoogleSignInOutcome, GoogleSignInSession,
-        GoogleSignInSessionLookupInput, GoogleSignInSessionStatus, GoogleSignOutInput,
+        GoogleAccountAuthInput, GoogleSignInCompleteInput, GoogleSignInFailure,
+        GoogleSignInOutcome, GoogleSignInSession, GoogleSignInSessionLookupInput,
+        GoogleSignInSessionStatus, GoogleSignOutInput,
     };
     use crate::{
         error::Error,
         persisted::Persisted,
         settings::Settings,
-        sync::{
-            RemoteSync, google::auth::GoogleOAuthTokens, store::RemoteSyncAccountStatus,
-        },
+        sync::{RemoteSync, google::auth::GoogleOAuthTokens, store::RemoteSyncAccountStatus},
     };
 
     fn unique_dir(name: &str) -> PathBuf {
@@ -1256,7 +978,7 @@ mod tests {
             .join(format!("{}-{}", name, nanos))
     }
 
-    fn pending_link_session() -> GoogleSignInSession {
+    fn pending_sign_in_session() -> GoogleSignInSession {
         GoogleSignInSession {
             session_id: "session-1".to_string(),
             expected_state: "the-state".to_string(),
@@ -1266,7 +988,6 @@ mod tests {
             authorization_code: None,
             error: None,
             tokens: None,
-            established_account_id: None,
         }
     }
 
@@ -1287,7 +1008,7 @@ mod tests {
             .await
             .expect("failed to initialize remote sync");
 
-        let mut redeemed = pending_link_session();
+        let mut redeemed = pending_sign_in_session();
         redeemed.status = GoogleSignInSessionStatus::Completed;
         redeemed.tokens = Some(GoogleOAuthTokens {
             access_token: "access-token".to_string(),
@@ -1313,9 +1034,6 @@ mod tests {
             // derived from the email, because the account lookup matches on either
             // and two people sharing a provider id are one person to it.
             provider_user_id: Some(format!("provider-user-{email}")),
-            drive_quota_bytes: Some(1000),
-            drive_usage_bytes: Some(250),
-            app_usage_bytes: Some(125),
         }
     }
 
@@ -1339,15 +1057,19 @@ mod tests {
                     remote_sync_with_a_redeemed_authorization("remote-sync-google-sign-in").await;
 
                 let signed_in = remote_sync
-                    .complete_google_sign_in(signing_in_as("signed-in@example.com"), false)
+                    .complete_google_sign_in(signing_in_as("signed-in@example.com"))
                     .await
                     .expect("failed to complete the sign-in");
 
                 assert_eq!(signed_in.account_id, "google-drive-signed-in-example-com");
                 assert_eq!(signed_in.state.accounts.len(), 1);
                 assert_eq!(
-                    signed_in.state.workspace.account_id, None,
-                    "signing in linked the workspace to an account"
+                    signed_in.state.workspace.name, "Primary workspace",
+                    "signing in wrote something onto the workspace"
+                );
+                assert!(
+                    signed_in.state.workspace.last_snapshot_at.is_none(),
+                    "signing in touched the workspace"
                 );
 
                 let _ = std::fs::remove_dir_all(&root);
@@ -1368,7 +1090,7 @@ mod tests {
                         .await;
 
                 remote_sync
-                    .complete_google_sign_in(signing_in_as("survivor@example.com"), false)
+                    .complete_google_sign_in(signing_in_as("survivor@example.com"))
                     .await
                     .expect("failed to complete the sign-in");
 
@@ -1387,66 +1109,6 @@ mod tests {
             });
     }
 
-    /// what "linking does not re-authorize" rests on: the account is already there
-    /// and linking only names it. A link that had to establish an identity could not
-    /// be written this way, because there would be nothing to pass it.
-    #[test]
-    fn linking_a_workspace_names_an_identity_that_already_exists() {
-        Runtime::new()
-            .expect("failed to create tokio runtime")
-            .block_on(async {
-                let (root, mut remote_sync) =
-                    remote_sync_with_a_redeemed_authorization("remote-sync-link-under-identity")
-                        .await;
-
-                let signed_in = remote_sync
-                    .complete_google_sign_in(signing_in_as("linker@example.com"), false)
-                    .await
-                    .expect("failed to complete the sign-in");
-
-                let state = remote_sync
-                    .link_workspace_to_google_drive(GoogleDriveLinkInput {
-                        account_id: signed_in.account_id.clone(),
-                    })
-                    .await
-                    .expect("failed to link the workspace");
-
-                assert_eq!(
-                    state.workspace.account_id.as_deref(),
-                    Some(signed_in.account_id.as_str())
-                );
-
-                let _ = std::fs::remove_dir_all(&root);
-            });
-    }
-
-    /// nothing in the linking path can sign anybody in, so a link under an identity
-    /// this machine does not hold has to be refused rather than establishing one.
-    #[test]
-    fn linking_under_an_identity_this_machine_does_not_hold_is_refused() {
-        Runtime::new()
-            .expect("failed to create tokio runtime")
-            .block_on(async {
-                let (root, mut remote_sync) =
-                    remote_sync_with_a_redeemed_authorization("remote-sync-link-without-identity")
-                        .await;
-
-                let error = remote_sync
-                    .link_workspace_to_google_drive(GoogleDriveLinkInput {
-                        account_id: "google-drive-nobody".to_string(),
-                    })
-                    .await
-                    .expect_err("a workspace linked itself to an account that does not exist");
-
-                assert!(
-                    matches!(error, Error::NotFound { .. }),
-                    "expected the account to be missing, got {error:?}"
-                );
-
-                let _ = std::fs::remove_dir_all(&root);
-            });
-    }
-
     /// two accounts holding credentials at once would make *who this machine is
     /// signed in as* a question about iteration order, so signing in as somebody
     /// else signs out of whoever was there.
@@ -1459,12 +1121,12 @@ mod tests {
                     remote_sync_with_a_redeemed_authorization("remote-sync-one-identity").await;
 
                 let first = remote_sync
-                    .complete_google_sign_in(signing_in_as("first@example.com"), false)
+                    .complete_google_sign_in(signing_in_as("first@example.com"))
                     .await
                     .expect("failed to sign the first person in");
 
                 let second = remote_sync
-                    .complete_google_sign_in(signing_in_as("second@example.com"), false)
+                    .complete_google_sign_in(signing_in_as("second@example.com"))
                     .await
                     .expect("failed to sign the second person in");
 
@@ -1482,11 +1144,15 @@ mod tests {
             });
     }
 
-    /// signing out is not disconnecting Drive. The link survives so the person can
-    /// act on it either way, and the account carries the sentence that says so —
-    /// which the settings surface already renders beside a *needs reconnect* badge.
+    /// signing out drops the credentials and keeps the account row, which is what lets the
+    /// settings surface say what it is waiting for rather than showing a machine that has
+    /// never seen anybody.
+    ///
+    /// *It read "signing out is not disconnecting Drive" and linked a workspace to prove the
+    /// link survived. There is no link; the row surviving its credentials is the whole of what
+    /// is left, and it is still the distinction worth pinning.*
     #[test]
-    fn signing_out_keeps_the_link_and_says_what_it_is_waiting_for() {
+    fn signing_out_keeps_the_account_and_says_what_it_is_waiting_for() {
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
@@ -1494,16 +1160,9 @@ mod tests {
                     remote_sync_with_a_redeemed_authorization("remote-sync-sign-out").await;
 
                 let signed_in = remote_sync
-                    .complete_google_sign_in(signing_in_as("leaver@example.com"), false)
+                    .complete_google_sign_in(signing_in_as("leaver@example.com"))
                     .await
                     .expect("failed to complete the sign-in");
-
-                remote_sync
-                    .link_workspace_to_google_drive(GoogleDriveLinkInput {
-                        account_id: signed_in.account_id.clone(),
-                    })
-                    .await
-                    .expect("failed to link the workspace");
 
                 let state = remote_sync
                     .sign_out_of_google(GoogleSignOutInput {
@@ -1512,17 +1171,11 @@ mod tests {
                     .await
                     .expect("failed to sign out");
 
-                assert_eq!(
-                    state.workspace.account_id.as_deref(),
-                    Some(signed_in.account_id.as_str()),
-                    "signing out disconnected drive"
-                );
-
                 let account = state
                     .accounts
                     .iter()
                     .find(|account| account.id == signed_in.account_id)
-                    .expect("the account the workspace is linked to went with the credentials");
+                    .expect("the account went with the credentials it was holding");
 
                 assert_eq!(account.status, RemoteSyncAccountStatus::NeedsReconnect);
                 assert!(!account.refresh_token_available);
@@ -1530,8 +1183,8 @@ mod tests {
                 let message = account.last_error.clone().unwrap_or_default();
 
                 assert!(
-                    message.contains("sign in again") && message.contains("disconnect drive"),
-                    "the message named neither way out: {message}"
+                    message.contains("sign in again"),
+                    "the message did not say what to do about it: {message}"
                 );
                 assert!(
                     remote_sync
@@ -1545,115 +1198,12 @@ mod tests {
             });
     }
 
-    /// abandoning an attempt undoes what the attempt did, and no more. A link that
-    /// signed somebody in on the way past gives that identity back; one that merely
-    /// used an identity already held gives back nothing.
-    #[test]
-    fn abandoning_an_attempt_hands_back_only_the_identity_it_established() {
-        Runtime::new()
-            .expect("failed to create tokio runtime")
-            .block_on(async {
-                for (establishes, expected) in [
-                    (true, vec!["google-drive-abandoner-example-com"]),
-                    (false, Vec::new()),
-                ] {
-                    let (root, mut remote_sync) = remote_sync_with_a_redeemed_authorization(
-                        "remote-sync-abandon-established",
-                    )
-                    .await;
-
-                    remote_sync
-                        .complete_google_sign_in(
-                            signing_in_as("abandoner@example.com"),
-                            establishes,
-                        )
-                        .await
-                        .expect("failed to complete the sign-in");
-
-                    let established = remote_sync
-                        .cancel_google_sign_ins()
-                        .expect("failed to cancel the sign-ins");
-
-                    assert_eq!(established, expected, "establishes = {establishes}");
-
-                    let _ = std::fs::remove_dir_all(&root);
-                }
-            });
-    }
-
-    /// taken rather than read: two callers racing to abandon one attempt must not
-    /// both decide to forget the same identity.
-    #[test]
-    fn an_identity_is_handed_back_once() {
-        Runtime::new()
-            .expect("failed to create tokio runtime")
-            .block_on(async {
-                let (root, mut remote_sync) =
-                    remote_sync_with_a_redeemed_authorization("remote-sync-abandon-once").await;
-
-                remote_sync
-                    .complete_google_sign_in(signing_in_as("twice@example.com"), true)
-                    .await
-                    .expect("failed to complete the sign-in");
-
-                assert_eq!(
-                    remote_sync
-                        .cancel_google_sign_ins()
-                        .expect("failed to cancel the sign-ins")
-                        .len(),
-                    1
-                );
-                assert!(
-                    remote_sync
-                        .cancel_google_sign_ins()
-                        .expect("failed to cancel the sign-ins")
-                        .is_empty(),
-                    "the same identity was handed back twice"
-                );
-
-                let _ = std::fs::remove_dir_all(&root);
-            });
-    }
-
-    /// the standalone sign-in drops its session, which is what stops some later link
-    /// being abandoned and taking an identity it never established with it.
-    #[test]
-    fn a_forgotten_session_hands_nothing_back() {
-        Runtime::new()
-            .expect("failed to create tokio runtime")
-            .block_on(async {
-                let (root, mut remote_sync) =
-                    remote_sync_with_a_redeemed_authorization("remote-sync-forget-session").await;
-
-                remote_sync
-                    .complete_google_sign_in(signing_in_as("forgotten@example.com"), true)
-                    .await
-                    .expect("failed to complete the sign-in");
-
-                remote_sync
-                    .forget_google_sign_in_session(GoogleSignInSessionLookupInput {
-                        session_id: "session-1".to_string(),
-                    })
-                    .expect("failed to forget the session");
-
-                assert!(
-                    remote_sync
-                        .cancel_google_sign_ins()
-                        .expect("failed to cancel the sign-ins")
-                        .is_empty(),
-                    "a session nobody is holding still gave an identity back"
-                );
-
-                let _ = std::fs::remove_dir_all(&root);
-            });
-    }
-
     #[test]
     fn cancels_google_sign_in_session_without_erroring() {
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
-                let root = unique_dir("remote-sync-google-drive-cancel-link");
+                let root = unique_dir("remote-sync-cancel-sign-in");
                 std::fs::create_dir_all(&root).expect("failed to create test root");
 
                 let settings_path = root.join(Settings::FILENAME);
@@ -1676,7 +1226,7 @@ mod tests {
                         GoogleSignInSession {
                             authorization_code: Some("code".to_string()),
                             error: Some("error".to_string()),
-                            ..pending_link_session()
+                            ..pending_sign_in_session()
                         },
                     );
 
@@ -1684,7 +1234,7 @@ mod tests {
                     .cancel_google_sign_in(GoogleSignInSessionLookupInput {
                         session_id: "session-1".to_string(),
                     })
-                    .expect("failed to cancel google drive link session");
+                    .expect("failed to cancel the google sign-in session");
 
                 let result = remote_sync
                     .get_google_sign_in_result(GoogleSignInSessionLookupInput {
@@ -1701,7 +1251,7 @@ mod tests {
 
     #[test]
     fn a_callback_carrying_a_matching_state_and_a_code_authorizes_the_session() {
-        let mut session = pending_link_session();
+        let mut session = pending_sign_in_session();
         let outcome = session.read_callback(&callback_query(&[
             ("code", "the-code"),
             ("state", "the-state"),
@@ -1717,7 +1267,7 @@ mod tests {
     /// so a mismatch is an unrelated or forged callback and its code is not kept.
     #[test]
     fn a_callback_whose_state_does_not_match_fails_without_keeping_the_code() {
-        let mut session = pending_link_session();
+        let mut session = pending_sign_in_session();
         let outcome = session.read_callback(&callback_query(&[
             ("code", "the-code"),
             ("state", "a-different-state"),
@@ -1742,7 +1292,7 @@ mod tests {
             callback_query(&[("state", "the-state")]),
             callback_query(&[("code", "   "), ("state", "the-state")]),
         ] {
-            let mut session = pending_link_session();
+            let mut session = pending_sign_in_session();
             let outcome = session.read_callback(&query);
 
             assert!(session.settle(outcome));
@@ -1755,7 +1305,7 @@ mod tests {
     /// user who declined consent from one who hit a real failure.
     #[test]
     fn a_callback_carrying_googles_own_error_preserves_it_verbatim() {
-        let mut session = pending_link_session();
+        let mut session = pending_sign_in_session();
         let outcome = session.read_callback(&callback_query(&[("error", "access_denied")]));
 
         assert!(session.settle(outcome));
@@ -1765,7 +1315,7 @@ mod tests {
 
     #[test]
     fn cancelling_a_pending_session_clears_everything_it_held() {
-        let mut session = pending_link_session();
+        let mut session = pending_sign_in_session();
         session.authorization_code = Some("the-code".to_string());
         session.error = Some("an earlier error".to_string());
 
@@ -1781,7 +1331,7 @@ mod tests {
     /// session has to drop them rather than leave them in a map nobody prunes.
     #[test]
     fn cancelling_a_redeemed_session_drops_the_tokens_it_was_holding() {
-        let mut session = pending_link_session();
+        let mut session = pending_sign_in_session();
         session.status = GoogleSignInSessionStatus::Completed;
         session.authorization_code = Some("the-code".to_string());
         session.tokens = Some(GoogleOAuthTokens {
@@ -1805,7 +1355,7 @@ mod tests {
     /// completes anyway.
     #[test]
     fn a_callback_arriving_after_cancellation_does_not_revive_the_session() {
-        let mut session = pending_link_session();
+        let mut session = pending_sign_in_session();
 
         session.cancel();
 
@@ -1823,7 +1373,7 @@ mod tests {
     /// tokens it already issued.
     #[test]
     fn an_authorization_code_is_taken_only_once() {
-        let mut session = pending_link_session();
+        let mut session = pending_sign_in_session();
         session.authorization_code = Some("the-code".to_string());
 
         assert_eq!(
@@ -1835,7 +1385,7 @@ mod tests {
 
     #[test]
     fn a_settled_session_keeps_its_first_outcome() {
-        let mut session = pending_link_session();
+        let mut session = pending_sign_in_session();
         let authorized = session.read_callback(&callback_query(&[
             ("code", "the-first-code"),
             ("state", "the-state"),
@@ -1852,14 +1402,14 @@ mod tests {
         );
     }
 
-    /// the fresh path is what runs before nearly every drive call, and it must
+    /// the fresh path is what runs before every call that presents a token, and it must
     /// answer without a network round trip.
     #[test]
     fn a_fresh_stored_token_is_returned_without_refreshing() {
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
-                let root = unique_dir("remote-sync-google-drive-fresh-token");
+                let root = unique_dir("remote-sync-google-fresh-token");
                 std::fs::create_dir_all(&root).expect("failed to create test root");
 
                 let settings_path = root.join(Settings::FILENAME);
@@ -1874,7 +1424,7 @@ mod tests {
                     .expect("failed to initialize remote sync");
 
                 remote_sync
-                    .upsert_google_drive_credentials(
+                    .upsert_google_credentials(
                         "account-with-a-fresh-token",
                         Some("the-access-token".to_string()),
                         Some("the-refresh-token".to_string()),
@@ -1884,7 +1434,7 @@ mod tests {
                     .expect("failed to store credentials");
 
                 let fresh = remote_sync
-                    .fresh_google_drive_access_token(&GoogleDriveAccountAuthInput {
+                    .fresh_google_access_token(&GoogleAccountAuthInput {
                         account_id: "account-with-a-fresh-token".to_string(),
                     })
                     .expect("failed to read the stored token");
@@ -1902,7 +1452,7 @@ mod tests {
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
-                let root = unique_dir("remote-sync-google-drive-relink");
+                let root = unique_dir("remote-sync-google-reauthorize");
                 std::fs::create_dir_all(&root).expect("failed to create test root");
 
                 let settings_path = root.join(Settings::FILENAME);
@@ -1917,7 +1467,7 @@ mod tests {
                     .expect("failed to initialize remote sync");
 
                 remote_sync
-                    .upsert_google_drive_credentials(
+                    .upsert_google_credentials(
                         "account-with-nothing-to-refresh-from",
                         Some("the-access-token".to_string()),
                         None,
@@ -1926,19 +1476,19 @@ mod tests {
                     )
                     .expect("failed to store credentials");
 
-                let input = GoogleDriveAccountAuthInput {
+                let input = GoogleAccountAuthInput {
                     account_id: "account-with-nothing-to-refresh-from".to_string(),
                 };
 
                 assert_eq!(
                     remote_sync
-                        .fresh_google_drive_access_token(&input)
+                        .fresh_google_access_token(&input)
                         .expect("failed to read the stored token"),
                     None
                 );
 
                 let error = remote_sync
-                    .refresh_google_drive_access_token(input)
+                    .refresh_google_access_token(input)
                     .await
                     .expect_err("an unrefreshable account was accepted");
 

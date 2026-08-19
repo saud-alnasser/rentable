@@ -28,8 +28,8 @@ Start at [[protocol]].
 | Artifact | Load when | Modes | Paths | Owner |
 | --- | --- | --- | --- | --- |
 | [[rules/api-layer]] | adding or changing a router, a domain module, a database client or transport, or anything crossing the Tauri IPC boundary | — | apps/desktop/src/lib/api/**, apps/desktop/src/lib/*/router.ts, apps/desktop/src/lib/*/reconcile.ts, apps/desktop/src/lib/platform/host.ts, apps/desktop/src/lib/platform/tauri.ts, apps/desktop/src/lib/platform/database/** | repository |
+| [[rules/credentials]] | a credential this application holds is being stored, refreshed, or handed to somebody | — | apps/desktop/tauri/src/sync/**, apps/desktop/src/lib/sync/** | repository |
 | [[rules/data]] | a read, a write, a cached query, derived state, or undo is in question | — | apps/desktop/src/lib/design/**, apps/desktop/src/lib/api/**, apps/desktop/src/lib/platform/database/**, apps/desktop/src/lib/payment/**, apps/desktop/src/lib/contract/reconcile.ts, apps/desktop/tauri/src/database/** | repository |
-| [[rules/drive]] | the request touches Drive credentials, Drive network calls, a manifest or snapshot conflict, or a Drive transport test | — | apps/desktop/tauri/src/sync/google/**, apps/desktop/src/lib/sync/** | repository |
 | [[rules/frontend]] | writing or changing Svelte components, routes, styles, or client state | — | apps/desktop/src/lib/**, apps/desktop/src/routes/**, apps/desktop/src/app.css | repository |
 | [[rules/interface]] | a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell | — | apps/desktop/src/lib/**/component/**, apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/design/cell/**, apps/desktop/src/lib/design/primitive/**, apps/desktop/src/lib/dashboard/**, apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/component/**, apps/desktop/src/routes/**, apps/desktop/src/app.css | repository |
 | [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | prototype | apps/desktop/src/**, apps/desktop/tauri/src/**, apps/control-plane/src/** | repository |
@@ -44,7 +44,7 @@ Start at [[protocol]].
 | [[contexts/desktop/contract]] | the request touches contracts, payments, unit assignments, or any derived status | apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/** | repository |
 | [[contexts/desktop/persistence]] | the request touches the schema, migrations, or how queries reach SQLite | apps/desktop/src/lib/platform/database/**, apps/desktop/tauri/src/database/**, apps/desktop/tauri/migrations/** | repository |
 | [[contexts/desktop/property]] | the request touches complexes or units | apps/desktop/src/lib/complex/** | repository |
-| [[contexts/desktop/remote-sync]] | the request touches backup, Google Drive, linking, or conflicts | apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/backup/**, apps/desktop/tauri/src/http.rs, apps/desktop/src/lib/sync/** | repository |
+| [[contexts/desktop/remote-sync]] | the request touches signing in, the session a workspace replicates under, or local backup | apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/backup/**, apps/desktop/tauri/src/http.rs, apps/desktop/src/lib/sync/** | repository |
 | [[contexts/desktop/tenant]] | the request touches tenants, identity, or phone numbers | apps/desktop/src/lib/tenant/** | repository |
 | [[contexts/repository]] | a term, boundary, or constraint about this repository is in question, before reaching for a narrower context | — | repository |
 

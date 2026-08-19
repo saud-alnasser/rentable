@@ -1,5 +1,5 @@
 ---
-aep: 2.5.1
+aep: 2.6.0
 owner: repository
 date: 2026-08-19
 kind: rule
@@ -77,8 +77,9 @@ The cost is paid knowingly. Fixtures used by more than one module are written ou
 of them rather than shared, and a fixture is cheap to duplicate where a subject is not — a
 second copy of a builder is worth the file that names its own coverage.
 
-A helper that is genuinely shared scaffolding rather than a fixture — the loopback Drive
-server, say — is a module of its own under a `test/` directory, not a test module.
+A helper that is genuinely shared scaffolding rather than a fixture — the loopback HTTP server
+`sync/google/test/server.rs`, say — is a module of its own under a `test/` directory, not a test
+module.
 
 **The asymmetry with TypeScript above is deliberate**, and was settled on 2026-08-18 when the
 TypeScript half moved. Rust has a module system doing real work here: `mod tests` is a child of

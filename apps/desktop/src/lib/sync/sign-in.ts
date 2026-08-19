@@ -60,9 +60,8 @@ export async function signOutOfGoogle(): Promise<RemoteSyncState> {
  * somebody this machine no longer has credentials for. Neither can be reached by returning a value
  * to the button that was pressed.
  *
- * It lives here rather than in `./event` because that file is Google Drive's autosync and retires
- * with it. Signing out is Google rather than Drive, and outlives the directory the same way
- * everything else in this file does.
+ * It lives here rather than in `./event` because that file is the sync dispatch's, and signing
+ * out is not a dispatch: it is the one thing that ends the session the dispatch exists to keep.
  */
 const SIGNED_OUT_EVENT = 'rentable:signed-out';
 

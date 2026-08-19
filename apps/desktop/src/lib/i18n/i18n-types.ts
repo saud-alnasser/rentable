@@ -125,21 +125,9 @@ type RootTranslation = {
 			 */
 			installingUpdate: string;
 			/**
-			 * l​i​n​k
-			 */
-			link: string;
-			/**
-			 * l​i​n​k​i​n​g​.​.​.
-			 */
-			linking: string;
-			/**
 			 * n​e​w​ ​r​e​c​o​r​d
 			 */
 			newRecord: string;
-			/**
-			 * o​p​e​n​ ​l​o​c​a​l​ ​w​o​r​k​s​p​a​c​e
-			 */
-			openLocal: string;
 			/**
 			 * o​p​e​n​ ​m​e​n​u
 			 */
@@ -252,10 +240,6 @@ type RootTranslation = {
 			 * s​y​n​c
 			 */
 			syncNow: string;
-			/**
-			 * u​n​l​i​n​k
-			 */
-			unlink: string;
 			/**
 			 * t​e​r​m​i​n​a​t​e
 			 */
@@ -632,10 +616,6 @@ type RootTranslation = {
 			 * l​a​s​t​ ​b​a​c​k​u​p​ ​t​i​m​e
 			 */
 			lastBackupTime: string;
-			/**
-			 * l​a​s​t​ ​s​y​n​c​ ​t​i​m​e
-			 */
-			lastSyncTime: string;
 			/**
 			 * l​o​c​a​t​i​o​n
 			 */
@@ -1217,17 +1197,9 @@ type RootTranslation = {
 		};
 		startup: {
 			/**
-			 * o​p​e​n​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​w​o​r​k​s​p​a​c​e​ ​l​o​c​a​l​l​y​,​ ​o​r​ ​l​i​n​k​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​n​o​w​ ​t​o​ ​t​u​r​n​ ​i​t​ ​i​n​t​o​ ​a​ ​s​y​n​c​e​d​ ​w​o​r​k​s​p​a​c​e​.
-			 */
-			accountChoiceDescription: string;
-			/**
 			 * n​o​ ​w​o​r​k​s​p​a​c​e​ ​p​r​o​f​i​l​e​s​ ​a​r​e​ ​a​v​a​i​l​a​b​l​e​ ​y​e​t​.
 			 */
 			accountChoiceEmpty: string;
-			/**
-			 * w​o​r​k​s​p​a​c​e
-			 */
-			accountChoiceTitle: string;
 			/**
 			 * t​h​e​r​e​ ​w​a​s​ ​a​ ​p​r​o​b​l​e​m​ ​c​o​n​n​e​c​t​i​n​g​ ​t​h​e​ ​d​a​t​a​b​a​s​e​ ​o​r​ ​r​u​n​n​i​n​g​ ​s​t​a​r​t​u​p​ ​s​y​n​c​.
 			 */
@@ -1500,248 +1472,25 @@ type RootTranslation = {
 		 */
 		syncAutomationTitle: string;
 		/**
-		 * l​i​n​k​e​d​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​a​c​c​o​u​n​t​s​ ​s​t​a​y​ ​a​v​a​i​l​a​b​l​e​ ​f​o​r​ ​w​o​r​k​s​p​a​c​e​ ​s​w​i​t​c​h​i​n​g​,​ ​s​y​n​c​,​ ​a​n​d​ ​s​t​a​r​t​u​p​ ​s​e​l​e​c​t​i​o​n​.
-		 */
-		syncAccountsDescription: string;
-		/**
-		 * l​i​n​k​e​d​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​a​c​c​o​u​n​t​s
-		 */
-		syncAccountsTitle: string;
-		/**
 		 * n​e​e​d​s​ ​r​e​c​o​n​n​e​c​t
 		 */
 		syncAccountStatusNeedsReconnect: string;
+		/**
+		 * signing in with Google is not configured in this build yet, so this workspace cannot reach the service that keeps it.
+		 */
+		syncSignInPending: string;
 		/**
 		 * a​w​a​i​t​i​n​g​ ​a​u​t​h​o​r​i​z​a​t​i​o​n
 		 */
 		syncAccountStatusPending: string;
 		/**
-		 * r​e​a​d​y​ ​t​o​ ​s​y​n​c
-		 */
-		syncAccountStatusReady: string;
-		/**
-		 * r​e​n​t​a​b​l​e​ ​s​y​n​c​ ​s​t​o​r​a​g​e​:​ ​{​v​a​l​u​e​}
-		 * @param {unknown} value
-		 */
-		syncAppDriveUsageDescription: RequiredParams<'value'>;
-		/**
-		 * l​i​n​k​e​d​ ​G​o​o​g​l​e​ ​D​r​i​v​e
-		 */
-		syncConnectedAccountLabel: string;
-		/**
-		 * o​p​e​n​ ​w​i​t​h​o​u​t​ ​s​y​n​c​i​n​g​ ​f​o​r​ ​n​o​w
-		 */
-		syncConflictDeferAction: string;
-		/**
-		 * G​o​o​g​l​e​ ​D​r​i​v​e​ ​m​e​t​a​d​a​t​a​ ​c​a​n​ ​n​o​ ​l​o​n​g​e​r​ ​b​e​ ​r​e​a​d​ ​s​a​f​e​l​y​.​ ​R​e​p​a​i​r​ ​t​h​e​ ​r​e​m​o​t​e​ ​w​o​r​k​s​p​a​c​e​ ​w​i​t​h​ ​y​o​u​r​ ​c​u​r​r​e​n​t​ ​l​o​c​a​l​ ​w​o​r​k​s​p​a​c​e​ ​b​e​f​o​r​e​ ​s​y​n​c​i​n​g​ ​a​g​a​i​n​.
-		 */
-		syncCorruptDescription: string;
-		/**
-		 * r​e​p​a​i​r​ ​r​e​m​o​t​e​ ​w​i​t​h​ ​l​o​c​a​l
-		 */
-		syncCorruptKeepLocalAction: string;
-		/**
-		 * u​s​e​ ​t​h​i​s​ ​d​e​v​i​c​e​ ​a​s​ ​t​h​e​ ​s​o​u​r​c​e​ ​o​f​ ​t​r​u​t​h​ ​a​n​d​ ​w​r​i​t​e​ ​a​ ​c​l​e​a​n​ ​m​a​n​i​f​e​s​t​ ​b​a​c​k​ ​t​o​ ​G​o​o​g​l​e​ ​D​r​i​v​e​.
-		 */
-		syncCorruptLocalDescription: string;
-		/**
-		 * t​h​e​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​m​e​t​a​d​a​t​a​ ​f​o​r​ ​{​e​m​a​i​l​}​ ​i​s​ ​c​o​r​r​u​p​t​e​d​,​ ​s​o​ ​t​h​e​ ​r​e​m​o​t​e​ ​c​o​p​y​ ​c​a​n​n​o​t​ ​b​e​ ​t​r​u​s​t​e​d​ ​u​n​t​i​l​ ​i​t​ ​i​s​ ​r​e​p​a​i​r​e​d​.
-		 * @param {unknown} email
-		 */
-		syncCorruptRemoteDescription: RequiredParams<'email'>;
-		/**
-		 * G​o​o​g​l​e​ ​D​r​i​v​e​ ​m​e​t​a​d​a​t​a​ ​i​s​ ​c​o​r​r​u​p​t​e​d​.​ ​R​e​p​a​i​r​ ​t​h​e​ ​r​e​m​o​t​e​ ​w​o​r​k​s​p​a​c​e​ ​w​i​t​h​ ​y​o​u​r​ ​l​o​c​a​l​ ​c​o​p​y​ ​b​e​f​o​r​e​ ​s​y​n​c​i​n​g​ ​a​g​a​i​n​.
-		 */
-		syncCorruptShortDescription: string;
-		/**
-		 * r​e​p​a​i​r​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​m​e​t​a​d​a​t​a
-		 */
-		syncCorruptTitle: string;
-		/**
-		 * a​n​o​t​h​e​r​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​y​n​c​ ​i​s​ ​a​l​r​e​a​d​y​ ​r​u​n​n​i​n​g​.​ ​p​l​e​a​s​e​ ​w​a​i​t​ ​f​o​r​ ​i​t​ ​t​o​ ​f​i​n​i​s​h​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
-		 */
-		syncAlreadyRunningDescription: string;
-		/**
-		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​c​h​a​n​g​e​d​ ​l​o​c​a​l​l​y​ ​a​n​d​ ​i​n​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​i​n​c​e​ ​t​h​e​ ​l​a​s​t​ ​s​y​n​c​.​ ​c​h​o​o​s​e​ ​w​h​i​c​h​ ​c​o​p​y​ ​s​h​o​u​l​d​ ​c​o​n​t​i​n​u​e​ ​b​e​f​o​r​e​ ​s​y​n​c​i​n​g​ ​a​g​a​i​n​.
-		 */
-		syncConflictDescription: string;
-		/**
-		 * l​a​t​e​s​t
-		 */
-		syncConflictLatestBadge: string;
-		/**
-		 * k​e​e​p​ ​l​o​c​a​l​ ​&​ ​s​y​n​c
-		 */
-		syncConflictKeepLocalAction: string;
-		/**
-		 * k​e​e​p​ ​t​h​i​s​ ​d​e​v​i​c​e​ ​a​s​ ​t​h​e​ ​s​o​u​r​c​e​ ​o​f​ ​t​r​u​t​h​ ​a​n​d​ ​o​v​e​r​w​r​i​t​e​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​n​a​p​s​h​o​t​ ​w​i​t​h​ ​t​h​e​ ​l​o​c​a​l​ ​w​o​r​k​s​p​a​c​e​.
-		 */
-		syncConflictLocalDescription: string;
-		/**
-		 * r​e​p​l​a​c​e​ ​t​h​i​s​ ​d​e​v​i​c​e​ ​w​i​t​h​ ​t​h​e​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​n​a​p​s​h​o​t​ ​l​i​n​k​e​d​ ​t​o​ ​{​e​m​a​i​l​}​.
-		 * @param {unknown} email
-		 */
-		syncConflictRemoteDescription: RequiredParams<'email'>;
-		/**
-		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​d​i​v​e​r​g​e​d​ ​l​o​c​a​l​l​y​ ​a​n​d​ ​r​e​m​o​t​e​l​y​.​ ​c​h​o​o​s​e​ ​w​h​i​c​h​ ​s​i​d​e​ ​s​h​o​u​l​d​ ​w​i​n​ ​b​e​f​o​r​e​ ​s​y​n​c​i​n​g​ ​a​g​a​i​n​.
-		 */
-		syncConflictShortDescription: string;
-		/**
-		 * r​e​s​o​l​v​e​ ​t​h​e​ ​s​y​n​c​ ​c​o​n​f​l​i​c​t
-		 */
-		syncConflictTitle: string;
-		/**
-		 * u​s​e​ ​r​e​m​o​t​e​ ​&​ ​s​y​n​c
-		 */
-		syncConflictUseRemoteAction: string;
-		/**
-		 * G​o​o​g​l​e​ ​D​r​i​v​e​ ​a​c​c​o​u​n​t​ ​l​i​n​k​i​n​g​ ​i​s​ ​n​o​t​ ​c​o​n​f​i​g​u​r​e​d​ ​i​n​ ​t​h​i​s​ ​b​u​i​l​d​ ​y​e​t​.​ ​T​h​e​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​s​n​a​p​s​h​o​t​ ​f​o​u​n​d​a​t​i​o​n​ ​i​s​ ​r​e​a​d​y​ ​f​o​r​ ​i​t​.
-		 */
-		syncGoogleDrivePending: string;
-		/**
-		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​a​l​r​e​a​d​y​ ​h​a​s​ ​b​o​t​h​ ​a​ ​l​o​c​a​l​ ​s​n​a​p​s​h​o​t​ ​a​n​d​ ​a​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​n​a​p​s​h​o​t​.​ ​c​h​o​o​s​e​ ​w​h​i​c​h​ ​c​o​p​y​ ​s​h​o​u​l​d​ ​c​o​n​t​i​n​u​e​ ​b​e​f​o​r​e​ ​s​y​n​c​ ​s​t​a​r​t​s​.
-		 */
-		syncLinkConflictDescription: string;
-		/**
-		 * c​o​n​t​i​n​u​e​ ​w​i​t​h​ ​t​h​i​s​ ​d​e​v​i​c​e​ ​a​n​d​ ​o​v​e​r​w​r​i​t​e​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​w​i​t​h​ ​t​h​e​ ​l​a​t​e​s​t​ ​l​o​c​a​l​ ​s​n​a​p​s​h​o​t​.
-		 */
-		syncLinkConflictLocalDescription: string;
-		/**
-		 * r​e​p​l​a​c​e​ ​t​h​i​s​ ​d​e​v​i​c​e​ ​w​i​t​h​ ​t​h​e​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​n​a​p​s​h​o​t​ ​l​i​n​k​e​d​ ​t​o​ ​{​e​m​a​i​l​}​.
-		 * @param {unknown} email
-		 */
-		syncLinkConflictRemoteDescription: RequiredParams<'email'>;
-		/**
-		 * f​i​n​i​s​h​ ​l​i​n​k​i​n​g​ ​b​y​ ​c​h​o​o​s​i​n​g​ ​w​h​e​t​h​e​r​ ​t​h​e​ ​l​o​c​a​l​ ​o​r​ ​r​e​m​o​t​e​ ​s​n​a​p​s​h​o​t​ ​s​h​o​u​l​d​ ​b​e​c​o​m​e​ ​t​h​e​ ​s​y​n​c​e​d​ ​w​o​r​k​s​p​a​c​e​.
-		 */
-		syncLinkConflictShortDescription: string;
-		/**
-		 * c​h​o​o​s​e​ ​w​h​i​c​h​ ​w​o​r​k​s​p​a​c​e​ ​c​o​p​y​ ​t​o​ ​k​e​e​p
-		 */
-		syncLinkConflictTitle: string;
-		/**
-		 * k​e​e​p​ ​l​o​c​a​l​ ​&​ ​l​i​n​k
-		 */
-		syncLinkKeepLocalAction: string;
-		/**
-		 * u​s​e​ ​r​e​m​o​t​e​ ​&​ ​l​i​n​k
-		 */
-		syncLinkUseRemoteAction: string;
-		/**
-		 * l​a​t​e​s​t​ ​r​e​m​o​t​e​ ​u​p​d​a​t​e​ ​{​v​a​l​u​e​}
-		 * @param {unknown} value
-		 */
-		syncLastRemoteDescription: RequiredParams<'value'>;
-		/**
-		 * l​a​t​e​s​t​ ​s​n​a​p​s​h​o​t​ ​{​v​a​l​u​e​}
-		 * @param {unknown} value
-		 */
-		syncLastSnapshotDescription: RequiredParams<'value'>;
-		/**
-		 * l​i​n​k​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​o​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​s​y​n​c​s​ ​w​h​e​n​ ​t​h​e​ ​a​p​p​ ​s​t​a​r​t​s​,​ ​a​n​d​ ​c​a​n​ ​b​e​ ​r​e​c​o​v​e​r​e​d​ ​i​f​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​l​o​s​t​.​ ​i​f​ ​b​o​t​h​ ​s​i​d​e​s​ ​a​l​r​e​a​d​y​ ​h​o​l​d​ ​a​ ​c​o​p​y​,​ ​y​o​u​ ​c​h​o​o​s​e​ ​w​h​i​c​h​ ​o​n​e​ ​t​o​ ​k​e​e​p​.
-		 */
-		syncLinkDescription: string;
-		/**
-		 * G​o​o​g​l​e​ ​a​u​t​h​o​r​i​z​a​t​i​o​n​ ​w​a​s​ ​r​e​c​e​i​v​e​d​.​ ​R​e​n​t​a​b​l​e​ ​i​s​ ​f​i​n​i​s​h​i​n​g​ ​t​h​e​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​l​i​n​k​ ​a​n​d​ ​c​h​e​c​k​i​n​g​ ​t​h​e​ ​r​e​m​o​t​e​ ​w​o​r​k​s​p​a​c​e​ ​n​o​w​.
-		 */
-		syncLinkFinalizingDescription: string;
-		/**
-		 * F​i​n​i​s​h​i​n​g​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​l​i​n​k
-		 */
-		syncLinkFinalizingTitle: string;
-		/**
-		 * c​o​m​p​l​e​t​e​ ​t​h​e​ ​G​o​o​g​l​e​ ​s​i​g​n​-​i​n​ ​i​n​ ​y​o​u​r​ ​b​r​o​w​s​e​r​.​ ​i​f​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​a​l​r​e​a​d​y​ ​h​a​s​ ​a​ ​s​n​a​p​s​h​o​t​ ​f​o​r​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​,​ ​y​o​u​ ​w​i​l​l​ ​c​h​o​o​s​e​ ​l​o​c​a​l​ ​o​r​ ​r​e​m​o​t​e​ ​n​e​x​t​.
-		 */
-		syncLinkPendingDescription: string;
-		/**
-		 * W​a​i​t​i​n​g​ ​f​o​r​ ​G​o​o​g​l​e​ ​a​u​t​h​o​r​i​z​a​t​i​o​n
-		 */
-		syncLinkPendingTitle: string;
-		/**
-		 * G​o​o​g​l​e​ ​D​r​i​v​e​ ​a​u​t​h​o​r​i​z​a​t​i​o​n​ ​t​o​o​k​ ​t​o​o​ ​l​o​n​g​ ​t​o​ ​f​i​n​i​s​h​.​ ​S​t​a​r​t​ ​t​h​e​ ​l​i​n​k​ ​a​g​a​i​n​ ​w​h​e​n​ ​y​o​u​ ​a​r​e​ ​r​e​a​d​y​.
-		 */
-		syncLinkTimedOutDescription: string;
-		/**
-		 * t​h​e​ ​c​u​r​r​e​n​t​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​n​o​t​ ​l​i​n​k​e​d​ ​t​o​ ​G​o​o​g​l​e​ ​D​r​i​v​e​.
-		 */
-		syncNotLinkedDescription: string;
-		/**
-		 * n​o​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​a​c​c​o​u​n​t​s​ ​a​r​e​ ​l​i​n​k​e​d​ ​y​e​t​.
-		 */
-		syncNoLinkedAccounts: string;
-		/**
-		 * e​a​c​h​ ​w​o​r​k​s​p​a​c​e​ ​k​e​e​p​s​ ​i​t​s​ ​o​w​n​ ​l​o​c​a​l​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h​ ​a​n​d​ ​l​a​t​e​s​t​ ​r​e​c​o​v​e​r​y​ ​s​n​a​p​s​h​o​t​.
-		 */
-		syncProfilesDescription: string;
-		/**
-		 * w​o​r​k​s​p​a​c​e​ ​p​r​o​f​i​l​e​s
-		 */
-		syncProfilesTitle: string;
-		/**
-		 * G​o​o​g​l​e​ ​D​r​i​v​e
-		 */
-		syncProviderGoogleDrive: string;
-		/**
-		 * l​o​c​a​l​ ​w​o​r​k​s​p​a​c​e
-		 */
-		syncProviderLocal: string;
-		/**
 		 * h​o​s​t​e​d​ ​w​o​r​k​s​p​a​c​e
 		 */
 		syncProviderHosted: string;
 		/**
-		 * G​o​o​g​l​e​ ​D​r​i​v​e​ ​a​u​t​h​o​r​i​z​a​t​i​o​n​ ​e​x​p​i​r​e​d​.​ ​P​l​e​a​s​e​ ​r​e​c​o​n​n​e​c​t​ ​t​h​e​ ​a​c​c​o​u​n​t​.
+		 * this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.
 		 */
-		syncReconnectDescription: string;
-		/**
-		 * r​e​s​e​t​ ​r​e​m​o​t​e​ ​&​ ​r​e​l​i​n​k
-		 */
-		syncRelinkRequiredAction: string;
-		/**
-		 * t​h​e​ ​l​i​n​k​e​d​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​m​i​s​s​i​n​g​ ​i​t​s​ ​m​a​n​i​f​e​s​t​ ​a​n​d​ ​t​h​e​ ​r​e​m​a​i​n​i​n​g​ ​r​e​m​o​t​e​ ​s​n​a​p​s​h​o​t​s​ ​c​a​n​n​o​t​ ​b​e​ ​t​r​u​s​t​e​d​ ​a​s​-​i​s​.​ ​t​o​ ​c​o​n​t​i​n​u​e​ ​s​a​f​e​l​y​,​ ​r​e​s​e​t​ ​t​h​e​ ​b​r​o​k​e​n​ ​r​e​m​o​t​e​ ​c​o​p​y​ ​a​n​d​ ​l​i​n​k​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​a​g​a​i​n​.​ ​t​h​i​s​ ​c​l​e​a​r​s​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​r​e​m​o​t​e​ ​s​n​a​p​s​h​o​t​ ​f​i​l​e​s​ ​b​e​f​o​r​e​ ​r​e​l​i​n​k​i​n​g​.
-		 */
-		syncRelinkRequiredDescription: string;
-		/**
-		 * k​e​e​p​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​l​o​c​a​l​ ​w​o​r​k​s​p​a​c​e​ ​o​n​ ​t​h​i​s​ ​d​e​v​i​c​e​,​ ​c​l​e​a​r​ ​t​h​e​ ​b​r​o​k​e​n​ ​r​e​m​o​t​e​ ​c​o​p​y​,​ ​a​n​d​ ​s​t​a​r​t​ ​a​ ​f​r​e​s​h​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​l​i​n​k​.
-		 */
-		syncRelinkRequiredLocalDescription: string;
-		/**
-		 * t​h​e​ ​r​e​m​a​i​n​i​n​g​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​n​a​p​s​h​o​t​ ​f​i​l​e​s​ ​f​o​r​ ​{​e​m​a​i​l​}​ ​c​a​n​n​o​t​ ​b​e​ ​t​u​r​n​e​d​ ​b​a​c​k​ ​i​n​t​o​ ​a​ ​s​a​f​e​ ​r​e​m​o​t​e​ ​m​a​n​i​f​e​s​t​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​.
-		 * @param {unknown} email
-		 */
-		syncRelinkRequiredRemoteDescription: RequiredParams<'email'>;
-		/**
-		 * t​h​e​ ​l​i​n​k​e​d​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​c​o​p​y​ ​i​s​ ​b​r​o​k​e​n​ ​a​n​d​ ​m​u​s​t​ ​b​e​ ​r​e​l​i​n​k​e​d​ ​b​e​f​o​r​e​ ​s​y​n​c​ ​c​a​n​ ​c​o​n​t​i​n​u​e​.
-		 */
-		syncRelinkRequiredShortDescription: string;
-		/**
-		 * r​e​l​i​n​k​ ​t​h​e​ ​b​r​o​k​e​n​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​w​o​r​k​s​p​a​c​e
-		 */
-		syncRelinkRequiredTitle: string;
-		/**
-		 * G​o​o​g​l​e​ ​D​r​i​v​e​ ​c​h​a​n​g​e​d​ ​w​h​i​l​e​ ​s​y​n​c​i​n​g​.​ ​R​e​t​r​y​ ​w​i​t​h​ ​t​h​e​ ​l​a​t​e​s​t​ ​r​e​m​o​t​e​ ​s​t​a​t​e​.
-		 */
-		syncRemoteStateChangedDescription: string;
-		/**
-		 * n​o​ ​r​e​m​o​t​e​ ​s​n​a​p​s​h​o​t​ ​i​s​ ​a​v​a​i​l​a​b​l​e​ ​i​n​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​f​o​r​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​y​e​t​.
-		 */
-		syncRemoteSnapshotUnavailableDescription: string;
-		/**
-		 * u​n​l​i​n​k​i​n​g​ ​k​e​e​p​s​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​s​t​o​p​s​ ​i​t​ ​s​y​n​c​i​n​g​ ​t​o​ ​G​o​o​g​l​e​ ​D​r​i​v​e​.​ ​y​o​u​ ​c​a​n​ ​l​i​n​k​ ​i​t​ ​a​g​a​i​n​ ​l​a​t​e​r​.
-		 */
-		syncUnlinkDescription: string;
-		/**
-		 * t​h​i​s​ ​k​e​e​p​s​ ​y​o​u​r​ ​l​o​c​a​l​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​s​t​o​p​s​ ​f​u​t​u​r​e​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​y​n​c​s​ ​u​n​t​i​l​ ​y​o​u​ ​l​i​n​k​ ​a​g​a​i​n​.
-		 */
-		syncUnlinkDialogDescription: string;
-		/**
-		 * u​n​l​i​n​k​ ​G​o​o​g​l​e​ ​D​r​i​v​e​?
-		 */
-		syncUnlinkDialogTitle: string;
-		/**
-		 * t​h​e​ ​a​c​t​i​v​e​ ​w​o​r​k​s​p​a​c​e​ ​c​h​a​n​g​e​d​ ​b​e​f​o​r​e​ ​G​o​o​g​l​e​ ​D​r​i​v​e​ ​s​y​n​c​ ​c​o​u​l​d​ ​s​t​a​r​t​.
-		 */
-		syncWorkspaceChangedDescription: string;
+		syncWorkspaceDescription: string;
 		/**
 		 * s​y​n​c​e​d
 		 */
@@ -2287,26 +2036,6 @@ type RootTranslation = {
 		 */
 		endingSoonUpdated: string;
 		/**
-		 * G​o​o​g​l​e​ ​D​r​i​v​e​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​a​l​r​e​a​d​y​ ​u​p​ ​t​o​ ​d​a​t​e​!
-		 */
-		googleDriveAlreadyUpToDate: string;
-		/**
-		 * G​o​o​g​l​e​ ​D​r​i​v​e​ ​a​c​c​o​u​n​t​ ​d​i​s​c​o​n​n​e​c​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
-		 */
-		googleDriveDisconnected: string;
-		/**
-		 * G​o​o​g​l​e​ ​D​r​i​v​e​ ​w​o​r​k​s​p​a​c​e​ ​l​i​n​k​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
-		 */
-		googleDriveLinked: string;
-		/**
-		 * G​o​o​g​l​e​ ​D​r​i​v​e​ ​w​o​r​k​s​p​a​c​e​ ​u​n​l​i​n​k​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
-		 */
-		googleDriveUnlinked: string;
-		/**
-		 * G​o​o​g​l​e​ ​D​r​i​v​e​ ​w​o​r​k​s​p​a​c​e​ ​s​y​n​c​h​r​o​n​i​z​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
-		 */
-		googleDriveSynchronized: string;
-		/**
 		 * w​o​r​k​s​p​a​c​e​ ​s​w​i​t​c​h​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 		 */
 		profileSwitched: string;
@@ -2318,6 +2047,10 @@ type RootTranslation = {
 		 * s​n​a​p​s​h​o​t​ ​c​r​e​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 		 */
 		snapshotCreated: string;
+		/**
+		 * this workspace is up to date!
+		 */
+		workspaceUpToDate: string;
 		/**
 		 * s​t​a​r​t​u​p​ ​r​e​c​o​v​e​r​y​ ​c​l​e​a​r​e​d​.​ ​r​e​t​r​y​i​n​g​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​v​e​r​s​i​o​n​ ​i​s​ ​n​o​w​ ​a​l​l​o​w​e​d​.
 		 */
@@ -2439,21 +2172,9 @@ export type TranslationFunctions = {
 			 */
 			installingUpdate: () => LocalizedString;
 			/**
-			 * link
-			 */
-			link: () => LocalizedString;
-			/**
-			 * linking...
-			 */
-			linking: () => LocalizedString;
-			/**
 			 * new record
 			 */
 			newRecord: () => LocalizedString;
-			/**
-			 * open local workspace
-			 */
-			openLocal: () => LocalizedString;
 			/**
 			 * open menu
 			 */
@@ -2566,10 +2287,6 @@ export type TranslationFunctions = {
 			 * sync
 			 */
 			syncNow: () => LocalizedString;
-			/**
-			 * unlink
-			 */
-			unlink: () => LocalizedString;
 			/**
 			 * terminate
 			 */
@@ -2918,10 +2635,6 @@ export type TranslationFunctions = {
 			 * last backup time
 			 */
 			lastBackupTime: () => LocalizedString;
-			/**
-			 * last sync time
-			 */
-			lastSyncTime: () => LocalizedString;
 			/**
 			 * location
 			 */
@@ -3481,17 +3194,9 @@ export type TranslationFunctions = {
 		};
 		startup: {
 			/**
-			 * open the current workspace locally, or link Google Drive now to turn it into a synced workspace.
-			 */
-			accountChoiceDescription: () => LocalizedString;
-			/**
 			 * no workspace profiles are available yet.
 			 */
 			accountChoiceEmpty: () => LocalizedString;
-			/**
-			 * workspace
-			 */
-			accountChoiceTitle: () => LocalizedString;
 			/**
 			 * there was a problem connecting the database or running startup sync.
 			 */
@@ -3756,241 +3461,25 @@ export type TranslationFunctions = {
 		 */
 		syncAutomationTitle: () => LocalizedString;
 		/**
-		 * linked Google Drive accounts stay available for workspace switching, sync, and startup selection.
-		 */
-		syncAccountsDescription: () => LocalizedString;
-		/**
-		 * linked Google Drive accounts
-		 */
-		syncAccountsTitle: () => LocalizedString;
-		/**
 		 * needs reconnect
 		 */
 		syncAccountStatusNeedsReconnect: () => LocalizedString;
+		/**
+		 * signing in with Google is not configured in this build yet, so this workspace cannot reach the service that keeps it.
+		 */
+		syncSignInPending: () => LocalizedString;
 		/**
 		 * awaiting authorization
 		 */
 		syncAccountStatusPending: () => LocalizedString;
 		/**
-		 * ready to sync
-		 */
-		syncAccountStatusReady: () => LocalizedString;
-		/**
-		 * rentable sync storage: {value}
-		 */
-		syncAppDriveUsageDescription: (arg: { value: unknown }) => LocalizedString;
-		/**
-		 * linked Google Drive
-		 */
-		syncConnectedAccountLabel: () => LocalizedString;
-		/**
-		 * open without syncing for now
-		 */
-		syncConflictDeferAction: () => LocalizedString;
-		/**
-		 * Google Drive metadata can no longer be read safely. Repair the remote workspace with your current local workspace before syncing again.
-		 */
-		syncCorruptDescription: () => LocalizedString;
-		/**
-		 * repair remote with local
-		 */
-		syncCorruptKeepLocalAction: () => LocalizedString;
-		/**
-		 * use this device as the source of truth and write a clean manifest back to Google Drive.
-		 */
-		syncCorruptLocalDescription: () => LocalizedString;
-		/**
-		 * the Google Drive metadata for {email} is corrupted, so the remote copy cannot be trusted until it is repaired.
-		 */
-		syncCorruptRemoteDescription: (arg: { email: unknown }) => LocalizedString;
-		/**
-		 * Google Drive metadata is corrupted. Repair the remote workspace with your local copy before syncing again.
-		 */
-		syncCorruptShortDescription: () => LocalizedString;
-		/**
-		 * repair Google Drive metadata
-		 */
-		syncCorruptTitle: () => LocalizedString;
-		/**
-		 * another Google Drive sync is already running. please wait for it to finish and try again.
-		 */
-		syncAlreadyRunningDescription: () => LocalizedString;
-		/**
-		 * this workspace changed locally and in Google Drive since the last sync. choose which copy should continue before syncing again.
-		 */
-		syncConflictDescription: () => LocalizedString;
-		/**
-		 * latest
-		 */
-		syncConflictLatestBadge: () => LocalizedString;
-		/**
-		 * keep local & sync
-		 */
-		syncConflictKeepLocalAction: () => LocalizedString;
-		/**
-		 * keep this device as the source of truth and overwrite the current Google Drive snapshot with the local workspace.
-		 */
-		syncConflictLocalDescription: () => LocalizedString;
-		/**
-		 * replace this device with the Google Drive snapshot linked to {email}.
-		 */
-		syncConflictRemoteDescription: (arg: { email: unknown }) => LocalizedString;
-		/**
-		 * this workspace diverged locally and remotely. choose which side should win before syncing again.
-		 */
-		syncConflictShortDescription: () => LocalizedString;
-		/**
-		 * resolve the sync conflict
-		 */
-		syncConflictTitle: () => LocalizedString;
-		/**
-		 * use remote & sync
-		 */
-		syncConflictUseRemoteAction: () => LocalizedString;
-		/**
-		 * Google Drive account linking is not configured in this build yet. The workspace and snapshot foundation is ready for it.
-		 */
-		syncGoogleDrivePending: () => LocalizedString;
-		/**
-		 * this workspace already has both a local snapshot and a Google Drive snapshot. choose which copy should continue before sync starts.
-		 */
-		syncLinkConflictDescription: () => LocalizedString;
-		/**
-		 * continue with this device and overwrite Google Drive with the latest local snapshot.
-		 */
-		syncLinkConflictLocalDescription: () => LocalizedString;
-		/**
-		 * replace this device with the Google Drive snapshot linked to {email}.
-		 */
-		syncLinkConflictRemoteDescription: (arg: { email: unknown }) => LocalizedString;
-		/**
-		 * finish linking by choosing whether the local or remote snapshot should become the synced workspace.
-		 */
-		syncLinkConflictShortDescription: () => LocalizedString;
-		/**
-		 * choose which workspace copy to keep
-		 */
-		syncLinkConflictTitle: () => LocalizedString;
-		/**
-		 * keep local & link
-		 */
-		syncLinkKeepLocalAction: () => LocalizedString;
-		/**
-		 * use remote & link
-		 */
-		syncLinkUseRemoteAction: () => LocalizedString;
-		/**
-		 * latest remote update {value}
-		 */
-		syncLastRemoteDescription: (arg: { value: unknown }) => LocalizedString;
-		/**
-		 * latest snapshot {value}
-		 */
-		syncLastSnapshotDescription: (arg: { value: unknown }) => LocalizedString;
-		/**
-		 * link Google Drive so this workspace syncs when the app starts, and can be recovered if this machine is lost. if both sides already hold a copy, you choose which one to keep.
-		 */
-		syncLinkDescription: () => LocalizedString;
-		/**
-		 * Google authorization was received. Rentable is finishing the Google Drive link and checking the remote workspace now.
-		 */
-		syncLinkFinalizingDescription: () => LocalizedString;
-		/**
-		 * Finishing Google Drive link
-		 */
-		syncLinkFinalizingTitle: () => LocalizedString;
-		/**
-		 * complete the Google sign-in in your browser. if Google Drive already has a snapshot for this workspace, you will choose local or remote next.
-		 */
-		syncLinkPendingDescription: () => LocalizedString;
-		/**
-		 * Waiting for Google authorization
-		 */
-		syncLinkPendingTitle: () => LocalizedString;
-		/**
-		 * Google Drive authorization took too long to finish. Start the link again when you are ready.
-		 */
-		syncLinkTimedOutDescription: () => LocalizedString;
-		/**
-		 * the current workspace is not linked to Google Drive.
-		 */
-		syncNotLinkedDescription: () => LocalizedString;
-		/**
-		 * no Google Drive accounts are linked yet.
-		 */
-		syncNoLinkedAccounts: () => LocalizedString;
-		/**
-		 * each workspace keeps its own local database path and latest recovery snapshot.
-		 */
-		syncProfilesDescription: () => LocalizedString;
-		/**
-		 * workspace profiles
-		 */
-		syncProfilesTitle: () => LocalizedString;
-		/**
-		 * Google Drive
-		 */
-		syncProviderGoogleDrive: () => LocalizedString;
-		/**
-		 * local workspace
-		 */
-		syncProviderLocal: () => LocalizedString;
-		/**
 		 * hosted workspace
 		 */
 		syncProviderHosted: () => LocalizedString;
 		/**
-		 * Google Drive authorization expired. Please reconnect the account.
+		 * this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.
 		 */
-		syncReconnectDescription: () => LocalizedString;
-		/**
-		 * reset remote & relink
-		 */
-		syncRelinkRequiredAction: () => LocalizedString;
-		/**
-		 * the linked Google Drive workspace is missing its manifest and the remaining remote snapshots cannot be trusted as-is. to continue safely, reset the broken remote copy and link Google Drive again. this clears the current remote snapshot files before relinking.
-		 */
-		syncRelinkRequiredDescription: () => LocalizedString;
-		/**
-		 * keep the current local workspace on this device, clear the broken remote copy, and start a fresh Google Drive link.
-		 */
-		syncRelinkRequiredLocalDescription: () => LocalizedString;
-		/**
-		 * the remaining Google Drive snapshot files for {email} cannot be turned back into a safe remote manifest automatically.
-		 */
-		syncRelinkRequiredRemoteDescription: (arg: { email: unknown }) => LocalizedString;
-		/**
-		 * the linked Google Drive copy is broken and must be relinked before sync can continue.
-		 */
-		syncRelinkRequiredShortDescription: () => LocalizedString;
-		/**
-		 * relink the broken Google Drive workspace
-		 */
-		syncRelinkRequiredTitle: () => LocalizedString;
-		/**
-		 * Google Drive changed while syncing. Retry with the latest remote state.
-		 */
-		syncRemoteStateChangedDescription: () => LocalizedString;
-		/**
-		 * no remote snapshot is available in Google Drive for this workspace yet.
-		 */
-		syncRemoteSnapshotUnavailableDescription: () => LocalizedString;
-		/**
-		 * unlinking keeps this workspace on this machine and stops it syncing to Google Drive. you can link it again later.
-		 */
-		syncUnlinkDescription: () => LocalizedString;
-		/**
-		 * this keeps your local workspace and stops future Google Drive syncs until you link again.
-		 */
-		syncUnlinkDialogDescription: () => LocalizedString;
-		/**
-		 * unlink Google Drive?
-		 */
-		syncUnlinkDialogTitle: () => LocalizedString;
-		/**
-		 * the active workspace changed before Google Drive sync could start.
-		 */
-		syncWorkspaceChangedDescription: () => LocalizedString;
+		syncWorkspaceDescription: () => LocalizedString;
 		/**
 		 * synced
 		 */
@@ -4522,26 +4011,6 @@ export type TranslationFunctions = {
 		 */
 		endingSoonUpdated: () => LocalizedString;
 		/**
-		 * Google Drive workspace is already up to date!
-		 */
-		googleDriveAlreadyUpToDate: () => LocalizedString;
-		/**
-		 * Google Drive account disconnected successfully!
-		 */
-		googleDriveDisconnected: () => LocalizedString;
-		/**
-		 * Google Drive workspace linked successfully!
-		 */
-		googleDriveLinked: () => LocalizedString;
-		/**
-		 * Google Drive workspace unlinked successfully!
-		 */
-		googleDriveUnlinked: () => LocalizedString;
-		/**
-		 * Google Drive workspace synchronized successfully!
-		 */
-		googleDriveSynchronized: () => LocalizedString;
-		/**
 		 * workspace switched successfully!
 		 */
 		profileSwitched: () => LocalizedString;
@@ -4553,6 +4022,10 @@ export type TranslationFunctions = {
 		 * snapshot created successfully!
 		 */
 		snapshotCreated: () => LocalizedString;
+		/**
+		 * this workspace is up to date!
+		 */
+		workspaceUpToDate: () => LocalizedString;
 		/**
 		 * startup recovery cleared. retrying the current version is now allowed.
 		 */

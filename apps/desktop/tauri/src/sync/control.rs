@@ -40,8 +40,8 @@ use super::store::{RemoteSync, sanitize_string};
 
 /// How long this application waits on the control plane before giving up.
 ///
-/// Shorter than the Drive transport's, and deliberately: every call here is one small JSON
-/// exchange on the credential path, and a sign-in that hangs is a sign-in the user cancels.
+/// Deliberately short: every call here is one small JSON exchange on the credential path, and a
+/// sign-in that hangs is a sign-in the user cancels.
 const CONTROL_PLANE_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Where stored control-plane sessions are filed in the platform's credential store.
@@ -519,7 +519,7 @@ pub(super) async fn renew_session(app_state: &AppState) -> Result<bool, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sync::google::test::server::{ScriptedResponse, TestDriveServer};
+    use crate::sync::google::test::server::{ScriptedResponse, ScriptedServer};
 
     const A_DAY: i64 = 24 * 60 * 60 * 1000;
     const AT: i64 = 1_787_054_400_000;
@@ -546,7 +546,7 @@ mod tests {
     /// moment the window ends.
     #[tokio::test]
     async fn signing_in_presents_the_google_token_and_comes_back_with_a_window() {
-        let server = TestDriveServer::start(vec![ScriptedResponse::new(
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
             200,
             signed_in_body(AT + 3 * A_DAY),
         )])
@@ -573,7 +573,7 @@ mod tests {
     /// Renewing presents the session, not Google — which is the whole point of holding one.
     #[tokio::test]
     async fn renewing_presents_the_session_and_restarts_the_window() {
-        let server = TestDriveServer::start(vec![ScriptedResponse::new(
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
             200,
             signed_in_body(AT + 5 * A_DAY),
         )])
@@ -600,7 +600,7 @@ mod tests {
             AT + 3 * A_DAY,
             AT + 30 * A_DAY
         );
-        let server = TestDriveServer::start(vec![ScriptedResponse::new(200, body)]).await;
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(200, body)]).await;
 
         let issued = super::call(&server.url(""), "/workspace/w/token", "rws_a-token")
             .await
@@ -616,7 +616,7 @@ mod tests {
     /// nothing else here would notice a control plane that started sliding the month.
     #[tokio::test]
     async fn a_refresh_restarts_the_window_and_leaves_the_sign_in_where_it_is() {
-        let server = TestDriveServer::start(vec![ScriptedResponse::new(
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
             200,
             signed_in_body_signed_at(AT + 29 * A_DAY, AT),
         )])
@@ -639,7 +639,7 @@ mod tests {
     /// helps neither — and the wording is what carries the distinction to the surface.
     #[tokio::test]
     async fn a_sign_in_past_its_lifetime_is_refused_in_its_own_words() {
-        let server = TestDriveServer::start(vec![ScriptedResponse::new(
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
             401,
             r#"{"error":{"code":"session_lifetime_reached","message":"this sign-in is a month old"}}"#,
         )])
@@ -663,7 +663,7 @@ mod tests {
     /// move: one is *sign in again*, the other is *wait*.
     #[tokio::test]
     async fn a_closed_window_is_a_refusal_rather_than_a_moment_that_will_pass() {
-        let server = TestDriveServer::start(vec![ScriptedResponse::new(
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
             401,
             r#"{"error":{"code":"session_expired","message":"your sign-in has run out"}}"#,
         )])
@@ -683,7 +683,7 @@ mod tests {
     /// read as a sign-in that has to be repeated.
     #[tokio::test]
     async fn a_control_plane_having_a_bad_minute_is_a_moment_that_will_pass() {
-        let server = TestDriveServer::start(vec![ScriptedResponse::new(
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
             503,
             r#"{"error":{"code":"unavailable","message":"try again"}}"#,
         )])
@@ -701,7 +701,7 @@ mod tests {
     /// a train.
     #[tokio::test]
     async fn an_unreachable_control_plane_is_a_network_failure_and_not_a_refusal() {
-        let server = TestDriveServer::start(vec![ScriptedResponse::hangup()]).await;
+        let server = ScriptedServer::start(vec![ScriptedResponse::hangup()]).await;
 
         let error = super::refresh(&server.url(""), "rws_a-token")
             .await
@@ -714,7 +714,7 @@ mod tests {
     #[tokio::test]
     async fn an_answer_with_no_session_is_a_failure_rather_than_an_empty_window() {
         let server =
-            TestDriveServer::start(vec![ScriptedResponse::new(200, r#"{"account":{}}"#)]).await;
+            ScriptedServer::start(vec![ScriptedResponse::new(200, r#"{"account":{}}"#)]).await;
 
         let error = super::sign_in(&server.url(""), "ya29.token")
             .await

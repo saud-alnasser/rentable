@@ -27,7 +27,7 @@ export function fakeSettings(overrides: Partial<Settings> = {}): Settings {
 	};
 }
 
-/** An account as the store holds one: signed in, in good standing, and holding no Drive figures. */
+/** An account as the store holds one: signed in and in good standing. */
 export function fakeAccount(overrides: Partial<RemoteSyncAccount> = {}): RemoteSyncAccount {
 	return {
 		id: 'account',
@@ -36,12 +36,8 @@ export function fakeAccount(overrides: Partial<RemoteSyncAccount> = {}): RemoteS
 		displayName: 'Person Example',
 		avatarUrl: null,
 		providerUserId: null,
-		driveQuotaBytes: null,
-		driveUsageBytes: null,
-		appUsageBytes: null,
 		tokenExpiresAt: null,
 		refreshTokenAvailable: true,
-		lastSyncedAt: null,
 		lastError: null,
 		createdAt: 0,
 		updatedAt: 0,
@@ -49,19 +45,12 @@ export function fakeAccount(overrides: Partial<RemoteSyncAccount> = {}): RemoteS
 	};
 }
 
-/** A workspace as the store holds one: unlinked and never synced — an unconfigured install. */
+/** A workspace as the store holds one: never snapshotted — a fresh install. */
 export function fakeWorkspace(overrides: Partial<RemoteSyncWorkspace> = {}): RemoteSyncWorkspace {
 	return {
 		id: 'workspace',
-		accountId: null,
 		name: 'Workspace',
 		localDatabasePath: 'C:/rentable/app.db',
-		remoteFolderId: null,
-		remoteManifestFileId: null,
-		remoteHeadFileId: null,
-		remoteHeadRevision: null,
-		lastRemoteUpdatedAt: null,
-		lastSyncedAt: null,
 		lastSnapshotAt: null,
 		lastSnapshotFilename: null,
 		lastError: null,
@@ -77,7 +66,7 @@ export function fakeSyncState(overrides: Partial<RemoteSyncState> = {}): RemoteS
 		accounts: [],
 		workspace: fakeWorkspace(),
 		startupPromptEnabled: false,
-		googleDriveReady: false,
+		googleSignInReady: false,
 		controlPlaneReady: false,
 		session: null,
 		deviceId: 'device',
@@ -161,15 +150,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			getState: refuse('remoteSync.getState'),
 			snapshotNow: refuse('remoteSync.snapshotNow'),
 			autosaveNow: refuse('remoteSync.autosaveNow'),
-			renewSession: refuse('remoteSync.renewSession'),
-			googleDrive: {
-				link: refuse('remoteSync.googleDrive.link'),
-				cancelLinkAttempt: refuse('remoteSync.googleDrive.cancelLinkAttempt'),
-				unlink: refuse('remoteSync.googleDrive.unlink'),
-				sync: refuse('remoteSync.googleDrive.sync'),
-				inspect: refuse('remoteSync.googleDrive.inspect'),
-				resolveConflict: refuse('remoteSync.googleDrive.resolveConflict')
-			}
+			renewSession: refuse('remoteSync.renewSession')
 		},
 		...overrides
 	};
