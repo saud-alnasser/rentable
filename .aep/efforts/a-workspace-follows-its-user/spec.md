@@ -1,5 +1,5 @@
 ---
-aep: 2.6.0
+aep: 2.7.0
 owner: repository
 date: 2026-08-19
 kind: spec
@@ -294,8 +294,9 @@ nobody re-read.*
     installing, and `startup-recovery.svelte` offers a route back from a workspace that will not
     open. Each is either shown to be unnecessary under a remote record of truth, or replaced.
 18. **Declining to renew is invokable on a running control plane, per account.** *Added
-    2026-08-19 from a review of #550 (#564), and not yet accepted — this file's `status` covers
-    the seventeen above it.*
+    2026-08-19 from a review of #550 (#564). **Accepted 2026-08-19**, after `/refine` reached its
+    floor and the human agreed: three deferred decisions became decision 14, and criterion 19 now
+    says what plays the client.*
 
     *Architecture* rests on this and the vendor gives no help: Turso's own revocation is
     bulk-only, rotates every token in its group, and has no published propagation time (decision
@@ -314,8 +315,10 @@ nobody re-read.*
 
     **Who decides to remove somebody, and through what interface, is not this.** Requirement 14's
     organization work owns that surface.
-19. **The control plane's own database does not grow without bound.** *Added 2026-08-19 (#564),
-    and not yet accepted.*
+19. **The control plane's own database does not grow without bound.** *Added 2026-08-19 (#564).
+    **Accepted 2026-08-19**, after `/refine`: the accrual driver `asking` writes a row per Google
+    token is recorded as an assumption rather than answered, and the documentation half now has a
+    criterion.*
 
     A `session` row is written on every sign-in and on **every request that presents a Google
     access token** — `asking` in `server/server.ts` starts one whenever the credential is not
@@ -337,6 +340,15 @@ nobody re-read.*
     `askingForASession` to explain the behaviour, and **that function was never written**. Nothing
     is broken by it — the rows go to the client rather than being orphaned — but the file that
     says how many are written is wrong, and it is the file somebody would size this against.
+
+    **So the requirement corrects the two documents and does not change what they describe**
+    *(settled by the human 2026-08-19 during `/refine`)*. The README says what `asking` does, and
+    the dangling link goes. Writing `askingForASession` — a route reached with a Google token
+    reusing the account's live session rather than starting another — was put on the table as the
+    way to remove the cause instead of sweeping after it, and was declined as scope. That makes
+    the correction part of this requirement rather than incidental to it, so **criterion 20 checks
+    it**: a requirement whose second half nothing checks is a requirement with a half nobody
+    delivers.
 
 # Acceptance Criteria
 
@@ -524,19 +536,46 @@ its replacement.*
     account's do; the invocation answers how many ended, so *nobody was signed in* is
     distinguishable from *somebody was and is not now*; a client holding one of those sessions is
     refused at its next reach with `session_expired` and mints no further workspace token.
-    **The account is named by something an operator actually holds** — an invocation that takes
-    only an internal id, when what an operator has is an email address, is one they will get
-    wrong.
+
+    **What plays that client is a request carrying the ended session token, against the locally
+    running server** *(settled by the human 2026-08-19 during `/refine`)*. It is what a client
+    does on the wire and it needs nothing this repository does not already have. The desktop
+    application meeting a closed window is criterion 16's subject and is covered there, so
+    requiring it here would only make this wait on the two-machine setup #558 needs. **The
+    invocation itself reaches the database rather than the server** — it is a command, per
+    decision 14, exactly as `sweep.ts` is — so *a running control plane* in requirement 18 means
+    one that is in service rather than one whose process the command talks to. Running a control
+    plane locally is in scope and deploying one is not, which is the distinction #558 already
+    draws.
+    **The account is named by an email address, and an address matching more than one account is
+    refused rather than acted on** *(settled by the human 2026-08-19, decision 14)*. An invocation
+    taking only an internal id, when what an operator has is an email address, is one they will
+    get wrong. An invocation acting on every match is the other way to get it wrong: `account.email`
+    carries no unique index, deliberately (`database/schema.ts`, on the `account` table), because a
+    reassigned address is a different Google subject and a different person. So the refusal names
+    the ids it matched, and the operator picks.
 
     *An invocation demonstrated only by a test fails this criterion*, and that is the whole reason
     it exists: #550's mechanism was tested, and being tested is precisely the state being
     corrected.
 20. **Pruning is invokable, and it removes what is dead and nothing else.** *(requirement 19 —
-    new 2026-08-19.)* Run against a database holding all three: a session past its absolute
-    lifetime is gone; a session **three days past its last reach but inside its month** survives,
-    because requirement 15 promises it is still refreshable and removing it would fail criterion
-    16; a live session survives. The invocation answers how many it removed. Tested by moving the
-    clock rather than by waiting.
+    new 2026-08-19.)* Run **through the invocation** against a database holding all three: a
+    session past its absolute lifetime is gone; a session **three days past its last reach but
+    inside its month** survives, because requirement 15 promises it is still refreshable and
+    removing it would fail criterion 16; a live session survives. The invocation answers how many
+    it removed. Tested by moving the clock rather than by waiting.
+
+    *Pruning demonstrated only by a test fails this criterion* — added 2026-08-19 during
+    `/refine`, because without it the criterion was met by adding one row to
+    `session/tests/session.test.ts`, which already covers two of the three cases and the count.
+    Criterion 19 carried this clause from the day it was written and this one did not, and the
+    asymmetry was an oversight rather than a decision: `forgetExpiredSessions` being tested is
+    precisely the state requirement 19 exists to correct.
+
+    **And `apps/control-plane/README.md` describes the number of session rows that are actually
+    written, with no dangling `{@link askingForASession}` left in `server/server.ts`** — added
+    2026-08-19 during `/refine`, because requirement 19's second half had no criterion at all and
+    an unchecked half of a requirement is one nobody delivers.
 
 # Constraints
 
@@ -782,6 +821,15 @@ its replacement.*
 - **One person operates this.** *Added 2026-08-19 (#564).* One author, one caller class, no
   second administrator — so nothing here has to answer who acted. It is an assumption rather than
   a fact because requirement 14's organization work is the thing that ends it.
+- **A client presents its session token after the first request, so a sign-in costs about one
+  session row.** *Added 2026-08-19 during `/refine` of requirement 19.* `asking` in
+  `server/server.ts` calls `startSession` for every request carrying a Google access token, so a
+  client that keeps presenting one writes a row per request and pruning cannot catch up. **The
+  desktop does not**: `sync/control.rs` sends the Google token once at sign-in and `rws_` on
+  every call after it, and it is the only client. So the accrual requirement 19 answers is bounded
+  by a client's good behaviour rather than by anything the control plane enforces, and nothing
+  refuses a client that behaves otherwise. Writing the `askingForASession` the README already
+  describes would have made it a fact instead; it was put to the human and declined as scope.
 
 # Open Questions
 
@@ -843,12 +891,14 @@ its replacement.*
   tree first: `memory.ts` does build its client through `createDatabase`, and `seed.ts`/`purge.ts`
   are still on `drizzle-orm/better-sqlite3`, so the rule's obligation and its named exclusion both
   still hold.
-- **Does declining to renew owe a record of itself?** *Added 2026-08-19 (#564).* It deletes rows
-  and answers a count, and **the rows that would have said somebody was removed are the ones it
-  removes** — so afterwards nothing anywhere says a decision was made, by whom, or when. Under one
-  operator that is tolerable; under requirement 14's organizations it is not, and the cheap moment
-  to settle it is before the invocation exists rather than after. **This is a product call and it
-  is the human's.**
+- ~~**Does declining to renew owe a record of itself?**~~ **Answered by the human 2026-08-19: it
+  does not, and the absence is stated rather than left to be noticed.** Decision 14 carries it.
+
+  *What it asked, kept because the reasoning is what makes the answer conditional rather than
+  permanent:* it deletes rows and answers a count, and **the rows that would have said somebody
+  was removed are the ones it removes** — so afterwards nothing anywhere says a decision was made,
+  by whom, or when. Under one operator that is tolerable; under requirement 14's organizations it
+  is not, and the cheap moment to settle it was before the invocation exists rather than after.
 
 # Risks
 
@@ -1813,7 +1863,8 @@ intention.
 **What `status: accepted` means here, and what it does not.** Accepted 2026-08-17, after
 `/refine` reached its floor. It settles the WHAT and the WHY: the problem, the goal, the scope,
 fourteen requirements and the fifteen criteria that check them, the constraints, and the
-boundaries. **It does not settle the HOW**, and the HOW is now **partly** written.
+boundaries. **Requirements 18 and 19 and criteria 19 and 20 joined them on 2026-08-19**, after a
+second `/refine` over the two that #604 had specified and left unaccepted. **It does not settle the HOW**, and the HOW is now **partly** written.
 
 *Corrected 2026-08-17.* This paragraph used to say there was no `# Architecture` section and
 would not be one until decision 11 had run, "because every architectural piece in this effort
@@ -3138,3 +3189,51 @@ people at once.
 conditional is the migration: if requirement 16 is ever narrowed back to hosted workspaces only,
 the local schema keeps rowids and the remapping moves into decision 12's conversion. That path
 was offered on 2026-08-18 and not taken.
+
+## 14 — grilling(platform): how maintenance and revocation are invoked
+
+Status: **decided 2026-08-19 — a command a person runs, taking an email address, refusing an
+ambiguous one, and keeping no record of itself.** *Three questions put to the human on
+2026-08-19 during `/refine` of requirements 18 and 19, and answered together.*
+Part of: a-workspace-follows-its-user
+Type: grilling
+Blocked by: —
+
+**Question.** Requirement 18 says declining to renew must be *invokable* and requirement 19 says
+the `session` table must not grow without bound. Both mechanisms exist and neither is reachable.
+What was open was the shape of the invocation, which the Constraint added with those requirements
+deferred here by name, and what the invocation is allowed to leave behind.
+
+**A command, not a route.** `pnpm --filter ./apps/control-plane sweep` is the precedent this
+effort already set: wiring in `src/sweep.ts`, the work in a module taking its database and its
+Turso as arguments so the tests run the real thing. A second mechanism for the same job is one
+too many.
+
+**What the route would have bought, and what it costs.** It is reachable without a shell, which
+is the one thing a command cannot offer. It needs an operator identity, a credential for one, and
+an audit trail, and this control plane has none of the three: it has exactly one caller class, an
+account holder identified by Google. Building those to reach a mechanism that already exists is
+three new things to be wrong about, on a service nothing has deployed. **What is given up is
+named rather than dismissed:** whoever operates this must be able to reach the machine the
+process runs on, which *Assumptions* already records and nothing can verify until something is
+deployed. If that turns out to be false, this decision is the one that reopens.
+
+**Named by an email address, and an ambiguous one is refused.** Criterion 19 asks for something
+an operator actually holds, and that is an address rather than an id. But `account.email` carries
+no unique index and that is deliberate: a reassigned address is a different Google subject and a
+different row, so a unique index would refuse the new person's first sign-in. Acting on every
+match would therefore end a stranger's sessions on a shared address, and the answer looks the
+same either way. So the invocation resolves the address, and where it matches more than one
+account it names the ids it found and does nothing.
+
+**No record of a decline, and the absence is stated.** The operation deletes the rows that would
+have said somebody was removed, so nothing afterwards says a decision was made, by whom, or when.
+Under one operator that is tolerable, which is what *Assumptions* records. It was taken as a
+deliberate trade rather than an omission: **a record needs a notion of who acted, and there is no
+operator identity to record.** The risk stays where it is written, under *Risks*: declining for
+the wrong account is silent until somebody is locked out.
+
+**Removal condition.** Requirement 14's organization work. A second person operating this ends
+the assumption the whole decision rests on, and all three halves reopen together: a route needs
+the operator identity that work introduces, an audit trail becomes recordable because there is
+somebody to record, and *who is entitled to decline* stops being obvious.
