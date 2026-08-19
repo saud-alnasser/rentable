@@ -1,7 +1,7 @@
 ---
-aep: 2.1.1
+aep: 2.7.0
 owner: repository
-date: 2026-08-17
+date: 2026-08-19
 kind: rule
 paths:
   - apps/desktop/src/lib/**
@@ -32,7 +32,7 @@ Each domain's query module composes its key set from the workspace prefixes in
 `design/query.ts` and exports it. Every data mutation invalidates through the shared
 helper there, and a full pass with no touch-set — a sync pull, a day crossing — through
 the root helper beside it; an invalidation that spells a key out inline drifts the moment
-the key changes. Settings, backups, and remote-sync keep their own keys and invalidations.
+the key changes. Settings and remote-sync keep their own keys and invalidations.
 
 Toast behaviour on a mutation goes through the shared success and error handlers, never
 through direct toast calls in a component — that is what keeps `BAD_REQUEST` messages

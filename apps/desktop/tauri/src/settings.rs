@@ -11,7 +11,6 @@ const DEFAULT_ENDING_SOON_NOTICE_DAYS: u16 = 60;
 pub struct Settings {
     pub ending_soon_notice_days: u16,
     pub database_path: PathBuf,
-    pub backup_dir: PathBuf,
     pub recovery_path: PathBuf,
     pub diagnostics_dir: PathBuf,
     pub locale: Option<String>,
@@ -25,7 +24,6 @@ struct SettingsStored {
     database_path: PathBuf,
     default_database_path: PathBuf,
     active_database_path: Option<PathBuf>,
-    backup_dir: PathBuf,
     recovery_path: PathBuf,
     diagnostics_dir: PathBuf,
     locale: Option<String>,
@@ -37,7 +35,6 @@ impl Default for Settings {
         Self {
             ending_soon_notice_days: DEFAULT_ENDING_SOON_NOTICE_DAYS,
             database_path: PathBuf::new(),
-            backup_dir: PathBuf::new(),
             recovery_path: PathBuf::new(),
             diagnostics_dir: PathBuf::new(),
             locale: None,
@@ -59,7 +56,6 @@ impl From<SettingsStored> for Settings {
         Self {
             ending_soon_notice_days: value.ending_soon_notice_days,
             database_path,
-            backup_dir: value.backup_dir,
             recovery_path: value.recovery_path,
             diagnostics_dir: value.diagnostics_dir,
             locale: value.locale,
@@ -153,9 +149,9 @@ mod tests {
 
     /// A settings file written by an earlier version still loads, `migrationDir` and all.
     ///
-    /// The key is left in the fixture deliberately: the client applies no migrations any more and
-    /// the field is gone from `Settings`, so what this now also pins is that an installed copy's
-    /// settings file does not have to be rewritten to be readable.
+    /// The keys are left in the fixture deliberately: the client applies no migrations any more
+    /// and keeps no snapshots (#569), so neither field is on `Settings`. What this now also pins
+    /// is that an installed copy's settings file does not have to be rewritten to be readable.
     #[test]
     fn deserializes_legacy_database_paths_preferring_active_path() {
         let settings = serde_json::from_str::<Settings>(

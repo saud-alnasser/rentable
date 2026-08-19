@@ -24,8 +24,6 @@ function shellReporting(accounts: RemoteSyncAccount[] = [fakeAccount()]) {
 	return fakeHost({
 		remoteSync: {
 			getState: async () => state,
-			snapshotNow: async () => state,
-			autosaveNow: async () => state,
 			renewSession: async () => state
 		}
 	});

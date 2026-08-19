@@ -45,14 +45,12 @@ export function fakeAccount(overrides: Partial<RemoteSyncAccount> = {}): RemoteS
 	};
 }
 
-/** A workspace as the store holds one: never snapshotted — a fresh install. */
+/** A workspace as the store holds one. */
 export function fakeWorkspace(overrides: Partial<RemoteSyncWorkspace> = {}): RemoteSyncWorkspace {
 	return {
 		id: 'workspace',
 		name: 'Workspace',
 		localDatabasePath: 'C:/rentable/app.db',
-		lastSnapshotAt: null,
-		lastSnapshotFilename: null,
 		lastError: null,
 		createdAt: 0,
 		updatedAt: 0,
@@ -140,16 +138,8 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			get: async () => settings,
 			set: async () => settings
 		},
-		backup: {
-			list: refuse('backup.list'),
-			create: refuse('backup.create'),
-			delete: refuse('backup.delete'),
-			restore: refuse('backup.restore')
-		},
 		remoteSync: {
 			getState: refuse('remoteSync.getState'),
-			snapshotNow: refuse('remoteSync.snapshotNow'),
-			autosaveNow: refuse('remoteSync.autosaveNow'),
 			renewSession: refuse('remoteSync.renewSession')
 		},
 		...overrides

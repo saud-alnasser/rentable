@@ -67,15 +67,6 @@ export type SettingsChangeset = {
 	locale?: string;
 };
 
-export type BackupEntry = {
-	filename: string;
-	isProtected: boolean;
-	createdAt: number;
-	version: string;
-	source: 'manual' | 'autosave' | 'recovery';
-	recoveryKind?: 'sync' | 'update' | null;
-};
-
 export type RemoteSyncAccountStatus = 'pending' | 'ready' | 'needsReconnect';
 
 export type RemoteSyncAccount = {
@@ -103,8 +94,6 @@ export type RemoteSyncWorkspace = {
 	id: string;
 	name: string;
 	localDatabasePath: string;
-	lastSnapshotAt: number | null;
-	lastSnapshotFilename: string | null;
 	lastError: string | null;
 	createdAt: number;
 	updatedAt: number;
@@ -153,13 +142,19 @@ export type RemoteSyncState = {
  */
 export type GoogleSignInPhase = 'authorizing' | 'finalizing';
 
+/**
+ * the route back from a version that will not run.
+ *
+ * *The protected snapshot and the fields naming it went with the backup surface (#569). The
+ * record of truth is in Turso, so a failed update costs no data and there is nothing to restore;
+ * what a user still needs is the release they came from, which is all this carries now.*
+ */
 export type Recovery = {
 	targetVersion: string;
-	backupVersion: string;
-	backupFilename: string;
+	previousVersion: string;
 	updateError: string | null;
-	status: 'pending' | 'applied' | 'obsolete';
-	backupReleaseUrl: string;
+	status: 'pending' | 'obsolete';
+	previousReleaseUrl: string;
 };
 
 export type AvailableUpdate = {
@@ -285,16 +280,8 @@ export type Host = {
 		get: () => Promise<Settings>;
 		set: (changeset: SettingsChangeset) => Promise<Settings>;
 	};
-	backup: {
-		list: () => Promise<BackupEntry[]>;
-		create: () => Promise<BackupEntry>;
-		delete: (filename: string) => Promise<void>;
-		restore: (filename: string) => Promise<void>;
-	};
 	remoteSync: {
 		getState: () => Promise<RemoteSyncState>;
-		snapshotNow: () => Promise<RemoteSyncState>;
-		autosaveNow: () => Promise<RemoteSyncState>;
 		/**
 		 * reach the control plane and restart the window, where there is one to restart.
 		 *

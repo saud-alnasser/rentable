@@ -15,32 +15,32 @@ pub async fn bootstrap(app_state: tauri::State<'_, AppState>) -> Result<Recovery
 
     let mut update = app_state.update.write().await;
 
+    // this machine is running the release it came from, so whatever the update did, it is over.
+    // Either the user took the route back after a failure, or the install never happened.
     if update.recovery().status == RecoveryStatus::Pending
-        && update.recovery().backup_version == version
+        && update.recovery().previous_version == version
         && update.recovery().target_version != version
     {
         let target_version = update.recovery().target_version.clone();
-        let backup_version = update.recovery().backup_version.clone();
+        let previous_version = update.recovery().previous_version.clone();
 
         match update.recovery().update_error.clone() {
             Some(error) => {
-                diagnostics::warn("startup.recovery.rollingBack")
+                diagnostics::warn("startup.recovery.wentBack")
                     .with("targetVersion", target_version)
-                    .with("backupVersion", backup_version)
+                    .with("previousVersion", previous_version)
                     .with("error", error)
                     .write();
-
-                update.rollback().await?
             }
             None => {
-                diagnostics::info("startup.recovery.completing")
+                diagnostics::info("startup.recovery.notInstalled")
                     .with("targetVersion", target_version)
-                    .with("backupVersion", backup_version)
+                    .with("previousVersion", previous_version)
                     .write();
-
-                update.complete().await?
             }
         }
+
+        update.resolve()?;
     }
 
     let error = {
@@ -57,12 +57,12 @@ pub async fn bootstrap(app_state: tauri::State<'_, AppState>) -> Result<Recovery
 
     let is_pending_target_recovery = update.recovery().status == RecoveryStatus::Pending
         && update.recovery().target_version == version
-        && update.recovery().backup_version != version;
+        && update.recovery().previous_version != version;
 
     if is_pending_target_recovery {
         match error.clone() {
             Some(err) => update.fail(Some(err.to_string()))?,
-            None => update.complete().await?,
+            None => update.resolve()?,
         }
     }
 

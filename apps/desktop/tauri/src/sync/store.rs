@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use crate::{
-    backup::BackupEntry,
     error::Error,
     persisted::{Persistable, Persisted},
     settings::Settings,
@@ -63,8 +62,6 @@ pub struct RemoteSyncWorkspace {
     pub id: String,
     pub name: String,
     pub local_database_path: PathBuf,
-    pub last_snapshot_at: Option<i64>,
-    pub last_snapshot_filename: Option<String>,
     pub last_error: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
@@ -154,8 +151,6 @@ impl Persistable for RemoteSyncStore {
 
         self.workspace.id = sanitize_string(&self.workspace.id);
         self.workspace.name = sanitize_string(&self.workspace.name);
-        self.workspace.last_snapshot_filename =
-            sanitize_optional_string(self.workspace.last_snapshot_filename.clone());
         self.workspace.last_error = sanitize_optional_string(self.workspace.last_error.clone());
 
         if self.workspace.name.is_empty() {
@@ -214,14 +209,6 @@ impl RemoteSync {
 
     pub fn workspace(&self) -> RemoteSyncWorkspace {
         self.store.workspace.clone()
-    }
-
-    pub fn record_snapshot_for_workspace(&mut self, entry: &BackupEntry) -> Result<(), Error> {
-        self.store.workspace.last_snapshot_at = Some(entry.created_at);
-        self.store.workspace.last_snapshot_filename = Some(entry.filename.clone());
-        self.store.workspace.updated_at = timestamp::now();
-
-        self.store.commit()
     }
 
     async fn reconcile(&mut self) -> Result<(), Error> {
@@ -309,8 +296,6 @@ impl RemoteSync {
             id: format!("workspace-{}", now),
             name: "Primary workspace".to_string(),
             local_database_path: path,
-            last_snapshot_at: None,
-            last_snapshot_filename: None,
             last_error: None,
             created_at: now,
             updated_at: now,

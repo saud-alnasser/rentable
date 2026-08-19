@@ -1,21 +1,27 @@
 ---
-aep: 2.6.0
+aep: 2.7.0
 owner: repository
 date: 2026-08-19
 kind: context
 paths:
   - apps/desktop/tauri/src/sync/**
-  - apps/desktop/tauri/src/backup/**
   - apps/desktop/tauri/src/http.rs
   - apps/desktop/src/lib/sync/**
-use-when: "the request touches signing in, the session a workspace replicates under, or local backup"
+use-when: "the request touches signing in, or the session a workspace replicates under"
 ---
 
 # Remote sync
 
 Getting a workspace off this machine and back onto it. **Two subjects share the machinery**: the
 identity a person signs in as, and the session that identity is issued — the window this machine
-may go on replicating inside. Local backup sits beside them until its own retirement (#569).
+may go on replicating inside.
+
+> **Local backup is gone** (#569, 2026-08-19). Requirement 17 of
+> [[efforts/a-workspace-follows-its-user/spec]], directed by the human: Turso holds the record and
+> carries its own point-in-time restore, so the application keeps no snapshot files.
+> `tauri/src/backup/` and its manifest, the snapshot commands, the settings control and the
+> strings that named them are deleted. What the updater took a protected snapshot for is
+> answered by the record being remote rather than by a replacement file.
 
 > **Google Drive sync is gone** (#554, 2026-08-19). Decision 07 of
 > [[efforts/a-workspace-follows-its-user/spec]], directed by the human on 2026-08-18: it is dropped in favour of
@@ -75,10 +81,6 @@ Reaching the control plane and reading back what this machine may still do. It i
 pushes its own writes.
 _Avoid_: calling it a sync in prose about the client. Nothing is exchanged on this call
 
-**Snapshot**:
-A copy of the workspace file, taken on this machine and kept here. Local backup's, and Drive
-never owned it — which is why it survived the retirement and why it retires separately (#569).
-
 ## Boundaries
 
 - **Signing in is one act with no second half.** It establishes an identity and touches no
@@ -121,6 +123,7 @@ never owned it — which is why it survived the retirement and why it retires se
 - **Network clients are built in one place**, `tauri/src/http.rs`. reqwest carries no crypto
   provider here — deliberately, to keep one provider in the tree — so a client built any other way
   panics rather than failing. This is why there is a builder for a two-line construction.
-- **Backup is local, and it is the last thing here that writes a file.** It produced the snapshots
-  Drive exchanged and it did not belong to Drive; #569 is where it retires, and requirement 17 is
-  what it owes first.
+- **Nothing here writes a workspace file any more.** Backup was the last thing that did, and its
+  retirement is why `Database::create_backup` and `Database::restore_backup` are gone rather than
+  merely refused on a replica. What an update leaves behind is a version number and a release
+  URL, in `update.rs`, and no copy of anything.

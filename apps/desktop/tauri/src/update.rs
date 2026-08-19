@@ -3,7 +3,6 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::{
-    backup::{Backup, BackupRecoveryKind, BackupSource, sync_backup_manifest_workspace},
     error::Error,
     persisted::{Persistable, Persisted},
     settings::Settings,
@@ -16,31 +15,54 @@ fn normalize_version(value: &str) -> String {
     value.trim().trim_start_matches('v').to_string()
 }
 
+/// What an update leaves behind for the version that comes after it.
+///
+/// **The protected snapshot is gone, and what replaced it is the record being somewhere else**
+/// (#569, requirement 17). Until 2026-08-19 this took a copy of the database before installing
+/// and put it back if the new version would not start. A workspace is a Turso database with a
+/// local replica now, so the file on this machine is not the record: an update that damages it
+/// costs nothing that is not still held remotely. Copying a replica out was refused by the
+/// engine before it was deleted, so there was nothing left to take a snapshot of either.
+///
+/// **Two things still have to survive an update, and neither is a file.** The session, because
+/// requirement 1 says a version change must not put a working user behind a login page: it is
+/// persisted in `remote-sync.json` rather than held for the run of the process, and
+/// `the_window_survives_the_application_being_closed_and_reopened` in `sync/control.rs` is
+/// where that is exercised. And the route back, which is this file: a version that cannot open
+/// the workspace has to be able to say which release the user came from, because reinstalling
+/// it is the only move left to them.
 #[derive(Clone)]
 pub struct Update {
-    backup: Arc<RwLock<Backup>>,
     recovery: Persisted<Recovery>,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum RecoveryStatus {
+    /// an update was prepared and nothing has said how it went.
     #[default]
     Pending,
-    Applied,
+    /// it went, one way or the other, and there is nothing outstanding.
+    ///
+    /// *`applied` is what a rollback wrote while there was a snapshot to restore, and it is
+    /// read as this: the recovery was over either way.*
+    #[serde(alias = "applied")]
     Obsolete,
 }
 
+/// The route back from a version that will not run.
+///
+/// *`backupFilename` went with the snapshot it named, and `backupVersion` and
+/// `backupReleaseUrl` are `previousVersion` and `previousReleaseUrl`: with no backup to be the
+/// version of, what the field always meant was the release this machine came from.*
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct Recovery {
     pub status: RecoveryStatus,
     pub target_version: String,
-    pub backup_version: String,
-    pub backup_filename: String,
-    #[serde(default)]
+    pub previous_version: String,
     pub update_error: Option<String>,
-    pub backup_release_url: String,
+    pub previous_release_url: String,
 }
 
 impl Default for Recovery {
@@ -48,10 +70,9 @@ impl Default for Recovery {
         Self {
             status: RecoveryStatus::Pending,
             target_version: String::new(),
-            backup_version: String::new(),
-            backup_filename: String::new(),
+            previous_version: String::new(),
             update_error: None,
-            backup_release_url: String::new(),
+            previous_release_url: String::new(),
         }
     }
 }
@@ -59,38 +80,16 @@ impl Default for Recovery {
 impl Persistable for Recovery {
     fn sanitize(&mut self) {
         self.target_version = normalize_version(&self.target_version);
-        self.backup_version = normalize_version(&self.backup_version);
-        self.backup_filename = self.backup_filename.trim().to_string();
-        self.backup_release_url = self.backup_release_url.trim().to_string();
-
-        if self.target_version.is_empty() {
-            self.target_version = String::new();
-        }
-
-        if self.backup_version.is_empty() {
-            self.backup_version = String::new();
-        }
-
-        if self.backup_filename.is_empty() {
-            self.backup_filename = String::new();
-        }
-
-        if self.update_error.is_none() {
-            self.update_error = None;
-        }
-
-        if self.backup_release_url.is_empty() {
-            self.backup_release_url = String::new();
-        }
+        self.previous_version = normalize_version(&self.previous_version);
+        self.previous_release_url = self.previous_release_url.trim().to_string();
     }
 }
 
 impl Recovery {
     pub fn has_data(&self) -> bool {
         !self.target_version.trim().is_empty()
-            || !self.backup_version.trim().is_empty()
-            || !self.backup_filename.trim().is_empty()
-            || !self.backup_release_url.trim().is_empty()
+            || !self.previous_version.trim().is_empty()
+            || !self.previous_release_url.trim().is_empty()
             || self.update_error.is_some()
     }
 }
@@ -98,26 +97,29 @@ impl Recovery {
 impl Update {
     pub const FILENAME: &'static str = "recovery.json";
 
-    pub async fn new(
-        backup: Arc<RwLock<Backup>>,
-        settings: Arc<RwLock<Persisted<Settings>>>,
-    ) -> Result<Self, Error> {
+    pub async fn new(settings: Arc<RwLock<Persisted<Settings>>>) -> Result<Self, Error> {
         let settings = settings.read().await;
         let recovery = Persisted::<Recovery>::load(settings.recovery_path.clone())?;
 
-        Ok(Self { backup, recovery })
+        Ok(Self { recovery })
     }
 
     pub const fn recovery(&self) -> &Persisted<Recovery> {
         &self.recovery
     }
 
+    /// Record which release this machine is leaving, before the installer replaces it.
+    ///
+    /// **Nothing is copied and nothing is written to the workspace.** The whole of what this
+    /// buys is that the version arriving next can name the one it displaced, and that is worth
+    /// writing down before the install rather than after, because after is the case that does
+    /// not happen.
     pub async fn prepare(
         &mut self,
-        backup_version: &str,
+        previous_version: &str,
         target_version: &str,
     ) -> Result<Recovery, Error> {
-        let backup_version = normalize_version(backup_version);
+        let previous_version = normalize_version(previous_version);
         let target_version = normalize_version(target_version);
 
         if target_version.is_empty() {
@@ -135,59 +137,26 @@ impl Update {
 
         let previous_recovery = self.recovery.inner().clone();
 
-        let entry = {
-            let mut backup = self.backup.write().await;
-            backup
-                .create_managed(
-                    BackupSource::Recovery,
-                    Some(BackupRecoveryKind::Update),
-                    true,
-                )
-                .await?
-        };
-        let backup_filename = entry.filename.clone();
-
         self.recovery.target_version = target_version;
-        self.recovery.backup_version = backup_version.clone();
-        self.recovery.backup_filename = entry.filename;
+        self.recovery.previous_version = previous_version.clone();
         self.recovery.status = RecoveryStatus::Pending;
         self.recovery.update_error = None;
-        self.recovery.backup_release_url = format!("{}/tag/v{}", BASE_RELEASE_URL, backup_version);
+        self.recovery.previous_release_url =
+            format!("{}/tag/v{}", BASE_RELEASE_URL, previous_version);
 
         if let Err(error) = self.recovery.commit() {
             *self.recovery = previous_recovery;
 
-            let cleanup_error = {
-                let mut backup = self.backup.write().await;
-                let mut cleanup_errors = Vec::new();
-
-                if let Err(cleanup_error) = backup.set_protected(&backup_filename, false) {
-                    cleanup_errors.push(format!(
-                        "failed to unprotect recovery backup: {}",
-                        cleanup_error
-                    ));
-                }
-
-                if let Err(cleanup_error) = backup.delete(&backup_filename).await {
-                    cleanup_errors.push(format!(
-                        "failed to delete recovery backup: {}",
-                        cleanup_error
-                    ));
-                }
-
-                cleanup_errors
-            };
-
-            return Err(if cleanup_error.is_empty() {
-                error
-            } else {
-                error.with_context(&cleanup_error.join("; "))
-            });
+            return Err(error);
         }
 
         Ok(self.recovery.inner().clone())
     }
 
+    /// The new version is running and cannot open the workspace.
+    ///
+    /// Keeping it pending is what puts the route back on screen at the next launch as well as
+    /// this one, since a user who quits rather than acting on it has not stopped needing it.
     pub fn fail(&mut self, error: Option<String>) -> Result<(), Error> {
         self.recovery.update_error = error;
         self.recovery.status = RecoveryStatus::Pending;
@@ -197,33 +166,13 @@ impl Update {
         Ok(())
     }
 
-    pub async fn complete(&mut self) -> Result<(), Error> {
-        {
-            if !self.recovery.backup_filename.trim().is_empty() {
-                let mut backup = self.backup.write().await;
-                backup.set_protected(&self.recovery.backup_filename, false)?;
-                let _ = backup.cleanup_retained().await;
-            }
-        }
-
+    /// Nothing is outstanding: either the new version opened the workspace, or the user took the
+    /// route back and this machine is running the release it came from.
+    ///
+    /// *It was two methods, `complete` and `rollback`, and the difference between them was that
+    /// one restored a snapshot. Neither restores anything now, so they are one.*
+    pub fn resolve(&mut self) -> Result<(), Error> {
         self.recovery.status = RecoveryStatus::Obsolete;
-
-        self.recovery.commit()?;
-
-        Ok(())
-    }
-
-    pub async fn rollback(&mut self) -> Result<(), Error> {
-        {
-            let mut backup = self.backup.write().await;
-
-            backup.restore(&self.recovery.backup_filename).await?;
-
-            backup.set_protected(&self.recovery.backup_filename, false)?;
-            let _ = backup.cleanup_retained().await;
-        }
-
-        self.recovery.status = RecoveryStatus::Applied;
 
         self.recovery.commit()?;
 
@@ -236,8 +185,6 @@ pub async fn update_prepare(
     app_state: tauri::State<'_, AppState>,
     target_version: String,
 ) -> Result<Recovery, Error> {
-    sync_backup_manifest_workspace(app_state.inner()).await?;
-
     let mut update = app_state.update.write().await;
     let settings = app_state.settings.read().await;
 
@@ -246,9 +193,8 @@ pub async fn update_prepare(
 
 #[cfg(test)]
 mod tests {
-    use super::{Error, RecoveryStatus, Update};
+    use super::{Error, Recovery, RecoveryStatus, Update};
     use crate::{
-        backup::Backup,
         database::{Database, proxy::SQLQuery},
         persisted::Persisted,
         settings::Settings,
@@ -271,7 +217,6 @@ mod tests {
         root: &Path,
     ) -> (
         Update,
-        Arc<RwLock<Backup>>,
         Arc<RwLock<Database>>,
         Arc<RwLock<Persisted<Settings>>>,
     ) {
@@ -281,7 +226,6 @@ mod tests {
         let mut settings =
             Persisted::<Settings>::load(settings_path).expect("failed to load settings");
         settings.database_path = root.join(Database::FILENAME);
-        settings.backup_dir = root.join(Backup::BACKUP_DIRECTORY);
         settings.recovery_path = root.join(Update::FILENAME);
         settings.version = "0.5.1".to_string();
         settings.commit().expect("failed to commit settings");
@@ -296,8 +240,7 @@ mod tests {
 
         // The schema is put here by hand because nothing else puts it anywhere: a workspace's
         // schema is the control plane's and arrives as replicated pages, and `connect()` applies
-        // no migrations. What these tests need of it is only that the file holds a table of the
-        // application's, which is what `is_ready` asks before it will take a snapshot.
+        // no migrations.
         db.write()
             .await
             .execute_single_sql(SQLQuery {
@@ -307,16 +250,11 @@ mod tests {
             .await
             .expect("failed to create the test schema");
 
-        let backup = Arc::new(RwLock::new(
-            Backup::new(db.clone(), settings.clone())
-                .await
-                .expect("failed to create backup manager"),
-        ));
-        let update = Update::new(backup.clone(), settings.clone())
+        let update = Update::new(settings.clone())
             .await
             .expect("failed to create update manager");
 
-        (update, backup, db, settings)
+        (update, db, settings)
     }
 
     #[test]
@@ -325,12 +263,11 @@ mod tests {
             .expect("failed to create tokio runtime")
             .block_on(async {
                 let root = unique_dir("update-prepare-pending-recovery");
-                let (mut update, backup, db, _) = setup_update(&root).await;
+                let (mut update, db, _) = setup_update(&root).await;
 
                 update.recovery.status = RecoveryStatus::Pending;
                 update.recovery.target_version = "0.5.2".to_string();
-                update.recovery.backup_version = "0.5.1".to_string();
-                update.recovery.backup_filename = "snapshot-1.db".to_string();
+                update.recovery.previous_version = "0.5.1".to_string();
                 update
                     .recovery
                     .commit()
@@ -342,15 +279,7 @@ mod tests {
                     .expect_err("expected prepare to reject existing pending recovery");
 
                 assert!(matches!(error, Error::Busy { .. }), "got {error:?}");
-                assert!(
-                    backup
-                        .write()
-                        .await
-                        .list()
-                        .await
-                        .expect("failed to list backups")
-                        .is_empty()
-                );
+                assert_eq!(update.recovery.target_version, "0.5.2");
 
                 db.write().await.disconnect().await;
                 let _ = std::fs::remove_dir_all(root);
@@ -358,12 +287,12 @@ mod tests {
     }
 
     #[test]
-    fn prepare_cleans_up_backup_when_recovery_commit_fails() {
+    fn prepare_keeps_the_previous_route_when_the_record_cannot_be_written() {
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
                 let root = unique_dir("update-prepare-recovery-commit-failure");
-                let (mut update, backup, db, _) = setup_update(&root).await;
+                let (mut update, db, _) = setup_update(&root).await;
                 let recovery_path = root.join(Update::FILENAME);
 
                 std::fs::remove_file(&recovery_path).expect("failed to remove recovery file");
@@ -376,14 +305,124 @@ mod tests {
 
                 assert!(matches!(error, Error::Io { .. }), "got {error:?}");
                 assert!(!update.recovery.has_data());
-                assert!(
-                    backup
-                        .write()
-                        .await
-                        .list()
-                        .await
-                        .expect("failed to list backups")
-                        .is_empty()
+
+                db.write().await.disconnect().await;
+                let _ = std::fs::remove_dir_all(root);
+            });
+    }
+
+    /// **This is what replaced the protected snapshot** (#569, acceptance criterion 18).
+    ///
+    /// The mechanism is that there is no local record to protect: preparing an update writes a
+    /// version and a release URL and touches the workspace not at all, so the file the new
+    /// version opens is byte for byte the one the old version left, and what is in it is still
+    /// there to be read. Asserted on the bytes rather than on the absence of a call, because
+    /// the absence of a call is what a regression would restore.
+    #[test]
+    fn preparing_an_update_leaves_the_workspace_exactly_as_it_was() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = unique_dir("update-prepare-leaves-the-workspace");
+                let (mut update, db, _) = setup_update(&root).await;
+                let database_path = root.join(Database::FILENAME);
+
+                db.write()
+                    .await
+                    .execute_single_sql(SQLQuery {
+                        sql: "INSERT INTO tenant (id, name) VALUES ('t1', 'a tenant')".to_string(),
+                        params: Vec::new(),
+                    })
+                    .await
+                    .expect("failed to write the row");
+
+                // Let go of the file first: what an installer replaces is a binary, and the
+                // question is what the next one finds on disk.
+                db.write().await.disconnect().await;
+
+                let before = std::fs::read(&database_path).expect("failed to read the workspace");
+
+                update
+                    .prepare("0.5.1", "0.5.2")
+                    .await
+                    .expect("failed to prepare the update");
+
+                let after = std::fs::read(&database_path).expect("failed to read the workspace");
+                assert_eq!(before, after, "preparing an update rewrote the workspace");
+
+                // and it is still a database, not merely the same bytes.
+                let mut reopened = Database::new(Arc::new(RwLock::new(
+                    Persisted::<Settings>::load(root.join(Settings::FILENAME))
+                        .expect("failed to load settings"),
+                )));
+                reopened
+                    .connect()
+                    .await
+                    .expect("failed to reopen the workspace");
+                let rows = reopened
+                    .execute_single_sql(SQLQuery {
+                        sql: "SELECT name FROM tenant WHERE id = 't1'".to_string(),
+                        params: Vec::new(),
+                    })
+                    .await
+                    .expect("failed to read the row back");
+                assert_eq!(rows.len(), 1, "the row did not survive the update");
+
+                reopened.disconnect().await;
+                let _ = std::fs::remove_dir_all(root);
+            });
+    }
+
+    /// A recovery file written before the backup surface retired still reads, so a machine
+    /// carrying one does not meet a startup panic instead of an application. `applied` is the
+    /// status that no longer exists, and the fields naming a snapshot are simply not read.
+    #[test]
+    fn a_recovery_written_while_there_were_snapshots_still_reads() {
+        let recovery: Recovery = serde_json::from_str(
+            r#"{
+                "status": "applied",
+                "targetVersion": "0.5.2",
+                "backupVersion": "0.5.1",
+                "backupFilename": "snapshot-1.db",
+                "backupReleaseUrl": "https://example.invalid/v0.5.1"
+            }"#,
+        )
+        .expect("a recovery written with a snapshot should still read");
+
+        assert_eq!(recovery.status, RecoveryStatus::Obsolete);
+        assert_eq!(recovery.target_version, "0.5.2");
+        // the release it named went with the snapshot: there is no route back to offer, and a
+        // resolved recovery offers none anyway.
+        assert_eq!(recovery.previous_version, "");
+    }
+
+    /// The route back is the half of the old mechanism that survives, so it has to survive the
+    /// thing it exists for: the application being replaced by a different build.
+    #[test]
+    fn the_route_back_survives_the_application_being_replaced() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = unique_dir("update-route-back-survives");
+                let (mut update, db, settings) = setup_update(&root).await;
+
+                update
+                    .prepare("0.5.1", "0.5.2")
+                    .await
+                    .expect("failed to prepare the update");
+
+                // a second process over the same file, which is what the installed new version is.
+                let installed = Update::new(settings)
+                    .await
+                    .expect("failed to load the recovery record");
+                let recovery: &Recovery = installed.recovery();
+
+                assert_eq!(recovery.status, RecoveryStatus::Pending);
+                assert_eq!(recovery.target_version, "0.5.2");
+                assert_eq!(recovery.previous_version, "0.5.1");
+                assert_eq!(
+                    recovery.previous_release_url,
+                    "https://github.com/saud-alnasser/rentable/releases/tag/v0.5.1"
                 );
 
                 db.write().await.disconnect().await;

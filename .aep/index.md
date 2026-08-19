@@ -44,7 +44,7 @@ Start at [[protocol]].
 | [[contexts/desktop/contract]] | the request touches contracts, payments, unit assignments, or any derived status | apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/** | repository |
 | [[contexts/desktop/persistence]] | the request touches the schema, migrations, or how queries reach SQLite | apps/desktop/src/lib/platform/database/**, apps/desktop/tauri/src/database/**, apps/desktop/tauri/migrations/** | repository |
 | [[contexts/desktop/property]] | the request touches complexes or units | apps/desktop/src/lib/complex/** | repository |
-| [[contexts/desktop/remote-sync]] | the request touches signing in, the session a workspace replicates under, or local backup | apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/backup/**, apps/desktop/tauri/src/http.rs, apps/desktop/src/lib/sync/** | repository |
+| [[contexts/desktop/remote-sync]] | the request touches signing in, or the session a workspace replicates under | apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/http.rs, apps/desktop/src/lib/sync/** | repository |
 | [[contexts/desktop/tenant]] | the request touches tenants, identity, or phone numbers | apps/desktop/src/lib/tenant/** | repository |
 | [[contexts/repository]] | a term, boundary, or constraint about this repository is in question, before reaching for a narrower context | — | repository |
 

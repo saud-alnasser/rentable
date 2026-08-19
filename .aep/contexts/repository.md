@@ -1,5 +1,5 @@
 ---
-aep: 2.6.0
+aep: 2.7.0
 owner: repository
 date: 2026-08-19
 kind: context
@@ -47,8 +47,9 @@ The unit of syncable state — one local database plus its metadata, mapped to o
 location.
 
 **Snapshot**:
-A point-in-time copy of a workspace database, held as a file. Local backups and remote
-copies are both snapshots.
+A point-in-time copy of a workspace database. **The application keeps none** since #569: the
+copies that exist are Turso's, taken and restored by whoever administers the account.
+_Avoid_: using it for the local replica, which is a live copy rather than a point in time
 
 **Reconcile**:
 Recompute derived state from its source of truth and write the result back. Always local.
@@ -65,7 +66,8 @@ stored value is a cache of the derivation and never the authority.
 **Undo**:
 Reversing the user's own last data change by issuing its inverse. Scoped to the session and
 to what the user did — never to what a sync, a migration, or a recovery did.
-_Avoid_: rollback, restore — those belong to the protected update backup and to snapshots
+_Avoid_: rollback, restore — those belong to Turso's point-in-time restore, which is nobody's
+call here
 
 **Inverse**:
 The call that returns a workspace to the state before a given mutation, issued through the
@@ -144,5 +146,5 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 | contracts, payments, unit assignments, derived status | [[contexts/desktop/contract]] |
 | schema, migrations, how queries reach SQLite | [[contexts/desktop/persistence]] |
 | complexes and units | [[contexts/desktop/property]] |
-| signing in, the session a workspace replicates under, local backup | [[contexts/desktop/remote-sync]] |
+| signing in, the session a workspace replicates under | [[contexts/desktop/remote-sync]] |
 | tenants, identity, phone numbers | [[contexts/desktop/tenant]] |

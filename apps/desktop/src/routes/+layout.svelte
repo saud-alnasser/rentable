@@ -84,9 +84,8 @@
 
 		return (
 			recovery.targetVersion.trim().length > 0 ||
-			recovery.backupVersion.trim().length > 0 ||
-			recovery.backupFilename.trim().length > 0 ||
-			recovery.backupReleaseUrl.trim().length > 0 ||
+			recovery.previousVersion.trim().length > 0 ||
+			recovery.previousReleaseUrl.trim().length > 0 ||
 			recovery.updateError !== null
 		);
 	}
@@ -347,10 +346,7 @@
 					toast.error($LL.settingsHooks.sessionExpired());
 					await queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync });
 				} else {
-					await Promise.all([
-						queryClient.invalidateQueries({ queryKey: settingsKeys.backups }),
-						queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync })
-					]);
+					await queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync });
 				}
 			}
 		});

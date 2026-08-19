@@ -1,4 +1,3 @@
-pub mod backup;
 pub mod bootstrap;
 pub mod database;
 pub mod diagnostics;
@@ -23,7 +22,6 @@ use tauri::{Manager, async_runtime};
 use tauri_plugin_fs::FsExt;
 use tokio::sync::RwLock;
 
-use crate::backup::Backup;
 use crate::diagnostics::{DiagnosticLog, RotationLimits};
 use crate::persisted::Persisted;
 use crate::settings::Settings;
@@ -87,7 +85,6 @@ pub fn run() {
                 if settings.database_path.as_os_str().is_empty() {
                     settings.database_path = db_dir.join(Database::FILENAME);
                 }
-                settings.backup_dir = data_dir.join(Backup::BACKUP_DIRECTORY);
                 settings.recovery_path = data_dir.join(Update::FILENAME);
                 settings.diagnostics_dir = diagnostics_dir;
                 settings.version = env!("CARGO_PKG_VERSION").to_string();
@@ -98,33 +95,14 @@ pub fn run() {
 
                 let db = Arc::new(RwLock::new(Database::new(settings.clone())));
 
-                let backup = Arc::new(RwLock::new(
-                    Backup::new(db.clone(), settings.clone())
-                        .await
-                        .expect("failed to create backup manager"),
-                ));
-
                 let remote_sync = Arc::new(RwLock::new(
                     RemoteSync::new(settings.clone(), data_dir.join(RemoteSync::FILENAME))
                         .await
                         .expect("failed to create remote sync manager"),
                 ));
 
-                {
-                    let workspace = {
-                        let remote_sync = remote_sync.read().await;
-                        Some(remote_sync.workspace())
-                    };
-
-                    backup
-                        .write()
-                        .await
-                        .sync_manifest_workspace(workspace.as_ref())
-                        .expect("failed to sync backup manifest workspace");
-                }
-
                 let update = Arc::new(RwLock::new(
-                    Update::new(backup.clone(), settings.clone())
+                    Update::new(settings.clone())
                         .await
                         .expect("failed to create update manager"),
                 ));
@@ -132,7 +110,6 @@ pub fn run() {
                 handle.manage(AppState {
                     db,
                     settings,
-                    backup,
                     remote_sync,
                     update,
                 });
@@ -153,14 +130,8 @@ pub fn run() {
             settings::settings_get,
             settings::settings_set,
             diagnostics::diagnostics_write,
-            backup::backup_list,
-            backup::backup_create,
-            backup::backup_restore,
-            backup::backup_delete,
             sync::remote_sync_state_get,
             sync::remote_sync_renew_session,
-            sync::remote_sync_snapshot_now,
-            sync::remote_sync_autosave_now,
             sync::google_sign_in,
             sync::google_sign_out,
             export::export_write,

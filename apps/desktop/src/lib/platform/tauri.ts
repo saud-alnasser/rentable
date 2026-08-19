@@ -9,7 +9,6 @@ import { check, type Update as TauriUpdate } from '@tauri-apps/plugin-updater';
 
 import type {
 	AvailableUpdate,
-	BackupEntry,
 	DiagnosticRecord,
 	ExportSheet,
 	GoogleSignInPhase,
@@ -33,7 +32,6 @@ import { withExtension } from '$lib/platform/path';
  */
 export type {
 	AvailableUpdate,
-	BackupEntry,
 	DiagnosticRecord,
 	ExportCell,
 	ExportSheet,
@@ -180,12 +178,6 @@ export const tauri = {
 		get: () => invoke<Settings>('settings_get'),
 		set: (changeset: SettingsChangeset) => invoke<Settings>('settings_set', { changeset })
 	},
-	backup: {
-		list: () => invoke<BackupEntry[]>('backup_list'),
-		create: () => invoke<BackupEntry>('backup_create'),
-		delete: (filename: string) => invoke<void>('backup_delete', { filename }),
-		restore: (filename: string) => invoke<void>('backup_restore', { filename })
-	},
 	auth: {
 		google: {
 			/**
@@ -206,8 +198,6 @@ export const tauri = {
 	},
 	remoteSync: {
 		getState: () => invoke<RemoteSyncState>('remote_sync_state_get'),
-		snapshotNow: () => invoke<RemoteSyncState>('remote_sync_snapshot_now'),
-		autosaveNow: () => invoke<RemoteSyncState>('remote_sync_autosave_now'),
 		renewSession: () => invoke<RemoteSyncState>('remote_sync_renew_session')
 	}
 } satisfies Host;

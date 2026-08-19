@@ -42,8 +42,7 @@ mock.module('$lib/platform/tauri', {
 	exports: {
 		tauri: {
 			remoteSync: {
-				getState: async () => remoteState.state,
-				autosaveNow: async () => remoteState.state
+				getState: async () => remoteState.state
 			}
 		}
 	}
