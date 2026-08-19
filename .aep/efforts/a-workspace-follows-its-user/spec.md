@@ -378,7 +378,7 @@ without reopening any decision made here. **Neither is built.**
 10. `createDatabase` still returns one client type. Production, test and hosted transports all
     satisfy it, and a search of the tree finds no second database client type.
 11. A procedure needing the acting user reads it from the context, and
-    `src/lib/api/context.test.mjs` covers a request carrying identity and one carrying none —
+    `src/lib/api/tests/context.test.ts` covers a request carrying identity and one carrying none —
     the second being an ordinary local-workspace request rather than an error case.
 12. Applying a migration to a hosted workspace is a documented path that has been exercised end
     to end. A client older than the workspace schema shows a message naming the action to take,
@@ -979,7 +979,7 @@ schema stays where it is, in `apps/desktop/`, until something else consumes it.
 
 ***Built 2026-08-18 by #549, so the paragraph above now describes code.*** It is
 `@rentable/control-plane` at `apps/control-plane/`, and its schema is three tables — `account`,
-`workspace`, `membership` — with `apps/control-plane/src/schema.test.mjs` asserting that the set
+`workspace`, `membership` — with `apps/control-plane/src/tests/schema.test.ts` asserting that the set
 is exactly those three. **"No domain table" is therefore a test rather than an intention**, which
 matters because nothing else in the tree would object to one: a contract table here is the first
 step of the shape *Architecture* rejects, and it would arrive looking like a convenience.
@@ -1315,7 +1315,7 @@ errors across seven files**.
 | `Number(…)` coercions in a form | **2** | `contract/component/form.svelte:230,336` |
 | `Number.isInteger(id) && id > 0` validity gates | **5** | `complex/query.ts:143`, `history/query.ts:18`, `payment/query.ts:59`, `tenant/component/details.svelte:24,25` |
 | `orderBy(… .id)` uses | 19 | preserved by UUIDv7 — one needs care, below |
-| numeric id literals in tests | 49 | nine `*.test.mjs` files |
+| numeric id literals in tests | 49 | nine `*.test.ts` files |
 
 *The 58 is counted rather than grepped: a first sweep answered 61, and three of those were
 `design/import.ts`'s file row numbers and the carousel's scroll positions, which are not ids.*
@@ -1461,7 +1461,7 @@ The local-to-hosted conversion is **decision 12's and is not planned here.**
 | 1 | **Manual, unavoidably so, and not met.** Install the last pre-effort release, populate it, update through the real updater. No CI run substitutes for it. **Rehearsed 2026-08-18 on `v0.12.0` → `v0.13.0` — a pair containing none of this effort's changes**, so the procedure is proven and the criterion is not. It is discharged only at this effort's release. Three things stay open: the plugin's own check-download-relaunch, a Drive link surviving an update, and the real subject |
 | 2 | A search of the tree for a workspace list or switcher, returning nothing; plus that `RemoteSyncState.workspace` is still singular and `Database::FILENAME` still `"app.db"` |
 | 10 | A search of the tree finding one database client type, and the existing router tests still passing over `createMemoryDatabase()` unchanged — the second being the real check, since it is what a forked client type would break |
-| 11 | `src/lib/api/context.test.mjs`, which already exists, covering a request carrying identity **and one carrying none** — the second being an ordinary local-workspace request rather than an error case |
+| 11 | `src/lib/api/tests/context.test.ts`, which already exists, covering a request carrying identity **and one carrying none** — the second being an ordinary local-workspace request rather than an error case |
 | 12 (local half) | The existing Rust migration tests, still passing **unchanged**. Unchanged is the assertion; a passing rewritten test proves nothing here. *Note 2026-08-18: the identity migration adds a new Rust migration and its own tests — that is additive, and does not license rewriting the existing ones* |
 | 16 | A test that **moves the clock rather than waiting**: sign in, disconnect, advance past three days, and the application asks for a sign-in; repeat with one reach inside the window, and it does not. It is a clock test because `Clock` is already injected into the context (`src/lib/api/context.ts:36`), so no new seam is needed for it |
 | 17 | Two clients, separate directories, both disconnected, each creating records the other has never seen, both synced — then a count per concept, `history` included. **Written first as a failing test against the rowid schema**, so the collision is demonstrated before it is fixed |
@@ -2095,7 +2095,7 @@ cheap.
 It costs nothing to avoid, which is why this is a note rather than a reopening: **distinct
 powers of two sum to exactly what an OR of them produces**, and a single bit reads back as
 `Math.floor(permissions / 2 ** bit) % 2`. `apps/control-plane/src/permission.ts` is written that
-way and `permission.test.mjs` pins the reason, so the next person to reach for `|` finds a test
+way and `permission.test.ts` pins the reason, so the next person to reach for `|` finds a test
 saying why it is not there.
 
 **Option A's SQL half is unaffected**, and that is the reason the decision stands: SQLite's `&`

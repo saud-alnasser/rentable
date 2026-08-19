@@ -146,7 +146,7 @@ choosing a client that would have to be replaced to deploy is not the same as de
 
 ## The schema
 
-Three tables, in `src/schema.ts`, and `src/schema.test.mjs` is what holds them to it.
+Three tables, in `src/schema.ts`, and `src/tests/schema.test.ts` is what holds them to it.
 
 - **`account`** — somebody Google vouched for. Google's `sub` is stored beside the email
   because it survives an email change. The profile is refreshed on every sign-in: Google is the

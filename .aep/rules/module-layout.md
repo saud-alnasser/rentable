@@ -47,6 +47,13 @@ A third-party tool's configuration keys are its API, not this repository's names
 generator's schema fixes a key this table forbids, the key stays and only the path it
 points at is chosen here.
 
+**`tests/` is the one plural directory name here, and it is a declared exception** rather than
+a hole in the row above. It holds what covers a concept rather than part of the concept, so
+"a directory names a concept" is not the question it answers; the singular reads as one test;
+and Rust already spends `test/` on shared scaffolding, so the two would collide.
+[[rules/testing]] defines it and this is the only place it is allowed. Settled 2026-08-18 with
+#559.
+
 ## A Rust directory is rooted by `mod.rs`
 
 A module with children is a `<concept>/` directory whose root is `mod.rs` — `sync/mod.rs`,
