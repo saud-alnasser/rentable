@@ -1,5 +1,5 @@
 ---
-aep: 2.6.0
+aep: 2.7.0
 owner: repository
 date: 2026-08-19
 ---
@@ -21,7 +21,7 @@ Start at [[protocol]].
 | [[policies/authority]] | two sources disagree, or the work reaches a repository other than this one | — | — | protocol |
 | [[policies/engineering]] | writing code, or about to state anything about this repository you have not verified | — | — | protocol |
 | [[policies/execution]] | an effort is in progress — deriving tasks, dispatching, implementing, or reviewing | — | — | protocol |
-| [[policies/reporting]] | authoring or auditing a skill's report, or a turn's opening or closing block does not take the shape it should | — | — | protocol |
+| [[policies/reporting]] | about to write anything a human will read — session output, a commit message, a pull request, a code comment, a README — or a turn's opening or closing block does not take the shape it should | — | — | protocol |
 
 ## Rules
 
@@ -95,6 +95,7 @@ Start at [[protocol]].
 | [[skills/implement]] | a task exists and is ready to build | implement | protocol |
 | [[skills/install]] | a repository has no .aep/ directory and should start running AEP | implement | protocol |
 | [[skills/plan]] | a spec is settled and the technical approach is not yet decided | plan | protocol |
+| [[skills/prose]] | about to emit text a human will read, or editing text that reads as though nobody wrote it | specify, plan, refine, implement, research, prototype, review, test | protocol |
 | [[skills/prototype]] | a technical or design question will not settle on paper and needs building to answer | prototype | protocol |
 | [[skills/prune]] | the .aep/ tree has accumulated stale, contradicted, or orphaned artifacts | review | protocol |
 | [[skills/refine]] | a spec exists but reads as ambiguous, under-constrained, or too agreeable | refine | protocol |
