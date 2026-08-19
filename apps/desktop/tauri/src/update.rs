@@ -247,7 +247,12 @@ pub async fn update_prepare(
 #[cfg(test)]
 mod tests {
     use super::{Error, RecoveryStatus, Update};
-    use crate::{backup::Backup, database::Database, persisted::Persisted, settings::Settings};
+    use crate::{
+        backup::Backup,
+        database::{Database, proxy::SQLQuery},
+        persisted::Persisted,
+        settings::Settings,
+    };
     use std::{path::Path, path::PathBuf, sync::Arc};
     use tokio::{runtime::Runtime, sync::RwLock};
 
@@ -276,7 +281,6 @@ mod tests {
         let mut settings =
             Persisted::<Settings>::load(settings_path).expect("failed to load settings");
         settings.database_path = root.join(Database::FILENAME);
-        settings.migration_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("migrations");
         settings.backup_dir = root.join(Backup::BACKUP_DIRECTORY);
         settings.recovery_path = root.join(Update::FILENAME);
         settings.version = "0.5.1".to_string();
@@ -289,6 +293,19 @@ mod tests {
             .connect()
             .await
             .expect("failed to connect test database");
+
+        // The schema is put here by hand because nothing else puts it anywhere: a workspace's
+        // schema is the control plane's and arrives as replicated pages, and `connect()` applies
+        // no migrations. What these tests need of it is only that the file holds a table of the
+        // application's, which is what `is_ready` asks before it will take a snapshot.
+        db.write()
+            .await
+            .execute_single_sql(SQLQuery {
+                sql: "CREATE TABLE tenant (id TEXT PRIMARY KEY, name TEXT)".to_string(),
+                params: Vec::new(),
+            })
+            .await
+            .expect("failed to create the test schema");
 
         let backup = Arc::new(RwLock::new(
             Backup::new(db.clone(), settings.clone())

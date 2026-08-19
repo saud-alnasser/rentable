@@ -11,7 +11,6 @@ const DEFAULT_ENDING_SOON_NOTICE_DAYS: u16 = 60;
 pub struct Settings {
     pub ending_soon_notice_days: u16,
     pub database_path: PathBuf,
-    pub migration_dir: PathBuf,
     pub backup_dir: PathBuf,
     pub recovery_path: PathBuf,
     pub diagnostics_dir: PathBuf,
@@ -26,7 +25,6 @@ struct SettingsStored {
     database_path: PathBuf,
     default_database_path: PathBuf,
     active_database_path: Option<PathBuf>,
-    migration_dir: PathBuf,
     backup_dir: PathBuf,
     recovery_path: PathBuf,
     diagnostics_dir: PathBuf,
@@ -39,7 +37,6 @@ impl Default for Settings {
         Self {
             ending_soon_notice_days: DEFAULT_ENDING_SOON_NOTICE_DAYS,
             database_path: PathBuf::new(),
-            migration_dir: PathBuf::new(),
             backup_dir: PathBuf::new(),
             recovery_path: PathBuf::new(),
             diagnostics_dir: PathBuf::new(),
@@ -62,7 +59,6 @@ impl From<SettingsStored> for Settings {
         Self {
             ending_soon_notice_days: value.ending_soon_notice_days,
             database_path,
-            migration_dir: value.migration_dir,
             backup_dir: value.backup_dir,
             recovery_path: value.recovery_path,
             diagnostics_dir: value.diagnostics_dir,
@@ -155,6 +151,11 @@ mod tests {
     use super::Settings;
     use std::path::PathBuf;
 
+    /// A settings file written by an earlier version still loads, `migrationDir` and all.
+    ///
+    /// The key is left in the fixture deliberately: the client applies no migrations any more and
+    /// the field is gone from `Settings`, so what this now also pins is that an installed copy's
+    /// settings file does not have to be rewritten to be readable.
     #[test]
     fn deserializes_legacy_database_paths_preferring_active_path() {
         let settings = serde_json::from_str::<Settings>(

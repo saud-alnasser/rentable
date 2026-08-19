@@ -6,11 +6,10 @@
 //! where somebody forgot, and this one is sent to a service that decides from it whether to
 //! migrate a hosted workspace database, to mint a token, or to refuse.
 //!
-//! **It says nothing about a local workspace**, which is migrated exactly as it always has been —
-//! `super::migrations` reads the same directory at launch and applies whatever the database has
-//! not had. Decision 06 moved nothing there. What this number is for is the other mode: a hosted
-//! workspace's schema is the control-plane API's to own, and the client's part of that bargain is
-//! saying which schema it was built against when it asks for a token.
+//! **Nothing on this side applies a migration any more**, so this number is the only thing the
+//! directory is still counted for. A workspace's schema is the control-plane API's to own — it is
+//! applied at the token mint and arrives here as replicated pages — and the client's part of that
+//! bargain is saying which schema it was built against when it asks for a token.
 //!
 //! Where it is sent is the request for a workspace token, which is a later ticket's — this is the
 //! number that request carries, and it is derived here because the derivation is what had to be

@@ -27,7 +27,6 @@
 		}
 	},
 	"bundle": {
-		"resources": ["migrations"],
 		"active": true,
 		"createUpdaterArtifacts": true,
 		"targets": "all",

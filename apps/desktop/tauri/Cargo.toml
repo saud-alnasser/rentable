@@ -54,8 +54,7 @@ tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread", "time"] }
 # `sqlite-bundled` compiles SQLite into the binary, so there is no system library
 # to depend on. No TLS feature is selected because nothing here speaks to a remote
 # database — the TLS stack this crate does need is reqwest's, chosen below.
-sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "macros", "sqlite", "sqlite-bundled", "migrate", "uuid", "chrono"] }
-sqlparser = { version = "0.62.0" }
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "macros", "sqlite", "sqlite-bundled", "uuid", "chrono"] }
 base64 = { version = "0.23.0" }
 chrono = { version = "0.4.45", default-features = false, features = ["std"] }
 dotenvy = { version = "0.15.7" }

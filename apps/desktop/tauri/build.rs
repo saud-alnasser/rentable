@@ -51,14 +51,15 @@ fn shipped_migrations(manifest_dir: &Path) -> PathBuf {
     folder
 }
 
-/// Put the shipped `.sql` files where the Rust runner and Tauri's bundler expect them.
+/// Put the shipped `.sql` files where this crate's own tests expect them.
 ///
-/// **`tauri/migrations/` is generated, and gitignored, and that is the whole reason this function
-/// exists.** `database/migrations.rs` takes a directory and reads it at launch, Tauri copies one
-/// into the installer as a resource, and the `#542` harness resolves it from `CARGO_MANIFEST_DIR`
-/// — none of which could follow the migrations into a package without changing a harness that
-/// acceptance criterion 12 requires to pass **unchanged**. So the package stays the one tracked
-/// copy and this mirrors it, on every cargo build including the one `cargo test` performs.
+/// **`tauri/migrations/` is generated, and gitignored, and one reader is left.** It used to have
+/// three: the Rust runner read it at launch, Tauri copied it into the installer as a resource,
+/// and `database/version.rs`'s harness resolves it from `CARGO_MANIFEST_DIR`. The client applies
+/// no migrations now and ships none, so the first two are gone and the harness is the reason this
+/// mirror survives — acceptance criterion 12 requires those two tests to pass **unchanged**, and
+/// they resolve the directory rather than the package. So the package stays the one tracked copy
+/// and this mirrors it, on every cargo build including the one `cargo test` performs.
 ///
 /// **It mirrors rather than tops up**: a `.sql` file here that the package no longer has is
 /// removed, so deleting a migration cannot leave a stale one to be applied.

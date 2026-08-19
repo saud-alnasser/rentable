@@ -92,15 +92,6 @@ pub fn run() {
                 settings.diagnostics_dir = diagnostics_dir;
                 settings.version = env!("CARGO_PKG_VERSION").to_string();
 
-                settings.migration_dir = if cfg!(debug_assertions) {
-                    PathBuf::from("migrations")
-                } else {
-                    handle
-                        .path()
-                        .resolve("migrations", tauri::path::BaseDirectory::Resource)
-                        .expect("failed to resolve migrations")
-                };
-
                 settings.commit().expect("failed to commit settings");
 
                 let settings = Arc::new(RwLock::new(settings));
