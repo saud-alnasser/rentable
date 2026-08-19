@@ -3,7 +3,6 @@
 	import type {
 		GoogleDriveConflictResolution,
 		RemoteSyncAccount,
-		RemoteSyncProvider,
 		RemoteSyncState,
 		RemoteSyncWorkspace
 	} from '$lib/platform/tauri';
@@ -40,6 +39,7 @@
 	import GoogleDriveLinkConflictPanel from '$lib/sync/component/conflict-panel.svelte';
 	import { LinkSession } from '$lib/sync/link-session.svelte';
 	import { workspaceConflictSignature } from '$lib/sync/pending-conflict';
+	import { isGoogleDriveLinked } from '$lib/sync/workspace';
 	import { pendingConflict } from '$lib/sync/pending-conflict.svelte';
 	import HardDriveIcon from '@lucide/svelte/icons/hard-drive';
 	import LinkIcon from '@lucide/svelte/icons/link';
@@ -120,7 +120,7 @@
 	const conflictSignature = $derived(workspaceConflictSignature(syncState));
 
 	$effect(() => {
-		if (activeWorkspace.provider !== 'googleDrive') {
+		if (!isGoogleDriveLinked(activeWorkspace)) {
 			pendingConflict.clear();
 			pendingConflict.forget();
 			lastInspectedGoogleDriveSignature = null;
@@ -189,7 +189,7 @@
 	}
 
 	async function syncGoogleDriveNow() {
-		if (activeWorkspace.provider !== 'googleDrive' || isRunningManualGoogleDriveSync) {
+		if (!isGoogleDriveLinked(activeWorkspace) || isRunningManualGoogleDriveSync) {
 			return;
 		}
 
@@ -294,18 +294,12 @@
 		linkConflict ? getConflictPresentation(linkConflict, $LL) : undefined
 	);
 
-	// named rather than reached by elimination. `provider` has three values, and a two-arm
-	// conditional would have labelled the one it does not name as whichever arm it fell into —
-	// a workspace of record somewhere else, reading on screen as one kept on this machine.
-	function getProviderLabel(provider: RemoteSyncProvider) {
-		switch (provider) {
-			case 'googleDrive':
-				return $LL.settings.syncProviderGoogleDrive();
-			case 'hosted':
-				return $LL.settings.syncProviderHosted();
-			case 'local':
-				return $LL.settings.syncProviderLocal();
-		}
+	// where this workspace is kept, and there are two answers rather than three: every workspace
+	// is of record in Turso, and a linked one is additionally still exchanging with Drive.
+	function getProviderLabel(workspace: RemoteSyncWorkspace) {
+		return isGoogleDriveLinked(workspace)
+			? $LL.settings.syncProviderGoogleDrive()
+			: $LL.settings.syncProviderHosted();
 	}
 
 	function getAvatarLabel(workspace: RemoteSyncWorkspace, account: RemoteSyncAccount | null) {
@@ -348,8 +342,8 @@
 		workspace: RemoteSyncWorkspace,
 		account: RemoteSyncAccount | null
 	): { label: string; variant: BadgeVariant } {
-		if (workspace.provider !== 'googleDrive') {
-			return { label: $LL.settings.syncProviderLocal(), variant: 'secondary' };
+		if (!isGoogleDriveLinked(workspace)) {
+			return { label: $LL.settings.syncProviderHosted(), variant: 'secondary' };
 		}
 
 		if (
@@ -433,15 +427,15 @@
 						<div class="min-w-0 flex-1 space-y-2">
 							<div class="flex flex-wrap items-center gap-2">
 								<p class="text-lg font-semibold">{activeWorkspace.name}</p>
-								{#if activeWorkspace.provider === 'googleDrive'}
-									<Badge variant="outline">{getProviderLabel(activeWorkspace.provider)}</Badge>
+								{#if isGoogleDriveLinked(activeWorkspace)}
+									<Badge variant="outline">{getProviderLabel(activeWorkspace)}</Badge>
 									<Badge variant={getWorkspaceStatus(activeWorkspace, activeAccount).variant}>
 										{getWorkspaceStatus(activeWorkspace, activeAccount).label}
 									</Badge>
 								{/if}
 							</div>
 							<p class="text-sm text-muted-foreground">
-								{activeAccount?.email ?? getProviderLabel(activeWorkspace.provider)}
+								{activeAccount?.email ?? getProviderLabel(activeWorkspace)}
 							</p>
 						</div>
 					</div>
@@ -458,7 +452,7 @@
 							</dd>
 						</div>
 
-						{#if activeWorkspace.provider === 'googleDrive'}
+						{#if isGoogleDriveLinked(activeWorkspace)}
 							<div class="min-w-0">
 								<dt class="text-xs tracking-[0.18em] text-muted-foreground uppercase">
 									{$LL.common.labels.lastSyncTime()}
@@ -485,7 +479,7 @@
 						<p class="text-sm text-muted-foreground">
 							{conflictPresentation?.shortDescription}
 						</p>
-					{:else if activeWorkspace.provider === 'googleDrive' && activeAccount}
+					{:else if isGoogleDriveLinked(activeWorkspace) && activeAccount}
 						<!-- the usage figures are stated once, in the panel above that owns them. They
 						     were repeated here as well, sixty lines apart, saying nothing the second time. -->
 						<div class="grid gap-2 sm:grid-cols-2">

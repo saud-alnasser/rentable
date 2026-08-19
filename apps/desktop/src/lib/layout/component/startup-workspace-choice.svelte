@@ -14,6 +14,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import ConflictDismiss from '$lib/sync/component/conflict-dismiss.svelte';
 	import GoogleDriveLinkConflictPanel from '$lib/sync/component/conflict-panel.svelte';
+	import { isGoogleDriveLinked } from '$lib/sync/workspace';
 	import CloudIcon from '@lucide/svelte/icons/cloud';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import HardDriveIcon from '@lucide/svelte/icons/hard-drive';
@@ -80,7 +81,7 @@
 
 	function getLatestSnapshotTimestamp(workspace: RemoteSyncWorkspace) {
 		const snapshotAt = workspace.lastSnapshotAt ?? 0;
-		const syncedAt = workspace.provider === 'googleDrive' ? (workspace.lastSyncedAt ?? 0) : 0;
+		const syncedAt = isGoogleDriveLinked(workspace) ? (workspace.lastSyncedAt ?? 0) : 0;
 		const latest = Math.max(snapshotAt, syncedAt);
 
 		return latest > 0 ? latest : null;
@@ -152,12 +153,10 @@
 						<Tooltip.Root>
 							<Tooltip.Trigger>
 								<Badge variant="outline">
-									{#if activeWorkspace.provider === 'googleDrive'}
+									{#if isGoogleDriveLinked(activeWorkspace)}
 										{$LL.settings.syncWorkspaceStatusSynced()}
-									{:else if activeWorkspace.provider === 'hosted'}
-										{$LL.settings.syncProviderHosted()}
 									{:else}
-										{$LL.settings.syncProviderLocal()}
+										{$LL.settings.syncProviderHosted()}
 									{/if}
 								</Badge>
 							</Tooltip.Trigger>

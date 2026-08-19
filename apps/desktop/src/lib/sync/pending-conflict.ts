@@ -5,7 +5,7 @@ import type {
 	GoogleDriveSyncOutcome,
 	RemoteSyncState
 } from '$lib/platform/tauri';
-import { shouldDeferWorkspaceConflict } from '$lib/sync/workspace';
+import { isGoogleDriveLinked, shouldDeferWorkspaceConflict } from '$lib/sync/workspace';
 
 /** what settling a conflict actually does, injected so the sequence can be exercised without an account. */
 export type PendingConflictDriver = {
@@ -40,8 +40,8 @@ export function workspaceConflictSignature(state: RemoteSyncState | null): strin
 	const workspace = state?.workspace;
 
 	// a pending conflict is a Drive shape: two whole snapshots that disagree and a user asked
-	// to choose. A hosted workspace has neither half of that, so it has none to hold.
-	if (!workspace || workspace.provider !== 'googleDrive') {
+	// to choose. A workspace of record in Turso has neither half of that, so it has none to hold.
+	if (!workspace || !isGoogleDriveLinked(workspace)) {
 		return null;
 	}
 

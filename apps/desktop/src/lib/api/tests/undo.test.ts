@@ -417,7 +417,7 @@ describe('undoing a record change', () => {
 	it('cannot apply a set-shaped inverse once the remote has replaced the workspace', async () => {
 		const linked = fakeSyncState({
 			googleDriveReady: true,
-			workspace: fakeWorkspace({ provider: 'googleDrive', accountId: 'account' })
+			workspace: fakeWorkspace({ accountId: 'account' })
 		});
 		const tenant = await seedTenant(caller);
 		const contract = await run(useCreateContract, {
@@ -466,7 +466,7 @@ describe('undoing a record change', () => {
 	it('can apply nothing once the remote has replaced the workspace', async () => {
 		const linked = fakeSyncState({
 			googleDriveReady: true,
-			workspace: fakeWorkspace({ provider: 'googleDrive', accountId: 'account' })
+			workspace: fakeWorkspace({ accountId: 'account' })
 		});
 
 		const tenant = await run(useCreateTenant, {

@@ -61,7 +61,7 @@ mock.module('$lib/platform/tauri', {
 				},
 				autosaveNow: async () => {
 					calls.push('autosaveNow');
-					return fakeSyncState({ workspace: fakeWorkspace({ provider: 'local' }) });
+					return fakeSyncState({ workspace: fakeWorkspace() });
 				},
 				googleDrive: {
 					sync: async (input?: { manual?: boolean }) => {
@@ -79,12 +79,8 @@ mock.module('$lib/platform/tauri', {
 	}
 });
 
-const {
-	syncWorkspaceNow,
-	syncWorkspaceBeforeExit,
-	inspectWorkspaceSyncState,
-	shouldChooseWorkspaceMode
-} = await import('$lib/sync/workspace');
+const { syncWorkspaceNow, syncWorkspaceBeforeExit, inspectWorkspaceSyncState } =
+	await import('$lib/sync/workspace');
 const { inverseStack } = await import('$lib/design/inverse');
 
 const A_DAY = 24 * 60 * 60 * 1000;
@@ -95,10 +91,18 @@ function window(days: number): SessionWindow {
 	return { accountId: 'account-1', expiresAt: at, replicaExpiresAt: at, updatedAt: Date.now() };
 }
 
+/**
+ * a build that knows where its control plane is, on a workspace nobody linked to Drive.
+ *
+ * `controlPlaneReady` is not decoration: the dispatcher refuses to ask for a sign-in a build
+ * cannot offer, so a fixture that left it false would exercise that refusal instead of the
+ * window this file is about.
+ */
 function hostedShell(session: SessionWindow | null): RemoteSyncState {
 	return fakeSyncState({
 		googleDriveReady: false,
-		workspace: fakeWorkspace({ id: 'workspace-1', provider: 'hosted', accountId: 'account-1' }),
+		controlPlaneReady: true,
+		workspace: fakeWorkspace({ id: 'workspace-1' }),
 		session
 	});
 }
@@ -106,11 +110,7 @@ function hostedShell(session: SessionWindow | null): RemoteSyncState {
 function driveState() {
 	return fakeSyncState({
 		googleDriveReady: true,
-		workspace: fakeWorkspace({
-			id: 'workspace-1',
-			provider: 'googleDrive',
-			accountId: 'account-1'
-		})
+		workspace: fakeWorkspace({ id: 'workspace-1', accountId: 'account-1' })
 	});
 }
 
@@ -195,21 +195,6 @@ test('a sync needing a decision reports it and transfers nothing', async () => {
 	assert.ok(!calls.includes('reconcile'), 'a deferred sync touched the local database');
 });
 
-test('an unlinked workspace is snapshotted locally only where the caller asked', async () => {
-	const localState = fakeSyncState({
-		googleDriveReady: false,
-		workspace: fakeWorkspace({ id: 'w', provider: 'local' })
-	});
-
-	reset();
-	assert.equal((await syncWorkspaceNow(localState)).action, 'none');
-	assert.deepEqual(calls, []);
-
-	reset();
-	assert.equal((await syncWorkspaceNow(localState, { autosaveLocal: true })).action, 'autosaved');
-	assert.deepEqual(calls, ['autosaveNow']);
-});
-
 test('the last sync of a session recomputes before it sends, not after', async () => {
 	reset();
 
@@ -243,34 +228,38 @@ test('a second sync waits for the first rather than colliding with it', async ()
 	);
 });
 
-// THE THIRD VALUE
+// ONE RECORD OF TRUTH
 //
-// `provider` has three values now, and every branch that reads it has to answer for the one
-// that is neither `local` nor `googleDrive`. These are not tests that the hosted transport
-// works — it does not exist yet (#548). They are tests that the existing dispatcher does not
-// mistake a hosted workspace for a Drive one or for an unlinked one, which is what a
-// `!== 'googleDrive'` and a `=== 'local'` respectively would do if nobody checked.
+// The mode is gone, so the dispatcher has one question left — *is this workspace linked to a
+// Drive folder* — and everything else is of record in Turso. These are not tests that the hosted
+// transport works; it does not exist yet (#548). They are tests that a workspace nobody linked is
+// carried to the control plane rather than treated as a file on this machine, which is what the
+// `=== 'local'` arm did until it was deleted.
 
 function hostedState() {
 	return fakeSyncState({
 		googleDriveReady: true,
-		workspace: fakeWorkspace({
-			id: 'workspace-1',
-			provider: 'hosted',
-			accountId: 'account-1'
-		})
+		controlPlaneReady: true,
+		workspace: fakeWorkspace({ id: 'workspace-1' })
 	});
 }
+// Removing the mode made every unlinked workspace come through the hosted path, and a build with
+// no control plane behind it would then have asked for a sign-in on every write — an instruction
+// nobody can follow, raised as an error toast by the autosync manager after each save.
+test('a build with no control plane behind it is never asked to sign in to one', async () => {
+	for (const session of [null, window(-1), window(3)]) {
+		reset();
+		const unconfigured = fakeSyncState({
+			googleDriveReady: false,
+			controlPlaneReady: false,
+			workspace: fakeWorkspace({ id: 'workspace-1' }),
+			session
+		});
 
-test('a hosted workspace is not asked to choose a mode it has already chosen', () => {
-	assert.equal(shouldChooseWorkspaceMode(hostedState()), false);
-	assert.equal(
-		shouldChooseWorkspaceMode(
-			fakeSyncState({ googleDriveReady: true, workspace: fakeWorkspace({ provider: 'local' }) })
-		),
-		true,
-		'the local workspace is the one still to be asked'
-	);
+		assert.equal((await syncWorkspaceNow(unconfigured)).action, 'none');
+		assert.equal((await syncWorkspaceBeforeExit(unconfigured)).action, 'none');
+		assert.deepEqual(calls, [], 'a build with nowhere to sign in reached for a session anyway');
+	}
 });
 
 test('a hosted workspace has nothing to inspect, and asks Drive nothing', async () => {
@@ -284,7 +273,7 @@ test('a hosted workspace neither syncs through Drive nor takes a local snapshot'
 	reset();
 	shellState = hostedShell(window(3));
 
-	const result = await syncWorkspaceNow(shellState, { manual: true, autosaveLocal: true });
+	const result = await syncWorkspaceNow(shellState, { manual: true });
 
 	assert.equal(result.action, 'none');
 	assert.deepEqual(
@@ -315,7 +304,7 @@ test('a hosted workspace out of contact for three days asks for a sign-in', asyn
 	shellState = hostedShell(window(-1));
 	renewsTo = 'unreachable';
 
-	const result = await syncWorkspaceNow(shellState, { manual: true, autosaveLocal: true });
+	const result = await syncWorkspaceNow(shellState, { manual: true });
 
 	assert.equal(result.action, 'signInRequired');
 	assert.deepEqual(calls, ['renewSession'], 'the dispatcher never tried to renew');
@@ -356,7 +345,7 @@ test('nothing written during the window is discarded to produce the refusal', as
 	inverseStack.record({ describe: () => 'a payment', undo: async () => {}, redo: async () => {} });
 
 	const state = shellState;
-	const result = await syncWorkspaceNow(state, { manual: true, autosaveLocal: true });
+	const result = await syncWorkspaceNow(state, { manual: true });
 
 	assert.equal(result.action, 'signInRequired');
 	assert.deepEqual(
@@ -374,22 +363,9 @@ test('nothing written during the window is discarded to produce the refusal', as
 	inverseStack.clear();
 });
 
-// The last clause of criterion 16, run through the same dispatcher. A local workspace never
-// reaches the control plane at all, whatever this machine happens to be holding.
-test('a local workspace run through the same path never asks for anything', async () => {
-	for (const session of [null, window(-1), window(3)]) {
-		reset();
-		shellState = fakeSyncState({
-			googleDriveReady: false,
-			workspace: fakeWorkspace({ provider: 'local' }),
-			session
-		});
-
-		const localState = shellState;
-
-		assert.equal((await syncWorkspaceNow(localState)).action, 'none');
-		assert.equal((await syncWorkspaceNow(localState, { autosaveLocal: true })).action, 'autosaved');
-		assert.equal((await syncWorkspaceBeforeExit(localState)).action, 'autosaved');
-		assert.ok(!calls.includes('renewSession'), 'a local workspace reached the control plane');
-	}
-});
+// **The last clause of criterion 16 reversed with the mode, and the test with it.** It read *a
+// local workspace run through the same path never asks for anything*, and it was true only
+// because the dispatcher answered the mode before it looked at the window. There is no workspace
+// that never reaches the control plane, so a weakened version of that test would assert nothing;
+// what replaces it is the pair above — the same unlinked workspace asks when its window has
+// closed and does not when a reach reopens it.

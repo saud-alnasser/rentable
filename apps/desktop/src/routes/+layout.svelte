@@ -11,7 +11,7 @@
 	import {
 		getWorkspaceFromSyncState,
 		inspectWorkspaceSyncState,
-		shouldChooseWorkspaceMode,
+		isGoogleDriveLinked,
 		syncWorkspaceBeforeExit,
 		syncWorkspaceNow,
 		syncWorkspaceRemoteNow
@@ -178,7 +178,7 @@
 		}
 
 		if (!skipRemoteSync) {
-			const result = await syncWorkspaceNow(startupRemoteSync, { autosaveLocal: true });
+			const result = await syncWorkspaceNow(startupRemoteSync);
 			startupRemoteSync = result.state;
 
 			if (pendingConflict.present(result.preparation)) {
@@ -244,7 +244,7 @@
 			isI18nReady = true;
 			startupRemoteSync = await api.app.remoteSync.getState();
 
-			if (getWorkspaceFromSyncState(startupRemoteSync)?.provider === 'googleDrive') {
+			if (isGoogleDriveLinked(getWorkspaceFromSyncState(startupRemoteSync))) {
 				const inspectedLink = await inspectWorkspaceSyncState(startupRemoteSync);
 				if (inspectedLink) {
 					startupRemoteSync = inspectedLink.state;
@@ -255,12 +255,6 @@
 						return;
 					}
 				}
-			}
-
-			if (shouldChooseWorkspaceMode(startupRemoteSync)) {
-				startupState = 'choose-workspace';
-				await api.app.window.show();
-				return;
 			}
 
 			await continueStartup();

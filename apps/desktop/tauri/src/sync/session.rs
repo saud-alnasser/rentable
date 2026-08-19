@@ -16,7 +16,7 @@ use super::google::auth::{
     random_url_safe_token, refresh_token_form, request_google_tokens,
 };
 use super::store::{
-    RemoteSync, RemoteSyncAccount, RemoteSyncAccountStatus, RemoteSyncProvider, RemoteSyncState,
+    RemoteSync, RemoteSyncAccount, RemoteSyncAccountStatus, RemoteSyncState,
     sanitize_optional_string, sanitize_string, slugify,
 };
 
@@ -673,7 +673,6 @@ impl RemoteSync {
 
         let account_id = if let Some(index) = account_index {
             let account = &mut self.store.accounts[index];
-            account.provider = RemoteSyncProvider::GoogleDrive;
             account.status = RemoteSyncAccountStatus::Ready;
             account.email = email.clone();
             account.display_name = resolved_display_name.clone();
@@ -694,7 +693,6 @@ impl RemoteSync {
             let account_id = format!("google-drive-{}", slugify(&email));
             self.store.accounts.push(RemoteSyncAccount {
                 id: account_id.clone(),
-                provider: RemoteSyncProvider::GoogleDrive,
                 status: RemoteSyncAccountStatus::Ready,
                 email: email.clone(),
                 display_name: resolved_display_name.clone(),
@@ -826,7 +824,6 @@ impl RemoteSync {
         }
 
         self.store.workspace.account_id = Some(account_id);
-        self.store.workspace.provider = RemoteSyncProvider::GoogleDrive;
 
         if self.store.workspace.name.trim().is_empty() {
             self.store.workspace.name = display_name;
@@ -850,7 +847,7 @@ impl RemoteSync {
     /// [`link_workspace_to_google_drive`]: Self::link_workspace_to_google_drive
     /// [`disconnect_google_drive_account`]: Self::disconnect_google_drive_account
     pub async fn unlink_workspace_from_google_drive(&mut self) -> Result<RemoteSyncState, Error> {
-        Self::reset_workspace_to_local(&mut self.store.workspace, timestamp::now());
+        Self::clear_google_drive_link(&mut self.store.workspace, timestamp::now());
 
         self.store.commit()?;
         self.get_state().await
@@ -1119,7 +1116,7 @@ impl RemoteSync {
         self.delete_google_drive_credentials(&account_id)?;
 
         if self.store.workspace.account_id.as_deref() == Some(account_id.as_str()) {
-            Self::reset_workspace_to_local(&mut self.store.workspace, timestamp::now());
+            Self::clear_google_drive_link(&mut self.store.workspace, timestamp::now());
         }
 
         self.store.commit()?;
@@ -1244,8 +1241,7 @@ mod tests {
         persisted::Persisted,
         settings::Settings,
         sync::{
-            RemoteSync, RemoteSyncProvider, google::auth::GoogleOAuthTokens,
-            store::RemoteSyncAccountStatus,
+            RemoteSync, google::auth::GoogleOAuthTokens, store::RemoteSyncAccountStatus,
         },
     };
 
@@ -1350,11 +1346,6 @@ mod tests {
                 assert_eq!(signed_in.account_id, "google-drive-signed-in-example-com");
                 assert_eq!(signed_in.state.accounts.len(), 1);
                 assert_eq!(
-                    signed_in.state.workspace.provider,
-                    RemoteSyncProvider::Local,
-                    "signing in chose a folder"
-                );
-                assert_eq!(
                     signed_in.state.workspace.account_id, None,
                     "signing in linked the workspace to an account"
                 );
@@ -1420,7 +1411,6 @@ mod tests {
                     .await
                     .expect("failed to link the workspace");
 
-                assert_eq!(state.workspace.provider, RemoteSyncProvider::GoogleDrive);
                 assert_eq!(
                     state.workspace.account_id.as_deref(),
                     Some(signed_in.account_id.as_str())
@@ -1523,13 +1513,9 @@ mod tests {
                     .expect("failed to sign out");
 
                 assert_eq!(
-                    state.workspace.provider,
-                    RemoteSyncProvider::GoogleDrive,
-                    "signing out disconnected drive"
-                );
-                assert_eq!(
                     state.workspace.account_id.as_deref(),
-                    Some(signed_in.account_id.as_str())
+                    Some(signed_in.account_id.as_str()),
+                    "signing out disconnected drive"
                 );
 
                 let account = state

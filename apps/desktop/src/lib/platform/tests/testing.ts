@@ -31,7 +31,6 @@ export function fakeSettings(overrides: Partial<Settings> = {}): Settings {
 export function fakeAccount(overrides: Partial<RemoteSyncAccount> = {}): RemoteSyncAccount {
 	return {
 		id: 'account',
-		provider: 'googleDrive',
 		status: 'ready',
 		email: 'person@example.com',
 		displayName: 'Person Example',
@@ -50,12 +49,11 @@ export function fakeAccount(overrides: Partial<RemoteSyncAccount> = {}): RemoteS
 	};
 }
 
-/** A workspace as the store holds one: local, unlinked, and never synced — an unconfigured install. */
+/** A workspace as the store holds one: unlinked and never synced — an unconfigured install. */
 export function fakeWorkspace(overrides: Partial<RemoteSyncWorkspace> = {}): RemoteSyncWorkspace {
 	return {
 		id: 'workspace',
 		accountId: null,
-		provider: 'local',
 		name: 'Workspace',
 		localDatabasePath: 'C:/rentable/app.db',
 		remoteFolderId: null,

@@ -23,9 +23,7 @@ use super::google::files::{DriveFiles, GoogleDriveAccountDetails, GoogleDriveMan
 use super::google::manifest::GoogleDriveManifest;
 use super::google::metadata::DriveFile;
 use super::session::{GoogleDriveAccountUpdateInput, account_update};
-use super::store::{
-    RemoteSyncAccountStatus, RemoteSyncProvider, RemoteSyncState, RemoteSyncWorkspace,
-};
+use super::store::{RemoteSyncAccountStatus, RemoteSyncState, RemoteSyncWorkspace};
 use super::workspace::current_workspace_content_hash;
 
 /// what the user is being asked, and everything the interface needs to ask it.
@@ -334,10 +332,6 @@ pub(super) fn describe_conflict(
 
 /// the account this workspace is linked to, where it is linked to one at all.
 pub(super) fn linked_google_drive_account_id(state: &RemoteSyncState) -> Option<String> {
-    if state.workspace.provider != RemoteSyncProvider::GoogleDrive {
-        return None;
-    }
-
     state
         .workspace
         .account_id

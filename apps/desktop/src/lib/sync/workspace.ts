@@ -13,13 +13,13 @@ import { workspaceReplicationStanding } from '$lib/sync/session';
 /**
  * what a dispatch did, or declined to do.
  *
- * `signInRequired` is the third kind and it is neither a success nor a failure: the workspace is
+ * `signInRequired` is neither a success nor a failure: the workspace is
  * of record somewhere else, the three-day window closed with no contact, and replication is off
  * until somebody signs in again. It is an *answer* rather than a thrown error because nothing
  * went wrong — waiting does not settle it and retrying does not either, so a caller that treated
  * it as a failure would retry forever and say nothing useful.
  */
-export type WorkspaceSyncAction = GoogleDriveSyncAction | 'autosaved' | 'signInRequired';
+export type WorkspaceSyncAction = GoogleDriveSyncAction | 'signInRequired';
 
 export type WorkspaceSyncResult = {
 	state: RemoteSyncState;
@@ -27,9 +27,7 @@ export type WorkspaceSyncResult = {
 	preparation: GoogleDriveLinkPreparation | null;
 };
 
-export type WorkspaceRemoteSyncResult = Omit<WorkspaceSyncResult, 'action'> & {
-	action: GoogleDriveSyncAction | 'signInRequired';
-};
+export type WorkspaceRemoteSyncResult = WorkspaceSyncResult;
 
 /**
  * what a hosted workspace's dispatch amounts to, after trying to renew.
@@ -47,6 +45,17 @@ export type WorkspaceRemoteSyncResult = Omit<WorkspaceSyncResult, 'action'> & {
  * third criterion exists to catch.
  */
 async function hostedOutcome(syncState: RemoteSyncState): Promise<WorkspaceSyncResult> {
+	// A build that was never told where a control plane is has nowhere to sign in to, and
+	// `controlPlaneReady` is on the state so a caller can see that rather than discover it by a
+	// call failing. Asking for a sign-in it cannot offer is an instruction nobody can follow —
+	// and every dispatch runs through here, so it would be raised on every write.
+	//
+	// This became reachable when the mode went: an unlinked workspace used to be answered as one
+	// kept on this machine and never came this way at all.
+	if (!syncState.controlPlaneReady) {
+		return { state: syncState, action: 'none', preparation: null };
+	}
+
 	// A renewal that could not happen leaves the state exactly as it was, so the fallback is the
 	// state this dispatch was given rather than an error path.
 	const renewed = await tauri.remoteSync.renewSession().catch(() => syncState);
@@ -66,16 +75,20 @@ export function getWorkspaceFromSyncState(
 }
 
 /**
- * whether to offer the fork between keeping the workspace on this machine and putting it
- * somewhere it can be reached from another.
+ * whether this workspace is linked to a Google Drive folder.
  *
- * A workspace that has already been put somewhere — Drive or hosted — has answered the
- * question, so only a `local` one is asked. **`hosted` is not merely "not local" here**: it is
- * an answer, and re-asking somebody who has given one is the defect this reads for.
+ * **A link, and no longer a mode.** `link_workspace_to_google_drive` in `tauri/src/sync/session.rs`
+ * is the only thing in the tree that writes `accountId`, and undoing the link clears it — so this
+ * says exactly what `provider === 'googleDrive'` said, without a value that also has to answer
+ * *and where is this workspace of record*. Every workspace is of record in Turso; a linked one is
+ * additionally still exchanging snapshots with Drive until that surface retires (#554).
+ *
+ * **It stops discriminating the moment a workspace names its owner rather than its Drive
+ * account**, which is #565 and #567. That is why #554 is blocked by #565: Drive has to be gone
+ * before `accountId` starts meaning something else, or this reads every workspace as linked.
  */
-export function shouldChooseWorkspaceMode(syncState?: RemoteSyncState | null) {
-	const workspace = getWorkspaceFromSyncState(syncState);
-	return Boolean(syncState?.googleDriveReady && workspace?.provider === 'local');
+export function isGoogleDriveLinked(workspace?: RemoteSyncWorkspace | null) {
+	return Boolean(workspace?.accountId);
 }
 
 export function shouldDeferWorkspaceConflict(preparation?: GoogleDriveLinkPreparation | null) {
@@ -98,7 +111,7 @@ export async function inspectWorkspaceSyncState(syncState: RemoteSyncState) {
 	// reason is worth keeping: there is nothing to inspect because the two sides do not hold
 	// whole snapshots to compare. Divergence there is resolved per column as it arrives, not
 	// reported to the user as a choice between two files.
-	if (workspace?.provider !== 'googleDrive' || !syncState.googleDriveReady) {
+	if (!isGoogleDriveLinked(workspace) || !syncState.googleDriveReady) {
 		return null;
 	}
 
@@ -108,13 +121,21 @@ export async function inspectWorkspaceSyncState(syncState: RemoteSyncState) {
 /**
  * exchange this workspace with wherever it is kept.
  *
- * `autosaveLocal` says what an unlinked workspace means here: a snapshot on this
- * machine, or nothing at all. The two callers differ — closing the application
- * takes one, a mutation does not.
+ * **Two arms, where there were four.** The dispatcher used to select on the mode, and the local
+ * arm — take a snapshot on this machine, or do nothing — went with it: there is no workspace
+ * whose record of truth is a file here, so nothing is ever exchanged with this machine. What
+ * remains is a Drive-linked workspace, which still exchanges snapshots until that surface
+ * retires (#554), and every other workspace, which is of record in Turso.
+ *
+ * A hosted workspace's replica pushes on its own rather than on this call, so there is nothing
+ * for the dispatcher to do — the transport that makes that true is #548. What it does answer for
+ * is the window (#550). Past three days with no contact the session is gone and replication
+ * stops until somebody signs in again — and the workspace is left exactly as it is, because the
+ * refusal is a decision not to send rather than anything done to what is here.
  */
 export async function syncWorkspaceNow(
 	providedState?: RemoteSyncState | null,
-	options: { manual?: boolean; autosaveLocal?: boolean } = {}
+	options: { manual?: boolean } = {}
 ): Promise<WorkspaceSyncResult> {
 	const syncState = providedState ?? (await tauri.remoteSync.getState());
 	const workspace = getWorkspaceFromSyncState(syncState);
@@ -123,49 +144,24 @@ export async function syncWorkspaceNow(
 		return { state: syncState, action: 'none', preparation: null };
 	}
 
-	if (workspace.provider === 'local') {
-		if (!options.autosaveLocal) {
+	if (isGoogleDriveLinked(workspace)) {
+		// linked, but this build was never told where Drive is. It waits on a credential rather
+		// than on a copy, which is why it takes none.
+		if (!syncState.googleDriveReady) {
 			return { state: syncState, action: 'none', preparation: null };
 		}
 
-		const state = await tauri.remoteSync.autosaveNow();
-		return { state, action: 'autosaved', preparation: null };
+		return await syncGoogleDriveWorkspace({ manual: options.manual });
 	}
 
-	// A hosted workspace's replica pushes on its own rather than on this call, so there is
-	// nothing for the dispatcher to do — the transport that makes that true is #548, and until
-	// it lands this branch is what a hosted workspace gets: nothing, said explicitly, rather
-	// than a Drive sync it has no account for.
-	//
-	// What it does answer for is the window (#550). Past three days with no contact the session
-	// is gone and replication stops until somebody signs in again — and the workspace is left
-	// exactly as it is, because the refusal is a decision not to send rather than anything done
-	// to what is here.
-	if (workspace.provider === 'hosted') {
-		return await hostedOutcome(syncState);
-	}
-
-	if (workspace.provider !== 'googleDrive' || !syncState.googleDriveReady) {
-		return { state: syncState, action: 'none', preparation: null };
-	}
-
-	return await syncGoogleDriveWorkspace({ manual: options.manual });
+	return await hostedOutcome(syncState);
 }
 
 export async function syncWorkspaceRemoteNow(
 	providedState?: RemoteSyncState | null,
 	options: { manual?: boolean } = {}
 ): Promise<WorkspaceRemoteSyncResult> {
-	const result = await syncWorkspaceNow(providedState, {
-		manual: options.manual,
-		autosaveLocal: false
-	});
-
-	return {
-		state: result.state,
-		action: result.action === 'autosaved' ? 'none' : result.action,
-		preparation: result.preparation
-	};
+	return await syncWorkspaceNow(providedState, { manual: options.manual });
 }
 
 /**
@@ -182,24 +178,17 @@ export async function syncWorkspaceBeforeExit(
 		return { state: syncState, action: 'none', preparation: null };
 	}
 
-	if (workspace.provider === 'googleDrive' && syncState.googleDriveReady) {
+	if (isGoogleDriveLinked(workspace)) {
+		if (!syncState.googleDriveReady) {
+			return { state: syncState, action: 'none', preparation: null };
+		}
+
 		await api.app.state.reconcile();
 
 		return await syncGoogleDriveWorkspace({});
 	}
 
-	if (workspace.provider === 'local') {
-		const state = await tauri.remoteSync.autosaveNow();
-		return { state, action: 'autosaved', preparation: null };
-	}
-
-	if (workspace.provider === 'hosted') {
-		return await hostedOutcome(syncState);
-	}
-
-	// Drive with the account not ready. It takes no local snapshot: it is waiting on a
-	// credential rather than on a copy.
-	return { state: syncState, action: 'none', preparation: null };
+	return await hostedOutcome(syncState);
 }
 
 /**

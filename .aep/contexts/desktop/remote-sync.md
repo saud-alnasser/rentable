@@ -1,5 +1,5 @@
 ---
-aep: 2.5.1
+aep: 2.6.0
 owner: repository
 date: 2026-08-19
 kind: context
@@ -52,7 +52,9 @@ How much longer this machine may go on replicating without hearing from the cont
 lifetime that was issued elsewhere, never a claim this application makes about itself** — the
 control plane sets the moment and refuses a credential past it, so a client cannot extend its own
 window by believing in a later one. Reaching the control plane at any point inside the window
-restarts it from the reach. A local workspace has none, because it never signed in.
+restarts it from the reach. A build that was never told where a control plane is has none, because
+there is nowhere to sign in — which is the only case left, now that no workspace is of record on
+this machine.
 _Avoid_: calling it a sign-in — signing in is the act, and the session is the three days it is
 worth. And _avoid_ "the session token" for anything on the TypeScript side, which never holds one
 
