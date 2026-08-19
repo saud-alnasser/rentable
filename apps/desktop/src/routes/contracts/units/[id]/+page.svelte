@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import ContractDetails from '$lib/contract/component/details.svelte';
 
-	const contractId = Number(page.params.id);
+	const contractId = page.params.id ?? '';
 </script>
 
 <ContractDetails {contractId} initialCollection="units" />

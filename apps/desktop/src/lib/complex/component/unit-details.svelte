@@ -8,7 +8,7 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import UnitContracts from './unit-contracts.svelte';
 
-	let { unitId }: { unitId: number } = $props();
+	let { unitId }: { unitId: string } = $props();
 
 	const unitQuery = useFetchUnit(() => unitId);
 	const unit = $derived(unitQuery.data);

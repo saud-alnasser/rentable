@@ -4,7 +4,7 @@
 
 	type ContractRow = Awaited<ReturnType<typeof api.contract.getMany>>[number];
 	// the same shape without an identity is what a duplicate opens the form on.
-	type ContractFormValue = Omit<ContractRow, 'id'> & { id?: number };
+	type ContractFormValue = Omit<ContractRow, 'id'> & { id?: string };
 
 	/** What a surface listing contracts is given for each contract it renders. */
 	export type ContractActions = {
@@ -73,7 +73,7 @@
 	// the contract the form is renewing, where it was opened to renew one. Held beside what the
 	// form opens *on* rather than inside it: a renewal is opened on an identity and reads
 	// everything else off the contract itself.
-	let renewingContractId = $state<number | undefined>(undefined);
+	let renewingContractId = $state<string | undefined>(undefined);
 	// the one record a card's menu is acting on and what it is being asked, which is what makes
 	// one confirmation of each kind enough for a whole list.
 	let confirming = $state<{
@@ -89,11 +89,11 @@
 	// deletion is what it is being asked. Both reads, because the rule weighs both.
 	const isDeleting = $derived(confirming?.kind === 'delete');
 	const heldUnitsQuery = useFetchContractUnits(
-		() => confirming?.contract.id ?? 0,
+		() => confirming?.contract.id ?? '',
 		() => isDeleting
 	);
 	const heldPaymentsQuery = useFetchContractPayments(
-		() => confirming?.contract.id ?? 0,
+		() => confirming?.contract.id ?? '',
 		() => isDeleting
 	);
 	const deleteBlockers = $derived.by(() => {
@@ -125,7 +125,7 @@
 		isFormOpen = true;
 	};
 
-	const openRenewal = (id: number) => {
+	const openRenewal = (id: string) => {
 		formOpensOn = undefined;
 		renewingContractId = id;
 		formRenderKey += 1;
@@ -207,7 +207,7 @@
 			: undefined
 	);
 
-	const runOnConfirming = async (run: (id: number) => Promise<unknown>) => {
+	const runOnConfirming = async (run: (id: string) => Promise<unknown>) => {
 		if (!confirming) {
 			return;
 		}

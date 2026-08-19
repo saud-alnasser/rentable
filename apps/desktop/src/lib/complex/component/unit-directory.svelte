@@ -26,7 +26,7 @@
 		complexId,
 		/** what the complex is called, so a file of its units can say which building it is. */
 		complexName
-	}: { complexId: number; complexName: string } = $props();
+	}: { complexId: string; complexName: string } = $props();
 
 	// two lines of text and the breathing room around them; the shell lays rows out at this
 	// height rather than measuring them.

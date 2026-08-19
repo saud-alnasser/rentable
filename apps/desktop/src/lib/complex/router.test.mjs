@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createApi, monthsFromNow, seedTenant } from '$lib/api/testing.mjs';
+import { isRecordId } from '$lib/platform/database/identity.ts';
 
 async function seedActiveContract(api) {
 	const tenant = await seedTenant(api);
@@ -30,7 +31,7 @@ test('creating a complex returns it with its fields', async () => {
 
 	assert.equal(complex.name, 'Palm Court');
 	assert.equal(complex.location, 'Riyadh');
-	assert.ok(complex.id > 0);
+	assert.ok(isRecordId(complex.id));
 });
 
 test('creating a complex with a duplicate name is rejected', async () => {

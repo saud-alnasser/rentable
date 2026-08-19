@@ -19,7 +19,7 @@
 
 	let isFormOpen = $state(false);
 	let formRenderKey = $state(0);
-	let renewingContractId = $state<number | undefined>(undefined);
+	let renewingContractId = $state<string | undefined>(undefined);
 
 	// registered rather than reached for: the palette reads what the application can do from the
 	// one registry, so this arrives there without the palette being told about it.

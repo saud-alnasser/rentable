@@ -2,6 +2,7 @@ import api from '$lib/api/caller';
 import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
 import { declareMutation } from '$lib/design/mutation';
 import { workspacePrefixes } from '$lib/design/query';
+import { isRecordId } from '$lib/platform/database/identity';
 import type { ListSort } from '$lib/design/sort';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createQuery } from '@tanstack/svelte-query';
@@ -9,7 +10,7 @@ import { get } from 'svelte/store';
 
 export const keys = {
 	all: workspacePrefixes.complexes,
-	get: (id: number) => [...workspacePrefixes.complexes, id],
+	get: (id: string) => [...workspacePrefixes.complexes, id],
 	list: (search: string, sort: ListSort | null) => [
 		...workspacePrefixes.complexes,
 		'list',
@@ -19,9 +20,9 @@ export const keys = {
 	search: (term: string) => [...workspacePrefixes.complexes, 'search', term],
 	units: {
 		all: workspacePrefixes.units,
-		get: (id: number) => [...workspacePrefixes.units, 'detail', id],
-		getMany: (complexId: number) => [...workspacePrefixes.units, complexId],
-		board: (complexId: number, search: string) => [
+		get: (id: string) => [...workspacePrefixes.units, 'detail', id],
+		getMany: (complexId: string) => [...workspacePrefixes.units, complexId],
+		board: (complexId: string, search: string) => [
 			...workspacePrefixes.units,
 			'board',
 			complexId,
@@ -100,7 +101,7 @@ export function useListComplexes(
  * carrying the tenant occupying it. The board has no sort control — its order is what makes
  * it a board — so the search is all the reader varies.
  */
-export function useListUnits(complexId: () => number, search: () => string = () => '') {
+export function useListUnits(complexId: () => string, search: () => string = () => '') {
 	return createQuery(() => {
 		const id = complexId();
 		const trimmedSearch = search().trim();
@@ -121,7 +122,7 @@ export function useFetchComplexes() {
 	}));
 }
 
-export function useFetchComplex(id: () => number) {
+export function useFetchComplex(id: () => string) {
 	return createQuery(() => {
 		const freshId = id();
 
@@ -133,19 +134,19 @@ export function useFetchComplex(id: () => number) {
 }
 
 /** One unit and the complex holding it. */
-export function useFetchUnit(id: () => number) {
+export function useFetchUnit(id: () => string) {
 	return createQuery(() => {
 		const freshId = id();
 
 		return {
 			queryKey: keys.units.get(freshId),
 			queryFn: () => api.complex.units.get({ id: freshId }),
-			enabled: Number.isInteger(freshId) && freshId > 0
+			enabled: isRecordId(freshId)
 		};
 	});
 }
 
-export function useFetchUnits(complexId: () => number, enabled: () => boolean = () => true) {
+export function useFetchUnits(complexId: () => string, enabled: () => boolean = () => true) {
 	return createQuery(() => {
 		const id = complexId();
 
@@ -198,7 +199,7 @@ export const useUpdateComplex = declareMutation({
 });
 
 export const useDeleteComplex = declareMutation({
-	mutate: (id: number) => api.complex.delete({ id }),
+	mutate: (id: string) => api.complex.delete({ id }),
 	touches: ['complexes'],
 	inverse: ({ result }) =>
 		result && {
@@ -247,7 +248,7 @@ export const useUpdateUnit = declareMutation({
 });
 
 export const useDeleteUnit = declareMutation({
-	mutate: (id: number) => api.complex.units.delete({ id }),
+	mutate: (id: string) => api.complex.units.delete({ id }),
 	touches: ['units'],
 	inverse: ({ result }) =>
 		result && {

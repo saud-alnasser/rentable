@@ -23,7 +23,7 @@
 	 * Where the contract's units are locked there is nothing to transfer, so there is one pane
 	 * rather than two — see the layout below.
 	 */
-	let { contractId }: { contractId: number } = $props();
+	let { contractId }: { contractId: string } = $props();
 
 	let search = $state('');
 
@@ -63,7 +63,7 @@
 	// one.
 	const isTransferring = $derived(setMutation.isPending || heldQuery.isFetching);
 
-	function transfer(unitId: number, wasHeld: boolean) {
+	function transfer(unitId: string, wasHeld: boolean) {
 		setMutation.mutate({
 			contractId,
 			unitIds: toTransferredUnitIds(heldUnitIds, unitId, wasHeld)

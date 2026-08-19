@@ -23,8 +23,8 @@ type ContractLike = Omit<
 type ContractRangeLike = Pick<ContractLike, 'start' | 'end'>;
 
 type UnitAssignmentLike = {
-	unitId: number;
-	contractId: number;
+	unitId: string;
+	contractId: string;
 	status: Contract['status'];
 	start: DateLike;
 	end: DateLike;
@@ -375,7 +375,7 @@ export function hasSameUtcDateRange(
 export function getConflictingAssignedUnitIds(
 	assignments: UnitAssignmentLike[],
 	contract: ContractRangeLike,
-	currentContractId: number
+	currentContractId: string
 ) {
 	return new Set(
 		assignments
@@ -413,13 +413,13 @@ export function deriveUnitStatus(
 
 /** derives the status of each unit from its assignments and their payments. */
 export function deriveUnitStatuses(
-	unitIds: number[],
+	unitIds: string[],
 	assignments: ContractAssignment[],
-	paymentsByContractId: Map<number, PaymentLike[]>,
+	paymentsByContractId: Map<string, PaymentLike[]>,
 	now: DateLike
 ) {
 	const assignmentsByUnitId = new Map<
-		number,
+		string,
 		Array<{ contract: ContractLike; payments: PaymentLike[] }>
 	>();
 
@@ -534,7 +534,7 @@ export function ensureContractDeletable(units: unknown[], payments: unknown[]) {
 export function ensurePeriodDoesNotOverlapAssignments(
 	assignments: UnitAssignmentLike[],
 	range: ContractRangeLike,
-	contractId: number
+	contractId: string
 ) {
 	if (getConflictingAssignedUnitIds(assignments, range, contractId).size > 0) {
 		badRequest('assigned units overlap with another contract during the selected dates');
@@ -544,7 +544,7 @@ export function ensurePeriodDoesNotOverlapAssignments(
 export function ensureUnitsAssignable(
 	assignments: UnitAssignmentLike[],
 	contract: ContractRangeLike,
-	contractId: number
+	contractId: string
 ) {
 	if (getConflictingAssignedUnitIds(assignments, contract, contractId).size > 0) {
 		badRequest('one or more selected units are already assigned to an overlapping contract');

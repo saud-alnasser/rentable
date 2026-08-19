@@ -126,7 +126,7 @@
 	}
 
 	/** Run the held action on the record the reader chose for it. */
-	function runAsked(recordId: number) {
+	function runAsked(recordId: string) {
 		asking?.run(recordId);
 		open = false;
 	}

@@ -31,15 +31,15 @@ type DbPayment = typeof s.payment.$inferSelect;
  * caller must name it.
  */
 export type TouchSet = {
-	contractIds: number[];
-	unitIds?: number[];
+	contractIds: string[];
+	unitIds?: string[];
 };
 
 async function writeContractDerivedState(
 	db: Database,
 	now: number,
 	contracts: DbContract[],
-	paymentsByContractId: Map<number, DbPayment[]>
+	paymentsByContractId: Map<string, DbPayment[]>
 ) {
 	for (const contract of contracts) {
 		const contractPayments = paymentsByContractId.get(contract.id) ?? [];
@@ -64,7 +64,7 @@ async function writeUnitDerivedState(
 	now: number,
 	units: DbUnit[],
 	assignments: ContractAssignment[],
-	paymentsByContractId: Map<number, DbPayment[]>
+	paymentsByContractId: Map<string, DbPayment[]>
 ) {
 	const unitIds = units.map((unit) => unit.id);
 	const statusByUnitId = deriveUnitStatuses(unitIds, assignments, paymentsByContractId, now);
@@ -78,7 +78,7 @@ async function writeUnitDerivedState(
 	}
 }
 
-async function selectAssignmentsForUnits(db: Database, unitIds: number[]) {
+async function selectAssignmentsForUnits(db: Database, unitIds: string[]) {
 	return await db
 		.select({
 			unitId: s.contractUnit.unitId,

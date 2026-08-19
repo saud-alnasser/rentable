@@ -1,7 +1,7 @@
 import type { Context } from '$lib/api/context';
 import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
 import { matchesAnySearch } from '$lib/platform/database/search';
-import { ensureIdFree } from '$lib/platform/database/identity';
+import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
@@ -45,7 +45,7 @@ const COMPLEX_SORT_COLUMNS: Record<ComplexSortColumnId, SQL | AnyColumn> = {
 // so undoing the creation and applying it again puts the same units back. Everything else about
 // a unit is derived or is the complex being created.
 const ComplexCreateSchema = ComplexSchema.partial({ id: true }).extend({
-	units: z.array(UnitSchema.pick({ name: true }).extend({ id: z.number().optional() })).optional()
+	units: z.array(UnitSchema.pick({ name: true }).extend({ id: z.string().optional() })).optional()
 });
 
 const ComplexSortSchema = z.object({
@@ -195,26 +195,27 @@ export default router({
 				);
 			}
 
+			const complexId = complex.id ?? newId();
+
 			if (named.length === 0) {
-				const created = await ctx.db.insert(s.complex).values(complex).returning().get();
+				const created = await ctx.db
+					.insert(s.complex)
+					.values({ ...complex, id: complexId })
+					.returning()
+					.get();
 
 				return { ...created, units: [] as (typeof s.unit.$inferSelect)[] };
 			}
 
-			// the units name their complex by its own name rather than by an id: the batch is
-			// built before any of it runs, so the identity the engine is about to assign is not
-			// available to the statements that need it. The name is unique and was just checked.
-			const complexId = ctx.db
-				.select({ id: s.complex.id })
-				.from(s.complex)
-				.where(eq(s.complex.name, complex.name));
-
 			const [[created], ...createdUnits] = await ctx.db.batch([
-				ctx.db.insert(s.complex).values(complex).returning(),
+				ctx.db
+					.insert(s.complex)
+					.values({ ...complex, id: complexId })
+					.returning(),
 				...named.map((unit) =>
 					ctx.db
 						.insert(s.unit)
-						.values({ ...unit, complexId: sql`(${complexId})`, status: 'vacant' })
+						.values({ ...unit, id: unit.id ?? newId(), complexId, status: 'vacant' })
 						.returning()
 				)
 			]);
@@ -424,6 +425,7 @@ export default router({
 					.insert(s.unit)
 					.values({
 						...input,
+						id: input.id ?? newId(),
 						status: 'vacant'
 					})
 					.returning()

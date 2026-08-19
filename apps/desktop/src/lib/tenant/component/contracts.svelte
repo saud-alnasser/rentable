@@ -11,7 +11,7 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 
 	/** The tenant whose contracts these are. */
-	let { tenantId }: { tenantId: number } = $props();
+	let { tenantId }: { tenantId: string } = $props();
 
 	type ContractRow = Awaited<ReturnType<typeof api.contract.getMany>>[number];
 

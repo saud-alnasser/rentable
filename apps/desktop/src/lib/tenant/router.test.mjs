@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createApi, monthsFromNow, seedTenant } from '$lib/api/testing.mjs';
+import { createApi, monthsFromNow, seedTenant, unusedId } from '$lib/api/testing.mjs';
+import { isRecordId } from '$lib/platform/database/identity.ts';
 
 const NATIONAL_ID = '1234567890';
 const IQAMA = '2345678901';
@@ -17,7 +18,7 @@ test('creating a tenant returns it with its fields', async () => {
 	assert.equal(tenant.name, 'Sara');
 	assert.equal(tenant.nationalId, NATIONAL_ID);
 	assert.equal(tenant.phone, PHONE);
-	assert.ok(tenant.id > 0);
+	assert.ok(isRecordId(tenant.id));
 });
 
 // --- Identity-number validation (both accepted document types) -----------------------
@@ -215,7 +216,7 @@ test('an id-only update is a no-op that returns the tenant unchanged', async () 
 test('an id-only update for a tenant that does not exist returns nothing', async () => {
 	const api = await createApi();
 
-	const updated = await api.tenant.update({ id: 4040 });
+	const updated = await api.tenant.update({ id: unusedId() });
 
 	assert.equal(updated, undefined);
 });

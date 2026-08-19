@@ -8,6 +8,7 @@
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { isRecordId } from '$lib/platform/database/identity';
 	import { useDeleteTenant, useFetchTenant } from '$lib/tenant/query';
 	import { useListContracts } from '$lib/contract/query';
 	import { isTenantDeletable } from '$lib/tenant/tenant';
@@ -18,11 +19,11 @@
 	import TenantContracts from './contracts.svelte';
 	import TenantForm from './form.svelte';
 
-	let { tenantId }: { tenantId: number } = $props();
+	let { tenantId }: { tenantId: string } = $props();
 
 	const tenantQuery = useFetchTenant(() => ({
-		id: Number.isInteger(tenantId) && tenantId > 0 ? tenantId : undefined,
-		enabled: Number.isInteger(tenantId) && tenantId > 0
+		id: isRecordId(tenantId) ? tenantId : undefined,
+		enabled: isRecordId(tenantId)
 	}));
 	const tenant = $derived(tenantQuery.data);
 	const deleteMutation = useDeleteTenant();

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createApi, monthsFromNow, seedTenant } from '$lib/api/testing.mjs';
+import { createApi, monthsFromNow, seedTenant, unusedId } from '$lib/api/testing.mjs';
+import { isRecordId } from '$lib/platform/database/identity.ts';
 import { getContractRenewalTerm } from '$lib/contract/renewal.ts';
 
 async function seedComplexWithUnit(api, label) {
@@ -43,7 +44,7 @@ test('creating a contract returns it with a derived status and normalized fields
 	assert.equal(contract.govId, 'GOV-1');
 	assert.equal(contract.cost, 1000);
 	assert.equal(contract.interval, '12m');
-	assert.ok(contract.id > 0);
+	assert.ok(isRecordId(contract.id));
 	assert.equal(contract.paidAmount, 0);
 });
 
@@ -104,7 +105,7 @@ test('creation rejects a tenant that does not exist', async () => {
 	await assert.rejects(
 		() =>
 			api.contract.create({
-				tenantId: 9999,
+				tenantId: unusedId(),
 				start: monthsFromNow(-1),
 				end: monthsFromNow(11),
 				interval: '12m',
@@ -146,7 +147,7 @@ test('updating a contract that does not exist is rejected', async () => {
 	await assert.rejects(
 		() =>
 			api.contract.update({
-				id: 9999,
+				id: unusedId(),
 				tenantId: tenant.id,
 				start: monthsFromNow(-1),
 				end: monthsFromNow(11),
@@ -399,7 +400,7 @@ test('renewal is refused for a contract that does not exist', async () => {
 	await assert.rejects(
 		() =>
 			api.contract.renew({
-				contractId: 9999,
+				contractId: unusedId(),
 				start: monthsFromNow(12),
 				end: monthsFromNow(23)
 			}),
@@ -593,7 +594,7 @@ test('a set naming a unit that does not exist is rejected', async () => {
 	const contract = await seedContract(api);
 
 	await assert.rejects(
-		() => api.contract.units.set({ contractId: contract.id, unitIds: [9999] }),
+		() => api.contract.units.set({ contractId: contract.id, unitIds: [unusedId()] }),
 		/one or more units could not be found/
 	);
 });
@@ -1507,12 +1508,13 @@ test('an id that names no contract is refused as missing rather than failing the
 	const api = await createApi();
 	const contract = await seedContract(api);
 
-	const result = await api.contract.terminateMany({ ids: [contract.id, 9999] });
+	const missing = unusedId();
+	const result = await api.contract.terminateMany({ ids: [contract.id, missing] });
 
 	assert.deepEqual(result.terminated, [contract.id]);
 	assert.deepEqual(
 		result.refused.map((entry) => ({ id: entry.id, reason: entry.reason })),
-		[{ id: 9999, reason: 'missing' }]
+		[{ id: missing, reason: 'missing' }]
 	);
 });
 

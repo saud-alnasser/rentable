@@ -28,7 +28,7 @@
 		value?: UnitForm;
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
-		complexId: number;
+		complexId: string;
 	} = $props();
 
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<UnitForm>(

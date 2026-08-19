@@ -1,7 +1,7 @@
 ---
-aep: 2.2.0
+aep: 2.5.1
 owner: repository
-date: 2026-08-17
+date: 2026-08-18
 kind: context
 paths:
   - apps/desktop/src/lib/platform/database/**
@@ -23,7 +23,17 @@ defined together. Routers derive their input shapes from it rather than restatin
 
 **Migration**:
 A generated SQL file applied once, in order, and recorded so it is never applied twice.
-Generated from the schema, never hand-authored ahead of it.
+Generated from the schema, never hand-authored ahead of it — **and hand-finished after it,
+which is a step rather than an exception.** `pnpm db:generate`'s output cannot be applied by
+this repository as written: drizzle-kit wraps its table-recreate pattern in
+`PRAGMA foreign_keys=OFF`, and the runner parses each file with `sqlparser` before executing
+it, so the pragma fails the whole file at line one before any statement runs. Delete those
+lines. Where a migration also has to *move* data — 0003 rewrites every primary key — the
+generated copy is what gets rewritten, not a starting point that gets replaced.
+
+**The TypeScript suite will not catch either.** `memory.ts` applies migrations with
+`better-sqlite3.exec` over the raw file text, so it accepts a file the shipped runner
+rejects; the Rust tests in `database/migrations.rs` are what close that gap.
 
 **Transport**:
 What carries a query to the engine. Production goes through IPC to Rust; tests go through
@@ -72,9 +82,13 @@ router test can pass over a conversion that is broken in the running application
   multi-step write sequenced as separate queries is still not atomic, and that is a choice
   the caller made rather than a limit of the boundary.
 - **A batch is built before any of it runs**, so a statement cannot read an identity an
-  earlier statement in the same batch is about to assign. Where one needs it, it names the
-  row by a value it already has — creating a complex with its units names the complex by
-  its own unique name.
+  earlier statement in the same batch is about to assign. **It no longer has to**: an
+  identity is minted by whoever creates the record, so it is known before the batch is built
+  and every statement in one can state it outright. *Until #541 this was a real constraint,
+  and the shapes it forced are worth knowing because they are gone: creating a complex with
+  its units named the complex by its own unique name in a subquery, and importing a whole
+  workspace read the highest id in use per concept and allocated a contiguous block from it.
+  A batch that still cannot branch on its own results is the part that has not changed.*
 - **SQLite is compiled into the binary, and the driver owns that.** The engine links a
   bundled SQLite rather than a system library, asked for through the driver's own feature
   rather than by naming the native bindings as a direct dependency. Nothing here selects a

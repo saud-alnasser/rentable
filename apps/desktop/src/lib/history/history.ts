@@ -34,7 +34,7 @@ export type HistoryAction = keyof Pick<
  */
 export type HistoryEntry = {
 	concept: HistoryConcept;
-	recordId: number;
+	recordId: string;
 	action: HistoryAction;
 	record: string;
 };
@@ -48,7 +48,7 @@ export type HistoryEntry = {
  */
 export const historyKeys = {
 	all: [...workspacePrefixes.contracts, 'history'],
-	getMany: (concept: HistoryConcept, recordId: number, search = '') => [
+	getMany: (concept: HistoryConcept, recordId: string, search = '') => [
 		...workspacePrefixes.contracts,
 		'history',
 		concept,

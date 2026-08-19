@@ -15,13 +15,13 @@
 	import RecordActions from '$lib/design/block/record-actions.svelte';
 	import PaymentForm from './form.svelte';
 
-	let { paymentId }: { paymentId: number } = $props();
+	let { paymentId }: { paymentId: string } = $props();
 
 	const paymentQuery = useFetchPayment(() => paymentId);
 	const payment = $derived(paymentQuery.data);
 	const deleteMutation = useDeletePayment();
 
-	type PaymentFormValue = Omit<NonNullable<typeof paymentQuery.data>, 'id'> & { id?: number };
+	type PaymentFormValue = Omit<NonNullable<typeof paymentQuery.data>, 'id'> & { id?: string };
 
 	let formOpensOn = $state<PaymentFormValue | undefined>(undefined);
 	let isPaymentFormOpen = $state(false);

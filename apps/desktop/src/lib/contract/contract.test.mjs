@@ -45,43 +45,43 @@ test('getConflictingAssignedUnitIds only keeps units from overlapping other cont
 	const conflictingUnitIds = getConflictingAssignedUnitIds(
 		[
 			{
-				unitId: 1,
-				contractId: 10,
+				unitId: 'u1',
+				contractId: 'c10',
 				status: 'active',
 				start: new Date('2026-01-05T12:00:00.000Z'),
 				end: new Date('2026-01-12T08:00:00.000Z')
 			},
 			{
-				unitId: 2,
-				contractId: 11,
+				unitId: 'u2',
+				contractId: 'c11',
 				status: 'active',
 				start: new Date('2026-01-21T00:00:00.000Z'),
 				end: new Date('2026-01-31T00:00:00.000Z')
 			},
 			{
-				unitId: 3,
-				contractId: 99,
+				unitId: 'u3',
+				contractId: 'c99',
 				status: 'active',
 				start: new Date('2026-01-10T00:00:00.000Z'),
 				end: new Date('2026-01-20T00:00:00.000Z')
 			},
 			{
-				unitId: 4,
-				contractId: 12,
+				unitId: 'u4',
+				contractId: 'c12',
 				status: 'terminated',
 				start: new Date('2026-01-10T00:00:00.000Z'),
 				end: new Date('2026-01-20T00:00:00.000Z')
 			},
 			{
-				unitId: 5,
-				contractId: 13,
+				unitId: 'u5',
+				contractId: 'c13',
 				status: 'defaulted',
 				start: new Date('2026-01-20T23:59:59.000Z'),
 				end: new Date('2026-02-01T00:00:00.000Z')
 			},
 			{
-				unitId: 1,
-				contractId: 14,
+				unitId: 'u1',
+				contractId: 'c14',
 				status: 'active',
 				start: new Date('2026-01-15T00:00:00.000Z'),
 				end: new Date('2026-01-18T00:00:00.000Z')
@@ -91,13 +91,10 @@ test('getConflictingAssignedUnitIds only keeps units from overlapping other cont
 			start: new Date('2026-01-10T00:00:00.000Z').getTime(),
 			end: new Date('2026-01-20T00:00:00.000Z').getTime()
 		},
-		99
+		'c99'
 	);
 
-	assert.deepEqual(
-		[...conflictingUnitIds].sort((left, right) => left - right),
-		[1, 5]
-	);
+	assert.deepEqual([...conflictingUnitIds].sort(), ['u1', 'u5']);
 });
 
 test('deriveContractStatus returns scheduled before the contract start date', () => {

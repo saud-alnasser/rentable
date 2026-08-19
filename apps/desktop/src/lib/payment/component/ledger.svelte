@@ -31,7 +31,7 @@
 	import PaymentForm from './form.svelte';
 
 	/** The contract whose payments this statement lists. */
-	let { contractId }: { contractId: number } = $props();
+	let { contractId }: { contractId: string } = $props();
 
 	// one line of text and the breathing room around it; the shell lays rows out at this
 	// height rather than measuring them.

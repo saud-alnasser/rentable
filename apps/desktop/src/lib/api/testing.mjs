@@ -7,6 +7,7 @@ import {
 	createFileDatabase,
 	createMemoryDatabase
 } from '$lib/platform/database/memory.ts';
+import { newId } from '$lib/platform/database/identity.ts';
 import { appRouter } from './router.ts';
 import { caller, context } from './trpc.ts';
 
@@ -62,3 +63,8 @@ export async function createFileApi(path, { host } = {}) {
 	// test that tidies up after itself has to let go of the handle first.
 	return { api: caller(appRouter)(ctx), close: () => closeFileDatabase(db) };
 }
+
+// An identity no record holds, for the cases that ask what a procedure does when the record is
+// not there. Minted rather than written out, so it is well-formed — a gate that refuses it for
+// its shape would answer the question the test is not asking.
+export { newId as unusedId };

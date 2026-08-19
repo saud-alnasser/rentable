@@ -89,7 +89,7 @@
 	const MAX_VISIBLE_TENANTS = 20;
 
 	const ContractFormSchema = z.object({
-		id: z.number().optional(),
+		id: z.string().optional(),
 		govId: z.string().trim().optional().default(''),
 		tenantId: z.string().min(1, $LL.contracts.form.tenantRequired()),
 		interval: ContractSchema.shape.interval,
@@ -130,7 +130,7 @@
 		 * the contract being edited, or the details a new one starts from when duplicating —
 		 * which is the same shape without an identity, because everything else transfers.
 		 */
-		value?: Omit<Contract, 'id'> & { id?: number };
+		value?: Omit<Contract, 'id'> & { id?: string };
 		/**
 		 * the contract being renewed, where the form was opened to renew one.
 		 *
@@ -138,14 +138,14 @@
 		 * predecessor rather than assembled by whoever opened the form — three surfaces offer
 		 * renewal and one of them holds nothing but the id.
 		 */
-		renewsContractId?: number;
+		renewsContractId?: string;
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
 	} = $props();
 
 	const isRenewing = $derived(renewsContractId !== undefined);
 	const predecessorQuery = useFetchContract(
-		() => renewsContractId ?? 0,
+		() => renewsContractId ?? '',
 		() => open && isRenewing
 	);
 	const predecessor = $derived(predecessorQuery.data);
@@ -227,7 +227,7 @@
 			return { start: end, end: start };
 		})(),
 		govId: form.govId || undefined,
-		tenantId: Number(form.tenantId),
+		tenantId: form.tenantId,
 		interval: form.interval,
 		cost: Number(form.cost)
 	});
@@ -333,12 +333,12 @@
 	}));
 
 	const selectedTenantQuery = useFetchTenant(() => ({
-		id: $form.tenantId ? Number($form.tenantId) : undefined,
+		id: $form.tenantId || undefined,
 		enabled: open && Boolean($form.tenantId)
 	}));
 
 	const toTenantOption = (tenant: {
-		id: number;
+		id: string;
 		name: string;
 		nationalId: string;
 		phone: string;

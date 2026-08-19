@@ -3,16 +3,17 @@ import type { FilterPeriod } from '$lib/api/period';
 import { declareMutation } from '$lib/design/mutation';
 import { workspacePrefixes } from '$lib/design/query';
 import { LL, locale } from '$lib/i18n/i18n-svelte';
+import { isRecordId } from '$lib/platform/database/identity';
 import { formatLocaleNumber } from '$lib/platform/locale';
 import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 export const keys = {
-	get: (id: number) => [...workspacePrefixes.payments, 'one', id],
-	getMany: (contractId: number) => [...workspacePrefixes.payments, contractId],
+	get: (id: string) => [...workspacePrefixes.payments, 'one', id],
+	getMany: (contractId: string) => [...workspacePrefixes.payments, contractId],
 	// the period is part of the key because it is part of the question: two periods are two
 	// result sets, and sharing a key would serve one of them under the other's name.
-	list: (contractId: number, search: string, period: FilterPeriod | undefined) => [
+	list: (contractId: string, search: string, period: FilterPeriod | undefined) => [
 		...workspacePrefixes.payments,
 		'list',
 		contractId,
@@ -49,20 +50,20 @@ export function useSearchPayments(term: () => string, limit: number) {
 }
 
 /** One payment, with the contract it was made against. */
-export function useFetchPayment(id: () => number) {
+export function useFetchPayment(id: () => string) {
 	return createQuery(() => {
 		const freshId = id();
 
 		return {
 			queryKey: keys.get(freshId),
 			queryFn: () => api.contract.payments.get({ id: freshId }),
-			enabled: Number.isInteger(freshId) && freshId > 0
+			enabled: isRecordId(freshId)
 		};
 	});
 }
 
 export function useFetchContractPayments(
-	contractId: () => number,
+	contractId: () => string,
 	enabled: () => boolean = () => true
 ) {
 	return createQuery(() => {
@@ -83,7 +84,7 @@ export function useFetchContractPayments(
  * keeps rendering rows instead of flashing through its loading state on every keystroke.
  */
 export function useListContractPayments(
-	params: () => { contractId: number; search?: string; period?: FilterPeriod }
+	params: () => { contractId: string; search?: string; period?: FilterPeriod }
 ) {
 	return createQuery(() => {
 		const { contractId, search, period } = params();
@@ -137,7 +138,7 @@ export const useUpdatePayment = declareMutation({
 });
 
 export const useDeletePayment = declareMutation({
-	mutate: (id: number) => api.contract.payments.delete({ id }),
+	mutate: (id: string) => api.contract.payments.delete({ id }),
 	touches: ['payments', 'contracts', 'units'],
 	inverse: ({ result }) =>
 		result && {

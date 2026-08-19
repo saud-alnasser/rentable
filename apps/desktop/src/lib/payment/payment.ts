@@ -21,8 +21,8 @@ export function getPaidAmount(payments: PaymentLike[]) {
 }
 
 /** groups payment rows by their contract, preserving row order within each group. */
-export function groupPaymentsByContractId<P extends { contractId: number }>(payments: P[]) {
-	const paymentsByContractId = new Map<number, P[]>();
+export function groupPaymentsByContractId<P extends { contractId: string }>(payments: P[]) {
+	const paymentsByContractId = new Map<string, P[]>();
 
 	for (const payment of payments) {
 		paymentsByContractId.set(payment.contractId, [
