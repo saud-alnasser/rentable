@@ -989,9 +989,11 @@ Three things the build settled that were open, each because the package forced t
 - **What an account holds beyond `RemoteSyncAccount`, which is decision 03's remaining design
   question and its instruction to report what reuse costs.** The answer is that reuse costs
   almost nothing and keeps almost nothing: `id`, `email`, `displayName` and `avatarUrl` carry
-  over unchanged, `providerUserId` carries over as `googleUserId` and stops being nullable
-  (an account exists here *because* Google vouched for it, where the desktop's row can precede
-  the profile fetch), and **everything else on that type is Drive's or the credential's** —
+  over unchanged; `googleUserId` occupies the same *slot* as `providerUserId` and is
+  ***a different identifier*** — corrected 2026-08-18 by #555, and the correction matters, see
+  below — and it is not nullable, because an account exists here *because* Google vouched for
+  it where the desktop's row can precede the profile fetch. **Everything else on that type is
+  Drive's or the credential's** —
   quota and usage bytes, `tokenExpiresAt`, `refreshTokenAvailable`, `lastSyncedAt`, `status`,
   `lastError`. None of it describes a person. So the control-plane account is the identity half
   of `RemoteSyncAccount` and nothing more, and the two are not one type shared across a boundary.
@@ -1006,11 +1008,72 @@ Three things the build settled that were open, each because the package forced t
   also drizzle-kit's applied by drizzle-kit, not the Rust runner that rejects any file
   containing a `PRAGMA`.
 
-**What the build did not settle, and named where the code is**: the protocol the control plane's
-real routes will speak. The desktop's tRPC runs in-process in the webview with no HTTP under it,
-so it is not a precedent, and the client that calls these routes is the Rust side rather than the
-web layer — credentials never cross the IPC boundary. #555 chooses it. What exists today is one
-`GET /health` on `node:http`, which reaches the database before answering.
+***Signing in was built 2026-08-18 by #555**, and it settled the protocol question #549 left
+open, along with one thing nobody had noticed.*
+
+**Plain JSON over HTTP.** `POST /account/sign-in` takes a Google access token and answers with
+an account. tRPC's whole return is end-to-end inference into a TypeScript client, and the only
+client there will be is the Rust side — credentials never cross the IPC boundary, so the web
+layer is not the caller and cannot become one. The desktop's own tRPC is not a precedent either:
+it runs in-process in the webview with no HTTP under it. *Rejected, so it is not re-proposed:
+tRPC over HTTP for the sake of matching the desktop, which would buy a shape and cost the Rust
+side a hand-written encoding of a wire format designed to be generated.*
+
+**`RemoteSyncAccount.providerUserId` is not Google's subject, and the two had been treated as
+one.** The desktop fills it from Drive's `permissionId`
+(`apps/desktop/tauri/src/sync/google/files.rs`, `DriveAbout::into_account_details`), which
+identifies the same person under Drive's own scheme rather than under OpenID Connect's. The
+control plane matches accounts on the `sub` claim, per acceptance criterion 4's requirement that
+it not match on an email address — so the column is a **different identifier occupying the same
+slot**, and a future ticket that copies one into the other would silently make one person two
+accounts.
+
+**Which forced a change to the desktop's scopes**: `openid` is now requested alongside `email`
+and `profile` (`apps/desktop/tauri/src/sync/google/auth.rs`). It is OpenID Connect that defines
+`sub` and requires it in a UserInfo answer; without `openid` the grant is plain OAuth 2 and `sub`
+is undefined rather than promised. It asks for no data the other two do not already grant, and a
+Rust test fails if it is ever dropped — the failure would otherwise surface at the API, on a
+machine nobody is looking at.
+
+**Verification is a call to Google's UserInfo endpoint, not a signature check.** An access token
+is opaque, so asking the issuer is both the only way to learn who it belongs to and the only way
+to learn it is still live — a token revoked a minute ago fails immediately, where a self-contained
+ID token would have kept verifying until it expired. It costs one request per sign-in, against a
+control plane that is talking to Turso on most operations anyway.
+
+**Three refusals, typed, because the client's next move differs for each**: Google refused the
+token (sign in again), Google could not be reached (retry with the same token), and Google
+answered without a subject (a defect, and it refuses rather than falling back to the email —
+which is the exact thing criterion 4 rules out). An unexpected failure tells the caller nothing:
+its text names tables and paths.
+
+**The unique index on the account's email is gone, and #549 was wrong to have written it.**
+Implementing the matching is what showed it: an address can be freed and reassigned — a workspace
+domain giving a departed employee's address to their replacement is the ordinary case — and the
+replacement is a different Google subject, so a different person and a different row. The
+constraint would have refused their *first* sign-in with a violation, which is an email address
+deciding who somebody is by the back door, in the same breath as a criterion forbidding exactly
+that. It is a second migration on this package rather than an edit to the first, because the two
+are two tickets. Nothing looks an account up by email.
+
+**Finding an account is one statement, not a read and then a write.** Two first sign-ins for one
+person arriving together both find nothing, both insert, and the second is refused — somebody's
+very first sign-in failing because they were quick. An upsert on the subject removes the window,
+and `createdAt` is absent from its update half so an account that was found keeps the day it was
+made.
+
+**Nothing on the desktop calls any of it**, which is requirement 3 rather than an omission: a
+local-only workspace reaches no account, and the occasion to sign in to the control plane arrives
+with the mode choice (#553), not with signing in to Google.
+
+*What #555 did **not** satisfy, stated rather than quietly reinterpreted:* its acceptance
+criterion that an account carry **at least what `RemoteSyncAccount` already carries** is not met
+on its letter. That type has sixteen fields and the control-plane account has seven; the nine
+missing are Drive quota and usage, app usage, token expiry, whether a refresh token exists, the
+last sync, the account status and the last error — none of which describes a person, and several
+of which would be a lie on a row this database owns. Decision 03's own instruction is to *start
+from reusing them and report what it costs*, which is what `Data Model` above does. The letter of
+the criterion is unmet and the departure is recorded here rather than accepted silently.
 
 **Permissions are one `INTEGER` column capped at bits 0–52**, per decision 04, and they live on
 the membership row in the control plane. That decision was taken against the domain schema's

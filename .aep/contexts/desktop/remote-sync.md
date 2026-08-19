@@ -84,6 +84,14 @@ save never evicts the copy taken before an update.
   disconnecting Drive without being asked to. Disconnecting Drive does give up the identity, and
   that direction is not the same conflation: a person who wants this application to stop talking
   to their Google account is asking for both.
+- **The sign-in asks for `openid`, and Drive has no use for it.** It is asked for on behalf of
+  the control-plane API, which identifies an account by OpenID Connect's `sub` claim — a claim
+  that is *undefined* in a plain OAuth 2 grant rather than merely absent. The scope grants no
+  data `email` and `profile` do not already grant, and a Rust test fails if it is dropped,
+  because the failure would otherwise land on a server this module never talks to.
+  **`RemoteSyncAccount.providerUserId` is not that claim**: it is Drive's `permissionId`, the
+  same person under a different scheme. Copying one into the other would make one person two
+  accounts.
 - **An account no workspace links is an identity, not litter.** The reconcile that runs on every
   state read used to delete exactly those, which was consistent while signing in *was* linking.
   It does not any more, and the guard is a test rather than a comment: the failure it prevents is

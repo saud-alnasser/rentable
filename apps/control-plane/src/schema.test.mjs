@@ -32,17 +32,29 @@ test('the control plane describes accounts, workspaces and membership, and nothi
 	assert.deepEqual(tables.map(getTableName).sort(), ['account', 'membership', 'workspace']);
 });
 
-test('an account is identified by Google and by email, and neither may repeat', () => {
+test('an account is identified by Google, and by nothing else', () => {
 	const { columns } = configOf('account');
 
 	assert.ok(columnNamed(columns, 'id').primary);
-	assert.ok(columnNamed(columns, 'email').isUnique, 'two accounts could share an email');
 	assert.ok(
 		columnNamed(columns, 'google_user_id').isUnique,
 		'two accounts could be the same Google user'
 	);
 	assert.ok(columnNamed(columns, 'google_user_id').notNull);
 	assert.equal(columnNamed(columns, 'avatar_url').notNull, false, 'not everybody has a picture');
+});
+
+// An address that was reassigned belongs to a different Google subject, so it is a different
+// person and a different row. A unique index here would refuse their first sign-in.
+test('an email is not an identity, so two accounts may hold one', () => {
+	const { columns } = configOf('account');
+
+	assert.equal(
+		columnNamed(columns, 'email').isUnique,
+		false,
+		'the email is unique again — see the note on `account` in schema.ts'
+	);
+	assert.equal(columnNamed(columns, 'email').notNull, true);
 });
 
 test('a workspace belongs to an account, and the reference is declared', () => {

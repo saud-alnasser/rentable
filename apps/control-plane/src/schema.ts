@@ -19,10 +19,23 @@ import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
  * by drizzle-kit, not the Rust runner that rejects a file containing a `PRAGMA`.
  */
 
-/** somebody Google vouched for. What signing in *does* is #555's; this is what it writes to. */
+/**
+ * somebody Google vouched for.
+ *
+ * **The email is not unique, and that is the same rule as matching on `sub`.** *It was unique
+ * until 2026-08-18, when #555 implemented the matching and the constraint turned out to say the
+ * opposite.* An address can be freed and reassigned — a workspace domain giving a departed
+ * employee's address to their replacement is the ordinary case — and the replacement is a
+ * different Google subject, so they are a different person and a different row. A unique index
+ * would refuse their first sign-in with a constraint violation, which is an email address
+ * deciding who somebody is by the back door.
+ *
+ * Nothing looks an account up by email. It is stored because a person recognises themselves by
+ * it, and it is refreshed from Google on every sign-in.
+ */
 export const account = sqliteTable('account', {
 	id: text('id').primaryKey(),
-	email: text('email').notNull().unique(),
+	email: text('email').notNull(),
 	displayName: text('display_name').notNull(),
 	avatarUrl: text('avatar_url'),
 	/**

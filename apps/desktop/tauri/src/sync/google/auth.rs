@@ -26,6 +26,16 @@ const GOOGLE_DRIVE_SCOPE_DRIVE_METADATA: &str =
     "https://www.googleapis.com/auth/drive.metadata.readonly";
 const GOOGLE_DRIVE_SCOPE_EMAIL: &str = "email";
 const GOOGLE_DRIVE_SCOPE_PROFILE: &str = "profile";
+/// What makes this an OpenID Connect request, and it is asked for on behalf of a server this
+/// file never talks to. The control-plane API identifies an account by Google's `sub` claim,
+/// and it is OpenID Connect that defines `sub` and requires it in a UserInfo answer. Without
+/// `openid` the request is plain OAuth 2 and `sub` is *undefined* rather than promised —
+/// which is not a foundation for the column every membership hangs off.
+///
+/// It asks for no data the two scopes below do not already grant; `openid` requests no
+/// resource of its own. The grant also yields an `id_token`, which nothing here reads and
+/// `GoogleTokenResponse` ignores, having no `deny_unknown_fields`.
+const GOOGLE_SCOPE_OPENID: &str = "openid";
 // The service name every stored Google Drive credential is filed under in the platform's
 // credential store. It is written out rather than composed from `CARGO_PKG_NAME`, which is what
 // it used to be: the crate was renamed to `rentable-desktop` and the entries already on users'
@@ -474,6 +484,7 @@ fn google_drive_scopes() -> Vec<String> {
     vec![
         GOOGLE_DRIVE_SCOPE_DRIVE_FILE.to_string(),
         GOOGLE_DRIVE_SCOPE_DRIVE_METADATA.to_string(),
+        GOOGLE_SCOPE_OPENID.to_string(),
         GOOGLE_DRIVE_SCOPE_EMAIL.to_string(),
         GOOGLE_DRIVE_SCOPE_PROFILE.to_string(),
     ]
@@ -574,9 +585,25 @@ mod tests {
 
     use super::{
         GoogleDriveConfig, GoogleTokenResponse, access_token_is_fresh, authorization_code_form,
-        build_authorization_url, parse_token_response, pkce_challenge, random_url_safe_token,
-        refresh_token_form,
+        build_authorization_url, google_drive_scopes, parse_token_response, pkce_challenge,
+        random_url_safe_token, refresh_token_form,
     };
+
+    /// The control-plane API identifies an account by Google's `sub`, and OpenID Connect is
+    /// what defines that claim. Dropping this scope would leave the API matching on something
+    /// Google is under no obligation to send — and it would fail at the API rather than here,
+    /// on a machine nobody is looking at.
+    #[test]
+    fn the_sign_in_asks_for_openid_so_a_subject_is_promised() {
+        let scopes = google_drive_scopes();
+
+        assert!(
+            scopes.iter().any(|scope| scope == "openid"),
+            "the sign-in stopped being an OpenID Connect request: {scopes:?}"
+        );
+        assert!(scopes.iter().any(|scope| scope == "email"));
+        assert!(scopes.iter().any(|scope| scope == "profile"));
+    }
     fn oauth_config() -> GoogleDriveConfig {
         GoogleDriveConfig {
             client_id: Some("client-id".to_string()),
