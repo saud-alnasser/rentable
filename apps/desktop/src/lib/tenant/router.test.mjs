@@ -212,13 +212,17 @@ test('an id-only update is a no-op that returns the tenant unchanged', async () 
 	assert.deepEqual(updated, tenant);
 });
 
-// the read-back has no row to return, and neither has the write path it stands in for.
-test('an id-only update for a tenant that does not exist returns nothing', async () => {
+// This asserted the opposite until 2026-08-18: the read-back had no row to return, and nothing
+// said so. An update that quietly answers with nothing reads at every call site as success, which
+// is survivable only while this machine is the only writer — [[rules/data]], under *Undo*, is
+// where the reasoning is, and an inverse is the caller that meets it first.
+test('an id-only update for a tenant that does not exist says so rather than answering with nothing', async () => {
 	const api = await createApi();
 
-	const updated = await api.tenant.update({ id: unusedId() });
-
-	assert.equal(updated, undefined);
+	await assert.rejects(
+		() => api.tenant.update({ id: unusedId() }),
+		/this tenant is no longer in the workspace/
+	);
 });
 
 test('a partial update to an identity used by another tenant is still rejected', async () => {

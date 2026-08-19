@@ -44,8 +44,14 @@ mock.module('$lib/platform/tauri', {
 
 const { inverseStack } = await import('$lib/design/inverse');
 const { useCreateTenant, useUpdateTenant, useDeleteTenant } = await import('$lib/tenant/query');
-const { useCreateComplex, useDeleteComplex, useCreateUnit, useUpdateUnit, useDeleteUnit } =
-	await import('$lib/complex/query');
+const {
+	useCreateComplex,
+	useUpdateComplex,
+	useDeleteComplex,
+	useCreateUnit,
+	useUpdateUnit,
+	useDeleteUnit
+} = await import('$lib/complex/query');
 const {
 	useCreateContract,
 	useUpdateContract,
@@ -155,6 +161,43 @@ describe('undoing a record change', () => {
 				}),
 			/another record already holds that id/
 		);
+	});
+
+	// Another device is the only thing that can take a row away between this session editing it
+	// and undoing that edit — [[rules/data]], under *Undo*. The delete below goes through the
+	// procedure directly rather than through a declaration, which is what makes it somebody
+	// else's: nothing about it reaches this stack.
+	it('refuses to take back an edit whose row somebody else deleted, and says so', async () => {
+		const tenant = await seedTenant(caller);
+
+		await run(useUpdateTenant, { id: tenant.id, name: 'Renamed' });
+		await caller.tenant.delete({ id: tenant.id });
+
+		await assert.rejects(() => inverseStack.undo(), /no longer in the workspace/);
+
+		assert.equal(
+			await caller.tenant.get({ id: tenant.id }),
+			undefined,
+			'the row stays deleted: an undo that recreated it would resurrect a record somebody removed'
+		);
+		assert.ok(inverseStack.undoable, 'the inverse stays, so the user can see what failed');
+	});
+
+	it('refuses the same way for a complex and for a unit', async () => {
+		const complex = await run(useCreateComplex, { name: 'Tower', location: 'Riyadh' });
+		const unit = await run(useCreateUnit, { name: 'A1', complexId: complex.id });
+
+		await run(useUpdateUnit, { id: unit.id, complexId: complex.id, name: 'A2' });
+		await caller.complex.units.delete({ id: unit.id });
+
+		await assert.rejects(() => inverseStack.undo(), /no longer in the workspace/);
+
+		inverseStack.clear();
+
+		await run(useUpdateComplex, { id: complex.id, name: 'Renamed' });
+		await caller.complex.delete({ id: complex.id });
+
+		await assert.rejects(() => inverseStack.undo(), /no longer in the workspace/);
 	});
 
 	it('takes back a complex, a unit, a contract and a payment alike', async () => {
