@@ -26,29 +26,6 @@ export default router({
 			return ctx.host.update.check();
 		})
 	},
-	window: {
-		show: procedure.public.mutation(async ({ ctx }) => {
-			await ctx.host.window.show();
-		}),
-		hide: procedure.public.mutation(async ({ ctx }) => {
-			await ctx.host.window.hide();
-		}),
-		minimize: procedure.public.mutation(async ({ ctx }) => {
-			await ctx.host.window.minimize();
-		}),
-		maximize: procedure.public.mutation(async ({ ctx }) => {
-			await ctx.host.window.maximize();
-		}),
-		drag: procedure.public.mutation(async ({ ctx }) => {
-			await ctx.host.window.drag();
-		}),
-		close: procedure.public.mutation(async ({ ctx }) => {
-			await ctx.host.window.close();
-		}),
-		restart: procedure.public.mutation(async ({ ctx }) => {
-			await ctx.host.window.restart();
-		})
-	},
 	state: {
 		reconcile: procedure.public.mutation(async ({ ctx }) => {
 			const reconciledAt = ctx.clock.now();

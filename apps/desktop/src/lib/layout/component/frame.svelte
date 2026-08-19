@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import api from '$lib/api/caller';
+	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '$lib/design/primitive/button';
 	import { Kbd } from '$lib/design/primitive/kbd';
 	import { Separator } from '$lib/design/primitive/separator';
@@ -39,7 +39,7 @@
 			return;
 		}
 
-		void api.app.window.drag();
+		void tauri.window.drag();
 	}
 </script>
 
@@ -48,7 +48,7 @@
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			onmousedown={startDragging}
-			ondblclick={() => void api.app.window.maximize()}
+			ondblclick={() => void tauri.window.maximize()}
 			class="absolute inset-0 cursor-grab [-webkit-app-region:drag] active:cursor-grabbing"
 		></div>
 
