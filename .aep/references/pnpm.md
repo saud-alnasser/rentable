@@ -1,7 +1,7 @@
 ---
-aep: 2.1.1
+aep: 2.5.1
 owner: repository
-date: 2026-08-17
+date: 2026-08-18
 kind: reference
 use-when: "installing dependencies or running any repository script"
 ---
@@ -17,10 +17,13 @@ or anything touching the lockfile.
 
 ## The workspace, and which tool runs what
 
-`pnpm-workspace.yaml` declares `apps/*` and `packages/*`. There is one package today —
-**`@rentable/desktop`, the desktop application at `apps/desktop/`** — and the root is a
-private, unversioned container named `rentable`. The scope is what keeps the two distinct: the
-root holds the product's name, and every package under it is named within that scope.
+`pnpm-workspace.yaml` declares `apps/*` and `packages/*`. There are two packages —
+**`@rentable/desktop`, the desktop application at `apps/desktop/`**, and
+**`@rentable/control-plane` at `apps/control-plane/`**, the always-online tier that holds
+accounts, workspaces and membership — and the root is a private, unversioned container named
+`rentable`. The scope is what keeps the three distinct: the root holds the product's name, and
+every package under it is named within that scope. *There was one until 2026-08-18, when #549
+cut the second; `packages/` is still empty.*
 
 **pnpm declares the workspace; Turborepo runs the tasks across it.** Which of the two a script
 goes through is not arbitrary:
@@ -33,6 +36,22 @@ goes through is not arbitrary:
 
 **Filter by workspace path, never by package name** — `--filter ./apps/desktop`, in both tools.
 Naming the package couples every root script to a name that can be renamed out from under it.
+
+**Root `check` names no package at all**: it is `pnpm -r --if-present check && prettier --check .`,
+which runs every package's own `check` and then the formatter over the whole tree. *Changed
+2026-08-18 by #549, and the reason is the failure it prevents rather than tidiness — the script
+filtered `./apps/desktop` alone, so the second package's typecheck would not have run in CI
+while the step reading `pnpm check` said it had.* `-r` excludes the root, `--if-present` is what
+lets a package have no `check`, and neither names anything that can be renamed. `lint` needed no
+such change: root `lint` is `prettier --check . && eslint .`, both of which walk the whole tree
+already.
+
+The control plane's own scripts follow the interactive row above:
+
+```bash
+pnpm --filter ./apps/control-plane db:migrate   # create its database, or bring it up to date
+pnpm --filter ./apps/control-plane dev          # run it locally
+```
 
 ```bash
 pnpm --filter ./apps/desktop check      # one script per invocation — anything after

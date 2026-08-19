@@ -977,6 +977,41 @@ answers the question the monorepo effort's plan left open**: its removal conditi
 the schema into a package was "a second consumer exists", and the control plane is not one. The
 schema stays where it is, in `apps/desktop/`, until something else consumes it.
 
+***Built 2026-08-18 by #549, so the paragraph above now describes code.*** It is
+`@rentable/control-plane` at `apps/control-plane/`, and its schema is three tables — `account`,
+`workspace`, `membership` — with `apps/control-plane/src/schema.test.mjs` asserting that the set
+is exactly those three. **"No domain table" is therefore a test rather than an intention**, which
+matters because nothing else in the tree would object to one: a contract table here is the first
+step of the shape *Architecture* rejects, and it would arrive looking like a convenience.
+
+Three things the build settled that were open, each because the package forced the question:
+
+- **What an account holds beyond `RemoteSyncAccount`, which is decision 03's remaining design
+  question and its instruction to report what reuse costs.** The answer is that reuse costs
+  almost nothing and keeps almost nothing: `id`, `email`, `displayName` and `avatarUrl` carry
+  over unchanged, `providerUserId` carries over as `googleUserId` and stops being nullable
+  (an account exists here *because* Google vouched for it, where the desktop's row can precede
+  the profile fetch), and **everything else on that type is Drive's or the credential's** —
+  quota and usage bytes, `tokenExpiresAt`, `refreshTokenAvailable`, `lastSyncedAt`, `status`,
+  `lastError`. None of it describes a person. So the control-plane account is the identity half
+  of `RemoteSyncAccount` and nothing more, and the two are not one type shared across a boundary.
+- **Where a workspace's database coordinates go is not here yet, deliberately.** The record
+  carries id, name, owner and timestamps; the `libsql://` database #556 creates and the schema
+  version #557 settles are columns those tickets add. A column null on every row documents
+  nothing.
+- **Foreign keys are declared in the control-plane schema and are absent from the workspace
+  schema**, which is a difference rather than an inconsistency: this database is single and
+  always online, where the workspace database is replicated to machines that write to it
+  offline — a constraint one replica satisfies can be violated by the merge. Its migrations are
+  also drizzle-kit's applied by drizzle-kit, not the Rust runner that rejects any file
+  containing a `PRAGMA`.
+
+**What the build did not settle, and named where the code is**: the protocol the control plane's
+real routes will speak. The desktop's tRPC runs in-process in the webview with no HTTP under it,
+so it is not a precedent, and the client that calls these routes is the Rust side rather than the
+web layer — credentials never cross the IPC boundary. #555 chooses it. What exists today is one
+`GET /health` on `node:http`, which reaches the database before answering.
+
 **Permissions are one `INTEGER` column capped at bits 0–52**, per decision 04, and they live on
 the membership row in the control plane. That decision was taken against the domain schema's
 transports; it applies unchanged here, and the control plane is where it was always going to
@@ -1842,10 +1877,12 @@ domain, so it is a separate description rather than a second consumer. The extra
 deferred and its condition stays unfired.
 
 **What is still open here**, and it is now a design question rather than an architectural one:
-what a user record holds beyond what `RemoteSyncAccount` already carries; what the session is on
-the wire, given requirement 15 makes it a token with a lifetime; and what the client holds while
-offline so that *signed in three days ago* is something it can prove rather than a flag it sets
-about itself.
+~~what a user record holds beyond what `RemoteSyncAccount` already carries~~ — *answered
+2026-08-18 by #549, and the answer with its cost is in `Data Model`: the identity half of that
+type carries over and everything else on it belongs to Drive or to a credential* — what the
+session is on the wire, given requirement 15 makes it a token with a lifetime; and what the
+client holds while offline so that *signed in three days ago* is something it can prove rather
+than a flag it sets about itself.
 
 **Question.** What a user record holds, and whether the control plane is built here or is a
 hosted identity service. Also: what the request context becomes, given it carries no identity
@@ -1928,6 +1965,27 @@ could have disagreed. They were run against both.
   so *the 54th flag defined silently corrupts the first flags defined*, retroactively, on every
   row already written. That is the worst available shape for a permission field: the failure
   lands on the oldest and most fundamental permissions, on read, with no error.
+
+### A second ceiling, twenty-two bits lower *(found 2026-08-18, building #549)*
+
+Everything above is about **storage**, and it is right. What it does not cover is the
+**operators**, and they have a ceiling of their own that is far lower and just as silent.
+
+**JavaScript's bitwise operators coerce their operands to a signed 32-bit integer.** So
+`1 << 40` is `256`, `2 ** 52 | 0` is `0`, and `permissions & mask` — the exact expression this
+decision's option A is named for — discards every flag above bit 30 without erroring. The
+53-bit ceiling this decision chose is unreachable through the operators that made option A look
+cheap.
+
+It costs nothing to avoid, which is why this is a note rather than a reopening: **distinct
+powers of two sum to exactly what an OR of them produces**, and a single bit reads back as
+`Math.floor(permissions / 2 ** bit) % 2`. `apps/control-plane/src/permission.ts` is written that
+way and `permission.test.mjs` pins the reason, so the next person to reach for `|` finds a test
+saying why it is not there.
+
+**Option A's SQL half is unaffected**, and that is the reason the decision stands: SQLite's `&`
+is 64-bit, so `WHERE permissions & 4` — the advantage option A was chosen for — works to the
+full 53 bits. Only the JavaScript side needed the arithmetic form.
 
 ### The correction this forces to `contexts/persistence`
 

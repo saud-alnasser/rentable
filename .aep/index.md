@@ -32,8 +32,8 @@ Start at [[protocol]].
 | [[rules/drive]] | the request touches Drive credentials, Drive network calls, a manifest or snapshot conflict, or a Drive transport test | — | apps/desktop/tauri/src/sync/google/**, apps/desktop/src/lib/sync/** | repository |
 | [[rules/frontend]] | writing or changing Svelte components, routes, styles, or client state | — | apps/desktop/src/lib/**, apps/desktop/src/routes/**, apps/desktop/src/app.css | repository |
 | [[rules/interface]] | a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell | — | apps/desktop/src/lib/**/component/**, apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/design/cell/**, apps/desktop/src/lib/design/primitive/**, apps/desktop/src/lib/dashboard/**, apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/component/**, apps/desktop/src/routes/**, apps/desktop/src/app.css | repository |
-| [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | prototype | apps/desktop/src/**, apps/desktop/tauri/src/** | repository |
-| [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | — | apps/desktop/src/**, apps/desktop/tauri/src/** | repository |
+| [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | prototype | apps/desktop/src/**, apps/desktop/tauri/src/**, apps/control-plane/src/** | repository |
+| [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | — | apps/desktop/src/**, apps/desktop/tauri/src/**, apps/control-plane/src/** | repository |
 | [[rules/tracker]] | creating, reading, claiming, or labelling a ticket, or deciding whether work is a ticket at all | specify, plan, implement, review | — | repository |
 | [[rules/version-control]] | branching, committing, opening a pull request, or landing work here | implement, review | — | repository |
 

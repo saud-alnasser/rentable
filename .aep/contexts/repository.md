@@ -19,6 +19,13 @@ Svelte 5 frontend.
 `apps/desktop/`.** The root holds only what governs every package — the lockfile,
 `.changeset/`, the linting and formatting configuration, `turbo.json`, and `.aep/`.
 
+**There is a second package, and it is not part of the application.** `apps/control-plane/`
+is `@rentable/control-plane`, the always-online tier holding accounts, workspaces and
+membership for a hosted workspace — built 2026-08-18 by #549, deployed nowhere, and reached by
+nothing yet. It has its own database and its own schema, and **it holds no domain table**: it
+is in the credential path and never in the data path. Everything below in this file describes
+the desktop application; where the control plane differs, its own README says so.
+
 **Every `src/…` and `tauri/…` path in the rest of this file, and in the rules and contexts
 beside it, is relative to `apps/desktop/`** unless it is written out in full. That is the one
 translation to hold; it is stated here rather than repeated in forty artifacts, because a path

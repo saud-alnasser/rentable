@@ -1,0 +1,18 @@
+{
+	// The emitting configuration, and the only difference that matters is that it emits.
+	// `rewriteRelativeImportExtensions` is what lets the source say `./schema.ts` — which is
+	// what `tsx` and the tests resolve — and still produce JavaScript importing `./schema.js`.
+	// Without it TypeScript refuses to emit at all while `allowImportingTsExtensions` is on.
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"noEmit": false,
+		"rewriteRelativeImportExtensions": true,
+		"allowJs": false,
+		"checkJs": false,
+		"outDir": "./build",
+		"rootDir": "./src",
+		"sourceMap": true
+	},
+	"include": ["src/**/*.ts"],
+	"exclude": ["src/**/*.test.mjs"]
+}

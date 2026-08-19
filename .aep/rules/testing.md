@@ -1,18 +1,27 @@
 ---
-aep: 2.1.1
+aep: 2.5.1
 owner: repository
-date: 2026-08-17
+date: 2026-08-18
 kind: rule
 paths:
   - apps/desktop/src/**
   - apps/desktop/tauri/src/**
+  - apps/control-plane/src/**
 use-when: "writing or changing a test, or deciding what a change must be tested at"
 ---
 
 <!--
   Path-scoped: the `paths:` frontmatter above is the authority, and the harness
-  enforces it — this rule loads when source under `apps/desktop/src/` or
-  `apps/desktop/tauri/src/` is read, and costs nothing otherwise.
+  enforces it — this rule loads when source under `apps/desktop/src/`,
+  `apps/desktop/tauri/src/`, or `apps/control-plane/src/` is read, and costs
+  nothing otherwise.
+
+  The control plane was added to that list on 2026-08-18 with #549. **The
+  TypeScript section applies to it word for word** — its tests are `*.test.mjs`
+  colocated with the module they cover, under `node:test`, importing the `.ts`
+  source. The Rust section has no subject there and the router level has none
+  yet; when the control plane grows routes, they are covered end to end against
+  a real database for the same reason the desktop's are.
 -->
 
 # Testing

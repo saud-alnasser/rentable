@@ -7,7 +7,7 @@
 		"dev": "pnpm --filter ./apps/desktop dev",
 		"build": "turbo run build",
 		"preview": "pnpm --filter ./apps/desktop preview",
-		"check": "pnpm --filter ./apps/desktop check && prettier --check .",
+		"check": "pnpm -r --if-present check && prettier --check .",
 		"format": "prettier --write .",
 		"lint": "prettier --check . --end-of-line auto && eslint .",
 		"test": "turbo run test",
