@@ -11,6 +11,7 @@
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
+	import SettingsAccount from '$lib/settings/component/account.svelte';
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
 	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
 	import SettingsLocale from '$lib/settings/component/locale.svelte';
@@ -99,6 +100,15 @@
 		<h1 class="text-3xl font-semibold tracking-tight">{$LL.settings.title()}</h1>
 
 		<Field.Group>
+			<!-- first, because it is the one group that is true before any of the others are: the
+			     workspace the rest of this page configures belongs to the account named here. -->
+			<Field.Set>
+				<Field.Legend>{$LL.settings.groupAccount()}</Field.Legend>
+				<SettingsAccount syncState={remoteSyncQuery.data} />
+			</Field.Set>
+
+			<Separator />
+
 			<Field.Set>
 				<Field.Legend>{$LL.settings.groupGeneral()}</Field.Legend>
 				<Field.Group>

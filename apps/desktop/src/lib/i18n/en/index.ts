@@ -60,6 +60,7 @@ const en = {
 			saveWindow: 'save window',
 			saving: 'saving...',
 			selectRecords: 'select records',
+			signOut: 'sign out',
 			sortBy: 'sort by',
 			syncing: 'syncing...',
 			syncNow: 'sync',
@@ -343,6 +344,21 @@ const en = {
 			title: 'this screen could not be shown'
 		},
 
+		signIn: {
+			authorizing: 'finish signing in with Google in the browser window that just opened.',
+			continueWithGoogle: 'continue with Google',
+			description:
+				'your workspace lives in your account, so it follows you to whichever machine you sign in on. the first sign-in is what creates it.',
+			finalizing: 'signing you in...',
+			incomplete:
+				'you are signed in with Google, but this machine could not reach rentable to open your workspace. check your connection and try again.',
+			lockedDescription:
+				'this machine has been out of contact for too long to keep working offline. sign in again to unlock it — your workspace and everything in it are untouched.',
+			lockedTitle: 'sign in again to continue',
+			networkNotice: 'signing in needs an internet connection.',
+			title: 'sign in to rentable'
+		},
+
 		startup: {
 			accountChoiceDescription:
 				'open the current workspace locally, or link Google Drive now to turn it into a synced workspace.',
@@ -393,6 +409,9 @@ const en = {
 	},
 
 	settings: {
+		accountDescription:
+			'this machine is signed in as the account below. signing out closes the workspace on this machine only — it stays where it is, and signing back in opens it again.',
+		accountSignedInAs: 'signed in as',
 		aboutDescription: 'current app details and the latest synchronization and snapshot timestamps.',
 		aboutTitle: 'about',
 		createdAt: 'created {value}',
@@ -417,6 +436,7 @@ const en = {
 		endingSoonInvalid: 'the number of days must be greater than zero',
 		endingSoonTitle: 'ending soon',
 
+		groupAccount: 'account',
 		groupDiagnostics: 'diagnostics',
 		groupGeneral: 'general',
 		groupUpdates: 'updates',
