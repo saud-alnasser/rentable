@@ -540,6 +540,14 @@ not what the architecture is. Decisions 06, 07 and 12 are still absent rather th
    directly, because it already holds the credentials that make that possible.
 3. **The desktop client**, which is what exists today, gaining a mode and a session.
 
+**One shape of the client is fixed by decision 11's run rather than chosen: the sync client is
+given its remote URL as a function, never as a string.** Passed as a string to a remote that
+cannot be reached, `connect()` throws and leaves no usable local database — so a fresh install
+on a disconnected machine is dead. Passed as a function that answers `null` until online, it
+opens, takes writes, refuses to push with a message naming its own reason, and pushes those
+writes when the network arrives. It costs nothing and it is invisible until the day it matters,
+which is why it is written here rather than left to be rediscovered.
+
 **The API is in the credential path continuously and in the data path never.** That single
 property is what makes the recommendation work, and three requirements land on it:
 
@@ -794,6 +802,15 @@ outcome is visible to a user. Applying that test item by item, and this is what
 
 So the frontier is small and it is not empty, which is the point.
 
+**The gate ran on 2026-08-18 and came back a go, which reopens three rows of that table.**
+The `Hosted` variant, the optional identity member on `Context`, and decision 09's rule
+re-scoping were all marked *waits on the gate*; nothing waits on it now. The reasoning above
+is left standing rather than rewritten, because it was right when it was written and the
+record of why is worth more than a table that reads as though the answer was always known.
+**Deciding what those become is [[skills/tasks]]'s, not this section's** — and one of them
+grew: the identity migration decision 13 settled is now the largest piece of work on this
+effort, and requirement 1 is what makes it risky rather than merely large.
+
 **Accepting does not make requirement 7 achievable.** It is hard, decision 11 is a go/no-go, and
 a negative result ends the hosted half of this effort. If that happens the spec is changed
 deliberately under [[policies/execution]] rather than quietly relaxed — the requirement is what
@@ -884,7 +901,9 @@ connected or offline replica does when its token is invalidated; and client/sche
 
 ## 10 — grilling(persistence): which client, and whether offline-first survives
 
-Status: **decided — option A, contingent on decision 11**
+Status: **decided — option A, and the contingency is discharged 2026-08-18.** Decision 11 ran
+against a live account and came back a go, so option A is no longer conditional. Its price is
+still what *Drift found* records; what changed is that the fallback is no longer needed.
 Part of: a-workspace-follows-its-user
 Type: grilling
 Blocked by: 01 (resolved)
@@ -965,7 +984,22 @@ the vendor.
 
 ## 11 — prototype(persistence): confirm the chosen client against a live database
 
-Status: open — **this is the gate, and invoking it is the user's.**
+Status: **decided 2026-08-18 — the gate ran, and it is a GO.** Every question below is
+answered against a live account; the evidence is
+[[efforts/a-workspace-follows-its-user/evidence/prototypes/turso-sync-against-a-live-database]].
+
+**What it settled, in one line each.** A `libsql://` database this application creates through
+the Platform API is a valid sync target (1). Two disconnected replicas creating unrelated
+records collide on the primary key, silently, and one payment is simply gone (2b) — while the
+same experiment with client-assigned `TEXT` keys keeps both, which confirms decision 13
+against the engine rather than against reasoning. Contended loss is **per column, not per
+row** (2a), which is materially better than this decision assumed. An offline first launch
+works **only where `url` is passed as a function** rather than a string (3). Rotating the auth
+token costs 63 bytes — identical to not rotating — so the whole short-lived-credential model
+holds (5). The reconcile pass sends **zero bytes** and is followed by one batched push (6).
+
+**Requirement 7 is met.** A replica accepts writes with no network and pushes them when the
+network returns. Nothing found here ends the hosted half of the effort.
 
 **What changed on 2026-08-18: the architecture stopped waiting on this and this stopped deciding
 it.** The human directed the shape directly — Turso carries workspace sync, the API owns identity
@@ -1020,9 +1054,15 @@ What it has to settle, in priority order:
    populated on real machines. **That collides with requirement 1**, which is why it is named
    here before the gate runs rather than discovered inside it. It is a return to
    [[skills/plan]] with a schema question, not a swap of one client for another.
-3. **What a genuinely offline first launch does** with `bootstrapIfEmpty` false — the documented
+3. ~~**What a genuinely offline first launch does** with `bootstrapIfEmpty` false — the documented
    path requires the remote reachable on first connect, which a fresh install on a disconnected
-   machine does not have.
+   machine does not have.~~ **Answered 2026-08-18, and the option named here does not exist.**
+   `bootstrapIfEmpty` is not in `@tursodatabase/sync` 0.7.2; the question it was asking is real
+   and the answer is conditional. A `url` passed as a **string** to an unreachable remote fails
+   at `connect()` and leaves no usable local database. A `url` passed as a **function returning
+   `null` until online** opens, accepts writes, refuses to push with a message naming its own
+   reason, and pushes those writes once the network arrives. **This is a constraint on how the
+   client is written**, and it is invisible until the day it matters.
 4. ~~**The two code-derived claims about the fallback**, so option B is known rather than assumed:
    whether `offline: true` still drops `syncInterval`, and what recovery from its conflict error
    actually looks like.~~ **Resolved 2026-08-17, with no account, exactly as the procedure
@@ -1085,9 +1125,13 @@ write-up is what is kept.
 
 *Written 2026-08-17, so the run needs no further decisions once credentials exist.*
 
-Two values in `.env`, which is gitignored (`.gitignore:15`) and is therefore where they belong.
+Two values in **`apps/desktop/.env`**, which is gitignored and is therefore where they belong.
 They are **deliberately not added to `.env.example`**, because that file is tracked and
 advertising configuration for an architecture this decision may reject would be premature.
+
+*Corrected 2026-08-18, when the run needed them: this said `.env` and cited `.gitignore:15`.
+The file that exists is the app's, not the repository root's, and root `.env` is ignored at
+line 7. The run used `apps/desktop/.env` and both values were read from there.*
 
 | Key | What it is | Where from |
 | --- | --- | --- |
@@ -1360,7 +1404,7 @@ seam that makes it a change rather than a rewrite.
 Status: open
 Part of: a-workspace-follows-its-user
 Type: grilling
-Blocked by: 11
+Blocked by: — *(was 11, decided 2026-08-18)*
 
 **Question.** Rust owns applying migrations today and the TypeScript side never runs them
 against the app's database ([[contexts/desktop/persistence]]). With the database hosted and several
@@ -1374,7 +1418,7 @@ which also holds this decision to leaving a local workspace's migrations exactly
 Status: open
 Part of: a-workspace-follows-its-user
 Type: grilling
-Blocked by: 11
+Blocked by: — *(was 11, decided 2026-08-18)*
 
 **Question.** A hosted remote of record makes Drive redundant as a sync mechanism while leaving
 it plausible as a user-owned backup. Whether it survives, becomes an export path, or is retired
@@ -1516,7 +1560,16 @@ being built ([[policies/execution]] — the seam is in scope, the implementation
 Status: open
 Part of: a-workspace-follows-its-user
 Type: grilling
-Blocked by: 11, 05
+Blocked by: — *(was 11 and 05; both decided 2026-08-18)*
+
+**One of its inputs arrived 2026-08-18, and it makes the job smaller.** Decision 11 measured
+what divergence actually costs, and it is **per column, not per row**: two replicas editing
+different columns of one contract both keep their edit, and only two writes to the *same*
+column produce a loser. A row deleted under a concurrent edit is the exception — the delete
+wins whole, with no error on either side. So the *Undo* reasoning in [[rules/data]] does not
+have to survive "a row replaced wholesale"; it has to survive "a column overwritten by a later
+push, and a deleted row that took an edit with it". That is a smaller thing to re-scope and a
+smaller thing to explain to a user.
 
 **Question.** The premise every one of these was argued from is changing. Each is either still
 true under a remote of record, or is superseded here with its reasoning stated afresh:
@@ -1584,7 +1637,7 @@ the tree, not by constraining a build. 09 does that re-reading.
 Status: open — **opened 2026-08-17**, when local workspaces became permanently first-class
 Part of: a-workspace-follows-its-user
 Type: grilling
-Blocked by: 11, 03
+Blocked by: 03 *(was 11 and 03; 11 decided 2026-08-18)*
 
 **Question.** Requirement 6 says a user may convert a local workspace to a hosted one, losing
 nothing. Nothing in this effort had covered how, because until the two-mode decision there was
@@ -1620,6 +1673,13 @@ What the answer has to settle:
   here is what makes that question cheap or expensive to revisit later.
 
 ## 13 — grilling(persistence): what a record's identity is under replication
+
+**Confirmed against a live database 2026-08-18.** Two disconnected replicas each inserting a
+row into a table keyed by a client-assigned `TEXT` produced two rows, both present and both
+distinct — where the same experiment against `INTEGER PRIMARY KEY` produced one row and lost
+the other with no error on either side. The scheme chosen here is not merely reasoned to work;
+it has been run. See
+[[efforts/a-workspace-follows-its-user/evidence/prototypes/turso-sync-against-a-live-database]].
 
 Status: **decided 2026-08-18 — a UUIDv7 held as `TEXT`, generated on the client that creates the
 record, one scheme for both modes, migrated onto existing installs.**
