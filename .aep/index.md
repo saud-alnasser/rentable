@@ -1,5 +1,5 @@
 ---
-aep: 2.5.1
+aep: 2.6.0
 owner: repository
 date: 2026-08-19
 ---
@@ -137,7 +137,7 @@ Start at [[protocol]].
 | Effort | Status | Spec | Research | Prototypes | Tickets |
 | --- | --- | --- | --- | --- | --- |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
-| a-workspace-follows-its-user | accepted | [[efforts/a-workspace-follows-its-user/spec]] | 1 | 1 | 0 |
+| a-workspace-follows-its-user | accepted | [[efforts/a-workspace-follows-its-user/spec]] | 2 | 1 | 0 |
 | answers-menus-and-scrollbars | implemented | [[efforts/answers-menus-and-scrollbars/spec]] | 0 | 0 | 0 |
 | contract-work-queue-and-directory | implemented | [[efforts/contract-work-queue-and-directory/spec]] | 0 | 1 | 0 |
 | counts-cards-and-confirmations | implemented | [[efforts/counts-cards-and-confirmations/spec]] | 0 | 2 | 0 |
