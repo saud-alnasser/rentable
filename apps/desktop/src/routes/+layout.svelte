@@ -76,7 +76,7 @@
 		onResolutionRequired: async (preparation) => {
 			pendingConflict.present(preparation);
 			startupState = 'choose-workspace';
-			await api.app.window.show();
+			await tauri.window.show();
 		},
 		resolve: async () => {
 			const result = await syncWorkspaceRemoteNow();
@@ -89,7 +89,7 @@
 			startupState = 'choose-workspace';
 			pendingConflict.clear();
 			startupError = getErrorMessage(error);
-			await api.app.window.show();
+			await tauri.window.show();
 		},
 		onCancelled: async () => {
 			startupRemoteSync = await tauri.remoteSync.getState().catch(() => startupRemoteSync);
@@ -162,7 +162,7 @@
 		}
 
 		try {
-			await api.app.window.hide();
+			await tauri.window.hide();
 
 			if (!skipSync && startupState === 'ready') {
 				startupRemoteSync = (await syncWorkspaceBeforeExit(startupRemoteSync)).state;
@@ -174,7 +174,7 @@
 			isFinalizingWindowClose = true;
 
 			try {
-				await api.app.window.close();
+				await tauri.window.close();
 			} catch {
 				isFinalizingWindowClose = false;
 			}
@@ -196,7 +196,7 @@
 		startupRecovery = null;
 		signInReason = reason;
 		startupState = 'sign-in';
-		await api.app.window.show();
+		await tauri.window.show();
 	}
 
 	/**
@@ -279,7 +279,7 @@
 			startupRecovery = null;
 			startupState = 'error';
 			startupError = getErrorMessage(error);
-			await api.app.window.show();
+			await tauri.window.show();
 		}
 	}
 
@@ -287,7 +287,7 @@
 		const recovery = await api.app.bootstrap();
 
 		if (applyRecoveryState(recovery)) {
-			await api.app.window.show();
+			await tauri.window.show();
 			return;
 		}
 
@@ -297,7 +297,7 @@
 
 			if (pendingConflict.present(result.preparation)) {
 				startupState = 'choose-workspace';
-				await api.app.window.show();
+				await tauri.window.show();
 				return;
 			}
 		}
@@ -307,7 +307,7 @@
 
 		startupRecovery = null;
 		startupState = 'ready';
-		await api.app.window.show();
+		await tauri.window.show();
 	}
 
 	// derived state moves only at UTC day boundaries, so an app left running crosses into
@@ -346,7 +346,10 @@
 		isHandlingStartupChoice = false;
 
 		try {
-			const settings = await api.app.settings.get();
+			// the shell's own settings, read off the shell. It carries the locale the sign-in screen
+			// is drawn in, so it has to be readable before there is an account — and a procedure is
+			// not, now that a request names its acting user.
+			const settings = await tauri.settings.get();
 			const nextLocale = (settings.locale ?? baseLocale) as Locales;
 
 			for (const locale of locales) {
@@ -356,7 +359,7 @@
 			setLocale(nextLocale);
 
 			isI18nReady = true;
-			startupRemoteSync = await api.app.remoteSync.getState();
+			startupRemoteSync = await tauri.remoteSync.getState();
 
 			// **The wall, and everything below this line is behind it.** The Drive inspection reads
 			// the workspace, the bootstrap opens the database and the reconcile writes to it — so
@@ -374,7 +377,7 @@
 
 					if (pendingConflict.present(inspectedLink)) {
 						startupState = 'choose-workspace';
-						await api.app.window.show();
+						await tauri.window.show();
 						return;
 					}
 				}
@@ -386,7 +389,7 @@
 			startupRecovery = null;
 			startupState = 'error';
 			startupError = getErrorMessage(error);
-			await api.app.window.show();
+			await tauri.window.show();
 		}
 	}
 
@@ -407,7 +410,7 @@
 			startupRecovery = null;
 			startupState = 'error';
 			startupError = getErrorMessage(error);
-			await api.app.window.show();
+			await tauri.window.show();
 		} finally {
 			isHandlingStartupChoice = false;
 			isOpeningLocalWorkspace = false;
@@ -433,7 +436,7 @@
 			startupRecovery = null;
 			startupState = 'choose-workspace';
 			startupError = getErrorMessage(error);
-			await api.app.window.show();
+			await tauri.window.show();
 		} finally {
 			isHandlingStartupChoice = false;
 		}
@@ -447,7 +450,7 @@
 		if (linkSession.isAuthorizing) {
 			await linkSession.cancel();
 			startupState = 'choose-workspace';
-			await api.app.window.show();
+			await tauri.window.show();
 			return;
 		}
 
@@ -469,13 +472,13 @@
 
 				startupRemoteSync = dismissal.state;
 				startupState = 'choose-workspace';
-				await api.app.window.show();
+				await tauri.window.show();
 			});
 		} catch (error) {
 			startupRecovery = null;
 			startupState = 'choose-workspace';
 			startupError = getErrorMessage(error);
-			await api.app.window.show();
+			await tauri.window.show();
 		} finally {
 			isHandlingStartupChoice = false;
 		}
@@ -500,12 +503,12 @@
 			queryClient.setQueryData(settingsKeys.remoteSync, startupRemoteSync);
 			linkSession.begin();
 			startupState = 'choose-workspace';
-			await api.app.window.show();
+			await tauri.window.show();
 		} catch (error) {
 			startupRecovery = null;
 			startupState = 'choose-workspace';
 			startupError = getErrorMessage(error);
-			await api.app.window.show();
+			await tauri.window.show();
 		} finally {
 			isHandlingStartupChoice = false;
 		}
@@ -518,7 +521,7 @@
 
 		if (linkSession.isAuthorizing) {
 			await linkSession.cancel();
-			await api.app.window.show();
+			await tauri.window.show();
 			return;
 		}
 

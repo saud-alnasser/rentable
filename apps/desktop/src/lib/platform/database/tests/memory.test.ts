@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { appRouter } from '$lib/api/router.ts';
 import { caller, context } from '$lib/api/trpc.ts';
+import { fakeIdentity } from '$lib/api/tests/testing.ts';
 import { fakeHost } from '$lib/platform/tests/testing.ts';
 import { isRecordId, newId } from '../identity.ts';
 import { createMemoryDatabase } from '../memory.ts';
@@ -11,7 +12,12 @@ import * as s from '../schema.ts';
 
 async function createApi() {
 	const db = createMemoryDatabase();
-	const ctx = await context({ db, clock: { now: () => 0 }, host: fakeHost() });
+	const ctx = await context({
+		db,
+		clock: { now: () => 0 },
+		host: fakeHost(),
+		identity: fakeIdentity()
+	});
 
 	return caller(appRouter)(ctx);
 }

@@ -3,7 +3,8 @@
 	import { Button } from '$lib/design/primitive/button';
 	import * as Field from '$lib/design/primitive/field';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { signedInAccount, signOutOfGoogle } from '$lib/sync/sign-in';
+	import { signedInAccount } from '$lib/sync/account';
+	import { signOutOfGoogle } from '$lib/sync/sign-in';
 	import { toErrorText } from '$lib/error/message';
 	import { toast } from 'svelte-sonner';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';

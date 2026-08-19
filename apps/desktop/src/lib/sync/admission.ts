@@ -1,7 +1,7 @@
 import type { RemoteSyncAccount, RemoteSyncState } from '$lib/platform/host';
 
 import { workspaceReplicationStanding } from './session';
-import { signedInAccount } from './sign-in';
+import { signedInAccount } from './account';
 
 /**
  * ADMISSION

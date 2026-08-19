@@ -1,5 +1,5 @@
 <script lang="ts">
-	import api from '$lib/api/caller';
+	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '$lib/design/primitive/button';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { requestWindowClose } from '$lib/layout/event';
@@ -51,7 +51,7 @@
 		aria-label={$LL.common.window.minimize()}
 		onmousedown={stopEventPropagation}
 		ondblclick={stopEventPropagation}
-		onclick={() => void api.app.window.minimize()}
+		onclick={() => void tauri.window.minimize()}
 	>
 		<MinusIcon class="size-3.5" />
 	</Button>
@@ -63,7 +63,7 @@
 		onmousedown={stopEventPropagation}
 		ondblclick={stopEventPropagation}
 		onclick={() => {
-			void api.app.window.maximize();
+			void tauri.window.maximize();
 			void refreshWindowState();
 		}}
 	>

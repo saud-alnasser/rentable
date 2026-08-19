@@ -11,6 +11,7 @@ import { getTableName, sql } from 'drizzle-orm';
 import type { Host } from '$lib/platform/host.ts';
 import { appRouter } from '$lib/api/router.ts';
 import { caller, context } from '$lib/api/trpc.ts';
+import { fakeIdentity } from '$lib/api/tests/testing.ts';
 import { connectHostedReplica } from '../hosted.ts';
 import { createMemoryDatabase } from '../memory.ts';
 import * as s from '../schema.ts';
@@ -97,7 +98,12 @@ async function openWorkspace(options: { url?: () => string | null; fetch?: typeo
 		}
 	}
 
-	const ctx = await context({ db: replica.db, clock: { now: () => NOW }, host: HOST });
+	const ctx = await context({
+		db: replica.db,
+		clock: { now: () => NOW },
+		host: HOST,
+		identity: fakeIdentity()
+	});
 
 	return {
 		replica,
