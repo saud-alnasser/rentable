@@ -11,27 +11,26 @@
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
-	import SettingsAccount from '$lib/settings/component/account.svelte';
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
 	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
 	import SettingsLocale from '$lib/settings/component/locale.svelte';
-	import SettingsSync from '$lib/settings/component/sync.svelte';
 	import SettingsUpdates from '$lib/settings/component/updates.svelte';
-	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
-	import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
+	import { useFetchSettings } from '$lib/settings/query';
 	import { toast } from 'svelte-sonner';
 
+	/**
+	 * The application's own settings, and nothing else's.
+	 *
+	 * **Two of its five groups were never settings**, and both left on 2026-08-20: the account went
+	 * to `/account` and the workspace to `/workspace`, each reached from the sidebar control that
+	 * names it. What is here is what a person changes about this copy of the application, and it
+	 * is the only page of the three that reads its own query rather than the shell's.
+	 */
 	const settingsQuery = useFetchSettings();
-	const remoteSyncQuery = useFetchRemoteSyncState();
 
-	const isLoading = $derived(
-		(settingsQuery.isLoading && !settingsQuery.data) ||
-			(remoteSyncQuery.isLoading && !remoteSyncQuery.data)
-	);
+	const isLoading = $derived(settingsQuery.isLoading && !settingsQuery.data);
 	const loadError = $derived(
-		(settingsQuery.error && !settingsQuery.data) || (remoteSyncQuery.error && !remoteSyncQuery.data)
-			? (settingsQuery.error ?? remoteSyncQuery.error)
-			: undefined
+		settingsQuery.error && !settingsQuery.data ? settingsQuery.error : undefined
 	);
 
 	async function revealDiagnostics() {
@@ -81,53 +80,24 @@
 		<p class="text-sm text-muted-foreground">{toErrorText(loadError, $LL)}</p>
 
 		{#snippet actions()}
-			<Button
-				onclick={() => {
-					void settingsQuery.refetch();
-					void remoteSyncQuery.refetch();
-				}}
-			>
+			<Button onclick={() => void settingsQuery.refetch()}>
 				{$LL.common.actions.retry()}
 			</Button>
 		{/snippet}
 	</StandaloneSurface>
-{:else if settingsQuery.data && remoteSyncQuery.data}
-	<!-- one column of rows in four groups, and no tile strip: every figure the strip carried
-	     was stated again by the section that owns it, so the strip only ever said things twice. -->
+{:else if settingsQuery.data}
 	<PageFrame>
-		<!-- the title alone: the sentence under it listed the four groups whose own legends are
-		     directly below, so the page opened by naming its contents twice. -->
+		<!-- the title alone: the sentence under it listed the groups whose own legends are directly
+		     below, so the page opened by naming its contents twice. -->
 		<h1 class="text-3xl font-semibold tracking-tight">{$LL.settings.title()}</h1>
 
 		<Field.Group>
-			<!-- first, because it is the one group that is true before any of the others are: the
-			     workspace the rest of this page configures belongs to the account named here. -->
-			<Field.Set>
-				<Field.Legend>{$LL.settings.groupAccount()}</Field.Legend>
-				<SettingsAccount syncState={remoteSyncQuery.data} />
-			</Field.Set>
-
-			<Separator />
-
 			<Field.Set>
 				<Field.Legend>{$LL.settings.groupGeneral()}</Field.Legend>
 				<Field.Group>
 					<SettingsLocale currentLocale={$locale} onChange={changeLocale} />
 					<Field.Separator />
 					<SettingsEndingSoon settings={settingsQuery.data} />
-				</Field.Group>
-			</Field.Set>
-
-			<Separator />
-
-			<Field.Set>
-				<Field.Legend>{$LL.settings.groupWorkspace()}</Field.Legend>
-				<Field.Group>
-					<SettingsSync syncState={remoteSyncQuery.data} />
-					<Field.Separator />
-					<!-- beside sync, because both are answers to the same question: where this
-					     workspace lives, and how it gets somewhere else. -->
-					<WorkspaceTransfer />
 				</Field.Group>
 			</Field.Set>
 

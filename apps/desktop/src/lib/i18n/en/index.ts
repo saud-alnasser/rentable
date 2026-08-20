@@ -1,6 +1,11 @@
 import type { BaseTranslation } from '../i18n-types';
 
 const en = {
+	account: {
+		groupIdentity: 'signed in as',
+		title: 'account'
+	},
+
 	app: {
 		name: 'rentable'
 	},
@@ -203,6 +208,7 @@ const en = {
 		},
 
 		nav: {
+			account: 'account',
 			complexes: 'complexes',
 			contracts: 'contracts',
 			dashboard: 'dashboard',
@@ -210,7 +216,8 @@ const en = {
 			primary: 'primary',
 			settings: 'settings',
 			tenants: 'tenants',
-			units: 'units'
+			units: 'units',
+			workspace: 'workspace'
 		},
 
 		periods: {
@@ -336,9 +343,10 @@ const en = {
 
 		workspaceMenu: {
 			create: 'new workspace',
-			createLocked: 'not available yet',
-			heading: 'workspaces',
-			label: 'workspace'
+			invite: 'invite',
+			locked: 'not available yet',
+			settings: 'settings',
+			members: '{count|number} member(s)'
 		},
 
 		signIn: {
@@ -402,7 +410,6 @@ const en = {
 	settings: {
 		accountDescription:
 			'this machine is signed in as the account below. signing out closes the workspace on this machine only — it stays where it is, and signing back in opens it again.',
-		accountSignedInAs: 'signed in as',
 		aboutTitle: 'about',
 		createdAt: 'created {value}',
 
@@ -418,11 +425,9 @@ const en = {
 		endingSoonInvalid: 'the number of days must be greater than zero',
 		endingSoonTitle: 'ending soon',
 
-		groupAccount: 'account',
 		groupDiagnostics: 'diagnostics',
 		groupGeneral: 'general',
 		groupUpdates: 'updates',
-		groupWorkspace: 'workspace',
 		latestRelease: "you're already on the latest release.",
 
 		loadErrorTitle: 'settings are unavailable right now',
@@ -646,6 +651,20 @@ const en = {
 			'startup recovery cleared. retrying the current version is now allowed.',
 		sessionExpired:
 			'this workspace has been offline for three days. sign in with Google again to keep it in sync — nothing you recorded has been lost.'
+	},
+
+	workspace: {
+		groupIdentity: 'this workspace',
+		groupMembers: 'members',
+		groupSync: 'sync',
+		groupTransfer: 'move this workspace',
+		iconLocked: 'icon coming later',
+		identityDescription: 'named when you signed up, and there is no way to rename it yet.',
+		inviteLocked: 'invite',
+		membersDescription:
+			'one person, and only one is possible today. inviting anybody else arrives with organizations.',
+		roleOwner: 'owner',
+		title: 'workspace'
 	}
 } satisfies BaseTranslation;
 

@@ -59,7 +59,10 @@
 <Sidebar.Root bind:ref {collapsible} variant="inset" {...restProps}>
 	<Sidebar.Header>
 		{#if workspace}
-			<LayoutWorkspaceMenu {workspace} />
+			<!-- one member, because an account owns exactly one workspace and is created with it.
+			     It is passed rather than assumed inside the control, so the day a route lists
+			     members the number arrives from the same place the list does. -->
+			<LayoutWorkspaceMenu {workspace} memberCount={account ? 1 : 0} />
 		{/if}
 	</Sidebar.Header>
 

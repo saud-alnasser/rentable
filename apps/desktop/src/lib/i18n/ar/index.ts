@@ -1,6 +1,11 @@
 import type { Translation } from '../i18n-types';
 
 const ar = {
+	account: {
+		groupIdentity: 'مسجل الدخول باسم',
+		title: 'الحساب'
+	},
+
 	app: {
 		name: 'rentable'
 	},
@@ -196,6 +201,7 @@ const ar = {
 		},
 
 		nav: {
+			account: 'الحساب',
 			complexes: 'المجمعات',
 			contracts: 'العقود',
 			dashboard: 'لوحة التحكم',
@@ -203,7 +209,8 @@ const ar = {
 			primary: 'الرئيسي',
 			settings: 'الإعدادات',
 			tenants: 'المستأجرون',
-			units: 'الوحدات'
+			units: 'الوحدات',
+			workspace: 'مساحة العمل'
 		},
 
 		periods: {
@@ -328,9 +335,10 @@ const ar = {
 
 		workspaceMenu: {
 			create: 'مساحة عمل جديدة',
-			createLocked: 'غير متاحة بعد',
-			heading: 'مساحات العمل',
-			label: 'مساحة العمل'
+			invite: 'دعوة',
+			locked: 'غير متاح بعد',
+			settings: 'الإعدادات',
+			members: '{count|number} عضو'
 		},
 
 		signIn: {
@@ -393,7 +401,6 @@ const ar = {
 	settings: {
 		accountDescription:
 			'هذا الجهاز مسجل الدخول بالحساب أدناه. تسجيل الخروج يغلق مساحة العمل على هذا الجهاز وحده — تبقى مساحة العمل كما هي، ويعيد تسجيل الدخول فتحها.',
-		accountSignedInAs: 'مسجل الدخول باسم',
 		aboutTitle: 'حول',
 		createdAt: 'تم الإنشاء {value}',
 
@@ -409,11 +416,9 @@ const ar = {
 		endingSoonInvalid: 'يجب أن يكون عدد الأيام أكبر من صفر',
 		endingSoonTitle: 'قريب من الانتهاء',
 
-		groupAccount: 'الحساب',
 		groupDiagnostics: 'التشخيص',
 		groupGeneral: 'عام',
 		groupUpdates: 'التحديثات',
-		groupWorkspace: 'مساحة العمل',
 		latestRelease: 'أنت تستخدم أحدث إصدار.',
 
 		loadErrorTitle: 'الإعدادات غير متاحة حالياً',
@@ -631,6 +636,19 @@ const ar = {
 		startupRecoveryCleared: 'تم مسح الاسترداد ويمكن المحاولة مجدداً.',
 		sessionExpired:
 			'مساحة العمل هذه غير متصلة منذ ثلاثة أيام. سجّل الدخول بحساب Google مجدداً لمتابعة المزامنة — لم يُفقد أي شيء سجّلته.'
+	},
+
+	workspace: {
+		groupIdentity: 'مساحة العمل هذه',
+		groupMembers: 'الأعضاء',
+		groupSync: 'المزامنة',
+		groupTransfer: 'نقل مساحة العمل',
+		iconLocked: 'الأيقونة لاحقًا',
+		identityDescription: 'تم تسميتها عند تسجيلك، ولا توجد طريقة لإعادة تسميتها بعد.',
+		inviteLocked: 'دعوة',
+		membersDescription: 'شخص واحد، وهو الوحيد الممكن اليوم. دعوة غيره تأتي مع المؤسسات.',
+		roleOwner: 'المالك',
+		title: 'مساحة العمل'
 	}
 } satisfies Translation;
 

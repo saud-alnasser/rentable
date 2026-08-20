@@ -50,8 +50,9 @@ application got stuck in.
   opens.
 - The sidebar footer: the settings link becomes a control naming the signed-in person, and the
   menu it opens.
-- The settings page: which groups it holds, in what order, and how the surviving workspace
-  controls present.
+- **Three surfaces where there was one**: `/settings` for the application, `/account` for the
+  person, `/workspace` for the workspace. Which groups each holds, in what order, and how the
+  controls that move present in their new home.
 - The sign-in card's presentation, and the one change to the shared standalone surface that its
   brand placement needs.
 - **The account's picture, fetched once at sign-in and kept locally**, which is Rust-side work
@@ -84,16 +85,35 @@ application got stuck in.
    The shell never reaches Google to draw a row, so the row is identical online and offline.
    Where no picture was obtained, or the fetch failed, initials stand in and nothing retries
    until the next sign-in.
-7. **Settings holds only what configures the application.** The account group is gone from it,
-   and what remains of the workspace group is the part that is an operation on data rather than a
-   statement of identity.
-8. **No surface states a figure twice within itself, and no figure crosses from the shell to
-   settings.** The email, the version, the locale and the sync status each have exactly one home.
+7. **Each of the three things a person can configure has a page of its own, reached from the
+   control that names it.** `/settings` is the application: language, notices, updates,
+   diagnostics. `/account` is the person: who this is, their picture, and the way out.
+   `/workspace` is the workspace: what it is called, its icon, who is in it, how it syncs, and
+   moving its records in and out. The account menu reaches the first two and the workspace menu
+   reaches the third.
+
+   *Rewritten 2026-08-20 by the human, after the two sidebar controls were on screen. It read:
+   "Settings holds only what configures the application. The account group is gone from it, and
+   what remains of the workspace group is the part that is an operation on data rather than a
+   statement of identity." That kept one page and moved one group off it; what it did not do is
+   give the workspace anywhere of its own to grow, and a workspace with members and an icon is
+   not a group on the application's settings page.*
+8. **No surface states a figure twice within itself, and no figure crosses between the four
+   surfaces.** The email, the version, the locale and the sync status each have exactly one home
+   across the two sidebar controls and the three pages.
    **The one exception is named**: the workspace's name and the person's name are the same string
    today, so the top row and the bottom row will read alike, and the second line of each is what
    distinguishes them. See Constraints.
-9. **The workspace's replication state, and the control that syncs now, stay in settings**, in a
-   group about the workspace's data rather than its identity, beside the transfer pair.
+9. **The workspace's replication state, the control that syncs now, and the transfer pair move
+   to `/workspace`.** *This reverses the position taken during refinement, which was that they
+   stay in settings. The reason it held was that a menu is a poor home for an operation that can
+   fail; a page is not, and `/workspace` is a page.*
+
+   **The workspace page also carries what does not work yet**: its icon, and the people in it.
+   The icon slot is drawn and cannot be changed; the members list shows the members the control
+   plane already knows about, which today is one, and inviting and removing are offered and
+   visibly unavailable, the same way the create-workspace row is. **Nothing in the control plane
+   changes for this**, which is what keeps it in this effort rather than in requirement 14's.
 10. **The sign-in card presents as a login page**, and the shape was settled on screen rather
     than here: one word of title, a line under it reading from the side the language starts on,
     air, and one provider button carrying that provider's mark. **No mark and no product name.**
@@ -129,13 +149,18 @@ application got stuck in.
 7. With the machine offline from launch, both sidebar rows draw exactly as they do online,
    including the picture, and no request leaves the application to draw them. An account whose
    sign-in obtained no picture draws initials, in both states.
-8. The settings page has no account group and no sign-out control, and the account's email
-   address appears on it at most once.
-9. The version, the account email, the locale and the sync status each appear exactly once across
-   the two sidebar controls and the settings page taken together. The workspace name appears in
-   the workspace control only, and the person's name in the account control only.
-10. Sync status and the control that syncs now are reachable in settings, in one group with the
-    transfer pair, and settings is reachable from the account menu.
+8. `/settings` holds language, notices, updates and diagnostics and nothing else: no account
+   group, no sign-out control, no workspace group, and the account's email address does not
+   appear on it at all.
+   `/account` holds who this is, their picture and the way out. `/workspace` holds its name, its
+   icon, its members, its sync state and its transfer pair.
+9. The version, the account email, the locale and the sync status each appear exactly once
+   across the two sidebar controls and the three pages taken together.
+10. Sync status, the control that syncs now and the transfer pair are on `/workspace` and
+    nowhere else. `/settings` and `/account` are reachable from the account menu; `/workspace` is
+    reachable from the workspace menu. The icon slot and the invite control are both present,
+    both reachable by keyboard, both announce themselves as unavailable, and both state why in
+    visible text.
 11. On the sign-in card: no mark and no product name render anywhere on it; the title is one
     word; the button carries Google's mark; and a first sign-in with nothing wrong shows no
     notice at all. The other six screens that render through the shared surface are unchanged.
@@ -215,13 +240,19 @@ as a detail of a Svelte component.
 
 ## Out of scope
 
-- **Creating a second workspace.** The row is inert by requirement, and the mechanism behind it
-  is the organization work in requirement 14 of [[efforts/a-workspace-follows-its-user]].
+- **Creating a second workspace, inviting anybody, removing anybody, and setting the workspace's
+  icon.** Every one of those is offered and inert. The mechanisms behind them are the
+  organization work in requirement 14 of [[efforts/a-workspace-follows-its-user]], and each needs
+  a control-plane route this effort does not add. **The workspace record has no icon column**, so
+  the slot is a placeholder rather than an unset value.
+- **A control-plane route that lists a workspace's members.** The `membership` table has roles and
+  administration permission flags already, and no route reads it. The members list draws the one
+  member the desktop can name from the state it holds, which is the signed-in account as owner.
+  Adding the route is the obvious next step and it is not this effort's.
 - **Switching between workspaces**, for the same reason: there is nothing to switch to, and
   building the mechanism before the second workspace exists is building against a guess.
 - **Renaming a workspace, or deriving a different name for it in the interface.** If the name
   reads badly beside the person's, that is worth its own decision and its own effort.
-- **Inviting anybody, membership, or per-workspace permissions.**
 - **What signing in does.** The admission ladder, the session window, the three situations and
   the retry path all landed in #628 and are not touched. This changes what that card looks like,
   and it adds one fetch after the sign-in has already succeeded.
@@ -239,9 +270,9 @@ as a detail of a Svelte component.
 
 - **A one-row workspace list is a statement, not a switcher**, and acceptance criterion 2 of the
   accepted workspace effort was rewritten rather than worked around.
-- **Sync status, the sync-now control and the transfer pair stay in settings.** The menu was the
-  alternative for sync and it loses for a reason worth keeping: it puts an operation that can
-  fail, and that has an error to report, behind a control people open to change screens.
+- ~~**Sync status, the sync-now control and the transfer pair stay in settings.**~~ **Reversed
+  2026-08-20** by requirement 9 above: they move to `/workspace`. What the original decision
+  rejected was putting them in a *menu*, and that still stands.
 - **The sign-in card carries no mark and no product name.** Reached by building the two
   alternatives and looking at them, which is what settled it; the shared block lost a slot rather
   than gaining one.
@@ -270,14 +301,27 @@ as a detail of a Svelte component.
   data URL in the state payload, or bytes over a command. `/plan` decides, and the answer changes
   what `RemoteSyncState` carries.
 
+## Settled after the shell was on screen, 2026-08-20
+
+- **Three pages, not one page with tabs and not two dialogs.** A tab strip puts a second
+  navigation level inside a page, which [[efforts/surfaces-the-overhaul-left-behind]] rejected for
+  settings and which the shell already answers with the sidebar. Dialogs were the other
+  alternative and lose on the members list, which is the one thing here that grows.
+- **The workspace's page carries what does not work yet, rather than waiting for it.** The
+  alternative was leaving members and the icon out until there is a second person to invite. It
+  loses because the page then has to be redesigned around them later, and because a locked
+  control that says why is how this effort already handles creating a second workspace.
+
 ## Risks
 
 - **The top row and the bottom row read as the same row twice**, because today they carry the
   same name. It shows up immediately against a real account, and it is the first thing to look at
   once both controls are on screen. The mitigation is the second lines, and the fallback is that
   requirement 1 gets a different shape rather than the code getting a workaround.
-- **The one-row list reads as a switcher that does not work**, which no description settles.
-  Judged on screen against a real account.
+- ~~**The one-row list reads as a switcher that does not work**, which no description settles.~~
+  **It did, on 2026-08-20, and the list was removed rather than restyled.** Struck rather than
+  deleted, because the risk was written down here before it was built and then built anyway,
+  which is the part worth remembering.
 - **The picture fetch fails a sign-in.** The worst outcome available here, because sign-in is the
   only way into the application. Detected by making the failure path explicit and by testing a
   sign-in with the fetch made to throw, rather than by watching the happy path.

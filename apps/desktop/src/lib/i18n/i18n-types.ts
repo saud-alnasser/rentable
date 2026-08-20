@@ -14,6 +14,16 @@ export type Translation = RootTranslation
 export type Translations = RootTranslation
 
 type RootTranslation = {
+	account: {
+		/**
+		 * s​i​g​n​e​d​ ​i​n​ ​a​s
+		 */
+		groupIdentity: string
+		/**
+		 * a​c​c​o​u​n​t
+		 */
+		title: string
+	}
 	app: {
 		/**
 		 * r​e​n​t​a​b​l​e
@@ -704,6 +714,10 @@ type RootTranslation = {
 		}
 		nav: {
 			/**
+			 * a​c​c​o​u​n​t
+			 */
+			account: string
+			/**
 			 * c​o​m​p​l​e​x​e​s
 			 */
 			complexes: string
@@ -735,6 +749,10 @@ type RootTranslation = {
 			 * u​n​i​t​s
 			 */
 			units: string
+			/**
+			 * w​o​r​k​s​p​a​c​e
+			 */
+			workspace: string
 		}
 		periods: {
 			/**
@@ -1131,17 +1149,22 @@ type RootTranslation = {
 			 */
 			create: string
 			/**
+			 * i​n​v​i​t​e
+			 */
+			invite: string
+			/**
 			 * n​o​t​ ​a​v​a​i​l​a​b​l​e​ ​y​e​t
 			 */
-			createLocked: string
+			locked: string
 			/**
-			 * w​o​r​k​s​p​a​c​e​s
+			 * s​e​t​t​i​n​g​s
 			 */
-			heading: string
+			settings: string
 			/**
-			 * w​o​r​k​s​p​a​c​e
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​m​e​m​b​e​r​(​s​)
+			 * @param {unknown} count
 			 */
-			label: string
+			members: RequiredParams<'count|number'>
 		}
 		signIn: {
 			/**
@@ -1296,10 +1319,6 @@ type RootTranslation = {
 		 */
 		accountDescription: string
 		/**
-		 * s​i​g​n​e​d​ ​i​n​ ​a​s
-		 */
-		accountSignedInAs: string
-		/**
 		 * a​b​o​u​t
 		 */
 		aboutTitle: string
@@ -1337,10 +1356,6 @@ type RootTranslation = {
 		 */
 		endingSoonTitle: string
 		/**
-		 * a​c​c​o​u​n​t
-		 */
-		groupAccount: string
-		/**
 		 * d​i​a​g​n​o​s​t​i​c​s
 		 */
 		groupDiagnostics: string
@@ -1352,10 +1367,6 @@ type RootTranslation = {
 		 * u​p​d​a​t​e​s
 		 */
 		groupUpdates: string
-		/**
-		 * w​o​r​k​s​p​a​c​e
-		 */
-		groupWorkspace: string
 		/**
 		 * y​o​u​'​r​e​ ​a​l​r​e​a​d​y​ ​o​n​ ​t​h​e​ ​l​a​t​e​s​t​ ​r​e​l​e​a​s​e​.
 		 */
@@ -1978,9 +1989,61 @@ type RootTranslation = {
 		 */
 		sessionExpired: string
 	}
+	workspace: {
+		/**
+		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e
+		 */
+		groupIdentity: string
+		/**
+		 * m​e​m​b​e​r​s
+		 */
+		groupMembers: string
+		/**
+		 * s​y​n​c
+		 */
+		groupSync: string
+		/**
+		 * m​o​v​e​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e
+		 */
+		groupTransfer: string
+		/**
+		 * i​c​o​n​ ​c​o​m​i​n​g​ ​l​a​t​e​r
+		 */
+		iconLocked: string
+		/**
+		 * n​a​m​e​d​ ​w​h​e​n​ ​y​o​u​ ​s​i​g​n​e​d​ ​u​p​,​ ​a​n​d​ ​t​h​e​r​e​ ​i​s​ ​n​o​ ​w​a​y​ ​t​o​ ​r​e​n​a​m​e​ ​i​t​ ​y​e​t​.
+		 */
+		identityDescription: string
+		/**
+		 * i​n​v​i​t​e
+		 */
+		inviteLocked: string
+		/**
+		 * o​n​e​ ​p​e​r​s​o​n​,​ ​a​n​d​ ​o​n​l​y​ ​o​n​e​ ​i​s​ ​p​o​s​s​i​b​l​e​ ​t​o​d​a​y​.​ ​i​n​v​i​t​i​n​g​ ​a​n​y​b​o​d​y​ ​e​l​s​e​ ​a​r​r​i​v​e​s​ ​w​i​t​h​ ​o​r​g​a​n​i​z​a​t​i​o​n​s​.
+		 */
+		membersDescription: string
+		/**
+		 * o​w​n​e​r
+		 */
+		roleOwner: string
+		/**
+		 * w​o​r​k​s​p​a​c​e
+		 */
+		title: string
+	}
 }
 
 export type TranslationFunctions = {
+	account: {
+		/**
+		 * signed in as
+		 */
+		groupIdentity: () => LocalizedString
+		/**
+		 * account
+		 */
+		title: () => LocalizedString
+	}
 	app: {
 		/**
 		 * rentable
@@ -2642,6 +2705,10 @@ export type TranslationFunctions = {
 		}
 		nav: {
 			/**
+			 * account
+			 */
+			account: () => LocalizedString
+			/**
 			 * complexes
 			 */
 			complexes: () => LocalizedString
@@ -2673,6 +2740,10 @@ export type TranslationFunctions = {
 			 * units
 			 */
 			units: () => LocalizedString
+			/**
+			 * workspace
+			 */
+			workspace: () => LocalizedString
 		}
 		periods: {
 			/**
@@ -3048,17 +3119,21 @@ export type TranslationFunctions = {
 			 */
 			create: () => LocalizedString
 			/**
+			 * invite
+			 */
+			invite: () => LocalizedString
+			/**
 			 * not available yet
 			 */
-			createLocked: () => LocalizedString
+			locked: () => LocalizedString
 			/**
-			 * workspaces
+			 * settings
 			 */
-			heading: () => LocalizedString
+			settings: () => LocalizedString
 			/**
-			 * workspace
+			 * {count|number} member(s)
 			 */
-			label: () => LocalizedString
+			members: (arg: { count: unknown }) => LocalizedString
 		}
 		signIn: {
 			/**
@@ -3207,10 +3282,6 @@ export type TranslationFunctions = {
 		 */
 		accountDescription: () => LocalizedString
 		/**
-		 * signed in as
-		 */
-		accountSignedInAs: () => LocalizedString
-		/**
 		 * about
 		 */
 		aboutTitle: () => LocalizedString
@@ -3247,10 +3318,6 @@ export type TranslationFunctions = {
 		 */
 		endingSoonTitle: () => LocalizedString
 		/**
-		 * account
-		 */
-		groupAccount: () => LocalizedString
-		/**
 		 * diagnostics
 		 */
 		groupDiagnostics: () => LocalizedString
@@ -3262,10 +3329,6 @@ export type TranslationFunctions = {
 		 * updates
 		 */
 		groupUpdates: () => LocalizedString
-		/**
-		 * workspace
-		 */
-		groupWorkspace: () => LocalizedString
 		/**
 		 * you're already on the latest release.
 		 */
@@ -3872,6 +3935,48 @@ export type TranslationFunctions = {
 		 * this workspace has been offline for three days. sign in with Google again to keep it in sync — nothing you recorded has been lost.
 		 */
 		sessionExpired: () => LocalizedString
+	}
+	workspace: {
+		/**
+		 * this workspace
+		 */
+		groupIdentity: () => LocalizedString
+		/**
+		 * members
+		 */
+		groupMembers: () => LocalizedString
+		/**
+		 * sync
+		 */
+		groupSync: () => LocalizedString
+		/**
+		 * move this workspace
+		 */
+		groupTransfer: () => LocalizedString
+		/**
+		 * icon coming later
+		 */
+		iconLocked: () => LocalizedString
+		/**
+		 * named when you signed up, and there is no way to rename it yet.
+		 */
+		identityDescription: () => LocalizedString
+		/**
+		 * invite
+		 */
+		inviteLocked: () => LocalizedString
+		/**
+		 * one person, and only one is possible today. inviting anybody else arrives with organizations.
+		 */
+		membersDescription: () => LocalizedString
+		/**
+		 * owner
+		 */
+		roleOwner: () => LocalizedString
+		/**
+		 * workspace
+		 */
+		title: () => LocalizedString
 	}
 }
 
