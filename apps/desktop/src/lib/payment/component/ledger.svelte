@@ -3,10 +3,13 @@
 	import { back } from '$lib/design/back.svelte';
 	import type { Payment } from '$lib/platform/database/schema';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
+	import SelectionDialog from '$lib/design/block/selection-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { toNarrowedName } from '$lib/design/csv';
+	import type { SelectionPlan } from '$lib/design/selection';
 	import { PERIOD_FILTER, toChosenLabel, type FilterSelection } from '$lib/design/filter';
 	import { isFilterPeriod } from '$lib/api/period';
 	import {
@@ -21,7 +24,13 @@
 		paymentLedgerMonths,
 		type PaymentLedgerMonth
 	} from '$lib/payment/ledger';
-	import { useDeletePayment, useListContractPayments } from '$lib/payment/query';
+	import {
+		useDeleteManyPayments,
+		useDeletePayment,
+		useListContractPayments,
+		usePlanManyPayments,
+		type PaymentRefusalReason
+	} from '$lib/payment/query';
 	import { formatLocaleMoney, formatLocaleMoneyRange } from '$lib/platform/locale';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
@@ -47,6 +56,11 @@
 	let isPaymentFormOpen = $state(false);
 	let isDeleteDialogOpen = $state(false);
 	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
+	// the records the reader has picked out, and the set a control was reached for with. The two
+	// are separate because the selection stays live behind the confirmation, and an action that
+	// read it again at submit time would act on whatever it had become.
+	let selected = $state<string[]>([]);
+	let confirming = $state<string[] | null>(null);
 
 	// the statement is the surface a period was put in the vocabulary for: a ledger is read to
 	// answer *what was paid, and when*, and until now the only way to ask about one month was to
@@ -60,7 +74,10 @@
 	const contractQuery = useFetchContract(() => contractId);
 	const paymentsQuery = useListContractPayments(() => ({ contractId, search, period }));
 	const deleteMutation = useDeletePayment();
+	const deleteManyMutation = useDeleteManyPayments();
 	const importMutation = useImportRecords();
+
+	const planQuery = usePlanManyPayments(() => confirming ?? []);
 
 	const payments = $derived(paymentsQuery.data ?? []);
 	const monthOf = $derived(paymentLedgerMonths(payments));
@@ -97,6 +114,80 @@
 	const formatMonth = (month: PaymentLedgerMonth) => formatPaymentLedgerMonth($locale, month);
 	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
 
+	// what the deletion would do, as the shared confirmation states it. `null` while the plan is
+	// still being read, which is what puts that dialog in its waiting state.
+	//
+	// The amount becomes the name here rather than in the procedure, because a payment has no
+	// name and the nearest thing to one is money: only this side knows the reader's locale, and
+	// a figure rendered one way in a ledger and another in a confirmation is two answers to one
+	// question.
+	const plan = $derived.by((): SelectionPlan | null => {
+		if (!confirming || !planQuery.data) {
+			return null;
+		}
+
+		return {
+			eligible: planQuery.data.eligible,
+			refused: planQuery.data.refused.map((refusal) => ({
+				id: refusal.id,
+				// a payment that is no longer there has no amount to give, and nothing else about it
+				// survived to name it by.
+				name: refusal.reason === 'missing' ? '' : formatMoney(refusal.amount),
+				reason: refusal.reason
+			}))
+		};
+	});
+
+	// the reasons a deletion can turn a payment away for, in the order they are worth reading: the
+	// rule the action is about first, and *gone from under you* last, because it is the one
+	// nothing the reader did caused.
+	const REFUSAL_ORDER = [
+		'contract-terminated',
+		'missing'
+	] as const satisfies readonly PaymentRefusalReason[];
+
+	// every reason the domain can give, with the sentence it reads as. `satisfies` is what makes a
+	// reason added to the rule without a sentence a build failure rather than a refusal the reader
+	// is shown under somebody else's words.
+	const refusalLabels = $derived({
+		'contract-terminated': (count: number) =>
+			$LL.contracts.selection.paymentRefusedContractTerminated({ count }),
+		missing: (count: number) => $LL.contracts.selection.paymentRefusedMissing({ count })
+	} satisfies Record<PaymentRefusalReason, (count: number) => string>);
+
+	function describeReason(reason: string, count: number) {
+		// the shared confirmation is deliberately ignorant of any concept's reasons, so it hands
+		// this one back as a plain string. The map above is what keeps the lookup total.
+		const label = refusalLabels[reason as PaymentRefusalReason];
+
+		return label ? label(count) : $LL.contracts.selection.paymentRefusedMissing({ count });
+	}
+
+	/**
+	 * Delete the set the reader agreed to.
+	 *
+	 * How many went through is not announced here: the declaration behind the call says it through
+	 * the shared handler, which is where every announcement in this application is raised from.
+	 */
+	async function deleteSelected() {
+		if (!confirming) {
+			return;
+		}
+
+		const result = await deleteManyMutation.mutateAsync(confirming);
+
+		// a deleted payment's own page may be behind the reader, and it is not somewhere back can
+		// return to now. The single-record deletion does this for the one record it removed; a
+		// selection does it for every record it removed.
+		for (const removed of result.deleted) {
+			back.forget(resolve(`/contracts/payments/${removed.id}`));
+		}
+
+		// the selection is put down, and the dialog closes itself once this resolves: unmounting it
+		// from here would take it off screen mid-close.
+		selected = [];
+	}
+
 	function openPaymentForm(record?: Payment) {
 		payment = record;
 		isPaymentFormOpen = true;
@@ -125,6 +216,21 @@
 			: [];
 </script>
 
+{#snippet selectionActions(ids: readonly string[])}
+	<!-- the same control a record's own menu wears, so a deletion means the same thing and looks
+	     the same whether it is aimed at one payment or at nine. Delete and nothing else: it is the
+	     only thing a payment admits being done to several at a time.
+
+	     Withheld on a terminated contract along with the row controls, which is what turns the
+	     selection mode off there: a locked statement offers nothing to act with. -->
+	<RecordActionControl
+		label={`${$LL.common.actions.delete()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
+		icon={Trash2Icon}
+		tone="error"
+		onclick={() => (confirming = [...ids])}
+	/>
+{/snippet}
+
 <div class="flex min-h-0 flex-1 flex-col gap-3">
 	{#if lockNotice}
 		<p class="shrink-0 rounded-2xl bg-card px-4 py-2.5 text-start text-xs text-muted-foreground">
@@ -137,6 +243,8 @@
 		bind:search
 		bind:filters
 		filterOptions={[PERIOD_FILTER]}
+		bind:selected
+		selectionActions={hasRowActions ? selectionActions : undefined}
 		groupOf={monthOf}
 		isLoading={paymentsQuery.isLoading}
 		isFetching={paymentsQuery.isFetching}
@@ -241,6 +349,27 @@
 		</div>
 	{/if}
 </div>
+
+{#if confirming}
+	{@const count = confirming.length}
+	<SelectionDialog
+		open
+		onOpenChange={(isOpen) => {
+			if (!isOpen) {
+				confirming = null;
+			}
+		}}
+		title={$LL.contracts.selection.paymentDeleteTitle()}
+		selected={$LL.common.table.recordsSelected({ count })}
+		{plan}
+		reasons={REFUSAL_ORDER}
+		{describeReason}
+		summarize={(eligible) => $LL.contracts.selection.paymentDeleteSummary({ count: eligible })}
+		confirmLabel={$LL.common.actions.delete()}
+		confirmLoadingLabel={$LL.common.actions.deleting()}
+		onSubmit={deleteSelected}
+	/>
+{/if}
 
 <PaymentForm
 	{contractId}

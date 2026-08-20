@@ -598,6 +598,7 @@ const ar = {
 		hooks: {
 			createPaymentSuccess: 'تم إنشاء الدفعة بنجاح!',
 			createSuccess: 'تم إنشاء العقد بنجاح!',
+			deleteManyPaymentsSuccess: 'تم حذف {count|number} دفعة',
 			deleteManySuccess: 'تم حذف {count|number} عقد',
 			deletePaymentSuccess: 'تم حذف الدفعة بنجاح!',
 			deleteSuccess: 'تم حذف العقد بنجاح!',
@@ -642,6 +643,10 @@ const ar = {
 		selection: {
 			deleteSummary: 'سيتم حذف {count|number} عقد',
 			deleteTitle: 'حذف العقود',
+			paymentDeleteSummary: 'سيتم حذف {count|number} دفعة',
+			paymentDeleteTitle: 'حذف الدفعات',
+			paymentRefusedContractTerminated: '{count|number} تخص عقداً منتهياً',
+			paymentRefusedMissing: '{count|number} لم تعد موجودة في مساحة العمل',
 			refusedHoldsPayments: '{count|number} ما زالت تحمل دفعات',
 			refusedHoldsUnits: '{count|number} ما زالت تحمل وحدات',
 			refusedMissing: '{count|number} لم تعد موجودة في مساحة العمل',

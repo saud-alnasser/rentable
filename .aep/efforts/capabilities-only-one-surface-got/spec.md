@@ -130,7 +130,13 @@ that has to be looked at before it can be built.
    The refusals are the ones the domain already enforces, and this effort adds none: a tenant
    still holding contracts, a complex still holding units, a unit still holding assignments, a
    contract still holding units or payments, a contract whose status cannot be terminated by
-   hand. A payment is refused for nothing, so its confirmation names a count and no refusals.
+   hand. **A payment is refused for its contract being terminated**, which `payments.delete`
+   enforces through `ensureContractIsNotTerminated`. *Corrected 2026-08-20 while building #650,
+   which had read this as "a payment is refused for nothing" and found the source saying
+   otherwise.* The ledger hides its row controls on a terminated contract, which is why nobody
+   had met the rule, and a hidden control is not an absent rule: the refusal is reached when the
+   contract is terminated while the confirmation is open. So the payments confirmation is a
+   count with one refusal behind it rather than a count alone.
 
    **The outcome is asked for, not inferred from the rows on screen.** *Settled 2026-08-20, after
    the draft assumed this was presentation and the tree said otherwise.* A tenant row carries a

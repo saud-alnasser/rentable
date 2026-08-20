@@ -1900,6 +1900,11 @@ type RootTranslation = {
 			 */
 			createSuccess: string
 			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​p​a​y​m​e​n​t​(​s​)​ ​d​e​l​e​t​e​d
+			 * @param {unknown} count
+			 */
+			deleteManyPaymentsSuccess: RequiredParams<'count|number'>
+			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​d​e​l​e​t​e​d
 			 * @param {unknown} count
 			 */
@@ -2039,6 +2044,25 @@ type RootTranslation = {
 			 * d​e​l​e​t​e​ ​c​o​n​t​r​a​c​t​s
 			 */
 			deleteTitle: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​p​a​y​m​e​n​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
+			 * @param {unknown} count
+			 */
+			paymentDeleteSummary: RequiredParams<'count|number'>
+			/**
+			 * d​e​l​e​t​e​ ​p​a​y​m​e​n​t​s
+			 */
+			paymentDeleteTitle: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​b​e​l​o​n​g​ ​t​o​ ​a​ ​t​e​r​m​i​n​a​t​e​d​ ​c​o​n​t​r​a​c​t
+			 * @param {unknown} count
+			 */
+			paymentRefusedContractTerminated: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​r​e​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e
+			 * @param {unknown} count
+			 */
+			paymentRefusedMissing: RequiredParams<'count|number'>
 			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​s​t​i​l​l​ ​c​a​r​r​y​ ​p​a​y​m​e​n​t​s
 			 * @param {unknown} count
@@ -4027,6 +4051,10 @@ export type TranslationFunctions = {
 			 */
 			createSuccess: () => LocalizedString
 			/**
+			 * {count|number} payment(s) deleted
+			 */
+			deleteManyPaymentsSuccess: (arg: { count: unknown }) => LocalizedString
+			/**
 			 * {count|number} contract(s) deleted
 			 */
 			deleteManySuccess: (arg: { count: unknown }) => LocalizedString
@@ -4158,6 +4186,22 @@ export type TranslationFunctions = {
 			 * delete contracts
 			 */
 			deleteTitle: () => LocalizedString
+			/**
+			 * {count|number} payment(s) will be deleted
+			 */
+			paymentDeleteSummary: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * delete payments
+			 */
+			paymentDeleteTitle: () => LocalizedString
+			/**
+			 * {count|number} belong to a terminated contract
+			 */
+			paymentRefusedContractTerminated: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} are no longer in the workspace
+			 */
+			paymentRefusedMissing: (arg: { count: unknown }) => LocalizedString
 			/**
 			 * {count|number} still carry payments
 			 */
