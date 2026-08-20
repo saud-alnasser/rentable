@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { toCsv, toExportFileName, toExportSheet } from '../csv.ts';
+import { toCsv, toExportFileName, toExportSheet, toNarrowedName } from '../csv.ts';
 
 /** the tenant's own columns, which is the shape every export below is written from. */
 type Tenant = { name: string; phone: string };
@@ -141,4 +141,26 @@ test('a row is written as the bytes the reader is pinned to', () => {
 		toCsv(columns, [{ name: '=cmd()', nationalId: '1234567890', phone: '+966512345678' }]),
 		'"Name","National Id","Phone"\r\n"\'=cmd()","1234567890","+966512345678"'
 	);
+});
+
+// --- What a narrowed file is called ---------------------------------------------------
+//
+// A file of five thousand tenants and a file of the nine picked out of it are the same name
+// otherwise, and the second replaces the first unless the reader notices.
+
+test('a file that nothing narrowed keeps the plain name', () => {
+	assert.equal(toNarrowedName('tenants', []), 'tenants');
+});
+
+test('and what narrowed it follows the name, in the order it was given', () => {
+	assert.equal(toNarrowedName('tenants', ['sara', 'last month']), 'tenants (sara, last month)');
+});
+
+test('and a narrowing that says nothing is dropped rather than shown empty', () => {
+	assert.equal(toNarrowedName('tenants', ['', '   ', 'sara']), 'tenants (sara)');
+});
+
+// a selection is one more narrowing, applied to a name a list has already narrowed once.
+test('and a name already narrowed can be narrowed again', () => {
+	assert.equal(toNarrowedName('tenants (sara)', ['9 selected']), 'tenants (sara) (9 selected)');
 });

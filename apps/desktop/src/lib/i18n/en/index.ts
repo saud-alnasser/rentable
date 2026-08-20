@@ -33,6 +33,7 @@ const en = {
 			duplicate: 'duplicate',
 			edit: 'edit',
 			export: 'export',
+			exportSelection: 'export selection',
 			import: 'import',
 			installingUpdate: 'installing update...',
 			newRecord: 'new record',

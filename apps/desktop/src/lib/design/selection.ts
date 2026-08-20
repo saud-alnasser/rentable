@@ -36,6 +36,27 @@ export type SelectionPlan<TReason extends string = string> = {
 };
 
 /**
+ * The selected records, in the order the list is showing them.
+ *
+ * Filtered out of what is shown rather than assembled from the ids, which carry no order and no
+ * rows: a selection is a set, and a file has to be written in some order. The list's own order is
+ * the one the reader was looking at when they picked.
+ *
+ * **A selected record the list is no longer showing is not in the result.** The two can come
+ * apart, because a selection survives the rows being unmounted and re-created and a refetch can
+ * remove a record from under it. What a file holds is records that exist, so this narrows to what
+ * is there rather than reporting the id of something that is not.
+ */
+export function selectedRecords<TRecord extends { id: string }>(
+	shown: readonly TRecord[],
+	selected: readonly string[]
+): TRecord[] {
+	const ids = new Set(selected);
+
+	return shown.filter((record) => ids.has(record.id));
+}
+
+/**
  * How many turned-away records are worth naming beside their reason.
  *
  * Past a handful the names stop being something to act on and become the reason repeated, which

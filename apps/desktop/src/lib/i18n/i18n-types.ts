@@ -117,6 +117,10 @@ type RootTranslation = {
 			 */
 			'export': string
 			/**
+			 * e​x​p​o​r​t​ ​s​e​l​e​c​t​i​o​n
+			 */
+			exportSelection: string
+			/**
 			 * i​m​p​o​r​t
 			 */
 			'import': string
@@ -2346,6 +2350,10 @@ export type TranslationFunctions = {
 			 * export
 			 */
 			'export': () => LocalizedString
+			/**
+			 * export selection
+			 */
+			exportSelection: () => LocalizedString
 			/**
 			 * import
 			 */

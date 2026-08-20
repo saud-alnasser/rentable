@@ -25,6 +25,7 @@
 <script lang="ts" generics="TData extends { id: string }, TGroup extends ListGroup">
 	import { browser } from '$app/environment';
 	import ExportDialog from '$lib/design/block/export-dialog.svelte';
+	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import { Button } from '$lib/design/primitive/button';
 	import { Checkbox } from '$lib/design/primitive/checkbox';
 	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
@@ -36,6 +37,7 @@
 		toCsv,
 		toExportFileName,
 		toExportSheet,
+		toNarrowedName,
 		type CsvColumn,
 		type ExportFormat
 	} from '$lib/design/csv';
@@ -56,6 +58,8 @@
 		type ListMovement,
 		type ListPosition
 	} from '$lib/design/list-keyboard';
+	import { selectedRecords } from '$lib/design/selection';
+	import DownloadIcon from '@lucide/svelte/icons/download';
 	import { isolateDirection } from '$lib/error/message';
 	import { showErrorToast } from '$lib/error/toast';
 	import { isEditingText } from '$lib/design/shortcut';
@@ -230,20 +234,30 @@
 	const OVERSCAN_ROWS = 8;
 
 	let isExporting = $state(false);
-	let isExportDialogOpen = $state(false);
+	/**
+	 * What an export was asked for: which rows, and what to call the file.
+	 *
+	 * Taken at the moment a control is pressed rather than read again when the format is chosen.
+	 * The list keeps moving behind the dialog, and a selection export that read the selection
+	 * again at submit time could write a different set, or an empty file, than the one the reader
+	 * asked for. `null` means no export is being asked about, which is also what closes the
+	 * dialog.
+	 */
+	let exporting = $state<{ rows: TData[]; name: string } | null>(null);
 
-	// written from `data` rather than from a fresh read: the file is what the list is showing,
-	// under the search and the order it is showing it under.
+	// written from what was captured rather than from a fresh read: the file is the rows the
+	// reader asked for, under the search and the order the list was showing them under.
 	async function exportRows(format: ExportFormat) {
-		if (!exportAs || isExporting) return;
+		if (!exportAs || !exporting || isExporting) return;
 
+		const asked = exporting;
 		isExporting = true;
 
 		try {
 			// where the file goes is the reader's, and the name this composes is only what the
 			// dialog opens on. Walking away from it is not a failed export — nothing was written
 			// and there is nothing to say about it.
-			const chosen = await tauri.dialog.saveFile(toExportFileName(exportAs.name, format));
+			const chosen = await tauri.dialog.saveFile(toExportFileName(asked.name, format));
 
 			if (!chosen) {
 				return;
@@ -253,8 +267,8 @@
 			// the text one prepends a byte-order mark that would corrupt an archive.
 			const path =
 				format === 'csv'
-					? await tauri.export.write(chosen, toCsv(exportAs.columns, data))
-					: await tauri.export.writeWorkbook(chosen, [toExportSheet(exportAs.columns, data)]);
+					? await tauri.export.write(chosen, toCsv(exportAs.columns, asked.rows))
+					: await tauri.export.writeWorkbook(chosen, [toExportSheet(exportAs.columns, asked.rows)]);
 
 			// the path is isolated because it is written left to right whatever the sentence
 			// around it is, and an unisolated one reorders the Arabic it is spliced into.
@@ -348,6 +362,10 @@
 		selected = selectedIds.has(id) ? selected.filter((held) => held !== id) : [...selected, id];
 	}
 	const sortableColumnIds = $derived(sortOptions.map((option) => option.id));
+	// which records a selection names, as the shared rule states it: in the list's own order, and
+	// narrowed to the records the list is still showing.
+	const selectedRows = $derived(selectedRecords(data, selected));
+
 	const hasResults = $derived(rows.length > 0);
 	const isAwaitingFirstResults = $derived(isLoading && !hasResults);
 	const activeSortLabel = $derived(
@@ -712,7 +730,7 @@
 						{#if exportAs}
 							<DropdownMenu.Item
 								disabled={!hasResults || isExporting}
-								onSelect={() => (isExportDialogOpen = true)}
+								onSelect={() => (exporting = { rows: data, name: exportAs.name })}
 							>
 								<span class="flex-1 capitalize">{$LL.common.actions.export()}</span>
 							</DropdownMenu.Item>
@@ -762,6 +780,30 @@
 
 			<div class="ms-auto flex flex-wrap items-center gap-1.5">
 				{@render selectionActions?.(selected)}
+
+				<!-- the list's own export, aimed at the selection instead of at everything on screen.
+				     It belongs to this block rather than to the concept beside it: the columns and
+				     the file are the list's, and every list that exports gets this by exporting.
+
+				     Absent rather than disabled where the selection names nothing this list is
+				     still showing, so there is no control here that would write an empty file. -->
+				{#if exportAs && selectedRows.length > 0}
+					<RecordActionControl
+						label={$LL.common.actions.exportSelection()}
+						icon={DownloadIcon}
+						onclick={() =>
+							(exporting = {
+								rows: selectedRows,
+								// the list's own naming, applied to one more narrowing. A file of the whole
+								// directory and a file of the nine records picked out of it are otherwise
+								// the same name, and the second replaces the first unless the reader
+								// notices, which is the reason `toNarrowedName` exists at all.
+								name: toNarrowedName(exportAs.name, [
+									$LL.common.table.recordsSelected({ count: selectedRows.length })
+								])
+							})}
+					/>
+				{/if}
 
 				<!-- the same treatment the concept's own controls wear, so the row reads as one
 				     cluster of actions rather than as icons with a word bolted on the end. -->
@@ -860,7 +902,17 @@
 	</div>
 </div>
 
-{#if exportAs}
-	<!-- which file this list becomes, asked once the direction is chosen. -->
-	<ExportDialog bind:open={isExportDialogOpen} {isExporting} onExport={exportRows} />
+{#if exporting}
+	<!-- which file this list becomes, asked once the direction is chosen. Mounted only while one
+	     is being asked about, so a list that offers no export carries no dialog. -->
+	<ExportDialog
+		open
+		onOpenChange={(isOpen) => {
+			if (!isOpen) {
+				exporting = null;
+			}
+		}}
+		{isExporting}
+		onExport={exportRows}
+	/>
 {/if}
