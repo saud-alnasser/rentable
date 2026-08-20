@@ -105,3 +105,24 @@ export async function createFileApi(path: string, { host }: { host?: Host } = {}
 // not there. Minted rather than written out, so it is well-formed — a gate that refuses it for
 // its shape would answer the question the test is not asking.
 export { newId as unusedId };
+
+/**
+ * Every statement a block of work issued, so a test can say what it cost.
+ *
+ * `drain` throws away what the setup issued, which is what leaves the log holding only the call
+ * under test. Here rather than in one concept's test file because more than one concept now has
+ * a multi-record action, and *one call over the selection* is the claim each of them makes.
+ */
+export async function withStatementLog(run: (api: Api, drain: () => string[]) => Promise<void>) {
+	const statements: string[] = [];
+	const api = await createApi({ onStatement: (sql) => statements.push(sql) });
+
+	await run(api, () => statements.splice(0, statements.length));
+
+	return statements;
+}
+
+/** how many of the logged statements were of a kind. */
+export function countMatching(statements: readonly string[], pattern: RegExp) {
+	return statements.filter((sql) => pattern.test(sql)).length;
+}

@@ -5,15 +5,24 @@
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
+	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
+	import SelectionDialog from '$lib/design/block/selection-dialog.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import { hasCreateIntent } from '$lib/design/create-intent';
+	import type { SelectionPlan } from '$lib/design/selection';
 	import type { ListSort } from '$lib/design/sort';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type api from '$lib/api/caller';
 	import { toNarrowedName } from '$lib/design/csv';
-	import { useDeleteTenant, useListTenants } from '$lib/tenant/query';
+	import {
+		useDeleteManyTenants,
+		useDeleteTenant,
+		useListTenants,
+		usePlanManyTenants,
+		type TenantRefusalReason
+	} from '$lib/tenant/query';
 	import {
 		isTenantDeletable,
 		TENANT_SORT_COLUMN_IDS,
@@ -55,6 +64,11 @@
 	// single read of what blocks it enough for a whole directory.
 	let deleteOpensOn = $state<TenantRecord | null>(null);
 	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
+	// the records the reader has picked out, and the set a control was reached for with. The two
+	// are separate because the selection stays live behind the confirmation, and an action that
+	// read it again at submit time would act on whatever it had become.
+	let selected = $state<string[]>([]);
+	let confirming = $state<string[] | null>(null);
 
 	const tenantsQuery = useListTenants(
 		() => search,
@@ -62,7 +76,42 @@
 	);
 	const tenants = $derived(tenantsQuery.data ?? []);
 	const deleteMutation = useDeleteTenant();
+	const deleteManyMutation = useDeleteManyTenants();
 	const importMutation = useImportRecords();
+
+	const planQuery = usePlanManyTenants(() => confirming ?? []);
+
+	// what the deletion would do, as the shared confirmation states it. `null` while the plan is
+	// still being read, which is what puts that dialog in its waiting state.
+	const plan = $derived.by((): SelectionPlan | null =>
+		// handed on unchanged: the procedure answers in the shared vocabulary already, and the
+		// annotation is what holds it to that.
+		confirming && planQuery.data ? planQuery.data : null
+	);
+
+	// the reasons a deletion can turn a tenant away for, in the order they are worth reading: the
+	// rule the action is about first, and *gone from under you* last, because it is the one
+	// nothing the reader did caused.
+	const REFUSAL_ORDER = [
+		'holds-contracts',
+		'missing'
+	] as const satisfies readonly TenantRefusalReason[];
+
+	// every reason the domain can give, with the sentence it reads as. `satisfies` is what makes a
+	// reason added to the rule without a sentence a build failure rather than a refusal the reader
+	// is shown under somebody else's words.
+	const refusalLabels = $derived({
+		'holds-contracts': (count: number) => $LL.tenants.selection.refusedHoldsContracts({ count }),
+		missing: (count: number) => $LL.tenants.selection.refusedMissing({ count })
+	} satisfies Record<TenantRefusalReason, (count: number) => string>);
+
+	function describeReason(reason: string, count: number) {
+		// the shared confirmation is deliberately ignorant of any concept's reasons, so it hands
+		// this one back as a plain string. The map above is what keeps the lookup total.
+		const label = refusalLabels[reason as TenantRefusalReason];
+
+		return label ? label(count) : $LL.tenants.selection.refusedMissing({ count });
+	}
 
 	// what a deletion would be refused for, read for the record being acted on and only while it
 	// is being acted on — the same reading the record's own page performs before asking.
@@ -121,6 +170,23 @@
 		deleteOpensOn = null;
 	}
 
+	/**
+	 * Delete the set the reader agreed to.
+	 *
+	 * How many went through is not announced here: the declaration behind the call says it through
+	 * the shared handler, which is where every announcement in this application is raised from.
+	 */
+	async function deleteSelected() {
+		if (!confirming) {
+			return;
+		}
+
+		await deleteManyMutation.mutateAsync(confirming);
+		// the selection is put down, and the dialog closes itself once this resolves: unmounting it
+		// from here would take it off screen mid-close.
+		selected = [];
+	}
+
 	// built from the ids the procedure orders by, so the control cannot come to offer a key
 	// the query would reject. The record type is what makes a missing label a type error.
 	const sortOptions = $derived.by(() => {
@@ -146,11 +212,25 @@
 	});
 </script>
 
+{#snippet selectionActions(ids: readonly string[])}
+	<!-- the same control a record's own menu wears, so a deletion means the same thing and looks
+	     the same whether it is aimed at one tenant or at nine. Delete and nothing else: it is the
+	     only thing a tenant admits being done to several at a time. -->
+	<RecordActionControl
+		label={`${$LL.common.actions.delete()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
+		icon={Trash2Icon}
+		tone="error"
+		onclick={() => (confirming = [...ids])}
+	/>
+{/snippet}
+
 <List
 	data={tenants}
 	bind:search
 	bind:sort
 	{sortOptions}
+	bind:selected
+	{selectionActions}
 	isLoading={tenantsQuery.isLoading}
 	isFetching={tenantsQuery.isFetching}
 	recordHeight={ROW_HEIGHT}
@@ -211,6 +291,27 @@
 		</RecordCard>
 	{/snippet}
 </List>
+
+{#if confirming}
+	{@const count = confirming.length}
+	<SelectionDialog
+		open
+		onOpenChange={(isOpen) => {
+			if (!isOpen) {
+				confirming = null;
+			}
+		}}
+		title={$LL.tenants.selection.deleteTitle()}
+		selected={$LL.common.table.recordsSelected({ count })}
+		{plan}
+		reasons={REFUSAL_ORDER}
+		{describeReason}
+		summarize={(eligible) => $LL.tenants.selection.deleteSummary({ count: eligible })}
+		confirmLabel={$LL.common.actions.delete()}
+		confirmLoadingLabel={$LL.common.actions.deleting()}
+		onSubmit={deleteSelected}
+	/>
+{/if}
 
 <TenantForm
 	open={isTenantFormOpen}

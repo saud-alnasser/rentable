@@ -3,10 +3,12 @@ import test from 'node:test';
 
 import {
 	type Api,
+	countMatching,
 	createApi,
 	monthsFromNow,
 	seedTenant,
-	unusedId
+	unusedId,
+	withStatementLog
 } from '$lib/api/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
 import type { ListSort } from '$lib/design/sort.ts';
@@ -318,6 +320,236 @@ test('deleting a tenant that has a contract is rejected', async () => {
 	await assert.rejects(
 		() => api.tenant.delete({ id: tenant.id }),
 		/cannot delete tenant with associated contracts/
+	);
+});
+
+// --- What a selection would do -------------------------------------------------------
+//
+// The plan and the deletion go through one call, so they cannot answer differently about
+// what a refusal is. What they can differ about is the workspace, because another device
+// may write between the reader being shown a plan and reaching for the control, and the
+// deletion is what is authoritative about that.
+
+/** the identities out of what a multi-record action reported it changed. */
+const toIds = (tenants: readonly { id: string }[]) => tenants.map((tenant) => tenant.id);
+
+async function seedTenantHoldingAContract(api: Api) {
+	const tenant = await seedTenant(api);
+
+	await api.contract.create({
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000
+	});
+
+	return tenant;
+}
+
+test('a plan says which of a selection would go through and which would not', async () => {
+	const api = await createApi();
+	const free = await seedTenant(api);
+	const held = await seedTenantHoldingAContract(api);
+	const gone = unusedId();
+
+	const plan = await api.tenant.planMany({ ids: [free.id, held.id, gone] });
+
+	assert.deepEqual(plan.eligible, [free.id]);
+	assert.deepEqual(plan.refused, [
+		{ id: held.id, name: held.name, reason: 'holds-contracts' },
+		// nothing survived to name it by, so the count against the reason is what carries it.
+		{ id: gone, name: '', reason: 'missing' }
+	]);
+});
+
+test('asking what a deletion would do writes nothing', async () => {
+	const api = await createApi();
+	const free = await seedTenant(api);
+	const held = await seedTenantHoldingAContract(api);
+
+	await api.tenant.planMany({ ids: [free.id, held.id] });
+
+	assert.ok(await api.tenant.get({ id: free.id }));
+	assert.ok(await api.tenant.get({ id: held.id }));
+});
+
+// the claim the whole confirmation rests on: what the reader is shown is what the deletion
+// then decides, because both are the same call over the same workspace.
+test('a plan and the deletion it precedes refuse exactly the same tenants', async () => {
+	const api = await createApi();
+	const free = await seedTenant(api);
+	const held = await seedTenantHoldingAContract(api);
+	const gone = unusedId();
+	const ids = [free.id, held.id, gone];
+
+	const plan = await api.tenant.planMany({ ids });
+	const result = await api.tenant.deleteMany({ ids });
+
+	assert.deepEqual(toIds(result.deleted), [...plan.eligible]);
+	assert.deepEqual(result.refused, plan.refused);
+	// and every tenant named is accounted for on one side or the other: a set that reported
+	// neither a deletion nor a refusal for one of them would pass the two lines above.
+	assert.deepEqual(
+		[...toIds(result.deleted), ...result.refused.map((refusal) => refusal.id)].sort(),
+		[...ids].sort()
+	);
+});
+
+// the plan is what the reader agreed to, and the deletion is what happened. Where the
+// workspace moved in between, the second is the answer.
+test('what the deletion refuses is what happened, not what the plan showed', async () => {
+	const api = await createApi();
+	const first = await seedTenant(api);
+	const second = await seedTenant(api);
+	const ids = [first.id, second.id];
+
+	const plan = await api.tenant.planMany({ ids });
+	assert.deepEqual(plan.eligible.sort(), [...ids].sort());
+
+	// somebody else gives the second tenant a contract while the confirmation is open.
+	await api.contract.create({
+		tenantId: second.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000
+	});
+
+	const result = await api.tenant.deleteMany({ ids });
+
+	assert.deepEqual(toIds(result.deleted), [first.id]);
+	assert.deepEqual(result.refused, [
+		{ id: second.id, name: second.name, reason: 'holds-contracts' }
+	]);
+});
+
+test('several tenants are deleted by one action, and the rest are named', async () => {
+	const api = await createApi();
+	const first = await seedTenant(api);
+	const second = await seedTenant(api);
+	const held = await seedTenantHoldingAContract(api);
+
+	const result = await api.tenant.deleteMany({ ids: [first.id, second.id, held.id] });
+
+	assert.deepEqual(toIds(result.deleted).sort(), [first.id, second.id].sort());
+	assert.deepEqual(result.refused, [{ id: held.id, name: held.name, reason: 'holds-contracts' }]);
+
+	for (const id of [first.id, second.id]) {
+		assert.equal(await api.tenant.get({ id }), undefined);
+	}
+
+	assert.ok(await api.tenant.get({ id: held.id }), 'the refused tenant is still there');
+});
+
+// the assertion the ticket exists for, and it is about cost rather than outcome: a selection
+// is one thing the reader asked for, and issuing it as N calls costs a round trip per record
+// for work one statement does. A tenant carries nothing derived, so there is no reconcile
+// pass here to count.
+test('deleting many issues one delete rather than one per record', async () => {
+	const statements = await withStatementLog(async (api, drain) => {
+		const ids = [];
+
+		for (let index = 0; index < 3; index += 1) {
+			ids.push((await seedTenant(api)).id);
+		}
+
+		drain();
+
+		await api.tenant.deleteMany({ ids });
+	});
+
+	assert.equal(countMatching(statements, /^\s*delete from "tenant"/i), 1);
+});
+
+// --- Putting a deleted selection back ------------------------------------------------
+
+test('a deleted selection is put back whole, each tenant with the identity it had', async () => {
+	const api = await createApi();
+	const first = await seedTenant(api);
+	const second = await seedTenant(api);
+
+	const deleted = await api.tenant.deleteMany({ ids: [first.id, second.id] });
+	const restored = await api.tenant.createMany({ tenants: deleted.deleted });
+
+	assert.deepEqual(toIds(restored).sort(), [first.id, second.id].sort());
+
+	for (const original of [first, second]) {
+		const back = await api.tenant.get({ id: original.id });
+
+		assert.ok(back, 'the tenant is there under the identity it had');
+		assert.equal(back.name, original.name);
+		assert.equal(back.nationalId, original.nationalId);
+		assert.equal(back.phone, original.phone);
+	}
+});
+
+// all or nothing, and the reason: a set half restored is a workspace in a shape neither the
+// deletion nor the undo describes. The reader is told which one blocked it, by name.
+test('and where one of them cannot be put back, none is', async () => {
+	const api = await createApi();
+	const first = await seedTenant(api);
+	const second = await seedTenant(api);
+
+	const deleted = await api.tenant.deleteMany({ ids: [first.id, second.id] });
+
+	// somebody registers a tenant on the identity one of them held while the deletion sits on
+	// the undo stack.
+	await api.tenant.create({
+		name: 'Impostor',
+		nationalId: second.nationalId,
+		phone: '+966559999999'
+	});
+
+	await assert.rejects(
+		() => api.tenant.createMany({ tenants: deleted.deleted }),
+		new RegExp(`national id ${second.nationalId} is associated with a registered tenant`)
+	);
+
+	assert.equal(await api.tenant.get({ id: first.id }), undefined);
+});
+
+test('and a set claiming one national id twice is refused before anything is written', async () => {
+	const api = await createApi();
+	const first = await seedTenant(api);
+	const second = await seedTenant(api);
+
+	const deleted = await api.tenant.deleteMany({ ids: [first.id, second.id] });
+	const [head, tail] = deleted.deleted;
+
+	await assert.rejects(
+		() =>
+			api.tenant.createMany({
+				tenants: [head, { ...tail, nationalId: head.nationalId }]
+			}),
+		new RegExp(`two tenants in this set claim ${head.nationalId}`)
+	);
+
+	assert.equal(await api.tenant.get({ id: head.id }), undefined);
+});
+
+test('putting a selection back asks each uniqueness question once for the whole set', async () => {
+	const statements = await withStatementLog(async (api, drain) => {
+		const ids = [];
+
+		for (let index = 0; index < 3; index += 1) {
+			ids.push((await seedTenant(api)).id);
+		}
+
+		const deleted = await api.tenant.deleteMany({ ids });
+
+		drain();
+
+		await api.tenant.createMany({ tenants: deleted.deleted });
+	});
+
+	// three rows go in, and the three things a tenant is unique by are asked once each over the
+	// whole set rather than once per record. That the three inserts land together or not at all
+	// is the batch's, asserted by the test above through what it leaves behind.
+	assert.equal(countMatching(statements, /^\s*insert into "tenant"/i), 3);
+	assert.ok(
+		countMatching(statements, /select .* from "tenant" where/i) <= 3,
+		`one pass per question, not one per row: ${statements.filter((sql) => /select .* from "tenant" where/i.test(sql)).length}`
 	);
 });
 

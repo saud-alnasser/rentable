@@ -1,4 +1,5 @@
 import * as s from '$lib/platform/database/schema';
+import type { Database } from '$lib/api/context';
 import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
 import { matchesAnySearch } from '$lib/platform/database/search';
 import { ensureIdFree, newId } from '$lib/platform/database/identity';
@@ -11,8 +12,11 @@ import {
 	ensurePhoneAvailable,
 	ensureTenantDeletable,
 	ensureTenantStillExists,
+	whatRefusesTenantDeletion,
+	type TenantRefusalReason,
 	type TenantSortColumnId
 } from '$lib/tenant/tenant';
+import { TRPCError } from '@trpc/server';
 import { asc, desc, eq, inArray, like, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
@@ -66,6 +70,69 @@ const TENANT_SORT_COLUMNS: Record<TenantSortColumnId, SQL | AnyColumn> = {
 	nationalId: s.tenant.nationalId,
 	activeContractCount: inForceContracts
 };
+
+type DbTenant = typeof s.tenant.$inferSelect;
+
+/** A tenant that would be turned away, named the way a reader knows one. */
+type TenantRefusal = { id: string; name: string; reason: TenantRefusalReason };
+
+/**
+ * What deleting a whole selection would do, from one read of the workspace.
+ *
+ * **The plan and the mutation are the same call.** `tenant.planMany` and `tenant.deleteMany` both
+ * go through this, so the confirmation shows what the deletion is about to decide rather than a
+ * second opinion about it. They can still disagree about the *workspace*, because another device
+ * may write between the two, and that is why the mutation runs this again instead of trusting
+ * what the reader was shown.
+ *
+ * One read per table for the whole selection, never one per record.
+ */
+async function planTenantSelection(db: Database, ids: readonly string[]) {
+	const named = [...new Set(ids)];
+
+	const existing = await db.select().from(s.tenant).where(inArray(s.tenant.id, named));
+	const tenantsById = new Map(existing.map((tenant) => [tenant.id, tenant]));
+
+	// the tenant each contract names and nothing else: the rule asks whether any contract mentions
+	// the tenant, so a directory of five hundred selected tenants never carries their contracts.
+	const held = await db
+		.select({ tenantId: s.contract.tenantId })
+		.from(s.contract)
+		.where(inArray(s.contract.tenantId, named));
+	const contractsByTenantId = new Map<string, { tenantId: string }[]>();
+
+	for (const contract of held) {
+		const holding = contractsByTenantId.get(contract.tenantId) ?? [];
+
+		holding.push(contract);
+		contractsByTenantId.set(contract.tenantId, holding);
+	}
+
+	const eligible: DbTenant[] = [];
+	const refused: TenantRefusal[] = [];
+
+	// walked in the order the reader named them, so what the confirmation lists reads the way the
+	// selection does rather than the way the engine happened to answer.
+	for (const id of named) {
+		const tenant = tenantsById.get(id);
+
+		if (!tenant) {
+			refused.push({ id, name: '', reason: 'missing' });
+
+			continue;
+		}
+
+		const reason = whatRefusesTenantDeletion(contractsByTenantId.get(id) ?? []);
+
+		if (reason) {
+			refused.push({ id, name: tenant.name, reason });
+		} else {
+			eligible.push(tenant);
+		}
+	}
+
+	return { eligible, refused };
+}
 
 const TenantSortSchema = z.object({
 	columnId: z.enum(TENANT_SORT_COLUMN_IDS),
@@ -189,6 +256,115 @@ export default router({
 				.get();
 
 			return ensureTenantStillExists(deleted);
+		}),
+
+	/**
+	 * What deleting the tenants named would do, before any of it is done.
+	 *
+	 * Asked of the workspace rather than read off the rows, even though a directory row carries a
+	 * contract count per status and could answer. An application that plans some of its actions
+	 * from the row and the rest from a query has two answers to one question, which is what the
+	 * effort behind this exists to remove.
+	 *
+	 * A query rather than a mutation: it reads and writes nothing.
+	 */
+	planMany: procedure.member
+		.input(z.object({ ids: z.array(TenantSchema.shape.id).min(1) }))
+		.query(async ({ input, ctx }) => {
+			const plan = await planTenantSelection(ctx.db, input.ids);
+
+			return { eligible: plan.eligible.map((tenant) => tenant.id), refused: plan.refused };
+		}),
+
+	/**
+	 * Delete every tenant named that no contract mentions, and say which of them could not be.
+	 *
+	 * **One delete over the whole set, not one per record.** A selection is one thing the reader
+	 * asked for, and issuing it as N calls costs a round trip and a sync pass per record for work
+	 * one statement does.
+	 *
+	 * **No reconcile pass.** A tenant carries nothing derived, and a tenant that may be deleted at
+	 * all is one no contract mentions, so nothing derived was resting on it either. That is the
+	 * same reason the single-record deletion above runs none.
+	 *
+	 * The rows come back whole rather than as ids, because putting a record back means putting it
+	 * back as itself, by the identity it had (ADR 0026).
+	 */
+	deleteMany: procedure.member
+		.use(autosync())
+		.input(z.object({ ids: z.array(TenantSchema.shape.id).min(1) }))
+		.mutation(async ({ input, ctx }) => {
+			const plan = await planTenantSelection(ctx.db, input.ids);
+			const deletableIds = plan.eligible.map((tenant) => tenant.id);
+
+			if (deletableIds.length) {
+				await ctx.db.delete(s.tenant).where(inArray(s.tenant.id, deletableIds));
+			}
+
+			return { deleted: plan.eligible, refused: plan.refused };
+		}),
+
+	/**
+	 * Put a set of tenants back, all of them or none.
+	 *
+	 * What undoing {@link deleteMany} calls, and the reason it is all or nothing: a set half
+	 * restored leaves the workspace in a shape neither the deletion nor the undo describes. One
+	 * batch, and the boundary runs a batch inside one transaction (ADR 0027), so a refusal
+	 * anywhere in the set creates nothing.
+	 *
+	 * **It throws rather than reporting**, which is what leaves the entry on the undo stack: an
+	 * inverse that threw did not move the workspace, so the reader can deal with whatever refused
+	 * it and press undo again. Every refusal names the tenant it is about, because *one of them
+	 * could not be put back* is not something a reader can act on.
+	 *
+	 * Every check `create` makes, asked once for the whole set rather than once per tenant.
+	 */
+	createMany: procedure.member
+		.use(autosync())
+		.input(z.object({ tenants: z.array(TenantSchema.partial({ id: true })).min(1) }))
+		.mutation(async ({ input, ctx }) => {
+			const named = input.tenants.map((tenant) => ({ ...tenant, id: tenant.id ?? newId() }));
+			const ids = named.map((tenant) => tenant.id);
+			const nationalIds = named.map((tenant) => tenant.nationalId);
+			const phones = named.map((tenant) => tenant.phone);
+
+			// the set against itself, on all three things a tenant is unique by, before it is weighed
+			// against the workspace at all. A set that contradicts itself is a contradiction the
+			// engine would only report part-way through, and this write is meant to land whole or
+			// not at all.
+			const repeated =
+				ids.find((id, index) => ids.indexOf(id) !== index) ??
+				nationalIds.find((nationalId, index) => nationalIds.indexOf(nationalId) !== index) ??
+				phones.find((phone, index) => phones.indexOf(phone) !== index);
+
+			if (repeated) {
+				throw new TRPCError({
+					code: 'BAD_REQUEST',
+					message: `two tenants in this set claim ${repeated}`
+				});
+			}
+
+			const held = await ctx.db.select().from(s.tenant).where(inArray(s.tenant.id, ids));
+
+			ensureIdFree(held[0], held[0]?.id);
+
+			const registered = await ctx.db
+				.select()
+				.from(s.tenant)
+				.where(inArray(s.tenant.nationalId, nationalIds));
+
+			ensureIdentityAvailable(registered[0], registered[0]?.nationalId);
+
+			const reachable = await ctx.db.select().from(s.tenant).where(inArray(s.tenant.phone, phones));
+
+			ensurePhoneAvailable(reachable[0], reachable[0]?.phone);
+
+			const [first, ...rest] = named.map((tenant) =>
+				ctx.db.insert(s.tenant).values(tenant).returning()
+			);
+			const created = await ctx.db.batch([first, ...rest]);
+
+			return created.map(([tenant]) => tenant);
 		}),
 
 	get: procedure.member.input(TenantSchema.partial()).query(async ({ input, ctx }) => {

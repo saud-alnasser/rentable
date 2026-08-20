@@ -524,6 +524,7 @@ const en = {
 
 		hooks: {
 			createSuccess: 'tenant created successfully!',
+			deleteManySuccess: '{count|number} tenant(s) deleted',
 			deleteSuccess: 'tenant deleted successfully!',
 			updateSuccess: 'tenant updated successfully!'
 		},
@@ -536,6 +537,13 @@ const en = {
 			invalidPhone: 'phone must be valid for the selected country code {countryCode}.',
 			phoneNumberPlaceholder: '5xxxxxxxx',
 			phonePlaceholder: 'phone (+966...)'
+		},
+
+		selection: {
+			deleteSummary: '{count|number} tenant(s) will be deleted',
+			deleteTitle: 'delete tenants',
+			refusedHoldsContracts: '{count|number} still hold contracts',
+			refusedMissing: '{count|number} are no longer in the workspace'
 		}
 	},
 
