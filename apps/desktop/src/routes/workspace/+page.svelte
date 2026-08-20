@@ -31,7 +31,7 @@
 
 {#if syncState}
 	<PageFrame>
-		<h1 class="text-3xl font-semibold tracking-tight">{$LL.workspace.title()}</h1>
+		<h1 class="text-3xl font-semibold tracking-tight capitalize">{$LL.workspace.title()}</h1>
 
 		<Field.Group>
 			<Field.Set>

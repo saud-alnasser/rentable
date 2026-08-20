@@ -82,7 +82,7 @@
 			<Icon class="size-4" aria-hidden="true" />
 		</span>
 
-		<h2 class="text-sm font-medium">{rankLabels[rank]}</h2>
+		<h2 class="text-sm font-medium capitalize">{rankLabels[rank]}</h2>
 		<span class="text-xs text-muted-foreground tabular-nums">
 			{$LL.dashboard.sections.contractCount({ count: section.summary.contractCount })}
 		</span>
