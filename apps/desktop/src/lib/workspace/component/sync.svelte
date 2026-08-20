@@ -61,7 +61,7 @@
 		account: RemoteSyncAccount | null
 	): { label: string; variant: BadgeVariant } {
 		if (workspace.lastError || account?.lastError || account?.status === 'needsReconnect') {
-			return { label: $LL.settings.syncAccountStatusNeedsReconnect(), variant: 'destructive' };
+			return { label: $LL.settings.syncAccountStatusNeedsReconnect(), variant: 'error' };
 		}
 
 		if (account?.status === 'pending') {
@@ -75,7 +75,7 @@
 <!-- no heading row of its own: the group above is already called workspace, and the row said
      "workspace" under it and then listed the controls that follow. -->
 <div class="space-y-5">
-	<Callout variant="info">
+	<Callout tone="info">
 		<strong>{$LL.settings.syncAutomationTitle()}</strong>
 		<div class="mt-1 text-sm text-muted-foreground">
 			{$LL.settings.syncAutomationDescription()}
@@ -83,7 +83,7 @@
 	</Callout>
 
 	{#if !syncState.googleSignInReady}
-		<Callout variant="warning">{$LL.settings.syncSignInPending()}</Callout>
+		<Callout tone="warning">{$LL.settings.syncSignInPending()}</Callout>
 	{/if}
 
 	{#if activeWorkspace}
@@ -120,7 +120,7 @@
 			</div>
 
 			{#if activeWorkspace.lastError || activeAccount?.lastError}
-				<Callout variant="warning">
+				<Callout tone="warning">
 					{activeWorkspace.lastError ?? activeAccount?.lastError}
 				</Callout>
 			{/if}

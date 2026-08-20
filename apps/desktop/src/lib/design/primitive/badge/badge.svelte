@@ -8,7 +8,10 @@
 				default: 'bg-primary text-primary-foreground [a&]:hover:bg-primary/90 border-transparent',
 				secondary:
 					'bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90 border-transparent',
-				destructive:
+				// the tone vocabulary's `error`, solid rather than washed: a badge is a chip and a
+				// callout is a box, so they share the word and the token and not the treatment.
+				// `--destructive` is the token's shadcn name and stays.
+				error:
 					'bg-destructive/70 [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/40 border-transparent text-white',
 				outline: 'text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground'
 			}

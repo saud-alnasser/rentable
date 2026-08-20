@@ -1,7 +1,7 @@
 ---
-aep: 2.2.0
+aep: 2.7.0
 owner: repository
-date: 2026-08-17
+date: 2026-08-20
 kind: rule
 mode: [implement, review]
 use-when: "branching, committing, opening a pull request, or landing work here"
@@ -136,9 +136,11 @@ lands as   refactor: introduce a typed error enum (#147)
 Writing `(#N)` by hand produces a subject with two numbers in it, and the one that reads
 like the ticket is the one GitHub did not add.
 
-**The scope is optional here and mostly unused** — the log carries it for dependency and
-tooling commits and omits it elsewhere. Do not invent one to fill the slot; where you do
-use it, it names an engineering domain, and `misc`, `stuff`, and `update` are not domains.
+**The scope is optional and in practice almost always given** — 38 of the last 40 subjects on
+`main` carry one, and the two that do not are `docs`. *This read said the opposite until
+2026-08-20, on a log that has since turned over; check it rather than trusting either
+sentence.* Do not invent one to fill the slot; where you do use it, it names an engineering
+domain, and `misc`, `stuff`, and `update` are not domains.
 
 Types in use: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`,
 `test`.

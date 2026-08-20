@@ -2,7 +2,8 @@
 	import type { GoogleSignInPhase } from '$lib/platform/host';
 	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
 	import { Button } from '$lib/design/primitive/button';
-	import { Callout, type CalloutVariant } from '$lib/design/primitive/callout';
+	import { Callout } from '$lib/design/primitive/callout';
+	import type { Tone } from '$lib/design/tone';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 
@@ -84,13 +85,13 @@
 	 * because nothing is wrong with the account and the next attempt may well work. Everything
 	 * else says what it has to say in the title and the line under it.
 	 */
-	const notice = $derived.by((): { variant: CalloutVariant; message: string } | null => {
+	const notice = $derived.by((): { tone: Tone; message: string } | null => {
 		if (errorMessage) {
-			return { variant: 'error', message: errorMessage };
+			return { tone: 'error', message: errorMessage };
 		}
 
 		if (situation === 'noSession') {
-			return { variant: 'warning', message: $LL.layout.signIn.incomplete() };
+			return { tone: 'warning', message: $LL.layout.signIn.incomplete() };
 		}
 
 		return null;
@@ -108,13 +109,13 @@
 	);
 </script>
 
-<StandaloneSurface {title} {description} busy={isBusy}>
+<StandaloneSurface tone="neutral" {title} {description} busy={isBusy}>
 	<!-- the extra step above what the surface gives every screen: with the card down to a title,
 	     a line and a button, the gap between saying what this is and offering the way through it
 	     is the only grouping left to draw. -->
 	<div class="space-y-4 pt-2">
 		{#if notice}
-			<Callout variant={notice.variant}>{notice.message}</Callout>
+			<Callout tone={notice.tone}>{notice.message}</Callout>
 		{/if}
 
 		<!-- the way in. **Outlined rather than solid, which is the one place this card argues with

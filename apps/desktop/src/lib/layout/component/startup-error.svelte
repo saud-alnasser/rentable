@@ -12,7 +12,11 @@
 	} = $props();
 </script>
 
+<!-- error, and it is the application that has failed rather than a screen: nothing is running
+     behind this card. The two toned screens are this one and update recovery, and they do not
+     say the same thing as each other. -->
 <StandaloneSurface
+	tone="error"
 	title={$LL.layout.startup.failedToStartTitle()}
 	description={$LL.layout.startup.failedToStartDescription()}
 >

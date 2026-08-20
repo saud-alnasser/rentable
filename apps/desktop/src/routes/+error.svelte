@@ -6,7 +6,13 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 </script>
 
-<StandaloneSurface title={$LL.layout.error.title()} description={$LL.layout.error.description()}>
+<!-- neutral, and deliberately: a crashed route is contained and the shell around it is still
+     working. The tone marks the application failing, not a screen failing. -->
+<StandaloneSurface
+	tone="neutral"
+	title={$LL.layout.error.title()}
+	description={$LL.layout.error.description()}
+>
 	<!-- the status and the message are for whoever is asked what happened; the sentence above
 	     is for the reader, who met this because nothing anticipated it. -->
 	<p class="text-sm text-muted-foreground tabular-nums">

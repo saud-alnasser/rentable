@@ -213,15 +213,15 @@
 	</div>
 
 	{#if isCheckingForUpdate}
-		<Callout variant="info">{$LL.settings.updatesChecking()}</Callout>
+		<Callout tone="info">{$LL.settings.updatesChecking()}</Callout>
 	{:else if updateCheckError}
-		<Callout variant="error">{updateCheckError}</Callout>
+		<Callout tone="error">{updateCheckError}</Callout>
 	{:else if availableUpdate}
-		<Callout variant="info">
+		<Callout tone="info">
 			{$LL.settings.releaseAvailable({ version: availableUpdate.version })}
 		</Callout>
 	{:else if hasCheckedForUpdate}
-		<Callout variant="success">{$LL.settings.latestRelease()}</Callout>
+		<Callout tone="success">{$LL.settings.latestRelease()}</Callout>
 	{/if}
 
 	{#if availableUpdate}
@@ -253,7 +253,7 @@
 	{/if}
 
 	{#if isInstallingUpdate}
-		<Callout variant="info">
+		<Callout tone="info">
 			{$LL.settings.downloadingUpdate()}
 			{#if formatBytes(updateDownloadedBytes)}
 				({formatBytes(updateDownloadedBytes)}
@@ -276,11 +276,11 @@
 	{/if}
 
 	{#if updateInstallError}
-		<Callout variant="error">{updateInstallError}</Callout>
+		<Callout tone="error">{updateInstallError}</Callout>
 	{/if}
 
 	{#if updateInstallComplete}
-		<Callout variant="success">{$LL.settings.restartNotice()}</Callout>
+		<Callout tone="success">{$LL.settings.restartNotice()}</Callout>
 		<Button onclick={() => void restartApp()}>{$LL.common.actions.restartApp()}</Button>
 	{/if}
 </div>

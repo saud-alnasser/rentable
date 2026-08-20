@@ -14,7 +14,10 @@
 	} = $props();
 </script>
 
+<!-- info rather than error: an update that needs finishing is not a database that would not
+     open, and the two stopped wearing the same face here. -->
 <StandaloneSurface
+	tone="info"
 	title={$LL.layout.startup.recoveryRequiredTitle()}
 	description={$LL.layout.startup.recoveryDescription({
 		version: recovery.targetVersion || $LL.common.messages.unknown()
@@ -22,7 +25,7 @@
 >
 	<div class="space-y-4">
 		{#if recovery.updateError}
-			<Callout variant="error">{recovery.updateError}</Callout>
+			<Callout tone="error">{recovery.updateError}</Callout>
 		{/if}
 
 		<div class="rounded-xl bg-muted p-3">

@@ -244,7 +244,7 @@
 					     Where it is one a record is only built from, the file can still say which records
 					     it is about — so it is a caution over a summary rather than a refusal instead of
 					     one. -->
-					<Callout variant={sheet.unreadable ? 'error' : 'warning'} class="flex items-start gap-3">
+					<Callout tone={sheet.unreadable ? 'error' : 'warning'} class="flex items-start gap-3">
 						<Columns3Icon class="mt-0.5 size-4 shrink-0" />
 						<span class="min-w-0">
 							{sheet.unreadable
@@ -260,7 +260,7 @@
 				     usually repeats a hundred, and a hundred identical callouts is a wall rather than a
 				     finding. -->
 				{#each sheet.collisions.slice(0, NAMED_ROWS) as collision (collision.identity)}
-					<Callout variant="error" class="flex items-start gap-3">
+					<Callout tone="error" class="flex items-start gap-3">
 						<CopyXIcon class="mt-0.5 size-4 shrink-0" />
 						<span class="min-w-0">
 							{$LL.common.import.collision({

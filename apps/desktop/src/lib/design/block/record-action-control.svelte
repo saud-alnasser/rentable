@@ -1,8 +1,18 @@
 <script lang="ts" module>
+	import type { Tone } from '$lib/design/tone';
 	import { tv } from 'tailwind-variants';
 
-	/** Whether pressing this control destroys something the reader cannot get back. */
-	export type RecordActionTone = 'neutral' | 'destructive';
+	/**
+	 * Whether pressing this control destroys something the reader cannot get back.
+	 *
+	 * **Two of the application's five tones, named from that vocabulary rather than beside it.**
+	 * *It said `destructive` until 2026-08-20, which was a sixth name for the thing four other
+	 * components each called something else.* The other three are absent because no record action
+	 * has ever been one — a control that succeeds or informs is not an action, it is the result of
+	 * one — and a variant nothing asks for is a shape the next caller fills for a reason nobody
+	 * argued.
+	 */
+	export type RecordActionTone = Extract<Tone, 'neutral' | 'error'>;
 
 	// deleting and terminating rest as quietly as every other control here and take the warning
 	// colour on the intent to press: each is primary only inside the confirmation it opens
@@ -15,7 +25,9 @@
 		variants: {
 			tone: {
 				neutral: '',
-				destructive:
+				// `error` draws `--destructive`, which is the token's shadcn name and stays: the
+				// vocabulary is what got a shared word, not every colour underneath it.
+				error:
 					'text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive'
 			} satisfies Record<RecordActionTone, string>
 		}
