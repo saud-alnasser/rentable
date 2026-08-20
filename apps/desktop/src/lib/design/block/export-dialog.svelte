@@ -19,11 +19,20 @@
 	 * with no opinion presses one control and is done.
 	 */
 	let {
-		open = $bindable(false),
+		open,
+		onOpenChange,
 		onExport,
 		isExporting = false
 	}: {
-		open?: boolean;
+		open: boolean;
+		/**
+		 * asked to close.
+		 *
+		 * A callback rather than a binding, because the caller holds more than a boolean: which
+		 * rows this export is of is taken at the moment a control is pressed, and one state saying
+		 * both is one fewer way for the two to come apart.
+		 */
+		onOpenChange: (value: boolean) => void;
 		/** write the list out as the chosen format. */
 		onExport: (format: ExportFormat) => Promise<void> | void;
 		isExporting?: boolean;
@@ -38,7 +47,7 @@
 	} satisfies Record<ExportFormat, unknown>;
 </script>
 
-<Dialog.Root bind:open>
+<Dialog.Root {open} {onOpenChange}>
 	<Dialog.Content class="w-full max-w-md">
 		<Dialog.Header>
 			<Dialog.Title class="capitalize">{$LL.common.actions.export()}</Dialog.Title>
@@ -72,7 +81,7 @@
 			<Button
 				variant="ghost"
 				disabled={isExporting}
-				onclick={() => (open = false)}
+				onclick={() => onOpenChange(false)}
 				class="w-full sm:w-auto"
 			>
 				{$LL.common.actions.cancel()}
@@ -81,7 +90,7 @@
 				disabled={isExporting}
 				onclick={async () => {
 					await onExport(chosen);
-					open = false;
+					onOpenChange(false);
 				}}
 				class="w-full sm:w-auto"
 			>

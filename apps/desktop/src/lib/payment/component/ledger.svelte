@@ -221,14 +221,18 @@
 	     the same whether it is aimed at one payment or at nine. Delete and nothing else: it is the
 	     only thing a payment admits being done to several at a time.
 
-	     Withheld on a terminated contract along with the row controls, which is what turns the
-	     selection mode off there: a locked statement offers nothing to act with. -->
-	<RecordActionControl
-		label={`${$LL.common.actions.delete()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
-		icon={Trash2Icon}
-		tone="error"
-		onclick={() => (confirming = [...ids])}
-	/>
+	     Withheld on a terminated contract along with the row controls, because a locked statement
+	     takes no changes. The snippet is still passed, so selection itself stays on there: what a
+	     reader may do with a selection is no longer only destructive, and exporting part of a
+	     statement is a reading rather than a change. -->
+	{#if hasRowActions}
+		<RecordActionControl
+			label={`${$LL.common.actions.delete()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
+			icon={Trash2Icon}
+			tone="error"
+			onclick={() => (confirming = [...ids])}
+		/>
+	{/if}
 {/snippet}
 
 <div class="flex min-h-0 flex-1 flex-col gap-3">
@@ -244,7 +248,7 @@
 		bind:filters
 		filterOptions={[PERIOD_FILTER]}
 		bind:selected
-		selectionActions={hasRowActions ? selectionActions : undefined}
+		{selectionActions}
 		groupOf={monthOf}
 		isLoading={paymentsQuery.isLoading}
 		isFetching={paymentsQuery.isFetching}

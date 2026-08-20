@@ -32,6 +32,7 @@ const ar = {
 			duplicate: 'نسخة جديدة',
 			edit: 'تعديل',
 			export: 'تصدير',
+			exportSelection: 'تصدير المحدد',
 			import: 'استيراد',
 			installingUpdate: 'جاري تثبيت التحديث...',
 			newRecord: 'سجل جديد',
