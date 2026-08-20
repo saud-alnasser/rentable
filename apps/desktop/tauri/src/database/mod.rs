@@ -95,11 +95,10 @@ impl Database {
 
     /// Open this machine's replica through the sync engine.
     ///
-    /// **Nothing on the startup path calls this yet, and the reason is a credential rather than a
-    /// decision.** The engine needs the workspace's database URL and a token to reach it with;
-    /// both come from the control plane's mint, which nothing on this machine calls — the
-    /// sign-in answer carries `token` and `url` and this application reads neither. Until that
-    /// arrives this is the seam it plugs into, and the arm the proxy's both-engines test runs.
+    /// **The startup path calls this.** *It said nothing did, and that stopped being true when the
+    /// mint landed: `bootstrap.rs` reaches it with the workspace's URL and a token from the control
+    /// plane.* Corrected 2026-08-20, having misled a reader working out what renaming the replica
+    /// file would do to an installed build.
     ///
     /// **`bootstrap_if_empty(false)`, and it is measured rather than preferred.** Left true, an
     /// engine pointed at a remote it cannot reach leaves no usable local database at all — the
@@ -151,13 +150,19 @@ impl Database {
 
     /// Where one workspace's replica lives, beside the plain file rather than over it.
     ///
-    /// `app.db` stays what the seeded and test paths use, and every replica is `workspace-<id>.db`
-    /// next to it. Two workspaces on one machine therefore never meet, and neither meets `app.db`.
+    /// `app.db` stays what the seeded and test paths use, and every replica is `ws-<id>.db` next
+    /// to it. Two workspaces on one machine therefore never meet, and neither meets `app.db`.
+    ///
+    /// **`ws-` is the control plane's own name for the database, not a local abbreviation.**
+    /// `databaseNameFor` in `apps/control-plane/src/workspace/workspace.ts` builds `ws-<id>`, and
+    /// that is what Turso holds and what the remote URL says. A local file named anything else
+    /// makes a person reading a directory listing translate before they can match it against the
+    /// dashboard, for no gain. *It was `workspace-<id>.db` until 2026-08-20.*
     pub fn replica_path(database_path: &Path, workspace_id: &str) -> PathBuf {
         database_path
             .parent()
             .unwrap_or_else(|| Path::new("."))
-            .join(format!("workspace-{workspace_id}.db"))
+            .join(format!("ws-{workspace_id}.db"))
     }
 
     /// The sidecars a synced database produces, beside the database itself.
@@ -175,7 +180,7 @@ impl Database {
 
     /// Remove one workspace's replica, and every file the engine keeps beside it.
     ///
-    /// **The sidecars matter as much as the database.** Deleting only `workspace-<id>.db` would
+    /// **The sidecars matter as much as the database.** Deleting only `ws-<id>.db` would
     /// leave a machine holding the logical log of somebody's ledger and, worse, a partial set the
     /// engine might open and believe.
     ///

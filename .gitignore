@@ -15,4 +15,8 @@ node_modules
 build
 .env
 *.db*
+
+# a development build keeps its workspace replica and the plain file here, beside the crate
+# that opens them. Real data, never committed.
+apps/desktop/tauri/data/
 gen

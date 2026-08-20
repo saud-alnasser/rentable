@@ -1,8 +1,5 @@
 import { faker } from '@faker-js/faker';
-import Database from 'better-sqlite3';
-import dotenv from 'dotenv';
 import { eq } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
 import Randexp from 'randexp';
 import {
 	deriveContractStatus,
@@ -12,10 +9,10 @@ import {
 	getExpectedAmountBy,
 	getIntervalMonths
 } from '../src/lib/contract/contract';
+import { newId } from '../src/lib/platform/database/identity';
 import * as s from '../src/lib/platform/database/schema';
 import { identity, phone } from '../src/lib/tenant/tenant';
-
-dotenv.config();
+import { openWorkspaceDatabase, write } from './database';
 
 const counts = {
 	tenants: 5000,
@@ -181,8 +178,8 @@ function buildContractSeed(
 }
 
 function getAvailableUnitIds(
-	unitIds: number[],
-	unitSchedules: Map<number, UnitSchedule[]>,
+	unitIds: string[],
+	unitSchedules: Map<string, UnitSchedule[]>,
 	targetStatus: s.Contract['status'],
 	start: Date,
 	end: Date
@@ -199,21 +196,34 @@ function getAvailableUnitIds(
 	);
 }
 
-const sqlite = new Database(process.env.DATABASE_URL?.replace('file:', ''));
-const db = drizzle({ client: sqlite });
-
+/**
+ * Fill this machine's workspace with a plausible year of records.
+ *
+ * **Which file that is, is `./database`'s to answer and no longer this script's to assume.** It
+ * used to open `DATABASE_URL` directly, which stopped being the file the application opens the day
+ * a workspace became a replica.
+ *
+ * **Every statement is awaited now**, because a replica is reached through an async engine. The
+ * generator is unchanged in what it produces; what changed is that it goes through the same proxy
+ * contract the application's own client uses, so one body serves both engines.
+ */
 const seed = async () => {
-	db.transaction((tx) => {
+	const target = await openWorkspaceDatabase();
+
+	await write(target, async ({ db }) => {
 		const now = Date.now();
 		const nationalIdGen = new Randexp(identity);
 		const phoneGen = new Randexp(phone);
 
-		const tenantIds: number[] = [];
+		// **Identities are minted here, not handed back by the engine.** Every table's `id` is a
+		// TEXT primary key with no default, and `newId` is where one comes from — the same UUIDv7
+		// the routers mint, so a seeded row sorts among created ones the way it would have.
+		const tenantIds: string[] = [];
 		const usedPhones = new Set<string>();
-		const complexIds: number[] = [];
-		const unitIdsPerComplex: Record<number, number[]> = {};
-		const unitSchedules = new Map<number, UnitSchedule[]>();
-		const unitAssignments = new Map<number, SeedAssignment[]>();
+		const complexIds: string[] = [];
+		const unitIdsPerComplex: Record<string, string[]> = {};
+		const unitSchedules = new Map<string, UnitSchedule[]>();
+		const unitAssignments = new Map<string, SeedAssignment[]>();
 
 		// ️tenants
 		for (let i = 0; i < counts.tenants; i++) {
@@ -228,34 +238,31 @@ const seed = async () => {
 			}
 			usedPhones.add(tenantPhone);
 
-			const tenantInsert = tx
-				.insert(s.tenant)
-				.values({
-					name,
-					nationalId: nationalIdGen.gen(),
-					phone: tenantPhone
-				})
-				.returning()
-				.get();
+			const tenantId = newId();
 
-			tenantIds.push(tenantInsert.id);
+			await db.insert(s.tenant).values({
+				id: tenantId,
+				name,
+				nationalId: nationalIdGen.gen(),
+				phone: tenantPhone
+			});
+
+			tenantIds.push(tenantId);
 		}
 
 		// ️complexes & units
 		for (let i = 0; i < counts.complexes; i++) {
-			const complexInsert = tx
-				.insert(s.complex)
-				.values({
-					// `complex.name` is UNIQUE and the whole seed is one transaction, so a single
-					// repeated street name aborts the run and leaves no database at all. The index
-					// carries the guarantee rather than the generator's entropy.
-					name: `${faker.location.street()} ${i + 1}`,
-					location: faker.location.streetAddress()
-				})
-				.returning()
-				.get();
+			const complexId = newId();
 
-			const complexId = complexInsert.id;
+			await db.insert(s.complex).values({
+				id: complexId,
+				// `complex.name` is UNIQUE and the whole seed is one transaction, so a single
+				// repeated street name aborts the run and leaves no database at all. The index
+				// carries the guarantee rather than the generator's entropy.
+				name: `${faker.location.street()} ${i + 1}`,
+				location: faker.location.streetAddress()
+			});
+
 			complexIds.push(complexId);
 
 			unitIdsPerComplex[complexId] = [];
@@ -263,19 +270,18 @@ const seed = async () => {
 			const unitsCount = counts.unitsPerComplex();
 
 			for (let j = 0; j < unitsCount; j++) {
-				const unitInsert = tx
-					.insert(s.unit)
-					.values({
-						name: `Room ${j + 1}`,
-						status: 'vacant',
-						complexId
-					})
-					.returning()
-					.get();
+				const unitId = newId();
 
-				unitIdsPerComplex[complexId].push(unitInsert.id);
-				unitSchedules.set(unitInsert.id, []);
-				unitAssignments.set(unitInsert.id, []);
+				await db.insert(s.unit).values({
+					id: unitId,
+					name: `Room ${j + 1}`,
+					status: 'vacant',
+					complexId
+				});
+
+				unitIdsPerComplex[complexId].push(unitId);
+				unitSchedules.set(unitId, []);
+				unitAssignments.set(unitId, []);
 			}
 		}
 
@@ -314,29 +320,24 @@ const seed = async () => {
 				});
 				const selectedUnitIds = faker.helpers.arrayElements(availableUnitIds, contractUnitCount);
 
-				const contractInsert = tx
-					.insert(s.contract)
-					.values({
-						govId,
-						status: seededContract.status,
-						start: seededContract.start,
-						end: seededContract.end,
-						interval,
-						cost,
-						tenantId
-					})
-					.returning()
-					.get();
+				const contractId = newId();
 
-				const contractId = contractInsert.id;
+				await db.insert(s.contract).values({
+					id: contractId,
+					govId,
+					status: seededContract.status,
+					start: seededContract.start,
+					end: seededContract.end,
+					interval,
+					cost,
+					tenantId
+				});
 
 				for (const unitId of selectedUnitIds) {
-					tx.insert(s.contractUnit)
-						.values({
-							contractId,
-							unitId
-						})
-						.execute();
+					await db.insert(s.contractUnit).values({
+						contractId,
+						unitId
+					});
 
 					unitSchedules.set(unitId, [
 						...(unitSchedules.get(unitId) ?? []),
@@ -365,13 +366,12 @@ const seed = async () => {
 				}
 
 				for (const payment of seededContract.payments) {
-					tx.insert(s.payment)
-						.values({
-							contractId,
-							amount: payment.amount,
-							date: payment.date
-						})
-						.execute();
+					await db.insert(s.payment).values({
+						id: newId(),
+						contractId,
+						amount: payment.amount,
+						date: payment.date
+					});
 				}
 			}
 		}
@@ -380,15 +380,17 @@ const seed = async () => {
 			for (const unitId of unitIds) {
 				const status = deriveUnitStatus(unitAssignments.get(unitId) ?? [], now);
 
-				tx.update(s.unit).set({ status }).where(eq(s.unit.id, unitId)).execute();
+				await db.update(s.unit).set({ status }).where(eq(s.unit.id, unitId));
 			}
 		}
 	});
+
+	return target;
 };
 
 seed()
-	.then(() =>
-		console.log('database seeded with tenants, complexes, units, contracts, and payments')
+	.then((target) =>
+		console.log(`seeded ${target.path} with tenants, complexes, units, contracts, and payments`)
 	)
 	.catch((error) => {
 		console.error(error);
