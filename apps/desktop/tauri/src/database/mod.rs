@@ -1,5 +1,7 @@
 pub mod commands;
 pub mod proxy;
+#[cfg(test)]
+mod test;
 pub mod version;
 
 use sqlx::{
@@ -315,6 +317,9 @@ impl Database {
 
 #[cfg(test)]
 mod tests {
+    use super::test::workspace::{
+        LiveWorkspace, apply_schema, concepts, count, distinct, run, shipped_migration_count, text,
+    };
     use super::{Database, Engine};
 
     /// A replica engine over a file of its own, with no remote to reach.
@@ -460,5 +465,438 @@ mod tests {
 
         database.engine = None;
         let _ = std::fs::remove_dir_all(&directory);
+    }
+    /// One row per concept under the shipped schema, named by `marker`.
+    ///
+    /// The ids are the client's own — `TEXT`, unique per call — which is requirement 16's scheme
+    /// and what the uncontended test exists to hold.
+    fn text_keyed_rows(marker: &str) -> Vec<String> {
+        let id = |concept: &str| format!("{marker}-{concept}");
+
+        vec![
+            format!(
+                "INSERT INTO complex (id, name, location) VALUES ('{}', 'complex {marker}', 'riyadh')",
+                id("complex")
+            ),
+            format!(
+                "INSERT INTO unit (id, name, status, complex_id) VALUES ('{}', 'unit {marker}', 'vacant', '{}')",
+                id("unit"),
+                id("complex")
+            ),
+            format!(
+                "INSERT INTO tenant (id, national_id, name, phone) VALUES ('{}', '{marker}', 'tenant {marker}', '{marker}')",
+                id("tenant")
+            ),
+            format!(
+                "INSERT INTO contract (id, gov_id, status, start_date, end_date, interval_in_months, cost_per_interval, tenant_id) VALUES ('{}', '{marker}', 'active', 1, 2, '12', 1000.0, '{}')",
+                id("contract"),
+                id("tenant")
+            ),
+            format!(
+                "INSERT INTO contract_unit (contract_id, unit_id) VALUES ('{}', '{}')",
+                id("contract"),
+                id("unit")
+            ),
+            format!(
+                "INSERT INTO payment (id, date, amount, contract_id) VALUES ('{}', 1, 500.0, '{}')",
+                id("payment"),
+                id("contract")
+            ),
+            format!(
+                "INSERT INTO history (id, at, concept, record_id, action, record) VALUES ('{}', 1, 'contract', '{}', 'create', '{{}}')",
+                id("history"),
+                id("contract")
+            ),
+        ]
+    }
+
+    /// The same rows under the **pre-identity** schema, where the id is the next number up.
+    ///
+    /// Nothing states an id: that is the point. Each replica's first row takes 1 on both, which is
+    /// the collision requirement 16 closed.
+    fn number_keyed_rows(marker: &str) -> Vec<String> {
+        vec![
+            format!("INSERT INTO complex (name, location) VALUES ('complex {marker}', 'riyadh')"),
+            format!(
+                "INSERT INTO unit (name, status, complex_id) VALUES ('unit {marker}', 'vacant', 1)"
+            ),
+            format!(
+                "INSERT INTO tenant (national_id, name, phone) VALUES ('{marker}', 'tenant {marker}', '{marker}')"
+            ),
+            format!(
+                "INSERT INTO contract (gov_id, status, start_date, end_date, interval_in_months, cost_per_interval, tenant_id) VALUES ('{marker}', 'active', 1, 2, '12', 1000.0, 1)"
+            ),
+            format!("INSERT INTO payment (date, amount, contract_id) VALUES (1, 500.0, 1)"),
+            format!(
+                "INSERT INTO history (at, concept, record_id, action, record) VALUES (1, 'contract', 1, 'create', '{{}}')"
+            ),
+        ]
+    }
+
+    /// Every concept a row was written into under the pre-identity schema.
+    ///
+    /// `contract_unit` is absent because it has no id to collide on, which is a different finding
+    /// and is the subject of `distinct` above.
+    const NUMBER_KEYED_CONCEPTS: [&str; 6] = [
+        "complex", "unit", "tenant", "contract", "payment", "history",
+    ];
+
+    /// **Two devices, each creating records the other has never seen, lose nothing** — criterion
+    /// 17, and the guaranteed half of criterion 9.
+    ///
+    /// Counted rather than spot-checked, and run for every concept the schema carries — read off
+    /// the database rather than listed, so `history` is covered because it is there rather than
+    /// because somebody remembered it. **Both counts are asserted**: the number of rows, and the
+    /// number of *distinct* rows, because `contract_unit` carries no key and a merge that dropped
+    /// one device's link while applying the other's twice would leave the first count right.
+    ///
+    /// This is the case requirement 16 closed, so it is expected to pass — and it is written so
+    /// that a regression in identity fails it, because two replicas minting one id is what it
+    /// counts.
+    #[ignore = "reaches a live Turso account; see the module comment above for how to run it"]
+    #[tokio::test]
+    async fn a_losing_writer_loses_nothing_where_neither_writer_touched_the_other() {
+        let workspace = LiveWorkspace::create("unrelated").await;
+
+        let (first_dir, first) = workspace.replica("unrelated-a").await;
+        let (second_dir, second) = workspace.replica("unrelated-b").await;
+
+        workspace
+            .apply_schema_remotely(shipped_migration_count())
+            .await;
+
+        assert!(
+            first.pull().await.expect("pull the schema"),
+            "the first replica pulled nothing, so it has no schema to write against"
+        );
+        let a = first.connect().await.expect("connection a");
+
+        assert!(
+            second.pull().await.expect("pull the schema"),
+            "the second replica pulled nothing, so everything below would be measuring an empty \
+             database against itself"
+        );
+        let b = second.connect().await.expect("connection b");
+
+        // Both write before either syncs, which is what makes them divergent rather than
+        // sequential. Nothing here reaches the network.
+        for statement in text_keyed_rows("a") {
+            run(&a, &statement).await;
+        }
+        for statement in text_keyed_rows("b") {
+            run(&b, &statement).await;
+        }
+
+        first.push().await.expect("push a");
+        second.pull().await.expect("pull into b");
+        second.push().await.expect("push b");
+        first.pull().await.expect("pull into a");
+
+        let carried = concepts(&a).await;
+
+        assert!(
+            carried.iter().any(|name| name == "history"),
+            "the schema read back carries no history table, and it is the one criterion 17 names"
+        );
+
+        for concept in &carried {
+            for (side, connection) in [("first", &a), ("second", &b)] {
+                assert_eq!(
+                    count(connection, concept).await,
+                    2,
+                    "{concept}: the {side} device is missing a record after both synced"
+                );
+                assert_eq!(
+                    distinct(connection, concept).await,
+                    2,
+                    "{concept}: the {side} device holds two rows that are not distinct, so one \
+                     device's record was replaced by a copy of the other's"
+                );
+            }
+        }
+
+        eprintln!(
+            "every record survived on both replicas, across {} concepts: {}",
+            carried.len(),
+            carried.join(", ")
+        );
+
+        drop(a);
+        drop(b);
+        drop(first);
+        drop(second);
+        let _ = std::fs::remove_dir_all(&first_dir);
+        let _ = std::fs::remove_dir_all(&second_dir);
+        workspace.destroy().await;
+    }
+
+    /// **The contended loss is per column, and the engine ships values rather than statements** —
+    /// criterion 9, which asks that per statement, per row and per record identity all be ruled
+    /// out rather than merely be consistent with the result.
+    ///
+    /// **The second device's update is written so that replaying it would do nothing.** It selects
+    /// the row by the column the first device is about to change (`WHERE name = 'before'`), so an
+    /// engine that shipped SQL text and re-ran it against the merged row would match no row and
+    /// leave `phone` at its seeded value. An engine that ships the changed columns applies it
+    /// regardless of what happened to `name`. The two outcomes differ, which the first draft of
+    /// this test could not say: it used `WHERE id = 't'`, and a statement replayed against the
+    /// merged row produces exactly the result column shipping produces.
+    ///
+    /// Decision 11 reached *per column* by reading the sync engine's source. This is the run that
+    /// turns that into an observation, which is what criterion 9 asks for.
+    #[ignore = "reaches a live Turso account; see the module comment above for how to run it"]
+    #[tokio::test]
+    async fn a_losing_writer_loses_per_column_and_not_per_statement() {
+        let workspace = LiveWorkspace::create("contended").await;
+
+        let (first_dir, first) = workspace.replica("contended-a").await;
+        let (second_dir, second) = workspace.replica("contended-b").await;
+
+        workspace
+            .apply_schema_remotely(shipped_migration_count())
+            .await;
+
+        assert!(
+            first.pull().await.expect("pull the schema"),
+            "the first replica pulled nothing, so it has no schema to seed"
+        );
+        let a = first.connect().await.expect("connection a");
+
+        run(
+            &a,
+            "INSERT INTO tenant (id, national_id, name, phone) VALUES ('t', '1', 'before', '000')",
+        )
+        .await;
+        first.push().await.expect("push the seed");
+
+        assert!(
+            second.pull().await.expect("pull the seed"),
+            "the second replica pulled nothing, so it has no row to contend over"
+        );
+        let b = second.connect().await.expect("connection b");
+
+        assert_eq!(
+            text(&b, "SELECT name FROM tenant WHERE id = 't'").await,
+            Some("before".to_string()),
+            "the seed did not reach the second replica, so nothing below is contended"
+        );
+
+        // Different columns of one row, both offline, and the second selects on the column the
+        // first is changing.
+        run(&a, "UPDATE tenant SET name = 'named by a' WHERE id = 't'").await;
+        run(&b, "UPDATE tenant SET phone = '999' WHERE name = 'before'").await;
+
+        first.push().await.expect("push a");
+        second.pull().await.expect("pull into b");
+        second.push().await.expect("push b");
+        first.pull().await.expect("pull into a");
+
+        assert_eq!(
+            text(&a, "SELECT name FROM tenant WHERE id = 't'").await,
+            Some("named by a".to_string()),
+            "the first device's column was overwritten by an edit that did not touch it, so the \
+             loss is coarser than per column"
+        );
+        assert_eq!(
+            text(&a, "SELECT phone FROM tenant WHERE id = 't'").await,
+            Some("999".to_string()),
+            "the second device's edit did not apply. its statement selected on a column the first \
+             device had changed, so this is what an engine shipping SQL text rather than column \
+             values would produce"
+        );
+
+        // The same column, both offline. One of the two values stands; which one is the engine's
+        // to decide and is not asserted, because a test that pinned it would be pinning an
+        // ordering nothing promises.
+        run(&a, "UPDATE tenant SET name = 'a wins' WHERE id = 't'").await;
+        run(&b, "UPDATE tenant SET name = 'b wins' WHERE id = 't'").await;
+
+        first.push().await.expect("push a again");
+        second.pull().await.expect("pull into b again");
+        second.push().await.expect("push b again");
+        first.pull().await.expect("pull into a again");
+
+        let standing = text(&a, "SELECT name FROM tenant WHERE id = 't'").await;
+
+        assert!(
+            standing == Some("a wins".to_string()) || standing == Some("b wins".to_string()),
+            "a contended column came back as {standing:?}, which is neither writer's value"
+        );
+        assert_eq!(
+            count(&a, "tenant").await,
+            1,
+            "a contended edit produced a second row, so identity is not what resolves it"
+        );
+
+        eprintln!("the contended column resolved to {standing:?}, and neither side was told");
+
+        drop(a);
+        drop(b);
+        drop(first);
+        drop(second);
+        let _ = std::fs::remove_dir_all(&first_dir);
+        let _ = std::fs::remove_dir_all(&second_dir);
+        workspace.destroy().await;
+    }
+
+    /// **A row deleted under a concurrent edit is taken whole, with no error on either side** —
+    /// criterion 9's third clause, and the exception [[rules/data]] holds undo to.
+    ///
+    /// **The edit is read back before either side syncs**, so the test can only reach its
+    /// assertions by having had something to lose. Without that it passes on a replica that never
+    /// received the seed: an `UPDATE` matching no row succeeds, and both counts are zero because
+    /// nothing was ever there.
+    #[ignore = "reaches a live Turso account; see the module comment above for how to run it"]
+    #[tokio::test]
+    async fn a_losing_writer_loses_a_whole_row_deleted_under_a_concurrent_edit() {
+        let workspace = LiveWorkspace::create("deleted").await;
+
+        let (first_dir, first) = workspace.replica("deleted-a").await;
+        let (second_dir, second) = workspace.replica("deleted-b").await;
+
+        workspace
+            .apply_schema_remotely(shipped_migration_count())
+            .await;
+
+        assert!(
+            first.pull().await.expect("pull the schema"),
+            "the first replica pulled nothing, so it has no schema to seed"
+        );
+        let a = first.connect().await.expect("connection a");
+
+        run(
+            &a,
+            "INSERT INTO tenant (id, national_id, name, phone) VALUES ('t', '1', 'before', '000')",
+        )
+        .await;
+        first.push().await.expect("push the seed");
+
+        assert!(
+            second.pull().await.expect("pull the seed"),
+            "the second replica pulled nothing, so it has no row to edit"
+        );
+        let b = second.connect().await.expect("connection b");
+
+        run(&a, "DELETE FROM tenant WHERE id = 't'").await;
+        run(&b, "UPDATE tenant SET name = 'edited by b' WHERE id = 't'").await;
+
+        assert_eq!(
+            text(&b, "SELECT name FROM tenant WHERE id = 't'").await,
+            Some("edited by b".to_string()),
+            "the second device's edit never landed locally, so there is no edit for the deletion \
+             to take and this test would pass having demonstrated nothing"
+        );
+
+        // Neither of these is expected to refuse, and that is half the finding: the writer whose
+        // edit is about to be discarded is told nothing at the moment it is discarded.
+        first
+            .push()
+            .await
+            .expect("the deletion pushed with an error");
+        second.pull().await.expect("pull into b");
+        second.push().await.expect("the edit pushed with an error");
+        first.pull().await.expect("pull into a");
+
+        assert_eq!(
+            count(&a, "tenant").await,
+            0,
+            "the deleted row came back, so a concurrent edit resurrects a record somebody deleted"
+        );
+        assert_eq!(
+            count(&b, "tenant").await,
+            0,
+            "the device that edited the row still holds it, so the two replicas disagree about \
+             whether it exists"
+        );
+
+        eprintln!("the edited row was taken whole, and neither push reported anything");
+
+        drop(a);
+        drop(b);
+        drop(first);
+        drop(second);
+        let _ = std::fs::remove_dir_all(&first_dir);
+        let _ = std::fs::remove_dir_all(&second_dir);
+        workspace.destroy().await;
+    }
+
+    /// **The collision requirement 16 closed, run against the schema that had it** — criterion
+    /// 17's *the pre-migration behaviour is captured as a failing test first*.
+    ///
+    /// **The variable is the migration, not a table invented to resemble one.** This applies the
+    /// shipped migrations up to but not including `0003_serious_synch.sql`, which is the schema
+    /// that shipped with `id integer PRIMARY KEY` throughout, and writes one record per concept on
+    /// each of two replicas with no id stated. Both allocate the next number, both get 1, and the
+    /// second push takes the first's record with it. The green counterpart is
+    /// `a_losing_writer_loses_nothing_where_neither_writer_touched_the_other`, which is the same
+    /// run against the full set of migrations and asserts every record survives, so the pair
+    /// shows the migration is what closed it.
+    ///
+    /// **Do not "fix" the assertion that fewer records survive.** Losing them is the point. A run
+    /// where two survive means the pre-identity schema stopped colliding, which is a reason to
+    /// re-read requirement 16's justification rather than to edit a number. It is not a
+    /// characterization test in [[rules/testing]]'s sense: there is no code here to correct
+    /// alongside the expectation, because the schema it pins shipped out of existence at
+    /// `4bc35646`.
+    #[ignore = "reaches a live Turso account; see the module comment above for how to run it"]
+    #[tokio::test]
+    async fn a_losing_writer_lost_a_whole_record_before_identity_was_its_own() {
+        let workspace = LiveWorkspace::create("identity").await;
+
+        let (first_dir, first) = workspace.replica("identity-a").await;
+        let (second_dir, second) = workspace.replica("identity-b").await;
+
+        let identity_migration = shipped_migration_count();
+
+        assert!(
+            identity_migration >= 2,
+            "there are fewer migrations than the schema this test needs to stop before"
+        );
+
+        let a = first.connect().await.expect("connection a");
+        apply_schema(&a, identity_migration - 1).await;
+        first.push().await.expect("push the pre-identity schema");
+
+        assert!(
+            second.pull().await.expect("pull the pre-identity schema"),
+            "the second replica pulled nothing, so it is not writing against the same schema"
+        );
+        let b = second.connect().await.expect("connection b");
+
+        for statement in number_keyed_rows("a") {
+            run(&a, &statement).await;
+        }
+        for statement in number_keyed_rows("b") {
+            run(&b, &statement).await;
+        }
+
+        first.push().await.expect("push a");
+        second.pull().await.expect("pull into b");
+        second.push().await.expect("push b");
+        first.pull().await.expect("pull into a");
+
+        for concept in NUMBER_KEYED_CONCEPTS {
+            let survived = count(&a, concept).await;
+
+            assert_eq!(
+                survived, 1,
+                "{concept}: two devices each allocating the next number apiece did not collide, \
+                 which is the premise requirement 16 rests on"
+            );
+        }
+
+        eprintln!(
+            "under the pre-identity schema each concept kept one of the two records written; the \
+             tenant that survived was {:?}",
+            text(&a, "SELECT name FROM tenant").await
+        );
+
+        drop(a);
+        drop(b);
+        drop(first);
+        drop(second);
+        let _ = std::fs::remove_dir_all(&first_dir);
+        let _ = std::fs::remove_dir_all(&second_dir);
+        workspace.destroy().await;
     }
 }

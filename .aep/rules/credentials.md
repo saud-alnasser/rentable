@@ -87,4 +87,11 @@ The loopback server survives as `sync/google/test/server.rs` and is what the pro
 sign-in — the one Google request this application still issues — is tested against, along with
 every control-plane call.
 
+**The *never contact the live API from a test* clause has one declared exception since
+2026-08-20**, and it is [[rules/testing]]'s to state, under *Tests that reach a live remote*: the
+replica divergence tests reach a real Turso database, because what they measure is the remote's own
+merge behaviour and a loopback server for it would mean implementing the thing under test. Read
+that section before writing anything else that reaches a live service. The clause above is
+otherwise unchanged and still binds every transport.
+
 Recorded originally as ADR 0004, *Drive transport is tested against a local HTTP server*.

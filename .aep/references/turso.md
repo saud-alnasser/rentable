@@ -36,14 +36,22 @@ the first time somebody creates a workspace:
 | `TURSO_GROUP` | an existing group the workspace databases are created in |
 
 **`apps/desktop/.env` already holds a Platform API token and an org slug**, put there for the
-decision 11 prototype. It is gitignored and it stays there. **It is the human's to rotate: do
+decision 11 prototype. **It does not hold `TURSO_GROUP`**, which is the one a reader trips on:
+`apps/control-plane/.env.example` is where all three are named, and a run that exports the two
+that are to hand gets a client that cannot create anything. It is gitignored and it stays there. **It is the human's to rotate: do
 not print it, do not commit it, and do not assume it is the one production uses.**
 
 ## Commands
 
-There is no CLI in this repository's path. Everything is HTTP, from
-`apps/control-plane/src/workspace/turso.ts`, against `https://api.turso.tech`, with
-`Authorization: Bearer <TURSO_API_TOKEN>`.
+There is no CLI in this repository's path. Everything is HTTP, against `https://api.turso.tech`,
+with `Authorization: Bearer <TURSO_API_TOKEN>`.
+
+**Two callers now, and only one of them ships.** `apps/control-plane/src/workspace/turso.ts` is the
+service, and it is the one the endpoints below are documented for.
+`apps/desktop/tauri/src/database/test/workspace.rs` is the other, added 2026-08-20 by #552: it
+provisions and destroys a database per test so that two replicas have something to diverge against,
+and it is `#[cfg(test)]` and `#[ignore]`d — [[rules/testing]], under *Tests that reach a live
+remote*, is what bounds it. Nothing in the shipping desktop binary reaches this API.
 
 ```
 POST   /v1/organizations/{org}/databases
@@ -94,9 +102,14 @@ minting a token for it, and attempting to delete it. What it settled:
 A live run creates a real database and is billed and quota-counted — the free tier permits 100.
 **It is the human's call**, the same standing rule as pushing.
 
-**It also leaves databases behind, and two are on this account now**: `gate-11` from the
-decision 11 prototype, and `ws-effe2636-dccb-4dda-8e46-c0ad602bc1dc` from this verification.
-Neither can be removed while the group is delete-protected.
+**It also leaves databases behind, and the count is not stable enough to list.** `gate-11` from
+the decision 11 prototype and `ws-effe2636-dccb-4dda-8e46-c0ad602bc1dc` from this verification were
+the two on 2026-08-18; #552's live tests add four per run on top of them, named `t552-<case>-<nonce>`.
+None of them can be removed while the group is delete-protected, and against a quota of 100 that is
+worth watching rather than assuming.
+
+*The inventory was a list of names until 2026-08-20 and is a description now, because a list that
+grows by four whenever somebody runs a test is a list that is wrong more often than it is right.*
 
 ## Failure handling
 
