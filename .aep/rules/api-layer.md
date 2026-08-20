@@ -1,7 +1,7 @@
 ---
-aep: 2.5.1
+aep: 2.7.0
 owner: repository
-date: 2026-08-18
+date: 2026-08-20
 kind: rule
 paths:
   - apps/desktop/src/lib/api/**
@@ -76,21 +76,37 @@ constructing a second kind of client.**
 *Why: the proxy row-mapping is real logic sitting on the language boundary, and a test that
 skips it verifies a system that does not ship.*
 
-**The condition this rule carried is discharged** *(2026-08-18)*. It was flagged in
-[[efforts/a-workspace-follows-its-user/spec]] as holding "only if the chosen client can be driven through that
-seam"; the gate drove a sync client through `createDatabase(single, batch)` against a live
-database and it went through unchanged. **A hosted workspace is a third caller at this
-factory, never a second kind of client** — which is what makes the whole of that effort
-affordable, and what a review is expected to check.
+**The condition this rule carried is discharged** *(2026-08-18; the record of what discharged it
+corrected 2026-08-19 by #565, and re-read against the tree 2026-08-20 by #573)*. It was flagged in
+[[efforts/a-workspace-follows-its-user/spec]] as holding "only if the chosen client can be driven
+through that seam".
 
-*The evidence behind that sentence has been superseded and the conclusion has not* (2026-08-19,
-#565). What the gate drove was `@tursodatabase/sync`, in Node, and that is not the client this
-application ships: the sync engine runs in the Rust layer behind `db_execute_single_sql` and
-`db_execute_batch_sql`, so the two functions the factory receives still call `invoke` and what
-changed is the engine behind the command. **The seam is therefore less at risk than the gate
-found, not more** — a transport that never reaches the factory cannot fork the client type. What
-the move does cost is a second row mapping, in `tauri/src/database/proxy.rs`, which is held to
-the first by a Rust test rather than by this rule.
+**What the gate drove was `@tursodatabase/sync`, in Node** — through `createDatabase(single,
+batch)`, against a live database, and it went through unchanged. **That is not the client this
+application ships**, and this paragraph leads with the fact because the sentence it replaces did
+not: it read as though the shipping client had been driven through the seam. The sync engine runs
+in the Rust layer behind `db_execute_single_sql` and `db_execute_batch_sql`, so the two functions
+the shipping client hands the factory still call `invoke`, and what changed is the engine behind
+the command.
+
+**The conclusion the gate bought still holds, and the count is three.** `createDatabase` has three
+callers in the tree: `client.ts` with Tauri's `invoke`, `memory.ts` with the in-memory engine, and
+`hosted.ts`, which carries a statement to a `@tursodatabase/sync` replica in the webview. **All
+three return the same `SqliteRemoteDatabase<typeof schema>`**, which is the property this rule
+protects: a transport is a caller at this factory, never a second kind of client. What the move
+into Rust costs is a second row mapping, in `tauri/src/database/proxy.rs`, held to the first by a
+Rust test rather than by this rule.
+
+> **`hosted.ts` is imported by nothing but its own test** — checked 2026-08-20 while rewriting
+> this section. #565 moved the engine into Rust and left the web-layer transport, its test and the
+> `@tursodatabase/sync` dependency standing. It is counted above because it is in the tree and
+> because its own doc comment cites this rule by name; whether it should still be there is not
+> this rule's question, and it is raised rather than answered here.
+
+*The word that went on 2026-08-20 is "hosted": this read "**A hosted workspace is a third caller
+at this factory**". There is one kind of workspace, so the qualifier picked it out from nothing.
+**The count it carried was right and is kept**, which is the half worth saying out loud: the
+qualifier and the count came off the same sentence and only one of them was wrong.*
 
 ### Development tooling is excluded, deliberately
 
