@@ -90,6 +90,12 @@ export type RemoteSyncAccount = {
 	updatedAt: number;
 };
 
+/**
+ * **The Rust side carries two more members than this declares**, `remoteId` and `remoteUrl`, which
+ * name the workspace in the control plane and where its replica syncs. They are the store's, read
+ * by the mint on the next launch, and nothing on this side has a use for either — so they are not
+ * declared here rather than declared and ignored. Add them when something reads them.
+ */
 export type RemoteSyncWorkspace = {
 	id: string;
 	name: string;

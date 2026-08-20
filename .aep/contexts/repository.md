@@ -51,9 +51,10 @@ record, never the record
 
 *It read "one local database plus its metadata, mapped to one remote location" until 2026-08-20
 (#573). One record of truth left the mapping nothing to be optional about: a workspace does not
-acquire a remote, it is one. **What is built is the seam and not yet the path** —
-`Database::connect_workspace` opens the replica and nothing on the startup path calls it, so a
-read today still reaches the plain file `connect()` opens.*
+acquire a remote, it is one. **The path was built later the same day** (#616): the startup path
+mints a credential and opens `Engine::Workspace`, so a signed-in machine reads its replica. A
+machine that has signed in on no account opens the plain file `connect()` makes, and nothing a user
+sees is behind it.*
 
 **Snapshot**:
 A point-in-time copy of a workspace database. **The application keeps none** since #569: the
