@@ -18,12 +18,15 @@ import { TRPCError } from '@trpc/server';
  * from now — and the check it justified is not, because a stated id is still a stated id.*
  *
  * @param existing whatever row the caller's lookup found; any row means the id is taken.
+ * @param named how the offending record is referred to, where the caller is acting on a set and
+ * has to say which member of it was refused. A caller acting on one record omits it: the record
+ * is the one it was asked about.
  */
-export function ensureIdFree(existing: unknown) {
+export function ensureIdFree(existing: unknown, named?: string) {
 	if (existing) {
 		throw new TRPCError({
 			code: 'BAD_REQUEST',
-			message: 'another record already holds that id'
+			message: `another record already holds ${named ? `the id ${named}` : 'that id'}`
 		});
 	}
 }

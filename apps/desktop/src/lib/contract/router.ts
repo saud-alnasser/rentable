@@ -7,10 +7,9 @@ import { ContractSchema } from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import {
 	CONTRACT_ATTENTION_ORDER,
+	CONTRACT_SELECTION_ACTIONS,
 	CONTRACT_SORT_COLUMN_IDS,
 	type ContractSortColumnId,
-	canManuallyTerminateContractStatus,
-	canUnterminateContractStatus,
 	deriveContractStatus,
 	deriveUnitStatuses,
 	ensureContractDeletable,
@@ -25,7 +24,10 @@ import {
 	getConflictingAssignedUnitIds,
 	getContractPaymentSummary,
 	getExpectedAmountBy,
-	hasSameUtcDateRange
+	hasSameUtcDateRange,
+	whatRefusesContractAction,
+	type ContractRefusalReason,
+	type ContractSelectionAction
 } from '$lib/contract/contract';
 import {
 	CONTRACT_RANKS,
@@ -254,6 +256,92 @@ function matchesRankBounds(bounds: ContractRankBounds): SQL | undefined {
 		bounds.endBefore ? lt(s.contract.end, bounds.endBefore) : undefined
 	);
 }
+
+// the vocabulary is the concept's, so the input can only name an action the domain answers for.
+const ContractSelectionActionSchema = z.enum(CONTRACT_SELECTION_ACTIONS);
+
+type DbContract = typeof s.contract.$inferSelect;
+type DbContractUnit = typeof s.contractUnit.$inferSelect;
+
+/** A contract that would be turned away, named the way a reader knows one. */
+type ContractRefusal = { id: string; govId: string; reason: ContractRefusalReason };
+
+/**
+ * What one action would do to a whole selection, from one read of the workspace.
+ *
+ * **The plan and the mutation are the same call.** `contract.planMany` and each of the three
+ * mutations it precedes go through this, so the confirmation shows what the mutation is about to
+ * decide rather than a second opinion about it. They can still disagree about the *workspace*,
+ * because another device may write between the two, and that is why the mutation runs this again
+ * instead of trusting what the reader was shown.
+ *
+ * One read per table for the whole selection, never one per record.
+ */
+async function planContractSelection(
+	db: Database,
+	now: number,
+	ids: readonly string[],
+	action: ContractSelectionAction
+) {
+	const named = [...new Set(ids)];
+
+	const existing = await db.select().from(s.contract).where(inArray(s.contract.id, named));
+	const contractsById = new Map(existing.map((contract) => [contract.id, contract]));
+
+	const payments = await db.select().from(s.payment).where(inArray(s.payment.contractId, named));
+	const paymentsByContractId = groupPaymentsByContractId(payments);
+
+	// only a deletion weighs assignments, and only a deletion pays to read them.
+	const assignments =
+		action === 'delete'
+			? await db.select().from(s.contractUnit).where(inArray(s.contractUnit.contractId, named))
+			: [];
+	const assignmentsByContractId = new Map<string, DbContractUnit[]>();
+
+	for (const assignment of assignments) {
+		const held = assignmentsByContractId.get(assignment.contractId) ?? [];
+
+		held.push(assignment);
+		assignmentsByContractId.set(assignment.contractId, held);
+	}
+
+	const eligible: DbContract[] = [];
+	const refused: ContractRefusal[] = [];
+
+	// walked in the order the reader named them, so what the confirmation lists reads the way the
+	// selection does rather than the way the engine happened to answer.
+	for (const id of named) {
+		const contract = contractsById.get(id);
+
+		if (!contract) {
+			refused.push({ id, govId: '', reason: 'missing' });
+
+			continue;
+		}
+
+		const reason = whatRefusesContractAction(
+			action,
+			contract,
+			paymentsByContractId.get(id) ?? [],
+			assignmentsByContractId.get(id) ?? [],
+			now
+		);
+
+		if (reason) {
+			refused.push({ id, govId: contract.govId ?? '', reason });
+		} else {
+			eligible.push(contract);
+		}
+	}
+
+	return { eligible, refused, paymentsByContractId };
+}
+
+/** A contract a multi-record action changed, named the way its own history names it. */
+const toChangedContract = (contract: DbContract) => ({
+	id: contract.id,
+	govId: contract.govId ?? ''
+});
 
 const CONTRACT_SORT_COLUMNS: Record<ContractSortColumnId, SQL | AnyColumn> = {
 	tenantName: s.tenant.name,
@@ -640,6 +728,32 @@ export default router({
 		}),
 
 	/**
+	 * What one of the three selection actions would do, before any of it is done.
+	 *
+	 * **Asked rather than inferred from the rows on screen.** A contract row carries its status
+	 * and a payment count, and neither answers what a deletion is refused for: a contract is
+	 * refused for holding units, which no row knows. Terminating and restoring turn on a status
+	 * the row does hold, and they are asked through here anyway — a status is derived from what
+	 * the contract owes today, so a row loaded before a UTC day crossing is stale against the rule
+	 * the mutation is about to apply, and an application that plans two of its actions from the
+	 * row and the third from a query has two answers to one question.
+	 *
+	 * A query rather than a mutation: it reads and writes nothing.
+	 */
+	planMany: procedure.member
+		.input(
+			z.object({
+				ids: z.array(ContractSchema.shape.id).min(1),
+				action: ContractSelectionActionSchema
+			})
+		)
+		.query(async ({ input, ctx }) => {
+			const plan = await planContractSelection(ctx.db, ctx.clock.now(), input.ids, input.action);
+
+			return { eligible: plan.eligible.map((contract) => contract.id), refused: plan.refused };
+		}),
+
+	/**
 	 * Terminate every contract named, and say which of them could not be.
 	 *
 	 * **One mutation over a union touch-set, not one per record.** `reconcileTouched` already
@@ -658,23 +772,8 @@ export default router({
 		.input(z.object({ ids: z.array(ContractSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
 			const now = ctx.clock.now();
-			const ids = [...new Set(input.ids)];
-
-			const existing = await ctx.db.select().from(s.contract).where(inArray(s.contract.id, ids));
-
-			const payments = await ctx.db
-				.select()
-				.from(s.payment)
-				.where(inArray(s.payment.contractId, ids));
-			const paymentsByContractId = groupPaymentsByContractId(payments);
-
-			const found = new Set(existing.map((contract) => contract.id));
-			const terminable = existing.filter((contract) =>
-				canManuallyTerminateContractStatus(
-					deriveContractStatus(contract, paymentsByContractId.get(contract.id) ?? [], now)
-				)
-			);
-			const terminableIds = terminable.map((contract) => contract.id);
+			const plan = await planContractSelection(ctx.db, now, input.ids, 'terminate');
+			const terminableIds = plan.eligible.map((contract) => contract.id);
 
 			if (terminableIds.length) {
 				await ctx.db
@@ -684,57 +783,37 @@ export default router({
 			}
 
 			// the one pass, over every contract that changed. This is the line the ticket's
-			// assertion is about, and the reason the loop above collects ids rather than acting.
+			// assertion is about, and the reason the plan above collects rather than acting.
 			await reconcileTouched(ctx.db, now, { contractIds: terminableIds });
 
 			return {
-				terminated: terminableIds,
+				terminated: plan.eligible.map(toChangedContract),
 				// named rather than counted: a reader who selected twelve and changed nine needs to
 				// know which three, and the reference they know a contract by is its government id.
-				refused: ids.flatMap((id) => {
-					if (terminableIds.includes(id)) {
-						return [];
-					}
-
-					const contract = existing.find((candidate) => candidate.id === id);
-
-					return [
-						{
-							id,
-							govId: contract?.govId ?? '',
-							reason: found.has(id) ? ('not-terminable' as const) : ('missing' as const)
-						}
-					];
-				})
+				refused: plan.refused
 			};
 		}),
 
-	/** The reverse of {@link terminateMany}, and what undoing one calls. */
+	/**
+	 * Put every terminated contract in the selection back, and say which of them could not be.
+	 *
+	 * Both the restore a reader asks for on a selection and the reverse of {@link terminateMany},
+	 * because they are the same act. Undoing a termination passes exactly what that call reported
+	 * it changed, so nothing it refused is put back on the way.
+	 */
 	unterminateMany: procedure.member
 		.use(autosync())
 		.input(z.object({ ids: z.array(ContractSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
 			const now = ctx.clock.now();
-			const ids = [...new Set(input.ids)];
-
-			const existing = await ctx.db.select().from(s.contract).where(inArray(s.contract.id, ids));
-
-			const payments = await ctx.db
-				.select()
-				.from(s.payment)
-				.where(inArray(s.payment.contractId, ids));
-			const paymentsByContractId = groupPaymentsByContractId(payments);
-
-			const restorable = existing.filter((contract) =>
-				canUnterminateContractStatus(contract.status)
-			);
+			const plan = await planContractSelection(ctx.db, now, input.ids, 'restore');
 
 			// each one goes back to the status its own payments and period imply, exactly as the
 			// single-record procedure does — never to whatever it happened to hold before.
-			for (const contract of restorable) {
+			for (const contract of plan.eligible) {
 				const restoredStatus = deriveContractStatus(
 					{ ...contract, status: 'active' },
-					paymentsByContractId.get(contract.id) ?? [],
+					plan.paymentsByContractId.get(contract.id) ?? [],
 					now
 				);
 
@@ -745,10 +824,10 @@ export default router({
 			}
 
 			await reconcileTouched(ctx.db, now, {
-				contractIds: restorable.map((contract) => contract.id)
+				contractIds: plan.eligible.map((contract) => contract.id)
 			});
 
-			return { unterminated: restorable.map((contract) => contract.id) };
+			return { unterminated: plan.eligible.map(toChangedContract), refused: plan.refused };
 		}),
 
 	unterminate: procedure.member
@@ -820,6 +899,143 @@ export default router({
 				.get();
 
 			return deleted ? serializeContract(deleted) : deleted;
+		}),
+
+	/**
+	 * Delete every contract in the selection that nothing depends on, and name the rest.
+	 *
+	 * The deleted rows come back whole rather than as ids, because that is what putting them back
+	 * needs: an undo restores each record as itself, by its own identity (ADR 0026), and once the
+	 * rows are gone there is nothing left to read them from.
+	 *
+	 * **No reconcile pass.** A contract that may be deleted at all holds no unit and carries no
+	 * payment, so nothing derived was resting on it — which is the same reason the single-record
+	 * deletion beside it runs none.
+	 */
+	deleteMany: procedure.member
+		.use(autosync())
+		.input(z.object({ ids: z.array(ContractSchema.shape.id).min(1) }))
+		.mutation(async ({ input, ctx }) => {
+			const plan = await planContractSelection(ctx.db, ctx.clock.now(), input.ids, 'delete');
+			const deletableIds = plan.eligible.map((contract) => contract.id);
+
+			if (deletableIds.length) {
+				await ctx.db.delete(s.contract).where(inArray(s.contract.id, deletableIds));
+			}
+
+			return {
+				deleted: plan.eligible.map((contract) => serializeContract(contract)),
+				refused: plan.refused
+			};
+		}),
+
+	/**
+	 * Put a set of contracts back, all of them or none.
+	 *
+	 * What undoing {@link deleteMany} calls, and the reason it is all or nothing: a set half
+	 * restored leaves the workspace in a shape neither the deletion nor the undo describes. One
+	 * batch, and the boundary runs a batch inside one transaction (ADR 0027), so a refusal
+	 * anywhere in the set creates nothing.
+	 *
+	 * **It throws rather than reporting**, which is what leaves the entry on the undo stack: an
+	 * inverse that threw did not move the workspace, so the reader can deal with whatever refused
+	 * it and press undo again. Every refusal names the contract it is about, because *one of them
+	 * could not be put back* is not something a reader can act on.
+	 *
+	 * Every check `create` makes, asked once for the whole set rather than once per contract.
+	 */
+	createMany: procedure.member
+		.use(autosync())
+		.input(z.object({ contracts: z.array(ContractCreateSchema).min(1) }))
+		.mutation(async ({ input, ctx }) => {
+			const now = ctx.clock.now();
+
+			for (const contract of input.contracts) {
+				ensureValidContractInput(contract);
+			}
+
+			const named = input.contracts.map((contract) => ({
+				...contract,
+				id: contract.id ?? newId(),
+				govId: contract.govId?.trim() || null
+			}));
+			const ids = named.map((contract) => contract.id);
+			const govIds = named.map((contract) => contract.govId).filter((govId) => govId !== null);
+
+			// the set against itself, on both of the things a contract is unique by, before it is
+			// weighed against the workspace at all. A set that contradicts itself is a contradiction
+			// the engine would only report part-way through, and this write is meant to land whole
+			// or not at all.
+			const repeated =
+				ids.find((id, index) => ids.indexOf(id) !== index) ??
+				govIds.find((govId, index) => govIds.indexOf(govId) !== index);
+
+			if (repeated) {
+				throw new TRPCError({
+					code: 'BAD_REQUEST',
+					message: `two contracts in this set claim ${repeated}`
+				});
+			}
+
+			const held = await ctx.db.select().from(s.contract).where(inArray(s.contract.id, ids));
+
+			ensureIdFree(held[0], held[0]?.id);
+
+			const tenantIds = [...new Set(named.map((contract) => contract.tenantId))];
+			const tenants = await ctx.db
+				.select({ id: s.tenant.id })
+				.from(s.tenant)
+				.where(inArray(s.tenant.id, tenantIds));
+			const heldTenantIds = new Set(tenants.map((tenant) => tenant.id));
+			const missingTenant = tenantIds.find((tenantId) => !heldTenantIds.has(tenantId));
+
+			if (missingTenant) {
+				throw new TRPCError({
+					code: 'BAD_REQUEST',
+					message: `tenant ${missingTenant} does not exist`
+				});
+			}
+
+			const taken = govIds.length
+				? await ctx.db.select().from(s.contract).where(inArray(s.contract.govId, govIds))
+				: [];
+
+			ensureGovIdAvailable(taken[0], taken[0]?.govId ?? undefined);
+
+			// annotated rather than inferred: a derived status is a union of string literals, and an
+			// object literal built without something expecting that union widens the property to
+			// `string`. The single-record creation is spared it by handing its literal straight to
+			// `values`, which is the expectation this restores.
+			const values: (typeof s.contract.$inferInsert)[] = named.map((contract) => {
+				const shape = {
+					status: 'active' as const,
+					start: new Date(contract.start),
+					end: new Date(contract.end),
+					interval: contract.interval,
+					cost: contract.cost
+				};
+				const { paidAmount, expectedAmount } = getContractPaymentSummary(shape, []);
+				const status = deriveContractStatus(shape, [], now);
+
+				return {
+					...contract,
+					govId: contract.govId,
+					status,
+					paidAmount,
+					expectedAmount,
+					start: shape.start,
+					end: shape.end
+				};
+			});
+
+			const [first, ...rest] = values.map((value) =>
+				ctx.db.insert(s.contract).values(value).returning()
+			);
+			const created = await ctx.db.batch([first, ...rest]);
+
+			await reconcileTouched(ctx.db, now, { contractIds: ids });
+
+			return created.map(([contract]) => serializeContract(contract));
 		}),
 
 	/** The contracts a palette search reaches, by reference or by the tenant holding them. */

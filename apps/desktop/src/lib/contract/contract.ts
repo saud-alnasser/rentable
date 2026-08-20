@@ -476,10 +476,15 @@ export function ensureValidContractInput(
 	}
 }
 
-/** the router passes whatever row its uniqueness query found; any row is a conflict. */
-export function ensureGovIdAvailable(conflicting: unknown) {
+/**
+ * the router passes whatever row its uniqueness query found; any row is a conflict.
+ *
+ * @param named the government id itself, where the caller is acting on a set and has to say
+ * which member of it was refused. A caller acting on one contract omits it.
+ */
+export function ensureGovIdAvailable(conflicting: unknown, named?: string) {
 	if (conflicting) {
-		badRequest('government id is associated with another contract');
+		badRequest(`government id${named ? ` ${named}` : ''} is associated with another contract`);
 	}
 }
 
@@ -514,20 +519,84 @@ export function ensureContractPaymentsCreatable(contract: ContractLike, payments
 }
 
 /**
- * Whether a contract may be deleted: it may hold no unit and carry no payment.
+ * What stops a contract being deleted, or `undefined` where nothing does.
+ *
+ * The rule itself, and the only rendering of it: a contract may hold no unit and carry no
+ * payment. It answers with *which* of the two rather than with a yes or a no, because a
+ * selection of contracts is turned away for both reasons at once and a reader who is only told
+ * that some of them cannot go has nothing to act on.
+ */
+export function whatBlocksContractDeletion(units: unknown[], payments: unknown[]) {
+	if (units.length > 0) {
+		return 'holds-units' as const;
+	}
+
+	return payments.length > 0 ? ('holds-payments' as const) : undefined;
+}
+
+/** What a contract's deletion can be blocked by, which is what a plan over a selection reports. */
+export type ContractDeletionBlocker = NonNullable<ReturnType<typeof whatBlocksContractDeletion>>;
+
+/**
+ * Whether a contract may be deleted.
  *
  * Exported beside the rule that enforces it for the reason `isTenantDeletable` states.
  */
 export const isContractDeletable = (units: unknown[], payments: unknown[]) =>
-	units.length === 0 && payments.length === 0;
+	whatBlocksContractDeletion(units, payments) === undefined;
 
 export function ensureContractDeletable(units: unknown[], payments: unknown[]) {
-	if (units.length > 0) {
+	const blocker = whatBlocksContractDeletion(units, payments);
+
+	if (blocker === 'holds-units') {
 		badRequest('cannot delete contract with associated units');
 	}
 
-	if (payments.length > 0) {
+	if (blocker === 'holds-payments') {
 		badRequest('cannot delete contract with associated payments');
+	}
+}
+
+/**
+ * The three things a reader can ask of a selection of contracts at once.
+ *
+ * Named here rather than in the router, because which actions a contract admits is the concept's
+ * to say and the procedure only takes the answer as an input.
+ */
+export const CONTRACT_SELECTION_ACTIONS = ['terminate', 'restore', 'delete'] as const;
+
+export type ContractSelectionAction = (typeof CONTRACT_SELECTION_ACTIONS)[number];
+
+/** Why one contract would be turned away from one of those actions. */
+export type ContractRefusalReason =
+	'missing' | 'not-terminable' | 'not-restorable' | ContractDeletionBlocker;
+
+/**
+ * Why this action would turn this contract away, or `undefined` where it would go through.
+ *
+ * One question with three answers rather than three questions, so a surface offering all three
+ * on one selection asks the domain once per contract in the same words each time. Every answer
+ * is one of the predicates above, called rather than restated.
+ */
+export function whatRefusesContractAction(
+	action: ContractSelectionAction,
+	contract: ContractLike,
+	payments: PaymentLike[],
+	assignments: unknown[],
+	now: DateLike
+): ContractRefusalReason | undefined {
+	switch (action) {
+		case 'terminate':
+			// the derived status rather than the stored one, exactly as terminating one contract
+			// does: what a contract owes moves at a UTC day boundary, and a row read before one is
+			// stale against the rule about to be applied to it.
+			return canManuallyTerminateContractStatus(deriveContractStatus(contract, payments, now))
+				? undefined
+				: 'not-terminable';
+		case 'restore':
+			return canUnterminateContractStatus(contract.status) ? undefined : 'not-restorable';
+		case 'delete':
+			return whatBlocksContractDeletion(assignments, payments);
 	}
 }
 

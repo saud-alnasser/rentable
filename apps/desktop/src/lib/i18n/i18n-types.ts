@@ -772,6 +772,22 @@ type RootTranslation = {
 			 */
 			'this-year': string
 		}
+		selection: {
+			/**
+			 * a​n​d​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​m​o​r​e
+			 * @param {unknown} count
+			 */
+			more: RequiredParams<'count|number'>
+			/**
+			 * n​o​n​e​ ​o​f​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​r​e​c​o​r​d​s​ ​c​a​n​ ​t​a​k​e​ ​t​h​i​s​ ​a​c​t​i​o​n​.
+			 */
+			nothingToDo: string
+			/**
+			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​c​h​a​n​g​e​d​ ​w​h​i​l​e​ ​t​h​i​s​ ​w​a​s​ ​o​p​e​n​,​ ​s​o​ ​{​r​e​c​o​r​d​s​}​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​d​o​n​e​.​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​r​e​t​r​i​e​d​.
+			 * @param {string} records
+			 */
+			outcomeChanged: RequiredParams<'records'>
+		}
 		status: {
 			/**
 			 * a​c​t​i​v​e
@@ -941,6 +957,11 @@ type RootTranslation = {
 			 */
 			deleted: RequiredParams<'record'>
 			/**
+			 * d​e​l​e​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)
+			 * @param {unknown} count
+			 */
+			deletedMany: RequiredParams<'count|number'>
+			/**
 			 * e​d​i​t​i​n​g​ ​{​r​e​c​o​r​d​}
 			 * @param {string} record
 			 */
@@ -991,6 +1012,11 @@ type RootTranslation = {
 			 * @param {string} record
 			 */
 			unterminated: RequiredParams<'record'>
+			/**
+			 * r​e​s​t​o​r​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)
+			 * @param {unknown} count
+			 */
+			unterminatedMany: RequiredParams<'count|number'>
 		}
 		window: {
 			/**
@@ -1798,6 +1824,11 @@ type RootTranslation = {
 			 */
 			createSuccess: string
 			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​d​e​l​e​t​e​d
+			 * @param {unknown} count
+			 */
+			deleteManySuccess: RequiredParams<'count|number'>
+			/**
 			 * p​a​y​m​e​n​t​ ​d​e​l​e​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
 			deletePaymentSuccess: string
@@ -1810,15 +1841,14 @@ type RootTranslation = {
 			 */
 			renewSuccess: string
 			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​r​e​s​t​o​r​e​d
+			 * @param {unknown} count
+			 */
+			restoreManySuccess: RequiredParams<'count|number'>
+			/**
 			 * c​o​n​t​r​a​c​t​ ​r​e​s​t​o​r​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
 			restoreSuccess: string
-			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​t​e​r​m​i​n​a​t​e​d​:​ ​{​r​e​c​o​r​d​s​}
-			 * @param {unknown} count
-			 * @param {string} records
-			 */
-			terminateManyRefused: RequiredParams<'count|number' | 'records'>
 			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​t​e​r​m​i​n​a​t​e​d
 			 * @param {unknown} count
@@ -1923,6 +1953,60 @@ type RootTranslation = {
 			 */
 			owing: string
 		}
+		selection: {
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
+			 * @param {unknown} count
+			 */
+			deleteSummary: RequiredParams<'count|number'>
+			/**
+			 * d​e​l​e​t​e​ ​c​o​n​t​r​a​c​t​s
+			 */
+			deleteTitle: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​s​t​i​l​l​ ​c​a​r​r​y​ ​p​a​y​m​e​n​t​s
+			 * @param {unknown} count
+			 */
+			refusedHoldsPayments: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​s​t​i​l​l​ ​h​o​l​d​ ​u​n​i​t​s
+			 * @param {unknown} count
+			 */
+			refusedHoldsUnits: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​r​e​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e
+			 * @param {unknown} count
+			 */
+			refusedMissing: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​r​e​ ​n​o​t​ ​t​e​r​m​i​n​a​t​e​d
+			 * @param {unknown} count
+			 */
+			refusedNotRestorable: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​a​n​n​o​t​ ​b​e​ ​t​e​r​m​i​n​a​t​e​d​ ​b​y​ ​h​a​n​d
+			 * @param {unknown} count
+			 */
+			refusedNotTerminable: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​r​e​s​t​o​r​e​d
+			 * @param {unknown} count
+			 */
+			restoreSummary: RequiredParams<'count|number'>
+			/**
+			 * r​e​s​t​o​r​e​ ​c​o​n​t​r​a​c​t​s
+			 */
+			restoreTitle: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​t​e​r​m​i​n​a​t​e​d
+			 * @param {unknown} count
+			 */
+			terminateSummary: RequiredParams<'count|number'>
+			/**
+			 * t​e​r​m​i​n​a​t​e​ ​c​o​n​t​r​a​c​t​s
+			 */
+			terminateTitle: string
+		}
 		table: {
 			/**
 			 * p​a​y​m​e​n​t​s​ ​m​a​n​a​g​e​m​e​n​t
@@ -1936,10 +2020,6 @@ type RootTranslation = {
 			 * r​e​s​t​o​r​e​ ​c​o​n​t​r​a​c​t
 			 */
 			restoreTitle: string
-			/**
-			 * a​r​e​ ​y​o​u​ ​s​u​r​e​ ​y​o​u​ ​w​a​n​t​ ​t​o​ ​m​a​n​u​a​l​l​y​ ​t​e​r​m​i​n​a​t​e​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​c​o​n​t​r​a​c​t​s​?​ ​t​h​i​s​ ​o​n​l​y​ ​w​o​r​k​s​ ​f​o​r​ ​a​c​t​i​v​e​ ​o​r​ ​p​a​s​t​ ​o​n​e​s​,​ ​a​n​d​ ​t​h​e​ ​r​e​s​t​ ​a​r​e​ ​l​e​f​t​ ​a​l​o​n​e​.
-			 */
-			terminateManyDescription: string
 			/**
 			 * a​r​e​ ​y​o​u​ ​s​u​r​e​ ​y​o​u​ ​w​a​n​t​ ​t​o​ ​m​a​n​u​a​l​l​y​ ​t​e​r​m​i​n​a​t​e​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​?​ ​t​h​i​s​ ​o​n​l​y​ ​w​o​r​k​s​ ​f​o​r​ ​a​c​t​i​v​e​ ​o​r​ ​p​a​s​t​ ​c​o​n​t​r​a​c​t​s​.
 			 */
@@ -2793,6 +2873,20 @@ export type TranslationFunctions = {
 			 */
 			'this-year': () => LocalizedString
 		}
+		selection: {
+			/**
+			 * and {count|number} more
+			 */
+			more: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * none of the selected records can take this action.
+			 */
+			nothingToDo: () => LocalizedString
+			/**
+			 * the workspace changed while this was open, so {records} could not be done. nothing was retried.
+			 */
+			outcomeChanged: (arg: { records: string }) => LocalizedString
+		}
 		status: {
 			/**
 			 * active
@@ -2951,6 +3045,10 @@ export type TranslationFunctions = {
 			 */
 			deleted: (arg: { record: string }) => LocalizedString
 			/**
+			 * deleting {count|number} record(s)
+			 */
+			deletedMany: (arg: { count: unknown }) => LocalizedString
+			/**
 			 * editing {record}
 			 */
 			edited: (arg: { record: string }) => LocalizedString
@@ -2994,6 +3092,10 @@ export type TranslationFunctions = {
 			 * restoring {record}
 			 */
 			unterminated: (arg: { record: string }) => LocalizedString
+			/**
+			 * restoring {count|number} contract(s)
+			 */
+			unterminatedMany: (arg: { count: unknown }) => LocalizedString
 		}
 		window: {
 			/**
@@ -3785,6 +3887,10 @@ export type TranslationFunctions = {
 			 */
 			createSuccess: () => LocalizedString
 			/**
+			 * {count|number} contract(s) deleted
+			 */
+			deleteManySuccess: (arg: { count: unknown }) => LocalizedString
+			/**
 			 * payment deleted successfully!
 			 */
 			deletePaymentSuccess: () => LocalizedString
@@ -3797,13 +3903,13 @@ export type TranslationFunctions = {
 			 */
 			renewSuccess: () => LocalizedString
 			/**
+			 * {count|number} contract(s) restored
+			 */
+			restoreManySuccess: (arg: { count: unknown }) => LocalizedString
+			/**
 			 * contract restored successfully!
 			 */
 			restoreSuccess: () => LocalizedString
-			/**
-			 * {count|number} could not be terminated: {records}
-			 */
-			terminateManyRefused: (arg: { count: unknown, records: string }) => LocalizedString
 			/**
 			 * {count|number} contract(s) terminated
 			 */
@@ -3903,6 +4009,52 @@ export type TranslationFunctions = {
 			 */
 			owing: () => LocalizedString
 		}
+		selection: {
+			/**
+			 * {count|number} contract(s) will be deleted
+			 */
+			deleteSummary: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * delete contracts
+			 */
+			deleteTitle: () => LocalizedString
+			/**
+			 * {count|number} still carry payments
+			 */
+			refusedHoldsPayments: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} still hold units
+			 */
+			refusedHoldsUnits: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} are no longer in the workspace
+			 */
+			refusedMissing: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} are not terminated
+			 */
+			refusedNotRestorable: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} cannot be terminated by hand
+			 */
+			refusedNotTerminable: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} contract(s) will be restored
+			 */
+			restoreSummary: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * restore contracts
+			 */
+			restoreTitle: () => LocalizedString
+			/**
+			 * {count|number} contract(s) will be terminated
+			 */
+			terminateSummary: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * terminate contracts
+			 */
+			terminateTitle: () => LocalizedString
+		}
 		table: {
 			/**
 			 * payments management
@@ -3916,10 +4068,6 @@ export type TranslationFunctions = {
 			 * restore contract
 			 */
 			restoreTitle: () => LocalizedString
-			/**
-			 * are you sure you want to manually terminate the selected contracts? this only works for active or past ones, and the rest are left alone.
-			 */
-			terminateManyDescription: () => LocalizedString
 			/**
 			 * are you sure you want to manually terminate this contract? this only works for active or past contracts.
 			 */

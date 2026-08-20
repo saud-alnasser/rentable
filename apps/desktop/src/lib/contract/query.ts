@@ -5,6 +5,7 @@ import {
 	type ContractSortColumnId
 } from '$lib/contract/contract';
 import { declareMutation } from '$lib/design/mutation';
+import type { HistoryEntry } from '$lib/history/history';
 import { workspacePrefixes } from '$lib/design/query';
 import type { ContractRank } from '$lib/contract/rank';
 import type { ListSort } from '$lib/design/sort';
@@ -44,6 +45,14 @@ export const keys = {
 		scope.complexId ?? 'all',
 		scope.rank ?? 'all'
 	],
+	// the selection itself, sorted: the same set assembled in a different order is the same
+	// question, and two cache entries for it would ask the workspace twice.
+	plan: (action: ContractSelectionAction | null, ids: readonly string[]) => [
+		...workspacePrefixes.contracts,
+		'plan',
+		action ?? 'none',
+		[...ids].sort().join(',')
+	],
 	get: (id: string) => [...workspacePrefixes.contracts, id],
 	getUnits: (id: string) => [...workspacePrefixes.contracts, 'units', id],
 	search: (term: string) => [...workspacePrefixes.contracts, 'search', term],
@@ -72,6 +81,34 @@ function isContractSortColumnId(columnId: string): columnId is ContractSortColum
 /** the concept's own naming, with the translation this side happens to hold. */
 const toContractName = (contract: { govId?: string | null; tenantName?: string | null }) =>
 	toContractRecordName(contract, get(LL).common.labels.contract());
+
+/** Which action a selection is being planned for, read off the procedure rather than restated. */
+export type ContractSelectionAction = Parameters<typeof api.contract.planMany>[0]['action'];
+
+/** Why a contract in a selection would be turned away, read off the same procedure. */
+export type ContractRefusalReason = Awaited<
+	ReturnType<typeof api.contract.planMany>
+>['refused'][number]['reason'];
+
+const toContractIds = (contracts: readonly { id: string }[]) =>
+	contracts.map((contract) => contract.id);
+
+/**
+ * One line on one contract's own account.
+ *
+ * Every multi-record action writes one of these per contract it changed, named the way the
+ * single-record actions name one: a selection is how the reader acted, and a record's history is
+ * about the record.
+ */
+const toContractHistoryEntry = (
+	contract: { id: string; govId?: string | null; tenantName?: string | null },
+	action: HistoryEntry['action']
+) => ({
+	concept: 'contract' as const,
+	recordId: contract.id,
+	action,
+	record: toContractName(contract)
+});
 
 /**
  * The contracts directory for a search and an order: the whole result set, each row carrying
@@ -118,6 +155,36 @@ export function useSearchContracts(term: () => string, limit: number) {
 			enabled: trimmed.length > 0,
 			queryFn: () => api.contract.search({ term: trimmed, limit }),
 			placeholderData: <T>(previous: T) => previous
+		};
+	});
+}
+
+/**
+ * What one of the three selection actions would do to the contracts named, before it is done.
+ *
+ * Asked of the workspace rather than read off the rows: a contract row carries its status and a
+ * payment count, and a deletion is refused for holding units, which no row knows.
+ */
+export function usePlanManyContracts(
+	ids: () => readonly string[],
+	action: () => ContractSelectionAction | null
+) {
+	return createQuery(() => {
+		const chosen = action();
+		const named = [...ids()];
+
+		return {
+			queryKey: keys.plan(chosen, named),
+			enabled: chosen !== null && named.length > 0,
+			queryFn: async () => {
+				if (chosen === null) {
+					// unreachable while the query is disabled, and answered rather than thrown so the
+					// caller reads one shape instead of an assertion about which one it got.
+					return { eligible: [] as string[], refused: [] };
+				}
+
+				return api.contract.planMany({ ids: named, action: chosen });
+			}
 		};
 	});
 }
@@ -297,25 +364,83 @@ export const useTerminateManyContracts = declareMutation({
 			? undefined
 			: {
 					describe: (t) => t.common.undo.terminatedMany({ count: result.terminated.length }),
-					undo: () => api.contract.unterminateMany({ ids: result.terminated }),
-					redo: () => api.contract.terminateMany({ ids: result.terminated }),
+					undo: () => api.contract.unterminateMany({ ids: toContractIds(result.terminated) }),
+					redo: () => api.contract.terminateMany({ ids: toContractIds(result.terminated) }),
 					records: (direction) =>
-						result.terminated.map((id) => ({
-							concept: 'contract' as const,
-							recordId: id,
-							action: direction === 'undo' ? ('unterminated' as const) : ('terminated' as const),
-							record: String(id)
-						}))
+						result.terminated.map((contract) =>
+							toContractHistoryEntry(contract, direction === 'undo' ? 'unterminated' : 'terminated')
+						)
 				},
 	// one entry per contract that actually changed, so each record's own account carries what
 	// happened to it — a selection is how the reader acted, not something the records share.
 	records: ({ result }) =>
-		result.terminated.map((id) => ({
-			concept: 'contract' as const,
-			recordId: id,
-			action: 'terminated' as const,
-			record: String(id)
-		})),
+		result.terminated.map((contract) => toContractHistoryEntry(contract, 'terminated')),
+	toast: {
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	}
+});
+
+/**
+ * Restore every terminated contract in the selection, as one change.
+ *
+ * The same procedure that undoes a bulk termination, because they are the same act: what
+ * separates them is only which one the reader asked for.
+ */
+export const useRestoreManyContracts = declareMutation({
+	mutate: (ids: string[]) => api.contract.unterminateMany({ ids }),
+	touches: ['contracts', 'units'],
+	inverse: ({ result }) =>
+		result.unterminated.length === 0
+			? undefined
+			: {
+					describe: (t) => t.common.undo.unterminatedMany({ count: result.unterminated.length }),
+					undo: () => api.contract.terminateMany({ ids: toContractIds(result.unterminated) }),
+					redo: () => api.contract.unterminateMany({ ids: toContractIds(result.unterminated) }),
+					records: (direction) =>
+						result.unterminated.map((contract) =>
+							toContractHistoryEntry(contract, direction === 'undo' ? 'terminated' : 'unterminated')
+						)
+				},
+	records: ({ result }) =>
+		result.unterminated.map((contract) => toContractHistoryEntry(contract, 'unterminated')),
+	toast: {
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	}
+});
+
+/**
+ * Delete every contract in the selection that nothing depends on, as one change.
+ *
+ * **Taking it back is all or nothing.** The inverse creates the whole set in one batch and throws
+ * where any one of them cannot be put back, rather than restoring what it can and naming the
+ * rest — which would leave the workspace in a shape neither the deletion nor the undo describes.
+ * An inverse that throws stays on the stack, so the reader can deal with whatever refused it and
+ * press undo again.
+ *
+ * The rows themselves are what the procedure answers with, because putting a record back means
+ * putting it back as itself, by the identity it had (ADR 0026).
+ */
+export const useDeleteManyContracts = declareMutation({
+	mutate: (ids: string[]) => api.contract.deleteMany({ ids }),
+	touches: ['contracts'],
+	inverse: ({ result }) =>
+		result.deleted.length === 0
+			? undefined
+			: {
+					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
+					undo: () => api.contract.createMany({ contracts: result.deleted }),
+					redo: () => api.contract.deleteMany({ ids: toContractIds(result.deleted) }),
+					records: (direction) =>
+						result.deleted.map((contract) =>
+							toContractHistoryEntry(contract, direction === 'undo' ? 'created' : 'deleted')
+						)
+				},
+	// the names are frozen here for the reason the whole entry is: a moment later the records are
+	// gone, and an account that could only name what still exists could not report a deletion.
+	records: ({ result }) =>
+		result.deleted.map((contract) => toContractHistoryEntry(contract, 'deleted')),
 	toast: {
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()

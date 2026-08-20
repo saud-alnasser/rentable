@@ -227,6 +227,13 @@ const en = {
 			'this-year': 'this year'
 		},
 
+		selection: {
+			more: 'and {count|number} more',
+			nothingToDo: 'none of the selected records can take this action.',
+			outcomeChanged:
+				'the workspace changed while this was open, so {records:string} could not be done. nothing was retried.'
+		},
+
 		status: {
 			active: 'active',
 			defaulted: 'defaulted',
@@ -277,6 +284,7 @@ const en = {
 			assigned: 'changing the units of {record:string}',
 			created: 'creating {record:string}',
 			deleted: 'deleting {record:string}',
+			deletedMany: 'deleting {count|number} record(s)',
 			edited: 'editing {record:string}',
 			nothingToRedo: 'nothing to apply again',
 			nothingToUndo: 'nothing to take back',
@@ -287,7 +295,8 @@ const en = {
 			terminatedMany: 'terminating {count|number} contract(s)',
 			undo: 'undo',
 			undone: '{change:string} undone',
-			unterminated: 'restoring {record:string}'
+			unterminated: 'restoring {record:string}',
+			unterminatedMany: 'restoring {count|number} contract(s)'
 		},
 
 		window: {
@@ -575,11 +584,12 @@ const en = {
 		hooks: {
 			createPaymentSuccess: 'payment created successfully!',
 			createSuccess: 'contract created successfully!',
+			deleteManySuccess: '{count|number} contract(s) deleted',
 			deletePaymentSuccess: 'payment deleted successfully!',
 			deleteSuccess: 'contract deleted successfully!',
 			renewSuccess: 'contract renewed successfully!',
+			restoreManySuccess: '{count|number} contract(s) restored',
 			restoreSuccess: 'contract restored successfully!',
-			terminateManyRefused: '{count|number} could not be terminated: {records:string}',
 			terminateManySuccess: '{count|number} contract(s) terminated',
 			terminateSuccess: 'contract terminated successfully!',
 			updatePaymentSuccess: 'payment updated successfully!',
@@ -617,13 +627,25 @@ const en = {
 			owing: 'owing'
 		},
 
+		selection: {
+			deleteSummary: '{count|number} contract(s) will be deleted',
+			deleteTitle: 'delete contracts',
+			refusedHoldsPayments: '{count|number} still carry payments',
+			refusedHoldsUnits: '{count|number} still hold units',
+			refusedMissing: '{count|number} are no longer in the workspace',
+			refusedNotRestorable: '{count|number} are not terminated',
+			refusedNotTerminable: '{count|number} cannot be terminated by hand',
+			restoreSummary: '{count|number} contract(s) will be restored',
+			restoreTitle: 'restore contracts',
+			terminateSummary: '{count|number} contract(s) will be terminated',
+			terminateTitle: 'terminate contracts'
+		},
+
 		table: {
 			paymentsManagement: 'payments management',
 			restoreDescription:
 				'are you sure you want to remove the manual termination from this contract?',
 			restoreTitle: 'restore contract',
-			terminateManyDescription:
-				'are you sure you want to manually terminate the selected contracts? this only works for active or past ones, and the rest are left alone.',
 			terminateDescription:
 				'are you sure you want to manually terminate this contract? this only works for active or past contracts.',
 			terminateTitle: 'terminate contract',

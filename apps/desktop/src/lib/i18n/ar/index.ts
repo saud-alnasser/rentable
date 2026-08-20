@@ -220,6 +220,13 @@ const ar = {
 			'this-year': 'هذه السنة'
 		},
 
+		selection: {
+			more: 'و{count|number} غيرها',
+			nothingToDo: 'لا يمكن تنفيذ هذا الإجراء على أي من السجلات المحددة.',
+			outcomeChanged:
+				'تغيّرت مساحة العمل أثناء فتح هذه النافذة، فتعذّر تنفيذ {records}. لم تتم أي إعادة محاولة.'
+		},
+
 		status: {
 			active: 'نشط',
 			defaulted: 'متعثر',
@@ -270,6 +277,7 @@ const ar = {
 			assigned: 'تغيير وحدات {record}',
 			created: 'إنشاء {record}',
 			deleted: 'حذف {record}',
+			deletedMany: 'حذف {count|number} سجل',
 			edited: 'تعديل {record}',
 			nothingToRedo: 'لا يوجد ما يمكن إعادته',
 			nothingToUndo: 'لا يوجد ما يمكن التراجع عنه',
@@ -280,7 +288,8 @@ const ar = {
 			terminatedMany: 'إنهاء {count|number} عقد',
 			undo: 'تراجع',
 			undone: 'تم التراجع عن {change}',
-			unterminated: 'استعادة {record}'
+			unterminated: 'استعادة {record}',
+			unterminatedMany: 'استعادة {count|number} عقد'
 		},
 
 		window: {
@@ -568,11 +577,12 @@ const ar = {
 		hooks: {
 			createPaymentSuccess: 'تم إنشاء الدفعة بنجاح!',
 			createSuccess: 'تم إنشاء العقد بنجاح!',
+			deleteManySuccess: 'تم حذف {count|number} عقد',
 			deletePaymentSuccess: 'تم حذف الدفعة بنجاح!',
 			deleteSuccess: 'تم حذف العقد بنجاح!',
 			renewSuccess: 'تم تجديد العقد بنجاح!',
+			restoreManySuccess: 'تمت استعادة {count|number} عقد',
 			restoreSuccess: 'تمت استعادة العقد بنجاح!',
-			terminateManyRefused: 'تعذر إنهاء {count|number}: {records}',
 			terminateManySuccess: 'تم إنهاء {count|number} عقد',
 			terminateSuccess: 'تم إنهاء العقد بنجاح!',
 			updatePaymentSuccess: 'تم تحديث الدفعة بنجاح!',
@@ -608,12 +618,24 @@ const ar = {
 			owing: 'مستحق'
 		},
 
+		selection: {
+			deleteSummary: 'سيتم حذف {count|number} عقد',
+			deleteTitle: 'حذف العقود',
+			refusedHoldsPayments: '{count|number} ما زالت تحمل دفعات',
+			refusedHoldsUnits: '{count|number} ما زالت تحمل وحدات',
+			refusedMissing: '{count|number} لم تعد موجودة في مساحة العمل',
+			refusedNotRestorable: '{count|number} ليست منتهية',
+			refusedNotTerminable: '{count|number} لا يمكن إنهاؤها يدوياً',
+			restoreSummary: 'سيتم استعادة {count|number} عقد',
+			restoreTitle: 'استعادة العقود',
+			terminateSummary: 'سيتم إنهاء {count|number} عقد',
+			terminateTitle: 'إنهاء العقود'
+		},
+
 		table: {
 			paymentsManagement: 'إدارة المدفوعات',
 			restoreDescription: 'هل تريد إزالة إنهاء العقد؟',
 			restoreTitle: 'استعادة العقد',
-			terminateManyDescription:
-				'هل تريد إنهاء العقود المحددة يدوياً؟ ينطبق ذلك على العقود السارية أو المنتهية فقط، وتُترك البقية كما هي.',
 			terminateDescription: 'هل تريد إنهاء العقد يدوياً؟',
 			terminateTitle: 'إنهاء العقد',
 			tenantFallback: 'مستأجر #{tenantId}',
