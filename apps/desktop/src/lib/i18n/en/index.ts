@@ -330,6 +330,17 @@ const en = {
 			title: 'this screen could not be shown'
 		},
 
+		accountMenu: {
+			label: 'account'
+		},
+
+		workspaceMenu: {
+			create: 'new workspace',
+			createLocked: 'not available yet',
+			heading: 'workspaces',
+			label: 'workspace'
+		},
+
 		signIn: {
 			authorizing: 'finish signing in with Google in the browser window that just opened.',
 			signInWithGoogle: 'sign in with Google',

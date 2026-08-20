@@ -40,3 +40,25 @@ import type { RemoteSyncAccount, RemoteSyncState } from '$lib/platform/host';
 export function signedInAccount(state?: RemoteSyncState | null): RemoteSyncAccount | null {
 	return state?.accounts.find((account) => account.status !== 'needsReconnect') ?? null;
 }
+
+/**
+ * the two letters that stand in for a picture.
+ *
+ * **Two, and from the first two words rather than the first and the last.** A display name here is
+ * whatever Google was told, which is as often one word as three, and taking the last word of three
+ * gives a different pair depending on how somebody wrote their own name.
+ *
+ * The fallback matters more than it looks: this is drawn where a picture would be, and a row with
+ * an empty circle in it reads as a surface that failed rather than as an account with no photo.
+ */
+export function accountInitials(source: string | null | undefined, fallback = '?'): string {
+	const initials = (source ?? '')
+		.split(/\s+/)
+		.map((part) => part.trim())
+		.filter(Boolean)
+		.slice(0, 2)
+		.map((part) => part[0]?.toUpperCase() ?? '')
+		.join('');
+
+	return initials || fallback;
+}

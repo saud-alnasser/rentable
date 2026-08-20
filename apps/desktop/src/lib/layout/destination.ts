@@ -35,7 +35,13 @@ export const primaryDestinations: Destination[] = [
 	{ url: '/contracts', icon: ContractIcon, label: (t) => t.common.nav.contracts() }
 ];
 
-/** Places that configure the application rather than hold its records. */
+/**
+ * Places that configure the application rather than hold its records.
+ *
+ * **The rail no longer draws these**, since 2026-08-20: its footer is the account control, and
+ * settings is one row inside that control's menu. This list stays because the command palette
+ * searches it, and a person typing "settings" into the palette is asking for the same place.
+ */
 export const secondaryDestinations: Destination[] = [
 	{ url: '/settings', icon: SettingsIcon, label: (t) => t.common.nav.settings() }
 ];

@@ -322,6 +322,17 @@ const ar = {
 			title: 'تعذر عرض هذه الشاشة'
 		},
 
+		accountMenu: {
+			label: 'الحساب'
+		},
+
+		workspaceMenu: {
+			create: 'مساحة عمل جديدة',
+			createLocked: 'غير متاحة بعد',
+			heading: 'مساحات العمل',
+			label: 'مساحة العمل'
+		},
+
 		signIn: {
 			authorizing: 'أكمل تسجيل الدخول عبر Google في نافذة المتصفح التي فتحت للتو.',
 			signInWithGoogle: 'تسجيل الدخول باستخدام Google',
