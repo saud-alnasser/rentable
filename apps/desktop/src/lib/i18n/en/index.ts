@@ -607,6 +607,7 @@ const en = {
 		hooks: {
 			createPaymentSuccess: 'payment created successfully!',
 			createSuccess: 'contract created successfully!',
+			deleteManyPaymentsSuccess: '{count|number} payment(s) deleted',
 			deleteManySuccess: '{count|number} contract(s) deleted',
 			deletePaymentSuccess: 'payment deleted successfully!',
 			deleteSuccess: 'contract deleted successfully!',
@@ -653,6 +654,13 @@ const en = {
 		selection: {
 			deleteSummary: '{count|number} contract(s) will be deleted',
 			deleteTitle: 'delete contracts',
+			paymentDeleteSummary: '{count|number} payment(s) will be deleted',
+			paymentDeleteTitle: 'delete payments',
+			// a payment carries no rule of its own; everything that locks one is its contract's
+			// state, and the ledger hides its controls there, so this is only ever reached by the
+			// contract being terminated while the confirmation is open.
+			paymentRefusedContractTerminated: '{count|number} belong to a terminated contract',
+			paymentRefusedMissing: '{count|number} are no longer in the workspace',
 			refusedHoldsPayments: '{count|number} still carry payments',
 			refusedHoldsUnits: '{count|number} still hold units',
 			refusedMissing: '{count|number} are no longer in the workspace',

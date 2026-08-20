@@ -1,6 +1,7 @@
 import api from '$lib/api/caller';
 import type { FilterPeriod } from '$lib/api/period';
 import { declareMutation } from '$lib/design/mutation';
+import type { HistoryEntry } from '$lib/history/history';
 import { workspacePrefixes } from '$lib/design/query';
 import { LL, locale } from '$lib/i18n/i18n-svelte';
 import { isRecordId } from '$lib/platform/database/identity';
@@ -20,8 +21,39 @@ export const keys = {
 		search,
 		period ?? null
 	],
-	search: (term: string) => [...workspacePrefixes.payments, 'search', term]
+	search: (term: string) => [...workspacePrefixes.payments, 'search', term],
+	// the selection itself, sorted: the same set assembled in a different order is the same
+	// question, and two cache entries for it would ask the workspace twice.
+	plan: (ids: readonly string[]) => [
+		...workspacePrefixes.payments,
+		'plan',
+		[...ids].sort().join(',')
+	]
 } as const;
+
+/** Why a payment in a selection would be turned away, read off the procedure rather than restated. */
+export type PaymentRefusalReason = Awaited<
+	ReturnType<typeof api.contract.payments.planMany>
+>['refused'][number]['reason'];
+
+const toPaymentIds = (payments: readonly { id: string }[]) => payments.map((payment) => payment.id);
+
+/**
+ * One line on one payment's own account.
+ *
+ * A payment has no name, so what names it is the amount, rendered in the reader's locale and
+ * frozen there: an account has to still read once the record it is about is gone, which is the
+ * same reason every other entry freezes its name.
+ */
+const toPaymentHistoryEntry = (
+	payment: { id: string; amount: number },
+	action: HistoryEntry['action']
+) => ({
+	concept: 'payment' as const,
+	recordId: payment.id,
+	action,
+	record: formatLocaleNumber(get(locale), payment.amount)
+});
 
 /**
  * The payments a palette search reaches, across every contract.
@@ -103,6 +135,25 @@ export function useListContractPayments(
 	});
 }
 
+/**
+ * What deleting the payments named would do, before it is done.
+ *
+ * Asked of the workspace rather than read off the rows, like every other list. A ledger row
+ * carries the date and the amount, and what locks a payment is its contract's status, so the row
+ * could not answer even if the application were willing to let it.
+ */
+export function usePlanManyPayments(ids: () => readonly string[]) {
+	return createQuery(() => {
+		const named = [...ids()];
+
+		return {
+			queryKey: keys.plan(named),
+			enabled: named.length > 0,
+			queryFn: () => api.contract.payments.planMany({ ids: named })
+		};
+	});
+}
+
 export const useCreatePayment = declareMutation({
 	mutate: (data: Parameters<typeof api.contract.payments.create>[0]) =>
 		api.contract.payments.create(data),
@@ -133,6 +184,52 @@ export const useUpdatePayment = declareMutation({
 	toast: {
 		success: () => get(LL).contracts.hooks.updatePaymentSuccess(),
 		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	}
+});
+
+/**
+ * Delete every payment in the selection whose contract is not locked, as one change.
+ *
+ * **Taking it back is all or nothing.** The inverse creates the whole set in one batch and throws
+ * where any one of them cannot be put back, rather than restoring what it can and naming the
+ * rest, which would leave the workspace in a shape neither the deletion nor the undo describes.
+ * An inverse that throws stays on the stack, so the reader can deal with whatever refused it and
+ * press undo again.
+ *
+ * The rows themselves are what the procedure answers with, because putting a record back means
+ * putting it back as itself, by the identity it had (ADR 0026).
+ */
+export const useDeleteManyPayments = declareMutation({
+	mutate: (ids: string[]) => api.contract.payments.deleteMany({ ids }),
+	touches: ['payments', 'contracts', 'units'],
+	inverse: ({ result }) =>
+		// nothing changed, so there is nothing to offer taking back. An undo entry for a no-op is a
+		// control that appears to have done something.
+		result.deleted.length === 0
+			? undefined
+			: {
+					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
+					undo: () => api.contract.payments.createMany({ payments: result.deleted }),
+					redo: () => api.contract.payments.deleteMany({ ids: toPaymentIds(result.deleted) }),
+					records: (direction) =>
+						result.deleted.map((payment) =>
+							toPaymentHistoryEntry(payment, direction === 'undo' ? 'created' : 'deleted')
+						)
+				},
+	// the amounts are frozen here for the reason the whole entry is: a moment later the records
+	// are gone, and an account that could only name what still exists could not report a deletion.
+	records: ({ result }) =>
+		result.deleted.map((payment) => toPaymentHistoryEntry(payment, 'deleted')),
+	toast: {
+		// the count, because it is the one thing about a bulk action a reader cannot see for
+		// themselves, and nothing at all where the selection turned out to hold nothing this could
+		// be done to. The confirmation has already said why in that case.
+		success: ({ result }) =>
+			result.deleted.length > 0
+				? get(LL).contracts.hooks.deleteManyPaymentsSuccess({ count: result.deleted.length })
+				: undefined,
+		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
 });

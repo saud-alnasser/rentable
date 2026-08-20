@@ -1,4 +1,4 @@
-import type { Payment } from '$lib/platform/database/schema';
+import type { Contract, Payment } from '$lib/platform/database/schema';
 import { toUtcDay, type DateLike } from '$lib/api/date';
 import { TRPCError } from '@trpc/server';
 
@@ -33,6 +33,30 @@ export function groupPaymentsByContractId<P extends { contractId: string }>(paym
 
 	return paymentsByContractId;
 }
+
+/**
+ * Why one payment in a selection would be turned away.
+ *
+ * **The ticket and the spec both said a payment is refused for nothing, and the source says
+ * otherwise**: `payments.delete` calls `ensureContractIsNotTerminated`, so a payment on a
+ * terminated contract is locked like everything else about that contract. The ledger hides its
+ * row controls there, which is why nobody had met the rule, and hiding a control is not the same
+ * as the rule not existing: another device can terminate the contract while a confirmation is
+ * open. Requirement 3 of the effort's spec is corrected in the same commit as this.
+ *
+ * `missing` is not a rule this concept enforces: it says the row named is no longer in the
+ * workspace, which every selection can meet.
+ */
+export type PaymentRefusalReason = 'contract-terminated' | 'missing';
+
+/**
+ * Why deleting this payment would be refused, or `undefined` where it would go through.
+ *
+ * It asks about the contract rather than the payment, because everything that locks a payment is
+ * the contract's state. A payment carries no rule of its own once it exists.
+ */
+export const whatRefusesPaymentDeletion = (status: Contract['status']) =>
+	status === 'terminated' ? ('contract-terminated' as const) : undefined;
 
 export function ensureValidPaymentAmount(amount: number) {
 	if (amount <= 0) {
