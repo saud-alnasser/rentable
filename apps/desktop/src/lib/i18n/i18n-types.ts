@@ -1119,6 +1119,30 @@ type RootTranslation = {
 			 */
 			title: string
 		}
+		accountMenu: {
+			/**
+			 * a​c​c​o​u​n​t
+			 */
+			label: string
+		}
+		workspaceMenu: {
+			/**
+			 * n​e​w​ ​w​o​r​k​s​p​a​c​e
+			 */
+			create: string
+			/**
+			 * n​o​t​ ​a​v​a​i​l​a​b​l​e​ ​y​e​t
+			 */
+			createLocked: string
+			/**
+			 * w​o​r​k​s​p​a​c​e​s
+			 */
+			heading: string
+			/**
+			 * w​o​r​k​s​p​a​c​e
+			 */
+			label: string
+		}
 		signIn: {
 			/**
 			 * f​i​n​i​s​h​ ​s​i​g​n​i​n​g​ ​i​n​ ​w​i​t​h​ ​G​o​o​g​l​e​ ​i​n​ ​t​h​e​ ​b​r​o​w​s​e​r​ ​w​i​n​d​o​w​ ​t​h​a​t​ ​j​u​s​t​ ​o​p​e​n​e​d​.
@@ -3011,6 +3035,30 @@ export type TranslationFunctions = {
 			 * this screen could not be shown
 			 */
 			title: () => LocalizedString
+		}
+		accountMenu: {
+			/**
+			 * account
+			 */
+			label: () => LocalizedString
+		}
+		workspaceMenu: {
+			/**
+			 * new workspace
+			 */
+			create: () => LocalizedString
+			/**
+			 * not available yet
+			 */
+			createLocked: () => LocalizedString
+			/**
+			 * workspaces
+			 */
+			heading: () => LocalizedString
+			/**
+			 * workspace
+			 */
+			label: () => LocalizedString
 		}
 		signIn: {
 			/**

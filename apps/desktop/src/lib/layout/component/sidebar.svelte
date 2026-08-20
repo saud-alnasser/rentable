@@ -3,20 +3,37 @@
 	import { page } from '$app/state';
 	import * as Sidebar from '$lib/design/primitive/sidebar';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import {
-		primaryDestinations,
-		secondaryDestinations,
-		type Destination
-	} from '$lib/layout/destination';
+	import LayoutAccountMenu from '$lib/layout/component/account-menu.svelte';
+	import LayoutWorkspaceMenu from '$lib/layout/component/workspace-menu.svelte';
+	import { primaryDestinations, type Destination } from '$lib/layout/destination';
 	import { isActiveRoute } from '$lib/layout/navigation';
-	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
+	import { useFetchRemoteSyncState } from '$lib/settings/query';
+	import { signedInAccount } from '$lib/sync/account';
 	import type { ComponentProps } from 'svelte';
 
+	/**
+	 * The rail, and the two things it says before any screen is open.
+	 *
+	 * **The workspace is at the top and the account at the bottom**, each opening its own menu.
+	 * They replaced a static mark with the product's name and a link called settings, which spent
+	 * the two rows that are on screen at every moment on a logo and a route.
+	 *
+	 * **Neither can be empty, and neither carries a loading state.** `+layout.svelte` renders
+	 * navigation only at `startupState === 'ready'`, which is past admission, so an account is
+	 * held and a workspace is open whenever this is drawn; the startup path also writes the state
+	 * into this query's key before the shell mounts, so there is no first frame with nothing in
+	 * it. The guards below are the type system's, not a state anybody reaches.
+	 */
 	let {
 		ref = $bindable(null),
 		collapsible = 'icon',
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> = $props();
+
+	const remoteSyncQuery = useFetchRemoteSyncState();
+
+	const workspace = $derived(remoteSyncQuery.data?.workspace);
+	const account = $derived(signedInAccount(remoteSyncQuery.data));
 </script>
 
 {#snippet links(items: Destination[])}
@@ -40,15 +57,10 @@
 {/snippet}
 
 <Sidebar.Root bind:ref {collapsible} variant="inset" {...restProps}>
-	<Sidebar.Header class="h-12 justify-center">
-		<div class="flex items-center gap-2 px-2">
-			<InnerShadowTopIcon class="size-4 shrink-0 text-muted-foreground" />
-			<span
-				class="truncate text-sm font-semibold tracking-[0.04em] capitalize group-data-[collapsible=icon]:hidden"
-			>
-				{$LL.app.name()}
-			</span>
-		</div>
+	<Sidebar.Header>
+		{#if workspace}
+			<LayoutWorkspaceMenu {workspace} />
+		{/if}
 	</Sidebar.Header>
 
 	<Sidebar.Content>
@@ -58,6 +70,8 @@
 	</Sidebar.Content>
 
 	<Sidebar.Footer>
-		{@render links(secondaryDestinations)}
+		{#if account}
+			<LayoutAccountMenu {account} />
+		{/if}
 	</Sidebar.Footer>
 </Sidebar.Root>
