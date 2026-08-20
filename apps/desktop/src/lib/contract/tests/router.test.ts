@@ -3,10 +3,12 @@ import test from 'node:test';
 
 import {
 	type Api,
+	countMatching,
 	createApi,
 	monthsFromNow,
 	seedTenant,
-	unusedId
+	unusedId,
+	withStatementLog
 } from '$lib/api/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
 import type { ContractSortColumnId } from '$lib/contract/contract.ts';
@@ -1572,21 +1574,6 @@ test('a list that asks for no rank still reads the whole table', async () => {
 	assert.equal(all.length, 1003);
 	assert.equal(contractListRead(reads).rowCount, 1003);
 });
-
-/** Every statement a block of work issued, so a test can say what it cost. */
-async function withStatementLog(run: (api: Api, drain: () => string[]) => Promise<void>) {
-	const statements: string[] = [];
-	const api = await createApi({ onStatement: (sql) => statements.push(sql) });
-
-	await run(api, () => statements.splice(0, statements.length));
-
-	return statements;
-}
-
-/** how many statements of a kind were issued against the contract table. */
-function countMatching(statements: readonly string[], pattern: RegExp) {
-	return statements.filter((sql) => pattern.test(sql)).length;
-}
 
 /** the identities out of what a multi-record action reported it changed. */
 const toIds = (contracts: readonly { id: string }[]) => contracts.map((contract) => contract.id);

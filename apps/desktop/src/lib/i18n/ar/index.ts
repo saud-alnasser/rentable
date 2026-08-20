@@ -517,6 +517,7 @@ const ar = {
 
 		hooks: {
 			createSuccess: 'تم إنشاء المستأجر بنجاح!',
+			deleteManySuccess: 'تم حذف {count|number} مستأجر',
 			deleteSuccess: 'تم حذف المستأجر بنجاح!',
 			updateSuccess: 'تم تحديث المستأجر بنجاح!'
 		},
@@ -529,6 +530,13 @@ const ar = {
 			invalidPhone: 'يجب أن يكون رقم الهاتف صالحاً لمفتاح الدولة المحدد {countryCode}.',
 			phoneNumberPlaceholder: '5xxxxxxxx',
 			phonePlaceholder: 'الهاتف (+966...)'
+		},
+
+		selection: {
+			deleteSummary: 'سيتم حذف {count|number} مستأجر',
+			deleteTitle: 'حذف المستأجرين',
+			refusedHoldsContracts: '{count|number} ما زالوا يحملون عقوداً',
+			refusedMissing: '{count|number} لم يعودوا موجودين في مساحة العمل'
 		}
 	},
 

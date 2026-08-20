@@ -1632,6 +1632,11 @@ type RootTranslation = {
 			 */
 			createSuccess: string
 			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​t​e​n​a​n​t​(​s​)​ ​d​e​l​e​t​e​d
+			 * @param {unknown} count
+			 */
+			deleteManySuccess: RequiredParams<'count|number'>
+			/**
 			 * t​e​n​a​n​t​ ​d​e​l​e​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
 			deleteSuccess: string
@@ -1670,6 +1675,27 @@ type RootTranslation = {
 			 * p​h​o​n​e​ ​(​+​9​6​6​.​.​.​)
 			 */
 			phonePlaceholder: string
+		}
+		selection: {
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​t​e​n​a​n​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
+			 * @param {unknown} count
+			 */
+			deleteSummary: RequiredParams<'count|number'>
+			/**
+			 * d​e​l​e​t​e​ ​t​e​n​a​n​t​s
+			 */
+			deleteTitle: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​s​t​i​l​l​ ​h​o​l​d​ ​c​o​n​t​r​a​c​t​s
+			 * @param {unknown} count
+			 */
+			refusedHoldsContracts: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​r​e​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e
+			 * @param {unknown} count
+			 */
+			refusedMissing: RequiredParams<'count|number'>
 		}
 	}
 	contracts: {
@@ -3699,6 +3725,10 @@ export type TranslationFunctions = {
 			 */
 			createSuccess: () => LocalizedString
 			/**
+			 * {count|number} tenant(s) deleted
+			 */
+			deleteManySuccess: (arg: { count: unknown }) => LocalizedString
+			/**
 			 * tenant deleted successfully!
 			 */
 			deleteSuccess: () => LocalizedString
@@ -3736,6 +3766,24 @@ export type TranslationFunctions = {
 			 * phone (+966...)
 			 */
 			phonePlaceholder: () => LocalizedString
+		}
+		selection: {
+			/**
+			 * {count|number} tenant(s) will be deleted
+			 */
+			deleteSummary: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * delete tenants
+			 */
+			deleteTitle: () => LocalizedString
+			/**
+			 * {count|number} still hold contracts
+			 */
+			refusedHoldsContracts: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} are no longer in the workspace
+			 */
+			refusedMissing: (arg: { count: unknown }) => LocalizedString
 		}
 	}
 	contracts: {

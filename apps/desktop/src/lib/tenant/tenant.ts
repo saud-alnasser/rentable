@@ -40,17 +40,29 @@ function badRequest(message: string): never {
 	throw new TRPCError({ code: 'BAD_REQUEST', message });
 }
 
-/** the router passes whatever row its uniqueness query found; any row is a conflict. */
-export function ensureIdentityAvailable(conflicting: unknown) {
+/**
+ * the router passes whatever row its uniqueness query found; any row is a conflict.
+ *
+ * @param named the identity the conflict is over, where the caller acts on more than one tenant.
+ * Putting a deleted selection back is refused as a set, and *one of them is already registered*
+ * is not something a reader can act on. The single-record callers pass nothing: their reader is
+ * looking at the one field it is about.
+ */
+export function ensureIdentityAvailable(conflicting: unknown, named?: string) {
 	if (conflicting) {
-		badRequest('national id is associated with a registered tenant');
+		badRequest(`national id${named ? ` ${named}` : ''} is associated with a registered tenant`);
 	}
 }
 
-/** the router passes whatever row its uniqueness query found; any row is a conflict. */
-export function ensurePhoneAvailable(conflicting: unknown) {
+/**
+ * the router passes whatever row its uniqueness query found; any row is a conflict.
+ *
+ * @param named the phone the conflict is over, for the reason {@link ensureIdentityAvailable}
+ * gives: the two are the same gate over a tenant's other unique field.
+ */
+export function ensurePhoneAvailable(conflicting: unknown, named?: string) {
 	if (conflicting) {
-		badRequest('phone is associated with a registered tenant');
+		badRequest(`phone${named ? ` ${named}` : ''} is associated with a registered tenant`);
 	}
 }
 
@@ -85,3 +97,25 @@ export function ensureTenantDeletable(contracts: unknown[]) {
 		badRequest('cannot delete tenant with associated contracts');
 	}
 }
+
+/**
+ * Why one tenant in a selection would be turned away.
+ *
+ * `missing` is not a rule this concept enforces: it says the row named is no longer in the
+ * workspace, which every selection can meet because another device may delete a record between
+ * the reader picking it out and asking for the action.
+ */
+export type TenantRefusalReason = 'holds-contracts' | 'missing';
+
+/**
+ * Why deleting this tenant would be refused, or `undefined` where it would go through.
+ *
+ * {@link isTenantDeletable} called rather than restated, so what a reader is shown before the
+ * deletion and what the deletion decides cannot come to be two rules.
+ *
+ * It takes no action, where the contract's equivalent takes one of three: a selection of tenants
+ * admits deleting and nothing else, and a parameter with one legal value is not a choice. The day
+ * a second action arrives is the day it becomes one.
+ */
+export const whatRefusesTenantDeletion = (contracts: unknown[]) =>
+	isTenantDeletable(contracts) ? undefined : ('holds-contracts' as const);
