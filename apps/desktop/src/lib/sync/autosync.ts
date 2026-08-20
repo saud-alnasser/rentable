@@ -16,6 +16,17 @@ const INITIAL_RETRY_MS = 15_000;
 const MAX_RETRY_MS = 15 * 60_000;
 
 /**
+ * how often a machine that is doing nothing at all still reaches the workspace.
+ *
+ * **Without it, replication is edge-triggered on this machine's own activity**, and one of the two
+ * directions has no edge to ride: a device whose user is reading rather than writing has no
+ * mutation, no reconnection and no reason to pull, so another device's work would not arrive until
+ * somebody here typed something. Five minutes is well inside requirement 15's three-day window, so
+ * it also keeps the session renewed on a machine nobody touches.
+ */
+const HEARTBEAT_MS = 5 * 60_000;
+
+/**
  * the failures no amount of waiting settles. Each ends when someone acts, not when a retry
  * succeeds.
  *
@@ -38,9 +49,12 @@ function shouldRetryAfter(error: unknown) {
  * **This was the Drive autosync manager and it schedules the same way**, because what it
  * schedules is the same shape: work that must be coalesced, must not overlap itself, and must
  * be retried on a widening delay while the reason for failing is one that time can settle.
- * What it dispatches is no longer a push — a replica pushes its own writes — but the reach at
- * the control plane that renews the session, which requirement 15 needs to happen without
- * anybody thinking about it.
+ * **What it dispatches is the reach at the control plane that renews the session, and since #617
+ * the replica's push and pull as well.** It read "no longer a push — a replica pushes its own
+ * writes", which described a library that does not exist: `turso::sync` holds every write until
+ * something calls `push`. This manager is where that call belongs, because the middleware feeding
+ * it already declares which procedures are mutations and this already coalesces them, retries on a
+ * widening delay, and fires when the network comes back.
  */
 export function startWorkspaceSyncManager(input: {
 	onResult?: (detail: WorkspaceSyncEventResult) => Promise<void> | void;
@@ -78,12 +92,30 @@ export function startWorkspaceSyncManager(input: {
 
 		try {
 			const result = await syncWorkspaceNow();
+			await handleResult({
+				action: result.action,
+				errorMessage: null,
+				received: result.received
+			});
+
+			// **A push that did not go arms the ladder**, which nothing else would: a replication
+			// that could not reach the remote is reported rather than thrown, so the `catch` below
+			// never sees it. Without this the only things that ever push again are the next
+			// mutation and the next launch, and a machine on a network with no upstream would hold
+			// a payment until its owner happened to write something else.
+			if (!result.pushed) {
+				const nextDelay = retryDelayMs;
+				retryDelayMs = Math.min(retryDelayMs * 2, MAX_RETRY_MS);
+				timer = window.setTimeout(() => void run(), nextDelay);
+
+				return;
+			}
+
 			retryDelayMs = INITIAL_RETRY_MS;
-			await handleResult({ action: result.action, errorMessage: null });
 		} catch (error) {
 			const message = toErrorText(error, get(LL));
 			await tauri.remoteSync.getState().catch(() => null);
-			await handleResult({ action: 'error', errorMessage: message });
+			await handleResult({ action: 'error', errorMessage: message, received: false });
 
 			if (shouldRetryAfter(error)) {
 				const nextDelay = retryDelayMs;
@@ -104,9 +136,16 @@ export function startWorkspaceSyncManager(input: {
 	const handleOnline = () => schedule({ immediate: true, reason: 'online' });
 	window.addEventListener('online', handleOnline);
 
+	// **The one trigger that is not this machine's own activity.** Everything else here rides an
+	// edge somebody on this device produced — a mutation, a reconnection, a launch — and a device
+	// whose user is reading has none of them. `run` coalesces against itself, so a heartbeat landing
+	// on a dispatch already in flight is dropped rather than queued behind it.
+	const heartbeat = window.setInterval(() => void run(), HEARTBEAT_MS);
+
 	return () => {
 		stopListeningForRequests();
 		window.removeEventListener('online', handleOnline);
+		window.clearInterval(heartbeat);
 		if (timer !== null) {
 			window.clearTimeout(timer);
 		}

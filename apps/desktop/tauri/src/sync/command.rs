@@ -32,6 +32,57 @@ pub async fn remote_sync_renew_session(
     remote_sync.get_state().await
 }
 
+/// Send what this machine wrote, and nothing else.
+///
+/// **The last call of a session pushes and does not pull.** A pull on the way out fetches rows into
+/// a window that is closing, with nothing left to render them and a network round trip standing
+/// between the person and the application shutting; what must not be skipped is the offer of what
+/// they wrote.
+#[tauri::command]
+pub async fn remote_sync_push(app_state: tauri::State<'_, AppState>) -> Result<bool, Error> {
+    Ok(app_state.db.read().await.push_replica().await)
+}
+
+/// Send what this machine wrote, then take what the others wrote.
+///
+/// **Push before pull, and the order is the point.** A pull can bring another device's edit to a
+/// row this machine has also changed; pushing first means what is here has been offered before
+/// anything can land on top of it, so what a losing writer loses is a column rather than a write
+/// that never left. #552's tests measure exactly that.
+///
+/// **Answers whether the pull brought anything**, because the caller has work to do only if it
+/// did: another device's rows change derived state, so they have to be reconciled and the query
+/// cache told. A pull that brought nothing is not an event.
+///
+/// **Neither half failing is an error.** Offline is the ordinary case and requirement 7 is that
+/// the application stays usable through it; what could not be sent stays captured for the next
+/// push, and what could not be fetched is fetched next time.
+#[tauri::command]
+pub async fn remote_sync_replicate(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<Replication, Error> {
+    let db = app_state.db.read().await;
+
+    Ok(Replication {
+        pushed: db.push_replica().await,
+        received: db.pull_replica().await,
+    })
+}
+
+/// what one replication did.
+///
+/// **Both halves are answered, and `pushed` is the one that is easy to leave out.** A push that
+/// could not reach the remote is not an error — the writes stay captured and go with the next one —
+/// but something has to try again, and a caller that cannot tell a push that went from one that did
+/// not has nothing to schedule on. Without it a machine on a network with no upstream sends a
+/// payment at the next mutation, or never.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Replication {
+    pub pushed: bool,
+    pub received: bool,
+}
+
 /// Sign in with Google, and nothing else.
 ///
 /// The workspace is untouched — this establishes who somebody is, which is a

@@ -100,7 +100,17 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
     // says nothing reports until the corruption does. `bootstrap_if_empty(false)` is what makes the
     // replica open anyway; the token function fails per request until a mint succeeds, and reads
     // and writes go on reaching the local file throughout, which is requirement 7.
-    let minted = crate::sync::mint_workspace(app_state).await;
+    // **What this machine is holding, reconciled against what is on disk.** The tracked list is how
+    // a later launch knows a replica exists at all; an entry whose file somebody deleted by hand
+    // would otherwise sit there forever, and a machine that could not say what it holds cannot be
+    // asked to stop holding it.
+    forget_replicas_no_longer_on_disk(app_state).await;
+
+    // **The membership check is the mint**, which is the whole reason this is not a separate call:
+    // the control plane consults membership on every mint, so a refusal naming it is the service
+    // saying this machine should not be holding that replica any more. Every other outcome leaves
+    // the replica where it is.
+    let standing = crate::sync::mint_workspace(app_state).await;
 
     let workspace = {
         let remote_sync = app_state.remote_sync.read().await;
@@ -109,7 +119,48 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
         workspace
             .remote_id
             .clone()
-            .map(|id| (id, minted.or(workspace.remote_url)))
+            .map(|id| (id, workspace.remote_url))
+    };
+
+    if matches!(standing, crate::sync::WorkspaceStanding::MembershipEnded)
+        && let Some((workspace_id, _)) = workspace.as_ref()
+    {
+        release_replica(app_state, workspace_id).await;
+
+        // **The machine has to end up somewhere a person can act from**, and an empty database is
+        // not it: `connect()` opens a file with no schema, the first reconcile throws, and every
+        // later launch repeats the whole thing because nothing cleared the workspace it was refused
+        // from. So the workspace and the session both go, which drops this machine to the sign-in
+        // wall — and signing in gives it a workspace again.
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            if let Err(error) = remote_sync.forget_remote_workspace() {
+                diagnostics::error("startup.replica.notForgotten")
+                    .with("error", error.to_string())
+                    .write();
+            }
+
+            if let Err(error) = remote_sync.forget_control_plane_session() {
+                diagnostics::error("sync.session.notForgotten")
+                    .with("error", error.to_string())
+                    .write();
+            }
+        }
+
+        let mut db = app_state.db.write().await;
+
+        db.disconnect().await;
+
+        return db.connect().await.err();
+    }
+
+    let remote_url = match standing {
+        crate::sync::WorkspaceStanding::Minted(url) => Some(url),
+        // **Offline falls back to the url this machine already recorded**, rather than to the
+        // plain-file arm. Opening `sqlx` on the file the replica owns is two engines over one file,
+        // which `database/mod.rs` says nothing reports until the corruption does.
+        _ => workspace.as_ref().and_then(|(_, url)| url.clone()),
     };
 
     let mut db = app_state.db.write().await;
@@ -119,7 +170,7 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
     // is about to take would be a second writer nothing reports.
     db.disconnect().await;
 
-    let Some((workspace_id, remote_url)) = workspace else {
+    let Some((workspace_id, _)) = workspace else {
         // **No workspace to open, and that is the ordinary state of a machine nobody has signed in
         // on.** The sign-in wall is what the web layer shows; the plain file behind this arm is
         // nobody's workspace, and it is what the seeded and test paths use.
@@ -145,6 +196,28 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
         return Some(error);
     }
 
+    // Every *other* replica this machine holds, asked the same question. The current one was just
+    // answered by the mint above.
+    release_replicas_membership_ended(app_state, Some(&workspace_id)).await;
+
+    // **Tracked from the moment it exists**, so that a later launch knows this machine is holding a
+    // workspace for an account and whose it is. Nothing else records it: the workspace record says
+    // which workspace is *current*, and a machine can hold replicas for accounts nobody is signed
+    // in as.
+    {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let account_id = remote_sync.session_window().map(|window| window.account_id);
+
+        if let Some(account_id) = account_id
+            && let Err(error) =
+                remote_sync.remember_replica(&workspace_id, &account_id, crate::timestamp::now())
+        {
+            diagnostics::error("startup.replica.notTracked")
+                .with("error", error.to_string())
+                .write();
+        }
+    }
+
     // **The schema arrives as replicated pages, so a replica that has never pulled has no tables**
     // — `turso_cdc` and its kin and nothing else. Everything the application does next reads
     // `contract`, `unit` and `payment`, so a first run that skipped this would sign in and then
@@ -164,4 +237,101 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
     }
 
     None
+}
+
+/// Let go of a replica this machine may no longer hold.
+///
+/// **Membership is what kept it, and membership has ended.** Until then a replica is kept
+/// indefinitely — not deleted on sign-out and not on a timer, because somebody who signs out is
+/// usually about to sign back in and a re-pull of a whole workspace is a cost nobody asked for.
+/// What this answers is the other case: the account this machine held it for is no longer a member
+/// of that workspace, so the file is a copy of a ledger nobody here has a right to.
+///
+/// *Directed by the human 2026-08-20.* Requirement 14's organization work is where membership
+/// starts ending routinely; today it ends only where an operator ends it.
+async fn release_replica(app_state: &AppState, workspace_id: &str) {
+    let database_path = { app_state.settings.read().await.database_path.clone() };
+
+    if crate::database::Database::remove_replica(&database_path, workspace_id) {
+        diagnostics::info("startup.replica.released")
+            .with("workspace", workspace_id)
+            .write();
+    }
+
+    // **Forgotten whether or not a file was there.** A replica somebody deleted by hand is still
+    // one this machine has stopped holding, and an entry nothing could clear would have every
+    // launch looking for it forever.
+    let mut remote_sync = app_state.remote_sync.write().await;
+
+    if let Err(error) = remote_sync.forget_replica(workspace_id) {
+        diagnostics::error("startup.replica.notForgotten")
+            .with("error", error.to_string())
+            .write();
+    }
+}
+
+/// Ask, for every replica this machine holds, whether it is still allowed to hold it.
+///
+/// **This is the check over the tracked list**, and it is separate from the current workspace's
+/// because that one is answered by the mint the startup path makes anyway. What this covers is the
+/// rest: a machine that has held workspaces for more than one account, or one whose current
+/// workspace is not the only replica on disk.
+///
+/// **A replica whose account cannot be authenticated as is left alone**, which is most of them
+/// after a sign-out: the credentials went with it, so there is nobody to ask. Membership is what
+/// keeps a replica, and a question that cannot be put is not an answer that membership ended.
+async fn release_replicas_membership_ended(app_state: &AppState, current: Option<&str>) {
+    let held = { app_state.remote_sync.read().await.local_replicas() };
+
+    for replica in held {
+        if current == Some(replica.workspace_id.as_str()) {
+            continue;
+        }
+
+        if matches!(
+            crate::sync::check_membership(app_state, &replica.workspace_id, &replica.account_id)
+                .await,
+            crate::sync::WorkspaceStanding::MembershipEnded
+        ) {
+            release_replica(app_state, &replica.workspace_id).await;
+        }
+    }
+}
+
+/// Drop tracked replicas whose files are gone.
+///
+/// **This deletes nothing.** It is the other direction: a file somebody removed by hand, or a
+/// workspace released on an earlier launch that failed to write the store, leaves an entry naming
+/// a replica this machine does not have. Membership is what removes a replica; this only stops the
+/// list claiming ones that are not there.
+async fn forget_replicas_no_longer_on_disk(app_state: &AppState) {
+    let held = { app_state.remote_sync.read().await.local_replicas() };
+
+    if held.is_empty() {
+        return;
+    }
+
+    let database_path = { app_state.settings.read().await.database_path.clone() };
+
+    let missing: Vec<String> = held
+        .into_iter()
+        .filter(|replica| {
+            !crate::database::Database::replica_path(&database_path, &replica.workspace_id).exists()
+        })
+        .map(|replica| replica.workspace_id)
+        .collect();
+
+    if missing.is_empty() {
+        return;
+    }
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+
+    for workspace_id in &missing {
+        if let Err(error) = remote_sync.forget_replica(workspace_id) {
+            diagnostics::error("startup.replica.notForgotten")
+                .with("error", error.to_string())
+                .write();
+        }
+    }
 }

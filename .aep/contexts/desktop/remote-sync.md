@@ -78,10 +78,12 @@ past it the application locks and a returning network lifts the lock with nobody
 which is the whole difference between a gate and a sign-out.
 
 **Dispatch**:
-Reaching the control plane and reading back what this machine may still do. It is what
-`syncWorkspaceNow` does, what the sync manager schedules, and it is **not a transfer**: a replica
-pushes its own writes.
-_Avoid_: calling it a sync in prose about the client. Nothing is exchanged on this call
+Reaching the control plane, reading back what this machine may still do, and — since #617 —
+pushing what this machine wrote and pulling what the others wrote. It is what `syncWorkspaceNow`
+does and what the sync manager schedules.
+_Avoid_: "sync" for the whole of it in prose about the client — the session reach and the transfer
+are two halves of one dispatch, and naming it for either loses the other. And _avoid_ calling the
+last dispatch of a session a replication: it pushes and does not pull
 
 ## Boundaries
 
@@ -104,6 +106,32 @@ _Avoid_: calling it a sync in prose about the client. Nothing is exchanged on th
   the first's sync metadata. `app.db` stays what the seeded and test paths use; a workspace is
   `workspace-<id>.db` beside it. *What this leaves behind is the previous workspace's file, which
   nothing deletes.*
+- **A pull that brought rows is announced, and that is what makes the query cache safe.** Derived
+  state is computed from rows, so rows from another device can make a status that was right wrong;
+  the dispatch reconciles fully and then invalidates the cache at its root. It is the fourth writer
+  [[rules/data]], under *Query cache*, enumerates, and the enumeration being complete is the whole
+  of what `staleTime: Infinity` rests on.
+- **A replica is kept indefinitely, and membership is what keeps it.** *Directed by the human
+  2026-08-20.* It is not deleted on sign-out and not on a timer: somebody who signs out is usually
+  about to sign back in, and re-pulling a whole workspace to serve that is a cost nobody asked for.
+  What ends a replica is the account it was held for ceasing to be a member of the workspace it
+  holds. Sign-out still pushes first, so nothing waits on a session that is about to go.
+
+  **The mint is the membership check**, which is why there is no second call for it: the control
+  plane consults membership on every mint, so a refusal naming `not_a_member` or `no_such_workspace`
+  is the service saying this machine should not be holding that replica. **Every other outcome
+  keeps it** — a network failure, a declined session, an unreadable answer — because deleting
+  somebody's ledger over a bad connection is the worst mistake available here.
+
+  *Today an account owns its one workspace and membership ends only where an operator ends it, so
+  this mostly answers "still yours". It is built now because requirement 14's organization work is
+  where membership starts ending routinely, and a machine that had been keeping replicas with no
+  rule for removing them would by then hold workspaces its owner was removed from months earlier.*
+
+- **What this machine holds is tracked, and the tracking is reconciled at startup.** Each replica
+  records the workspace and the account whose membership keeps it, because a machine can hold
+  replicas for several accounts and a replica is only checkable while somebody can sign in as its
+  account. The startup pass drops entries whose files are gone; it deletes nothing.
 - **A replica that has never pulled has no schema, and the application says so rather than failing
   on the next statement.** Opening does not block on a pull — that is requirement 7, and
   `bootstrap_if_empty(false)` is what buys it — but a first run has nothing to read until one

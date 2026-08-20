@@ -1,6 +1,10 @@
 import api from '$lib/api/caller';
 import { tauri, type RemoteSyncState } from '$lib/platform/tauri';
-import { syncWorkspaceBeforeExit, syncWorkspaceNow } from '$lib/sync/workspace';
+import {
+	announceReceivedRows,
+	syncWorkspaceBeforeExit,
+	syncWorkspaceNow
+} from '$lib/sync/workspace';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { keys as dashboardKeys } from '$lib/dashboard/query';
 import { LL } from '$lib/i18n/i18n-svelte';
@@ -103,9 +107,13 @@ export function useRestartApp(opts: MutationOptions = {}) {
 /**
  * reach the control plane and keep this machine replicating.
  *
- * *It was `useSyncGoogleDriveWorkspace` and pushed or pulled a whole workspace. Drive sync
- * retired (decision 07); a replica pushes its own writes, so what a person pressing Sync asks
- * for is the one thing left that a person can be waiting on — the window.*
+ * **What a person pressing Sync asks for is both halves**: the window renewed, and this machine's
+ * writes offered and the others' taken.
+ *
+ * *It was `useSyncGoogleDriveWorkspace` and pushed or pulled a whole workspace. Drive sync retired
+ * (decision 07), and the note that replaced it read "a replica pushes its own writes, so what a
+ * person pressing Sync asks for is the one thing left — the window", which was true of no build:
+ * `turso::sync` holds every write until something calls `push`.*
  */
 export function useSyncWorkspace(
 	opts: MutationOptions = {
@@ -123,6 +131,13 @@ export function useSyncWorkspace(
 		onSuccess: async (result) => {
 			client.setQueryData(keys.remoteSync, result.state);
 			await client.invalidateQueries({ queryKey: keys.remoteSync });
+
+			// The pull brought another device's rows, so this is a writer of workspace data and has
+			// to say so. Pressing Sync and being shown the statuses from before the sync is the
+			// shape of an unannounced writer.
+			if (result.received) {
+				await announceReceivedRows(client);
+			}
 
 			// The window has closed. It is not a success and it is not a failure — nothing went
 			// wrong and nothing was lost — so it is neither of the two toasts but the sentence

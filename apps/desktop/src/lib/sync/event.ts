@@ -20,6 +20,15 @@ export type WorkspaceSyncEventResult = {
 	 */
 	action: 'none' | 'signInRequired' | 'error';
 	errorMessage: string | null;
+	/**
+	 * whether the pull that just ran brought another device's writes.
+	 *
+	 * **This is what makes the replica's pull an announcing writer** rather than a silent one:
+	 * derived state is computed from rows, so rows that arrived from elsewhere have to be
+	 * reconciled and the query cache told. `staleTime: Infinity` with an unannounced writer is a
+	 * bug — [[rules/data]], under *Query cache*, is where the enumeration is kept.
+	 */
+	received: boolean;
 };
 
 const REQUEST_EVENT = 'rentable:workspace-sync-request';

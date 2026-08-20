@@ -297,5 +297,15 @@ export type Host = {
 		 * different: the session is given up, and the answer says so by carrying no window.
 		 */
 		renewSession: () => Promise<RemoteSyncState>;
+		/**
+		 * send what this machine wrote, take what the others wrote, and say what each half did.
+		 *
+		 * **`received` is an event and `pushed` is a schedule.** Rows that arrived change derived
+		 * state, so they have to be reconciled and the query cache told; a push that did not go has
+		 * to be tried again, and a caller that could not tell would have nothing to arm a retry on.
+		 */
+		replicate: () => Promise<{ pushed: boolean; received: boolean }>;
+		/** send what this machine wrote and nothing else, for the last call of a session. */
+		push: () => Promise<boolean>;
 	};
 };
