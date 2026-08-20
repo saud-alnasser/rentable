@@ -1125,9 +1125,9 @@ type RootTranslation = {
 			 */
 			authorizing: string
 			/**
-			 * c​o​n​t​i​n​u​e​ ​w​i​t​h​ ​G​o​o​g​l​e
+			 * s​i​g​n​ ​i​n​ ​w​i​t​h​ ​G​o​o​g​l​e
 			 */
-			continueWithGoogle: string
+			signInWithGoogle: string
 			/**
 			 * y​o​u​r​ ​w​o​r​k​s​p​a​c​e​ ​l​i​v​e​s​ ​i​n​ ​y​o​u​r​ ​a​c​c​o​u​n​t​,​ ​s​o​ ​i​t​ ​f​o​l​l​o​w​s​ ​y​o​u​ ​t​o​ ​w​h​i​c​h​e​v​e​r​ ​m​a​c​h​i​n​e​ ​y​o​u​ ​s​i​g​n​ ​i​n​ ​o​n​.​ ​t​h​e​ ​f​i​r​s​t​ ​s​i​g​n​-​i​n​ ​i​s​ ​w​h​a​t​ ​c​r​e​a​t​e​s​ ​i​t​.
 			 */
@@ -1169,11 +1169,7 @@ type RootTranslation = {
 			 */
 			lockedTitle: string
 			/**
-			 * s​i​g​n​i​n​g​ ​i​n​ ​n​e​e​d​s​ ​a​n​ ​i​n​t​e​r​n​e​t​ ​c​o​n​n​e​c​t​i​o​n​.
-			 */
-			networkNotice: string
-			/**
-			 * s​i​g​n​ ​i​n​ ​t​o​ ​r​e​n​t​a​b​l​e
+			 * L​o​g​i​n
 			 */
 			title: string
 		}
@@ -3022,9 +3018,9 @@ export type TranslationFunctions = {
 			 */
 			authorizing: () => LocalizedString
 			/**
-			 * continue with Google
+			 * sign in with Google
 			 */
-			continueWithGoogle: () => LocalizedString
+			signInWithGoogle: () => LocalizedString
 			/**
 			 * your workspace lives in your account, so it follows you to whichever machine you sign in on. the first sign-in is what creates it.
 			 */
@@ -3066,11 +3062,7 @@ export type TranslationFunctions = {
 			 */
 			lockedTitle: () => LocalizedString
 			/**
-			 * signing in needs an internet connection.
-			 */
-			networkNotice: () => LocalizedString
-			/**
-			 * sign in to rentable
+			 * Login
 			 */
 			title: () => LocalizedString
 		}

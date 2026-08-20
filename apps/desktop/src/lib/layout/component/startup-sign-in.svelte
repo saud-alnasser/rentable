@@ -4,8 +4,6 @@
 	import { Button } from '$lib/design/primitive/button';
 	import { Callout, type CalloutVariant } from '$lib/design/primitive/callout';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
-	import LogInIcon from '@lucide/svelte/icons/log-in';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 
 	/**
@@ -15,11 +13,15 @@
 	 * rather than a styling choice — an install nobody has signed in on has no workspace to draw
 	 * from, because signing up is the act that brings one into being.
 	 *
-	 * **It reads as a login screen, and that is a decision the human took on 2026-08-20**: the mark
-	 * and the product name above the title, one notice box, then the way in as a full-width option
-	 * under it. It stays on the shared application surface, which [[rules/interface]] under
-	 * *Application surfaces* requires and which the same conversation confirmed over a page of its
-	 * own.
+	 * **It reads as a login page, and the shape is the human's, settled on screen on 2026-08-20**:
+	 * one word of title, a line under it, air, and the way in. Nothing else. Two versions carrying
+	 * the mark and the product name were built first, one centred above the card following
+	 * `login-03` and one at the top of the card, and both were removed on sight. **A desktop
+	 * window names its application three times before this card gets a turn** — the title bar, the
+	 * taskbar, and the installer that put it there — so a fourth was decoration on the one screen
+	 * that should be quickest to get past. It stays on the shared application surface, which
+	 * [[rules/interface]] under *Application surfaces* requires and which the same conversation
+	 * confirmed over a page of its own.
 	 *
 	 * **Three situations, and the third is why this was rewritten.** Never having signed in, having
 	 * been out of contact past the window, and holding an identity with no session are different
@@ -69,16 +71,20 @@
 	);
 
 	/**
-	 * The box above the options, and what it says decides its colour.
+	 * The box above the way in, and there is one only where something has to be said.
 	 *
-	 * There is always one. A screen whose only content is a button says nothing about why it is in
-	 * front of you, and the three situations differ precisely in that. An attempt that failed is
-	 * the most urgent thing on the screen and takes the error treatment; a machine that has not
-	 * reached the control plane is a warning, because nothing is wrong with the account and the
-	 * next attempt may well work; a first sign-in gets the standing precondition, which is a
-	 * network, and that is information rather than a problem.
+	 * **A notice on every visit is not a notice**, which is the correction the human made on
+	 * 2026-08-20: the card carried a standing information box saying that signing in needs a
+	 * network, on the screen whose own button is about to prove it. A reader who meets a coloured
+	 * panel every time stops reading the one that matters, so the box is now the warning and the
+	 * error and nothing else.
+	 *
+	 * An attempt that failed is the most urgent thing on the screen and takes the error
+	 * treatment. A machine holding an identity it could not open a session with is a warning,
+	 * because nothing is wrong with the account and the next attempt may well work. Everything
+	 * else says what it has to say in the title and the line under it.
 	 */
-	const notice = $derived.by((): { variant: CalloutVariant; message: string } => {
+	const notice = $derived.by((): { variant: CalloutVariant; message: string } | null => {
 		if (errorMessage) {
 			return { variant: 'error', message: errorMessage };
 		}
@@ -87,7 +93,7 @@
 			return { variant: 'warning', message: $LL.layout.signIn.incomplete() };
 		}
 
-		return { variant: 'info', message: $LL.layout.signIn.networkNotice() };
+		return null;
 	});
 
 	/** what the shell is doing, said only while it is doing it. */
@@ -103,22 +109,21 @@
 </script>
 
 <StandaloneSurface {title} {description} busy={isBusy}>
-	{#snippet lead()}
-		<!-- the same mark and name the sidebar carries, because this is the one screen a person can
-		     reach before the sidebar exists, and it should not be the one screen that leaves them
-		     wondering what asked them to sign in. -->
-		<div class="flex items-center gap-2">
-			<InnerShadowTopIcon class="size-5 shrink-0 text-muted-foreground" />
-			<span class="text-sm font-semibold tracking-[0.04em] capitalize">{$LL.app.name()}</span>
-		</div>
-	{/snippet}
+	<!-- the extra step above what the surface gives every screen: with the card down to a title,
+	     a line and a button, the gap between saying what this is and offering the way through it
+	     is the only grouping left to draw. -->
+	<div class="space-y-4 pt-2">
+		{#if notice}
+			<Callout variant={notice.variant}>{notice.message}</Callout>
+		{/if}
 
-	<div class="space-y-4">
-		<Callout variant={notice.variant}>{notice.message}</Callout>
-
-		<!-- the options, full width and stacked, so a second provider is a row rather than a
-		     redesign. Primary solid, the way out styled as a link: *Semantics are secondary*, p.60 -
-		     signing in as somebody else is a real move and almost never the one being made. -->
+		<!-- the way in. **Outlined rather than solid, which is the one place this card argues with
+		     *Semantics are secondary* (p.60) and says why**: that section wants a primary action
+		     solid and high contrast, and it is reasoning about a page where several actions
+		     compete. Nothing competes here. What decides instead is the mark: a provider's logo
+		     belongs on a neutral surface, and Google's on a filled accent button reads as a
+		     generic glyph somebody tinted. Leaving this screen as somebody else stays a link,
+		     which is that same section's tertiary and is not in contest. -->
 		<div class="space-y-2">
 			{#if situation === 'noSession'}
 				<Button class="w-full justify-center" onclick={onRetry} disabled={isBusy}>
@@ -130,9 +135,22 @@
 					{$LL.layout.signIn.useDifferentAccount()}
 				</Button>
 			{:else}
-				<Button class="w-full justify-center" onclick={onSignIn} disabled={isBusy}>
-					<LogInIcon class="size-4" />
-					{isSigningIn ? $LL.common.actions.working() : $LL.layout.signIn.continueWithGoogle()}
+				<Button
+					variant="outline"
+					class="h-10 w-full justify-center"
+					onclick={onSignIn}
+					disabled={isBusy}
+				>
+					<!-- Google's own mark, inlined and drawn in the button's own colour. The coloured
+					     version needs a light plate under it, which this application cannot promise
+					     in both themes. -->
+					<svg viewBox="0 0 24 24" class="size-4 shrink-0" aria-hidden="true">
+						<path
+							d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"
+							fill="currentColor"
+						/>
+					</svg>
+					{isSigningIn ? $LL.common.actions.working() : $LL.layout.signIn.signInWithGoogle()}
 				</Button>
 			{/if}
 		</div>

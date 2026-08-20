@@ -15,12 +15,15 @@
 	 *
 	 * The seam is the body: everything around it is identical for all seven, and what crosses it
 	 * is whatever that screen has to say.
+	 *
+	 * *It grew a `lead` snippet on 2026-08-20 so the sign-in wall could carry the application's
+	 * mark, and lost it the same day: the human took the mark off that screen after looking at it,
+	 * and a slot with no caller is a shape the next screen will fill for a reason nobody argued.*
 	 */
 	let {
 		title,
 		description,
 		busy = false,
-		lead,
 		children,
 		corner,
 		actions,
@@ -32,14 +35,6 @@
 		description?: string;
 		/** Whether the application is working rather than waiting for the reader. */
 		busy?: boolean;
-		/**
-		 * What sits above the title: a mark, a name, whatever says where the reader is.
-		 *
-		 * Optional, and most of the seven screens want nothing here. The one that does is the
-		 * sign-in wall, which is the only one a person can reach before the application has drawn
-		 * anything at all, so it is the only one that has to say which application this is.
-		 */
-		lead?: Snippet;
 		/** What this screen has to say. */
 		children?: Snippet;
 		/**
@@ -64,12 +59,6 @@
 		role={busy ? 'status' : undefined}
 		aria-busy={busy || undefined}
 	>
-		{#if lead}
-			<div class="mb-4">
-				{@render lead()}
-			</div>
-		{/if}
-
 		<div class="flex items-start gap-3">
 			{#if busy}
 				<Spinner class="mt-0.5 size-5 shrink-0 text-muted-foreground" />
