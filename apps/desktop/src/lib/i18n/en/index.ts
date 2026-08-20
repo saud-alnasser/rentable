@@ -379,7 +379,12 @@ const en = {
 			previousVersion: 'previous version',
 			recoveryDetails:
 				'nothing recorded in this workspace is at risk: it is kept for you and this machine holds a copy. if startup still fails, reinstall the previous version before opening rentable again.',
-			recoveryRequiredTitle: 'update recovery required'
+			recoveryRequiredTitle: 'update recovery required',
+			stageAccount: 'checking your account',
+			stageChanges: 'checking for changes',
+			stageRecords: 'bringing records up to date',
+			stageSettings: 'reading your settings',
+			stageWorkspace: 'opening your workspace'
 		}
 	},
 

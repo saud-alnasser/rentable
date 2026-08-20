@@ -1253,6 +1253,26 @@ type RootTranslation = {
 			 * u​p​d​a​t​e​ ​r​e​c​o​v​e​r​y​ ​r​e​q​u​i​r​e​d
 			 */
 			recoveryRequiredTitle: string
+			/**
+			 * c​h​e​c​k​i​n​g​ ​y​o​u​r​ ​a​c​c​o​u​n​t
+			 */
+			stageAccount: string
+			/**
+			 * c​h​e​c​k​i​n​g​ ​f​o​r​ ​c​h​a​n​g​e​s
+			 */
+			stageChanges: string
+			/**
+			 * b​r​i​n​g​i​n​g​ ​r​e​c​o​r​d​s​ ​u​p​ ​t​o​ ​d​a​t​e
+			 */
+			stageRecords: string
+			/**
+			 * r​e​a​d​i​n​g​ ​y​o​u​r​ ​s​e​t​t​i​n​g​s
+			 */
+			stageSettings: string
+			/**
+			 * o​p​e​n​i​n​g​ ​y​o​u​r​ ​w​o​r​k​s​p​a​c​e
+			 */
+			stageWorkspace: string
 		}
 	}
 	dashboard: {
@@ -3220,6 +3240,26 @@ export type TranslationFunctions = {
 			 * update recovery required
 			 */
 			recoveryRequiredTitle: () => LocalizedString
+			/**
+			 * checking your account
+			 */
+			stageAccount: () => LocalizedString
+			/**
+			 * checking for changes
+			 */
+			stageChanges: () => LocalizedString
+			/**
+			 * bringing records up to date
+			 */
+			stageRecords: () => LocalizedString
+			/**
+			 * reading your settings
+			 */
+			stageSettings: () => LocalizedString
+			/**
+			 * opening your workspace
+			 */
+			stageWorkspace: () => LocalizedString
 		}
 	}
 	dashboard: {

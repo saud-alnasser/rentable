@@ -40,6 +40,7 @@
 	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
 	import LayoutStartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
 	import { listenForWindowCloseRequests } from '$lib/layout/event';
+	import { reportStartupComplete, reportStartupStage } from '$lib/layout/startup-stage.svelte';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount } from 'svelte';
@@ -311,6 +312,11 @@
 	}
 
 	async function continueStartup() {
+		// the loading screen's stages, reported where they actually happen. Signing in and
+		// retrying a session both land here rather than at the top, so those paths start the bar
+		// at the third of five, which is what they have genuinely done.
+		reportStartupStage('workspace');
+
 		const recovery = await api.app.bootstrap();
 
 		if (applyRecoveryState(recovery)) {
@@ -333,13 +339,19 @@
 		// reconcile two lines down is a whole-table pass over exactly what a pull would have made
 		// stale, and the render has not happened yet. Every other caller of a dispatch has to
 		// announce, and `announceReceivedRows` is what they call.
+		reportStartupStage('changes');
 		startupRemoteSync = (await syncWorkspaceNow(startupRemoteSync)).state;
 
+		reportStartupStage('records');
 		const { reconciledAt } = await api.app.state.reconcile();
 		lastReconciledUtcDay = toUtcDay(reconciledAt).getTime();
 
 		startupRecovery = null;
 		startupState = 'ready';
+
+		// the last stage is timed by finishing, because nothing follows it to time it.
+		reportStartupComplete();
+
 		await tauri.window.show();
 	}
 
@@ -369,6 +381,7 @@
 	}
 
 	async function startApp() {
+		reportStartupStage('settings');
 		startupState = 'loading';
 		startupError = null;
 		startupRecovery = null;
@@ -381,13 +394,28 @@
 			const settings = await tauri.settings.get();
 			const nextLocale = (settings.locale ?? baseLocale) as Locales;
 
-			for (const locale of locales) {
-				await loadLocaleAsync(locale);
-			}
-
+			// **The reader's own locale first, so the loading screen can be drawn.** *Reordered
+			// 2026-08-20.* This loaded every locale before setting one, and nothing in the tree
+			// renders until `isI18nReady`, so the application's true first frame was an empty
+			// window for the whole of the stage the bar calls `settings` — a loading screen absent
+			// for the first stage of loading fails its own purpose.
+			await loadLocaleAsync(nextLocale);
 			setLocale(nextLocale);
 
 			isI18nReady = true;
+
+			// **The rest still load inside this stage, and the reason is the settings page.**
+			// `changeLocale` there calls `setLocale` without awaiting a load, on the standing
+			// guarantee that every locale is already in memory. Deferring these past startup would
+			// leave that call switching to a dictionary that is not there, so they are merely moved
+			// after the first frame rather than out of the startup path.
+			for (const locale of locales) {
+				if (locale !== nextLocale) {
+					await loadLocaleAsync(locale);
+				}
+			}
+
+			reportStartupStage('account');
 			startupRemoteSync = await tauri.remoteSync.getState();
 
 			// **The wall, and everything below this line is behind it.** The bootstrap opens the
@@ -524,6 +552,8 @@
 					{:else if startupState === 'recovery' && startupRecovery}
 						<LayoutStartupRecovery recovery={startupRecovery} onRetry={() => void startApp()} />
 					{:else if startupState === 'error'}
+						<!-- the reported error does not reach this screen: it is not shown, and nothing
+						     writes it down yet. See the component. -->
 						<LayoutStartupError onRetry={() => void startApp()} />
 					{:else}
 						{@render children?.()}
