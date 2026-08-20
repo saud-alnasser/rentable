@@ -186,6 +186,52 @@ describe('a declared mutation', () => {
 		assert.deepEqual(raised, [{ level: 'error', message: 'something went wrong' }]);
 	});
 
+	// an action over a set has nothing worth saying without this: how many of the twelve went
+	// through is the one thing the reader cannot see for themselves, and before this the
+	// declaration could not carry it and the surface that called the mutation toasted it instead.
+	it('can say what the procedure answered with', async () => {
+		const { mutation } = bind({
+			mutate: async (ids: string[]) => ({ terminated: ids.slice(1) }),
+			touches: ['contracts'],
+			toast: { success: ({ result }) => `${result.terminated.length} terminated` }
+		});
+
+		const result = await mutation.mutationFn(['a', 'b', 'c']);
+
+		await mutation.onSuccess(result, ['a', 'b', 'c'], undefined);
+
+		assert.deepEqual(raised, [{ level: 'success', message: '2 terminated' }]);
+	});
+
+	it('and says nothing where the answer is that nothing happened', async () => {
+		const { mutation } = bind({
+			mutate: async () => ({ terminated: [] as string[] }),
+			touches: ['contracts'],
+			toast: {
+				success: ({ result }) =>
+					result.terminated.length > 0 ? `${result.terminated.length} terminated` : undefined
+			}
+		});
+
+		await mutation.onSuccess({ terminated: [] }, undefined, undefined);
+
+		assert.deepEqual(raised, []);
+	});
+
+	// the older form is a function of nothing, and it stays one. Both are handed the result and
+	// the one that declares no parameter ignores it, which is what keeps this one rule.
+	it('and a message that reads nothing is still resolved when it is raised', async () => {
+		const { mutation } = bind({
+			mutate: async () => ({ id: 4 }),
+			touches: ['contracts'],
+			toast: { success: () => 'contract saved' }
+		});
+
+		await mutation.onSuccess({ id: 4 }, undefined, undefined);
+
+		assert.deepEqual(raised, [{ level: 'success', message: 'contract saved' }]);
+	});
+
 	it('says nothing when the declaration asked for nothing', async () => {
 		const { mutation } = bind({
 			mutate: async () => undefined,
@@ -241,6 +287,35 @@ describe('the offer to take a change back', () => {
 		await mutation.onSuccess(undefined, undefined, undefined);
 
 		assert.deepEqual(raised, [{ level: 'success', message: 'settings saved' }]);
+	});
+
+	// the offer rides on the announcement, so a bulk action that says nothing offers nothing —
+	// which is right, because a bulk action that changed nothing declares no inverse either.
+	it('rides on an announcement that read the result, and goes with one that said nothing', async () => {
+		const declaration: MutationDeclaration<string[], { deleted: string[] }> = {
+			mutate: async (ids) => ({ deleted: ids }),
+			touches: ['contracts'],
+			toast: {
+				success: ({ result }) =>
+					result.deleted.length > 0 ? `${result.deleted.length} deleted` : undefined
+			},
+			inverse: ({ result }) =>
+				result.deleted.length === 0 ? undefined : reversible('deleting 2 contracts')
+		};
+
+		const spoken = bind(declaration);
+
+		await spoken.mutation.onSuccess({ deleted: ['a', 'b'] }, ['a', 'b'], undefined);
+
+		assert.equal(raised.length, 1);
+		assert.equal(raised[0].message, '2 deleted');
+		assert.ok(raised[0].options, 'the offer rides on the announcement');
+
+		const silent = bind(declaration);
+
+		await silent.mutation.onSuccess({ deleted: [] }, [], undefined);
+
+		assert.deepEqual(raised, []);
 	});
 
 	it('is absent where there is no announcement to ride on', async () => {

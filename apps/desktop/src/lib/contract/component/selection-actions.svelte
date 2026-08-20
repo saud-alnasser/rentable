@@ -141,30 +141,19 @@
 		return label ? label(count) : $LL.contracts.selection.refusedMissing({ count });
 	}
 
-	function announce(action: ContractSelectionAction, count: number) {
-		switch (action) {
-			case 'terminate':
-				return $LL.contracts.hooks.terminateManySuccess({ count });
-			case 'restore':
-				return $LL.contracts.hooks.restoreManySuccess({ count });
-			case 'delete':
-				return $LL.contracts.hooks.deleteManySuccess({ count });
-		}
-	}
-
-	/** Carry out one action over one set, and say how many went through and what did not. */
+	/**
+	 * Carry out one action over one set, and say what it turned away.
+	 *
+	 * How many went through is not answered here: each declaration announces its own count
+	 * through the shared handler, which is where every announcement in this application is
+	 * raised from.
+	 */
 	async function carryOut(action: ContractSelectionAction, ids: string[]) {
 		switch (action) {
-			case 'terminate': {
-				const result = await terminateMany.mutateAsync(ids);
-
-				return { changed: result.terminated.length, refused: result.refused };
-			}
-			case 'restore': {
-				const result = await restoreMany.mutateAsync(ids);
-
-				return { changed: result.unterminated.length, refused: result.refused };
-			}
+			case 'terminate':
+				return (await terminateMany.mutateAsync(ids)).refused;
+			case 'restore':
+				return (await restoreMany.mutateAsync(ids)).refused;
 			case 'delete': {
 				const result = await deleteMany.mutateAsync(ids);
 
@@ -175,7 +164,7 @@
 					back.forget(resolve(`/contracts/${contract.id}`));
 				}
 
-				return { changed: result.deleted.length, refused: result.refused };
+				return result.refused;
 			}
 		}
 	}
@@ -189,17 +178,14 @@
 		// what the reader agreed to, held so what actually happened can be compared against it.
 		const foreseen = new Set(plan?.refused.map((refusal) => refusal.id) ?? []);
 
-		const outcome = await carryOut(action, ids);
+		const refused = await carryOut(action, ids);
 
-		if (outcome.changed > 0) {
-			toast.success(announce(action, outcome.changed));
-		}
-
-		// the plan is already in front of the reader, so this speaks only where the workspace moved
-		// underneath it: another device wrote between the two reads and the mutation, which is
-		// authoritative, refused something the confirmation said would go through. Nothing is
-		// retried on their behalf.
-		const unforeseen = outcome.refused.filter((refusal) => !foreseen.has(refusal.id));
+		// what went through has been announced by the declaration behind the call. This is the
+		// other half, and it cannot go there: the declaration sees the result and not the plan the
+		// reader agreed to, and the whole of what makes this worth saying is the difference
+		// between the two. It speaks only where the workspace moved underneath an open
+		// confirmation, and nothing is retried on their behalf.
+		const unforeseen = refused.filter((refusal) => !foreseen.has(refusal.id));
 
 		if (unforeseen.length > 0) {
 			toast.warning(

@@ -376,6 +376,13 @@ export const useTerminateManyContracts = declareMutation({
 	records: ({ result }) =>
 		result.terminated.map((contract) => toContractHistoryEntry(contract, 'terminated')),
 	toast: {
+		// the count, because it is the one thing about a bulk action a reader cannot see for
+		// themselves, and nothing at all where the selection turned out to hold nothing this could
+		// be done to. The confirmation has already said why in that case.
+		success: ({ result }) =>
+			result.terminated.length > 0
+				? get(LL).contracts.hooks.terminateManySuccess({ count: result.terminated.length })
+				: undefined,
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
@@ -405,6 +412,10 @@ export const useRestoreManyContracts = declareMutation({
 	records: ({ result }) =>
 		result.unterminated.map((contract) => toContractHistoryEntry(contract, 'unterminated')),
 	toast: {
+		success: ({ result }) =>
+			result.unterminated.length > 0
+				? get(LL).contracts.hooks.restoreManySuccess({ count: result.unterminated.length })
+				: undefined,
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
@@ -442,6 +453,10 @@ export const useDeleteManyContracts = declareMutation({
 	records: ({ result }) =>
 		result.deleted.map((contract) => toContractHistoryEntry(contract, 'deleted')),
 	toast: {
+		success: ({ result }) =>
+			result.deleted.length > 0
+				? get(LL).contracts.hooks.deleteManySuccess({ count: result.deleted.length })
+				: undefined,
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
