@@ -1226,31 +1226,29 @@ type RootTranslation = {
 			 */
 			accountChoiceEmpty: string
 			/**
-			 * t​h​e​r​e​ ​w​a​s​ ​a​ ​p​r​o​b​l​e​m​ ​c​o​n​n​e​c​t​i​n​g​ ​t​h​e​ ​d​a​t​a​b​a​s​e​ ​o​r​ ​r​u​n​n​i​n​g​ ​s​t​a​r​t​u​p​ ​s​y​n​c​.
+			 * u​p​g​r​a​d​i​n​g​ ​t​o
 			 */
-			failedToStartDescription: string
+			factUpdatingTo: string
 			/**
 			 * f​a​i​l​e​d​ ​t​o​ ​s​t​a​r​t​ ​t​h​e​ ​a​p​p​.
 			 */
 			failedToStartFallback: string
 			/**
-			 * f​a​i​l​e​d​ ​t​o​ ​s​t​a​r​t​ ​t​h​e​ ​a​p​p
+			 * y​o​u​r​ ​w​o​r​k​s​p​a​c​e​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​o​p​e​n​e​d​.​ ​n​o​t​h​i​n​g​ ​r​e​c​o​r​d​e​d​ ​i​n​ ​i​t​ ​i​s​ ​a​t​ ​r​i​s​k​,​ ​i​t​ ​i​s​ ​k​e​p​t​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​i​n​ ​y​o​u​r​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​s​t​a​r​t​i​n​g​ ​a​g​a​i​n​ ​i​s​ ​t​h​e​ ​f​i​r​s​t​ ​t​h​i​n​g​ ​t​o​ ​t​r​y​.
 			 */
-			failedToStartTitle: string
+			failureDescription: string
+			/**
+			 * r​e​n​t​a​b​l​e​ ​c​o​u​l​d​ ​n​o​t​ ​f​i​n​i​s​h​ ​s​t​a​r​t​i​n​g
+			 */
+			failureTitle: string
 			/**
 			 * p​r​e​v​i​o​u​s​ ​v​e​r​s​i​o​n
 			 */
 			previousVersion: string
 			/**
-			 * r​e​n​t​a​b​l​e​ ​d​e​t​e​c​t​e​d​ ​u​p​d​a​t​e​ ​r​e​c​o​v​e​r​y​ ​w​h​i​l​e​ ​s​t​a​r​t​i​n​g​ ​v​{​v​e​r​s​i​o​n​}​.​ ​r​e​t​r​y​ ​s​t​a​r​t​u​p​,​ ​o​r​ ​o​p​e​n​ ​t​h​e​ ​p​r​e​v​i​o​u​s​ ​r​e​l​e​a​s​e​ ​i​f​ ​y​o​u​ ​n​e​e​d​ ​t​o​ ​r​e​i​n​s​t​a​l​l​ ​i​t​.
-			 * @param {unknown} version
+			 * n​o​t​h​i​n​g​ ​r​e​c​o​r​d​e​d​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​a​t​ ​r​i​s​k​:​ ​i​t​ ​i​s​ ​k​e​p​t​ ​f​o​r​ ​y​o​u​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​a​ ​c​o​p​y​.​ ​i​f​ ​s​t​a​r​t​u​p​ ​s​t​i​l​l​ ​f​a​i​l​s​,​ ​r​e​i​n​s​t​a​l​l​ ​t​h​e​ ​p​r​e​v​i​o​u​s​ ​v​e​r​s​i​o​n​ ​b​e​f​o​r​e​ ​o​p​e​n​i​n​g​ ​r​e​n​t​a​b​l​e​ ​a​g​a​i​n​.
 			 */
-			recoveryDescription: RequiredParams<'version'>
-			/**
-			 * n​o​t​h​i​n​g​ ​r​e​c​o​r​d​e​d​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​a​t​ ​r​i​s​k​:​ ​i​t​ ​i​s​ ​k​e​p​t​ ​f​o​r​ ​y​o​u​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​a​ ​c​o​p​y​.​ ​i​f​ ​s​t​a​r​t​u​p​ ​s​t​i​l​l​ ​f​a​i​l​s​,​ ​r​e​i​n​s​t​a​l​l​ ​v​{​p​r​e​v​i​o​u​s​V​e​r​s​i​o​n​}​ ​b​e​f​o​r​e​ ​o​p​e​n​i​n​g​ ​r​e​n​t​a​b​l​e​ ​a​g​a​i​n​.
-			 * @param {unknown} previousVersion
-			 */
-			recoveryDetails: RequiredParams<'previousVersion'>
+			recoveryDetails: string
 			/**
 			 * u​p​d​a​t​e​ ​r​e​c​o​v​e​r​y​ ​r​e​q​u​i​r​e​d
 			 */
@@ -3195,29 +3193,29 @@ export type TranslationFunctions = {
 			 */
 			accountChoiceEmpty: () => LocalizedString
 			/**
-			 * there was a problem connecting the database or running startup sync.
+			 * upgrading to
 			 */
-			failedToStartDescription: () => LocalizedString
+			factUpdatingTo: () => LocalizedString
 			/**
 			 * failed to start the app.
 			 */
 			failedToStartFallback: () => LocalizedString
 			/**
-			 * failed to start the app
+			 * your workspace could not be opened. nothing recorded in it is at risk, it is kept on this machine and in your account, and starting again is the first thing to try.
 			 */
-			failedToStartTitle: () => LocalizedString
+			failureDescription: () => LocalizedString
+			/**
+			 * rentable could not finish starting
+			 */
+			failureTitle: () => LocalizedString
 			/**
 			 * previous version
 			 */
 			previousVersion: () => LocalizedString
 			/**
-			 * rentable detected update recovery while starting v{version}. retry startup, or open the previous release if you need to reinstall it.
+			 * nothing recorded in this workspace is at risk: it is kept for you and this machine holds a copy. if startup still fails, reinstall the previous version before opening rentable again.
 			 */
-			recoveryDescription: (arg: { version: unknown }) => LocalizedString
-			/**
-			 * nothing recorded in this workspace is at risk: it is kept for you and this machine holds a copy. if startup still fails, reinstall v{previousVersion} before opening rentable again.
-			 */
-			recoveryDetails: (arg: { previousVersion: unknown }) => LocalizedString
+			recoveryDetails: () => LocalizedString
 			/**
 			 * update recovery required
 			 */
