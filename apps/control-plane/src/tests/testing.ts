@@ -187,3 +187,63 @@ export const runningControlPlane = async (plane: ControlPlane) => {
 		close: () => new Promise((closed) => server.close(() => closed(undefined)))
 	};
 };
+
+/**
+ * What a route answers with, whichever half of it.
+ *
+ * `fetch` types a decoded body as `unknown` and every assertion over one reaches into it, so the
+ * shape is named once rather than cast at each of a hundred call sites. **The members mirror
+ * `server.ts`'s `wireAccount`, `wireWorkspace` and `wireSession` in full**, because a narrower copy
+ * is a shape nothing produces and the second reader of it cannot tell which fields are missing
+ * because a route omits them and which because somebody typed fewer.
+ *
+ * Here rather than in a test file because two test files need it, and
+ * [[rules/testing]] puts what tests share in this module.
+ */
+export type Answer = {
+	account?: {
+		id: string;
+		email: string;
+		displayName: string;
+		avatarUrl: string | null;
+		googleUserId: string;
+		createdAt: number;
+		updatedAt: number;
+	};
+	workspace?: {
+		id: string;
+		name: string;
+		ownerAccountId: string;
+		createdAt: number;
+		updatedAt: number;
+	};
+	session?: { token: string; expiresAt: number; absoluteExpiresAt: number };
+	token?: string;
+	url?: string;
+	expiresAt?: number;
+	error?: { code: string; message: string };
+	status?: string;
+};
+
+export const answerOf = async (response: Response): Promise<Answer> =>
+	(await response.json()) as Answer;
+
+/**
+ * A request at one of the routes, with a bearer credential unless one is refused outright.
+ *
+ * `token: null` sends no authorization header at all, which is a different case from an
+ * unrecognised one and is the only way to reach the unauthenticated refusal.
+ */
+export const post = (
+	url: string,
+	path: string,
+	{ token = 'a-token', body }: { token?: string | null; body?: unknown } = {}
+) =>
+	fetch(`${url}${path}`, {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			...(token === null ? {} : { authorization: `Bearer ${token}` })
+		},
+		body: typeof body === 'string' ? body : body === undefined ? undefined : JSON.stringify(body)
+	});

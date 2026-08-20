@@ -16,8 +16,10 @@ import {
 import { declineRenewal } from '../../session/session.ts';
 import { targetSchemaVersion } from '../../workspace/migration.ts';
 import {
+	answerOf,
 	freshDatabase,
 	googleVouchingFor,
+	post,
 	runningControlPlane,
 	SOMEBODY,
 	tursoInMemory,
@@ -26,38 +28,6 @@ import {
 
 const AT = Date.UTC(2026, 7, 18, 12, 0, 0);
 const A_DAY = 24 * 60 * 60 * 1000;
-
-/**
- * What a route answers with, whichever half of it. `fetch` types a decoded body as `unknown` and
- * every assertion below reaches into it, so the shape is named once here rather than cast at
- * each of a dozen call sites.
- */
-type Answer = {
-	account?: {
-		id: string;
-		email: string;
-		displayName: string;
-		avatarUrl: string | null;
-		googleUserId: string;
-		createdAt: number;
-		updatedAt: number;
-	};
-	workspace?: {
-		id: string;
-		name: string;
-		ownerAccountId: string;
-		createdAt: number;
-		updatedAt: number;
-	};
-	session?: { token: string; expiresAt: number; absoluteExpiresAt: number };
-	token?: string;
-	url?: string;
-	expiresAt?: number;
-	error?: { code: string; message: string };
-	status?: string;
-};
-
-const answerOf = async (response: Response): Promise<Answer> => (await response.json()) as Answer;
 
 const withControlPlane = async (
 	verifyIdentity: VerifyGoogleIdentity,
@@ -104,20 +74,6 @@ const withControlPlane = async (
 		await closeDatabase();
 	}
 };
-
-const post = (
-	url: string,
-	path: string,
-	{ token = 'a-token', body }: { token?: string | null; body?: unknown } = {}
-) =>
-	fetch(`${url}${path}`, {
-		method: 'POST',
-		headers: {
-			'content-type': 'application/json',
-			...(token === null ? {} : { authorization: `Bearer ${token}` })
-		},
-		body: typeof body === 'string' ? body : body === undefined ? undefined : JSON.stringify(body)
-	});
 
 test('signing in reaches an account', async () => {
 	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
