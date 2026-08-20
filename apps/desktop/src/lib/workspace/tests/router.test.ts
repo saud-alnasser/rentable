@@ -8,18 +8,22 @@ import {
 	isWorkspaceImportable,
 	planWorkspaceImport,
 	toIsoDay,
-	toTransferInput as toInput
+	toTransferInput as toInput,
+	toUnitReference
 } from '../workspace.ts';
 
 /**
  * A workspace built through the ordinary procedures: a tenant, a complex with two units, a
- * contract for that tenant, and a payment against it.
+ * contract for that tenant holding one of them, and a payment against it.
  *
- * The contract holds no unit. It used to ask for one by passing `unitIds` to `contract.create`,
- * which does not take them — the key was dropped at the input boundary and no assignment was
- * ever written, so what is below is what this fixture has always seeded. Saying it properly,
- * through `contract.units.set`, is left alone here: it fails, and the failure is `importWhole`'s
- * rather than this file's.
+ * **The assignment is what makes this fixture worth running.** It used to be asked for by
+ * passing `unitIds` to `contract.create`, which does not take them — the key was dropped at the
+ * input boundary, no assignment row was ever written, and the round trip below compared an
+ * empty list against an empty one for two efforts (#562). It is said properly now, through
+ * `contract.units.set`, which is the only procedure that writes one.
+ *
+ * **Order is load-bearing:** the units are set before the payment, because a contract with a
+ * payment recorded against it refuses to have its units changed.
  */
 async function seedWorkspace(api: Api) {
 	const tenant = await api.tenant.create({
@@ -41,13 +45,17 @@ async function seedWorkspace(api: Api) {
 		cost: 18_000
 	});
 
+	const [unit] = await api.complex.units.getMany({ complexId: complex.id });
+
+	await api.contract.units.set({ contractId: contract.id, unitIds: [unit.id] });
+
 	await api.contract.payments.create({
 		contractId: contract.id,
 		date: monthsFromNow(0),
 		amount: 1500
 	});
 
-	return { tenant, complex, contract };
+	return { tenant, complex, contract, unit };
 }
 
 test('a workspace exported as a file imports into an empty one and reproduces it', async () => {
@@ -71,6 +79,10 @@ test('a workspace exported as a file imports into an empty one and reproduces it
 	// tenant and the unit it holds, and a payment knows its contract — all by name, because that
 	// is the only thing the file carried.
 	assert.deepEqual(read.units, written.units);
+	// stated before the comparison rather than left to it: two empty lists satisfy a deep
+	// equality without the round trip having carried an assignment at all, which is exactly how
+	// this test certified #562 for two efforts.
+	assert.deepEqual(written.contracts[0].units, [toUnitReference('Al Nakheel', 'A1')]);
 	assert.deepEqual(read.payments, written.payments);
 	assert.deepEqual(
 		read.contracts.map((contract) => ({ ...contract, units: [...contract.units] })),
@@ -127,6 +139,34 @@ test('a refused write leaves the workspace exactly as it was', async () => {
 	);
 
 	assert.deepEqual(await api.workspace.get(), before);
+});
+
+test('a unit no sheet answers for is named back the way the file wrote it', async () => {
+	const api = await createApi();
+
+	// the guard behind the planning pass rather than a second one: a file reaching here with an
+	// unresolvable reference has already been refused, and what this pins is that the last resort
+	// still refuses it and still says which unit — as a person spelled it, not as it is keyed.
+	await assert.rejects(
+		api.workspace.importWhole({
+			tenants: [{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966559999999' }],
+			complexes: [{ name: 'Al Waha', location: 'Jeddah' }],
+			units: [],
+			contracts: [
+				{
+					reference: 'GOV-7',
+					tenant: '2234567890',
+					units: [toUnitReference('Al Waha', 'B1')],
+					start: monthsFromNow(-1),
+					end: monthsFromNow(11),
+					interval: '12m',
+					cost: 12_000
+				}
+			],
+			payments: []
+		}),
+		{ message: "no unit called 'Al Waha / B1'" }
+	);
 });
 
 test('a duplicate identity refuses the whole write, creating nothing', async () => {
