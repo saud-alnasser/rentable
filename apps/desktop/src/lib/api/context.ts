@@ -1,4 +1,3 @@
-import { TRPCError } from '@trpc/server';
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 
 import type { Host } from '$lib/platform/host';
@@ -34,19 +33,28 @@ export type { Host };
 /**
  * IDENTITY
  *
- * who is acting.
+ * who is acting, or nobody.
  *
- * **Required, and it was optional for a population that no longer exists.** #547 made it absent
- * in the ordinary case because a local-only workspace had no owner; #571 put a sign-in in front
- * of the whole application, so there is no request without a signed-in user and no procedure
- * has to reason about one.
+ * **It was required, and the premise that made it required is gone.** #547 made it absent in the
+ * ordinary case, because a local-only workspace had no owner. #571 made it required on the ground
+ * that a sign-in stood in front of the whole application, "so there is no request without a
+ * signed-in user". *That sentence stopped being true on 2026-08-20*: requirement 7 of
+ * [[efforts/capabilities-only-one-surface-got]] draws the shell before anybody signs in, and its
+ * account row offers settings — a page that is host-only from end to end and has no business
+ * needing an actor.
  *
- * **This is the shape decision 03 rejected, and the reason it was rejected has to be re-read
- * rather than waved past.** What it called the harder of the two failures was a required
- * identity with an *anonymous placeholder* standing in for absent users — every request
- * carrying a fiction indistinguishable from a real user at every call site. Requirement 3
- * removes the need for the placeholder rather than the objection to it: this is always a real
- * person, and a context that cannot name one refuses instead of inventing one.
+ * **So the absence is expressible again, and the refusal moved rather than went.** It is
+ * `procedure.member`'s now, in `./trpc`, which is a better place for it than here: whether a call
+ * needs an acting user is a property of the call, and a context is not the thing making one. What
+ * is here is the fact — who is acting, or nobody — and the refusal is one middleware away for the
+ * forty-six procedures that need somebody.
+ *
+ * **This is not the shape decision 03 rejected, and the difference is the whole point of `null`.**
+ * What that decision called the harder of the two failures was an *anonymous placeholder* standing
+ * in for absent users — every request carrying a fiction indistinguishable from a real user at
+ * every call site. `null` is the opposite of a fiction: it cannot be mistaken for a person, it
+ * does not type-check where a person is wanted, and the middleware that refuses it is the only
+ * thing between it and a procedure.
  *
  * What a *user record* holds is not settled here — it is the control plane's, and it arrives
  * with the accounts it describes. These three fields are what this application can already
@@ -70,7 +78,8 @@ export type Context = {
 	db: Database;
 	clock: Clock;
 	host: Host;
-	identity: Identity;
+	/** who is acting, or `null` where nobody is signed in on this machine. */
+	identity: Identity | null;
 };
 
 const systemClock: Clock = {
@@ -141,15 +150,9 @@ export const context = async (overrides: Partial<Context> = {}): Promise<Context
 	const clock = overrides.clock ?? systemClock;
 	const identity = overrides.identity ?? (await actingIdentity(host));
 
-	if (!identity) {
-		// Nothing a machine needs before it has an account comes through here. The shell's own
-		// capabilities are the shell's — a window is not a request, and neither is the locale the
-		// sign-in screen is drawn in — so this refuses only what genuinely has an actor to name.
-		throw new TRPCError({
-			code: 'UNAUTHORIZED',
-			message: 'no account is signed in on this machine'
-		});
-	}
-
+	// **Answering with nobody is not the same as letting anybody through.** Forty-six procedures reach
+	// the workspace database and every one of them goes through `procedure.member`, which refuses
+	// exactly this. What is left public is host-only and has no actor to name: this machine's own
+	// settings, its updater, and what the shell knows about syncing.
 	return { db, clock, host, identity };
 };

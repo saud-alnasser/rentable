@@ -10,6 +10,10 @@ import { procedure, router } from '$lib/api/trpc';
  * *It carried a `backup` router beside this one, because backup and sync produced the same
  * snapshots. The backup surface retired with #569 and Turso holds the record, so there are no
  * snapshots for the two to have in common and only the window is left to ask about.*
+ *
+ * **`public`, and this is the one that is worth arguing.** It reads the shell's own record of what
+ * this machine has synced — including whether anybody is signed in — so requiring an acting user
+ * would make it answerable only to the machines whose answer is already known.
  */
 
 export const remoteSync = router({

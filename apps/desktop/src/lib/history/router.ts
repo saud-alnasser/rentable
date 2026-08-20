@@ -35,7 +35,7 @@ export default router({
 	 * application recorded it, and a webview that is wrong about the hour should not be able to
 	 * write a record that disagrees with every other one.
 	 */
-	append: procedure.public
+	append: procedure.member
 		.input(z.object({ entries: z.array(HistoryAppendSchema).min(1) }))
 		.mutation(async ({ input, ctx }) => {
 			const at = new Date(ctx.clock.now());
@@ -61,7 +61,7 @@ export default router({
 	 * Ordered by identity after time, because two entries written in the same millisecond are
 	 * otherwise in no order at all — and the one written second is the one that happened second.
 	 */
-	getMany: procedure.public.input(HistoryReadSchema).query(async ({ input, ctx }) => {
+	getMany: procedure.member.input(HistoryReadSchema).query(async ({ input, ctx }) => {
 		const search = input.search?.trim();
 		const entries = await ctx.db
 			.select()

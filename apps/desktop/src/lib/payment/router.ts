@@ -49,7 +49,7 @@ export default router({
 	 * A payment is reached only through its contract, so a view of one that could not name
 	 * that contract would leave the reader with three figures and no way back.
 	 */
-	get: procedure.public.input(PaymentSchema.pick({ id: true })).query(async ({ input, ctx }) => {
+	get: procedure.member.input(PaymentSchema.pick({ id: true })).query(async ({ input, ctx }) => {
 		const row = await ctx.db
 			.select({
 				payment: s.payment,
@@ -82,7 +82,7 @@ export default router({
 	 * it is what renders that in the reader's locale — and what places it is the contract it
 	 * was made against, which is also the only way back to it.
 	 */
-	search: procedure.public
+	search: procedure.member
 		.input(RecordSearchSchema)
 		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
 			const rows = await ctx.db
@@ -115,7 +115,7 @@ export default router({
 	 * row displays: the display date is localized, and no locale's rendering of it exists in
 	 * the database to compare against.
 	 */
-	getMany: procedure.public
+	getMany: procedure.member
 		.input(
 			PaymentSchema.pick({ contractId: true }).extend({
 				search: z.string().optional(),
@@ -154,7 +154,7 @@ export default router({
 	// an optional id, so undoing a deletion can put the row back with the identity it had — a
 	// page still open on that record is holding a reference to it (ADR 0026). Absent otherwise,
 	// and the engine assigns one.
-	create: procedure.public
+	create: procedure.member
 		.use(autosync())
 		.input(PaymentSchema.partial({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -204,7 +204,7 @@ export default router({
 			return serializePayment(created);
 		}),
 
-	update: procedure.public
+	update: procedure.member
 		.use(autosync())
 		.input(PaymentSchema.pick({ id: true, date: true, amount: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -255,7 +255,7 @@ export default router({
 			return serializePayment(updated);
 		}),
 
-	delete: procedure.public
+	delete: procedure.member
 		.use(autosync())
 		.input(PaymentSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {

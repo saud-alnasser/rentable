@@ -84,7 +84,7 @@ const DashboardInputSchema = z
 	})
 	.optional();
 
-export default procedure.public
+export default procedure.member
 	.input(DashboardInputSchema)
 	.query(async ({ input, ctx }): Promise<DashboardData> => {
 		const now = ctx.clock.now();

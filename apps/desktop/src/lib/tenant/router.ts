@@ -97,7 +97,7 @@ export default router({
 	// an optional id, so undoing a deletion can put the row back with the identity it had — a
 	// page still open on that record is holding a reference to it (ADR 0026). Absent otherwise,
 	// and the engine assigns one.
-	create: procedure.public
+	create: procedure.member
 		.use(autosync())
 		.input(TenantSchema.partial({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -122,7 +122,7 @@ export default router({
 			return created;
 		}),
 
-	update: procedure.public
+	update: procedure.member
 		.use(autosync())
 		.input(TenantSchema.partial({ name: true, nationalId: true, phone: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -171,7 +171,7 @@ export default router({
 			return ensureTenantStillExists(updated);
 		}),
 
-	delete: procedure.public
+	delete: procedure.member
 		.use(autosync())
 		.input(TenantSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -191,7 +191,7 @@ export default router({
 			return ensureTenantStillExists(deleted);
 		}),
 
-	get: procedure.public.input(TenantSchema.partial()).query(async ({ input, ctx }) => {
+	get: procedure.member.input(TenantSchema.partial()).query(async ({ input, ctx }) => {
 		if (input.id) {
 			return await ctx.db.select().from(s.tenant).where(eq(s.tenant.id, input.id)).get();
 		}
@@ -220,7 +220,7 @@ export default router({
 	}),
 
 	/** The tenants a palette search reaches, by name, identity or phone. */
-	search: procedure.public
+	search: procedure.member
 		.input(RecordSearchSchema)
 		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
 			const rows = await ctx.db
@@ -233,7 +233,7 @@ export default router({
 			return rows;
 		}),
 
-	getMany: procedure.public
+	getMany: procedure.member
 		.input(
 			z.object({
 				search: z.string().optional(),

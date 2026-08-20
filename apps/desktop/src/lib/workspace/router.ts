@@ -101,7 +101,7 @@ export default router({
 	 * to be the same string the contracts sheet carries, and two places composing it separately
 	 * is two places for them to drift apart.
 	 */
-	get: procedure.public.query(async ({ ctx }): Promise<WorkspaceTransfer> => {
+	get: procedure.member.query(async ({ ctx }): Promise<WorkspaceTransfer> => {
 		const tenants = await ctx.db
 			.select()
 			.from(s.tenant)
@@ -201,7 +201,7 @@ export default router({
 	 * a thousand records checked one at a time would be a thousand round trips before any of it
 	 * is written, which is the cost the tenant import already reckoned with.
 	 */
-	held: procedure.public.query(async ({ ctx }): Promise<WorkspaceHeld> => {
+	held: procedure.member.query(async ({ ctx }): Promise<WorkspaceHeld> => {
 		const tenants = await ctx.db
 			.select({ nationalId: s.tenant.nationalId, phone: s.tenant.phone })
 			.from(s.tenant);
@@ -260,7 +260,7 @@ export default router({
 	 * workspace as it was when the file was opened, and a record it named may have been deleted
 	 * by hand in between.
 	 */
-	importWhole: procedure.public
+	importWhole: procedure.member
 		.use(autosync())
 		.input(WorkspaceTransferSchema)
 		.mutation(async ({ input, ctx }) => {

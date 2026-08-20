@@ -160,7 +160,7 @@ export default router({
 	 * The id is optional and almost always absent, so undoing a deletion can put the row back
 	 * with the identity it had (ADR 0026).
 	 */
-	create: procedure.public
+	create: procedure.member
 		.use(autosync())
 		.input(ComplexCreateSchema)
 		.mutation(async ({ input, ctx }) => {
@@ -225,7 +225,7 @@ export default router({
 			return { ...created, units: createdUnits.map(([unit]) => unit) };
 		}),
 
-	update: procedure.public
+	update: procedure.member
 		.use(autosync())
 		.input(ComplexSchema.partial({ name: true, location: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -270,7 +270,7 @@ export default router({
 			return ensureComplexStillExists(updated);
 		}),
 
-	delete: procedure.public
+	delete: procedure.member
 		.use(autosync())
 		.input(ComplexSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -292,12 +292,12 @@ export default router({
 			return deleted;
 		}),
 
-	get: procedure.public.input(ComplexSchema.pick({ id: true })).query(async ({ input, ctx }) => {
+	get: procedure.member.input(ComplexSchema.pick({ id: true })).query(async ({ input, ctx }) => {
 		return await ctx.db.select().from(s.complex).where(eq(s.complex.id, input.id)).get();
 	}),
 
 	/** The complexes a palette search reaches, by name or location. */
-	search: procedure.public
+	search: procedure.member
 		.input(RecordSearchSchema)
 		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
 			return await ctx.db
@@ -308,7 +308,7 @@ export default router({
 				.limit(input.limit);
 		}),
 
-	getMany: procedure.public
+	getMany: procedure.member
 		.input(
 			z.object({
 				search: z.string().optional(),
@@ -337,7 +337,7 @@ export default router({
 		// one unit, carrying the complex holding it: a unit is reached only through its complex,
 		// so a view of one that could not name it would send the reader back to find out where
 		// they are.
-		get: procedure.public.input(UnitSchema.pick({ id: true })).query(async ({ input, ctx }) => {
+		get: procedure.member.input(UnitSchema.pick({ id: true })).query(async ({ input, ctx }) => {
 			const unit = await ctx.db
 				.select({
 					id: s.unit.id,
@@ -361,7 +361,7 @@ export default router({
 		}),
 
 		/** The units a palette search reaches, by their own name or the complex holding them. */
-		search: procedure.public
+		search: procedure.member
 			.input(RecordSearchSchema)
 			.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
 				return await ctx.db
@@ -373,7 +373,7 @@ export default router({
 					.limit(input.limit);
 			}),
 
-		getMany: procedure.public
+		getMany: procedure.member
 			.input(UnitSchema.pick({ complexId: true }).extend({ search: z.string().optional() }))
 			.query(async ({ input, ctx }) => {
 				const search = input.search?.trim();
@@ -402,7 +402,7 @@ export default router({
 		// an optional id, so undoing a deletion can put the row back with the identity it had — a
 		// page still open on that record is holding a reference to it (ADR 0026). Absent
 		// otherwise, and the engine assigns one.
-		create: procedure.public
+		create: procedure.member
 			.use(autosync())
 			.input(UnitSchema.omit({ status: true }).partial({ id: true }))
 			.mutation(async ({ input, ctx }) => {
@@ -438,7 +438,7 @@ export default router({
 				return created;
 			}),
 
-		update: procedure.public
+		update: procedure.member
 			.use(autosync())
 			.input(UnitSchema.partial({ name: true, status: true }))
 			.mutation(async ({ input, ctx }) => {
@@ -485,7 +485,7 @@ export default router({
 				return ensureUnitStillExists(updated);
 			}),
 
-		delete: procedure.public
+		delete: procedure.member
 			.use(autosync())
 			.input(UnitSchema.pick({ id: true }))
 			.mutation(async ({ input, ctx }) => {
