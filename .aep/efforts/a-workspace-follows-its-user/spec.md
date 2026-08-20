@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-19
+date: 2026-08-20
 kind: spec
 status: accepted
 ---
@@ -388,9 +388,23 @@ its replacement.*
    version comparison, the artifact choice and the install — and **it did not verify the plugin's
    own check-download-relaunch**, which this criterion still needs and which is cheap to close.
 2. **The application opens exactly one workspace, and there is nothing to choose.**
-   `RemoteSyncState.workspace` stays singular; a search of the tree finds no workspace list, no
-   switcher, and **no mode discriminator** — the `provider` enum and every site branching on it
-   are gone.
+   `RemoteSyncState.workspace` stays singular; a search of the tree finds **no mechanism for
+   opening a second workspace** — nothing that selects one, nothing that creates one, no
+   per-workspace database path, and **no mode discriminator**, the `provider` enum and every site
+   branching on it being gone.
+
+   **Naming what is open is not a mechanism.** A surface may show the workspace this account has
+   and mark it as the open one; what it may not do is offer a second, or offer a way to reach
+   one. The test is whether activating the thing can change which workspace is open, and while
+   an account owns exactly one, nothing can.
+
+   *Rewritten 2026-08-20, on the human's decision, for
+   [[efforts/the-shell-says-whose-workspace-this-is]]. It read: "a search of the tree finds no
+   workspace list, no switcher". That wording made a rendered list of length one a violation, and
+   what this criterion is defending is that there is nothing to switch to rather than that the
+   open workspace goes unnamed. The prohibition is on the mechanism, and it is stricter than the
+   old words in every direction that matters: creating and per-workspace paths were implied
+   before and are named now.*
 
    *Rewritten 2026-08-19. It read: "The workspace's mode is visible to the user and choosable by
    them — neither mode is reached only by editing configuration." There is no mode to show, and
@@ -1796,7 +1810,7 @@ nobody is excited to build does not rot — **is discharged by the mode being re
 | AC | Checked by |
 | --- | --- |
 | 1 | **Manual, unavoidably so, and not met.** A signed-in install, updated through the real updater, reopening its workspace with no login page. Rehearsed 2026-08-18 on `v0.12.0` → `v0.13.0`, which proved the procedure and not the criterion. The plugin's own check-download-relaunch is still unexercised |
-| 2 | A search of the tree for a workspace list, a switcher, or the `provider` discriminator, all returning nothing; plus `RemoteSyncState.workspace` still singular and `Database::FILENAME` still `"app.db"` |
+| 2 | A search of the tree for anything that selects or creates a workspace, for a per-workspace database path, or for the `provider` discriminator, all returning nothing; plus `RemoteSyncState.workspace` still singular and `Database::FILENAME` still `"app.db"`. **A surface naming the open workspace passes**, and the check is that activating it changes nothing |
 | 3 | A clean-install run reaching sign-in and nothing else. Partly automatable — that no surface renders workspace data before an account exists is a routing assertion; that the application *feels* like a wall is not |
 | 4, 5 | Two installations and one account, manual. 5 is the one that cannot be faked: a workspace created on A, present with its data on B, with no file copied |
 | 6 | After a first sign-up: one workspace database for the account, every declared table present, **every primary and foreign key `TEXT`**, no `idmap` surviving, and the client's `WORKSPACE_SCHEMA_VERSION` equal to the version recorded against the workspace. Automatable end to end against a live account, and it is the criterion that replaced the conversion one |
@@ -3098,7 +3112,7 @@ network survivable, and the user running this is the one most likely to have one
 
 **What happens to the local file afterwards.** It stays where it is and the application stops
 treating it as the workspace. It is not opened, it is not listed as a second workspace, and
-acceptance criterion 2's *a search of the tree finds no workspace list and no switcher* is
+acceptance criterion 2's prohibition on *a mechanism for opening a second workspace* is
 unaffected. What the application says about it is one line in settings — the file, the date it was
 converted, and a reveal-in-folder action, the shape the export already uses. **What it must not do
 is offer to open it**, because an offer to open it is the switcher this effort does not have.
