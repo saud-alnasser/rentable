@@ -1,4 +1,4 @@
-import type { Context } from '$lib/api/context';
+import type { Context, Database } from '$lib/api/context';
 import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
 import { matchesAnySearch } from '$lib/platform/database/search';
 import { ensureIdFree, newId } from '$lib/platform/database/identity';
@@ -8,12 +8,18 @@ import { autosync, procedure, router } from '$lib/api/trpc';
 import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
 import {
 	COMPLEX_SORT_COLUMN_IDS,
+	ensureComplexDeletable,
+	ensureComplexNameAvailable,
 	ensureComplexStillExists,
+	ensureUnitDeletable,
+	ensureUnitNameAvailable,
 	ensureUnitNamesDistinct,
 	ensureUnitStillExists,
-	isComplexDeletable,
-	isUnitDeletable,
-	type ComplexSortColumnId
+	whatRefusesComplexDeletion,
+	whatRefusesUnitDeletion,
+	type ComplexRefusalReason,
+	type ComplexSortColumnId,
+	type UnitRefusalReason
 } from '$lib/complex/complex';
 import { CONTRACT_OCCUPYING_STATUSES, deriveUnitStatuses } from '$lib/contract/contract';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
@@ -107,6 +113,132 @@ function occupyingTenantName(now: DateLike) {
 	return sql<string | null>`(${occupant})`;
 }
 
+type DbComplex = typeof s.complex.$inferSelect;
+type DbUnit = typeof s.unit.$inferSelect;
+
+/** A record that would be turned away, named the way a reader knows one. */
+type ComplexRefusal = { id: string; name: string; reason: ComplexRefusalReason };
+type UnitRefusal = { id: string; name: string; reason: UnitRefusalReason };
+
+/**
+ * What deleting a whole selection of complexes would do, from one read of the workspace.
+ *
+ * **The plan and the mutation are the same call.** `complex.planMany` and `complex.deleteMany`
+ * both go through this, so the confirmation shows what the deletion is about to decide rather
+ * than a second opinion about it. They can still disagree about the *workspace*, because another
+ * device may write between the two, and that is why the mutation runs this again instead of
+ * trusting what the reader was shown.
+ *
+ * One read per table for the whole selection, never one per record.
+ */
+async function planComplexSelection(db: Database, ids: readonly string[]) {
+	const named = [...new Set(ids)];
+
+	const existing = await db.select().from(s.complex).where(inArray(s.complex.id, named));
+	const complexesById = new Map(existing.map((complex) => [complex.id, complex]));
+
+	// the complex each unit belongs to and nothing else: the rule asks whether any unit belongs
+	// to the complex, so a directory of five hundred selected complexes never carries their units.
+	const held = await db
+		.select({ complexId: s.unit.complexId })
+		.from(s.unit)
+		.where(inArray(s.unit.complexId, named));
+	const unitsByComplexId = new Map<string, { complexId: string }[]>();
+
+	for (const unit of held) {
+		const holding = unitsByComplexId.get(unit.complexId) ?? [];
+
+		holding.push(unit);
+		unitsByComplexId.set(unit.complexId, holding);
+	}
+
+	const eligible: DbComplex[] = [];
+	const refused: ComplexRefusal[] = [];
+
+	// walked in the order the reader named them, so what the confirmation lists reads the way the
+	// selection does rather than the way the engine happened to answer.
+	for (const id of named) {
+		const complex = complexesById.get(id);
+
+		if (!complex) {
+			refused.push({ id, name: '', reason: 'missing' });
+
+			continue;
+		}
+
+		const reason = whatRefusesComplexDeletion(unitsByComplexId.get(id) ?? []);
+
+		if (reason) {
+			refused.push({ id, name: complex.name, reason });
+		} else {
+			eligible.push(complex);
+		}
+	}
+
+	return { eligible, refused };
+}
+
+/**
+ * The same, one level down, for a selection of units.
+ *
+ * **Every assignment counts, and this is the case that decided the whole approach.** A unit is
+ * refused for holding any assignment ever, and its row carries `status`, where `vacant` says
+ * only that no assignment is current. A unit whose only contract starts next month is vacant on
+ * screen and undeletable, so a confirmation built from the rows would have offered to delete it
+ * and then been refused.
+ */
+async function planUnitSelection(db: Database, ids: readonly string[]) {
+	const named = [...new Set(ids)];
+
+	const existing = await db.select().from(s.unit).where(inArray(s.unit.id, named));
+	const unitsById = new Map(existing.map((unit) => [unit.id, unit]));
+
+	const held = await db
+		.select({ unitId: s.contractUnit.unitId })
+		.from(s.contractUnit)
+		.where(inArray(s.contractUnit.unitId, named));
+	const assignmentsByUnitId = new Map<string, { unitId: string }[]>();
+
+	for (const assignment of held) {
+		const holding = assignmentsByUnitId.get(assignment.unitId) ?? [];
+
+		holding.push(assignment);
+		assignmentsByUnitId.set(assignment.unitId, holding);
+	}
+
+	const eligible: DbUnit[] = [];
+	const refused: UnitRefusal[] = [];
+
+	for (const id of named) {
+		const unit = unitsById.get(id);
+
+		if (!unit) {
+			refused.push({ id, name: '', reason: 'missing' });
+
+			continue;
+		}
+
+		const reason = whatRefusesUnitDeletion(assignmentsByUnitId.get(id) ?? []);
+
+		if (reason) {
+			refused.push({ id, name: unit.name, reason });
+		} else {
+			eligible.push(unit);
+		}
+	}
+
+	return { eligible, refused };
+}
+
+/**
+ * A unit name as its uniqueness is actually scoped: within the complex holding it.
+ *
+ * Two complexes may each hold an *A1*, so a set of bare names answers the wrong question. The
+ * separator is a character no name can contain.
+ */
+const withinComplex = (unit: { complexId: string; name: string }) =>
+	`${unit.complexId}\u0000${unit.name}`;
+
 async function getUnitsWithDerivedStatus(
 	ctx: Pick<Context, 'db' | 'clock'>,
 	units: (typeof s.unit.$inferSelect)[]
@@ -172,18 +304,9 @@ export default router({
 					: await ctx.db.select().from(s.complex).where(eq(s.complex.id, complex.id)).get()
 			);
 
-			const isNameUsed = await ctx.db
-				.select()
-				.from(s.complex)
-				.where(eq(s.complex.name, complex.name))
-				.get();
-
-			if (isNameUsed) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'name is associated with a previously registered complex'
-				});
-			}
+			ensureComplexNameAvailable(
+				await ctx.db.select().from(s.complex).where(eq(s.complex.name, complex.name)).get()
+			);
 
 			const named = units.map((unit) => ({ ...unit, name: unit.name.trim() }));
 
@@ -274,14 +397,9 @@ export default router({
 		.use(autosync())
 		.input(ComplexSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
-			const units = await ctx.db.select().from(s.unit).where(eq(s.unit.complexId, input.id));
-
-			if (!isComplexDeletable(units)) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'cannot delete complex with associated units'
-				});
-			}
+			ensureComplexDeletable(
+				await ctx.db.select().from(s.unit).where(eq(s.unit.complexId, input.id))
+			);
 
 			const deleted = await ctx.db
 				.delete(s.complex)
@@ -290,6 +408,103 @@ export default router({
 				.get();
 
 			return deleted;
+		}),
+
+	/**
+	 * What deleting the complexes named would do, before any of it is done.
+	 *
+	 * Asked of the workspace rather than read off the rows, even though a directory row carries
+	 * `unitCount` and could answer. An application that plans some of its actions from the row and
+	 * the rest from a query has two answers to one question, which is what the effort behind this
+	 * exists to remove.
+	 *
+	 * A query rather than a mutation: it reads and writes nothing.
+	 */
+	planMany: procedure.member
+		.input(z.object({ ids: z.array(ComplexSchema.shape.id).min(1) }))
+		.query(async ({ input, ctx }) => {
+			const plan = await planComplexSelection(ctx.db, input.ids);
+
+			return { eligible: plan.eligible.map((complex) => complex.id), refused: plan.refused };
+		}),
+
+	/**
+	 * Delete every complex named that holds no unit, and say which of them could not be.
+	 *
+	 * **One delete over the whole set, not one per record.** A selection is one thing the reader
+	 * asked for, and issuing it as N calls costs a round trip and a sync pass per record for work
+	 * one statement does.
+	 *
+	 * **No reconcile pass.** A complex carries nothing derived, and one that may be deleted at all
+	 * holds no unit, so nothing derived was resting on it either. That is the same reason the
+	 * single-record deletion above runs none.
+	 */
+	deleteMany: procedure.member
+		.use(autosync())
+		.input(z.object({ ids: z.array(ComplexSchema.shape.id).min(1) }))
+		.mutation(async ({ input, ctx }) => {
+			const plan = await planComplexSelection(ctx.db, input.ids);
+			const deletableIds = plan.eligible.map((complex) => complex.id);
+
+			if (deletableIds.length) {
+				await ctx.db.delete(s.complex).where(inArray(s.complex.id, deletableIds));
+			}
+
+			return { deleted: plan.eligible, refused: plan.refused };
+		}),
+
+	/**
+	 * Put a set of complexes back, all of them or none.
+	 *
+	 * What undoing {@link deleteMany} calls, and the reason it is all or nothing: a set half
+	 * restored leaves the workspace in a shape neither the deletion nor the undo describes. One
+	 * batch, and the boundary runs a batch inside one transaction (ADR 0027), so a refusal
+	 * anywhere in the set creates nothing.
+	 *
+	 * **It throws rather than reporting**, which is what leaves the entry on the undo stack: an
+	 * inverse that threw did not move the workspace, so the reader can deal with whatever refused
+	 * it and press undo again. Every refusal names the complex it is about.
+	 *
+	 * No units, unlike {@link create}: a complex that could be deleted held none, so a complex
+	 * this puts back has none to put back with it.
+	 */
+	createMany: procedure.member
+		.use(autosync())
+		.input(z.object({ complexes: z.array(ComplexSchema.partial({ id: true })).min(1) }))
+		.mutation(async ({ input, ctx }) => {
+			const named = input.complexes.map((complex) => ({ ...complex, id: complex.id ?? newId() }));
+			const ids = named.map((complex) => complex.id);
+			const names = named.map((complex) => complex.name);
+
+			// the set against itself, on both things a complex is unique by, before it is weighed
+			// against the workspace at all. A set that contradicts itself is a contradiction the
+			// engine would only report part-way through, and this write is meant to land whole or
+			// not at all.
+			const repeated =
+				ids.find((id, index) => ids.indexOf(id) !== index) ??
+				names.find((name, index) => names.indexOf(name) !== index);
+
+			if (repeated) {
+				throw new TRPCError({
+					code: 'BAD_REQUEST',
+					message: `two complexes in this set claim ${repeated}`
+				});
+			}
+
+			const held = await ctx.db.select().from(s.complex).where(inArray(s.complex.id, ids));
+
+			ensureIdFree(held[0], held[0]?.id);
+
+			const taken = await ctx.db.select().from(s.complex).where(inArray(s.complex.name, names));
+
+			ensureComplexNameAvailable(taken[0], taken[0]?.name);
+
+			const [first, ...rest] = named.map((complex) =>
+				ctx.db.insert(s.complex).values(complex).returning()
+			);
+			const created = await ctx.db.batch([first, ...rest]);
+
+			return created.map(([complex]) => complex);
 		}),
 
 	get: procedure.member.input(ComplexSchema.pick({ id: true })).query(async ({ input, ctx }) => {
@@ -412,18 +627,15 @@ export default router({
 						: await ctx.db.select().from(s.unit).where(eq(s.unit.id, input.id)).get()
 				);
 
-				const isNameUsed = await ctx.db
-					.select()
-					.from(s.unit)
-					.where(sql`${s.unit.name} = ${input.name} AND ${s.unit.complexId} == ${input.complexId}`)
-					.get();
-
-				if (isNameUsed) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'name is associated with a unit in the same complex'
-					});
-				}
+				ensureUnitNameAvailable(
+					await ctx.db
+						.select()
+						.from(s.unit)
+						.where(
+							sql`${s.unit.name} = ${input.name} AND ${s.unit.complexId} == ${input.complexId}`
+						)
+						.get()
+				);
 
 				const created = await ctx.db
 					.insert(s.unit)
@@ -444,7 +656,7 @@ export default router({
 			.mutation(async ({ input, ctx }) => {
 				// presence, not truthiness: the schema admits '' for name, and a present value
 				// must hit the uniqueness check exactly when the set clause would write it.
-				const isNameUsed =
+				ensureUnitNameAvailable(
 					input.name !== undefined
 						? await ctx.db
 								.select()
@@ -453,14 +665,8 @@ export default router({
 									sql`${s.unit.name} = ${input.name} AND ${s.unit.complexId} == ${input.complexId} AND ${s.unit.id} != ${input.id}`
 								)
 								.get()
-						: null;
-
-				if (isNameUsed) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'name is associated with a unit in the same complex'
-					});
-				}
+						: null
+				);
 
 				const values = {
 					...(input.name !== undefined ? { name: input.name } : {}),
@@ -489,17 +695,9 @@ export default router({
 			.use(autosync())
 			.input(UnitSchema.pick({ id: true }))
 			.mutation(async ({ input, ctx }) => {
-				const contracts = await ctx.db
-					.select()
-					.from(s.contractUnit)
-					.where(eq(s.contractUnit.unitId, input.id));
-
-				if (!isUnitDeletable(contracts)) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'cannot delete unit with associated contracts'
-					});
-				}
+				ensureUnitDeletable(
+					await ctx.db.select().from(s.contractUnit).where(eq(s.contractUnit.unitId, input.id))
+				);
 
 				const deleted = await ctx.db
 					.delete(s.unit)
@@ -508,6 +706,123 @@ export default router({
 					.get();
 
 				return deleted;
+			}),
+
+		/**
+		 * What deleting the units named would do, before any of it is done.
+		 *
+		 * **This is the reading no row can replace.** A unit is refused for holding any assignment
+		 * ever, and its row carries a status derived from what holds it *today*, so a unit with a
+		 * contract starting next month shows as vacant and cannot be deleted. The spec settled on
+		 * plan queries rather than previewing from rows on exactly this case.
+		 *
+		 * A query rather than a mutation: it reads and writes nothing.
+		 */
+		planMany: procedure.member
+			.input(z.object({ ids: z.array(UnitSchema.shape.id).min(1) }))
+			.query(async ({ input, ctx }) => {
+				const plan = await planUnitSelection(ctx.db, input.ids);
+
+				return { eligible: plan.eligible.map((unit) => unit.id), refused: plan.refused };
+			}),
+
+		/**
+		 * Delete every unit named that no contract has ever held, and say which could not be.
+		 *
+		 * **One delete over the whole set, not one per record**, for the reason the complex half
+		 * above gives.
+		 *
+		 * **No reconcile pass, and nothing writes a status here.** A unit that may be deleted at
+		 * all has never been assigned, so no contract's derived state named it and no other unit's
+		 * did either. Occupancy moves through reconciliation alone, and this mutation gives it
+		 * nothing to move: what it removed was already outside every touch-set.
+		 */
+		deleteMany: procedure.member
+			.use(autosync())
+			.input(z.object({ ids: z.array(UnitSchema.shape.id).min(1) }))
+			.mutation(async ({ input, ctx }) => {
+				const plan = await planUnitSelection(ctx.db, input.ids);
+				const deletableIds = plan.eligible.map((unit) => unit.id);
+
+				if (deletableIds.length) {
+					await ctx.db.delete(s.unit).where(inArray(s.unit.id, deletableIds));
+				}
+
+				return { deleted: plan.eligible, refused: plan.refused };
+			}),
+
+		/**
+		 * Put a set of units back, all of them or none.
+		 *
+		 * What undoing {@link deleteMany} calls; see the complex's own for why it is all or
+		 * nothing and why it throws rather than reporting.
+		 *
+		 * **The status is set rather than restored**, exactly as the single-record creation does
+		 * it: a unit that could be deleted had never been assigned, so `vacant` is not a default
+		 * standing in for what it was; it is what it was.
+		 */
+		createMany: procedure.member
+			.use(autosync())
+			.input(
+				z.object({
+					units: z.array(UnitSchema.omit({ status: true }).partial({ id: true })).min(1)
+				})
+			)
+			.mutation(async ({ input, ctx }) => {
+				// the name is not trimmed here, where the single-record creation beside it does not
+				// trim either: putting a record back means putting it back as itself, and a restore
+				// that tidied the name would hand back a unit the reader did not delete.
+				const named = input.units.map((unit) => ({ ...unit, id: unit.id ?? newId() }));
+				const ids = named.map((unit) => unit.id);
+
+				const repeated = ids.find((id, index) => ids.indexOf(id) !== index);
+
+				if (repeated) {
+					throw new TRPCError({
+						code: 'BAD_REQUEST',
+						message: `two units in this set claim ${repeated}`
+					});
+				}
+
+				// a unit's name is unique within its complex rather than across the workspace, so the
+				// set is checked per complex. `ensureUnitNamesDistinct` reads one complex's worth.
+				const byComplexId = new Map<string, string[]>();
+
+				for (const unit of named) {
+					const holding = byComplexId.get(unit.complexId) ?? [];
+
+					holding.push(unit.name);
+					byComplexId.set(unit.complexId, holding);
+				}
+
+				for (const names of byComplexId.values()) {
+					ensureUnitNamesDistinct(names);
+				}
+
+				const held = await ctx.db.select().from(s.unit).where(inArray(s.unit.id, ids));
+
+				ensureIdFree(held[0], held[0]?.id);
+
+				// one read for the whole set: every unit already in any complex the set names, so
+				// the collision is found here rather than one query per unit.
+				const neighbours = await ctx.db
+					.select({ name: s.unit.name, complexId: s.unit.complexId })
+					.from(s.unit)
+					.where(inArray(s.unit.complexId, [...byComplexId.keys()]));
+				const takenNames = new Set(neighbours.map(withinComplex));
+				const colliding = named.find((unit) => takenNames.has(withinComplex(unit)));
+
+				ensureUnitNameAvailable(colliding, colliding?.name);
+
+				const [first, ...rest] = named.map((unit) =>
+					ctx.db
+						.insert(s.unit)
+						.values({ ...unit, status: 'vacant' })
+						.returning()
+				);
+				const created = await ctx.db.batch([first, ...rest]);
+
+				return created.map(([unit]) => unit);
 			})
 	}
 });

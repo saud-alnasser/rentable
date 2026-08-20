@@ -490,8 +490,10 @@ const en = {
 	complexes: {
 		hooks: {
 			createSuccess: 'complex created successfully!',
+			deleteManySuccess: '{count|number} complex(es) deleted',
 			deleteSuccess: 'complex deleted successfully!',
 			unitCreateSuccess: 'unit created successfully!',
+			unitDeleteManySuccess: '{count|number} unit(s) deleted',
 			unitDeleteSuccess: 'unit deleted successfully!',
 			unitUpdateSuccess: 'unit updated successfully!',
 			updateSuccess: 'complex updated successfully!'
@@ -506,6 +508,19 @@ const en = {
 			unitRangeEndBeforeStart: 'the last number must not be below the first.',
 			unitRangeHint: 'one name, or a run — "a 1-18" adds a 1 through a 18.',
 			unitRangeTooLarge: 'a run adds at most {max:number} units at a time.'
+		},
+
+		selection: {
+			deleteSummary: '{count|number} complex(es) will be deleted',
+			deleteTitle: 'delete complexes',
+			refusedHoldsUnits: '{count|number} still hold units',
+			refusedMissing: '{count|number} are no longer in the workspace',
+			unitDeleteSummary: '{count|number} unit(s) will be deleted',
+			unitDeleteTitle: 'delete units',
+			// every contract that ever mentioned it, not the one holding it today: a unit reading
+			// as vacant on the list can still be one no deletion may touch.
+			unitRefusedHoldsContracts: '{count|number} are mentioned by a contract',
+			unitRefusedMissing: '{count|number} are no longer in the workspace'
 		},
 
 		units: {

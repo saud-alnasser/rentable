@@ -1540,6 +1540,11 @@ type RootTranslation = {
 			 */
 			createSuccess: string
 			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​m​p​l​e​x​(​e​s​)​ ​d​e​l​e​t​e​d
+			 * @param {unknown} count
+			 */
+			deleteManySuccess: RequiredParams<'count|number'>
+			/**
 			 * c​o​m​p​l​e​x​ ​d​e​l​e​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
 			deleteSuccess: string
@@ -1547,6 +1552,11 @@ type RootTranslation = {
 			 * u​n​i​t​ ​c​r​e​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
 			unitCreateSuccess: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​u​n​i​t​(​s​)​ ​d​e​l​e​t​e​d
+			 * @param {unknown} count
+			 */
+			unitDeleteManySuccess: RequiredParams<'count|number'>
 			/**
 			 * u​n​i​t​ ​d​e​l​e​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
@@ -1595,6 +1605,46 @@ type RootTranslation = {
 			 * @param {number} max
 			 */
 			unitRangeTooLarge: RequiredParams<'max'>
+		}
+		selection: {
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​m​p​l​e​x​(​e​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
+			 * @param {unknown} count
+			 */
+			deleteSummary: RequiredParams<'count|number'>
+			/**
+			 * d​e​l​e​t​e​ ​c​o​m​p​l​e​x​e​s
+			 */
+			deleteTitle: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​s​t​i​l​l​ ​h​o​l​d​ ​u​n​i​t​s
+			 * @param {unknown} count
+			 */
+			refusedHoldsUnits: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​r​e​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e
+			 * @param {unknown} count
+			 */
+			refusedMissing: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​u​n​i​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
+			 * @param {unknown} count
+			 */
+			unitDeleteSummary: RequiredParams<'count|number'>
+			/**
+			 * d​e​l​e​t​e​ ​u​n​i​t​s
+			 */
+			unitDeleteTitle: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​r​e​ ​m​e​n​t​i​o​n​e​d​ ​b​y​ ​a​ ​c​o​n​t​r​a​c​t
+			 * @param {unknown} count
+			 */
+			unitRefusedHoldsContracts: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​r​e​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e
+			 * @param {unknown} count
+			 */
+			unitRefusedMissing: RequiredParams<'count|number'>
 		}
 		units: {
 			/**
@@ -3635,6 +3685,10 @@ export type TranslationFunctions = {
 			 */
 			createSuccess: () => LocalizedString
 			/**
+			 * {count|number} complex(es) deleted
+			 */
+			deleteManySuccess: (arg: { count: unknown }) => LocalizedString
+			/**
 			 * complex deleted successfully!
 			 */
 			deleteSuccess: () => LocalizedString
@@ -3642,6 +3696,10 @@ export type TranslationFunctions = {
 			 * unit created successfully!
 			 */
 			unitCreateSuccess: () => LocalizedString
+			/**
+			 * {count|number} unit(s) deleted
+			 */
+			unitDeleteManySuccess: (arg: { count: unknown }) => LocalizedString
 			/**
 			 * unit deleted successfully!
 			 */
@@ -3688,6 +3746,40 @@ export type TranslationFunctions = {
 			 * a run adds at most {max} units at a time.
 			 */
 			unitRangeTooLarge: (arg: { max: number }) => LocalizedString
+		}
+		selection: {
+			/**
+			 * {count|number} complex(es) will be deleted
+			 */
+			deleteSummary: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * delete complexes
+			 */
+			deleteTitle: () => LocalizedString
+			/**
+			 * {count|number} still hold units
+			 */
+			refusedHoldsUnits: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} are no longer in the workspace
+			 */
+			refusedMissing: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} unit(s) will be deleted
+			 */
+			unitDeleteSummary: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * delete units
+			 */
+			unitDeleteTitle: () => LocalizedString
+			/**
+			 * {count|number} are mentioned by a contract
+			 */
+			unitRefusedHoldsContracts: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} are no longer in the workspace
+			 */
+			unitRefusedMissing: (arg: { count: unknown }) => LocalizedString
 		}
 		units: {
 			/**

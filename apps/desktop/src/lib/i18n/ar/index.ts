@@ -483,8 +483,10 @@ const ar = {
 	complexes: {
 		hooks: {
 			createSuccess: 'تم إنشاء المجمع بنجاح!',
+			deleteManySuccess: 'تم حذف {count|number} مجمع',
 			deleteSuccess: 'تم حذف المجمع بنجاح!',
 			unitCreateSuccess: 'تم إنشاء الوحدة بنجاح!',
+			unitDeleteManySuccess: 'تم حذف {count|number} وحدة',
 			unitDeleteSuccess: 'تم حذف الوحدة بنجاح!',
 			unitUpdateSuccess: 'تم تحديث الوحدة بنجاح!',
 			updateSuccess: 'تم تحديث المجمع بنجاح!'
@@ -499,6 +501,17 @@ const ar = {
 			unitRangeEndBeforeStart: 'يجب ألا يقل الرقم الأخير عن الرقم الأول.',
 			unitRangeHint: 'اسم واحد، أو مجموعة — «أ 1-18» تضيف أ 1 حتى أ 18.',
 			unitRangeTooLarge: 'تضيف المجموعة الواحدة {max} وحدة كحد أقصى في المرة.'
+		},
+
+		selection: {
+			deleteSummary: 'سيتم حذف {count|number} مجمع',
+			deleteTitle: 'حذف المجمعات',
+			refusedHoldsUnits: '{count|number} ما زالت تحمل وحدات',
+			refusedMissing: '{count|number} لم تعد موجودة في مساحة العمل',
+			unitDeleteSummary: 'سيتم حذف {count|number} وحدة',
+			unitDeleteTitle: 'حذف الوحدات',
+			unitRefusedHoldsContracts: '{count|number} مذكورة في عقد',
+			unitRefusedMissing: '{count|number} لم تعد موجودة في مساحة العمل'
 		},
 
 		units: {
