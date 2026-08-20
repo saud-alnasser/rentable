@@ -1,7 +1,7 @@
 ---
-aep: 2.6.0
+aep: 2.7.0
 owner: repository
-date: 2026-08-19
+date: 2026-08-20
 kind: rule
 paths:
   - apps/desktop/src/**
@@ -90,6 +90,41 @@ thing left for the choice to buy is how the tree reads, and a `tests/` directory
 
 Rust tests run single-threaded; they touch the filesystem and are not isolated from each
 other otherwise. See [[references/cargo]].
+
+## Tests that reach a live remote
+
+**One set does, and it is the exception rather than a second way of testing.** The four
+`losing_writer` tests at the foot of `tauri/src/database/mod.rs` open two replicas of one workspace
+against a database they provision on Turso. Everything else in this repository is tested against a
+local file, a loopback HTTP server, or an in-memory engine, and that is not changing.
+
+*Why this one could not be: what it measures is what the sync engine does when two replicas
+diverge, and the engine reaches its remote over HTTP. There is no local stand-in. The loopback
+server [[rules/credentials]] endorses under *Transport testing* is the right shape and cannot be
+built here, because standing up the replication protocol would mean implementing the behaviour
+under test — a bug in the stand-in would read as a finding about Turso. Nothing else in the tree
+has that property.*
+
+**This does not reopen *Transport testing*.** That rule is about a transport whose serialisation
+and status handling are the subject; a loopback server exercises those better than a live API
+does, and it is still what a new transport gets. What is different here is that the subject is the
+remote's own merge behaviour rather than the client's handling of it.
+
+Three things bind a live test, and all three are the reason this is a declared exception rather
+than a precedent:
+
+- **It carries `#[ignore]`.** Not an early `return`: libtest captures the output of a passing
+  test, so a test that printed why it skipped and passed reports `ok` on a machine that never
+  reached the remote. `ignored` reaches the summary line and an `eprintln!` does not.
+- **It never runs in continuous integration** *(directed by the human, 2026-08-20)*. A required
+  gate that provisions databases in somebody's account depends on a third party's uptime and on a
+  secret every workflow can read. A live run is a case the human authorizes, one at a time, and
+  [[references/turso]], under *Never run*, is where that standing rule already sat.
+- **Credentials missing is a failure, not a skip.** Asking for an ignored test is deliberate, so a
+  run that meant to be live and silently was not is the one outcome worth refusing.
+
+What it costs, said plainly: the behaviour these tests cover is not protected by the gate, so a
+regression in it surfaces when somebody runs them rather than when somebody breaks them.
 
 ## Characterization tests
 
