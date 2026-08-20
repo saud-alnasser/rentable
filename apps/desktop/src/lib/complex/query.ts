@@ -1,6 +1,7 @@
 import api from '$lib/api/caller';
 import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
 import { declareMutation } from '$lib/design/mutation';
+import type { HistoryEntry } from '$lib/history/history';
 import { workspacePrefixes } from '$lib/design/query';
 import { isRecordId } from '$lib/platform/database/identity';
 import type { ListSort } from '$lib/design/sort';
@@ -18,6 +19,13 @@ export const keys = {
 		sort ? `${sort.columnId}:${sort.direction}` : 'default'
 	],
 	search: (term: string) => [...workspacePrefixes.complexes, 'search', term],
+	// the selection itself, sorted: the same set assembled in a different order is the same
+	// question, and two cache entries for it would ask the workspace twice.
+	plan: (ids: readonly string[]) => [
+		...workspacePrefixes.complexes,
+		'plan',
+		[...ids].sort().join(',')
+	],
 	units: {
 		all: workspacePrefixes.units,
 		get: (id: string) => [...workspacePrefixes.units, 'detail', id],
@@ -28,9 +36,37 @@ export const keys = {
 			complexId,
 			search
 		],
+		plan: (ids: readonly string[]) => [
+			...workspacePrefixes.units,
+			'plan',
+			[...ids].sort().join(',')
+		],
 		search: (term: string) => [...workspacePrefixes.units, 'search', term]
 	}
 } as const;
+
+/** Why a record in a selection would be turned away, read off the procedure rather than restated. */
+export type ComplexRefusalReason = Awaited<
+	ReturnType<typeof api.complex.planMany>
+>['refused'][number]['reason'];
+
+export type UnitRefusalReason = Awaited<
+	ReturnType<typeof api.complex.units.planMany>
+>['refused'][number]['reason'];
+
+const toIds = (records: readonly { id: string }[]) => records.map((record) => record.id);
+
+/**
+ * One line on one record's own account.
+ *
+ * A multi-record action writes one of these per record it changed, named the way a reader knows
+ * one: a selection is how the reader acted, and a record's history is about the record.
+ */
+const toHistoryEntry = (
+	concept: 'complex' | 'unit',
+	record: { id: string; name: string },
+	action: HistoryEntry['action']
+) => ({ concept, recordId: record.id, action, record: record.name });
 
 /** The complexes a palette search reaches. Bounded in SQL; nothing is narrowed again here. */
 export function useSearchComplexes(term: () => string, limit: number) {
@@ -111,6 +147,45 @@ export function useListUnits(complexId: () => string, search: () => string = () 
 			queryFn: () =>
 				api.complex.units.getMany({ complexId: id, search: trimmedSearch || undefined }),
 			placeholderData: <T>(previous: T) => previous
+		};
+	});
+}
+
+/**
+ * What deleting the complexes named would do, before it is done.
+ *
+ * Asked of the workspace rather than read off the rows. A complex row does carry `unitCount`, so
+ * this is one of the two lists that could preview from what is already on screen; it does not,
+ * because an application answering one question two ways is what the effort behind this exists
+ * to remove.
+ */
+export function usePlanManyComplexes(ids: () => readonly string[]) {
+	return createQuery(() => {
+		const named = [...ids()];
+
+		return {
+			queryKey: keys.plan(named),
+			enabled: named.length > 0,
+			queryFn: () => api.complex.planMany({ ids: named })
+		};
+	});
+}
+
+/**
+ * What deleting the units named would do, before it is done.
+ *
+ * **This is the reading no row could have replaced.** A unit row carries a status derived from
+ * what holds it today, and a unit is refused for holding any assignment ever, so a unit with a
+ * contract starting next month is on screen as vacant and cannot be deleted.
+ */
+export function usePlanManyUnits(ids: () => readonly string[]) {
+	return createQuery(() => {
+		const named = [...ids()];
+
+		return {
+			queryKey: keys.units.plan(named),
+			enabled: named.length > 0,
+			queryFn: () => api.complex.units.planMany({ ids: named })
 		};
 	});
 }
@@ -210,6 +285,84 @@ export const useDeleteComplex = declareMutation({
 	toast: {
 		success: () => get(LL).complexes.hooks.deleteSuccess(),
 		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	}
+});
+
+/**
+ * Delete every complex in the selection that holds no unit, as one change.
+ *
+ * **Taking it back is all or nothing.** The inverse creates the whole set in one batch and throws
+ * where any one of them cannot be put back, rather than restoring what it can and naming the
+ * rest, which would leave the workspace in a shape neither the deletion nor the undo describes.
+ * An inverse that throws stays on the stack, so the reader can deal with whatever refused it and
+ * press undo again.
+ *
+ * The rows themselves are what the procedure answers with, because putting a record back means
+ * putting it back as itself, by the identity it had (ADR 0026).
+ */
+export const useDeleteManyComplexes = declareMutation({
+	mutate: (ids: string[]) => api.complex.deleteMany({ ids }),
+	touches: ['complexes'],
+	inverse: ({ result }) =>
+		// nothing changed, so there is nothing to offer taking back. An undo entry for a no-op is a
+		// control that appears to have done something.
+		result.deleted.length === 0
+			? undefined
+			: {
+					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
+					undo: () => api.complex.createMany({ complexes: result.deleted }),
+					redo: () => api.complex.deleteMany({ ids: toIds(result.deleted) }),
+					records: (direction) =>
+						result.deleted.map((complex) =>
+							toHistoryEntry('complex', complex, direction === 'undo' ? 'created' : 'deleted')
+						)
+				},
+	// the names are frozen here for the reason the whole entry is: a moment later the records are
+	// gone, and an account that could only name what still exists could not report a deletion.
+	records: ({ result }) =>
+		result.deleted.map((complex) => toHistoryEntry('complex', complex, 'deleted')),
+	toast: {
+		// the count, because it is the one thing about a bulk action a reader cannot see for
+		// themselves, and nothing at all where the selection turned out to hold nothing this could
+		// be done to. The confirmation has already said why in that case.
+		success: ({ result }) =>
+			result.deleted.length > 0
+				? get(LL).complexes.hooks.deleteManySuccess({ count: result.deleted.length })
+				: undefined,
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	}
+});
+
+/**
+ * Delete every unit in the selection that no contract has ever held, as one change.
+ *
+ * The complex's own carries the reasoning; this is the same shape one level down. `touches` names
+ * complexes too, because a complex's row shows how many units it holds and how many stand vacant.
+ */
+export const useDeleteManyUnits = declareMutation({
+	mutate: (ids: string[]) => api.complex.units.deleteMany({ ids }),
+	touches: ['units', 'complexes'],
+	inverse: ({ result }) =>
+		result.deleted.length === 0
+			? undefined
+			: {
+					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
+					undo: () => api.complex.units.createMany({ units: result.deleted }),
+					redo: () => api.complex.units.deleteMany({ ids: toIds(result.deleted) }),
+					records: (direction) =>
+						result.deleted.map((unit) =>
+							toHistoryEntry('unit', unit, direction === 'undo' ? 'created' : 'deleted')
+						)
+				},
+	records: ({ result }) => result.deleted.map((unit) => toHistoryEntry('unit', unit, 'deleted')),
+	toast: {
+		success: ({ result }) =>
+			result.deleted.length > 0
+				? get(LL).complexes.hooks.unitDeleteManySuccess({ count: result.deleted.length })
+				: undefined,
+		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
 });

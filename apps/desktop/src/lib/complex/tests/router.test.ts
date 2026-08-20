@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
-import { isRecordId } from '$lib/platform/database/identity.ts';
+import {
+	type Api,
+	countMatching,
+	createApi,
+	monthsFromNow,
+	seedTenant,
+	withStatementLog
+} from '$lib/api/tests/testing.ts';
+import { isRecordId, newId } from '$lib/platform/database/identity.ts';
 import type { ComplexSortColumnId } from '$lib/complex/complex.ts';
 import type { ListSort } from '$lib/design/sort.ts';
 
@@ -650,6 +657,413 @@ test('a refused complex name creates none of its units either', async () => {
 		['Riyadh']
 	);
 	assert.equal((await api.complex.getMany({}))[0].unitCount, 0);
+});
+
+// --- What a selection would do -------------------------------------------------------
+//
+// The plan and the deletion go through one call, so they cannot answer differently about
+// what a refusal is. What they can differ about is the workspace, because another device
+// may write between the reader being shown a plan and reaching for the control, and the
+// deletion is what is authoritative about that.
+
+/** the identities out of what a multi-record action reported it changed. */
+const toIds = (records: readonly { id: string }[]) => records.map((record) => record.id);
+
+let complexSequence = 0;
+
+/** A complex under a name nothing else in the test holds, since the name is unique workspace-wide. */
+async function seedComplex(api: Api) {
+	complexSequence += 1;
+
+	return api.complex.create({ name: `Complex ${complexSequence}`, location: 'Riyadh' });
+}
+
+async function seedComplexHoldingAUnit(api: Api) {
+	const complex = await seedComplex(api);
+
+	await api.complex.units.create({ name: 'A1', complexId: complex.id });
+
+	return complex;
+}
+
+test('a plan says which complexes in a selection would go through and which would not', async () => {
+	const api = await createApi();
+	const empty = await seedComplex(api);
+	const held = await seedComplexHoldingAUnit(api);
+	const gone = newId();
+
+	const plan = await api.complex.planMany({ ids: [empty.id, held.id, gone] });
+
+	assert.deepEqual(plan.eligible, [empty.id]);
+	assert.deepEqual(plan.refused, [
+		{ id: held.id, name: held.name, reason: 'holds-units' },
+		// nothing survived to name it by, so the count against the reason is what carries it.
+		{ id: gone, name: '', reason: 'missing' }
+	]);
+});
+
+test('asking what a deletion would do writes nothing', async () => {
+	const api = await createApi();
+	const empty = await seedComplex(api);
+	const held = await seedComplexHoldingAUnit(api);
+
+	await api.complex.planMany({ ids: [empty.id, held.id] });
+	await api.complex.units.planMany({
+		ids: (await api.complex.units.getMany({ complexId: held.id })).map((unit) => unit.id)
+	});
+
+	assert.ok(await api.complex.get({ id: empty.id }));
+	assert.ok(await api.complex.get({ id: held.id }));
+	assert.equal((await api.complex.units.getMany({ complexId: held.id })).length, 1);
+});
+
+// the claim the whole confirmation rests on: what the reader is shown is what the deletion
+// then decides, because both are the same call over the same workspace.
+test('a plan and the deletion it precedes refuse exactly the same complexes', async () => {
+	const api = await createApi();
+	const empty = await seedComplex(api);
+	const held = await seedComplexHoldingAUnit(api);
+	const gone = newId();
+	const ids = [empty.id, held.id, gone];
+
+	const plan = await api.complex.planMany({ ids });
+	const result = await api.complex.deleteMany({ ids });
+
+	assert.deepEqual(toIds(result.deleted), [...plan.eligible]);
+	assert.deepEqual(result.refused, plan.refused);
+	// and every complex named is accounted for on one side or the other: a set that reported
+	// neither a deletion nor a refusal for one of them would pass the two lines above.
+	assert.deepEqual(
+		[...toIds(result.deleted), ...result.refused.map((refusal) => refusal.id)].sort(),
+		[...ids].sort()
+	);
+});
+
+// the plan is what the reader agreed to, and the deletion is what happened. Where the
+// workspace moved in between, the second is the answer.
+test('what the deletion refuses is what happened, not what the plan showed', async () => {
+	const api = await createApi();
+	const first = await seedComplex(api);
+	const second = await seedComplex(api);
+	const ids = [first.id, second.id];
+
+	const plan = await api.complex.planMany({ ids });
+	assert.deepEqual([...plan.eligible].sort(), [...ids].sort());
+
+	// somebody else puts a unit in the second complex while the confirmation is open.
+	await api.complex.units.create({ name: 'A1', complexId: second.id });
+
+	const result = await api.complex.deleteMany({ ids });
+
+	assert.deepEqual(toIds(result.deleted), [first.id]);
+	assert.deepEqual(result.refused, [{ id: second.id, name: second.name, reason: 'holds-units' }]);
+});
+
+test('several complexes are deleted by one action, and the rest are named', async () => {
+	const api = await createApi();
+	const first = await seedComplex(api);
+	const second = await seedComplex(api);
+	const held = await seedComplexHoldingAUnit(api);
+
+	const result = await api.complex.deleteMany({ ids: [first.id, second.id, held.id] });
+
+	assert.deepEqual(toIds(result.deleted).sort(), [first.id, second.id].sort());
+	assert.deepEqual(result.refused, [{ id: held.id, name: held.name, reason: 'holds-units' }]);
+
+	for (const id of [first.id, second.id]) {
+		assert.equal(await api.complex.get({ id }), undefined);
+	}
+
+	assert.ok(await api.complex.get({ id: held.id }), 'the refused complex is still there');
+});
+
+// about cost rather than outcome: a selection is one thing the reader asked for, and issuing
+// it as N calls costs a round trip per record for work one statement does. A complex carries
+// nothing derived, so there is no reconcile pass here to count.
+test('deleting many complexes issues one delete rather than one per record', async () => {
+	const statements = await withStatementLog(async (api, drain) => {
+		const ids = [];
+
+		for (let index = 0; index < 3; index += 1) {
+			ids.push((await seedComplex(api)).id);
+		}
+
+		drain();
+
+		await api.complex.deleteMany({ ids });
+	});
+
+	assert.equal(countMatching(statements, /^\s*delete from "complex"/i), 1);
+});
+
+// --- What a selection of units would do ----------------------------------------------
+
+async function seedUnit(api: Api, complexId: string, name: string) {
+	return api.complex.units.create({ name, complexId });
+}
+
+/** A unit held by a contract that has not started yet: vacant on every screen, and undeletable. */
+async function seedUnitUnderAFutureContract(api: Api, complexId: string, name: string) {
+	const unit = await seedUnit(api, complexId, name);
+	const tenant = await seedTenant(api);
+	const contract = await api.contract.create({
+		tenantId: tenant.id,
+		start: monthsFromNow(2),
+		end: monthsFromNow(14),
+		interval: '12m',
+		cost: 1000
+	});
+
+	await api.contract.units.set({ contractId: contract.id, unitIds: [unit.id] });
+
+	return unit;
+}
+
+// the case acceptance criterion 3a names, and the reason the plan is a query at all: the row
+// this unit renders as says `vacant`, and a confirmation built from the rows would have
+// offered to delete it.
+test('a unit whose only contract is in the future reads as vacant and is still refused', async () => {
+	const api = await createApi();
+	const complex = await seedComplex(api);
+	const free = await seedUnit(api, complex.id, 'A1');
+	const future = await seedUnitUnderAFutureContract(api, complex.id, 'A2');
+
+	assert.equal((await readUnit(api, future.id))?.status, 'vacant', 'vacant on the row');
+
+	const plan = await api.complex.units.planMany({ ids: [free.id, future.id] });
+
+	assert.deepEqual(plan.eligible, [free.id]);
+	assert.deepEqual(plan.refused, [{ id: future.id, name: future.name, reason: 'holds-contracts' }]);
+});
+
+test('a plan and the deletion it precedes refuse exactly the same units', async () => {
+	const api = await createApi();
+	const complex = await seedComplex(api);
+	const free = await seedUnit(api, complex.id, 'A1');
+	const future = await seedUnitUnderAFutureContract(api, complex.id, 'A2');
+	const gone = newId();
+	const ids = [free.id, future.id, gone];
+
+	const plan = await api.complex.units.planMany({ ids });
+	const result = await api.complex.units.deleteMany({ ids });
+
+	assert.deepEqual(toIds(result.deleted), [...plan.eligible]);
+	assert.deepEqual(result.refused, plan.refused);
+	assert.deepEqual(
+		[...toIds(result.deleted), ...result.refused.map((refusal) => refusal.id)].sort(),
+		[...ids].sort()
+	);
+});
+
+test('several units are deleted by one action, and the rest are named', async () => {
+	const api = await createApi();
+	const complex = await seedComplex(api);
+	const first = await seedUnit(api, complex.id, 'A1');
+	const second = await seedUnit(api, complex.id, 'A2');
+	const held = await seedUnitUnderAFutureContract(api, complex.id, 'A3');
+
+	const result = await api.complex.units.deleteMany({ ids: [first.id, second.id, held.id] });
+
+	assert.deepEqual(toIds(result.deleted).sort(), [first.id, second.id].sort());
+	assert.deepEqual(result.refused, [{ id: held.id, name: held.name, reason: 'holds-contracts' }]);
+	assert.equal(await readUnit(api, first.id), undefined);
+	assert.ok(await readUnit(api, held.id), 'the refused unit is still there');
+});
+
+// one delete, and no status written: a unit that may be deleted at all was never assigned, so
+// nothing derived was resting on it and there is no occupancy to move.
+test('deleting many units issues one delete and writes no derived state', async () => {
+	const statements = await withStatementLog(async (api, drain) => {
+		const complex = await api.complex.create({ name: 'Statement Court', location: 'Riyadh' });
+		const ids = [];
+
+		for (let index = 0; index < 3; index += 1) {
+			ids.push((await seedUnit(api, complex.id, `A${index}`)).id);
+		}
+
+		drain();
+
+		await api.complex.units.deleteMany({ ids });
+	});
+
+	assert.equal(countMatching(statements, /^\s*delete from "unit"/i), 1);
+	assert.equal(countMatching(statements, /^\s*update "unit"/i), 0);
+	assert.equal(countMatching(statements, /^\s*update "contract"/i), 0);
+});
+
+// --- Putting a deleted selection back ------------------------------------------------
+
+test('a deleted selection of complexes is put back whole, each with the identity it had', async () => {
+	const api = await createApi();
+	const first = await seedComplex(api);
+	const second = await seedComplex(api);
+
+	const deleted = await api.complex.deleteMany({ ids: [first.id, second.id] });
+	const restored = await api.complex.createMany({ complexes: deleted.deleted });
+
+	assert.deepEqual(toIds(restored).sort(), [first.id, second.id].sort());
+
+	for (const original of [first, second]) {
+		const back = await api.complex.get({ id: original.id });
+
+		assert.ok(back, 'the complex is there under the identity it had');
+		assert.equal(back.name, original.name);
+		assert.equal(back.location, original.location);
+	}
+});
+
+// all or nothing, and the reason: a set half restored is a workspace in a shape neither the
+// deletion nor the undo describes. The reader is told which one blocked it, by name.
+test('and where one complex cannot be put back, none is', async () => {
+	const api = await createApi();
+	const first = await seedComplex(api);
+	const second = await seedComplex(api);
+
+	const deleted = await api.complex.deleteMany({ ids: [first.id, second.id] });
+
+	// somebody registers a complex under a name one of them held while the deletion sits on the
+	// undo stack.
+	await api.complex.create({ name: second.name, location: 'Jeddah' });
+
+	await assert.rejects(
+		() => api.complex.createMany({ complexes: deleted.deleted }),
+		new RegExp(`name ${second.name} is associated with a previously registered complex`)
+	);
+
+	assert.equal(await api.complex.get({ id: first.id }), undefined);
+});
+
+test('and a set of complexes claiming one name twice is refused before anything is written', async () => {
+	const api = await createApi();
+	const first = await seedComplex(api);
+	const second = await seedComplex(api);
+
+	const deleted = await api.complex.deleteMany({ ids: [first.id, second.id] });
+	const [head, tail] = deleted.deleted;
+
+	await assert.rejects(
+		() => api.complex.createMany({ complexes: [head, { ...tail, name: head.name }] }),
+		new RegExp(`two complexes in this set claim ${head.name}`)
+	);
+
+	assert.equal(await api.complex.get({ id: head.id }), undefined);
+});
+
+test('a deleted selection of units is put back vacant, in the complex each was in', async () => {
+	const api = await createApi();
+	const complex = await seedComplex(api);
+	const first = await seedUnit(api, complex.id, 'A1');
+	const second = await seedUnit(api, complex.id, 'A2');
+
+	const deleted = await api.complex.units.deleteMany({ ids: [first.id, second.id] });
+	const restored = await api.complex.units.createMany({ units: deleted.deleted });
+
+	assert.deepEqual(toIds(restored).sort(), [first.id, second.id].sort());
+
+	for (const original of [first, second]) {
+		const back = await readUnit(api, original.id);
+
+		assert.ok(back, 'the unit is there under the identity it had');
+		assert.equal(back.name, original.name);
+		assert.equal(back.complexId, complex.id);
+		assert.equal(back.status, 'vacant');
+	}
+});
+
+// putting a record back means putting it back as itself. The single-record creation stores a
+// name as it was given, so a restore that tidied it would hand back a unit nobody deleted.
+test('and a restored unit keeps the name it had, spacing and all', async () => {
+	const api = await createApi();
+	const complex = await seedComplex(api);
+	const padded = await api.complex.units.create({ name: '  A1  ', complexId: complex.id });
+
+	const deleted = await api.complex.units.deleteMany({ ids: [padded.id] });
+	await api.complex.units.createMany({ units: deleted.deleted });
+
+	assert.equal((await readUnit(api, padded.id))?.name, '  A1  ');
+});
+
+test('and two units in one complex claiming one name are refused before anything is written', async () => {
+	const api = await createApi();
+	const complex = await seedComplex(api);
+	const first = await seedUnit(api, complex.id, 'A1');
+	const second = await seedUnit(api, complex.id, 'A2');
+
+	const deleted = await api.complex.units.deleteMany({ ids: [first.id, second.id] });
+	const [head, tail] = deleted.deleted;
+
+	await assert.rejects(
+		() => api.complex.units.createMany({ units: [head, { ...tail, name: head.name }] }),
+		/each unit needs its own name/
+	);
+
+	assert.equal(await readUnit(api, head.id), undefined);
+});
+
+// A unit's name is unique within the complex holding it rather than across the workspace, so
+// the set is weighed per complex on both sides: against itself and against what is already
+// there.
+//
+// The shape is what makes this about the scope of the check. The selection spans two
+// complexes, so the workspace read covers both, and one of them still holds an *A1* that was
+// never deleted. A check that compared bare names would find that *A1* and refuse to put back
+// the *A1* belonging to the other complex.
+test('and one name held in another complex is not a collision', async () => {
+	const api = await createApi();
+	const here = await seedComplex(api);
+	const there = await seedComplex(api);
+	const mine = await seedUnit(api, here.id, 'A1');
+	const neighbour = await seedUnit(api, there.id, 'B1');
+	await seedUnit(api, there.id, 'A1');
+
+	const deleted = await api.complex.units.deleteMany({ ids: [mine.id, neighbour.id] });
+	const restored = await api.complex.units.createMany({ units: deleted.deleted });
+
+	assert.deepEqual(toIds(restored).sort(), [mine.id, neighbour.id].sort());
+	assert.equal((await readUnit(api, mine.id))?.complexId, here.id);
+});
+
+test('and a unit whose name was taken while it was gone blocks the whole set', async () => {
+	const api = await createApi();
+	const complex = await seedComplex(api);
+	const first = await seedUnit(api, complex.id, 'A1');
+	const second = await seedUnit(api, complex.id, 'A2');
+
+	const deleted = await api.complex.units.deleteMany({ ids: [first.id, second.id] });
+
+	await api.complex.units.create({ name: 'A2', complexId: complex.id });
+
+	await assert.rejects(
+		() => api.complex.units.createMany({ units: deleted.deleted }),
+		/name A2 is associated with a unit in the same complex/
+	);
+
+	assert.equal(await readUnit(api, first.id), undefined);
+});
+
+test('putting a selection of units back asks the workspace once for the whole set', async () => {
+	const statements = await withStatementLog(async (api, drain) => {
+		const complex = await api.complex.create({ name: 'Batch Court', location: 'Riyadh' });
+		const ids = [];
+
+		for (let index = 0; index < 3; index += 1) {
+			ids.push((await seedUnit(api, complex.id, `A${index}`)).id);
+		}
+
+		const deleted = await api.complex.units.deleteMany({ ids });
+
+		drain();
+
+		await api.complex.units.createMany({ units: deleted.deleted });
+	});
+
+	// three rows go in, and the two questions a unit is unique by are asked once each over the
+	// whole set rather than once per record.
+	assert.equal(countMatching(statements, /^\s*insert into "unit"/i), 3);
+	assert.ok(
+		countMatching(statements, /select .* from "unit" where/i) <= 2,
+		`one pass per question, not one per row: ${statements.filter((sql) => /select .* from "unit" where/i.test(sql)).length}`
+	);
 });
 
 // --- Palette search -------------------------------------------------------------------

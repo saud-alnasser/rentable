@@ -20,16 +20,82 @@ export const isComplexDeletable = (units: unknown[]) => units.length === 0;
 export const isUnitDeletable = (assignments: unknown[]) => assignments.length === 0;
 
 /**
- * Refuse a set of unit names holding the same name twice.
+ * Refuse a deletion the rule above turns away.
  *
- * A collision *within* one submission is a case creating units one dialog at a time could
- * not produce: each was checked against what was stored, and there was never a set to check
- * against itself. The uniqueness the database enforces is per complex, so this is the same
- * rule read against the arriving set rather than against the table.
- *
- * @param names the unit names as submitted, in order.
- * @throws a `BAD_REQUEST` naming the first name that repeats.
+ * The message lives here rather than in the procedure, because a rule that decides whether
+ * something is allowed belongs to the concept and not to a caller of it. Two procedures apply
+ * each of these now, one record at a time and a selection at a time, and two copies of a
+ * sentence are two sentences waiting to disagree.
  */
+export function ensureComplexDeletable(units: unknown[]) {
+	if (!isComplexDeletable(units)) {
+		badRequest('cannot delete complex with associated units');
+	}
+}
+
+/** The same, for a unit. See {@link ensureComplexDeletable}. */
+export function ensureUnitDeletable(assignments: unknown[]) {
+	if (!isUnitDeletable(assignments)) {
+		badRequest('cannot delete unit with associated contracts');
+	}
+}
+
+/**
+ * the router passes whatever row its uniqueness query found; any row is a conflict.
+ *
+ * @param named the name the conflict is over, where the caller acts on more than one complex.
+ * Putting a deleted selection back is refused as a set, and *one of them is already registered*
+ * is not something a reader can act on. The single-record caller passes nothing: its reader is
+ * looking at the one field it is about.
+ */
+export function ensureComplexNameAvailable(conflicting: unknown, named?: string) {
+	if (conflicting) {
+		badRequest(
+			`name${named ? ` ${named}` : ''} is associated with a previously registered complex`
+		);
+	}
+}
+
+/** The same, for a unit's name, which is unique within the complex holding it. */
+export function ensureUnitNameAvailable(conflicting: unknown, named?: string) {
+	if (conflicting) {
+		badRequest(`name${named ? ` ${named}` : ''} is associated with a unit in the same complex`);
+	}
+}
+
+/**
+ * Why one complex, or one unit, in a selection would be turned away.
+ *
+ * `missing` is not a rule either concept enforces: it says the row named is no longer in the
+ * workspace, which every selection can meet because another device may delete a record between
+ * the reader picking it out and asking for the action.
+ */
+export type ComplexRefusalReason = 'holds-units' | 'missing';
+export type UnitRefusalReason = 'holds-contracts' | 'missing';
+
+/**
+ * Why deleting this complex would be refused, or `undefined` where it would go through.
+ *
+ * The predicate above called rather than restated, so what a reader is shown before the deletion
+ * and what the deletion decides cannot come to be two rules.
+ *
+ * Neither takes an action, where the contract's equivalent takes one of three: a selection of
+ * complexes, and a selection of units, each admit deleting and nothing else, and a parameter with
+ * one legal value is not a choice.
+ */
+export const whatRefusesComplexDeletion = (units: unknown[]) =>
+	isComplexDeletable(units) ? undefined : ('holds-units' as const);
+
+/**
+ * Why deleting this unit would be refused, or `undefined` where it would go through.
+ *
+ * **Every assignment counts, not the current one.** A unit whose only contract starts next month
+ * reads as `vacant` today and still cannot be deleted, which is why no surface can answer this
+ * from the row it is showing.
+ */
+export const whatRefusesUnitDeletion = (assignments: unknown[]) =>
+	isUnitDeletable(assignments) ? undefined : ('holds-contracts' as const);
+
 /**
  * The row an update wrote back, or the refusal that it wrote none.
  *
@@ -61,6 +127,17 @@ function badRequest(message: string): never {
 	throw new TRPCError({ code: 'BAD_REQUEST', message });
 }
 
+/**
+ * Refuse a set of unit names holding the same name twice.
+ *
+ * A collision *within* one submission is a case creating units one dialog at a time could
+ * not produce: each was checked against what was stored, and there was never a set to check
+ * against itself. The uniqueness the database enforces is per complex, so this is the same
+ * rule read against the arriving set rather than against the table.
+ *
+ * @param names the unit names as submitted, in order.
+ * @throws a `BAD_REQUEST` naming the first name that repeats.
+ */
 export function ensureUnitNamesDistinct(names: string[]) {
 	const seen = new Set<string>();
 
