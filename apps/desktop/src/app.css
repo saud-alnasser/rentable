@@ -34,6 +34,22 @@
 	--accent-foreground: oklch(0.985 0 0);
 	--destructive: oklch(0.704 0.191 22.216);
 	/*
+	 * the two tones that had no name here, and the same defect the greens below already record.
+	 *
+	 * `info` was raw `blue-300` and `warning` was raw `amber-300`, written into the callout
+	 * primitive where nothing connected them to this block — so two of the four things a callout
+	 * can say answered to Tailwind's palette while the other two answered to this one. The values
+	 * are those two palette entries exactly, so nothing on screen moves; what changes is that they
+	 * are now reachable.
+	 *
+	 * `info` is a state the reader is being told about and can do nothing to. `warning` is one
+	 * they can still act on. `destructive` above carries the third: something that failed or is
+	 * about to destroy data. Together with `success` below they are the tone vocabulary, and
+	 * [[rules/interface]] under *Tone* is where that is stated.
+	 */
+	--info: oklch(80.9% 0.105 251.813);
+	--warning: oklch(87.9% 0.169 91.605);
+	/*
 	 * the greens, named for what each says rather than for the hue they share.
 	 *
 	 * Two of them were raw palette values — `green-300` and a spread of `emerald-*` — so green
@@ -87,6 +103,8 @@
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
+	--color-info: var(--info);
+	--color-warning: var(--warning);
 	--color-success: var(--success);
 	--color-permitted: var(--permitted);
 	--color-permitted-foreground: var(--permitted-foreground);

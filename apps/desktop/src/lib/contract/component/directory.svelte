@@ -122,7 +122,7 @@
 	<RecordActionControl
 		label={`${$LL.common.actions.terminate()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
 		icon={BanIcon}
-		tone="destructive"
+		tone="error"
 		onclick={() => (isTerminateManyOpen = true)}
 	/>
 {/snippet}

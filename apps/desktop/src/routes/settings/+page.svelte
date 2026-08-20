@@ -76,7 +76,8 @@
 	<!-- no description between the title and the failure: the title says the settings are not
 	     available and the line below says why, so a sentence in between only says it a third
 	     time in weaker words. -->
-	<StandaloneSurface title={$LL.settings.loadErrorTitle()}>
+	<!-- neutral: settings failing to load leaves the rest of the application working. -->
+	<StandaloneSurface tone="neutral" title={$LL.settings.loadErrorTitle()}>
 		<p class="text-sm text-muted-foreground">{toErrorText(loadError, $LL)}</p>
 
 		{#snippet actions()}

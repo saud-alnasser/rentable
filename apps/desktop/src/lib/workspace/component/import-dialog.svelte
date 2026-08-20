@@ -212,7 +212,7 @@
 				     say which records it is about — which is what a directory's own export is coming
 				     back — so it is a caution over a summary rather than a refusal instead of one. -->
 				{#each plan.sheets.filter((sheet) => sheet.missingColumns.length > 0) as sheet (sheet.concept)}
-					<Callout variant={sheet.unreadable ? 'error' : 'warning'} class="flex items-start gap-3">
+					<Callout tone={sheet.unreadable ? 'error' : 'warning'} class="flex items-start gap-3">
 						<Columns3Icon class="mt-0.5 size-4 shrink-0" />
 						<span class="min-w-0">
 							{sheet.unreadable
@@ -234,7 +234,7 @@
 				     the problem runs. -->
 				{#each plan.sheets as sheet (sheet.concept)}
 					{#each sheet.collisions.slice(0, NAMED_ROWS) as collision (collision.identity)}
-						<Callout variant="error" class="flex items-start gap-3">
+						<Callout tone="error" class="flex items-start gap-3">
 							<CopyXIcon class="mt-0.5 size-4 shrink-0" />
 							<span class="min-w-0">
 								{$LL.common.import.sheetCollision({
@@ -260,7 +260,7 @@
 					     described. Only the first few rows are listed: one broken reference is usually a
 					     hundred, and a dialog that scrolls for a page says no more than one that names the
 					     first of them. -->
-					<Callout variant="error" class="flex flex-col gap-2">
+					<Callout tone="error" class="flex flex-col gap-2">
 						<span class="flex items-start gap-3">
 							<UnlinkIcon class="mt-0.5 size-4 shrink-0" />
 							<span class="min-w-0">

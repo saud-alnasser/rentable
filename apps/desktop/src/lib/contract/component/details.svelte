@@ -198,7 +198,7 @@
 		<RecordActionControl
 			label={$LL.common.actions.terminate()}
 			icon={BanIcon}
-			tone="destructive"
+			tone="error"
 			onclick={() => (isTerminateDialogOpen = true)}
 		/>
 	{/if}
@@ -216,7 +216,7 @@
 	<RecordActionControl
 		label={$LL.common.actions.delete()}
 		icon={Trash2Icon}
-		tone="destructive"
+		tone="error"
 		onclick={() => (isDeleteDialogOpen = true)}
 	/>
 {/snippet}

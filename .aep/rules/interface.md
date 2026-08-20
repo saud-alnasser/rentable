@@ -1,7 +1,7 @@
 ---
-aep: 2.2.0
+aep: 2.7.0
 owner: repository
-date: 2026-08-17
+date: 2026-08-20
 kind: rule
 paths:
   - apps/desktop/src/lib/**/component/**
@@ -90,6 +90,41 @@ Anything that does neither does not belong on this screen.
 *who do I chase* while leaving *how is the month going* to a strip nobody reads.*
 
 Recorded originally as ADR 0030, *The landing screen is figures over sections, and a figure routes or a section holds rows*.
+
+## Tone
+
+**What a surface reports, it reports in one vocabulary: `neutral | info | success | warning | error`.**
+
+Stated once, in `$lib/design/tone`. A callout, the standalone surface's band, a status badge, a
+toast and a record action all report a kind of event, and every one of them takes its tone from
+there. **A component never declares its own set of kind-names**, and a colour a tone lends always
+resolves through a token in `app.css` rather than through a raw palette entry.
+
+**`neutral` is a tone, not the absence of one.** A surface that declares nothing reads identically
+to one whose author never considered the question, and those two should not look the same in the
+source either.
+
+*Why: the application had six of these and no two agreed, so a callout, a badge and a toast
+reporting the same event drew three different colours, and two of the callout's four could not be
+changed from the place every other colour is changed from.*
+
+**The line is what a thing reports, not how loud a control is, and not what a figure stands for.**
+Two things sit outside this deliberately:
+
+- **A control's emphasis.** A button's `destructive` and a menu item's `destructive` are shadcn's
+  vocabulary, on files the CLI writes whole, and they stay. `--destructive` also stays as the token
+  name under `error`: the vocabulary is what got a shared word, not every colour beneath it.
+- **A domain vocabulary.** A count cell's `running | settled | money` and the status treatment's
+  nine names report a *condition of the domain*, not a kind of event, which is why a count and a
+  status glyph agree about what blue means and neither answers to `info`. `money` is not a state at
+  all. Folding either into the five would put a figure counting money into a vocabulary that has
+  nothing to say about it.
+
+**Nothing gains a tone it has no caller for.** The record action control takes two of the five,
+because no record action has ever been a success or a warning.
+
+Settled by the *capabilities only one surface got* effort, requirement 17. Cited in prose rather
+than linked because that spec lands in its own `docs:` change, below this one in the stack.
 
 ## Lists and rows
 

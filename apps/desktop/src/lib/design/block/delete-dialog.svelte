@@ -124,7 +124,7 @@
 			{/if}
 
 			{#if error}
-				<Callout variant="error">
+				<Callout tone="error">
 					{error}
 				</Callout>
 			{/if}

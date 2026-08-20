@@ -1,29 +1,29 @@
 <script lang="ts" module>
 	import { cn } from '$lib/design/tailwind';
+	import { tone as toneClasses, type Tone } from '$lib/design/tone';
 	import type { HTMLAttributes } from 'svelte/elements';
-	import { tv, type VariantProps } from 'tailwind-variants';
 
-	export const calloutVariants = tv({
-		base: 'rounded-md border p-3 text-sm',
-		variants: {
-			variant: {
-				error: 'border-destructive/30 bg-destructive/10 text-destructive',
-				info: 'border-blue-300/30 bg-blue-300/10 text-blue-300',
-				success: 'border-success/30 bg-success/10 text-success',
-				warning: 'border-amber-300/30 bg-amber-300/10 text-amber-300'
-			}
-		}
-	});
-
-	export type CalloutVariant = VariantProps<typeof calloutVariants>['variant'];
-
-	export type CalloutProps = HTMLAttributes<HTMLDivElement> & VariantProps<typeof calloutVariants>;
+	export type CalloutProps = HTMLAttributes<HTMLDivElement> & {
+		/**
+		 * what kind of thing this is saying. The application's one vocabulary — see
+		 * `$lib/design/tone`.
+		 *
+		 * *It was `variant` and it was this primitive's own four names, two of which drew raw
+		 * palette colours that answered to Tailwind rather than to this application.*
+		 */
+		tone?: Tone;
+	};
 </script>
 
 <script lang="ts">
-	let { class: className, variant, children, ...restProps }: CalloutProps = $props();
+	let { class: className, tone = 'neutral', children, ...restProps }: CalloutProps = $props();
+
+	const parts = $derived(toneClasses({ tone }));
 </script>
 
-<div class={cn(calloutVariants({ variant }), className)} {...restProps}>
+<div
+	class={cn('rounded-md border p-3 text-sm', parts.edge(), parts.wash(), parts.text(), className)}
+	{...restProps}
+>
 	{@render children?.()}
 </div>

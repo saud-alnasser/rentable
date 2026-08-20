@@ -82,7 +82,7 @@
 	<RecordActionControl
 		label={$LL.common.actions.delete()}
 		icon={Trash2Icon}
-		tone="destructive"
+		tone="error"
 		onclick={() => (isDeleteDialogOpen = true)}
 	/>
 {/snippet}
