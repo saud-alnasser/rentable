@@ -48,6 +48,27 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   boundary or are nondeterministic. Business configuration is not one of them and does not
   belong there.
 
+## Who may call
+
+- **Two procedure kinds, and `member` is the default.** `procedure.member` refuses a machine
+  nobody is signed in on; `procedure.public` does not. A procedure written without thinking
+  about this should be the safe one, so the safe one is the one you reach for by habit.
+- **Host-only is the test for `public`, not harmless-looking.** A public procedure reaches
+  `ctx.host` and never `ctx.db`. A read of the workspace is not public however read-only it
+  looks, because the workspace belongs to somebody. Today there are five: this machine's
+  settings, its updater, and what the shell knows about syncing.
+- **`Context.identity` is `Identity | null`, and `null` is never filled in.** An absent actor is
+  absent — never an anonymous, guest, or placeholder user. Decision 03 called a placeholder the
+  harder of the two failures, and an absence that is expressible again is exactly when one gets
+  invented.
+
+*Why: the refusal used to live in `context()`, which made "nothing reaches the workspace before
+there is an account" true by construction. Requirement 9a of
+`capabilities-only-one-surface-got` needed the settings page to work on a machine with nobody
+signed in, and a context that refused would have refused that page too. Moving the refusal to a
+middleware keeps the guarantee and puts it where the question actually belongs: whether a call
+needs an acting user is a property of the call.*
+
 ## Writes
 
 - **A mutation that touches contracts, payments, or unit assignments must reconcile**, or

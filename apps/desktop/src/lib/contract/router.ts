@@ -275,7 +275,7 @@ const CONTRACT_SEARCH_COLUMNS: readonly (SQL | AnyColumn)[] = [
 ];
 
 export default router({
-	create: procedure.public
+	create: procedure.member
 		.use(autosync())
 		.input(ContractCreateSchema)
 		.mutation(async ({ input, ctx }) => {
@@ -357,7 +357,7 @@ export default router({
 	 * the contract and every assignment row are one batch, and the boundary runs a batch inside a
 	 * transaction (ADR 0027).
 	 */
-	renew: procedure.public
+	renew: procedure.member
 		.use(autosync())
 		.input(ContractRenewSchema)
 		.mutation(async ({ input, ctx }) => {
@@ -450,7 +450,7 @@ export default router({
 			return serializeContract(created);
 		}),
 
-	update: procedure.public
+	update: procedure.member
 		.use(autosync())
 		.input(ContractUpdateSchema)
 		.mutation(async ({ input, ctx }) => {
@@ -559,7 +559,7 @@ export default router({
 			return serializeContract(updated);
 		}),
 
-	terminate: procedure.public
+	terminate: procedure.member
 		.use(autosync())
 		.input(ContractSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -608,7 +608,7 @@ export default router({
 	 * be terminated by hand is a fact about that contract, not a failure of the request. Throwing
 	 * would undo the ones that were fine and tell the reader nothing about which.
 	 */
-	terminateMany: procedure.public
+	terminateMany: procedure.member
 		.use(autosync())
 		.input(z.object({ ids: z.array(ContractSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -665,7 +665,7 @@ export default router({
 		}),
 
 	/** The reverse of {@link terminateMany}, and what undoing one calls. */
-	unterminateMany: procedure.public
+	unterminateMany: procedure.member
 		.use(autosync())
 		.input(z.object({ ids: z.array(ContractSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -706,7 +706,7 @@ export default router({
 			return { unterminated: restorable.map((contract) => contract.id) };
 		}),
 
-	unterminate: procedure.public
+	unterminate: procedure.member
 		.use(autosync())
 		.input(ContractSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -746,7 +746,7 @@ export default router({
 			return serializeContract(restored);
 		}),
 
-	delete: procedure.public
+	delete: procedure.member
 		.use(autosync())
 		.input(ContractSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -778,7 +778,7 @@ export default router({
 		}),
 
 	/** The contracts a palette search reaches, by reference or by the tenant holding them. */
-	search: procedure.public
+	search: procedure.member
 		.input(RecordSearchSchema)
 		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
 			const rows = await ctx.db
@@ -798,7 +798,7 @@ export default router({
 			}));
 		}),
 
-	get: procedure.public
+	get: procedure.member
 		.input(ContractSchema.pick({ id: true, govId: true }).partial())
 		.query(async ({ input, ctx }) => {
 			if (input.id) {
@@ -826,7 +826,7 @@ export default router({
 
 	// the contracts directory, in one bounded query: the whole result set for a search, in the
 	// order the sort control chose. The list renders what arrives and orders nothing itself.
-	getMany: procedure.public
+	getMany: procedure.member
 		.input(
 			z.object({
 				search: z.string().optional(),
@@ -931,7 +931,7 @@ export default router({
 		}),
 
 	units: {
-		getMany: procedure.public.input(ContractUnitsGetManySchema).query(async ({ input, ctx }) => {
+		getMany: procedure.member.input(ContractUnitsGetManySchema).query(async ({ input, ctx }) => {
 			return await selectContractUnits(ctx.db, input.contractId, ctx.clock.now());
 		}),
 
@@ -944,7 +944,7 @@ export default router({
 		 * whose term overlaps this one are left out: they are not this contract's to take, so
 		 * offering them would be offering a refusal.
 		 */
-		getAssignableMany: procedure.public
+		getAssignableMany: procedure.member
 			.input(ContractAssignableUnitsSchema)
 			.query(async ({ input, ctx }) => {
 				const now = ctx.clock.now();
@@ -1012,7 +1012,7 @@ export default router({
 		 * of an overlapping contract; the locks on a terminated contract and one with a payment
 		 * recorded refuse the whole call, as they always did.
 		 */
-		set: procedure.public
+		set: procedure.member
 			.use(autosync())
 			.input(ContractUnitsSetSchema)
 			.mutation(async ({ input, ctx }) => {

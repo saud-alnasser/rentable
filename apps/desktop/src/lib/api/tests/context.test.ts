@@ -32,12 +32,9 @@ function shellReporting(accounts: RemoteSyncAccount[] = [fakeAccount()]) {
 	});
 }
 
-/** what `context()` does when it cannot name an acting user. */
-async function refusalFrom(overrides: Parameters<typeof context>[0]) {
-	return await context(overrides).then(
-		() => null,
-		(error: unknown) => error as { code?: string; message?: string }
-	);
+/** who `context()` says is acting, where it cannot name anybody. */
+async function actorFrom(overrides: Parameters<typeof context>[0]) {
+	return (await context(overrides)).identity;
 }
 
 test('context carries the database, clock, and host it is given', async () => {
@@ -52,9 +49,10 @@ test('context carries the database, clock, and host it is given', async () => {
 	assert.equal(ctx.host, host);
 });
 
-// **Criterion 11, and the test it replaces asserted the opposite.** That one was called *a local
-// request carries exactly the three ambient members* and pinned a request with no acting user as
-// the ordinary case. There is no such request: every one carries four.
+// **Criterion 11.** Every request carries four ambient members, and the fourth is who is acting.
+// *It said "there is no such request" as a request with no actor — that was #571's premise and
+// requirement 7 deleted it. What survives is the shape: four members, always, and the fourth is
+// either a person or plainly nobody.*
 test('every request carries an identity, and it is one of the four members', async () => {
 	const ctx = await context({
 		db: createMemoryDatabase(),
@@ -104,63 +102,58 @@ test('a signed-in machine names its person, with no Drive folder in sight', asyn
 	});
 });
 
-// The clean install, from the API's side. #571 puts a screen in front of this so nobody reaches
-// it by accident; the refusal is what makes that a guarantee rather than a convention.
-test('a machine nobody has signed in on has no request to make', async () => {
-	const refusal = await refusalFrom({
+// The clean install, from the API's side. **It used to be refused here and is answered here now**
+// — the refusal moved to `procedure.member`, which is what forty-six of the fifty-one procedures use.
+// What this pins is that the answer is `null` rather than an error and rather than a person.
+test('a machine nobody has signed in on is answered with nobody', async () => {
+	const actor = await actorFrom({
 		db: createMemoryDatabase(),
 		clock: { now: () => 0 },
 		host: shellReporting([])
 	});
 
-	assert.equal(refusal?.code, 'UNAUTHORIZED');
+	assert.equal(actor, null);
 });
 
 // Signing out keeps the account row so whatever was linked under it can say what it is waiting
 // for, which means the row is present and the machine is not signed in. Reading the row rather
 // than its status would hand a procedure somebody who has left.
-test('a machine that signed out is refused, row and all', async () => {
-	const refusal = await refusalFrom({
+test('a machine that signed out names nobody, row and all', async () => {
+	const actor = await actorFrom({
 		db: createMemoryDatabase(),
 		clock: { now: () => 0 },
 		host: shellReporting([fakeAccount({ status: 'needsReconnect', refreshTokenAvailable: false })])
 	});
 
-	assert.equal(refusal?.code, 'UNAUTHORIZED');
+	assert.equal(actor, null);
 });
 
 // A shell that cannot answer and a machine nobody signed in on are the same situation to a
 // procedure: there is no acting user either way. The two are deliberately not told apart —
 // telling them apart would be a distinction no caller could act on differently.
-//
-// This used to pass, producing a context with no actor. What makes the refusal affordable is that
-// it is a rejected call rather than a failed import: the context is built on first use now, so a
-// client that cannot answer fails its requests instead of failing to boot.
-test('a shell that cannot say who is acting is refused rather than answered', async () => {
-	const refusal = await refusalFrom({
+test('a shell that cannot say who is acting names nobody', async () => {
+	const actor = await actorFrom({
 		db: createMemoryDatabase(),
 		clock: { now: () => 0 },
 		host: fakeHost()
 	});
 
-	assert.equal(refusal?.code, 'UNAUTHORIZED');
+	assert.equal(actor, null);
 });
 
-// The refusal is a real person's absence, never a stand-in for one. Decision 03 called a required
-// identity with an anonymous placeholder the harder of the two failures, and this is the assertion
-// that the placeholder did not quietly arrive with the requirement.
+// **The assertion decision 03 earns, and it matters more now than when the context refused.**
+// That decision called a required identity with an anonymous placeholder the harder of the two
+// failures. An absence that is expressible again is exactly the moment somebody fills it with a
+// convenient object, so this pins that the answer is `null` and not a shape that could be mistaken
+// for a person at a call site.
 test('nobody is invented to fill the gap', async () => {
-	const refusal = await refusalFrom({
+	const actor = await actorFrom({
 		db: createMemoryDatabase(),
 		clock: { now: () => 0 },
 		host: shellReporting([])
 	});
 
-	assert.ok(refusal, 'a machine with no account produced a context');
-	assert.ok(
-		!/anonymous|guest|unknown user/i.test(refusal.message ?? ''),
-		'the refusal named a stand-in user'
-	);
+	assert.equal(actor, null, 'a machine with no account was given a stand-in actor');
 });
 
 test('a supplied identity is carried as given, like every other member', async () => {

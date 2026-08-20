@@ -6,11 +6,14 @@ import { remoteSync } from '$lib/sync/router';
 import z from 'zod';
 
 export default router({
-	bootstrap: procedure.public.mutation(async ({ ctx }): Promise<Recovery> => {
+	bootstrap: procedure.member.mutation(async ({ ctx }): Promise<Recovery> => {
 		return await ctx.host.bootstrap();
 	}),
 	settings,
 	remoteSync,
+	// **`public`, both of them.** Updating is this installation's business rather than an
+	// account's: the settings page offers it, that page is reachable signed out, and neither call
+	// touches the workspace.
 	update: {
 		prepare: procedure.public
 			.input(
@@ -26,7 +29,7 @@ export default router({
 		})
 	},
 	state: {
-		reconcile: procedure.public.mutation(async ({ ctx }) => {
+		reconcile: procedure.member.mutation(async ({ ctx }) => {
 			const reconciledAt = ctx.clock.now();
 			await reconcile(ctx.db, reconciledAt);
 
