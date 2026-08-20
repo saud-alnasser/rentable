@@ -141,7 +141,7 @@ Start at [[protocol]].
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | accepted | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
 | answers-menus-and-scrollbars | implemented | [[efforts/answers-menus-and-scrollbars/spec]] | 0 | 0 | 0 |
-| capabilities-only-one-surface-got | accepted | [[efforts/capabilities-only-one-surface-got/spec]] | 0 | 3 | 0 |
+| capabilities-only-one-surface-got | accepted | [[efforts/capabilities-only-one-surface-got/spec]] | 1 | 3 | 0 |
 | contract-work-queue-and-directory | implemented | [[efforts/contract-work-queue-and-directory/spec]] | 0 | 1 | 0 |
 | counts-cards-and-confirmations | implemented | [[efforts/counts-cards-and-confirmations/spec]] | 0 | 2 | 0 |
 | dependency-backlog-consolidation | implemented | [[efforts/dependency-backlog-consolidation/spec]] | 1 | 0 | 0 |

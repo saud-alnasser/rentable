@@ -8,6 +8,8 @@ import {
 	deriveUnitStatus,
 	getConflictingAssignedUnitIds,
 	getContractPaymentSummary,
+	getContractTotalCost,
+	getExpectedAmountBy,
 	getExpectedAmountInRange,
 	getOutstandingExpectedAmount,
 	getRemainingContractBalance,
@@ -497,4 +499,43 @@ test('deriveUnitStatus does not mark a scheduled contract as occupied before it 
 		),
 		'vacant'
 	);
+});
+
+/**
+ * The claim a rank-filtered query narrows on: what a contract is expected to have paid *by a
+ * day* never exceeds what it is expected to pay over its whole term. It is what makes "owes
+ * something today" imply "has not settled the total", which is the only part of a money rank a
+ * stored column can answer.
+ *
+ * Swept over every interval and over days before, inside, on and past the term, because the
+ * bound has to hold everywhere for a query to rely on it — including where the term does not
+ * divide into whole cycles and the total falls back to counting them.
+ */
+test('what a contract owes by any day never exceeds its whole expected amount', () => {
+	const start = Date.UTC(2025, 0, 15);
+	const intervals = ['1m', '3m', '6m', '12m'] as const;
+	const termsInMonths = [1, 3, 7, 12, 13, 24];
+
+	for (const interval of intervals) {
+		for (const months of termsInMonths) {
+			const contract = {
+				status: 'active' as const,
+				start,
+				end: Date.UTC(2025, months, 15),
+				interval,
+				cost: 1000
+			};
+			const total = getContractTotalCost(contract);
+
+			for (const dayOffset of [-40, 0, 1, 45, 200, 400, 4000]) {
+				const now = start + dayOffset * 24 * 60 * 60 * 1000;
+
+				assert.ok(
+					getExpectedAmountBy(contract, now) <= total,
+					`${interval} over ${months} months, ${dayOffset} days in: ` +
+						`${getExpectedAmountBy(contract, now)} exceeds ${total}`
+				);
+			}
+		}
+	}
 });
