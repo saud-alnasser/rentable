@@ -24,11 +24,19 @@ const twoWorkspaces = async (
 	db: Awaited<ReturnType<typeof freshDatabase>>['db'],
 	turso: ReturnType<typeof tursoInMemory>
 ) => {
-	const owner = await signInWithGoogle(db, SOMEBODY, AT);
+	// **Two owners, because an account owns exactly one workspace** (requirement 6, and the unique
+	// index on `owner_account_id`). The sweep is about workspaces rather than about people, so what
+	// it needs is two of them and it does not care whose.
+	const first = await signInWithGoogle(db, SOMEBODY, AT);
+	const second = await signInWithGoogle(
+		db,
+		{ ...SOMEBODY, subject: 'google-subject-2', email: 'noura@example.com' },
+		AT
+	);
 
 	return [
-		await createWorkspace(db, turso.platform, { accountId: owner.id, name: 'Riyadh', now: AT }),
-		await createWorkspace(db, turso.platform, { accountId: owner.id, name: 'Jeddah', now: AT })
+		await createWorkspace(db, turso.platform, { accountId: first.id, name: 'Riyadh', now: AT }),
+		await createWorkspace(db, turso.platform, { accountId: second.id, name: 'Jeddah', now: AT })
 	];
 };
 

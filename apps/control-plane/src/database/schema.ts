@@ -66,8 +66,21 @@ export const account = sqliteTable('account', {
 export const workspace = sqliteTable('workspace', {
 	id: text('id').primaryKey(),
 	name: text('name').notNull(),
+	/**
+	 * Who owns it, and **an account owns exactly one** — requirement 6, enforced here rather than
+	 * only in the route that creates one.
+	 *
+	 * *Why the index and not just a check: the check loses a race, and two sign-ins arriving
+	 * together for one new account is the ordinary way to lose it. The control plane runs as one
+	 * process today and this does not rely on that.*
+	 *
+	 * **Requirement 14 reopens this by dropping the index**, in one migration, when organizations
+	 * bring several workspaces per account. That is the whole cost of closing it now, and it is
+	 * cheaper than the class of defect an unenforced invariant produces.
+	 */
 	ownerAccountId: text('owner_account_id')
 		.notNull()
+		.unique()
 		.references(() => account.id),
 	/** the database's name in the Turso organization. Every Platform API call names it by this. */
 	databaseName: text('database_name').notNull().unique(),

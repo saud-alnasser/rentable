@@ -1,0 +1,12 @@
+-- Requirement 6 of the workspace effort: an account owns exactly one workspace.
+--
+-- **This aborts rather than remediating, and that is the choice rather than an oversight.** If any
+-- account already holds two workspaces, the index cannot be created and the run stops here with
+-- `UNIQUE constraint failed: workspace.owner_account_id`. Clearing it means deciding which
+-- workspace survives and removing the other's Turso database, and a migration that guessed would
+-- discard somebody's ledger without anybody choosing to.
+--
+-- The state is reachable: until this change `POST /workspace` answered 201 to an account that
+-- already had one. It was checked for on 2026-08-20 and found nowhere — nothing is deployed, and
+-- the one development database carried no workspaces at all.
+CREATE UNIQUE INDEX `workspace_owner_account_id_unique` ON `workspace` (`owner_account_id`);

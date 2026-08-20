@@ -114,6 +114,47 @@ test('creating a workspace makes its database, its record, and its owner a membe
 });
 
 // The database is created before the record naming it, so this is the window that has to close.
+// Requirement 6, and the race the unique index alone does not answer: the loser of a concurrent
+// first sign-in has to end up holding the winner's workspace, not a 500 on the one act
+// requirement 3 is about. `signInWithGoogle` answers the identical race one file over.
+test('a second creation for one account answers with the first, and leaves nothing behind', async () => {
+	const { db, close } = await freshDatabase();
+	const turso = tursoInMemory();
+
+	try {
+		const owner = await signInWithGoogle(db, SOMEBODY, AT);
+
+		const first = await createWorkspace(db, turso.platform, {
+			accountId: owner.id,
+			name: 'Riyadh',
+			now: AT
+		});
+
+		// The state a losing writer is in: it has already provisioned a database of its own and is
+		// about to find the row taken.
+		const second = await createWorkspace(db, turso.platform, {
+			accountId: owner.id,
+			name: 'Jeddah',
+			now: AT
+		});
+
+		assert.equal(second.id, first.id, 'the loser was handed a different workspace');
+		assert.equal(
+			(await db.select().from(workspace)).length,
+			1,
+			'a second workspace row was written'
+		);
+		assert.deepEqual(
+			[...turso.databases],
+			[first.databaseName],
+			"the loser's own database was left behind"
+		);
+		assert.equal(turso.deleted.length, 1, 'the loser did not remove what it had provisioned');
+	} finally {
+		await close();
+	}
+});
+
 test('a database whose workspace could not be written is removed again', async () => {
 	const { db, close } = await freshDatabase();
 	const turso = tursoInMemory();

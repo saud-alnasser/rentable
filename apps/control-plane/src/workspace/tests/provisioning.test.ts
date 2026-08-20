@@ -241,20 +241,13 @@ const onlyWorkspace = (created: WorkspaceDatabase[]): WorkspaceDatabase => {
 // schema declares them, no idmap, and the recorded version equal to the one the mint was asked for.
 test('signing up creates one workspace with the schema the client expects', skipped, async () => {
 	await withLiveControlPlane(async ({ url, db, open, created }) => {
-		const { session, account } = await answerOf(await post(url, '/account/sign-in'));
+		// **Signing up is the whole of it.** Since #615 the account and its one workspace are made in
+		// the same act, so this is literally *after a first sign-up*, which is the phrase criterion 6
+		// uses and the thing an earlier version of this test could not reach.
+		const { session, account, workspace } = await answerOf(await post(url, '/account/sign-in'));
 
 		assert.ok(session && account, 'signing in reached no account');
-
-		const madeWorkspace = await post(url, '/workspace', {
-			token: session.token,
-			body: { name: 'a portfolio' }
-		});
-
-		assert.equal(madeWorkspace.status, 201);
-
-		const { workspace } = await answerOf(madeWorkspace);
-
-		assert.ok(workspace, 'creating a workspace answered without one');
+		assert.ok(workspace, 'signing up did not bring a workspace with it');
 
 		// The client's own number. `build.rs` writes `WORKSPACE_SCHEMA_VERSION` as the count of the
 		// shipped `.sql` files and `database/version.rs`'s own test pins the constant to that count,
@@ -283,6 +276,26 @@ test('signing up creates one workspace with the schema the client expects', skip
 
 		assert.equal(owned.length, 1, `the account owns ${owned.length} workspaces after one sign-up`);
 		assert.equal(created.length, 1, `${created.length} databases were created for one workspace`);
+
+		// **Asked again after the account has reached the service twice more**, which is what makes
+		// the count above a property of the system rather than of this test's own arithmetic. There
+		// is no route that creates a workspace — requirement 6 took it — so what could produce a
+		// second is a sign-in that provisioned again, and this rules that out against a live account
+		// rather than against the in-memory platform.
+		await post(url, '/account/sign-in');
+		await post(url, '/session/refresh', { token: session.token });
+
+		assert.equal(
+			(
+				await db
+					.select()
+					.from(workspaceRecord)
+					.where(eq(workspaceRecord.ownerAccountId, account.id))
+			).length,
+			1,
+			'the account acquired a second workspace'
+		);
+		assert.equal(created.length, 1, 'a further sign-in provisioned a second database');
 
 		const ledger = await open(onlyWorkspace(created));
 
@@ -387,15 +400,9 @@ test(
 	skipped,
 	async () => {
 		await withLiveControlPlane(async ({ url, open, created, opened }) => {
-			const { session } = await answerOf(await post(url, '/account/sign-in'));
+			const { session, workspace } = await answerOf(await post(url, '/account/sign-in'));
 
-			assert.ok(session);
-
-			const { workspace } = await answerOf(
-				await post(url, '/workspace', { token: session.token, body: { name: 'a portfolio' } })
-			);
-
-			assert.ok(workspace);
+			assert.ok(session && workspace, 'signing up did not bring a workspace with it');
 
 			const clientVersion = await targetSchemaVersion();
 

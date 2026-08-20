@@ -13,6 +13,7 @@ import {
 	SESSION_LIFETIME_REACHED,
 	UNAUTHENTICATED
 } from '../../failure.ts';
+import { workspace as workspaceTable } from '../../database/schema.ts';
 import { declineRenewal } from '../../session/session.ts';
 import { targetSchemaVersion } from '../../workspace/migration.ts';
 import {
@@ -170,35 +171,56 @@ test('a route that does not exist is a 404 rather than a sign-in', async () => {
 	});
 });
 
-// Acceptance criterion 1: a database on Turso, and a record naming it, owned by whoever asked.
-test('creating a workspace provisions a database and a record that names it', async () => {
+// Acceptance criterion 1, and requirement 3's *in the same act*: signing up provisions the
+// database, the record that names it, and the membership, without a second call.
+test('signing up provisions a database and a record that names it', async () => {
 	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, turso }) => {
-		const { account } = await answerOf(await post(url, '/account/sign-in'));
-		const response = await post(url, '/workspace', { body: { name: 'Riyadh' } });
-
-		assert.equal(response.status, 201);
-
-		const { workspace } = await answerOf(response);
+		const { account, workspace } = await answerOf(await post(url, '/account/sign-in'));
 
 		assert.ok(workspace && account);
-		assert.equal(workspace.name, 'Riyadh');
+		assert.equal(workspace.name, account.displayName, 'a workspace is named for its owner');
 		assert.equal(workspace.ownerAccountId, account.id, 'it belongs to somebody else');
 		assert.deepEqual([...turso.databases], [`ws-${workspace.id}`], 'no database was provisioned');
 	});
 });
 
-test('a workspace needs a name', async () => {
-	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
-		const response = await post(url, '/workspace', { body: { name: '  ' } });
+// Requirement 6: exactly one, held on every path that can make an account rather than only on
+// the sign-in route. A Google token presented to the mint creates the account, so it has to
+// create the workspace too.
+test('an account made by any route gets its workspace with it', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, db, turso }) => {
+		// The account's first-ever request, and it is not a sign-in.
+		await post(url, '/workspace/nope/token', { body: { schemaVersion: 1 } });
 
-		assert.equal(response.status, 400);
-		assert.equal((await answerOf(response)).error?.code, MALFORMED);
+		const owned = await db.select().from(workspaceTable);
+
+		assert.equal(owned.length, 1, 'an account was created with no workspace');
+		assert.equal(turso.databases.size, 1, 'the workspace has no database');
+	});
+});
+
+// Signing in twice reaches one workspace, which is the half of requirement 6 the index cannot
+// state: the second sign-in must find rather than create.
+test('signing in twice reaches one workspace and provisions nothing', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, turso }) => {
+		const first = await answerOf(await post(url, '/account/sign-in'));
+		const second = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.ok(first.workspace && second.workspace);
+		assert.equal(second.workspace.id, first.workspace.id);
+		assert.equal(turso.databases.size, 1, 'a second sign-in provisioned a second database');
 	});
 });
 
 test('a body that is not json says so', async () => {
 	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
-		const response = await post(url, '/workspace', { body: 'not json at all' });
+		const { workspace } = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.ok(workspace);
+
+		const response = await post(url, `/workspace/${workspace.id}/token`, {
+			body: 'not json at all'
+		});
 
 		assert.equal(response.status, 400);
 		assert.equal((await answerOf(response)).error?.code, MALFORMED);
@@ -208,10 +230,7 @@ test('a body that is not json says so', async () => {
 // Acceptance criterion 2: scoped to one database, and short-lived.
 test('the mint issues a token for that one database, with a lifetime', async () => {
 	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, turso }) => {
-		await post(url, '/account/sign-in');
-		const { workspace } = await answerOf(
-			await post(url, '/workspace', { body: { name: 'Riyadh' } })
-		);
+		const { workspace } = await answerOf(await post(url, '/account/sign-in'));
 
 		assert.ok(workspace);
 
@@ -238,10 +257,9 @@ test('the mint issues a token for that one database, with a lifetime', async () 
 });
 
 const aWorkspace = async (url: string) => {
-	await post(url, '/account/sign-in');
-	const { workspace } = await answerOf(await post(url, '/workspace', { body: { name: 'Riyadh' } }));
+	const { workspace } = await answerOf(await post(url, '/account/sign-in'));
 
-	assert.ok(workspace);
+	assert.ok(workspace, 'signing in did not bring a workspace with it');
 
 	return workspace;
 };
@@ -350,12 +368,12 @@ test('a session is the credential afterwards, and google is not asked again', as
 		const { session } = await answerOf(await post(url, '/account/sign-in'));
 		assert.ok(session);
 
-		const response = await post(url, '/workspace', {
-			token: session.token,
-			body: { name: 'Riyadh' }
-		});
+		// Any route reached with the session rather than with a Google token. It used to be
+		// `POST /workspace`, which no longer exists — requirement 6 removed it. The credential was
+		// always the first thing that route touched; what changed is that the route is gone.
+		const response = await post(url, '/session/refresh', { token: session.token });
 
-		assert.equal(response.status, 201);
+		assert.equal(response.status, 200);
 		assert.equal(googleAsked, 1, 'the session still cost a round trip to google');
 	});
 });
@@ -445,10 +463,7 @@ test('a sign-in a month old is refused however faithfully it has been reaching',
 // still there to be signed back in to.
 test('a sign-in past its month stops the mint and takes nothing away', async () => {
 	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, moveClockTo, turso }) => {
-		const { account, session } = await answerOf(await post(url, '/account/sign-in'));
-		const { workspace } = await answerOf(
-			await post(url, '/workspace', { body: { name: 'Riyadh' } })
-		);
+		const { account, session, workspace } = await answerOf(await post(url, '/account/sign-in'));
 
 		assert.ok(account && session && workspace);
 
@@ -507,6 +522,10 @@ test('refreshing with no credential is unauthenticated rather than expired', asy
 // #4 of the review: `asking` renews on every route, so every route that acts as somebody has to
 // say so. A route that renewed silently leaves the client holding a number three days stale, and
 // the client stops replicating on a window that had already moved.
+//
+// **There are two such routes now**, sign-in-or-refresh and the mint, and this reaches both. It
+// used to reach three; `POST /workspace` went with requirement 6, and there is no route left that
+// acts as somebody and is not checked here.
 test('every route that acts as somebody answers with the window it just moved', async () => {
 	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, moveClockTo }) => {
 		const { session } = await answerOf(await post(url, '/account/sign-in'));
@@ -515,22 +534,20 @@ test('every route that acts as somebody answers with the window it just moved', 
 		const atCreate = AT + 1 * A_DAY;
 		moveClockTo(atCreate);
 
-		const created = await answerOf(
-			await post(url, '/workspace', { token: session.token, body: { name: 'Riyadh' } })
-		);
+		const resumed = await answerOf(await post(url, '/account/sign-in', { token: session.token }));
 
-		assert.ok(created.workspace);
+		assert.ok(resumed.workspace);
 		assert.equal(
-			created.session?.expiresAt,
+			resumed.session?.expiresAt,
 			atCreate + 3 * A_DAY,
-			'creating renewed and said nothing'
+			'identifying renewed and said nothing'
 		);
 
 		const atMint = AT + 2 * A_DAY;
 		moveClockTo(atMint);
 
 		const minted = await answerOf(
-			await post(url, `/workspace/${created.workspace.id}/token`, {
+			await post(url, `/workspace/${resumed.workspace.id}/token`, {
 				token: session.token,
 				body: { schemaVersion: await targetSchemaVersion() }
 			})
@@ -546,10 +563,7 @@ test('every route that acts as somebody answers with the window it just moved', 
 // two numbers that happen to be three days.
 test('the mint restarts both windows together, and says so in one answer', async () => {
 	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, moveClockTo }) => {
-		const { session } = await answerOf(await post(url, '/account/sign-in'));
-		const { workspace } = await answerOf(
-			await post(url, '/workspace', { body: { name: 'Riyadh' } })
-		);
+		const { session, workspace } = await answerOf(await post(url, '/account/sign-in'));
 
 		assert.ok(session && workspace);
 
@@ -578,10 +592,7 @@ test('the mint restarts both windows together, and says so in one answer', async
 // has nothing to mint — and it is why the desktop keeps both numbers and believes the earlier.
 test('refreshing moves the session and leaves the replica credential where it was', async () => {
 	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, moveClockTo }) => {
-		const { session } = await answerOf(await post(url, '/account/sign-in'));
-		const { workspace } = await answerOf(
-			await post(url, '/workspace', { body: { name: 'Riyadh' } })
-		);
+		const { session, workspace } = await answerOf(await post(url, '/account/sign-in'));
 
 		assert.ok(session && workspace);
 
