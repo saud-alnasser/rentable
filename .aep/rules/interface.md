@@ -123,8 +123,7 @@ Two things sit outside this deliberately:
 **Nothing gains a tone it has no caller for.** The record action control takes two of the five,
 because no record action has ever been a success or a warning.
 
-Settled by the *capabilities only one surface got* effort, requirement 17. Cited in prose rather
-than linked because that spec lands in its own `docs:` change, below this one in the stack.
+Settled by [[efforts/capabilities-only-one-surface-got/spec]], requirement 17.
 
 ## Lists and rows
 
