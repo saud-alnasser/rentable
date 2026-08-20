@@ -1,7 +1,7 @@
 ---
-aep: 2.6.0
+aep: 2.7.0
 owner: repository
-date: 2026-08-19
+date: 2026-08-20
 kind: rule
 paths:
   - apps/desktop/tauri/src/sync/**
@@ -47,8 +47,12 @@ crosses to TypeScript, and no command hands one over.
 differ, the gap is exactly what an incident occupies.*
 
 **Widened 2026-08-18** ([[efforts/a-workspace-follows-its-user/spec]], decision 09): this is the rule for **every**
-credential this application holds, not Drive's alone. A hosted workspace's sync token is a
-credential and lives on the same side of the same boundary, for the same reason.
+credential this application holds, not Drive's alone. The workspace's sync token is a credential
+and lives on the same side of the same boundary, for the same reason.
+
+*The word "hosted" was dropped from that sentence on 2026-08-20 (#573). There is one kind of
+workspace, so a qualifier that once picked one of two now reads as though some other kind of
+workspace had a sync token this rule does not cover.*
 
 **What crosses is facts *about* a credential, never one.** `RemoteSyncState` carries
 `tokenExpiresAt` and the session's three moments; the side that decides whether to keep

@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-19
+date: 2026-08-20
 kind: context
 use-when: "a term, boundary, or constraint about this repository is in question, before reaching for a narrower context"
 ---
@@ -24,10 +24,11 @@ sync retired (#554) and the record of truth moved.*
 
 **There is a second package, and it is not part of the application.** `apps/control-plane/`
 is `@rentable/control-plane`, the always-online tier holding accounts, workspaces and
-membership for a hosted workspace — built 2026-08-18 by #549, deployed nowhere, and reached by
-nothing yet. It has its own database and its own schema, and **it holds no domain table**: it
-is in the credential path and never in the data path. Everything below in this file describes
-the desktop application; where the control plane differs, its own README says so.
+membership — built 2026-08-18 by #549 and **deployed nowhere**, though the desktop client now
+reaches one where it is told of one (`tauri/src/sync/control.rs`). It has its own database and
+its own schema, and **it holds no domain table**: it is in the credential path and never in the
+data path. Everything below in this file describes the desktop application; where the control
+plane differs, its own README says so.
 
 **Every `src/…` and `tauri/…` path in the rest of this file, and in the rules and contexts
 beside it, is relative to `apps/desktop/`** unless it is written out in full. That is the one
@@ -43,8 +44,16 @@ Which tool runs which script, and why `check` and `lint` sit outside the task gr
 ## Vocabulary
 
 **Workspace**:
-The unit of syncable state — one local database plus its metadata, mapped to one remote
-location.
+The unit of syncable state, and there is exactly one per installation — a database of record in
+Turso, with a local replica meant to serve every read and take every write.
+_Avoid_: treating the replica as the workspace. The file on this machine is a copy of the
+record, never the record
+
+*It read "one local database plus its metadata, mapped to one remote location" until 2026-08-20
+(#573). One record of truth left the mapping nothing to be optional about: a workspace does not
+acquire a remote, it is one. **What is built is the seam and not yet the path** —
+`Database::connect_workspace` opens the replica and nothing on the startup path calls it, so a
+read today still reaches the plain file `connect()` opens.*
 
 **Snapshot**:
 A point-in-time copy of a workspace database. **The application keeps none** since #569: the
@@ -76,16 +85,24 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 
 ## Boundaries
 
-- **The application never makes an HTTP call to fetch a record.** *Superseded 2026-08-18; it
-  read "There is no server", and [[efforts/a-workspace-follows-its-user/spec]], decision 09, is where that was
-  decided.* The API layer is a direct caller executing in the webview, and that part is
-  unchanged. **A local workspace has no server at all**, and the old sentence is true of it word
-  for word: the only process boundary it crosses is Tauri's IPC into Rust — never HTTP. **A
-  hosted workspace has a remote of record and a control-plane API, and neither is in the data
-  path** — reads and writes still reach a local file, the replica syncs on its own, and the API
-  is in the credential path only. The property the old boundary was protecting therefore survives
-  the premise that stated it, which is why this is superseded in place rather than footnoted: a
-  reader who takes "never HTTP" at face value builds against a sentence rather than a rule.
+- **The application never makes an HTTP call to fetch a record.** *Superseded 2026-08-18 and
+  rewritten 2026-08-20; it read "There is no server", and
+  [[efforts/a-workspace-follows-its-user/spec]], decision 09, is where that was decided.* **There
+  is a server, it holds the record, and it is still not in the data path.** The API layer is a
+  direct caller executing in the webview, and that part is unchanged: a read or a write reaches a
+  local file over Tauri's IPC into Rust, never over HTTP. The replica syncs on its own and the
+  control-plane API is in the credential path only. `platform/database/hosted.ts` is the one
+  transport in the tree that would read over the wire from the webview, and nothing imports it —
+  [[rules/api-layer]], under *One database client type*, is where that is recorded.
+
+  The property the old boundary was protecting therefore survives the premise that stated it, which
+  is why this is superseded in place rather than footnoted: a reader who takes "never HTTP" at
+  face value builds against a sentence rather than a rule.
+
+  *The 2026-08-18 wording split this across two kinds of workspace — "a local workspace has no
+  server at all" against "a hosted workspace has a remote of record". One record of truth left
+  only the second half, and a boundary that still offers the reader a choice of two is one they
+  can satisfy by picking the easier.*
 - **Credentials never cross the IPC boundary.** Every network call that spends one is Rust's —
   Google's OAuth and profile read, and the control plane's — and no command hands the web layer a
   client secret, a refresh token or a session token. The surface is coarse operations the web
@@ -95,12 +112,14 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   *It read "Google Drive HTTP and OAuth" over six operations — link, cancel a link, unlink, sync,
   inspect, resolve a conflict — until Drive sync retired (#554, 2026-08-19).*
 - **Diagnostics are written locally, bounded, and stripped of recognised credentials.**
-  Nothing collects diagnostics anywhere — not even for a hosted workspace, whose control-plane
-  API is in the credential path and nothing else — so events go to a rotating file the user can
-  open from settings. Redaction happens in the sink, on the way to disk — never at the call site. It
-  works by **recognising** the credential shapes this application handles, so it bounds the
-  damage rather than guaranteeing none: a value known to be secret still must not be put in
-  an event.
+  Nothing collects diagnostics anywhere — the control-plane API is in the credential path and
+  nothing else — so events go to a rotating file the user can open from settings. Redaction
+  happens in the sink, on the way to disk — never at the call site. It works by **recognising**
+  the credential shapes this application handles, so it bounds the damage rather than
+  guaranteeing none: a value known to be secret still must not be put in an event.
+
+  *"not even for a hosted workspace, whose control-plane API is…" until 2026-08-20 (#573). The
+  qualifier picked one of two kinds of workspace and there is one.*
 - **Domain rules live in their concept's own module.** Routers validate, call the domain,
   persist, and reconcile — they hold no rules. There is no repository layer; routers reach
   the database directly (#107, #108).
@@ -132,8 +151,25 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 
 ## Constraints
 
-- **Offline-first.** The application is fully usable with no network. Remote sync is
-  optional and additive, never a dependency of ordinary use.
+- **Offline-first, from the second run onwards.** *Superseded 2026-08-20 (#573); it read "The
+  application is fully usable with no network. Remote sync is optional and additive, never a
+  dependency of ordinary use."* Both halves of that stopped being true when the record of truth
+  moved: replication is how the workspace exists rather than an addition to it, and **the
+  sign-in wall is built** — `sync/admission.ts` refuses a workspace to a machine with no
+  account, and `+layout.svelte` raises it before anything renders.
+
+  **What is not built is the half that would make a first run need a network.** Nothing creates
+  a workspace at sign-up, no control plane is deployed, and `admission.ts` still admits a build
+  that was never told of one. So a first run needs a network and an account **once a control
+  plane is deployed**, and does not today. Written this way rather than as the end state,
+  because a constraint that describes an unbuilt application is one a reader satisfies by
+  imagining it.
+
+  What survives either way, and is the part worth holding, is everything after the first run:
+  every read and every write is served locally with no network at all, for as long as the
+  session's refresh window is open. Requirement 15 of
+  [[efforts/a-workspace-follows-its-user/spec]] closes that window at three days and is where
+  the boundary is argued.
 - **Arabic and English, RTL and LTR.** Both locales are first-class; a layout that only
   works in one direction is broken.
 - **Saudi identity documents.** A tenant is identified by a government document whose two

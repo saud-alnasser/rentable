@@ -1,7 +1,7 @@
 ---
-aep: 2.5.1
+aep: 2.7.0
 owner: repository
-date: 2026-08-18
+date: 2026-08-20
 kind: reference
 use-when: 'provisioning a workspace database, minting a token to sync with one, or reading what the control plane does to Turso'
 ---
@@ -19,8 +19,8 @@ JSON API usually looks like.
 
 ## Purpose
 
-Two things, and neither is in the data path: **creating the database a hosted workspace's data
-lives in**, and **minting the short-lived token a client syncs with**. Reads and writes go
+Two things, and neither is in the data path: **creating the database a workspace's data lives
+in**, and **minting the short-lived token a client syncs with**. Reads and writes go
 between a client's replica and its database directly; this API never sees a row of anybody's
 ledger.
 
