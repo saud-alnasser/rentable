@@ -7,6 +7,7 @@ import {
 	toGovIdFromReference,
 	toIsoDay,
 	toTransferKey,
+	toUnitParts,
 	toUnitReference,
 	type WorkspaceHeld,
 	type WorkspaceTransfer
@@ -68,9 +69,21 @@ const WorkspaceTransferSchema = z.object({
 	payments: z.array(TransferPaymentSchema)
 });
 
-/** The id a name stands for, or a refusal naming what could not be found. */
-function resolve(ids: Map<string, string>, name: string, what: string) {
-	const id = ids.get(toTransferKey(name));
+/**
+ * The id a name stands for, or a refusal naming what could not be found.
+ *
+ * **What a name is keyed under is not always the name.** A tenant, a complex and a contract are
+ * each one value, and a unit is two — the complex holding it and its own name — which is how the
+ * planning pass keys one and therefore how this has to. `values` is that key; `name` stays what a
+ * person wrote, because it is what the refusal has to say back to them.
+ */
+function resolve(
+	ids: Map<string, string>,
+	name: string,
+	what: string,
+	values: readonly string[] = [name]
+) {
+	const id = ids.get(toTransferKey(...values));
 
 	if (id === undefined) {
 		throw new TRPCError({ code: 'BAD_REQUEST', message: `no ${what} called '${name.trim()}'` });
@@ -345,7 +358,11 @@ export default router({
 			const assignmentRows = input.contracts.flatMap((contract) =>
 				contract.units.map((unit) => ({
 					contractId: resolve(contractIds, contract.reference, 'contract'),
-					unitId: resolve(unitIds, unit, 'unit')
+					// split back into the pair the map is keyed under, by the planning pass's own
+					// splitter rather than a second one: a composed reference asked for as one value
+					// could never match a two-value key, and every assignment refused the whole
+					// import (#562).
+					unitId: resolve(unitIds, unit, 'unit', toUnitParts(unit))
 				}))
 			);
 

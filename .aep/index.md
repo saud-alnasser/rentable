@@ -137,6 +137,7 @@ Start at [[protocol]].
 
 | Effort | Status | Spec | Research | Prototypes | Tickets |
 | --- | --- | --- | --- | --- | --- |
+| a-contract-keeps-its-units-through-a-transfer | accepted | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | accepted | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
 | answers-menus-and-scrollbars | implemented | [[efforts/answers-menus-and-scrollbars/spec]] | 0 | 0 | 0 |
