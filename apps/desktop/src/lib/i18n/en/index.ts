@@ -338,6 +338,12 @@ const en = {
 			finalizing: 'signing you in...',
 			incomplete:
 				'you are signed in with Google, but this machine could not reach rentable to open your workspace. check your connection and try again.',
+			incompleteDescription:
+				'this machine is signed in. what it has not done yet is reach rentable, and that is the only step left.',
+			incompleteTitle: 'almost in',
+			reaching: 'reaching rentable...',
+			tryAgain: 'try again',
+			useDifferentAccount: 'sign in with a different account',
 			lockedDescription:
 				'this machine has been out of contact for too long to keep working offline. sign in again to unlock it — your workspace and everything in it are untouched.',
 			lockedTitle: 'sign in again to continue',

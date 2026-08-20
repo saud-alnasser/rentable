@@ -67,8 +67,9 @@
 	let startupRecovery = $state<Recovery | null>(null);
 	let startupRemoteSync = $state<RemoteSyncState | null>(null);
 	// which of the two the wall is saying, and it is only read while the wall is up.
-	let signInReason = $state<'noAccount' | 'windowClosed'>('noAccount');
+	let signInReason = $state<'noAccount' | 'windowClosed' | 'noSession'>('noAccount');
 	let isSigningIn = $state(false);
+	let isRetryingSession = $state(false);
 	let signInPhase = $state<GoogleSignInPhase | null>(null);
 	let isSyncingWindowClose = false;
 	let isFinalizingWindowClose = false;
@@ -152,7 +153,7 @@
 	 * read, and a screen rendered from it after a sign-out is the criterion failing quietly
 	 * rather than loudly.
 	 */
-	async function raiseSignInWall(reason: 'noAccount' | 'windowClosed') {
+	async function raiseSignInWall(reason: 'noAccount' | 'windowClosed' | 'noSession') {
 		queryClient.clear();
 		startupError = null;
 		startupRecovery = null;
@@ -226,12 +227,59 @@
 
 		if (!(await admit())) {
 			// signed in with Google, and still not through: the consent screen was answered and the
-			// control plane was not reached, so this machine holds an identity and no session. It
-			// must not read as never having signed in, or the answer is to answer the consent screen
-			// again — which lands in exactly the same place.
-			startupError = $LL.layout.signIn.incomplete();
+			// control plane was not reached, so this machine holds an identity and no session.
+			// `workspaceAdmission` has already named that situation `noSession`, and the wall says
+			// so and offers the call that failed. Answering the consent screen again lands in
+			// exactly the same place. Nothing is set here any more, which is the point: what the
+			// screen says now comes from the state rather than from a sentence written at one of
+			// the several places that can reach it.
+			return;
+		}
+
+		try {
+			startupState = 'loading';
+			await continueStartup();
+		} catch (error) {
+			startupRecovery = null;
+			startupState = 'error';
+			startupError = getErrorMessage(error);
+			await tauri.window.show();
+		}
+	}
+
+	/**
+	 * Reach the control plane with the identity this machine already holds, and go on if that works.
+	 *
+	 * **The retry for the `noSession` wall, and it opens no browser.** What failed was one call
+	 * after the sign-in, so this repeats that call and nothing else. Being unreachable again is not
+	 * an error and says nothing new: admission returns the same situation, the wall stays where it
+	 * is, and the notice on it already reads *check your connection and try again*.
+	 */
+	async function retrySession() {
+		if (isRetryingSession || isSigningIn) {
+			return;
+		}
+
+		isRetryingSession = true;
+		startupError = null;
+
+		try {
+			startupRemoteSync = await tauri.remoteSync.establishSession();
+			queryClient.setQueryData(settingsKeys.remoteSync, startupRemoteSync);
+
+			// built before there was a session, so it belongs to a machine that could not act. The
+			// same reason signing in forgets it, and the same cost if it is kept.
+			forgetContext();
+
+			if (!(await admit())) {
+				return;
+			}
+		} catch (error) {
+			startupError = getErrorMessage(error);
 
 			return;
+		} finally {
+			isRetryingSession = false;
 		}
 
 		try {
@@ -451,11 +499,13 @@
 						<LayoutStartupLoading />
 					{:else if startupState === 'sign-in'}
 						<LayoutStartupSignIn
-							reason={signInReason}
+							situation={signInReason}
 							{isSigningIn}
+							isRetrying={isRetryingSession}
 							phase={signInPhase}
 							errorMessage={startupError}
 							onSignIn={() => void signIn()}
+							onRetry={() => void retrySession()}
 						/>
 					{:else if startupState === 'recovery' && startupRecovery}
 						<LayoutStartupRecovery recovery={startupRecovery} onRetry={() => void startApp()} />

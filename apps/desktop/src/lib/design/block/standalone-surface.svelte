@@ -20,6 +20,7 @@
 		title,
 		description,
 		busy = false,
+		lead,
 		children,
 		corner,
 		actions,
@@ -31,6 +32,14 @@
 		description?: string;
 		/** Whether the application is working rather than waiting for the reader. */
 		busy?: boolean;
+		/**
+		 * What sits above the title: a mark, a name, whatever says where the reader is.
+		 *
+		 * Optional, and most of the seven screens want nothing here. The one that does is the
+		 * sign-in wall, which is the only one a person can reach before the application has drawn
+		 * anything at all, so it is the only one that has to say which application this is.
+		 */
+		lead?: Snippet;
 		/** What this screen has to say. */
 		children?: Snippet;
 		/**
@@ -55,6 +64,12 @@
 		role={busy ? 'status' : undefined}
 		aria-busy={busy || undefined}
 	>
+		{#if lead}
+			<div class="mb-4">
+				{@render lead()}
+			</div>
+		{/if}
+
 		<div class="flex items-start gap-3">
 			{#if busy}
 				<Spinner class="mt-0.5 size-5 shrink-0 text-muted-foreground" />
