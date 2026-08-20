@@ -23,6 +23,46 @@ export type MutationOptions = {
 	};
 };
 
+/** What a mutation was called with, what came back, and what was read before it ran. */
+export type MutationChange<TVariables, TResult, TCaptured> = {
+	variables: TVariables;
+	result: TResult;
+	captured: TCaptured;
+};
+
+/**
+ * What a declared mutation announces on success, which is a message plus the one thing no other
+ * announcement in this application has: the change it is about.
+ *
+ * A mutation acting on a set has nothing to say without it. *Nine contracts terminated* is the
+ * whole of what a reader wants from a bulk action, and until this existed the count was toasted
+ * from the surface that called the mutation instead, so the rule that keeps announcements in one
+ * place had an exception for every action acting on more than one record.
+ *
+ * It takes the same change {@link MutationDeclaration.inverse} and
+ * {@link MutationDeclaration.records} take, rather than the result alone. Those two are the
+ * neighbours a reader compares this against, and a third shape for the same three facts is a
+ * third thing to remember; what a mutation was asked for is also part of what it did, which is
+ * how *three of the five went through* is stated.
+ *
+ * **Answering with nothing withholds the announcement**, and a bulk action needs that as much as
+ * it needs the count: a selection in which nothing could be changed has nothing to report, and
+ * *0 contracts terminated* is a sentence about nothing.
+ *
+ * A declaration with nothing to read takes no parameter, which is the form every existing one
+ * already has.
+ */
+type ToastSuccessMessage<TVariables, TResult, TCaptured> =
+	string | ((change: MutationChange<TVariables, TResult, TCaptured>) => string | undefined);
+
+/** What a declared mutation says, which is {@link MutationOptions}'s vocabulary plus the above. */
+export type MutationToast<TVariables, TResult, TCaptured> = Omit<
+	NonNullable<MutationOptions['toast']>,
+	'success'
+> & {
+	success?: ToastSuccessMessage<TVariables, TResult, TCaptured>;
+};
+
 /** the workspace concepts a data mutation can write to. */
 export type WorkspaceConcept = keyof typeof workspacePrefixes;
 
@@ -46,7 +86,7 @@ export type MutationDeclaration<TVariables, TResult, TCaptured = void> = {
 	 */
 	touches: readonly WorkspaceConcept[];
 	/** what the user is told. A mutation that declares none reports nothing, either way. */
-	toast?: MutationOptions['toast'];
+	toast?: MutationToast<TVariables, TResult, TCaptured>;
 	/**
 	 * read what the inverse will need, before the mutation runs: the row an edit is about to
 	 * overwrite, the row a deletion is about to remove. Whatever it resolves to reaches
@@ -61,11 +101,7 @@ export type MutationDeclaration<TVariables, TResult, TCaptured = void> = {
 	 * Declared beside {@link toast}, this is also what the announcement offers to take back:
 	 * the offer is derived from the two and is not declared anywhere itself.
 	 */
-	inverse?: (change: {
-		variables: TVariables;
-		result: TResult;
-		captured: TCaptured;
-	}) => Inverse | undefined;
+	inverse?: (change: MutationChange<TVariables, TResult, TCaptured>) => Inverse | undefined;
 	/**
 	 * what this mutation leaves in the record's history, given the same three things.
 	 *
@@ -78,15 +114,29 @@ export type MutationDeclaration<TVariables, TResult, TCaptured = void> = {
 	 * inverse} already accepts, and the reason a mutation added without a declaration is absent
 	 * from the account rather than able to break it.
 	 */
-	records?: (change: {
-		variables: TVariables;
-		result: TResult;
-		captured: TCaptured;
-	}) => HistoryEntry | HistoryEntry[] | undefined;
+	records?: (
+		change: MutationChange<TVariables, TResult, TCaptured>
+	) => HistoryEntry | HistoryEntry[] | undefined;
 };
 
 function resolveToastMessage(message: ToastMessage) {
 	return typeof message === 'function' ? message() : message;
+}
+
+/**
+ * What a declared mutation announces, given the change it is about.
+ *
+ * Resolved here rather than inside {@link onMutationSuccess}, because this is the only place a
+ * change exists: that handler is also reached by the undo path and by surfaces with no
+ * declaration behind them, and neither of those has one to hand it.
+ */
+function resolveAnnouncement<TVariables, TResult, TCaptured>(
+	message: ToastSuccessMessage<TVariables, TResult, TCaptured> | undefined,
+	change: MutationChange<TVariables, TResult, TCaptured>
+) {
+	// handed the change whichever form it takes; the form that does not want it declares no
+	// parameter and ignores it, which is what makes the two one rule rather than two.
+	return typeof message === 'function' ? message(change) : message;
 }
 
 function isToastMessage(message: boolean | ToastMessage | undefined): message is ToastErrorMessage {
@@ -282,7 +332,9 @@ function bindMutation<TVariables, TResult, TCaptured>(
 	declaration: MutationDeclaration<TVariables, TResult, TCaptured>,
 	client: QueryClient
 ) {
-	const opts: MutationOptions = { toast: declaration.toast };
+	// the refusal half of the declaration is the shared vocabulary unchanged; only the
+	// announcement can read a change, and it is resolved against one below.
+	const { success, ...refusal } = declaration.toast ?? {};
 
 	return {
 		mutationFn: declaration.mutate,
@@ -290,7 +342,10 @@ function bindMutation<TVariables, TResult, TCaptured>(
 		onSuccess: async (result: TResult, variables: TVariables, captured: TCaptured) => {
 			await invalidateWorkspaceData(client);
 
-			const inverse = declaration.inverse?.({ variables, result, captured });
+			// the three things that happened, named once: what the mutation was asked for, what it
+			// answered with, and what was read before it ran. All three declarations below take it.
+			const change = { variables, result, captured };
+			const inverse = declaration.inverse?.(change);
 
 			if (inverse) {
 				inverseStack.record(inverse);
@@ -299,13 +354,16 @@ function bindMutation<TVariables, TResult, TCaptured>(
 			// appended after the work landed, and never awaited into it: the change is what the
 			// reader asked for, and an account that could not be written is a smaller failure than
 			// a change refused because its account could not be.
-			const entry = declaration.records?.({ variables, result, captured });
+			const entry = declaration.records?.(change);
 
 			recordHistory(client, entry);
 
-			onMutationSuccess(opts, inverse && { client, change: inverse, direction: 'undo' });
+			onMutationSuccess(
+				{ toast: { ...refusal, success: resolveAnnouncement(success, change) } },
+				inverse && { client, change: inverse, direction: 'undo' }
+			);
 		},
-		onError: (e: Error) => onMutationError(opts, e)
+		onError: (e: Error) => onMutationError({ toast: refusal }, e)
 	};
 }
 
