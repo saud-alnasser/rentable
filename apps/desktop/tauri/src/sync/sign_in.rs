@@ -19,6 +19,7 @@ use tauri_plugin_opener::OpenerExt;
 use crate::{diagnostics, error::Error, state::AppState};
 
 use super::control;
+use super::google::picture::read_google_picture;
 use super::google::profile::{google_userinfo_endpoint, read_google_profile};
 use super::session::{
     GoogleSignInCompleteInput, GoogleSignInSessionLookupInput, GoogleSignInSessionResult,
@@ -297,11 +298,21 @@ async fn finish_sign_in(app_state: &AppState, session_id: &str) -> Result<Google
     let profile = read_google_profile(google_userinfo_endpoint(), &access_token).await?;
     let email = profile.email.clone().unwrap_or_default();
 
-    // the profile read is the last thing that takes time, and the user can
-    // abandon the attempt across it. Asking again here is what turns that into a
-    // cancellation rather than an account nobody asked for; a cancellation
-    // landing after this point still cannot record one, because cancelling
-    // drops the tokens the completion needs.
+    // **Here, and not after the completion.** The profile answers with a URL and this turns it
+    // into something drawable, so the two are one act rather than a read followed by a repair:
+    // fetching it afterwards would let the shell draw initials that silently became a photograph
+    // on the first sign-in, and would give a field written once a second place that writes it.
+    // It cannot fail this call: `read_google_picture` has no failure to report, by construction.
+    let avatar_image = match profile.avatar_url.as_deref() {
+        Some(url) => read_google_picture(url).await,
+        None => None,
+    };
+
+    // the profile read and the picture after it are the last things that take
+    // time, and the user can abandon the attempt across either. Asking again
+    // here is what turns that into a cancellation rather than an account nobody
+    // asked for; a cancellation landing after this point still cannot record
+    // one, because cancelling drops the tokens the completion needs.
     if was_abandoned(app_state, session_id).await {
         return Err(sign_in_cancelled());
     }
@@ -316,6 +327,7 @@ async fn finish_sign_in(app_state: &AppState, session_id: &str) -> Result<Google
                 .unwrap_or_else(|| email.clone()),
             email,
             avatar_url: profile.avatar_url.clone(),
+            avatar_image,
             provider_user_id: Some(profile.subject.clone()),
         })
         .await?;

@@ -47,6 +47,19 @@ impl ScriptedResponse {
         }
     }
 
+    /// an answer that states what it sent.
+    ///
+    /// The `headers` field predates any caller, because every request tested here until 2026-08-20
+    /// was JSON and read by shape rather than by declaration. The picture read is the first that
+    /// decides from the content type, so it is the first that needs a server able to state one.
+    pub(in crate::sync) fn of(status: u16, content_type: &str, body: impl Into<Vec<u8>>) -> Self {
+        Self::Respond {
+            status,
+            headers: vec![("content-type".to_string(), content_type.to_string())],
+            body: body.into(),
+        }
+    }
+
     pub(in crate::sync) fn hangup() -> Self {
         Self::Hangup
     }

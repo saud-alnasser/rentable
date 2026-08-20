@@ -76,6 +76,9 @@ pub struct GoogleSignInCompleteInput {
     pub email: String,
     pub display_name: String,
     pub avatar_url: Option<String>,
+    /// the picture itself, already fetched. **Nothing here reaches the network for it**: this is
+    /// a store operation, and the transport stays where the other Google requests are.
+    pub avatar_image: Option<String>,
     /// the OpenID `sub` claim, read from Google's `userinfo` endpoint.
     pub provider_user_id: Option<String>,
 }
@@ -532,6 +535,7 @@ impl RemoteSync {
         };
         let provider_user_id = sanitize_optional_string(input.provider_user_id);
         let avatar_url = sanitize_optional_string(input.avatar_url);
+        let avatar_image = sanitize_optional_string(input.avatar_image);
 
         if email.is_empty() {
             return Err(Error::InvalidInput {
@@ -578,6 +582,7 @@ impl RemoteSync {
             account.email = email.clone();
             account.display_name = resolved_display_name.clone();
             account.avatar_url = avatar_url.clone();
+            account.avatar_image = avatar_image.clone();
             account.provider_user_id = provider_user_id.clone();
             account.token_expires_at = token_expires_at;
             account.refresh_token_available = refresh_token
@@ -600,6 +605,7 @@ impl RemoteSync {
                 email: email.clone(),
                 display_name: resolved_display_name.clone(),
                 avatar_url: avatar_url.clone(),
+                avatar_image: avatar_image.clone(),
                 provider_user_id: provider_user_id.clone(),
                 token_expires_at,
                 refresh_token_available: refresh_token
@@ -676,6 +682,10 @@ impl RemoteSync {
                 account.status = RemoteSyncAccountStatus::NeedsReconnect;
                 account.refresh_token_available = false;
                 account.token_expires_at = None;
+                // the face goes with the credentials. The row stays so it can say what it is
+                // waiting for, and a row that says that does not need a photograph of somebody
+                // this machine is no longer signed in as.
+                account.avatar_image = None;
                 account.last_error = Some(SIGNED_OUT_MESSAGE.to_string());
                 account.updated_at = now;
             }
@@ -735,6 +745,8 @@ impl RemoteSync {
         account.status = RemoteSyncAccountStatus::NeedsReconnect;
         account.refresh_token_available = false;
         account.token_expires_at = None;
+        // as above: the picture is the person's, not the row's.
+        account.avatar_image = None;
         account.last_error = Some(SIGNED_OUT_MESSAGE.to_string());
         account.updated_at = now;
 
@@ -1031,6 +1043,7 @@ mod tests {
             email: email.to_string(),
             display_name: "Person Example".to_string(),
             avatar_url: Some("https://example.com/avatar.png".to_string()),
+            avatar_image: Some("data:image/png;base64,iVBORw0KGgo=".to_string()),
             // derived from the email, because the account lookup matches on either
             // and two people sharing a provider id are one person to it.
             provider_user_id: Some(format!("provider-user-{email}")),
@@ -1134,6 +1147,30 @@ mod tests {
                     .expect("failed to sign the second person in");
 
                 assert_ne!(first.account_id, second.account_id);
+
+                let superseded = second
+                    .state
+                    .accounts
+                    .iter()
+                    .find(|account| account.id == first.account_id)
+                    .expect("the superseded row went away with its credentials");
+
+                assert_eq!(
+                    superseded.avatar_image, None,
+                    "the first person's picture outlived their credentials"
+                );
+                assert!(
+                    second
+                        .state
+                        .accounts
+                        .iter()
+                        .find(|account| account.id == second.account_id)
+                        .expect("the new identity is not in the state it produced")
+                        .avatar_image
+                        .is_some(),
+                    "the person who just signed in has no picture"
+                );
+
                 assert_eq!(
                     remote_sync
                         .signed_in_google_account()
@@ -1182,6 +1219,10 @@ mod tests {
 
                 assert_eq!(account.status, RemoteSyncAccountStatus::NeedsReconnect);
                 assert!(!account.refresh_token_available);
+                assert_eq!(
+                    account.avatar_image, None,
+                    "the picture is the person's and goes with the credentials, not with the row"
+                );
 
                 let message = account.last_error.clone().unwrap_or_default();
 

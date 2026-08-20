@@ -7,6 +7,7 @@
 //! before this deletion could be taken.
 
 pub mod auth;
+pub mod picture;
 pub mod profile;
 
 #[cfg(test)]

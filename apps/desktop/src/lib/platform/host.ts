@@ -74,7 +74,16 @@ export type RemoteSyncAccount = {
 	status: RemoteSyncAccountStatus;
 	email: string;
 	displayName: string;
-	avatarUrl: string | null;
+	/**
+	 * the account's picture, as a complete `data:` URL, or nothing.
+	 *
+	 * **The Rust side also carries `avatarUrl`, and it deliberately does not cross.** That is
+	 * Google's own address for the same image, so a surface handed it would reach
+	 * `lh3.googleusercontent.com` every time it drew: nothing with no network, and an outbound
+	 * request announcing that the application was opened. The bytes are fetched once at sign-in
+	 * instead, and this is what comes back. `sync/google/picture.rs` has the bounds.
+	 */
+	avatarImage: string | null;
 	/**
 	 * who Google says this is — the OpenID `sub` claim, which is what the control-plane API
 	 * keys an account by.
