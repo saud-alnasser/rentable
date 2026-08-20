@@ -6,6 +6,8 @@
 
 	function localizeSegment(segment: string) {
 		switch (segment) {
+			case 'account':
+				return $LL.common.nav.account();
 			case 'complexes':
 				return $LL.common.nav.complexes();
 			case 'contracts':
@@ -18,6 +20,8 @@
 				return $LL.common.nav.settings();
 			case 'tenants':
 				return $LL.common.nav.tenants();
+			case 'workspace':
+				return $LL.common.nav.workspace();
 			case 'units':
 				return $LL.common.nav.units();
 			default:

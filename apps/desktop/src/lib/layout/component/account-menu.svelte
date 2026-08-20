@@ -12,6 +12,7 @@
 	import { signOutOfGoogle } from '$lib/sync/sign-in';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import SettingsIcon from '@tabler/icons-svelte/icons/settings';
+	import UserCircleIcon from '@tabler/icons-svelte/icons/user-circle';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import { toast } from 'svelte-sonner';
 
@@ -113,6 +114,15 @@
 				</DropdownMenu.Label>
 
 				<DropdownMenu.Separator />
+
+				<DropdownMenu.Item>
+					{#snippet child({ props })}
+						<a href={resolve('/account')} {...props}>
+							<UserCircleIcon class="size-4 shrink-0" />
+							<span class="capitalize">{$LL.common.nav.account()}</span>
+						</a>
+					{/snippet}
+				</DropdownMenu.Item>
 
 				<DropdownMenu.Item>
 					{#snippet child({ props })}
