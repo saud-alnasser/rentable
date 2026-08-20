@@ -79,8 +79,15 @@ The writers are enumerable and each is responsible for announcing itself: a data
 invalidates all five data-concept prefixes through the one shared helper; a remote-sync pull
 reconciles fully and then invalidates the root; the day-crossing reconcile does the same; and the
 replica's own pull is a fourth writer of exactly that kind, which announces itself the same way.
-**Nothing pulls yet** — #616 put the replica on the read path and #617 is what makes it pull — so
-the enumeration is three today and four the moment it does. **There are no optimistic updates.**
+**The fourth writer exists since #617**: the dispatch pushes what this machine wrote and pulls what
+the others wrote, and a pull that brought rows reconciles fully and then invalidates the root.
+
+**What makes the enumeration complete is that the announcement is one function, not that every
+caller remembers it.** `announceReceivedRows` is what a dispatch's caller calls, and the two that
+can render afterwards both call it; the one that does not is startup, where a whole-table reconcile
+runs on the next line and nothing has been drawn yet. A caller that took the answer and did nothing
+with it would be an unannounced writer, and what that shows a user is wrong data rather than slow
+data. **There are no optimistic updates.**
 
 *Why: TanStack Query's server-era defaults pay a visible round trip for a staleness problem this
 application answers by enumeration instead — and the refetch behind an invalidate is a

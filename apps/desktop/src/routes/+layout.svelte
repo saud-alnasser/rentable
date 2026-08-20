@@ -14,7 +14,11 @@
 		signInWithGoogle
 	} from '$lib/sync/sign-in';
 	import { startWorkspaceSyncManager } from '$lib/sync/autosync';
-	import { syncWorkspaceBeforeExit, syncWorkspaceNow } from '$lib/sync/workspace';
+	import {
+		announceReceivedRows,
+		syncWorkspaceBeforeExit,
+		syncWorkspaceNow
+	} from '$lib/sync/workspace';
 	import { toUtcDay } from '$lib/api/date';
 	import { invalidateRoot, trustWorkspaceData } from '$lib/design/query';
 	import { keys as settingsKeys } from '$lib/settings/query';
@@ -249,6 +253,21 @@
 			return;
 		}
 
+		// **The wall is decided again here, because the bootstrap can change the answer.** It is
+		// what mints, and the mint is what learns this account is no longer a member of the
+		// workspace this machine held — which gives up the workspace and the session. Admitting
+		// only before it would carry on into a database that is no longer anybody's and fail on
+		// the first read, with the same thing happening on every launch after.
+		startupRemoteSync = await tauri.remoteSync.getState();
+
+		if (!(await admit())) {
+			return;
+		}
+
+		// **`received` is dropped here on purpose**, which is the one place that is true: the
+		// reconcile two lines down is a whole-table pass over exactly what a pull would have made
+		// stale, and the render has not happened yet. Every other caller of a dispatch has to
+		// announce, and `announceReceivedRows` is what they call.
 		startupRemoteSync = (await syncWorkspaceNow(startupRemoteSync)).state;
 
 		const { reconciledAt } = await api.app.state.reconcile();
@@ -344,9 +363,22 @@
 				// invalidation is not an answer to it.
 				if (detail.action === 'signInRequired') {
 					toast.error($LL.settingsHooks.sessionExpired());
-					await queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync });
-				} else {
-					await queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync });
+				}
+
+				await queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync });
+
+				// **The fourth writer announcing itself.** Rows arrived from another device, so a
+				// status that was right before the pull can be wrong after it. The guard is the
+				// day-crossing pass's, shared rather than duplicated: both run a whole-table
+				// reconcile and two at once is one of them wasted.
+				if (detail.received && !isReconcilingDayCrossing) {
+					isReconcilingDayCrossing = true;
+
+					try {
+						lastReconciledUtcDay = toUtcDay(await announceReceivedRows(queryClient)).getTime();
+					} finally {
+						isReconcilingDayCrossing = false;
+					}
 				}
 			}
 		});

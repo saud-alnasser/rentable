@@ -132,6 +132,8 @@ pub fn run() {
             diagnostics::diagnostics_write,
             sync::remote_sync_state_get,
             sync::remote_sync_renew_session,
+            sync::remote_sync_replicate,
+            sync::remote_sync_push,
             sync::google_sign_in,
             sync::google_sign_out,
             export::export_write,

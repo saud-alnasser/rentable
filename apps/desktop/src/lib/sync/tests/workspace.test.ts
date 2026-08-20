@@ -19,6 +19,10 @@ const calls: string[] = [];
 // a test reaching past them, which is what makes these cover the shipped path.
 let shellState: RemoteSyncState = fakeSyncState();
 let renewsTo: RemoteSyncState | 'unreachable' | null = null;
+/** whether the pull brought another device's writes. */
+let replicatesTo = false;
+/** whether this machine's writes reached the remote. */
+let pushesTo = true;
 
 mock.module('$lib/platform/tauri', {
 	exports: {
@@ -37,6 +41,16 @@ mock.module('$lib/platform/tauri', {
 					}
 
 					return shellState;
+				},
+				replicate: async () => {
+					calls.push('replicate');
+
+					return { pushed: pushesTo, received: replicatesTo };
+				},
+				push: async () => {
+					calls.push('push');
+
+					return pushesTo;
 				}
 			}
 		}
@@ -78,6 +92,8 @@ function hostedShell(session: SessionWindow | null): RemoteSyncState {
 function reset() {
 	calls.length = 0;
 	renewsTo = null;
+	replicatesTo = false;
+	pushesTo = true;
 	shellState = fakeSyncState();
 }
 
@@ -96,21 +112,67 @@ test('a build with no control plane behind it is never asked to sign in to one',
 	}
 });
 
-test('a dispatch reaches the control plane and does nothing else', async () => {
+// **Renew, then replicate, and the order is asserted rather than incidental.** Replicating on a
+// window that has closed is spending a credential the control plane has already declined; renewing
+// first is what makes *any connection inside the window renews it* true of this call.
+test('a dispatch renews the window and then replicates', async () => {
 	reset();
 	shellState = hostedShell(window(3));
 
 	const result = await syncWorkspaceNow(shellState);
 
 	assert.equal(result.action, 'none');
+	assert.equal(result.received, false, 'a pull that brought nothing was reported as an event');
 	assert.deepEqual(
 		calls,
-		['renewSession'],
-		'the dispatcher did something to the workspace besides renewing'
+		['renewSession', 'replicate'],
+		'the dispatcher did something other than renewing and replicating'
 	);
 });
 
-test('the last dispatch of a session writes nothing on the way out', async () => {
+// The fourth writer's signal. `received` is what makes the caller reconcile and invalidate, so a
+// pull that brought rows and reported `false` would leave every surface showing stale statuses.
+test('a pull that brought another device rows says so', async () => {
+	reset();
+	shellState = hostedShell(window(3));
+	replicatesTo = true;
+
+	const result = await syncWorkspaceNow(shellState);
+
+	assert.equal(result.received, true, 'rows arrived and the caller was not told');
+	assert.equal(result.pushed, true);
+});
+
+// **What arms the retry ladder.** A push that could not reach the remote is reported rather than
+// thrown, so nothing above would know to try again if this were not answered.
+test('a push that could not reach the remote is reported rather than thrown', async () => {
+	reset();
+	shellState = hostedShell(window(3));
+	pushesTo = false;
+
+	const result = await syncWorkspaceNow(shellState);
+
+	assert.equal(result.pushed, false, 'a push that did not go was reported as having gone');
+	assert.equal(result.action, 'none', 'a push that did not go was raised to the user');
+});
+
+// **A closed window replicates nothing and discards nothing.** Spending a declined credential is
+// pointless; throwing away what is captured would be acceptance criterion 16 failing.
+test('a dispatch on a closed window does not replicate', async () => {
+	reset();
+	shellState = hostedShell(window(-1));
+
+	const result = await syncWorkspaceNow(shellState);
+
+	assert.equal(result.action, 'signInRequired');
+	assert.equal(result.received, false);
+	assert.ok(!calls.includes('replicate'), 'a closed window still spent its replica credential');
+});
+
+// **The last dispatch is the last chance to push**, which is what changed about it in #617: it
+// used to be asserted as writing nothing on the way out, when what it must not do is *lose*
+// anything. A machine closing with unsynced work should offer it before the window closes.
+test('the last dispatch of a session pushes on the way out', async () => {
 	reset();
 	shellState = hostedShell(window(3));
 
@@ -119,8 +181,8 @@ test('the last dispatch of a session writes nothing on the way out', async () =>
 	assert.equal(result.action, 'none');
 	assert.deepEqual(
 		calls,
-		['renewSession'],
-		'the last dispatch did something other than ask about the window'
+		['renewSession', 'push'],
+		'the last dispatch pulled on the way out, or did not push'
 	);
 });
 
@@ -155,7 +217,7 @@ test('a reach inside the window renews it, and the dispatcher stops asking', asy
 
 	const result = await syncWorkspaceNow(shellState);
 
-	assert.deepEqual(calls, ['renewSession']);
+	assert.deepEqual(calls, ['renewSession', 'replicate']);
 	assert.equal(result.action, 'none', 'it asked for a sign-in it had just renewed past');
 	assert.equal(result.state, renewsTo, 'the caller was handed the window it no longer holds');
 });

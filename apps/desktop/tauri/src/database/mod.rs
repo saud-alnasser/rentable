@@ -117,8 +117,9 @@ impl Database {
     /// over the first account's rows *and* the first account's sync metadata, so the second would
     /// be reading somebody else's ledger and pushing against a revision that is not theirs. A path
     /// derived from the workspace makes the binding structural rather than something a sign-out has
-    /// to remember to clean up. *What it leaves behind is the previous workspace's file, which is
-    /// nobody's to delete without being asked.*
+    /// to remember to clean up. *What it leaves behind is the previous workspace's file, and
+    /// membership is what ends that: [`Self::remove_replica`] is reached only where the control
+    /// plane says the account holding it is no longer a member.*
     pub async fn connect_workspace<F, Fut>(
         &mut self,
         workspace_id: &str,
@@ -159,6 +160,83 @@ impl Database {
             .join(format!("workspace-{workspace_id}.db"))
     }
 
+    /// The sidecars a synced database produces, beside the database itself.
+    ///
+    /// **Read off `turso_sync_engine`'s own source rather than guessed**, and this repository
+    /// already did the reading: the effort's evidence, `turso-sync-in-the-rust-layer`, enumerates
+    /// them from `database_sync_engine.rs` and measured them on disk. `-shm` is *not* here — that
+    /// is SQLite's index and turso keeps `-tshm` instead, which is the distinction the locking-
+    /// domain note at the top of this file turns on.
+    const REPLICA_SIDECARS: [&'static str; 6] =
+        ["-wal", "-tshm", "-log", "-wal-revert", "-info", "-changes"];
+
+    /// The prefix of the transient markers a replace-base leaves, which are named per attempt.
+    const REPLICA_TRANSIENT_PREFIX: &'static str = "-replace-base-apply";
+
+    /// Remove one workspace's replica, and every file the engine keeps beside it.
+    ///
+    /// **The sidecars matter as much as the database.** Deleting only `workspace-<id>.db` would
+    /// leave a machine holding the logical log of somebody's ledger and, worse, a partial set the
+    /// engine might open and believe.
+    ///
+    /// Best effort per file, because a file that is already gone is the outcome this wanted.
+    pub fn remove_replica(database_path: &Path, workspace_id: &str) -> bool {
+        let replica = Self::replica_path(database_path, workspace_id);
+        let mut removed = std::fs::remove_file(&replica).is_ok();
+
+        for suffix in Self::REPLICA_SIDECARS {
+            let path = PathBuf::from(format!("{}{suffix}", replica.display()));
+
+            if std::fs::remove_file(&path).is_ok() {
+                removed = true;
+            }
+        }
+
+        // **The transient markers are named per attempt**, so they are swept by prefix rather than
+        // by name. A directory that cannot be read leaves them, which is the same outcome as a file
+        // that will not delete: reported by the caller finding the replica still tracked.
+        let (Some(parent), Some(stem)) = (replica.parent(), replica.file_name()) else {
+            return removed;
+        };
+
+        let transient = format!(
+            "{}{}",
+            stem.to_string_lossy(),
+            Self::REPLICA_TRANSIENT_PREFIX
+        );
+
+        let Ok(entries) = std::fs::read_dir(parent) else {
+            return removed;
+        };
+
+        for entry in entries.flatten() {
+            if entry.file_name().to_string_lossy().starts_with(&transient)
+                && std::fs::remove_file(entry.path()).is_ok()
+            {
+                removed = true;
+            }
+        }
+
+        removed
+    }
+
+    /// Send what this machine has written since the last push.
+    ///
+    /// **The engine does not do this on its own**, which is the thing to know: `turso::sync`
+    /// captures every write as change data and holds it until somebody calls `push`. Comments
+    /// elsewhere in this tree said "a replica pushes its own writes" while nothing called it, so
+    /// nothing left the machine.
+    ///
+    /// **A failure is an answer rather than an error to raise.** What could not be sent stays
+    /// captured and goes with the next push, which is what makes an offline write survive rather
+    /// than a promise anybody had to keep.
+    pub async fn push_replica(&self) -> bool {
+        match self.engine.as_ref() {
+            Some(Engine::Workspace(database)) => database.push().await.is_ok(),
+            Some(Engine::Local(_)) | None => false,
+        }
+    }
+
     /// Ask the replica for what the remote has, and say whether anything arrived.
     ///
     /// **A failure is an answer rather than an error to raise.** Being unable to reach the remote
@@ -167,7 +245,11 @@ impl Database {
     /// one for a replica that has.
     pub async fn pull_replica(&self) -> bool {
         match self.engine.as_ref() {
-            Some(Engine::Workspace(database)) => database.pull().await.is_ok(),
+            // **`pull` answers `Ok(false)` when there was nothing to bring**, and that bool is the
+            // answer rather than the call succeeding. Reading it as `is_ok()` made every online
+            // dispatch report rows and put a whole-table reconcile and a root cache invalidation
+            // behind every mutation, forever, with nothing having arrived.
+            Some(Engine::Workspace(database)) => matches!(database.pull().await, Ok(true)),
             Some(Engine::Local(_)) | None => false,
         }
     }

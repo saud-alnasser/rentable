@@ -140,7 +140,9 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 		},
 		remoteSync: {
 			getState: refuse('remoteSync.getState'),
-			renewSession: refuse('remoteSync.renewSession')
+			renewSession: refuse('remoteSync.renewSession'),
+			replicate: refuse('remoteSync.replicate'),
+			push: refuse('remoteSync.push')
 		},
 		...overrides
 	};

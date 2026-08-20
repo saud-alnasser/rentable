@@ -155,6 +155,18 @@ struct WireRefusalBody {
 /// and a Google token it would not take answer with, and only this one means *the window closed*.
 const SESSION_EXPIRED: &str = "session_expired";
 
+/// the control plane's code for *this account is not a member of that workspace*.
+///
+/// **Matched rather than inferred from the status**, because a 403 is also what a declined session
+/// answers with. This is the one refusal that deletes a file, so it is the one code that counts.
+///
+/// **`no_such_workspace` is deliberately not here.** It is thrown where the control plane cannot
+/// find the workspace *row*, before membership is consulted at all — which is also what a restore
+/// to an older snapshot, a client pointed at a second deployment, or data loss on that side looks
+/// like. Treating it as *you were removed* would delete a replica, and every write captured in it
+/// and not yet pushed, on the strength of one 404 about somebody else's database.
+const NOT_A_MEMBER: &str = "not_a_member";
+
 /// the control plane's code for a sign-in that has reached its absolute lifetime.
 ///
 /// **Separate from `SESSION_EXPIRED` because the two ask different things of the person.** A
@@ -217,6 +229,20 @@ async fn call(base_url: &str, path: &str, bearer: &str) -> Result<Identified, Er
     })
 }
 
+/// why a mint did not produce a credential.
+///
+/// **Two outcomes and they could not be more different.** One says this machine may not hold that
+/// workspace any more and its replica should go; the other says nothing was settled, and a replica
+/// must be kept, because deleting somebody's ledger over a bad network is the worst thing this
+/// code could do.
+#[derive(Debug)]
+pub(crate) enum MintFailure {
+    /// the control plane says this account is not a member of that workspace, or it is gone.
+    MembershipEnded,
+    /// offline, refused for some other reason, or an answer this client could not read.
+    Unsettled(Error),
+}
+
 /// what the mint answered with: the replica's credential, where to spend it, and the session the
 /// call renewed on the way past.
 #[derive(Clone, Debug)]
@@ -243,8 +269,8 @@ pub(crate) async fn mint(
     session_token: &str,
     workspace_id: &str,
     schema_version: u32,
-) -> Result<MintedWorkspace, Error> {
-    let client = build_client(CONTROL_PLANE_TIMEOUT)?;
+) -> Result<MintedWorkspace, MintFailure> {
+    let client = build_client(CONTROL_PLANE_TIMEOUT).map_err(MintFailure::Unsettled)?;
 
     let response = client
         .post(format!("{base_url}/workspace/{workspace_id}/token"))
@@ -253,25 +279,33 @@ pub(crate) async fn mint(
         .body(format!("{{\"schemaVersion\":{schema_version}}}"))
         .send()
         .await
-        .map_err(|error| Error::Network {
-            message: format!("could not reach the control plane: {error}"),
+        .map_err(|error| {
+            MintFailure::Unsettled(Error::Network {
+                message: format!("could not reach the control plane: {error}"),
+            })
         })?;
 
     let status = response.status();
     let body = response.text().await.unwrap_or_default();
 
     if !status.is_success() {
-        return Err(refusal(status.as_u16(), &body));
+        if membership_ended(&body) {
+            return Err(MintFailure::MembershipEnded);
+        }
+
+        return Err(MintFailure::Unsettled(refusal(status.as_u16(), &body)));
     }
 
-    let answer: WireAnswer = serde_json::from_str(&body).map_err(|error| Error::Integrity {
-        message: format!("the control plane answered with something unreadable: {error}"),
+    let answer: WireAnswer = serde_json::from_str(&body).map_err(|error| {
+        MintFailure::Unsettled(Error::Integrity {
+            message: format!("the control plane answered with something unreadable: {error}"),
+        })
     })?;
 
     let (Some(token), Some(url), Some(session)) = (answer.token, answer.url, answer.session) else {
-        return Err(Error::Integrity {
+        return Err(MintFailure::Unsettled(Error::Integrity {
             message: "the mint answered without a token, a url, or a session".to_string(),
-        });
+        }));
     };
 
     Ok(MintedWorkspace {
@@ -284,6 +318,17 @@ pub(crate) async fn mint(
             absolute_expires_at: session.absolute_expires_at,
         },
     })
+}
+
+/// Whether a refusal says this account has no business with that workspace.
+///
+/// **Read off the code and never off the status.** A 403 is also a declined session, and treating
+/// it as *membership ended* would delete a replica over a routing mistake.
+fn membership_ended(body: &str) -> bool {
+    serde_json::from_str::<WireRefusal>(body)
+        .ok()
+        .and_then(|refusal| refusal.error)
+        .is_some_and(|error| error.code == NOT_A_MEMBER)
 }
 
 /// Turn the control plane's typed refusal into this application's typed error.
@@ -555,33 +600,93 @@ pub(super) async fn establish_session(
     }
 }
 
+/// what this machine may do with its workspace right now.
+pub(crate) enum WorkspaceStanding {
+    /// minted, and this is where the replica syncs.
+    Minted(String),
+    /// **this account is not a member of that workspace any more.** The replica it holds is no
+    /// longer this machine's to keep.
+    MembershipEnded,
+    /// nothing was settled. Offline, refused for another reason, or nobody signed in — and in
+    /// every one of those the replica stays exactly where it is.
+    Unsettled,
+}
+
+/// Ask whether one account is still a member of one workspace.
+///
+/// **The same call the mint makes, spent on a workspace this machine merely holds.** Membership is
+/// consulted on every mint, so asking is asking; nothing is recorded and no credential is kept,
+/// because the point is the answer rather than the token.
+///
+/// **It can only ask about an account this machine can still authenticate as.** A replica left by
+/// somebody who signed out is unaskable — their session was deleted with their credentials — so it
+/// answers `Unsettled` and the replica stays, which is the rule: membership keeps a replica, and a
+/// question nobody can ask is not an answer that it ended.
+pub(crate) async fn check_membership(
+    app_state: &AppState,
+    workspace_id: &str,
+    account_id: &str,
+) -> WorkspaceStanding {
+    let Some(base_url) = control_plane_url() else {
+        return WorkspaceStanding::Unsettled;
+    };
+
+    let held = {
+        let remote_sync = app_state.remote_sync.read().await;
+
+        match remote_sync.load_control_plane_session(account_id) {
+            Ok(Some(session)) => session,
+            _ => return WorkspaceStanding::Unsettled,
+        }
+    };
+
+    match mint(
+        &base_url,
+        &held.token,
+        workspace_id,
+        crate::database::version::WORKSPACE_SCHEMA_VERSION,
+    )
+    .await
+    {
+        Ok(_) => WorkspaceStanding::Minted(String::new()),
+        Err(MintFailure::MembershipEnded) => WorkspaceStanding::MembershipEnded,
+        Err(MintFailure::Unsettled(_)) => WorkspaceStanding::Unsettled,
+    }
+}
+
 /// Get this machine a credential for its workspace, and say where to spend it.
 ///
 /// **This is what joins a signed-in machine to its workspace**, and until it existed the pieces
 /// were all built and none of them met: the transport, the engine and the mint each had tests and
 /// no caller between them.
 ///
-/// Answers `None` for every ordinary reason a machine has nothing to open — no control plane
-/// configured, nobody signed in, no workspace recorded yet, the mint unreachable — because none of
-/// those is a failure of this call. **A machine that cannot mint opens no replica and shows the
-/// sign-in wall**, which is the same thing it did before any of this.
-///
-/// The token is held in this process rather than returned for somebody to keep: the engine
-/// resolves it per request, so what a caller needs is the URL and the knowledge that there is one.
-pub(crate) async fn mint_workspace(app_state: &AppState) -> Option<String> {
-    let base_url = control_plane_url()?;
+/// **It is also the membership check**, which is why it answers with a standing rather than an
+/// option. The mint consults membership on every call — that is what makes removing somebody work
+/// at all — so a refusal naming it is the control plane saying this machine should not be holding
+/// that replica. Every other outcome, including every network failure, is `Unsettled`, and the
+/// replica stays: deleting a ledger over a bad connection is the worst mistake available here.
+pub(crate) async fn mint_workspace(app_state: &AppState) -> WorkspaceStanding {
+    let Some(base_url) = control_plane_url() else {
+        return WorkspaceStanding::Unsettled;
+    };
 
-    let (workspace_id, held) = {
+    let held = {
         let remote_sync = app_state.remote_sync.read().await;
-        let workspace_id = remote_sync.workspace().remote_id?;
-        let window = remote_sync.session_window()?;
+        let Some(workspace_id) = remote_sync.workspace().remote_id else {
+            return WorkspaceStanding::Unsettled;
+        };
+        let Some(window) = remote_sync.session_window() else {
+            return WorkspaceStanding::Unsettled;
+        };
 
-        (
-            workspace_id,
-            remote_sync
-                .load_control_plane_session(&window.account_id)
-                .ok()??,
-        )
+        match remote_sync.load_control_plane_session(&window.account_id) {
+            Ok(Some(session)) => Some((workspace_id, session)),
+            _ => None,
+        }
+    };
+
+    let Some((workspace_id, held)) = held else {
+        return WorkspaceStanding::Unsettled;
     };
 
     match mint(
@@ -619,17 +724,24 @@ pub(crate) async fn mint_workspace(app_state: &AppState) -> Option<String> {
                 .with("workspace", workspace_id.as_str())
                 .write();
 
-            Some(minted.url)
+            WorkspaceStanding::Minted(minted.url)
         }
-        Err(error) => {
+        Err(MintFailure::MembershipEnded) => {
+            diagnostics::info("sync.workspace.membershipEnded")
+                .with("workspace", workspace_id.as_str())
+                .with("account", held.account_id.as_str())
+                .write();
+
+            WorkspaceStanding::MembershipEnded
+        }
+        Err(MintFailure::Unsettled(error)) => {
             // **Not a failure to surface.** Offline is the ordinary case and the reason requirement
-            // 7 exists; a refusal is the control plane declining, and either way this machine has
-            // no replica to open right now and says so by opening none.
+            // 7 exists; this machine goes on reading and writing the replica it already has.
             diagnostics::info("sync.workspace.notMinted")
                 .with("reason", error.to_string())
                 .write();
 
-            None
+            WorkspaceStanding::Unsettled
         }
     }
 }
@@ -873,9 +985,56 @@ mod tests {
         let outcome = super::mint(&server.url(""), "rws_a-token", "workspace-1", 4).await;
 
         assert!(
-            matches!(outcome, Err(Error::Integrity { .. })),
+            matches!(
+                outcome,
+                Err(super::MintFailure::Unsettled(Error::Integrity { .. }))
+            ),
             "a mint with no token in it was taken as a mint"
         );
+    }
+
+    /// **The one refusal that deletes a file, and the ones that must not.**
+    ///
+    /// A replica is kept indefinitely and membership is what keeps it, so this is the single
+    /// classification standing between *the control plane removed you* and *a bad network*. Getting
+    /// it wrong in one direction leaves a machine holding a ledger it has no right to; in the other
+    /// it deletes somebody's work because a proxy answered 403.
+    #[tokio::test]
+    async fn only_a_membership_refusal_ends_a_replica() {
+        for (body, ends) in [
+            (r#"{"error":{"code":"not_a_member","message":"no"}}"#, true),
+            // **Not a membership statement.** The control plane could not find the workspace row,
+            // which is also what a restore to an older snapshot and a client pointed at a second
+            // deployment look like from here — and deleting a replica takes every write captured
+            // in it that never got pushed.
+            (
+                r#"{"error":{"code":"no_such_workspace","message":"no"}}"#,
+                false,
+            ),
+            (
+                r#"{"error":{"code":"session_expired","message":"no"}}"#,
+                false,
+            ),
+            (
+                r#"{"error":{"code":"client_out_of_date","message":"no"}}"#,
+                false,
+            ),
+            (
+                r#"{"error":{"code":"workspace_unavailable","message":"no"}}"#,
+                false,
+            ),
+            ("not json at all", false),
+        ] {
+            let server = ScriptedServer::start(vec![ScriptedResponse::new(403, body)]).await;
+
+            let outcome = super::mint(&server.url(""), "rws_a-token", "workspace-1", 4).await;
+
+            assert_eq!(
+                matches!(outcome, Err(super::MintFailure::MembershipEnded)),
+                ends,
+                "the wrong thing was concluded from {body}"
+            );
+        }
     }
 
     /// **Signing in says which workspace this account owns**, which is what the next launch mints

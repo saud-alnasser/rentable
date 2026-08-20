@@ -113,6 +113,34 @@ pub struct RemoteSyncStore {
     /// that started again at every launch would be a window measured in one sitting. Absent on
     /// every machine that has not signed in to a control plane, which today is all of them.
     pub control_plane_session: Option<SessionWindow>,
+    /// every workspace replica this machine holds, and whose it is.
+    ///
+    /// **A replica is kept indefinitely and membership is what keeps it.** It is not deleted on
+    /// sign-out and not deleted on a timer: somebody who signs out is usually about to sign back
+    /// in, and re-pulling a whole workspace to serve that is a cost nobody asked for. What ends a
+    /// replica is the account it belongs to ceasing to be a member of the workspace it holds —
+    /// then it is a copy of a ledger this machine has no right to, and it goes.
+    ///
+    /// *Directed by the human 2026-08-20.* Today an account owns its one workspace and membership
+    /// ends only where an operator ends it, so this mostly answers *still yours*. It is built now
+    /// because requirement 14's organization work is where membership starts ending routinely, and
+    /// a machine that had been keeping replicas with no rule for removing them would by then be
+    /// holding workspaces its owner was removed from months earlier.
+    ///
+    /// A list because one machine can hold replicas for several accounts.
+    pub replicas: Vec<LocalReplica>,
+}
+
+/// one workspace replica on this machine, and the account whose membership keeps it.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct LocalReplica {
+    /// the control plane's id for the workspace, which is what the file is named for.
+    pub workspace_id: String,
+    /// the account this machine held it for. **A replica is only ever checkable while somebody
+    /// can sign in as this account**, which is why it is recorded rather than inferred.
+    pub account_id: String,
+    pub created_at: i64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -148,6 +176,7 @@ impl Default for RemoteSyncStore {
             startup_prompt_enabled: true,
             device_id: String::new(),
             control_plane_session: None,
+            replicas: Vec::new(),
         }
     }
 }
@@ -234,6 +263,72 @@ impl RemoteSync {
         self.store.workspace.clone()
     }
 
+    /// Stop naming a workspace this machine may no longer open.
+    ///
+    /// **Called where membership ended**, and it is what gives somebody a route back: a machine
+    /// that kept naming a workspace it is refused from would re-mint, be refused, and reach the
+    /// same dead end on every launch forever.
+    pub(crate) fn forget_remote_workspace(&mut self) -> Result<(), Error> {
+        if self.store.workspace.remote_id.is_none() && self.store.workspace.remote_url.is_none() {
+            return Ok(());
+        }
+
+        self.store.workspace.remote_id = None;
+        self.store.workspace.remote_url = None;
+        self.store.workspace.updated_at = timestamp::now();
+
+        self.store.commit()
+    }
+
+    /// Note that this machine holds a replica of `workspace_id` for `account_id`.
+    ///
+    /// Idempotent, and it does **not** move `created_at` on a workspace already held: the record
+    /// is of when this machine started keeping it, and re-recording it on every launch would make
+    /// that number the launch time and tell nobody anything.
+    pub(crate) fn remember_replica(
+        &mut self,
+        workspace_id: &str,
+        account_id: &str,
+        now: i64,
+    ) -> Result<(), Error> {
+        if self
+            .store
+            .replicas
+            .iter()
+            .any(|replica| replica.workspace_id == workspace_id)
+        {
+            return Ok(());
+        }
+
+        self.store.replicas.push(LocalReplica {
+            workspace_id: workspace_id.to_string(),
+            account_id: account_id.to_string(),
+            created_at: now,
+        });
+
+        self.store.commit()
+    }
+
+    /// every replica this machine is holding, whether or not anybody is signed in.
+    pub(crate) fn local_replicas(&self) -> Vec<LocalReplica> {
+        self.store.replicas.clone()
+    }
+
+    /// Stop tracking one, because its file has been deleted.
+    pub(crate) fn forget_replica(&mut self, workspace_id: &str) -> Result<(), Error> {
+        let before = self.store.replicas.len();
+
+        self.store
+            .replicas
+            .retain(|replica| replica.workspace_id != workspace_id);
+
+        if self.store.replicas.len() == before {
+            return Ok(());
+        }
+
+        self.store.commit()
+    }
+
     /// the replica's credential, if this process has minted one.
     pub(crate) fn workspace_token(&self) -> Option<String> {
         self.workspace_token.clone()
@@ -271,7 +366,7 @@ impl RemoteSync {
                 .flatten()
         });
 
-        if workspace.remote_id.as_deref() == Some(remote_id) && workspace.remote_url == url {
+        if same_workspace && workspace.remote_url == url {
             return Ok(());
         }
 
@@ -434,6 +529,86 @@ mod tests {
         std::env::temp_dir()
             .join("rentable-tests")
             .join(format!("{}-{}", name, nanos))
+    }
+
+    /// **A replica is tracked when it is opened, and tracking it twice does not move it.**
+    ///
+    /// The `created_at` is when this machine started holding the workspace. Re-recording on every
+    /// launch would make it the launch time, which tells nobody anything.
+    #[test]
+    fn a_replica_is_tracked_once_with_the_account_that_keeps_it() {
+        let mut remote_sync = a_remote_sync("track");
+
+        remote_sync
+            .remember_replica("ws-1", "account-1", 1_000)
+            .expect("remembering");
+        remote_sync
+            .remember_replica("ws-1", "account-1", 9_999)
+            .expect("remembering again");
+
+        let held = remote_sync.local_replicas();
+
+        assert_eq!(held.len(), 1, "one workspace was tracked twice");
+        assert_eq!(held[0].workspace_id, "ws-1");
+        assert_eq!(
+            held[0].account_id, "account-1",
+            "a replica does not record whose membership keeps it"
+        );
+        assert_eq!(
+            held[0].created_at, 1_000,
+            "re-tracking moved the moment it was created"
+        );
+    }
+
+    /// **One machine can hold replicas for several accounts**, and forgetting one leaves the rest.
+    #[test]
+    fn forgetting_one_replica_leaves_the_others() {
+        let mut remote_sync = a_remote_sync("forget");
+
+        remote_sync
+            .remember_replica("ws-1", "account-1", 1_000)
+            .expect("first");
+        remote_sync
+            .remember_replica("ws-2", "account-2", 1_000)
+            .expect("second");
+
+        remote_sync.forget_replica("ws-1").expect("forgetting");
+
+        let held = remote_sync.local_replicas();
+
+        assert_eq!(held.len(), 1);
+        assert_eq!(
+            held[0].workspace_id, "ws-2",
+            "the wrong replica was forgotten"
+        );
+    }
+
+    /// Forgetting one nothing tracks is a no-op rather than an error: a replica deleted by hand is
+    /// still one this machine has stopped holding.
+    #[test]
+    fn forgetting_a_replica_nothing_tracks_is_not_a_failure() {
+        let mut remote_sync = a_remote_sync("forget-unknown");
+
+        remote_sync
+            .forget_replica("ws-nothing")
+            .expect("forgetting");
+
+        assert!(remote_sync.local_replicas().is_empty());
+    }
+
+    fn a_remote_sync(name: &str) -> RemoteSync {
+        RemoteSync {
+            settings: Arc::new(RwLock::new(
+                Persisted::<Settings>::load(
+                    unique_dir(&format!("{name}-settings")).join("settings.json"),
+                )
+                .expect("settings"),
+            )),
+            store: Persisted::<RemoteSyncStore>::load(unique_dir(name).join("store.json"))
+                .expect("store"),
+            auth_sessions: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            workspace_token: None,
+        }
     }
 
     #[test]

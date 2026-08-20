@@ -134,8 +134,27 @@ pub async fn sign_out_of_google(app_state: &AppState) -> Result<RemoteSyncState,
         });
     };
 
+    // **Everything this machine wrote is offered before the credentials go**, because after this
+    // there is no session to push with. Best effort: what could not be sent stays captured in the
+    // replica, which is kept, and goes with the first push after somebody signs back in.
+    {
+        let db = app_state.db.read().await;
+
+        if !db.push_replica().await {
+            diagnostics::info("sync.signOut.notPushed")
+                .with("account", account_id.as_str())
+                .write();
+        }
+    }
+
+    // **The replica is not deleted here, and that is the rule rather than an omission.** Membership
+    // is what keeps a replica on a machine, and signing out does not end membership — somebody who
+    // signs out is usually about to sign back in, and re-pulling a whole workspace to serve that is
+    // a cost nobody asked for. What removes a replica is the mint refusing on membership, which
+    // `bootstrap` acts on at the next launch. *Directed by the human 2026-08-20.*
     let state = {
         let mut remote_sync = app_state.remote_sync.write().await;
+
         remote_sync
             .sign_out_of_google(GoogleSignOutInput {
                 account_id: account_id.clone(),
@@ -291,7 +310,10 @@ async fn finish_sign_in(app_state: &AppState, session_id: &str) -> Result<Google
     let signed_in = remote_sync
         .complete_google_sign_in(GoogleSignInCompleteInput {
             session_id: session_id.to_string(),
-            display_name: profile.display_name.clone().unwrap_or_else(|| email.clone()),
+            display_name: profile
+                .display_name
+                .clone()
+                .unwrap_or_else(|| email.clone()),
             email,
             avatar_url: profile.avatar_url.clone(),
             provider_user_id: Some(profile.subject.clone()),
