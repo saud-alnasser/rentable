@@ -159,5 +159,6 @@ Start at [[protocol]].
 | surfaces-the-overhaul-left-behind | implemented | [[efforts/surfaces-the-overhaul-left-behind/spec]] | 0 | 0 | 0 |
 | the-landing-screen-is-figures-over-sections | implemented | [[efforts/the-landing-screen-is-figures-over-sections/spec]] | 0 | 1 | 0 |
 | the-repository-becomes-a-monorepo | implemented | [[efforts/the-repository-becomes-a-monorepo/spec]] | 2 | 0 | 0 |
+| the-shell-says-whose-workspace-this-is | accepted | [[efforts/the-shell-says-whose-workspace-this-is/spec]] | 0 | 0 | 0 |
 | ui-overhaul | implemented | [[efforts/ui-overhaul/spec]] | 3 | 0 | 0 |
 | work-the-surfaces-cannot-do | implemented | [[efforts/work-the-surfaces-cannot-do/spec]] | 1 | 1 | 0 |
