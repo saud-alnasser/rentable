@@ -263,6 +263,26 @@ impl RemoteSync {
         self.store.workspace.clone()
     }
 
+    /// who this machine is signed in as, or nobody.
+    ///
+    /// **A row is not a sign-in**, which is why the status is what decides rather than the row
+    /// existing: the account outlives its credentials on purpose, so that whatever was recorded
+    /// under it can still say what it is waiting for. `NeedsReconnect` is written in exactly the
+    /// places that have just deleted those credentials, and it is the one status that means this
+    /// machine no longer holds this identity.
+    ///
+    /// At most one identity is held at a time, because a sign-in signs out of every other account
+    /// on its way through. So the first match is the only match rather than the one iteration
+    /// order happened to reach, and `$lib/sync/account` answers the same question the same way on
+    /// the other side of the boundary.
+    pub(crate) fn signed_in_account_id(&self) -> Option<String> {
+        self.store
+            .accounts
+            .iter()
+            .find(|account| account.status != RemoteSyncAccountStatus::NeedsReconnect)
+            .map(|account| account.id.clone())
+    }
+
     /// Stop naming a workspace this machine may no longer open.
     ///
     /// **Called where membership ended**, and it is what gives somebody a route back: a machine

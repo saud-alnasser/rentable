@@ -298,6 +298,20 @@ export type Host = {
 		 */
 		renewSession: () => Promise<RemoteSyncState>;
 		/**
+		 * reach the control plane with the identity this machine already holds, and say where that
+		 * left it.
+		 *
+		 * **The retry for a sign-in that got half way.** Signing in with Google succeeds locally
+		 * and the session is established best-effort after it, so a control plane that was
+		 * unreachable leaves an identity with no session. Answering that with another sign-in
+		 * opens a consent screen, answers it, and arrives back at the same missing session, which
+		 * is why this repeats only the half that failed and opens no browser.
+		 *
+		 * Still unreachable is not a failure: the state comes back carrying no window, and the
+		 * screen that called this says so.
+		 */
+		establishSession: () => Promise<RemoteSyncState>;
+		/**
 		 * send what this machine wrote, take what the others wrote, and say what each half did.
 		 *
 		 * **`received` is an event and `pushed` is a schedule.** Rows that arrived change derived

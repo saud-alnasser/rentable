@@ -1141,6 +1141,26 @@ type RootTranslation = {
 			 */
 			incomplete: string
 			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​s​i​g​n​e​d​ ​i​n​.​ ​w​h​a​t​ ​i​t​ ​h​a​s​ ​n​o​t​ ​d​o​n​e​ ​y​e​t​ ​i​s​ ​r​e​a​c​h​ ​r​e​n​t​a​b​l​e​,​ ​a​n​d​ ​t​h​a​t​ ​i​s​ ​t​h​e​ ​o​n​l​y​ ​s​t​e​p​ ​l​e​f​t​.
+			 */
+			incompleteDescription: string
+			/**
+			 * a​l​m​o​s​t​ ​i​n
+			 */
+			incompleteTitle: string
+			/**
+			 * r​e​a​c​h​i​n​g​ ​r​e​n​t​a​b​l​e​.​.​.
+			 */
+			reaching: string
+			/**
+			 * t​r​y​ ​a​g​a​i​n
+			 */
+			tryAgain: string
+			/**
+			 * s​i​g​n​ ​i​n​ ​w​i​t​h​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​a​c​c​o​u​n​t
+			 */
+			useDifferentAccount: string
+			/**
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​a​s​ ​b​e​e​n​ ​o​u​t​ ​o​f​ ​c​o​n​t​a​c​t​ ​f​o​r​ ​t​o​o​ ​l​o​n​g​ ​t​o​ ​k​e​e​p​ ​w​o​r​k​i​n​g​ ​o​f​f​l​i​n​e​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​t​o​ ​u​n​l​o​c​k​ ​i​t​ ​—​ ​y​o​u​r​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​e​v​e​r​y​t​h​i​n​g​ ​i​n​ ​i​t​ ​a​r​e​ ​u​n​t​o​u​c​h​e​d​.
 			 */
 			lockedDescription: string
@@ -3017,6 +3037,26 @@ export type TranslationFunctions = {
 			 * you are signed in with Google, but this machine could not reach rentable to open your workspace. check your connection and try again.
 			 */
 			incomplete: () => LocalizedString
+			/**
+			 * this machine is signed in. what it has not done yet is reach rentable, and that is the only step left.
+			 */
+			incompleteDescription: () => LocalizedString
+			/**
+			 * almost in
+			 */
+			incompleteTitle: () => LocalizedString
+			/**
+			 * reaching rentable...
+			 */
+			reaching: () => LocalizedString
+			/**
+			 * try again
+			 */
+			tryAgain: () => LocalizedString
+			/**
+			 * sign in with a different account
+			 */
+			useDifferentAccount: () => LocalizedString
 			/**
 			 * this machine has been out of contact for too long to keep working offline. sign in again to unlock it — your workspace and everything in it are untouched.
 			 */

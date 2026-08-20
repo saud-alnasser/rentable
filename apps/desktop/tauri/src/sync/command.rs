@@ -1,5 +1,6 @@
 use crate::{error::Error, state::AppState};
 
+use super::control::establish_held_session as establish_control_plane_session;
 use super::control::renew_session as renew_control_plane_session;
 use super::sign_in::{sign_in_with_google, sign_out_of_google};
 use super::store::RemoteSyncState;
@@ -27,6 +28,26 @@ pub async fn remote_sync_renew_session(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<RemoteSyncState, Error> {
     renew_control_plane_session(app_state.inner()).await?;
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    remote_sync.get_state().await
+}
+
+/// Reach the control plane with the identity this machine already holds, and say where that left it.
+///
+/// **The retry for a sign-in that got half way**, and the reason it is a command of its own rather
+/// than another `google_sign_in` is that the consent screen is not what failed. This machine has
+/// Google credentials and no session; opening a browser to be told again who the user is would
+/// arrive back at the same missing session.
+///
+/// Answers with the state, so the screen that called it reads what it now stands on rather than
+/// what it stood on before. A control plane that is still unreachable is not an error here: the
+/// state comes back carrying no window, and the screen says so.
+#[tauri::command]
+pub async fn remote_sync_establish_session(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<RemoteSyncState, Error> {
+    establish_control_plane_session(app_state.inner()).await?;
 
     let mut remote_sync = app_state.remote_sync.write().await;
     remote_sync.get_state().await

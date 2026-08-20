@@ -86,7 +86,13 @@ test('a build with no control plane is not a machine that failed to sign in', ()
 
 // A build that does have one, holding no session, is the other side of that guard: it has
 // somewhere to sign in to and has not.
-test('a control plane build holding no session is asked to sign in', () => {
+//
+// **The reason is `noSession` rather than `windowClosed`, and the difference is the whole of what
+// the screen can offer.** This machine answered a consent screen; establishing the session runs
+// after that and is allowed to fail, so what it is missing is one call to the control plane rather
+// than a fresh identity. Told it had been offline too long, the only move it would be offered is
+// the one that already succeeded.
+test('a control plane build holding no session is offered the call that failed, not a new sign-in', () => {
 	const state = fakeSyncState({
 		accounts: [fakeAccount()],
 		controlPlaneReady: true,
@@ -95,7 +101,33 @@ test('a control plane build holding no session is asked to sign in', () => {
 
 	assert.deepEqual(workspaceAdmission(state, AT), {
 		kind: 'signInRequired',
+		reason: 'noSession'
+	});
+});
+
+// The pair the reason exists to keep apart: one window that ran out, one that never started, both
+// at the same moment and both refusing entry.
+test('a window that ran out and a window that never started are different situations', () => {
+	const ranOut = fakeSyncState({
+		accounts: [fakeAccount()],
+		controlPlaneReady: true,
+		session: issuedAt(AT)
+	});
+	const neverStarted = fakeSyncState({
+		accounts: [fakeAccount()],
+		controlPlaneReady: true,
+		session: null
+	});
+
+	const at = AT + 4 * A_DAY;
+
+	assert.deepEqual(workspaceAdmission(ranOut, at), {
+		kind: 'signInRequired',
 		reason: 'windowClosed'
+	});
+	assert.deepEqual(workspaceAdmission(neverStarted, at), {
+		kind: 'signInRequired',
+		reason: 'noSession'
 	});
 });
 

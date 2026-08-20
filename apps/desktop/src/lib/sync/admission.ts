@@ -45,8 +45,14 @@ export type Admission =
 			 * side of a Google account it does not have. `windowClosed` is a signed-in machine that
 			 * has been out of contact past its window: the same screen, but the workspace is still
 			 * there and reconnecting is what opens it, rather than signing up for anything.
+			 *
+			 * `noSession` is the third, and it is the one that was being read as one of the other
+			 * two. This machine answered a consent screen and holds an identity; what it never got
+			 * is a session, because establishing one runs after the sign-in and is allowed to fail.
+			 * It is not somebody who has never signed in, and it is not somebody who went offline
+			 * for three days, so it is offered a retry rather than either of those sentences.
 			 */
-			reason: 'noAccount' | 'windowClosed';
+			reason: 'noAccount' | 'windowClosed' | 'noSession';
 	  }
 	| { kind: 'admitted'; account: RemoteSyncAccount };
 
@@ -81,7 +87,16 @@ export function workspaceAdmission(
 		state.controlPlaneReady &&
 		workspaceReplicationStanding(state, now).kind === 'signInRequired'
 	) {
-		return { kind: 'signInRequired', reason: 'windowClosed' };
+		// **The window is what tells the two apart, and its absence is not its expiry.** A machine
+		// that holds one has had a session and let it run down; a machine that holds none never got
+		// one, which after a successful sign-in means the control plane was not reached.
+		// `replicationStanding` deliberately does not distinguish them, because what it answers is
+		// whether replication may continue and the answer is no either way. This is the layer that
+		// has to, because what the person is told and what they can do about it differ.
+		return {
+			kind: 'signInRequired',
+			reason: state.session ? 'windowClosed' : 'noSession'
+		};
 	}
 
 	return { kind: 'admitted', account };

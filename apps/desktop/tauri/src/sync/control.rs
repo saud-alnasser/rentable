@@ -36,6 +36,7 @@ use std::{collections::HashMap, sync::Mutex};
 
 use crate::{diagnostics, error::Error, http::build_client, state::AppState, timestamp};
 
+use super::session::GoogleAccountAuthInput;
 use super::store::{RemoteSync, sanitize_string};
 
 /// How long this application waits on the control plane before giving up.
@@ -598,6 +599,70 @@ pub(super) async fn establish_session(
             .with("error", error.to_string())
             .write(),
     }
+}
+
+/// Reach the control plane with the identity this machine already holds.
+///
+/// **The retry behind a sign-in that got half way.** Signing in with Google succeeds locally and
+/// then [`establish_session`] runs best-effort, so a control plane that was down, unreachable, or
+/// answering with an error leaves this machine holding an identity and no session. The screen that
+/// state raises used to offer another sign-in, which opens a consent screen, answers it, and lands
+/// in exactly the same place: the consent screen was never the part that failed.
+///
+/// So this repeats only the half that did fail. The Google credential is read from the store and
+/// refreshed if it has gone stale, and neither path opens a browser.
+///
+/// Answers whether a session is held afterwards, which is the question the caller has. A `false`
+/// is an ordinary outcome rather than a fault: the control plane may still be unreachable, and the
+/// screen says so and offers the retry again.
+pub(super) async fn establish_held_session(app_state: &AppState) -> Result<bool, Error> {
+    if control_plane_url().is_none() {
+        return Ok(false);
+    }
+
+    let Some(account_id) = app_state
+        .remote_sync
+        .read()
+        .await
+        .signed_in_account_id()
+    else {
+        // Nobody is signed in, so there is no identity to present. The wall this raises is the
+        // one that asks for a sign-in, which is the correct screen for it.
+        return Ok(false);
+    };
+
+    let held = {
+        let remote_sync = app_state.remote_sync.read().await;
+        remote_sync.fresh_google_access_token(&GoogleAccountAuthInput {
+            account_id: account_id.clone(),
+        })?
+    };
+
+    // The write lock is taken only where the refresh is actually needed: a token still inside its
+    // life answers under a read lock, which is the reason `fresh_google_access_token` exists
+    // separately from the refresh at all.
+    let access_token = match held {
+        Some(token) => token,
+        None => {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .refresh_google_access_token(GoogleAccountAuthInput {
+                    account_id: account_id.clone(),
+                })
+                .await?
+                .access_token
+        }
+    };
+
+    establish_session(app_state, &account_id, &access_token).await;
+
+    Ok(app_state
+        .remote_sync
+        .read()
+        .await
+        .session_window()
+        .is_some())
 }
 
 /// what this machine may do with its workspace right now.
