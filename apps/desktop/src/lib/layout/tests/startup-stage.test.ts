@@ -1,57 +1,50 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 
 import {
 	STARTUP_STAGES,
 	STARTUP_STAGE_WEIGHTS,
 	startupProgressFor,
-	startupProgressWithin,
-	type StartupStage
+	startupProgressWithin
 } from '../startup-stage.ts';
+import { harness, signedOut, withoutSession } from './testing.ts';
 
 /**
  * THE BAR IS A REPORT, AND THIS IS WHAT MAKES IT ONE
  *
  * Requirement 16 asks that every stage the loading screen names is an await the startup path
- * actually performs, with none invented and none folded away. That is a claim about two files
- * agreeing, so it is checked by reading both rather than by trusting either.
+ * actually performs, with none invented and none folded away. That is a claim about two things
+ * agreeing, so it is checked by running one against the other.
  *
- * **It walks the route's source, not a running startup, and that is a stated limitation.**
- * Startup lives in `routes/+layout.svelte`, which cannot be driven without a window; extracting it
- * into a unit that can is requirement 9's work, and this test upgrades to driving that unit when
- * it lands. What it can already do is catch the two failures the requirement names — a stage the
- * route never reports, and a report the list does not know about — which is the whole of *nothing
- * invented, nothing folded away*.
+ * **It drives a startup now, where it used to read the route's source.** That was this file's own
+ * stated limitation: startup lived in `routes/+layout.svelte`, which cannot be driven without a
+ * window, so the best available check was a scan for `reportStartupStage` calls plus a look at
+ * whether the stages inside each function body ascended. It could not tell whether one function
+ * ran before another, which left the one thing the order actually is unchecked. Requirement 9
+ * extracted the unit, so this asks a real startup what it reported.
  */
 
-const ROUTE = fileURLToPath(new URL('../../../routes/+layout.svelte', import.meta.url));
+/** the stages a whole successful startup reports, in the order it reports them. */
+async function stagesOfAStartup() {
+	const { startup, journal } = harness();
 
-/** every `reportStartupStage('x')` in the route, in the order the file states them. */
-function reportedStages(): StartupStage[] {
-	const source = readFileSync(ROUTE, 'utf8');
-	const found: StartupStage[] = [];
+	await startup.start();
 
-	for (const match of source.matchAll(/reportStartupStage\(\s*'([a-z]+)'\s*\)/g)) {
-		found.push(match[1] as StartupStage);
-	}
-
-	return found;
+	return journal.stages;
 }
 
-test('every stage the screen can name is one the startup path reports', () => {
-	const reported = new Set(reportedStages());
+test('every stage the screen can name is one the startup path reports', async () => {
+	const reported = new Set(await stagesOfAStartup());
 
 	for (const stage of STARTUP_STAGES) {
 		assert.ok(reported.has(stage), `the bar names ${stage} and the startup path never reports it`);
 	}
 });
 
-// The other direction, and it is the one that rots quietly: a stage added to the route with no
-// entry in the list would leave the bar showing the stage before it while that work ran.
-test('every stage the startup path reports is one the screen knows', () => {
-	for (const stage of reportedStages()) {
+// The other direction, and it is the one that rots quietly: a stage reported with no entry in the
+// list would leave the bar showing the stage before it while that work ran.
+test('every stage the startup path reports is one the screen knows', async () => {
+	for (const stage of await stagesOfAStartup()) {
 		assert.ok(
 			STARTUP_STAGES.includes(stage),
 			`the startup path reports ${stage} and the bar has no name or weight for it`
@@ -60,48 +53,35 @@ test('every stage the startup path reports is one the screen knows', () => {
 });
 
 // **The order is the requirement, not an incidental.** `settings` before `account` before
-// `workspace` is the admission ordering: nothing opens the database before there is an account.
-// A bar that walked them in another order would be describing a startup this application does not
+// `workspace` is the admission ordering: nothing opens the database before there is an account. A
+// bar that walked them in another order would be describing a startup this application does not
 // perform.
 //
-// **Checked per function, because file order is not call order.** `continueStartup` is declared
-// above `startApp` and runs after it, so a whole-file scan reports `workspace` first and would
-// fail on somebody moving a function without changing a line of it. What each function body can
-// say for itself is that the stages *it* reports ascend, which is the real failure this guards:
-// two reports swapped in place. Whether one function runs before another is a fact about
-// execution, and checking it needs the startup unit requirement 9 extracts.
-test('the stages each part of startup reports ascend through the list', () => {
-	const source = readFileSync(ROUTE, 'utf8');
+// This is what the source scan could not do. The order below is execution order, so two reports
+// swapped in place fail it, and so does a report moved from one part of the path to another.
+test('the stages a startup reports ascend through the list, in the order it runs', async () => {
+	const reported = await stagesOfAStartup();
 
-	// top-level declarations in the script block carry exactly one tab of indent.
-	const bodies = source.split(/\n\t(?:async )?function /);
+	assert.deepEqual(reported, [...STARTUP_STAGES], 'every stage, once, in the declared order');
+});
 
-	let checked = 0;
+// The two paths that re-enter partway along, which is honest rather than a defect: signing in and
+// retrying a session both start where the workspace opens, because the three stages before that
+// are what they have already done.
+test('a path that re-enters partway along starts partway along, and still ascends', async () => {
+	const { startup, journal } = harness({
+		remoteSync: signedOut(),
+		signInWith: async () => withoutSession()
+	});
 
-	for (const body of bodies) {
-		const stages = [...body.matchAll(/reportStartupStage\(\s*'([a-z]+)'\s*\)/g)].map((match) =>
-			STARTUP_STAGES.indexOf(match[1] as StartupStage)
-		);
+	await startup.start();
+	assert.deepEqual(journal.stages, ['settings', 'account'], 'as far as the wall, and no further');
 
-		if (stages.length < 2) {
-			continue;
-		}
+	journal.stages.length = 0;
+	await startup.signIn();
+	await startup.retrySession();
 
-		checked += 1;
-
-		const ascending = [...stages].sort((a, b) => a - b);
-
-		assert.deepEqual(
-			stages,
-			ascending,
-			`${body.slice(0, body.indexOf('('))} reports its stages out of the declared order`
-		);
-	}
-
-	assert.ok(
-		checked >= 2,
-		'no part of the route reports more than one stage, so nothing was checked'
-	);
+	assert.deepEqual(journal.stages, ['workspace', 'changes', 'records']);
 });
 
 test('every stage carries a weight, and no weight is zero', () => {
