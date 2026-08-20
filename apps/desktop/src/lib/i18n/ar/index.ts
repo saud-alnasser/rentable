@@ -371,7 +371,12 @@ const ar = {
 			previousVersion: 'الإصدار السابق',
 			recoveryDetails:
 				'لا شيء مما سُجّل في مساحة العمل هذه في خطر: فهي محفوظة نيابةً عنك ولدى هذا الجهاز نسخة منها. وإذا استمر فشل التشغيل، فأعد تثبيت الإصدار السابق قبل فتح rentable مرة أخرى.',
-			recoveryRequiredTitle: 'مطلوب استرداد التحديث'
+			recoveryRequiredTitle: 'مطلوب استرداد التحديث',
+			stageAccount: 'التحقق من حسابك',
+			stageChanges: 'البحث عن التغييرات',
+			stageRecords: 'تحديث السجلات',
+			stageSettings: 'قراءة إعداداتك',
+			stageWorkspace: 'فتح مساحة عملك'
 		}
 	},
 
