@@ -15,7 +15,7 @@ import type { VerifyGoogleIdentity } from '../account/google.ts';
 import type { Account, Workspace } from '../database/schema.ts';
 import type { ConnectToWorkspaceDatabase } from '../workspace/migration.ts';
 import type { TursoPlatform } from '../workspace/turso.ts';
-import { createWorkspace, mintWorkspaceToken } from '../workspace/workspace.ts';
+import { mintWorkspaceToken, workspaceForAccount } from '../workspace/workspace.ts';
 
 /**
  * The control plane's HTTP surface.
@@ -126,6 +126,17 @@ const asking = async (
 	const identity = await plane.verifyIdentity(token);
 	const account = await signInWithGoogle(plane.db, identity, now);
 
+	// **Here rather than in the sign-in route, because this is where an account comes into being.**
+	// Any route reached with a Google token creates the account, so provisioning only in `identify`
+	// left a window in which an account existed with no workspace — requirement 6 is *exactly one*
+	// and that window makes it *at most one*. It is idempotent, so every later request is one
+	// indexed read and no Turso call.
+	await workspaceForAccount(plane.db, plane.platform, {
+		accountId: account.id,
+		name: account.displayName,
+		now
+	});
+
 	return { account, session: await startSession(plane.db, account.id, now) };
 };
 
@@ -197,29 +208,21 @@ const identify = async (
 ) => {
 	const { account, session } = await asking(plane, request);
 
-	json(response, 200, { account: wireAccount(account), session: wireSession(session) });
-};
-
-const makeWorkspace = async (
-	plane: ControlPlane,
-	request: IncomingMessage,
-	response: ServerResponse
-) => {
-	const { account, session } = await asking(plane, request);
-	const body = await readJsonBody(request);
-	const name = typeof body.name === 'string' ? body.name.trim() : '';
-
-	if (name === '') {
-		throw new Refusal(MALFORMED, 400, 'a workspace needs a name');
-	}
-
-	const created = await createWorkspace(plane.db, plane.platform, {
+	// **The workspace comes back with the identity** — requirement 3's *in the same act*. `asking`
+	// has already provisioned it for an account that was just created, so this is a read; it stays
+	// a `workspaceForAccount` rather than a bare lookup so that a session resumed against an
+	// account from before this change still gets one.
+	const workspace = await workspaceForAccount(plane.db, plane.platform, {
 		accountId: account.id,
-		name,
+		name: account.displayName,
 		now: (plane.now ?? Date.now)()
 	});
 
-	json(response, 201, { workspace: wireWorkspace(created), session: wireSession(session) });
+	json(response, 200, {
+		account: wireAccount(account),
+		workspace: wireWorkspace(workspace),
+		session: wireSession(session)
+	});
 };
 
 /**
@@ -310,9 +313,10 @@ export const controlPlaneServer = (plane: ControlPlane): Server =>
 				return identify(plane, request, response);
 			}
 
-			if (request.method === 'POST' && request.url === '/workspace') {
-				return makeWorkspace(plane, request, response);
-			}
+			// **There is no route that creates a workspace**, and that is requirement 6 rather than an
+			// omission: an account is given its one workspace when it is created, so a creation
+			// route could only ever refuse. Requirement 14's organization work is what reopens it,
+			// when an account may have several and something has to say which.
 
 			// Not decoded: a workspace id is a UUID, so there is nothing to unescape, and
 			// `decodeURIComponent` throws on a malformed escape — which would turn a nonsense path

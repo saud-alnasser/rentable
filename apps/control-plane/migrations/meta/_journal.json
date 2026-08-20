@@ -43,6 +43,13 @@
 			"when": 1787100697926,
 			"tag": "0005_slippery_captain_cross",
 			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "6",
+			"when": 1787191370669,
+			"tag": "0006_nosy_orphan",
+			"breakpoints": true
 		}
 	]
 }

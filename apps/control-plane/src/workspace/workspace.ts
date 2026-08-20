@@ -52,6 +52,56 @@ export const databaseNameFor = (workspaceId: string) => `ws-${workspaceId}`;
 export type CreatedWorkspace = { workspace: Workspace };
 
 /**
+ * The workspace this account owns, or nothing.
+ *
+ * `limit(1)` where the column is unique is belt and braces, and it is the cheap kind: the index is
+ * what makes the answer singular and this makes the *type* singular, so a caller cannot come to
+ * depend on an array that will never have two entries in it.
+ */
+export const workspaceOwnedBy = async (
+	db: Database,
+	accountId: string
+): Promise<Workspace | undefined> => {
+	const [owned] = await db
+		.select()
+		.from(workspace)
+		.where(eq(workspace.ownerAccountId, accountId))
+		.limit(1);
+
+	return owned;
+};
+
+/**
+ * The account's workspace, brought into being if this is the first time it has been asked for.
+ *
+ * **This is requirement 3's *in the same act*.** Signing up with Google creates the account and its
+ * one personal workspace together, so a client that has signed in has somewhere to be; the
+ * alternative was a second call the client had to know to make, and an account that existed for a
+ * moment with nothing to open.
+ *
+ * **It is idempotent and every sign-in reaches it.** A returning account gets one indexed read and
+ * no Turso call at all; only the first sign-in provisions. That is what makes it safe on the
+ * refresh route, which shares a handler with sign-in.
+ *
+ * *The name is the person's own, set once. There is no rename surface, and a name re-derived from
+ * Google's profile on every sign-in would rewrite what somebody is looking at because they changed
+ * their display name somewhere else.*
+ */
+export const workspaceForAccount = async (
+	db: Database,
+	platform: TursoPlatform,
+	{ accountId, name, now }: { accountId: string; name: string; now: number }
+): Promise<Workspace> =>
+	(await workspaceOwnedBy(db, accountId)) ??
+	(await createWorkspace(db, platform, { accountId, name, now }));
+
+/**
+ * The insert found a workspace already there, which on this table means another request got there
+ * first. Its own type so the catch below can tell it from a failure.
+ */
+class RaceLost extends Error {}
+
+/**
  * Make a workspace: a database on Turso, a record naming it, and the asking account's own
  * membership of it as owner.
  *
@@ -86,10 +136,16 @@ export const createWorkspace = async (
 					createdAt: new Date(now),
 					updatedAt: new Date(now)
 				})
+				// **The race this loses without it is somebody's very first sign-in.** Two arriving
+				// together both read no workspace, both insert, and the unique index refuses the
+				// second — which would reach the caller as a 500 on the one act requirement 3 is
+				// about. `signInWithGoogle` answers the identical race the identical way, one file
+				// over, and its comment is where the shape is argued.
+				.onConflictDoNothing({ target: workspace.ownerAccountId })
 				.returning();
 
 			if (!record) {
-				throw new Error('the workspace was written and the row did not come back');
+				throw new RaceLost();
 			}
 
 			await tx.insert(membership).values({
@@ -111,6 +167,16 @@ export const createWorkspace = async (
 				removal
 			);
 		});
+
+		// **The loser of the race holds the winner's workspace, not an error.** Its own database is
+		// removed above, so what it created leaves nothing behind; what it wanted already exists.
+		if (error instanceof RaceLost) {
+			const owned = await workspaceOwnedBy(db, accountId);
+
+			if (owned) {
+				return owned;
+			}
+		}
 
 		throw error;
 	}
