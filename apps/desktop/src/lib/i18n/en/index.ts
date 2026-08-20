@@ -338,13 +338,16 @@ const en = {
 		},
 
 		accountMenu: {
-			label: 'account'
+			label: 'account',
+			signIn: 'sign-in',
+			signedOutHint: 'sign-in',
+			signedOutName: 'user'
 		},
 
 		workspaceMenu: {
 			create: 'new workspace',
 			invite: 'invite',
-			locked: 'not available yet',
+			locked: 'not available',
 			settings: 'settings',
 			members: '{count|number} member(s)'
 		},

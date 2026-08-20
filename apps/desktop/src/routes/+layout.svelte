@@ -7,6 +7,7 @@
 		type Recovery,
 		type RemoteSyncState
 	} from '$lib/platform/tauri';
+	import { signedInAccount } from '$lib/sync/account';
 	import { workspaceAdmission } from '$lib/sync/admission';
 	import {
 		isGoogleSignInCancellation,
@@ -70,6 +71,14 @@
 	let startupRemoteSync = $state<RemoteSyncState | null>(null);
 	// which of the two the wall is saying, and it is only read while the wall is up.
 	let signInReason = $state<'noAccount' | 'windowClosed' | 'noSession'>('noAccount');
+	/**
+	 * whether the rail has been on screen yet in this run.
+	 *
+	 * It latches on and is never cleared: what it answers is *has this application been running*,
+	 * and a load in the middle of a session does not un-answer that. Failing to start and update
+	 * recovery still take the bare frame, because those are states where it stopped.
+	 */
+	let railIsUp = $state(false);
 
 	/**
 	 * Enter the failure state, and write down what happened.
@@ -183,6 +192,7 @@
 		startupRecovery = null;
 		signInReason = reason;
 		startupState = 'sign-in';
+		railIsUp = true;
 		await tauri.window.show();
 	}
 
@@ -348,6 +358,7 @@
 
 		startupRecovery = null;
 		startupState = 'ready';
+		railIsUp = true;
 
 		// the last stage is timed by finishing, because nothing follows it to time it.
 		reportStartupComplete();
@@ -529,6 +540,41 @@
 		document.body.dir = currentDirection;
 	});
 
+	/**
+	 * how much of the shell this state draws, which is requirement 6's line in one place.
+	 *
+	 * Loading, failing to start and recovering from an update are an application that is not
+	 * running, and get the bare frame. Signing in is an application waiting for a person, which is
+	 * an application that is running, so it gets the rail.
+	 *
+	 * **Loading is two different states and the table has one row for it.** Requirement 6 says so
+	 * itself: the table is derived from the line rather than being the requirement, so a state it
+	 * does not list looks its own answer up. Loading on a fresh launch is *not known yet* and takes
+	 * the bare frame. Loading straight after somebody signed in is an application that is running
+	 * with a person in it, and taking the rail away for those two seconds is criterion 7a failing
+	 * — the rail disappearing and coming back is exactly what makes signing in look like arriving
+	 * at a different application.
+	 *
+	 * So the rail latches: once it is up it does not come down for a load. What it *says* still
+	 * follows the account, because a rail offering the way in to somebody who has just come in
+	 * would be worse than no rail at all.
+	 */
+	const shell = $derived.by(() => {
+		if (startupState === 'ready') {
+			return 'full';
+		}
+
+		if (startupState === 'sign-in') {
+			return 'signed-out';
+		}
+
+		if (startupState === 'loading' && railIsUp) {
+			return signedInAccount(startupRemoteSync) ? 'full' : 'signed-out';
+		}
+
+		return 'bare';
+	});
+
 	let { children } = $props();
 </script>
 
@@ -536,7 +582,7 @@
 	<QueryClientProvider client={queryClient}>
 		<SonnerProvider>
 			<TooltipProvider>
-				<LayoutFrame {currentDirection} showNavigation={startupState === 'ready'}>
+				<LayoutFrame {currentDirection} {shell} onSignIn={() => void signIn()}>
 					{#if startupState === 'loading'}
 						<LayoutStartupLoading />
 					{:else if startupState === 'sign-in'}

@@ -330,13 +330,16 @@ const ar = {
 		},
 
 		accountMenu: {
-			label: 'الحساب'
+			label: 'الحساب',
+			signIn: 'تسجيل الدخول',
+			signedOutHint: 'تسجيل الدخول',
+			signedOutName: 'مستخدم'
 		},
 
 		workspaceMenu: {
 			create: 'مساحة عمل جديدة',
 			invite: 'دعوة',
-			locked: 'غير متاح بعد',
+			locked: 'غير متاح',
 			settings: 'الإعدادات',
 			members: '{count|number} عضو'
 		},

@@ -151,7 +151,12 @@
 							fill="currentColor"
 						/>
 					</svg>
-					{isSigningIn ? $LL.common.actions.working() : $LL.layout.signIn.signInWithGoogle()}
+					<!-- the provider phrase, small. The rail says 'sign-in' and this card is the only
+					     place the provider is named, so it is a detail rather than the heading of
+					     the control. -->
+					<span class="text-sm">
+						{isSigningIn ? $LL.common.actions.working() : $LL.layout.signIn.signInWithGoogle()}
+					</span>
 				</Button>
 			{/if}
 		</div>

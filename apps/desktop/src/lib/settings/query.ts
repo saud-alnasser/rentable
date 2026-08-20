@@ -25,10 +25,17 @@ export function useFetchSettings() {
 	}));
 }
 
-export function useFetchRemoteSyncState() {
+/**
+ * @param enabled whether to ask at all. It defaults to asking, and the one caller that passes
+ * anything is the rail with nobody signed in: this call goes through a procedure, a procedure
+ * needs an acting user, and asking who is signed in on a machine where nobody is would be a
+ * refusal by design reported as a failure.
+ */
+export function useFetchRemoteSyncState(enabled: () => boolean = () => true) {
 	return createQuery(() => ({
 		queryKey: keys.remoteSync,
-		queryFn: () => api.app.remoteSync.getState()
+		queryFn: () => api.app.remoteSync.getState(),
+		enabled: enabled()
 	}));
 }
 
