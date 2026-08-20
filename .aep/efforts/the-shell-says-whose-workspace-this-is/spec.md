@@ -94,10 +94,18 @@ application got stuck in.
    distinguishes them. See Constraints.
 9. **The workspace's replication state, and the control that syncs now, stay in settings**, in a
    group about the workspace's data rather than its identity, beside the transfer pair.
-10. **The sign-in card presents as a login page.** The mark and the product's name sit **above**
-    the card, centred; the card's own header is centred; the notice sits between that header and
-    the way in; the way in is one provider button carrying that provider's glyph. Nothing else is
-    on the card except the way to sign in as somebody else.
+10. **The sign-in card presents as a login page**, and the shape was settled on screen rather
+    than here: one word of title, a line under it reading from the side the language starts on,
+    air, and one provider button carrying that provider's mark. **No mark and no product name.**
+    A notice appears only where something has to be said, which is a failed attempt or an
+    identity holding no session, never as standing information.
+
+    *Rewritten 2026-08-20, during the build, by the human watching it. It read: "The mark and the
+    product's name sit above the card, centred; the card's own header is centred; the notice sits
+    between that header and the way in." Two versions carrying the mark were built, one above the
+    card following `login-03` and one at the top of the card, and both were removed on sight. A
+    desktop window names its application in its title bar, its taskbar and its installer before
+    this card gets a turn.*
 11. **Both locales, and Arabic is not a second-class one.** Every new surface is checked
     right-to-left, and each menu opens on the side away from the rail, which is the left in
     Arabic.
@@ -128,20 +136,19 @@ application got stuck in.
    the workspace control only, and the person's name in the account control only.
 10. Sync status and the control that syncs now are reachable in settings, in one group with the
     transfer pair, and settings is reachable from the account menu.
-11. On the sign-in card: the mark and `rentable` render above the card and outside it; the title
-    and its line are centred; the notice is between the header and the button; the button carries
-    Google's glyph. The other six screens that render through the shared surface are unchanged,
-    which is checkable by their markup being untouched above the card.
+11. On the sign-in card: no mark and no product name render anywhere on it; the title is one
+    word; the button carries Google's mark; and a first sign-in with nothing wrong shows no
+    notice at all. The other six screens that render through the shared surface are unchanged.
 12. Every surface in this effort holds from 640x480 upward with no horizontal scrollbar, in
     English and in Arabic, with each menu opening away from the rail in both.
 
 ## Constraints
 
 - **The sign-in card stays on the shared standalone surface**, which [[rules/interface]], under
-  *Application surfaces*, requires and #628 confirmed. **The block gains one outer slot** so a
-  screen can place a mark above the card; the sign-in screen is the only caller, and a screen
-  passing nothing renders exactly what it renders today. *Decided 2026-08-20: the alternative was
-  keeping the mark inside the card, which is not the shape `login-03` has and reads as a dialog.*
+  *Application surfaces*, requires and #628 confirmed. **The block ends up smaller rather than
+  larger**: it grew an outer slot for a mark above the card, then lost that and the `lead` slot
+  #628 had added, because the card carries no mark at all. A slot with no caller is a shape the
+  next screen fills for a reason nobody argued.
 - **No switcher is built, and the accepted spec now says so in those words.**
   [[efforts/a-workspace-follows-its-user]] is accepted and its acceptance criterion 2 read *a
   search of the tree finds no workspace list, no switcher*, which made a rendered list of length
@@ -218,8 +225,8 @@ as a detail of a Svelte component.
 - **What signing in does.** The admission ladder, the session window, the three situations and
   the retry path all landed in #628 and are not touched. This changes what that card looks like,
   and it adds one fetch after the sign-in has already succeeded.
-- **The other six screens on the shared surface.** The block gains a slot; none of them passes
-  it, and none of them changes.
+- **The other six screens on the shared surface.** The block loses a slot none of them passed,
+  and none of them changes.
 - **Settings' own loading and failure branches**, and the route error boundary.
 - **A settings navigation with a detail pane, or settings split into sidebar destinations.**
   Both were rejected with reasons in [[efforts/surfaces-the-overhaul-left-behind]] and neither is
@@ -235,8 +242,9 @@ as a detail of a Svelte component.
 - **Sync status, the sync-now control and the transfer pair stay in settings.** The menu was the
   alternative for sync and it loses for a reason worth keeping: it puts an operation that can
   fail, and that has an error to report, behind a control people open to change screens.
-- **The mark goes above the card on the sign-in screen**, and the shared block gains the slot
-  that allows it.
+- **The sign-in card carries no mark and no product name.** Reached by building the two
+  alternatives and looking at them, which is what settled it; the shared block lost a slot rather
+  than gaining one.
 - **The picture is cached locally at sign-in.** See *Scope added during refinement*.
 - **The product's name leaves the sidebar** and the mark stays.
 - **The locked create row is reachable, announced and inert**, with its reason as visible text.

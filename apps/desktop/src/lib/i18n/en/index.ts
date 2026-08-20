@@ -332,7 +332,7 @@ const en = {
 
 		signIn: {
 			authorizing: 'finish signing in with Google in the browser window that just opened.',
-			continueWithGoogle: 'continue with Google',
+			signInWithGoogle: 'sign in with Google',
 			description:
 				'your workspace lives in your account, so it follows you to whichever machine you sign in on. the first sign-in is what creates it.',
 			finalizing: 'signing you in...',
@@ -347,8 +347,7 @@ const en = {
 			lockedDescription:
 				'this machine has been out of contact for too long to keep working offline. sign in again to unlock it — your workspace and everything in it are untouched.',
 			lockedTitle: 'sign in again to continue',
-			networkNotice: 'signing in needs an internet connection.',
-			title: 'sign in to rentable'
+			title: 'Login'
 		},
 
 		startup: {
