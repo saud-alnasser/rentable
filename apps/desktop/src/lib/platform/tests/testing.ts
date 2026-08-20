@@ -34,7 +34,7 @@ export function fakeAccount(overrides: Partial<RemoteSyncAccount> = {}): RemoteS
 		status: 'ready',
 		email: 'person@example.com',
 		displayName: 'Person Example',
-		avatarUrl: null,
+		avatarImage: null,
 		providerUserId: null,
 		tokenExpiresAt: null,
 		refreshTokenAvailable: true,

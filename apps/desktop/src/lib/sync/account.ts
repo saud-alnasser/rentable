@@ -24,9 +24,14 @@ import type { RemoteSyncAccount, RemoteSyncState } from '$lib/platform/host';
  *
  * **A row is not a sign-in.** The row outlives the credentials deliberately: Rust keeps it so that
  * whatever was linked under it can still say what it is waiting for. `needsReconnect` is written
- * in exactly the three places that have just deleted those credentials — signing out, being
- * superseded by a sign-in as somebody else, and a refresh that failed — so it is the status that
- * means *this machine no longer holds this identity*, and the rest mean it does.
+ * in exactly the two places that have just deleted those credentials, signing out and being
+ * superseded by a sign-in as somebody else, so it is the status that means *this machine no
+ * longer holds this identity*, and the rest mean it does.
+ *
+ * *This said three until 2026-08-20 and named a failed refresh as the third. It is not one:
+ * `refresh_google_access_token` returns the failure and writes nothing, and `delete_google_credentials`
+ * has exactly the two callers above. Corrected where it was found, while counting the places a
+ * picture has to be cleared.*
  *
  * At most one identity is held at a time. Rust signs out of every other account on the way through
  * a sign-in for exactly this reason, so the first match is the only match rather than the one

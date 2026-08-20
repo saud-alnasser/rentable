@@ -51,7 +51,21 @@ pub struct RemoteSyncAccount {
     pub status: RemoteSyncAccountStatus,
     pub email: String,
     pub display_name: String,
+    /// where Google says the picture is. **Nothing draws from it**, and it is kept because it is
+    /// what a later refresh would fetch. See `avatar_image`.
     pub avatar_url: Option<String>,
+    /// the picture itself, as a complete `data:` URL, fetched once when this account signed in.
+    ///
+    /// **Here rather than at the end of a URL, because this application works offline.** A
+    /// surface drawing `avatar_url` reaches Google every time it renders, so it shows nothing
+    /// with no network and tells Google when the application was opened. `google/picture.rs` has
+    /// the bounds it is kept under.
+    ///
+    /// **It goes when the identity does.** It is a photograph of a person, so it lives exactly as
+    /// long as the credentials do rather than as long as the row: the two places that give an
+    /// identity up clear it, and the row they leave behind says what it is waiting for without
+    /// carrying their face.
+    pub avatar_image: Option<String>,
     /// who Google says this is - the OpenID `sub` claim, which is what the control-plane API
     /// keys an account by.
     ///
@@ -658,6 +672,11 @@ mod tests {
                 "{written} lost the workspace"
             );
             assert_eq!(store.accounts.len(), 1, "{written} lost the account");
+            assert_eq!(
+                store.accounts[0].avatar_image, None,
+                "{written} is a store written before there was a picture to keep, and it has to \
+                 read as one that holds none rather than refusing to load"
+            );
         }
     }
 
