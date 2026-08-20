@@ -25,7 +25,7 @@ here, and before changing a config.
 | who applies it | **the control plane**, at the token mint | `drizzle-kit migrate`, **run by hand** |
 
 **Nothing applies either set at startup**, and that is the row most often misread. The control
-plane's own migrations are applied by somebody running `db:migrate`; its test suite applies them
+plane's own migrations are applied by somebody running `db:migrate:control-plane`; its test suite applies them
 itself, in `src/tests/testing.ts`, which is why a migration that will not apply fails there rather
 than on a deploy. Who applies a *workspace* migration is [[contexts/desktop/persistence]]'s, under
 *Boundaries*.
@@ -42,11 +42,13 @@ applies no migrations** since #568 and requirement 11 of
 ## Generate a migration
 
 ```bash
-pnpm db:generate                                  # the desktop's, from apps/desktop/
-pnpm --filter @rentable/control-plane db:generate  # the control plane's, from anywhere
+pnpm db:generate:desktop         # the workspace schema
+pnpm db:generate:control-plane   # the control plane's own
 ```
 
-Run it after every schema change, in the package whose schema changed. It writes one `.sql` file
+Every root script here names its application, because both have one of each and a bare `db:`
+verb would leave which database it meant to the reader. Run it after every schema change, for the
+package whose schema changed. It writes one `.sql` file
 and updates `meta/`; read the file before committing it, because a generated migration that also
 has to *move* data is rewritten by hand rather than replaced.
 
@@ -57,7 +59,7 @@ hundred-line diff over a seven-line change unless `pnpm format` follows it.
 ## Apply the control plane's own migrations
 
 ```bash
-pnpm --filter @rentable/control-plane db:migrate
+pnpm db:migrate:control-plane
 ```
 
 **By hand, against `CONTROL_PLANE_DATABASE_URL`.** Nothing runs it at startup: `src/main.ts`
@@ -67,10 +69,10 @@ table.
 ## The dev-only commands
 
 ```bash
-pnpm db:migrate   # applies to DATABASE_URL — a convenience database, not the app's
-pnpm db:studio
-pnpm db:seed      # faker data
-pnpm db:purge
+pnpm db:migrate:desktop   # applies to DATABASE_URL — a convenience database, not the app's
+pnpm db:studio:desktop
+pnpm db:seed:desktop      # faker data
+pnpm db:purge:desktop
 ```
 
 **`DATABASE_URL` is not the running app's database.** It is read from `apps/desktop/.env` by drizzle-kit

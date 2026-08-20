@@ -226,9 +226,22 @@ jobs:
       # `pnpm check` typechecks but never bundles, so without this step nothing
       # would prove the frontend still builds — it used to be proved as a side
       # effect of the bundler's beforeBuildCommand.
+      #
+      # `build:web` rather than `build`, since 2026-08-20: root `build` now means what a
+      # person means by it, which is the installers, and running that here would spend
+      # minutes bundling artifacts this workflow deliberately does not upload. `build:web`
+      # is the turbo task, so it is also the one that caches.
       - name: '🏗️ build frontend'
         if: steps.memo.outputs.cache-hit != 'true'
-        run: pnpm build
+        run: pnpm build:web
+
+      # The control plane emits JavaScript nothing consumes yet, and compiling it is how
+      # the gate proves it would run rather than only that it typechecks. It came free
+      # while `pnpm build` was `turbo run build` across every package; now that root
+      # `build` bundles the desktop, it is named.
+      - name: '🏗️ build the control plane'
+        if: steps.memo.outputs.cache-hit != 'true'
+        run: pnpm build:control-plane
 
       # The shell's breakpoint is declared once, in the stylesheet, and read from script at
       # runtime to decide which navigation presents. Unused-value elimination drops theme

@@ -1,7 +1,7 @@
 ---
-aep: 2.5.1
+aep: 2.7.0
 owner: repository
-date: 2026-08-18
+date: 2026-08-20
 kind: reference
 use-when: "installing dependencies or running any repository script"
 ---
@@ -17,22 +17,26 @@ or anything touching the lockfile.
 
 ## The workspace, and which tool runs what
 
-`pnpm-workspace.yaml` declares `apps/*` and `packages/*`. There are two packages —
-**`@rentable/desktop`, the desktop application at `apps/desktop/`**, and
-**`@rentable/control-plane` at `apps/control-plane/`**, the always-online tier that holds
-accounts, workspaces and membership — and the root is a private, unversioned container named
-`rentable`. The scope is what keeps the three distinct: the root holds the product's name, and
-every package under it is named within that scope. *There was one until 2026-08-18, when #549
-cut the second; `packages/` is still empty.*
+`pnpm-workspace.yaml` declares `apps/*` and `packages/*`. There are three packages —
+**`@rentable/desktop`, the desktop application at `apps/desktop/`**, **`@rentable/control-plane`
+at `apps/control-plane/`**, the always-online tier that holds accounts, workspaces and
+membership, and **`@rentable/workspace-migrations` at `packages/workspace-migrations/`**, the SQL
+a workspace database is built from and the only thing both other packages depend on — and the
+root is a private, unversioned container named `rentable`. The scope is what keeps them distinct:
+the root holds the product's name, and every package under it is named within that scope. *There
+was one until 2026-08-18, when #549 cut the second.*
 
 **pnpm declares the workspace; Turborepo runs the tasks across it.** Which of the two a script
 goes through is not arbitrary:
 
 | From the root | Goes through | Why |
 | --- | --- | --- |
-| `build`, `test`, `test:rust` | `turbo run <task>`, against `turbo.json` | per package, cacheable, and what CI spends its time on |
+| `build:web`, `test`, `test:rust` | `turbo run <task>`, against `turbo.json` | per package, cacheable, and what CI spends its time on |
+| `build` | `pnpm --filter "./apps/*" build` | it bundles: the desktop's installers and the control plane's JavaScript. Nothing about it is cacheable by turbo, whose `outputs` describe `build/**` and not `tauri/target/**` |
 | `check`, `lint`, `format` | plain root scripts | they cover *every file in the repository*, the root's own configuration included, which a per-package task cannot see |
-| `dev`, `preview`, `tauri`, `prototype`, `db:*`, `i18n` | `pnpm --filter ./apps/desktop <script>` | interactive or long-running, so there is nothing to cache; arguments are forwarded unchanged |
+| `dev` | `pnpm --parallel --filter "./apps/*" dev` | it runs *both* applications, which is what a person starting work wants; `--parallel` is what lets two long-running tasks share a terminal |
+| `dev:desktop`, `dev:web`, `tauri`, `prototype`, `db:*:desktop`, `i18n` | `pnpm --filter ./apps/desktop <script>` | interactive or long-running, so there is nothing to cache; arguments are forwarded unchanged |
+| `dev:control-plane`, `db:*:control-plane` | `pnpm --filter ./apps/control-plane <script>` | the same, for the other application |
 
 **Filter by workspace path, never by package name** — `--filter ./apps/desktop`, in both tools.
 Naming the package couples every root script to a name that can be renamed out from under it.
@@ -46,12 +50,27 @@ lets a package have no `check`, and neither names anything that can be renamed. 
 such change: root `lint` is `prettier --check . && eslint .`, both of which walk the whole tree
 already.
 
-The control plane's own scripts follow the interactive row above:
+**A root script names its application last, and the root only carries what more than one
+application has.** `dev`, `build` and `db:` are the shapes both applications share, so the root
+spells out which one it means and never leaves it implied:
 
 ```bash
-pnpm --filter ./apps/control-plane db:migrate   # create its database, or bring it up to date
-pnpm --filter ./apps/control-plane dev          # run it locally
+pnpm db:migrate:desktop                         # the workspace schema, into DATABASE_URL
+pnpm db:migrate:control-plane                   # accounts, workspaces, membership, sessions
+pnpm dev:control-plane                          # run it locally, on its own
+pnpm --filter ./apps/control-plane <script>     # anything the root does not carry
 ```
+
+**Naming the application is not decoration.** A bare `db:migrate` meant the desktop's workspace
+schema and the control plane's answered to a different prefix, which is two databases behind one
+verb and the kind of thing that is only noticed after the wrong one has been migrated. *Renamed
+2026-08-20: `control-plane:db:migrate` is `db:migrate:control-plane`, and `db:migrate` alone is
+gone rather than resolved.*
+
+**An operation only one package can perform stays in that package.** `sweep`, `decline` and
+`prune-sessions` are the control plane's and have no root alias, so they are typed with a filter
+from anywhere else. A root alias for a script with nothing to be symmetrical with is a second
+name for one thing, and the root is where the names that mean *both applications* live.
 
 ```bash
 pnpm --filter ./apps/desktop check      # one script per invocation — anything after
@@ -122,13 +141,20 @@ Docs: <https://pnpm.io/settings/dependency-resolution>.
 ## Run the app
 
 ```bash
-pnpm dev                          # vite only, port 1420 (strict) — no desktop window
-pnpm tauri dev                    # the actual desktop app; see tauri.md
+pnpm dev                          # the control plane and the desktop app, together
+pnpm dev:desktop                  # the desktop app alone; see tauri.md
+pnpm dev:control-plane            # the control plane alone
+pnpm dev:web                      # vite only, port 1420 (strict) — no desktop window
 pnpm prototype /contracts?create  # the desktop app, opened on one route; see tauri.md
 ```
 
-`pnpm dev` gives you the frontend with no Rust side, so anything touching the database or a
-Tauri command will fail. It is for UI work only.
+**`pnpm dev` runs both applications**, changed 2026-08-20 by #627. It used to be the vite-only
+script, which now answers to `dev:web`. The rename is what the sign-in wall forced: since #571
+the desktop cannot reach a workspace without a control plane, so a `dev` that started the
+frontend alone started the half that cannot do anything.
+
+`pnpm dev:web` gives you the frontend with no Rust side, so anything touching the database or a
+Tauri command will fail and the sign-in wall never clears. It is for UI work only.
 
 ## Check, lint, format
 

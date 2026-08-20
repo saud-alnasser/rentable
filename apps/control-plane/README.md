@@ -11,22 +11,37 @@ table here, and a schema test fails if one appears.
 
 ## What exists today, and what does not
 
-Signing in, the session that sign-in buys, creating a workspace, minting the token a client
-syncs with, and settling that workspace's schema before the token goes out. **Nothing is
-deployed.** The desktop reaches this only where its build was told a URL
-(`RENTABLE_CONTROL_PLANE_URL`), which no build is today — a local-only workspace reaches no
-account, and the occasion to reach this arrives with the mode choice rather than with signing in
-to Google.
+Signing in, the session that sign-in buys, the workspace an account is given at sign-up, minting
+the token a client syncs with, and settling that workspace's schema before the token goes out.
+**Nothing is deployed.** Whatever reaches this reaches a copy somebody is running, which today
+means a local one.
 
-|                                                                     |      |
-| ------------------------------------------------------------------- | ---- |
-| the desktop choosing to be hosted, which is what first calls this   | #553 |
-| listing the workspaces an account belongs to, which machine B needs | #558 |
+**The desktop cannot open a workspace without it.** That is new: the sign-in wall (#571) and the
+removal of the mode discriminator (#566) left no local-only path to fall back to, so a build
+whose `RENTABLE_CONTROL_PLANE_URL` is unset reaches no account and shows nothing at all. Setting
+it is part of the desktop's setup, in `apps/desktop/.env`.
+
+**Listing the workspaces an account belongs to is still not a route, and the second machine no
+longer needs one.** Sign-up creates exactly one workspace (#615) and every reply carries it, so a
+machine learns which workspace to replicate from the sign-in it was making anyway. #553, which
+this file used to send readers to, was closed as not planned when the mode went.
 
 Removing a member is not a route here yet. **The mechanism is**: the mint reads membership every
 time it is asked, so deleting a membership row ends that person's access within one token
 lifetime and nobody else's. The administrative surface that does the deleting is a later
 ticket's.
+
+## Running it locally
+
+```sh
+cp .env.example .env             # then fill in the three Turso values
+pnpm db:migrate:control-plane    # from the repository root
+pnpm dev                         # from the root: this and the desktop, together
+```
+
+`pnpm dev:control-plane` runs this one alone. It listens on `PORT`, 4000 by default, and the
+desktop has to be told the same number. `GET /health` queries the database before it answers, so
+a process that says `{"status":"ok"}` has reached its own storage rather than merely started.
 
 ## The tree
 
@@ -291,13 +306,19 @@ now_ has run a command and learned nothing.
 The second is `prune-sessions` and not `prune` because `pnpm prune` is one of pnpm's own commands
 and would shadow it, running package pruning instead and never reaching the script.
 
+Those three names are this package's own and the root does not alias them, so they want
+`pnpm --filter ./apps/control-plane` in front of them from anywhere else. The root carries what
+every package here has, which is `dev`, `build` and the `db:` tooling; an operation only this
+package can perform is reached where it lives.
+
 `pnpm start` runs it once without the watcher. `pnpm build` emits JavaScript to `build/`;
 nothing consumes that yet, and it is there so `turbo run build` proves the package compiles to
 something runnable rather than only that it typechecks.
 
 ## What it needs to start
 
-Nothing, against a local database. `.env.example` is the whole surface:
+Its own database needs a path and nothing else. Provisioning needs three Turso values, and the
+process exits without them. `.env.example` is the whole surface:
 
 | Variable                       | Default                   |                                                          |
 | ------------------------------ | ------------------------- | -------------------------------------------------------- |
