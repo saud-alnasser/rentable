@@ -4,6 +4,7 @@
 	import type { ListSort } from '$lib/design/sort';
 	import ContractActions from '$lib/contract/component/actions.svelte';
 	import ContractRecord from '$lib/contract/component/record.svelte';
+	import ContractSelectionActions from '$lib/contract/component/selection-actions.svelte';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import { RANK_FILTER, toChosenRank } from '$lib/contract/rank-filter';
 	import { useListContracts } from '$lib/contract/query';
@@ -20,6 +21,7 @@
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
 	let filters = $state<FilterSelection>({});
+	let selected = $state<string[]>([]);
 
 	// the same rank the directory offers: a unit's history runs across several tenancies, and
 	// which of them is behind is the question the record is opened to answer.
@@ -51,22 +53,28 @@
 
 <ContractActions>
 	{#snippet children(contractActions)}
-		<List
-			data={contracts}
-			bind:search
-			bind:sort
-			{sortOptions}
-			bind:filters
-			filterOptions={[RANK_FILTER]}
-			isLoading={contractsQuery.isLoading}
-			isFetching={contractsQuery.isFetching}
-			recordHeight={ROW_HEIGHT}
-			emptyTitle={$LL.complexes.units.contractsEmptyTitle()}
-			emptyDescription={$LL.complexes.units.contractsEmptyDescription()}
-		>
-			{#snippet record(contract: ContractRow)}
-				<ContractRecord {contract} actions={contractActions.of(contract)} />
+		<ContractSelectionActions onActed={() => (selected = [])}>
+			{#snippet children(selectionActions)}
+				<List
+					data={contracts}
+					bind:search
+					bind:sort
+					{sortOptions}
+					bind:filters
+					filterOptions={[RANK_FILTER]}
+					bind:selected
+					{selectionActions}
+					isLoading={contractsQuery.isLoading}
+					isFetching={contractsQuery.isFetching}
+					recordHeight={ROW_HEIGHT}
+					emptyTitle={$LL.complexes.units.contractsEmptyTitle()}
+					emptyDescription={$LL.complexes.units.contractsEmptyDescription()}
+				>
+					{#snippet record(contract: ContractRow)}
+						<ContractRecord {contract} actions={contractActions.of(contract)} />
+					{/snippet}
+				</List>
 			{/snippet}
-		</List>
+		</ContractSelectionActions>
 	{/snippet}
 </ContractActions>
