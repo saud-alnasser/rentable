@@ -99,12 +99,28 @@ minting a token for it, and attempting to delete it. What it settled:
 | the token is scoped to one database | its `id` claim is that database's id |
 | **a delete-protected group refuses to delete its databases** | see below — this one was a surprise |
 
+**Run live again 2026-08-20, at the human's request, and it settled the dialect question.** The
+whole shipped migration set — `0000` through `0003_serious_synch.sql`, identity rewrite included —
+applies to a Turso database through `migration.ts`'s own runner, and the schema it leaves has `TEXT`
+keys throughout and no `idmap`. #557's criterion 5 was recorded as *documented, not exercised end to
+end* for want of exactly this, and `apps/control-plane/src/workspace/tests/provisioning.test.ts` is
+what exercises it.
+
+**A separate finding, from #552's Rust work rather than from this run**: those migrations cannot be
+applied through a *sync* connection. `0003` drops and renames its tables, and the push that follows
+fails with `no such table: main.complex`, measured 2026-08-20 against a live account. That is not a
+defect — requirement 11 puts migrations on the control plane and a replica receives the schema as
+pages — but it does mean a replica is not a way to install a schema, and #552's tests apply theirs
+over the pipeline endpoint for that reason. Nothing in `apps/control-plane/` opens a sync connection,
+so nothing here would have found it.
+
 A live run creates a real database and is billed and quota-counted — the free tier permits 100.
 **It is the human's call**, the same standing rule as pushing.
 
 **It also leaves databases behind, and the count is not stable enough to list.** `gate-11` from
 the decision 11 prototype and `ws-effe2636-dccb-4dda-8e46-c0ad602bc1dc` from this verification were
-the two on 2026-08-18; #552's live tests add four per run on top of them, named `t552-<case>-<nonce>`.
+the two on 2026-08-18; #552's live tests add four per run on top of them, named `t552-<case>-<nonce>`,
+and #572's add two, named `ws-<uuid>` like any other workspace.
 None of them can be removed while the group is delete-protected, and against a quota of 100 that is
 worth watching rather than assuming.
 
@@ -136,9 +152,11 @@ on purpose and no number of attempts changes that.
 
 ## Never run
 
-- **Do not delete a database the control plane did not just create.** `deleteDatabase` exists for
-  one path: a database created for a workspace whose record could not be written. A workspace's
-  database is somebody's ledger.
+- **Do not delete a database the control plane did not just create.** `deleteDatabase` has two
+  callers and both created what they remove: the service's own path, where a database was made for a
+  workspace whose record could not be written, and the teardown in
+  `workspace/tests/provisioning.test.ts`, which removes what its live run provisioned. A workspace's
+  database is somebody's ledger, and nothing else is a reason to call it.
 - **Do not rotate or revoke the Platform API token.** It is the human's, and revoking it stops
   every mint.
 - **Do not run a live create or mint against the human's account without being asked to.**

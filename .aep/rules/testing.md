@@ -93,17 +93,21 @@ other otherwise. See [[references/cargo]].
 
 ## Tests that reach a live remote
 
-**One set does, and it is the exception rather than a second way of testing.** The four
+**Two sets do, and they are the exception rather than a second way of testing.** The four
 `losing_writer` tests at the foot of `tauri/src/database/mod.rs` open two replicas of one workspace
-against a database they provision on Turso. Everything else in this repository is tested against a
-local file, a loopback HTTP server, or an in-memory engine, and that is not changing.
+against a database they provision on Turso; `control-plane/src/workspace/tests/provisioning.test.ts`
+signs up against a live account and reads the schema back off the database that sign-up produced.
+Everything else in this repository is tested against a local file, a loopback HTTP server, or an
+in-memory engine, and that is not changing.
 
-*Why this one could not be: what it measures is what the sync engine does when two replicas
-diverge, and the engine reaches its remote over HTTP. There is no local stand-in. The loopback
+*Why these could not be: the first measures what the sync engine does when two replicas diverge,
+and the engine reaches its remote over HTTP. There is no local stand-in. The loopback
 server [[rules/credentials]] endorses under *Transport testing* is the right shape and cannot be
 built here, because standing up the replication protocol would mean implementing the behaviour
-under test — a bug in the stand-in would read as a finding about Turso. Nothing else in the tree
-has that property.*
+under test — a bug in the stand-in would read as a finding about Turso. The second is there for a
+different reason: what it checks is whether **Turso's own SQL dialect** accepts this schema, and a
+`file:` database cannot answer a question about a remote's dialect however faithfully it runs the
+same code. Nothing else in the tree has either property.*
 
 **This does not reopen *Transport testing*.** That rule is about a transport whose serialisation
 and status handling are the subject; a loopback server exercises those better than a live API
@@ -113,13 +117,18 @@ remote's own merge behaviour rather than the client's handling of it.
 Three things bind a live test, and all three are the reason this is a declared exception rather
 than a precedent:
 
-- **It carries `#[ignore]`.** Not an early `return`: libtest captures the output of a passing
-  test, so a test that printed why it skipped and passed reports `ok` on a machine that never
-  reached the remote. `ignored` reaches the summary line and an `eprintln!` does not.
+- **The skip reaches the summary line.** In Rust that is `#[ignore]` rather than an early
+  `return`: libtest captures the output of a passing test, so a test that printed why it skipped
+  and passed reports `ok` on a machine that never reached the remote. In TypeScript it is
+  `node:test`'s `{ skip: '<reason>' }`, which is counted as `skipped` and carries the reason. **An
+  early return in either is the thing to avoid**, because the shape it produces is a green test
+  that measured nothing.
 - **It never runs in continuous integration** *(directed by the human, 2026-08-20)*. A required
   gate that provisions databases in somebody's account depends on a third party's uptime and on a
   secret every workflow can read. A live run is a case the human authorizes, one at a time, and
-  [[references/turso]], under *Never run*, is where that standing rule already sat.
+  [[references/turso]], under *Never run*, is where that standing rule already sat. The opt-in is
+  `--ignored` on the Rust side and `RENTABLE_LIVE_TURSO=1` on the TypeScript side, because
+  `node:test` has no equivalent of `#[ignore]` to ask for by name.
 - **Credentials missing is a failure, not a skip.** Asking for an ignored test is deliberate, so a
   run that meant to be live and silently was not is the one outcome worth refusing.
 
