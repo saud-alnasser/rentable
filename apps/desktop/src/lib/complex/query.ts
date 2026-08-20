@@ -382,6 +382,47 @@ export const useCreateUnit = declareMutation({
 	}
 });
 
+/**
+ * Create every unit named, as one change.
+ *
+ * **One call, one batch, one entry on the undo stack.** Eighteen units named in one line are
+ * eighteen rows written inside one transaction, and taking it back removes all eighteen rather
+ * than eighteen presses removing one each, which is the shape the deletions in this effort
+ * take, arrived at from the other direction.
+ *
+ * The rows are what the procedure answers with, so applying the change again puts them back
+ * under the identities the first creation assigned (ADR 0026).
+ *
+ * The refusal is not toasted: it is a name already taken, and the form naming it has a line for
+ * that under the field the reader would fix.
+ *
+ * **A unit the workspace refuses to remove leaves the undo partial**, which is the property
+ * every bulk inverse here already has: `deleteMany` reports what it turned away rather than
+ * throwing, and a unit can only be turned away by having gained a contract since it was created,
+ * which needs another device to have assigned it.
+ */
+export const useCreateManyUnits = declareMutation({
+	mutate: (data: Parameters<typeof api.complex.units.createMany>[0]) =>
+		api.complex.units.createMany(data),
+	touches: ['units', 'complexes'],
+	inverse: ({ result }) => ({
+		describe: (t) => t.common.undo.createdMany({ count: result.length }),
+		undo: () => api.complex.units.deleteMany({ ids: toIds(result) }),
+		redo: () => api.complex.units.createMany({ units: result }),
+		records: (direction) =>
+			result.map((unit) =>
+				toHistoryEntry('unit', unit, direction === 'undo' ? 'deleted' : 'created')
+			)
+	}),
+	records: ({ result }) => result.map((unit) => toHistoryEntry('unit', unit, 'created')),
+	toast: {
+		success: ({ result }) =>
+			get(LL).complexes.hooks.unitCreateManySuccess({ count: result.length }),
+		error: false,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	}
+});
+
 export const useUpdateUnit = declareMutation({
 	mutate: (values: Parameters<typeof api.complex.units.update>[0]) =>
 		api.complex.units.update(values),

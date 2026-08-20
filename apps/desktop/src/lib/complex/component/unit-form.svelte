@@ -6,7 +6,9 @@
 	import * as Form from '$lib/design/primitive/form';
 	import { Input } from '$lib/design/primitive/input';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { useCreateUnit, useUpdateUnit } from '$lib/complex/query';
+	import { useCreateManyUnits, useFetchUnits, useUpdateUnit } from '$lib/complex/query';
+	import type { DraftUnit } from '$lib/complex/unit-name';
+	import UnitEntry from './unit-entry.svelte';
 	import { TRPCError } from '@trpc/server';
 	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
@@ -14,7 +16,7 @@
 	import z from 'zod';
 
 	const UnitFormSchema = UnitSchema.partial({ id: true, complexId: true, status: true });
-	const CreateMutation = useCreateUnit();
+	const CreateMutation = useCreateManyUnits();
 	const UpdateMutation = useUpdateUnit();
 
 	type UnitForm = z.infer<typeof UnitFormSchema>;
@@ -30,6 +32,25 @@
 		onOpenChange: (value: boolean) => void;
 		complexId: string;
 	} = $props();
+
+	const isCreating = $derived(!value?.id);
+
+	// the units a complex is created with are named on one surface, and adding units to a complex
+	// that already exists is the same act on a later day. The entry is the same component, and
+	// what the two cases differ by is this: an existing complex already holds names, and every one
+	// of them is a name this batch cannot take.
+	let units = $state<DraftUnit[]>([]);
+	let unitError = $state<string | undefined>(undefined);
+	let unitEntry = $state<ReturnType<typeof UnitEntry> | undefined>(undefined);
+
+	// read only while the form is open on a creation: it is the collision check's other half, and
+	// the board behind this form has it cached already.
+	const heldQuery = useFetchUnits(
+		() => complexId,
+		() => open && isCreating
+	);
+
+	const held = $derived((heldQuery.data ?? []).map((unit) => unit.name));
 
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<UnitForm>(
 		defaults(zod4(UnitFormSchema)),
@@ -49,18 +70,40 @@
 					}
 				}
 
-				const mutation = form.data.id ? UpdateMutation : CreateMutation;
-
 				try {
-					await mutation.mutateAsync({
-						...form.data,
-						complexId
-					} as Unit);
+					if (form.data.id) {
+						await UpdateMutation.mutateAsync({ ...form.data, complexId } as Unit);
+					} else {
+						const names = unitEntry?.collect();
+
+						if (names === undefined) return;
+
+						// the entry answers with an empty list where a complex is being created
+						// holding no units, which is a complex this form is not about: a submission
+						// that names no unit has nothing to create.
+						if (names.length === 0) {
+							unitError = $LL.complexes.form.noUnitNamed();
+
+							return;
+						}
+
+						// one call for the whole run, so eighteen units are eighteen rows in one
+						// batch and one entry on the undo stack.
+						await CreateMutation.mutateAsync({
+							units: names.map((name) => ({ name, complexId }))
+						});
+					}
 
 					onOpenChange(false);
 				} catch (e) {
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
-						if (e.message.includes('name')) {
+						// a collision the workspace found belongs to the list being named, except
+						// while editing, where the one field is the whole form.
+						if (isCreating) {
+							unitError = e.message.includes('used twice')
+								? $LL.complexes.form.duplicateUnitNames()
+								: $LL.complexes.units.duplicateName();
+						} else if (e.message.includes('name')) {
 							setError(form, 'name', $LL.complexes.units.duplicateName());
 						}
 					} else {
@@ -84,23 +127,33 @@
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
 </script>
 
-<FormSurface {open} {onOpenChange} {enhance} weight="light" title={$LL.common.labels.unit()}>
+<FormSurface
+	{open}
+	{onOpenChange}
+	{enhance}
+	weight="light"
+	title={isCreating ? $LL.common.nav.units() : $LL.common.labels.unit()}
+>
 	<!-- no pinned read-out: a unit is a name, and a panel above one field restating that field
 	     says nothing the field does not. -->
 	<div class="flex flex-col gap-4">
-		<Form.Field form={superform} name="name" class="group relative">
-			<Form.Control>
-				<Form.Label>{$LL.common.labels.name()}</Form.Label>
-				<Input
-					bind:value={$form.name}
-					placeholder={$LL.common.labels.name()}
-					class={insetControl}
-					aria-invalid={$errors.name ? 'true' : undefined}
-					{...$constraints.name}
-				/>
-			</Form.Control>
-			<FieldError />
-		</Form.Field>
+		{#if isCreating}
+			<UnitEntry bind:this={unitEntry} bind:units bind:error={unitError} against={held} {open} />
+		{:else}
+			<Form.Field form={superform} name="name" class="group relative">
+				<Form.Control>
+					<Form.Label>{$LL.common.labels.name()}</Form.Label>
+					<Input
+						bind:value={$form.name}
+						placeholder={$LL.common.labels.name()}
+						class={insetControl}
+						aria-invalid={$errors.name ? 'true' : undefined}
+						{...$constraints.name}
+					/>
+				</Form.Control>
+				<FieldError />
+			</Form.Field>
+		{/if}
 	</div>
 
 	{#snippet actions()}

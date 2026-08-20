@@ -1066,6 +1066,66 @@ test('putting a selection of units back asks the workspace once for the whole se
 	);
 });
 
+// A run of units named on a complex that already exists goes through the same procedure a
+// restore does, and this is the case that procedure was not written for: nothing here was ever
+// deleted, and every name is arriving for the first time.
+test('a run of eighteen units on an existing complex is one call over the whole set', async () => {
+	const statements = await withStatementLog(async (api, drain) => {
+		const complex = await api.complex.create({ name: 'Run Court', location: 'Riyadh' });
+
+		drain();
+
+		const created = await api.complex.units.createMany({
+			units: Array.from({ length: 18 }, (_, step) => ({
+				name: `A${step + 1}`,
+				complexId: complex.id
+			}))
+		});
+
+		assert.equal(created.length, 18);
+		assert.deepEqual(
+			created.map((unit) => unit.name),
+			Array.from({ length: 18 }, (_, step) => `A${step + 1}`)
+		);
+		assert.ok(
+			created.every((unit) => unit.status === 'vacant'),
+			'a unit nobody has taken starts vacant'
+		);
+	});
+
+	// eighteen rows go down together, and the two questions a unit is unique by are asked once
+	// each over the whole set rather than once per unit.
+	assert.equal(countMatching(statements, /^\s*insert into "unit"/i), 18);
+	assert.ok(
+		countMatching(statements, /select .* from "unit" where/i) <= 2,
+		`one pass per question, not one per row: ${statements.filter((sql) => /select .* from "unit" where/i.test(sql)).length}`
+	);
+});
+
+// the collision the create-a-complex case cannot have: the complex is already there, and it is
+// already holding a name the run wants. The whole run is refused rather than the seventeen that
+// would have fitted, because a run half written is a building the reader did not ask for.
+test('a run colliding with a unit the complex already holds writes none of it', async () => {
+	const api = await createApi();
+	const complex = await seedComplex(api);
+
+	await seedUnit(api, complex.id, 'A3');
+
+	await assert.rejects(
+		() =>
+			api.complex.units.createMany({
+				units: ['A1', 'A2', 'A3', 'A4'].map((name) => ({ name, complexId: complex.id }))
+			}),
+		/name A3 is associated with a unit in the same complex/
+	);
+
+	assert.deepEqual(
+		(await api.complex.units.getMany({ complexId: complex.id })).map((unit) => unit.name),
+		['A3'],
+		'nothing was written beside the unit that was already there'
+	);
+});
+
 // --- Palette search -------------------------------------------------------------------
 
 test('a complex is found by name or location, and a unit by either its own name or its complex', async () => {
