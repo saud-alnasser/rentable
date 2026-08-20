@@ -90,7 +90,7 @@
 	<PageFrame>
 		<!-- the title alone: the sentence under it listed the groups whose own legends are directly
 		     below, so the page opened by naming its contents twice. -->
-		<h1 class="text-3xl font-semibold tracking-tight">{$LL.settings.title()}</h1>
+		<h1 class="text-3xl font-semibold tracking-tight capitalize">{$LL.settings.title()}</h1>
 
 		<Field.Group>
 			<Field.Set>

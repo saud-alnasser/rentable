@@ -35,7 +35,15 @@
 		tone = 'neutral',
 		icon
 	}: {
-		/** What this screen is, in a few words. */
+		/**
+		 * What this screen is, in a few words.
+		 *
+		 * **Sentence case rather than the title case every other title in this application wears.**
+		 * Five of the seven screens rendering through here are titled with a sentence rather than a
+		 * name: *rentable could not finish starting*, *the application could not be drawn*, *sign in
+		 * again to continue*. `capitalize` sets every word, and a sentence in title case reads as a
+		 * headline about the failure rather than as the application saying what happened.
+		 */
 		title: string;
 		/** Optional line under the title, where the title alone does not explain the state. */
 		description?: string;
@@ -113,7 +121,9 @@
 				{#if Glyph}
 					<Glyph class="size-5 shrink-0" />
 				{/if}
-				<h1 class="min-w-0 flex-1 text-lg font-semibold tracking-tight">{title}</h1>
+				<h1 class="min-w-0 flex-1 text-lg font-semibold tracking-tight first-letter:uppercase">
+					{title}
+				</h1>
 
 				{#if corner}
 					<div class="flex shrink-0 items-center gap-1.5">
@@ -135,7 +145,7 @@
 					<Spinner class="mt-0.5 size-5 shrink-0 text-muted-foreground" />
 				{/if}
 				<div class="min-w-0 flex-1 space-y-1">
-					<h1 class="text-lg font-semibold tracking-tight">{title}</h1>
+					<h1 class="text-lg font-semibold tracking-tight first-letter:uppercase">{title}</h1>
 					{#if description}
 						<p class="text-sm text-muted-foreground">{description}</p>
 					{/if}
