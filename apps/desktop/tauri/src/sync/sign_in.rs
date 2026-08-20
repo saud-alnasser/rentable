@@ -103,6 +103,12 @@ pub async fn sign_in_with_google(
     // sign-in.
     control::establish_session(app_state, &identity.account_id, &identity.access_token).await;
 
+    // **Opening the workspace is not done here, and that is deliberate rather than missing.** The
+    // sign-in screen calls `continueStartup` when this returns, which calls `bootstrap`, which is
+    // where the database is opened — so the replica arrives in this session without a second mint.
+    // An earlier draft called it here too and paid two control-plane round trips and two engine
+    // swaps for one sign-in.
+
     let mut remote_sync = app_state.remote_sync.write().await;
     remote_sync.get_state().await
 }

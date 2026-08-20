@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-19
+date: 2026-08-20
 kind: context
 paths:
   - apps/desktop/tauri/src/sync/**
@@ -12,9 +12,11 @@ use-when: "the request touches signing in, or the session a workspace replicates
 
 # Remote sync
 
-Getting a workspace off this machine and back onto it. **Two subjects share the machinery**: the
-identity a person signs in as, and the session that identity is issued — the window this machine
-may go on replicating inside.
+Getting a workspace off this machine and back onto it. **Three subjects share the machinery**: the
+identity a person signs in as, the session that identity is issued — the window this machine may go
+on replicating inside — and, since #616, the workspace credential the replica actually syncs with.
+*It read "Two subjects" until 2026-08-20, when the third stopped being something only the control
+plane knew about.*
 
 > **Local backup is gone** (#569, 2026-08-19). Requirement 17 of
 > [[efforts/a-workspace-follows-its-user/spec]], directed by the human: Turso holds the record and
@@ -83,10 +85,30 @@ _Avoid_: calling it a sync in prose about the client. Nothing is exchanged on th
 
 ## Boundaries
 
-- **Signing in is one act with no second half.** It establishes an identity and touches no
-  workspace. That was the point of separating it from linking a folder in #543, and the folder is
-  gone; what an identity is *for* is the session the control plane issues against it, which the
-  sign-in flow asks for immediately afterwards and treats as best-effort.
+- **Signing in is one act, and what follows it is best-effort rather than part of it.**
+  *Restated 2026-08-20 (#616); it read "one act with no second half", and there are two halves after
+  it now.* Signing in establishes an identity and touches no workspace — that was the point of
+  separating it from linking a folder in #543, and the folder is gone. What an identity is *for* is
+  the session the control plane issues against it, which the flow asks for immediately afterwards,
+  and the workspace that session can mint a credential for, which the startup path opens when the
+  sign-in screen hands back. **Neither can fail the sign-in**: a machine that answered the consent
+  screen and could not reach the control plane holds an identity and says so.
+- **The workspace credential is minted, held in this process, and never written down.** The mint is
+  reached at every launch and whenever somebody signs in; what comes back is a Turso token and a
+  URL. The token lives on `RemoteSync` for the run of the process and nowhere else — it is
+  short-lived by construction and re-minted by reaching the control plane, so a copy on disk would
+  be a credential at rest bought for nothing. The URL is a fact rather than a credential and is
+  persisted, because it is what lets a machine open its replica offline.
+- **The replica's file is named for its workspace, never for the machine.** One person signing out
+  and another signing in would otherwise open the second account's replica over the first's rows and
+  the first's sync metadata. `app.db` stays what the seeded and test paths use; a workspace is
+  `workspace-<id>.db` beside it. *What this leaves behind is the previous workspace's file, which
+  nothing deletes.*
+- **A replica that has never pulled has no schema, and the application says so rather than failing
+  on the next statement.** Opening does not block on a pull — that is requirement 7, and
+  `bootstrap_if_empty(false)` is what buys it — but a first run has nothing to read until one
+  succeeds, so the startup path pulls once and then asks whether the replica is ready. Requirement 3
+  already says a first run needs a network.
 - **Signing out keeps the account row and drops the credentials.** A machine that has signed out
   is waiting on a person rather than broken, and the row is what lets it say so.
 - **The sign-in asks for `openid`, `email` and `profile`, and for nothing else.** `openid` is not

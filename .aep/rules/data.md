@@ -79,8 +79,8 @@ The writers are enumerable and each is responsible for announcing itself: a data
 invalidates all five data-concept prefixes through the one shared helper; a remote-sync pull
 reconciles fully and then invalidates the root; the day-crossing reconcile does the same; and the
 replica's own pull is a fourth writer of exactly that kind, which announces itself the same way.
-**Nothing pulls yet** — the replica is built but not on the read path — so the enumeration is
-three today and four the moment it is. **There are no optimistic updates.**
+**Nothing pulls yet** — #616 put the replica on the read path and #617 is what makes it pull — so
+the enumeration is three today and four the moment it does. **There are no optimistic updates.**
 
 *Why: TanStack Query's server-era defaults pay a visible round trip for a staleness problem this
 application answers by enumeration instead — and the refetch behind an invalidate is a

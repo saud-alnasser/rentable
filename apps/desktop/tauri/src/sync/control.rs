@@ -121,9 +121,21 @@ struct WireSession {
 #[derive(Deserialize)]
 struct WireAnswer {
     session: Option<WireSession>,
+    /// which workspace this account owns. Every identifying answer carries it since #615, and a
+    /// build talking to an older control plane simply finds `None`.
+    workspace: Option<WireWorkspace>,
+    /// the replica credential itself, which only the mint answers with.
+    token: Option<String>,
+    /// what the replica syncs against, which only the mint answers with.
+    url: Option<String>,
     /// the replica credential's own expiry, which only the mint answers with.
     #[serde(rename = "expiresAt")]
     replica_expires_at: Option<i64>,
+}
+
+#[derive(Deserialize)]
+struct WireWorkspace {
+    id: String,
 }
 
 #[derive(Deserialize)]
@@ -151,12 +163,20 @@ const SESSION_EXPIRED: &str = "session_expired";
 /// somebody waiting for a network that cannot help, or send them back to Google after a weekend.
 const SESSION_LIFETIME_REACHED: &str = "session_lifetime_reached";
 
+/// what an identifying call answered with: a session, and which workspace this account owns.
+#[derive(Clone, Debug)]
+pub(crate) struct Identified {
+    pub session: IssuedSession,
+    /// `None` where the control plane did not name one, which is a build older than #615.
+    pub workspace_id: Option<String>,
+}
+
 /// Reach the control plane, presenting whatever credential this call has.
 ///
 /// One function for both calls, because they differ only in the path and the credential: signing
 /// in presents Google's access token to `/account/sign-in`, and renewing presents the session to
 /// `/session/refresh`. Both answer with a session, and both refuse the same way.
-async fn call(base_url: &str, path: &str, bearer: &str) -> Result<IssuedSession, Error> {
+async fn call(base_url: &str, path: &str, bearer: &str) -> Result<Identified, Error> {
     let client = build_client(CONTROL_PLANE_TIMEOUT)?;
 
     let response = client
@@ -186,11 +206,83 @@ async fn call(base_url: &str, path: &str, bearer: &str) -> Result<IssuedSession,
         });
     };
 
-    Ok(IssuedSession {
-        token: session.token,
-        expires_at: session.expires_at,
-        replica_expires_at: answer.replica_expires_at,
-        absolute_expires_at: session.absolute_expires_at,
+    Ok(Identified {
+        session: IssuedSession {
+            token: session.token,
+            expires_at: session.expires_at,
+            replica_expires_at: answer.replica_expires_at,
+            absolute_expires_at: session.absolute_expires_at,
+        },
+        workspace_id: answer.workspace.map(|workspace| workspace.id),
+    })
+}
+
+/// what the mint answered with: the replica's credential, where to spend it, and the session the
+/// call renewed on the way past.
+#[derive(Clone, Debug)]
+pub(crate) struct MintedWorkspace {
+    /// the Turso token the replica syncs with. **It stays in this process**
+    /// ([[rules/credentials]], under *Client boundary*).
+    pub token: String,
+    pub url: String,
+    pub session: IssuedSession,
+}
+
+/// Ask for a token to sync one workspace with, at the schema this build was compiled against.
+///
+/// **The version is not optional and not a guess.** `WORKSPACE_SCHEMA_VERSION` is written by
+/// `build.rs` from the migrations this build ships, and the control plane decides from it whether
+/// to migrate the workspace, to mint, or to refuse — decision 06. A client that sent nothing would
+/// be asking the service to guess which schema it understands.
+///
+/// **The mint is also a renewal**, which is why it answers with a session: reaching it restarts
+/// the refresh window and the replica credential together, so a client that mints has one clock
+/// rather than two that drift.
+pub(crate) async fn mint(
+    base_url: &str,
+    session_token: &str,
+    workspace_id: &str,
+    schema_version: u32,
+) -> Result<MintedWorkspace, Error> {
+    let client = build_client(CONTROL_PLANE_TIMEOUT)?;
+
+    let response = client
+        .post(format!("{base_url}/workspace/{workspace_id}/token"))
+        .bearer_auth(session_token)
+        .header("content-type", "application/json")
+        .body(format!("{{\"schemaVersion\":{schema_version}}}"))
+        .send()
+        .await
+        .map_err(|error| Error::Network {
+            message: format!("could not reach the control plane: {error}"),
+        })?;
+
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+
+    if !status.is_success() {
+        return Err(refusal(status.as_u16(), &body));
+    }
+
+    let answer: WireAnswer = serde_json::from_str(&body).map_err(|error| Error::Integrity {
+        message: format!("the control plane answered with something unreadable: {error}"),
+    })?;
+
+    let (Some(token), Some(url), Some(session)) = (answer.token, answer.url, answer.session) else {
+        return Err(Error::Integrity {
+            message: "the mint answered without a token, a url, or a session".to_string(),
+        });
+    };
+
+    Ok(MintedWorkspace {
+        token,
+        url,
+        session: IssuedSession {
+            token: session.token,
+            expires_at: session.expires_at,
+            replica_expires_at: answer.replica_expires_at,
+            absolute_expires_at: session.absolute_expires_at,
+        },
     })
 }
 
@@ -233,12 +325,12 @@ fn refusal(status: u16, body: &str) -> Error {
 pub(crate) async fn sign_in(
     base_url: &str,
     google_access_token: &str,
-) -> Result<IssuedSession, Error> {
+) -> Result<Identified, Error> {
     call(base_url, "/account/sign-in", google_access_token).await
 }
 
 /// Renew a session, restarting the window from now.
-pub(crate) async fn refresh(base_url: &str, session_token: &str) -> Result<IssuedSession, Error> {
+pub(crate) async fn refresh(base_url: &str, session_token: &str) -> Result<Identified, Error> {
     call(base_url, "/session/refresh", session_token).await
 }
 
@@ -432,8 +524,20 @@ pub(super) async fn establish_session(
     };
 
     match sign_in(&base_url, google_access_token).await {
-        Ok(issued) => {
+        Ok(identified) => {
+            let issued = identified.session;
             let mut remote_sync = app_state.remote_sync.write().await;
+
+            // **Which workspace this machine belongs to, learned here and nowhere else.** It is
+            // what the mint is asked about at the next launch, so a machine that never records it
+            // signs in successfully and then has nothing to open.
+            if let Some(workspace_id) = identified.workspace_id.as_deref()
+                && let Err(error) = remote_sync.record_remote_workspace(workspace_id, None)
+            {
+                diagnostics::error("sync.workspace.notRecorded")
+                    .with("error", error.to_string())
+                    .write();
+            }
 
             match remote_sync.record_control_plane_session(account_id, &issued) {
                 Ok(window) => diagnostics::info("sync.session.established")
@@ -448,6 +552,85 @@ pub(super) async fn establish_session(
         Err(error) => diagnostics::error("sync.session.notEstablished")
             .with("error", error.to_string())
             .write(),
+    }
+}
+
+/// Get this machine a credential for its workspace, and say where to spend it.
+///
+/// **This is what joins a signed-in machine to its workspace**, and until it existed the pieces
+/// were all built and none of them met: the transport, the engine and the mint each had tests and
+/// no caller between them.
+///
+/// Answers `None` for every ordinary reason a machine has nothing to open — no control plane
+/// configured, nobody signed in, no workspace recorded yet, the mint unreachable — because none of
+/// those is a failure of this call. **A machine that cannot mint opens no replica and shows the
+/// sign-in wall**, which is the same thing it did before any of this.
+///
+/// The token is held in this process rather than returned for somebody to keep: the engine
+/// resolves it per request, so what a caller needs is the URL and the knowledge that there is one.
+pub(crate) async fn mint_workspace(app_state: &AppState) -> Option<String> {
+    let base_url = control_plane_url()?;
+
+    let (workspace_id, held) = {
+        let remote_sync = app_state.remote_sync.read().await;
+        let workspace_id = remote_sync.workspace().remote_id?;
+        let window = remote_sync.session_window()?;
+
+        (
+            workspace_id,
+            remote_sync
+                .load_control_plane_session(&window.account_id)
+                .ok()??,
+        )
+    };
+
+    match mint(
+        &base_url,
+        &held.token,
+        &workspace_id,
+        crate::database::version::WORKSPACE_SCHEMA_VERSION,
+    )
+    .await
+    {
+        Ok(minted) => {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync.hold_workspace_token(&minted.token);
+
+            if let Err(error) =
+                remote_sync.record_remote_workspace(&workspace_id, Some(&minted.url))
+            {
+                diagnostics::error("sync.workspace.notRecorded")
+                    .with("error", error.to_string())
+                    .write();
+            }
+
+            // The mint restarts the refresh window and the replica credential together, so the
+            // window this machine believes has to move with it.
+            if let Err(error) =
+                remote_sync.record_control_plane_session(&held.account_id, &minted.session)
+            {
+                diagnostics::error("sync.session.notRecorded")
+                    .with("error", error.to_string())
+                    .write();
+            }
+
+            diagnostics::info("sync.workspace.minted")
+                .with("workspace", workspace_id.as_str())
+                .write();
+
+            Some(minted.url)
+        }
+        Err(error) => {
+            // **Not a failure to surface.** Offline is the ordinary case and the reason requirement
+            // 7 exists; a refusal is the control plane declining, and either way this machine has
+            // no replica to open right now and says so by opening none.
+            diagnostics::info("sync.workspace.notMinted")
+                .with("reason", error.to_string())
+                .write();
+
+            None
+        }
     }
 }
 
@@ -484,9 +667,23 @@ pub(super) async fn renew_session(app_state: &AppState) -> Result<bool, Error> {
     };
 
     match refresh(&base_url, &held.token).await {
-        Ok(issued) => {
+        Ok(identified) => {
             let mut remote_sync = app_state.remote_sync.write().await;
-            let window = remote_sync.record_control_plane_session(&held.account_id, &issued)?;
+
+            // Logged rather than propagated, as the two other sites that write this do. A `?` here
+            // would abort a renewal the control plane already granted, over a disk write — leaving
+            // the remote's window moved and this machine's where it was, which is the shape that
+            // walks somebody into a lock for a storage error.
+            if let Some(workspace_id) = identified.workspace_id.as_deref()
+                && let Err(error) = remote_sync.record_remote_workspace(workspace_id, None)
+            {
+                diagnostics::error("sync.workspace.notRecorded")
+                    .with("error", error.to_string())
+                    .write();
+            }
+
+            let window =
+                remote_sync.record_control_plane_session(&held.account_id, &identified.session)?;
 
             diagnostics::info("sync.session.renewed")
                 .with("account", held.account_id.as_str())
@@ -554,7 +751,8 @@ mod tests {
 
         let issued = super::sign_in(&server.url(""), "ya29.a-google-token")
             .await
-            .expect("signing in failed");
+            .expect("signing in failed")
+            .session;
 
         assert_eq!(issued.token, "rws_a-token");
         assert_eq!(issued.expires_at, AT + 3 * A_DAY);
@@ -581,7 +779,8 @@ mod tests {
 
         let issued = super::refresh(&server.url(""), "rws_a-token")
             .await
-            .expect("renewing failed");
+            .expect("renewing failed")
+            .session;
 
         assert_eq!(issued.expires_at, AT + 5 * A_DAY);
 
@@ -604,11 +803,118 @@ mod tests {
 
         let issued = super::call(&server.url(""), "/workspace/w/token", "rws_a-token")
             .await
-            .expect("the mint failed");
+            .expect("the mint failed")
+            .session;
 
         assert_eq!(issued.expires_at, AT + 3 * A_DAY);
         assert_eq!(issued.replica_expires_at, Some(AT + 3 * A_DAY));
         assert_eq!(issued.absolute_expires_at, AT + 30 * A_DAY);
+    }
+
+    /// **The mint asks for a token at the schema this build ships, and reads back where to spend
+    /// it** — #616, acceptance criterion 4's first half.
+    ///
+    /// The version is asserted on the wire because it is the whole of what the control plane
+    /// decides from: send the wrong one and it migrates a workspace to a schema this client cannot
+    /// read, or refuses a client that was fine. Nothing else here would notice.
+    #[tokio::test]
+    async fn the_mint_asks_at_the_schema_this_build_ships_and_reads_back_where_to_sync() {
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            200,
+            format!(
+                r#"{{"token":"turso-token","url":"libsql://ws-1.turso.io","expiresAt":{},"session":{{"token":"rws_a-token","expiresAt":{},"absoluteExpiresAt":{}}}}}"#,
+                AT + 3 * A_DAY,
+                AT + 3 * A_DAY,
+                AT + 30 * A_DAY
+            ),
+        )])
+        .await;
+
+        let minted = super::mint(
+            &server.url(""),
+            "rws_a-token",
+            "workspace-1",
+            crate::database::version::WORKSPACE_SCHEMA_VERSION,
+        )
+        .await
+        .expect("the mint failed");
+
+        assert_eq!(minted.token, "turso-token");
+        assert_eq!(minted.url, "libsql://ws-1.turso.io");
+        assert_eq!(minted.session.replica_expires_at, Some(AT + 3 * A_DAY));
+
+        let request = server.request(0);
+
+        assert_eq!(request.target, "/workspace/workspace-1/token");
+        assert_eq!(
+            request.body,
+            format!(
+                r#"{{"schemaVersion":{}}}"#,
+                crate::database::version::WORKSPACE_SCHEMA_VERSION
+            ),
+            "the mint asked at a schema version this build was not compiled against"
+        );
+    }
+
+    /// **A mint that answers without the credential is not a mint**, and taking it would leave the
+    /// replica opening against a URL with nothing to reach it with.
+    #[tokio::test]
+    async fn a_mint_missing_its_token_or_url_is_refused_rather_than_half_taken() {
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            200,
+            format!(
+                r#"{{"url":"libsql://ws-1.turso.io","session":{{"token":"rws_a-token","expiresAt":{},"absoluteExpiresAt":{}}}}}"#,
+                AT + 3 * A_DAY,
+                AT + 30 * A_DAY
+            ),
+        )])
+        .await;
+
+        let outcome = super::mint(&server.url(""), "rws_a-token", "workspace-1", 4).await;
+
+        assert!(
+            matches!(outcome, Err(Error::Integrity { .. })),
+            "a mint with no token in it was taken as a mint"
+        );
+    }
+
+    /// **Signing in says which workspace this account owns**, which is what the next launch mints
+    /// against. A machine that signed in and did not learn it opens nothing.
+    #[tokio::test]
+    async fn signing_in_learns_which_workspace_this_account_owns() {
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            200,
+            format!(
+                r#"{{"account":{{"id":"account-1"}},"workspace":{{"id":"workspace-7"}},"session":{{"token":"rws_a-token","expiresAt":{},"absoluteExpiresAt":{}}}}}"#,
+                AT + 3 * A_DAY,
+                AT + 30 * A_DAY
+            ),
+        )])
+        .await;
+
+        let identified = super::sign_in(&server.url(""), "ya29.a-google-token")
+            .await
+            .expect("signing in failed");
+
+        assert_eq!(identified.workspace_id.as_deref(), Some("workspace-7"));
+    }
+
+    /// A control plane that names no workspace is one from before #615, and this client carries on
+    /// rather than failing: it has a session, and what it lacks is something to open.
+    #[tokio::test]
+    async fn a_control_plane_that_names_no_workspace_still_signs_this_machine_in() {
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            200,
+            signed_in_body(AT + 3 * A_DAY),
+        )])
+        .await;
+
+        let identified = super::sign_in(&server.url(""), "ya29.a-google-token")
+            .await
+            .expect("signing in failed");
+
+        assert_eq!(identified.workspace_id, None);
+        assert_eq!(identified.session.token, "rws_a-token");
     }
 
     /// A refresh restarts the window and leaves the sign-in where it is, which is the whole of
@@ -624,7 +930,8 @@ mod tests {
 
         let issued = super::refresh(&server.url(""), "rws_a-token")
             .await
-            .expect("renewing failed");
+            .expect("renewing failed")
+            .session;
 
         assert_eq!(issued.expires_at, AT + 29 * A_DAY);
         assert_eq!(

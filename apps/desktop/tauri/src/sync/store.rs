@@ -24,6 +24,15 @@ pub struct RemoteSync {
     pub(super) settings: Arc<RwLock<Persisted<Settings>>>,
     pub(super) store: Persisted<RemoteSyncStore>,
     pub(super) auth_sessions: Arc<Mutex<HashMap<String, GoogleSignInSession>>>,
+    /// the Turso credential the replica syncs with, for as long as this process runs.
+    ///
+    /// **In memory rather than in the store or the keyring, and that is the shape rather than a
+    /// shortcut.** It is short-lived by construction — three days, and re-minted by reaching the
+    /// control plane — so a copy that outlived the process would be a credential on disk with
+    /// nothing gained: the mint is what a machine needs on the next launch anyway, and it needs a
+    /// session for that rather than this. The store is serialised to a plain file, so a field here
+    /// is exactly the field that must not be in it.
+    pub(super) workspace_token: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -62,6 +71,19 @@ pub struct RemoteSyncWorkspace {
     pub id: String,
     pub name: String,
     pub local_database_path: PathBuf,
+    /// the control plane's own id for this workspace, learned at sign-in.
+    ///
+    /// **Separate from `id`, which is this machine's and predates any account.** They could have
+    /// been collapsed and were not: `id` is what every local record and every diagnostic already
+    /// names, and rewriting it on first sign-in would rename a workspace under everything holding
+    /// it. This is the name the mint answers to, and it is `None` on a machine that has never
+    /// reached a control plane.
+    pub remote_id: Option<String>,
+    /// what the replica syncs against, `libsql://` and all. `None` until something has minted.
+    ///
+    /// **A URL is not a credential** and crosses to TypeScript with the rest of the state; the
+    /// token it is reached with does not ([[rules/credentials]], under *Client boundary*).
+    pub remote_url: Option<String>,
     pub last_error: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
@@ -197,6 +219,7 @@ impl RemoteSync {
             settings,
             store,
             auth_sessions: Arc::new(Mutex::new(HashMap::new())),
+            workspace_token: None,
         };
         this.reconcile().await?;
         Ok(this)
@@ -209,6 +232,54 @@ impl RemoteSync {
 
     pub fn workspace(&self) -> RemoteSyncWorkspace {
         self.store.workspace.clone()
+    }
+
+    /// the replica's credential, if this process has minted one.
+    pub(crate) fn workspace_token(&self) -> Option<String> {
+        self.workspace_token.clone()
+    }
+
+    /// Hold the credential the replica syncs with, replacing whatever was there.
+    ///
+    /// **Replacing rather than appending is the whole point**: the engine resolves the token before
+    /// every request, so a re-mint reaches the next request without the replica being rebuilt.
+    pub(super) fn hold_workspace_token(&mut self, token: &str) {
+        self.workspace_token = Some(token.to_string());
+    }
+
+    /// Remember which workspace this machine belongs to, as the control plane names it.
+    ///
+    /// Written at sign-in and again at every mint, because the second is where the URL arrives.
+    /// **Neither is a credential**, so both are persisted with the rest of the store rather than
+    /// filed in the platform's credential store.
+    pub(super) fn record_remote_workspace(
+        &mut self,
+        remote_id: &str,
+        remote_url: Option<&str>,
+    ) -> Result<(), Error> {
+        let workspace = &mut self.store.workspace;
+
+        // **The URL is carried forward only for the workspace it belongs to.** A sign-in names the
+        // workspace and not its URL, so carrying the stored one is what keeps a machine able to
+        // open offline; carrying it across a *different* workspace would hand this account the
+        // previous one's database, which is the pair being internally inconsistent on disk rather
+        // than merely stale.
+        let same_workspace = workspace.remote_id.as_deref() == Some(remote_id);
+        let url = remote_url.map(str::to_string).or_else(|| {
+            same_workspace
+                .then(|| workspace.remote_url.clone())
+                .flatten()
+        });
+
+        if workspace.remote_id.as_deref() == Some(remote_id) && workspace.remote_url == url {
+            return Ok(());
+        }
+
+        workspace.remote_id = Some(remote_id.to_string());
+        workspace.remote_url = url;
+        workspace.updated_at = timestamp::now();
+
+        self.store.commit()
     }
 
     async fn reconcile(&mut self) -> Result<(), Error> {
@@ -296,6 +367,10 @@ impl RemoteSync {
             id: format!("workspace-{}", now),
             name: "Primary workspace".to_string(),
             local_database_path: path,
+            // A machine that has never reached a control plane belongs to no workspace it can
+            // name. Both arrive at the first sign-in.
+            remote_id: None,
+            remote_url: None,
             last_error: None,
             created_at: now,
             updated_at: now,

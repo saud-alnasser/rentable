@@ -8,7 +8,10 @@ use sqlx::{
     Pool, Sqlite,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
 };
-use std::{path::Path, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tokio::sync::RwLock;
 
 use crate::{
@@ -108,8 +111,17 @@ impl Database {
     ///
     /// `remote_url` is absent until a workspace is known. An engine built without one serves the
     /// local file and reaches nothing, which is what a machine that has minted nothing should do.
+    ///
+    /// **The file is named for the workspace, not for the machine.** One person signing out and
+    /// another signing in on the same computer would otherwise open the second account's replica
+    /// over the first account's rows *and* the first account's sync metadata, so the second would
+    /// be reading somebody else's ledger and pushing against a revision that is not theirs. A path
+    /// derived from the workspace makes the binding structural rather than something a sign-out has
+    /// to remember to clean up. *What it leaves behind is the previous workspace's file, which is
+    /// nobody's to delete without being asked.*
     pub async fn connect_workspace<F, Fut>(
         &mut self,
+        workspace_id: &str,
         remote_url: Option<String>,
         auth_token: F,
     ) -> Result<(), Error>
@@ -119,7 +131,11 @@ impl Database {
             + Send
             + 'static,
     {
-        let db_path = { self.settings.read().await.database_path.clone() };
+        let db_path = {
+            let settings = self.settings.read().await;
+
+            Self::replica_path(&settings.database_path, workspace_id)
+        };
 
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -130,6 +146,30 @@ impl Database {
         ));
 
         Ok(())
+    }
+
+    /// Where one workspace's replica lives, beside the plain file rather than over it.
+    ///
+    /// `app.db` stays what the seeded and test paths use, and every replica is `workspace-<id>.db`
+    /// next to it. Two workspaces on one machine therefore never meet, and neither meets `app.db`.
+    pub fn replica_path(database_path: &Path, workspace_id: &str) -> PathBuf {
+        database_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(format!("workspace-{workspace_id}.db"))
+    }
+
+    /// Ask the replica for what the remote has, and say whether anything arrived.
+    ///
+    /// **A failure is an answer rather than an error to raise.** Being unable to reach the remote
+    /// is the offline case, and the replica goes on serving what it holds — so the caller is told
+    /// `false` and decides, which for a replica that has never pulled is a different decision from
+    /// one for a replica that has.
+    pub async fn pull_replica(&self) -> bool {
+        match self.engine.as_ref() {
+            Some(Engine::Workspace(database)) => database.pull().await.is_ok(),
+            Some(Engine::Local(_)) | None => false,
+        }
     }
 
     /// Build the sync engine over one file.
@@ -339,6 +379,31 @@ mod tests {
         .expect("replica engine");
 
         (directory, database)
+    }
+
+    /// **Two workspaces on one machine never meet, and neither meets `app.db`.**
+    ///
+    /// The failure this prevents is silent and is somebody else's data: one person signs out,
+    /// another signs in, and a shared path would open the second account's replica over the first
+    /// account's rows and the first account's sync metadata.
+    #[test]
+    fn a_replica_is_named_for_its_workspace_and_never_for_the_machine() {
+        let base = std::path::Path::new("C:/rentable/app.db");
+
+        let first = Database::replica_path(base, "ws-1");
+        let second = Database::replica_path(base, "ws-2");
+
+        assert_ne!(first, second, "two workspaces share one file");
+        assert_ne!(first, base, "a replica took the plain file's path");
+        assert_eq!(
+            first.parent(),
+            base.parent(),
+            "a replica left the data directory"
+        );
+        assert!(
+            first.to_string_lossy().contains("ws-1"),
+            "a replica's path does not name the workspace it holds"
+        );
     }
 
     /// **A machine that has signed in and not yet pulled has no schema, and says so.**

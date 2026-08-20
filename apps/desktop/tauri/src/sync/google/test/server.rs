@@ -50,7 +50,6 @@ impl ScriptedResponse {
     pub(in crate::sync) fn hangup() -> Self {
         Self::Hangup
     }
-
 }
 
 /// one request as it arrived, kept so a test can assert on what was actually
@@ -60,6 +59,14 @@ pub(in crate::sync) struct RecordedRequest {
     pub method: String,
     /// the request-target: the path and, where there was one, the query.
     pub target: String,
+    /// what was sent, as text.
+    ///
+    /// **Kept since 2026-08-20, and it was deliberately dropped before that.** The note that stood
+    /// here said a recorder holding bodies nobody reads is a buffer per request for a property no
+    /// test has. #616 gave it one: the mint sends the schema version this build was compiled
+    /// against, and the control plane decides from it whether to migrate, to mint, or to refuse —
+    /// so *what was in the body* is the assertion, not a detail of it.
+    pub body: String,
     headers: Vec<(String, String)>,
 }
 
@@ -206,9 +213,12 @@ async fn answer(
             )
         })
         .collect();
-    // the body is drained rather than kept: nothing asserts on what was sent, and a recorder
-    // holding bodies nobody reads is a buffer per request for a property no test has.
-    let _ = request.into_body().collect().await;
+    let body = request
+        .into_body()
+        .collect()
+        .await
+        .map(|collected| String::from_utf8_lossy(&collected.to_bytes()).into_owned())
+        .unwrap_or_default();
 
     let scripted = {
         let mut state = state
@@ -218,6 +228,7 @@ async fn answer(
         state.recorded.push(RecordedRequest {
             method,
             target,
+            body,
             headers,
         });
 
