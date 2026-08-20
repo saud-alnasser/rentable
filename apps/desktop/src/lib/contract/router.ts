@@ -31,6 +31,8 @@ import {
 	CONTRACT_RANKS,
 	compareContractsByRank,
 	getContractRank,
+	getContractRankBounds,
+	type ContractRankBounds,
 	type ContractRankOrder
 } from '$lib/contract/rank';
 import { ensureRenewalFollowsPredecessor } from '$lib/contract/renewal';
@@ -40,7 +42,19 @@ import dashboard from '$lib/dashboard/router';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import payment from '$lib/payment/router';
 import { TRPCError } from '@trpc/server';
-import { and, asc, desc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	gte,
+	inArray,
+	lt,
+	notInArray,
+	sql,
+	type AnyColumn,
+	type SQL
+} from 'drizzle-orm';
 import z from 'zod';
 
 // status and the payment aggregates are derived columns: reconcile owns them, so no
@@ -209,6 +223,37 @@ const contractHoldsUnitInComplex = (complexId: string) => sql`exists (
 	inner join ${s.unit} on ${s.unit.id} = ${s.contractUnit.unitId}
 	where ${s.contractUnit.contractId} = ${s.contract.id} and ${s.unit.complexId} = ${complexId}
 )`;
+
+// The bounds an attention rank puts on stored columns, as a `where` term.
+//
+// A rank cannot be a `where` — it is decided from what a contract owes today, which no column
+// holds — but everything a rank *implies* about the stored columns can be, and rank.ts states
+// exactly that as bounds. Narrowing on them turns the read from the whole table into a superset
+// of the rank, small enough that deciding the rest in TypeScript costs what a rank filter should.
+//
+// Translation only: which bounds a rank has is the ranking's, and adding one here that rank.ts
+// does not state is how a query comes to answer something the rank does not mean.
+//
+// It narrows on the materialized aggregates, so it depends on reconcile having written them —
+// which is a stronger dependency than a read that only displays them. `expected_amount` arrived
+// with a default of zero and no backfill, and a contract still carrying that zero would be
+// filtered out of a money rank rather than merely shown a stale figure. `reconcile` walks the
+// whole table at startup and after a remote pull, which is what closes it.
+function matchesRankBounds(bounds: ContractRankBounds): SQL | undefined {
+	return and(
+		// copied rather than passed through: the bounds are readonly, and drizzle's own
+		// signature takes a mutable array
+		'holds' in bounds.status
+			? inArray(s.contract.status, [...bounds.status.holds])
+			: notInArray(s.contract.status, [...bounds.status.excludes]),
+		// column against column, which the comparison helpers do not type, so it is written out
+		bounds.requiresUnpaidBalance
+			? sql`${s.contract.paidAmount} < ${s.contract.expectedAmount}`
+			: undefined,
+		bounds.endFrom ? gte(s.contract.end, bounds.endFrom) : undefined,
+		bounds.endBefore ? lt(s.contract.end, bounds.endBefore) : undefined
+	);
+}
 
 const CONTRACT_SORT_COLUMNS: Record<ContractSortColumnId, SQL | AnyColumn> = {
 	tenantName: s.tenant.name,
@@ -832,9 +877,11 @@ export default router({
 				search: z.string().optional(),
 				sort: ContractSortSchema.optional(),
 				// narrows the list to one attention rank, so a surface that ranked a contract has
-				// somewhere to send the reader that still knows the rank (ADR 0031). It cannot be a
-				// `where`: a rank is decided from what the contract owes *today*, which is expected
-				// -by-now minus the materialized paid amount, and no column holds that.
+				// somewhere to send the reader that still knows the rank (ADR 0031). It is not a
+				// plain `where`: a rank is decided from what the contract owes *today*, which is
+				// expected-by-now minus the materialized paid amount, and no column holds that.
+				// What the rank *implies* about the stored columns is a `where`, and the query
+				// narrows on that before the rank itself decides what is left.
 				rank: z.enum(CONTRACT_RANKS).optional(),
 				// narrows the list to one tenant's contracts, for the surface that asks what a
 				// person rents. Filtered here rather than by the caller: a directory that loaded
@@ -854,6 +901,17 @@ export default router({
 		.query(async ({ input, ctx }) => {
 			const search = input.search?.trim();
 
+			// one instant for the narrowing and for the ranking below it. Taken twice, a contract
+			// whose rank turns over at a UTC day boundary can be read under one day and judged
+			// under the next, and then it is missing from both lists.
+			const now = ctx.clock.now();
+			const endingSoonNoticeDays = input.rank
+				? (await ctx.host.settings.get()).endingSoonNoticeDays
+				: undefined;
+			const rankBounds = input.rank
+				? getContractRankBounds(input.rank, now, endingSoonNoticeDays)
+				: undefined;
+
 			const contracts = await ctx.db
 				.select({
 					contract: s.contract,
@@ -868,7 +926,8 @@ export default router({
 						input.tenantId !== undefined ? eq(s.contract.tenantId, input.tenantId) : undefined,
 						input.unitId !== undefined ? contractHoldsUnit(input.unitId) : undefined,
 						input.complexId !== undefined ? contractHoldsUnitInComplex(input.complexId) : undefined,
-						search ? matchesAnySearch(CONTRACT_SEARCH_COLUMNS, search) : undefined
+						search ? matchesAnySearch(CONTRACT_SEARCH_COLUMNS, search) : undefined,
+						rankBounds ? matchesRankBounds(rankBounds) : undefined
 					)
 				)
 				.orderBy(...contractOrderBy(input.sort));
@@ -885,13 +944,10 @@ export default router({
 			// held as a const: the narrowing above does not survive into the closure below.
 			const wantedRank = input.rank;
 
-			// the rank is derived rather than stored, so this pass is what a `where` would have
-			// been. It costs one arithmetic step per row already read and returns fewer of them
-			// than the unfiltered list does — the read itself is unchanged, and ADR 0010's one
-			// query per state still holds.
-			const now = ctx.clock.now();
-			const { endingSoonNoticeDays } = await ctx.host.settings.get();
-
+			// what the bounds could not decide. They narrow to a superset of the rank — every
+			// contract the rank holds is in the read, and some that it does not — so this pass
+			// is the rank itself applied to what came back, over a set the size of the rank
+			// rather than the size of the table. One query per state (ADR 0010) still holds.
 			const ranked = listed.flatMap((contract) => {
 				const outstandingAmount = Math.max(
 					getExpectedAmountBy(contract, now) - contract.paidAmount,

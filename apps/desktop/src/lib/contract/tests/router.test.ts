@@ -1441,6 +1441,138 @@ test('a chosen sort still wins over the rank’s own order', async () => {
 	);
 });
 
+// The boundary the two money ranks meet at, and the one place narrowing a query on the end
+// date can silently lose a contract: a rank turns over at the start of the UTC day, not at the
+// instant the list is read. A contract ending today owes today and is not yet late.
+test('a contract ending today is owing, and one ending yesterday is overdue', async () => {
+	const api = await createApi();
+	const tenant = await seedTenant(api);
+
+	const contract = (govId: string, days: number) =>
+		api.contract.create({
+			govId,
+			cost: 1000,
+			start: monthsFromNow(-12, days),
+			end: monthsFromNow(0, days),
+			interval: '12m',
+			tenantId: tenant.id
+		});
+
+	await contract('BOUNDARY-TODAY', 0);
+	await contract('BOUNDARY-YESTERDAY', -1);
+
+	assert.deepEqual(
+		(await api.contract.getMany({ rank: 'owing' })).map((c) => c.govId),
+		['BOUNDARY-TODAY']
+	);
+	assert.deepEqual(
+		(await api.contract.getMany({ rank: 'overdue' })).map((c) => c.govId),
+		['BOUNDARY-YESTERDAY']
+	);
+});
+
+// --- What a rank costs ---------------------------------------------------------------
+
+/** Every statement a block of work issued, with how many rows each answered with. */
+type StatementRead = { sql: string; rowCount: number };
+
+/**
+ * The one statement the contracts list is: a select over the contract table joined to its
+ * tenant. Found rather than assumed to be the only one, so a membership read or a future
+ * statement beside it cannot be mistaken for the list.
+ */
+function contractListRead(reads: readonly StatementRead[]) {
+	const matching = reads.filter(
+		(read) => /^select/i.test(read.sql) && /from "contract"/.test(read.sql)
+	);
+
+	assert.equal(matching.length, 1, `expected one contract list read, saw ${matching.length}`);
+
+	return matching[0];
+}
+
+/**
+ * A workspace of a thousand contracts in which only a handful are overdue, and the rest are
+ * kept out of that rank by each of the two bounds in turn: half end in the future, and half
+ * ended in the past having been paid in full.
+ *
+ * Both, rather than whichever is easier to seed: a query that narrowed on the dates alone and
+ * a query that narrowed on the balance alone would each pass against a fixture that only used
+ * the other.
+ */
+async function seedWorkspaceWithFewOverdue(api: Api) {
+	const tenant = await seedTenant(api);
+	const overdueGovIds = ['COST-OVERDUE-1', 'COST-OVERDUE-2', 'COST-OVERDUE-3'];
+
+	const contract = (govId: string | undefined, startMonths: number, endMonths: number) =>
+		api.contract.create({
+			govId,
+			cost: 1000,
+			start: monthsFromNow(startMonths),
+			end: monthsFromNow(endMonths),
+			interval: '12m',
+			tenantId: tenant.id
+		});
+
+	for (let index = 0; index < 500; index += 1) {
+		await contract(undefined, -1, 11);
+	}
+
+	for (let index = 0; index < 500; index += 1) {
+		const settled = await contract(undefined, -13, -1);
+
+		await api.contract.payments.create({
+			contractId: settled.id,
+			amount: 1000,
+			date: monthsFromNow(-12)
+		});
+	}
+
+	for (const govId of overdueGovIds) {
+		await contract(govId, -13, -1);
+	}
+
+	return { overdueGovIds };
+}
+
+// The assertion the ticket exists for, and it is about cost rather than outcome. A rank cannot
+// be a `where`, and the answer taken was to read every contract and drop most of them in
+// JavaScript — so the list cost what the workspace held rather than what the reader was shown.
+test('a rank-filtered list reads what it shows rather than the whole table', async () => {
+	const reads: StatementRead[] = [];
+	const api = await createApi({ onStatement: (sql, rowCount) => reads.push({ sql, rowCount }) });
+	const { overdueGovIds } = await seedWorkspaceWithFewOverdue(api);
+
+	reads.length = 0;
+	const overdue = await api.contract.getMany({ rank: 'overdue' });
+
+	assert.deepEqual(overdue.map((contract) => contract.govId).sort(), [...overdueGovIds].sort());
+
+	// a handful of slack rather than an exact figure: the bounds narrow to a superset of the
+	// rank by construction, and pinning the superset would fail on a fixture that widened it
+	// without the cost changing in any way a reader would notice.
+	const read = contractListRead(reads);
+
+	assert.ok(
+		read.rowCount <= overdue.length + 10,
+		`the list read ${read.rowCount} rows to show ${overdue.length}`
+	);
+});
+
+// The other half of the same claim: nothing above narrowed the list that asked for no rank,
+// which still answers with the whole workspace and still costs what that is.
+test('a list that asks for no rank still reads the whole table', async () => {
+	const reads: StatementRead[] = [];
+	const api = await createApi({ onStatement: (sql, rowCount) => reads.push({ sql, rowCount }) });
+	await seedWorkspaceWithFewOverdue(api);
+
+	reads.length = 0;
+	const all = await api.contract.getMany({});
+
+	assert.equal(all.length, 1003);
+	assert.equal(contractListRead(reads).rowCount, 1003);
+});
+
 /** Every statement a block of work issued, so a test can say what it cost. */
 async function withStatementLog(run: (api: Api, drain: () => string[]) => Promise<void>) {
 	const statements: string[] = [];

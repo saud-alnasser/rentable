@@ -67,12 +67,17 @@ function execute(
  * the in-memory engine through the same row mapping as the app, batches inside a
  * transaction as the Rust layer does, and is meant for tests only.
  *
- * @param onStatement called with every statement that reaches the engine, in order. It exists
- * so a test can assert what a procedure *costs* rather than only what it leaves behind: a bulk
- * action that reconciles once and one that reconciles per record end in the same state, and the
- * difference between them is a round trip per record the moment there is a wire here.
+ * @param onStatement called with every statement that reaches the engine, in order, and with
+ * how many rows it answered with. It exists so a test can assert what a procedure *costs* rather
+ * than only what it leaves behind: a bulk action that reconciles once and one that reconciles per
+ * record end in the same state, and the difference between them is a round trip per record the
+ * moment there is a wire here. The row count is the other half of that — a list that reads the
+ * whole table and a list that reads what it shows issue the same one statement, and differ only
+ * in how much crosses back.
  */
-export function createMemoryDatabase(onStatement?: (sql: string) => void): Database {
+export function createMemoryDatabase(
+	onStatement?: (sql: string, rowCount: number) => void
+): Database {
 	return createFileDatabase(':memory:', onStatement);
 }
 
@@ -85,10 +90,13 @@ export function createMemoryDatabase(onStatement?: (sql: string) => void): Datab
  * it. Everything else about it is `createMemoryDatabase`'s — same migrations, same row mapping,
  * same transaction batching.
  */
-export function createFileDatabase(path: string, onStatement?: (sql: string) => void): Database {
+export function createFileDatabase(
+	path: string,
+	onStatement?: (sql: string, rowCount: number) => void
+): Database {
 	const sqlite = new BetterSqlite3(path);
 	applyMigrations(sqlite);
-	const record = (sql: string) => onStatement?.(sql);
+	const record = (sql: string, rowCount: number) => onStatement?.(sql, rowCount);
 	const client = buildClient(sqlite, record);
 
 	openHandles.set(client, sqlite);
@@ -116,20 +124,37 @@ export function closeFileDatabase(db: Database) {
 	openHandles.delete(db);
 }
 
-function buildClient(sqlite: BetterSqlite3.Database, record: (sql: string) => void): Database {
-	return createDatabase(
-		async (sql, params, method) => {
-			record(sql);
+// Runs one statement and logs it with what it answered with. A statement that throws is logged
+// too, with no rows: the log is what reached the engine, and a failure is part of that.
+function runRecorded(
+	sqlite: BetterSqlite3.Database,
+	record: (sql: string, rowCount: number) => void,
+	sql: string,
+	params: unknown[],
+	method: Method
+): Row[] {
+	try {
+		const answered = execute(sqlite, sql, params, method);
 
-			return execute(sqlite, sql, params, method);
-		},
+		record(sql, answered.length);
+
+		return answered;
+	} catch (error) {
+		record(sql, 0);
+
+		throw error;
+	}
+}
+
+function buildClient(
+	sqlite: BetterSqlite3.Database,
+	record: (sql: string, rowCount: number) => void
+): Database {
+	return createDatabase(
+		async (sql, params, method) => runRecorded(sqlite, record, sql, params, method),
 		async (queries) =>
 			sqlite.transaction(() =>
-				queries.map((query) => {
-					record(query.sql);
-
-					return execute(sqlite, query.sql, query.params, query.method);
-				})
+				queries.map((query) => runRecorded(sqlite, record, query.sql, query.params, query.method))
 			)()
 	);
 }

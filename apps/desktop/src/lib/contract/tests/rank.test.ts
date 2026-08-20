@@ -5,6 +5,7 @@ import {
 	CONTRACT_RANKS,
 	DEFAULT_ENDING_SOON_NOTICE_DAYS,
 	compareContractsByRank,
+	getContractRankBounds,
 	getContractRank,
 	isContractEndingSoon,
 	isMoneyRank,
@@ -12,6 +13,7 @@ import {
 	type ContractRank,
 	type ContractRankOrder
 } from '../rank.ts';
+import { ContractSchema } from '$lib/platform/database/schema';
 
 const NOW = new Date('2026-01-15T00:00:00.000Z');
 const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
@@ -164,4 +166,116 @@ test('ending soon uses the default notice window and supports custom overrides',
 	);
 	assert.equal(isContractEndingSoon('defaulted', new Date('2026-02-15T00:00:00.000Z'), now), false);
 	assert.equal(isContractEndingSoon('active', new Date('2025-12-31T00:00:00.000Z'), now), false);
+});
+
+// --- The bounds a rank puts on stored columns ------------------------------------------
+
+// read off the schema rather than written out: a status added to the model has to join this
+// sweep, and a list here would let it be added without anybody checking its bounds.
+const STATUSES = ContractSchema.shape.status.options;
+
+/**
+ * The bounds are only worth narrowing a query on if nothing the rank holds falls outside them,
+ * and that is a claim about every contract rather than about the handful a test would pick. So
+ * it is swept: every status against a spread of end dates either side of both boundaries the
+ * bounds name, against amounts owed and not owed.
+ *
+ * A drift in either direction fails here — a bound tightened past what the ranking means, or a
+ * ranking widened past what the bounds still allow.
+ */
+test('every contract a rank holds satisfies that rank’s bounds', () => {
+	const ends = [
+		'2025-06-30',
+		'2026-01-14',
+		'2026-01-15',
+		'2026-01-16',
+		'2026-03-15',
+		'2026-03-16',
+		'2026-03-17',
+		'2027-01-01'
+	];
+	const filed = new Set<ContractRank>();
+
+	for (const status of STATUSES) {
+		for (const end of ends) {
+			for (const outstandingAmount of [0, 0.5, 4000]) {
+				const rank = getContractRank(status, day(end), outstandingAmount, NOW);
+
+				if (!rank) {
+					continue;
+				}
+
+				filed.add(rank);
+				const bounds = getContractRankBounds(rank, NOW);
+				const where = `${rank}: ${status} ending ${end} owing ${outstandingAmount}`;
+
+				if ('holds' in bounds.status) {
+					assert.ok(bounds.status.holds.includes(status), where);
+				} else {
+					assert.ok(!bounds.status.excludes.includes(status), where);
+				}
+
+				if (bounds.endFrom) {
+					assert.ok(day(end).getTime() >= bounds.endFrom.getTime(), where);
+				}
+
+				if (bounds.endBefore) {
+					assert.ok(day(end).getTime() < bounds.endBefore.getTime(), where);
+				}
+			}
+		}
+	}
+
+	// the sweep is only evidence if it actually filed something under each rank: a ranking that
+	// answered `undefined` throughout would satisfy every assertion above and prove nothing.
+	assert.deepEqual([...filed].sort(), [...CONTRACT_RANKS].sort());
+});
+
+// the two money ranks split the same set at one boundary, so a contract ending exactly today
+// belongs to one of them and not to both. The end date is what divides them and today is the
+// day it turns on.
+test('the money ranks meet at today without overlapping', () => {
+	const overdue = getContractRankBounds('overdue', NOW);
+	const owing = getContractRankBounds('owing', NOW);
+
+	assert.deepEqual(overdue.status, owing.status);
+	assert.equal(overdue.requiresUnpaidBalance, true);
+	assert.equal(owing.requiresUnpaidBalance, true);
+	assert.equal(overdue.endFrom, undefined);
+	assert.equal(overdue.endBefore?.getTime(), day('2026-01-15').getTime());
+	assert.equal(owing.endFrom?.getTime(), day('2026-01-15').getTime());
+	assert.equal(owing.endBefore, undefined);
+});
+
+// the notice window is inclusive of its last day, so the bound past it is the day after that.
+test('the renewals bounds cover the notice window and stop the day after it', () => {
+	const bounds = getContractRankBounds('ending-soon', NOW, 60);
+
+	assert.deepEqual(bounds.status, { holds: ['active', 'fulfilled'] });
+	assert.equal(bounds.endFrom?.getTime(), day('2026-01-15').getTime());
+	assert.equal(bounds.endBefore?.getTime(), day('2026-03-17').getTime());
+
+	// and it is the reader's window, not the default one
+	assert.equal(
+		getContractRankBounds('ending-soon', NOW, 1).endBefore?.getTime(),
+		day('2026-01-17').getTime()
+	);
+});
+
+// a renewals contract owes nothing today, which says nothing about what it has paid against
+// its whole term — so the balance is not a bound this rank may narrow on.
+test('the renewals rank puts no bound on the balance', () => {
+	assert.equal(getContractRankBounds('ending-soon', NOW).requiresUnpaidBalance, false);
+});
+
+// the window is a count of days, and a settings file is not obliged to hold a sensible one.
+test('a fractional or negative notice window is read as whole days, never backwards', () => {
+	assert.equal(
+		getContractRankBounds('ending-soon', NOW, 2.9).endBefore?.getTime(),
+		day('2026-01-18').getTime()
+	);
+	assert.equal(
+		getContractRankBounds('ending-soon', NOW, -5).endBefore?.getTime(),
+		day('2026-01-16').getTime()
+	);
 });

@@ -16,6 +16,23 @@ import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
 export const DEFAULT_ENDING_SOON_NOTICE_DAYS = 60;
 
 /**
+ * The statuses no rank admits: termination locks the contract, so the debt on one is a closed
+ * matter rather than work.
+ */
+const UNRANKED_STATUSES: readonly Contract['status'][] = ['terminated'];
+
+/**
+ * The statuses a contract can be up for renewal in. A contract that has not started cannot be
+ * ending, and one already behind it is not renewed but replaced.
+ */
+const RENEWABLE_STATUSES: readonly Contract['status'][] = ['active', 'fulfilled'];
+
+/** The notice window as the ranking reads it: whole days, never negative. */
+function normalizeNoticeWindowDays(noticeWindowDays: number) {
+	return Math.max(Math.floor(noticeWindowDays), 0);
+}
+
+/**
  * The ranks, in the order they are read: what is already late, then what is behind, then what
  * needs renewing. Position in this array is the order — nothing else fixes it.
  */
@@ -60,13 +77,13 @@ export function isContractEndingSoon(
 	now: DateLike,
 	noticeWindowDays: number = DEFAULT_ENDING_SOON_NOTICE_DAYS
 ) {
-	if (status !== 'active' && status !== 'fulfilled') {
+	if (!RENEWABLE_STATUSES.includes(status)) {
 		return false;
 	}
 
 	const today = toUtcDay(now);
 	const end = toUtcDay(contractEnd);
-	const normalizedNoticeWindowDays = Math.max(Math.floor(noticeWindowDays), 0);
+	const normalizedNoticeWindowDays = normalizeNoticeWindowDays(noticeWindowDays);
 
 	return (
 		end.getTime() >= today.getTime() &&
@@ -94,7 +111,7 @@ export function getContractRank(
 	now: DateLike,
 	noticeWindowDays: number = DEFAULT_ENDING_SOON_NOTICE_DAYS
 ): ContractRank | undefined {
-	if (status === 'terminated') {
+	if (UNRANKED_STATUSES.includes(status)) {
 		return undefined;
 	}
 
@@ -105,6 +122,84 @@ export function getContractRank(
 	return isContractEndingSoon(status, contractEnd, now, noticeWindowDays)
 		? 'ending-soon'
 		: undefined;
+}
+
+/**
+ * Which statuses a rank admits, stated as the set it holds or the set it excludes.
+ *
+ * Two shapes rather than one because the two answers are not the same claim. The renewals rank
+ * holds a fixed pair and nothing else can join it; the money ranks exclude one status and admit
+ * whatever else the status model grows. Flattening either into a list of names would make a
+ * status added tomorrow silently drop out of a rank it belongs to.
+ */
+export type ContractRankStatusBound =
+	{ holds: readonly Contract['status'][] } | { excludes: readonly Contract['status'][] };
+
+/**
+ * What every contract in a rank is true of, in stored fields alone.
+ *
+ * These are **necessary conditions, not the rank**: a contract can satisfy all of them and still
+ * be in no rank. That is the point — a reader that cannot compute the rank in its own terms can
+ * still narrow to a superset of it and let {@link getContractRank} decide what is left.
+ */
+export type ContractRankBounds = {
+	status: ContractRankStatusBound;
+	/**
+	 * Whether every contract in the rank has paid less than its whole expected amount.
+	 *
+	 * Sound because the two aggregates bound each other: what a contract is expected to have
+	 * paid *by today* can never exceed what it is expected to pay in total, so owing anything
+	 * today means the total is not yet settled. The converse does not hold, and is not claimed —
+	 * a contract halfway through its term owes nothing today and has paid a fraction of the
+	 * total.
+	 */
+	requiresUnpaidBalance: boolean;
+	/** The earliest end date the rank admits, inclusive. Open where absent. */
+	endFrom?: Date;
+	/** The first end date past the rank's window, exclusive. Open where absent. */
+	endBefore?: Date;
+};
+
+/**
+ * The bounds a rank puts on a contract's stored fields, for a reader that narrows before it
+ * ranks.
+ *
+ * A rank is decided from what a contract owes *today*, which no column holds, so a query cannot
+ * ask for a rank directly. It can ask for these — and what they leave out is small: a contract
+ * that is not terminated, still owes against its total, and ends before today is very nearly the
+ * overdue rank already.
+ *
+ * **Read the window from the same instant the ranking will use.** A caller that takes `now`
+ * twice can straddle a UTC day boundary between narrowing and ranking, and then a contract that
+ * changed rank in between is read under one day and judged under the next.
+ */
+export function getContractRankBounds(
+	rank: ContractRank,
+	now: DateLike,
+	noticeWindowDays: number = DEFAULT_ENDING_SOON_NOTICE_DAYS
+): ContractRankBounds {
+	const today = toUtcDay(now);
+
+	if (rank === 'ending-soon') {
+		return {
+			status: { holds: RENEWABLE_STATUSES },
+			// the renewals rank requires the opposite — a contract that owes nothing today — and
+			// that has no sound expression in the stored aggregates: a contract can owe nothing
+			// today and be far from paid in total. The notice window is what narrows this rank.
+			requiresUnpaidBalance: false,
+			endFrom: today,
+			// exclusive, and the window is inclusive of its last day, so it is the day after
+			endBefore: addUtcDays(today, normalizeNoticeWindowDays(noticeWindowDays) + 1)
+		};
+	}
+
+	return {
+		status: { excludes: UNRANKED_STATUSES },
+		requiresUnpaidBalance: true,
+		// the two money ranks split the same set on where the end date falls, at the same
+		// boundary and from the same side, so between them they cover it exactly
+		...(rank === 'overdue' ? { endBefore: today } : { endFrom: today })
+	};
 }
 
 /**

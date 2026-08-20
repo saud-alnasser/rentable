@@ -49,8 +49,8 @@ export type Api = Awaited<ReturnType<typeof createApi>>;
 
 // A fresh caller over an isolated in-memory database, the fixed clock, and a fake host.
 // The default host covers only what procedures actually read; pass `host` to override it.
-// Pass `onStatement` to see every statement a procedure issues, for asserting what it costs
-// rather than only what it leaves behind.
+// Pass `onStatement` to see every statement a procedure issues and how many rows it answered
+// with, for asserting what it costs rather than only what it leaves behind.
 //
 // The identity is supplied rather than resolved, and every router test wants that: a fake host
 // refuses `remoteSync.getState` by name, and a context that had to resolve an acting user over
@@ -58,7 +58,7 @@ export type Api = Awaited<ReturnType<typeof createApi>>;
 export async function createApi({
 	host,
 	onStatement
-}: { host?: Host; onStatement?: (sql: string) => void } = {}) {
+}: { host?: Host; onStatement?: (sql: string, rowCount: number) => void } = {}) {
 	const db = createMemoryDatabase(onStatement);
 	const ctx = await context({
 		db,
