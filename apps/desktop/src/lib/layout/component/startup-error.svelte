@@ -1,30 +1,85 @@
 <script lang="ts">
 	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
-	import { Button } from '$lib/design/primitive/button';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import LayoutSurfaceAction from '$lib/layout/component/surface-action.svelte';
+	import { tauri } from '$lib/platform/tauri';
+	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 
+	/**
+	 * The application could not finish starting.
+	 *
+	 * **One description and nothing else.** *Redesigned 2026-08-20 after looking at it.* It said
+	 * little, in a card indistinguishable from the five other screens on this block, above a
+	 * reported error nobody outside this codebase can read. What it says now is the three things a
+	 * person actually needs: what could not be opened, that nothing recorded in it is at risk, and
+	 * that starting again is the first thing to try.
+	 *
+	 * **The reported error is not on the screen.** A stack trace above a retry button is an apology
+	 * addressed to the wrong reader; the folder control leads to the diagnostics, which is the one
+	 * place it was ever going to be useful.
+	 *
+	 * **It is not in the diagnostics yet, and this screen is where that shows.** Nothing writes the
+	 * startup error anywhere: `routes/+layout.svelte` formats it for display and holds it in a
+	 * variable. Taking it off the screen without writing it down is where it is lost, so the
+	 * `message` prop is gone rather than accepted and ignored — a prop this screen does not read is
+	 * a claim that it handles something it does not.
+	 *
+	 * **This screen and update recovery are the only two that declare a tone**, and they do not
+	 * declare the same one. Everything on this block presents the application's own state, but
+	 * these two are the states where the application is not working — and a failed startup is not
+	 * the same event as an update that needs finishing.
+	 */
 	let {
-		message,
 		onRetry
 	}: {
-		message: string | null;
 		onRetry: () => void;
 	} = $props();
+
+	let isRevealing = $state(false);
+
+	async function revealDiagnostics() {
+		if (isRevealing) {
+			return;
+		}
+
+		isRevealing = true;
+
+		try {
+			const settings = await tauri.settings.get();
+
+			if (settings.diagnosticsDir) {
+				await tauri.opener.revealItemInDir(settings.diagnosticsDir);
+			}
+		} catch {
+			/* the screen is already reporting a failure; a second one helps nobody */
+		} finally {
+			isRevealing = false;
+		}
+	}
 </script>
 
-<!-- error, and it is the application that has failed rather than a screen: nothing is running
-     behind this card. The two toned screens are this one and update recovery, and they do not
-     say the same thing as each other. -->
 <StandaloneSurface
 	tone="error"
-	title={$LL.layout.startup.failedToStartTitle()}
-	description={$LL.layout.startup.failedToStartDescription()}
+	title={$LL.layout.startup.failureTitle()}
+	description={$LL.layout.startup.failureDescription()}
 >
-	{#if message}
-		<p class="text-sm text-muted-foreground">{message}</p>
-	{/if}
+	{#snippet corner()}
+		<!-- what a person needs next when starting again has not worked, and where the reported
+		     error went now that the body is one sentence. -->
+		<LayoutSurfaceAction
+			label={$LL.settings.diagnosticsReveal()}
+			icon={FolderOpenIcon}
+			onclick={() => void revealDiagnostics()}
+		/>
 
-	{#snippet actions()}
-		<Button onclick={onRetry}>{$LL.common.actions.retryStartup()}</Button>
+		<!-- the glyph turns under the pointer, which previews what pressing it does. -->
+		<LayoutSurfaceAction
+			label={$LL.common.actions.retryStartup()}
+			icon={RefreshCwIcon}
+			emphasis="primary"
+			spins
+			onclick={onRetry}
+		/>
 	{/snippet}
 </StandaloneSurface>

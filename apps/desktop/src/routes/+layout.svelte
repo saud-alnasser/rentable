@@ -35,6 +35,7 @@
 	import { toScreen } from '$lib/design/back';
 	import { back } from '$lib/design/back.svelte';
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
+	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
 	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
 	import LayoutStartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
@@ -68,6 +69,28 @@
 	let startupRemoteSync = $state<RemoteSyncState | null>(null);
 	// which of the two the wall is saying, and it is only read while the wall is up.
 	let signInReason = $state<'noAccount' | 'windowClosed' | 'noSession'>('noAccount');
+
+	/**
+	 * Enter the failure state, and write down what happened.
+	 *
+	 * **The screen stopped showing the error, so something has to keep it.** `startup-error.svelte`
+	 * refuses the message deliberately and offers the diagnostics folder instead, which is only an
+	 * honest offer if the failure is actually in there. It never was: `startupError` reaches the
+	 * sign-in wall and reached the failure screen, and no path wrote it to the diagnostics at all.
+	 *
+	 * The three places that can fail a startup call this rather than setting the state themselves,
+	 * because three copies of *set the state, format the error, show the window* is how one of them
+	 * comes to skip a step.
+	 */
+	function failStartup(error: unknown) {
+		startupRecovery = null;
+		startupState = 'error';
+		startupError = getErrorMessage(error);
+
+		recordDiagnosticError('startup.failed', { error: startupError });
+
+		return tauri.window.show();
+	}
 	let isSigningIn = $state(false);
 	let isRetryingSession = $state(false);
 	let signInPhase = $state<GoogleSignInPhase | null>(null);
@@ -240,10 +263,7 @@
 			startupState = 'loading';
 			await continueStartup();
 		} catch (error) {
-			startupRecovery = null;
-			startupState = 'error';
-			startupError = getErrorMessage(error);
-			await tauri.window.show();
+			await failStartup(error);
 		}
 	}
 
@@ -286,10 +306,7 @@
 			startupState = 'loading';
 			await continueStartup();
 		} catch (error) {
-			startupRecovery = null;
-			startupState = 'error';
-			startupError = getErrorMessage(error);
-			await tauri.window.show();
+			await failStartup(error);
 		}
 	}
 
@@ -385,10 +402,7 @@
 			await continueStartup();
 		} catch (error) {
 			startupRemoteSync = null;
-			startupRecovery = null;
-			startupState = 'error';
-			startupError = getErrorMessage(error);
-			await tauri.window.show();
+			await failStartup(error);
 		}
 	}
 
@@ -510,7 +524,7 @@
 					{:else if startupState === 'recovery' && startupRecovery}
 						<LayoutStartupRecovery recovery={startupRecovery} onRetry={() => void startApp()} />
 					{:else if startupState === 'error'}
-						<LayoutStartupError message={startupError} onRetry={() => void startApp()} />
+						<LayoutStartupError onRetry={() => void startApp()} />
 					{:else}
 						{@render children?.()}
 					{/if}

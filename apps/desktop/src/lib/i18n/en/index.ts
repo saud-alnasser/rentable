@@ -371,15 +371,14 @@ const en = {
 
 		startup: {
 			accountChoiceEmpty: 'no workspace profiles are available yet.',
-			failedToStartDescription:
-				'there was a problem connecting the database or running startup sync.',
+			factUpdatingTo: 'upgrading to',
 			failedToStartFallback: 'failed to start the app.',
-			failedToStartTitle: 'failed to start the app',
+			failureDescription:
+				'your workspace could not be opened. nothing recorded in it is at risk, it is kept on this machine and in your account, and starting again is the first thing to try.',
+			failureTitle: 'rentable could not finish starting',
 			previousVersion: 'previous version',
-			recoveryDescription:
-				'rentable detected update recovery while starting v{version}. retry startup, or open the previous release if you need to reinstall it.',
 			recoveryDetails:
-				'nothing recorded in this workspace is at risk: it is kept for you and this machine holds a copy. if startup still fails, reinstall v{previousVersion} before opening rentable again.',
+				'nothing recorded in this workspace is at risk: it is kept for you and this machine holds a copy. if startup still fails, reinstall the previous version before opening rentable again.',
 			recoveryRequiredTitle: 'update recovery required'
 		}
 	},
