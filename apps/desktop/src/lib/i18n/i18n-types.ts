@@ -1163,6 +1163,18 @@ type RootTranslation = {
 			 */
 			goHome: string
 			/**
+			 * t​r​y​ ​a​g​a​i​n
+			 */
+			retry: string
+			/**
+			 * s​o​m​e​t​h​i​n​g​ ​w​e​n​t​ ​w​r​o​n​g​ ​o​u​t​s​i​d​e​ ​t​h​i​s​ ​s​c​r​e​e​n​,​ ​s​o​ ​t​h​e​r​e​ ​i​s​ ​n​o​t​h​i​n​g​ ​t​o​ ​g​o​ ​b​a​c​k​ ​t​o​.​ ​t​r​y​i​n​g​ ​a​g​a​i​n​ ​d​r​a​w​s​ ​t​h​e​ ​w​i​n​d​o​w​ ​f​r​o​m​ ​s​c​r​a​t​c​h​.
+			 */
+			shellDescription: string
+			/**
+			 * t​h​e​ ​a​p​p​l​i​c​a​t​i​o​n​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​d​r​a​w​n
+			 */
+			shellTitle: string
+			/**
 			 * t​h​i​s​ ​s​c​r​e​e​n​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​s​h​o​w​n
 			 */
 			title: string
@@ -3342,6 +3354,18 @@ export type TranslationFunctions = {
 			 * go to dashboard
 			 */
 			goHome: () => LocalizedString
+			/**
+			 * try again
+			 */
+			retry: () => LocalizedString
+			/**
+			 * something went wrong outside this screen, so there is nothing to go back to. trying again draws the window from scratch.
+			 */
+			shellDescription: () => LocalizedString
+			/**
+			 * the application could not be drawn
+			 */
+			shellTitle: () => LocalizedString
 			/**
 			 * this screen could not be shown
 			 */

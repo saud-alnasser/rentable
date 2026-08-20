@@ -7,6 +7,7 @@
 	import * as Sidebar from '$lib/design/primitive/sidebar';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import LayoutBreadcrumb from '$lib/layout/component/breadcrumb.svelte';
+	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
 	import LayoutPalette, { PALETTE_SHORTCUT_HINT } from '$lib/layout/component/palette.svelte';
 	import LayoutRecordVerbs from '$lib/layout/component/record-verbs.svelte';
 	import LayoutShortcutListener from '$lib/layout/component/shortcut-listener.svelte';
@@ -14,7 +15,9 @@
 	import LayoutSidebar from '$lib/layout/component/sidebar.svelte';
 	import LayoutUndoShortcut from '$lib/layout/component/undo-shortcut.svelte';
 	import LayoutWindowControls from '$lib/layout/component/window-controls.svelte';
+	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
 	import { toBreadcrumbTrail } from '$lib/layout/navigation';
+	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import KeyboardIcon from '@tabler/icons-svelte/icons/keyboard';
 	import SearchIcon from '@tabler/icons-svelte/icons/search';
 	import type { Snippet } from 'svelte';
@@ -74,6 +77,41 @@
 		void tauri.window.drag();
 	}
 </script>
+
+{#snippet content()}
+	<!--
+		The inner of the application's two boundaries, and the line this component is: everything
+		below it is what a route drew, and everything above it is the chrome.
+
+		A boundary renders its fallback in place of the subtree that threw, so this one cannot
+		catch the chrome around it: if the rail or the titlebar throws, drawing a card inside them
+		throws again. That case is caught outside this component, and it is the only state in a
+		running application with no frame at all. Here, the frame stands and one screen inside it
+		is replaced, which is what makes *without quitting* true.
+
+		It covers the startup screens as well as the routed ones, because they are this component's
+		children too and neither is chrome.
+
+		**What a boundary catches is drawing**, which is rendering and the effects that follow it.
+		A promise that rejects later is not drawing and never reaches here; that is what the error
+		toasts and the diagnostics sink are already for. This exists for the failure that used to
+		take the window with it, not for every failure.
+	-->
+	<svelte:boundary
+		onerror={(error) =>
+			recordDiagnosticError(CAUGHT_ERROR_EVENT, toCaughtErrorFields('content', error))}
+	>
+		{@render children?.()}
+
+		{#snippet failed(error, reset)}
+			<!-- whether there is somewhere to go rather than only something to draw again, and the
+			     rail is what that means: the states drawn on the bare frame have no navigation, so
+			     offering to leave for the dashboard from one of them would be offering a way out
+			     that is not there. -->
+			<LayoutCaughtError {error} onRetry={reset} hasWorkingShell={hasRail} />
+		{/snippet}
+	</svelte:boundary>
+{/snippet}
 
 {#snippet titlebar()}
 	<header class="relative flex h-12 shrink-0 items-center gap-2 border-b px-2 select-none">
@@ -149,7 +187,7 @@
 			<Sidebar.Inset>
 				{@render titlebar()}
 				<div class="@container/main flex min-h-0 flex-1 flex-col overflow-y-auto">
-					{@render children?.()}
+					{@render content()}
 				</div>
 			</Sidebar.Inset>
 		</Sidebar.Provider>
@@ -157,7 +195,7 @@
 		<div class="flex h-full min-h-0 flex-col bg-background">
 			{@render titlebar()}
 			<main class="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-6 sm:px-6">
-				{@render children?.()}
+				{@render content()}
 			</main>
 		</div>
 	{/if}
