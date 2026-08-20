@@ -1142,6 +1142,18 @@ type RootTranslation = {
 			 * a​c​c​o​u​n​t
 			 */
 			label: string
+			/**
+			 * s​i​g​n​-​i​n
+			 */
+			signIn: string
+			/**
+			 * s​i​g​n​-​i​n
+			 */
+			signedOutHint: string
+			/**
+			 * u​s​e​r
+			 */
+			signedOutName: string
 		}
 		workspaceMenu: {
 			/**
@@ -1153,7 +1165,7 @@ type RootTranslation = {
 			 */
 			invite: string
 			/**
-			 * n​o​t​ ​a​v​a​i​l​a​b​l​e​ ​y​e​t
+			 * n​o​t​ ​a​v​a​i​l​a​b​l​e
 			 */
 			locked: string
 			/**
@@ -3130,6 +3142,18 @@ export type TranslationFunctions = {
 			 * account
 			 */
 			label: () => LocalizedString
+			/**
+			 * sign-in
+			 */
+			signIn: () => LocalizedString
+			/**
+			 * sign-in
+			 */
+			signedOutHint: () => LocalizedString
+			/**
+			 * user
+			 */
+			signedOutName: () => LocalizedString
 		}
 		workspaceMenu: {
 			/**
@@ -3141,7 +3165,7 @@ export type TranslationFunctions = {
 			 */
 			invite: () => LocalizedString
 			/**
-			 * not available yet
+			 * not available
 			 */
 			locked: () => LocalizedString
 			/**
