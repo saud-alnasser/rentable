@@ -961,6 +961,11 @@ type RootTranslation = {
 			 */
 			deleted: RequiredParams<'record'>
 			/**
+			 * c​r​e​a​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)
+			 * @param {unknown} count
+			 */
+			createdMany: RequiredParams<'count|number'>
+			/**
 			 * d​e​l​e​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)
 			 * @param {unknown} count
 			 */
@@ -1565,6 +1570,11 @@ type RootTranslation = {
 			 */
 			deleteSuccess: string
 			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​u​n​i​t​(​s​)​ ​c​r​e​a​t​e​d
+			 * @param {unknown} count
+			 */
+			unitCreateManySuccess: RequiredParams<'count|number'>
+			/**
 			 * u​n​i​t​ ​c​r​e​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 			 */
 			unitCreateSuccess: string
@@ -1600,6 +1610,10 @@ type RootTranslation = {
 			 * t​w​o​ ​u​n​i​t​s​ ​s​h​a​r​e​ ​a​ ​n​a​m​e​;​ ​e​a​c​h​ ​n​e​e​d​s​ ​i​t​s​ ​o​w​n​.
 			 */
 			duplicateUnitNames: string
+			/**
+			 * n​a​m​e​ ​a​t​ ​l​e​a​s​t​ ​o​n​e​ ​u​n​i​t​.
+			 */
+			noUnitNamed: string
 			/**
 			 * n​o​ ​u​n​i​t​s​ ​y​e​t​.​ ​a​d​d​ ​t​h​e​m​ ​h​e​r​e​,​ ​o​r​ ​l​a​t​e​r​ ​f​r​o​m​ ​t​h​e​ ​c​o​m​p​l​e​x​ ​i​t​s​e​l​f​.
 			 */
@@ -3165,6 +3179,10 @@ export type TranslationFunctions = {
 			 */
 			deleted: (arg: { record: string }) => LocalizedString
 			/**
+			 * creating {count|number} record(s)
+			 */
+			createdMany: (arg: { count: unknown }) => LocalizedString
+			/**
 			 * deleting {count|number} record(s)
 			 */
 			deletedMany: (arg: { count: unknown }) => LocalizedString
@@ -3749,6 +3767,10 @@ export type TranslationFunctions = {
 			 */
 			deleteSuccess: () => LocalizedString
 			/**
+			 * {count|number} unit(s) created
+			 */
+			unitCreateManySuccess: (arg: { count: unknown }) => LocalizedString
+			/**
 			 * unit created successfully!
 			 */
 			unitCreateSuccess: () => LocalizedString
@@ -3782,6 +3804,10 @@ export type TranslationFunctions = {
 			 * two units share a name; each needs its own.
 			 */
 			duplicateUnitNames: () => LocalizedString
+			/**
+			 * name at least one unit.
+			 */
+			noUnitNamed: () => LocalizedString
 			/**
 			 * no units yet. add them here, or later from the complex itself.
 			 */

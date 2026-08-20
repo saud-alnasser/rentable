@@ -362,10 +362,16 @@ that has to be looked at before it can be built.
     **A run is one write and one entry on the undo stack**, the same shape everything else in this
     effort takes. Eighteen units named in one line are eighteen rows written in one batch inside
     one transaction ([[rules/data]], under *Multi-table writes*), and one undo puts the complex
-    back to eighteen units fewer. **This is a procedure the application does not have**: creating
-    a complex writes its units as part of `complex.create`, and an existing complex has only
-    `complex.units.create`, which writes one. Named here rather than left for `/plan` to discover,
-    because eighteen calls and eighteen undo entries is a different product from one and one.
+    back to eighteen units fewer. Named here rather than left for `/plan` to discover, because
+    eighteen calls and eighteen undo entries is a different product from one and one.
+
+    *Corrected 2026-08-21, building #654. This paragraph said **this is a procedure the
+    application does not have**, on the grounds that creating a complex writes its units as part
+    of `complex.create` and an existing complex has only `complex.units.create`, which writes
+    one. That was true when this was written and stopped being true with #649, which added
+    `complex.units.createMany` as the inverse of a bulk deletion: one call, one batch, all of
+    them or none. A run of units goes through it rather than through a second procedure beside
+    it, and what #654 owed the effort was a caller rather than a write.*
 
 11. **The run notation is one implementation read from one place.** Both forms parse the same
     way, so `A 1-18` cannot come to mean two different things depending on which form the reader

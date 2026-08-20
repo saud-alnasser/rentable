@@ -55,6 +55,7 @@ const {
 	useUpdateComplex,
 	useDeleteComplex,
 	useCreateUnit,
+	useCreateManyUnits,
 	useUpdateUnit,
 	useDeleteUnit
 } = await import('$lib/complex/query');
@@ -424,6 +425,34 @@ describe('undoing a record change', () => {
 		assert.deepEqual(
 			(await caller.complex.units.getMany({ complexId: complex.id })).map((unit) => unit.id),
 			complex.units.map((unit) => unit.id)
+		);
+	});
+
+	// a run of units is one change, which is the whole of why the procedure behind it exists:
+	// eighteen units named in one line are eighteen rows written together, and taking them back
+	// is one press rather than eighteen.
+	it('takes back a whole run of units at once, and applies it again', async () => {
+		const complex = await run(useCreateComplex, { name: 'Run Court', location: 'Riyadh' });
+		const created = await run(useCreateManyUnits, {
+			units: Array.from({ length: 18 }, (_, step) => ({
+				name: `A${step + 1}`,
+				complexId: complex.id
+			}))
+		});
+
+		assert.equal(created.length, 18);
+		assert.equal(inverseStack.undoable?.describe(get(LL)), 'creating 18 record(s)');
+
+		await inverseStack.undo();
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), []);
+
+		// one entry rather than eighteen: what the one undo uncovered is the complex itself.
+		assert.equal(inverseStack.undoable?.describe(get(LL)), 'creating complex');
+
+		await inverseStack.redo();
+		assert.deepEqual(
+			(await caller.complex.units.getMany({ complexId: complex.id })).map((unit) => unit.id).sort(),
+			created.map((unit) => unit.id).sort()
 		);
 	});
 
