@@ -344,6 +344,10 @@ const en = {
 			description:
 				'something went wrong on this screen. going back to the dashboard usually clears it.',
 			goHome: 'go to dashboard',
+			retry: 'try again',
+			shellDescription:
+				'something went wrong outside this screen, so there is nothing to go back to. trying again draws the window from scratch.',
+			shellTitle: 'the application could not be drawn',
 			title: 'this screen could not be shown'
 		},
 

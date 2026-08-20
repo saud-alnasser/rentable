@@ -32,10 +32,12 @@
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { baseLocale, locales } from '$lib/i18n/i18n-util';
 	import { loadLocaleAsync } from '$lib/i18n/i18n-util.async';
+	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
 	import LayoutFrame from '$lib/layout/component/frame.svelte';
 	import { toScreen } from '$lib/design/back';
 	import { back } from '$lib/design/back.svelte';
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
+	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
 	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
@@ -579,35 +581,63 @@
 </script>
 
 {#if isI18nReady}
-	<QueryClientProvider client={queryClient}>
-		<SonnerProvider>
-			<TooltipProvider>
-				<LayoutFrame {currentDirection} {shell} onSignIn={() => void signIn()}>
-					{#if startupState === 'loading'}
-						<LayoutStartupLoading />
-					{:else if startupState === 'sign-in'}
-						<LayoutStartupSignIn
-							situation={signInReason}
-							{isSigningIn}
-							isRetrying={isRetryingSession}
-							phase={signInPhase}
-							errorMessage={startupError}
-							onSignIn={() => void signIn()}
-							onRetry={() => void retrySession()}
-						/>
-					{:else if startupState === 'recovery' && startupRecovery}
-						<LayoutStartupRecovery recovery={startupRecovery} onRetry={() => void startApp()} />
-					{:else if startupState === 'error'}
-						<!-- the reported error does not reach this screen: it is not shown, and nothing
-						     writes it down yet. See the component. -->
-						<LayoutStartupError onRetry={() => void startApp()} />
-					{:else}
-						{@render children?.()}
-					{/if}
-				</LayoutFrame>
-			</TooltipProvider>
-		</SonnerProvider>
-	</QueryClientProvider>
+	<!--
+		The outer of the application's two boundaries, and the honest floor under requirement 8.
+
+		The inner one, inside the frame, catches everything a route drew and leaves the chrome
+		standing. It cannot catch the chrome itself: a boundary draws its fallback in place of what
+		threw, so a card drawn inside a rail that just threw throws again. This one is outside all
+		of it, and what it draws is the shared standalone surface with no frame around it at all.
+
+		That is the one state requirement 6 otherwise forbids in a running application, and it is
+		allowed here because the alternative is a blank window nobody can leave without quitting.
+	-->
+	<svelte:boundary
+		onerror={(error) =>
+			recordDiagnosticError(CAUGHT_ERROR_EVENT, toCaughtErrorFields('shell', error))}
+	>
+		<QueryClientProvider client={queryClient}>
+			<SonnerProvider>
+				<TooltipProvider>
+					<LayoutFrame {currentDirection} {shell} onSignIn={() => void signIn()}>
+						{#if startupState === 'loading'}
+							<LayoutStartupLoading />
+						{:else if startupState === 'sign-in'}
+							<LayoutStartupSignIn
+								situation={signInReason}
+								{isSigningIn}
+								isRetrying={isRetryingSession}
+								phase={signInPhase}
+								errorMessage={startupError}
+								onSignIn={() => void signIn()}
+								onRetry={() => void retrySession()}
+							/>
+						{:else if startupState === 'recovery' && startupRecovery}
+							<LayoutStartupRecovery recovery={startupRecovery} onRetry={() => void startApp()} />
+						{:else if startupState === 'error'}
+							<!-- the reported error does not reach this screen: it is not shown, and nothing
+							     writes it down yet. See the component. -->
+							<LayoutStartupError onRetry={() => void startApp()} />
+						{:else}
+							{@render children?.()}
+						{/if}
+					</LayoutFrame>
+				</TooltipProvider>
+			</SonnerProvider>
+		</QueryClientProvider>
+
+		{#snippet failed(error, reset)}
+			<!-- the reading direction and the full window, which is everything the frame would have
+			     given this surface and all of it that survives the frame having thrown. -->
+			<div
+				lang={$locale}
+				dir={currentDirection}
+				class="flex h-screen w-screen flex-col overflow-y-auto bg-background"
+			>
+				<LayoutCaughtError {error} onRetry={reset} />
+			</div>
+		{/snippet}
+	</svelte:boundary>
 {:else}
 	<div class="flex h-screen items-center justify-center"></div>
 {/if}
