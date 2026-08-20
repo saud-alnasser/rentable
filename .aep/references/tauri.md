@@ -1,7 +1,7 @@
 ---
-aep: 2.1.1
+aep: 2.7.0
 owner: repository
-date: 2026-08-17
+date: 2026-08-20
 kind: reference
 use-when: "building, running, or configuring the desktop shell"
 ---
@@ -25,11 +25,21 @@ subcommand beyond the two below.
 ## Run the desktop app
 
 ```bash
-pnpm tauri dev
+pnpm dev              # the control plane and the desktop app together
+pnpm dev:desktop      # the desktop app alone
+pnpm tauri dev        # the same thing, unaliased
 ```
 
-The full app — Rust side, webview, database. Use this rather than `pnpm dev` for anything
-that touches data.
+The full app — Rust side, webview, database. `pnpm dev:desktop` is `pnpm tauri dev` under
+another name, and the root's `dev` runs it alongside the control plane, which the application
+now needs: since the sign-in wall (#571) there is no route into a workspace that does not go
+through a control plane, so the desktop alone is a sign-in screen that cannot be got past.
+
+**`pnpm dev:web` is the vite-only script**, which is what plain `pnpm dev` used to be — renamed
+2026-08-20 so that `dev` could mean the application. Inside `apps/desktop` it is the package's
+own `dev:web`, and `tauri.conf.json`'s `beforeDevCommand` names it: `tauri dev` runs vite
+itself, so pointing `beforeDevCommand` at a `dev` that runs `tauri dev` is an infinite
+recursion.
 
 ## Open the app on one route
 
@@ -55,13 +65,22 @@ and it renders under `dev` only.
 ## Build a release bundle
 
 ```bash
-pnpm tauri build
+pnpm build             # both applications: this, and the control plane's tsc
+pnpm build:desktop     # the desktop bundle alone
+pnpm tauri build       # the same thing, unaliased
 ```
 
 Slow: it compiles the Rust side in release mode and then packages every bundle target.
+`pnpm build:desktop` is `pnpm tauri build` under another name, renamed 2026-08-20 by #627 so
+that `build` means the installers rather than the frontend bundle.
 
-**CI does not run this on a pull request.** The gate there compiles the binary and stops —
-`cargo build --release` — so bundling is exercised only by the release workflow, on `main`.
+**`pnpm build:web` is the frontend bundle**, which is what plain `pnpm build` used to be, and
+`tauri.conf.json`'s `beforeBuildCommand` names it. Pointing that at a `build` that runs
+`tauri build` recurses, exactly as `beforeDevCommand` does.
+
+**CI does not run the bundle on a pull request.** The gate there runs `pnpm build:web`, compiles
+the binary with `cargo build --release`, and stops — so bundling is exercised only by the release
+workflow, on `main`.
 Reach for this locally when the question is about packaging; for "does it compile", the
 cargo commands in `cargo.md` are minutes faster.
 
@@ -69,6 +88,8 @@ cargo commands in `cargo.md` are minutes faster.
 
 `TAURI_UPDATER_PUBLIC_KEY` and the Google OAuth values are read **at build time** from
 `.env`. Calling `tauri` directly, without the wrapper, produces a binary built with those
-values missing — it compiles and it runs, and updates and Drive linking are quietly broken.
+values missing — it compiles and it runs, and updates and signing in are quietly broken. That is
+why the desktop's `dev` and `build` both go through `scripts/tauri-with-env.mjs` rather than
+through the CLI.
 
 Signing keys are CI-only secrets and are never in `.env`. Start from `apps/desktop/.env.example`.

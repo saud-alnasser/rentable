@@ -21,7 +21,7 @@ const folder = fileURLToPath(workspaceMigrationsFolder);
 /**
  * The generator writes where the appliers read.
  *
- * `pnpm db:generate` emitting into a directory nobody applies is silent: the tree keeps building,
+ * `pnpm db:generate:desktop` emitting into a directory nobody applies is silent: the tree keeps building,
  * the tests keep passing against the migrations that already exist, and the new one is simply
  * never applied anywhere. Nothing else in this repository would notice.
  */

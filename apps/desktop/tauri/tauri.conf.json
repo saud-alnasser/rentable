@@ -3,9 +3,9 @@
 	"productName": "rentable",
 	"identifier": "com.rentable.app",
 	"build": {
-		"beforeDevCommand": "pnpm dev",
+		"beforeDevCommand": "pnpm dev:web",
 		"devUrl": "http://localhost:1420",
-		"beforeBuildCommand": "pnpm build",
+		"beforeBuildCommand": "pnpm build:web",
 		"frontendDist": "../build"
 	},
 	"app": {

@@ -94,8 +94,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-
 
+      # The same task the integration workflow runs, under the same name. Warming `build`
+      # instead would populate nothing it reads, because root `build` bundles installers
+      # and is not a turbo task at all.
       - name: '🏗️ build frontend'
-        run: pnpm build
+        run: pnpm build:web
 
       # Both profiles, because the integration workflow compiles both — the tests in
       # debug and the binary in release — and warming one leaves the other cold.
