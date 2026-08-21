@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-20
+date: 2026-08-21
 kind: spec
 status: accepted
 ---
@@ -576,9 +576,19 @@ and it is being answered by looking.*
     of the two, and it runs on every read of the contract list.
 
     **The index is the control plane's to add and it is not a client change.** The workspace schema
-    belongs to `apps/control-plane/migrations/` and is applied at the token mint; a client issuing
-    its own DDL would have it captured as change data and replicated to every other replica. So this
-    is a migration and a schema-version bump, which is why it is its own task.
+    is `packages/workspace-migrations/`, and it is applied at the token mint; a client issuing its
+    own DDL would have it captured as change data and replicated to every other replica. So this is
+    a migration and a schema-version bump, which is why it is its own task. *The package was named
+    `apps/control-plane/migrations/` here until 2026-08-21, which is the control plane's own
+    database — accounts and workspaces — and not a workspace's ledger at all.*
+
+    **Settled 2026-08-21 by `0004_ordinary_nightshade.sql`, and the figures are recorded in the
+    migration's own notes.** Measured the same way as the row above and on the same replica:
+    **62.0ms with `paymentCount` against 3.8ms without it before the index, and 4.9ms against 3.7ms
+    after it** — sixteen times the query's own cost, down to one-and-a-third. **The other unindexed
+    foreign keys were left alone**: nothing has measured `unit.complex_id`, `contract.tenant_id` or
+    either of `contract_unit`'s costing anything, and an index is a write cost and a page cost on a
+    database that replicates.
 
     **A rank-filtered list reads the whole table and narrows in the client.** A contract's rank is
     derived from what it owes *today*, so it cannot be a plain `where` — and the answer taken was to

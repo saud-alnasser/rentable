@@ -205,6 +205,11 @@ const contractStatusOrder = sql.join(
 //
 // It is a count and never a sum: the money a contract has taken is `paid_amount`, which
 // reconcile owns (ADR 0006), and a second figure derived here could disagree with it.
+//
+// **What makes a correlated subquery affordable is the index on `payment.contract_id`**, which
+// `packages/workspace-migrations/migrations/0004_ordinary_nightshade.sql` adds and whose notes
+// carry the measurement. Unindexed, this was a scan of every payment for every contract and cost
+// the list sixteen times what the same query costs without it.
 const contractPaymentCount = sql<number>`(
 	select count(*) from ${s.payment} where ${s.payment.contractId} = ${s.contract.id}
 )`;
