@@ -10,7 +10,6 @@
 	import type { DraftUnit } from '$lib/complex/unit-name';
 	import UnitEntry from './unit-entry.svelte';
 	import { TRPCError } from '@trpc/server';
-	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
@@ -96,6 +95,8 @@
 
 					onOpenChange(false);
 				} catch (e) {
+					// an unexpected failure is the shared error handler's to report, and it already has:
+					// what is left here is the refusal, mapped onto the field the reader would fix.
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 						// a collision the workspace found belongs to the list being named, except
 						// while editing, where the one field is the whole form.
@@ -106,8 +107,6 @@
 						} else if (e.message.includes('name')) {
 							setError(form, 'name', $LL.complexes.units.duplicateName());
 						}
-					} else {
-						toast.error($LL.common.messages.unexpectedError());
 					}
 				}
 			}
