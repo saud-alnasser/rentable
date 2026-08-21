@@ -31,10 +31,14 @@
 	const previousReleaseUrl = $derived(recovery.previousReleaseUrl);
 </script>
 
-{#snippet plate(label: string, value: string)}
+{#snippet plate(label: string, value: string, isFigure: boolean)}
 	<div class="rounded-xl bg-muted p-3">
 		<dt class="text-xs tracking-wide text-muted-foreground uppercase">{label}</dt>
-		<dd class="mt-1 text-sm font-medium break-words">{value}</dd>
+		<!-- a version is the machine's and reads left to right in both locales; the words that
+		     stand in for one while there is no version are the reader's. -->
+		<dd class="mt-1 text-sm font-medium break-words" dir={isFigure ? 'ltr' : undefined}>
+			{value}
+		</dd>
 	</div>
 {/snippet}
 
@@ -67,13 +71,17 @@
 
 	<div class="space-y-4">
 		<dl class="grid gap-2 sm:grid-cols-2">
+			<!-- both fields are `string` rather than `string | null`, so empty is what *there is no
+			     version* looks like here, and it is the state the fallback beside it already reads. -->
 			{@render plate(
 				$LL.layout.startup.previousVersion(),
-				recovery.previousVersion || $LL.common.messages.unknown()
+				recovery.previousVersion || $LL.common.messages.unknown(),
+				recovery.previousVersion !== ''
 			)}
 			{@render plate(
 				$LL.layout.startup.factUpdatingTo(),
-				recovery.targetVersion || $LL.common.messages.unknown()
+				recovery.targetVersion || $LL.common.messages.unknown(),
+				recovery.targetVersion !== ''
 			)}
 		</dl>
 
