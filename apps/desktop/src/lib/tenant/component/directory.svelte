@@ -11,7 +11,7 @@
 	import * as Cell from '$lib/design/cell';
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import { hasCreateIntent } from '$lib/design/create-intent';
-	import { describeRefusals, type SelectionPlan } from '$lib/design/selection';
+	import { describeRefusals, foreseenRefusals, type SelectionPlan } from '$lib/design/selection';
 	import type { ListSort } from '$lib/design/sort';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type api from '$lib/api/caller';
@@ -167,15 +167,16 @@
 	/**
 	 * Delete the set the reader agreed to.
 	 *
-	 * How many went through is not announced here: the declaration behind the call says it through
-	 * the shared handler, which is where every announcement in this application is raised from.
+	 * Nothing is announced here. The declaration behind the call says how many went through, and
+	 * says what the workspace turned away after the confirmation was drawn, both through the shared
+	 * handlers, which is where every announcement in this application is raised from.
 	 */
 	async function deleteSelected() {
 		if (!confirming) {
 			return;
 		}
 
-		await deleteManyMutation.mutateAsync(confirming);
+		await deleteManyMutation.mutateAsync({ ids: confirming, foreseen: foreseenRefusals(plan) });
 		// the selection is put down, and the dialog closes itself once this resolves: unmounting it
 		// from here would take it off screen mid-close.
 		selected = [];

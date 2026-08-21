@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-20
+date: 2026-08-21
 kind: rule
 paths:
   - apps/desktop/src/lib/design/**
@@ -111,8 +111,11 @@ Recorded originally as ADR 0012, *The query cache is trusted until told otherwis
 
 **A data mutation is declared once, on the caller side.**
 
-The declaration carries the call, the message, what it touches, and its inverse. The hook, the
-cache invalidation, and the undo entry are **derived** from it — never written out per mutation.
+The declaration carries the call, what it touches, what is read before it runs, its inverse, what
+it says on success, what it says about the part it could not do, and what it leaves in a record's
+history. The hook, the cache invalidation, and the undo entry are **derived** from it — never
+written out per mutation. Read `MutationDeclaration` for the current set rather than counting the
+list here, which has been short before: it named four while the type had six.
 
 *Why: writing each mutation twice produced fifteen near-identical hooks that had already
 drifted, with two deletions of the same shape differing on whether they checked a result and

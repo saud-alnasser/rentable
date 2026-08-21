@@ -44,6 +44,54 @@ export type SelectionPlan<TReason extends string = string> = {
 };
 
 /**
+ * A multi-record action as it is asked for: the records, and the outcome the reader agreed to.
+ *
+ * **`foreseen` is not an input to the procedure and never reaches it.** It is there so the
+ * declaration behind the call can say when what the mutation actually refused differs from what
+ * the confirmation showed, which is a comparison between two things and so cannot be made from
+ * the result alone. `design/mutation.ts` is where it is read, under `notice`.
+ */
+export type SelectionCall = {
+	/** the records the reader picked out. */
+	ids: string[];
+	/** the ids the plan showed as refused, which is what the outcome is measured against. */
+	foreseen: readonly string[];
+};
+
+/**
+ * What a plan showed would be turned away, as the ids an outcome is compared against.
+ *
+ * A plan still being read is `null`, and the confirmation withholds its control until it is not,
+ * so in practice this is never reached with one. It answers with nothing rather than throwing,
+ * and nothing is the safe answer: under that condition the reader was looking at a spinner and
+ * was shown no records at all, so treating every refusal as unforeseen tells them something they
+ * have not already been told.
+ */
+export function foreseenRefusals(plan: SelectionPlan | null): readonly string[] {
+	return plan?.refused.map((refusal) => refusal.id) ?? [];
+}
+
+/**
+ * What an action turned away that the plan the reader agreed to did not show.
+ *
+ * The plan and the mutation read the same domain rule, so they cannot disagree about what refuses
+ * a record. They can disagree about the workspace, because another device may write between the
+ * two, and this is that difference. Empty on the ordinary path, where the outcome matched.
+ *
+ * Beside {@link foreseenRefusals} because they are two halves of one comparison. Saying it in
+ * words is not here: that needs the reader's language, and this module is imported by tests that
+ * load it directly and cannot resolve one.
+ */
+export function unforeseenRefusals<TRefusal extends { id: string }>(
+	foreseen: readonly string[],
+	refused: readonly TRefusal[]
+): TRefusal[] {
+	const shown = new Set(foreseen);
+
+	return refused.filter((refusal) => !shown.has(refusal.id));
+}
+
+/**
  * The selected records, in the order the list is showing them.
  *
  * Filtered out of what is shown rather than assembled from the ids, which carry no order and no

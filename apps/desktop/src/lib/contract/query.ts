@@ -4,7 +4,8 @@ import {
 	toContractName as toContractRecordName,
 	type ContractSortColumnId
 } from '$lib/contract/contract';
-import { declareMutation } from '$lib/design/mutation';
+import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
+import type { SelectionCall } from '$lib/design/selection';
 import type { HistoryEntry } from '$lib/history/history';
 import { workspacePrefixes } from '$lib/design/query';
 import type { ContractRank } from '$lib/contract/rank';
@@ -355,7 +356,7 @@ export const useTerminateContract = declareMutation({
  * contracts it refused were never terminated and must not be un-terminated on the way back.
  */
 export const useTerminateManyContracts = declareMutation({
-	mutate: (ids: string[]) => api.contract.terminateMany({ ids }),
+	mutate: ({ ids }: SelectionCall) => api.contract.terminateMany({ ids }),
 	touches: ['contracts', 'units'],
 	inverse: ({ result }) =>
 		// nothing changed, so there is nothing to offer taking back. An undo entry for a no-op is
@@ -375,6 +376,10 @@ export const useTerminateManyContracts = declareMutation({
 	// happened to it — a selection is how the reader acted, not something the records share.
 	records: ({ result }) =>
 		result.terminated.map((contract) => toContractHistoryEntry(contract, 'terminated')),
+	// what it turned away that the confirmation did not show, which is the workspace having
+	// moved while the reader was deciding.
+	notice: ({ variables, result }) =>
+		describeOutcomeChange(variables.foreseen, result.refused, (refusal) => refusal.govId.trim()),
 	toast: {
 		// the count, because it is the one thing about a bulk action a reader cannot see for
 		// themselves, and nothing at all where the selection turned out to hold nothing this could
@@ -395,7 +400,7 @@ export const useTerminateManyContracts = declareMutation({
  * separates them is only which one the reader asked for.
  */
 export const useRestoreManyContracts = declareMutation({
-	mutate: (ids: string[]) => api.contract.unterminateMany({ ids }),
+	mutate: ({ ids }: SelectionCall) => api.contract.unterminateMany({ ids }),
 	touches: ['contracts', 'units'],
 	inverse: ({ result }) =>
 		result.unterminated.length === 0
@@ -411,6 +416,8 @@ export const useRestoreManyContracts = declareMutation({
 				},
 	records: ({ result }) =>
 		result.unterminated.map((contract) => toContractHistoryEntry(contract, 'unterminated')),
+	notice: ({ variables, result }) =>
+		describeOutcomeChange(variables.foreseen, result.refused, (refusal) => refusal.govId.trim()),
 	toast: {
 		success: ({ result }) =>
 			result.unterminated.length > 0
@@ -434,7 +441,7 @@ export const useRestoreManyContracts = declareMutation({
  * putting it back as itself, by the identity it had (ADR 0026).
  */
 export const useDeleteManyContracts = declareMutation({
-	mutate: (ids: string[]) => api.contract.deleteMany({ ids }),
+	mutate: ({ ids }: SelectionCall) => api.contract.deleteMany({ ids }),
 	touches: ['contracts'],
 	inverse: ({ result }) =>
 		result.deleted.length === 0
@@ -452,6 +459,8 @@ export const useDeleteManyContracts = declareMutation({
 	// gone, and an account that could only name what still exists could not report a deletion.
 	records: ({ result }) =>
 		result.deleted.map((contract) => toContractHistoryEntry(contract, 'deleted')),
+	notice: ({ variables, result }) =>
+		describeOutcomeChange(variables.foreseen, result.refused, (refusal) => refusal.govId.trim()),
 	toast: {
 		success: ({ result }) =>
 			result.deleted.length > 0

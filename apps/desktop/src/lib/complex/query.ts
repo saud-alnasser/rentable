@@ -1,6 +1,7 @@
 import api from '$lib/api/caller';
 import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
-import { declareMutation } from '$lib/design/mutation';
+import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
+import type { SelectionCall } from '$lib/design/selection';
 import type { HistoryEntry } from '$lib/history/history';
 import { workspacePrefixes } from '$lib/design/query';
 import { isRecordId } from '$lib/platform/database/identity';
@@ -302,7 +303,7 @@ export const useDeleteComplex = declareMutation({
  * putting it back as itself, by the identity it had (ADR 0026).
  */
 export const useDeleteManyComplexes = declareMutation({
-	mutate: (ids: string[]) => api.complex.deleteMany({ ids }),
+	mutate: ({ ids }: SelectionCall) => api.complex.deleteMany({ ids }),
 	touches: ['complexes'],
 	inverse: ({ result }) =>
 		// nothing changed, so there is nothing to offer taking back. An undo entry for a no-op is a
@@ -322,6 +323,10 @@ export const useDeleteManyComplexes = declareMutation({
 	// gone, and an account that could only name what still exists could not report a deletion.
 	records: ({ result }) =>
 		result.deleted.map((complex) => toHistoryEntry('complex', complex, 'deleted')),
+	// what it turned away that the confirmation did not show, which is the workspace having
+	// moved while the reader was deciding.
+	notice: ({ variables, result }) =>
+		describeOutcomeChange(variables.foreseen, result.refused, (refusal) => refusal.name.trim()),
 	toast: {
 		// the count, because it is the one thing about a bulk action a reader cannot see for
 		// themselves, and nothing at all where the selection turned out to hold nothing this could
@@ -342,7 +347,7 @@ export const useDeleteManyComplexes = declareMutation({
  * complexes too, because a complex's row shows how many units it holds and how many stand vacant.
  */
 export const useDeleteManyUnits = declareMutation({
-	mutate: (ids: string[]) => api.complex.units.deleteMany({ ids }),
+	mutate: ({ ids }: SelectionCall) => api.complex.units.deleteMany({ ids }),
 	touches: ['units', 'complexes'],
 	inverse: ({ result }) =>
 		result.deleted.length === 0
@@ -357,6 +362,8 @@ export const useDeleteManyUnits = declareMutation({
 						)
 				},
 	records: ({ result }) => result.deleted.map((unit) => toHistoryEntry('unit', unit, 'deleted')),
+	notice: ({ variables, result }) =>
+		describeOutcomeChange(variables.foreseen, result.refused, (refusal) => refusal.name.trim()),
 	toast: {
 		success: ({ result }) =>
 			result.deleted.length > 0

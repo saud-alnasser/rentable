@@ -791,6 +791,11 @@ type RootTranslation = {
 			 * @param {string} records
 			 */
 			outcomeChanged: RequiredParams<'records'>
+			/**
+			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​c​h​a​n​g​e​d​ ​w​h​i​l​e​ ​t​h​i​s​ ​w​a​s​ ​o​p​e​n​,​ ​s​o​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​d​o​n​e​.​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​r​e​t​r​i​e​d​.
+			 * @param {unknown} count
+			 */
+			outcomeChangedCount: RequiredParams<'count|number'>
 		}
 		status: {
 			/**
@@ -3020,6 +3025,10 @@ export type TranslationFunctions = {
 			 * the workspace changed while this was open, so {records} could not be done. nothing was retried.
 			 */
 			outcomeChanged: (arg: { records: string }) => LocalizedString
+			/**
+			 * the workspace changed while this was open, so {count|number} record(s) could not be done. nothing was retried.
+			 */
+			outcomeChangedCount: (arg: { count: unknown }) => LocalizedString
 		}
 		status: {
 			/**

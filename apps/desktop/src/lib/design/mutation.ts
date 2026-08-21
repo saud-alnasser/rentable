@@ -3,6 +3,7 @@ import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
 import { historyKeys, type HistoryEntry } from '$lib/history/history';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { inverseStack, type Inverse } from '$lib/design/inverse';
+import { NAMED_RECORDS, unforeseenRefusals } from '$lib/design/selection';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 import { TRPCError } from '@trpc/server';
@@ -102,6 +103,29 @@ export type MutationDeclaration<TVariables, TResult, TCaptured = void> = {
 	 * the offer is derived from the two and is not declared anywhere itself.
 	 */
 	inverse?: (change: MutationChange<TVariables, TResult, TCaptured>) => Inverse | undefined;
+	/**
+	 * what this mutation says when what it did differs from what the reader agreed to.
+	 *
+	 * **The fourth reader of the change, and the only one that is about a difference.** A
+	 * multi-record action is planned before it is carried out, and the plan and the mutation read
+	 * the same domain rule, so they cannot disagree about what refuses a record. They can still
+	 * disagree about the *workspace*, because another device may write between the two. The
+	 * mutation stays authoritative and this is how the reader is told, and nothing is retried on
+	 * their behalf.
+	 *
+	 * **It is separate from {@link toast}'s announcement because the two are different events.**
+	 * One says what was done and the other says what could not be, in a different tone, and a
+	 * selection that went exactly as the confirmation showed raises the first and not the second.
+	 *
+	 * **What the reader agreed to arrives in the variables.** Two channels run before the mutation
+	 * and reach here, and {@link MutationDeclaration.capture} is the other one, but it is handed
+	 * only the variables itself: the variables are the one a *caller* can put the plan into. So for
+	 * an action over a selection, what it was called with includes the outcome the reader was
+	 * shown. {@link describeOutcomeChange} is the comparison, shared by every list that plans.
+	 *
+	 * **Answering with nothing withholds it**, which is the ordinary case.
+	 */
+	notice?: (change: MutationChange<TVariables, TResult, TCaptured>) => string | undefined;
 	/**
 	 * what this mutation leaves in the record's history, given the same three things.
 	 *
@@ -219,6 +243,75 @@ export function onMutationSuccess(opts: MutationOptions, offer?: UndoOffer) {
 	outstandingOffer = toast.success(message, {
 		action: toToastAction(offer),
 		duration: OFFER_DURATION
+	});
+}
+
+/**
+ * Raise what a mutation could not do, beside what it did.
+ *
+ * The third of the shared handlers, and it exists for the same reason as the other two: an
+ * announcement raised from the surface that called a mutation is a `toast` call in a component,
+ * which is what [[rules/frontend]] under *Data access* forbids. This one is a warning rather than
+ * a success or an error, because the mutation did not fail: it did what it could and part of what
+ * was asked for was no longer possible.
+ *
+ * A declaration with nothing to say answers with nothing, and nothing is raised.
+ *
+ * Unexported, unlike the other two, because only {@link bindMutation} raises it. The other two are
+ * reached by surfaces that act without a declaration behind them, and there is no such caller for
+ * a notice: a notice is about a plan, and a plan comes from a declared mutation.
+ */
+function onMutationNotice(message: string | undefined) {
+	if (message) {
+		toast.warning(message);
+	}
+}
+
+/**
+ * What a multi-record action says when the workspace moved under an open confirmation.
+ *
+ * Every list that plans before it acts says the same thing, so it is worded once. The comparison
+ * itself is `design/selection.ts`'s, because it is selection vocabulary and stays free of the
+ * reader's language; putting it in words is here, because this is where announcements are worded.
+ *
+ * **Answers with nothing where the outcome matched the plan**, which is what withholds the notice
+ * on the ordinary path.
+ *
+ * **A record that cannot be named is counted rather than called something generic.** The reason
+ * this notice usually fires is that another device removed a record mid-decision, and such a
+ * record arrives with an empty name, having nothing left to be called by. Forty of them named by
+ * their concept's label is the word *tenant* forty times, which says less than the number does.
+ * Past a handful the names stop being something to act on, which is the bound
+ * {@link NAMED_RECORDS} already sets for the confirmation this notice follows.
+ */
+export function describeOutcomeChange<TRefusal extends { id: string }>(
+	foreseen: readonly string[],
+	refused: readonly TRefusal[],
+	nameOf: (refusal: TRefusal) => string
+): string | undefined {
+	const unforeseen = unforeseenRefusals(foreseen, refused);
+
+	if (unforeseen.length === 0) {
+		return undefined;
+	}
+
+	const translations = get(LL);
+	const named = unforeseen.map(nameOf).filter((name) => name.length > 0);
+
+	if (named.length === 0) {
+		return translations.common.selection.outcomeChangedCount({ count: unforeseen.length });
+	}
+
+	const shown = named.slice(0, NAMED_RECORDS);
+	// counted against every record that was turned away rather than against the ones that could be
+	// named, so a set that is half nameless is not silently reported as the half that had names.
+	const rest = unforeseen.length - shown.length;
+
+	return translations.common.selection.outcomeChanged({
+		records:
+			rest > 0
+				? `${shown.join(', ')} ${translations.common.selection.more({ count: rest })}`
+				: shown.join(', ')
 	});
 }
 
@@ -362,6 +455,12 @@ function bindMutation<TVariables, TResult, TCaptured>(
 				{ toast: { ...refusal, success: resolveAnnouncement(success, change) } },
 				inverse && { client, change: inverse, direction: 'undo' }
 			);
+
+			// after what was done, because it is the smaller half of the same event: the reader
+			// asked for a set, most of it happened, and this is the rest. Raised here rather than
+			// by the surface that called the mutation, which is the whole of what makes it an
+			// announcement like every other one.
+			onMutationNotice(declaration.notice?.(change));
 		},
 		onError: (e: Error) => onMutationError({ toast: refusal }, e)
 	};

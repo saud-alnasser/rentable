@@ -18,7 +18,7 @@
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import List from '$lib/design/block/list.svelte';
 	import { toNarrowedName } from '$lib/design/csv';
-	import { describeRefusals, type SelectionPlan } from '$lib/design/selection';
+	import { describeRefusals, foreseenRefusals, type SelectionPlan } from '$lib/design/selection';
 	import * as Cell from '$lib/design/cell';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
@@ -92,15 +92,19 @@
 	/**
 	 * Delete the set the reader agreed to.
 	 *
-	 * How many went through is not announced here: the declaration behind the call says it through
-	 * the shared handler, which is where every announcement in this application is raised from.
+	 * Nothing is announced here. The declaration behind the call says how many went through, and
+	 * says what the workspace turned away after the confirmation was drawn, both through the shared
+	 * handlers, which is where every announcement in this application is raised from.
 	 */
 	async function deleteSelected() {
 		if (!confirming) {
 			return;
 		}
 
-		const result = await deleteManyMutation.mutateAsync(confirming);
+		const result = await deleteManyMutation.mutateAsync({
+			ids: confirming,
+			foreseen: foreseenRefusals(plan)
+		});
 
 		// a deleted unit's own page may be behind the reader, and it is not somewhere back can
 		// return to now. The single-record deletion does this for the one record it removed; a

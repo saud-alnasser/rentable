@@ -232,7 +232,9 @@ const en = {
 			more: 'and {count|number} more',
 			nothingToDo: 'none of the selected records can take this action.',
 			outcomeChanged:
-				'the workspace changed while this was open, so {records:string} could not be done. nothing was retried.'
+				'the workspace changed while this was open, so {records:string} could not be done. nothing was retried.',
+			outcomeChangedCount:
+				'the workspace changed while this was open, so {count|number} record(s) could not be done. nothing was retried.'
 		},
 
 		status: {
