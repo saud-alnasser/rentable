@@ -340,6 +340,16 @@ that has to be looked at before it can be built.
     **Every group on the page is drawn signed out**, because every group is host-only. Nothing is
     hidden and nothing is disabled: this is not a reduced settings page, it is the settings page.
 
+    > **The layout half of this was never built, and it is carried by
+    > [[efforts/settings-and-the-workspace-finish-what-they-offer]] as requirement 1.** *Found
+    > 2026-08-21 by the human, using the application.* The API half landed with #645 and holds:
+    > `Context.identity` is nullable, five procedures are `public`, and criterion 7b-i's test
+    > passes. What never landed is the route gate. `routes/+layout.svelte` draws the sign-in card
+    > in place of `children` for every address while the shell is in `sign-in`, so #646 merged
+    > with criterion 7b unmet and nothing failing. **Criterion 7b is the other effort's now**, and
+    > it is not restated there in different words: it is inherited by name, with the test it never
+    > had. This paragraph is the only record of where it went.
+
 9b. **`layout.workspaceMenu.locked` reads "not available", in both locales.** It read "not
     available yet" and "غير متاح بعد". *Asked for 2026-08-20, and **already applied in the working
     tree**: the prototype was moved onto real translation keys on the same day, so the i18n files
@@ -642,7 +652,9 @@ and it is being answered by looking.*
 7a. Signing in from that menu lands in `ready` without the rail disappearing and coming back.
     *(R7, and it is falsifier 3 from the prototype, which the run could not reach)*
 7b. With no account on the machine, `/settings` opens from the account menu and every group on it
-    renders and works: language, notices, updates and diagnostics. *(R9a)*
+    renders and works: language, notices, updates and diagnostics. *(R9a)* — **unmet, and carried
+    by [[efforts/settings-and-the-workspace-finish-what-they-offer]] as its criterion 1.** See the
+    note under requirement 9a for what landed and what did not.
 7b-i. A test drives the whole router under a context with `identity: null` and asserts both halves:
     every public procedure answers, and a procedure that reaches the workspace refuses with
     `UNAUTHORIZED` — a read as firmly as a write, and the bootstrap among them. A search of the
