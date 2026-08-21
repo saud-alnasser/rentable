@@ -13,11 +13,19 @@ import { ASCII_ONLY_COLUMNS } from './schema';
  * two renderings of one table rather than two tables — the whole fix is that they agree, and a
  * second list kept in step by hand is a defect waiting for the next character.
  *
- * The stored side is skipped only where folding it provably could not change it — a numeric
- * column, an all-ASCII enum, or a text column the schema refuses non-ASCII into. That is not
- * an exception to the rule above but an application of it: where a value cannot fold, folded
- * and unfolded *are* the same side. `storedSideCanFold` holds the reasoning, and the term
- * folds unconditionally in every case.
+ * A side is skipped only where folding it provably could not change what the comparison
+ * answers — and then *both* sides are, which is what keeps the rule above intact rather than
+ * weakening it: where a side cannot fold, folded and unfolded **are** the same side.
+ *
+ * - **The stored side** is skipped for a numeric column, an all-ASCII enum, or a text column
+ *   the schema refuses non-ASCII into. `storedSideCanFold` holds the reasoning.
+ * - **The term** is skipped where it holds no character the table names, on either side of a
+ *   substitution. `termSideCanFold` holds the reasoning.
+ *
+ * That second one is the one that pays: `SEARCH_FOLDINGS.length` nested `replace()` calls per
+ * column per row is a full scan no index can serve, most searches are typed in Latin letters,
+ * and a term of Latin letters cannot fold and cannot be reached by folding a stored value
+ * either.
  */
 
 /** ٠١٢٣٤٥٦٧٨٩ — what `ar-SA` renders every number as, and therefore what a reader types. */
@@ -66,8 +74,13 @@ const NON_LETTER_MARKS = [
  *
  * Order is not significant: no substitution's output is another's input, so the same set
  * applied in any order lands on the same text.
+ *
+ * Exported for its own tests: what makes a term fold is derived from this table rather than
+ * from a second list, and the only way to assert that is to drive the assertion off the table
+ * itself. Nothing outside this module and those tests reads it — the two renderings below are
+ * what a caller reaches.
  */
-const SEARCH_FOLDINGS: readonly (readonly [string, string])[] = [
+export const SEARCH_FOLDINGS: readonly (readonly [string, string])[] = [
 	...ARABIC_INDIC_DIGITS,
 	...NUMBER_SEPARATORS,
 	...ALEF_VARIANTS,
@@ -133,6 +146,44 @@ function storedSideCanFold(value: SQL | AnyColumn): boolean {
 }
 
 /**
+ * Every character the table above names — the ones a substitution reads *and* the ones it
+ * writes — read off the table itself, so a rule added later brings its characters with it and
+ * no second list has to be edited to keep up.
+ *
+ * Both halves of a rule count, and the writing half is the one easy to miss: `ا` is what `أ`
+ * folds *to*, so a term written `احمد` reaches a folding rule from the far end and skipping the
+ * fold on it would lose the record stored as `أحمد`. The same holds for `1`, which `١` folds
+ * to, and for `ه` and for `.`.
+ */
+const FOLDED_CHARACTERS = new Set(SEARCH_FOLDINGS.flatMap(([from, to]) => [...from, ...to]));
+
+/**
+ * Whether folding a search term can change what it matches. Where it cannot, the substitutions
+ * are skipped — on the term and on the column both — and the comparison runs on the text as
+ * written. This is the half that pays: most terms are typed in Latin letters, and a Latin
+ * letter appears nowhere in the table above.
+ *
+ * The test is the term as written and never the locale. An Arabic-speaking reader types a
+ * Latin name and an English-speaking one pastes an Arabic one, and the locale says nothing
+ * about which of the two happened here.
+ *
+ * A term holding none of {@link FOLDED_CHARACTERS} folds to itself, and no substitution can
+ * fold a stored value *into* it either: every substitution writes one of those characters or
+ * writes nothing at all, so a folded value differs from an unfolded one only in characters
+ * this term does not hold.
+ *
+ * **The one case this gives up** is a stored value with a mark spliced inside an occurrence of
+ * the term — folding deletes the harakat and the tatweel, so `Saـra` folds to `Sara` and a term
+ * of `Sara` stops reaching it. Those marks are Arabic combining marks and a term that gets here
+ * holds no Arabic character at all, so what is given up is a mark sitting inside a run of text
+ * that cannot carry one. Written down rather than waved at, because it is the whole distance
+ * between this and a proof.
+ */
+function termSideCanFold(term: string): boolean {
+	return Array.from(term).some((character) => FOLDED_CHARACTERS.has(character));
+}
+
+/**
  * Match a column against a search term, case-insensitively and in the folded form above.
  *
  * The escaping is not decoration: `%` and `_` are LIKE's own wildcards, so a user searching
@@ -148,11 +199,14 @@ function storedSideCanFold(value: SQL | AnyColumn): boolean {
  * @param term the user's text, taken as written.
  */
 export function matchesSearch(column: SQL | AnyColumn, term: string) {
-	const pattern = `%${foldSearchText(term).replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
-	// the term folds unconditionally; only the stored side is ever skipped, and only where
-	// folding it could not change it. Making the term conditional is what would break the
-	// number typed in one script against the number stored in the other.
-	const stored = storedSideCanFold(column) ? foldedSql(column) : sql`cast(${column} as text)`;
+	// Both sides fold or neither does. Where the term cannot fold, folding it is a no-op — so
+	// dropping it from the column too is what keeps the two sides comparable, rather than what
+	// breaks them apart.
+	const folding = termSideCanFold(term);
+	const written = folding ? foldSearchText(term) : term;
+	const pattern = `%${written.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
+	const stored =
+		folding && storedSideCanFold(column) ? foldedSql(column) : sql`cast(${column} as text)`;
 
 	return sql`lower(${stored}) like lower(${pattern}) escape '\\'`;
 }

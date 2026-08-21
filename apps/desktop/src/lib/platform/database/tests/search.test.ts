@@ -3,7 +3,10 @@ import test from 'node:test';
 
 import { type Api, createApi, monthsFromNow, NOW } from '$lib/api/tests/testing.ts';
 import { formatLocaleNumber } from '$lib/platform/locale.ts';
-import { foldSearchText } from '$lib/platform/database/search.ts';
+import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';
+import type { AnyColumn, SQL } from 'drizzle-orm';
+
+import { foldSearchText, matchesSearch, SEARCH_FOLDINGS } from '$lib/platform/database/search.ts';
 import * as s from '$lib/platform/database/schema.ts';
 import type { ZodString } from 'zod';
 
@@ -447,4 +450,122 @@ test('skipping the stored fold changes nothing about what is found', async () =>
 		[tenant.id],
 		'the phone column, reached by folding the term alone'
 	);
+});
+
+// -- the fold that is not paid for --------------------------------------------------------
+
+// Folding is `SEARCH_FOLDINGS.length` nested `replace()` calls per column per row and no index
+// can serve it, so what a comparison *emits* is the subject here rather than only what it
+// finds. Rendering the expression is the only way to see it: two searches that agree on every
+// record can still differ by a full scan.
+const dialect = new SQLiteSyncDialect();
+
+const emitted = (term: string, column: SQL | AnyColumn = s.tenant.name) =>
+	dialect.sqlToQuery(matchesSearch(column, term)).sql;
+
+const foldsEmitted = (term: string, column?: SQL | AnyColumn) =>
+	(emitted(term, column).match(/replace\(/g) ?? []).length;
+
+test('a term no folding rule touches runs the unfolded comparison', () => {
+	// Latin letters appear nowhere in the table, on either side of a substitution — so these
+	// terms fold to themselves, and the column they are compared against is read as it is stored.
+	for (const term of ['Sara Ahmed', 'Reem', 'HERS', 'deposit', '']) {
+		assert.equal(foldsEmitted(term), 0, `${term} still paid for a fold it cannot use`);
+	}
+});
+
+test('a term a folding rule touches still runs the folded comparison against the folded column', () => {
+	const cases: [term: string, what: string][] = [
+		['أحمد', 'an alef variant'],
+		['احمد', 'the bare alef a variant folds to'],
+		['فاطمة', 'a taa marbuta'],
+		['فاطمه', 'the haa it folds to'],
+		['١٥٠٠', 'Arabic-Indic digits'],
+		['1500', 'the Latin digits they fold to'],
+		['1,500', 'a group separator'],
+		['أَحْمـد', 'harakat and a tatweel']
+	];
+
+	for (const [term, what] of cases) {
+		assert.equal(
+			foldsEmitted(term),
+			SEARCH_FOLDINGS.length,
+			`${what} stopped folding, so a record spelled the other way is no longer reachable`
+		);
+	}
+});
+
+// The constraint the saving rests on: what decides whether a term can fold is read off
+// `SEARCH_FOLDINGS` rather than from a second list, so a rule added later is picked up without
+// anything else being edited. Driving this off the table is what asserts that — a copy of the
+// characters written out here would be the very list the module refuses to keep.
+test('every character the folding table names, on either side, makes a term fold', () => {
+	for (const [from, to] of SEARCH_FOLDINGS) {
+		for (const character of [...from, ...to]) {
+			// wrapped in letters the table does not name, so it is the character that decides.
+			assert.equal(
+				foldsEmitted(`x${character}y`),
+				SEARCH_FOLDINGS.length,
+				`${character} is in the folding table and a term holding it skipped the fold`
+			);
+		}
+	}
+});
+
+test('a term that folds still skips the stored side of a column that cannot', () => {
+	// The two exemptions compose rather than replace each other: the term deciding to fold does
+	// not drag a numeric or declared-ASCII column back into folding with it.
+	assert.equal(foldsEmitted('١٥٠٠', s.contract.cost), 0, 'a numeric column');
+	assert.equal(foldsEmitted('١٥٠٠', s.tenant.nationalId), 0, 'a declared ASCII-only column');
+	assert.equal(foldsEmitted('أحمد', s.contract.status), 0, 'an all-ASCII enum');
+});
+
+test('skipping the term fold changes nothing about what is found', async () => {
+	// The behavioural claim the saving rests on, over the surfaces that pay for it. A name in
+	// Latin letters is the term that now skips; everything else here is a term that still folds
+	// and still has to reach the record spelled the other way.
+	const api = await createApi();
+	const latin = await seedNamed(api, 'Sara Ahmed');
+	const hamzated = await seedNamed(api, 'أحمد');
+	const complex = await api.complex.create({
+		name: 'برج ١٢',
+		location: 'الرياض',
+		units: [{ name: 'وحدة ١' }]
+	});
+
+	assert.deepEqual(ids(await api.tenant.search({ term: 'Sara' })), [latin.id], 'the skipped term');
+	assert.deepEqual(
+		ids(await api.tenant.getMany({ search: 'Ahmed' })),
+		[latin.id],
+		'the skipped term, over the directory'
+	);
+
+	// an Arabic name typed with a different alef, in both directions: the stored spelling is
+	// hamzated and the term is bare, and then the other way about.
+	assert.deepEqual(ids(await api.tenant.search({ term: 'احمد' })), [hamzated.id], 'bare alef');
+	assert.deepEqual(
+		ids(await api.tenant.search({ term: 'أحمد' })),
+		[hamzated.id],
+		'the alef it was stored with'
+	);
+
+	// a number stored in Arabic-Indic digits, searched in Latin ones — the direction that is
+	// only reachable because `1` counts as a character the table names.
+	assert.deepEqual(
+		ids(await api.complex.search({ term: '12' })),
+		[complex.id],
+		'Latin digits no longer reach a name stored in Arabic-Indic ones'
+	);
+	assert.deepEqual(ids(await api.complex.search({ term: '١٢' })), [complex.id], 'as stored');
+});
+
+test('a wildcard in a term that does not fold is still the text it stands for', async () => {
+	// The escaping is applied to the unfolded pattern as well: `%` is LIKE's own wildcard
+	// whichever branch the term took.
+	const api = await createApi();
+	const literal = await seedNamed(api, 'Sara%Ahmed');
+	await seedNamed(api, 'Sarah Ahmed');
+
+	assert.equal(foldsEmitted('Sara%'), 0, 'the term folded, so this is asserting the other branch');
+	assert.deepEqual(ids(await api.tenant.search({ term: 'Sara%' })), [literal.id]);
 });
