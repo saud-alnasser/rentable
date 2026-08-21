@@ -1,3 +1,8 @@
+import {
+	ADMINISTRATION_BY_ROLE,
+	permits,
+	type Administration
+} from '@rentable/workspace-permission';
 import { and, eq } from 'drizzle-orm';
 
 import type { Database } from '../database/database.ts';
@@ -9,7 +14,6 @@ import {
 	Refusal,
 	SERVICE_OUT_OF_DATE
 } from '../failure.ts';
-import { ADMINISTRATION_BY_ROLE, permits, type Administration } from './permission.ts';
 import { membership, workspace, type Membership, type Workspace } from '../database/schema.ts';
 import {
 	migrateWorkspaceDatabase,

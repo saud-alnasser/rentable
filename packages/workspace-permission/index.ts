@@ -1,6 +1,6 @@
-import type { Role } from '../database/schema.ts';
-
 /**
+ * WORKSPACE PERMISSION
+ *
  * What a member may do *to* a workspace, as opposed to what they may do *in* one.
  *
  * Decision 05 settled that membership grants full access to a workspace's data, so nothing
@@ -12,9 +12,10 @@ import type { Role } from '../database/schema.ts';
  * `INTEGER` column over four alternatives on the strength of a guard that fails loudly at the
  * 54th flag, because the failure it prevents is silent: a permission value using bit 53 is
  * past 2^53, where the *low-order* bits round away — so defining a 54th flag would corrupt the
- * first flags ever defined, retroactively, on every row already written. `./permission.test.mjs`
- * is that guard. Its removal condition is decision 04's: when a 54th flag is genuinely wanted,
- * this column becomes a row per granted permission, which is a migration rather than a rewrite.
+ * first flags ever defined, retroactively, on every row already written.
+ * `./tests/permission.test.ts` is that guard. Its removal condition is decision 04's: when a
+ * 54th flag is genuinely wanted, this column becomes a row per granted permission, which is a
+ * migration rather than a rewrite.
  */
 export const ADMINISTRATION = {
 	inviteMember: 0,
@@ -56,14 +57,35 @@ export const permits = (permissions: number, name: Administration): boolean =>
 	Math.floor(permissions / 2 ** ADMINISTRATION[name]) % 2 === 1;
 
 /**
+ * What a membership row can be called.
+ *
+ * **Declared here rather than imported, and that is the one thing this package could not bring
+ * with it.** It was `Membership['role']`, derived from the control plane's own schema, which is
+ * where the column actually is. A package both applications depend on cannot depend on either of
+ * them, so the union is written out and the schema is held to it by a type-level assertion in
+ * `database/schema.ts` — a role added to the column and not to this line fails a typecheck rather
+ * than a test.
+ *
+ * *Two declarations of one union is the drift this package exists to remove, in the one place it
+ * cannot reach. The assertion is the whole of the mitigation, and it is not optional.*
+ */
+export type Role = 'owner' | 'administrator' | 'member';
+
+/**
  * What each role administers by default.
  *
  * The role is what a person is called; the column is what they may do. Both are stored,
  * because a workspace may want an administrator who cannot delete it, and a role that
  * computed its own permissions on read could not express that.
+ *
+ * **An administrator does not rename, and the column is still the truth.** *Decided by the human
+ * on 2026-08-21.* It carried `renameWorkspace` from the beginning, which was harmless only
+ * because no workspace has ever had a second member and no route creates one. A workspace that
+ * wants an administrator who may rename it grants the flag on the row — which is the distinction
+ * this file rests on: the role is what a membership is created with, not what it may do.
  */
 export const ADMINISTRATION_BY_ROLE: Record<Role, number> = {
 	owner: maskOf(...EVERY_ADMINISTRATION),
-	administrator: maskOf('inviteMember', 'removeMember', 'changeRole', 'renameWorkspace'),
+	administrator: maskOf('inviteMember', 'removeMember', 'changeRole'),
 	member: 0
 };

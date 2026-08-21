@@ -15,14 +15,25 @@ import { fileURLToPath } from 'node:url';
  * imported out of the desktop application, which is what this file forbids. There is nowhere
  * else it could come from.
  *
- * **One workspace package is permitted, and narrowing the ban to it is what makes the permission
- * safe.** `@rentable/workspace-migrations` is the SQL a workspace database is built from, which
- * the mint applies to a hosted one per decision 06. It carries no module and no row: there is
- * nothing in it to call, and a `CREATE TABLE` cannot become a route's answer. The clause used to
- * read `startsWith('@rentable/')`, which banned every workspace package rather than the desktop
- * application — and the copy of these migrations that ban forced was worse than what it
+ * **Two workspace packages are permitted, and narrowing the ban to them is what makes the
+ * permission safe.** `@rentable/workspace-migrations` is the SQL a workspace database is built
+ * from, which the mint applies to a hosted one per decision 06. It carries no module and no row:
+ * there is nothing in it to call, and a `CREATE TABLE` cannot become a route's answer. The clause
+ * used to read `startsWith('@rentable/')`, which banned every workspace package rather than the
+ * desktop application — and the copy of these migrations that ban forced was worse than what it
  * prevented, because the test holding the copy honest was hashed only against this package's own
  * files and so would not have run on the commit that broke it.
+ *
+ * **`@rentable/workspace-permission` joined it on 2026-08-21, and this is where that decision was
+ * taken.** It is the flag table, the mask arithmetic and the check — six names against six bit
+ * indices, and three functions over them. It declares no table, holds no row, and reaches no
+ * database, so like the migrations there is nothing in it a route could answer with. What it is
+ * *for* is the same argument the migrations already won: the desktop names the same six acts, and
+ * the alternative to sharing them is a second copy of the table on the other side of the wire,
+ * drifting silently, where a renamed flag reads as a permission nobody holds.
+ *
+ * *The list below is what makes this a decision rather than a drift.* It failed on the commit that
+ * added the dependency, which is exactly what it is for.
  *
  * *Why it matters enough to be a test: the API is in the credential path continuously and in
  * the data path never, and that single property is what the whole architecture rests on. A
@@ -31,8 +42,16 @@ import { fileURLToPath } from 'node:url';
  */
 const source = fileURLToPath(new URL('..', import.meta.url));
 
-/** the one workspace package this API may reach for. See the note above for why it is safe. */
-const WORKSPACE_MIGRATIONS = '@rentable/workspace-migrations';
+/**
+ * The workspace packages this API may reach for, and nothing else under `@rentable/`.
+ *
+ * See the note above for why each is safe. **Sorted, because the assertion below compares against
+ * this list**, and a set built by walking the tree answers in whatever order the files were read.
+ */
+const WORKSPACE_PACKAGES = [
+	'@rentable/workspace-migrations',
+	'@rentable/workspace-permission'
+] as const;
 
 const filesUnder = async (directory: string) => {
 	const found: string[] = [];
@@ -70,7 +89,8 @@ test('the control plane imports nothing out of the desktop application', async (
 				specifier.startsWith('.') && !resolve(dirname(file), specifier).startsWith(source);
 			const aliased =
 				specifier.startsWith('$') ||
-				(specifier.startsWith('@rentable/') && specifier !== WORKSPACE_MIGRATIONS);
+				(specifier.startsWith('@rentable/') &&
+					!WORKSPACE_PACKAGES.includes(specifier as (typeof WORKSPACE_PACKAGES)[number]));
 			const named = specifier.includes('apps/desktop');
 
 			assert.ok(
@@ -103,13 +123,14 @@ test('no table is declared here but the four the control plane owns', async () =
 });
 
 /**
- * The permission above, held to one name.
+ * The permission above, held to the names it was granted for.
  *
  * A test that only forbade things would pass just as well if the exception grew — so this is the
- * other half: exactly one workspace specifier appears in this package, and a second one is a
- * decision somebody has to come here and take.
+ * other half: exactly these workspace specifiers appear in this package, and a third one is a
+ * decision somebody has to come here and take. *It was one until 2026-08-21, and taking the
+ * second is what the note at the top of this file records.*
  */
-test('the only workspace package this API imports is the workspace migrations', async () => {
+test('the only workspace packages this API imports are the two it is permitted', async () => {
 	const reached = new Set<string>();
 
 	for (const file of await filesUnder(source)) {
@@ -120,5 +141,5 @@ test('the only workspace package this API imports is the workspace migrations', 
 		}
 	}
 
-	assert.deepEqual([...reached], [WORKSPACE_MIGRATIONS]);
+	assert.deepEqual([...reached].sort(), [...WORKSPACE_PACKAGES]);
 });

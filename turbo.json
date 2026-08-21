@@ -11,13 +11,20 @@
 			"outputs": ["build/**"]
 		},
 		"test": {
-			// **The workspace migrations are hashed in, and leaving them out was a defect.** A task
+			// **The workspace packages are hashed in, and leaving them out was a defect.** A task
 			// with no `inputs` hashes only its own package's files, so a commit that changed the
 			// SQL a workspace database is built from moved nothing under `apps/control-plane/`,
 			// turbo restored the cached result, and the tests that read those migrations never
-			// ran. `$TURBO_DEFAULT$` keeps the package's own files; the second entry adds the
-			// package whose contents decide what those tests assert.
-			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/workspace-migrations/**"],
+			// ran. `$TURBO_DEFAULT$` keeps the package's own files; the entries after it add the
+			// packages whose contents decide what those tests assert.
+			//
+			// `workspace-permission` joined them when the flag table moved out of the control
+			// plane: both applications' tests now assert against a table neither of them holds.
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/packages/workspace-migrations/**",
+				"$TURBO_ROOT$/packages/workspace-permission/**"
+			],
 			"outputs": []
 		},
 		"test:rust": {

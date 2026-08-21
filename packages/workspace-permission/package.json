@@ -1,0 +1,25 @@
+{
+	"private": true,
+	"name": "@rentable/workspace-permission",
+	"version": "0.0.0",
+	"description": "what a member may do to a workspace, named the same way on both sides",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./index.ts",
+			"default": "./index.ts"
+		}
+	},
+	"files": [
+		"index.ts"
+	],
+	"scripts": {
+		"check": "tsc -p ./tsconfig.json",
+		"test": "node --import tsx --test \"tests/**/*.test.ts\""
+	},
+	"devDependencies": {
+		"@types/node": "^24.13.3",
+		"tsx": "^4.23.1",
+		"typescript": "^6.0.3"
+	}
+}

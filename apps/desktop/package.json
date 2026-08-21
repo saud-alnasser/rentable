@@ -33,6 +33,7 @@
 		"@tauri-apps/plugin-opener": "^2.5.4",
 		"@tauri-apps/plugin-updater": "^2.10.1",
 		"@rentable/workspace-migrations": "workspace:*",
+		"@rentable/workspace-permission": "workspace:*",
 		"@trpc/server": "^11.18.0",
 		"@tursodatabase/sync": "0.7.2",
 		"drizzle-orm": "^0.45.2",
