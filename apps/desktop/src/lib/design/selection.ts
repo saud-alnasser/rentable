@@ -22,6 +22,14 @@ export type SelectionRefusal<TReason extends string = string> = {
 	 * named: the row it would have been named from is gone. The count against the reason is what
 	 * carries that one, and a surface that insisted on a name would print a placeholder once per
 	 * record instead.
+	 *
+	 * **Two concepts answer with their own raw material and become a name here rather than in the
+	 * procedure, and both are deliberate.** A contract answers with its government id, which is
+	 * what its history and its rows already call it by. A payment answers with its amount, because
+	 * a payment has no name at all and money is only renderable on the side that knows the
+	 * reader's locale: a figure written one way in a ledger and another in a confirmation would be
+	 * two answers to one question. Both surfaces write the empty string for a record that is no
+	 * longer there, so what reaches this type is the same everywhere it is read.
 	 */
 	name: string;
 	reason: TReason;
@@ -88,4 +96,35 @@ export function groupRefusals<TReason extends string>(
 			records: refused.filter((refusal) => refusal.reason === reason)
 		}))
 		.filter((group) => group.records.length > 0);
+}
+
+/**
+ * One reason with the number of records it accounts for, in the reader's words.
+ *
+ * The shared confirmation is deliberately ignorant of any concept's reasons and hands one back as
+ * a plain string, so every list needs the same lookup: find the sentence, and have an answer for a
+ * reason that is not in the map. The sentences differ per concept because the reasons do; the
+ * lookup around them never did, and it stood in five surfaces saying the same thing.
+ *
+ * **`missing` is the fallback because it is what an unrecognised reason means here.** Every
+ * concept's reason union carries it, for a record that went away while the reader was deciding,
+ * and a reason this surface has never heard of is a record it can no longer account for either.
+ *
+ * The lookup asks whether the map itself declared the reason rather than whether the value is
+ * there, because a plain object answers `constructor` and `toString` from its prototype. Nothing
+ * reaches this with such a reason today, and the guarantee above is worth being true rather than
+ * true of the reasons that happen to arrive.
+ *
+ * **The totality check stays at the call site**, where `satisfies Record<TReason, ...>` on the map
+ * makes a reason added to a domain rule without a sentence a build failure rather than a refusal
+ * shown under somebody else's words. That is why this takes an index signature rather than a
+ * `Record` of its own: a parameter type here would check the map against whatever was inferred
+ * from the map.
+ */
+export function describeRefusals(labels: {
+	missing: (count: number) => string;
+	[reason: string]: (count: number) => string;
+}): (reason: string, count: number) => string {
+	return (reason, count) =>
+		Object.hasOwn(labels, reason) ? labels[reason](count) : labels.missing(count);
 }

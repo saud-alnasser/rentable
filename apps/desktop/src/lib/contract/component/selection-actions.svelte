@@ -3,7 +3,7 @@
 	import { back } from '$lib/design/back.svelte';
 	import SelectionDialog from '$lib/design/block/selection-dialog.svelte';
 	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
-	import type { SelectionPlan } from '$lib/design/selection';
+	import { describeRefusals, type SelectionPlan } from '$lib/design/selection';
 	import {
 		useDeleteManyContracts,
 		usePlanManyContracts,
@@ -124,22 +124,16 @@
 
 	// every reason the domain can give, with the sentence it reads as. `satisfies` is what makes
 	// a reason added to the rule without a sentence a build failure rather than a refusal the
-	// reader is shown under somebody else's words.
-	const refusalLabels = $derived({
-		'not-terminable': (count: number) => $LL.contracts.selection.refusedNotTerminable({ count }),
-		'not-restorable': (count: number) => $LL.contracts.selection.refusedNotRestorable({ count }),
-		'holds-units': (count: number) => $LL.contracts.selection.refusedHoldsUnits({ count }),
-		'holds-payments': (count: number) => $LL.contracts.selection.refusedHoldsPayments({ count }),
-		missing: (count: number) => $LL.contracts.selection.refusedMissing({ count })
-	} satisfies Record<ContractRefusalReason, (count: number) => string>);
-
-	function describeReason(reason: string, count: number) {
-		// the shared confirmation is deliberately ignorant of any concept's reasons, so it hands
-		// this one back as a plain string. The map above is what keeps the lookup total.
-		const label = refusalLabels[reason as ContractRefusalReason];
-
-		return label ? label(count) : $LL.contracts.selection.refusedMissing({ count });
-	}
+	// reader is shown under somebody else's words. The lookup around it is `describeRefusals`.
+	const describeReason = $derived(
+		describeRefusals({
+			'not-terminable': (count: number) => $LL.contracts.selection.refusedNotTerminable({ count }),
+			'not-restorable': (count: number) => $LL.contracts.selection.refusedNotRestorable({ count }),
+			'holds-units': (count: number) => $LL.contracts.selection.refusedHoldsUnits({ count }),
+			'holds-payments': (count: number) => $LL.contracts.selection.refusedHoldsPayments({ count }),
+			missing: (count: number) => $LL.contracts.selection.refusedMissing({ count })
+		} satisfies Record<ContractRefusalReason, (count: number) => string>)
+	);
 
 	/**
 	 * Carry out one action over one set, and say what it turned away.

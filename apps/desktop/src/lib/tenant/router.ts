@@ -4,6 +4,7 @@ import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
 import { matchesAnySearch } from '$lib/platform/database/search';
 import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import { TenantSchema, type Contract } from '$lib/platform/database/schema';
+import { planSelection } from '$lib/api/selection';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import { CONTRACT_IN_FORCE_STATUSES } from '$lib/contract/contract';
 import {
@@ -13,7 +14,6 @@ import {
 	ensureTenantDeletable,
 	ensureTenantStillExists,
 	whatRefusesTenantDeletion,
-	type TenantRefusalReason,
 	type TenantSortColumnId
 } from '$lib/tenant/tenant';
 import { TRPCError } from '@trpc/server';
@@ -71,11 +71,6 @@ const TENANT_SORT_COLUMNS: Record<TenantSortColumnId, SQL | AnyColumn> = {
 	activeContractCount: inForceContracts
 };
 
-type DbTenant = typeof s.tenant.$inferSelect;
-
-/** A tenant that would be turned away, named the way a reader knows one. */
-type TenantRefusal = { id: string; name: string; reason: TenantRefusalReason };
-
 /**
  * What deleting a whole selection would do, from one read of the workspace.
  *
@@ -85,13 +80,13 @@ type TenantRefusal = { id: string; name: string; reason: TenantRefusalReason };
  * may write between the two, and that is why the mutation runs this again instead of trusting
  * what the reader was shown.
  *
- * One read per table for the whole selection, never one per record.
+ * One read per table for the whole selection, never one per record. Everything after the two
+ * reads is `planSelection`'s, which is where the complex's and the unit's plans go too.
  */
 async function planTenantSelection(db: Database, ids: readonly string[]) {
 	const named = [...new Set(ids)];
 
-	const existing = await db.select().from(s.tenant).where(inArray(s.tenant.id, named));
-	const tenantsById = new Map(existing.map((tenant) => [tenant.id, tenant]));
+	const records = await db.select().from(s.tenant).where(inArray(s.tenant.id, named));
 
 	// the tenant each contract names and nothing else: the rule asks whether any contract mentions
 	// the tenant, so a directory of five hundred selected tenants never carries their contracts.
@@ -99,39 +94,15 @@ async function planTenantSelection(db: Database, ids: readonly string[]) {
 		.select({ tenantId: s.contract.tenantId })
 		.from(s.contract)
 		.where(inArray(s.contract.tenantId, named));
-	const contractsByTenantId = new Map<string, { tenantId: string }[]>();
 
-	for (const contract of held) {
-		const holding = contractsByTenantId.get(contract.tenantId) ?? [];
-
-		holding.push(contract);
-		contractsByTenantId.set(contract.tenantId, holding);
-	}
-
-	const eligible: DbTenant[] = [];
-	const refused: TenantRefusal[] = [];
-
-	// walked in the order the reader named them, so what the confirmation lists reads the way the
-	// selection does rather than the way the engine happened to answer.
-	for (const id of named) {
-		const tenant = tenantsById.get(id);
-
-		if (!tenant) {
-			refused.push({ id, name: '', reason: 'missing' });
-
-			continue;
-		}
-
-		const reason = whatRefusesTenantDeletion(contractsByTenantId.get(id) ?? []);
-
-		if (reason) {
-			refused.push({ id, name: tenant.name, reason });
-		} else {
-			eligible.push(tenant);
-		}
-	}
-
-	return { eligible, refused };
+	return planSelection({
+		ids: named,
+		records,
+		dependants: held,
+		ownerOf: (contract) => contract.tenantId,
+		nameOf: (tenant) => tenant.name,
+		whatRefuses: whatRefusesTenantDeletion
+	});
 }
 
 const TenantSortSchema = z.object({
