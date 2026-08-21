@@ -9,12 +9,12 @@
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import {
 		RANK_FILTER,
-		RANK_FILTER_ID,
 		readContractRank,
-		toChosenRank
+		toChosenRank,
+		toRankArrivalSelection
 	} from '$lib/contract/rank-filter';
 	import { useListContracts } from '$lib/contract/query';
-	import { toChosenLabel, withFilter, type FilterSelection } from '$lib/design/filter';
+	import { toChosenLabel, type FilterSelection } from '$lib/design/filter';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { toNarrowedName } from '$lib/design/csv';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
@@ -32,7 +32,12 @@
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
-	let filters = $state<FilterSelection>({});
+	// a rank arrives in the URL from a surface that ranked a contract and sent the reader here for
+	// the rest of that rank (ADR 0031). It is what the list opens narrowed to, read once here
+	// rather than applied from an effect: an effect that merged a rank into the selection would be
+	// reading the state it writes, and one that does never settles (#684). Afterwards the
+	// narrowing is the reader's, to change or clear from the control, and it stays changed.
+	let filters = $state<FilterSelection>(toRankArrivalSelection(page.url));
 	let selected = $state<string[]>([]);
 	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
 
@@ -70,18 +75,15 @@
 	const clearCreateIntent = () =>
 		void goto(resolve('/contracts'), { replaceState: true, noScroll: true, keepFocus: true });
 
-	// a rank arrives in the URL from a surface that ranked a contract and sent the reader here
-	// for the rest of that rank (ADR 0031). It is applied and cleared from the URL on arrival,
-	// exactly as the create intent is: the narrowing is the reader's to change from the control
-	// afterwards, and a reload should not put back one they have since cleared.
+	// the rank the list opened on is then cleared from the URL, so a reload does not put back a
+	// narrowing the reader has since cleared — the create intent above is consumed and cleared the
+	// same way. This effect reads the URL and writes the URL and touches the selection not at all,
+	// which is what ends it: the clear lands, the next pass reads no rank, and it returns.
 	$effect(() => {
-		const requested = readContractRank(page.url);
-
-		if (!requested) {
+		if (!readContractRank(page.url)) {
 			return;
 		}
 
-		filters = withFilter(filters, RANK_FILTER_ID, requested);
 		void goto(resolve('/contracts'), { replaceState: true, noScroll: true, keepFocus: true });
 	});
 </script>
