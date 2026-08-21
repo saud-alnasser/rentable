@@ -10,10 +10,11 @@ import {
 	CLIENT_OUT_OF_DATE,
 	NO_SUCH_WORKSPACE,
 	NOT_A_MEMBER,
+	NOT_PERMITTED,
 	Refusal,
 	SERVICE_OUT_OF_DATE
 } from '../../failure.ts';
-import { ADMINISTRATION_BY_ROLE, permits } from '../permission.ts';
+import { ADMINISTRATION_BY_ROLE, maskOf, permits } from '../permission.ts';
 import { membership, workspace } from '../../database/schema.ts';
 import { freshDatabase, SOMEBODY, tursoInMemory, workspaceDatabases } from '../../tests/testing.ts';
 import {
@@ -26,7 +27,9 @@ import {
 	createWorkspace,
 	databaseNameFor,
 	mintWorkspaceToken,
-	TOKEN_LIFETIME
+	renameWorkspace,
+	TOKEN_LIFETIME,
+	workspaceForAccount
 } from '../workspace.ts';
 
 const AT = Date.UTC(2026, 7, 18, 12, 0, 0);
@@ -646,6 +649,264 @@ test('a migration that fails part-way records the version it reached', async () 
 		assert.equal(record?.schemaVersion, 3, 'the record does not say where the database got to');
 	} finally {
 		await hosted.close();
+		await close();
+	}
+});
+
+/**
+ * RENAMING A WORKSPACE
+ *
+ * The first write this control plane has ever accepted against a workspace row, and the first
+ * thing in production ever to consult a permission flag. `permits` and the column behind it have
+ * existed since permissions did, and until this route nothing but their own test had called
+ * either, so the test is doing more work here than the route is.
+ */
+
+const AN_ADMINISTRATOR = {
+	...SOMEBODY,
+	subject: 'google-subject-3',
+	email: 'huda@example.com',
+	displayName: 'Huda Ali'
+};
+
+const A_NAME_IN_ARABIC = 'دار السلام';
+
+/** somebody in the workspace, at whatever the workspace is willing to let them do. */
+const aMemberWith = async (
+	db: Database,
+	workspaceId: string,
+	who: typeof SOMEBODY,
+	permissions: number
+) => {
+	const account = await signInWithGoogle(db, who, AT);
+
+	await db.insert(membership).values({
+		workspaceId,
+		accountId: account.id,
+		role: permissions === ADMINISTRATION_BY_ROLE.member ? 'member' : 'administrator',
+		permissions,
+		createdAt: new Date(AT),
+		updatedAt: new Date(AT)
+	});
+
+	return account;
+};
+
+test('a member the workspace permits to rename it renames it', async () => {
+	const { db, close } = await freshDatabase();
+	const turso = tursoInMemory();
+
+	try {
+		const { owner, workspace: made } = await aWorkspaceOwnedBySomebody(db, turso);
+
+		const renamed = await renameWorkspace(db, {
+			workspaceId: made.id,
+			accountId: owner.id,
+			name: A_NAME_IN_ARABIC,
+			now: AT + 1
+		});
+
+		assert.equal(renamed.name, A_NAME_IN_ARABIC);
+		assert.equal(renamed.updatedAt.getTime(), AT + 1);
+
+		const [stored] = await db.select().from(workspace).where(eq(workspace.id, made.id));
+
+		assert.equal(stored.name, A_NAME_IN_ARABIC, 'the answer and the row disagree');
+	} finally {
+		await close();
+	}
+});
+
+// The flag is what decides, not the role and not the ownership. An administrator carries it by
+// default and is the case that would pass under either reading; the member below is the one that
+// separates them.
+test('an administrator carries the flag by default and renames it too', async () => {
+	const { db, close } = await freshDatabase();
+	const turso = tursoInMemory();
+
+	try {
+		const { workspace: made } = await aWorkspaceOwnedBySomebody(db, turso);
+		const administrator = await aMemberWith(
+			db,
+			made.id,
+			AN_ADMINISTRATOR,
+			ADMINISTRATION_BY_ROLE.administrator
+		);
+
+		assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'renameWorkspace'), true);
+
+		const renamed = await renameWorkspace(db, {
+			workspaceId: made.id,
+			accountId: administrator.id,
+			name: 'renamed by an administrator',
+			now: AT + 1
+		});
+
+		assert.equal(renamed.name, 'renamed by an administrator');
+	} finally {
+		await close();
+	}
+});
+
+test('a member without the flag is refused, and the workspace keeps its name', async () => {
+	const { db, close } = await freshDatabase();
+	const turso = tursoInMemory();
+
+	try {
+		const { workspace: made } = await aWorkspaceOwnedBySomebody(db, turso);
+		const other = await aMemberWith(db, made.id, SOMEBODY_ELSE, ADMINISTRATION_BY_ROLE.member);
+
+		assert.equal(permits(ADMINISTRATION_BY_ROLE.member, 'renameWorkspace'), false);
+
+		const refused = await refusalFrom(() =>
+			renameWorkspace(db, {
+				workspaceId: made.id,
+				accountId: other.id,
+				name: 'not theirs to change',
+				now: AT + 1
+			})
+		);
+
+		// The permission, named. Not `not_a_member`, which would tell a client to give up a replica
+		// it is entitled to keep, and not a bare 403, which tells it nothing at all.
+		assert.equal(refused.code, NOT_PERMITTED);
+		assert.equal(refused.status, 403);
+
+		const [stored] = await db.select().from(workspace).where(eq(workspace.id, made.id));
+
+		assert.equal(stored.name, 'Riyadh');
+	} finally {
+		await close();
+	}
+});
+
+// And the flag alone decides it: the same account, one bit apart.
+test('granting the flag to a member is the whole of what changes the answer', async () => {
+	const { db, close } = await freshDatabase();
+	const turso = tursoInMemory();
+
+	try {
+		const { workspace: made } = await aWorkspaceOwnedBySomebody(db, turso);
+		const other = await aMemberWith(db, made.id, SOMEBODY_ELSE, ADMINISTRATION_BY_ROLE.member);
+
+		await db
+			.update(membership)
+			.set({ permissions: maskOf('renameWorkspace') })
+			.where(and(eq(membership.workspaceId, made.id), eq(membership.accountId, other.id)));
+
+		const renamed = await renameWorkspace(db, {
+			workspaceId: made.id,
+			accountId: other.id,
+			name: 'now theirs to change',
+			now: AT + 1
+		});
+
+		assert.equal(renamed.name, 'now theirs to change');
+	} finally {
+		await close();
+	}
+});
+
+// The same shape the mint refuses with, and for the same reason: a workspace this account holds no
+// row for is not one it may be told anything about, including that it exists.
+test('an account with no membership at all is refused the way the mint refuses one', async () => {
+	const { db, close } = await freshDatabase();
+	const turso = tursoInMemory();
+
+	try {
+		const { workspace: made } = await aWorkspaceOwnedBySomebody(db, turso);
+		const stranger = await signInWithGoogle(db, SOMEBODY_ELSE, AT);
+
+		const refused = await refusalFrom(() =>
+			renameWorkspace(db, {
+				workspaceId: made.id,
+				accountId: stranger.id,
+				name: 'not theirs at all',
+				now: AT + 1
+			})
+		);
+
+		assert.equal(refused.code, NOT_A_MEMBER);
+		assert.equal(refused.status, 403);
+	} finally {
+		await close();
+	}
+});
+
+test('a workspace that is not there is refused before membership is consulted', async () => {
+	const { db, close } = await freshDatabase();
+	const turso = tursoInMemory();
+
+	try {
+		const { owner } = await aWorkspaceOwnedBySomebody(db, turso);
+
+		const refused = await refusalFrom(() =>
+			renameWorkspace(db, {
+				workspaceId: 'a-workspace-that-does-not-exist',
+				accountId: owner.id,
+				name: 'nothing to rename',
+				now: AT + 1
+			})
+		);
+
+		assert.equal(refused.code, NO_SUCH_WORKSPACE);
+		assert.equal(refused.status, 404);
+	} finally {
+		await close();
+	}
+});
+
+// The surrounding space is not part of what anybody named it, and two names differing only by it
+// are two names nobody can tell apart.
+test('a name is stored trimmed', async () => {
+	const { db, close } = await freshDatabase();
+	const turso = tursoInMemory();
+
+	try {
+		const { owner, workspace: made } = await aWorkspaceOwnedBySomebody(db, turso);
+
+		const renamed = await renameWorkspace(db, {
+			workspaceId: made.id,
+			accountId: owner.id,
+			name: '  Jeddah  ',
+			now: AT + 1
+		});
+
+		assert.equal(renamed.name, 'Jeddah');
+	} finally {
+		await close();
+	}
+});
+
+/**
+ * **A rename survives the next sign-in**, which is the regression `workspaceForAccount` would
+ * cause if the name were re-derived anywhere. It answers with the existing workspace unchanged and
+ * provisions only where there is none, so the display name it is handed is the name a workspace is
+ * *created* with and never one it is corrected to.
+ */
+test('a rename survives the next sign-in rather than being re-derived from the account', async () => {
+	const { db, close } = await freshDatabase();
+	const turso = tursoInMemory();
+
+	try {
+		const { owner, workspace: made } = await aWorkspaceOwnedBySomebody(db, turso);
+
+		await renameWorkspace(db, {
+			workspaceId: made.id,
+			accountId: owner.id,
+			name: A_NAME_IN_ARABIC,
+			now: AT + 1
+		});
+
+		const again = await workspaceForAccount(db, turso.platform, {
+			accountId: owner.id,
+			name: SOMEBODY.displayName,
+			now: AT + 2
+		});
+
+		assert.equal(again.id, made.id);
+		assert.equal(again.name, A_NAME_IN_ARABIC, 'signing in renamed the workspace back');
+	} finally {
 		await close();
 	}
 });

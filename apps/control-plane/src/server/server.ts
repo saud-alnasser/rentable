@@ -15,7 +15,12 @@ import type { VerifyGoogleIdentity } from '../account/google.ts';
 import type { Account, Workspace } from '../database/schema.ts';
 import type { ConnectToWorkspaceDatabase } from '../workspace/migration.ts';
 import type { TursoPlatform } from '../workspace/turso.ts';
-import { mintWorkspaceToken, workspaceForAccount } from '../workspace/workspace.ts';
+import {
+	mintWorkspaceToken,
+	renameWorkspace,
+	WORKSPACE_NAME_LIMIT,
+	workspaceForAccount
+} from '../workspace/workspace.ts';
 
 /**
  * The control plane's HTTP surface.
@@ -282,6 +287,67 @@ const mint = async (
 	json(response, 200, { ...minted, session: wireSession(session) });
 };
 
+/**
+ * What to call the workspace, off the request.
+ *
+ * **Three refusals rather than one, because the caller can act on the difference.** Sending no
+ * name at all is a defect in the client; sending one with nothing in it is a person who pressed
+ * save on an empty box; sending one too long is a person whose name will not fit. Only the last
+ * two are worth showing anybody, and a single *that name is not valid* would leave the desktop
+ * inventing which of the three it was.
+ *
+ * Empty and whitespace-only are deliberately one answer: after trimming they are the same name,
+ * and telling somebody their four spaces were not four spaces says nothing they can use.
+ */
+const workspaceNameIn = (body: Record<string, unknown>): string => {
+	const name = body.name;
+
+	if (typeof name !== 'string') {
+		throw new Refusal(MALFORMED, 400, 'say what this workspace should be called');
+	}
+
+	if (name.trim() === '') {
+		throw new Refusal(MALFORMED, 400, 'a workspace needs a name');
+	}
+
+	if (name.trim().length > WORKSPACE_NAME_LIMIT) {
+		throw new Refusal(
+			MALFORMED,
+			400,
+			`that name is too long. keep it under ${WORKSPACE_NAME_LIMIT} characters`
+		);
+	}
+
+	return name;
+};
+
+/**
+ * Rename a workspace.
+ *
+ * **The answer carries the whole workspace rather than the name that was sent**, which is what
+ * makes it the same shape as the identifying routes: what a client shows is what this control
+ * plane holds, and the name it stored is trimmed, so echoing the request back would be the one
+ * case where the two differ.
+ */
+const rename = async (
+	plane: ControlPlane,
+	request: IncomingMessage,
+	response: ServerResponse,
+	workspaceId: string
+) => {
+	const { account, session } = await asking(plane, request);
+	const name = workspaceNameIn(await readJsonBody(request));
+
+	const renamed = await renameWorkspace(plane.db, {
+		workspaceId,
+		accountId: account.id,
+		name,
+		now: (plane.now ?? Date.now)()
+	});
+
+	json(response, 200, { workspace: wireWorkspace(renamed), session: wireSession(session) });
+};
+
 const health = async (plane: ControlPlane, response: ServerResponse) => {
 	try {
 		// The query is the point of the route: a process that answers without having reached its
@@ -325,6 +391,15 @@ export const controlPlaneServer = (plane: ControlPlane): Server =>
 
 			if (request.method === 'POST' && minting?.[1]) {
 				return mint(plane, request, response, minting[1]);
+			}
+
+			// Undecoded for the same reason the mint's path is, and a sibling of it rather than a
+			// `PATCH /workspace/:id`: this surface names the act in the path and takes it as a POST,
+			// and one route spelled the other way would be two conventions for one client.
+			const renaming = /^\/workspace\/([^/]+)\/name$/.exec(request.url ?? '');
+
+			if (request.method === 'POST' && renaming?.[1]) {
+				return rename(plane, request, response, renaming[1]);
 			}
 
 			json(response, 404, { error: { code: 'no_such_route', message: 'there is nothing here' } });
