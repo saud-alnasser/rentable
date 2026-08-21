@@ -455,8 +455,6 @@ const ar = {
 		transferImportTitle: 'استيراد مساحة عمل',
 		transferImportSuccess: 'تم استيراد الملف',
 
-		releaseAvailable: 'يتوفر تحديث v{version}.',
-
 		restartNotice:
 			'تم تثبيت التحديث. قد يتم إغلاق التطبيق تلقائياً أثناء التثبيت، أو أعد تشغيله لإكمال التحديث.',
 

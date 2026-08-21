@@ -1,7 +1,7 @@
 <script lang="ts">
 	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import LayoutSurfaceAction from '$lib/layout/component/surface-action.svelte';
+	import SurfaceAction from '$lib/design/block/surface-action.svelte';
 	import { tauri, type Recovery } from '$lib/platform/tauri';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
@@ -48,7 +48,7 @@
 >
 	{#snippet corner()}
 		{#if previousReleaseUrl}
-			<LayoutSurfaceAction
+			<SurfaceAction
 				label={$LL.common.actions.openPreviousRelease()}
 				icon={ExternalLinkIcon}
 				onclick={() => void tauri.opener.openUrl(previousReleaseUrl)}
@@ -56,7 +56,7 @@
 		{/if}
 
 		<!-- the glyph turns under the pointer, which previews what pressing it does. -->
-		<LayoutSurfaceAction
+		<SurfaceAction
 			label={$LL.common.actions.retryStartup()}
 			icon={RefreshCwIcon}
 			emphasis="primary"

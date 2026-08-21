@@ -1,7 +1,7 @@
 <script lang="ts">
 	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import LayoutSurfaceAction from '$lib/layout/component/surface-action.svelte';
+	import SurfaceAction from '$lib/design/block/surface-action.svelte';
 	import { revealDiagnostics } from '$lib/platform/diagnostics';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -65,14 +65,14 @@
 	{#snippet corner()}
 		<!-- what a person needs next when starting again has not worked, and where the reported
 		     error went now that the body is one sentence. -->
-		<LayoutSurfaceAction
+		<SurfaceAction
 			label={$LL.settings.diagnosticsReveal()}
 			icon={FolderOpenIcon}
 			onclick={() => void reveal()}
 		/>
 
 		<!-- the glyph turns under the pointer, which previews what pressing it does. -->
-		<LayoutSurfaceAction
+		<SurfaceAction
 			label={$LL.common.actions.retryStartup()}
 			icon={RefreshCwIcon}
 			emphasis="primary"
