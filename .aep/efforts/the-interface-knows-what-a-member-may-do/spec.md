@@ -426,16 +426,26 @@ fallthrough is the defect:
 
 | When | Badge says | Tone |
 | --- | --- | --- |
-| `!controlPlaneReady` | this build syncs nowhere | `secondary` |
-| `workspace.lastError`, `account.lastError`, or `account.status === 'needsReconnect'` | needs reconnect | `error` |
-| `!googleSignInReady` | cannot sign in | `warning` |
-| no account, or `session === null` | not signed in | `secondary` |
+| `!controlPlaneReady` | syncs nowhere | `secondary` |
+| `workspace.lastError`, the account's `lastError`, or the only account row is `needsReconnect` | needs reconnect | `error` |
+| `!googleSignInReady` | cannot sign in | `secondary` |
+| no signed-in account, or `session === null` | not signed in | `secondary` |
 | `account.status === 'pending'` | awaiting authorization | `secondary` |
 | otherwise | synced | `default` |
 
 **The first two rows are why this is ordered rather than a set of independent checks.** A build with
 no control plane and a workspace carrying a stale `lastError` should say the first: there is nothing
 to reconnect to. The code today reaches neither row and answers *synced*.
+
+*Two corrections, both made while building #711 and both the repository's rather than this file's.*
+**`cannotSignIn` was `warning` here and is `secondary`**: the tone vocabulary has `warning` and the
+`Badge` primitive does not, and adding a variant to a shared primitive is a change to
+`design/primitive/` that belongs to whoever needs it. **And the `needsReconnect` row named
+`account.status`, which cannot be read that way**: `signedInAccount` skips a row whose status is
+`needsReconnect`, so asking the signed-in account about that status always answers `undefined`. The
+row has to be found on `accounts`. The section this replaces had the same shape and so reached
+`needsReconnect` only from a `lastError`, which is a second defect in it that criterion 9b did not
+know to ask for.
 
 **`apps/desktop/src/lib/i18n/{en,ar}/index.ts`.** The eight `settings.sync*` keys and
 `settings.transferDescription` move under `workspace.*`, and the ladder's four new labels are added.

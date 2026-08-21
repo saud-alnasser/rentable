@@ -89,7 +89,7 @@
 		<!-- no title of its own: the group above is already named for what this row does, and a row
 		     title repeating its own section is the label the section had already given it. Both read
 		     "move this workspace" until 2026-08-21, one directly above the other. -->
-		<Field.Description>{$LL.settings.transferDescription()}</Field.Description>
+		<Field.Description>{$LL.workspace.transferDescription()}</Field.Description>
 	</Field.Content>
 
 	<!-- two controls rather than a menu: this is not a list's toolbar with four icons competing
