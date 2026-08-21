@@ -12,8 +12,10 @@ export default router({
 	settings,
 	remoteSync,
 	// **`public`, both of them.** Updating is this installation's business rather than an
-	// account's: the settings page offers it, that page is reachable signed out, and neither call
-	// touches the workspace.
+	// account's: the settings page offers it, neither call touches the workspace, and which
+	// addresses draw with nobody signed in is `layout/shell-surface.ts`'s answer rather than a
+	// claim made here. It read as one until 2026-08-21, and was wrong the whole time it did:
+	// these two landed public and the route gate that would have made the sentence true did not.
 	update: {
 		prepare: procedure.public
 			.input(
