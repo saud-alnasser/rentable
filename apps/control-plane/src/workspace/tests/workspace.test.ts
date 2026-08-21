@@ -706,8 +706,11 @@ test('a member the workspace permits to rename it renames it', async () => {
 			now: AT + 1
 		});
 
-		assert.equal(renamed.name, A_NAME_IN_ARABIC);
-		assert.equal(renamed.updatedAt.getTime(), AT + 1);
+		assert.equal(renamed.workspace.name, A_NAME_IN_ARABIC);
+		assert.equal(renamed.workspace.updatedAt.getTime(), AT + 1);
+
+		// The owner's own row, which is the one this rename was authorized against.
+		assert.equal(renamed.permissions, ADMINISTRATION_BY_ROLE.owner);
 
 		const [stored] = await db.select().from(workspace).where(eq(workspace.id, made.id));
 
@@ -764,7 +767,12 @@ test('an administrator is refused by default, and the granted flag is the whole 
 			now: AT + 1
 		});
 
-		assert.equal(renamed.name, 'renamed by an administrator');
+		assert.equal(renamed.workspace.name, 'renamed by an administrator');
+		assert.equal(
+			renamed.permissions,
+			ADMINISTRATION_BY_ROLE.administrator + maskOf('renameWorkspace'),
+			'the answer carried a set the granted row does not have'
+		);
 	} finally {
 		await close();
 	}
@@ -823,7 +831,14 @@ test('granting the flag to a member is the whole of what changes the answer', as
 			now: AT + 1
 		});
 
-		assert.equal(renamed.name, 'now theirs to change');
+		assert.equal(renamed.workspace.name, 'now theirs to change');
+
+		// **The asking account's row and not the owner's**, which is the whole of what this
+		// assertion is for: the owner of this workspace holds every flag and this member holds one,
+		// so a rename that answered with somebody else's permissions would answer with a bigger
+		// number than the one the row it was authorized against carries.
+		assert.equal(renamed.permissions, maskOf('renameWorkspace'));
+		assert.notEqual(renamed.permissions, ADMINISTRATION_BY_ROLE.owner);
 	} finally {
 		await close();
 	}
@@ -894,7 +909,7 @@ test('a name is stored trimmed', async () => {
 			now: AT + 1
 		});
 
-		assert.equal(renamed.name, 'Jeddah');
+		assert.equal(renamed.workspace.name, 'Jeddah');
 	} finally {
 		await close();
 	}

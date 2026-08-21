@@ -467,7 +467,7 @@ sites already hold the account that is asking.
 - **`identify`** (`POST /account/sign-in` and `POST /session/refresh`, one handler) calls
   `membershipOf(plane.db, workspace.id, account.id)` after `workspaceForAccount`. That function is
   already extracted and already reads exactly this row.
-- **`rename`** (`PATCH /workspace/:id/name`) already has the read, inside
+- **`rename`** (`POST /workspace/:id/name`) already has the read, inside
   `workspaceThisAccountMay`, which returns the `Workspace` and throws away the `Membership` it read
   to get there. It returns both instead, so the rename's answer carries the permissions without a
   second query.

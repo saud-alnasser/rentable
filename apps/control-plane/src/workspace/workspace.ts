@@ -57,6 +57,16 @@ export const databaseNameFor = (workspaceId: string) => `ws-${workspaceId}`;
 export type CreatedWorkspace = { workspace: Workspace };
 
 /**
+ * A workspace, and what the account that asked for it may do in it.
+ *
+ * **The number is one account's and the type says so by having one of them.** It is the asking
+ * account's own membership row read through {@link membershipOf}, never a listing and never
+ * somebody else's: a shape carrying a set of them would be the first step toward a members route,
+ * which this control plane does not have.
+ */
+export type PermittedWorkspace = { workspace: Workspace; permissions: number };
+
+/**
  * The workspace this account owns, or nothing.
  *
  * `limit(1)` where the column is unique is belt and braces, and it is the cheap kind: the index is
@@ -218,6 +228,11 @@ export const membershipOf = async (
  * Three refusals in the order a caller can act on them: a workspace that is not there, one this
  * account does not belong to, and one it belongs to without the permission being asked for.
  *
+ * **It hands back what it read rather than only what it decided.** The membership row is already
+ * in hand here, and the route that answers a client wants the number on it — so returning the
+ * workspace alone would have that route read the same row a second time to say what this one
+ * already found.
+ *
  * **The permission is consulted rather than the ownership.** `renameWorkspace` has been a flag on
  * the membership row since the control plane had permissions, granted by default to owner and to
  * administrator, and this is the first thing ever to read it. Asking whether the account owns the
@@ -231,7 +246,7 @@ const workspaceThisAccountMay = async (
 		accountId,
 		administration
 	}: { workspaceId: string; accountId: string; administration: Administration }
-): Promise<Workspace> => {
+): Promise<PermittedWorkspace> => {
 	const [record] = await db.select().from(workspace).where(eq(workspace.id, workspaceId)).limit(1);
 
 	if (!record) {
@@ -248,7 +263,7 @@ const workspaceThisAccountMay = async (
 		throw new Refusal(NOT_PERMITTED, 403, 'your role in this workspace does not allow that');
 	}
 
-	return record;
+	return { workspace: record, permissions: belongs.permissions };
 };
 
 /**
@@ -271,6 +286,10 @@ export const WORKSPACE_NAME_LIMIT = 120;
  *
  * The name is stored trimmed, because the surrounding space is not part of what anybody named it
  * and a name that differs from another only by it is a name two people cannot tell apart.
+ *
+ * **The permissions come back with it, from the row the authorization already read.** They are the
+ * asking account's own, which is the row this function had to look at anyway to find out whether
+ * the rename was allowed at all.
  */
 export const renameWorkspace = async (
 	db: Database,
@@ -280,8 +299,8 @@ export const renameWorkspace = async (
 		name,
 		now
 	}: { workspaceId: string; accountId: string; name: string; now: number }
-): Promise<Workspace> => {
-	await workspaceThisAccountMay(db, {
+): Promise<PermittedWorkspace> => {
+	const { permissions } = await workspaceThisAccountMay(db, {
 		workspaceId,
 		accountId,
 		administration: 'renameWorkspace'
@@ -293,7 +312,7 @@ export const renameWorkspace = async (
 		.where(eq(workspace.id, workspaceId))
 		.returning();
 
-	return renamed;
+	return { workspace: renamed, permissions };
 };
 
 export type MintedToken = {
