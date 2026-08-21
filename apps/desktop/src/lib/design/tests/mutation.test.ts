@@ -19,7 +19,7 @@ type UndoOfferOptions = { action: UndoOfferAction; duration: number };
 
 /** one announcement the substituted toast was asked to render. */
 type Announcement = {
-	level: 'success' | 'error';
+	level: 'success' | 'error' | 'warning';
 	message: string;
 	options?: UndoOfferOptions;
 };
@@ -40,6 +40,7 @@ mock.module('svelte-sonner', {
 				return raised.length;
 			},
 			error: (message: string) => raised.push({ level: 'error', message }),
+			warning: (message: string) => raised.push({ level: 'warning', message }),
 			dismiss: (id: string | number) => dismissed.push(id)
 		}
 	}
@@ -67,7 +68,8 @@ mock.module('@tanstack/svelte-query', {
 	}
 });
 
-const { applyRedo, applyUndo, declareMutation } = await import('$lib/design/mutation');
+const { applyRedo, applyUndo, declareMutation, describeOutcomeChange } =
+	await import('$lib/design/mutation');
 const { workspacePrefixes } = await import('$lib/design/query');
 const { inverseStack } = await import('$lib/design/inverse');
 // reached through the library's own accessor, so the client arrives typed as the one the
@@ -416,5 +418,118 @@ describe('the offer to take a change back', () => {
 		await applyRedo(client);
 
 		assert.deepEqual(raised, []);
+	});
+});
+
+describe('what a mutation could not do', () => {
+	/** a refusal in the shape every planned list answers with. */
+	type Refusal = { id: string; name: string };
+
+	/** a selection acted on, as the reader asked for it and as it turned out. */
+	function planned(refused: Refusal[]) {
+		return {
+			mutate: async (call: { ids: string[]; foreseen: readonly string[] }) => ({
+				ids: call.ids,
+				refused
+			}),
+			touches: ['tenants' as const],
+			notice: ({
+				variables,
+				result
+			}: {
+				variables: { ids: string[]; foreseen: readonly string[] };
+				result: { ids: string[]; refused: Refusal[] };
+			}) => describeOutcomeChange(variables.foreseen, result.refused, (refusal) => refusal.name)
+		};
+	}
+
+	it('is announced when the workspace turned away more than the plan showed', async () => {
+		const declaration = planned([{ id: 'b', name: 'Basim' }]);
+		const { mutation } = bind(declaration);
+		const variables = { ids: ['a', 'b'], foreseen: [] as readonly string[] };
+
+		await mutation.onSuccess(await mutation.mutationFn(variables), variables, undefined);
+
+		// a warning rather than a success: the mutation did not fail, and part of what was asked
+		// for was no longer possible by the time it ran.
+		assert.deepEqual(raised.filter((announcement) => announcement.level === 'warning').length, 1);
+		assert.match(raised[raised.length - 1].message, /Basim/);
+	});
+
+	it('and says nothing when the outcome matched the plan', async () => {
+		// the reader was already shown that this one would be turned away, so saying it again
+		// reports the confirmation back to the person who read it.
+		const declaration = planned([{ id: 'b', name: 'Basim' }]);
+		const { mutation } = bind(declaration);
+		const variables = { ids: ['a', 'b'], foreseen: ['b'] as readonly string[] };
+
+		await mutation.onSuccess(await mutation.mutationFn(variables), variables, undefined);
+
+		assert.deepEqual(raised, []);
+	});
+
+	it('and a declaration that reads nothing raises nothing', async () => {
+		const { mutation } = bind({
+			mutate: async () => undefined,
+			touches: ['tenants' as const]
+		});
+
+		await mutation.onSuccess(undefined, undefined, undefined);
+
+		assert.deepEqual(raised, []);
+	});
+
+	it('names only the records the confirmation did not account for', () => {
+		const message = describeOutcomeChange(
+			['shown'],
+			[
+				{ id: 'shown', name: 'Already said' },
+				{ id: 'first', name: 'Abraj' },
+				{ id: 'second', name: 'Burj' }
+			],
+			(refusal) => refusal.name
+		);
+
+		assert.ok(message);
+		assert.match(message, /Abraj, Burj/);
+		assert.doesNotMatch(message, /Already said/);
+	});
+
+	it('lands after what the action did, not before it', async () => {
+		// two announcements about one act, and the reader reads what happened before what did not.
+		const { mutation } = bind({
+			mutate: async (call: { ids: string[]; foreseen: readonly string[] }) => ({
+				done: call.ids.length,
+				refused: [{ id: 'gone', name: 'Basim' }]
+			}),
+			touches: ['tenants' as const],
+			toast: { success: () => 'one tenant deleted' },
+			notice: ({
+				variables,
+				result
+			}: {
+				variables: { ids: string[]; foreseen: readonly string[] };
+				result: { done: number; refused: Refusal[] };
+			}) => describeOutcomeChange(variables.foreseen, result.refused, (refusal) => refusal.name)
+		});
+		const variables = { ids: ['kept', 'gone'], foreseen: [] as readonly string[] };
+
+		await mutation.onSuccess(await mutation.mutationFn(variables), variables, undefined);
+
+		assert.deepEqual(
+			raised.map((announcement) => announcement.level),
+			['success', 'warning']
+		);
+	});
+
+	it('and answers with nothing where every refusal was foreseen', () => {
+		assert.equal(
+			describeOutcomeChange(['a', 'b'], [{ id: 'a', name: 'A' }], (refusal) => refusal.name),
+			undefined
+		);
+		assert.equal(
+			describeOutcomeChange([], [], (refusal: Refusal) => refusal.name),
+			undefined
+		);
 	});
 });

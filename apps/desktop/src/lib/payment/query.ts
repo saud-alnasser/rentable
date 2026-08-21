@@ -1,11 +1,12 @@
 import api from '$lib/api/caller';
 import type { FilterPeriod } from '$lib/api/period';
-import { declareMutation } from '$lib/design/mutation';
+import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
+import type { SelectionCall } from '$lib/design/selection';
 import type { HistoryEntry } from '$lib/history/history';
 import { workspacePrefixes } from '$lib/design/query';
 import { LL, locale } from '$lib/i18n/i18n-svelte';
 import { isRecordId } from '$lib/platform/database/identity';
-import { formatLocaleNumber } from '$lib/platform/locale';
+import { formatLocaleMoney, formatLocaleNumber } from '$lib/platform/locale';
 import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
@@ -201,7 +202,7 @@ export const useUpdatePayment = declareMutation({
  * putting it back as itself, by the identity it had (ADR 0026).
  */
 export const useDeleteManyPayments = declareMutation({
-	mutate: (ids: string[]) => api.contract.payments.deleteMany({ ids }),
+	mutate: ({ ids }: SelectionCall) => api.contract.payments.deleteMany({ ids }),
 	touches: ['payments', 'contracts', 'units'],
 	inverse: ({ result }) =>
 		// nothing changed, so there is nothing to offer taking back. An undo entry for a no-op is a
@@ -221,6 +222,15 @@ export const useDeleteManyPayments = declareMutation({
 	// are gone, and an account that could only name what still exists could not report a deletion.
 	records: ({ result }) =>
 		result.deleted.map((payment) => toPaymentHistoryEntry(payment, 'deleted')),
+	// what it turned away that the confirmation did not show, which is the workspace having
+	// moved while the reader was deciding. A payment has no name, so the amount stands in, and it
+	// is rendered the way the ledger and its confirmation render one: a figure written as money in
+	// the dialog and as a bare number in the notice a second later is two answers to one question.
+	// One that is no longer there has no amount left to give, and is counted rather than named.
+	notice: ({ variables, result }) =>
+		describeOutcomeChange(variables.foreseen, result.refused, (refusal) =>
+			refusal.reason === 'missing' ? '' : formatLocaleMoney(get(locale), refusal.amount)
+		),
 	toast: {
 		// the count, because it is the one thing about a bulk action a reader cannot see for
 		// themselves, and nothing at all where the selection turned out to hold nothing this could

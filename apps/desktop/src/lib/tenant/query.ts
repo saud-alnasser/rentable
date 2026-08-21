@@ -1,5 +1,6 @@
 import api from '$lib/api/caller';
-import { declareMutation } from '$lib/design/mutation';
+import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
+import type { SelectionCall } from '$lib/design/selection';
 import type { HistoryEntry } from '$lib/history/history';
 import { workspacePrefixes } from '$lib/design/query';
 import type { ListSort } from '$lib/design/sort';
@@ -217,7 +218,7 @@ export const useUpdateTenant = declareMutation({
  * putting it back as itself, by the identity it had (ADR 0026).
  */
 export const useDeleteManyTenants = declareMutation({
-	mutate: (ids: string[]) => api.tenant.deleteMany({ ids }),
+	mutate: ({ ids }: SelectionCall) => api.tenant.deleteMany({ ids }),
 	touches: ['tenants'],
 	inverse: ({ result }) =>
 		// nothing changed, so there is nothing to offer taking back. An undo entry for a no-op is a
@@ -236,6 +237,10 @@ export const useDeleteManyTenants = declareMutation({
 	// the names are frozen here for the reason the whole entry is: a moment later the records are
 	// gone, and an account that could only name what still exists could not report a deletion.
 	records: ({ result }) => result.deleted.map((tenant) => toTenantHistoryEntry(tenant, 'deleted')),
+	// what it turned away that the confirmation did not show, which is the workspace having
+	// moved while the reader was deciding.
+	notice: ({ variables, result }) =>
+		describeOutcomeChange(variables.foreseen, result.refused, (refusal) => refusal.name.trim()),
 	toast: {
 		// the count, because it is the one thing about a bulk action a reader cannot see for
 		// themselves, and nothing at all where the selection turned out to hold nothing this could

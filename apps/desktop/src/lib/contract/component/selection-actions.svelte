@@ -3,7 +3,12 @@
 	import { back } from '$lib/design/back.svelte';
 	import SelectionDialog from '$lib/design/block/selection-dialog.svelte';
 	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
-	import { describeRefusals, type SelectionPlan } from '$lib/design/selection';
+	import {
+		describeRefusals,
+		foreseenRefusals,
+		type SelectionCall,
+		type SelectionPlan
+	} from '$lib/design/selection';
 	import {
 		useDeleteManyContracts,
 		usePlanManyContracts,
@@ -16,7 +21,6 @@
 	import BanIcon from '@lucide/svelte/icons/ban';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import { toast } from 'svelte-sonner';
 	import type { Snippet } from 'svelte';
 
 	/**
@@ -136,20 +140,26 @@
 	);
 
 	/**
-	 * Carry out one action over one set, and say what it turned away.
+	 * Carry out one action over one set.
 	 *
-	 * How many went through is not answered here: each declaration announces its own count
-	 * through the shared handler, which is where every announcement in this application is
-	 * raised from.
+	 * Nothing is announced here. Each declaration says how many went through, and says what the
+	 * workspace turned away after the confirmation was drawn, both through the shared handlers,
+	 * which is where every announcement in this application is raised from. **What the reader
+	 * agreed to travels with the call** so the second of those can be said at all: it is the
+	 * difference between the plan and the outcome, and a result on its own is only half of it.
 	 */
-	async function carryOut(action: ContractSelectionAction, ids: string[]) {
+	async function carryOut(action: ContractSelectionAction, call: SelectionCall) {
 		switch (action) {
 			case 'terminate':
-				return (await terminateMany.mutateAsync(ids)).refused;
+				await terminateMany.mutateAsync(call);
+
+				return;
 			case 'restore':
-				return (await restoreMany.mutateAsync(ids)).refused;
+				await restoreMany.mutateAsync(call);
+
+				return;
 			case 'delete': {
-				const result = await deleteMany.mutateAsync(ids);
+				const result = await deleteMany.mutateAsync(call);
 
 				// a deleted contract's own page may be behind the reader, and it is not somewhere
 				// back can return to now. The single-record deletion does this for the one record it
@@ -158,7 +168,7 @@
 					back.forget(resolve(`/contracts/${contract.id}`));
 				}
 
-				return result.refused;
+				return;
 			}
 		}
 	}
@@ -169,27 +179,8 @@
 		}
 
 		const { action, ids } = confirming;
-		// what the reader agreed to, held so what actually happened can be compared against it.
-		const foreseen = new Set(plan?.refused.map((refusal) => refusal.id) ?? []);
 
-		const refused = await carryOut(action, ids);
-
-		// what went through has been announced by the declaration behind the call. This is the
-		// other half, and it cannot go there: the declaration sees the result and not the plan the
-		// reader agreed to, and the whole of what makes this worth saying is the difference
-		// between the two. It speaks only where the workspace moved underneath an open
-		// confirmation, and nothing is retried on their behalf.
-		const unforeseen = refused.filter((refusal) => !foreseen.has(refusal.id));
-
-		if (unforeseen.length > 0) {
-			toast.warning(
-				$LL.common.selection.outcomeChanged({
-					records: unforeseen
-						.map((refusal) => refusal.govId.trim() || $LL.common.labels.contract())
-						.join(', ')
-				})
-			);
-		}
+		await carryOut(action, { ids, foreseen: foreseenRefusals(plan) });
 
 		// the selection is put down, and the dialog closes itself once this resolves: unmounting it
 		// from here would take it off screen mid-close.
