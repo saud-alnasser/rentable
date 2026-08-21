@@ -74,3 +74,22 @@ export function readContractRank(url: URL): ContractRank | undefined {
 
 	return CONTRACT_RANKS.find((rank) => rank === requested);
 }
+
+/**
+ * The narrowing a contracts list opens on, read off the URL it was opened by.
+ *
+ * **The whole selection rather than a change to one**, and that is the point rather than a
+ * convenience: what the list opens narrowed to is decided by the URL and by nothing the list is
+ * already showing, so nothing here has to be handed the selection it produces. A consumer that
+ * merged a rank into the current selection would be reading the state it writes, which is what
+ * an effect cannot do — the directory did exactly that and looped until Svelte stopped it with
+ * `effect_update_depth_exceeded` (#684).
+ *
+ * A URL asking for no rank, or for one outside the vocabulary, opens on nothing — which is
+ * {@link readContractRank}'s promise that a mistyped rank leaves the list showing everything.
+ */
+export function toRankArrivalSelection(url: URL): FilterSelection {
+	const requested = readContractRank(url);
+
+	return requested ? { [RANK_FILTER_ID]: requested } : {};
+}
