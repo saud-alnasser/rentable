@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-19
+date: 2026-08-21
 kind: rule
 paths:
   - apps/desktop/src/lib/**
@@ -140,6 +140,22 @@ Everything is client-side. There is no SSR anywhere, and the build is static wit
 
 `typesafe-i18n`, with English and Arabic. Arabic is RTL and is not a second-class locale —
 a layout that only works LTR is broken.
+
+**A machine's string carries `dir="ltr"` in both locales; a reader's string never does.** An
+email address, a phone number, a file path, a keyboard shortcut, a version and a progress
+figure are written by something other than the reader and read left to right wherever they
+appear — the bidi algorithm reorders them inside an RTL paragraph and produces a value that
+is wrong rather than merely misaligned. Set the attribute on the element that holds the value
+and no wider.
+
+**The trap is the stand-in.** Where a figure has a fallback — *unknown*, *checking* — the
+fallback is the reader's word and takes the reader's direction, so the attribute is
+conditional on there being a figure rather than fixed on the element.
+`settings/component/updates.svelte` is the worked example: its plate takes an `isFigure`
+parameter and sets `dir={isFigure ? 'ltr' : undefined}`.
+
+*Why this is written down: it was applied consistently and recorded nowhere, so the only way
+to learn it was to notice it, and a surface that missed it failed in Arabic alone.*
 
 The type definitions and utility files are **generated**. Edit the locale files, then
 regenerate — see [[references/pnpm]]. Components read translations from the store,

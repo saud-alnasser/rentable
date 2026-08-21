@@ -3,7 +3,7 @@ aep: 2.7.0
 owner: repository
 date: 2026-08-21
 kind: spec
-status: accepted
+status: implemented
 ---
 
 # feat(app): settings and the workspace page finish what they offer
