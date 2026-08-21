@@ -1,6 +1,7 @@
 use crate::{error::Error, state::AppState};
 
 use super::control::establish_held_session as establish_control_plane_session;
+use super::control::rename_workspace as rename_control_plane_workspace;
 use super::control::renew_session as renew_control_plane_session;
 use super::sign_in::{sign_in_with_google, sign_out_of_google};
 use super::store::RemoteSyncState;
@@ -48,6 +49,31 @@ pub async fn remote_sync_establish_session(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<RemoteSyncState, Error> {
     establish_control_plane_session(app_state.inner()).await?;
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    remote_sync.get_state().await
+}
+
+/// Call this workspace something else.
+///
+/// **One command for the whole act, and the interface observes it.** The caller asks for the
+/// outcome rather than for a step: this reaches the control plane, which is where the name lives,
+/// writes what came back, and answers with the state. A caller that had to mint, then rename, then
+/// re-read would be sequencing a protocol it has no business knowing.
+///
+/// **Answers with the state for the same reason the two session commands do** — the caller reads
+/// the name it just set rather than the one it had, and the three surfaces that draw a workspace
+/// name all read that one query.
+///
+/// The name is validated by the form before it gets here and again by the control plane, which is
+/// the one that has to store it. Nothing is validated in between: a third opinion in the middle
+/// would be the one that goes stale.
+#[tauri::command]
+pub async fn remote_sync_rename_workspace(
+    app_state: tauri::State<'_, AppState>,
+    name: String,
+) -> Result<RemoteSyncState, Error> {
+    rename_control_plane_workspace(app_state.inner(), &name).await?;
 
     let mut remote_sync = app_state.remote_sync.write().await;
     remote_sync.get_state().await

@@ -330,5 +330,20 @@ export type Host = {
 		replicate: () => Promise<{ pushed: boolean; received: boolean }>;
 		/** send what this machine wrote and nothing else, for the last call of a session. */
 		push: () => Promise<boolean>;
+		/**
+		 * call this machine's workspace something else, and say what that left it called.
+		 *
+		 * **The name belongs to the control plane rather than to this machine**, so this reaches
+		 * it. Written locally instead, two machines signed in to one workspace would disagree
+		 * about what it is called, which is a per-machine nickname rather than a rename, and the
+		 * `renameWorkspace` permission would have nothing to guard.
+		 *
+		 * Answers with the state, so a caller reads the name it just set. Every surface that draws
+		 * a workspace name reads one query, so one invalidation covers all three.
+		 *
+		 * A machine with no control plane behind it, no workspace it has signed in to, or no
+		 * session, refuses rather than renaming locally. Each says which of the three it was.
+		 */
+		renameWorkspace: (name: string) => Promise<RemoteSyncState>;
 	};
 };

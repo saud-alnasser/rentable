@@ -2243,11 +2243,7 @@ type RootTranslation = {
 		 */
 		groupTransfer: string
 		/**
-		 * i​c​o​n​ ​c​o​m​i​n​g​ ​l​a​t​e​r
-		 */
-		iconLocked: string
-		/**
-		 * n​a​m​e​d​ ​w​h​e​n​ ​y​o​u​ ​s​i​g​n​e​d​ ​u​p​,​ ​a​n​d​ ​t​h​e​r​e​ ​i​s​ ​n​o​ ​w​a​y​ ​t​o​ ​r​e​n​a​m​e​ ​i​t​ ​y​e​t​.
+		 * t​h​e​ ​p​i​c​t​u​r​e​ ​i​s​ ​a​ ​p​l​a​c​e​h​o​l​d​e​r​,​ ​a​n​d​ ​n​o​t​ ​s​o​m​e​t​h​i​n​g​ ​t​h​a​t​ ​c​a​n​ ​b​e​ ​c​h​a​n​g​e​d​ ​y​e​t​.
 		 */
 		identityDescription: string
 		/**
@@ -2258,6 +2254,26 @@ type RootTranslation = {
 		 * o​n​e​ ​p​e​r​s​o​n​,​ ​a​n​d​ ​o​n​l​y​ ​o​n​e​ ​i​s​ ​p​o​s​s​i​b​l​e​ ​t​o​d​a​y​.​ ​i​n​v​i​t​i​n​g​ ​a​n​y​b​o​d​y​ ​e​l​s​e​ ​a​r​r​i​v​e​s​ ​w​i​t​h​ ​o​r​g​a​n​i​z​a​t​i​o​n​s​.
 		 */
 		membersDescription: string
+		/**
+		 * t​h​a​t​ ​n​a​m​e​ ​i​s​ ​t​o​o​ ​l​o​n​g​.
+		 */
+		nameTooLong: string
+		/**
+		 * g​i​v​e​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​a​ ​n​a​m​e​.
+		 */
+		nameRequired: string
+		/**
+		 * r​e​n​a​m​e
+		 */
+		rename: string
+		/**
+		 * w​h​a​t​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​c​a​l​l​e​d​,​ ​o​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​ ​s​i​g​n​e​d​ ​i​n​ ​t​o​ ​i​t​.
+		 */
+		renameDescription: string
+		/**
+		 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​w​a​s​ ​r​e​n​a​m​e​d​.
+		 */
+		renamed: string
 		/**
 		 * o​w​n​e​r
 		 */
@@ -4398,11 +4414,7 @@ export type TranslationFunctions = {
 		 */
 		groupTransfer: () => LocalizedString
 		/**
-		 * icon coming later
-		 */
-		iconLocked: () => LocalizedString
-		/**
-		 * named when you signed up, and there is no way to rename it yet.
+		 * the picture is a placeholder, and not something that can be changed yet.
 		 */
 		identityDescription: () => LocalizedString
 		/**
@@ -4413,6 +4425,26 @@ export type TranslationFunctions = {
 		 * one person, and only one is possible today. inviting anybody else arrives with organizations.
 		 */
 		membersDescription: () => LocalizedString
+		/**
+		 * that name is too long.
+		 */
+		nameTooLong: () => LocalizedString
+		/**
+		 * give this workspace a name.
+		 */
+		nameRequired: () => LocalizedString
+		/**
+		 * rename
+		 */
+		rename: () => LocalizedString
+		/**
+		 * what this workspace is called, on every machine signed in to it.
+		 */
+		renameDescription: () => LocalizedString
+		/**
+		 * the workspace was renamed.
+		 */
+		renamed: () => LocalizedString
 		/**
 		 * owner
 		 */

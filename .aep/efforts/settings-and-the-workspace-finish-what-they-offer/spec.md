@@ -383,13 +383,18 @@ sizing.*
 
 ## Open questions
 
-*One left, after `/refine` and `/prototype` on 2026-08-21. Which of the two workspace names is
-the name closed in refinement and is requirement 4. What the updates section becomes, and whether
-the check keeps a place on the page, both closed in the prototype and are requirements 2 and 2a.*
+*None left. Which of the two workspace names is the name closed in refinement and is requirement
+4. What the updates section becomes, and whether the check keeps a place on the page, both closed
+in the prototype and are requirements 2 and 2a. The last one closed while building the rename,
+below.*
 
-- **What a rename that succeeded on the control plane and failed to write locally leaves behind**
-  is the last one that is not a code question, and it is nearly one: the next session renewal
-  corrects it, so what is open is only what the reader is told in the meantime.
+- ~~**What a rename that succeeded on the control plane and failed to write locally leaves
+  behind.**~~ **Closed 2026-08-21, building #698**, which is where it was cheapest to settle. The
+  rename is reported as having happened, and the failure names what is left rather than what broke:
+  the control plane holds the new name, every other machine will pick it up, and this window shows
+  the old one until the next session renewal. *A reader told only that a file could not be written
+  would press rename again, which would succeed and change nothing they can see, which is the
+  outcome the wording exists to prevent.*
 
 ## Risks
 

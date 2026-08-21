@@ -149,6 +149,7 @@ pub fn run() {
             diagnostics::diagnostics_write,
             sync::remote_sync_state_get,
             sync::remote_sync_renew_session,
+            sync::remote_sync_rename_workspace,
             sync::remote_sync_establish_session,
             sync::remote_sync_replicate,
             sync::remote_sync_push,

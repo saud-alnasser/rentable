@@ -27,7 +27,8 @@ function shellReporting(accounts: RemoteSyncAccount[] = [fakeAccount()]) {
 			renewSession: async () => state,
 			establishSession: async () => state,
 			replicate: async () => ({ pushed: true, received: false }),
-			push: async () => true
+			push: async () => true,
+			renameWorkspace: async () => state
 		}
 	});
 }

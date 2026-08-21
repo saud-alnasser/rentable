@@ -725,11 +725,15 @@ const en = {
 		groupMembers: 'members',
 		groupSync: 'sync',
 		groupTransfer: 'export / import',
-		iconLocked: 'icon coming later',
-		identityDescription: 'named when you signed up, and there is no way to rename it yet.',
+		identityDescription: 'the picture is a placeholder, and not something that can be changed yet.',
 		inviteLocked: 'invite',
 		membersDescription:
 			'one person, and only one is possible today. inviting anybody else arrives with organizations.',
+		nameTooLong: 'that name is too long.',
+		nameRequired: 'give this workspace a name.',
+		rename: 'rename',
+		renameDescription: 'what this workspace is called, on every machine signed in to it.',
+		renamed: 'the workspace was renamed.',
 		roleOwner: 'owner',
 		title: 'workspace'
 	}

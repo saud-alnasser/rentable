@@ -1,5 +1,7 @@
 import type { RemoteSyncState } from '$lib/platform/tauri';
 import { procedure, router } from '$lib/api/trpc';
+import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace';
+import z from 'zod';
 
 /**
  * SYNC ROUTER
@@ -19,5 +21,25 @@ import { procedure, router } from '$lib/api/trpc';
 export const remoteSync = router({
 	getState: procedure.public.query(async ({ ctx }): Promise<RemoteSyncState> => {
 		return ctx.host.remoteSync.getState();
-	})
+	}),
+	/**
+	 * Call this machine's workspace something else.
+	 *
+	 * **`member`, and it is the neighbour above that makes it worth saying why.** Reading what this
+	 * machine has synced is answerable to anybody, because it is a fact about the machine. A
+	 * workspace belongs to somebody, and renaming one is a write against a row the control plane
+	 * guards with a permission — so it needs an acting user however small the change looks.
+	 *
+	 * **It reaches `ctx.host` rather than `ctx.db`.** The name is not in the workspace database at
+	 * all; it is in the control plane, and Rust is what holds the credential to reach it.
+	 *
+	 * The bound is the same one the control plane enforces, stated here so a caller is refused
+	 * before a round trip rather than after one. It is not a third opinion: the form validates for
+	 * the reader, this refuses a caller, and the service is the one that decides what it stores.
+	 */
+	rename: procedure.member
+		.input(z.object({ name: z.string().trim().min(1).max(WORKSPACE_NAME_LIMIT) }))
+		.mutation(async ({ input, ctx }): Promise<RemoteSyncState> => {
+			return ctx.host.remoteSync.renameWorkspace(input.name);
+		})
 });

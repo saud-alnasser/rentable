@@ -3,8 +3,9 @@
 	import { Button } from '$lib/design/primitive/button';
 	import * as Field from '$lib/design/primitive/field';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import WorkspaceRenameForm from '$lib/workspace/component/rename-form.svelte';
 	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
-	import LockIcon from '@lucide/svelte/icons/lock';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
 
 	/**
 	 * What the workspace is called, and the picture it does not have yet.
@@ -15,11 +16,18 @@
 	 * around it before there is a mechanism, the same way the create-workspace row is, so that
 	 * arriving at one does not mean redesigning the page around it.
 	 *
-	 * **Neither the name nor the icon can be changed here.** A workspace's name is set once at
-	 * sign-up from the person's Google profile and there is no rename surface anywhere; adding one
-	 * is its own decision.
+	 * **The name can be changed and the icon still cannot**, which is why the row says one of those
+	 * and offers the other. *It said neither could be, and offered an inert control that explained
+	 * why; requirement 4d of
+	 * `[[efforts/settings-and-the-workspace-finish-what-they-offer]]` replaced that control with
+	 * the rename and left the sentence about the picture where a reader was already reading it.*
+	 *
+	 * **The name it draws is the control plane's**, not this machine's, so it is the same name on
+	 * every machine signed in to this workspace and it changes on all of them.
 	 */
 	let { workspace }: { workspace: RemoteSyncWorkspace } = $props();
+
+	let isRenaming = $state(false);
 </script>
 
 <Field.Field orientation="responsive">
@@ -37,19 +45,12 @@
 		</div>
 	</Field.Content>
 
-	<!-- reachable, announced, and inert, the same shape the create-workspace row takes. **A button
-	     rather than a decorated `div`**: a control nobody can focus cannot explain itself, and a
-	     non-interactive element carrying `tabindex` and `aria-disabled` is two accessibility
-	     warnings saying the same thing. `disabled` is the one attribute it must not have, because
-	     that is what would take it out of the keyboard order. -->
-	<Button
-		variant="outline"
-		size="sm"
-		class="shrink-0"
-		aria-disabled="true"
-		onclick={(event) => event.preventDefault()}
-	>
-		<LockIcon class="size-3.5 shrink-0" />
-		{$LL.workspace.iconLocked()}
+	<!-- a real control at last: this slot held a button that was reachable, announced and inert,
+	     because there was nothing it could do. What it does now is open the form. -->
+	<Button variant="outline" size="sm" class="shrink-0" onclick={() => (isRenaming = true)}>
+		<PencilIcon class="size-3.5 shrink-0" />
+		{$LL.workspace.rename()}
 	</Button>
 </Field.Field>
+
+<WorkspaceRenameForm {workspace} open={isRenaming} onOpenChange={(value) => (isRenaming = value)} />
