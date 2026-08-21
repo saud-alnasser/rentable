@@ -15,6 +15,7 @@
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
 	import LayoutStartupUnreadable from '$lib/layout/component/startup-unreadable.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
+	import { shellSurface } from '$lib/layout/shell-surface';
 	import { startupSurfaceBeforeLocale } from '$lib/layout/startup-surface';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
@@ -151,6 +152,16 @@
 		return 'bare';
 	});
 
+	/**
+	 * what goes inside the frame, which is the shell's other decision and lives beside the first.
+	 *
+	 * `layout/shell-surface.ts` holds it, for the reason stated at the top of this file: this is a
+	 * runes file and a `node:test` cannot import one, so a chain of branches written here is a
+	 * decision nothing can drive. It was four branches on the startup state until 2026-08-21, when
+	 * the address became the second thing it reads.
+	 */
+	const surface = $derived(shellSurface(shellState, page.url.pathname));
+
 	let { children } = $props();
 </script>
 
@@ -174,9 +185,9 @@
 			<SonnerProvider>
 				<TooltipProvider>
 					<LayoutFrame {currentDirection} {shell} onSignIn={() => void startup.signIn()}>
-						{#if shellState.state === 'loading'}
+						{#if surface === 'loading'}
 							<LayoutStartupLoading />
-						{:else if shellState.state === 'sign-in'}
+						{:else if surface === 'sign-in'}
 							<LayoutStartupSignIn
 								situation={shellState.signInReason}
 								isSigningIn={shellState.isSigningIn}
@@ -186,12 +197,12 @@
 								onSignIn={() => void startup.signIn()}
 								onRetry={() => void startup.retrySession()}
 							/>
-						{:else if shellState.state === 'recovery' && shellState.recovery}
+						{:else if surface === 'recovery' && shellState.recovery}
 							<LayoutStartupRecovery
 								recovery={shellState.recovery}
 								onRetry={() => void startup.retry()}
 							/>
-						{:else if shellState.state === 'error'}
+						{:else if surface === 'error'}
 							<!-- the reported error does not reach this screen: it is not shown, and nothing
 							     writes it down yet. See the component. -->
 							<LayoutStartupError onRetry={() => void startup.retry()} />
