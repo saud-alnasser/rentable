@@ -449,7 +449,6 @@ const ar = {
 		loadErrorTitle: 'الإعدادات غير متاحة حالياً',
 		openWorkspaceAction: 'فتح مساحة العمل',
 
-		transferTitle: 'نقل مساحة العمل',
 		transferDescription:
 			'اكتب كل شيء — المستأجرين والمجمعات والوحدات والعقود والمدفوعات — في ملف واحد، أو اقرأ ملفاً كهذا. تشير السجلات إلى بعضها بالأسماء لا بالأرقام، فيفتح الملف على أي جهاز.',
 		transferImportTitle: 'استيراد مساحة عمل',
@@ -706,7 +705,7 @@ const ar = {
 		groupIdentity: 'مساحة العمل هذه',
 		groupMembers: 'الأعضاء',
 		groupSync: 'المزامنة',
-		groupTransfer: 'نقل مساحة العمل',
+		groupTransfer: 'تصدير / استيراد',
 		iconLocked: 'الأيقونة لاحقًا',
 		identityDescription: 'تم تسميتها عند تسجيلك، ولا توجد طريقة لإعادة تسميتها بعد.',
 		inviteLocked: 'دعوة',

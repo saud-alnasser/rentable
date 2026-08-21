@@ -59,7 +59,11 @@
 
 			<Field.Set>
 				<!-- beside sync, because both are answers to the same question: where this workspace
-				     lives, and how it gets somewhere else. -->
+				     lives, and how it gets somewhere else.
+
+				     **Named for the two verbs it offers rather than for the question.** It read "move
+				     this workspace", which describes neither button, and the row under it repeated
+				     those same three words. Renamed 2026-08-21 at the human's direction. -->
 				<Field.Legend>{$LL.workspace.groupTransfer()}</Field.Legend>
 				<WorkspaceTransfer />
 			</Field.Set>

@@ -457,7 +457,6 @@ const en = {
 		loadErrorTitle: 'settings are unavailable right now',
 		openWorkspaceAction: 'open workspace',
 
-		transferTitle: 'move this workspace',
 		transferDescription:
 			'write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.',
 		transferImportTitle: 'import a workspace',
@@ -725,7 +724,7 @@ const en = {
 		groupIdentity: 'this workspace',
 		groupMembers: 'members',
 		groupSync: 'sync',
-		groupTransfer: 'move this workspace',
+		groupTransfer: 'export / import',
 		iconLocked: 'icon coming later',
 		identityDescription: 'named when you signed up, and there is no way to rename it yet.',
 		inviteLocked: 'invite',
