@@ -18,7 +18,7 @@
 	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
 	import List from '$lib/design/block/list.svelte';
 	import { toNarrowedName } from '$lib/design/csv';
-	import type { SelectionPlan } from '$lib/design/selection';
+	import { describeRefusals, type SelectionPlan } from '$lib/design/selection';
 	import * as Cell from '$lib/design/cell';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
@@ -80,20 +80,14 @@
 
 	// every reason the domain can give, with the sentence it reads as. `satisfies` is what makes a
 	// reason added to the rule without a sentence a build failure rather than a refusal the reader
-	// is shown under somebody else's words.
-	const refusalLabels = $derived({
-		'holds-contracts': (count: number) =>
-			$LL.complexes.selection.unitRefusedHoldsContracts({ count }),
-		missing: (count: number) => $LL.complexes.selection.unitRefusedMissing({ count })
-	} satisfies Record<UnitRefusalReason, (count: number) => string>);
-
-	function describeReason(reason: string, count: number) {
-		// the shared confirmation is deliberately ignorant of any concept's reasons, so it hands
-		// this one back as a plain string. The map above is what keeps the lookup total.
-		const label = refusalLabels[reason as UnitRefusalReason];
-
-		return label ? label(count) : $LL.complexes.selection.unitRefusedMissing({ count });
-	}
+	// is shown under somebody else's words. The lookup around it is `describeRefusals`.
+	const describeReason = $derived(
+		describeRefusals({
+			'holds-contracts': (count: number) =>
+				$LL.complexes.selection.unitRefusedHoldsContracts({ count }),
+			missing: (count: number) => $LL.complexes.selection.unitRefusedMissing({ count })
+		} satisfies Record<UnitRefusalReason, (count: number) => string>)
+	);
 
 	/**
 	 * Delete the set the reader agreed to.

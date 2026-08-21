@@ -4,6 +4,7 @@ import { matchesAnySearch } from '$lib/platform/database/search';
 import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/platform/database/schema';
+import { planSelection } from '$lib/api/selection';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
 import {
@@ -17,9 +18,7 @@ import {
 	ensureUnitStillExists,
 	whatRefusesComplexDeletion,
 	whatRefusesUnitDeletion,
-	type ComplexRefusalReason,
-	type ComplexSortColumnId,
-	type UnitRefusalReason
+	type ComplexSortColumnId
 } from '$lib/complex/complex';
 import { CONTRACT_OCCUPYING_STATUSES, deriveUnitStatuses } from '$lib/contract/contract';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
@@ -113,13 +112,6 @@ function occupyingTenantName(now: DateLike) {
 	return sql<string | null>`(${occupant})`;
 }
 
-type DbComplex = typeof s.complex.$inferSelect;
-type DbUnit = typeof s.unit.$inferSelect;
-
-/** A record that would be turned away, named the way a reader knows one. */
-type ComplexRefusal = { id: string; name: string; reason: ComplexRefusalReason };
-type UnitRefusal = { id: string; name: string; reason: UnitRefusalReason };
-
 /**
  * What deleting a whole selection of complexes would do, from one read of the workspace.
  *
@@ -129,13 +121,13 @@ type UnitRefusal = { id: string; name: string; reason: UnitRefusalReason };
  * device may write between the two, and that is why the mutation runs this again instead of
  * trusting what the reader was shown.
  *
- * One read per table for the whole selection, never one per record.
+ * One read per table for the whole selection, never one per record. Everything after the two
+ * reads is `planSelection`'s, which is where the tenant's and the unit's plans go too.
  */
 async function planComplexSelection(db: Database, ids: readonly string[]) {
 	const named = [...new Set(ids)];
 
-	const existing = await db.select().from(s.complex).where(inArray(s.complex.id, named));
-	const complexesById = new Map(existing.map((complex) => [complex.id, complex]));
+	const records = await db.select().from(s.complex).where(inArray(s.complex.id, named));
 
 	// the complex each unit belongs to and nothing else: the rule asks whether any unit belongs
 	// to the complex, so a directory of five hundred selected complexes never carries their units.
@@ -143,39 +135,15 @@ async function planComplexSelection(db: Database, ids: readonly string[]) {
 		.select({ complexId: s.unit.complexId })
 		.from(s.unit)
 		.where(inArray(s.unit.complexId, named));
-	const unitsByComplexId = new Map<string, { complexId: string }[]>();
 
-	for (const unit of held) {
-		const holding = unitsByComplexId.get(unit.complexId) ?? [];
-
-		holding.push(unit);
-		unitsByComplexId.set(unit.complexId, holding);
-	}
-
-	const eligible: DbComplex[] = [];
-	const refused: ComplexRefusal[] = [];
-
-	// walked in the order the reader named them, so what the confirmation lists reads the way the
-	// selection does rather than the way the engine happened to answer.
-	for (const id of named) {
-		const complex = complexesById.get(id);
-
-		if (!complex) {
-			refused.push({ id, name: '', reason: 'missing' });
-
-			continue;
-		}
-
-		const reason = whatRefusesComplexDeletion(unitsByComplexId.get(id) ?? []);
-
-		if (reason) {
-			refused.push({ id, name: complex.name, reason });
-		} else {
-			eligible.push(complex);
-		}
-	}
-
-	return { eligible, refused };
+	return planSelection({
+		ids: named,
+		records,
+		dependants: held,
+		ownerOf: (unit) => unit.complexId,
+		nameOf: (complex) => complex.name,
+		whatRefuses: whatRefusesComplexDeletion
+	});
 }
 
 /**
@@ -190,44 +158,21 @@ async function planComplexSelection(db: Database, ids: readonly string[]) {
 async function planUnitSelection(db: Database, ids: readonly string[]) {
 	const named = [...new Set(ids)];
 
-	const existing = await db.select().from(s.unit).where(inArray(s.unit.id, named));
-	const unitsById = new Map(existing.map((unit) => [unit.id, unit]));
+	const records = await db.select().from(s.unit).where(inArray(s.unit.id, named));
 
 	const held = await db
 		.select({ unitId: s.contractUnit.unitId })
 		.from(s.contractUnit)
 		.where(inArray(s.contractUnit.unitId, named));
-	const assignmentsByUnitId = new Map<string, { unitId: string }[]>();
 
-	for (const assignment of held) {
-		const holding = assignmentsByUnitId.get(assignment.unitId) ?? [];
-
-		holding.push(assignment);
-		assignmentsByUnitId.set(assignment.unitId, holding);
-	}
-
-	const eligible: DbUnit[] = [];
-	const refused: UnitRefusal[] = [];
-
-	for (const id of named) {
-		const unit = unitsById.get(id);
-
-		if (!unit) {
-			refused.push({ id, name: '', reason: 'missing' });
-
-			continue;
-		}
-
-		const reason = whatRefusesUnitDeletion(assignmentsByUnitId.get(id) ?? []);
-
-		if (reason) {
-			refused.push({ id, name: unit.name, reason });
-		} else {
-			eligible.push(unit);
-		}
-	}
-
-	return { eligible, refused };
+	return planSelection({
+		ids: named,
+		records,
+		dependants: held,
+		ownerOf: (assignment) => assignment.unitId,
+		nameOf: (unit) => unit.name,
+		whatRefuses: whatRefusesUnitDeletion
+	});
 }
 
 /**
