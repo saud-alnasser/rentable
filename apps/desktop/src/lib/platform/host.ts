@@ -104,11 +104,31 @@ export type RemoteSyncAccount = {
  * name the workspace in the control plane and where its replica syncs. They are the store's, read
  * by the mint on the next launch, and nothing on this side has a use for either — so they are not
  * declared here rather than declared and ignored. Add them when something reads them.
+ *
+ * *`permissions` is the rule being followed rather than an exception to it: it is declared because
+ * this side is the only side that reads it. The bits are named in `@rentable/workspace-permission`
+ * and Rust carries the number without opening it.*
  */
 export type RemoteSyncWorkspace = {
 	id: string;
 	name: string;
 	localDatabasePath: string;
+	/**
+	 * what the signed-in account may do in this workspace, as one number.
+	 *
+	 * **Never read as a number.** `permits` from `@rentable/workspace-permission` is what answers a
+	 * question about it, by the name of an act — a surface that reached for a bit index or a mask
+	 * would be a second copy of the mapping, and the package exists so there is only one.
+	 *
+	 * **`0` on a machine that has heard nothing**, which is a member who administers nothing. It is
+	 * what an older control plane, a store written before this field, and a machine that has never
+	 * signed in all come to, and it is the safe direction: every gated control is drawn as absent
+	 * or unavailable rather than offered to somebody the control plane would refuse.
+	 *
+	 * **A second opinion, offered earlier, and never the one that decides.** The control plane
+	 * refuses the request whatever this says; a client is a thing a person can edit.
+	 */
+	permissions: number;
 	lastError: string | null;
 	createdAt: number;
 	updatedAt: number;

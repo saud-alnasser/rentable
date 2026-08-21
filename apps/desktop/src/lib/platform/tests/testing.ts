@@ -51,6 +51,7 @@ export function fakeWorkspace(overrides: Partial<RemoteSyncWorkspace> = {}): Rem
 		id: 'workspace',
 		name: 'Workspace',
 		localDatabasePath: 'C:/rentable/app.db',
+		permissions: 0,
 		lastError: null,
 		createdAt: 0,
 		updatedAt: 0,

@@ -98,6 +98,23 @@ pub struct RemoteSyncWorkspace {
     /// **A URL is not a credential** and crosses to TypeScript with the rest of the state; the
     /// token it is reached with does not ([[rules/credentials]], under *Client boundary*).
     pub remote_url: Option<String>,
+    /// what the signed-in account may do in this workspace, as the one number the control plane
+    /// keeps it as.
+    ///
+    /// **A fact about what an account may ask for, not a thing that lets anybody ask**, so it
+    /// crosses to TypeScript with the rest of the state exactly as the session's moments do
+    /// ([[rules/credentials]], under *Client boundary*). The control plane is still what decides;
+    /// this is the same answer offered earlier, so a control nobody may use is not drawn as one
+    /// they may.
+    ///
+    /// **Zero on a store written before this existed**, which the container's `serde(default)`
+    /// gives without a field attribute, and zero is the right answer to land on: it is a member
+    /// who administers nothing, so an old store draws every gated control as absent or
+    /// unavailable rather than offering one the service would refuse.
+    ///
+    /// **Nothing in Rust reads it.** The bits are named in `@rentable/workspace-permission` and
+    /// both ends that decide anything go through it; this side carries the number.
+    pub permissions: i64,
     pub last_error: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
@@ -128,6 +145,9 @@ pub(super) struct LearnedWorkspace<'a> {
     pub name: Option<&'a str>,
     /// what the replica syncs against. A mint carries this; an identifying answer does not.
     pub url: Option<&'a str>,
+    /// what the asking account may do in it. An identifying answer carries this; a mint does not,
+    /// which is the same split `name` is on and for the same reason.
+    pub permissions: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -445,13 +465,28 @@ impl RemoteSync {
                     .unwrap_or_else(|| DEFAULT_WORKSPACE_NAME.to_string())
             });
 
-        if same_workspace && workspace.remote_url == url && workspace.name == name {
+        // **The same rule as the name, and the same reason.** What arrived wins; what did not
+        // arrive leaves the stored answer standing, but only for the workspace it was stored
+        // about. Falling back to zero across a change of workspace is what makes the wrong
+        // direction the safe one: a machine that has just been told about a different workspace
+        // administers nothing in it until an answer says otherwise.
+        let permissions = learned
+            .permissions
+            .or_else(|| same_workspace.then_some(workspace.permissions))
+            .unwrap_or(0);
+
+        if same_workspace
+            && workspace.remote_url == url
+            && workspace.name == name
+            && workspace.permissions == permissions
+        {
             return Ok(());
         }
 
         workspace.remote_id = Some(learned.remote_id.to_string());
         workspace.remote_url = url;
         workspace.name = name;
+        workspace.permissions = permissions;
         workspace.updated_at = timestamp::now();
 
         self.store.commit()
@@ -546,6 +581,9 @@ impl RemoteSync {
             // name. Both arrive at the first sign-in.
             remote_id: None,
             remote_url: None,
+            // and administers nothing in it until an answer says otherwise, which is the same
+            // value an older control plane and an older store both land on.
+            permissions: 0,
             last_error: None,
             created_at: now,
             updated_at: now,
@@ -597,7 +635,10 @@ mod tests {
 
     use tokio::{runtime::Runtime, sync::RwLock};
 
-    use super::{DEFAULT_WORKSPACE_NAME, LearnedWorkspace, RemoteSync, RemoteSyncStore, slugify};
+    use super::{
+        DEFAULT_WORKSPACE_NAME, LearnedWorkspace, RemoteSync, RemoteSyncStore, RemoteSyncWorkspace,
+        slugify,
+    };
     use crate::{persisted::Persisted, settings::Settings};
 
     fn unique_dir(name: &str) -> PathBuf {
@@ -799,6 +840,7 @@ mod tests {
                 remote_id: "workspace-7",
                 name: Some("دار السلام"),
                 url: None,
+                permissions: None,
             })
             .expect("recording the workspace");
 
@@ -820,6 +862,7 @@ mod tests {
                 remote_id: "workspace-7",
                 name: None,
                 url: None,
+                permissions: None,
             })
             .expect("recording the workspace");
 
@@ -837,6 +880,7 @@ mod tests {
                 remote_id: "workspace-7",
                 name: Some("   "),
                 url: None,
+                permissions: None,
             })
             .expect("recording the workspace");
 
@@ -855,6 +899,7 @@ mod tests {
                 remote_id: "workspace-7",
                 name: Some("before"),
                 url: None,
+                permissions: None,
             })
             .expect("recording the workspace");
         remote_sync
@@ -862,6 +907,7 @@ mod tests {
                 remote_id: "workspace-7",
                 name: Some("after"),
                 url: None,
+                permissions: None,
             })
             .expect("recording it again");
 
@@ -880,6 +926,7 @@ mod tests {
                 remote_id: "workspace-7",
                 name: Some("named by the control plane"),
                 url: None,
+                permissions: None,
             })
             .expect("recording the workspace");
         remote_sync
@@ -887,6 +934,7 @@ mod tests {
                 remote_id: "workspace-7",
                 name: None,
                 url: Some("libsql://workspace-7.turso.io"),
+                permissions: None,
             })
             .expect("minting against it");
 
@@ -911,6 +959,7 @@ mod tests {
                 remote_id: "workspace-7",
                 name: Some("the first one"),
                 url: Some("libsql://workspace-7.turso.io"),
+                permissions: None,
             })
             .expect("recording the first workspace");
         remote_sync
@@ -918,6 +967,7 @@ mod tests {
                 remote_id: "workspace-8",
                 name: None,
                 url: None,
+                permissions: None,
             })
             .expect("recording the second workspace");
 
@@ -926,5 +976,144 @@ mod tests {
         assert_eq!(workspace.remote_id.as_deref(), Some("workspace-8"));
         assert_eq!(workspace.name, DEFAULT_WORKSPACE_NAME);
         assert_eq!(workspace.remote_url, None);
+    }
+
+    /// **What the asking account may do arrives on the same answer the name does**, and this side
+    /// carries the number without opening it. `@rentable/workspace-permission` is where the bits
+    /// are named, and it is TypeScript.
+    #[test]
+    fn a_workspace_carries_what_the_control_plane_said_this_account_may_do() {
+        let mut remote_sync = a_remote_sync("workspace-permissions-recorded");
+
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: Some("دار السلام"),
+                url: None,
+                permissions: Some(63),
+            })
+            .expect("recording the workspace");
+
+        assert_eq!(remote_sync.workspace().permissions, 63);
+    }
+
+    /// **An answer that said nothing lands on zero**, which is a member who administers nothing.
+    /// It is what a control plane older than this field answers with, and it is the safe
+    /// direction: every gated control is drawn as absent rather than offered to somebody the
+    /// service would then refuse.
+    #[test]
+    fn an_answer_that_carried_no_permissions_administers_nothing() {
+        let mut remote_sync = a_remote_sync("workspace-permissions-absent");
+
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: Some("named but not permitted"),
+                url: None,
+                permissions: None,
+            })
+            .expect("recording the workspace");
+
+        assert_eq!(remote_sync.workspace().permissions, 0);
+    }
+
+    /// **A mint carries none and leaves the stored answer standing**, which is the split `name` is
+    /// already on: a dispatch that only mints is not what a change to what somebody may do reaches
+    /// this machine on.
+    #[test]
+    fn a_mint_leaves_the_permissions_where_the_last_answer_put_them() {
+        let mut remote_sync = a_remote_sync("workspace-permissions-through-a-mint");
+
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: Some("named by the control plane"),
+                url: None,
+                permissions: Some(8),
+            })
+            .expect("recording the workspace");
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: None,
+                url: Some("libsql://workspace-7.turso.io"),
+                permissions: None,
+            })
+            .expect("minting against it");
+
+        assert_eq!(remote_sync.workspace().permissions, 8);
+    }
+
+    /// **The later answer decides**, including downward. Somebody whose permissions were taken
+    /// away on another machine hears about it on the next identifying answer, and nothing here
+    /// defends the set it was holding.
+    #[test]
+    fn a_later_answer_can_take_permissions_away_as_well_as_give_them() {
+        let mut remote_sync = a_remote_sync("workspace-permissions-revoked");
+
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: None,
+                url: None,
+                permissions: Some(63),
+            })
+            .expect("recording the workspace");
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: None,
+                url: None,
+                permissions: Some(0),
+            })
+            .expect("recording it again");
+
+        assert_eq!(remote_sync.workspace().permissions, 0);
+    }
+
+    /// **A different workspace inherits none of it**, which is the rule the name and the URL are
+    /// already on. What this account may do in one workspace says nothing about another, and
+    /// carrying it across would offer administrative controls on the strength of somebody else's
+    /// membership.
+    #[test]
+    fn a_different_workspace_inherits_no_permissions() {
+        let mut remote_sync = a_remote_sync("workspace-permissions-across-workspaces");
+
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: Some("the first one"),
+                url: None,
+                permissions: Some(63),
+            })
+            .expect("recording the first workspace");
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-8",
+                name: None,
+                url: None,
+                permissions: None,
+            })
+            .expect("recording the second workspace");
+
+        let workspace = remote_sync.workspace();
+
+        assert_eq!(workspace.remote_id.as_deref(), Some("workspace-8"));
+        assert_eq!(workspace.permissions, 0);
+    }
+
+    /// **A store written before this field existed reads as zero**, which the container's
+    /// `serde(default)` gives without a field attribute. Asserted rather than reasoned about: the
+    /// alternative to the default firing is a failed load, and a machine that could not read its
+    /// own store is a machine that has signed out.
+    #[test]
+    fn a_store_from_before_this_field_reads_as_administering_nothing() {
+        let workspace: RemoteSyncWorkspace = serde_json::from_str(
+            r#"{"id":"local","name":"Riyadh","remoteId":"workspace-7","createdAt":1,"updatedAt":2}"#,
+        )
+        .expect("a store written before permissions existed did not load");
+
+        assert_eq!(workspace.permissions, 0);
+        assert_eq!(workspace.name, "Riyadh");
     }
 }
