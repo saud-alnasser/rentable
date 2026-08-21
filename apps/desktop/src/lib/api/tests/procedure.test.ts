@@ -1,10 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { ADMINISTRATION_BY_ROLE, maskOf } from '@rentable/workspace-permission';
+
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
-import { fakeHost, fakeSyncState } from '$lib/platform/tests/testing.ts';
+import type { Host, RemoteSyncState } from '$lib/platform/host.ts';
+import {
+	fakeAccount,
+	fakeHost,
+	fakeSyncState,
+	fakeWorkspace
+} from '$lib/platform/tests/testing.ts';
 import { appRouter } from '../router.ts';
-import { caller, context } from '../trpc.ts';
+import { caller, context, procedure, router } from '../trpc.ts';
+import { fakeIdentity, NOW } from './testing.ts';
 
 /**
  * WHO MAY CALL WHAT
@@ -127,4 +136,139 @@ test('renaming the workspace is not, however small the write looks', async () =>
 	const refusal = await refusalFrom(api.app.remoteSync.rename({ name: 'somewhere else' }));
 
 	assert.equal(refusal?.code, 'UNAUTHORIZED');
+});
+
+/**
+ * WHAT A PERMITTED PROCEDURE REFUSES
+ *
+ * **A router of its own rather than one of the application's**, because no procedure in the
+ * application is `permitted` yet — the rename becomes one in #716, and until then the mechanism
+ * has no caller. What is under test is `procedure.permitted`, so the honest subject is the
+ * smallest router that uses it: a real caller, a real context, the real middleware chain, and one
+ * procedure that does nothing but answer.
+ *
+ * *A test that waited for the rename would be testing the rename.*
+ */
+const permittedRouter = router({
+	rename: procedure.permitted('renameWorkspace').query(() => 'renamed'),
+	// two acts, so *some of them* is a case that exists.
+	both: procedure.permitted('renameWorkspace', 'inviteMember').query(() => 'both'),
+	// beside them, so a refusal can be shown to be about the permission rather than about the
+	// caller: the same context reaches this one.
+	anybody: procedure.member.query(() => 'anybody')
+});
+
+/**
+ * A shell answering with one state, and refusing everything else by name.
+ *
+ * `Host['remoteSync']` is a whole object, so an override supplies all of it or none — a partial
+ * would not type-check. Written once here rather than twice below.
+ */
+function shellAnswering(state: RemoteSyncState): Host {
+	return fakeHost({
+		remoteSync: {
+			getState: async () => state,
+			renewSession: async () => state,
+			establishSession: async () => state,
+			replicate: async () => ({ pushed: false, received: false }),
+			push: async () => false,
+			renameWorkspace: async () => state
+		}
+	});
+}
+
+async function apiFor(permissions: number) {
+	const ctx = await context({
+		db: createMemoryDatabase(),
+		clock: { now: () => NOW },
+		host: fakeHost(),
+		identity: fakeIdentity({ permissions })
+	});
+
+	return caller(permittedRouter)(ctx);
+}
+
+test('a member the workspace permits to take an act reaches the procedure that names it', async () => {
+	const api = await apiFor(maskOf('renameWorkspace'));
+
+	assert.equal(await api.rename(), 'renamed');
+});
+
+test('and one whose membership does not carry it is refused', async () => {
+	const api = await apiFor(ADMINISTRATION_BY_ROLE.member);
+
+	const refusal = await refusalFrom(api.rename());
+
+	assert.equal(refusal?.code, 'FORBIDDEN');
+
+	// **The refusal is about the permission and not about the caller.** The same context reaches a
+	// plain member procedure, so a `permitted` procedure that had refused everybody would pass the
+	// assertion above and fail this one.
+	assert.equal(await api.anybody(), 'anybody');
+});
+
+// The flag alone decides it. Nothing about the identity moves between these two.
+test('granting the act is the whole of what changes the answer', async () => {
+	const without = await apiFor(0);
+	const with_ = await apiFor(maskOf('renameWorkspace'));
+
+	assert.equal((await refusalFrom(without.rename()))?.code, 'FORBIDDEN');
+	assert.equal(await with_.rename(), 'renamed');
+});
+
+/**
+ * **Every act, not any of them.** A procedure that names two is a procedure that does two things,
+ * and a caller holding one of them cannot do it.
+ */
+test('a caller holding some of a set of acts is refused for the set', async () => {
+	const api = await apiFor(maskOf('renameWorkspace'));
+
+	assert.equal(await api.rename(), 'renamed', 'the one act it does hold was refused');
+	assert.equal((await refusalFrom(api.both()))?.code, 'FORBIDDEN');
+
+	const holdingBoth = await apiFor(maskOf('renameWorkspace', 'inviteMember'));
+
+	assert.equal(await holdingBoth.both(), 'both');
+});
+
+/**
+ * **A machine nobody is signed in on is refused before the permission is consulted.** The two
+ * refusals say different things and a client can act on the difference: one is settled by signing
+ * in, and the other is not settled by anything the person holding the machine can do.
+ */
+test('a signed-out caller is unauthorized rather than forbidden', async () => {
+	const ctx = await context({
+		db: createMemoryDatabase(),
+		clock: { now: () => NOW },
+		host: shellAnswering(fakeSyncState({ accounts: [] })),
+		identity: null
+	});
+
+	const refusal = await refusalFrom(caller(permittedRouter)(ctx).rename());
+
+	assert.equal(refusal?.code, 'UNAUTHORIZED');
+});
+
+/**
+ * **What the shell said is what the procedure asks about**, which is the half a supplied identity
+ * cannot show: every test above hands `context()` an identity outright, so none of them proves
+ * that a resolved one carries the permissions the control plane sent.
+ *
+ * This one lets the context resolve it off a fake host, the way the application does.
+ */
+test('the permissions a procedure reads are the ones the shell answered with', async () => {
+	const signedIn = fakeAccount();
+	const ctx = await context({
+		db: createMemoryDatabase(),
+		clock: { now: () => NOW },
+		host: shellAnswering(
+			fakeSyncState({
+				accounts: [signedIn],
+				workspace: fakeWorkspace({ permissions: maskOf('renameWorkspace') })
+			})
+		)
+	});
+
+	assert.equal(ctx.identity?.permissions, maskOf('renameWorkspace'));
+	assert.equal(await caller(permittedRouter)(ctx).rename(), 'renamed');
 });

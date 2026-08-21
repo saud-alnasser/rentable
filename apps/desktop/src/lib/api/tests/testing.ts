@@ -26,6 +26,10 @@ export function fakeIdentity(overrides: Partial<Identity> = {}): Identity {
 		accountId: 'account',
 		email: 'person@example.com',
 		displayName: 'Person Example',
+		// **Administering nothing by default**, which is what every router test wants: none of them
+		// is about a permission, and a default that carried some would make the one test that is
+		// about one pass for the wrong reason. A test that needs an act says which.
+		permissions: 0,
 		...overrides
 	};
 }
