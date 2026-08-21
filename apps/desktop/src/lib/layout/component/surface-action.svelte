@@ -26,6 +26,7 @@
 		icon: Icon,
 		emphasis = 'secondary',
 		spins = false,
+		tooltip = true,
 		onclick
 	}: {
 		/** What the action is, translated. The tooltip, and the control's accessible name. */
@@ -41,6 +42,17 @@
 		 * that has stopped the application is the wrong kind of confidence.
 		 */
 		spins?: boolean;
+		/**
+		 * whether the label also opens as a tooltip, or is carried by the accessible name alone.
+		 *
+		 * **One screen turns it off, and it is the one that cannot rely on anything.** A tooltip
+		 * root reads the provider context and throws where there is none, and its content reads the
+		 * reader's locale to know which way to open. The screen a startup draws when it failed
+		 * before loading a locale is outside the provider and has no locale, so both of those throw
+		 * while rendering, and the window it would have filled stays empty. The label is still the
+		 * control's accessible name, which is what a screen reader reads either way.
+		 */
+		tooltip?: boolean;
 		onclick: () => void;
 	} = $props();
 
@@ -65,35 +77,42 @@
 	const secondary = 'group border-border bg-card text-foreground';
 </script>
 
-<Tooltip.Root>
-	<Tooltip.Trigger>
-		{#snippet child({ props })}
-			<!-- **The two are the same box and must read as the same box.** They already measured the
-			     same: `size-7` fixes both, and the button's base gives every variant a
-			     `border-transparent` so no variant is a pixel wider than another. What made the
-			     filled one look bigger was that a solid fill states its bounds and a translucent
-			     ghost does not, so the answer is to give the second chip real edges rather than to
-			     shrink the first.
+<!-- **The two emphases are the same box and must read as the same box.** They already measured
+     the same: `size-7` fixes both, and the button's base gives every variant a
+     `border-transparent` so no variant is a pixel wider than another. What made the filled one
+     look bigger was that a solid fill states its bounds and a translucent ghost does not, so the
+     answer is to give the second chip real edges rather than to shrink the first.
 
-			     Sleek rather than large, too: presence comes from the fill and from sitting alone on
-			     a tinted band, not from size. A round of 9-unit buttons carrying shadows read as
-			     heavy against a card whose own corners are the only other geometry. -->
-			<Button
-				{...props}
-				variant={emphasis === 'primary' ? 'default' : 'outline'}
-				size="icon-sm"
-				class={emphasis === 'primary' ? primary : secondary}
-				aria-label={label}
-				{onclick}
-			>
-				<Icon
-					class="size-4 transition-transform duration-500 {spins
-						? 'motion-safe:group-hover:rotate-180'
-						: 'motion-safe:group-hover:scale-110'}"
-				/>
-				<span class="sr-only">{label}</span>
-			</Button>
-		{/snippet}
-	</Tooltip.Trigger>
-	<Tooltip.Content side="bottom" sideOffset={8}>{label}</Tooltip.Content>
-</Tooltip.Root>
+     Sleek rather than large, too: presence comes from the fill and from sitting alone on a tinted
+     band, not from size. A round of 9-unit buttons carrying shadows read as heavy against a card
+     whose own corners are the only other geometry. -->
+{#snippet chip(trigger: Record<string, unknown>)}
+	<Button
+		{...trigger}
+		variant={emphasis === 'primary' ? 'default' : 'outline'}
+		size="icon-sm"
+		class={emphasis === 'primary' ? primary : secondary}
+		aria-label={label}
+		{onclick}
+	>
+		<Icon
+			class="size-4 transition-transform duration-500 {spins
+				? 'motion-safe:group-hover:rotate-180'
+				: 'motion-safe:group-hover:scale-110'}"
+		/>
+		<span class="sr-only">{label}</span>
+	</Button>
+{/snippet}
+
+{#if tooltip}
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				{@render chip(props)}
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content side="bottom" sideOffset={8}>{label}</Tooltip.Content>
+	</Tooltip.Root>
+{:else}
+	{@render chip({})}
+{/if}

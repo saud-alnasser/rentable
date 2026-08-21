@@ -13,8 +13,9 @@
 	 * afterwards, and that follows from whether there is still a shell to leave for.
 	 *
 	 * **Neutral, and deliberately.** A caught render error is contained: the application is
-	 * running and this is one part of it that is not. The two toned screens in this vocabulary are
-	 * a startup that failed and an update that did not finish, and neither of them is this
+	 * running and this is one part of it that is not. The toned screens in this vocabulary are a
+	 * startup that failed, the same failure drawn before a locale could be loaded, and an update
+	 * that did not finish, and none of them is this
 	 * (`$lib/design/tone`). The outer case draws with no chrome around it, which looks like a
 	 * startup failure and is not one, so it must not borrow that tone either.
 	 */

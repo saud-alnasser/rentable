@@ -74,6 +74,8 @@ export function harness(
 		afterBootstrap?: RemoteSyncState;
 		bootstrap?: () => Promise<Recovery>;
 		settings?: () => Promise<{ locale?: string | null }>;
+		/** what loading a locale does, for the paths where the dictionary is what fails. */
+		loadLocale?: (locale: string) => Promise<void>;
 		signInWith?: () => Promise<RemoteSyncState>;
 		establishSession?: () => Promise<RemoteSyncState>;
 		isCancellation?: (error: unknown) => boolean;
@@ -172,7 +174,11 @@ export function harness(
 			isCancellation: overrides.isCancellation ?? (() => false)
 		},
 		locale: {
-			load: async (locale) => void journal.localesLoaded.push(locale),
+			load: async (locale) => {
+				journal.localesLoaded.push(locale);
+
+				await overrides.loadLocale?.(locale);
+			},
 			set: (locale) => void (journal.localeSet = locale),
 			all: ['en', 'ar'],
 			base: 'en'

@@ -55,3 +55,25 @@ export const recordDiagnosticWarning = (event: string, fields?: DiagnosticFields
 /** Something failed. */
 export const recordDiagnosticError = (event: string, fields?: DiagnosticFields) =>
 	recordDiagnostic('error', event, fields);
+
+/**
+ * Open the folder the diagnostics file is kept in, where this machine keeps one.
+ *
+ * The one move a person has after being told the application will not start, so it is here rather
+ * than on the screen that offers it: two screens offer it now, and the second one is drawn in a
+ * state where nothing else about the application can be relied on.
+ *
+ * **It reports nothing when it fails.** Every caller is already a screen reporting a failure, and
+ * a second failure on top of the first tells a reader nothing they can act on.
+ */
+export const revealDiagnostics = async () => {
+	try {
+		const settings = await tauri.settings.get();
+
+		if (settings.diagnosticsDir) {
+			await tauri.opener.revealItemInDir(settings.diagnosticsDir);
+		}
+	} catch {
+		/* the screen this was pressed on is already reporting a failure */
+	}
+};

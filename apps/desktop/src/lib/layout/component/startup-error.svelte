@@ -2,7 +2,7 @@
 	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import LayoutSurfaceAction from '$lib/layout/component/surface-action.svelte';
-	import { tauri } from '$lib/platform/tauri';
+	import { revealDiagnostics } from '$lib/platform/diagnostics';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 
@@ -25,8 +25,10 @@
 	 * `message` prop is gone rather than accepted and ignored — a prop this screen does not read is
 	 * a claim that it handles something it does not.
 	 *
-	 * **This screen and update recovery are the only two that declare a tone**, and they do not
-	 * declare the same one. Everything on this block presents the application's own state, but
+	 * **This screen, the one a startup draws when it failed before a locale, and update recovery
+	 * are the three that declare a tone**, and the recovery does not declare what the other two do.
+	 * The first two are the same event said twice, once in the reader's language and once in
+	 * whatever needs none, so they take the same tone. Everything on this block presents the application's own state, but
 	 * these two are the states where the application is not working — and a failed startup is not
 	 * the same event as an update that needs finishing.
 	 */
@@ -38,7 +40,9 @@
 
 	let isRevealing = $state(false);
 
-	async function revealDiagnostics() {
+	// shared with the screen a startup that failed before the first locale draws, which offers the
+	// same folder for the same reason and cannot rely on anything else about the application.
+	async function reveal() {
 		if (isRevealing) {
 			return;
 		}
@@ -46,13 +50,7 @@
 		isRevealing = true;
 
 		try {
-			const settings = await tauri.settings.get();
-
-			if (settings.diagnosticsDir) {
-				await tauri.opener.revealItemInDir(settings.diagnosticsDir);
-			}
-		} catch {
-			/* the screen is already reporting a failure; a second one helps nobody */
+			await revealDiagnostics();
 		} finally {
 			isRevealing = false;
 		}
@@ -70,7 +68,7 @@
 		<LayoutSurfaceAction
 			label={$LL.settings.diagnosticsReveal()}
 			icon={FolderOpenIcon}
-			onclick={() => void revealDiagnostics()}
+			onclick={() => void reveal()}
 		/>
 
 		<!-- the glyph turns under the pointer, which previews what pressing it does. -->

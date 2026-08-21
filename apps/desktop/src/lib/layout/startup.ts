@@ -54,6 +54,15 @@ export type StartupSnapshot = {
 	railIsUp: boolean;
 	/** whether a locale is loaded, which is what lets anything at all be drawn. */
 	isI18nReady: boolean;
+	/**
+	 * whether a startup has already failed with no locale loaded.
+	 *
+	 * It latches on and is cleared by nothing but a locale arriving, which is what keeps the screen
+	 * drawn for such a failure on screen across a retry. Without it the one control that failure
+	 * offers replaces itself with the blank window it was offered from: `start` sets `loading` and
+	 * clears the error, and nothing on this side of the gate has anything left to draw.
+	 */
+	hasFailedUnreadable: boolean;
 	isSigningIn: boolean;
 	isRetryingSession: boolean;
 	signInPhase: GoogleSignInPhase | null;
@@ -129,6 +138,7 @@ const INITIAL: StartupSnapshot = {
 	signInReason: 'noAccount',
 	railIsUp: false,
 	isI18nReady: false,
+	hasFailedUnreadable: false,
 	isSigningIn: false,
 	isRetryingSession: false,
 	signInPhase: null
@@ -202,7 +212,12 @@ export class Startup {
 	async #fail(error: unknown) {
 		const message = this.#ports.describeError(error);
 
-		this.#set({ recovery: null, state: 'error', error: message });
+		this.#set({
+			recovery: null,
+			state: 'error',
+			error: message,
+			hasFailedUnreadable: this.#snapshot.hasFailedUnreadable || !this.#snapshot.isI18nReady
+		});
 		this.#ports.recordFailure(message);
 
 		await this.#ports.window.show();
@@ -334,7 +349,8 @@ export class Startup {
 			await this.#ports.locale.load(chosen);
 			this.#ports.locale.set(chosen);
 
-			this.#set({ isI18nReady: true });
+			// the gate opens, and the pre-locale failure screen has nothing left to be true about.
+			this.#set({ isI18nReady: true, hasFailedUnreadable: false });
 
 			// **The rest still load inside this stage, and the reason is the settings page.**
 			// `changeLocale` there calls `set` without awaiting a load, on the standing guarantee
