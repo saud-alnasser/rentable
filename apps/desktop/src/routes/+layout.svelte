@@ -13,7 +13,9 @@
 	import { toScreen } from '$lib/design/back';
 	import { back } from '$lib/design/back.svelte';
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
+	import LayoutStartupUnreadable from '$lib/layout/component/startup-unreadable.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
+	import { startupSurfaceBeforeLocale } from '$lib/layout/startup-surface';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
 	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
@@ -213,6 +215,35 @@
 			</div>
 		{/snippet}
 	</svelte:boundary>
+{:else if startupSurfaceBeforeLocale(shellState) === 'failure'}
+	<!--
+		A startup that stopped before it knew what language to stop in.
+
+		Everything above is behind the gate because nothing here can be read until a dictionary is
+		loaded, and until one is every string resolves to the empty string rather than failing. So a
+		failure in the first stage of startup used to show an empty window that had been deliberately
+		made visible: nothing to press, and no way back but quitting.
+		`layout/startup-surface.ts` holds the decision and says why it is the only one made on this
+		side of the gate.
+
+		**On the bare frame, like every other startup failure.** Requirement 6 gives that state the
+		titlebar and its window controls, and this window has no others: the shell draws them because
+		`decorations` is false. A screen that stopped the application and took away the way to close
+		it would be a worse answer than the one it replaces. The direction is stated rather than
+		derived, because deriving it reads a locale that is the thing not there.
+	-->
+	<!-- the frame renders the undo shortcut whatever it is showing, and that asks for a client.
+	     Nothing on this screen queries anything; what the provider buys is the frame. -->
+	<QueryClientProvider client={queryClient}>
+		<LayoutFrame currentDirection="ltr" shell="bare">
+			<LayoutStartupUnreadable
+				message={shellState.error ?? ''}
+				onRetry={() => void startup.retry()}
+			/>
+		</LayoutFrame>
+	</QueryClientProvider>
 {:else}
+	<!-- the blank stretch criterion 16 documents: the application is still starting, and it is on
+	     its way to a locale rather than stopped short of one. -->
 	<div class="flex h-screen items-center justify-center"></div>
 {/if}

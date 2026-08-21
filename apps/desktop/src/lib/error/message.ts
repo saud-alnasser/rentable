@@ -91,6 +91,13 @@ export function toErrorText(
 		return title;
 	}
 
+	// a title with nothing in it is a translation that is not loaded, which happens on the one
+	// screen drawn before a locale is. The detail is the whole of what is known there, and a
+	// separator in front of it reads as a sentence whose first half went missing.
+	if (!title) {
+		return isolateDirection(detail);
+	}
+
 	// the detail is rust's english prose whatever the locale, so it is isolated for the reason
 	// `isolateDirection` states.
 	return `${title} — ${isolateDirection(detail)}`;

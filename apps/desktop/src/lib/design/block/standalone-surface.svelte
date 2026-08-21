@@ -7,8 +7,9 @@
 	/**
 	 * The surface the application shows when it cannot yet show the application.
 	 *
-	 * Five screens render through it — signing in, failing to start, recovering, settings failing to
-	 * load, and an unhandled route error — because none of them presents a concept's records: they
+	 * Six screens render through it — signing in, failing to start, failing to start before a locale
+	 * could be loaded, recovering, settings failing to load, and an unhandled route error — because
+	 * none of them presents a concept's records: they
 	 * present the application's own state, which converges where a concept's surfaces diverge
 	 * (ADR 0015). It owns the centring, the one width and the geometry, so no screen can come to
 	 * disagree with another about any of them the way the hand-rolled copies already had.
@@ -17,7 +18,7 @@
 	 * on 2026-08-20: a card is for something you read or act on, and loading asks nothing — it was
 	 * here because six others needed a block, which is convergence reaching one screen too far.*
 	 *
-	 * The seam is the body: everything around it is identical for all seven, and what crosses it
+	 * The seam is the body: everything around it is identical for all six, and what crosses it
 	 * is whatever that screen has to say.
 	 *
 	 * *It grew a `lead` snippet on 2026-08-20 so the sign-in wall could carry the application's
@@ -71,7 +72,9 @@
 		 *
 		 * **The line is the application, not the screen.** A failed startup and an unfinished
 		 * update stop everything; a settings page that will not load and a crashed route are
-		 * contained, and the shell around them is still working. Only the first two are toned.
+		 * contained, and the shell around them is still working. Only the stopping ones are toned,
+		 * which is three screens: a startup failure, the same failure drawn before a locale could be
+		 * loaded, and an unfinished update.
 		 */
 		tone?: Tone;
 		/**
