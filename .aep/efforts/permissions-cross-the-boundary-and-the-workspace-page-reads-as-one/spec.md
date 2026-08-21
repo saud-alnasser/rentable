@@ -1,12 +1,20 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-21
+date: 2026-08-22
 kind: spec
 status: accepted
 ---
 
-# feat(app): the interface knows what a member may do
+# feat(app): permissions cross the boundary, and the workspace page reads as one
+
+*Renamed 2026-08-22, at the human's direction, from
+`the-interface-knows-what-a-member-may-do`. That name was written before requirement 9 was folded
+in and describes only the permission half; the sync section being redrawn is not about what a
+member may do. The two-part form follows
+[[efforts/settings-and-the-workspace-finish-what-they-offer]], which is this repository's
+precedent for an effort with a rider on it. The seven branches already cut keep the old slug —
+renaming those would mean rewriting the stack, which is not worth it.*
 
 ## Problem
 
@@ -311,6 +319,28 @@ happens, reads as one page rather than as two pages joined at a separator.
   is per-act, per-surface, or one sentence about not having permission is a question the first two
   callers will answer better than this file can. **Still open, deliberately**: this effort ships one
   caller, and one caller cannot settle it.
+- **Whether a gate should tell *not yet* apart from *not permitted*.** *Raised 2026-08-22 while
+  building #716; not settled, and no ticket is cut for it, because deciding it is decision work
+  and only what follows the decision produces a branch.*
+
+  `permissions` collapses three states into one `0`: the answer said nothing, the store predates
+  the field, and this member administers nothing. *Data model* and *Integration* chose that
+  deliberately, and it is right for the first two in isolation — a client that has not been told
+  what a member may do should not be drawing the controls.
+
+  **What was not weighed is what the collapse costs once a caller picks `absent`.** The rename on
+  `/workspace` does, for good reasons of its own, so an owner whose machine has not reached the
+  control plane since launch watches the control disappear with no explanation. That is nearer
+  requirement 4's own *reads as broken rather than as restricted* than to *restricted* — and it is
+  requirement 4's rule being applied to a state requirement 4 did not have in mind.
+
+  Two readings, and the choice is not obvious. **It is already honest**: renaming needs the control
+  plane, so a machine that cannot reach one cannot rename, and hiding the control says so. **Or it
+  is a third state and should say so**: *not yet* is not *not permitted*, and a gate that cannot
+  tell them apart cannot draw the difference. The second means an `Option`-shaped answer on the
+  desktop side rather than a number that is zero when absent, which reaches `RemoteSyncWorkspace`,
+  `Identity` and the gate — so it is a change to this spec rather than a hardening of what it
+  built.
 
 ## Risks
 
