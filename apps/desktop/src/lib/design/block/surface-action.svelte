@@ -4,7 +4,7 @@
 	import type { Component } from 'svelte';
 
 	/**
-	 * One action on an application-own surface, as a glyph that carries weight.
+	 * One action on a surface that has few, as a glyph that carries weight.
 	 *
 	 * **Not `RecordActionControl`, and the difference is the argument rather than the pixels.**
 	 * That block rests quiet on purpose and says why: a glyph at rest would be the only chroma on a
@@ -13,13 +13,15 @@
 	 * the entire application**, so nothing competes and resting quiet buys nothing except a reader
 	 * who cannot find the way out.
 	 *
-	 * They live in the standalone surface's band, which is where a reader already looks for the way
-	 * past a screen, so the tooltip opens downward: there is nothing above it.
+	 * On the standalone surface it lives in the band, which is where a reader already looks for the
+	 * way past a screen, so the tooltip opens downward: there is nothing above it.
 	 *
-	 * *In `layout` rather than beside the block it sits in, which reads oddly and is right:
-	 * [[rules/frontend]] puts app-level composites in `design/block/` and defines app-level as
-	 * shared by concepts. This is shared by no concept — only by the application's own screens —
-	 * so it is the shell's, and the shell's components live here.*
+	 * *It was in `layout` until 2026-08-21, on the argument that it was shared by no concept and so
+	 * belonged to the shell. The settings page's two rows falsified that: a check for updates and a
+	 * reveal of the log folder are a concept's, and the same glyph-that-carries-weight is what both
+	 * of them wanted. [[rules/frontend]] puts a composite that reaches past the shell in
+	 * `design/block/`, so it moved. The argument for the old home is kept here because it was right
+	 * about the tree it was written against.*
 	 */
 	let {
 		label,
@@ -27,6 +29,7 @@
 		emphasis = 'secondary',
 		spins = false,
 		tooltip = true,
+		disabled = false,
 		onclick
 	}: {
 		/** What the action is, translated. The tooltip, and the control's accessible name. */
@@ -53,6 +56,16 @@
 		 * control's accessible name, which is what a screen reader reads either way.
 		 */
 		tooltip?: boolean;
+		/**
+		 * whether the action cannot be taken right now.
+		 *
+		 * **Arrived with the settings page and not with the startup screens**, which never needed
+		 * it: the way past a screen that stopped the application is always available or the screen
+		 * is a trap. A concept's row is different. The diagnostics row draws a folder it may not
+		 * have been told the path of, and a glyph that answers a press by doing nothing is worse
+		 * than one that says it cannot.
+		 */
+		disabled?: boolean;
 		onclick: () => void;
 	} = $props();
 
@@ -91,6 +104,7 @@
 		{...trigger}
 		variant={emphasis === 'primary' ? 'default' : 'outline'}
 		size="icon-sm"
+		{disabled}
 		class={emphasis === 'primary' ? primary : secondary}
 		aria-label={label}
 		{onclick}

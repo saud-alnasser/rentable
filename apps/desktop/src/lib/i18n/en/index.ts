@@ -463,8 +463,6 @@ const en = {
 		transferImportTitle: 'import a workspace',
 		transferImportSuccess: 'the file was imported',
 
-		releaseAvailable: 'update v{version} is available.',
-
 		restartNotice:
 			'the update has been installed. on windows the app may close automatically during installation; otherwise restart rentable to finish switching versions.',
 

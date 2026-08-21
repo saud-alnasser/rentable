@@ -1478,11 +1478,6 @@ type RootTranslation = {
 		 */
 		transferImportSuccess: string
 		/**
-		 * u​p​d​a​t​e​ ​v​{​v​e​r​s​i​o​n​}​ ​i​s​ ​a​v​a​i​l​a​b​l​e​.
-		 * @param {unknown} version
-		 */
-		releaseAvailable: RequiredParams<'version'>
-		/**
 		 * t​h​e​ ​u​p​d​a​t​e​ ​h​a​s​ ​b​e​e​n​ ​i​n​s​t​a​l​l​e​d​.​ ​o​n​ ​w​i​n​d​o​w​s​ ​t​h​e​ ​a​p​p​ ​m​a​y​ ​c​l​o​s​e​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​ ​d​u​r​i​n​g​ ​i​n​s​t​a​l​l​a​t​i​o​n​;​ ​o​t​h​e​r​w​i​s​e​ ​r​e​s​t​a​r​t​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​f​i​n​i​s​h​ ​s​w​i​t​c​h​i​n​g​ ​v​e​r​s​i​o​n​s​.
 		 */
 		restartNotice: string
@@ -3680,10 +3675,6 @@ export type TranslationFunctions = {
 		 * the file was imported
 		 */
 		transferImportSuccess: () => LocalizedString
-		/**
-		 * update v{version} is available.
-		 */
-		releaseAvailable: (arg: { version: unknown }) => LocalizedString
 		/**
 		 * the update has been installed. on windows the app may close automatically during installation; otherwise restart rentable to finish switching versions.
 		 */

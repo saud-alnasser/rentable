@@ -1,6 +1,6 @@
 <script lang="ts">
 	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
-	import LayoutSurfaceAction from '$lib/layout/component/surface-action.svelte';
+	import SurfaceAction from '$lib/design/block/surface-action.svelte';
 	import { revealDiagnostics } from '$lib/platform/diagnostics';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -77,7 +77,7 @@
 		{#snippet corner()}
 			<!-- where the failure was written down, which is the only place it survives now that
 			     nothing on screen can explain it. -->
-			<LayoutSurfaceAction
+			<SurfaceAction
 				label="open log folder"
 				icon={FolderOpenIcon}
 				tooltip={false}
@@ -85,7 +85,7 @@
 			/>
 
 			<!-- the glyph turns under the pointer, which previews what pressing it does. -->
-			<LayoutSurfaceAction
+			<SurfaceAction
 				label="retry startup"
 				icon={RefreshCwIcon}
 				emphasis="primary"
