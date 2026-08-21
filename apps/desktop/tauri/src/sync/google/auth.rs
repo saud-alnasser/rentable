@@ -73,15 +73,15 @@ impl RemoteSync {
     ) -> Result<StoredGoogleCredentials, Error> {
         let access_token = sanitize_optional_string(access_token);
         let refresh_token = sanitize_optional_string(refresh_token);
-        let mut credentials = self.load_google_credentials(account_id)?.unwrap_or(
-            StoredGoogleCredentials {
-                account_id: account_id.to_string(),
-                access_token: String::new(),
-                refresh_token: String::new(),
-                token_expires_at: None,
-                updated_at,
-            },
-        );
+        let mut credentials =
+            self.load_google_credentials(account_id)?
+                .unwrap_or(StoredGoogleCredentials {
+                    account_id: account_id.to_string(),
+                    access_token: String::new(),
+                    refresh_token: String::new(),
+                    token_expires_at: None,
+                    updated_at,
+                });
 
         if let Some(access_token) = access_token {
             credentials.access_token = access_token;
@@ -160,12 +160,11 @@ impl RemoteSync {
         &self,
         credentials: &StoredGoogleCredentials,
     ) -> Result<(), Error> {
-        let mut store =
-            test_google_credentials_store()
-                .lock()
-                .map_err(|_| Error::Internal {
-                    message: "failed to lock the test google credentials store".to_string(),
-                })?;
+        let mut store = test_google_credentials_store()
+            .lock()
+            .map_err(|_| Error::Internal {
+                message: "failed to lock the test google credentials store".to_string(),
+            })?;
 
         store.insert(credentials.account_id.clone(), credentials.clone());
         Ok(())
@@ -183,12 +182,11 @@ impl RemoteSync {
 
     #[cfg(test)]
     pub(crate) fn delete_google_credentials(&self, account_id: &str) -> Result<(), Error> {
-        let mut store =
-            test_google_credentials_store()
-                .lock()
-                .map_err(|_| Error::Internal {
-                    message: "failed to lock the test google credentials store".to_string(),
-                })?;
+        let mut store = test_google_credentials_store()
+            .lock()
+            .map_err(|_| Error::Internal {
+                message: "failed to lock the test google credentials store".to_string(),
+            })?;
 
         store.remove(account_id);
         Ok(())
@@ -500,8 +498,7 @@ fn format_keyring_error(action: &str, account_id: &str, error: KeyringError) -> 
 }
 
 #[cfg(test)]
-fn test_google_credentials_store()
--> &'static Mutex<HashMap<String, StoredGoogleCredentials>> {
+fn test_google_credentials_store() -> &'static Mutex<HashMap<String, StoredGoogleCredentials>> {
     use std::sync::OnceLock;
 
     static STORE: OnceLock<Mutex<HashMap<String, StoredGoogleCredentials>>> = OnceLock::new();

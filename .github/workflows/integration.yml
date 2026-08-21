@@ -219,6 +219,25 @@ jobs:
         if: steps.memo.outputs.cache-hit != 'true'
         run: pnpm test
 
+      # Formatting was a gate for one of this repository's two languages and not the other:
+      # `prettier --check .` runs inside `pnpm check`, and nothing looked at Rust at all. What
+      # accumulated while nothing looked was thirteen sites across five files, every one the same
+      # shape, from a rustfmt that now packs `let ... else` and short method chains onto one line
+      # where an older one broke them. So this catches a toolchain moving under an unguarded tree
+      # rather than anybody writing badly formatted Rust.
+      #
+      # It runs before the tests because it is seconds against their minutes, and under their
+      # condition because it needs the toolchain that step installs.
+      #
+      # The cost to know about: `rustup update && rustup default stable` above tracks whatever
+      # stable is on the day, so a rustfmt release that changes the default style will fail this
+      # on a pull request that touched nothing to do with it. The fix then is one `cargo fmt`
+      # commit, not a revert; pinning the toolchain would trade this for a version to remember to
+      # bump, and the cache key already follows stable.
+      - name: '🦀 format rust'
+        if: steps.memo.outputs.cache-hit != 'true' && steps.changed.outputs.rust == 'true'
+        run: cargo fmt --check --manifest-path ./apps/desktop/tauri/Cargo.toml
+
       - name: '🦀 test rust'
         if: steps.memo.outputs.cache-hit != 'true' && steps.changed.outputs.rust == 'true'
         run: pnpm test:rust

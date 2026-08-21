@@ -267,6 +267,10 @@ mod tests {
             request.header("authorization"),
             Some("Bearer ya29.the-access-token")
         );
-        assert_eq!(server.request_count(), 1, "the profile was read more than once");
+        assert_eq!(
+            server.request_count(),
+            1,
+            "the profile was read more than once"
+        );
     }
 }
