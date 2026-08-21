@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { ConfirmationSubmission } from '$lib/design/confirmation.svelte';
 	import type { ButtonVariant } from '$lib/design/primitive/button';
 	import { Button } from '$lib/design/primitive/button';
 	import { Callout } from '$lib/design/primitive/callout';
@@ -8,7 +9,6 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import CircleSlashIcon from '@lucide/svelte/icons/circle-slash';
-	import { TRPCError } from '@trpc/server';
 
 	/**
 	 * The one surface that asks before an action is carried out on several records, shared by
@@ -70,36 +70,11 @@
 	const hasNothingToDo = $derived(plan !== null && plan.eligible.length === 0);
 	const canConfirm = $derived(plan !== null && !hasNothingToDo);
 
-	let isSubmitting = $state(false);
-	let error = $state<string | null>(null);
-
-	async function submit() {
-		isSubmitting = true;
-		// a refusal describes the attempt that earned it, not the one starting now.
-		error = null;
-
-		try {
-			await onSubmit();
-			onOpenChange(false);
-		} catch (failure) {
-			const message =
-				failure instanceof Error && failure.message
-					? failure.message
-					: $LL.common.messages.unexpectedError();
-
-			if (failure instanceof TRPCError && failure.code === 'BAD_REQUEST') {
-				error = message;
-			}
-		} finally {
-			isSubmitting = false;
-		}
-	}
-
-	$effect(() => {
-		if (!open) {
-			isSubmitting = false;
-			error = null;
-		}
+	const submission = new ConfirmationSubmission({
+		isOpen: () => open,
+		perform: () => onSubmit(),
+		close: () => onOpenChange(false),
+		unexpected: () => $LL.common.messages.unexpectedError()
 	});
 </script>
 
@@ -169,9 +144,9 @@
 				</div>
 			{/if}
 
-			{#if error}
+			{#if submission.error}
 				<Callout tone="error">
-					{error}
+					{submission.error}
 				</Callout>
 			{/if}
 		</div>
@@ -181,7 +156,7 @@
 			     does. Where there is nothing to do it is the only control, and leads. -->
 			<Button
 				variant={canConfirm ? 'ghost' : 'default'}
-				disabled={isSubmitting}
+				disabled={submission.isSubmitting}
 				onclick={() => onOpenChange(false)}
 				class="w-full sm:w-auto"
 			>
@@ -191,11 +166,11 @@
 			{#if !hasNothingToDo}
 				<Button
 					variant={confirmVariant}
-					disabled={!canConfirm || isSubmitting}
-					onclick={submit}
+					disabled={!canConfirm || submission.isSubmitting}
+					onclick={submission.submit}
 					class="w-full sm:w-auto"
 				>
-					{isSubmitting ? confirmLoadingLabel : confirmLabel}
+					{submission.isSubmitting ? confirmLoadingLabel : confirmLabel}
 				</Button>
 			{/if}
 		</Dialog.Footer>

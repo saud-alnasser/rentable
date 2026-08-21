@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { isConfirmable, toConfirmation, type Blockers } from '$lib/design/confirmation';
+	import { ConfirmationSubmission } from '$lib/design/confirmation.svelte';
 	import type { ButtonVariant } from '$lib/design/primitive/button';
 	import { Button } from '$lib/design/primitive/button';
 	import { Callout } from '$lib/design/primitive/callout';
 	import * as Dialog from '$lib/design/primitive/dialog';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { TRPCError } from '@trpc/server';
 
 	/**
 	 * The one surface that asks before something is destroyed, shared by every action that does.
@@ -58,36 +58,11 @@
 	const confirmation = $derived(toConfirmation(blockers));
 	const isBlocked = $derived(confirmation.state === 'blocked');
 
-	let isSubmitting = $state(false);
-	let error = $state<string | null>(null);
-
-	async function submit() {
-		isSubmitting = true;
-		// a refusal describes the attempt that earned it, not the one starting now — leaving it
-		// standing is what turned one refusal into a dialog that could never be pressed again.
-		error = null;
-
-		try {
-			await onSubmit();
-			onOpenChange(false);
-		} catch (e) {
-			const message =
-				e instanceof Error && e.message ? e.message : $LL.common.messages.unexpectedError();
-
-			if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
-				error = message;
-			}
-		} finally {
-			isSubmitting = false;
-		}
-	}
-
-	$effect(() => {
-		if (!open) {
-			isSubmitting = false;
-			error = null;
-			return;
-		}
+	const submission = new ConfirmationSubmission({
+		isOpen: () => open,
+		perform: () => onSubmit(),
+		close: () => onOpenChange(false),
+		unexpected: () => $LL.common.messages.unexpectedError()
 	});
 </script>
 
@@ -123,9 +98,9 @@
 				</ul>
 			{/if}
 
-			{#if error}
+			{#if submission.error}
 				<Callout tone="error">
-					{error}
+					{submission.error}
 				</Callout>
 			{/if}
 		</div>
@@ -135,7 +110,7 @@
 			     does. Where the action is blocked it is the only control, and leads. -->
 			<Button
 				variant={isBlocked ? 'default' : 'ghost'}
-				disabled={isSubmitting}
+				disabled={submission.isSubmitting}
 				onclick={() => onOpenChange(false)}
 				class="w-full sm:w-auto"
 			>
@@ -145,11 +120,11 @@
 			{#if !isBlocked}
 				<Button
 					variant={confirmVariant}
-					disabled={!isConfirmable(confirmation.state, isSubmitting)}
-					onclick={submit}
+					disabled={!isConfirmable(confirmation.state, submission.isSubmitting)}
+					onclick={submission.submit}
 					class="w-full sm:w-auto"
 				>
-					{#if isSubmitting}
+					{#if submission.isSubmitting}
 						{confirmLoadingLabel}
 					{:else}
 						{confirmLabel}
