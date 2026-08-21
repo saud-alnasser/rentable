@@ -5,11 +5,12 @@ import {
 	CLIENT_OUT_OF_DATE,
 	NO_SUCH_WORKSPACE,
 	NOT_A_MEMBER,
+	NOT_PERMITTED,
 	Refusal,
 	SERVICE_OUT_OF_DATE
 } from '../failure.ts';
-import { ADMINISTRATION_BY_ROLE } from './permission.ts';
-import { membership, workspace, type Workspace } from '../database/schema.ts';
+import { ADMINISTRATION_BY_ROLE, permits, type Administration } from './permission.ts';
+import { membership, workspace, type Membership, type Workspace } from '../database/schema.ts';
 import {
 	migrateWorkspaceDatabase,
 	MIGRATION_TOKEN_LIFETIME,
@@ -182,6 +183,115 @@ export const createWorkspace = async (
 	}
 };
 
+/**
+ * The row that says this account belongs to this workspace, and what it may do to it.
+ *
+ * **Extracted rather than repeated**, which was this ticket's call to make: it was eight inline
+ * lines inside {@link mintWorkspaceToken} and the rename needs the same read for a different
+ * reason. What is *not* shared is the refusal that follows a missing row, because the two mean
+ * different things to a client — the mint's absence ends a replica, and the rename's does not.
+ *
+ * Not a listing route and not on its way to becoming one: it reads the one row belonging to the
+ * account that is asking, which is what authorizing a request means here.
+ */
+export const membershipOf = async (
+	db: Database,
+	workspaceId: string,
+	accountId: string
+): Promise<Membership | undefined> => {
+	const [belongs] = await db
+		.select()
+		.from(membership)
+		.where(and(eq(membership.workspaceId, workspaceId), eq(membership.accountId, accountId)))
+		.limit(1);
+
+	return belongs;
+};
+
+/**
+ * The workspace this account may act on, and nothing where it may not.
+ *
+ * Three refusals in the order a caller can act on them: a workspace that is not there, one this
+ * account does not belong to, and one it belongs to without the permission being asked for.
+ *
+ * **The permission is consulted rather than the ownership.** `renameWorkspace` has been a flag on
+ * the membership row since the control plane had permissions, granted by default to owner and to
+ * administrator, and this is the first thing ever to read it. Asking whether the account owns the
+ * workspace instead would put a second answer beside a mechanism that already has one, and it
+ * would be the wrong answer the day an administrator is expected to rename anything.
+ */
+const workspaceThisAccountMay = async (
+	db: Database,
+	{
+		workspaceId,
+		accountId,
+		administration
+	}: { workspaceId: string; accountId: string; administration: Administration }
+): Promise<Workspace> => {
+	const [record] = await db.select().from(workspace).where(eq(workspace.id, workspaceId)).limit(1);
+
+	if (!record) {
+		throw new Refusal(NO_SUCH_WORKSPACE, 404, 'that workspace is not one this account can reach');
+	}
+
+	const belongs = await membershipOf(db, workspaceId, accountId);
+
+	if (!belongs) {
+		throw new Refusal(NOT_A_MEMBER, 403, 'you are no longer a member of that workspace');
+	}
+
+	if (!permits(belongs.permissions, administration)) {
+		throw new Refusal(NOT_PERMITTED, 403, 'your role in this workspace does not allow that');
+	}
+
+	return record;
+};
+
+/**
+ * How long a workspace's name may be.
+ *
+ * **The route's bound rather than the column's, and it is worth saying which.** `workspace.name`
+ * is SQLite `TEXT` with no length on it, so nothing below refuses a name for not fitting: what
+ * this stops is a name no surface can draw and nobody chose to type. Every surface that shows one
+ * truncates, so the cost of being wrong here is small in one direction and a row of ellipsis in
+ * the other.
+ */
+export const WORKSPACE_NAME_LIMIT = 120;
+
+/**
+ * Rename a workspace, on behalf of a member the workspace permits to rename it.
+ *
+ * **The first write this control plane has ever accepted against a workspace row.** Its other
+ * routes read, provision and mint, so the refusal vocabulary and the membership read both existed
+ * and nothing had composed them into a write.
+ *
+ * The name is stored trimmed, because the surrounding space is not part of what anybody named it
+ * and a name that differs from another only by it is a name two people cannot tell apart.
+ */
+export const renameWorkspace = async (
+	db: Database,
+	{
+		workspaceId,
+		accountId,
+		name,
+		now
+	}: { workspaceId: string; accountId: string; name: string; now: number }
+): Promise<Workspace> => {
+	await workspaceThisAccountMay(db, {
+		workspaceId,
+		accountId,
+		administration: 'renameWorkspace'
+	});
+
+	const [renamed] = await db
+		.update(workspace)
+		.set({ name: name.trim(), updatedAt: new Date(now) })
+		.where(eq(workspace.id, workspaceId))
+		.returning();
+
+	return renamed;
+};
+
 export type MintedToken = {
 	token: string;
 	/**
@@ -293,13 +403,7 @@ export const mintWorkspaceToken = async (
 		throw new Refusal(NO_SUCH_WORKSPACE, 404, 'that workspace is not one this account can reach');
 	}
 
-	const [belongs] = await db
-		.select()
-		.from(membership)
-		.where(and(eq(membership.workspaceId, workspaceId), eq(membership.accountId, accountId)))
-		.limit(1);
-
-	if (!belongs) {
+	if (!(await membershipOf(db, workspaceId, accountId))) {
 		throw new Refusal(NOT_A_MEMBER, 403, 'you are no longer a member of that workspace');
 	}
 

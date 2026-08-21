@@ -61,6 +61,19 @@ export const SESSION_EXPIRED = 'session_expired';
 export const SESSION_LIFETIME_REACHED = 'session_lifetime_reached';
 /** a workspace this account is not a member of. Membership is the whole of the answer. */
 export const NOT_A_MEMBER = 'not_a_member';
+/**
+ * a member of the workspace, asking for something their membership does not allow.
+ *
+ * **Distinct from {@link NOT_A_MEMBER}, and the difference is what the person does next.** Not a
+ * member means this workspace is not theirs to reach and the client should stop holding a replica
+ * of it. This one means it *is* theirs and this particular act is not, so nothing about the
+ * replica changes and what would settle it is somebody with the permission granting it.
+ *
+ * The first thing ever to consult a permission flag is the rename route, in #697. `permits` and
+ * the column behind it have existed since the control plane had permissions at all, and until
+ * then nothing in production had called either.
+ */
+export const NOT_PERMITTED = 'not_permitted';
 export const NO_SUCH_WORKSPACE = 'no_such_workspace';
 
 /** Turso could not be reached or would not answer. Distinct from Google for the same reason. */

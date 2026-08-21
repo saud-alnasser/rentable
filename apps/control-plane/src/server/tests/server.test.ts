@@ -1,21 +1,30 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { eq } from 'drizzle-orm';
+
 import type { Database } from '../../database/database.ts';
 import type { VerifyGoogleIdentity } from '../../account/google.ts';
 
 import {
 	CLIENT_OUT_OF_DATE,
 	MALFORMED,
+	NO_SUCH_WORKSPACE,
+	NOT_A_MEMBER,
+	NOT_PERMITTED,
 	NOT_VERIFIED,
 	Refusal,
 	SESSION_EXPIRED,
 	SESSION_LIFETIME_REACHED,
 	UNAUTHENTICATED
 } from '../../failure.ts';
-import { workspace as workspaceTable } from '../../database/schema.ts';
+import {
+	membership as membershipTable,
+	workspace as workspaceTable
+} from '../../database/schema.ts';
 import { declineRenewal } from '../../session/session.ts';
 import { targetSchemaVersion } from '../../workspace/migration.ts';
+import { ADMINISTRATION_BY_ROLE, maskOf } from '../../workspace/permission.ts';
 import {
 	answerOf,
 	freshDatabase,
@@ -609,5 +618,185 @@ test('refreshing moves the session and leaves the replica credential where it wa
 
 		assert.equal(refreshed.session?.expiresAt, AT + 5 * A_DAY, 'the session did not move');
 		assert.equal(minted.expiresAt, AT + 3 * A_DAY, 'and the replica credential still dies here');
+	});
+});
+
+/**
+ * RENAMING A WORKSPACE, OVER THE WIRE
+ *
+ * The first write this control plane accepts against a workspace row. Everything below drives the
+ * real route against a real database, and the membership rows are built through the routes where
+ * they can be and inserted where they cannot: there is no route that adds a member yet, which is
+ * requirement 14's and out of scope here.
+ */
+
+const A_NEW_NAME = 'دار السلام';
+
+test('renaming a workspace answers with the new name', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		const owned = await aWorkspace(url);
+
+		const response = await post(url, `/workspace/${owned.id}/name`, {
+			body: { name: A_NEW_NAME }
+		});
+
+		assert.equal(response.status, 200);
+
+		const answer = await answerOf(response);
+
+		assert.equal(answer.workspace?.name, A_NEW_NAME);
+		assert.equal(answer.workspace?.id, owned.id);
+		// Every route renews the session it was reached with, and this one is no exception.
+		assert.equal(answer.session?.expiresAt, AT + 3 * A_DAY);
+	});
+});
+
+// And it stays renamed: `workspaceForAccount` answers with the existing workspace unchanged, so
+// the display name it is handed at the next sign-in is not a name it corrects anything to.
+test('and the next sign-in answers with the new name rather than the account display name', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		const owned = await aWorkspace(url);
+
+		await post(url, `/workspace/${owned.id}/name`, { body: { name: A_NEW_NAME } });
+
+		const { workspace } = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.equal(workspace?.name, A_NEW_NAME);
+		assert.notEqual(workspace?.name, SOMEBODY.displayName);
+	});
+});
+
+/**
+ * **The permission is what refuses, and it says so.** A member of the workspace without
+ * `renameWorkspace` is not the same as somebody who is not a member: the first keeps their replica
+ * and the second gives it up, and a bare 403 for both would have the client choose between them by
+ * guessing.
+ */
+test('a member without the flag is refused by a code that names the permission', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, db }) => {
+		const owned = await aWorkspace(url);
+		const [ownership] = await db
+			.select()
+			.from(workspaceTable)
+			.where(eq(workspaceTable.id, owned.id));
+
+		// The owner's own row, stripped of everything it may administer. Nothing here adds a second
+		// account, because there is no route that would: what is under test is the flag, and one
+		// membership row set to zero is that test with nothing else moving.
+		await db
+			.update(membershipTable)
+			.set({ permissions: ADMINISTRATION_BY_ROLE.member })
+			.where(eq(membershipTable.accountId, ownership.ownerAccountId));
+
+		const response = await post(url, `/workspace/${owned.id}/name`, {
+			body: { name: 'not theirs to change' }
+		});
+
+		assert.equal(response.status, 403);
+
+		const answer = await answerOf(response);
+
+		assert.equal(answer.error?.code, NOT_PERMITTED);
+		assert.notEqual(answer.error?.code, NOT_A_MEMBER, 'a permitted reader was told to give up');
+
+		const { workspace } = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.equal(workspace?.name, owned.name, 'a refused rename went through anyway');
+	});
+});
+
+// And granting it back is the whole of what changes the answer.
+test('and the same account renames it once the flag is back', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, db }) => {
+		const owned = await aWorkspace(url);
+
+		await db.update(membershipTable).set({ permissions: ADMINISTRATION_BY_ROLE.member });
+		assert.equal(
+			(await post(url, `/workspace/${owned.id}/name`, { body: { name: 'first try' } })).status,
+			403
+		);
+
+		await db.update(membershipTable).set({ permissions: maskOf('renameWorkspace') });
+
+		const response = await post(url, `/workspace/${owned.id}/name`, {
+			body: { name: 'second try' }
+		});
+
+		assert.equal(response.status, 200);
+		assert.equal((await answerOf(response)).workspace?.name, 'second try');
+	});
+});
+
+/**
+ * The three names this route will not store, each with its own reason.
+ *
+ * Empty and whitespace-only are one answer deliberately: after trimming they are the same name,
+ * and telling somebody their four spaces were not four spaces says nothing they can use.
+ */
+test('a name it will not store is refused, and the refusal says which of the three it was', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		const owned = await aWorkspace(url);
+
+		for (const [body, expected] of [
+			[{}, /say what this workspace should be called/],
+			[{ name: 7 }, /say what this workspace should be called/],
+			[{ name: '' }, /a workspace needs a name/],
+			[{ name: '   ' }, /a workspace needs a name/],
+			[{ name: 'n'.repeat(121) }, /too long/]
+		] as const) {
+			const response = await post(url, `/workspace/${owned.id}/name`, { body });
+
+			assert.equal(response.status, 400, JSON.stringify(body));
+
+			const answer = await answerOf(response);
+
+			assert.equal(answer.error?.code, MALFORMED, JSON.stringify(body));
+			assert.match(answer.error?.message ?? '', expected);
+		}
+
+		// and nothing was stored by any of them.
+		const { workspace } = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.equal(workspace?.name, owned.name);
+	});
+});
+
+// The bound is the route's rather than the column's, so it is worth pinning where it actually sits.
+test('a name at the limit is stored and one past it is not', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		const owned = await aWorkspace(url);
+		const atTheLimit = 'n'.repeat(120);
+
+		const accepted = await post(url, `/workspace/${owned.id}/name`, { body: { name: atTheLimit } });
+
+		assert.equal(accepted.status, 200);
+		assert.equal((await answerOf(accepted)).workspace?.name, atTheLimit);
+	});
+});
+
+test('renaming a workspace this account is not a member of is refused', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		await aWorkspace(url);
+
+		const response = await post(url, '/workspace/a-workspace-that-does-not-exist/name', {
+			body: { name: 'nothing to rename' }
+		});
+
+		assert.equal(response.status, 404);
+		assert.equal((await answerOf(response)).error?.code, NO_SUCH_WORKSPACE);
+	});
+});
+
+test('and renaming one with no credential at all is unauthenticated', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		const owned = await aWorkspace(url);
+
+		const response = await post(url, `/workspace/${owned.id}/name`, {
+			token: null,
+			body: { name: 'nobody is asking' }
+		});
+
+		assert.equal(response.status, 401);
+		assert.equal((await answerOf(response)).error?.code, UNAUTHENTICATED);
 	});
 });
