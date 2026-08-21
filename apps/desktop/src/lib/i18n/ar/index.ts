@@ -706,10 +706,14 @@ const ar = {
 		groupMembers: 'الأعضاء',
 		groupSync: 'المزامنة',
 		groupTransfer: 'تصدير / استيراد',
-		iconLocked: 'الأيقونة لاحقًا',
-		identityDescription: 'تم تسميتها عند تسجيلك، ولا توجد طريقة لإعادة تسميتها بعد.',
+		identityDescription: 'الصورة عنصر نائب، ولا يمكن تغييرها بعد.',
 		inviteLocked: 'دعوة',
 		membersDescription: 'شخص واحد، وهو الوحيد الممكن اليوم. دعوة غيره تأتي مع المؤسسات.',
+		nameTooLong: 'هذا الاسم طويل جداً.',
+		nameRequired: 'أعطِ مساحة العمل اسماً.',
+		rename: 'إعادة تسمية',
+		renameDescription: 'اسم مساحة العمل هذه على كل جهاز مسجل الدخول إليها.',
+		renamed: 'تمت إعادة تسمية مساحة العمل.',
 		roleOwner: 'المالك',
 		title: 'مساحة العمل'
 	}

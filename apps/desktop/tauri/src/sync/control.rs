@@ -205,21 +205,33 @@ pub(crate) struct Identified {
 
 /// Reach the control plane, presenting whatever credential this call has.
 ///
-/// One function for both calls, because they differ only in the path and the credential: signing
-/// in presents Google's access token to `/account/sign-in`, and renewing presents the session to
-/// `/session/refresh`. Both answer with a session, and both refuse the same way.
-async fn call(base_url: &str, path: &str, bearer: &str) -> Result<Identified, Error> {
+/// One function for three calls now, because they differ only in the path, the credential and
+/// whether they carry a body: signing in presents Google's access token to `/account/sign-in`,
+/// renewing presents the session to `/session/refresh`, and renaming presents the session to
+/// `/workspace/<id>/name` with what to call it. **All three answer with the same thing** — a
+/// session, and the workspace this account owns — which is what makes one function honest rather
+/// than merely shorter: every route on that service renews the session it was reached with, and a
+/// rename answers with the workspace it just changed.
+async fn call(
+    base_url: &str,
+    path: &str,
+    bearer: &str,
+    body: Option<String>,
+) -> Result<Identified, Error> {
     let client = build_client(CONTROL_PLANE_TIMEOUT)?;
 
-    let response = client
+    let mut request = client
         .post(format!("{base_url}{path}"))
         .bearer_auth(bearer)
-        .header("content-type", "application/json")
-        .send()
-        .await
-        .map_err(|error| Error::Network {
-            message: format!("could not reach the control plane: {error}"),
-        })?;
+        .header("content-type", "application/json");
+
+    if let Some(body) = body {
+        request = request.body(body);
+    }
+
+    let response = request.send().await.map_err(|error| Error::Network {
+        message: format!("could not reach the control plane: {error}"),
+    })?;
 
     let status = response.status();
     let body = response.text().await.unwrap_or_default();
@@ -394,12 +406,46 @@ pub(crate) async fn sign_in(
     base_url: &str,
     google_access_token: &str,
 ) -> Result<Identified, Error> {
-    call(base_url, "/account/sign-in", google_access_token).await
+    call(base_url, "/account/sign-in", google_access_token, None).await
 }
 
 /// Renew a session, restarting the window from now.
 pub(crate) async fn refresh(base_url: &str, session_token: &str) -> Result<Identified, Error> {
-    call(base_url, "/session/refresh", session_token).await
+    call(base_url, "/session/refresh", session_token, None).await
+}
+
+/// Ask the control plane to call a workspace something else.
+///
+/// **The name is what a person typed, so it is encoded rather than interpolated.** Every other
+/// body on this path is a number or a fixed string and is written inline; this one is free text in
+/// whatever language the person writes in, and a quote or a backslash in it would produce a body
+/// the service cannot parse. `serde_json` is what makes that impossible rather than unlikely.
+///
+/// The refusals are the control plane's own and they arrive through [`refusal`] like every other:
+/// a member without the permission, a name the service will not store, a workspace this account
+/// does not belong to. **The three name refusals should not reach here** — the form validates
+/// before it calls, so the reader is told by the field they typed in rather than by a message that
+/// crossed two boundaries — and the backstop is left in place because the form is not the only
+/// thing that could ever call this.
+pub(crate) async fn rename(
+    base_url: &str,
+    session_token: &str,
+    workspace_id: &str,
+    name: &str,
+) -> Result<Identified, Error> {
+    let body = serde_json::to_string(&serde_json::json!({ "name": name })).map_err(|error| {
+        Error::Internal {
+            message: format!("the rename could not be encoded: {error}"),
+        }
+    })?;
+
+    call(
+        base_url,
+        &format!("/workspace/{workspace_id}/name"),
+        session_token,
+        Some(body),
+    )
+    .await
 }
 
 impl RemoteSync {
@@ -843,6 +889,104 @@ pub(crate) async fn mint_workspace(app_state: &AppState) -> WorkspaceStanding {
     }
 }
 
+/// Call this machine's workspace something else, everywhere it is called anything.
+///
+/// **The control plane is the one that holds the name**, which is what makes this a call rather
+/// than a local write: two machines signed in to one workspace would otherwise disagree about what
+/// it is called, and the `renameWorkspace` permission would have nothing to guard. What comes back
+/// is an identifying answer like any other, so the new name and the renewed window are recorded by
+/// the same two writes every reach already makes.
+///
+/// **Three things have to be true before there is anything to rename**, and none of them is a
+/// failure of the rename: a build that was told no control plane, a machine that has never signed
+/// in to one, and a machine holding no session. Each is a precondition rather than a refusal, and
+/// each says so, because the reader's move is different for each.
+///
+/// **The local write is what the reader sees and the remote one is what is true.** Where the call
+/// succeeds and the store cannot be written, the name has changed and this machine is still
+/// showing the old one; the next session renewal corrects it with nobody typing anything. That is
+/// reported rather than swallowed, because a reader who pressed rename and sees the old name needs
+/// to know the difference between *it did not happen* and *it happened and this window is behind*.
+pub(crate) async fn rename_workspace(app_state: &AppState, name: &str) -> Result<(), Error> {
+    let Some(base_url) = control_plane_url() else {
+        return Err(Error::NotConfigured {
+            message: "this build was not told where a control plane is".to_string(),
+        });
+    };
+
+    let held = {
+        let remote_sync = app_state.remote_sync.read().await;
+        let Some(workspace_id) = remote_sync.workspace().remote_id else {
+            return Err(Error::PreconditionFailed {
+                message: "this machine has not signed in to a workspace it could rename"
+                    .to_string(),
+            });
+        };
+        let Some(window) = remote_sync.session_window() else {
+            return Err(Error::PreconditionFailed {
+                message: "this machine holds no session to rename a workspace with".to_string(),
+            });
+        };
+
+        match remote_sync.load_control_plane_session(&window.account_id)? {
+            Some(session) => (workspace_id, session),
+            None => {
+                return Err(Error::PreconditionFailed {
+                    message: "this machine holds no session to rename a workspace with".to_string(),
+                });
+            }
+        }
+    };
+
+    let (workspace_id, session) = held;
+    let renamed = rename(&base_url, &session.token, &workspace_id, name).await?;
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+
+    if let Some(workspace) = renamed.workspace.as_ref()
+        && let Err(error) = remote_sync.record_remote_workspace(LearnedWorkspace {
+            remote_id: &workspace.id,
+            name: workspace.name.as_deref(),
+            url: None,
+        })
+    {
+        diagnostics::error("sync.workspace.renameNotRecorded")
+            .with("error", error.to_string())
+            .write();
+
+        // **The one failure that has to say what happened rather than what went wrong.** The
+        // rename landed: the control plane holds the new name and every other machine will pick it
+        // up. What failed is writing it down here, so this window goes on showing the old one
+        // until the next session renewal corrects it. A reader told only *a file could not be
+        // written* would press rename again, which would succeed and change nothing they can see.
+        return Err(Error::Io {
+            message: "the workspace was renamed, and this machine could not write the new name \
+                      down. it will show the new one after the next sign-in"
+                .to_string(),
+        });
+    }
+
+    // Logged rather than propagated, as every other site that writes this does. The rename landed
+    // on the control plane; failing the whole call over the window not moving would report a
+    // rename that happened as one that did not.
+    if let Err(error) =
+        remote_sync.record_control_plane_session(&session.account_id, &renamed.session)
+    {
+        diagnostics::error("sync.session.notRecorded")
+            .with("error", error.to_string())
+            .write();
+    }
+
+    // **The name is not in here.** It is a person's own words about their own workspace, and a
+    // diagnostics file is a thing people attach to support messages. What is worth recording is
+    // that a rename landed.
+    diagnostics::info("sync.workspace.renamed")
+        .with("workspace", workspace_id.as_str())
+        .write();
+
+    Ok(())
+}
+
 /// Renew the session, which is what *reaching the API inside the window* means in practice.
 ///
 /// **Being unable to reach the control plane leaves the window exactly where it was**, and that
@@ -1014,7 +1158,7 @@ mod tests {
         );
         let server = ScriptedServer::start(vec![ScriptedResponse::new(200, body)]).await;
 
-        let issued = super::call(&server.url(""), "/workspace/w/token", "rws_a-token")
+        let issued = super::call(&server.url(""), "/workspace/w/token", "rws_a-token", None)
             .await
             .expect("the mint failed")
             .session;
@@ -1235,6 +1379,107 @@ mod tests {
 
         assert!(identified.workspace.is_none());
         assert_eq!(identified.session.token, "rws_a-token");
+    }
+
+    /// **A rename presents the session, carries the name, and comes back with the workspace.**
+    /// Every route on this service renews the session it was reached with, so the answer is the
+    /// same shape an identifying call gets, which is what lets one function make all three.
+    #[tokio::test]
+    async fn renaming_a_workspace_presents_the_session_and_answers_with_the_new_name() {
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            200,
+            format!(
+                r#"{{"workspace":{{"id":"workspace-7","name":"دار السلام"}},"session":{{"token":"rws_a-token","expiresAt":{},"absoluteExpiresAt":{}}}}}"#,
+                AT + 3 * A_DAY,
+                AT + 30 * A_DAY
+            ),
+        )])
+        .await;
+
+        let renamed = super::rename(
+            &server.url(""),
+            "rws_the-held-token",
+            "workspace-7",
+            "دار السلام",
+        )
+        .await
+        .expect("renaming failed");
+
+        let request = server.request(0);
+
+        assert_eq!(request.method, "POST");
+        assert_eq!(request.target, "/workspace/workspace-7/name");
+        assert_eq!(
+            request.header("authorization"),
+            Some("Bearer rws_the-held-token")
+        );
+        assert_eq!(
+            request.body,
+            r#"{"name":"دار السلام"}"#
+        );
+        assert_eq!(
+            renamed
+                .workspace
+                .expect("the answer named a workspace")
+                .name
+                .as_deref(),
+            Some("دار السلام")
+        );
+    }
+
+    /// **The name is a person's own words, so the body is encoded rather than interpolated.** A
+    /// quote or a backslash written into a body by hand produces one the service cannot parse, and
+    /// the failure would land on whoever typed the quote rather than on whoever wrote the format
+    /// string.
+    #[tokio::test]
+    async fn a_name_carrying_json_punctuation_is_encoded_rather_than_breaking_the_body() {
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            200,
+            format!(
+                r#"{{"workspace":{{"id":"workspace-7","name":"ok"}},"session":{{"token":"rws_a-token","expiresAt":{},"absoluteExpiresAt":{}}}}}"#,
+                AT + 3 * A_DAY,
+                AT + 30 * A_DAY
+            ),
+        )])
+        .await;
+
+        super::rename(
+            &server.url(""),
+            "rws_the-held-token",
+            "workspace-7",
+            "the \"quoted\" one \\ and a backslash",
+        )
+        .await
+        .expect("renaming failed");
+
+        let body = server.request(0).body;
+
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&body)
+                .expect("the body was not json")
+                .get("name")
+                .and_then(|name| name.as_str()),
+            Some("the \"quoted\" one \\ and a backslash")
+        );
+    }
+
+    /// A refusal on the merits reaches the caller as one rather than as a rename that happened.
+    #[tokio::test]
+    async fn a_member_the_workspace_does_not_permit_is_refused() {
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            403,
+            r#"{"error":{"code":"not_permitted","message":"your role in this workspace does not allow that"}}"#,
+        )])
+        .await;
+
+        let refusal = super::rename(&server.url(""), "rws_a-token", "workspace-7", "nope")
+            .await
+            .expect_err("a refused rename answered as a success");
+
+        assert!(
+            matches!(refusal, Error::Forbidden { .. }),
+            "the refusal was {refusal:?}"
+        );
     }
 
     /// A refresh restarts the window and leaves the sign-in where it is, which is the whole of

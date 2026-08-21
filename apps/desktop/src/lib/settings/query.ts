@@ -39,6 +39,45 @@ export function useFetchRemoteSyncState(enabled: () => boolean = () => true) {
 	}));
 }
 
+/**
+ * Call this machine's workspace something else.
+ *
+ * **Beside `useSyncWorkspace` rather than in `workspace/query.ts`, because of what it
+ * invalidates.** `keys.remoteSync` is this module's, and the sidebar header, the workspace menu
+ * and the workspace page all draw the name from the one query it holds — so one invalidation
+ * covers all three, and it is written where that key is.
+ *
+ * The refusal is the shared handler's: the procedure's own bound raises `BAD_REQUEST`, which
+ * reaches the reader as the message it was raised with, and anything else reads as an unexpected
+ * failure. What a reader actually meets for a name that is empty or too long is the form's own
+ * validation, on the field they typed in, before any of this runs.
+ */
+export function useRenameWorkspace(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).workspace.renamed(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ name }: { name: string }) => api.app.remoteSync.rename({ name }),
+		onSuccess: async (state) => {
+			// written before the invalidation as well as after it: the three surfaces drawing the
+			// name are on screen while this resolves, and the refetch is a round trip they would
+			// otherwise spend showing the old one.
+			client.setQueryData(keys.remoteSync, state);
+			await client.invalidateQueries({ queryKey: keys.remoteSync });
+
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
 export function useSetEndingSoonNoticeDays(
 	opts: MutationOptions = {
 		toast: {

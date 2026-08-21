@@ -201,6 +201,8 @@ export const tauri = {
 		renewSession: () => invoke<RemoteSyncState>('remote_sync_renew_session'),
 		establishSession: () => invoke<RemoteSyncState>('remote_sync_establish_session'),
 		replicate: () => invoke<{ pushed: boolean; received: boolean }>('remote_sync_replicate'),
-		push: () => invoke<boolean>('remote_sync_push')
+		push: () => invoke<boolean>('remote_sync_push'),
+		renameWorkspace: (name: string) =>
+			invoke<RemoteSyncState>('remote_sync_rename_workspace', { name })
 	}
 } satisfies Host;
