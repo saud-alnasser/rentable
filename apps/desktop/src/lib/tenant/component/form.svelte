@@ -11,7 +11,6 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateTenant, useUpdateTenant } from '$lib/tenant/query';
 	import { TRPCError } from '@trpc/server';
-	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
@@ -137,14 +136,14 @@
 
 					onOpenChange(false);
 				} catch (e) {
+					// an unexpected failure is the shared error handler's to report, and it already has:
+					// what is left here is the refusal, mapped onto the field the reader would fix.
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 						if (e.message.includes('national id')) {
 							setError(form, 'nationalId', $LL.tenants.form.duplicateNationalId());
 						} else if (e.message.includes('phone')) {
 							setError(form, 'phoneNumber', $LL.tenants.form.duplicatePhone());
 						}
-					} else {
-						toast.error($LL.common.messages.unexpectedError());
 					}
 				}
 			}

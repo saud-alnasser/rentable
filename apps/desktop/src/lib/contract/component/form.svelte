@@ -282,6 +282,8 @@
 					}
 					closeContractForm();
 				} catch (e) {
+					// an unexpected failure is the shared error handler's to report, and it already has:
+					// what is left here is the refusal, mapped onto the field the reader would fix.
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 						// both renewal refusals are about the term, so each marks the end of it the
 						// reader has to move — a refusal shown as a banner names the problem and
@@ -303,8 +305,6 @@
 						} else {
 							toast.error(e.message);
 						}
-					} else {
-						toast.error($LL.common.messages.unexpectedError());
 					}
 				}
 			}

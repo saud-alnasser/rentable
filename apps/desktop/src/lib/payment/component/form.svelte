@@ -24,7 +24,6 @@
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import { TRPCError } from '@trpc/server';
-	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
@@ -113,12 +112,12 @@
 					// nothing landed, so the projection is a live question again.
 					submittedRemaining = undefined;
 
+					// an unexpected failure is the shared error handler's to report, and it already has:
+					// what is left here is the refusal, mapped onto the field the reader would fix.
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 						if (e.message.includes('amount')) {
 							setError(form, 'amount', $LL.contracts.form.paymentAmountGreaterThanZero());
 						}
-					} else {
-						toast.error($LL.common.messages.unexpectedError());
 					}
 				}
 			}
