@@ -1,0 +1,27 @@
+-- Generated from `payment` in `apps/desktop/src/lib/platform/database/schema.ts`, and the notes
+-- below are hand-written after the fact so the next person to suspect this reads a figure rather
+-- than deriving one.
+--
+-- WHY: the contracts directory counts each contract's payments with a correlated subquery
+-- (`contract/router.ts`, `contractPaymentCount`). With `contract_id` unindexed that is a scan of
+-- every payment for every contract, so it grows as the product of the two tables and is charged
+-- on every read of the list.
+--
+-- MEASURED 2026-08-21 on the development workspace replica -- 5000 tenants, 1138 contracts, 647
+-- payments -- through `@tursodatabase/sync` 0.7.2, the engine this application ships, on a copy of
+-- the file rather than the live one, with this file applied to the copy verbatim. Five runs per
+-- statement after a warm-up, best and median:
+--
+--                            with paymentCount   without it     ratio
+--   before this index        62.0ms / 62.3ms     3.8ms / 3.8ms   16.5x
+--   after this index          4.9ms /  5.0ms     3.7ms / 3.7ms    1.3x
+--
+-- The 2026-08-20 figures in requirement 18 of
+-- `.aep/efforts/capabilities-only-one-surface-got/spec.md` -- 60.7ms against 3.4ms -- are the
+-- same measurement on the same replica a day earlier.
+--
+-- WHAT IS DELIBERATELY NOT HERE: the other unindexed foreign keys. `unit.complex_id`,
+-- `contract.tenant_id`, `contract_unit.contract_id` and `contract_unit.unit_id` are all still
+-- unindexed, and none of them has been measured costing anything. An index is a write cost and a
+-- page cost on a database that replicates, so looking similar is not a reason to add one.
+CREATE INDEX `payment_contract_id_idx` ON `payment` (`contract_id`);
