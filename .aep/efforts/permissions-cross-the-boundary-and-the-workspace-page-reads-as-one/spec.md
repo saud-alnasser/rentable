@@ -695,11 +695,18 @@ the package cannot reach. The assertion is what makes a role added to the databa
 package a typecheck failure. **Without it this is a second copy with nothing watching it**, and it
 belongs on the ticket rather than being left to review.
 
-**The build the probe broke is a build nobody runs, which is also why nobody would notice.**
-`turbo.json` defines `build:web`, `test` and `test:rust`; the control plane's `build` is reachable
-only through the root's `pnpm build`, and the README's claim that `turbo run build` proves anything
-is stale, since turbo refuses a task it has no definition for. So the property being given up is one
-no gate is checking, and the removal condition above is the only thing that will surface it.
+**The build the probe broke runs on every pull request. What nobody runs is its output.**
+`turbo.json` defines `build:web`, `test` and `test:rust` and no `build`, so the README's claim that
+`turbo run build` proves anything was stale on both halves of the sentence, and #720 corrects it.
+What the gate does run is `pnpm build:control-plane`, by name and unconditionally, since #634 — so
+`tsc` compiles this package on every branch and will keep passing, because the failure the probe
+found is Node refusing to execute `build/main.js` rather than `tsc` refusing to emit it. The
+property being given up is that the emitted JavaScript *runs*, and nothing executes
+`apps/control-plane/build/` at all. The removal condition above is still the only thing that will
+surface it.
+
+*This paragraph read `a build nobody runs` until 2026-08-22, which was wrong: it took the README's
+stale command name as evidence that the compile was ungated, and did not check the workflow.*
 
 **A ladder is a fallthrough with more branches, and its last row is still `otherwise`.** The badge is
 better than what it replaces because it consults `controlPlaneReady` and `session`. It is not proof

@@ -312,8 +312,9 @@ every package here has, which is `dev`, `build` and the `db:` tooling; an operat
 package can perform is reached where it lives.
 
 `pnpm start` runs it once without the watcher. `pnpm build` emits JavaScript to `build/`;
-nothing consumes that yet, and it is there so `turbo run build` proves the package compiles to
-something runnable rather than only that it typechecks.
+nothing consumes that yet, and it is there so the gate has something to compile. The
+`integration` workflow runs it as `pnpm build:control-plane` from the root, which is how the
+package is proved to compile to something runnable rather than only to typecheck.
 
 ## What it needs to start
 
