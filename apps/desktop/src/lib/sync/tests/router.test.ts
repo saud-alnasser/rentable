@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createApi } from '$lib/api/tests/testing.ts';
+import { ADMINISTRATION_BY_ROLE, maskOf } from '@rentable/workspace-permission';
+
+import { createApi, fakeIdentity } from '$lib/api/tests/testing.ts';
 import { fakeHost, fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
 import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
 
@@ -14,8 +16,15 @@ import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
  * a round trip rather than after one, and a bound that drifted would be invisible until somebody
  * typed a long name on a bad connection.
  *
- * Who may call it is `api/tests/procedure.test.ts`'s, with the rest of the boundary.
+ * Who may call it is `api/tests/procedure.test.ts`'s, with the rest of the boundary — except for
+ * the one thing that is about *this* procedure rather than about the mechanism: it is
+ * `procedure.permitted('renameWorkspace')`, so every test below has to say that its caller may
+ * rename, and the last two are what make that a claim rather than a formality.
  */
+
+/** a caller the workspace permits to rename it, which every test about the rename itself needs. */
+const renamingApi = (host: ReturnType<typeof fakeHost>) =>
+	createApi({ host, identity: fakeIdentity({ permissions: maskOf('renameWorkspace') }) });
 
 /** a host that renames, and records what it was asked to call the workspace. */
 function hostRecordingRenames(asked: string[]) {
@@ -39,7 +48,7 @@ function hostRecordingRenames(asked: string[]) {
 
 test('a rename reaches the host and answers with what the workspace is now called', async () => {
 	const asked: string[] = [];
-	const api = await createApi({ host: hostRecordingRenames(asked) });
+	const api = await renamingApi(hostRecordingRenames(asked));
 
 	const state = await api.app.remoteSync.rename({ name: 'دار السلام' });
 
@@ -51,7 +60,7 @@ test('a rename reaches the host and answers with what the workspace is now calle
 // trimmed name either way. Trimming here is what stops the two disagreeing about what was sent.
 test('and what reaches the host is trimmed', async () => {
 	const asked: string[] = [];
-	const api = await createApi({ host: hostRecordingRenames(asked) });
+	const api = await renamingApi(hostRecordingRenames(asked));
 
 	await api.app.remoteSync.rename({ name: '  Jeddah  ' });
 
@@ -61,7 +70,7 @@ test('and what reaches the host is trimmed', async () => {
 test('a name with nothing in it is refused, and the host is never reached', async () => {
 	for (const name of ['', '   ', '\t\n']) {
 		const asked: string[] = [];
-		const api = await createApi({ host: hostRecordingRenames(asked) });
+		const api = await renamingApi(hostRecordingRenames(asked));
 
 		const refusal = await api.app.remoteSync.rename({ name }).then(
 			() => null,
@@ -75,7 +84,7 @@ test('a name with nothing in it is refused, and the host is never reached', asyn
 
 test('a name past what the control plane will store is refused here too, at the same bound', async () => {
 	const asked: string[] = [];
-	const api = await createApi({ host: hostRecordingRenames(asked) });
+	const api = await renamingApi(hostRecordingRenames(asked));
 
 	const refusal = await api.app.remoteSync
 		.rename({ name: 'n'.repeat(WORKSPACE_NAME_LIMIT + 1) })
@@ -90,10 +99,62 @@ test('a name past what the control plane will store is refused here too, at the 
 
 test('and a name at the bound goes through', async () => {
 	const asked: string[] = [];
-	const api = await createApi({ host: hostRecordingRenames(asked) });
+	const api = await renamingApi(hostRecordingRenames(asked));
 	const atTheBound = 'n'.repeat(WORKSPACE_NAME_LIMIT);
 
 	await api.app.remoteSync.rename({ name: atTheBound });
 
 	assert.deepEqual(asked, [atTheBound]);
+});
+
+/**
+ * **Criterion 7's other half: the procedure refuses whether or not the control was drawn.**
+ *
+ * The interface hides the button for this member, and that is a courtesy — nothing stops a caller
+ * reaching the procedure another way, and this is what meets them when they do. The host is never
+ * reached, so the refusal costs no round trip and changes nothing on the other side.
+ */
+test('a member the workspace does not permit to rename it is refused, and the host is never reached', async () => {
+	const asked: string[] = [];
+	const api = await createApi({
+		host: hostRecordingRenames(asked),
+		identity: fakeIdentity({ permissions: ADMINISTRATION_BY_ROLE.member })
+	});
+
+	const refusal = await api.app.remoteSync.rename({ name: 'not theirs to change' }).then(
+		() => null,
+		(error: unknown) => error as { code?: string }
+	);
+
+	assert.equal(refusal?.code, 'FORBIDDEN');
+	assert.notEqual(refusal?.code, 'BAD_REQUEST', 'a valid name was refused as an invalid one');
+	assert.deepEqual(asked, [], 'a rename nobody was permitted to make reached the host');
+});
+
+/**
+ * **And a member holding every other act is refused just the same.** The named act is what decides
+ * — not whether somebody administers *something*, which is the reading a role would have given.
+ */
+test('and so is a member holding every act except that one', async () => {
+	const asked: string[] = [];
+	const api = await createApi({
+		host: hostRecordingRenames(asked),
+		identity: fakeIdentity({
+			permissions: maskOf(
+				'inviteMember',
+				'removeMember',
+				'changeRole',
+				'deleteWorkspace',
+				'transferOwnership'
+			)
+		})
+	});
+
+	const refusal = await api.app.remoteSync.rename({ name: 'still not theirs' }).then(
+		() => null,
+		(error: unknown) => error as { code?: string }
+	);
+
+	assert.equal(refusal?.code, 'FORBIDDEN');
+	assert.deepEqual(asked, []);
 });

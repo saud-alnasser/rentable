@@ -25,10 +25,20 @@ export const remoteSync = router({
 	/**
 	 * Call this machine's workspace something else.
 	 *
-	 * **`member`, and it is the neighbour above that makes it worth saying why.** Reading what this
-	 * machine has synced is answerable to anybody, because it is a fact about the machine. A
+	 * **`permitted`, and it is the neighbour above that makes it worth saying why.** Reading what
+	 * this machine has synced is answerable to anybody, because it is a fact about the machine. A
 	 * workspace belongs to somebody, and renaming one is a write against a row the control plane
 	 * guards with a permission — so it needs an acting user however small the change looks.
+	 *
+	 * **And now it names which permission.** It was `member` until 2026-08-21, which asked whether
+	 * anybody was signed in and not whether *this* somebody may rename anything; the control plane
+	 * has refused a member without `renameWorkspace` since #703, and this side found out by being
+	 * told no. The two halves of the argument are now both here: who is acting, and what they may
+	 * do.
+	 *
+	 * **It is the earlier of two refusals and never the deciding one.** The control plane checks
+	 * the membership row again on every call, and a client is a thing a person can edit — so this
+	 * exists to refuse a caller before a round trip rather than to be trusted instead of one.
 	 *
 	 * **It reaches `ctx.host` rather than `ctx.db`.** The name is not in the workspace database at
 	 * all; it is in the control plane, and Rust is what holds the credential to reach it.
@@ -37,7 +47,8 @@ export const remoteSync = router({
 	 * before a round trip rather than after one. It is not a third opinion: the form validates for
 	 * the reader, this refuses a caller, and the service is the one that decides what it stores.
 	 */
-	rename: procedure.member
+	rename: procedure
+		.permitted('renameWorkspace')
 		.input(z.object({ name: z.string().trim().min(1).max(WORKSPACE_NAME_LIMIT) }))
 		.mutation(async ({ input, ctx }): Promise<RemoteSyncState> => {
 			return ctx.host.remoteSync.renameWorkspace(input.name);

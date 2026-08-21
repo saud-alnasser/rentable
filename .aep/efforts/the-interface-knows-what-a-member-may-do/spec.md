@@ -391,14 +391,18 @@ three things.
 
 ```svelte
 <Permitted acts={['renameWorkspace']} otherwise="absent">
-	{#snippet children()}<RenameButton />{/snippet}
+	<RenameButton />
 </Permitted>
 
 <Permitted acts={['inviteMember']} otherwise="unavailable" reason={$LL.workspace.notPermitted()}>
-	{#snippet children()}<InviteButton />{/snippet}
+	<InviteButton />
 	{#snippet unavailable()}<InviteButton aria-disabled="true" />{/snippet}
 </Permitted>
 ```
+
+*Corrected 2026-08-21 while building #716: the permitted subtree was written as an explicit
+`{#snippet children()}`, which this repository lints as `svelte/no-useless-children-snippet`. It is
+default content. `unavailable` stays a named snippet, having no other spelling.*
 
 **`otherwise` is required and has no default**, which is requirement 4's *the caller says which*
 turned into something the compiler asks for. A default would make one branch the one you get by not

@@ -15,14 +15,18 @@
 	 *
 	 * ```svelte
 	 * <Permitted acts={['renameWorkspace']} otherwise="absent">
-	 *     {#snippet children()}<RenameButton />{/snippet}
+	 *     <RenameButton />
 	 * </Permitted>
 	 *
 	 * <Permitted acts={['inviteMember']} otherwise="unavailable" reason={$LL.workspace.notPermitted()}>
-	 *     {#snippet children()}<InviteButton />{/snippet}
+	 *     <InviteButton />
 	 *     {#snippet unavailable()}<InviteButton aria-disabled="true" />{/snippet}
 	 * </Permitted>
 	 * ```
+	 *
+	 * *The spec writes the permitted subtree as an explicit `{#snippet children()}`; this repository
+	 * lints that as `svelte/no-useless-children-snippet`, so it is default content. `unavailable`
+	 * stays a named snippet, because it is a second one and has no other spelling.*
 	 *
 	 * **An unavailable control says why, and the type is what makes that unskippable.** `reason` and
 	 * the `unavailable` snippet are required on that branch and forbidden on the other, through a
