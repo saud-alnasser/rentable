@@ -37,7 +37,7 @@ use std::{collections::HashMap, sync::Mutex};
 use crate::{diagnostics, error::Error, http::build_client, state::AppState, timestamp};
 
 use super::session::GoogleAccountAuthInput;
-use super::store::{RemoteSync, sanitize_string};
+use super::store::{LearnedWorkspace, RemoteSync, sanitize_string};
 
 /// How long this application waits on the control plane before giving up.
 ///
@@ -137,6 +137,13 @@ struct WireAnswer {
 #[derive(Deserialize)]
 struct WireWorkspace {
     id: String,
+    /// what the control plane calls this workspace.
+    ///
+    /// **Optional because a client cannot make a server send a field.** The control plane has sent
+    /// it on every identifying answer since workspaces existed, and this side declared a struct
+    /// with one field, so serde dropped it. An answer without one leaves the machine on whatever
+    /// it had, which for a machine that has never reached a control plane is the local default.
+    name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -176,12 +183,24 @@ const NOT_A_MEMBER: &str = "not_a_member";
 /// somebody waiting for a network that cannot help, or send them back to Google after a weekend.
 const SESSION_LIFETIME_REACHED: &str = "session_lifetime_reached";
 
+/// which workspace an identifying answer named, and what the control plane calls it.
+///
+/// **The name arrived on the wire from the beginning and was parsed away until 2026-08-21**, so
+/// every install showed the same English literal for a workspace that already had a name on the
+/// other side. `WireWorkspace` declared one field, and this is the second one reaching the store.
+#[derive(Clone, Debug)]
+pub(crate) struct IdentifiedWorkspace {
+    pub id: String,
+    /// what the control plane calls it. `None` where the answer carried no name for it.
+    pub name: Option<String>,
+}
+
 /// what an identifying call answered with: a session, and which workspace this account owns.
 #[derive(Clone, Debug)]
 pub(crate) struct Identified {
     pub session: IssuedSession,
     /// `None` where the control plane did not name one, which is a build older than #615.
-    pub workspace_id: Option<String>,
+    pub workspace: Option<IdentifiedWorkspace>,
 }
 
 /// Reach the control plane, presenting whatever credential this call has.
@@ -226,7 +245,10 @@ async fn call(base_url: &str, path: &str, bearer: &str) -> Result<Identified, Er
             replica_expires_at: answer.replica_expires_at,
             absolute_expires_at: session.absolute_expires_at,
         },
-        workspace_id: answer.workspace.map(|workspace| workspace.id),
+        workspace: answer.workspace.map(|workspace| IdentifiedWorkspace {
+            id: workspace.id,
+            name: workspace.name,
+        }),
     })
 }
 
@@ -576,9 +598,14 @@ pub(super) async fn establish_session(
 
             // **Which workspace this machine belongs to, learned here and nowhere else.** It is
             // what the mint is asked about at the next launch, so a machine that never records it
-            // signs in successfully and then has nothing to open.
-            if let Some(workspace_id) = identified.workspace_id.as_deref()
-                && let Err(error) = remote_sync.record_remote_workspace(workspace_id, None)
+            // signs in successfully and then has nothing to open. Its name arrives on the same
+            // answer, and this is one of the two calls that carry one.
+            if let Some(workspace) = identified.workspace.as_ref()
+                && let Err(error) = remote_sync.record_remote_workspace(LearnedWorkspace {
+                    remote_id: &workspace.id,
+                    name: workspace.name.as_deref(),
+                    url: None,
+                })
             {
                 diagnostics::error("sync.workspace.notRecorded")
                     .with("error", error.to_string())
@@ -767,9 +794,14 @@ pub(crate) async fn mint_workspace(app_state: &AppState) -> WorkspaceStanding {
 
             remote_sync.hold_workspace_token(&minted.token);
 
-            if let Err(error) =
-                remote_sync.record_remote_workspace(&workspace_id, Some(&minted.url))
-            {
+            // **The mint carries no name**, so this call names nothing and the stored one stands.
+            // `MintedToken` is a credential, a URL and an expiry: a dispatch that only mints is
+            // not what a rename reaches this machine on. The two identifying answers are.
+            if let Err(error) = remote_sync.record_remote_workspace(LearnedWorkspace {
+                remote_id: &workspace_id,
+                name: None,
+                url: Some(&minted.url),
+            }) {
                 diagnostics::error("sync.workspace.notRecorded")
                     .with("error", error.to_string())
                     .write();
@@ -851,8 +883,12 @@ pub(super) async fn renew_session(app_state: &AppState) -> Result<bool, Error> {
             // would abort a renewal the control plane already granted, over a disk write — leaving
             // the remote's window moved and this machine's where it was, which is the shape that
             // walks somebody into a lock for a storage error.
-            if let Some(workspace_id) = identified.workspace_id.as_deref()
-                && let Err(error) = remote_sync.record_remote_workspace(workspace_id, None)
+            if let Some(workspace) = identified.workspace.as_ref()
+                && let Err(error) = remote_sync.record_remote_workspace(LearnedWorkspace {
+                    remote_id: &workspace.id,
+                    name: workspace.name.as_deref(),
+                    url: None,
+                })
             {
                 diagnostics::error("sync.workspace.notRecorded")
                     .with("error", error.to_string())
@@ -1104,8 +1140,65 @@ mod tests {
 
     /// **Signing in says which workspace this account owns**, which is what the next launch mints
     /// against. A machine that signed in and did not learn it opens nothing.
+    ///
+    /// It also says what that workspace is *called*, which this side parsed away until
+    /// 2026-08-21: `WireWorkspace` declared `id` alone, so serde dropped a field the control plane
+    /// had been sending all along and every install showed the local English default instead.
     #[tokio::test]
-    async fn signing_in_learns_which_workspace_this_account_owns() {
+    async fn signing_in_learns_which_workspace_this_account_owns_and_what_it_is_called() {
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            200,
+            format!(
+                r#"{{"account":{{"id":"account-1"}},"workspace":{{"id":"workspace-7","name":"دار السلام"}},"session":{{"token":"rws_a-token","expiresAt":{},"absoluteExpiresAt":{}}}}}"#,
+                AT + 3 * A_DAY,
+                AT + 30 * A_DAY
+            ),
+        )])
+        .await;
+
+        let identified = super::sign_in(&server.url(""), "ya29.a-google-token")
+            .await
+            .expect("signing in failed");
+
+        let workspace = identified.workspace.expect("the answer named a workspace");
+
+        assert_eq!(workspace.id, "workspace-7");
+        assert_eq!(workspace.name.as_deref(), Some("دار السلام"));
+    }
+
+    /// A renewal is the other answer that carries the workspace, and it is the one a rename made
+    /// on another machine rides home on: the sync manager schedules it on a timer, so a second
+    /// machine picks the new name up with nobody typing on it.
+    #[tokio::test]
+    async fn a_renewal_carries_the_name_too_which_is_how_a_rename_reaches_another_machine() {
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            200,
+            format!(
+                r#"{{"account":{{"id":"account-1"}},"workspace":{{"id":"workspace-7","name":"renamed"}},"session":{{"token":"rws_a-token","expiresAt":{},"absoluteExpiresAt":{}}}}}"#,
+                AT + 3 * A_DAY,
+                AT + 30 * A_DAY
+            ),
+        )])
+        .await;
+
+        let identified = super::refresh(&server.url(""), "rws_the-held-token")
+            .await
+            .expect("renewing failed");
+
+        assert_eq!(
+            identified
+                .workspace
+                .expect("the answer named a workspace")
+                .name
+                .as_deref(),
+            Some("renamed")
+        );
+    }
+
+    /// An answer that names the workspace and not its name leaves the machine on what it had,
+    /// rather than reading as a workspace that has been renamed to nothing.
+    #[tokio::test]
+    async fn a_workspace_answered_without_a_name_carries_none_rather_than_an_empty_one() {
         let server = ScriptedServer::start(vec![ScriptedResponse::new(
             200,
             format!(
@@ -1120,7 +1213,10 @@ mod tests {
             .await
             .expect("signing in failed");
 
-        assert_eq!(identified.workspace_id.as_deref(), Some("workspace-7"));
+        let workspace = identified.workspace.expect("the answer named a workspace");
+
+        assert_eq!(workspace.id, "workspace-7");
+        assert_eq!(workspace.name, None);
     }
 
     /// A control plane that names no workspace is one from before #615, and this client carries on
@@ -1137,7 +1233,7 @@ mod tests {
             .await
             .expect("signing in failed");
 
-        assert_eq!(identified.workspace_id, None);
+        assert!(identified.workspace.is_none());
         assert_eq!(identified.session.token, "rws_a-token");
     }
 

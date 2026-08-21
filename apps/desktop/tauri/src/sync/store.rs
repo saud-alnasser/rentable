@@ -103,6 +103,33 @@ pub struct RemoteSyncWorkspace {
     pub updated_at: i64,
 }
 
+/// what a workspace is called on a machine that has never reached a control plane.
+///
+/// **A fallback and not the name.** The control plane holds the name, it is sent on every
+/// identifying answer, and a machine that has heard one uses it. This is what is left for a
+/// machine that has heard none: an install with no control plane behind it still has a workspace,
+/// and a workspace with no name at all would read as a defect on every surface that draws one.
+///
+/// *It was written out at all three of those places and reached by defaulting, so every install
+/// showed it, identically, for every person, on an application that ships in Arabic. Named once
+/// here on 2026-08-21.*
+pub(super) const DEFAULT_WORKSPACE_NAME: &str = "Primary workspace";
+
+/// what a call to the control plane learned about the workspace this machine belongs to.
+///
+/// Every field is what *that* call answered with rather than what is true of the workspace: the
+/// two callers know different halves, and `None` means this call did not say rather than the
+/// workspace not having one.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct LearnedWorkspace<'a> {
+    /// the control plane's own id for it, which every call that learns anything carries.
+    pub remote_id: &'a str,
+    /// what the control plane calls it. An identifying answer carries this; a mint does not.
+    pub name: Option<&'a str>,
+    /// what the replica syncs against. A mint carries this; an identifying answer does not.
+    pub url: Option<&'a str>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct StoredGoogleCredentials {
@@ -219,7 +246,7 @@ impl Persistable for RemoteSyncStore {
         self.workspace.last_error = sanitize_optional_string(self.workspace.last_error.clone());
 
         if self.workspace.name.is_empty() {
-            self.workspace.name = "Primary workspace".to_string();
+            self.workspace.name = DEFAULT_WORKSPACE_NAME.to_string();
         }
 
         if self.workspace.created_at <= 0 {
@@ -376,36 +403,55 @@ impl RemoteSync {
         self.workspace_token = Some(token.to_string());
     }
 
-    /// Remember which workspace this machine belongs to, as the control plane names it.
+    /// what a call to the control plane learned about the workspace this machine belongs to.
     ///
-    /// Written at sign-in and again at every mint, because the second is where the URL arrives.
-    /// **Neither is a credential**, so both are persisted with the rest of the store rather than
-    /// filed in the platform's credential store.
+    /// **A struct rather than three arguments**, because two of them are `Option<&str>` of the
+    /// same type standing next to each other, and every caller fills exactly one of them: an
+    /// identifying answer names the workspace and mints nothing, a mint answers with a URL and no
+    /// name. Transposing two arguments in that shape compiles, writes a URL where the name goes,
+    /// and shows up as a workspace called `libsql://...` in the rail.
     pub(super) fn record_remote_workspace(
         &mut self,
-        remote_id: &str,
-        remote_url: Option<&str>,
+        learned: LearnedWorkspace<'_>,
     ) -> Result<(), Error> {
         let workspace = &mut self.store.workspace;
 
-        // **The URL is carried forward only for the workspace it belongs to.** A sign-in names the
-        // workspace and not its URL, so carrying the stored one is what keeps a machine able to
-        // open offline; carrying it across a *different* workspace would hand this account the
-        // previous one's database, which is the pair being internally inconsistent on disk rather
-        // than merely stale.
-        let same_workspace = workspace.remote_id.as_deref() == Some(remote_id);
-        let url = remote_url.map(str::to_string).or_else(|| {
+        // **Both facts are carried forward only for the workspace they belong to.** A sign-in
+        // names the workspace and not its URL, so carrying the stored one is what keeps a machine
+        // able to open offline; carrying it across a *different* workspace would hand this account
+        // the previous one's database, which is the pair being internally inconsistent on disk
+        // rather than merely stale. The name is the same rule and the same reason: a workspace
+        // this machine has just been told about is not called whatever the last one was called.
+        let same_workspace = workspace.remote_id.as_deref() == Some(learned.remote_id);
+        let url = learned.url.map(str::to_string).or_else(|| {
             same_workspace
                 .then(|| workspace.remote_url.clone())
                 .flatten()
         });
 
-        if same_workspace && workspace.remote_url == url {
+        // **A name that arrived wins over anything held locally**, which is the whole of
+        // requirement 4a: `DEFAULT_WORKSPACE_NAME` is what a machine that has never reached a
+        // control plane is left with, not a name to be defended against the one the workspace
+        // actually has. Whitespace is not a name — `sanitize` would put the default back on the
+        // next load, so taking one here would only make the store disagree with itself in between.
+        let name = learned
+            .name
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| {
+                same_workspace
+                    .then(|| workspace.name.clone())
+                    .unwrap_or_else(|| DEFAULT_WORKSPACE_NAME.to_string())
+            });
+
+        if same_workspace && workspace.remote_url == url && workspace.name == name {
             return Ok(());
         }
 
-        workspace.remote_id = Some(remote_id.to_string());
+        workspace.remote_id = Some(learned.remote_id.to_string());
         workspace.remote_url = url;
+        workspace.name = name;
         workspace.updated_at = timestamp::now();
 
         self.store.commit()
@@ -433,7 +479,7 @@ impl RemoteSync {
         }
 
         if self.store.workspace.name.trim().is_empty() {
-            self.store.workspace.name = "Primary workspace".to_string();
+            self.store.workspace.name = DEFAULT_WORKSPACE_NAME.to_string();
             changed = true;
         }
 
@@ -494,7 +540,7 @@ impl RemoteSync {
     pub(super) fn default_workspace(path: PathBuf, now: i64) -> RemoteSyncWorkspace {
         RemoteSyncWorkspace {
             id: format!("workspace-{}", now),
-            name: "Primary workspace".to_string(),
+            name: DEFAULT_WORKSPACE_NAME.to_string(),
             local_database_path: path,
             // A machine that has never reached a control plane belongs to no workspace it can
             // name. Both arrive at the first sign-in.
@@ -551,7 +597,7 @@ mod tests {
 
     use tokio::{runtime::Runtime, sync::RwLock};
 
-    use super::{RemoteSync, RemoteSyncStore, slugify};
+    use super::{DEFAULT_WORKSPACE_NAME, LearnedWorkspace, RemoteSync, RemoteSyncStore, slugify};
     use crate::{persisted::Persisted, settings::Settings};
 
     fn unique_dir(name: &str) -> PathBuf {
@@ -737,5 +783,148 @@ mod tests {
 
                 let _ = std::fs::remove_dir_all(&root);
             });
+    }
+
+    /// **The name a workspace is shown by is the control plane's**, which is requirement 4a.
+    ///
+    /// It was sent on every identifying answer and parsed away on this side, so what every install
+    /// actually showed was `DEFAULT_WORKSPACE_NAME` — one English literal, identically, for every
+    /// person, on an application that ships in Arabic.
+    #[test]
+    fn a_workspace_is_called_what_the_control_plane_calls_it() {
+        let mut remote_sync = a_remote_sync("workspace-name-from-control-plane");
+
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: Some("دار السلام"),
+                url: None,
+            })
+            .expect("recording the workspace");
+
+        let workspace = remote_sync.workspace();
+
+        assert_eq!(workspace.remote_id.as_deref(), Some("workspace-7"));
+        assert_eq!(workspace.name, "دار السلام");
+    }
+
+    /// **A machine that has heard no name keeps the fallback**, which is what the default exists
+    /// for. It is the answer for an install with no control plane behind it, not a name to be
+    /// defended against the one the workspace has.
+    #[test]
+    fn a_workspace_nobody_has_named_keeps_the_default() {
+        let mut remote_sync = a_remote_sync("workspace-name-defaulted");
+
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: None,
+                url: None,
+            })
+            .expect("recording the workspace");
+
+        assert_eq!(remote_sync.workspace().name, DEFAULT_WORKSPACE_NAME);
+    }
+
+    /// And whitespace is not a name: `sanitize` puts the default back on the next load, so taking
+    /// one here would only make the store disagree with itself in between.
+    #[test]
+    fn a_name_that_is_only_whitespace_is_not_a_name() {
+        let mut remote_sync = a_remote_sync("workspace-name-whitespace");
+
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: Some("   "),
+                url: None,
+            })
+            .expect("recording the workspace");
+
+        assert_eq!(remote_sync.workspace().name, DEFAULT_WORKSPACE_NAME);
+    }
+
+    /// **What the control plane says last is what the workspace is called**, which is how a rename
+    /// made on another machine arrives here: the next identifying answer carries it, and nothing
+    /// on this machine defends the name it was holding.
+    #[test]
+    fn a_later_answer_renames_the_workspace_this_machine_holds() {
+        let mut remote_sync = a_remote_sync("workspace-name-renamed");
+
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: Some("before"),
+                url: None,
+            })
+            .expect("recording the workspace");
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: Some("after"),
+                url: None,
+            })
+            .expect("recording it again");
+
+        assert_eq!(remote_sync.workspace().name, "after");
+    }
+
+    /// **A mint answers with a URL and no name**, so it records the first and leaves the second
+    /// where it was. `MintedToken` carries a credential, a URL and an expiry: a dispatch that only
+    /// mints is not what a rename travels on.
+    #[test]
+    fn a_mint_records_the_url_and_leaves_the_name_alone() {
+        let mut remote_sync = a_remote_sync("workspace-name-through-a-mint");
+
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: Some("named by the control plane"),
+                url: None,
+            })
+            .expect("recording the workspace");
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: None,
+                url: Some("libsql://workspace-7.turso.io"),
+            })
+            .expect("minting against it");
+
+        let workspace = remote_sync.workspace();
+
+        assert_eq!(workspace.name, "named by the control plane");
+        assert_eq!(
+            workspace.remote_url.as_deref(),
+            Some("libsql://workspace-7.turso.io")
+        );
+    }
+
+    /// **A different workspace inherits neither**, which is the rule the URL already had and the
+    /// name now shares. Carrying the URL across would hand this account the previous workspace's
+    /// database; carrying the name across would call this one by the other one's name.
+    #[test]
+    fn a_different_workspace_inherits_neither_the_name_nor_the_url() {
+        let mut remote_sync = a_remote_sync("workspace-name-across-workspaces");
+
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-7",
+                name: Some("the first one"),
+                url: Some("libsql://workspace-7.turso.io"),
+            })
+            .expect("recording the first workspace");
+        remote_sync
+            .record_remote_workspace(LearnedWorkspace {
+                remote_id: "workspace-8",
+                name: None,
+                url: None,
+            })
+            .expect("recording the second workspace");
+
+        let workspace = remote_sync.workspace();
+
+        assert_eq!(workspace.remote_id.as_deref(), Some("workspace-8"));
+        assert_eq!(workspace.name, DEFAULT_WORKSPACE_NAME);
+        assert_eq!(workspace.remote_url, None);
     }
 }
