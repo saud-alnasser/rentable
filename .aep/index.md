@@ -155,6 +155,7 @@ Start at [[protocol]].
 | record-vocabulary-and-missing-views | implemented | [[efforts/record-vocabulary-and-missing-views/spec]] | 0 | 1 | 0 |
 | records-rows-and-decisions | implemented | [[efforts/records-rows-and-decisions/spec]] | 0 | 1 | 0 |
 | reversible-work-and-quieter-surfaces | implemented | [[efforts/reversible-work-and-quieter-surfaces/spec]] | 0 | 0 | 0 |
+| settings-and-the-workspace-finish-what-they-offer | accepted | [[efforts/settings-and-the-workspace-finish-what-they-offer/spec]] | 0 | 1 | 0 |
 | shell-presentation-spec | implemented | [[efforts/shell-presentation-spec/spec]] | 0 | 0 | 0 |
 | sql-proxy-value-conversion | implemented | [[efforts/sql-proxy-value-conversion/spec]] | 0 | 0 | 0 |
 | surfaces-the-overhaul-left-behind | implemented | [[efforts/surfaces-the-overhaul-left-behind/spec]] | 0 | 0 | 0 |
