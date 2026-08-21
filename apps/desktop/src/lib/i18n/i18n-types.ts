@@ -1462,10 +1462,6 @@ type RootTranslation = {
 		 */
 		openWorkspaceAction: string
 		/**
-		 * m​o​v​e​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e
-		 */
-		transferTitle: string
-		/**
 		 * w​r​i​t​e​ ​e​v​e​r​y​t​h​i​n​g​ ​—​ ​t​e​n​a​n​t​s​,​ ​c​o​m​p​l​e​x​e​s​,​ ​u​n​i​t​s​,​ ​c​o​n​t​r​a​c​t​s​ ​a​n​d​ ​p​a​y​m​e​n​t​s​ ​—​ ​t​o​ ​o​n​e​ ​w​o​r​k​b​o​o​k​,​ ​o​r​ ​r​e​a​d​ ​o​n​e​ ​b​a​c​k​ ​i​n​.​ ​r​e​c​o​r​d​s​ ​n​a​m​e​ ​e​a​c​h​ ​o​t​h​e​r​ ​b​y​ ​n​a​m​e​ ​r​a​t​h​e​r​ ​t​h​a​n​ ​b​y​ ​n​u​m​b​e​r​,​ ​s​o​ ​a​ ​f​i​l​e​ ​o​p​e​n​s​ ​o​n​ ​a​n​y​ ​m​a​c​h​i​n​e​.
 		 */
 		transferDescription: string
@@ -2243,7 +2239,7 @@ type RootTranslation = {
 		 */
 		groupSync: string
 		/**
-		 * m​o​v​e​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e
+		 * e​x​p​o​r​t​ ​/​ ​i​m​p​o​r​t
 		 */
 		groupTransfer: string
 		/**
@@ -3660,10 +3656,6 @@ export type TranslationFunctions = {
 		 */
 		openWorkspaceAction: () => LocalizedString
 		/**
-		 * move this workspace
-		 */
-		transferTitle: () => LocalizedString
-		/**
 		 * write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.
 		 */
 		transferDescription: () => LocalizedString
@@ -4402,7 +4394,7 @@ export type TranslationFunctions = {
 		 */
 		groupSync: () => LocalizedString
 		/**
-		 * move this workspace
+		 * export / import
 		 */
 		groupTransfer: () => LocalizedString
 		/**

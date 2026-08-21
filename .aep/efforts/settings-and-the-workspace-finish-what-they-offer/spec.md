@@ -225,6 +225,21 @@ this installation rather than on the workspace read as controls rather than as s
     also carry the name, and buy a faster answer, is a question for the plan and not a
     requirement here.
 
+5. **The transfer section of `/workspace` says its name once, and the name says what the section
+   does.** *Found and directed 2026-08-21, by the human using the application, in the same session
+   that found requirement 1.* `workspace.groupTransfer` and `settings.transferTitle` were both
+   "move this workspace", one directly above the other, and neither describes either of the two
+   buttons under them. The legend becomes export / import and the row loses its title.
+
+   **This is requirement 2 and 3's shape applied one page over rather than a new decision.** The
+   settled arrangement on `/settings` is that a group legend names the section and the row under
+   it carries a description and its controls; both settings rows say so in their own comments.
+   What is new is only the wording, which the human chose.
+
+   *Scope added to this effort after it was accepted, at the human's direction. It is recorded
+   here rather than taken silently, because [[policies/execution]] puts product scope beyond a
+   skill's reach: `/implement` found it, `/implement` did not decide it.*
+
 ## Acceptance criteria
 
 1. On a machine with no account, opening the account menu and selecting settings shows the
@@ -280,6 +295,9 @@ this installation rather than on the workspace read as controls rather than as s
 5. Both locales, right to left checked as each surface is built, from 640x480 upward with no
    horizontal scrollbar. Carried as a line on every ticket that draws anything rather than as a
    ticket of its own.
+6. The transfer section of `/workspace` shows one label rather than the same words twice, that
+   label reads "export / import" and "تصدير / استيراد", and `settings.transferTitle` is gone from
+   both locale files having lost its only caller. *(R5)*
 
 ## Constraints
 

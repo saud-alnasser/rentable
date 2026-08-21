@@ -86,7 +86,9 @@
 
 <Field.Field orientation="responsive">
 	<Field.Content>
-		<Field.Title>{$LL.settings.transferTitle()}</Field.Title>
+		<!-- no title of its own: the group above is already named for what this row does, and a row
+		     title repeating its own section is the label the section had already given it. Both read
+		     "move this workspace" until 2026-08-21, one directly above the other. -->
 		<Field.Description>{$LL.settings.transferDescription()}</Field.Description>
 	</Field.Content>
 
