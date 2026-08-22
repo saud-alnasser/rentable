@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { opensSignedOut, shellSurface } from '$lib/layout/shell-surface.ts';
+import { opensSignedOut, shellSurface, THE_WAY_IN, wayInFrom } from '$lib/layout/shell-surface.ts';
 import { fakeRecovery, harness, signedOut } from './testing.ts';
 
 /**
@@ -46,6 +46,30 @@ test('and every other address draws the card', async () => {
 
 	for (const address of ADDRESSES) {
 		assert.equal(shellSurface(startup.snapshot, address), 'sign-in', address);
+	}
+});
+
+test('and the way in from the rail lands on an address the card draws over', async () => {
+	// the row in the account menu navigates rather than signing anybody in, so the whole of what
+	// makes it work is that its destination is not one of the addresses that open signed out. On
+	// `/settings` the card is not drawn, and the row reached the consent screen from there without
+	// the surface that names the provider ever appearing.
+	const { startup } = harness({ remoteSync: signedOut() });
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(wayInFrom('/settings'), THE_WAY_IN);
+	assert.equal(opensSignedOut(THE_WAY_IN), false);
+	assert.equal(shellSurface(startup.snapshot, THE_WAY_IN), 'sign-in');
+});
+
+test('and it goes nowhere from an address the card is already drawn over', () => {
+	// the reader keeps their place. Signing out on a record leaves the card over that record, and
+	// navigating away from it to reach a card already on screen would lose the address the route
+	// underneath draws from on the way back in.
+	for (const address of ADDRESSES) {
+		assert.equal(wayInFrom(address), null, address);
 	}
 });
 

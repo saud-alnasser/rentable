@@ -37,13 +37,18 @@
 		ref = $bindable(null),
 		collapsible = 'icon',
 		signedOut = false,
-		onSignIn = () => {},
+		onWayIn = () => {},
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
 		/** whether this is the rail before anybody has signed in. */
 		signedOut?: boolean;
-		/** the way in, offered by the account row. Only read while `signedOut`. */
-		onSignIn?: () => void;
+		/**
+		 * the way in, offered by the account row. **It reaches the sign-in card rather than signing
+		 * anybody in**: the card is where the provider is named, and a row that went straight to the
+		 * consent screen would be the way in past the one surface that says what it is. Only read
+		 * while `signedOut`.
+		 */
+		onWayIn?: () => void;
 	} = $props();
 
 	// asking who is signed in on a machine where nobody is would be refused by design and
@@ -104,7 +109,7 @@
 
 	<Sidebar.Footer>
 		{#if signedOut}
-			<LayoutAccountSignedOut {onSignIn} />
+			<LayoutAccountSignedOut {onWayIn} />
 		{:else if account}
 			<LayoutAccountMenu {account} />
 		{/if}

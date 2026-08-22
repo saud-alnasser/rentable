@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-21
+date: 2026-08-22
 kind: spec
 status: accepted
 ---
@@ -240,6 +240,13 @@ that has to be looked at before it can be built.
      twice before anybody had signed in would be naming the mechanism three times over. All four
      strings are keys in both locales, added under `layout.accountMenu` and used through `$LL`;
      none of this is English written into a component.
+   - **The row reaches the card rather than the consent screen.** *Corrected 2026-08-22 by the
+     human, in #735.* It called `startup.signIn()` until then, which was coherent while the card
+     was drawn over every address: the row and the card were both on screen, doing one thing.
+     `/settings` opening signed out arrived later, with
+     [[efforts/settings-and-the-workspace-finish-what-they-offer]], and made one address where the
+     row acts with no card in front of the reader — so the surface that names the provider was
+     never seen. The row now leaves for an address the card draws over.
    - **The rail folds.** The trigger is live in both states, because folding is a preference about
      the window rather than something an account grants.
    - **Everything else is disabled**: the four primary destinations, the workspace control, and
@@ -650,7 +657,11 @@ and it is being answered by looking.*
    and refuse to act. The sign-in card is centred and is pixel-identical to the one that ships
    today. *(R7)*
 7a. Signing in from that menu lands in `ready` without the rail disappearing and coming back.
-    *(R7, and it is falsifier 3 from the prototype, which the run could not reach)*
+    *(R7, and it is falsifier 3 from the prototype, which the run could not reach)* —
+    **superseded 2026-08-22 by the human, in #735.** The menu row signs nobody in any more; it
+    reaches the card, and the card's button starts the flow. What this criterion was written
+    for survives it and is carried there: the rail does not disappear and come back across a
+    sign-in, whichever control began it.
 7b. With no account on the machine, `/settings` opens from the account menu and every group on it
     renders and works: language, notices, updates and diagnostics. *(R9a)* — **unmet, and carried
     by [[efforts/settings-and-the-workspace-finish-what-they-offer]] as its criterion 1.** See the

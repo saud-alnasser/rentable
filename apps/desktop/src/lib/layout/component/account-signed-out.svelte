@@ -26,8 +26,14 @@
 	 * **The menu is two rows and the provider is named in neither.** Signing in says only that,
 	 * because the card on the other side of it is where Google is named and this row would
 	 * otherwise say it first.
+	 *
+	 * **The row reaches the card and signs nobody in.** *Corrected 2026-08-22 (#735).* Until then it
+	 * called `startup.signIn()`, which opened the consent screen from a menu row. On `/settings`,
+	 * the one address that draws signed out, that meant the card naming the provider was never seen
+	 * at all. It now leaves for an address the card draws over, and the button on the card is what
+	 * starts the flow.
 	 */
-	let { onSignIn }: { onSignIn: () => void } = $props();
+	let { onWayIn }: { onWayIn: () => void } = $props();
 
 	const sidebar = useSidebar();
 
@@ -73,7 +79,7 @@
 				{side}
 				sideOffset={4}
 			>
-				<DropdownMenu.Item onSelect={onSignIn}>
+				<DropdownMenu.Item onSelect={onWayIn}>
 					<LogInIcon class="size-4 shrink-0" />
 					<span>{$LL.layout.accountMenu.signIn()}</span>
 				</DropdownMenu.Item>
