@@ -56,6 +56,7 @@ Start at [[protocol]].
 | [[references/changesets]] | a user-visible change needs a changelog entry before it lands | — | repository |
 | [[references/drizzle-kit]] | the database schema changed and a migration has to be generated | — | repository |
 | [[references/eslint]] | linting, or a CI lint failure has to be reproduced locally | — | repository |
+| [[references/fastify]] | adding or changing a control plane route, its validation, its response body, or its logging | — | repository |
 | [[references/git]] | inspecting history, diffing, or recovering where a concept moved | — | repository |
 | [[references/github]] | working with issues, pull requests, or CI runs on GitHub | — | repository |
 | [[references/graphite]] | branching, committing, or restacking — gt replaces git commit here | — | repository |
@@ -137,9 +138,9 @@ Start at [[protocol]].
 
 | Effort | Status | Spec | Research | Prototypes | Tickets |
 | --- | --- | --- | --- | --- | --- |
-| a-contract-keeps-its-units-through-a-transfer | accepted | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
+| a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
-| a-workspace-follows-its-user | accepted | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
+| a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
 | answers-menus-and-scrollbars | implemented | [[efforts/answers-menus-and-scrollbars/spec]] | 0 | 0 | 0 |
 | capabilities-only-one-surface-got | implemented | [[efforts/capabilities-only-one-surface-got/spec]] | 1 | 3 | 0 |
 | contract-work-queue-and-directory | implemented | [[efforts/contract-work-queue-and-directory/spec]] | 0 | 1 | 0 |
@@ -160,9 +161,9 @@ Start at [[protocol]].
 | shell-presentation-spec | implemented | [[efforts/shell-presentation-spec/spec]] | 0 | 0 | 0 |
 | sql-proxy-value-conversion | implemented | [[efforts/sql-proxy-value-conversion/spec]] | 0 | 0 | 0 |
 | surfaces-the-overhaul-left-behind | implemented | [[efforts/surfaces-the-overhaul-left-behind/spec]] | 0 | 0 | 0 |
-| the-control-plane-declares-what-it-accepts | accepted | [[efforts/the-control-plane-declares-what-it-accepts/spec]] | 0 | 1 | 0 |
+| the-control-plane-declares-what-it-accepts | implemented | [[efforts/the-control-plane-declares-what-it-accepts/spec]] | 0 | 1 | 0 |
 | the-landing-screen-is-figures-over-sections | implemented | [[efforts/the-landing-screen-is-figures-over-sections/spec]] | 0 | 1 | 0 |
 | the-repository-becomes-a-monorepo | implemented | [[efforts/the-repository-becomes-a-monorepo/spec]] | 2 | 0 | 0 |
-| the-shell-says-whose-workspace-this-is | accepted | [[efforts/the-shell-says-whose-workspace-this-is/spec]] | 0 | 0 | 0 |
+| the-shell-says-whose-workspace-this-is | implemented | [[efforts/the-shell-says-whose-workspace-this-is/spec]] | 0 | 0 | 0 |
 | ui-overhaul | implemented | [[efforts/ui-overhaul/spec]] | 3 | 0 | 0 |
 | work-the-surfaces-cannot-do | implemented | [[efforts/work-the-surfaces-cannot-do/spec]] | 1 | 1 | 0 |
