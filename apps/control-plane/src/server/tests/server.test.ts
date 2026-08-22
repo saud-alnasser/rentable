@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import Fastify from 'fastify';
+
 import { and, eq } from 'drizzle-orm';
 
 import type { Database } from '../../database/database.ts';
@@ -24,6 +26,7 @@ import {
 } from '../../database/schema.ts';
 import { declineRenewal } from '../../session/session.ts';
 import { targetSchemaVersion } from '../../workspace/migration.ts';
+import { identifySchema, WIRE_FIELDS } from '../schema.ts';
 import {
 	ADMINISTRATION_BY_ROLE,
 	EVERY_ADMINISTRATION,
@@ -1089,5 +1092,116 @@ test('a body sent as the wrong media type is refused where it used to be read', 
 		const { workspace } = await answerOf(await post(url, '/account/sign-in'));
 
 		assert.equal(workspace?.name, owned.name);
+	});
+});
+
+/**
+ * Acceptance criterion 3 of `the-control-plane-declares-what-it-accepts`: the declaration is
+ * enforced rather than documented.
+ *
+ * **It mounts the real declaration on a handler written to break it**, which is the only way to
+ * ask this question. The routes themselves cannot answer it: `wire.ts` builds every body field by
+ * field, so every route already returns exactly what is declared and would pass whether
+ * serialization ran or not. What is under test is the declaration in `schema.ts` and the fact that
+ * Fastify serializes through it, so the subject is the real `identifySchema` and a handler that
+ * hands it something it does not name.
+ *
+ * `databaseName` is not chosen at random. It is a real column on the workspace record, it is the
+ * one argument every administrative call to Turso takes, and a `wireWorkspace` that ever grew a
+ * spread would carry it. This is the field the enforcement exists to stop.
+ */
+test('a field the declaration does not name cannot reach the wire', async () => {
+	const app = Fastify({ logger: false });
+
+	app.get('/identify', { schema: identifySchema }, async () => ({
+		account: {
+			id: 'a',
+			email: 'e',
+			displayName: 'd',
+			avatarUrl: null,
+			googleUserId: 'g',
+			createdAt: 1,
+			updatedAt: 2
+		},
+		workspace: {
+			id: 'w',
+			name: 'n',
+			ownerAccountId: 'a',
+			permissions: 3,
+			createdAt: 1,
+			updatedAt: 2,
+			databaseName: 'ws-secret',
+			databaseHostname: 'ws-secret-org.turso.io'
+		},
+		session: { token: 'rws_t', expiresAt: 1, absoluteExpiresAt: 2 },
+		somethingElseEntirely: 'this was never declared'
+	}));
+
+	await app.listen({ port: 0, host: '127.0.0.1' });
+
+	const address = app.server.address();
+
+	assert.ok(address && typeof address === 'object');
+
+	try {
+		const body = (await (await fetch(`http://127.0.0.1:${address.port}/identify`)).json()) as {
+			workspace: Record<string, unknown>;
+			somethingElseEntirely?: unknown;
+		};
+
+		assert.equal(body.workspace.databaseName, undefined, 'the turso database name went out');
+		assert.equal(body.workspace.databaseHostname, undefined, 'the turso hostname went out');
+		assert.equal(body.somethingElseEntirely, undefined, 'an undeclared top-level field went out');
+
+		// and what is declared is still there, so this is enforcement rather than an empty body.
+		assert.equal(body.workspace.id, 'w');
+		assert.equal(body.workspace.permissions, 3);
+	} finally {
+		await app.close();
+	}
+});
+
+/**
+ * The other half of criterion 3, and the one that guards the risk the spec actually names.
+ *
+ * **Enforced serialization drops silently.** A field removed from a declaration does not error,
+ * does not warn, and does not appear: the client simply stops receiving something it used to.
+ *
+ * **The first version of this test could not have caught that**, and the way it failed is worth
+ * recording. It compared the response against keys derived from the declarations, which
+ * serialization guarantees will always match: delete a field from a declaration and both sides
+ * shrink together. Measured on 2026-08-22 by deleting `ownerAccountId`, which this test passed and
+ * two of the forty existing tests caught.
+ *
+ * So it compares against `WIRE_FIELDS`, which is written out by hand and is independent of the
+ * schemas by construction. Changing what a route answers with now costs a deliberate edit there,
+ * which is the right price for a contract with a client that does not regenerate.
+ */
+test('every wire field a route answers with is declared', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		const keys = (value: object | undefined) => Object.keys(value ?? {}).sort();
+		const expected = (fields: readonly string[]) => [...fields].sort();
+
+		const identifying = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.deepEqual(keys(identifying.account), expected(WIRE_FIELDS.account));
+		assert.deepEqual(keys(identifying.workspace), expected(WIRE_FIELDS.workspace));
+		assert.deepEqual(keys(identifying.session), expected(WIRE_FIELDS.session));
+
+		const minted = await answerOf(
+			await post(url, `/workspace/${identifying.workspace?.id}/token`, {
+				body: { schemaVersion: await targetSchemaVersion() }
+			})
+		);
+
+		assert.deepEqual(keys(minted), expected(WIRE_FIELDS.mint));
+		assert.deepEqual(keys(minted.session), expected(WIRE_FIELDS.session));
+
+		const renamed = await answerOf(
+			await post(url, `/workspace/${identifying.workspace?.id}/name`, { body: { name: 'renamed' } })
+		);
+
+		assert.deepEqual(keys(renamed), expected(WIRE_FIELDS.rename));
+		assert.deepEqual(keys(renamed.workspace), expected(WIRE_FIELDS.workspace));
 	});
 });

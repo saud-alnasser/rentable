@@ -3,7 +3,15 @@ import type { FastifyInstance } from 'fastify';
 import { identify } from './account.ts';
 import { authenticate } from './authenticate.ts';
 import { health } from './health.ts';
-import { mintSchema, renameSchema, workspaceParams } from './schema.ts';
+import {
+	healthSchema,
+	identifySchema,
+	mintResponse,
+	mintSchema,
+	renameResponse,
+	renameSchema,
+	workspaceParams
+} from './schema.ts';
 import type { ControlPlane } from './server.ts';
 import { mint, rename } from './workspace.ts';
 
@@ -31,14 +39,17 @@ import { mint, rename } from './workspace.ts';
 export const routes = (app: FastifyInstance, plane: ControlPlane): void => {
 	const authenticated = { onRequest: authenticate(plane) };
 
-	app.get('/health', health(plane));
+	app.get('/health', { schema: healthSchema }, health(plane));
 
-	app.post('/account/sign-in', authenticated, identify(plane));
-	app.post('/session/refresh', authenticated, identify(plane));
+	app.post('/account/sign-in', { ...authenticated, schema: identifySchema }, identify(plane));
+	app.post('/session/refresh', { ...authenticated, schema: identifySchema }, identify(plane));
 
 	app.post(
 		'/workspace/:workspaceId/token',
-		{ ...authenticated, schema: { ...mintSchema, params: workspaceParams } },
+		{
+			...authenticated,
+			schema: { ...mintSchema, params: workspaceParams, response: mintResponse }
+		},
 		mint(plane)
 	);
 
@@ -47,7 +58,10 @@ export const routes = (app: FastifyInstance, plane: ControlPlane): void => {
 	// conventions for one client.
 	app.post(
 		'/workspace/:workspaceId/name',
-		{ ...authenticated, schema: { ...renameSchema, params: workspaceParams } },
+		{
+			...authenticated,
+			schema: { ...renameSchema, params: workspaceParams, response: renameResponse }
+		},
 		rename(plane)
 	);
 };

@@ -62,12 +62,12 @@ src/
 ├── server/             the HTTP surface, on Fastify
 │   ├── server.ts       the instance, and the one place a failure becomes a status
 │   ├── routes.ts       every route, declared. The list, rather than a dispatch chain
-│   ├── schema.ts       what each route accepts, and the sentence a refusal goes out as
+│   ├── schema.ts       what each route accepts and answers with, and the wire contract itself
 │   ├── authenticate.ts who is asking, established before the body is read
 │   ├── account.ts      signing in, and refreshing a session
 │   ├── workspace.ts    minting a token, and renaming
 │   ├── health.ts       whether this process can reach its database
-│   └── wire.ts         what a route answers with, still built by hand
+│   └── wire.ts         the fields of an answer, built by hand and no longer the contract
 ├── session/
 │   └── session.ts      the three-day window: issuing, renewing, declining to renew
 └── workspace/          a database on Turso, and who may reach it
@@ -103,6 +103,12 @@ POST /workspace                 <- {"name":"..."}   -> 201 {"workspace":{...}}
 POST /workspace/{id}/token      <- {"schemaVersion":4}
                                 -> {"token":"...","url":"libsql://...","expiresAt":0}
 ```
+
+**A route answers only with the fields its declaration names.** Responses are serialized through
+the shapes in `server/schema.ts`, so a field a handler sets and the declaration does not name is
+removed on the way out rather than published. That is the point, and it is also the hazard: it
+happens silently, so `WIRE_FIELDS` in that file writes the contract out by hand and a test compares
+every answer against it. Changing what a route answers with means editing that list on purpose.
 
 **A route that takes a body needs `Content-Type: application/json` on it.** The two that do are
 the mint and the rename, and a body sent without the header is not read at all, so the route
