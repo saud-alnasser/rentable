@@ -986,3 +986,108 @@ test('the answer names the asking account and nobody else, on a workspace with t
 		);
 	});
 });
+
+/**
+ * Acceptance criterion 2a of `the-control-plane-declares-what-it-accepts`, and the only test in
+ * this file that fails when the request pipeline is wired the obvious way.
+ *
+ * **A caller who has presented nothing is told that, and is not told which of their fields was
+ * wrong.** That was the order before the surface became Fastify, because `asking` was called and
+ * only then was the body read, and it survives because the authenticate hook is `onRequest`.
+ *
+ * **The second body is the one that discriminates, and it is why this is not one case but two.**
+ * Fastify parses the body before `preValidation` runs and after `onRequest`, so:
+ *
+ * - a body that parses and has the wrong shape is refused by *validation*, which both hooks
+ *   precede. It passes either way and proves nothing
+ * - a body that is not JSON at all is refused by the *parser*, which only `onRequest` precedes.
+ *   With `preValidation` this answers 400
+ *
+ * Measured on 2026-08-22 while building #742. Every other test in this file sends a valid
+ * credential, so nothing else here goes red when the hook moves.
+ */
+test('no credential and a malformed body is unauthenticated, whichever kind of malformed', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		for (const path of ['/workspace/any-workspace/token', '/workspace/any-workspace/name']) {
+			for (const body of [{ schemaVersion: 'four', name: 7 }, 'not json at all']) {
+				const response = await post(url, path, { token: null, body });
+
+				assert.equal(response.status, 401, `${path} with ${JSON.stringify(body)}`);
+				assert.equal(
+					(await answerOf(response)).error?.code,
+					UNAUTHENTICATED,
+					`${path} with ${JSON.stringify(body)}`
+				);
+			}
+		}
+	});
+});
+
+/**
+ * The other half of the ordering, so that criterion 2a cannot be satisfied by refusing everything.
+ *
+ * A caller who *has* presented a credential and sent a bad body is told about the body, which is
+ * what makes the test above a statement about order rather than about authentication winning.
+ */
+test('a credential and a malformed body is malformed, on both routes', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		const owned = await aWorkspace(url);
+
+		for (const [path, body] of [
+			[`/workspace/${owned.id}/token`, { schemaVersion: 'four' }],
+			[`/workspace/${owned.id}/name`, { name: '' }]
+		] as const) {
+			const response = await post(url, path, { body });
+
+			assert.equal(response.status, 400, path);
+			assert.equal((await answerOf(response)).error?.code, MALFORMED, path);
+		}
+	});
+});
+
+/**
+ * The one wire behaviour this change altered, pinned so that it is a decision rather than a
+ * discovery.
+ *
+ * **A body sent without `content-type: application/json` used to be read anyway.** `readJsonBody`
+ * consumed the stream and parsed it without ever looking at the header, so a caller who sent JSON
+ * and mislabelled it was served. Fastify dispatches on the header, so a route that declares a body
+ * gets no body at all and refuses on the shape.
+ *
+ * **It is 400 and not 415, which is worth pinning because the plan predicted 415.** Measured on
+ * 2026-08-22: Fastify raises no media-type error here. The body is simply never parsed, the route
+ * sees `undefined`, and the declaration refuses it like any other wrong shape. The two routes that
+ * declare no body are unaffected and still answer 200, which is why this is two assertions rather
+ * than one.
+ *
+ * Accepted by the human on 2026-08-22 as the single exception to *the wire contract does not
+ * change*, on the evidence that the only client sets the header on every body it sends
+ * (`apps/desktop/tauri/src/sync/control.rs:244` and `:332`).
+ */
+test('a body sent as the wrong media type is refused where it used to be read', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		const owned = await aWorkspace(url);
+
+		const mislabelled = await fetch(`${url}/workspace/${owned.id}/name`, {
+			method: 'POST',
+			headers: { authorization: 'Bearer a-token', 'content-type': 'text/plain' },
+			body: JSON.stringify({ name: 'a name that will not arrive' })
+		});
+
+		assert.equal(mislabelled.status, 400);
+		assert.equal((await answerOf(mislabelled)).error?.code, MALFORMED);
+
+		// and a route that declares no body is not touched by any of it.
+		const identifying = await fetch(`${url}/account/sign-in`, {
+			method: 'POST',
+			headers: { authorization: 'Bearer a-token', 'content-type': 'text/plain' }
+		});
+
+		assert.equal(identifying.status, 200);
+
+		// and nothing was renamed by the refused one.
+		const { workspace } = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.equal(workspace?.name, owned.name);
+	});
+});

@@ -172,11 +172,13 @@ export const runningControlPlane = async (plane: ControlPlane) => {
 	const { controlPlaneServer } = await import('../server/server.ts');
 	const server = controlPlaneServer(plane);
 
-	await new Promise((listening) => {
-		server.listen(0, '127.0.0.1', () => listening(undefined));
-	});
+	// Port 0 and a real socket, as before. What changed is only the shape of the call: a Fastify
+	// instance takes an options object and returns a promise where `node:http` took positional
+	// arguments and a callback. `inject()` would be faster and would skip the transport, which is
+	// half of what these tests cover and all of what this change replaced.
+	await server.listen({ port: 0, host: '127.0.0.1' });
 
-	const address = server.address();
+	const address = server.server.address();
 
 	if (address === null || typeof address === 'string') {
 		throw new Error('the control plane listened on nothing a test can reach');
@@ -184,7 +186,7 @@ export const runningControlPlane = async (plane: ControlPlane) => {
 
 	return {
 		url: `http://127.0.0.1:${address.port}`,
-		close: () => new Promise((closed) => server.close(() => closed(undefined)))
+		close: () => server.close()
 	};
 };
 

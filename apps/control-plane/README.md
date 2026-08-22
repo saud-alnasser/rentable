@@ -59,8 +59,15 @@ src/
 ├── database/
 │   ├── database.ts     the connection, and the type every module takes
 │   └── schema.ts       the four tables
-├── server/
-│   └── server.ts       routing, and the one place a refusal becomes a status
+├── server/             the HTTP surface, on Fastify
+│   ├── server.ts       the instance, and the one place a failure becomes a status
+│   ├── routes.ts       every route, declared. The list, rather than a dispatch chain
+│   ├── schema.ts       what each route accepts, and the sentence a refusal goes out as
+│   ├── authenticate.ts who is asking, established before the body is read
+│   ├── account.ts      signing in, and refreshing a session
+│   ├── workspace.ts    minting a token, and renaming
+│   ├── health.ts       whether this process can reach its database
+│   └── wire.ts         what a route answers with, still built by hand
 ├── session/
 │   └── session.ts      the three-day window: issuing, renewing, declining to renew
 └── workspace/          a database on Turso, and who may reach it
@@ -96,6 +103,17 @@ POST /workspace                 <- {"name":"..."}   -> 201 {"workspace":{...}}
 POST /workspace/{id}/token      <- {"schemaVersion":4}
                                 -> {"token":"...","url":"libsql://...","expiresAt":0}
 ```
+
+**A route that takes a body needs `Content-Type: application/json` on it.** The two that do are
+the mint and the rename, and a body sent without the header is not read at all, so the route
+refuses on the shape: 400 `malformed_request`. Until #742 the header was ignored and the body was
+parsed regardless. Nothing that exists is affected, because the Rust client sets it on every body
+it sends, and the two routes taking no body are unaffected either way.
+
+**Who is asking is established before the body is read**, so a caller presenting no credential is
+told `unauthenticated` rather than being told which of their fields was wrong. That order is
+deliberate and is the load-bearing detail of the Fastify surface, which is why
+`server/authenticate.ts` spends a section of its own on it.
 
 **Every route but `/health` takes `Authorization: Bearer <credential>`, and there are two
 kinds.** A Google access token is what somebody signs in with; it buys a **session** — a token
