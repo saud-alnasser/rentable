@@ -336,6 +336,28 @@ fail, and a signal means something killed it, which on Windows is where a native
 teardown crash lands. A run turbo served from cache writes no transcript, because it ran no
 tests; the one on disk belongs to the last run that actually happened.
 
+The transcript gives the verdict and not the reason, so `src/tests/exit-reason.ts` records the
+reason. It is loaded through a second `--import`, which puts it in every test child the runner
+spawns rather than in the runner, and it writes to stderr and to `test-exit-reason.log`, also
+gitignored:
+
+```
+[exit-reason] unhandledRejection in a test process
+  file: C:\...\src\workspace\tests\workspace.test.ts
+  error: Error: the database is closed
+  stack:
+    ...
+```
+
+**It observes and does not intervene**, which is the constraint that chose the mechanism. A
+`process.on('unhandledRejection')` listener replaces Node's default, and the process then stops
+exiting non-zero: the symptom goes away without being explained, which is not a fix.
+`uncaughtExceptionMonitor` fires before the default and does not suppress it, so the crash is
+unchanged. An unhandled rejection is thrown by default since Node 15, so it arrives there too and
+`origin` says which it was. A non-zero exit that nothing threw for is recorded by an `exit`
+listener, and that combination narrows what is left to an explicit `process.exit` or a native
+failure closing a handle.
+
 ## What it needs to start
 
 Its own database needs a path and nothing else. Provisioning needs three Turso values, and the

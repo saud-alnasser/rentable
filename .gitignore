@@ -21,6 +21,10 @@ build
 # no exit code and no signal, which is what left #719 with a failure nobody could point at.
 test-run.tap
 
+# and the reason beside the verdict. The transcript says a process exited 7; this says what was
+# thrown in it, recorded by `src/tests/exit-reason.ts` from inside the test child itself.
+test-exit-reason.log
+
 # a development build keeps its workspace replica and the plain file here, beside the crate
 # that opens them. Real data, never committed.
 apps/desktop/tauri/data/
