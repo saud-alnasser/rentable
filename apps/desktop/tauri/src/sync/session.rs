@@ -761,11 +761,11 @@ impl RemoteSync {
     ) -> Result<GoogleAccountAuth, Error> {
         let account_id = sanitize_string(&input.account_id);
 
-        let credentials = self
-            .load_google_credentials(&account_id)?
-            .ok_or_else(|| Error::NotFound {
-                message: "google credentials not found".to_string(),
-            })?;
+        let credentials =
+            self.load_google_credentials(&account_id)?
+                .ok_or_else(|| Error::NotFound {
+                    message: "google credentials not found".to_string(),
+                })?;
 
         Ok(GoogleAccountAuth {
             account_id,
@@ -811,11 +811,11 @@ impl RemoteSync {
         input: GoogleAccountAuthInput,
     ) -> Result<GoogleAccessToken, Error> {
         let account_id = sanitize_string(&input.account_id);
-        let credentials = self
-            .load_google_credentials(&account_id)?
-            .ok_or_else(|| Error::NotFound {
-                message: "google credentials not found".to_string(),
-            })?;
+        let credentials =
+            self.load_google_credentials(&account_id)?
+                .ok_or_else(|| Error::NotFound {
+                    message: "google credentials not found".to_string(),
+                })?;
 
         let config = self.google_oauth_config();
         let refresh_token = credentials.refresh_token.trim();
@@ -858,7 +858,6 @@ impl RemoteSync {
 
         Ok(GoogleAccessToken { access_token })
     }
-
 }
 
 fn handle_google_sign_in_callback(

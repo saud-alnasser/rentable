@@ -183,11 +183,9 @@ fn read_tables(path: &Path) -> Result<Vec<Table>, Error> {
             let mut tables = Vec::with_capacity(names.len());
 
             for name in names {
-                let sheet = workbook
-                    .worksheet_range(&name)
-                    .map_err(|error| Error::Io {
-                        message: format!("could not read the sheet '{name}': {error}"),
-                    })?;
+                let sheet = workbook.worksheet_range(&name).map_err(|error| Error::Io {
+                    message: format!("could not read the sheet '{name}': {error}"),
+                })?;
 
                 tables.push(to_table(&sheet, &name));
             }
@@ -371,7 +369,10 @@ mod tests {
     fn every_sheet_of_a_workbook_is_read_under_its_own_name() {
         let mut workbook = rust_xlsxwriter::Workbook::new();
 
-        for (name, heading, value) in [("Tenants", "name", "محمد"), ("Complexes", "name", "Al Nakheel")] {
+        for (name, heading, value) in [
+            ("Tenants", "name", "محمد"),
+            ("Complexes", "name", "Al Nakheel"),
+        ] {
             let worksheet = workbook.add_worksheet();
 
             worksheet.set_name(name).unwrap();
@@ -388,7 +389,10 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(
-            tables.iter().map(|table| table.name.as_str()).collect::<Vec<_>>(),
+            tables
+                .iter()
+                .map(|table| table.name.as_str())
+                .collect::<Vec<_>>(),
             vec!["Tenants", "Complexes"]
         );
         assert_eq!(tables[0].rows, vec![vec!["محمد"]]);

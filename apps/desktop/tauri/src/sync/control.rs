@@ -713,12 +713,7 @@ pub(super) async fn establish_held_session(app_state: &AppState) -> Result<bool,
         return Ok(false);
     }
 
-    let Some(account_id) = app_state
-        .remote_sync
-        .read()
-        .await
-        .signed_in_account_id()
-    else {
+    let Some(account_id) = app_state.remote_sync.read().await.signed_in_account_id() else {
         // Nobody is signed in, so there is no identity to present. The wall this raises is the
         // one that asks for a sign-in, which is the correct screen for it.
         return Ok(false);
@@ -1520,10 +1515,7 @@ mod tests {
             request.header("authorization"),
             Some("Bearer rws_the-held-token")
         );
-        assert_eq!(
-            request.body,
-            r#"{"name":"دار السلام"}"#
-        );
+        assert_eq!(request.body, r#"{"name":"دار السلام"}"#);
         assert_eq!(
             renamed
                 .workspace
