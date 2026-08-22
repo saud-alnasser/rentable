@@ -331,10 +331,21 @@ not ok 1 - src\workspace\tests\workspace.test.ts
   error: 'test failed'
 ```
 
-`exitCode` against `signal` is the split worth having: a code means the process decided to
-fail, and a signal means something killed it, which on Windows is where a native libSQL
-teardown crash lands. A run turbo served from cache writes no transcript, because it ran no
-tests; the one on disk belongs to the last run that actually happened.
+**Read the number, and do not read `signal`.** This paragraph used to say that a code means the
+process decided to fail while a signal means something killed it, and that a native libSQL
+crash on Windows would land in the signal. That is wrong, and Windows is the only platform the
+defect has been seen on. Windows has no POSIX signals: a child calling `process.abort` reports
+`code=134, signal=null`, exactly as a child that throws reports `code=1, signal=null`. `signal`
+is unconditionally null here and carries nothing.
+
+What carries it is the value of `exitCode`. `1` is an uncaught error, `7` is the runner's own
+failure code, `134` is `process.abort`, and anything above `0x40000000` is a Windows exception
+code, which means the operating system killed the process for faulting: `3221225477` is an
+access violation and `3221225725` is a stack overflow. `src/tests/exit-reason.ts` names them, so
+nobody has to look them up while reading a failure.
+
+A run turbo served from cache writes no transcript, because it ran no tests; the one on disk
+belongs to the last run that actually happened.
 
 The transcript gives the verdict and not the reason, so `src/tests/exit-reason.ts` records the
 reason. It is loaded through a second `--import`, which puts it in every test child the runner
@@ -356,7 +367,19 @@ exiting non-zero: the symptom goes away without being explained, which is not a 
 unchanged. An unhandled rejection is thrown by default since Node 15, so it arrives there too and
 `origin` says which it was. A non-zero exit that nothing threw for is recorded by an `exit`
 listener, and that combination narrows what is left to an explicit `process.exit` or a native
-failure closing a handle.
+failure closing a handle. Which of those it was is the exit code, read as above.
+
+**It writes nothing at all when the process is killed for faulting**, and that silence is how you
+recognise one. A native abort takes the process down without running JavaScript exit handlers, so
+neither hook fires. Measured by aborting a real file of this suite: the test reported green, the
+file failed, the transcript said `exitCode: 134`, and `test-exit-reason.log` was never created.
+So there are three readings, not two:
+
+| `test-exit-reason.log`           | Transcript   | What happened                                           |
+| -------------------------------- | ------------ | ------------------------------------------------------- |
+| names an error                   | non-zero     | JavaScript failed, and the answer is in this repository |
+| says nothing reached the process | non-zero     | something set the code deliberately                     |
+| **absent**                       | **non-zero** | **the process was killed for faulting**                 |
 
 ## What it needs to start
 
