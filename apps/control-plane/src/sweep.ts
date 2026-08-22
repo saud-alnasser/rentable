@@ -4,7 +4,7 @@ import 'dotenv/config';
 
 import { createClient } from '@libsql/client';
 
-import { connect, database, databaseUrl } from './database/database.ts';
+import { connectOrExit, database } from './database/database.ts';
 import { sweepWorkspaceSchemas } from './workspace/sweep.ts';
 import { tursoPlatform } from './workspace/turso.ts';
 import { logger } from './logging.ts';
@@ -42,7 +42,7 @@ const required = (name: string): string => {
 	return value;
 };
 
-const client = connect();
+const { client, describedAs } = connectOrExit((message) => log.error(message));
 
 const { swept, failed, target } = await sweepWorkspaceSchemas(
 	database(client),
@@ -57,7 +57,7 @@ const { swept, failed, target } = await sweepWorkspaceSchemas(
 
 client.close();
 
-log.info(`swept ${databaseUrl()} to workspace schema version ${target}`);
+log.info(`swept ${describedAs} to workspace schema version ${target}`);
 
 for (const one of swept) {
 	log.info(

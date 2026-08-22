@@ -2,7 +2,7 @@
 // than a call, so it runs before the module bodies below it.
 import 'dotenv/config';
 
-import { connect, database, databaseUrl } from './database/database.ts';
+import { connectOrExit, database } from './database/database.ts';
 import { declineRenewalForEmail } from './session/decline.ts';
 import { logger } from './logging.ts';
 
@@ -41,7 +41,7 @@ if (email === '') {
 	process.exit(2);
 }
 
-const client = connect();
+const { client, describedAs } = connectOrExit((message) => log.error(message));
 const result = await declineRenewalForEmail(database(client), email);
 
 client.close();
@@ -59,7 +59,7 @@ switch (result.outcome) {
 				? `${result.email} (${result.accountId}) held no live session, so none ended`
 				: `${result.email} (${result.accountId}): ${result.ended} session${result.ended === 1 ? '' : 's'} ended`
 		);
-		log.info(`against ${databaseUrl()}`);
+		log.info(`against ${describedAs}`);
 		break;
 
 	case 'no-such-account':

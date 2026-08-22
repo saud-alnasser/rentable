@@ -150,7 +150,7 @@ a real way to silently break a command someone runs at a terminal.
 pnpm --filter @rentable/control-plane test
 ```
 
-138 tests, 136 passing, 2 skipped, across the package. 46 of them are
+151 tests, 149 passing, 2 skipped, across the package. 46 of them are
 `server/tests/server.test.ts`, and those start a real instance on port 0 and talk to it with
 `fetch`; `inject()` is deliberately not used, because the transport is half of what those
 tests exist to cover.

@@ -2,7 +2,7 @@
 // than a call, so it runs before the module bodies below it.
 import 'dotenv/config';
 
-import { connect, database, databaseUrl } from './database/database.ts';
+import { connectOrExit, database } from './database/database.ts';
 import { forgetExpiredSessions } from './session/session.ts';
 import { logger } from './logging.ts';
 
@@ -35,7 +35,7 @@ const log = logger('prune');
  *
  *     pnpm --filter ./apps/control-plane prune-sessions
  */
-const client = connect();
+const { client, describedAs } = connectOrExit((message) => log.error(message));
 const removed = await forgetExpiredSessions(database(client), Date.now());
 
 client.close();
@@ -50,4 +50,4 @@ log.info(
 			? '1 sign-in past its month removed'
 			: `${removed} sign-ins past their month removed`
 );
-log.info(`against ${databaseUrl()}`);
+log.info(`against ${describedAs}`);

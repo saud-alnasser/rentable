@@ -6,7 +6,7 @@ import 'dotenv/config';
 
 import { createClient } from '@libsql/client';
 
-import { connect, database, databaseUrl } from './database/database.ts';
+import { connectOrExit, database } from './database/database.ts';
 import { verifyAgainstGoogle } from './account/google.ts';
 import { controlPlaneServer } from './server/server.ts';
 import { tursoPlatform } from './workspace/turso.ts';
@@ -43,7 +43,7 @@ const required = (name: string): string => {
 	return value;
 };
 
-const client = connect();
+const { client, describedAs } = connectOrExit(console.error);
 
 const server = controlPlaneServer({
 	db: database(client),
@@ -65,7 +65,7 @@ await server.listen({ port, host: '0.0.0.0' });
 // every line after it. The two `console.error` calls above stay: they run before a server exists,
 // and a startup refusal that could not be printed because the thing that prints it was not built
 // yet is the worst possible time to be clever.
-server.log.info(`control plane listening on http://localhost:${port}, database ${databaseUrl()}`);
+server.log.info(`control plane listening on http://localhost:${port}, database ${describedAs}`);
 
 const stop = () => {
 	void server.close().then(() => {
