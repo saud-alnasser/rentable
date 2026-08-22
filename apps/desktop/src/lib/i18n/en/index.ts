@@ -457,8 +457,6 @@ const en = {
 		loadErrorTitle: 'settings are unavailable right now',
 		openWorkspaceAction: 'open workspace',
 
-		transferDescription:
-			'write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.',
 		transferImportTitle: 'import a workspace',
 		transferImportSuccess: 'the file was imported',
 
@@ -468,17 +466,6 @@ const en = {
 		pathOverrideDescription:
 			'leave this empty to use the default path above. saving reconnects immediately, and startup opens the selected database path.',
 		pathOverridePlaceholder: 'leave empty to use the default database path',
-		syncAutomationDescription:
-			'this workspace is kept for you, and every change reaches it as you make it. there is nothing to do here.',
-		syncAutomationTitle: 'this workspace is kept for you',
-		syncAccountStatusNeedsReconnect: 'needs reconnect',
-		syncSignInPending:
-			'signing in with Google is not configured in this build yet, so this workspace cannot reach the service that keeps it.',
-		syncAccountStatusPending: 'awaiting authorization',
-		syncProviderHosted: 'hosted workspace',
-		syncWorkspaceDescription:
-			'this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.',
-		syncWorkspaceStatusSynced: 'synced',
 		localeDescription: 'the interface changes as soon as you pick one.',
 		localeLabel: 'display language',
 		localeTitle: 'language',
@@ -735,6 +722,16 @@ const en = {
 		renameDescription: 'what this workspace is called, on every machine signed in to it.',
 		renamed: 'the workspace was renamed.',
 		roleOwner: 'owner',
+		syncDescription:
+			'this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.',
+		syncStatusCannotSignIn: 'cannot sign in',
+		syncStatusNeedsReconnect: 'needs reconnect',
+		syncStatusNoControlPlane: 'syncs nowhere',
+		syncStatusNotSignedIn: 'not signed in',
+		syncStatusPending: 'awaiting authorization',
+		syncStatusSynced: 'synced',
+		transferDescription:
+			'write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.',
 		title: 'workspace'
 	}
 } satisfies BaseTranslation;

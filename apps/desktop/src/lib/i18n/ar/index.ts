@@ -449,8 +449,6 @@ const ar = {
 		loadErrorTitle: 'الإعدادات غير متاحة حالياً',
 		openWorkspaceAction: 'فتح مساحة العمل',
 
-		transferDescription:
-			'اكتب كل شيء — المستأجرين والمجمعات والوحدات والعقود والمدفوعات — في ملف واحد، أو اقرأ ملفاً كهذا. تشير السجلات إلى بعضها بالأسماء لا بالأرقام، فيفتح الملف على أي جهاز.',
 		transferImportTitle: 'استيراد مساحة عمل',
 		transferImportSuccess: 'تم استيراد الملف',
 
@@ -460,17 +458,6 @@ const ar = {
 		pathOverrideDescription:
 			'عند تركه فارغاً سيُستخدم المسار الافتراضي أعلاه. عند الحفظ يُعاد الاتصال فوراً، ويُفتح مسار قاعدة البيانات المحدد عند بدء التشغيل.',
 		pathOverridePlaceholder: 'اتركه فارغاً لاستخدام المسار الافتراضي',
-		syncAutomationDescription:
-			'مساحة العمل هذه محفوظة نيابةً عنك، وكل تغيير يصل إليها فور إجرائه. لا حاجة لعمل أي شيء هنا.',
-		syncAutomationTitle: 'مساحة العمل هذه محفوظة نيابةً عنك',
-		syncAccountStatusNeedsReconnect: 'يحتاج إلى إعادة ربط',
-		syncSignInPending:
-			'لم يُهيّأ تسجيل الدخول بحساب Google في هذه النسخة بعد، فلا يمكن لهذه المساحة الوصول إلى الخدمة التي تحفظها.',
-		syncAccountStatusPending: 'بانتظار التفويض',
-		syncProviderHosted: 'مساحة عمل مستضافة',
-		syncWorkspaceDescription:
-			'تُحفظ هذه المساحة نيابةً عنك وتصل إلى هذا الجهاز تلقائياً. والتحقق الآن يبقيها تعمل دون اتصال لثلاثة أيام قادمة.',
-		syncWorkspaceStatusSynced: 'تمت مزامنته',
 
 		localeDescription: 'تتغير الواجهة بمجرد اختيارك.',
 		localeLabel: 'لغة العرض',
@@ -715,6 +702,16 @@ const ar = {
 		renameDescription: 'اسم مساحة العمل هذه على كل جهاز مسجل الدخول إليها.',
 		renamed: 'تمت إعادة تسمية مساحة العمل.',
 		roleOwner: 'المالك',
+		syncDescription:
+			'تُحفظ هذه المساحة نيابةً عنك وتصل إلى هذا الجهاز تلقائياً. والتحقق الآن يبقيها تعمل دون اتصال لثلاثة أيام قادمة.',
+		syncStatusCannotSignIn: 'تعذر تسجيل الدخول',
+		syncStatusNeedsReconnect: 'يحتاج إلى إعادة ربط',
+		syncStatusNoControlPlane: 'لا يزامن مع أي خدمة',
+		syncStatusNotSignedIn: 'غير مسجل الدخول',
+		syncStatusPending: 'بانتظار التفويض',
+		syncStatusSynced: 'تمت مزامنته',
+		transferDescription:
+			'اكتب كل شيء — المستأجرين والمجمعات والوحدات والعقود والمدفوعات — في ملف واحد، أو اقرأ ملفاً كهذا. تشير السجلات إلى بعضها بالأسماء لا بالأرقام، فيفتح الملف على أي جهاز.',
 		title: 'مساحة العمل'
 	}
 } satisfies Translation;

@@ -1462,10 +1462,6 @@ type RootTranslation = {
 		 */
 		openWorkspaceAction: string
 		/**
-		 * w​r​i​t​e​ ​e​v​e​r​y​t​h​i​n​g​ ​—​ ​t​e​n​a​n​t​s​,​ ​c​o​m​p​l​e​x​e​s​,​ ​u​n​i​t​s​,​ ​c​o​n​t​r​a​c​t​s​ ​a​n​d​ ​p​a​y​m​e​n​t​s​ ​—​ ​t​o​ ​o​n​e​ ​w​o​r​k​b​o​o​k​,​ ​o​r​ ​r​e​a​d​ ​o​n​e​ ​b​a​c​k​ ​i​n​.​ ​r​e​c​o​r​d​s​ ​n​a​m​e​ ​e​a​c​h​ ​o​t​h​e​r​ ​b​y​ ​n​a​m​e​ ​r​a​t​h​e​r​ ​t​h​a​n​ ​b​y​ ​n​u​m​b​e​r​,​ ​s​o​ ​a​ ​f​i​l​e​ ​o​p​e​n​s​ ​o​n​ ​a​n​y​ ​m​a​c​h​i​n​e​.
-		 */
-		transferDescription: string
-		/**
 		 * i​m​p​o​r​t​ ​a​ ​w​o​r​k​s​p​a​c​e
 		 */
 		transferImportTitle: string
@@ -1485,38 +1481,6 @@ type RootTranslation = {
 		 * l​e​a​v​e​ ​e​m​p​t​y​ ​t​o​ ​u​s​e​ ​t​h​e​ ​d​e​f​a​u​l​t​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h
 		 */
 		pathOverridePlaceholder: string
-		/**
-		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​k​e​p​t​ ​f​o​r​ ​y​o​u​,​ ​a​n​d​ ​e​v​e​r​y​ ​c​h​a​n​g​e​ ​r​e​a​c​h​e​s​ ​i​t​ ​a​s​ ​y​o​u​ ​m​a​k​e​ ​i​t​.​ ​t​h​e​r​e​ ​i​s​ ​n​o​t​h​i​n​g​ ​t​o​ ​d​o​ ​h​e​r​e​.
-		 */
-		syncAutomationDescription: string
-		/**
-		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​k​e​p​t​ ​f​o​r​ ​y​o​u
-		 */
-		syncAutomationTitle: string
-		/**
-		 * n​e​e​d​s​ ​r​e​c​o​n​n​e​c​t
-		 */
-		syncAccountStatusNeedsReconnect: string
-		/**
-		 * s​i​g​n​i​n​g​ ​i​n​ ​w​i​t​h​ ​G​o​o​g​l​e​ ​i​s​ ​n​o​t​ ​c​o​n​f​i​g​u​r​e​d​ ​i​n​ ​t​h​i​s​ ​b​u​i​l​d​ ​y​e​t​,​ ​s​o​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​c​a​n​n​o​t​ ​r​e​a​c​h​ ​t​h​e​ ​s​e​r​v​i​c​e​ ​t​h​a​t​ ​k​e​e​p​s​ ​i​t​.
-		 */
-		syncSignInPending: string
-		/**
-		 * a​w​a​i​t​i​n​g​ ​a​u​t​h​o​r​i​z​a​t​i​o​n
-		 */
-		syncAccountStatusPending: string
-		/**
-		 * h​o​s​t​e​d​ ​w​o​r​k​s​p​a​c​e
-		 */
-		syncProviderHosted: string
-		/**
-		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​k​e​p​t​ ​f​o​r​ ​y​o​u​ ​a​n​d​ ​r​e​a​c​h​e​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​o​n​ ​i​t​s​ ​o​w​n​.​ ​c​h​e​c​k​i​n​g​ ​i​n​ ​n​o​w​ ​k​e​e​p​s​ ​i​t​ ​w​o​r​k​i​n​g​ ​o​f​f​l​i​n​e​ ​f​o​r​ ​t​h​e​ ​n​e​x​t​ ​t​h​r​e​e​ ​d​a​y​s​.
-		 */
-		syncWorkspaceDescription: string
-		/**
-		 * s​y​n​c​e​d
-		 */
-		syncWorkspaceStatusSynced: string
 		/**
 		 * t​h​e​ ​i​n​t​e​r​f​a​c​e​ ​c​h​a​n​g​e​s​ ​a​s​ ​s​o​o​n​ ​a​s​ ​y​o​u​ ​p​i​c​k​ ​o​n​e​.
 		 */
@@ -2278,6 +2242,38 @@ type RootTranslation = {
 		 * o​w​n​e​r
 		 */
 		roleOwner: string
+		/**
+		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​k​e​p​t​ ​f​o​r​ ​y​o​u​ ​a​n​d​ ​r​e​a​c​h​e​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​o​n​ ​i​t​s​ ​o​w​n​.​ ​c​h​e​c​k​i​n​g​ ​i​n​ ​n​o​w​ ​k​e​e​p​s​ ​i​t​ ​w​o​r​k​i​n​g​ ​o​f​f​l​i​n​e​ ​f​o​r​ ​t​h​e​ ​n​e​x​t​ ​t​h​r​e​e​ ​d​a​y​s​.
+		 */
+		syncDescription: string
+		/**
+		 * c​a​n​n​o​t​ ​s​i​g​n​ ​i​n
+		 */
+		syncStatusCannotSignIn: string
+		/**
+		 * n​e​e​d​s​ ​r​e​c​o​n​n​e​c​t
+		 */
+		syncStatusNeedsReconnect: string
+		/**
+		 * s​y​n​c​s​ ​n​o​w​h​e​r​e
+		 */
+		syncStatusNoControlPlane: string
+		/**
+		 * n​o​t​ ​s​i​g​n​e​d​ ​i​n
+		 */
+		syncStatusNotSignedIn: string
+		/**
+		 * a​w​a​i​t​i​n​g​ ​a​u​t​h​o​r​i​z​a​t​i​o​n
+		 */
+		syncStatusPending: string
+		/**
+		 * s​y​n​c​e​d
+		 */
+		syncStatusSynced: string
+		/**
+		 * w​r​i​t​e​ ​e​v​e​r​y​t​h​i​n​g​ ​—​ ​t​e​n​a​n​t​s​,​ ​c​o​m​p​l​e​x​e​s​,​ ​u​n​i​t​s​,​ ​c​o​n​t​r​a​c​t​s​ ​a​n​d​ ​p​a​y​m​e​n​t​s​ ​—​ ​t​o​ ​o​n​e​ ​w​o​r​k​b​o​o​k​,​ ​o​r​ ​r​e​a​d​ ​o​n​e​ ​b​a​c​k​ ​i​n​.​ ​r​e​c​o​r​d​s​ ​n​a​m​e​ ​e​a​c​h​ ​o​t​h​e​r​ ​b​y​ ​n​a​m​e​ ​r​a​t​h​e​r​ ​t​h​a​n​ ​b​y​ ​n​u​m​b​e​r​,​ ​s​o​ ​a​ ​f​i​l​e​ ​o​p​e​n​s​ ​o​n​ ​a​n​y​ ​m​a​c​h​i​n​e​.
+		 */
+		transferDescription: string
 		/**
 		 * w​o​r​k​s​p​a​c​e
 		 */
@@ -3672,10 +3668,6 @@ export type TranslationFunctions = {
 		 */
 		openWorkspaceAction: () => LocalizedString
 		/**
-		 * write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.
-		 */
-		transferDescription: () => LocalizedString
-		/**
 		 * import a workspace
 		 */
 		transferImportTitle: () => LocalizedString
@@ -3695,38 +3687,6 @@ export type TranslationFunctions = {
 		 * leave empty to use the default database path
 		 */
 		pathOverridePlaceholder: () => LocalizedString
-		/**
-		 * this workspace is kept for you, and every change reaches it as you make it. there is nothing to do here.
-		 */
-		syncAutomationDescription: () => LocalizedString
-		/**
-		 * this workspace is kept for you
-		 */
-		syncAutomationTitle: () => LocalizedString
-		/**
-		 * needs reconnect
-		 */
-		syncAccountStatusNeedsReconnect: () => LocalizedString
-		/**
-		 * signing in with Google is not configured in this build yet, so this workspace cannot reach the service that keeps it.
-		 */
-		syncSignInPending: () => LocalizedString
-		/**
-		 * awaiting authorization
-		 */
-		syncAccountStatusPending: () => LocalizedString
-		/**
-		 * hosted workspace
-		 */
-		syncProviderHosted: () => LocalizedString
-		/**
-		 * this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.
-		 */
-		syncWorkspaceDescription: () => LocalizedString
-		/**
-		 * synced
-		 */
-		syncWorkspaceStatusSynced: () => LocalizedString
 		/**
 		 * the interface changes as soon as you pick one.
 		 */
@@ -4449,6 +4409,38 @@ export type TranslationFunctions = {
 		 * owner
 		 */
 		roleOwner: () => LocalizedString
+		/**
+		 * this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.
+		 */
+		syncDescription: () => LocalizedString
+		/**
+		 * cannot sign in
+		 */
+		syncStatusCannotSignIn: () => LocalizedString
+		/**
+		 * needs reconnect
+		 */
+		syncStatusNeedsReconnect: () => LocalizedString
+		/**
+		 * syncs nowhere
+		 */
+		syncStatusNoControlPlane: () => LocalizedString
+		/**
+		 * not signed in
+		 */
+		syncStatusNotSignedIn: () => LocalizedString
+		/**
+		 * awaiting authorization
+		 */
+		syncStatusPending: () => LocalizedString
+		/**
+		 * synced
+		 */
+		syncStatusSynced: () => LocalizedString
+		/**
+		 * write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.
+		 */
+		transferDescription: () => LocalizedString
 		/**
 		 * workspace
 		 */
