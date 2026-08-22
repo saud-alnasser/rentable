@@ -53,6 +53,7 @@ src/
 ├── decline.ts          the same, for ending one account's sessions
 ├── prune.ts            the same, for removing sign-ins that reached their month
 ├── failure.ts          the refusal vocabulary — a code, a status, a message
+├── logging.ts          what this process says about itself, for the commands
 ├── account/            who somebody is
 │   ├── account.ts      the upsert a sign-in is
 │   └── google.ts       verifying an access token against Google
@@ -103,6 +104,20 @@ POST /workspace                 <- {"name":"..."}   -> 201 {"workspace":{...}}
 POST /workspace/{id}/token      <- {"schemaVersion":4}
                                 -> {"token":"...","url":"libsql://...","expiresAt":0}
 ```
+
+**Everything one request emits carries one identifier for that request.** Fastify's own `pino`
+stamps `reqId` on every line, so two requests handled at the same moment can be told apart and a
+failure can be tied back to the request that caused it. The three commands log through the same
+`pino`, from `src/logging.ts`, without a request identifier, because a command has no request.
+
+Four `console` calls are left on purpose and are not an oversight: two in `main.ts`, which run
+before a server exists, and one each in `workspace/migration.ts`, `workspace/turso.ts` and
+`workspace/workspace.ts`, which are domain modules outside that effort's scope. They are an open
+question on [#741](https://github.com/saud-alnasser/rentable/issues/741) rather than work.
+
+**Nothing reads these logs.** Nothing is deployed, so no collector, format or field name is fixed
+by anything, and the first thing that reads them is what will fix them. The output is `pino`'s
+default and deliberately nothing more.
 
 **A route answers only with the fields its declaration names.** Responses are serialized through
 the shapes in `server/schema.ts`, so a field a handler sets and the declaration does not name is

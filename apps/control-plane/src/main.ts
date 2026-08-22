@@ -61,7 +61,11 @@ const server = controlPlaneServer({
 
 await server.listen({ port, host: '0.0.0.0' });
 
-console.info(`control plane listening on http://localhost:${port}, database ${databaseUrl()}`);
+// The server's own logger rather than `console`, so the first line this process writes looks like
+// every line after it. The two `console.error` calls above stay: they run before a server exists,
+// and a startup refusal that could not be printed because the thing that prints it was not built
+// yet is the worst possible time to be clever.
+server.log.info(`control plane listening on http://localhost:${port}, database ${databaseUrl()}`);
 
 const stop = () => {
 	void server.close().then(() => {

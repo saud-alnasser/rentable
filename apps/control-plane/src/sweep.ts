@@ -7,6 +7,10 @@ import { createClient } from '@libsql/client';
 import { connect, database, databaseUrl } from './database/database.ts';
 import { sweepWorkspaceSchemas } from './workspace/sweep.ts';
 import { tursoPlatform } from './workspace/turso.ts';
+import { logger } from './logging.ts';
+
+/** this command's own lines, carrying no request identifier because a command has no request. */
+const log = logger('sweep');
 
 /**
  * The sweep, run by a person.
@@ -31,7 +35,7 @@ const required = (name: string): string => {
 	const value = process.env[name]?.trim();
 
 	if (!value) {
-		console.error(`${name} is not set. See .env.example — a sweep cannot reach Turso without it.`);
+		log.error(`${name} is not set. See .env.example, a sweep cannot reach Turso without it.`);
 		process.exit(1);
 	}
 
@@ -53,10 +57,10 @@ const { swept, failed, target } = await sweepWorkspaceSchemas(
 
 client.close();
 
-console.info(`swept ${databaseUrl()} to workspace schema version ${target}`);
+log.info(`swept ${databaseUrl()} to workspace schema version ${target}`);
 
 for (const one of swept) {
-	console.info(
+	log.info(
 		one.from === one.to
 			? `${one.workspaceId} was already at ${one.to}`
 			: `${one.workspaceId} ${one.from} -> ${one.to}`
@@ -64,7 +68,7 @@ for (const one of swept) {
 }
 
 for (const one of failed) {
-	console.error(`${one.workspaceId} could not be migrated: ${one.reason}`);
+	log.error(`${one.workspaceId} could not be migrated: ${one.reason}`);
 }
 
 // A non-zero exit where anything failed, because the caller of a sweep is a person or a schedule

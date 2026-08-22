@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 
 import type { Database } from '../database/database.ts';
 import { MALFORMED, Refusal, refusalBody, UNAVAILABLE } from '../failure.ts';
@@ -50,16 +50,25 @@ const validationOf = (error: unknown): readonly Record<string, unknown>[] | unde
 /**
  * The control plane, built and not yet listening.
  *
- * **The signature is unchanged and that is deliberate**: `main.ts` and `tests/testing.ts` both hold
- * a `ControlPlane` and want something they can start, and neither should care which framework is
- * underneath. What did change is how it is started: a Fastify instance takes `listen({ port })`
- * where `node:http` took `listen(port)`, and that is the only change acceptance criterion 4
- * permits in the tests.
+ * **`plane` is the first argument and stays the only one that matters**: `main.ts` and
+ * `tests/testing.ts` both hold a `ControlPlane` and want something they can start, and neither
+ * should care which framework is underneath. What did change is how it is started: a Fastify
+ * instance takes `listen({ port })` where `node:http` took `listen(port)`, and that is the only
+ * change acceptance criterion 4 permits in the tests.
+ *
+ * **`logger` is second and optional because a test has to be able to read what was logged.** It is
+ * Fastify's own option, passed through: `true` in production, and a test passes a stream so it can
+ * assert on the lines rather than on the fact that a call was made. A logger reached for instead of
+ * passed in could not be asserted on at all, and would be the first ambient dependency in this
+ * package.
  */
-export const controlPlaneServer = (plane: ControlPlane): FastifyInstance => {
+export const controlPlaneServer = (
+	plane: ControlPlane,
+	{ logger = true }: { logger?: FastifyServerOptions['logger'] } = {}
+): FastifyInstance => {
 	const app = Fastify({
 		bodyLimit: MAXIMUM_BODY_BYTES,
-		logger: false,
+		logger,
 		/**
 		 * **Type coercion off, and it is not a preference.** Fastify configures AJV with
 		 * `coerceTypes` on, so `{"name": 7}` is quietly turned into `{"name": "7"}` and stored as the
@@ -112,7 +121,7 @@ export const controlPlaneServer = (plane: ControlPlane): FastifyInstance => {
 	 * failures arrive here too, and they arrive in the framework's vocabulary rather than in
 	 * `failure.ts`'s, so this is also where that vocabulary stops.
 	 */
-	app.setErrorHandler((error, _request, reply) => {
+	app.setErrorHandler((error, request, reply) => {
 		if (error instanceof Refusal) {
 			return reply.status(error.status).send(refusalBody(error));
 		}
@@ -137,7 +146,12 @@ export const controlPlaneServer = (plane: ControlPlane): FastifyInstance => {
 
 		// Nothing about an unexpected failure goes to the caller. It is this process's defect,
 		// and its text is the sort of thing that names a table or a path.
-		console.error('control plane failed to answer', error);
+		//
+		// **`request.log` rather than the instance's**, which is the whole of requirement 6 in one
+		// line: it carries the `reqId` Fastify stamped on this request, so this line can be tied to
+		// the request that caused it and told apart from another failing at the same moment. The
+		// instance's logger would write the same words with nothing joining them to anything.
+		request.log.error({ err: error }, 'control plane failed to answer');
 
 		return reply
 			.status(500)

@@ -37,6 +37,7 @@ import {
 	answerOf,
 	freshDatabase,
 	googleVouchingFor,
+	logLines,
 	post,
 	runningControlPlane,
 	SOMEBODY,
@@ -1204,4 +1205,89 @@ test('every wire field a route answers with is declared', async () => {
 		assert.deepEqual(keys(renamed), expected(WIRE_FIELDS.rename));
 		assert.deepEqual(keys(renamed.workspace), expected(WIRE_FIELDS.workspace));
 	});
+});
+
+/**
+ * Acceptance criterion 6: everything one request emits carries one identifier for that request.
+ *
+ * **The point is not that lines exist, it is that they can be told apart and joined back up.** Two
+ * requests handled at the same moment used to interleave with nothing distinguishing them, and a
+ * failure named no request at all: `console.error('control plane failed to answer', error)` in the
+ * catch, and whoever read it had two failures and no way to say which caller met which.
+ *
+ * Read off the logger the server was given rather than off stdout, which is why
+ * `controlPlaneServer` takes the option at all. The alternative, a logger it reached for, would be
+ * the first ambient dependency in this package and could not be asserted on.
+ */
+test('two requests handled at once can be told apart, and a failure names its own', async () => {
+	const sink = logLines();
+
+	// Google explodes, so every request through this instance fails the same way. That is what
+	// makes the second half of the criterion checkable: two failures at once, each with a line, and
+	// the question is whether each line belongs to a request that can be named.
+	const exploding = async () => {
+		throw new Error('libsql: no such table: account_v2');
+	};
+
+	const { db, close: closeDatabase } = await freshDatabase();
+	const hosted = await workspaceDatabases();
+	const turso = tursoInMemory();
+	const { url, close } = await runningControlPlane(
+		{
+			db,
+			verifyIdentity: exploding,
+			platform: turso.platform,
+			connectToWorkspace: hosted.connect,
+			now: () => AT
+		},
+		{ logger: { level: 'info', stream: sink.stream } }
+	);
+
+	try {
+		const [first, second] = await Promise.all([
+			post(url, '/account/sign-in'),
+			post(url, '/account/sign-in')
+		]);
+
+		assert.equal(first.status, 500);
+		assert.equal(second.status, 500);
+
+		const lines = sink.lines();
+		const requests = lines.filter((line) => line.msg === 'incoming request');
+		const failures = lines.filter((line) => line.msg === 'control plane failed to answer');
+
+		assert.equal(requests.length, 2, 'both requests should have been logged');
+		assert.equal(failures.length, 2, 'both failures should have been logged');
+
+		// The whole of the first half: two concurrent requests, two identifiers, not one.
+		const identifiers = new Set(requests.map((line) => String(line.reqId)));
+
+		assert.equal(identifiers.size, 2, 'the two requests share an identifier');
+
+		// And the second half: every failure line belongs to a request that was logged, so a reader
+		// holding a failure can find the request that caused it.
+		for (const failure of failures) {
+			assert.ok(
+				identifiers.has(String(failure.reqId)),
+				`a failure carried ${String(failure.reqId)}, which names no request`
+			);
+		}
+
+		assert.equal(
+			new Set(failures.map((line) => String(line.reqId))).size,
+			2,
+			'the two failures share an identifier, so neither can be tied to its own request'
+		);
+
+		// and the internal detail is in the log where it belongs, having been kept out of the answer
+		// by the test above this one.
+		assert.ok(
+			JSON.stringify(failures).includes('account_v2'),
+			'the failure was logged without saying what failed'
+		);
+	} finally {
+		await close();
+		await hosted.close();
+		await closeDatabase();
+	}
 });
