@@ -4,6 +4,10 @@ import 'dotenv/config';
 
 import { connect, database, databaseUrl } from './database/database.ts';
 import { forgetExpiredSessions } from './session/session.ts';
+import { logger } from './logging.ts';
+
+/** this command's own lines, carrying no request identifier because a command has no request. */
+const log = logger('prune');
 
 /**
  * Removing session rows that can never be presented again, run by a person.
@@ -39,11 +43,11 @@ client.close();
 // The count is the whole of the answer, and zero is a real one: a prune that found nothing is not
 // a prune that failed, so nothing here exits non-zero. It is the same rule the other operations
 // follow, from the Constraint that an operation removing rows says how many it removed.
-console.info(
+log.info(
 	removed === 0
 		? 'no sign-in here has reached its month, so nothing was removed'
 		: removed === 1
 			? '1 sign-in past its month removed'
 			: `${removed} sign-ins past their month removed`
 );
-console.info(`against ${databaseUrl()}`);
+log.info(`against ${databaseUrl()}`);

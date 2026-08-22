@@ -3,7 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { Writable } from 'node:stream';
+
 import { createClient, type Client } from '@libsql/client';
+import type { FastifyServerOptions } from 'fastify';
 import { drizzle } from 'drizzle-orm/libsql';
 
 import type { GoogleIdentity, VerifyGoogleIdentity } from '../account/google.ts';
@@ -162,15 +165,60 @@ export const workspaceDatabases = async () => {
 };
 
 /**
+ * A place for an instance to log, and a way to read back what it wrote.
+ *
+ * **A stream rather than a spy on `console`**, because what is under test is the logger the
+ * server was given rather than the fact that a call happened. Every line pino writes is one JSON
+ * object on one line, so `lines()` parses rather than matches: a test asking whether two requests
+ * can be told apart should be reading `reqId`, not looking for a substring.
+ */
+export const logLines = () => {
+	const written: string[] = [];
+
+	const stream = new Writable({
+		write(chunk: Buffer, _encoding, done) {
+			written.push(chunk.toString('utf8'));
+			done();
+		}
+	});
+
+	return {
+		stream,
+		/** every line written so far, parsed. Lines pino wrote that are not JSON are dropped. */
+		lines: (): Record<string, unknown>[] =>
+			written
+				.join('')
+				.split('\n')
+				.filter((line) => line.trim() !== '')
+				.flatMap((line) => {
+					try {
+						return [JSON.parse(line) as Record<string, unknown>];
+					} catch {
+						return [];
+					}
+				})
+	};
+};
+
+/**
  * The real routes, listening on a port the operating system picked.
  *
  * Over a socket rather than by calling the handlers, because half of what this covers is the
  * transport: the status code, the body shape, and the method-and-path pair that decides which
  * route ran at all.
  */
-export const runningControlPlane = async (plane: ControlPlane) => {
+export const runningControlPlane = async (
+	plane: ControlPlane,
+	/**
+	 * where this instance's log lines go, for the one test that reads them.
+	 *
+	 * Off by default, because 45 tests that each printed a request line would bury the one thing a
+	 * failing run is trying to say. `logLines` above is what a test passes here.
+	 */
+	{ logger = false }: { logger?: FastifyServerOptions['logger'] } = {}
+) => {
 	const { controlPlaneServer } = await import('../server/server.ts');
-	const server = controlPlaneServer(plane);
+	const server = controlPlaneServer(plane, { logger });
 
 	// Port 0 and a real socket, as before. What changed is only the shape of the call: a Fastify
 	// instance takes an options object and returns a promise where `node:http` took positional

@@ -4,6 +4,10 @@ import 'dotenv/config';
 
 import { connect, database, databaseUrl } from './database/database.ts';
 import { declineRenewalForEmail } from './session/decline.ts';
+import { logger } from './logging.ts';
+
+/** this command's own lines, carrying no request identifier because a command has no request. */
+const log = logger('decline');
 
 /**
  * Declining to renew, run by a person.
@@ -33,7 +37,7 @@ const [, , asked] = process.argv;
 const email = asked?.trim() ?? '';
 
 if (email === '') {
-	console.error('usage: pnpm --filter ./apps/control-plane decline <email>');
+	log.error('usage: pnpm --filter ./apps/control-plane decline <email>');
 	process.exit(2);
 }
 
@@ -50,16 +54,16 @@ switch (result.outcome) {
 	case 'declined':
 		// Zero is an answer rather than a failure, and it is worded so that an operator does not
 		// read it as a ban: what ended is what was live, and signing in again starts a new one.
-		console.info(
+		log.info(
 			result.ended === 0
 				? `${result.email} (${result.accountId}) held no live session, so none ended`
 				: `${result.email} (${result.accountId}): ${result.ended} session${result.ended === 1 ? '' : 's'} ended`
 		);
-		console.info(`against ${databaseUrl()}`);
+		log.info(`against ${databaseUrl()}`);
 		break;
 
 	case 'no-such-account':
-		console.error(`no account here has the address ${result.email}`);
+		log.error(`no account here has the address ${result.email}`);
 		// after `process.exit`, which `no-fallthrough` does not read as terminating.
 		process.exit(1);
 		break;
@@ -67,12 +71,10 @@ switch (result.outcome) {
 	case 'ambiguous':
 		// Named rather than counted: the operator's next move is to pick one, and a number does
 		// not help them do it.
-		console.error(
-			`${result.email} names ${result.accountIds.length} accounts, so nothing was done:`
-		);
+		log.error(`${result.email} names ${result.accountIds.length} accounts, so nothing was done:`);
 
 		for (const id of result.accountIds) {
-			console.error(`  ${id}`);
+			log.error(`  ${id}`);
 		}
 
 		process.exit(1);

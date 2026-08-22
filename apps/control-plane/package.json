@@ -24,7 +24,8 @@
 		"@rentable/workspace-permission": "workspace:*",
 		"dotenv": "^17.4.2",
 		"drizzle-orm": "^0.45.2",
-		"fastify": "^5.12.1"
+		"fastify": "^5.12.1",
+		"pino": "^10.3.1"
 	},
 	"devDependencies": {
 		"@types/node": "^24.13.3",
