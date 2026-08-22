@@ -8,6 +8,7 @@ import { and, eq } from 'drizzle-orm';
 import type { Database } from '../database/database.ts';
 import {
 	CLIENT_OUT_OF_DATE,
+	MALFORMED,
 	NO_SUCH_WORKSPACE,
 	NOT_A_MEMBER,
 	NOT_PERMITTED,
@@ -300,6 +301,18 @@ export const renameWorkspace = async (
 		now
 	}: { workspaceId: string; accountId: string; name: string; now: number }
 ): Promise<PermittedWorkspace> => {
+	// **The one name rule a request schema cannot express**, and it is here rather than at the route
+	// because of what it measures: the limit applies to the name after trimming, and JSON Schema has
+	// no trim. The other two rules are declared in `server/schema.ts`. It runs before the permission
+	// check so that the three refusals keep the order they had when one extractor held all of them.
+	if (name.trim().length > WORKSPACE_NAME_LIMIT) {
+		throw new Refusal(
+			MALFORMED,
+			400,
+			`that name is too long. keep it under ${WORKSPACE_NAME_LIMIT} characters`
+		);
+	}
+
 	const { permissions } = await workspaceThisAccountMay(db, {
 		workspaceId,
 		accountId,

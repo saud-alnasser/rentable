@@ -59,12 +59,12 @@ const server = controlPlaneServer({
 	connectToWorkspace: ({ url, authToken }) => createClient({ url, authToken })
 });
 
-server.listen(port, () => {
-	console.info(`control plane listening on http://localhost:${port}, database ${databaseUrl()}`);
-});
+await server.listen({ port, host: '0.0.0.0' });
+
+console.info(`control plane listening on http://localhost:${port}, database ${databaseUrl()}`);
 
 const stop = () => {
-	server.close(() => {
+	void server.close().then(() => {
 		client.close();
 	});
 };

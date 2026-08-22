@@ -1,27 +1,12 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import Fastify, { type FastifyInstance } from 'fastify';
 
-import { sql } from 'drizzle-orm';
-
-import { signInWithGoogle } from '../account/account.ts';
 import type { Database } from '../database/database.ts';
-import { MALFORMED, Refusal, refusalBody, UNAUTHENTICATED, UNAVAILABLE } from '../failure.ts';
-import {
-	looksLikeSessionToken,
-	resumeSession,
-	startSession,
-	type IssuedSession
-} from '../session/session.ts';
+import { MALFORMED, Refusal, refusalBody, UNAVAILABLE } from '../failure.ts';
 import type { VerifyGoogleIdentity } from '../account/google.ts';
-import type { Account, Workspace } from '../database/schema.ts';
 import type { ConnectToWorkspaceDatabase } from '../workspace/migration.ts';
 import type { TursoPlatform } from '../workspace/turso.ts';
-import {
-	membershipOf,
-	mintWorkspaceToken,
-	renameWorkspace,
-	WORKSPACE_NAME_LIMIT,
-	workspaceForAccount
-} from '../workspace/workspace.ts';
+import { routes } from './routes.ts';
+import { messageForValidation } from './schema.ts';
 
 /**
  * The control plane's HTTP surface.
@@ -35,8 +20,8 @@ import {
  * side a hand-written encoding of a wire format designed to be generated.*
  *
  * Everything ambient is an argument. The database, what verifies an identity, and the clock all
- * arrive here rather than being reached for, which is what lets the tests below run the real
- * routes against a real database and a fake Google.
+ * arrive here rather than being reached for, which is what lets the tests run the real routes
+ * against a real database and a fake Google.
  */
 export type ControlPlane = {
 	db: Database;
@@ -52,395 +37,119 @@ export type ControlPlane = {
 
 const MAXIMUM_BODY_BYTES = 16 * 1024;
 
-const json = (response: ServerResponse, status: number, body: unknown) => {
-	response.writeHead(status, { 'content-type': 'application/json' });
-	response.end(JSON.stringify(body));
-};
+/** what a framework failure is called, where the framework names it rather than throwing a `Refusal`. */
+const codeOf = (error: unknown): string =>
+	typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : '';
 
-/** an account as it goes over the wire — timestamps as epoch milliseconds, as the desktop reads them. */
-const wireAccount = (record: Account) => ({
-	id: record.id,
-	email: record.email,
-	displayName: record.displayName,
-	avatarUrl: record.avatarUrl,
-	googleUserId: record.googleUserId,
-	createdAt: record.createdAt.getTime(),
-	updatedAt: record.updatedAt.getTime()
-});
+/** the validation issues a schema failure carries, or nothing if this is not one. */
+const validationOf = (error: unknown): readonly Record<string, unknown>[] | undefined =>
+	typeof error === 'object' && error !== null && 'validation' in error
+		? (error.validation as readonly Record<string, unknown>[])
+		: undefined;
 
 /**
- * a workspace as it goes over the wire.
+ * The control plane, built and not yet listening.
  *
- * The database's *name* stays here: it is what the Platform API calls it by, and a client that
- * holds it holds the one argument every administrative call to Turso takes. The hostname is
- * what a client actually needs, and it gets it as part of a mint rather than on its own.
- *
- * **`permissions` arrives as an argument rather than being read off the record**, because a
- * workspace does not have permissions — an account has them *in* a workspace, and this function is
- * handed a `Workspace` and no idea who is asking. Both call sites already hold that account and
- * already have its membership row in hand, so passing the number costs neither of them a query.
- *
- * What the number means is `@rentable/workspace-permission`'s and is never decoded here: the wire
- * carries it, and each end reads it through the same `permits`.
+ * **The signature is unchanged and that is deliberate**: `main.ts` and `tests/testing.ts` both hold
+ * a `ControlPlane` and want something they can start, and neither should care which framework is
+ * underneath. What did change is how it is started: a Fastify instance takes `listen({ port })`
+ * where `node:http` took `listen(port)`, and that is the only change acceptance criterion 4
+ * permits in the tests.
  */
-const wireWorkspace = (record: Workspace, permissions: number) => ({
-	id: record.id,
-	name: record.name,
-	ownerAccountId: record.ownerAccountId,
-	permissions,
-	createdAt: record.createdAt.getTime(),
-	updatedAt: record.updatedAt.getTime()
-});
-
-/**
- * Who is asking, and how much longer they may keep asking.
- *
- * **Two credentials arrive on the same header and the prefix tells them apart** (#550). A Google
- * access token is what somebody signs in with, and it buys a *session* — a token this control
- * plane issued, good for three days, and renewed by the very act of being presented. Every route
- * below therefore renews the session it was reached with, which is requirement 15's *any
- * connection inside the window renews it*, implemented once here rather than remembered at each
- * route.
- *
- * **The session is what replaces re-verifying with Google on every request**, which is what this
- * function did until #550: a round trip to Google per request, so that a client which had signed
- * in a minute ago proved it again. What it costs to stop is that a Google token revoked mid-window
- * is not noticed until the session runs out — which is the same bound *Architecture* already
- * accepts for removing somebody, and the reason it is three days and not thirty.
- *
- * A route reached with a Google token is still served: signing in *is* the identification, so a
- * client whose first request is not `/account/sign-in` reaches the account it would have reached.
- *
- * **It is given a session by such a route, and every route hands one back.** The link that used to
- * sit here pointed at an `askingForASession` that was never written, and the behaviour it was
- * meant to describe was never built either: a request carrying a Google access token starts a
- * session, so a client that keeps presenting one writes a row per request. The desktop presents
- * `rws_` after its first request and is the only client, which is what bounds the accrual, and
- * the spec records that as an assumption rather than as something enforced here. Requirement 19
- * answers what accumulates by pruning it (`../prune.ts`); making this route reuse a live session
- * instead was put to the human and declined as scope.
- */
-const asking = async (
-	plane: ControlPlane,
-	request: IncomingMessage
-): Promise<{ account: Account; session: IssuedSession }> => {
-	const header = request.headers.authorization ?? '';
-	const [scheme, ...rest] = header.split(' ');
-	const token = rest.join(' ').trim();
-
-	if (scheme?.toLowerCase() !== 'bearer' || token === '') {
-		throw new Refusal(UNAUTHENTICATED, 401, 'sign in with google before asking for this');
-	}
-
-	const now = (plane.now ?? Date.now)();
-
-	if (looksLikeSessionToken(token)) {
-		return await resumeSession(plane.db, token, now);
-	}
-
-	const identity = await plane.verifyIdentity(token);
-	const account = await signInWithGoogle(plane.db, identity, now);
-
-	// **Here rather than in the sign-in route, because this is where an account comes into being.**
-	// Any route reached with a Google token creates the account, so provisioning only in `identify`
-	// left a window in which an account existed with no workspace — requirement 6 is *exactly one*
-	// and that window makes it *at most one*. It is idempotent, so every later request is one
-	// indexed read and no Turso call.
-	await workspaceForAccount(plane.db, plane.platform, {
-		accountId: account.id,
-		name: account.displayName,
-		now
+export const controlPlaneServer = (plane: ControlPlane): FastifyInstance => {
+	const app = Fastify({
+		bodyLimit: MAXIMUM_BODY_BYTES,
+		logger: false,
+		/**
+		 * **Type coercion off, and it is not a preference.** Fastify configures AJV with
+		 * `coerceTypes` on, so `{"name": 7}` is quietly turned into `{"name": "7"}` and stored as the
+		 * string `7`. `workspaceNameIn` refused it, and `server.test.ts` asserts that refusal, which
+		 * is how this was caught rather than shipped: the suite went 39 of 40 with a 200 where a 400
+		 * belonged.
+		 *
+		 * The general form is worse than the one case. A declaration that coerces is a declaration
+		 * that describes what the caller *may be read as* rather than what it *may send*, which is
+		 * the opposite of the property this whole effort is for. Nothing here needs it: the only
+		 * route parameter is already a string, and the only numeric field arrives from a client that
+		 * writes it as a bare JSON number.
+		 */
+		ajv: { customOptions: { coerceTypes: false } }
 	});
 
-	return { account, session: await startSession(plane.db, account.id, now) };
-};
-
-const readJsonBody = async (request: IncomingMessage): Promise<Record<string, unknown>> => {
-	const chunks: Buffer[] = [];
-	let size = 0;
-
-	for await (const chunk of request) {
-		size += chunk.length;
-
-		// A sign-in body is one token. Reading an unbounded stream into memory because a caller
-		// said it was JSON is a way to be taken down by one request.
-		if (size > MAXIMUM_BODY_BYTES) {
-			throw new Refusal(MALFORMED, 413, 'that request is too large to be a sign-in');
-		}
-
-		chunks.push(Buffer.from(chunk));
-	}
-
-	if (size === 0) {
-		return {};
-	}
-
-	try {
-		const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-		return parsed !== null && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
-	} catch {
-		throw new Refusal(MALFORMED, 400, 'that request body is not json');
-	}
-};
-
-/**
- * a session as it goes over the wire.
- *
- * **Both of the session's moments ride with the token, and they are not the same kind of thing.**
- * `expiresAt` is the refresh window: how much longer this client may work without reaching here,
- * which it obeys by locking itself, and which a reach moves. `absoluteExpiresAt` is when the
- * sign-in stops being renewable at all — enforced here, whatever the client believes, which is
- * why the client is given the number rather than trusted to keep one.
- */
-const wireSession = (issued: IssuedSession) => ({
-	token: issued.token,
-	expiresAt: issued.expiresAt,
-	absoluteExpiresAt: issued.absoluteExpiresAt
-});
-
-/**
- * Say who this is, and hand back a session to go on with.
- *
- * **Two routes, one handler, and they are not collapsed into one route.** `POST
- * /account/sign-in` is where a Google token is exchanged for a session; `POST /session/refresh`
- * is where a session is renewed on its own. They behave identically because `asking` already
- * accepts either credential — but a client calls them for different reasons, and a refusal from
- * the second means *the window closed* where the same refusal from the first would mean *Google
- * said no*. Forcing a difference in the bodies to justify two names would be inventing one.
- *
- * The refresh exists for the client that is doing nothing else: open, in sync, and with a window
- * quietly running down, which would otherwise have to invent a reason to call something in order
- * to stay signed in. Every other route renews the session it was reached with anyway, so a client
- * that is doing anything at all never needs it.
- *
- * The refusal is `resumeSession`'s and it names the action to take: past the window there is
- * nothing left to renew, and signing in with Google is the only way back.
- */
-const identify = async (
-	plane: ControlPlane,
-	request: IncomingMessage,
-	response: ServerResponse
-) => {
-	const { account, session } = await asking(plane, request);
-
-	// **The workspace comes back with the identity** — requirement 3's *in the same act*. `asking`
-	// has already provisioned it for an account that was just created, so this is a read; it stays
-	// a `workspaceForAccount` rather than a bare lookup so that a session resumed against an
-	// account from before this change still gets one.
-	const workspace = await workspaceForAccount(plane.db, plane.platform, {
-		accountId: account.id,
-		name: account.displayName,
-		now: (plane.now ?? Date.now)()
-	});
-
-	// **What the asking account may do in it, and nobody else's row.** `membershipOf` reads by
-	// workspace *and* account, so there is no shape here that could answer with somebody else's
-	// permissions — this is not a members listing and does not become one.
-	//
-	// **A row that is not there answers zero rather than refusing.** This is the sign-in route, and
-	// throwing here would lock somebody out of the application over a row `createWorkspace` writes
-	// inside the same transaction as the workspace itself. Zero is the literal rather than
-	// `ADMINISTRATION_BY_ROLE.member`, which carries the same number today: what is being said here
-	// is *no row*, not *the member default*, and the day that default stops being zero those two
-	// stop meaning the same thing.
-	const belongs = await membershipOf(plane.db, workspace.id, account.id);
-
-	json(response, 200, {
-		account: wireAccount(account),
-		workspace: wireWorkspace(workspace, belongs?.permissions ?? 0),
-		session: wireSession(session)
-	});
-};
-
-/**
- * What the client was built against, off its request.
- *
- * **It is required rather than defaulted**, and a default is the thing to resist here: any number
- * chosen for a client that did not say is a guess about which schema it understands, and the
- * whole of decision 06 is that guessing is what diverges a replica. A caller that omits it is a
- * caller with a defect, and it is told so.
- *
- * **The floor is one, not zero, and zero is the value that would have been dangerous.** A
- * workspace is created at `0` with an empty database, so a mint at `0` is the *equal* case: it
- * would issue a full-access token for a database with no tables in it, and a client holding that
- * would have nothing to sync and every reason to build the schema itself — which is decision 06's
- * rejected option B, arriving through the one door left open. No real client can send it either:
- * the desktop derives its version by counting migrations and there has never been a release with
- * none. So the first mint on a workspace always migrates, and a database a token exists for
- * always has a schema.
- */
-const schemaVersionIn = (body: Record<string, unknown>): number => {
-	const version = body.schemaVersion;
-
-	if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
-		throw new Refusal(
-			MALFORMED,
-			400,
-			'say which schema version this application was built against'
-		);
-	}
-
-	return version;
-};
-
-const mint = async (
-	plane: ControlPlane,
-	request: IncomingMessage,
-	response: ServerResponse,
-	workspaceId: string
-) => {
-	const { account, session } = await asking(plane, request);
-	const schemaVersion = schemaVersionIn(await readJsonBody(request));
-
-	const minted = await mintWorkspaceToken(plane.db, plane.platform, plane.connectToWorkspace, {
-		workspaceId,
-		accountId: account.id,
-		schemaVersion,
-		now: (plane.now ?? Date.now)()
-	});
-
-	// **Both windows, in one answer, and that is the whole of why the mint is the renewal a
-	// client uses.** `expiresAt` is the Turso credential the replica actually syncs with;
-	// `session.expiresAt` is how much longer this control plane will hand out another. Reached
-	// here they restart together, so a client that renews by minting has one clock rather than
-	// two that drift. `/session/refresh` moves only the second, which is why a client holding a
-	// workspace does not renew through it — and why the client keeps both numbers and believes
-	// the earlier.
-	json(response, 200, { ...minted, session: wireSession(session) });
-};
-
-/**
- * What to call the workspace, off the request.
- *
- * **Three refusals rather than one, because the caller can act on the difference.** Sending no
- * name at all is a defect in the client; sending one with nothing in it is a person who pressed
- * save on an empty box; sending one too long is a person whose name will not fit. Only the last
- * two are worth showing anybody, and a single *that name is not valid* would leave the desktop
- * inventing which of the three it was.
- *
- * Empty and whitespace-only are deliberately one answer: after trimming they are the same name,
- * and telling somebody their four spaces were not four spaces says nothing they can use.
- */
-const workspaceNameIn = (body: Record<string, unknown>): string => {
-	const name = body.name;
-
-	if (typeof name !== 'string') {
-		throw new Refusal(MALFORMED, 400, 'say what this workspace should be called');
-	}
-
-	if (name.trim() === '') {
-		throw new Refusal(MALFORMED, 400, 'a workspace needs a name');
-	}
-
-	if (name.trim().length > WORKSPACE_NAME_LIMIT) {
-		throw new Refusal(
-			MALFORMED,
-			400,
-			`that name is too long. keep it under ${WORKSPACE_NAME_LIMIT} characters`
-		);
-	}
-
-	return name;
-};
-
-/**
- * Rename a workspace.
- *
- * **The answer carries the whole workspace rather than the name that was sent**, which is what
- * makes it the same shape as the identifying routes: what a client shows is what this control
- * plane holds, and the name it stored is trimmed, so echoing the request back would be the one
- * case where the two differ.
- */
-const rename = async (
-	plane: ControlPlane,
-	request: IncomingMessage,
-	response: ServerResponse,
-	workspaceId: string
-) => {
-	const { account, session } = await asking(plane, request);
-	const name = workspaceNameIn(await readJsonBody(request));
-
-	const renamed = await renameWorkspace(plane.db, {
-		workspaceId,
-		accountId: account.id,
-		name,
-		now: (plane.now ?? Date.now)()
-	});
-
-	json(response, 200, {
-		workspace: wireWorkspace(renamed.workspace, renamed.permissions),
-		session: wireSession(session)
-	});
-};
-
-const health = async (plane: ControlPlane, response: ServerResponse) => {
-	try {
-		// The query is the point of the route: a process that answers without having reached its
-		// database reports the one thing a health check exists to disprove.
-		await plane.db.get(sql`select 1`);
-	} catch {
-		// 503 rather than the generic 500, because *unavailable* is the answer this route exists to
-		// give and a checker keyed on the status should not have to parse a body to find out. The
-		// reason stays here: it names a file or a hostname, and this route needs no credential.
-		throw new Refusal(UNAVAILABLE, 503, 'the control plane cannot reach its database');
-	}
-
-	// Whether the database answered, and not which one it is. The URL is on stdout at startup,
-	// where the person running it can see it and a caller cannot.
-	json(response, 200, { status: 'ok' });
-};
-
-export const controlPlaneServer = (plane: ControlPlane): Server =>
-	createServer((request, response) => {
-		const route = async () => {
-			if (request.method === 'GET' && request.url === '/health') {
-				return health(plane, response);
-			}
-
-			if (
-				request.method === 'POST' &&
-				(request.url === '/account/sign-in' || request.url === '/session/refresh')
-			) {
-				return identify(plane, request, response);
-			}
-
-			// **There is no route that creates a workspace**, and that is requirement 6 rather than an
-			// omission: an account is given its one workspace when it is created, so a creation
-			// route could only ever refuse. Requirement 14's organization work is what reopens it,
-			// when an account may have several and something has to say which.
-
-			// Not decoded: a workspace id is a UUID, so there is nothing to unescape, and
-			// `decodeURIComponent` throws on a malformed escape — which would turn a nonsense path
-			// into a 500 where it should be a 404.
-			const minting = /^\/workspace\/([^/]+)\/token$/.exec(request.url ?? '');
-
-			if (request.method === 'POST' && minting?.[1]) {
-				return mint(plane, request, response, minting[1]);
-			}
-
-			// Undecoded for the same reason the mint's path is, and a sibling of it rather than a
-			// `PATCH /workspace/:id`: this surface names the act in the path and takes it as a POST,
-			// and one route spelled the other way would be two conventions for one client.
-			const renaming = /^\/workspace\/([^/]+)\/name$/.exec(request.url ?? '');
-
-			if (request.method === 'POST' && renaming?.[1]) {
-				return rename(plane, request, response, renaming[1]);
-			}
-
-			json(response, 404, { error: { code: 'no_such_route', message: 'there is nothing here' } });
-		};
-
-		route().catch((error: unknown) => {
-			if (error instanceof Refusal) {
-				json(response, error.status, refusalBody(error));
+	/**
+	 * An empty body is `{}`, not a refusal.
+	 *
+	 * `readJsonBody` returned `{}` for a request with nothing in it, and Fastify answers
+	 * `FST_ERR_CTP_EMPTY_JSON_BODY` instead. That is a wire change nobody asked for, and it is not
+	 * hypothetical: the sign-in and refresh routes are called with no body and the test helper
+	 * always sends `content-type: application/json`, so every one of those tests would fail.
+	 *
+	 * The rest of the parse is Fastify's own `JSON.parse`, so a body that is not json still fails
+	 * here and is mapped below.
+	 */
+	app.addContentTypeParser(
+		'application/json',
+		{ parseAs: 'string' },
+		(_request, body: string, done) => {
+			if (body === '') {
+				done(null, {});
 				return;
 			}
 
-			// Nothing about an unexpected failure goes to the caller. It is this process's defect,
-			// and its text is the sort of thing that names a table or a path.
-			console.error('control plane failed to answer', error);
-			json(response, 500, {
-				error: { code: UNAVAILABLE, message: 'something went wrong here. try again' }
-			});
-		});
+			try {
+				done(null, JSON.parse(body));
+			} catch {
+				done(new Refusal(MALFORMED, 400, 'that request body is not json'), undefined);
+			}
+		}
+	);
+
+	/**
+	 * The one place a failure becomes a response.
+	 *
+	 * Before this, every route's failure went through one `catch` at the foot of the dispatcher,
+	 * which was the same idea reached by a different route. What is new is that the framework's own
+	 * failures arrive here too, and they arrive in the framework's vocabulary rather than in
+	 * `failure.ts`'s, so this is also where that vocabulary stops.
+	 */
+	app.setErrorHandler((error, _request, reply) => {
+		if (error instanceof Refusal) {
+			return reply.status(error.status).send(refusalBody(error));
+		}
+
+		const issues = validationOf(error);
+
+		if (issues) {
+			const refusal = new Refusal(MALFORMED, 400, messageForValidation(issues));
+
+			return reply.status(refusal.status).send(refusalBody(refusal));
+		}
+
+		// The body limit was `readJsonBody`'s and is now the instance's, so the refusal that used to
+		// be raised while reading has to be rebuilt from what the framework raised instead. A sign-in
+		// body is one token; reading an unbounded stream into memory because a caller said it was
+		// JSON is a way to be taken down by one request.
+		if (codeOf(error) === 'FST_ERR_CTP_BODY_TOO_LARGE') {
+			const refusal = new Refusal(MALFORMED, 413, 'that request is too large to be a sign-in');
+
+			return reply.status(refusal.status).send(refusalBody(refusal));
+		}
+
+		// Nothing about an unexpected failure goes to the caller. It is this process's defect,
+		// and its text is the sort of thing that names a table or a path.
+		console.error('control plane failed to answer', error);
+
+		return reply
+			.status(500)
+			.send({ error: { code: UNAVAILABLE, message: 'something went wrong here. try again' } });
 	});
+
+	// Fastify's own 404 carries its own shape, and this one is a contract like any other.
+	app.setNotFoundHandler((_request, reply) =>
+		reply.status(404).send({ error: { code: 'no_such_route', message: 'there is nothing here' } })
+	);
+
+	routes(app, plane);
+
+	return app;
+};
