@@ -151,6 +151,7 @@ Start at [[protocol]].
 | interface-feedback-first-pass | implemented | [[efforts/interface-feedback-first-pass/spec]] | 0 | 0 | 0 |
 | list-presentation-spec | implemented | [[efforts/list-presentation-spec/spec]] | 0 | 0 | 0 |
 | national-identity-validation | implemented | [[efforts/national-identity-validation/spec]] | 0 | 0 | 0 |
+| permissions-cross-the-boundary-and-the-workspace-page-reads-as-one | accepted | [[efforts/permissions-cross-the-boundary-and-the-workspace-page-reads-as-one/spec]] | 0 | 0 | 0 |
 | record-surface-and-visual-vocabulary | implemented | [[efforts/record-surface-and-visual-vocabulary/spec]] | 0 | 1 | 0 |
 | record-vocabulary-and-missing-views | implemented | [[efforts/record-vocabulary-and-missing-views/spec]] | 0 | 1 | 0 |
 | records-rows-and-decisions | implemented | [[efforts/records-rows-and-decisions/spec]] | 0 | 1 | 0 |
@@ -159,7 +160,6 @@ Start at [[protocol]].
 | shell-presentation-spec | implemented | [[efforts/shell-presentation-spec/spec]] | 0 | 0 | 0 |
 | sql-proxy-value-conversion | implemented | [[efforts/sql-proxy-value-conversion/spec]] | 0 | 0 | 0 |
 | surfaces-the-overhaul-left-behind | implemented | [[efforts/surfaces-the-overhaul-left-behind/spec]] | 0 | 0 | 0 |
-| the-interface-knows-what-a-member-may-do | accepted | [[efforts/the-interface-knows-what-a-member-may-do/spec]] | 0 | 0 | 0 |
 | the-landing-screen-is-figures-over-sections | implemented | [[efforts/the-landing-screen-is-figures-over-sections/spec]] | 0 | 1 | 0 |
 | the-repository-becomes-a-monorepo | implemented | [[efforts/the-repository-becomes-a-monorepo/spec]] | 2 | 0 | 0 |
 | the-shell-says-whose-workspace-this-is | accepted | [[efforts/the-shell-says-whose-workspace-this-is/spec]] | 0 | 0 | 0 |
