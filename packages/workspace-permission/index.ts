@@ -29,6 +29,21 @@ export const ADMINISTRATION = {
 export type Administration = keyof typeof ADMINISTRATION;
 
 /**
+ * One act at least.
+ *
+ * **A gate that names no acts is a caller mistake, not a gate that lets everybody through.**
+ * `acts.every(...)` over an empty list is `true`, so an empty gate opens for a member who
+ * administers nothing, which is the worst shape a permission bug can take: it looks exactly like
+ * a gate that is working. Every surface that takes a list of acts to refuse somebody by takes
+ * this, so the mistake is a compile error at the place it would be made.
+ *
+ * **`maskOf` deliberately does not take it.** An empty mask is `0`, which is *administers
+ * nothing* and is a real value on real rows. Naming nothing is meaningful there and meaningless
+ * in a gate, and the difference is why the shape is not simply pushed onto everything here.
+ */
+export type NamedActs = readonly [Administration, ...Administration[]];
+
+/**
  * The highest bit a flag may occupy.
  *
  * 52 rather than 53, and the off-by-one is the whole point: bits 0 through 52 inclusive are
