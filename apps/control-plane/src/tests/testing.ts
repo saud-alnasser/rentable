@@ -214,6 +214,7 @@ export type Answer = {
 		id: string;
 		name: string;
 		ownerAccountId: string;
+		permissions: number;
 		createdAt: number;
 		updatedAt: number;
 	};

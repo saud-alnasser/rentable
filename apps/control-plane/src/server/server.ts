@@ -16,6 +16,7 @@ import type { Account, Workspace } from '../database/schema.ts';
 import type { ConnectToWorkspaceDatabase } from '../workspace/migration.ts';
 import type { TursoPlatform } from '../workspace/turso.ts';
 import {
+	membershipOf,
 	mintWorkspaceToken,
 	renameWorkspace,
 	WORKSPACE_NAME_LIMIT,
@@ -73,11 +74,20 @@ const wireAccount = (record: Account) => ({
  * The database's *name* stays here: it is what the Platform API calls it by, and a client that
  * holds it holds the one argument every administrative call to Turso takes. The hostname is
  * what a client actually needs, and it gets it as part of a mint rather than on its own.
+ *
+ * **`permissions` arrives as an argument rather than being read off the record**, because a
+ * workspace does not have permissions — an account has them *in* a workspace, and this function is
+ * handed a `Workspace` and no idea who is asking. Both call sites already hold that account and
+ * already have its membership row in hand, so passing the number costs neither of them a query.
+ *
+ * What the number means is `@rentable/workspace-permission`'s and is never decoded here: the wire
+ * carries it, and each end reads it through the same `permits`.
  */
-const wireWorkspace = (record: Workspace) => ({
+const wireWorkspace = (record: Workspace, permissions: number) => ({
 	id: record.id,
 	name: record.name,
 	ownerAccountId: record.ownerAccountId,
+	permissions,
 	createdAt: record.createdAt.getTime(),
 	updatedAt: record.updatedAt.getTime()
 });
@@ -223,9 +233,21 @@ const identify = async (
 		now: (plane.now ?? Date.now)()
 	});
 
+	// **What the asking account may do in it, and nobody else's row.** `membershipOf` reads by
+	// workspace *and* account, so there is no shape here that could answer with somebody else's
+	// permissions — this is not a members listing and does not become one.
+	//
+	// **A row that is not there answers zero rather than refusing.** This is the sign-in route, and
+	// throwing here would lock somebody out of the application over a row `createWorkspace` writes
+	// inside the same transaction as the workspace itself. Zero is the literal rather than
+	// `ADMINISTRATION_BY_ROLE.member`, which carries the same number today: what is being said here
+	// is *no row*, not *the member default*, and the day that default stops being zero those two
+	// stop meaning the same thing.
+	const belongs = await membershipOf(plane.db, workspace.id, account.id);
+
 	json(response, 200, {
 		account: wireAccount(account),
-		workspace: wireWorkspace(workspace),
+		workspace: wireWorkspace(workspace, belongs?.permissions ?? 0),
 		session: wireSession(session)
 	});
 };
@@ -345,7 +367,10 @@ const rename = async (
 		now: (plane.now ?? Date.now)()
 	});
 
-	json(response, 200, { workspace: wireWorkspace(renamed), session: wireSession(session) });
+	json(response, 200, {
+		workspace: wireWorkspace(renamed.workspace, renamed.permissions),
+		session: wireSession(session)
+	});
 };
 
 const health = async (plane: ControlPlane, response: ServerResponse) => {

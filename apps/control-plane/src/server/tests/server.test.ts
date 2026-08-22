@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import type { Database } from '../../database/database.ts';
 import type { VerifyGoogleIdentity } from '../../account/google.ts';
@@ -24,7 +24,12 @@ import {
 } from '../../database/schema.ts';
 import { declineRenewal } from '../../session/session.ts';
 import { targetSchemaVersion } from '../../workspace/migration.ts';
-import { ADMINISTRATION_BY_ROLE, maskOf } from '@rentable/workspace-permission';
+import {
+	ADMINISTRATION_BY_ROLE,
+	EVERY_ADMINISTRATION,
+	maskOf,
+	permits
+} from '@rentable/workspace-permission';
 import {
 	answerOf,
 	freshDatabase,
@@ -632,6 +637,15 @@ test('refreshing moves the session and leaves the replica credential where it wa
 
 const A_NEW_NAME = 'دار السلام';
 
+// A second identity, the way `workspace.test.ts` declares one: everything of `SOMEBODY` except
+// what tells two people apart. `google-subject-2` and `-3` are that file's, so this is the next.
+const SOMEBODY_ELSE = {
+	...SOMEBODY,
+	subject: 'google-subject-4',
+	email: 'noor@example.com',
+	displayName: 'Noor Salim'
+};
+
 test('renaming a workspace answers with the new name', async () => {
 	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
 		const owned = await aWorkspace(url);
@@ -798,5 +812,177 @@ test('and renaming one with no credential at all is unauthenticated', async () =
 
 		assert.equal(response.status, 401);
 		assert.equal((await answerOf(response)).error?.code, UNAUTHENTICATED);
+	});
+});
+
+/**
+ * WHAT AN IDENTIFYING ANSWER SAYS ABOUT THE ASKING ACCOUNT
+ *
+ * Requirement 1, over the wire. `membership.permissions` has existed since this control plane had
+ * permissions and no answer has ever carried it, so a client that wanted to know whether to draw a
+ * control had two ways to find out: draw it and read the refusal, or guess from the role.
+ *
+ * **The number is asserted rather than a role**, in every test below. What a surface may do is the
+ * column, and `ADMINISTRATION_BY_ROLE` is only what a row is *created* with — a test that asserted
+ * *the owner may rename* through a role would pass on a row whose column says otherwise, which is
+ * the distinction requirement 8 has something riding on.
+ */
+test('an identifying answer says what the asking account may do in the workspace it named', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url }) => {
+		const { workspace } = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.ok(workspace, 'signing in brought no workspace');
+		assert.equal(workspace.permissions, ADMINISTRATION_BY_ROLE.owner);
+		assert.ok(permits(workspace.permissions, 'renameWorkspace'), 'the owner may not rename it');
+	});
+});
+
+// Two rows, one account, and the answer follows the column both times. A default read off the role
+// would answer the same number twice.
+test('and it is the number on the row rather than anything derived from a role', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, db }) => {
+		const owned = await aWorkspace(url);
+
+		for (const granted of [maskOf('inviteMember', 'changeRole'), ADMINISTRATION_BY_ROLE.member]) {
+			// The role is deliberately left alone: nothing below writes it, so what moves between
+			// the two halves of this loop is the column and only the column.
+			await db.update(membershipTable).set({ permissions: granted });
+
+			const { workspace } = await answerOf(await post(url, '/account/sign-in'));
+
+			assert.equal(workspace?.permissions, granted);
+		}
+
+		const [row] = await db
+			.select()
+			.from(membershipTable)
+			.where(eq(membershipTable.workspaceId, owned.id));
+
+		assert.equal(row.role, 'owner', 'the role moved, so the column is not what was measured');
+	});
+});
+
+// Sign-in and refresh are one handler, which is what makes this a check that it stayed one rather
+// than a second body of behaviour.
+test('a refresh carries the permissions too, which is the same handler', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, db }) => {
+		const { session } = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.ok(session);
+		await db.update(membershipTable).set({ permissions: maskOf('removeMember') });
+
+		const refreshed = await answerOf(await post(url, '/session/refresh', { token: session.token }));
+
+		assert.equal(refreshed.workspace?.permissions, maskOf('removeMember'));
+	});
+});
+
+/**
+ * The rename's answer carries it, from the row the authorization already read.
+ *
+ * **There is no second query behind this and that is the point of the shape.**
+ * `workspaceThisAccountMay` reads the membership row to decide whether the rename is allowed and
+ * now hands it back rather than dropping it, so the route says what it found instead of finding it
+ * again.
+ */
+test('a rename answers with the permissions from the row it authorized against', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, db }) => {
+		const owned = await aWorkspace(url);
+
+		await db
+			.update(membershipTable)
+			.set({ permissions: maskOf('renameWorkspace', 'inviteMember') })
+			.where(eq(membershipTable.workspaceId, owned.id));
+
+		const renamed = await answerOf(
+			await post(url, `/workspace/${owned.id}/name`, { body: { name: A_NEW_NAME } })
+		);
+
+		assert.equal(renamed.workspace?.name, A_NEW_NAME);
+		assert.equal(renamed.workspace?.permissions, maskOf('renameWorkspace', 'inviteMember'));
+
+		// and the two routes agree about the same row, which is the coherence a client depends on
+		// when it renames and then signs in again.
+		const { workspace } = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.equal(workspace?.permissions, renamed.workspace?.permissions);
+		assert.equal(workspace?.name, A_NEW_NAME, 'a rename did not survive the next sign-in');
+	});
+});
+
+/**
+ * A membership row that is not there answers zero and does not refuse.
+ *
+ * **Sign-in is not the place to lock somebody out.** The row is written inside `createWorkspace`'s
+ * transaction, so the state below is one no route produces; what a refusal here would cost is the
+ * whole application, over a row nothing is asserting is missing. Zero is the true answer — an
+ * account with no membership administers nothing — and every surface reading it draws nothing
+ * administrative, which is the outcome to want.
+ */
+test('an account with no membership row is answered with zero rather than refused', async () => {
+	await withControlPlane(googleVouchingFor(SOMEBODY), async ({ url, db }) => {
+		await aWorkspace(url);
+		await db.delete(membershipTable);
+
+		const response = await post(url, '/account/sign-in');
+
+		assert.equal(response.status, 200, 'a missing membership row locked an account out');
+		assert.equal((await answerOf(response)).workspace?.permissions, 0);
+	});
+});
+
+/**
+ * Criterion 1a: the answer names the asking account and nobody else.
+ *
+ * **Two membership rows on one workspace, which is a state no route here creates** — there is no
+ * invite and no members listing, and this test writes the second row directly because that is the
+ * only way to have one. It is worth the trouble: with a single row per workspace, *the asking
+ * account's permissions* and *the workspace's permissions* are the same number, and a read scoped
+ * by workspace alone would pass every other test in this file.
+ *
+ * The intruder holds everything and the owner holds one flag, so a read that answered with the
+ * wrong row would answer with a bigger number rather than with nothing.
+ */
+test('the answer names the asking account and nobody else, on a workspace with two rows', async () => {
+	// the token is what tells them apart, which is what `asking` hands the verifier.
+	const googleVouchingByToken: VerifyGoogleIdentity = async (token) =>
+		token === 'the-other-account' ? SOMEBODY_ELSE : SOMEBODY;
+
+	await withControlPlane(googleVouchingByToken, async ({ url, db }) => {
+		const owned = await aWorkspace(url);
+		const { account: other } = await answerOf(
+			await post(url, '/account/sign-in', { token: 'the-other-account' })
+		);
+
+		assert.ok(other && other.id !== owned.ownerAccountId, 'both tokens reached one account');
+
+		await db.insert(membershipTable).values({
+			workspaceId: owned.id,
+			accountId: other.id,
+			role: 'administrator',
+			permissions: maskOf(...EVERY_ADMINISTRATION),
+			createdAt: new Date(AT),
+			updatedAt: new Date(AT)
+		});
+
+		await db
+			.update(membershipTable)
+			.set({ permissions: maskOf('inviteMember') })
+			.where(
+				and(
+					eq(membershipTable.workspaceId, owned.id),
+					eq(membershipTable.accountId, owned.ownerAccountId)
+				)
+			);
+
+		const { workspace } = await answerOf(await post(url, '/account/sign-in'));
+
+		assert.equal(workspace?.id, owned.id);
+		assert.equal(workspace?.permissions, maskOf('inviteMember'));
+		assert.notEqual(
+			workspace?.permissions,
+			maskOf(...EVERY_ADMINISTRATION),
+			'the answer carried the other members row'
+		);
 	});
 });
