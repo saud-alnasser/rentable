@@ -58,8 +58,23 @@ export type PaymentRefusalReason = 'contract-terminated' | 'missing';
 export const whatRefusesPaymentDeletion = (status: Contract['status']) =>
 	status === 'terminated' ? ('contract-terminated' as const) : undefined;
 
+/**
+ * Whether an amount is one a payment may be for.
+ *
+ * Above zero, and the boundary is the whole of it: a payment of nothing moves no money and a
+ * negative one is a refund, which this application does not have a concept for.
+ *
+ * Exported beside the assertion that raises on it because the transfer planning pass answers the
+ * same question about a file before any write is attempted, and the two have to agree. The copy
+ * it replaces there admitted zero. `payment/component/form.svelte` still states the rule a third
+ * time, in its own schema, and folding that in is not this change's.
+ */
+export function hasValidPaymentAmount(amount: number) {
+	return amount > 0;
+}
+
 export function ensureValidPaymentAmount(amount: number) {
-	if (amount <= 0) {
+	if (!hasValidPaymentAmount(amount)) {
 		throw new TRPCError({
 			code: 'BAD_REQUEST',
 			message: 'payment amount must be greater than zero'
@@ -68,15 +83,29 @@ export function ensureValidPaymentAmount(amount: number) {
 }
 
 /**
+ * Whether a payment's date is one it cannot have been received on.
+ *
+ * Whole UTC days, like every date comparison in this domain, so a payment dated today is taken
+ * whatever the time of day and the answer does not move with the machine's timezone.
+ *
+ * Exported beside the assertion that raises on it because the transfer planning pass answers the
+ * same question about a file before any write is attempted, and a preview that called a row
+ * importable while the write refused it would strand the reader on a file it had just approved.
+ * `payment/component/form.svelte` bounds its date picker on the same reasoning, so this is the
+ * second statement of the rule rather than the only one; folding that in is not this change's.
+ */
+export function isPaymentInTheFuture(date: DateLike, now: DateLike) {
+	return toUtcDay(date).getTime() > toUtcDay(now).getTime();
+}
+
+/**
  * A payment records money already received, so its date cannot be later than today.
  *
- * Compared as whole UTC days, as every date in this domain is: a payment dated today is taken
- * whatever the time of day, and the answer does not change with the machine's timezone. Nothing
- * here bounds how far back a date may go — a payment recorded late is ordinary, and the contract
- * arithmetic already ignores dates outside the period.
+ * Nothing here bounds how far back a date may go: a payment recorded late is ordinary, and the
+ * contract arithmetic already ignores dates outside the period.
  */
 export function ensurePaymentIsNotInTheFuture(date: DateLike, now: DateLike) {
-	if (toUtcDay(date).getTime() > toUtcDay(now).getTime()) {
+	if (isPaymentInTheFuture(date, now)) {
 		throw new TRPCError({
 			code: 'BAD_REQUEST',
 			message: 'a payment cannot be dated in the future'

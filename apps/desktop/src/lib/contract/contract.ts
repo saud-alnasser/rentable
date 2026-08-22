@@ -239,6 +239,24 @@ export function hasValidContractPeriodForInterval(
 	return getContractCycleCountForPeriod(contract) !== undefined;
 }
 
+/**
+ * Whether an amount is one a contract may cost.
+ *
+ * Above zero, and the boundary is the whole of it: a contract costing nothing has a total cost of
+ * nothing, which every payment requirement is satisfied by, so it reconciles to `fulfilled` having
+ * taken no money. That is a contract the status model cannot describe rather than a cheap one.
+ *
+ * Exported beside {@link hasValidContractPeriodForInterval} because this rule's two callers have
+ * to agree:
+ * {@link ensureValidContractInput} refuses a write with it, and the workspace transfer's planning
+ * pass answers the same question about a file before the write is attempted. The copy it replaces
+ * there admitted zero. `contract/component/form.svelte` still states the rule a third time, in its
+ * own schema, and folding that in is not this change's.
+ */
+export function hasValidContractCost(cost: number) {
+	return cost > 0;
+}
+
 export function deriveContractStatus(
 	contract: ContractLike,
 	payments: PaymentLike[],
@@ -471,7 +489,7 @@ export function ensureValidContractInput(
 		);
 	}
 
-	if (input.cost <= 0) {
+	if (!hasValidContractCost(input.cost)) {
 		badRequest('cost per payment must be greater than zero');
 	}
 }

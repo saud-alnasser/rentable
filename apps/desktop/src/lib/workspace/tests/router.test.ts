@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { type Api, createApi, monthsFromNow } from '$lib/api/tests/testing.ts';
+import { type Api, createApi, monthsFromNow, NOW } from '$lib/api/tests/testing.ts';
 import { toTables } from './file.ts';
 import {
 	emptyHeld,
@@ -65,7 +65,7 @@ test('a workspace exported as a file imports into an empty one and reproduces it
 
 	const written = await source.workspace.get();
 	const target = await createApi();
-	const plan = planWorkspaceImport(toTables(written), emptyHeld());
+	const plan = planWorkspaceImport(toTables(written), NOW, emptyHeld());
 
 	assert.ok(isWorkspaceImportable(plan), 'the file it wrote is a file it can read');
 
@@ -97,7 +97,7 @@ test('the reproduced workspace derives its own statuses rather than trusting the
 
 	const written = await source.workspace.get();
 	const target = await createApi();
-	const plan = planWorkspaceImport(toTables(written), emptyHeld());
+	const plan = planWorkspaceImport(toTables(written), NOW, emptyHeld());
 
 	await target.workspace.importWhole(toInput(plan.transfer));
 
@@ -167,6 +167,202 @@ test('a unit no sheet answers for is named back the way the file wrote it', asyn
 		}),
 		{ message: "no unit called 'Al Waha / B1'" }
 	);
+});
+
+// The contract domain's own rules hold at this boundary too, and this is the guard behind the
+// planning pass rather than a second one: a file reaching here with a term or a cost the concept
+// refuses has already been turned away per row, and what these pin is that the last resort still
+// refuses it. Without them `importWhole` was the one way into the workspace that asked neither
+// question, and `contract/renewal.ts` states outright that the second cannot arise through a
+// router.
+test('a contract worth nothing is refused here as it is everywhere else', async () => {
+	const api = await createApi();
+
+	await assert.rejects(
+		api.workspace.importWhole({
+			tenants: [{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966559999999' }],
+			complexes: [],
+			units: [],
+			contracts: [
+				{
+					reference: 'GOV-7',
+					tenant: '2234567890',
+					units: [],
+					start: monthsFromNow(-1),
+					end: monthsFromNow(11),
+					interval: '12m',
+					cost: 0
+				}
+			],
+			payments: []
+		}),
+		{ message: 'cost per payment must be greater than zero' }
+	);
+
+	assert.deepEqual(await api.contract.getMany({}), []);
+});
+
+test('a contract whose term matches no whole number of cycles is refused here too', async () => {
+	const api = await createApi();
+
+	await assert.rejects(
+		api.workspace.importWhole({
+			tenants: [{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966559999999' }],
+			complexes: [],
+			units: [],
+			contracts: [
+				{
+					reference: 'GOV-7',
+					tenant: '2234567890',
+					units: [],
+					// a twelve-month interval over a six-month term
+					start: monthsFromNow(-1),
+					end: monthsFromNow(5),
+					interval: '12m',
+					cost: 12_000
+				}
+			],
+			payments: []
+		}),
+		/annual cycle end date/
+	);
+
+	assert.deepEqual(await api.contract.getMany({}), []);
+});
+
+// A tenant and a payment go through their own concepts' rules here too. `TransferTenantSchema`
+// used to be three bare strings, so the national id and phone patterns `TenantSchema` carries
+// were dropped on this one path into the workspace.
+//
+// The Arabic-Indic case is the one worth naming: `platform/database/schema.ts` rests its
+// ASCII-only search guarantee on such a value being refused on the way in, so a tenant written
+// past this guard was findable by no search afterwards.
+test('a tenant a file names is held to the same patterns the form is', async () => {
+	const api = await createApi();
+	const write = (nationalId: string, phone: string) =>
+		api.workspace.importWhole({
+			tenants: [{ name: 'Omar Ali', nationalId, phone }],
+			complexes: [],
+			units: [],
+			contracts: [],
+			payments: []
+		});
+
+	await assert.rejects(write('١٢٣٤٥٦٧٨٩٠', '+966559999999'));
+	await assert.rejects(write('not-a-national-id', '+966559999999'));
+	await assert.rejects(write('2234567890', 'nonsense'));
+
+	assert.deepEqual(await api.tenant.getMany({}), []);
+});
+
+test('a payment a file names is held to the same rules the ledger is', async () => {
+	const api = await createApi();
+
+	await api.workspace.importWhole({
+		tenants: [{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966559999999' }],
+		complexes: [],
+		units: [],
+		contracts: [
+			{
+				reference: 'GOV-7',
+				tenant: '2234567890',
+				units: [],
+				start: monthsFromNow(-1),
+				end: monthsFromNow(11),
+				interval: '12m',
+				cost: 12_000
+			}
+		],
+		payments: []
+	});
+
+	const write = (amount: number, date: number) =>
+		api.workspace.importWhole({
+			tenants: [],
+			complexes: [],
+			units: [],
+			contracts: [],
+			payments: [{ contract: 'GOV-7', date, amount }]
+		});
+
+	await assert.rejects(write(0, monthsFromNow(0)), {
+		message: 'payment amount must be greater than zero'
+	});
+	await assert.rejects(write(-500, monthsFromNow(0)), {
+		message: 'payment amount must be greater than zero'
+	});
+	await assert.rejects(write(500, monthsFromNow(6)), {
+		message: 'a payment cannot be dated in the future'
+	});
+
+	const [contract] = await api.contract.getMany({});
+
+	assert.equal(contract.paymentCount, 0);
+
+	// and the rule stops where it should: an ordinary payment still goes in
+	await write(500, monthsFromNow(0));
+
+	const [after] = await api.contract.getMany({});
+
+	assert.equal(after.paymentCount, 1);
+});
+
+// The lock is the contract's rule rather than the payment's, and it is the one rule of the three
+// that a file could still go around. It matters more than it looks: `payments.delete` reads the
+// same lock, so a payment a file put on a terminated contract could never be taken off again.
+//
+// A contract this file creates cannot be locked, because `importWhole` writes every contract as
+// `active` and lets reconciliation derive the rest. That is also why restoring a whole workspace
+// is unaffected: a terminated contract comes back active, so its payments land on an open one.
+test('a file cannot put money on a contract that has been terminated', async () => {
+	const api = await createApi();
+	const tenant = await api.tenant.create({
+		name: 'Omar Ali',
+		nationalId: '2234567890',
+		phone: '+966559999999'
+	});
+	const contract = await api.contract.create({
+		govId: 'GOV-7',
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 12_000
+	});
+
+	await api.contract.terminate({ id: contract.id });
+
+	const write = () =>
+		api.workspace.importWhole({
+			tenants: [],
+			complexes: [],
+			units: [],
+			contracts: [],
+			payments: [{ contract: 'GOV-7', date: monthsFromNow(0), amount: 500 }]
+		});
+
+	// the same refusal the ledger gives, in the same words
+	await assert.rejects(write(), { message: 'terminated contracts are locked' });
+	await assert.rejects(
+		api.contract.payments.create({
+			contractId: contract.id,
+			date: monthsFromNow(0),
+			amount: 500
+		}),
+		{ message: 'terminated contracts are locked' }
+	);
+
+	const after = await api.contract.get({ id: contract.id });
+
+	assert.equal(after?.paidAmount, 0);
+
+	// and the lock lifts with the termination rather than outliving it
+	await api.contract.unterminate({ id: contract.id });
+	await write();
+
+	const restored = await api.contract.get({ id: contract.id });
+
+	assert.equal(restored?.paidAmount, 500);
 });
 
 test('a duplicate identity refuses the whole write, creating nothing', async () => {
@@ -240,7 +436,7 @@ test('a file read into a workspace that already holds its records adds nothing',
 	await seedWorkspace(api);
 
 	const written = await api.workspace.get();
-	const plan = planWorkspaceImport(toTables(written), await api.workspace.held());
+	const plan = planWorkspaceImport(toTables(written), NOW, await api.workspace.held());
 
 	// every row of it is already here, so there is nothing to agree to — which is what stops a
 	// reader importing the same file twice and doubling their workspace.
@@ -264,9 +460,15 @@ test('payments read into a ledger move the contract they are against', async () 
 			{
 				name: 'Sheet1',
 				headers: ['Contract', 'Tenant', 'Payment Date', 'Amount'],
-				rows: [['GOV-1', 'Abby Kris', toIsoDay(monthsFromNow(1)), '2500']]
+				// dated in the past, and that is now load-bearing rather than incidental: a payment
+				// records money already received, so `ensurePaymentIsNotInTheFuture` refuses a
+				// file carrying a future one exactly as `payments.create` refuses a typed one.
+				// It only has to be a different day from the seed payment for this test's subject,
+				// which is that the money and the derived column move together.
+				rows: [['GOV-1', 'Abby Kris', toIsoDay(monthsFromNow(-1)), '2500']]
 			}
 		],
+		NOW,
 		await api.workspace.held(),
 		['payments']
 	);

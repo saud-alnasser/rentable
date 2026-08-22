@@ -15,6 +15,7 @@ import {
 	getRemainingContractBalance,
 	hasSameUtcDateRange,
 	hasSatisfiedContractPaymentRequirement,
+	hasValidContractCost,
 	hasValidContractPeriodForInterval,
 	rangesOverlap
 } from '../contract.ts';
@@ -538,4 +539,19 @@ test('what a contract owes by any day never exceeds its whole expected amount', 
 			}
 		}
 	}
+});
+
+// The cost rule, covered directly rather than only through the procedures that assert it. It is a
+// one-liner, and the reason it is a function at all is that it was briefly two: the transfer
+// planning pass read it as `< 0` and admitted a contract worth nothing, which has a total cost of
+// nothing, satisfies every payment requirement by nothing, and reconciles to `fulfilled` having
+// taken no money.
+test('hasValidContractCost admits an amount a contract may cost and nothing else', () => {
+	assert.equal(hasValidContractCost(1), true);
+	assert.equal(hasValidContractCost(0.01), true);
+	assert.equal(hasValidContractCost(18_000), true);
+
+	// the boundary is the whole of the rule
+	assert.equal(hasValidContractCost(0), false);
+	assert.equal(hasValidContractCost(-1), false);
 });
