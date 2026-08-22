@@ -13,7 +13,7 @@
 		"build": "tsc -p ./tsconfig.build.json",
 		"check": "tsc -p ./tsconfig.json",
 		"lint": "eslint .",
-		"test": "node --import tsx --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination=test-run.tap \"src/**/*.test.ts\"",
+		"test": "node --import tsx --import ./src/tests/exit-reason.ts --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination=test-run.tap \"src/**/*.test.ts\"",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio"
