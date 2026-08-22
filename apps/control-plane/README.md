@@ -420,6 +420,37 @@ So there are three readings, not two:
 | says nothing reached the process | non-zero     | something set the code deliberately                     |
 | **absent**                       | **non-zero** | **the process was killed for faulting**                 |
 
+**A file the operating system killed is re-run once, and that is a workaround rather than a fix.**
+`pnpm test` runs `src/tests/run.ts`, which spawns the runner described above and reads the
+transcript when it fails. Where _every_ failing entry is a test file whose process was killed with
+a Windows exception code, it runs those files again, once, and says so on stderr:
+
+```
+[719] src\workspace\tests\workspace.test.ts was killed by the operating system, exit 3221225477, with no test in it failing.
+[719] That is the libSQL Windows fault #719 records.
+[719] The transcript of the run that faulted is kept at test-run.tap.
+[719] Re-running those files once. What follows counts them rather than the whole suite.
+```
+
+The re-run writes `test-run.retry.tap` rather than overwriting `test-run.tap`, so the transcript
+of the fault survives it: that transcript is the only record an occurrence leaves.
+
+**Nothing else is re-run.** A failing assertion carries no exit code at all, a process that chose
+its own status carries one far below the exception range, and a run that faulted _and_ failed an
+assertion is handed straight back, because re-running it would report the fault as though it were
+the whole story.
+
+It exists because the fault is in `@libsql/win32-x64-msvc` and no JavaScript is on the path to it.
+#719 forced every misuse of the client that could have explained it and each came back clean, and
+the gate never meets the defect at all: it is `ubuntu-latest` and loads no Windows binding.
+Serialising the suite was the alternative and it makes the fault rarer rather than absent, since it
+was caught with twelve files on thirty-two idle cores.
+
+**Remove it when the fault is gone**, which is libSQL fixing it on Windows
+(`tursodatabase/libsql#1051`, `#2074`) or this suite no longer loading a native libSQL binding.
+That is one commit: delete the file and put the `node --test` line back in `package.json`. A long
+stretch of runs printing no `[719]` line is the evidence to do it on.
+
 ## What it needs to start
 
 Its own database needs a path and nothing else. Provisioning needs three Turso values, and the
