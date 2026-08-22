@@ -52,7 +52,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: '� create version PR or publish tag'
-        uses: changesets/action@v2.1.0
+        uses: changesets/action@v2.1.1
         with:
           # v2 renamed every input to kebab-case and dropped the `GITHUB_TOKEN`
           # environment variable as a way to authenticate, so the token is passed
