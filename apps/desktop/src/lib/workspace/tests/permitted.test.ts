@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ADMINISTRATION_BY_ROLE, maskOf } from '@rentable/workspace-permission';
+import { ADMINISTRATION_BY_ROLE, maskOf, type NamedActs } from '@rentable/workspace-permission';
 import { holdsEvery, permittedBranch } from '$lib/workspace/permitted';
 
 /**
@@ -69,11 +69,28 @@ test('zero opens nothing', () => {
 });
 
 /**
- * **Pinned rather than defended.** `[].every(...)` is `true`, so a gate naming no acts gates
- * nothing. It is a caller mistake and the place to refuse it is the prop type, which does not
- * refuse it today — `procedure.permitted()` has the identical hole, and the two want tightening
- * together rather than one of them quietly diverging.
+ * **Defended now, and by the compiler.** `[].every(...)` is `true`, so a gate naming no acts
+ * opens for a member who administers nothing — a gate that admits everybody, wearing the look of
+ * one that is working. This file used to pin that as a known hole. Both surfaces that take a list
+ * of acts now take `NamedActs`, so the caller mistake does not compile.
+ *
+ * **The assertion is `@ts-expect-error`, and there is nothing to run.** A type-level refusal has
+ * no runtime behaviour to drive, and the directive is what drives it: `pnpm check` fails if the
+ * line ever stops being an error, which is what keeps this from becoming a comment about
+ * something that used to be true. Every test here is type-checked, the desktop's included, so
+ * this is inside the gate rather than beside it.
  */
-test('a gate that names no acts gates nothing', () => {
+// @ts-expect-error an empty list names no act, and NamedActs is one act at least
+const _aGateNamingNoActsDoesNotCompile: NamedActs = [];
+void _aGateNamingNoActsDoesNotCompile;
+
+/**
+ * `holdsEvery` keeps taking a plain array, and this is why the refusal is at the boundary rather
+ * than here. It is arithmetic over a list, a list can be empty, and `true` is the right answer
+ * for *does this member hold every one of nothing*. What is wrong is a caller naming nothing, and
+ * that caller is now a compile error.
+ */
+test('the arithmetic over an empty list is still true, which is why the type is what refuses it', () => {
+	assert.equal(holdsEvery(0, []), true);
 	assert.equal(permittedBranch(0, [], 'absent'), 'children');
 });

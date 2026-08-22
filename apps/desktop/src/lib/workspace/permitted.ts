@@ -26,11 +26,10 @@ export type PermittedBranch = 'children' | 'unavailable' | 'nothing';
  * holding one of them cannot use it — so the set is the unit and a partial holder is refused for
  * the whole of it.
  *
- * **A gate naming no acts gates nothing**, because `[].every(...)` is `true`. That is the honest
- * arithmetic rather than a case worth special-handling here: a `<Permitted acts={[]}>` is a
- * caller mistake, and the place to refuse it is the prop type, which does not refuse it today —
- * `procedure.permitted()` has the identical hole, and the two want tightening together rather
- * than one of them quietly diverging.
+ * **A gate naming no acts gates nothing**, because `[].every(...)` is `true`, and that stays the
+ * honest arithmetic here. It is refused at the boundary instead: `<Permitted>` and
+ * `procedure.permitted` both take `NamedActs`, so a caller naming nothing does not compile. This
+ * function keeps a plain array, because it is arithmetic over a list and a list can be empty.
  *
  * The acts are named. Nothing here reads a bit index, a mask or a role: `permits` is
  * `@rentable/workspace-permission`'s and it is the same function the control plane consults.

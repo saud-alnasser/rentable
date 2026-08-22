@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import type { Administration } from '@rentable/workspace-permission';
+	import type { NamedActs } from '@rentable/workspace-permission';
 	import { useFetchRemoteSyncState } from '$lib/settings/query';
 	import { permittedBranch, type Otherwise } from '$lib/workspace/permitted';
 
@@ -61,8 +61,12 @@
 	 * arrives.
 	 */
 	type Props = {
-		/** the acts this subtree needs, **all** of them. Named, never a number or a role. */
-		acts: readonly Administration[];
+		/**
+		 * the acts this subtree needs, **all** of them. Named, never a number or a role, and at
+		 * least one: `NamedActs` is what makes `acts={[]}` a compile error rather than a gate that
+		 * lets everybody through.
+		 */
+		acts: NamedActs;
 		children: Snippet;
 	} & (
 		| { otherwise: Extract<Otherwise, 'absent'>; reason?: never; unavailable?: never }

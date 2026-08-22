@@ -1,5 +1,5 @@
 import { requestWorkspaceSync } from '$lib/sync/event';
-import { permits, type Administration } from '@rentable/workspace-permission';
+import { permits, type NamedActs } from '@rentable/workspace-permission';
 import { TRPCError, initTRPC } from '@trpc/server';
 import { ZodError } from 'zod';
 import { context } from './context';
@@ -118,7 +118,7 @@ export const middleware = {
 	 * **This is the second opinion and never the one that decides.** The control plane refuses the
 	 * same request whatever this says, and a client is a thing a person can edit — requirement 6.
 	 */
-	requirePermission: (...acts: readonly Administration[]) =>
+	requirePermission: (...acts: NamedActs) =>
 		t.middleware(async ({ ctx, next }) => {
 			const identity = ctx.identity;
 
@@ -212,7 +212,7 @@ export const procedure = {
 	 *
 	 * middlewares: [log, requireIdentity, requirePermission(...acts)]
 	 */
-	permitted: (...acts: readonly Administration[]) =>
+	permitted: (...acts: NamedActs) =>
 		t.procedure
 			.use(middleware.log)
 			.use(middleware.requireIdentity)
