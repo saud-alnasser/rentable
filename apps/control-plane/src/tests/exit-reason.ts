@@ -9,9 +9,29 @@ import { appendFileSync } from 'node:fs';
  *
  * **This exists because #719 is a failure with no reason attached to it.** One run in some number
  * marks a test *file* as failed while every test inside it passes. #734 added the TAP transcript,
- * which says `exitCode: 7` against `signal: ~`, and that split is worth having: a code means
- * JavaScript decided, a signal means something killed the process. It is still only the verdict.
- * Nothing anywhere says what was thrown.
+ * which says `exitCode` against `signal`. Nothing anywhere says what was thrown.
+ *
+ * **`exitCode` against `signal` does not mean on Windows what #719 and #734 both said it means**,
+ * and this is the only platform the defect has ever been seen on. Their reading was that a code
+ * means JavaScript decided and a signal means something killed the process, so a native crash
+ * would show as a signal. Windows has no POSIX signals. Measured here on 2026-08-22: a child that
+ * calls `process.abort` reports `code=134, signal=null`, exactly as a child that throws reports
+ * `code=1, signal=null`. **`signal` is unconditionally null on Windows and carries no
+ * information at all.**
+ *
+ * What carries it is the *number*. `exitCodeMeaning` below is that reading, and it is the whole
+ * of what the transcript could have told the person who saw this in the first place.
+ *
+ * **This file is silent on the case it was built for, and the silence is the point.** Measured on
+ * 2026-08-22 by aborting a real test file of this suite: the runner reported the test green, the
+ * file failed, `exitCode: 134` and `signal: ~`, and nothing here wrote a line. A native abort
+ * takes the process down without running JavaScript exit handlers, so neither the monitor nor the
+ * `exit` listener can see one. That is not a gap to fix. It is the reading:
+ *
+ * - a line here naming an error means JavaScript failed, and the answer is in this repository
+ * - a line here saying nothing reached the process means something set the code deliberately
+ * - **no line at all, with a non-zero `exitCode` in the transcript, means the process was killed
+ *   for faulting**, and that is the shape the 2026-08-21 observation had
  *
  * **It observes and does not intervene, which is the whole design constraint.** The obvious
  * instrument is `process.on('unhandledRejection')`, and it is the wrong one: registering a
@@ -74,6 +94,35 @@ const describe = (error: unknown): string => {
 	}
 };
 
+/**
+ * What a non-zero exit code says, on the platform this defect lives on.
+ *
+ * The large values are Windows structured-exception codes, which the operating system uses as the
+ * exit status of a process it killed for faulting. They are the ones worth recognising by name:
+ * `tursodatabase/libsql#1051` and `#2074` both report a stack overflow out of libSQL on Windows
+ * specifically, and this suite loads `@libsql/win32-x64-msvc`.
+ */
+const exitCodeMeaning = (code: number): string => {
+	switch (code) {
+		case 1:
+			return 'an uncaught JavaScript error, which the runner would normally also have named';
+		case 7:
+			return "the test runner's own failure code, so it decided this rather than the process dying";
+		case 134:
+			return 'process.abort, which a native addon calls when it cannot continue';
+		case 3221225477:
+			return 'an access violation (0xC0000005). Native. Nothing in JavaScript did this';
+		case 3221225725:
+			return 'a stack overflow (0xC00000FD). Native, and the shape libSQL reports on Windows';
+		case 3221226505:
+			return 'a stack buffer overrun (0xC0000409). Native';
+		default:
+			return code > 0x40000000
+				? 'a Windows exception code. Native, and the process was killed for faulting'
+				: 'set by something in this process rather than by a fault';
+	}
+};
+
 let reported = false;
 
 process.on('uncaughtExceptionMonitor', (error: unknown, origin: string) => {
@@ -93,9 +142,10 @@ process.on('exit', (code: number) => {
 	// transcript. What is true is only that nothing reached this process uncaught.
 	record(
 		`exited ${code}, and nothing reached this process uncaught`,
-		'  no uncaughtException fired here. Read test-run.tap before concluding anything:\n' +
+		`  ${code} is ${exitCodeMeaning(code)}.\n` +
+			'  no uncaughtException fired here. Read test-run.tap before concluding anything:\n' +
 			'  a rejection left over from a test is named there by the runner, not here.\n' +
-			'  if the transcript names nothing either, what is left is an explicit process.exit\n' +
-			'  or a native failure closing a handle, and that is the interesting answer.'
+			'  do not read `signal` there. Windows has no signals and it is always null,\n' +
+			'  so a native crash arrives as the code above rather than as a signal.'
 	);
 });
