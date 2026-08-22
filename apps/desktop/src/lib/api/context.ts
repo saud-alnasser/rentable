@@ -57,14 +57,32 @@ export type { Host };
  * thing between it and a procedure.
  *
  * What a *user record* holds is not settled here — it is the control plane's, and it arrives
- * with the accounts it describes. These three fields are what this application can already
- * say about a person today, and all three survive whatever the control plane adds.
+ * with the accounts it describes. The first three fields are what this application can already
+ * say about a person today, and all three survive whatever the control plane adds. The fourth is
+ * not about the person at all: it is about this account *in this workspace*, which is why it
+ * arrives with the workspace rather than with the account.
  */
 export type Identity = {
 	/** the account row this machine holds, which is not yet the same thing as a user id. */
 	accountId: string;
 	email: string;
 	displayName: string;
+	/**
+	 * what this account may do in the workspace this machine holds.
+	 *
+	 * **Here because it is a fact about who is acting**, which is what `Identity` is for — and not
+	 * on the context beside `db` and `host`, which carry ambient capabilities and never business
+	 * configuration ([[rules/api-layer]], under *Where things live*).
+	 *
+	 * **Never read as a number.** `permits` from `@rentable/workspace-permission` answers a
+	 * question about it by the name of an act, and that package is the only place the bits are
+	 * named — on this side or the control plane's.
+	 *
+	 * `0` where the shell could not be reached, where the control plane has said nothing, and on
+	 * a machine nobody is signed in on. All three mean the same thing to a procedure: this caller
+	 * administers nothing.
+	 */
+	permissions: number;
 };
 
 /**
@@ -118,7 +136,11 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
 		account && {
 			accountId: account.id,
 			email: account.email,
-			displayName: account.displayName
+			displayName: account.displayName,
+			// **Off the same answer, on the same read.** The workspace is on the object
+			// `signedInAccount` was just handed, so what this account may do costs nothing beyond
+			// what resolving who they are already cost.
+			permissions: state.workspace.permissions
 		}
 	);
 }

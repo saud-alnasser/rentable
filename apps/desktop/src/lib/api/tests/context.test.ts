@@ -10,6 +10,8 @@ import {
 	fakeSyncState,
 	fakeWorkspace
 } from '$lib/platform/tests/testing.ts';
+import { maskOf, permits } from '@rentable/workspace-permission';
+
 import { context } from '../context.ts';
 
 // a shell reporting the account this machine is signed in as.
@@ -65,7 +67,8 @@ test('every request carries an identity, and it is one of the four members', asy
 	assert.deepEqual(ctx.identity, {
 		accountId: 'account',
 		email: 'person@example.com',
-		displayName: 'Person Example'
+		displayName: 'Person Example',
+		permissions: 0
 	});
 });
 
@@ -99,7 +102,8 @@ test('a signed-in machine names its person, with no Drive folder in sight', asyn
 	assert.deepEqual(ctx.identity, {
 		accountId: 'account-9',
 		email: 'her@example.com',
-		displayName: 'Her Name'
+		displayName: 'Her Name',
+		permissions: 0
 	});
 });
 
@@ -158,7 +162,12 @@ test('nobody is invented to fill the gap', async () => {
 });
 
 test('a supplied identity is carried as given, like every other member', async () => {
-	const identity = { accountId: 'account-2', email: 'other@example.com', displayName: 'Other' };
+	const identity = {
+		accountId: 'account-2',
+		email: 'other@example.com',
+		displayName: 'Other',
+		permissions: 0
+	};
 	const ctx = await context({
 		db: createMemoryDatabase(),
 		clock: { now: () => 0 },
@@ -183,6 +192,53 @@ test('an identity supplied as undefined falls back to the host rather than empty
 	assert.deepEqual(ctx.identity, {
 		accountId: 'account',
 		email: 'person@example.com',
-		displayName: 'Person Example'
+		displayName: 'Person Example',
+		permissions: 0
 	});
+});
+
+/**
+ * **What this account may do comes off the workspace on the same answer**, which is the read
+ * `actingIdentity` was already making: `signedInAccount` is handed the whole state, and the
+ * workspace is on it.
+ *
+ * The number is deliberately not `0` here. Every other test in this file resolves against a
+ * workspace that administers nothing, so a context that dropped the field entirely would agree
+ * with all of them.
+ */
+test('who is acting carries what they may do in the workspace, off the same answer', async () => {
+	const state = fakeSyncState({
+		accounts: [fakeAccount()],
+		workspace: fakeWorkspace({ permissions: maskOf('renameWorkspace', 'inviteMember') })
+	});
+	const host = fakeHost({
+		remoteSync: {
+			getState: async () => state,
+			renewSession: async () => state,
+			establishSession: async () => state,
+			replicate: async () => ({ pushed: true, received: false }),
+			push: async () => true,
+			renameWorkspace: async () => state
+		}
+	});
+
+	const actor = await actorFrom({ db: createMemoryDatabase(), clock: { now: () => 0 }, host });
+
+	assert.equal(actor?.permissions, maskOf('renameWorkspace', 'inviteMember'));
+	assert.ok(permits(actor?.permissions ?? 0, 'renameWorkspace'));
+	assert.ok(!permits(actor?.permissions ?? 0, 'removeMember'), 'an act nobody granted was carried');
+});
+
+/**
+ * **A machine that reaches no shell carries nobody at all**, so there is no identity for a number
+ * to sit on — which is the safe direction, and the one a `permitted` procedure refuses on.
+ */
+test('a shell that cannot be reached carries no permissions because it carries nobody', async () => {
+	const actor = await actorFrom({
+		db: createMemoryDatabase(),
+		clock: { now: () => 0 },
+		host: fakeHost()
+	});
+
+	assert.equal(actor, null);
 });
