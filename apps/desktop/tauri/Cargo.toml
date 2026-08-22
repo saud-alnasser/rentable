@@ -3,7 +3,7 @@
 # character set cargo allows. It names the crate and nothing a user ever sees: the product is
 # `tauri.conf.json`'s `productName`, still `rentable`, and the executable is the `[[bin]]` below.
 name = "rentable-desktop"
-version = "0.13.0"
+version = "0.14.0"
 description = "a rents payment tracker"
 authors = ["saud-alnasser"]
 edition = "2024"
