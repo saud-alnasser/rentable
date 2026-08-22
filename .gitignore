@@ -16,6 +16,11 @@ build
 .env
 *.db*
 
+# the TAP transcript `pnpm test` writes beside its readable output. It exists so that a test
+# *file* that fails records why: the spec reporter says `test failed` and nothing else, with
+# no exit code and no signal, which is what left #719 with a failure nobody could point at.
+test-run.tap
+
 # a development build keeps its workspace replica and the plain file here, beside the crate
 # that opens them. Real data, never committed.
 apps/desktop/tauri/data/

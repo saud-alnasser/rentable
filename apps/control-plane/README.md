@@ -316,6 +316,26 @@ nothing consumes that yet, and it is there so the gate has something to compile.
 `integration` workflow runs it as `pnpm build:control-plane` from the root, which is how the
 package is proved to compile to something runnable rather than only to typecheck.
 
+`pnpm test` writes two things: the readable per-test output you are watching, and a TAP
+transcript at `test-run.tap`, which is gitignored. **The transcript is for one failure the
+readable output cannot describe.** When a test _file_ fails rather than a test in it, the spec
+reporter prints the path and the words `test failed`, with no exit code and no signal, so there
+is nothing to point at. TAP carries both:
+
+```yaml
+not ok 1 - src\workspace\tests\workspace.test.ts
+  ---
+  failureType: 'testCodeFailure'
+  exitCode: 7
+  signal: ~
+  error: 'test failed'
+```
+
+`exitCode` against `signal` is the split worth having: a code means the process decided to
+fail, and a signal means something killed it, which on Windows is where a native libSQL
+teardown crash lands. A run turbo served from cache writes no transcript, because it ran no
+tests; the one on disk belongs to the last run that actually happened.
+
 ## What it needs to start
 
 Its own database needs a path and nothing else. Provisioning needs three Turso values, and the
