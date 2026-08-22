@@ -144,6 +144,17 @@ struct WireWorkspace {
     /// with one field, so serde dropped it. An answer without one leaves the machine on whatever
     /// it had, which for a machine that has never reached a control plane is the local default.
     name: Option<String>,
+    /// what the asking account may do in this workspace, as one number.
+    ///
+    /// **Optional for the same reason `name` is, and the direction it is missing in is the safe
+    /// one.** An older control plane sends no such field, which lands as `None`, which becomes
+    /// zero on the store — a member who administers nothing — so every gated control is drawn as
+    /// absent or unavailable rather than offered to somebody the service would then refuse.
+    ///
+    /// **Nothing on this side reads it.** The names behind the bits live in
+    /// `@rentable/workspace-permission`, which is TypeScript, and both ends that decide anything
+    /// go through it. Rust carries the number between them.
+    permissions: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -183,16 +194,23 @@ const NOT_A_MEMBER: &str = "not_a_member";
 /// somebody waiting for a network that cannot help, or send them back to Google after a weekend.
 const SESSION_LIFETIME_REACHED: &str = "session_lifetime_reached";
 
-/// which workspace an identifying answer named, and what the control plane calls it.
+/// which workspace an identifying answer named, what the control plane calls it, and what the
+/// asking account may do in it.
 ///
 /// **The name arrived on the wire from the beginning and was parsed away until 2026-08-21**, so
 /// every install showed the same English literal for a workspace that already had a name on the
-/// other side. `WireWorkspace` declared one field, and this is the second one reaching the store.
+/// other side. `WireWorkspace` declared one field, and the other two reached the store after it.
+/// The failure was silent in both directions: nothing warns that an answer carried a field this
+/// struct does not declare, so a field added to the wire and not added here is dropped without a
+/// line anywhere. That is the whole reason `permissions` arrives on the same commit as the wire
+/// field it carries.
 #[derive(Clone, Debug)]
 pub(crate) struct IdentifiedWorkspace {
     pub id: String,
     /// what the control plane calls it. `None` where the answer carried no name for it.
     pub name: Option<String>,
+    /// what the asking account may do in it. `None` where the answer did not say.
+    pub permissions: Option<i64>,
 }
 
 /// what an identifying call answered with: a session, and which workspace this account owns.
@@ -260,6 +278,7 @@ async fn call(
         workspace: answer.workspace.map(|workspace| IdentifiedWorkspace {
             id: workspace.id,
             name: workspace.name,
+            permissions: workspace.permissions,
         }),
     })
 }
@@ -651,6 +670,7 @@ pub(super) async fn establish_session(
                     remote_id: &workspace.id,
                     name: workspace.name.as_deref(),
                     url: None,
+                    permissions: workspace.permissions,
                 })
             {
                 diagnostics::error("sync.workspace.notRecorded")
@@ -840,13 +860,15 @@ pub(crate) async fn mint_workspace(app_state: &AppState) -> WorkspaceStanding {
 
             remote_sync.hold_workspace_token(&minted.token);
 
-            // **The mint carries no name**, so this call names nothing and the stored one stands.
-            // `MintedToken` is a credential, a URL and an expiry: a dispatch that only mints is
-            // not what a rename reaches this machine on. The two identifying answers are.
+            // **The mint carries neither the name nor the permissions**, so this call names
+            // neither and the stored ones stand. `MintedToken` is a credential, a URL and an
+            // expiry: a dispatch that only mints is not what a rename, or a change to what
+            // somebody may do, reaches this machine on. The identifying answers are.
             if let Err(error) = remote_sync.record_remote_workspace(LearnedWorkspace {
                 remote_id: &workspace_id,
                 name: None,
                 url: Some(&minted.url),
+                permissions: None,
             }) {
                 diagnostics::error("sync.workspace.notRecorded")
                     .with("error", error.to_string())
@@ -948,6 +970,7 @@ pub(crate) async fn rename_workspace(app_state: &AppState, name: &str) -> Result
             remote_id: &workspace.id,
             name: workspace.name.as_deref(),
             url: None,
+            permissions: workspace.permissions,
         })
     {
         diagnostics::error("sync.workspace.renameNotRecorded")
@@ -1032,6 +1055,7 @@ pub(super) async fn renew_session(app_state: &AppState) -> Result<bool, Error> {
                     remote_id: &workspace.id,
                     name: workspace.name.as_deref(),
                     url: None,
+                    permissions: workspace.permissions,
                 })
             {
                 diagnostics::error("sync.workspace.notRecorded")
@@ -1361,6 +1385,89 @@ mod tests {
 
         assert_eq!(workspace.id, "workspace-7");
         assert_eq!(workspace.name, None);
+    }
+
+    /// **What the asking account may do arrives on the same answer the name does**, and this is
+    /// the half that reads it off the wire. The other half — what the store does with it — is in
+    /// `store.rs`, because the two fail differently: a field the wire struct does not declare is
+    /// dropped silently, which is the failure `IdentifiedWorkspace` records having had once.
+    #[tokio::test]
+    async fn signing_in_learns_what_this_account_may_do_in_the_workspace_it_named() {
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            200,
+            format!(
+                r#"{{"account":{{"id":"account-1"}},"workspace":{{"id":"workspace-7","name":"دار السلام","permissions":63}},"session":{{"token":"rws_a-token","expiresAt":{},"absoluteExpiresAt":{}}}}}"#,
+                AT + 3 * A_DAY,
+                AT + 30 * A_DAY
+            ),
+        )])
+        .await;
+
+        let identified = super::sign_in(&server.url(""), "ya29.a-google-token")
+            .await
+            .expect("signing in failed");
+
+        let workspace = identified.workspace.expect("the answer named a workspace");
+
+        assert_eq!(workspace.permissions, Some(63));
+        assert_eq!(workspace.name.as_deref(), Some("دار السلام"));
+    }
+
+    /// A renewal carries it too, which is how permissions granted or taken away on another machine
+    /// reach this one: the sync manager schedules a renewal on a timer, so a surface stops
+    /// offering a control it may no longer use with nobody typing anything.
+    #[tokio::test]
+    async fn a_renewal_carries_the_permissions_too() {
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            200,
+            format!(
+                r#"{{"account":{{"id":"account-1"}},"workspace":{{"id":"workspace-7","permissions":8}},"session":{{"token":"rws_a-token","expiresAt":{},"absoluteExpiresAt":{}}}}}"#,
+                AT + 3 * A_DAY,
+                AT + 30 * A_DAY
+            ),
+        )])
+        .await;
+
+        let identified = super::refresh(&server.url(""), "rws_the-held-token")
+            .await
+            .expect("renewing failed");
+
+        assert_eq!(
+            identified
+                .workspace
+                .expect("the answer named a workspace")
+                .permissions,
+            Some(8)
+        );
+    }
+
+    /// **A control plane older than this field says nothing, and `None` is what that has to read
+    /// as** — not zero here, because *the answer did not say* and *the account administers
+    /// nothing* are different sentences and only the store gets to collapse them. It collapses
+    /// them toward zero, which is the safe direction.
+    #[tokio::test]
+    async fn an_answer_that_says_nothing_about_permissions_carries_none_rather_than_zero() {
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            200,
+            format!(
+                r#"{{"account":{{"id":"account-1"}},"workspace":{{"id":"workspace-7","name":"دار السلام"}},"session":{{"token":"rws_a-token","expiresAt":{},"absoluteExpiresAt":{}}}}}"#,
+                AT + 3 * A_DAY,
+                AT + 30 * A_DAY
+            ),
+        )])
+        .await;
+
+        let identified = super::sign_in(&server.url(""), "ya29.a-google-token")
+            .await
+            .expect("signing in failed");
+
+        assert_eq!(
+            identified
+                .workspace
+                .expect("the answer named a workspace")
+                .permissions,
+            None
+        );
     }
 
     /// A control plane that names no workspace is one from before #615, and this client carries on
