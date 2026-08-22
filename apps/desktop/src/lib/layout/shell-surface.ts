@@ -36,6 +36,22 @@ export type ShellSurface = 'loading' | 'sign-in' | 'recovery' | 'error' | 'route
 const OPENS_SIGNED_OUT: readonly string[] = ['/settings'];
 
 /**
+ * Where the rail's way in sends a reader.
+ *
+ * **The row in the account menu navigates rather than signing anybody in**, and this is what it
+ * navigates to. The sign-in card is a shell surface rather than a route, so there is no address
+ * that *is* the card and the only way to reach one is to stand somewhere the card draws over.
+ * Home is that somewhere; any address `OPENS_SIGNED_OUT` does not hold would serve.
+ *
+ * Here rather than in `+layout.svelte` for the reason the rest of this module is there: a runes
+ * file cannot be imported by a `node:test` at all, so a destination left inline in one is a
+ * destination nothing can drive. #735 is where the row went to the consent screen instead, and
+ * `/settings` is where that was visible, being the one address that opens signed out and so the
+ * one place the card was not already on screen to make the difference invisible.
+ */
+export const THE_WAY_IN = '/';
+
+/**
  * Whether this address draws while the shell is waiting for somebody to sign in.
  *
  * Exact rather than prefixed: nothing nests under `/settings`, and a prefix would silently admit
@@ -43,6 +59,22 @@ const OPENS_SIGNED_OUT: readonly string[] = ['/settings'];
  */
 export function opensSignedOut(pathname: string) {
 	return OPENS_SIGNED_OUT.includes(pathname);
+}
+
+/**
+ * Where the way in has to go from here, or `null` where the card is already drawn over it.
+ *
+ * **Navigating off an address the card already covers would cost the reader their place for
+ * nothing.** Signing out on a record leaves the card over that record, and the route underneath is
+ * what draws again on the way back in, which `and signing back in returns the reader to the address
+ * they were on` asserts. The way in exists to put the card on screen, so where the card is on
+ * screen it has nowhere to go.
+ *
+ * Only meaningful while the shell is signed out, which is the only state the row offering it is
+ * drawn in.
+ */
+export function wayInFrom(pathname: string): typeof THE_WAY_IN | null {
+	return opensSignedOut(pathname) ? THE_WAY_IN : null;
 }
 
 /**

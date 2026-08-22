@@ -35,7 +35,7 @@
 	let {
 		currentDirection,
 		shell,
-		onSignIn = () => {},
+		onWayIn = () => {},
 		children
 	}: {
 		currentDirection: 'ltr' | 'rtl' | 'auto';
@@ -46,8 +46,12 @@
 		 * running. `signed-out` and `full` are the same rail with different contents.
 		 */
 		shell: 'bare' | 'signed-out' | 'full';
-		/** the way in, offered by the rail's account row. Only read while `signed-out`. */
-		onSignIn?: () => void;
+		/**
+		 * the way in, offered by the rail's account row. **It reaches the sign-in card rather than
+		 * signing anybody in**, which is `sidebar.svelte`'s note at length. Only read while
+		 * `signed-out`.
+		 */
+		onWayIn?: () => void;
 		children: Snippet;
 	} = $props();
 
@@ -183,7 +187,7 @@
 			<LayoutShortcutSheet bind:open={isShortcutSheetOpen} />
 		{/if}
 		<Sidebar.Provider class="h-full min-h-0 overflow-hidden">
-			<LayoutSidebar signedOut={isSignedOut} {onSignIn} />
+			<LayoutSidebar signedOut={isSignedOut} {onWayIn} />
 			<Sidebar.Inset>
 				{@render titlebar()}
 				<div class="@container/main flex min-h-0 flex-1 flex-col overflow-y-auto">

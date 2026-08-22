@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { signedInAccount } from '$lib/sync/account';
 	import { startWorkspaceSyncManager } from '$lib/sync/autosync';
@@ -15,7 +17,7 @@
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
 	import LayoutStartupUnreadable from '$lib/layout/component/startup-unreadable.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
-	import { shellSurface } from '$lib/layout/shell-surface';
+	import { shellSurface, wayInFrom } from '$lib/layout/shell-surface';
 	import { startupSurfaceBeforeLocale } from '$lib/layout/startup-surface';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
@@ -162,6 +164,21 @@
 	 */
 	const surface = $derived(shellSurface(shellState, page.url.pathname));
 
+	/**
+	 * what the rail's account row does, which is put the sign-in card on screen.
+	 *
+	 * The decision is `wayInFrom`'s, in `layout/shell-surface.ts`, for the reason the surface itself
+	 * is: a runes file cannot be imported by a `node:test`, so a rule written here is a rule nothing
+	 * can drive.
+	 */
+	const goToTheWayIn = () => {
+		const destination = wayInFrom(page.url.pathname);
+
+		if (destination) {
+			void goto(resolve(destination));
+		}
+	};
+
 	let { children } = $props();
 </script>
 
@@ -184,7 +201,13 @@
 		<QueryClientProvider client={queryClient}>
 			<SonnerProvider>
 				<TooltipProvider>
-					<LayoutFrame {currentDirection} {shell} onSignIn={() => void startup.signIn()}>
+					<!-- the rail's way in navigates, and that is the whole mechanism: signed out,
+					     `shellSurface` draws the card over every address but the ones `OPENS_SIGNED_OUT`
+					     holds, so leaving one of those is what puts the card on screen. From anywhere else
+					     the card is already drawn and `wayInFrom` answers nothing, which is what keeps the
+					     reader's place. Starting the flow stays with the card below, the one surface that
+					     names the provider. -->
+					<LayoutFrame {currentDirection} {shell} onWayIn={goToTheWayIn}>
 						{#if surface === 'loading'}
 							<LayoutStartupLoading />
 						{:else if surface === 'sign-in'}
