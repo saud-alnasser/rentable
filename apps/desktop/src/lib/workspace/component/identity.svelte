@@ -3,6 +3,7 @@
 	import { Button } from '$lib/design/primitive/button';
 	import * as Field from '$lib/design/primitive/field';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import Permitted from '$lib/workspace/component/permitted.svelte';
 	import WorkspaceRenameForm from '$lib/workspace/component/rename-form.svelte';
 	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
@@ -24,6 +25,19 @@
 	 *
 	 * **The name it draws is the control plane's**, not this machine's, so it is the same name on
 	 * every machine signed in to this workspace and it changes on all of them.
+	 *
+	 * **The rename is offered only to a member the workspace permits to take it**, and it is
+	 * *absent* for one it does not rather than present and unavailable. The rule for choosing is
+	 * what absence would cost a reader (requirement 4), and here it costs nothing: what is left is
+	 * an icon, the workspace's name, and a line about the picture — a row that says what this
+	 * workspace is called, which reads as complete because that is all it ever claimed to be.
+	 * Nothing on it describes an act that is not there. *The unavailable branch is for a row that
+	 * would be left announcing something missing, which this is not — and an inert control here
+	 * would put back exactly what #706 removed from this slot.*
+	 *
+	 * **Drawing it is a courtesy and the procedure behind it is what makes hiding it honest.**
+	 * `remoteSync.rename` refuses the same member whether or not this drew the button, and the
+	 * control plane refuses it again after that.
 	 */
 	let { workspace }: { workspace: RemoteSyncWorkspace } = $props();
 
@@ -46,11 +60,18 @@
 	</Field.Content>
 
 	<!-- a real control at last: this slot held a button that was reachable, announced and inert,
-	     because there was nothing it could do. What it does now is open the form. -->
-	<Button variant="outline" size="sm" class="shrink-0" onclick={() => (isRenaming = true)}>
-		<PencilIcon class="size-3.5 shrink-0" />
-		{$LL.workspace.rename()}
-	</Button>
+	     because there was nothing it could do. What it does now is open the form — for the member
+	     the workspace permits to rename it, and for nobody else. -->
+	<Permitted acts={['renameWorkspace']} otherwise="absent">
+		<Button variant="outline" size="sm" class="shrink-0" onclick={() => (isRenaming = true)}>
+			<PencilIcon class="size-3.5 shrink-0" />
+			{$LL.workspace.rename()}
+		</Button>
+	</Permitted>
 </Field.Field>
 
+<!-- the form stays outside the gate, and nothing is lost by that: `isRenaming` is set by the
+     button above and by nothing else, so a member the gate refused has no way to reach it. A
+     second gate around a dialog that cannot be opened would be a second subscription and a second
+     copy of the act's name, for a surface nobody can see. -->
 <WorkspaceRenameForm {workspace} open={isRenaming} onOpenChange={(value) => (isRenaming = value)} />

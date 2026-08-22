@@ -59,16 +59,25 @@ export type Api = Awaited<ReturnType<typeof createApi>>;
 // The identity is supplied rather than resolved, and every router test wants that: a fake host
 // refuses `remoteSync.getState` by name, and a context that had to resolve an acting user over
 // one would refuse every test in the suite for want of a sign-in none of them is about.
+//
+// **It administers nothing unless a test says otherwise**, which is what `identity` is for: a
+// procedure declared with `procedure.permitted` refuses this caller, so a test about one names the
+// acts it needs and every other test goes on being about what it was about.
 export async function createApi({
 	host,
+	identity,
 	onStatement
-}: { host?: Host; onStatement?: (sql: string, rowCount: number) => void } = {}) {
+}: {
+	host?: Host;
+	identity?: Identity;
+	onStatement?: (sql: string, rowCount: number) => void;
+} = {}) {
 	const db = createMemoryDatabase(onStatement);
 	const ctx = await context({
 		db,
 		clock: { now: () => NOW },
 		host: host ?? fakeHost(),
-		identity: fakeIdentity()
+		identity: identity ?? fakeIdentity()
 	});
 
 	return caller(appRouter)(ctx);
