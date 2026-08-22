@@ -21,6 +21,11 @@ build
 # no exit code and no signal, which is what left #719 with a failure nobody could point at.
 test-run.tap
 
+# and the re-run's own, written by `src/tests/run.ts` when a file was killed for faulting. It is
+# a second file so that the transcript above, which is the only record an occurrence leaves,
+# survives a green re-run rather than being overwritten by one.
+test-run.retry.tap
+
 # and the reason beside the verdict. The transcript says a process exited 7; this says what was
 # thrown in it, recorded by `src/tests/exit-reason.ts` from inside the test child itself.
 test-exit-reason.log
