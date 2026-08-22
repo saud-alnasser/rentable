@@ -141,7 +141,7 @@ Start at [[protocol]].
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | accepted | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
 | answers-menus-and-scrollbars | implemented | [[efforts/answers-menus-and-scrollbars/spec]] | 0 | 0 | 0 |
-| capabilities-only-one-surface-got | accepted | [[efforts/capabilities-only-one-surface-got/spec]] | 1 | 3 | 0 |
+| capabilities-only-one-surface-got | implemented | [[efforts/capabilities-only-one-surface-got/spec]] | 1 | 3 | 0 |
 | contract-work-queue-and-directory | implemented | [[efforts/contract-work-queue-and-directory/spec]] | 0 | 1 | 0 |
 | counts-cards-and-confirmations | implemented | [[efforts/counts-cards-and-confirmations/spec]] | 0 | 2 | 0 |
 | dependency-backlog-consolidation | implemented | [[efforts/dependency-backlog-consolidation/spec]] | 1 | 0 | 0 |
@@ -151,7 +151,7 @@ Start at [[protocol]].
 | interface-feedback-first-pass | implemented | [[efforts/interface-feedback-first-pass/spec]] | 0 | 0 | 0 |
 | list-presentation-spec | implemented | [[efforts/list-presentation-spec/spec]] | 0 | 0 | 0 |
 | national-identity-validation | implemented | [[efforts/national-identity-validation/spec]] | 0 | 0 | 0 |
-| permissions-cross-the-boundary-and-the-workspace-page-reads-as-one | accepted | [[efforts/permissions-cross-the-boundary-and-the-workspace-page-reads-as-one/spec]] | 0 | 0 | 0 |
+| permissions-cross-the-boundary-and-the-workspace-page-reads-as-one | implemented | [[efforts/permissions-cross-the-boundary-and-the-workspace-page-reads-as-one/spec]] | 0 | 0 | 0 |
 | record-surface-and-visual-vocabulary | implemented | [[efforts/record-surface-and-visual-vocabulary/spec]] | 0 | 1 | 0 |
 | record-vocabulary-and-missing-views | implemented | [[efforts/record-vocabulary-and-missing-views/spec]] | 0 | 1 | 0 |
 | records-rows-and-decisions | implemented | [[efforts/records-rows-and-decisions/spec]] | 0 | 1 | 0 |

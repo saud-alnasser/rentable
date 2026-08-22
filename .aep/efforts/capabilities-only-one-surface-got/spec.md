@@ -3,7 +3,7 @@ aep: 2.7.0
 owner: repository
 date: 2026-08-22
 kind: spec
-status: accepted
+status: implemented
 ---
 
 # feat(app): three capabilities stop belonging to the one surface that got them
@@ -663,9 +663,14 @@ and it is being answered by looking.*
     for survives it and is carried there: the rail does not disappear and come back across a
     sign-in, whichever control began it.
 7b. With no account on the machine, `/settings` opens from the account menu and every group on it
-    renders and works: language, notices, updates and diagnostics. *(R9a)* — **unmet, and carried
-    by [[efforts/settings-and-the-workspace-finish-what-they-offer]] as its criterion 1.** See the
-    note under requirement 9a for what landed and what did not.
+    renders and works: language, notices, updates and diagnostics. *(R9a)* — **it merged unmet here
+    and was carried by [[efforts/settings-and-the-workspace-finish-what-they-offer]] as its
+    criterion 1, which is implemented.** See the note under requirement 9a for what landed here and
+    what did not. *Discharged, and checked 2026-08-22 rather than assumed: the carrying effort did
+    not merely restate it. Its criterion 1c names the `node:test` under `layout/tests/` that this
+    one never had — the absence of any test at all is what let 7b merge unmet — and
+    `layout/tests/shell-surface.test.ts` is that test. This criterion is not this effort's to meet
+    and is not counted against it.*
 7b-i. A test drives the whole router under a context with `identity: null` and asserts both halves:
     every public procedure answers, and a procedure that reaches the workspace refuses with
     `UNAUTHORIZED` — a read as firmly as a write, and the bootstrap among them. A search of the
