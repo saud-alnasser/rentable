@@ -8,7 +8,7 @@ import {
 	HIGHEST_USABLE_BIT,
 	maskOf,
 	permits
-} from '../permission.ts';
+} from '../index.ts';
 
 // The guard decision 04 chose option A on the strength of. Deleting it takes the protection
 // with it, which is why it is the first test in the file rather than the last.
@@ -73,6 +73,27 @@ test('an owner administers everything, and an administrator does not', () => {
 	assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'inviteMember'), true);
 	assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'deleteWorkspace'), false);
 	assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'transferOwnership'), false);
+});
+
+// **Both roles are named rather than a total asserted**, and the difference is what the test
+// catches: `assert.equal(ADMINISTRATION_BY_ROLE.administrator, 7)` would pass just as well if
+// a flag were renamed underneath it, and would have to be edited by whoever added the next
+// one. Naming the act is the same thing every caller does.
+test('renaming a workspace belongs to the owner, not to an administrator', () => {
+	assert.equal(permits(ADMINISTRATION_BY_ROLE.owner, 'renameWorkspace'), true);
+	assert.equal(
+		permits(ADMINISTRATION_BY_ROLE.administrator, 'renameWorkspace'),
+		false,
+		'an administrator carried this by default until 2026-08-21, which was harmless only ' +
+			'because no workspace has ever had a second member'
+	);
+
+	// the column is still the truth, which is the whole reason the default may change without
+	// a migration: a workspace that wants this administrator to rename grants the flag on the row.
+	assert.equal(
+		permits(ADMINISTRATION_BY_ROLE.administrator + maskOf('renameWorkspace'), 'renameWorkspace'),
+		true
+	);
 });
 
 test('a name given twice is a name given once', () => {

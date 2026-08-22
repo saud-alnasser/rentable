@@ -1,0 +1,21 @@
+{
+	// The package has no build. `exports` points both conditions at `index.ts`, and every
+	// consumer compiles it: the control plane's `tsc` typechecks it and emits only its own
+	// files, the desktop's Vite bundles it, and `tsx` loads it in both applications' tests.
+	// So what is left for this configuration to do is check the package on its own terms,
+	// including the test — which no consumer's `include` reaches, and which
+	// `[[rules/testing]]` requires be type-checked like every other test here.
+	"compilerOptions": {
+		"target": "es2023",
+		"lib": ["es2023"],
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"types": ["node"],
+		"allowImportingTsExtensions": true,
+		"forceConsistentCasingInFileNames": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"noEmit": true
+	},
+	"include": ["index.ts", "tests/**/*.ts"]
+}

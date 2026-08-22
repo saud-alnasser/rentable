@@ -14,7 +14,7 @@ import {
 	Refusal,
 	SERVICE_OUT_OF_DATE
 } from '../../failure.ts';
-import { ADMINISTRATION_BY_ROLE, maskOf, permits } from '../permission.ts';
+import { ADMINISTRATION_BY_ROLE, maskOf, permits } from '@rentable/workspace-permission';
 import { membership, workspace } from '../../database/schema.ts';
 import { freshDatabase, SOMEBODY, tursoInMemory, workspaceDatabases } from '../../tests/testing.ts';
 import {
@@ -717,10 +717,11 @@ test('a member the workspace permits to rename it renames it', async () => {
 	}
 });
 
-// The flag is what decides, not the role and not the ownership. An administrator carries it by
-// default and is the case that would pass under either reading; the member below is the one that
-// separates them.
-test('an administrator carries the flag by default and renames it too', async () => {
+// The flag is what decides, not the role and not the ownership — and an administrator is where
+// the two readings come apart now that the default no longer carries it. *This test asserted the
+// opposite until 2026-08-21: an administrator renamed, and would have gone on renaming under a
+// reading that consulted the role.*
+test('an administrator is refused by default, and the granted flag is the whole of what changes it', async () => {
 	const { db, close } = await freshDatabase();
 	const turso = tursoInMemory();
 
@@ -733,7 +734,28 @@ test('an administrator carries the flag by default and renames it too', async ()
 			ADMINISTRATION_BY_ROLE.administrator
 		);
 
-		assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'renameWorkspace'), true);
+		assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'renameWorkspace'), false);
+
+		const refused = await refusalFrom(() =>
+			renameWorkspace(db, {
+				workspaceId: made.id,
+				accountId: administrator.id,
+				name: 'renamed by an administrator',
+				now: AT + 1
+			})
+		);
+
+		assert.equal(refused.code, NOT_PERMITTED);
+		assert.equal(refused.status, 403);
+
+		// **The same row, one bit apart.** The role is unchanged and the account is unchanged, so
+		// what separates the two halves of this test is the column and nothing else — which is the
+		// distinction the default changing rests on: a workspace that wants this administrator to
+		// rename it grants the flag rather than being told it comes with the title.
+		await db
+			.update(membership)
+			.set({ permissions: ADMINISTRATION_BY_ROLE.administrator + maskOf('renameWorkspace') })
+			.where(and(eq(membership.workspaceId, made.id), eq(membership.accountId, administrator.id)));
 
 		const renamed = await renameWorkspace(db, {
 			workspaceId: made.id,

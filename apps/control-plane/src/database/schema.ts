@@ -1,3 +1,4 @@
+import type { Role as PermissionRole } from '@rentable/workspace-permission';
 import { relations } from 'drizzle-orm';
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
@@ -104,7 +105,9 @@ export const workspace = sqliteTable('workspace', {
  * could be enforced is a server that client is by definition not talking to.
  *
  * `permissions` therefore governs **administration** — inviting, removing, renaming — and
- * `./permission.ts` is where the flags are defined and where the bit ceiling is guarded.
+ * `@rentable/workspace-permission` is where the flags are defined and where the bit ceiling is
+ * guarded. It is a package rather than a file here because the desktop names the same six acts,
+ * and a copy on each side of the wire is a copy that drifts.
  */
 export const membership = sqliteTable(
 	'membership',
@@ -177,6 +180,27 @@ export type Workspace = typeof workspace.$inferSelect;
 export type Membership = typeof membership.$inferSelect;
 export type Session = typeof session.$inferSelect;
 export type Role = Membership['role'];
+
+/**
+ * The column and the package agree about what a role is.
+ *
+ * **This assertion is load-bearing, and what it costs at runtime is two `null` bindings.** A
+ * purely type-level form would cost nothing at all and report `Type 'X' does not satisfy Y`; this
+ * one reports `TS2322` naming the role that drifted, which is the message somebody debugging it
+ * actually needs. `@rentable/workspace-permission`
+ * declares its own `Role` union, because a package both applications depend on cannot depend on
+ * either of them, and `ADMINISTRATION_BY_ROLE` is keyed by it. So the enum on the column above and
+ * the union over there are two declarations of one thing, and nothing but these two lines notices
+ * when they stop matching.
+ *
+ * It is bidirectional deliberately: assigning one way alone would let the other side grow a role
+ * the column has never heard of. A role added to either and not the other fails `pnpm check` with
+ * `TS2322` naming the role that drifted.
+ */
+const _theColumnIsInThePackage: PermissionRole = null as unknown as Role;
+const _thePackageIsInTheColumn: Role = null as unknown as PermissionRole;
+void _theColumnIsInThePackage;
+void _thePackageIsInTheColumn;
 
 // relations
 

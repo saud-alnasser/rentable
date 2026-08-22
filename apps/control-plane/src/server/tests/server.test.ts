@@ -24,7 +24,7 @@ import {
 } from '../../database/schema.ts';
 import { declineRenewal } from '../../session/session.ts';
 import { targetSchemaVersion } from '../../workspace/migration.ts';
-import { ADMINISTRATION_BY_ROLE, maskOf } from '../../workspace/permission.ts';
+import { ADMINISTRATION_BY_ROLE, maskOf } from '@rentable/workspace-permission';
 import {
 	answerOf,
 	freshDatabase,
