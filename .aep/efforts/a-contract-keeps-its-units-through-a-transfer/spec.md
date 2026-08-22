@@ -1,9 +1,9 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-20
+date: 2026-08-22
 kind: spec
-status: accepted
+status: implemented
 ---
 
 **The map is [#624](https://github.com/saud-alnasser/rentable/issues/624)**, and its sub-issue

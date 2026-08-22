@@ -1,7 +1,7 @@
 ---
-aep: 2.6.0
+aep: 2.7.0
 owner: repository
-date: 2026-08-19
+date: 2026-08-22
 kind: reference
 use-when: "working with issues, pull requests, or CI runs on GitHub"
 ---
@@ -270,6 +270,27 @@ gh pr create --title "<conventional title>" --body-file - --base main
 AEP does not open PRs unasked — creating one publishes work, which is the human's call. Same standing rule as pushing (see [[references/git]]).
 
 What the body covers is a convention, not an invocation: [[rules/version-control]] has it.
+
+## Read a pull request's checks
+
+```
+gh pr checks <number>
+```
+
+`integration` memoizes on the tree, so a green is not by itself proof it ran. The workflow fingerprints `git rev-parse HEAD^{tree}` and looks for a cache entry keyed on it; a hit skips every step below and reports green in seconds. **The duration is the tell** — the full job is minutes, and a pass in single-digit seconds is a memo hit.
+
+A hit is sound, because the key is the tree hash and identical bytes already cleared this gate. But it is sound about a *different run*, and that is the run whose steps are worth reading when a suite has an intermittent failure in it.
+
+```
+gh run list --branch <branch> --workflow integration.yml --limit 5 --json databaseId,status,conclusion,createdAt
+gh run view --job=<job-id>
+```
+
+The second prints the step list, which is the thing to judge a run by.
+
+**A run whose conclusion is `cancelled` may still have proved the tree.** Seen on 2026-08-22, PR #748: every real step succeeded through `record the pass`, and the cancellation landed on a `Post` step afterwards, when a newer run for the same pull request superseded it. `gh run list` reads `cancelled`; the pass it recorded is real, and the later runs that hit the memo were entitled to it. Never conclude from a run's conclusion alone that a tree went unproved.
+
+Merging one branch of a stack retargets its children and re-triggers their checks, so a single branch can show several runs minutes apart with the earlier ones cancelled by concurrency. `gh run view <run-id>` prints that cancellation as an annotation.
 
 ## Close an issue by merging
 
