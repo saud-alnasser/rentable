@@ -319,28 +319,51 @@ happens, reads as one page rather than as two pages joined at a separator.
   is per-act, per-surface, or one sentence about not having permission is a question the first two
   callers will answer better than this file can. **Still open, deliberately**: this effort ships one
   caller, and one caller cannot settle it.
-- **Whether a gate should tell *not yet* apart from *not permitted*.** *Raised 2026-08-22 while
-  building #716; not settled, and no ticket is cut for it, because deciding it is decision work
-  and only what follows the decision produces a branch.*
+- ~~**Whether a gate should tell *not yet* apart from *not permitted*.**~~ Settled 2026-08-22 by the
+  human: **it does not, and the collapse stands.** *Raised 2026-08-22 while building #716, and
+  answered the same day by reading the store rather than by reasoning from the question.*
 
-  `permissions` collapses three states into one `0`: the answer said nothing, the store predates
-  the field, and this member administers nothing. *Data model* and *Integration* chose that
-  deliberately, and it is right for the first two in isolation — a client that has not been told
-  what a member may do should not be drawing the controls.
+  **The scenario it was raised on does not happen.** It said an owner whose machine has not reached
+  the control plane since launch watches the rename control disappear with no explanation.
+  `permissions` is a persisted field on `RemoteSyncStore`, and exactly two things write it:
+  `record_learned_workspace`, on an answer, and `default_workspace`, which builds the `0` a machine
+  with no store at all starts from. Neither is on a path taken while offline — so a machine that was
+  told once keeps the number and goes on drawing the control. `forget_remote_workspace` looked like the hole, leaving
+  `permissions` standing where it clears `remote_id` and `remote_url`; its caller at
+  `bootstrap.rs:138` forgets the session in the same block, which drops the machine to the sign-in
+  wall, and `shellSurface` draws the card over `/workspace`. The stale number has no route to a
+  reader, and the next identify overwrites it because `same_workspace` is false.
 
-  **What was not weighed is what the collapse costs once a caller picks `absent`.** The rename on
-  `/workspace` does, for good reasons of its own, so an owner whose machine has not reached the
-  control plane since launch watches the control disappear with no explanation. That is nearer
-  requirement 4's own *reads as broken rather than as restricted* than to *restricted* — and it is
-  requirement 4's rule being applied to a state requirement 4 did not have in mind.
+  **What the collapse costs, once the premise is corrected:**
 
-  Two readings, and the choice is not obvious. **It is already honest**: renaming needs the control
-  plane, so a machine that cannot reach one cannot rename, and hiding the control says so. **Or it
-  is a third state and should say so**: *not yet* is not *not permitted*, and a gate that cannot
-  tell them apart cannot draw the difference. The second means an `Option`-shaped answer on the
-  desktop side rather than a number that is zero when absent, which reaches `RemoteSyncWorkspace`,
-  `Identity` and the gate — so it is a change to this spec rather than a hardening of what it
-  built.
+  | State | Which is it | What a reader gets |
+  | --- | --- | --- |
+  | the query has not resolved | not yet | absent for one tick, then present |
+  | a store predating the field, first launch, online | not yet | absent for one tick, then present |
+  | a store predating the field, first launch, offline | not yet | **absent for the session, unexplained** |
+  | `controlPlaneReady` false | never, which is not *not yet* | absent, and right: there is no rename without a control plane |
+  | an older control plane | not yet | absent |
+  | a member who administers nothing | not permitted | absent, and right |
+
+  **One row survives, it is one launch per install, and it heals the moment that machine reaches a
+  control plane.**
+
+  **Both alternatives were on the table and both were rejected.** *Carry the third state*
+  un-collapses `Option<i64>` through `RemoteSyncWorkspace`, `host.ts`, `Identity`, `permittedBranch`
+  and the gate. Its cost is not the four layers and the fixtures; it is that every future
+  `<Permitted>` acquires a third branch to have an opinion about, settled now against a single
+  caller — which is the trap the open question directly above this one is deliberately left open to
+  avoid. *Decide it from what the gate already reads* needs no wire change and would remove the
+  tick, from `isPending`, `controlPlaneReady` and `session` on the query the gate already
+  subscribes to; it cannot see the one row that matters, because on that launch the session is
+  non-null, `controlPlaneReady` is true, and `0` is indistinguishable from *administers nothing*. It
+  would leave this file able to claim the gate tells them apart while the case it was raised about
+  still does not.
+
+  **What reopens it: a caller that chooses `unavailable`.** Absence is silent, which is what makes
+  the surviving row cheap. An unavailable control *says why*, and the sentence it would say is *not
+  permitted* — asserted about a state that is *not yet*. The first such caller is what weighs this
+  again, and it is the same caller the question above is waiting on.
 
 ## Risks
 
