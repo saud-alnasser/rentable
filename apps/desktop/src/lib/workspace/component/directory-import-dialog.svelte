@@ -191,7 +191,7 @@
 			const held = await api.workspace.held();
 
 			fileName = path.split(/[\\/]/).pop() ?? path;
-			plan = planWorkspaceImport(tables, held, [concept]);
+			plan = planWorkspaceImport(tables, Date.now(), held, [concept]);
 			open = true;
 		} catch (failure) {
 			showErrorToast(failure, $LL);

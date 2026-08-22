@@ -1,5 +1,14 @@
 import * as s from '$lib/platform/database/schema';
+import {
+	ComplexSchema,
+	ContractSchema,
+	PaymentSchema,
+	TenantSchema,
+	UnitSchema
+} from '$lib/platform/database/schema';
 import { autosync, procedure, router } from '$lib/api/trpc';
+import { ensureContractIsNotTerminated, ensureValidContractInput } from '$lib/contract/contract';
+import { ensurePaymentIsNotInTheFuture, ensureValidPaymentAmount } from '$lib/payment/payment';
 import { reconcileTouched } from '$lib/contract/reconcile';
 import { newId } from '$lib/platform/database/identity';
 import {
@@ -32,30 +41,34 @@ import z from 'zod';
  * names another by a name, and the row it becomes names it by an id.
  */
 
-const TransferTenantSchema = z.object({
-	name: z.string(),
-	nationalId: z.string(),
-	phone: z.string()
-});
+// derived from the schema rather than restated ([[rules/api-layer]], under *Where things live*).
+// Written out, it was three bare strings: the national id and phone patterns `TenantSchema`
+// carries were dropped, so a file could write a tenant `tenant.create` refuses. An identity in
+// Arabic-Indic digits was the sharp case, because `platform/database/schema.ts` rests its
+// ASCII-only search guarantee on such a value being refused on the way in, and one written past
+// this was findable by no search afterwards.
+const TransferTenantSchema = TenantSchema.omit({ id: true });
 
-const TransferComplexSchema = z.object({ name: z.string(), location: z.string() });
+const TransferComplexSchema = ComplexSchema.pick({ name: true, location: true });
 
-const TransferUnitSchema = z.object({ complex: z.string(), name: z.string() });
+const TransferUnitSchema = UnitSchema.pick({ name: true }).extend({ complex: z.string() });
 
-const TransferContractSchema = z.object({
+// narrowed from the schema, like the tenant's above: `start`, `end`, `interval` and `cost` are
+// fields this procedure persists, and the three that are left are the file's own way of naming
+// what a row points at.
+const TransferContractSchema = ContractSchema.pick({
+	start: true,
+	end: true,
+	interval: true,
+	cost: true
+}).extend({
 	reference: z.string(),
 	tenant: z.string(),
-	units: z.array(z.string()),
-	start: z.number(),
-	end: z.number(),
-	interval: z.enum(['1m', '3m', '6m', '12m']),
-	cost: z.number()
+	units: z.array(z.string())
 });
 
-const TransferPaymentSchema = z.object({
-	contract: z.string(),
-	date: z.number(),
-	amount: z.number()
+const TransferPaymentSchema = PaymentSchema.pick({ date: true, amount: true }).extend({
+	contract: z.string()
 });
 
 // what a file may ask to be written, and nothing else. A status, a paid amount and an expected
@@ -283,6 +296,7 @@ export default router({
 				.select({
 					id: s.contract.id,
 					govId: s.contract.govId,
+					status: s.contract.status,
 					start: s.contract.start,
 					tenant: s.tenant.nationalId
 				})
@@ -337,6 +351,13 @@ export default router({
 			const contractRows = input.contracts.map((contract) => {
 				const id = newId();
 
+				// the contract domain's own rules, asserted here as every other way of writing a
+				// contract asserts them ([[rules/api-layer]], under *Where things live*). The
+				// planning pass answers the same question per row so a reader is told which row is
+				// at fault; this is the boundary holding whatever reached it, and without it a file
+				// could write a term or a cost no other procedure would accept.
+				ensureValidContractInput(contract);
+
 				contractIds.set(toTransferKey(contract.reference), id);
 
 				return {
@@ -366,12 +387,36 @@ export default router({
 				}))
 			);
 
-			const paymentRows = input.payments.map((payment) => ({
-				id: newId(),
-				date: new Date(payment.date),
-				amount: payment.amount,
-				contractId: resolve(contractIds, payment.contract, 'contract')
-			}));
+			// the contracts this workspace already holds that are locked. A contract this file
+			// creates cannot be one of them: `contractRows` writes every one as `active` and lets
+			// reconciliation derive the rest, which is also why a terminated contract does not
+			// survive an export and a re-import as terminated.
+			const lockedContractIds = new Set(
+				heldContracts
+					.filter((contract) => contract.status === 'terminated')
+					.map((contract) => contract.id)
+			);
+
+			const paymentRows = input.payments.map((payment) => {
+				// the payment domain's own rules, for the reason the contract's are asserted above:
+				// this is the boundary, and a file is not exempt from what every other way of
+				// recording a payment is held to. That includes the lock, which is the contract's
+				// rule rather than the payment's: without it a file could put money on a contract
+				// `payments.create` refuses, and `payments.delete` would then refuse to take it
+				// off again, because both read the same lock.
+				const contractId = resolve(contractIds, payment.contract, 'contract');
+
+				ensureContractIsNotTerminated(lockedContractIds.has(contractId) ? 'terminated' : 'active');
+				ensureValidPaymentAmount(payment.amount);
+				ensurePaymentIsNotInTheFuture(payment.date, now);
+
+				return {
+					id: newId(),
+					date: new Date(payment.date),
+					amount: payment.amount,
+					contractId
+				};
+			});
 
 			const statements = [
 				...tenantRows.map((row) => ctx.db.insert(s.tenant).values(row)),

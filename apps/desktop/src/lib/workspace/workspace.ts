@@ -9,6 +9,8 @@ import {
 	type ImportRejection
 } from '$lib/design/import';
 import type { ImportTable } from '$lib/platform/tauri';
+import { hasValidContractCost, hasValidContractPeriodForInterval } from '$lib/contract/contract';
+import { hasValidPaymentAmount, isPaymentInTheFuture } from '$lib/payment/payment';
 import { identity as nationalIdPattern, phone as phonePattern } from '$lib/tenant/tenant';
 
 /**
@@ -520,12 +522,19 @@ function toNumber(value: string) {
  * `refusedWhole`.
  *
  * @param tables the file, as the reader handed it over: one table per sheet, each named.
+ * @param now the moment the file is being read, which one of the rules below is measured
+ *   against. Passed rather than read, and required rather than defaulted, for the reason every
+ *   other date-sensitive answer here takes one: a module that reached for the clock itself
+ *   could not be asked what a file means on a chosen day, and a parameter a caller may omit is
+ *   one a caller will omit. The surfaces hand it `Date.now()`; a test hands it the day it wants
+ *   to ask about.
  * @param held what the workspace already has, by the same names the file uses.
  * @param concepts which of them this file is being read for. Every one by default, which is a
  * whole workspace; one, which is a directory.
  */
 export function planWorkspaceImport(
 	tables: readonly ImportTable[],
+	now: number,
 	held: WorkspaceHeld = emptyHeld(),
 	concepts: readonly TransferConcept[] = TRANSFER_CONCEPTS
 ): WorkspacePlan {
@@ -663,13 +672,24 @@ export function planWorkspaceImport(
 				return row.end;
 			}
 
-			if (!INTERVALS.includes(row.interval.trim() as Contract['interval'])) {
+			const interval = row.interval.trim() as Contract['interval'];
+
+			if (!INTERVALS.includes(interval)) {
 				return row.interval;
+			}
+
+			// the domain's own period rule, called rather than restated. A term matching no whole
+			// number of cycles is refused on every other way in, and `contract/renewal.ts` states
+			// outright that one cannot arise through a router; a file was the way it could.
+			if (!hasValidContractPeriodForInterval({ start, end, interval })) {
+				return row.end;
 			}
 
 			const cost = toNumber(row.cost);
 
-			return cost === undefined || cost < 0 ? row.cost : undefined;
+			// the domain's own cost rule, called rather than restated, exactly as the period rule
+			// above is. Read here as `< 0`, this admitted a contract worth nothing.
+			return cost === undefined || !hasValidContractCost(cost) ? row.cost : undefined;
 		},
 		new Set(held.contracts.map((value) => key(value)))
 	);
@@ -722,13 +742,24 @@ export function planWorkspaceImport(
 		'payments',
 		PAYMENT_FIELDS,
 		(row) => {
-			if (fromIsoDay(row.date) === undefined) {
+			const date = fromIsoDay(row.date);
+
+			if (date === undefined) {
+				return row.date;
+			}
+
+			// the same rule `importWhole` asserts, asked here so the two cannot answer differently.
+			// Asserted only at the boundary, a file carrying one of these planned as importable and
+			// was then refused whole at the write, naming no sheet and no row.
+			if (isPaymentInTheFuture(date, now)) {
 				return row.date;
 			}
 
 			const amount = toNumber(row.amount);
 
-			return amount === undefined || amount < 0 ? row.amount : undefined;
+			// the domain's own amount rule, called rather than restated. Read here as `< 0`, this
+			// admitted a payment of nothing, which `payments.create` refuses.
+			return amount === undefined || !hasValidPaymentAmount(amount) ? row.amount : undefined;
 		},
 		new Set(held.payments.map((values) => key(...values))),
 		{ rowsMayRepeat: true }

@@ -184,17 +184,18 @@ const migrating = new Map<string, Promise<unknown>>();
 
 const oneAtATime = async <T>(key: string, act: () => Promise<T>): Promise<T> => {
 	const queued = (migrating.get(key) ?? Promise.resolve()).then(act, act);
+	// What the *next* caller waits on, and what the cleanup below compares against. It has to be
+	// held: `queued.catch(...)` is a new promise every time it is called, so comparing the map
+	// against `queued` could never match and the entry was never released.
+	const settled = queued.catch(() => {});
 
-	migrating.set(
-		key,
-		queued.catch(() => {})
-	);
+	migrating.set(key, settled);
 
 	try {
 		return await queued;
 	} finally {
 		// Only if nothing else queued behind it, or the next caller's turn would be dropped.
-		if (migrating.get(key) === queued) {
+		if (migrating.get(key) === settled) {
 			migrating.delete(key);
 		}
 	}
