@@ -1,0 +1,35 @@
+{
+	"private": true,
+	"name": "@rentable/design",
+	"version": "0.0.0",
+	"description": "the interface every rentable client is drawn from",
+	"type": "module",
+	"imports": {
+		"#lib/*": "./src/lib/*"
+	},
+	"exports": {
+		"./*": {
+			"svelte": "./src/lib/*",
+			"types": "./src/lib/*",
+			"default": "./src/lib/*"
+		}
+	},
+	"files": [
+		"src",
+		"svelte.config.js"
+	],
+	"scripts": {
+		"check": "svelte-check --tsconfig ./tsconfig.json"
+	},
+	"dependencies": {
+		"clsx": "^2.1.1",
+		"tailwind-merge": "^3.6.0"
+	},
+	"devDependencies": {
+		"@sveltejs/vite-plugin-svelte": "^7.3.0",
+		"svelte": "^5.56.10",
+		"svelte-check": "^4.7.6",
+		"tailwindcss": "^4.3.3",
+		"typescript": "^6.0.3"
+	}
+}

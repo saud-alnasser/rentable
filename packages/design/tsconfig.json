@@ -1,0 +1,30 @@
+{
+	// The package has no build. `exports` points every condition at the source, and every
+	// consumer compiles it: the desktop's Vite bundles it and its `svelte-check` reads types
+	// straight out of the `.svelte` files. So what is left for this configuration to do is
+	// check the package on its own terms, which is what the `check` script runs.
+	//
+	// `paths` mirrors the `imports` field in `package.json`. Both are needed and neither is
+	// redundant: Node and Vite resolve `#lib/...` through `imports`, TypeScript resolves it
+	// through `paths`, and the shadcn-svelte CLI reads `paths` alone. There is no `baseUrl`
+	// beside it, because TypeScript 7 deprecates the option and `paths` works without one.
+	"compilerOptions": {
+		"target": "es2023",
+		"lib": ["es2023", "dom", "dom.iterable"],
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"allowImportingTsExtensions": true,
+		"allowJs": true,
+		"checkJs": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"noEmit": true,
+		"paths": {
+			"#lib/*": ["./src/lib/*"]
+		}
+	},
+	"include": ["src/**/*.js", "src/**/*.ts", "src/**/*.svelte", "svelte.config.js"]
+}
