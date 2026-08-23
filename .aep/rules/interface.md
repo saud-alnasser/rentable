@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-20
+date: 2026-08-23
 kind: rule
 paths:
   - apps/desktop/src/lib/**/component/**
@@ -13,6 +13,7 @@ paths:
   - apps/desktop/src/lib/payment/component/**
   - apps/desktop/src/routes/**
   - apps/desktop/src/app.css
+  - packages/design/src/lib/tokens.css
 use-when: "a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell"
 ---
 
@@ -98,7 +99,8 @@ Recorded originally as ADR 0030, *The landing screen is figures over sections, a
 Stated once, in `$lib/design/tone`. A callout, the standalone surface's band, a status badge, a
 toast and a record action all report a kind of event, and every one of them takes its tone from
 there. **A component never declares its own set of kind-names**, and a colour a tone lends always
-resolves through a token in `app.css` rather than through a raw palette entry.
+resolves through a token in the product's token layer, `packages/design/src/lib/tokens.css`,
+rather than through a raw palette entry.
 
 **`neutral` is a tone, not the absence of one.** A surface that declares nothing reads identically
 to one whose author never considered the question, and those two should not look the same in the

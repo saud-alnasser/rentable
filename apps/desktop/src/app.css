@@ -3,219 +3,34 @@
 @import 'tw-animate-css';
 
 /*
- * one palette, no modes: the tokens live here alone, and there is no `dark:` variant to
- * select against them — every utility states the one value it renders. the base is neutral
- * black — chroma 0 throughout — and elevation is carried by value: background < card <
- * popover < muted < secondary < accent, each step lighter reading as more raised. blue
- * exists only in `primary` and `ring`, so it can only ever mark the active, selected, or
- * focused element. every other hue here is named for the one thing it says, so a surface
- * cannot reach for a colour without saying what it means by it.
- */
-:root {
-	/*
-	 * the radius ladder is Tailwind's own — the shadcn-style overrides that inverted it
-	 * (rounded-xl above rounded-2xl) are gone. `--radius` survives only because the
-	 * input-group primitive still derives from it; it feeds no ladder token.
-	 */
-	--radius: 0.875rem;
-	--background: oklch(0.13 0 0);
-	--foreground: oklch(0.97 0 0);
-	--card: oklch(0.17 0 0);
-	--card-foreground: oklch(0.97 0 0);
-	--popover: oklch(0.19 0 0);
-	--popover-foreground: oklch(0.97 0 0);
-	--primary: oklch(0.64 0.19 252);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.23 0 0);
-	--secondary-foreground: oklch(0.97 0 0);
-	--muted: oklch(0.2 0 0);
-	--muted-foreground: oklch(0.72 0 0);
-	--accent: oklch(0.26 0 0);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.704 0.191 22.216);
-	/*
-	 * the two tones that had no name here, and the same defect the greens below already record.
-	 *
-	 * `info` was raw `blue-300` and `warning` was raw `amber-300`, written into the callout
-	 * primitive where nothing connected them to this block — so two of the four things a callout
-	 * can say answered to Tailwind's palette while the other two answered to this one. The values
-	 * are those two palette entries exactly, so nothing on screen moves; what changes is that they
-	 * are now reachable.
-	 *
-	 * `info` is a state the reader is being told about and can do nothing to. `warning` is one
-	 * they can still act on. `destructive` above carries the third: something that failed or is
-	 * about to destroy data. Together with `success` below they are the tone vocabulary, and
-	 * [[rules/interface]] under *Tone* is where that is stated.
-	 */
-	--info: oklch(80.9% 0.105 251.813);
-	--warning: oklch(87.9% 0.169 91.605);
-	/*
-	 * the greens, named for what each says rather than for the hue they share.
-	 *
-	 * Two of them were raw palette values — `green-300` and a spread of `emerald-*` — so green
-	 * already meant two unrelated things here and neither answered to this palette: a change made
-	 * in this block left both behind, silently, because nothing connected them to it.
-	 *
-	 * `success` reports that something the reader asked for worked. `permitted` marks a date the
-	 * contract's own arithmetic allows or suggests, in the end-date window — a bound rather than an
-	 * outcome, which is why one green could not have carried both. `money` stands for a quantity of
-	 * money, and had to be its own name rather than borrowing a state colour: it sits on a directory
-	 * row beside a glyph reporting a condition, and in blue it would say *live* about a count.
-	 *
-	 * None of the three ever appears on screen with another, so each is told apart from what is
-	 * beside it rather than from the other two.
-	 */
-	--success: oklch(0.871 0.15 154.449);
-	--permitted: oklch(0.696 0.17 162.48);
-	--permitted-foreground: oklch(0.985 0 0);
-	--money: oklch(0.792 0.209 151.711);
-	--border: oklch(1 0 0 / 12%);
-	--input: oklch(1 0 0 / 14%);
-	--ring: oklch(0.64 0.19 252);
-	--chart-1: oklch(0.488 0.243 264.376);
-	--chart-2: oklch(0.696 0.17 162.48);
-	--chart-3: oklch(0.769 0.188 70.08);
-	--chart-4: oklch(0.627 0.265 303.9);
-	--chart-5: oklch(0.645 0.246 16.439);
-	--sidebar: oklch(0.15 0 0);
-	--sidebar-foreground: oklch(0.97 0 0);
-	--sidebar-primary: oklch(0.64 0.19 252);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.23 0 0);
-	--sidebar-accent-foreground: oklch(0.97 0 0);
-	--sidebar-border: oklch(1 0 0 / 12%);
-	--sidebar-ring: oklch(0.64 0.19 252);
-}
-
-@theme inline {
-	--color-background: var(--background);
-	--color-foreground: var(--foreground);
-	--color-card: var(--card);
-	--color-card-foreground: var(--card-foreground);
-	--color-popover: var(--popover);
-	--color-popover-foreground: var(--popover-foreground);
-	--color-primary: var(--primary);
-	--color-primary-foreground: var(--primary-foreground);
-	--color-secondary: var(--secondary);
-	--color-secondary-foreground: var(--secondary-foreground);
-	--color-muted: var(--muted);
-	--color-muted-foreground: var(--muted-foreground);
-	--color-accent: var(--accent);
-	--color-accent-foreground: var(--accent-foreground);
-	--color-destructive: var(--destructive);
-	--color-info: var(--info);
-	--color-warning: var(--warning);
-	--color-success: var(--success);
-	--color-permitted: var(--permitted);
-	--color-permitted-foreground: var(--permitted-foreground);
-	--color-money: var(--money);
-	--color-border: var(--border);
-	--color-input: var(--input);
-	--color-ring: var(--ring);
-	--color-chart-1: var(--chart-1);
-	--color-chart-2: var(--chart-2);
-	--color-chart-3: var(--chart-3);
-	--color-chart-4: var(--chart-4);
-	--color-chart-5: var(--chart-5);
-	--color-sidebar: var(--sidebar);
-	--color-sidebar-foreground: var(--sidebar-foreground);
-	--color-sidebar-primary: var(--sidebar-primary);
-	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-	--color-sidebar-accent: var(--sidebar-accent);
-	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-	--color-sidebar-border: var(--sidebar-border);
-	--color-sidebar-ring: var(--sidebar-ring);
-}
-
-/*
- * the width at which the shell swaps its navigation between a rail and an overlay drawer.
- * this is the only statement of that number: the `shell:` variant it generates gates every
- * width-dependent style in the sidebar family, and `is-below-shell-breakpoint.svelte.ts` reads this same
- * custom property to build its media query, so script and stylesheet cannot disagree.
+ * the product's token layer, which this application draws from rather than declares. the palette,
+ * the tone vocabulary, the radius, the shell breakpoint and the global rules that are the
+ * product's live in `@rentable/design` so that a second Rentable client cannot come to disagree
+ * with this one about what a colour means.
  *
- * `static` rather than plain `@theme` because unused-value elimination drops theme entries
- * nothing references, and this one is referenced from script rather than from a utility —
- * dropping it would leave the runtime read empty and the navigation absent across the band.
+ * **it has to come after `@import 'tailwindcss'` above, and the `@source` has to be here at
+ * all.** both are silent when wrong: the build succeeds either way. imported first, the packaged
+ * `@layer base` stops being ordered above preflight and every default border turns opaque white;
+ * without the `@source`, Tailwind never scans the package, because v4 excludes `node_modules`
+ * from class detection, and every packaged class generates no utility. the package's own header
+ * states the whole contract and why.
  */
-@theme static {
-	--breakpoint-shell: 48rem;
-}
+@import '@rentable/design/tokens.css';
 
-@layer base {
-	* {
-		@apply border-border outline-ring/50;
-	}
-	body {
-		@apply bg-background text-foreground;
-	}
-}
+@source '../../../packages/design/src';
 
 /* ===================================== */
 /* Lock window scrolling (Desktop mode)  */
 /* ===================================== */
+
+/*
+ * the one global rule that is this window's rather than the product's, which is why it stays here
+ * while the tokens do not. a desktop shell does not scroll; a website does.
+ */
 
 html,
 body {
 	height: 100%;
 	overflow: hidden;
 	background-color: var(--color-background);
-}
-
-/* ===================================== */
-/* Scrollbar                             */
-/* ===================================== */
-
-/*
- * every scrollable element, rather than a class each surface remembers to apply. A desktop
- * application has one scrollbar, and the scroll containers inside `design/primitive/` are
- * generated — a composing surface cannot reach them to apply a class, so for as long as this
- * was opt-in the command palette scrolled in the platform's vocabulary rather than the
- * application's, on a surface reached from every screen.
- */
-
-*::-webkit-scrollbar {
-	width: 5px;
-	height: 5px;
-}
-
-*::-webkit-scrollbar-track {
-	background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-	background: var(--color-border);
-	border-radius: 9999px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-	background: var(--color-muted-foreground);
-}
-
-/* ===================================== */
-/* Reduced motion                        */
-/* ===================================== */
-
-/*
- * neither Tailwind nor tw-animate-css consults `prefers-reduced-motion`, so nothing in the
- * application honours it until this block does. it is stated once and globally so that a
- * primitive generated later inherits it without being edited for it — shadcn primitives
- * animate off `data-state`, the navigation menu off `data-motion`. `!important` is on the
- * transition rule alone, to reach the drawer, whose transition vaul writes inline; the
- * animation rule is unlayered and already outranks Tailwind's utilities layer.
- *
- * the looping indicators — spinner, skeleton, caret — keep moving, and none of them carries
- * either attribute. a spinner is the only thing on screen saying work is in progress, and a
- * frozen one reads as a hung application rather than a calmer one.
- */
-@media (prefers-reduced-motion: reduce) {
-	*,
-	*::before,
-	*::after {
-		transition-duration: 0s !important;
-	}
-
-	[data-state],
-	[data-motion] {
-		animation: none;
-	}
 }

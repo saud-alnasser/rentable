@@ -1,12 +1,13 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-21
+date: 2026-08-23
 kind: rule
 paths:
   - apps/desktop/src/lib/**
   - apps/desktop/src/routes/**
   - apps/desktop/src/app.css
+  - packages/design/src/lib/tokens.css
 use-when: "writing or changing Svelte components, routes, styles, or client state"
 ---
 
@@ -66,7 +67,23 @@ reaching the user and everything else reading as an unexpected failure.
 
 ## Styling
 
-Tailwind v4, configured CSS-first in `src/app.css` — there is no JS config file to edit.
+Tailwind v4, configured CSS-first — there is no JS config file to edit. **The configuration is
+in two files and the split is by owner.** `packages/design/src/lib/tokens.css` is **the token
+layer**: what the product's surfaces are drawn from, and the name used for it throughout this
+rule. It holds the palette, the tone colours, the radius, the shell breakpoint, and the global
+rules any Rentable client wants. `apps/desktop/src/app.css` imports it, registers the package with
+`@source`, and holds only what belongs to this window.
+
+**The token layer's own header states the consumer contract**, and it is three lines rather than
+two: `@import 'tailwindcss'` has to precede the package import, or `@theme`, `@layer base` and
+`@apply` resolve against nothing. Both that and a missing `@source` fail with a successful build
+and no error, which is why the file says so at the top rather than leaving it to be found.
+
+**`components.json` still names `app.css` under `tailwind.css`, and that is deliberate for now.**
+The shadcn CLI resolves the theme from the file named there, and only `app.css` assembles a whole
+one: `tokens.css` imports no Tailwind, so pointing the CLI at it would resolve nothing. The cost
+is that a registry item carrying `cssVars` writes tokens back into the window's file. Nothing has
+done that yet; where to point it once the package owns `components.json` is #783's.
 Variants go through `tailwind-variants`, and class merging through the shared helper.
 
 **The shell's breakpoint is `shell:`, and it is declared once.** The sidebar family and the
@@ -98,8 +115,8 @@ not on this ladder, and `design/primitive/` keeps the geometry it was ported wit
 (ADR 0007).
 
 **Review enforces this, and no spacing token is added to the stylesheet for it.** A semantic
-scale beside the framework's own would make every component read in a dialect, and `app.css` is
-deliberately kept to what is genuinely global.
+scale beside the framework's own would make every component read in a dialect, and the token
+layer is deliberately kept to what is genuinely global.
 
 ## Motion
 
@@ -123,7 +140,7 @@ thread, the second does not.
 unfinished.** Tailwind's `motion-safe:` gates CSS motion; `prefersReducedMotion` from
 `svelte/motion` gates anything JavaScript-driven.
 
-`src/app.css` carries the two cases a surface cannot reach for itself: every CSS transition,
+The token layer carries the two cases a surface cannot reach for itself: every CSS transition,
 and the keyframe animation on anything bits-ui marks with `data-state` or `data-motion`. A
 keyframe animation on an element carrying neither is still the surface's own to gate — which
 covers anything composed here, and the looping indicators, left running deliberately.
