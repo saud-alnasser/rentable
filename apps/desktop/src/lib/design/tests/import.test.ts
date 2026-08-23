@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { toExportSheet } from '../csv.ts';
+import { toExportSheet } from '@rentable/design/csv.js';
 import { type ImportField, isImportable, planImport, toImportIdentity } from '../import.ts';
 
 /** the record every file here is read as: the three columns a tenant is made of. */

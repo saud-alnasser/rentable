@@ -13,11 +13,11 @@
 	import { isUnitDeletable } from '$lib/complex/complex';
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
+	import RecordCard, { type RecordCardAction } from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import List from '$lib/design/block/list.svelte';
-	import { toNarrowedName } from '$lib/design/csv';
+	import { toNarrowedName } from '@rentable/design/csv.js';
 	import {
 		describeRefusals,
 		foreseenRefusals,

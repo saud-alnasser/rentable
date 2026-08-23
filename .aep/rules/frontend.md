@@ -244,10 +244,11 @@ words and its reading direction are supplied from outside: one typed object and 
 handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/design/strings.js` is
 the contract, and it holds what enforces it and why the direction travels with the words.
 
-*Everything above is unchanged for a component that lives in this application, and after #781 that
-is every cell, every component under a concept or under `layout`, and the four blocks that have
-not crossed. What #780 and #781 finished is the primitive tree and eleven of the fifteen blocks,
-not the crossing.*
+*Everything above is unchanged for a component that lives in this application, and after #782 that
+is every cell, every component under a concept or under `layout`, and `block/list.svelte` and
+`block/record-actions.svelte`. What #780, #781 and #782 finished is the primitive tree and
+thirteen of the fifteen blocks, not the crossing. The other two stay, and the rule below is most
+of why.*
 
 **A packaged component that needs a reading direction reads `contract.direction` and never
 derives one.** #779 moved ten families whose only locale read was
@@ -261,7 +262,7 @@ and so states a direction rather than inheriting one. A direction derived from a
 the same defect wearing a `$derived`.
 
 **A parameterised string is the contract's only where the package owns the number.**
-`DesignStrings` is 28 keys and 27 of them are plain strings; `moreRecords` is a function because
+`DesignStrings` is 34 keys and 33 of them are plain strings; `moreRecords` is a function because
 `block/selection-dialog` counts the refused records it had no room to name, from a plan its
 consumer handed in, so there is no moment at which the consumer could have resolved the phrase.
 Every other counted phrase on that surface arrives as a prop, `describeReason` and `summarize`
@@ -277,3 +278,13 @@ reach. #780 found the only instance and is where the rule comes from: `SidebarSt
 `SIDEBAR_KEYBOARD_SHORTCUT`. **A packaged component that wants a key states the key and lets its
 consumer register it**, which keeps one place the key is written down and puts the description
 where the dictionary is.
+
+**This rule decides where a component lives, not only how it is written**, and #782 is where that
+turned out to matter. `block/list.svelte` registers three shortcuts through `toListShortcuts`,
+each naming a key under `common.table`, and no amount of inverting its other couplings would have
+made those registrations legal in the package. So the block stays with this application, and
+`design/list-keyboard.ts` and `design/shortcut-registry.{ts,svelte.ts}` stay with it: the first
+builds the registrations and the second two hold them. **Nothing in the package holds a registry
+or wants one** — `shortcut.ts` says so in its own header, and every other caller is under
+`layout/`. Read the placement rule as the rule's consequence rather than as a second rule; the
+effort's spec carries the full argument under `# Open Questions`.

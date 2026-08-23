@@ -3,8 +3,8 @@ import type { DesignStrings } from '#lib/strings.js';
 /**
  * A complete set of strings for a test that cares about one of them.
  *
- * Scaffolding rather than a test. The contract is 28 keys, and a call site writing all of them
- * out would be 27 lines of noise around the one being asserted.
+ * Scaffolding rather than a test. The contract is 34 keys, and a call site writing all of them
+ * out would be 33 lines of noise around the one being asserted.
  *
  * **Every default is the key's own name in braces**, which is a value no component here renders
  * literally and no locale file contains. So a test that asserts a word reached the DOM supplies
@@ -27,6 +27,10 @@ export function suppliedStrings(overrides: Partial<DesignStrings> = {}): DesignS
 		deleteBlockedDescription: '{deleteBlockedDescription}',
 		deleteDescription: '{deleteDescription}',
 		deleting: '{deleting}',
+		export: '{export}',
+		exportDescription: '{exportDescription}',
+		formatCsv: '{formatCsv}',
+		formatXlsx: '{formatXlsx}',
 		goToNextPage: '{goToNextPage}',
 		goToPreviousPage: '{goToPreviousPage}',
 		loading: '{loading}',
@@ -39,6 +43,7 @@ export function suppliedStrings(overrides: Partial<DesignStrings> = {}): DesignS
 		nextSlide: '{nextSlide}',
 		noResults: '{noResults}',
 		nothingToDo: '{nothingToDo}',
+		openMenu: '{openMenu}',
 		pagination: '{pagination}',
 		previous: '{previous}',
 		previousSlide: '{previousSlide}',
@@ -46,6 +51,7 @@ export function suppliedStrings(overrides: Partial<DesignStrings> = {}): DesignS
 		toggleSidebar: '{toggleSidebar}',
 		unexpectedError: '{unexpectedError}',
 		unnamedRecord: '{unnamedRecord}',
+		working: '{working}',
 		...overrides
 	};
 }

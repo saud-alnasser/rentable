@@ -23,7 +23,8 @@ import { getContext } from 'svelte';
  * required title and description present for a reader who cannot see the surface carrying them.
  * The eleven the blocks added at #781 are the other kind, and are read aloud by nothing: they are
  * the sentences and control words on a composed surface, which are the surface's own rather than
- * its caller's.
+ * its caller's. #782 added six more of that kind, when the export dialog and the record card
+ * crossed: five of them the dialog's, and `openMenu` the card's.
  *
  * **One key is a function and every other one is a string.** `moreRecords` counts the records a
  * selection dialog decided not to name, which is arithmetic over a plan the consumer handed in
@@ -56,6 +57,14 @@ export type DesignStrings = {
 	deleteDescription: string;
 	/** the word that replaces {@link DesignStrings.delete} while the deletion is in flight. */
 	deleting: string;
+	/** the word on the control that writes the list out, and the export dialog's own title. */
+	export: string;
+	/** what the export dialog asks, which is which of the two files this should become. */
+	exportDescription: string;
+	/** what the delimited format is called on the control that chooses it. */
+	formatCsv: string;
+	/** what the workbook format is called on the control that chooses it. */
+	formatXlsx: string;
 	/** the accessible name of a pagination control that advances a page. */
 	goToNextPage: string;
 	/** the accessible name of a pagination control that goes back a page. */
@@ -81,6 +90,8 @@ export type DesignStrings = {
 	noResults: string;
 	/** what a selection dialog says where the plan it was handed turned every record away. */
 	nothingToDo: string;
+	/** the accessible name of the quiet control that opens a record card's own actions. */
+	openMenu: string;
 	/** the accessible name of the navigation a pagination control renders. */
 	pagination: string;
 	/** what goes back: the visible word on a pagination control, and the accessible name of the
@@ -96,6 +107,8 @@ export type DesignStrings = {
 	unexpectedError: string;
 	/** what a delete dialog calls the record where its surface passed no name for it. */
 	unnamedRecord: string;
+	/** the word that replaces {@link DesignStrings.export} while the file is being written. */
+	working: string;
 };
 
 /** which way the reader reads, supplied rather than derived because the package has no locale. */

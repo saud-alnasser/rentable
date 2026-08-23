@@ -1,6 +1,6 @@
 <script lang="ts" module>
 	import type api from '$lib/api/caller';
-	import type { RecordCardAction } from '$lib/design/block/record-card.svelte';
+	import type { RecordCardAction } from '@rentable/design/block/record-card.svelte';
 
 	type ContractRow = Awaited<ReturnType<typeof api.contract.getMany>>[number];
 	// the same shape without an identity is what a duplicate opens the form on.

@@ -2,7 +2,7 @@
 	import { resolve } from '$app/paths';
 	import type api from '$lib/api/caller';
 	import type { Contract } from '$lib/platform/database/schema';
-	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
+	import RecordCard, { type RecordCardAction } from '@rentable/design/block/record-card.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleMoney } from '$lib/platform/locale';

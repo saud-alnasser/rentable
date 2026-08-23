@@ -16,10 +16,54 @@
  * string that looks like one.
  *
  * Two formats are offered and the columns are the same for both; the difference is only in what
- * lands on disk, and both formats are built in Rust for the reasons the effort's evidence
- * records.
+ * lands on disk. Which is also why the writing itself is not here: choosing a path and putting
+ * bytes on it is the consumer's, handed in as {@link ExportWriter}.
+ *
+ * *That last sentence read "both formats are built in Rust for the reasons the effort's evidence
+ * records" while this module lived in the desktop application. It was true of that consumer and
+ * is a statement this side can no longer make about any of them.*
  */
-import type { ExportCell as WireCell, ExportSheet } from '$lib/platform/tauri';
+
+/**
+ * One cell of a workbook, as the kind of thing it is.
+ *
+ * Money and dates cross as figures rather than as the text a surface drew, because the file's
+ * reader is a spreadsheet: it renders a number in whatever locale the person opening it works
+ * in, and can do nothing with a string that merely looks like one. `date` is the count of days
+ * the format itself counts in.
+ *
+ * **Declared here rather than imported from the writer that receives it.** The same shape is
+ * declared a second time by whatever host a consumer writes through, and a third time by the
+ * process that puts it on disk; this one belongs to the side that builds the value. The two are
+ * structural, so a consumer handing {@link toExportSheet}'s result to its own writer type-checks
+ * without a cast.
+ *
+ * **That is a check in one direction and it is worth knowing which.** A host that starts
+ * requiring a field, or narrows one, stops accepting what this builds and the consumer's own
+ * gate says so. A host that *drops* a field still accepts it, because the value arrives through a
+ * variable rather than as an object literal and the excess is permitted. So the direction that
+ * matters is covered and the other is not, which is why this is stated rather than assumed.
+ */
+export type ExportCell =
+	| { kind: 'text'; value: string }
+	| { kind: 'number'; value: number }
+	| { kind: 'date'; value: number }
+	| { kind: 'money'; value: number }
+	| { kind: 'empty' };
+
+/** One sheet of a workbook: its headings, and its rows under them. */
+export type ExportSheet = {
+	/**
+	 * what the tab is called.
+	 *
+	 * Left out where the workbook holds one sheet — there is nothing to tell it apart from.
+	 * Given where it holds several, which is how a reader finds one concept inside a whole
+	 * workspace.
+	 */
+	name?: string;
+	headers: string[];
+	rows: ExportCell[][];
+};
 
 /**
  * One cell, as the kind of thing it is.
@@ -68,9 +112,6 @@ export type ExportColumn<TRecord> = {
 	/** what it reads from one record, as the kind of thing that is. */
 	value: (record: TRecord) => ExportValue;
 };
-
-/** the name the older half of this module used, kept while callers move across. */
-export type CsvColumn<TRecord> = ExportColumn<TRecord>;
 
 /** The formats a list can be written out as. */
 export const EXPORT_FORMATS = ['csv', 'xlsx'] as const;
@@ -143,7 +184,7 @@ export function toCsv<TRecord>(columns: readonly ExportColumn<TRecord>[], record
 }
 
 /** One value as the cell the workbook writer is given. */
-function toWireCell(value: ExportValue): WireCell {
+function toWireCell(value: ExportValue): ExportCell {
 	if (value === null || value === undefined || value === '') {
 		return { kind: 'empty' };
 	}
@@ -225,4 +266,65 @@ export function toNarrowedName(name: string, narrowing: readonly string[]) {
 	const stated = narrowing.map((part) => part.trim()).filter(Boolean);
 
 	return stated.length > 0 ? `${name} (${stated.join(', ')})` : name;
+}
+
+/**
+ * Putting a file where the reader asked for it.
+ *
+ * The three things this module cannot do for itself, handed in by whoever is running it. A
+ * consumer backed by a desktop shell answers all three over its own process boundary; a test
+ * answers them with a record of what it was asked to write, which is the second adapter that
+ * makes this a seam rather than a hole.
+ */
+export type ExportWriter = {
+	/**
+	 * Ask the reader where the file goes, answering its path or nothing where they walked away.
+	 *
+	 * `suggested` is what the dialog opens on rather than what the file ends up called. The reader
+	 * can type over it, and {@link toExportFileName} has already put the format's extension on it.
+	 */
+	chooseFile: (suggested: string) => Promise<string | null>;
+	/** Write a delimited file, answering where it landed. */
+	writeText: (path: string, contents: string) => Promise<string>;
+	/** Write a workbook, answering where it landed. */
+	writeWorkbook: (path: string, sheets: ExportSheet[]) => Promise<string>;
+};
+
+/** What an export is of: the rows, the columns that read them, and what to call the file. */
+export type ExportRequest<TRecord> = {
+	/** what the list calls itself, before the format's extension is put on it. */
+	name: string;
+	/** which of the two the reader chose. */
+	format: ExportFormat;
+	/** what the file holds, as the concept that renders the rows declares them. */
+	columns: readonly ExportColumn<TRecord>[];
+	/** the rows to write, in the order the reader is looking at them. */
+	records: TRecord[];
+};
+
+/**
+ * Write an export, answering where it landed, or nothing where the reader walked away.
+ *
+ * **Walking away from the file dialog is not a failure**: nothing was written and there is
+ * nothing to tell anybody, which is why it comes back as `null` rather than as a throw. A
+ * refusal from the writer itself does throw, and reporting that is the caller's: this side knows
+ * what went wrong and not a single word to say it in.
+ *
+ * **Which writer rather than which argument**: the two formats differ in what lands on disk
+ * rather than in what they are asked for, and a delimited file that a workbook writer produced
+ * would carry an archive's framing around text.
+ */
+export async function writeExport<TRecord>(
+	writer: ExportWriter,
+	request: ExportRequest<TRecord>
+): Promise<string | null> {
+	const chosen = await writer.chooseFile(toExportFileName(request.name, request.format));
+
+	if (!chosen) {
+		return null;
+	}
+
+	return request.format === 'csv'
+		? writer.writeText(chosen, toCsv(request.columns, request.records))
+		: writer.writeWorkbook(chosen, [toExportSheet(request.columns, request.records)]);
 }

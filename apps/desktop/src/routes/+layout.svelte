@@ -83,6 +83,10 @@
 		deleteBlockedDescription: $LL.common.deleteDialog.blockedDescription(),
 		deleteDescription: $LL.common.deleteDialog.description(),
 		deleting: $LL.common.actions.deleting(),
+		export: $LL.common.actions.export(),
+		exportDescription: $LL.common.export.description(),
+		formatCsv: $LL.common.formats.csv(),
+		formatXlsx: $LL.common.formats.xlsx(),
 		goToNextPage: $LL.common.table.goToNextPage(),
 		goToPreviousPage: $LL.common.table.goToPreviousPage(),
 		loading: $LL.common.ui.loading(),
@@ -95,13 +99,15 @@
 		nextSlide: $LL.common.ui.nextSlide(),
 		noResults: $LL.common.messages.noResults(),
 		nothingToDo: $LL.common.selection.nothingToDo(),
+		openMenu: $LL.common.actions.openMenu(),
 		pagination: $LL.common.ui.pagination(),
 		previous: $LL.common.ui.previous(),
 		previousSlide: $LL.common.ui.previousSlide(),
 		sidebar: $LL.common.ui.sidebar(),
 		toggleSidebar: $LL.common.ui.toggleSidebar(),
 		unexpectedError: $LL.common.messages.unexpectedError(),
-		unnamedRecord: $LL.common.deleteDialog.unnamedRecord()
+		unnamedRecord: $LL.common.deleteDialog.unnamedRecord(),
+		working: $LL.common.actions.working()
 	});
 
 	const DAY_CROSSING_CHECK_INTERVAL_MS = 60_000;

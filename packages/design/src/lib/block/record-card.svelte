@@ -4,6 +4,32 @@
 	type IconComponent = typeof EllipsisIcon;
 
 	/**
+	 * What a record wears to read as a card in a list.
+	 *
+	 * The list owns the geometry between cards and the concept owns what a card holds, so the
+	 * surface itself is declared here and worn by the concept's own anchor — the anchor is the
+	 * click target, and a treatment painted by the list onto a wrapper would put the elevation on
+	 * something the reader cannot press.
+	 *
+	 * It carries resting elevation rather than lifting only on hover, which is the answer a
+	 * prototype gave against the real lists: a small shadow is not a per-row claim about
+	 * importance, it is what makes a row read as an object at all — and a hover that has already
+	 * been told these are objects is free to say only *this one* (_Use shadows to convey
+	 * elevation_, 180). The ring is not decoration and not the book's: it is silent on dark mode,
+	 * where a shadow against a dark ground reads as almost nothing, and the ring is what separates
+	 * the card there.
+	 *
+	 * *It was declared by the list block until #782, and the edge ran the wrong way: a card that
+	 * carries no domain imported it from the one component that does. It sits on the component
+	 * that wears it now, and the list reads it from here.*
+	 */
+	export const recordCard = [
+		'rounded-2xl bg-card ring-1 ring-foreground/5 shadow-[0_1px_3px_rgba(0,0,0,0.18)]',
+		'motion-safe:transition-[transform,box-shadow] motion-safe:duration-150',
+		'hover:-translate-y-[3px] hover:shadow-[0_10px_20px_rgba(0,0,0,0.16)]'
+	].join(' ');
+
+	/**
 	 * One entry of a record card's actions, in the order the record's own surfaces offer them.
 	 *
 	 * `onSelect` is the menus' own selection event, which is what lets a single list drive both of
@@ -21,13 +47,14 @@
 	// `href` is a route the concept already resolved, so the base is on it once — resolving it here
 	// would put it on twice.
 	/* eslint-disable svelte/no-navigation-without-resolve */
-	import * as ContextMenu from '@rentable/design/primitive/context-menu/index.js';
-	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
-	import { Button } from '@rentable/design/primitive/button/index.js';
-	import { recordCard } from '$lib/design/block/list.svelte';
-	import { cn } from '@rentable/design/tailwind.js';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { Button } from '#lib/primitive/button/index.js';
+	import * as ContextMenu from '#lib/primitive/context-menu/index.js';
+	import * as DropdownMenu from '#lib/primitive/dropdown-menu/index.js';
+	import { useDesignContract } from '#lib/strings.js';
+	import { cn } from '#lib/tailwind.js';
 	import type { Snippet } from 'svelte';
+
+	const contract = useDesignContract();
 
 	/**
 	 * A record in a list: the card that opens it, and the record's actions by both of the routes a
@@ -102,7 +129,7 @@
 								size="icon-sm"
 								class="relative rounded-full bg-secondary p-0 transition-[background-color] hover:bg-accent"
 							>
-								<span class="sr-only">{$LL.common.actions.openMenu()}</span>
+								<span class="sr-only">{contract.strings.openMenu}</span>
 								<EllipsisIcon class="size-4" />
 							</Button>
 						{/snippet}

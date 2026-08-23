@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { toCsv, toExportFileName, toExportSheet, toNarrowedName } from '../csv.ts';
+import {
+	toCsv,
+	toExportFileName,
+	toExportSheet,
+	toNarrowedName,
+	writeExport,
+	type ExportSheet,
+	type ExportWriter
+} from '../csv.ts';
 
 /** the tenant's own columns, which is the shape every export below is written from. */
 type Tenant = { name: string; phone: string };
@@ -163,4 +171,86 @@ test('and a narrowing that says nothing is dropped rather than shown empty', () 
 // a selection is one more narrowing, applied to a name a list has already narrowed once.
 test('and a name already narrowed can be narrowed again', () => {
 	assert.equal(toNarrowedName('tenants (sara)', ['9 selected']), 'tenants (sara) (9 selected)');
+});
+
+// WRITING
+//
+// The three things this module cannot do for itself. The writer below is the seam's second
+// adapter: it records what it was asked to do rather than doing any of it, which is what lets
+// these assert that the composed file reached the right one of the two calls.
+
+/** a writer that answers every call and remembers it. */
+function recordingWriter(chosen: string | null = '/home/reader/tenants.csv') {
+	const asked: string[] = [];
+	let text: string | null = null;
+	let workbook: ExportSheet[] | null = null;
+
+	const writer: ExportWriter = {
+		chooseFile: (suggested) => {
+			asked.push(suggested);
+
+			return Promise.resolve(chosen);
+		},
+		writeText: (path, contents) => {
+			text = contents;
+
+			return Promise.resolve(path);
+		},
+		writeWorkbook: (path, sheets) => {
+			workbook = sheets;
+
+			return Promise.resolve(path);
+		}
+	};
+
+	return {
+		writer,
+		asked,
+		written: () => ({ text, workbook })
+	};
+}
+
+const request = {
+	name: 'tenants',
+	columns,
+	records: [{ name: 'Sara', phone: '+966551234567' }]
+};
+
+test('the dialog is opened on the name the list gave, carrying the chosen format', async () => {
+	const { writer, asked } = recordingWriter();
+
+	await writeExport(writer, { ...request, format: 'xlsx' });
+
+	assert.deepEqual(asked, ['tenants.xlsx']);
+});
+
+test('a delimited export reaches the text writer and never the workbook one', async () => {
+	const { writer, written } = recordingWriter();
+
+	const path = await writeExport(writer, { ...request, format: 'csv' });
+
+	assert.equal(path, '/home/reader/tenants.csv');
+	assert.equal(written().text, toCsv(columns, request.records));
+	assert.equal(written().workbook, null);
+});
+
+test('a workbook export reaches the workbook writer, as one sheet with no tab name', async () => {
+	const { writer, written } = recordingWriter('/home/reader/tenants.xlsx');
+
+	await writeExport(writer, { ...request, format: 'xlsx' });
+
+	assert.equal(written().text, null);
+	assert.deepEqual(written().workbook, [toExportSheet(columns, request.records)]);
+});
+
+// walking away from the dialog is not a failed export: nothing was written and there is nothing
+// to tell anybody, which is why it comes back as nothing rather than as a throw.
+test('a reader who walks away from the dialog is written nothing at all', async () => {
+	const { writer, written } = recordingWriter(null);
+
+	const path = await writeExport(writer, { ...request, format: 'csv' });
+
+	assert.equal(path, null);
+	assert.equal(written().text, null);
+	assert.equal(written().workbook, null);
 });

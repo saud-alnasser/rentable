@@ -2,7 +2,7 @@
 	import api from '$lib/api/caller';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { toExportSheet } from '$lib/design/csv';
+	import { toExportSheet } from '@rentable/design/csv.js';
 	import { isolateDirection } from '$lib/error/message';
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL } from '$lib/i18n/i18n-svelte';
