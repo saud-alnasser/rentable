@@ -169,11 +169,38 @@ worth watching rather than assuming.
 grows by four whenever somebody runs a test is a list that is wrong more often than it is right.*
 
 **Counted 2026-08-23, before the third run above: one database,
-`ws-c8aa62a6-d4ea-45a6-a317-d2ca2530dd46`, with the group's `delete_protection` still `true`.**
+`ws-c8aa62a6-d4ea-45a6-a317-d2ca2530dd46`, with the group's `delete_protection` reading `true`.**
 The two named here on 2026-08-18 and everything #552 and #572 left had gone.
-**How is not known from here.** Nothing in this repository
-deletes into a protected group, so whatever removed them was done outside it. Recorded because the
-paragraph above says the count only climbs, and the measurement says it does not.
+
+**A person cleared the account on 2026-08-20, deliberately.** An audit that morning found thirty
+databases — `gate-11`, seventeen `t552-*`, eleven orphan `ws-*` whose control-plane records no
+longer existed, and one real workspace. Asked which should go, the human answered *delete
+everything, we will start over*, and ran `wipe-turso.mjs` by hand from `apps/control-plane/`.
+It was written for that one run and was never tracked. What it printed:
+
+```
+delete_protection -> false: 404
+deleted 30, failed 0
+delete_protection -> true: 404
+delete_protection now: false
+remaining: 0 (none)
+```
+
+**So the count is not the one-way climb the paragraph above describes.** Nothing in the shipping
+code can remove a database it did not just create, but the Platform API token can remove any of
+them, and a script holding it did.
+
+**Both `PATCH` calls 404'd because the path was guessed.** The documented one carries
+`delete_protection` on a sub-path: `PATCH /v1/organizations/{org}/groups/{group}/configuration`
+for a group, `PATCH /v1/organizations/{org}/databases/{name}/configuration` for a single database.
+`PATCH .../groups/{group}` is not a route.
+
+**What the run did not settle is why thirty deletes succeeded at all**, two days after
+*Failure handling* measured a 403 refusing exactly that. Three readings of the group's own state
+bracket the wipe and do not agree: `true` at 05:48, `false` at 05:53, `true` again on 2026-08-23.
+Either that 404 applies the change while reporting it did not, or the 403 is narrower than
+2026-08-18 read it. Both are testable against the documented path above, and neither has been
+tested. **Until one is, treat the protection as something that has already failed to hold once.**
 
 ## Failure handling
 
@@ -196,7 +223,11 @@ on purpose and no number of attempts changes that.
   `DELETE .../databases/<name>` call, on a database whose own `delete_protection` is `false`.
   Measured 2026-08-18. **The group on this account is protected**, so the control plane's cleanup
   path cannot run here: a workspace whose record could not be written leaves its database behind,
-  logged. Turning that protection off is a change to the human's account and is theirs to make.
+  logged. Turning that protection off is a change to the human's account and is theirs to make,
+  and the endpoint that does it is `PATCH .../groups/{group}/configuration`.
+  **This refusal has been observed not to hold.** Thirty deletes into this group succeeded on
+  2026-08-20 while the two attempts to lift the protection both 404'd; *Verification* has the
+  readings. Do not build a cleanup path on the assumption that a protected group will stop it.
 
 ## Never run
 
@@ -210,7 +241,8 @@ on purpose and no number of attempts changes that.
   writes into, and it is reused rather than recreated for exactly this reason. No code path in this
   repository may delete either, and `deleteDatabase` cannot reach them anyway: both its callers
   remove something they just created. **The group's delete protection is not the guarantee here.**
-  Whatever cleared this account on or before 2026-08-23 got past it.
+  A script holding the Platform API token cleared all thirty databases out of this group on
+  2026-08-20, and these two would have gone with them.
 - **Do not rotate or revoke the Platform API token.** It is the human's, and revoking it stops
   every mint.
 - **Do not run a live create or mint against the human's account without being asked to.**
