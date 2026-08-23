@@ -30,7 +30,8 @@
 </script>
 
 <script lang="ts">
-	import List, { recordCard } from '$lib/design/block/list.svelte';
+	import List from '$lib/design/block/list.svelte';
+	import { recordCard } from '@rentable/design/block/record-card.svelte';
 	import { cn } from '@rentable/design/tailwind.js';
 	import type { HistoryConcept } from '$lib/history/history';
 	import { useListHistory } from '$lib/history/query';

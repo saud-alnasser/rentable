@@ -1,5 +1,5 @@
 import type { Contract, Unit } from '$lib/platform/database/schema';
-import type { ExportColumn } from '$lib/design/csv';
+import type { ExportColumn } from '@rentable/design/csv.js';
 import {
 	planImport,
 	toImportIdentity,

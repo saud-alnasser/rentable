@@ -1,45 +1,20 @@
-<script lang="ts" module>
-	/**
-	 * What a record wears to read as a card in this list.
-	 *
-	 * The block owns the geometry between cards and the concept owns what a card holds, so the
-	 * surface itself is declared here and worn by the concept's own anchor — the anchor is the
-	 * click target, and a treatment painted by the shell onto a wrapper would put the elevation
-	 * on something the reader cannot press.
-	 *
-	 * It carries resting elevation rather than lifting only on hover, which is the answer a
-	 * prototype gave against the real lists: a small shadow is not a per-row claim about
-	 * importance, it is what makes a row read as an object at all — and a hover that has already
-	 * been told these are objects is free to say only *this one* (_Use shadows to convey
-	 * elevation_, 180). The ring is not decoration and not the book's: it is silent on dark mode,
-	 * where a shadow against a dark ground reads as almost nothing, and the ring is what separates
-	 * the card there.
-	 */
-	export const recordCard = [
-		'rounded-2xl bg-card ring-1 ring-foreground/5 shadow-[0_1px_3px_rgba(0,0,0,0.18)]',
-		'motion-safe:transition-[transform,box-shadow] motion-safe:duration-150',
-		'hover:-translate-y-[3px] hover:shadow-[0_10px_20px_rgba(0,0,0,0.16)]'
-	].join(' ');
-</script>
-
 <script lang="ts" generics="TData extends { id: string }, TGroup extends ListGroup">
 	import { browser } from '$app/environment';
-	import ExportDialog from '$lib/design/block/export-dialog.svelte';
+	import ExportDialog from '@rentable/design/block/export-dialog.svelte';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
+	import {
+		writeExport,
+		toNarrowedName,
+		type ExportColumn,
+		type ExportFormat,
+		type ExportWriter
+	} from '@rentable/design/csv.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Checkbox } from '@rentable/design/primitive/checkbox/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import * as Empty from '@rentable/design/primitive/empty/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
-	import {
-		toCsv,
-		toExportFileName,
-		toExportSheet,
-		toNarrowedName,
-		type CsvColumn,
-		type ExportFormat
-	} from '$lib/design/csv';
 	import {
 		toChosenOption,
 		toFilterLabel,
@@ -155,7 +130,7 @@
 		 */
 		exportAs?: {
 			name: string;
-			columns: CsvColumn<TData>[];
+			columns: ExportColumn<TData>[];
 		};
 		/**
 		 * How tall one record renders, in pixels. Rows are laid out at this height rather than
@@ -245,6 +220,20 @@
 	 */
 	let exporting = $state<{ rows: TData[]; name: string } | null>(null);
 
+	/**
+	 * this application's answer to the three things an export cannot do for itself.
+	 *
+	 * The seam is here rather than in the package because choosing a path and putting bytes on it
+	 * is what a shell has and a package does not. Which command rather than which argument, on the
+	 * far side of it: the two differ in what lands on disk, and the text one prepends a
+	 * byte-order mark that would corrupt an archive.
+	 */
+	const writer: ExportWriter = {
+		chooseFile: (suggested) => tauri.dialog.saveFile(suggested),
+		writeText: (path, contents) => tauri.export.write(path, contents),
+		writeWorkbook: (path, sheets) => tauri.export.writeWorkbook(path, sheets)
+	};
+
 	// written from what was captured rather than from a fresh read: the file is the rows the
 	// reader asked for, under the search and the order the list was showing them under.
 	async function exportRows(format: ExportFormat) {
@@ -254,21 +243,18 @@
 		isExporting = true;
 
 		try {
-			// where the file goes is the reader's, and the name this composes is only what the
-			// dialog opens on. Walking away from it is not a failed export — nothing was written
-			// and there is nothing to say about it.
-			const chosen = await tauri.dialog.saveFile(toExportFileName(asked.name, format));
+			const path = await writeExport(writer, {
+				name: asked.name,
+				format,
+				columns: exportAs.columns,
+				records: asked.rows
+			});
 
-			if (!chosen) {
+			// where the file goes is the reader's, and walking away from that dialog is not a
+			// failed export, because nothing was written and there is nothing to say about it.
+			if (!path) {
 				return;
 			}
-
-			// which command rather than which argument: the two differ in what lands on disk, and
-			// the text one prepends a byte-order mark that would corrupt an archive.
-			const path =
-				format === 'csv'
-					? await tauri.export.write(chosen, toCsv(exportAs.columns, asked.rows))
-					: await tauri.export.writeWorkbook(chosen, [toExportSheet(exportAs.columns, asked.rows)]);
 
 			// the path is isolated because it is written left to right whatever the sentence
 			// around it is, and an unisolated one reorders the Arabic it is spliced into.

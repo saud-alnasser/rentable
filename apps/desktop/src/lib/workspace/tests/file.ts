@@ -6,7 +6,7 @@
 // feeding the writer's output straight into the planning pass would test the two halves agreeing
 // about an object rather than about a file.
 
-import { toExportSheet, toSheetName } from '$lib/design/csv.ts';
+import { toExportSheet, toSheetName } from '@rentable/design/csv.js';
 import type { ExportCell, ExportSheet, ImportTable } from '$lib/platform/host.ts';
 import {
 	TRANSFER_COLUMNS,

@@ -282,33 +282,81 @@ drawing from it. What stays with the desktop application is what is about rents.
 
 # Open Questions
 
-- **Where exactly the line falls for two blocks and two helper modules.** Reading their imports,
-  the fifteen blocks sort into three groups. Six are already clean and could move as they are:
-  `field-error`, `page-frame`, `record-action-control`, `specification`, `standalone-surface`,
-  `surface-action`. Seven are clean but for the i18n read, which requirement 4 now answers:
-  `back-control`, `delete-dialog`, `export-dialog`, `form-surface`, `record-card`,
-  `record-surface`, `selection-dialog`. **Two reach further, and they are the question.**
-  `list.svelte`, at 918 lines, pulls `$lib/error/message`, `$lib/error/toast` and
-  `$lib/platform/tauri`; `record-actions` pulls `design/mutation` and `$lib/platform/clipboard`.
-  Two helper modules beneath them are in the same position: `filter.ts` imports
-  `$lib/api/period`, and `csv.ts` imports `$lib/platform/tauri`. Whether each is inverted,
-  split, or left behind is [[skills/plan]]'s.
+- ~~**Where exactly the line falls for two blocks and two helper modules.**~~ **Answered at #782,
+  with the code open, which is what that ticket was for.** Reading their imports, the fifteen
+  blocks sorted into three groups: six already clean, seven clean but for the i18n read, and two
+  that reached further. `list.svelte`, at 918 lines, pulled `$lib/error/message`,
+  `$lib/error/toast` and `$lib/platform/tauri`; `record-actions` pulled `design/mutation` and
+  `$lib/platform/clipboard`. Two helper modules beneath them were in the same position:
+  `filter.ts` imports `$lib/api/period`, and `csv.ts` imported `$lib/platform/tauri`.
 
-  *`record-surface` was in this group until 2026-08-23. `$app/navigation` was its only reach
-  beyond i18n, and the SvelteKit constraint took it out of the question.*
+  **The rule, and it is two rules in a fixed order.** The second is the one the ticket proposed;
+  the first is what the repository already said and had to be applied before it.
 
-  **One edge runs the wrong way across that grouping, found while deriving the tasks.**
-  `record-card.svelte` imports `recordCard` from `list.svelte` — a module-scope class list at
-  `list.svelte:18`, not a component. So a block in the clean group depends on one of the two
-  open ones, and either `record-card` waits for `list.svelte` to be resolved or `recordCard`
-  moves out from under it first. Whichever is chosen is a task-ordering matter and not a change
-  to this grouping.
+  > **What [[rules/frontend]] forbids a packaged component from doing is settled first**, because
+  > no injection makes it permissible. Then: a coupling to a **capability** is inverted and the
+  > module moves; a coupling to a **domain concept** stays, and the module stays with it.
 
-  *A second edge runs the same way, found at #781. `export-dialog.svelte` imports
-  `EXPORT_FORMATS` from `design/csv`, and `csv.ts` is one of the two helper modules above. So
-  the i18n-only group is seven blocks by its own imports and five by what those imports reach,
-  and #781 moved five. Both stragglers wait on a module rather than on a question about
-  themselves, which is why neither is a change to this grouping either.*
+  A capability is something any application would have in some form: saving a file, reading the
+  clipboard, showing a toast. A domain concept is something only this application has: a contract
+  period, a mutation, an undo.
+
+  | Module | Reaches | Placed |
+  | --- | --- | --- |
+  | `csv.ts` | `platform/tauri`, for two types | **moves**, taking an `ExportWriter` |
+  | `export-dialog.svelte` | `design/csv` | **moves**, onto the contract for five strings |
+  | `record-card.svelte` | `recordCard`, from `list.svelte:18` | **moves**, and the class list moves onto it |
+  | `list.svelte` | `error/*`, `platform/tauri`, `design/filter` | **stays** |
+  | `list-keyboard.ts` | `design/shortcut-registry` | **stays** |
+  | `shortcut-registry.ts` | `i18n-types` | **stays** |
+  | `shortcut-registry.svelte.ts` | `platform/diagnostics` | **stays** |
+  | `filter.ts` | `api/period` | **stays** |
+  | `record-actions.svelte` | `design/mutation`, `platform/clipboard` | **stays** |
+
+  **The first rule is what decided `list.svelte`, and it decided it before any of its inversions
+  were priced.** [[rules/frontend]], under its own heading, holds that *a packaged component
+  registers no keyboard shortcut of its own*, because a registration describes itself out of
+  `TranslationFunctions` and the package cannot reach that dictionary. `list.svelte` registers
+  three, through `toListShortcuts`, and each of them names a key under `common.table`. So the
+  block was never packageable on the terms the rest of the package is packageable on, and the
+  four modules beneath and beside it follow it for the same reason: `list-keyboard.ts` is what
+  *builds* those registrations, and `shortcut-registry.{ts,svelte.ts}` is what holds them.
+
+  **This is why the registry did not cross, and the Components table said it would.** Nothing in
+  the package needs it: `shortcut.ts` says in its own header that *the registry that holds them is
+  `shortcut-registry.ts`; nothing here knows it exists*, and `primitive/sidebar` states its key
+  and lets its consumer register it, which is where that rule came from at #780. Every other
+  caller is under `layout/`, which is out of scope by name.
+
+  **`filter.ts` is domain and its type does not generalise cheaply.** `PERIOD_FILTER` reads
+  `FILTER_PERIODS`, and a filter labels itself with `(translations: TranslationFunctions) =>
+  string` so that it can be declared once as a module constant and still render in the active
+  locale. Generalising means the label becomes a resolved `string`, which turns `RANK_FILTER` in
+  `contract/rank-filter.ts` from a constant into a function of the translations and moves five
+  call sites with it. That is a change to a contract-domain module bought to make a block
+  packageable that the rule above had already refused, so it was not made.
+
+  **`record-actions` is the mixed case and it stays.** The clipboard is a capability and
+  `design/mutation` is not: it reaches `$lib/api` and `$lib/history` and is out of scope by name.
+  A split that put one of its two controls in the package would leave a seam through a
+  sixty-line component to move one button.
+
+  **What moved instead is smaller than the ticket's own table expected, and that is the answer
+  rather than a shortfall.** Requirement 2 says the package holds the blocks that carry no
+  domain, and it does not oblige the package to hold a list that narrows by a rent period and
+  answers three keys out of this application's dictionary.
+
+  **Both stragglers were freed, which is what the two edges below were waiting for.**
+  `recordCard` moved out from under `list.svelte` and onto `block/record-card.svelte`, the
+  component that wears it, so the edge now runs from the list into the package instead of the
+  other way; and `csv.ts` crossing took `export-dialog` with it.
+
+  *`record-surface` was in the i18n-only group until 2026-08-23. `$app/navigation` was its only
+  reach beyond i18n, and the SvelteKit constraint took it out of the question.*
+
+  *The edge at `list.svelte:18`, found while deriving the tasks, and the second one found at
+  #781 where `export-dialog.svelte` imports `EXPORT_FORMATS` from `design/csv`, are both closed
+  by the placements above.*
 *Two questions were open when this spec was drafted and are answered here rather than deleted,
 so the reasoning is not re-derived. The i18n seam is the other, and it became requirement 4.*
 
@@ -488,11 +536,11 @@ runner collects what, per acceptance criterion 12.
 | --- | --- |
 | `design/primitive/**` | `packages/design/src/lib/primitive/**` — 56 families, unchanged but for the i18n inversion and the `$lib/design/` to `#lib/` specifier substitution. *Complete at #780. `spinner` crossed early with the contract at #777, #778 took the 38 that render no string, #779 the ten that read a locale for nothing but a direction, and #780 the last seven.* |
 | `design/block/` — the six clean blocks | `packages/design/src/lib/block/` — `field-error`, `page-frame`, `record-action-control`, `specification`, `standalone-surface`, `surface-action`, moved as they stand. *Complete at #781, unchanged but for the specifier substitution.* |
-| `design/block/` — the seven i18n-only blocks | same destination, after requirement 4's inversion. **Five of the seven, at #781**: `back-control`, `delete-dialog`, `form-surface`, `record-surface`, `selection-dialog`. *`export-dialog` and `record-card` are not among them, and this row said they were until #781. Both were classified by reading their own imports, and both reach past the design system through one file that was not read with them: `export-dialog` imports `design/csv`, which imports `$lib/platform/tauri`, and `record-card` imports `recordCard` from `list.svelte`. Neither is a change to the grouping's argument, and both are in the seam ticket for the module they wait on.* |
-| `design/block/list.svelte`, `design/block/record-actions.svelte` | **open** — see `# Open Questions`; the two that reach past i18n. *Two more wait on them rather than on a question of their own: `export-dialog` on `csv.ts`, `record-card` on `list.svelte` itself.* |
+| `design/block/` — the seven i18n-only blocks | same destination, after requirement 4's inversion. **Five of the seven, at #781**: `back-control`, `delete-dialog`, `form-surface`, `record-surface`, `selection-dialog`. *`export-dialog` and `record-card` are not among them, and this row said they were until #781. Both were classified by reading their own imports, and both reach past the design system through one file that was not read with them: `export-dialog` imports `design/csv`, which imported `$lib/platform/tauri`, and `record-card` imported `recordCard` from `list.svelte`. Neither is a change to the grouping's argument, and both crossed at #782 once the module each waited on was placed, adding six keys to `DesignStrings` and taking it from 28 to 34.* |
+| `design/block/list.svelte`, `design/block/record-actions.svelte` | **both stay in `apps/desktop/src/lib/design/block/`.** Settled at #782; `# Open Questions` holds the rule and the reasoning. `list.svelte` registers three keyboard shortcuts, which [[rules/frontend]] forbids a packaged component outright, and it narrows through `design/filter`; `record-actions` reaches `design/mutation`, which is out of scope by name. *The two that were waiting on them no longer are: `record-card` crossed once `recordCard` moved onto it, and `export-dialog` once `csv.ts` crossed.* |
 | `design/{tailwind,tone,group,selection,shortcut,sort,identifier,money,is-below-shell-breakpoint}.ts` | `packages/design/src/lib/` — the nine root modules that already import nothing outside `design/` |
-| `design/{back,confirmation,list-keyboard,shortcut-registry}.*` | `packages/design/src/lib/` — `back` and `confirmation` reach only `$app/*`, `design/*`, or i18n types, all three of which the package may now have. **`shortcut-registry.svelte.ts` does not**, and this row said it did until #780: it reaches `$lib/platform/diagnostics`, which requirement 3 forbids, so it and `list-keyboard` wait for the seam ticket. *Found while moving `sidebar` past it, which registered a keyboard shortcut from its own state. What that forces is a rule rather than a fact about this row, and [[rules/frontend]] holds it.* |
-| `design/{csv,filter,date,import,create-intent}.ts` | **open** for the first two; `date.ts` and `import.ts` stay, being locale formatting and database search; `create-intent.ts` moves with `$app/types` |
+| `design/{back,confirmation,list-keyboard,shortcut-registry}.*` | `packages/design/src/lib/` — `back` and `confirmation` reach only `$app/*`, `design/*`, or i18n types, all three of which the package may now have. **`shortcut-registry.svelte.ts` does not**, and this row said it did until #780: it reaches `$lib/platform/diagnostics`, which requirement 3 forbids. *#782 settled it by leaving all three of `shortcut-registry.{ts,svelte.ts}` and `list-keyboard.ts` with the application, and the ground is not the diagnostics reach: a registration describes itself out of `TranslationFunctions`, and nothing in the package holds a registry or wants one. So `back` and `confirmation` are what this row moves.* *Found while moving `sidebar` past it, which registered a keyboard shortcut from its own state. What that forces is a rule rather than a fact about this row, and [[rules/frontend]] holds it.* |
+| `design/{csv,filter,date,import,create-intent}.ts` | **settled at #782 for the first two.** `csv.ts` moves, declaring the two wire types it builds rather than importing them and taking an `ExportWriter` from its consumer; `filter.ts` stays, being domain. `date.ts` and `import.ts` stay, being locale formatting and database search; `create-intent.ts` moves with `$app/types` |
 | `design/cell/**`, `design/{query,mutation,inverse,undo-shortcut}.*` | stay in `apps/desktop/src/lib/design/` — the domain, per requirement 6 |
 | `app.css`'s `:root`, `@theme`, `@theme static`, `@layer base`, scrollbar and reduced-motion blocks | `packages/design/src/lib/tokens.css` |
 | `app.css`'s window scroll lock | stays in `apps/desktop/src/app.css`, per requirement 5 |
@@ -676,6 +724,12 @@ Sequenced so that each step is separately reviewable and the tree compiles at th
    [[rules/frontend]] carries as a rule.*
 6. **Resolve the two open modules** — `list.svelte` and `record-actions` — under whatever
    `# Open Questions` settles.
+
+   *Done at #782, and what it settled is that neither crosses. Three modules did instead:
+   `csv.ts` with an injected writer, and `export-dialog` and `record-card` behind it once the
+   two edges holding them were cut. `# Open Questions` has the rule and the reasoning; the
+   consequence for step 8 is that `design/` comes down to the domain **plus** the list and what
+   holds its keys, rather than to the domain alone.*
 7. **Move `components.json` and prove requirement 7**, by adding a primitive not already present
    through the CLI with `--cwd packages/design`.
 8. **Delete what was left behind**, and take `apps/desktop/src/lib/design/` down to the domain.

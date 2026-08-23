@@ -16,7 +16,7 @@
 	import { useListContracts } from '$lib/contract/query';
 	import { toChosenLabel, type FilterSelection } from '$lib/design/filter';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { toNarrowedName } from '$lib/design/csv';
+	import { toNarrowedName } from '@rentable/design/csv.js';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
