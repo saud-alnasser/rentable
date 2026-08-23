@@ -366,11 +366,16 @@ alternatives:
   `import { cn, type WithElementRef } from "#lib/tailwind.js";` — compiling as written, with no
   import to fix. **Self-reference would have needed every generated import rewritten by hand**,
   which is the cost that sank approach B.
-- **The import rewrite is one substitution, not a redesign.** Today's internal specifiers are
-  `$lib/design/tailwind.js` and its 267 siblings. Inside the package the same specifier becomes
-  `#lib/tailwind.js`, and nothing else about the shape of an import changes. Note the `.js`
-  survives: `#lib/tailwind.js` resolved to `./src/lib/tailwind.ts` in the prototype, so the
-  repository's existing habit needs no adjustment.
+
+  *The CLI writes a bare `#lib/tailwind.js` and that one carries an extension, so it is unaffected
+  by the normalisation above. What it writes for a component import is #783's to check.*
+- **The import rewrite is a substitution and a normalisation, not a redesign.** Today's internal
+  specifiers are `$lib/design/tailwind.js` and its 267 siblings. Inside the package the same
+  specifier becomes `#lib/tailwind.js`. Note the `.js` survives: `#lib/tailwind.js` resolved to
+  `./src/lib/tailwind.ts` in the prototype, so the repository's existing habit needs no
+  adjustment. *This bullet said "one substitution" until 2026-08-23, and #774 measured that a
+  specifier carrying no extension resolves through neither `imports` nor `exports`. The second
+  edit is mechanical and it is counted in `# Migration`.*
 - **Nothing goes stale.** A `dist/` that a consumer resolves while the source beside it has moved
   on is a failure with no error attached to it, and this repository has deliberately avoided
   carrying one.
@@ -447,15 +452,25 @@ runner collects what, per acceptance criterion 12.
 
 # Interfaces
 
-The package's public surface is three things, and everything else is implementation.
+The package's public surface is four things.
 
-- **The components**, reached as `@rentable/design/primitive/<family>` and
-  `@rentable/design/block/<name>`, through `exports` subpaths carrying `svelte`, `types` and
-  `default` conditions. A per-family subpath rather than one barrel, because a single entry
-  point makes every consumer's bundle depend on every component in the package.
-- **The contract**, `@rentable/design/strings` — the provider component and the type a consumer
-  must satisfy. Requirement 4's compile-time failure is this type and nothing else.
+*It said three until 2026-08-23, and the count was wrong rather than the list incomplete: the
+library-root modules were described as implementation while the desktop already imported them.
+Of the modules `# Components` moves into the package, fourteen have importers outside
+`design/` today, across 75 call sites, `sort` at 11 and `selection` at 10. They are public
+whatever the manifest says, which is why the wildcard below exposes them rather than the
+wildcard being the thing that made them public.*
+
+- **The components**, reached as `@rentable/design/primitive/<family>/index.js` and
+  `@rentable/design/block/<name>.svelte`, through an `exports` subpath carrying `svelte`,
+  `types` and `default` conditions. A per-family subpath rather than one barrel, because a
+  single entry point makes every consumer's bundle depend on every component in the package.
+- **The contract**, `@rentable/design/strings.js` — the provider component and the type a
+  consumer must satisfy. Requirement 4's compile-time failure is this type and nothing else.
 - **The stylesheet**, `@rentable/design/tokens.css`, plus the `@source` line each consumer writes.
+- **The library-root modules**, reached as `@rentable/design/<name>.js` — class merging, tone,
+  sorting, selection, and the rest of what `# Components` moves to `src/lib/`. Not a designed
+  surface so much as an acknowledged one.
 
 **The `@source` line is part of the interface even though it is not code.** A consumer that
 imports the stylesheet and omits it gets a silently unstyled application, so it belongs in what a
@@ -472,6 +487,53 @@ open under *Not checked*.
 `#lib/...` is **internal and not part of this interface.** It is declared in the package's own
 `imports` field, which resolves only for specifiers inside the package, so no consumer ever
 writes one. That is the property `$lib` lacked.
+
+**The subpath map is one wildcard**, `"./*"` onto `"./src/lib/*"`, carrying the three
+conditions. Written while building #774, and rewritten there twice because the first two shapes
+were measured and failed.
+
+**What a wildcard cannot do is add an extension**, and that is what decides the map. A pattern
+takes one `*` and substitutes it literally, so `@rentable/design/tailwind` resolves to
+`./src/lib/tailwind`, which is not a file. Measured at the desktop's own type gate:
+
+```
+Cannot find module '@rentable/design/primitive/button' or its corresponding type declarations.
+Cannot find module '@rentable/design/back.svelte' or its corresponding type declarations.
+Cannot find module '@rentable/design/tailwind' or its corresponding type declarations.
+```
+
+A per-family pattern does not rescue it and makes things worse:
+`"./primitive/*"` onto `"./src/lib/primitive/*/index.ts"` resolves the bare family name, and
+turns `primitive/button/index.js` into `.../button/index.js/index.ts`. **The two forms need
+opposite rules**, which is why the map collapsed to one pattern instead of three.
+
+So **the consumer's specifier names a file, with its extension**, and the map is the identity on
+`src/lib/`. All four shapes were measured through it, by violation rather than by a clean run:
+
+```svelte
+import PageFrame from '@rentable/design/block/page-frame.svelte';
+import { useBack } from '@rentable/design/back.svelte.js';      // a rune module
+import { Button } from '@rentable/design/primitive/button/index.js';
+import { cn } from '@rentable/design/tailwind.js';
+```
+
+Passing a number to each `string` prop and parameter produced four
+`Type 'number' is not assignable to type 'string'` errors, and both components reached the
+bundle. `.js` still resolves onto `.ts`, so the repository's existing habit survives here exactly
+as it does inside the package.
+
+**This costs the migration a normalisation pass, and `# Migration` carries it.** It is the one
+claim this section previously got wrong: the rewrite is not only a prefix substitution.
+
+**The `svelte` condition is kept and is currently inert**, which is the opposite of what #774's
+third criterion asserts. All three conditions point at the same target, so deleting `svelte`
+entirely changes nothing: the desktop still type-checks and still bundles. It earns its place
+only if a condition ever diverges from `default`, which is what would happen if a `dist/` ever
+appeared. Keeping it is cheap and forward-safe; **recording it as verified would have been
+false**, and the research that called it required
+([[efforts/the-design-system-becomes-a-package/evidence/research/packaging-a-svelte-design-system]],
+finding 3) was read against a package that resolves `.svelte` through it rather than through a
+`default` pointing at the same file.
 
 # Technical Approach
 
@@ -521,15 +583,37 @@ Sequenced so that each step is separately reviewable and the tree compiles at th
 # Migration
 
 There is no data migration. What migrates is import specifiers, in two mechanical
-substitutions and one manual pass:
+substitutions, one mechanical normalisation, and one manual pass:
 
 - Inside the package: `$lib/design/` becomes `#lib/`. 268 occurrences of `tailwind.js` alone.
 - In `apps/desktop`: `$lib/design/<moved>` becomes `@rentable/design/<moved>`.
+- **Normalisation: every specifier crossing the package boundary names a file, with its
+  extension.** `# Interfaces` has why, measured. This one was missed until #774 and is the
+  reason the prefix substitution above is not the whole of the rewrite.
 - Manual: the i18n inversion, which is the only edit in this effort that changes what a file
   does rather than where it sits.
 
 **The manual pass is the one that needs a reviewer**, and separating it from the two
 substitutions is what makes that possible.
+
+## What the normalisation actually touches
+
+Counted at `9c7647f9` over `apps/desktop/src`, excluding `design/`'s own files:
+
+| Form today | Becomes | Sites |
+| --- | --- | --- |
+| `primitive/<family>` | `primitive/<family>/index.js` | 139 |
+| a root module with no extension, `selection`, `sort`, `csv` | the same name with `.js` | about 100 |
+| a rune module written `<name>.svelte` | `<name>.svelte.js` | 19 |
+| `primitive/<family>/index.js`, `<name>.js` | unchanged | 270 plus 37 |
+
+**Nothing about this fails quietly.** Every un-normalised specifier is `Cannot find module` at
+the type gate, so a ticket that half-does it cannot land green. That is the property that makes
+it safe to spread across the moving tickets rather than doing it in one.
+
+*Why it lands on the moving tickets rather than becoming its own: those tickets already rewrite
+the prefix on every one of these lines, so normalising is a second edit to a line being edited,
+not a second pass over the tree.*
 
 # Testing Strategy
 

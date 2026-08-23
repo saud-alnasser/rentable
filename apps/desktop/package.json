@@ -25,6 +25,7 @@
 		"i18n": "typesafe-i18n"
 	},
 	"dependencies": {
+		"@rentable/design": "workspace:*",
 		"@rentable/workspace-migrations": "workspace:*",
 		"@rentable/workspace-permission": "workspace:*",
 		"@tabler/icons-svelte": "^3.46.0",

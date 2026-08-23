@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-20
+date: 2026-08-23
 kind: reference
 use-when: "installing dependencies or running any repository script"
 ---
@@ -17,14 +17,24 @@ or anything touching the lockfile.
 
 ## The workspace, and which tool runs what
 
-`pnpm-workspace.yaml` declares `apps/*` and `packages/*`. There are three packages —
-**`@rentable/desktop`, the desktop application at `apps/desktop/`**, **`@rentable/control-plane`
-at `apps/control-plane/`**, the always-online tier that holds accounts, workspaces and
-membership, and **`@rentable/workspace-migrations` at `packages/workspace-migrations/`**, the SQL
-a workspace database is built from and the only thing both other packages depend on — and the
-root is a private, unversioned container named `rentable`. The scope is what keeps them distinct:
-the root holds the product's name, and every package under it is named within that scope. *There
-was one until 2026-08-18, when #549 cut the second.*
+`pnpm-workspace.yaml` declares `apps/*` and `packages/*`. There are five packages, and the root
+is a private, unversioned container named `rentable`. The scope is what keeps them distinct: the
+root holds the product's name, and every package under it is named within that scope.
+
+| Package | Where | What it is |
+| --- | --- | --- |
+| `@rentable/desktop` | `apps/desktop/` | the desktop application |
+| `@rentable/control-plane` | `apps/control-plane/` | the always-online tier that holds accounts, workspaces and membership |
+| `@rentable/workspace-migrations` | `packages/workspace-migrations/` | the SQL a workspace database is built from |
+| `@rentable/workspace-permission` | `packages/workspace-permission/` | what a member may do to a workspace, named the same way on both sides |
+| `@rentable/design` | `packages/design/` | the interface every rentable client is drawn from |
+
+*There was one until 2026-08-18, when #549 cut the second. This paragraph said "three packages"
+and named the first three until 2026-08-23, by which point there were five — the count is the
+part of it that goes stale, which is why it is a table now.*
+
+**`pnpm install` reports six workspace projects, not five.** The root counts as one. A read that
+expects the package count to match is off by one and always will be.
 
 **pnpm declares the workspace; Turborepo runs the tasks across it.** Which of the two a script
 goes through is not arbitrary:
