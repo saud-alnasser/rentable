@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn, type WithoutChild } from '$lib/design/tailwind.js';
+	import { cn, type WithoutChild } from '@rentable/design/tailwind.js';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { ContextMenu as ContextMenuPrimitive } from 'bits-ui';
 

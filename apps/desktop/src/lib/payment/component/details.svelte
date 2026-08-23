@@ -11,7 +11,7 @@
 	import { formatLocaleMoney } from '$lib/platform/locale';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import { back } from '$lib/design/back.svelte';
+	import { back } from '@rentable/design/back.svelte.js';
 	import RecordActions from '$lib/design/block/record-actions.svelte';
 	import PaymentForm from './form.svelte';
 

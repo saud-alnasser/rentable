@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { back } from '$lib/design/back.svelte';
+	import { back } from '@rentable/design/back.svelte.js';
 	import type { Payment } from '$lib/platform/database/schema';
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
@@ -9,7 +9,11 @@
 	import List from '$lib/design/block/list.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { toNarrowedName } from '$lib/design/csv';
-	import { describeRefusals, foreseenRefusals, type SelectionPlan } from '$lib/design/selection';
+	import {
+		describeRefusals,
+		foreseenRefusals,
+		type SelectionPlan
+	} from '@rentable/design/selection.js';
 	import { PERIOD_FILTER, toChosenLabel, type FilterSelection } from '$lib/design/filter';
 	import { isFilterPeriod } from '$lib/api/period';
 	import {

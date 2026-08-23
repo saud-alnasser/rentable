@@ -23,10 +23,14 @@
 	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
 	import SelectionDialog from '$lib/design/block/selection-dialog.svelte';
 	import * as Cell from '$lib/design/cell';
-	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
-	import { hasCreateIntent } from '$lib/design/create-intent';
-	import { describeRefusals, foreseenRefusals, type SelectionPlan } from '$lib/design/selection';
-	import type { ListSort } from '$lib/design/sort';
+	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
+	import { hasCreateIntent } from '@rentable/design/create-intent.js';
+	import {
+		describeRefusals,
+		foreseenRefusals,
+		type SelectionPlan
+	} from '@rentable/design/selection.js';
+	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';

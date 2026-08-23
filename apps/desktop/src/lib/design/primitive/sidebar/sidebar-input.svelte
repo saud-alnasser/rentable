@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Input } from '$lib/design/primitive/input/index.js';
-	import { cn } from '$lib/design/tailwind.js';
+	import { Input } from '@rentable/design/primitive/input/index.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import type { ComponentProps } from 'svelte';
 
 	let {

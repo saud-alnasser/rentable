@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn, type WithoutChildrenOrChild } from '$lib/design/tailwind.js';
+	import { cn, type WithoutChildrenOrChild } from '@rentable/design/tailwind.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import { Menubar as MenubarPrimitive } from 'bits-ui';

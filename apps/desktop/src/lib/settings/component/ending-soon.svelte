@@ -1,8 +1,8 @@
 <script lang="ts">
 	import api from '$lib/api/caller';
-	import { Button } from '$lib/design/primitive/button';
-	import * as Field from '$lib/design/primitive/field';
-	import { Input } from '$lib/design/primitive/input';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import * as Field from '@rentable/design/primitive/field/index.js';
+	import { Input } from '@rentable/design/primitive/input/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useSetEndingSoonNoticeDays } from '$lib/settings/query';
 	import { toast } from 'svelte-sonner';

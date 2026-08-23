@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as Tooltip from '$lib/design/primitive/tooltip/index.js';
-	import { cn, type WithElementRef } from '$lib/design/tailwind.js';
+	import { cn, type WithElementRef } from '@rentable/design/tailwind.js';
 	import type { HTMLAttributes } from 'svelte/elements';
 	import {
 		SIDEBAR_COOKIE_MAX_AGE,

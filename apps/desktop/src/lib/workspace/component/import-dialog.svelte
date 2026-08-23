@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Button } from '$lib/design/primitive/button';
-	import { Callout } from '$lib/design/primitive/callout';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Dialog from '$lib/design/primitive/dialog';
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL } from '$lib/i18n/i18n-svelte';

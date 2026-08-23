@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button } from '$lib/design/primitive/button';
+	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import type { Component } from 'svelte';
 

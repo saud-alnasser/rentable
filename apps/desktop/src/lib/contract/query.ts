@@ -5,11 +5,11 @@ import {
 	type ContractSortColumnId
 } from '$lib/contract/contract';
 import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
-import type { SelectionCall } from '$lib/design/selection';
+import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history/history';
 import { workspacePrefixes } from '$lib/design/query';
 import type { ContractRank } from '$lib/contract/rank';
-import type { ListSort } from '$lib/design/sort';
+import type { ListSort } from '@rentable/design/sort.js';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';

@@ -1,5 +1,5 @@
 import type { RemoteSyncState } from '$lib/platform/host';
-import type { BadgeVariant } from '$lib/design/primitive/badge';
+import type { BadgeVariant } from '@rentable/design/primitive/badge/index.js';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 import { signedInAccount } from '$lib/sync/account';

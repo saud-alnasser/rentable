@@ -97,7 +97,7 @@ Recorded originally as ADR 0030, *The landing screen is figures over sections, a
 
 **What a surface reports, it reports in one vocabulary: `neutral | info | success | warning | error`.**
 
-Stated once, in `$lib/design/tone`. A callout, the standalone surface's band, a status badge, a
+Stated once, in `packages/design/src/lib/tone.ts`. A callout, the standalone surface's band, a status badge, a
 toast and a record action all report a kind of event, and every one of them takes its tone from
 there. **A component never declares its own set of kind-names**, and a colour a tone lends always
 resolves through a token in the product's token layer, `packages/design/src/lib/tokens.css`,

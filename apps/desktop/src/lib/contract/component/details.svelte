@@ -11,7 +11,7 @@
 	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
 	import RecordSurface from '$lib/design/block/record-surface.svelte';
 	import Specification from '$lib/design/block/specification.svelte';
-	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
+	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import * as Cell from '$lib/design/cell';
 	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import { formatLocaleDate } from '$lib/platform/locale';
@@ -38,7 +38,7 @@
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import ContractUnits from './units.svelte';
-	import { back } from '$lib/design/back.svelte';
+	import { back } from '@rentable/design/back.svelte.js';
 	import RecordActions from '$lib/design/block/record-actions.svelte';
 	import ContractForm from './form.svelte';
 

@@ -26,11 +26,11 @@
 	import { browser } from '$app/environment';
 	import ExportDialog from '$lib/design/block/export-dialog.svelte';
 	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
-	import { Button } from '$lib/design/primitive/button';
-	import { Checkbox } from '$lib/design/primitive/checkbox';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import { Checkbox } from '@rentable/design/primitive/checkbox/index.js';
 	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
-	import * as Empty from '$lib/design/primitive/empty';
-	import { Input } from '$lib/design/primitive/input';
+	import * as Empty from '@rentable/design/primitive/empty/index.js';
+	import { Input } from '@rentable/design/primitive/input/index.js';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import {
 		toCsv,
@@ -48,7 +48,7 @@
 		type FilterSelection,
 		type ListFilter
 	} from '$lib/design/filter';
-	import { listRows, type ListGroup } from '$lib/design/group';
+	import { listRows, type ListGroup } from '@rentable/design/group.js';
 	import {
 		nextPosition,
 		toListMovement,
@@ -57,14 +57,14 @@
 		type ListMovement,
 		type ListPosition
 	} from '$lib/design/list-keyboard';
-	import { selectedRecords } from '$lib/design/selection';
+	import { selectedRecords } from '@rentable/design/selection.js';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import { isolateDirection } from '$lib/error/message';
 	import { showErrorToast } from '$lib/error/toast';
-	import { isEditingText } from '$lib/design/shortcut';
+	import { isEditingText } from '@rentable/design/shortcut.js';
 	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
-	import { nextListSort, type ListSort } from '$lib/design/sort';
-	import { cn } from '$lib/design/tailwind';
+	import { nextListSort, type ListSort } from '@rentable/design/sort.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { tauri } from '$lib/platform/tauri';

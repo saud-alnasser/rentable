@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { WithElementRef } from '$lib/design/tailwind.js';
+	import type { WithElementRef } from '@rentable/design/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
 

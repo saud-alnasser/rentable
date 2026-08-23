@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { cn } from '$lib/design/tailwind';
-	import { tone as toneClasses, toneIcon, type Tone } from '$lib/design/tone';
+	import { cn } from '@rentable/design/tailwind.js';
+	import { tone as toneClasses, toneIcon, type Tone } from '@rentable/design/tone.js';
 	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
 	import type { Component, Snippet } from 'svelte';
 
@@ -62,7 +62,7 @@
 		class?: string;
 		/**
 		 * What kind of event this screen is reporting, in the application's one vocabulary — see
-		 * `$lib/design/tone`.
+		 * `@rentable/design/tone.js`.
 		 *
 		 * **Every screen on this block declares one, and most declare `neutral`.** Screens that
 		 * present identically leave a person unable to tell at a glance whether the application is

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tauri } from '$lib/platform/tauri';
-	import { Button } from '$lib/design/primitive/button';
+	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { requestWindowClose } from '$lib/layout/event';
 	import CopyIcon from '@lucide/svelte/icons/copy';

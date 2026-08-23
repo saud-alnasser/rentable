@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { buttonVariants } from '$lib/design/primitive/button/index.js';
-	import { cn } from '$lib/design/tailwind.js';
+	import { buttonVariants } from '@rentable/design/primitive/button/index.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { AlertDialog as AlertDialogPrimitive } from 'bits-ui';
 
 	let {

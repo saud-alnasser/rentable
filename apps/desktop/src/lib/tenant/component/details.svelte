@@ -5,14 +5,14 @@
 	import RecordSurface from '$lib/design/block/record-surface.svelte';
 	import Specification from '$lib/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
-	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
+	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { isRecordId } from '$lib/platform/database/identity';
 	import { useDeleteTenant, useFetchTenant } from '$lib/tenant/query';
 	import { useListContracts } from '$lib/contract/query';
 	import { isTenantDeletable } from '$lib/tenant/tenant';
-	import { back } from '$lib/design/back.svelte';
+	import { back } from '@rentable/design/back.svelte.js';
 	import RecordActions from '$lib/design/block/record-actions.svelte';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';

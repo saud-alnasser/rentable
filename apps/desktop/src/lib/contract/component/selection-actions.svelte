@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { back } from '$lib/design/back.svelte';
+	import { back } from '@rentable/design/back.svelte.js';
 	import SelectionDialog from '$lib/design/block/selection-dialog.svelte';
 	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import {
@@ -8,7 +8,7 @@
 		foreseenRefusals,
 		type SelectionCall,
 		type SelectionPlan
-	} from '$lib/design/selection';
+	} from '@rentable/design/selection.js';
 	import {
 		useDeleteManyContracts,
 		usePlanManyContracts,

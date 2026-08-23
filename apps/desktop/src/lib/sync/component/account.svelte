@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { RemoteSyncState } from '$lib/platform/host';
-	import * as Avatar from '$lib/design/primitive/avatar';
-	import { Button } from '$lib/design/primitive/button';
-	import * as Field from '$lib/design/primitive/field';
+	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { accountInitials, signedInAccount } from '$lib/sync/account';
 	import { signOutOfGoogle } from '$lib/sync/sign-in';

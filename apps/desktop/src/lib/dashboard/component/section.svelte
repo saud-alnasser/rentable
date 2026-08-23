@@ -21,8 +21,8 @@
 	import { resolve } from '$app/paths';
 	import type api from '$lib/api/caller';
 	import * as Cell from '$lib/design/cell';
-	import { Badge } from '$lib/design/primitive/badge';
-	import { Button } from '$lib/design/primitive/button';
+	import { Badge } from '@rentable/design/primitive/badge/index.js';
+	import { Button } from '@rentable/design/primitive/button/index.js';
 	import ContractForm from '$lib/contract/component/form.svelte';
 	import { isMoneyRank } from '$lib/contract/rank';
 	import { withContractRank } from '$lib/contract/rank-filter';

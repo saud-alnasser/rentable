@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { Tone } from '$lib/design/tone';
+	import type { Tone } from '@rentable/design/tone.js';
 	import { tv } from 'tailwind-variants';
 
 	/**
@@ -35,7 +35,7 @@
 </script>
 
 <script lang="ts">
-	import { Button } from '$lib/design/primitive/button';
+	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import type { Component } from 'svelte';
 

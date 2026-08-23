@@ -1,4 +1,4 @@
-import { regex } from '$lib/design/identifier';
+import { regex } from '@rentable/design/identifier.js';
 import { TRPCError } from '@trpc/server';
 
 /**
@@ -100,7 +100,7 @@ export function newId(): string {
  * an absent parameter became `NaN` there and an empty string fails this, so a gate below one
  * of these behaves as it always did.
  *
- * Built on the identifier grammar `$lib/design/identifier` already declares, so the breadcrumb
+ * Built on the identifier grammar `@rentable/design/identifier.js` already declares, so the breadcrumb
  * trail and the query gates agree on what an id looks like.
  */
 export function isRecordId(id: unknown): id is string {

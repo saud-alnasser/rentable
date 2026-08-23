@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Progress } from '$lib/design/primitive/progress';
+	import { Progress } from '@rentable/design/primitive/progress/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import {
 		STARTUP_STAGES,

@@ -14,7 +14,7 @@ import { isRecordId } from '$lib/platform/database/identity.ts';
 import type { ContractSortColumnId } from '$lib/contract/contract.ts';
 import type { ContractRank } from '$lib/contract/rank.ts';
 import { getContractRenewalTerm } from '$lib/contract/renewal.ts';
-import type { ListSort } from '$lib/design/sort.ts';
+import type { ListSort } from '@rentable/design/sort.ts';
 
 /** what a contract is created from, and what one comes back as, as the caller states them. */
 type ContractInput = Parameters<Api['contract']['create']>[0];

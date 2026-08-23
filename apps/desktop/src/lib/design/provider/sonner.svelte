@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Toaster } from '$lib/design/primitive/sonner';
+	import { Toaster } from '@rentable/design/primitive/sonner/index.js';
 	let { children } = $props();
 </script>
 

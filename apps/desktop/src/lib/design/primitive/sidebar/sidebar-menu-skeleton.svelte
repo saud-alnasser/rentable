@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Skeleton } from '$lib/design/primitive/skeleton/index.js';
-	import { cn, type WithElementRef } from '$lib/design/tailwind.js';
+	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
+	import { cn, type WithElementRef } from '@rentable/design/tailwind.js';
 	import type { HTMLAttributes } from 'svelte/elements';
 
 	let {

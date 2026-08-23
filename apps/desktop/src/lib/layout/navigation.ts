@@ -1,4 +1,4 @@
-import { regex } from '$lib/design/identifier';
+import { regex } from '@rentable/design/identifier.js';
 
 /** One static path segment of the current location, and the route that reaches it. */
 export type BreadcrumbCrumb = {

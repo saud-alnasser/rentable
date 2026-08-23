@@ -3,7 +3,7 @@ import { describe, it, mock } from 'node:test';
 
 import type { CreateMutationResult } from '@tanstack/svelte-query';
 
-import type { SelectionCall } from '$lib/design/selection.ts';
+import type { SelectionCall } from '@rentable/design/selection.ts';
 import { bindingOf } from '$lib/design/tests/testing.ts';
 
 /**

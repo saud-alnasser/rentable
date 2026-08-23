@@ -3,9 +3,9 @@
 	import { resolve } from '$app/paths';
 	import type api from '$lib/api/caller';
 	import * as Cell from '$lib/design/cell';
-	import { listRows } from '$lib/design/group';
-	import { Button } from '$lib/design/primitive/button';
-	import { Skeleton } from '$lib/design/primitive/skeleton';
+	import { listRows } from '@rentable/design/group.js';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
 	import type PlusIcon from '@lucide/svelte/icons/plus';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { get } from 'svelte/store';

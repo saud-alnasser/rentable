@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { back } from '$lib/design/back.svelte';
+	import { back } from '@rentable/design/back.svelte.js';
 	import type api from '$lib/api/caller';
 	import {
 		useDeleteManyUnits,
@@ -15,10 +15,14 @@
 	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
 	import SelectionDialog from '$lib/design/block/selection-dialog.svelte';
-	import { AWAITING_BLOCKERS } from '$lib/design/confirmation';
+	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import List from '$lib/design/block/list.svelte';
 	import { toNarrowedName } from '$lib/design/csv';
-	import { describeRefusals, foreseenRefusals, type SelectionPlan } from '$lib/design/selection';
+	import {
+		describeRefusals,
+		foreseenRefusals,
+		type SelectionPlan
+	} from '@rentable/design/selection.js';
 	import * as Cell from '$lib/design/cell';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';

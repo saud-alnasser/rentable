@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn, type WithoutChildrenOrChild } from '$lib/design/tailwind.js';
+	import { cn, type WithoutChildrenOrChild } from '@rentable/design/tailwind.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import { ContextMenu as ContextMenuPrimitive } from 'bits-ui';
 	import type { Snippet } from 'svelte';

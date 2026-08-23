@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { buttonVariants } from '$lib/design/primitive/button/index.js';
-	import { cn } from '$lib/design/tailwind.js';
+	import { buttonVariants } from '@rentable/design/primitive/button/index.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import { Pagination as PaginationPrimitive } from 'bits-ui';

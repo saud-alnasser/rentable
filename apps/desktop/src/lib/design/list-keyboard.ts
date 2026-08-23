@@ -9,7 +9,7 @@
  * comes next is exactly the kind that regresses silently. What the block keeps is the part that
  * is genuinely the DOM's — which element takes focus, and when it exists to take it.
  */
-import type { ListGroup, ListRow } from '$lib/design/group';
+import type { ListGroup, ListRow } from '@rentable/design/group.js';
 import type { ShortcutRegistration } from '$lib/design/shortcut-registry';
 
 /** One row of records, as moving through the list sees it. */

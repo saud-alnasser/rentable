@@ -29,7 +29,9 @@ pnpm test
 ```
 
 From the root, through `turbo run test`, which runs both runners. `pnpm --filter @rentable/design
-test` runs this one alone and skips the cache.
+test` skips the cache, and since #778 it is not this runner by itself: the package's own script
+runs `node:test` first and Vitest after. `npx vitest run` in `packages/design/` is what runs this
+one alone.
 
 ## Run one file
 

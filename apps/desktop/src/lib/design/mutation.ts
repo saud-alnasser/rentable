@@ -3,7 +3,7 @@ import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
 import { historyKeys, type HistoryEntry } from '$lib/history/history';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { inverseStack, type Inverse } from '$lib/design/inverse';
-import { NAMED_RECORDS, unforeseenRefusals } from '$lib/design/selection';
+import { NAMED_RECORDS, unforeseenRefusals } from '@rentable/design/selection.js';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 import { TRPCError } from '@trpc/server';

@@ -1,11 +1,11 @@
 <script lang="ts">
 	import type { Payment } from '$lib/platform/database/schema';
-	import { Button } from '$lib/design/primitive/button';
-	import * as Calendar from '$lib/design/primitive/calendar';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import * as Calendar from '@rentable/design/primitive/calendar/index.js';
 	import FieldError from '$lib/design/block/field-error.svelte';
 	import FormSurface, { insetControl } from '$lib/design/block/form-surface.svelte';
-	import * as Form from '$lib/design/primitive/form';
-	import { Input } from '$lib/design/primitive/input';
+	import * as Form from '@rentable/design/primitive/form/index.js';
+	import { Input } from '@rentable/design/primitive/input/index.js';
 	import * as Popover from '$lib/design/primitive/popover';
 	import {
 		formatCalendarDate,
@@ -15,8 +15,8 @@
 		toCalendarDate
 	} from '$lib/design/date';
 	import { formatLocaleMoney, getIntlLocale } from '$lib/platform/locale';
-	import { isWholeHalalas } from '$lib/design/money';
-	import { cn } from '$lib/design/tailwind.js';
+	import { isWholeHalalas } from '@rentable/design/money.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { getRemainingContractBalance } from '$lib/contract/contract';
 	import { useFetchContract } from '$lib/contract/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';

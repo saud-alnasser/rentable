@@ -1,4 +1,4 @@
-import { IsBelowShellBreakpoint } from '$lib/design/is-below-shell-breakpoint.svelte.js';
+import { IsBelowShellBreakpoint } from '@rentable/design/is-below-shell-breakpoint.svelte.js';
 import { shortcuts } from '$lib/design/shortcut-registry.svelte.js';
 import { getContext, setContext } from 'svelte';
 import { SIDEBAR_KEYBOARD_SHORTCUT } from './constants.js';

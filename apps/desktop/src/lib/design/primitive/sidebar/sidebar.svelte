@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as Sheet from '$lib/design/primitive/sheet/index.js';
-	import { cn, type WithElementRef } from '$lib/design/tailwind.js';
+	import { cn, type WithElementRef } from '@rentable/design/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
 	import { SIDEBAR_WIDTH_DRAWER } from './constants.js';

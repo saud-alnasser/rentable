@@ -1,6 +1,6 @@
 <script lang="ts">
 	import SurfaceAction from '$lib/design/block/surface-action.svelte';
-	import * as Field from '$lib/design/primitive/field';
+	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { toErrorDetail } from '$lib/error/message';
 	import { toTauriErrorCode } from '$lib/error/tauri';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';

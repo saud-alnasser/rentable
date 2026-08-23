@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { WithoutChildrenOrChild } from '$lib/design/tailwind.js';
-	import { cn } from '$lib/design/tailwind.js';
+	import type { WithoutChildrenOrChild } from '@rentable/design/tailwind.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { Tooltip as TooltipPrimitive } from 'bits-ui';
