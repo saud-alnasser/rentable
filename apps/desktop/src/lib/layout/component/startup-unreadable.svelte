@@ -73,6 +73,12 @@
      this screen actually carries. Everything on it is either a proper noun, a machine's English,
      or a glyph. -->
 <div lang="en" dir="ltr" class="flex min-h-full flex-1 flex-col">
+	<!-- **`tone="error"` and the absence of `busy` are load-bearing here, not styling.** this
+	     screen is drawn outside the string contract's provider, which the root layout renders only
+	     inside the locale gate. the surface's unbanded branch draws a packaged spinner, that
+	     spinner reads the contract, and reading it where there is none throws. either of the two
+	     keeps that branch undrawn; changing both puts a blank window back on the one screen that
+	     exists because of one. -->
 	<StandaloneSurface tone="error" title="rentable" description={message || undefined}>
 		{#snippet corner()}
 			<!-- where the failure was written down, which is the only place it survives now that

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Spinner } from '$lib/design/primitive/spinner';
 	import { cn } from '$lib/design/tailwind';
 	import { tone as toneClasses, toneIcon, type Tone } from '$lib/design/tone';
+	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
 	import type { Component, Snippet } from 'svelte';
 
 	/**

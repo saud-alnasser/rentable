@@ -1,20 +1,21 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-19
+date: 2026-08-23
 kind: rule
 mode: [prototype]
 paths:
   - apps/desktop/src/**
   - apps/desktop/tauri/src/**
   - apps/control-plane/src/**
+  - packages/design/src/**
 use-when: "adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code"
 ---
 
 <!--
   Path-scoped: the `paths:` frontmatter above is the authority, and the harness
-  enforces it — this rule loads when source under `apps/desktop/src/` or
-  `apps/desktop/tauri/src/` is read, and costs nothing otherwise.
+  enforces it — this rule loads when source under any of the four trees listed
+  there is read, and costs nothing otherwise.
 
   *Prototyping* was merged in here on 2026-08-17, from its own file. It answers
   the same question this rule answers — where a file goes — for the one kind of
@@ -29,11 +30,17 @@ One concept per file. Prefer a directory over a verbose filename. Prefer concise
 descriptive names over abbreviations.
 
 **`apps/control-plane/src/` joined the paths above on 2026-08-18 with #549**, and the sections
-on Rust and on prototype code cover nothing in it. Everything else does. It was flat for two
+on Rust and on prototype code cover nothing in it. Everything else does.
+It was flat for two
 tickets and is grouped by concept since #560 — `account/`, `database/`, `server/`, `session/`,
 `workspace/`, with the entrypoint and the refusal vocabulary left at the root because they belong
 to no one concept. *`session/` arrived with #550, which is what made the three-day window a
 credential the control plane issues rather than a flag a client sets.*
+
+**`packages/design/src/` joined on 2026-08-23 with #777**, with the same carve-out: it is a
+Svelte library, so the Rust sections have no subject there either. It is `src/lib/` plus
+`src/tests/`, and which of the two a file goes in is [[rules/testing]]'s answer rather than
+this rule's.
 
 A module name states a concept, so these names are not available:
 

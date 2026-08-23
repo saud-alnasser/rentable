@@ -6,7 +6,6 @@
 	import { Button } from '$lib/design/primitive/button';
 	import * as Field from '$lib/design/primitive/field';
 	import { Separator } from '$lib/design/primitive/separator';
-	import { Spinner } from '$lib/design/primitive/spinner';
 	import { toErrorText } from '$lib/error/message';
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
@@ -16,6 +15,7 @@
 	import SettingsLocale from '$lib/settings/component/locale.svelte';
 	import SettingsUpdates from '$lib/settings/component/updates.svelte';
 	import { useFetchSettings } from '$lib/settings/query';
+	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
 	import { toast } from 'svelte-sonner';
 
 	/**

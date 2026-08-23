@@ -7,7 +7,7 @@ paths:
   - apps/desktop/src/lib/**
   - apps/desktop/src/routes/**
   - apps/desktop/src/app.css
-  - packages/design/src/lib/tokens.css
+  - packages/design/src/**
 use-when: "writing or changing Svelte components, routes, styles, or client state"
 ---
 
@@ -47,11 +47,19 @@ reaching the user and everything else reading as an unexpected failure.
   files rather than merging, so the flags that make it replace one already here — `add
   --overwrite`, `init --reinstall` — discard whatever this repository put in it. Adding is
   safe; replacing is what there is no way back from. [[references/shadcn-svelte]] has both.
-  What they would discard is load-bearing. More than thirty of these files, across eighteen
+  What they would discard is load-bearing. Thirty-four of these files, across seventeen
   primitive families, read the i18n store — for a translated string, or for `dir` on the
   rendered element. A regenerated file carries neither and still compiles and renders, so
   the damage shows up as a silently English, silently LTR primitive rather than as an
-  error.
+  error. *It was eighteen until 2026-08-23, when `spinner` crossed into `@rentable/design` with
+  #777, and it falls to seven when the direction-only families cross at #779. Read the count as
+  the shape rather than the figure; what makes it right is the argument, not the arithmetic.*
+
+  **A family that has crossed is a second hazard rather than one fewer.** The CLI still points
+  at this application: `components.json` maps `ui` to `$lib/design/primitive`, and repointing it
+  is #783's. So `add --overwrite spinner` today writes a fresh `$lib/design/primitive/spinner/`
+  into a tree no import points at any more, and what a reader then finds is two spinners, one of
+  them unreachable and neither of them announcing which.
 - **App-level composites go in `design/block/`**, never in `design/primitive/`. App-level
   means shared by concepts; the application shell's own components are not, and live in
   `layout` (#257).
@@ -177,3 +185,12 @@ to learn it was to notice it, and a surface that missed it failed in Arabic alon
 The type definitions and utility files are **generated**. Edit the locale files, then
 regenerate — see [[references/pnpm]]. Components read translations from the store,
 never from a locale module directly.
+
+**A packaged component reads neither the store nor the locale metadata**, and this rule stops at
+the package boundary. `@rentable/design` imports nothing that names this application, so its
+words and its reading direction are supplied from outside: one typed object and one direction,
+handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/design/strings.js` is
+the contract, and it holds what enforces it and why the direction travels with the words.
+
+*Everything above is unchanged for a component that lives in this application, which is still all
+but one primitive family and every block.*

@@ -8,7 +8,7 @@
 	import { trustWorkspaceData } from '$lib/design/query';
 	import { TooltipProvider } from '$lib/design/primitive/tooltip';
 	import SonnerProvider from '$lib/design/provider/sonner.svelte';
-	import { locale } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
 	import LayoutFrame from '$lib/layout/component/frame.svelte';
@@ -26,6 +26,7 @@
 	import { listenForWindowCloseRequests } from '$lib/layout/event';
 	import { createStartup } from '$lib/layout/startup';
 	import { browserStartupPorts } from '$lib/layout/startup-ports';
+	import { DesignProvider } from '@rentable/design/strings.js';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount } from 'svelte';
@@ -184,71 +185,95 @@
 
 {#if shellState.isI18nReady}
 	<!--
-		The outer of the application's two boundaries, and the honest floor under requirement 8.
+		the strings and the reading direction every `@rentable/design` component renders with, and
+		the one place this application supplies them.
 
-		The inner one, inside the frame, catches everything a route drew and leaves the chrome
-		standing. It cannot catch the chrome itself: a boundary draws its fallback in place of what
-		threw, so a card drawn inside a rail that just threw throws again. This one is outside all
-		of it, and what it draws is the shared standalone surface with no frame around it at all.
+		**inside the gate rather than around the whole file**, because both values it passes need a
+		locale that this branch is the only one to have: every string resolves to the empty string
+		until a dictionary is loaded, and `currentDirection` reads a locale that is the thing not
+		there.
 
-		That is the one state requirement 6 otherwise forbids in a running application, and it is
-		allowed here because the alternative is a blank window nobody can leave without quitting.
+		**what keeps the branches below safe is narrower than it looks, and it is not that they
+		render nothing packaged.** `startup-unreadable` draws a `StandaloneSurface`, and that block
+		draws a packaged `Spinner`. two things stop it, either of them on its own: the surface is
+		given `tone="error"`, which takes the branch that holds no spinner, and it is given no
+		`busy`, which gates the spinner inside the other branch. a packaged component reached
+		outside this provider throws, and that branch is the one screen with no boundary above it
+		and no way out but quitting. the guard is written down at that call site rather than only
+		here.
+
+		**outside the boundary rather than inside it**, so that the surface drawn when the shell
+		throws is drawn with the same words. it supplies context and renders nothing, so there is
+		nothing here for a boundary to catch.
 	-->
-	<svelte:boundary
-		onerror={(error) =>
-			recordDiagnosticError(CAUGHT_ERROR_EVENT, toCaughtErrorFields('shell', error))}
-	>
-		<QueryClientProvider client={queryClient}>
-			<SonnerProvider>
-				<TooltipProvider>
-					<!-- the rail's way in navigates, and that is the whole mechanism: signed out,
-					     `shellSurface` draws the card over every address but the ones `OPENS_SIGNED_OUT`
-					     holds, so leaving one of those is what puts the card on screen. From anywhere else
-					     the card is already drawn and `wayInFrom` answers nothing, which is what keeps the
-					     reader's place. Starting the flow stays with the card below, the one surface that
-					     names the provider. -->
-					<LayoutFrame {currentDirection} {shell} onWayIn={goToTheWayIn}>
-						{#if surface === 'loading'}
-							<LayoutStartupLoading />
-						{:else if surface === 'sign-in'}
-							<LayoutStartupSignIn
-								situation={shellState.signInReason}
-								isSigningIn={shellState.isSigningIn}
-								isRetrying={shellState.isRetryingSession}
-								phase={shellState.signInPhase}
-								errorMessage={shellState.error}
-								onSignIn={() => void startup.signIn()}
-								onRetry={() => void startup.retrySession()}
-							/>
-						{:else if surface === 'recovery' && shellState.recovery}
-							<LayoutStartupRecovery
-								recovery={shellState.recovery}
-								onRetry={() => void startup.retry()}
-							/>
-						{:else if surface === 'error'}
-							<!-- the reported error does not reach this screen: it is not shown, and nothing
-							     writes it down yet. See the component. -->
-							<LayoutStartupError onRetry={() => void startup.retry()} />
-						{:else}
-							{@render children?.()}
-						{/if}
-					</LayoutFrame>
-				</TooltipProvider>
-			</SonnerProvider>
-		</QueryClientProvider>
+	<DesignProvider strings={{ loading: $LL.common.ui.loading() }} direction={currentDirection}>
+		<!--
+			The outer of the application's two boundaries, and the honest floor under requirement 8.
 
-		{#snippet failed(error, reset)}
-			<!-- the reading direction and the full window, which is everything the frame would have
-			     given this surface and all of it that survives the frame having thrown. -->
-			<div
-				lang={$locale}
-				dir={currentDirection}
-				class="flex h-screen w-screen flex-col overflow-y-auto bg-background"
-			>
-				<LayoutCaughtError {error} onRetry={reset} />
-			</div>
-		{/snippet}
-	</svelte:boundary>
+			The inner one, inside the frame, catches everything a route drew and leaves the chrome
+			standing. It cannot catch the chrome itself: a boundary draws its fallback in place of what
+			threw, so a card drawn inside a rail that just threw throws again. This one is outside all
+			of it, and what it draws is the shared standalone surface with no frame around it at all.
+
+			That is the one state requirement 6 otherwise forbids in a running application, and it is
+			allowed here because the alternative is a blank window nobody can leave without quitting.
+		-->
+		<svelte:boundary
+			onerror={(error) =>
+				recordDiagnosticError(CAUGHT_ERROR_EVENT, toCaughtErrorFields('shell', error))}
+		>
+			<QueryClientProvider client={queryClient}>
+				<SonnerProvider>
+					<TooltipProvider>
+						<!-- the rail's way in navigates, and that is the whole mechanism: signed out,
+						     `shellSurface` draws the card over every address but the ones `OPENS_SIGNED_OUT`
+						     holds, so leaving one of those is what puts the card on screen. From anywhere else
+						     the card is already drawn and `wayInFrom` answers nothing, which is what keeps the
+						     reader's place. Starting the flow stays with the card below, the one surface that
+						     names the provider. -->
+						<LayoutFrame {currentDirection} {shell} onWayIn={goToTheWayIn}>
+							{#if surface === 'loading'}
+								<LayoutStartupLoading />
+							{:else if surface === 'sign-in'}
+								<LayoutStartupSignIn
+									situation={shellState.signInReason}
+									isSigningIn={shellState.isSigningIn}
+									isRetrying={shellState.isRetryingSession}
+									phase={shellState.signInPhase}
+									errorMessage={shellState.error}
+									onSignIn={() => void startup.signIn()}
+									onRetry={() => void startup.retrySession()}
+								/>
+							{:else if surface === 'recovery' && shellState.recovery}
+								<LayoutStartupRecovery
+									recovery={shellState.recovery}
+									onRetry={() => void startup.retry()}
+								/>
+							{:else if surface === 'error'}
+								<!-- the reported error does not reach this screen: it is not shown, and nothing
+								     writes it down yet. See the component. -->
+								<LayoutStartupError onRetry={() => void startup.retry()} />
+							{:else}
+								{@render children?.()}
+							{/if}
+						</LayoutFrame>
+					</TooltipProvider>
+				</SonnerProvider>
+			</QueryClientProvider>
+
+			{#snippet failed(error, reset)}
+				<!-- the reading direction and the full window, which is everything the frame would have
+				     given this surface and all of it that survives the frame having thrown. -->
+				<div
+					lang={$locale}
+					dir={currentDirection}
+					class="flex h-screen w-screen flex-col overflow-y-auto bg-background"
+				>
+					<LayoutCaughtError {error} onRetry={reset} />
+				</div>
+			{/snippet}
+		</svelte:boundary>
+	</DesignProvider>
 {:else if startupSurfaceBeforeLocale(shellState) === 'failure'}
 	<!--
 		A startup that stopped before it knew what language to stop in.
