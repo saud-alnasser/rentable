@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn } from '$lib/design/tailwind.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { Select as SelectPrimitive } from 'bits-ui';
 	import type { ComponentProps } from 'svelte';
 

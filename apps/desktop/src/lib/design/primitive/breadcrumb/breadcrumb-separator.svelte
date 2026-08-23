@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn, type WithElementRef } from '$lib/design/tailwind.js';
+	import { cn, type WithElementRef } from '@rentable/design/tailwind.js';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import type { HTMLLiAttributes } from 'svelte/elements';
 

@@ -1,4 +1,4 @@
-import { toShortcutHint } from '$lib/design/shortcut';
+import { toShortcutHint } from '@rentable/design/shortcut.js';
 import { toShortcutKeys, type ShortcutRegistration } from '$lib/design/shortcut-registry';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import { foldSearchText } from '$lib/platform/database/search';

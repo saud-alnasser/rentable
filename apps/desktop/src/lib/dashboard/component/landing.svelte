@@ -3,9 +3,9 @@
 	import { isFilterPeriod, type FilterPeriod } from '$lib/api/period';
 	import * as Cell from '$lib/design/cell';
 	import { PERIOD_FILTER, toFilterOptions } from '$lib/design/filter';
-	import { Button } from '$lib/design/primitive/button';
+	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
-	import * as Empty from '$lib/design/primitive/empty';
+	import * as Empty from '@rentable/design/primitive/empty/index.js';
 	import { toDashboardSections } from '$lib/dashboard/dashboard';
 	import { useFetchContractWorkQueue } from '$lib/dashboard/query';
 	import DashboardSectionCard from '$lib/dashboard/component/section.svelte';

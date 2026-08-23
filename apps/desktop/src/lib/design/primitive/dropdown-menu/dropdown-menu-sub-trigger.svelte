@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn } from '$lib/design/tailwind.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { DropdownMenu as DropdownMenuPrimitive } from 'bits-ui';
 

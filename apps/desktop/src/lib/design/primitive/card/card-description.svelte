@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn, type WithElementRef } from '$lib/design/tailwind.js';
+	import { cn, type WithElementRef } from '@rentable/design/tailwind.js';
 	import { locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import type { HTMLAttributes } from 'svelte/elements';

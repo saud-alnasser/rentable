@@ -24,7 +24,7 @@ import {
 	toShortcutHint,
 	type ShortcutCombination,
 	type ShortcutKeydown
-} from '$lib/design/shortcut';
+} from '@rentable/design/shortcut.js';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 /** What every registration says about itself, whoever runs it. */

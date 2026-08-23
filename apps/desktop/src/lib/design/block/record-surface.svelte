@@ -16,8 +16,8 @@
 	import { goto } from '$app/navigation';
 	import BackControl from '$lib/design/block/back-control.svelte';
 	import PageFrame from '$lib/design/block/page-frame.svelte';
-	import * as Empty from '$lib/design/primitive/empty';
-	import * as Tabs from '$lib/design/primitive/tabs';
+	import * as Empty from '@rentable/design/primitive/empty/index.js';
+	import * as Tabs from '@rentable/design/primitive/tabs/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
 

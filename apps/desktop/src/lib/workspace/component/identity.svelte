@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { RemoteSyncWorkspace } from '$lib/platform/host';
-	import { Button } from '$lib/design/primitive/button';
-	import * as Field from '$lib/design/primitive/field';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import Permitted from '$lib/workspace/component/permitted.svelte';
 	import WorkspaceRenameForm from '$lib/workspace/component/rename-form.svelte';

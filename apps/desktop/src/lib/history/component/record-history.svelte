@@ -31,7 +31,7 @@
 
 <script lang="ts">
 	import List, { recordCard } from '$lib/design/block/list.svelte';
-	import { cn } from '$lib/design/tailwind';
+	import { cn } from '@rentable/design/tailwind.js';
 	import type { HistoryConcept } from '$lib/history/history';
 	import { useListHistory } from '$lib/history/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type api from '$lib/api/caller';
 	import List from '$lib/design/block/list.svelte';
-	import type { ListSort } from '$lib/design/sort';
+	import type { ListSort } from '@rentable/design/sort.js';
 	import ContractActions from '$lib/contract/component/actions.svelte';
 	import ContractRecord from '$lib/contract/component/record.svelte';
 	import ContractSelectionActions from '$lib/contract/component/selection-actions.svelte';

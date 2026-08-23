@@ -4,7 +4,7 @@ import test from 'node:test';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 
-import type { ShortcutKeydown } from '../shortcut.ts';
+import type { ShortcutKeydown } from '@rentable/design/shortcut.ts';
 import { ShortcutRegistry } from '../shortcut-registry.ts';
 import { toUndoShortcuts, type UndoIntent } from '../undo-shortcut.ts';
 

@@ -11,7 +11,7 @@ import {
 } from '$lib/api/tests/testing.ts';
 import { isRecordId, newId } from '$lib/platform/database/identity.ts';
 import type { ComplexSortColumnId } from '$lib/complex/complex.ts';
-import type { ListSort } from '$lib/design/sort.ts';
+import type { ListSort } from '@rentable/design/sort.ts';
 
 /** the sort a complexes list may be asked for, as the procedure states it. */
 type ComplexSort = NonNullable<NonNullable<Parameters<Api['complex']['getMany']>[0]>['sort']>;

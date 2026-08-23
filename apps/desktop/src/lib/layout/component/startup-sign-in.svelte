@@ -1,9 +1,9 @@
 <script lang="ts">
 	import type { GoogleSignInPhase } from '$lib/platform/host';
 	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
-	import { Button } from '$lib/design/primitive/button';
-	import { Callout } from '$lib/design/primitive/callout';
-	import type { Tone } from '$lib/design/tone';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import { Callout } from '@rentable/design/primitive/callout/index.js';
+	import type { Tone } from '@rentable/design/tone.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 

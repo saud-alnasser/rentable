@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import * as Avatar from '$lib/design/primitive/avatar';
+	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
 	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
 	import * as Sidebar from '$lib/design/primitive/sidebar';
 	import { useSidebar } from '$lib/design/primitive/sidebar';

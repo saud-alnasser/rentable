@@ -3,9 +3,9 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type api from '$lib/api/caller';
-	import { hasCreateIntent } from '$lib/design/create-intent';
+	import { hasCreateIntent } from '@rentable/design/create-intent.js';
 	import List from '$lib/design/block/list.svelte';
-	import type { ListSort } from '$lib/design/sort';
+	import type { ListSort } from '@rentable/design/sort.js';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import {
 		RANK_FILTER,

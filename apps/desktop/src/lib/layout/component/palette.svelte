@@ -3,7 +3,7 @@
 		toShortcutHint,
 		usesAppleKeyboard,
 		type ShortcutCombination
-	} from '$lib/design/shortcut';
+	} from '@rentable/design/shortcut.js';
 
 	/** The keys that open and close the palette. */
 	const SHORTCUT_KEYS: ShortcutCombination = { key: 'k', command: true };
@@ -17,8 +17,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type { ResolvedPathname } from '$app/types';
-	import { withCreateIntent } from '$lib/design/create-intent';
-	import { Kbd, KbdGroup } from '$lib/design/primitive/kbd';
+	import { withCreateIntent } from '@rentable/design/create-intent.js';
+	import { Kbd, KbdGroup } from '@rentable/design/primitive/kbd/index.js';
 	import * as Command from '$lib/design/primitive/command';
 	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';

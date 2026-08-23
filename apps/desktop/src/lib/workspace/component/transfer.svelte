@@ -1,7 +1,7 @@
 <script lang="ts">
 	import api from '$lib/api/caller';
-	import { Button } from '$lib/design/primitive/button';
-	import * as Field from '$lib/design/primitive/field';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { toExportSheet } from '$lib/design/csv';
 	import { isolateDirection } from '$lib/error/message';
 	import { showErrorToast } from '$lib/error/toast';

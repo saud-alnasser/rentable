@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn } from '$lib/design/tailwind.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { Dialog as SheetPrimitive } from 'bits-ui';
 
 	let {

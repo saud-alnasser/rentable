@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn } from '$lib/design/tailwind';
+	import { cn } from '@rentable/design/tailwind.js';
 	import type { Snippet } from 'svelte';
 
 	/**

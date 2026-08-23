@@ -23,7 +23,7 @@
 </script>
 
 <script lang="ts">
-	import { cn } from '$lib/design/tailwind';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { onMount } from 'svelte';
 
 	/**

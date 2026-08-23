@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Button } from '$lib/design/primitive/button/index.js';
-	import { cn } from '$lib/design/tailwind.js';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import PanelLeftIcon from '@lucide/svelte/icons/panel-left';
 	import type { ComponentProps } from 'svelte';
 	import { useSidebar } from './context.svelte.js';

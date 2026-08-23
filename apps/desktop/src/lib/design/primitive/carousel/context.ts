@@ -1,4 +1,4 @@
-import type { WithElementRef } from '$lib/design/tailwind.js';
+import type { WithElementRef } from '@rentable/design/tailwind.js';
 import type {
 	EmblaCarouselSvelteType,
 	default as emblaCarouselSvelte

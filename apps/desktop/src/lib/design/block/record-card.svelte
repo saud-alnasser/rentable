@@ -23,9 +23,9 @@
 	/* eslint-disable svelte/no-navigation-without-resolve */
 	import * as ContextMenu from '$lib/design/primitive/context-menu';
 	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
-	import { Button } from '$lib/design/primitive/button';
+	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { recordCard } from '$lib/design/block/list.svelte';
-	import { cn } from '$lib/design/tailwind';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { Snippet } from 'svelte';
 

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Separator } from '$lib/design/primitive/separator/index.js';
-	import { cn } from '$lib/design/tailwind.js';
+	import { Separator } from '@rentable/design/primitive/separator/index.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import type { ComponentProps } from 'svelte';
 
 	let {

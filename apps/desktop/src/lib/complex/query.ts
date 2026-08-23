@@ -1,11 +1,11 @@
 import api from '$lib/api/caller';
 import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
 import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
-import type { SelectionCall } from '$lib/design/selection';
+import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history/history';
 import { workspacePrefixes } from '$lib/design/query';
 import { isRecordId } from '$lib/platform/database/identity';
-import type { ListSort } from '$lib/design/sort';
+import type { ListSort } from '@rentable/design/sort.js';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';

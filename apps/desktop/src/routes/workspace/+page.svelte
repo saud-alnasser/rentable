@@ -1,7 +1,7 @@
 <script lang="ts">
 	import PageFrame from '$lib/design/block/page-frame.svelte';
-	import * as Field from '$lib/design/primitive/field';
-	import { Separator } from '$lib/design/primitive/separator';
+	import * as Field from '@rentable/design/primitive/field/index.js';
+	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useFetchRemoteSyncState } from '$lib/settings/query';
 	import { signedInAccount } from '$lib/sync/account';

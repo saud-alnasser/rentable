@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { ConfirmationSubmission } from '$lib/design/confirmation.svelte';
-	import type { ButtonVariant } from '$lib/design/primitive/button';
-	import { Button } from '$lib/design/primitive/button';
-	import { Callout } from '$lib/design/primitive/callout';
+	import { ConfirmationSubmission } from '@rentable/design/confirmation.svelte.js';
+	import type { ButtonVariant } from '@rentable/design/primitive/button/index.js';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Dialog from '$lib/design/primitive/dialog';
-	import { groupRefusals, NAMED_RECORDS, type SelectionPlan } from '$lib/design/selection';
+	import { groupRefusals, NAMED_RECORDS, type SelectionPlan } from '@rentable/design/selection.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import CircleSlashIcon from '@lucide/svelte/icons/circle-slash';

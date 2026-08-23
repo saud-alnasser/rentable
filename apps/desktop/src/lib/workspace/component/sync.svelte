@@ -1,9 +1,9 @@
 <script lang="ts">
 	import type { RemoteSyncState } from '$lib/platform/host';
-	import { Badge } from '$lib/design/primitive/badge';
-	import { Button } from '$lib/design/primitive/button';
-	import { Callout } from '$lib/design/primitive/callout';
-	import * as Field from '$lib/design/primitive/field';
+	import { Badge } from '@rentable/design/primitive/badge/index.js';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import { Callout } from '@rentable/design/primitive/callout/index.js';
+	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useSyncWorkspace } from '$lib/settings/query';
 	import {

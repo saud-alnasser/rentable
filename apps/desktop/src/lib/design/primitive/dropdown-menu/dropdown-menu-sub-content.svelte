@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn } from '$lib/design/tailwind.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { DropdownMenu as DropdownMenuPrimitive } from 'bits-ui';

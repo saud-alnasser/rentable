@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
-	import { Button } from '$lib/design/primitive/button';
+	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { toErrorDetail } from '$lib/error/message';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
@@ -16,7 +16,7 @@
 	 * running and this is one part of it that is not. The toned screens in this vocabulary are a
 	 * startup that failed, the same failure drawn before a locale could be loaded, and an update
 	 * that did not finish, and none of them is this
-	 * (`$lib/design/tone`). The outer case draws with no chrome around it, which looks like a
+	 * (`@rentable/design/tone.js`). The outer case draws with no chrome around it, which looks like a
 	 * startup failure and is not one, so it must not borrow that tone either.
 	 */
 	let {

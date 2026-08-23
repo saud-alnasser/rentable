@@ -11,7 +11,7 @@ import {
 	withStatementLog
 } from '$lib/api/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
-import type { ListSort } from '$lib/design/sort.ts';
+import type { ListSort } from '@rentable/design/sort.ts';
 import type { TenantSortColumnId } from '$lib/tenant/tenant.ts';
 
 /** what a tenant's row looks like on the directory list, and the sort it may be asked for. */

@@ -4,7 +4,7 @@ import test from 'node:test';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 
-import type { ShortcutCombination } from '../shortcut.ts';
+import type { ShortcutCombination } from '@rentable/design/shortcut.ts';
 import {
 	ShortcutRegistry,
 	toShortcutSheetEntries,

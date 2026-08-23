@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { type ToggleVariants, toggleVariants } from '$lib/design/primitive/toggle/index.js';
-	import { cn } from '$lib/design/tailwind.js';
+	import { type ToggleVariants, toggleVariants } from '@rentable/design/primitive/toggle/index.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { ToggleGroup as ToggleGroupPrimitive } from 'bits-ui';
 	import { getToggleGroupCtx } from './toggle-group.svelte';
 

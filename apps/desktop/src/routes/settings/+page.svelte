@@ -3,9 +3,9 @@
 	import { tauri } from '$lib/platform/tauri';
 	import PageFrame from '$lib/design/block/page-frame.svelte';
 	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
-	import { Button } from '$lib/design/primitive/button';
-	import * as Field from '$lib/design/primitive/field';
-	import { Separator } from '$lib/design/primitive/separator';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import * as Field from '@rentable/design/primitive/field/index.js';
+	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import { toErrorText } from '$lib/error/message';
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';

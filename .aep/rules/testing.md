@@ -98,13 +98,14 @@ routers and runes; none of them renders, and a DOM buys them nothing. A module t
 the design package takes its `node:test` test with it, keeps the plain `<name>.test.ts` name, and
 keeps running under `node:test`.
 
-**That last sentence is a promise the package's `test` script does not yet keep.** It runs
-`vitest run` alone, because no `node:test` file has moved into the package yet. **The ticket that
-moves the first one adds the `node:test` invocation beside it**, and the reason this is written
-down rather than left to be noticed is that the failure is misleading: measured on 2026-08-23, a
-`node:test` file collected by Vitest reported `No test suite found in file` and a summary line of
-`2 passed` that omitted the failing assertion altogether. The run does exit non-zero. It just does
-not say what is wrong.
+**The package's `test` script runs both runners**, and it has since the first nine `node:test`
+files crossed with #778. It is `node --import tsx --test "src/**/!(*.svelte).test.ts"` and then
+`vitest run`, and **the extglob is the whole of what keeps the two apart**: `src/**/*.test.ts`
+hands every component test to `node:test` as well. The reason this is written down rather than
+left to be noticed is that the failure in the other direction is misleading: measured on
+2026-08-23, a `node:test` file collected by Vitest reported `No test suite found in file` and a
+summary line of `2 passed` that omitted the failing assertion altogether. The run does exit
+non-zero. It just does not say what is wrong.
 
 Three things bind a component test, and each of them is a way of passing while measuring nothing:
 

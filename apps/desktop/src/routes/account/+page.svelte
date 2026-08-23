@@ -1,6 +1,6 @@
 <script lang="ts">
 	import PageFrame from '$lib/design/block/page-frame.svelte';
-	import * as Field from '$lib/design/primitive/field';
+	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useFetchRemoteSyncState } from '$lib/settings/query';
 	import SyncAccount from '$lib/sync/component/account.svelte';

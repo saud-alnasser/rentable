@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { ContractSchema, type Contract } from '$lib/platform/database/schema';
-	import { Button } from '$lib/design/primitive/button';
-	import * as Calendar from '$lib/design/primitive/calendar';
+	import { Button } from '@rentable/design/primitive/button/index.js';
+	import * as Calendar from '@rentable/design/primitive/calendar/index.js';
 	import * as Command from '$lib/design/primitive/command';
 	import FieldError from '$lib/design/block/field-error.svelte';
 	import FormSurface, { insetControl } from '$lib/design/block/form-surface.svelte';
-	import * as Form from '$lib/design/primitive/form';
-	import { Input } from '$lib/design/primitive/input';
+	import * as Form from '@rentable/design/primitive/form/index.js';
+	import { Input } from '@rentable/design/primitive/input/index.js';
 	import * as Popover from '$lib/design/primitive/popover';
 	import * as Select from '$lib/design/primitive/select';
 	import {
@@ -17,8 +17,8 @@
 		toCalendarDate
 	} from '$lib/design/date';
 	import { formatLocaleMoney, getIntlLocale } from '$lib/platform/locale';
-	import { isWholeHalalas } from '$lib/design/money';
-	import { cn } from '$lib/design/tailwind.js';
+	import { isWholeHalalas } from '@rentable/design/money.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import {
 		CONTRACT_END_DATE_TOLERANCE_DAYS,
 		hasValidContractPeriodForInterval

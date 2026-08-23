@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Kbd, KbdGroup } from '$lib/design/primitive/kbd';
+	import { Kbd, KbdGroup } from '@rentable/design/primitive/kbd/index.js';
 	import * as Sheet from '$lib/design/primitive/sheet';
-	import { usesAppleKeyboard } from '$lib/design/shortcut';
+	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 	import { toShortcutSheetEntries } from '$lib/design/shortcut-registry';
 	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';

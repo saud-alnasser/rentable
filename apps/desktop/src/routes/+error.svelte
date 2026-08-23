@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
-	import { Button } from '$lib/design/primitive/button';
+	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 </script>
 

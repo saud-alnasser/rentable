@@ -71,6 +71,15 @@ reaching the user and everything else reading as an unexpected failure.
   `$lib/components/ui` and `$lib/hooks`, so omitting them makes the next generated
   primitive recreate the plural `components/` tree this layout removed. `lib` is the only
   one omitted, because `$lib` is genuinely its default.
+- **`utils` names the packaged file with its `.ts` extension**, `@rentable/design/tailwind.ts`,
+  and the extension is a guard rather than a formality. Read from the 1.5.0 bundle at #778: the
+  CLI writes a `utils` registry item to the alias verbatim where it already ends `.ts` or `.js`,
+  and appends `.ts` where it does not. Written `.js`, the target is a path no file occupies, so
+  a stock `cn` would land beside the owned module and win resolution for every one of the several
+  hundred sites that name it, silently. Written `.ts`, the target is the owned file, where the
+  documented `--overwrite` default applies and `git status` shows any write. **It is the one
+  alias here that is a package specifier rather than a `$lib` path**, which the CLI's own
+  refusal text calls off-contract, and #783 is where that stops being true.
 - **Domain UI lives with its domain**, not in the shared component tree.
 
 ## Styling
@@ -192,5 +201,5 @@ words and its reading direction are supplied from outside: one typed object and 
 handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/design/strings.js` is
 the contract, and it holds what enforces it and why the direction travels with the words.
 
-*Everything above is unchanged for a component that lives in this application, which is still all
-but one primitive family and every block.*
+*Everything above is unchanged for a component that lives in this application, which after #778 is
+the seventeen primitive families still to cross and every block.*

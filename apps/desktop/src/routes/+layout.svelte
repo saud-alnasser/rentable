@@ -12,8 +12,8 @@
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
 	import LayoutFrame from '$lib/layout/component/frame.svelte';
-	import { toScreen } from '$lib/design/back';
-	import { back } from '$lib/design/back.svelte';
+	import { toScreen } from '@rentable/design/back.js';
+	import { back } from '@rentable/design/back.svelte.js';
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
 	import LayoutStartupUnreadable from '$lib/layout/component/startup-unreadable.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';

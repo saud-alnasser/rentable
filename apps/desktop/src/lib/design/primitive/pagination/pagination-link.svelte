@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { type Props, buttonVariants } from '$lib/design/primitive/button/index.js';
-	import { cn } from '$lib/design/tailwind.js';
+	import { type Props, buttonVariants } from '@rentable/design/primitive/button/index.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { Pagination as PaginationPrimitive } from 'bits-ui';
 
 	let {

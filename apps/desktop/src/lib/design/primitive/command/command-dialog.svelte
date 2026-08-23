@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as Dialog from '$lib/design/primitive/dialog/index.js';
-	import type { WithoutChildrenOrChild } from '$lib/design/tailwind.js';
+	import type { WithoutChildrenOrChild } from '@rentable/design/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { Command as CommandPrimitive, Dialog as DialogPrimitive } from 'bits-ui';
 	import type { Snippet } from 'svelte';

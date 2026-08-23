@@ -21,7 +21,7 @@
 </script>
 
 <script lang="ts">
-	import { cn, type WithoutChildrenOrChild } from '$lib/design/tailwind.js';
+	import { cn, type WithoutChildrenOrChild } from '@rentable/design/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import XIcon from '@lucide/svelte/icons/x';

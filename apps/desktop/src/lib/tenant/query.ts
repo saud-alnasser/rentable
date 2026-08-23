@@ -1,9 +1,9 @@
 import api from '$lib/api/caller';
 import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
-import type { SelectionCall } from '$lib/design/selection';
+import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history/history';
 import { workspacePrefixes } from '$lib/design/query';
-import type { ListSort } from '$lib/design/sort';
+import type { ListSort } from '@rentable/design/sort.js';
 import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createQuery } from '@tanstack/svelte-query';

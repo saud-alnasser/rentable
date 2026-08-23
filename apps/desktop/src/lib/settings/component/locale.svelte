@@ -1,5 +1,5 @@
 <script lang="ts">
-	import * as Field from '$lib/design/primitive/field';
+	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as Select from '$lib/design/primitive/select';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
