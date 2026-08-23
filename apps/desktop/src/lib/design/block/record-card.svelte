@@ -21,8 +21,8 @@
 	// `href` is a route the concept already resolved, so the base is on it once — resolving it here
 	// would put it on twice.
 	/* eslint-disable svelte/no-navigation-without-resolve */
-	import * as ContextMenu from '$lib/design/primitive/context-menu';
-	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
+	import * as ContextMenu from '@rentable/design/primitive/context-menu/index.js';
+	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { recordCard } from '$lib/design/block/list.svelte';
 	import { cn } from '@rentable/design/tailwind.js';

@@ -28,10 +28,10 @@
 	 * drift. A reader whose language is Arabic meets English on this screen alone.
 	 *
 	 * **Neither control carries a tooltip, and that is the difference that keeps this screen on
-	 * screen at all.** A tooltip root reads a provider context that only exists inside the gate and
-	 * throws where there is none, and its content reads the reader's locale to know which way to
-	 * open. Both throw here, outside every boundary, and the window they would have filled stays
-	 * empty. The label is still each control's accessible name.
+	 * screen at all.** A tooltip root reads `TooltipProvider`'s context and throws where there is
+	 * none, and since #779 its content reads `DesignProvider`'s and throws too. Both providers are
+	 * rendered inside the locale gate, so both throw here, outside every boundary, and the window
+	 * they would have filled stays empty. The label is still each control's accessible name.
 	 *
 	 * **It is not toned differently from a startup failure that could be read**, because it is the
 	 * same event. `error` is the tone requirement 15 gives that screen, and this one takes it too.

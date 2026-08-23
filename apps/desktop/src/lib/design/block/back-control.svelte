@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { back } from '@rentable/design/back.svelte.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 

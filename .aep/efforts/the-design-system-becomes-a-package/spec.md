@@ -157,13 +157,17 @@ drawing from it. What stays with the desktop application is what is about rents.
   it with several hundred edits that a reviewer cannot distinguish from each other.
 
   Direction is in the same contract for the same reason and a stronger one: more than twenty
-  primitives set `dir` on the element they render, and it is ambient by nature.
+  primitives set `dir` on the element they render, and it is ambient by nature. *Written when
+  the effort was planned. #779 moved ten of those families onto `contract.direction`; the figure
+  is a reading of the tree at a moment, and the argument is what does not move.*
 - **`design/primitive/` was generated once and is owned now**, and what the CLI's replacing
-  flags would discard is load-bearing. [[rules/frontend]] records the failure exactly: more than
-  thirty of these files read the i18n store for a string or for `dir`, and a regenerated file
+  flags would discard is load-bearing. [[rules/frontend]] records the failure exactly: the files
+  left there read the i18n store for a string or for `dir`, and a regenerated file
   "carries neither and still compiles and renders, so the damage shows up as a silently English,
   silently LTR primitive rather than as an error". `add --overwrite` and `init --reinstall` are
-  not how anything crosses.
+  not how anything crosses. *This quoted the rule's count as well as its sentence, and the count
+  moves every time a family crosses: it was more than thirty files when this was written and is
+  seventeen after #779. The quotation now carries only the part that does not move.*
 - **Moving a component does not release it from the rules that shaped it.**
   [[rules/interface]] and [[rules/frontend]] keep binding everything in the package: the tone
   vocabulary, the spacing subset, the motion rules and their reduced-motion gates, the bidi rule

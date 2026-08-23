@@ -47,13 +47,15 @@ reaching the user and everything else reading as an unexpected failure.
   files rather than merging, so the flags that make it replace one already here — `add
   --overwrite`, `init --reinstall` — discard whatever this repository put in it. Adding is
   safe; replacing is what there is no way back from. [[references/shadcn-svelte]] has both.
-  What they would discard is load-bearing. Thirty-four of these files, across seventeen
+  What they would discard is load-bearing. Seventeen of these files, across seven
   primitive families, read the i18n store — for a translated string, or for `dir` on the
   rendered element. A regenerated file carries neither and still compiles and renders, so
   the damage shows up as a silently English, silently LTR primitive rather than as an
-  error. *It was eighteen until 2026-08-23, when `spinner` crossed into `@rentable/design` with
-  #777, and it falls to seven when the direction-only families cross at #779. Read the count as
-  the shape rather than the figure; what makes it right is the argument, not the arithmetic.*
+  error. *It was eighteen families until 2026-08-23, when `spinner` crossed into
+  `@rentable/design` with #777 and took it to seventeen. #778 moved the families that read no
+  locale at all, so it moved this count by nothing. #779 moved the ten that read one for nothing
+  but a direction, and that is what took it to seven. Read the count as the shape rather than the
+  figure; what makes it right is the argument, not the arithmetic.*
 
   **A family that has crossed is a second hazard rather than one fewer.** The CLI still points
   at this application: `components.json` maps `ui` to `$lib/design/primitive`, and repointing it
@@ -201,5 +203,11 @@ words and its reading direction are supplied from outside: one typed object and 
 handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/design/strings.js` is
 the contract, and it holds what enforces it and why the direction travels with the words.
 
-*Everything above is unchanged for a component that lives in this application, which after #778 is
-the seventeen primitive families still to cross and every block.*
+*Everything above is unchanged for a component that lives in this application, which after #779 is
+the seven primitive families still to cross and every block.*
+
+**A packaged component that needs a reading direction reads `contract.direction` and never
+derives one.** #779 moved ten families whose only locale read was
+`dir={localesMetadata[$locale].direction}`, and each became `dir={contract.direction}` on the
+same element. A component that imports a locale and maps it to a direction itself has rebuilt
+the coupling the package exists to remove, in a place no grep for `$lib/i18n` would find.

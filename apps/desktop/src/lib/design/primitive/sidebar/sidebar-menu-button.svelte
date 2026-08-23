@@ -26,7 +26,7 @@
 </script>
 
 <script lang="ts">
-	import * as Tooltip from '$lib/design/primitive/tooltip/index.js';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import {
 		cn,
 		type WithElementRef,

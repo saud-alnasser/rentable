@@ -11,9 +11,12 @@ import { getContext } from 'svelte';
  * supplies neither does not build.
  *
  * **The direction rides in the same object as the words, deliberately.** It is ambient in the
- * same way they are, twelve of the families still to cross set it on the element they render
- * across nineteen files, and threading it through every call site would buy the same compile
- * error at several hundred times the cost.
+ * same way they are: a family that needs it sets it on the element it renders and every call
+ * site wants the same value, so threading it through them would buy the same compile error at
+ * several hundred times the cost. *The figure this once quoted, twelve families across nineteen
+ * files, was true when the contract was written at #777 and is not a fact about the contract.
+ * Ten of those families crossed at #779; what is left is `dialog` and `sheet`, and they cross at
+ * #780.*
  *
  * The type is the first enforcement and not the only one. A consumer whose object is missing a
  * key fails `svelte-check` at the place it renders the provider, and the message names the key;
@@ -52,6 +55,14 @@ export const DESIGN_CONTRACT = Symbol('rentable.design.contract');
  * mechanism exists to make impossible, and type-checking cannot see a missing provider: the
  * consumer's object is only checked where it renders one, so an application that renders none is
  * type-correct and wordless. The throw is the only thing left to catch it.
+ *
+ * **It fires when the calling component initialises, which for most of the package is not when
+ * the screen draws.** Eight of the ten families that crossed at #779 call this from a `*-Content`
+ * that `bits-ui` instantiates only once the overlay opens, so a missing provider surfaces on the
+ * first interaction rather than on render. `card` and `toggle-group` throw at render because they
+ * are the two that are not overlays. A test that renders a subtree and asserts it survives is
+ * therefore proving less than it looks, unless the subject is one of those two or the overlay is
+ * opened.
  */
 export function useDesignContract(): DesignContract {
 	const contract = getContext<DesignContract | undefined>(DESIGN_CONTRACT);

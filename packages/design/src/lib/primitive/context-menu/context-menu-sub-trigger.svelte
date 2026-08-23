@@ -1,0 +1,29 @@
+<script lang="ts">
+	import { cn, type WithoutChild } from '#lib/tailwind.js';
+	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import { ContextMenu as ContextMenuPrimitive } from 'bits-ui';
+
+	let {
+		ref = $bindable(null),
+		class: className,
+		inset,
+		children,
+		...restProps
+	}: WithoutChild<ContextMenuPrimitive.SubTriggerProps> & {
+		inset?: boolean;
+	} = $props();
+</script>
+
+<ContextMenuPrimitive.SubTrigger
+	bind:ref
+	data-slot="context-menu-sub-trigger"
+	data-inset={inset}
+	class={cn(
+		"flex min-h-7 cursor-default items-center gap-2 rounded-xl px-2 py-1.5 text-sm outline-hidden select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:ps-7 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
+		className
+	)}
+	{...restProps}
+>
+	{@render children?.()}
+	<ChevronRightIcon class="ms-auto rtl:rotate-180" />
+</ContextMenuPrimitive.SubTrigger>

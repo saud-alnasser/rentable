@@ -1,0 +1,33 @@
+<script lang="ts">
+	import { useDesignContract } from '#lib/strings.js';
+	import { cn, type WithoutChildrenOrChild } from '#lib/tailwind.js';
+	import { DropdownMenu as DropdownMenuPrimitive } from 'bits-ui';
+	import type { ComponentProps } from 'svelte';
+	import DropdownMenuPortal from './dropdown-menu-portal.svelte';
+
+	let {
+		ref = $bindable(null),
+		sideOffset = 4,
+		portalProps,
+		class: className,
+		...restProps
+	}: DropdownMenuPrimitive.ContentProps & {
+		portalProps?: WithoutChildrenOrChild<ComponentProps<typeof DropdownMenuPortal>>;
+	} = $props();
+
+	const contract = useDesignContract();
+</script>
+
+<DropdownMenuPortal {...portalProps}>
+	<DropdownMenuPrimitive.Content
+		bind:ref
+		data-slot="dropdown-menu-content"
+		dir={contract.direction}
+		{sideOffset}
+		class={cn(
+			'z-50 max-h-(--bits-dropdown-menu-content-available-height) min-w-[10rem] origin-(--bits-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-2xl bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/10 outline-none data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-end-2 data-[side=right]:slide-in-from-start-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+			className
+		)}
+		{...restProps}
+	/>
+</DropdownMenuPortal>

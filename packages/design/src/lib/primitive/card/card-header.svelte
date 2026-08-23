@@ -1,0 +1,33 @@
+<script lang="ts">
+	import { useDesignContract } from '#lib/strings.js';
+	import { cn, type WithElementRef } from '#lib/tailwind.js';
+	import type { HTMLAttributes } from 'svelte/elements';
+
+	let {
+		ref = $bindable(null),
+		class: className,
+		children,
+		...restProps
+	}: WithElementRef<HTMLAttributes<HTMLDivElement>> = $props();
+
+	const contract = useDesignContract();
+</script>
+
+<div
+	bind:this={ref}
+	data-slot="card-header"
+	dir={contract.direction}
+	class={cn(
+		'@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-5 text-start has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-5',
+		className
+	)}
+	{...restProps}
+>
+	{@render children?.()}
+</div>
+
+<style>
+	:global([dir='rtl'] [data-slot='card-header']:has([data-slot='card-action'])) {
+		grid-template-columns: auto minmax(0, 1fr);
+	}
+</style>

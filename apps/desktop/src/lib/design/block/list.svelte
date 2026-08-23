@@ -28,10 +28,10 @@
 	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Checkbox } from '@rentable/design/primitive/checkbox/index.js';
-	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
+	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import * as Empty from '@rentable/design/primitive/empty/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
-	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import {
 		toCsv,
 		toExportFileName,

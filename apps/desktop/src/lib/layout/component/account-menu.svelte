@@ -2,7 +2,7 @@
 	import type { RemoteSyncAccount } from '$lib/platform/host';
 	import { resolve } from '$app/paths';
 	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
-	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
+	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import * as Sidebar from '$lib/design/primitive/sidebar';
 	import { useSidebar } from '$lib/design/primitive/sidebar';
 	import { toErrorText } from '$lib/error/message';

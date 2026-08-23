@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Ring from '$lib/design/cell/ring.svelte';
-	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleMoney } from '$lib/platform/locale';
 

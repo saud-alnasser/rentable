@@ -180,10 +180,13 @@
 
 /*
  * every scrollable element, rather than a class each surface remembers to apply. A desktop
- * application has one scrollbar, and the scroll containers inside `design/primitive/` are
- * generated — a composing surface cannot reach them to apply a class, so for as long as this
- * was opt-in the command palette scrolled in the platform's vocabulary rather than the
- * application's, on a surface reached from every screen.
+ * application has one scrollbar, and the primitives that hold a scroll container are generated:
+ * a composing surface cannot reach inside one to apply a class, so for as long as this was
+ * opt-in the command palette scrolled in the platform's vocabulary rather than the
+ * application's, on a surface reached from every screen. Since #779 those containers are split
+ * across two trees, `context-menu`, `dropdown-menu` and `select` in this package and `command`
+ * and `sidebar` still under `apps/desktop/src/lib/design/primitive/`, which is a second reason
+ * for a rule here rather than a class at each of them.
  */
 
 *::-webkit-scrollbar {

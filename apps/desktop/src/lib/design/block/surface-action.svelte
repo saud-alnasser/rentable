@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import type { Component } from 'svelte';
 
 	/**
@@ -49,11 +49,18 @@
 		 * whether the label also opens as a tooltip, or is carried by the accessible name alone.
 		 *
 		 * **One screen turns it off, and it is the one that cannot rely on anything.** A tooltip
-		 * root reads the provider context and throws where there is none, and its content reads the
-		 * reader's locale to know which way to open. The screen a startup draws when it failed
-		 * before loading a locale is outside the provider and has no locale, so both of those throw
-		 * while rendering, and the window it would have filled stays empty. The label is still the
-		 * control's accessible name, which is what a screen reader reads either way.
+		 * root reads `TooltipProvider`'s context and throws where there is none, and since #779 its
+		 * content reads `DesignProvider`'s and throws too. The screen a startup draws when it
+		 * failed before loading a locale is outside both providers, because both are rendered
+		 * inside the locale gate in `routes/+layout.svelte`. So the window it would have filled
+		 * stays empty. The label is still the control's accessible name, which is what a screen
+		 * reader reads either way.
+		 *
+		 * **The second throw fires later than the first.** `Tooltip.Root` throws while rendering;
+		 * `Tooltip.Content` is only instantiated when the tooltip opens, so on its own it would
+		 * take a hover to surface. That is true of every packaged overlay now: eight of the ten
+		 * families that crossed at #779 read the contract inside a content component. Here the
+		 * root's throw still comes first, which is why this guard is what it always was.
 		 */
 		tooltip?: boolean;
 		/**
