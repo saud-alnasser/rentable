@@ -53,8 +53,10 @@ drawing from it. What stays with the desktop application is what is about rents.
   surface currently inherits from `app.css`.
 - How a packaged component reaches the strings and the direction it renders, now that it cannot
   reach this application's generated locale modules.
-- `components.json`, whose four aliases point the shadcn-svelte CLI at `$lib/design/*` and which
-  must follow the tree.
+- `components.json`, whose aliases point the shadcn-svelte CLI at `$lib/design/*` and which must
+  follow the tree. *This said "four aliases" until #783, which found a fifth. The CLI defaults
+  `lib` to `$lib` and then refuses its own default, because nothing in the package maps `$lib`;
+  all five are `#lib/...` now.*
 - The desktop application's imports, its `package.json`, and the workspace and task-graph
   configuration that has to know about a third package.
 - **A way to test a rendered component**, which this repository does not have. Added to scope on
@@ -268,10 +270,13 @@ drawing from it. What stays with the desktop application is what is about rents.
   desktop's own `shell:` utilities reference the breakpoint today. The insurance is cheap and
   correct in principle; the claim that it is load-bearing here is not demonstrated. The comment
   was left unedited because criterion 1 required every comment to move unchanged.
-- **`components.json` can point the shadcn-svelte CLI into a workspace package.** Unverified.
-  [[rules/frontend]] says all four alias keys route different kinds of generated file and every
-  one must be repointed when the directory moves; it does not say whether the target may leave
-  the package the config sits in.
+- ~~**`components.json` can point the shadcn-svelte CLI into a workspace package.** Unverified.~~
+  **Verified 2026-08-23 at #783.** `pnpm dlx shadcn-svelte@latest add alert --cwd packages/design -y`
+  wrote `alert` into `packages/design/src/lib/primitive/`, and the package's `svelte-check` passed
+  with it there. The target never leaves the package the config sits in: every alias is an internal
+  `#lib/...`. What the assumption did not anticipate is that there are **five** alias keys rather
+  than four — the CLI defaults `lib` to `$lib` and then refuses its own default, because nothing
+  in the package maps `$lib`. [[rules/frontend]] and [[references/shadcn-svelte]] carry both.
 - **Svelte components can be exported as source**, the way `@rentable/workspace-permission`
   exports raw `.ts`, with no `svelte-package` build step. Unverified.
 
@@ -491,7 +496,7 @@ runner collects what, per acceptance criterion 12.
 | `design/cell/**`, `design/{query,mutation,inverse,undo-shortcut}.*` | stay in `apps/desktop/src/lib/design/` — the domain, per requirement 6 |
 | `app.css`'s `:root`, `@theme`, `@theme static`, `@layer base`, scrollbar and reduced-motion blocks | `packages/design/src/lib/tokens.css` |
 | `app.css`'s window scroll lock | stays in `apps/desktop/src/app.css`, per requirement 5 |
-| `apps/desktop/components.json` | `packages/design/components.json`, with `ui` repointed at `$lib/primitive` and `components` at `$lib/block` |
+| `apps/desktop/components.json` | `packages/design/components.json`, with `ui` repointed at `#lib/primitive` and `components` at `#lib/block`. *This row said `$lib` until #783, and it was written before the amendment above replaced `$lib` with subpath imports throughout. `$lib` resolves nothing inside the package, and the CLI rejects it: all five aliases are `#lib/...`, `lib` among them.* |
 | `apps/desktop/src/lib/design/tests/` | splits: what covers a moved module moves with it, and the rest stays |
 
 **`tailwind.ts` crossed early, at #777 rather than with the rest of its row.** `spinner` is the

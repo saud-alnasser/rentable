@@ -1,7 +1,7 @@
 ---
-aep: 2.3.0
+aep: 2.7.0
 owner: repository
-date: 2026-08-17
+date: 2026-08-23
 kind: spec
 status: implemented
 ---
@@ -232,7 +232,7 @@ version that keeps the schema and its migrations in one place.
 | --- | --- |
 | `src/`, `static/`, `src/app.css` | `apps/desktop/` — unchanged internally |
 | `tauri/` | `apps/desktop/tauri/` — the crate keeps its own manifest and its own test invocation |
-| `svelte.config.js`, `vite.config.js`, `tsconfig.json`, `components.json`, `drizzle.config.ts` | `apps/desktop/` — each belongs to a SvelteKit project, and `tsconfig.json` extends `./.svelte-kit/tsconfig.json`, which is generated beside the project |
+| `svelte.config.js`, `vite.config.js`, `tsconfig.json`, `components.json`, `drizzle.config.ts` | `apps/desktop/` — each belongs to a SvelteKit project, and `tsconfig.json` extends `./.svelte-kit/tsconfig.json`, which is generated beside the project. *`components.json` left again at #783, for `packages/design/`, which is deliberately not a SvelteKit project. The reason in this row is what stopped applying to it.* |
 | `package.json` | splits: `apps/desktop/package.json` takes the application's dependencies, scripts, **version** and the name **`@rentable/desktop`**; the root **keeps the name `rentable`** along with `private: true`, the dev tooling shared by every package, `engines` and `packageManager`, and carries **no version** |
 | `pnpm-workspace.yaml` | gains `packages:`, keeping its existing `allowBuilds` |
 | `scripts/seed.ts`, `scripts/purge.ts`, `scripts/tauri-with-env.mjs`, `scripts/prototype.mjs` | `apps/desktop/scripts/` — all four address the application's database, its Tauri CLI, or its prototype switcher, and none is workspace-wide |
