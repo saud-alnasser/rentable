@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
-	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
+	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { writeDetailsToClipboard, type ClipboardDetail } from '$lib/platform/clipboard';
 	import CopyIcon from '@lucide/svelte/icons/copy';

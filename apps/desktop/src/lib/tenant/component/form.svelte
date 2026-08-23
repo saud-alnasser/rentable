@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { TenantSchema, type Tenant } from '$lib/platform/database/schema';
 	import { identityField, phone } from '$lib/tenant/tenant';
-	import FieldError from '$lib/design/block/field-error.svelte';
-	import FormSurface, { insetControl } from '$lib/design/block/form-surface.svelte';
+	import FieldError from '@rentable/design/block/field-error.svelte';
+	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';

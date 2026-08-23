@@ -14,12 +14,12 @@
 
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import BackControl from '$lib/design/block/back-control.svelte';
-	import PageFrame from '$lib/design/block/page-frame.svelte';
-	import * as Empty from '@rentable/design/primitive/empty/index.js';
-	import * as Tabs from '@rentable/design/primitive/tabs/index.js';
-	import { LL } from '$lib/i18n/i18n-svelte';
-	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
+	import BackControl from '#lib/block/back-control.svelte';
+	import PageFrame from '#lib/block/page-frame.svelte';
+	import * as Empty from '#lib/primitive/empty/index.js';
+	import { Spinner } from '#lib/primitive/spinner/index.js';
+	import * as Tabs from '#lib/primitive/tabs/index.js';
+	import { useDesignContract } from '#lib/strings.js';
 
 	/**
 	 * The surface one record is read on.
@@ -76,6 +76,8 @@
 		initialCollection?: string;
 	} = $props();
 
+	const contract = useDesignContract();
+
 	// only a record with something to choose between puts a choice in the address; the rest have
 	// nothing to say there, and four of the five used to say it anyway.
 	const isChoosable = $derived(collections.length > 1);
@@ -119,7 +121,7 @@
 		<div class="flex flex-1 items-center justify-center" aria-busy="true">
 			<div class="flex flex-col items-center gap-3">
 				<Spinner class="size-8 text-muted-foreground" />
-				<p class="text-sm text-muted-foreground">{$LL.common.messages.loadingApp()}</p>
+				<p class="text-sm text-muted-foreground">{contract.strings.loadingRecord}</p>
 			</div>
 		</div>
 	{:else if !found}
@@ -131,7 +133,7 @@
 
 		<Empty.Root class="flex-1">
 			<Empty.Header>
-				<Empty.Title>{$LL.common.messages.noResults()}</Empty.Title>
+				<Empty.Title>{contract.strings.noResults}</Empty.Title>
 			</Empty.Header>
 		</Empty.Root>
 	{:else}

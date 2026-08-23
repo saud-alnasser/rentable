@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import RecordActions from '$lib/design/block/record-actions.svelte';
-	import RecordSurface from '$lib/design/block/record-surface.svelte';
-	import Specification from '$lib/design/block/specification.svelte';
+	import RecordSurface from '@rentable/design/block/record-surface.svelte';
+	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { useFetchUnit } from '$lib/complex/query';
 	import { LL } from '$lib/i18n/i18n-svelte';

@@ -2,12 +2,12 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
-	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
+	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import RecordCard, { type RecordCardAction } from '$lib/design/block/record-card.svelte';
-	import SelectionDialog from '$lib/design/block/selection-dialog.svelte';
+	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import { hasCreateIntent } from '@rentable/design/create-intent.js';

@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { ConfirmationSubmission } from '@rentable/design/confirmation.svelte.js';
-	import type { ButtonVariant } from '@rentable/design/primitive/button/index.js';
-	import { Button } from '@rentable/design/primitive/button/index.js';
-	import { Callout } from '@rentable/design/primitive/callout/index.js';
-	import * as Dialog from '@rentable/design/primitive/dialog/index.js';
-	import { groupRefusals, NAMED_RECORDS, type SelectionPlan } from '@rentable/design/selection.js';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { ConfirmationSubmission } from '#lib/confirmation.svelte.js';
+	import type { ButtonVariant } from '#lib/primitive/button/index.js';
+	import { Button } from '#lib/primitive/button/index.js';
+	import { Callout } from '#lib/primitive/callout/index.js';
+	import * as Dialog from '#lib/primitive/dialog/index.js';
+	import { Spinner } from '#lib/primitive/spinner/index.js';
+	import { groupRefusals, NAMED_RECORDS, type SelectionPlan } from '#lib/selection.js';
+	import { useDesignContract } from '#lib/strings.js';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import CircleSlashIcon from '@lucide/svelte/icons/circle-slash';
-	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
 
 	/**
 	 * The one surface that asks before an action is carried out on several records, shared by
@@ -64,6 +64,8 @@
 		confirmVariant?: ButtonVariant;
 	} = $props();
 
+	const contract = useDesignContract();
+
 	const groups = $derived(plan ? groupRefusals(plan.refused, reasons) : []);
 	// nothing to do rather than nothing to show: a plan that turned every record away has figures
 	// worth reading and no action left to offer.
@@ -74,7 +76,7 @@
 		isOpen: () => open,
 		perform: () => onSubmit(),
 		close: () => onOpenChange(false),
-		unexpected: () => $LL.common.messages.unexpectedError()
+		unexpected: () => contract.strings.unexpectedError
 	});
 </script>
 
@@ -125,7 +127,7 @@
 									{#if named.length > 0}
 										<p class="min-w-0 ps-6 break-words">
 											{named.slice(0, NAMED_RECORDS).join(', ')}{named.length > NAMED_RECORDS
-												? `, ${$LL.common.selection.more({ count: named.length - NAMED_RECORDS })}`
+												? `, ${contract.strings.moreRecords(named.length - NAMED_RECORDS)}`
 												: ''}
 										</p>
 									{/if}
@@ -138,7 +140,7 @@
 						<!-- inside the panel, because it is what the figures above add up to rather than a
 						     remark about them. -->
 						<p class="border-t border-background/60 p-4 text-sm text-muted-foreground">
-							{$LL.common.selection.nothingToDo()}
+							{contract.strings.nothingToDo}
 						</p>
 					{/if}
 				</div>
@@ -160,7 +162,7 @@
 				onclick={() => onOpenChange(false)}
 				class="w-full sm:w-auto"
 			>
-				{canConfirm ? $LL.common.actions.cancel() : $LL.common.ui.close()}
+				{canConfirm ? contract.strings.cancel : contract.strings.close}
 			</Button>
 
 			{#if !hasNothingToDo}

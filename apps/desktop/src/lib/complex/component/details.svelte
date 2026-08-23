@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
-	import RecordSurface from '$lib/design/block/record-surface.svelte';
-	import Specification from '$lib/design/block/specification.svelte';
+	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
+	import RecordSurface from '@rentable/design/block/record-surface.svelte';
+	import Specification from '@rentable/design/block/specification.svelte';
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
-	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
+	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { back } from '@rentable/design/back.svelte.js';
 	import RecordActions from '$lib/design/block/record-actions.svelte';

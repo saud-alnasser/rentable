@@ -298,6 +298,12 @@ drawing from it. What stays with the desktop application is what is about rents.
   open ones, and either `record-card` waits for `list.svelte` to be resolved or `recordCard`
   moves out from under it first. Whichever is chosen is a task-ordering matter and not a change
   to this grouping.
+
+  *A second edge runs the same way, found at #781. `export-dialog.svelte` imports
+  `EXPORT_FORMATS` from `design/csv`, and `csv.ts` is one of the two helper modules above. So
+  the i18n-only group is seven blocks by its own imports and five by what those imports reach,
+  and #781 moved five. Both stragglers wait on a module rather than on a question about
+  themselves, which is why neither is a change to this grouping either.*
 *Two questions were open when this spec was drafted and are answered here rather than deleted,
 so the reasoning is not re-derived. The i18n seam is the other, and it became requirement 4.*
 
@@ -476,9 +482,9 @@ runner collects what, per acceptance criterion 12.
 | Component | Becomes |
 | --- | --- |
 | `design/primitive/**` | `packages/design/src/lib/primitive/**` — 56 families, unchanged but for the i18n inversion and the `$lib/design/` to `#lib/` specifier substitution. *Complete at #780. `spinner` crossed early with the contract at #777, #778 took the 38 that render no string, #779 the ten that read a locale for nothing but a direction, and #780 the last seven.* |
-| `design/block/` — the six clean blocks | `packages/design/src/lib/block/` — `field-error`, `page-frame`, `record-action-control`, `specification`, `standalone-surface`, `surface-action`, moved as they stand |
-| `design/block/` — the seven i18n-only blocks | same destination, after requirement 4's inversion — `back-control`, `delete-dialog`, `export-dialog`, `form-surface`, `record-card`, `record-surface`, `selection-dialog` |
-| `design/block/list.svelte`, `design/block/record-actions.svelte` | **open** — see `# Open Questions`; the two that reach past i18n |
+| `design/block/` — the six clean blocks | `packages/design/src/lib/block/` — `field-error`, `page-frame`, `record-action-control`, `specification`, `standalone-surface`, `surface-action`, moved as they stand. *Complete at #781, unchanged but for the specifier substitution.* |
+| `design/block/` — the seven i18n-only blocks | same destination, after requirement 4's inversion. **Five of the seven, at #781**: `back-control`, `delete-dialog`, `form-surface`, `record-surface`, `selection-dialog`. *`export-dialog` and `record-card` are not among them, and this row said they were until #781. Both were classified by reading their own imports, and both reach past the design system through one file that was not read with them: `export-dialog` imports `design/csv`, which imports `$lib/platform/tauri`, and `record-card` imports `recordCard` from `list.svelte`. Neither is a change to the grouping's argument, and both are in the seam ticket for the module they wait on.* |
+| `design/block/list.svelte`, `design/block/record-actions.svelte` | **open** — see `# Open Questions`; the two that reach past i18n. *Two more wait on them rather than on a question of their own: `export-dialog` on `csv.ts`, `record-card` on `list.svelte` itself.* |
 | `design/{tailwind,tone,group,selection,shortcut,sort,identifier,money,is-below-shell-breakpoint}.ts` | `packages/design/src/lib/` — the nine root modules that already import nothing outside `design/` |
 | `design/{back,confirmation,list-keyboard,shortcut-registry}.*` | `packages/design/src/lib/` — `back` and `confirmation` reach only `$app/*`, `design/*`, or i18n types, all three of which the package may now have. **`shortcut-registry.svelte.ts` does not**, and this row said it did until #780: it reaches `$lib/platform/diagnostics`, which requirement 3 forbids, so it and `list-keyboard` wait for the seam ticket. *Found while moving `sidebar` past it, which registered a keyboard shortcut from its own state. What that forces is a rule rather than a fact about this row, and [[rules/frontend]] holds it.* |
 | `design/{csv,filter,date,import,create-intent}.ts` | **open** for the first two; `date.ts` and `import.ts` stay, being locale formatting and database search; `create-intent.ts` moves with `$app/types` |
@@ -655,6 +661,14 @@ Sequenced so that each step is separately reviewable and the tree compiles at th
    direction, and two of those in both sets. They needed sixteen keys, which with `loading` from
    `spinner` at #777 is the seventeen `DesignStrings` holds.*
 5. **Move the blocks**, the six clean ones first, then the seven that need the contract.
+
+   *Measured at #781, which moved eleven of the fifteen. The six clean ones cost a specifier
+   substitution and nothing else. The five that needed the contract added eleven keys to
+   `DesignStrings`, taking it from seventeen to 28, and reused `close` and `previous`, which the
+   primitives had already put there. The thirty-six figure above counted every `$LL` read in all
+   fifteen blocks rather than the distinct keys the movable ones needed; the eleven are what
+   crossing actually cost. One of the eleven is a function rather than a string, which
+   [[rules/frontend]] carries as a rule.*
 6. **Resolve the two open modules** — `list.svelte` and `record-actions` — under whatever
    `# Open Questions` settles.
 7. **Move `components.json` and prove requirement 7**, by adding a primitive not already present

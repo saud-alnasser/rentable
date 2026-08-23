@@ -1,5 +1,5 @@
 <script lang="ts">
-	import PageFrame from '$lib/design/block/page-frame.svelte';
+	import PageFrame from '@rentable/design/block/page-frame.svelte';
 	import ContractsDirectory from '$lib/contract/component/directory.svelte';
 </script>
 

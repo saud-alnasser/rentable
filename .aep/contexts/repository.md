@@ -129,12 +129,13 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   `contract`, `payment`, `tenant`, `complex`, `dashboard`, `settings`, `sync`. A unit is
   reached only through the complex holding it, so it lives inside that concept rather than
   beside it. Three homes own no concept, and a domain rule lives in none of them —
-  **`design`**, the frontend machinery every concept shares — the composites built on the
-  design system, the cells, and the cross-concept helpers beside them: mutation handling, the
-  workspace query-cache policy, undo, the shortcut registry, and the csv, filter, date and
-  import helpers. *It held the primitives and the class merging too until 2026-08-23. Both are
-  in `@rentable/design` now, which [[efforts/the-design-system-becomes-a-package/spec]] is
-  moving the rest of this directory towards; what stays here is what is about rents.*;
+  **`design`**, the frontend machinery every concept shares — the four composites that reach
+  past the design system, two of them only through a module beneath them, the cells, and the cross-concept helpers beside them: mutation
+  handling, the workspace query-cache policy, undo, the shortcut registry, and the csv, filter,
+  date and import helpers. *It held the primitives, the class merging and eleven more composites
+  until 2026-08-23. All of those are in `@rentable/design` now, which
+  [[efforts/the-design-system-becomes-a-package/spec]] is moving the rest of this directory
+  towards; what stays here is what is about rents.*;
   **`platform`**, capabilities that cross a process boundary or are
   nondeterministic (the desktop shell, the database, diagnostics, locale); and **`api`**,
   the in-webview caller itself: the request context, the tRPC wiring, and the root router

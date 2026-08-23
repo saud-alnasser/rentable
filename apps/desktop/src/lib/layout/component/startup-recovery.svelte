@@ -1,7 +1,7 @@
 <script lang="ts">
-	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
+	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import SurfaceAction from '$lib/design/block/surface-action.svelte';
+	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
 	import { tauri, type Recovery } from '$lib/platform/tauri';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import * as Form from '@rentable/design/primitive/form/index.js';
+	import * as Form from '#lib/primitive/form/index.js';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 
 	/**

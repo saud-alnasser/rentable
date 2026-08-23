@@ -34,9 +34,8 @@
 </script>
 
 <script lang="ts">
-	import * as Dialog from '@rentable/design/primitive/dialog/index.js';
-	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
+	import * as Dialog from '#lib/primitive/dialog/index.js';
+	import { useDesignContract } from '#lib/strings.js';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { Dialog as DialogPrimitive } from 'bits-ui';
 	import type { Snippet } from 'svelte';
@@ -83,6 +82,8 @@
 		/** The buttons, rendered in the footer in the order given. */
 		actions: Snippet;
 	} = $props();
+
+	const contract = useDesignContract();
 </script>
 
 <Dialog.Root bind:open={() => open, onOpenChange}>
@@ -93,7 +94,7 @@
 		     computes both, and class merging cannot take an animation back off. -->
 		<DialogPrimitive.Content
 			data-slot="form-surface"
-			dir={localesMetadata[$locale].direction}
+			dir={contract.direction}
 			class={presentation({ weight })}
 		>
 			<!-- novalidate: the browser cannot express a rule that normalizes before it matches, so
@@ -122,7 +123,7 @@
 				class="absolute end-4 top-4 rounded-full bg-secondary p-1.5 opacity-80 transition-[opacity,background-color] hover:bg-accent hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden disabled:pointer-events-none"
 			>
 				<XIcon class="size-4" />
-				<span class="sr-only">{$LL.common.ui.close()}</span>
+				<span class="sr-only">{contract.strings.close}</span>
 			</Dialog.Close>
 		</DialogPrimitive.Content>
 	</Dialog.Portal>

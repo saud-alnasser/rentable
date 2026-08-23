@@ -75,22 +75,33 @@
 	 */
 	const designStrings: DesignStrings = $derived({
 		breadcrumb: $LL.common.ui.breadcrumb(),
+		cancel: $LL.common.actions.cancel(),
 		close: $LL.common.ui.close(),
 		commandPalette: $LL.common.ui.commandPalette(),
 		commandPaletteDescription: $LL.common.ui.commandPaletteDescription(),
+		delete: $LL.common.actions.delete(),
+		deleteBlockedDescription: $LL.common.deleteDialog.blockedDescription(),
+		deleteDescription: $LL.common.deleteDialog.description(),
+		deleting: $LL.common.actions.deleting(),
 		goToNextPage: $LL.common.table.goToNextPage(),
 		goToPreviousPage: $LL.common.table.goToPreviousPage(),
 		loading: $LL.common.ui.loading(),
+		loadingRecord: $LL.common.messages.loadingApp(),
 		mobileSidebarDescription: $LL.common.ui.mobileSidebarDescription(),
 		more: $LL.common.ui.more(),
 		morePages: $LL.common.ui.morePages(),
+		moreRecords: (count: number) => $LL.common.selection.more({ count }),
 		next: $LL.common.ui.next(),
 		nextSlide: $LL.common.ui.nextSlide(),
+		noResults: $LL.common.messages.noResults(),
+		nothingToDo: $LL.common.selection.nothingToDo(),
 		pagination: $LL.common.ui.pagination(),
 		previous: $LL.common.ui.previous(),
 		previousSlide: $LL.common.ui.previousSlide(),
 		sidebar: $LL.common.ui.sidebar(),
-		toggleSidebar: $LL.common.ui.toggleSidebar()
+		toggleSidebar: $LL.common.ui.toggleSidebar(),
+		unexpectedError: $LL.common.messages.unexpectedError(),
+		unnamedRecord: $LL.common.deleteDialog.unnamedRecord()
 	});
 
 	const DAY_CROSSING_CHECK_INTERVAL_MS = 60_000;

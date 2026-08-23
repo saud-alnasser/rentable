@@ -95,6 +95,25 @@ Two things about it are worth knowing before trusting a green run:
   dialog, and every block built on one. A new test that mounts one inherits the guard rather than
   needing its own.
 
+## When an import fails to resolve rather than a test failing
+
+```
+Failed to resolve import "$app/navigation" from "src/lib/block/record-surface.svelte".
+```
+
+**This runner knows nothing about SvelteKit.** `vitest.config.js` loads the Svelte plugin and
+nothing else, so `$lib`, `$app/*` and `$env/*` are ordinary unresolvable specifiers here. The
+package is allowed to import `$app/*` and four of its modules do, so this is a gap in the runner
+rather than a mistake in the subject: the run fails at load, before any test executes, and the
+message names the specifier rather than the assertion.
+
+Nothing in the package works around it today, which is why `record-surface` and `back-control`
+have no tests. #797 is the ticket. Until it lands, a component that reaches `$app/*` cannot be
+rendered under this runner, and the check to run before writing the test is whether the subject
+or anything beneath it imports one.
+
+Measured on 2026-08-23 at #781, on `record-surface.svelte`.
+
 ## Never run
 
 ```bash

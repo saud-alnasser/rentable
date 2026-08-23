@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { GoogleSignInPhase } from '$lib/platform/host';
-	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
+	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import type { Tone } from '@rentable/design/tone.js';
