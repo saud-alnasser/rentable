@@ -27,6 +27,11 @@ export default defineConfig({
 		// nothing here depends on a global being in scope.
 		globals: true,
 		environment: 'jsdom',
+		// **Not a test, and not optional.** `src/tests/setup.ts` holds an `afterAll` that lets
+		// bits-ui's deferred body-scroll restore run before the DOM is torn down. Without it a
+		// suite in which every test passes still exits 1, on whichever file loses the race. The
+		// file says which timer and why the hook is `afterAll`.
+		setupFiles: ['./src/tests/setup.ts'],
 		// **A component test is named `<name>.svelte.test.ts`, and both halves of that earn their
 		// place.** The `.svelte.` segment is what lets the file use runes: the same file as
 		// `<name>.test.ts` raises `rune_outside_svelte` from `$effect.root()`, and renaming it is

@@ -2,7 +2,7 @@
 	import { ContractSchema, type Contract } from '$lib/platform/database/schema';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Calendar from '@rentable/design/primitive/calendar/index.js';
-	import * as Command from '$lib/design/primitive/command';
+	import * as Command from '@rentable/design/primitive/command/index.js';
 	import FieldError from '$lib/design/block/field-error.svelte';
 	import FormSurface, { insetControl } from '$lib/design/block/form-surface.svelte';
 	import * as Form from '@rentable/design/primitive/form/index.js';

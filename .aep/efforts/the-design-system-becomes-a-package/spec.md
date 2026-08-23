@@ -158,16 +158,36 @@ drawing from it. What stays with the desktop application is what is about rents.
 
   Direction is in the same contract for the same reason and a stronger one: more than twenty
   primitives set `dir` on the element they render, and it is ambient by nature. *Written when
-  the effort was planned. #779 moved ten of those families onto `contract.direction`; the figure
-  is a reading of the tree at a moment, and the argument is what does not move.*
+  the effort was planned. #779 moved ten of those families onto `contract.direction`, and #780
+  the last two along with the two that read a direction for something other than the attribute;
+  the figure is a reading of the tree at a moment, and the argument is what does not move.*
+- **Requirement 4's last sentence binds the package, not what a consumer is allowed to pass.**
+  *Decided at #780, which is where the tasks put the question, and recorded rather than fixed.*
+  Two things let a call site win over the contract and both stay. Every packaged component
+  spreads `{...restProps}` after the attributes it sets, so a call site passing `aria-label` or
+  `dir` overrides a contract read; and `command-dialog` declares `title` and `description` as
+  props whose defaults are contract reads. **The requirement exists to stop a packaged component
+  rendering a string the consumer cannot translate.** A consumer that passes one does it in its
+  own code, in its own language, under its own review, which is a different act from the package
+  hard-coding English, and no call site in `apps/desktop` passes any of them today.
+
+  **What closing it would cost is the argument for leaving it.** The spread ordering is uniform
+  across all 56 families; inverting it in the nine that read the contract would make one half of
+  the package disagree with the other, and a reader meeting that inconsistency is worse served
+  than by a hole nobody occupies. A command palette's title, separately, varies by palette rather
+  than being chrome, so a prop is the right shape there whatever the general rule is. If a second
+  consumer ever does override a packaged label, that is the evidence this was wrong, and it
+  arrives as a screen somebody can look at rather than as a rule nobody applied.
 - **`design/primitive/` was generated once and is owned now**, and what the CLI's replacing
   flags would discard is load-bearing. [[rules/frontend]] records the failure exactly: the files
   left there read the i18n store for a string or for `dir`, and a regenerated file
   "carries neither and still compiles and renders, so the damage shows up as a silently English,
   silently LTR primitive rather than as an error". `add --overwrite` and `init --reinstall` are
   not how anything crosses. *This quoted the rule's count as well as its sentence, and the count
-  moves every time a family crosses: it was more than thirty files when this was written and is
-  seventeen after #779. The quotation now carries only the part that does not move.*
+  moves every time a family crosses: it was more than thirty files when this was written, was
+  seventeen after #779, and reached zero at #780, when the last seven families crossed. What the
+  flags would discard now is a contract read rather than a store read, and [[rules/frontend]]
+  carries the replacement count. The quotation now carries only the part that does not move.*
 - **Moving a component does not release it from the rules that shaped it.**
   [[rules/interface]] and [[rules/frontend]] keep binding everything in the package: the tone
   vocabulary, the spacing subset, the motion rules and their reduced-motion gates, the bidi rule
@@ -455,12 +475,12 @@ runner collects what, per acceptance criterion 12.
 
 | Component | Becomes |
 | --- | --- |
-| `design/primitive/**` | `packages/design/src/lib/primitive/**` — 56 families, unchanged but for the i18n inversion and the `$lib/design/` to `$lib/` specifier substitution |
+| `design/primitive/**` | `packages/design/src/lib/primitive/**` — 56 families, unchanged but for the i18n inversion and the `$lib/design/` to `#lib/` specifier substitution. *Complete at #780. `spinner` crossed early with the contract at #777, #778 took the 38 that render no string, #779 the ten that read a locale for nothing but a direction, and #780 the last seven.* |
 | `design/block/` — the six clean blocks | `packages/design/src/lib/block/` — `field-error`, `page-frame`, `record-action-control`, `specification`, `standalone-surface`, `surface-action`, moved as they stand |
 | `design/block/` — the seven i18n-only blocks | same destination, after requirement 4's inversion — `back-control`, `delete-dialog`, `export-dialog`, `form-surface`, `record-card`, `record-surface`, `selection-dialog` |
 | `design/block/list.svelte`, `design/block/record-actions.svelte` | **open** — see `# Open Questions`; the two that reach past i18n |
 | `design/{tailwind,tone,group,selection,shortcut,sort,identifier,money,is-below-shell-breakpoint}.ts` | `packages/design/src/lib/` — the nine root modules that already import nothing outside `design/` |
-| `design/{back,confirmation,list-keyboard,shortcut-registry}.*` | `packages/design/src/lib/` — reach only `$app/*`, `design/*`, or i18n types, all three of which the package may now have |
+| `design/{back,confirmation,list-keyboard,shortcut-registry}.*` | `packages/design/src/lib/` — `back` and `confirmation` reach only `$app/*`, `design/*`, or i18n types, all three of which the package may now have. **`shortcut-registry.svelte.ts` does not**, and this row said it did until #780: it reaches `$lib/platform/diagnostics`, which requirement 3 forbids, so it and `list-keyboard` wait for the seam ticket. *Found while moving `sidebar` past it, which registered a keyboard shortcut from its own state. What that forces is a rule rather than a fact about this row, and [[rules/frontend]] holds it.* |
 | `design/{csv,filter,date,import,create-intent}.ts` | **open** for the first two; `date.ts` and `import.ts` stay, being locale formatting and database search; `create-intent.ts` moves with `$app/types` |
 | `design/cell/**`, `design/{query,mutation,inverse,undo-shortcut}.*` | stay in `apps/desktop/src/lib/design/` — the domain, per requirement 6 |
 | `app.css`'s `:root`, `@theme`, `@theme static`, `@layer base`, scrollbar and reduced-motion blocks | `packages/design/src/lib/tokens.css` |
@@ -624,11 +644,16 @@ Sequenced so that each step is separately reviewable and the tree compiles at th
    | Pass | Families | Files | The edit |
    | --- | --- | --- | --- |
    | the string-free families | 38 | 195 | `git mv` plus one specifier substitution, and nothing else |
-   | the direction-only families | 10 | — | the same, plus `dir` read from the contract rather than from `localesMetadata[$locale]` |
-   | the string-rendering families | 8 | 35 across both i18n groups | the same, plus each `$LL.common.*` read replaced by hand |
+   | the direction-only families | 10 | 105 | the same, plus `dir` read from the contract rather than from `localesMetadata[$locale]` |
+   | the string-rendering families | 8 | 87 | the same, plus each `$LL.common.*` read replaced by hand |
 
    `spinner` is one of the eight and crosses early, in step 3's successor, as the worked example
    the other seven are built against.
+
+   *The file counts were estimates until each pass ran. Measured: #778 moved 195 files, #779 105,
+   and #780 85. Of those 85, seventeen read the contract at all: sixteen for a string, three for a
+   direction, and two of those in both sets. They needed sixteen keys, which with `loading` from
+   `spinner` at #777 is the seventeen `DesignStrings` holds.*
 5. **Move the blocks**, the six clean ones first, then the seven that need the contract.
 6. **Resolve the two open modules** — `list.svelte` and `record-actions` — under whatever
    `# Open Questions` settles.

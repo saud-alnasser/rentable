@@ -3,8 +3,8 @@
 	import { resolve } from '$app/paths';
 	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
-	import * as Sidebar from '$lib/design/primitive/sidebar';
-	import { useSidebar } from '$lib/design/primitive/sidebar';
+	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
+	import { useSidebar } from '@rentable/design/primitive/sidebar/index.js';
 	import { toErrorText } from '$lib/error/message';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';

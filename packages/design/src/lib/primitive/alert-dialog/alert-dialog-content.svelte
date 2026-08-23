@@ -26,10 +26,10 @@
 		application asks them to confirm something, and two confirmations sitting on different
 		surfaces read as two applications.
 
-		**The two are in different packages as of #779, and nothing enforces the copy.** `dialog`
-		renders a string, so it stays in `apps/desktop/src/lib/design/primitive/dialog/` until #780
-		moves it here. Until then a change to one of these surfaces has to be carried across a
-		package boundary by hand, and neither gate can see that it was not.
+		**Both are in this package as of #780, and still nothing enforces the copy.** They were in
+		different packages between #779 and #780, which was the sharpest version of this; the two
+		files sit beside each other again, and a change to one of these surfaces is still carried to
+		the other by hand with neither gate able to see that it was not.
 
 		The interior spacing is this primitive's own and stays — dialog content is padded by its
 		callers, where an alert dialog pads itself.

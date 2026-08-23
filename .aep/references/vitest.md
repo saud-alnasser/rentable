@@ -59,6 +59,42 @@ The browser condition is not being applied. Svelte's own `exports` map sends `br
 2026-08-23 by deleting the `resolve` line, which is what a reader who thinks it is decoration
 would do.
 
+## When every test passes and the run still fails
+
+Read the line above the summary before reading the summary. Vitest fails a run on an
+**unhandled error** as readily as on a failed assertion, and the summary makes that look like a
+contradiction:
+
+```
+ Test Files  14 passed (14)
+      Tests  44 passed (44)
+     Errors  2 errors
+```
+
+The one this repository has met is bits-ui's deferred body-scroll restore. A component that locks
+body scroll schedules the restore on a 24ms timer rather than running it on unmount, so the last
+unmount in a file races Vitest's teardown of the jsdom environment, and the loser reaches a
+`document` that is gone:
+
+```
+ReferenceError: document is not defined
+ ❯ Proxy.resetBodyStyle bits-ui/dist/internal/body-scroll-lock.svelte.js:34:9
+ ❯ Timeout.cleanupFn [as _onTimeout] body-scroll-lock.svelte.js:69:17
+```
+
+**`src/tests/setup.ts` is what holds it off**, named by `setupFiles`, and it is scaffolding rather
+than a test: an `afterAll` that waits out the timer once per file. The file carries the reasoning,
+including why the hook is `afterAll` and not `afterEach`.
+
+Two things about it are worth knowing before trusting a green run:
+
+- **It is a race, so it moves.** Measured across three CI runs of the same suite on 2026-08-23:
+  one error from `command.svelte.test.ts`, two from `delete-dialog` and `selection-dialog`, and
+  none at all. It never reproduced on Windows locally, which is where it was looked for first.
+- **A component this reaches is any bits-ui surface that locks scroll** — dialog, sheet, command
+  dialog, and every block built on one. A new test that mounts one inherits the guard rather than
+  needing its own.
+
 ## Never run
 
 ```bash

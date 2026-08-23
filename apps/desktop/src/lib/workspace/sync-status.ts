@@ -33,7 +33,7 @@ export type SyncStatus =
  * `secondary` on purpose: a build that cannot sign in and a machine awaiting authorization are
  * both *not yet*, which is a different thing from a fault. The tone vocabulary
  * ([[rules/interface]], under *Tone*) has `warning` and this badge does not, so nothing here
- * reaches for one — adding a variant to a shared primitive is a change to `design/primitive/`
+ * reaches for one — adding a variant to a shared primitive is a change to `@rentable/design`
  * and belongs to whoever needs it, not to this section.
  */
 const VARIANT: Record<SyncStatus, BadgeVariant> = {

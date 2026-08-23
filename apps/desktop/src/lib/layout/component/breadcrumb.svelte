@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import * as Breadcrumb from '$lib/design/primitive/breadcrumb';
+	import * as Breadcrumb from '@rentable/design/primitive/breadcrumb/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { toBreadcrumbTrail } from '$lib/layout/navigation';
 

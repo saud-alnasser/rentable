@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import * as Dialog from '$lib/design/primitive/dialog';
+	import * as Dialog from '@rentable/design/primitive/dialog/index.js';
 	import { EXPORT_FORMATS, type ExportFormat } from '$lib/design/csv';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import CheckIcon from '@lucide/svelte/icons/check';

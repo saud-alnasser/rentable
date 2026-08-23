@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import * as Sidebar from '$lib/design/primitive/sidebar';
+	import { SIDEBAR_KEYBOARD_SHORTCUT } from '@rentable/design/primitive/sidebar/constants.js';
+	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
+	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import LayoutAccountMenu from '$lib/layout/component/account-menu.svelte';
 	import LayoutAccountSignedOut from '$lib/layout/component/account-signed-out.svelte';
@@ -57,6 +59,34 @@
 
 	const workspace = $derived(remoteSyncQuery.data?.workspace);
 	const account = $derived(signedInAccount(remoteSyncQuery.data));
+
+	const sidebar = Sidebar.useSidebar();
+
+	/**
+	 * The key that folds and unfolds this rail.
+	 *
+	 * Registered rather than listened for: the keydown reaches the application's one listener, and
+	 * the shortcut sheet and the palette read what is registered without being told about it.
+	 *
+	 * **It is registered here rather than by the primitive that owns the state.** It was an
+	 * `$effect` inside `SidebarState` until the sidebar crossed into `@rentable/design`, and it
+	 * could not go with it: a registration describes itself out of `TranslationFunctions`, which is
+	 * this application's generated type, so the package would have been naming keys in a dictionary
+	 * it cannot see. The key itself stays with the primitive, as `SIDEBAR_KEYBOARD_SHORTCUT`, so
+	 * there is still one place it is written down.
+	 *
+	 * This component is drawn exactly where `Sidebar.Provider` is, so the registration lives and
+	 * dies with the state it runs against, as it did before.
+	 */
+	$effect(() =>
+		shortcuts.register({
+			id: 'sidebar.toggle',
+			scope: 'application',
+			keys: [{ key: SIDEBAR_KEYBOARD_SHORTCUT, command: true }],
+			describe: (translations) => translations.common.ui.toggleSidebar(),
+			run: sidebar.toggle
+		})
+	);
 </script>
 
 {#snippet links(items: Destination[])}
