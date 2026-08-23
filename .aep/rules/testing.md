@@ -119,9 +119,23 @@ Three things bind a component test, and each of them is a way of passing while m
   component that reads its strings from context is rendered under test at all. A test file still
   imports `test` and `expect` explicitly; nothing here relies on a global being in scope.
 - **A fixture component is scaffolding**, and carries no `.test` in its name for the same reason
-  `api/tests/testing.ts` does not. `packages/design/src/tests/probe.svelte` is the standing one.
-  It sits outside `src/lib/` deliberately: the package's `exports` map sends `./*` to `./src/lib/*`,
-  so scaffolding kept under the library directory would be importable by every consumer.
+  `api/tests/testing.ts` does not. **Every one of them lives in `packages/design/src/tests/`**,
+  whatever it covers and wherever the test that uses it sits: `probe.svelte` is the runner's,
+  `contract.svelte` and `contract-harness.svelte` are the string contract's. That directory is
+  outside `src/lib/`, which is what keeps them out of the package: the `exports` map sends `./*`
+  to `./src/lib/*`, so a fixture under the library directory is a component every consumer can
+  import, and one of these throws unless something above it renders the provider.
+
+  *The tests themselves do sit under the directory they cover, and are exposed by that same map.
+  The asymmetry is deliberate: a `.test.ts` is not something a consumer can mistake for part of
+  the interface, and a fixture component is exactly that.*
+
+- **Reach for `wrapper` before writing a fixture.** `render(Subject, {}, { wrapper: Provider,
+  wrapperProps: { … } })` puts a provider above the subject with nothing in between, which is
+  most of what a fixture would have been for, and it is what `globals` is on for. A fixture earns
+  its place where `wrapper` cannot reach: `contract-harness.svelte` exists because `rerender`
+  drives the subject's props rather than the wrapper's, and changing what the provider supplies
+  is the whole of what that one test does.
 
 Commands are in [[references/vitest]], including the single-file invocation.
 

@@ -6,12 +6,12 @@
 	import { Button } from '$lib/design/primitive/button';
 	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
 	import * as Empty from '$lib/design/primitive/empty';
-	import { Spinner } from '$lib/design/primitive/spinner';
 	import { toDashboardSections } from '$lib/dashboard/dashboard';
 	import { useFetchContractWorkQueue } from '$lib/dashboard/query';
 	import DashboardSectionCard from '$lib/dashboard/component/section.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleRangeWithUnit } from '$lib/platform/locale';
+	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
 	import CheckIcon from '@tabler/icons-svelte/icons/check';
 	import ChevronDownIcon from '@tabler/icons-svelte/icons/chevron-down';
 	import CoinIcon from '@tabler/icons-svelte/icons/coin';

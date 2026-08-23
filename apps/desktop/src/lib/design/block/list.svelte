@@ -31,7 +31,6 @@
 	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
 	import * as Empty from '$lib/design/primitive/empty';
 	import { Input } from '$lib/design/primitive/input';
-	import { Spinner } from '$lib/design/primitive/spinner';
 	import * as Tooltip from '$lib/design/primitive/tooltip';
 	import {
 		toCsv,
@@ -69,6 +68,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { tauri } from '$lib/platform/tauri';
+	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
 	import ArrowsSortIcon from '@tabler/icons-svelte/icons/arrows-sort';
 	import CheckIcon from '@tabler/icons-svelte/icons/check';
 	import ChecklistIcon from '@tabler/icons-svelte/icons/list-check';

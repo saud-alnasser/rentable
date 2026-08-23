@@ -4,11 +4,11 @@
 	import { Button } from '$lib/design/primitive/button';
 	import { Callout } from '$lib/design/primitive/callout';
 	import * as Dialog from '$lib/design/primitive/dialog';
-	import { Spinner } from '$lib/design/primitive/spinner';
 	import { groupRefusals, NAMED_RECORDS, type SelectionPlan } from '$lib/design/selection';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import CircleSlashIcon from '@lucide/svelte/icons/circle-slash';
+	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
 
 	/**
 	 * The one surface that asks before an action is carried out on several records, shared by

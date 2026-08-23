@@ -17,9 +17,9 @@
 	import BackControl from '$lib/design/block/back-control.svelte';
 	import PageFrame from '$lib/design/block/page-frame.svelte';
 	import * as Empty from '$lib/design/primitive/empty';
-	import { Spinner } from '$lib/design/primitive/spinner';
 	import * as Tabs from '$lib/design/primitive/tabs';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
 
 	/**
 	 * The surface one record is read on.

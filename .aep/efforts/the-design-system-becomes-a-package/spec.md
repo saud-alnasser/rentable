@@ -306,12 +306,13 @@ so the reasoning is not re-derived. The i18n seam is the other, and it became re
 - **The i18n inversion fails silently by construction.** [[rules/frontend]] already names it: a
   primitive that loses its translation read still compiles and renders. A mechanical pass across
   thirty-plus primitives and twelve blocks is thirty-plus chances to produce a component that
-  looks correct in English on the machine doing the work and is broken in Arabic. **Three things
-  are aimed at it, in the order they would fire.** Requirement 4's typed contract makes a
-  missing key a type error, so it never reaches a screen. Criterion 13's component tests catch a
-  component that has the string and renders it wrong, or renders in the wrong direction.
-  Criterion 8's Arabic pass catches what neither sees, which is a screen that is correct
-  component by component and wrong as a whole. **The residue is real**: a component that quietly
+  looks correct in English on the machine doing the work and is broken in Arabic. **Four things
+  are aimed at it, in the order they would fire.** *It said three until #777 built the second of
+  them.* Requirement 4's typed contract makes a missing key a type error, so it never reaches a
+  screen. The reader throws where no provider was rendered at all, which is the case the type
+  cannot see. Criterion 13's component tests catch a component that has the string and renders it
+  wrong, or renders in the wrong direction. Criterion 8's Arabic pass catches what none of the
+  three sees, which is a screen that is correct component by component and wrong as a whole. **The residue is real**: a component that quietly
   stops rendering a string it was given, in a locale nobody opened, on a screen no test drives.
 - **The boundary is being drawn before its second consumer exists.**
   [[efforts/the-repository-becomes-a-monorepo/spec]] made this exact argument against extracting
@@ -463,6 +464,22 @@ runner collects what, per acceptance criterion 12.
 | `apps/desktop/components.json` | `packages/design/components.json`, with `ui` repointed at `$lib/primitive` and `components` at `$lib/block` |
 | `apps/desktop/src/lib/design/tests/` | splits: what covers a moved module moves with it, and the rest stays |
 
+**`tailwind.ts` crossed early, at #777 rather than with the rest of its row.** `spinner` is the
+first component to move and `cn` is the one helper it cannot render without, so the helper had to
+be in the package before it was. What stayed behind is a one-line re-export at
+`apps/desktop/src/lib/design/tailwind.ts`, which keeps every specifier still pointing at it
+valid, and #778 deletes it in the same substitution that rewrites them. *The alternative was
+rewriting those specifiers here instead, which would have edited the same lines twice: once to
+`@rentable/design/tailwind.js` and again to `#lib/tailwind.js` when the files holding them moved
+into the package.*
+
+**There are 279 of those sites under `apps/desktop/src`, not 268, and ten of them carry no
+extension.** Counted at #777. The figure repeated until then came from #778's body, which says
+something narrower and correct: 268 occurrences of `tailwind.js` *alone*. The ten written
+`$lib/design/tailwind` are exactly what the normalisation above exists for, and a prefix
+substitution leaves them behind. `components.json` names the same module once more, through
+its `utils` alias, and that one is repointed rather than rewritten.
+
 # Interfaces
 
 The package's public surface is four things.
@@ -479,7 +496,18 @@ wildcard being the thing that made them public.*
   `types` and `default` conditions. A per-family subpath rather than one barrel, because a
   single entry point makes every consumer's bundle depend on every component in the package.
 - **The contract**, `@rentable/design/strings.js` — the provider component and the type a
-  consumer must satisfy. Requirement 4's compile-time failure is this type and nothing else.
+  consumer must satisfy. Requirement 4's compile-time failure is this type, and ~~nothing
+  else~~ **a throw beneath it**, corrected at #777: a consumer that renders no provider at all
+  type-checks perfectly, because the object is only checked where a provider is rendered, so the
+  reader throws rather than falling back.
+
+  *Built at #777. It exports `DesignProvider`, `DesignStrings`, `DesignDirection`,
+  `DesignContract` and `useDesignContract`; the direction is in it as well as the words, because
+  the constraint above puts them in one contract. **The provider writes two getters rather than
+  the props themselves**, and that is not a style choice: `setContext` runs once, during the
+  provider's own initialisation, so a plain object written there would freeze the words a
+  consumer started with and a language switch would never reach a packaged component. Measured
+  both ways, and it is the one thing in the package that no gate would have caught.*
 - **The stylesheet**, `@rentable/design/tokens.css`, plus the `@source` line each consumer writes.
 - **The library-root modules**, reached as `@rentable/design/<name>.js` — class merging, tone,
   sorting, selection, and the rest of what `# Components` moves to `src/lib/`. Not a designed
