@@ -6,7 +6,7 @@
 	import FormSurface, { insetControl } from '$lib/design/block/form-surface.svelte';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
-	import * as Popover from '$lib/design/primitive/popover';
+	import * as Popover from '@rentable/design/primitive/popover/index.js';
 	import {
 		formatCalendarDate,
 		formatDateInput,

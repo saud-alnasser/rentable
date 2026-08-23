@@ -4,7 +4,7 @@
 	import * as Cell from '$lib/design/cell';
 	import { PERIOD_FILTER, toFilterOptions } from '$lib/design/filter';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
+	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import * as Empty from '@rentable/design/primitive/empty/index.js';
 	import { toDashboardSections } from '$lib/dashboard/dashboard';
 	import { useFetchContractWorkQueue } from '$lib/dashboard/query';

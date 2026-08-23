@@ -1,5 +1,5 @@
 <script lang="ts">
-	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { countFigure } from '$lib/design/cell/count.svelte';
 	import { statusGlyphs, statusTones, type StatusName } from '$lib/design/cell/status.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';

@@ -46,7 +46,7 @@
 </script>
 
 <script lang="ts">
-	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleNumber } from '$lib/platform/locale';
 	import type { Icon as IconComponent } from '@tabler/icons-svelte';

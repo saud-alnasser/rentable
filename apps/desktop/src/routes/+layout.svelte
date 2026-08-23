@@ -6,7 +6,7 @@
 	import { startWorkspaceSyncManager } from '$lib/sync/autosync';
 	import { listenForSignOut } from '$lib/sync/sign-in';
 	import { trustWorkspaceData } from '$lib/design/query';
-	import { TooltipProvider } from '$lib/design/primitive/tooltip';
+	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
 	import SonnerProvider from '$lib/design/provider/sonner.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
@@ -194,13 +194,21 @@
 		there.
 
 		**what keeps the branches below safe is narrower than it looks, and it is not that they
-		render nothing packaged.** `startup-unreadable` draws a `StandaloneSurface`, and that block
-		draws a packaged `Spinner`. two things stop it, either of them on its own: the surface is
-		given `tone="error"`, which takes the branch that holds no spinner, and it is given no
-		`busy`, which gates the spinner inside the other branch. a packaged component reached
-		outside this provider throws, and that branch is the one screen with no boundary above it
-		and no way out but quitting. the guard is written down at that call site rather than only
-		here.
+		render nothing packaged.** a packaged component reached outside this provider throws, and
+		that branch is the one screen with no boundary above it and no way out but quitting. there
+		are two ways in, and each is held shut by a prop rather than by structure:
+
+		`startup-unreadable` draws a `StandaloneSurface`, and that block draws a packaged `Spinner`.
+		two things stop it, either of them on its own: the surface is given `tone="error"`, which
+		takes the branch that holds no spinner, and it is given no `busy`, which gates the spinner
+		inside the other branch.
+
+		it also draws two `SurfaceAction`s, and that block's tooltip is packaged as of #779. one
+		thing stops it: `tooltip={false}` at both call sites, against a prop that defaults to true.
+		`TooltipProvider` is inside this gate too, so the root throws before the content would.
+
+		both guards are written down at their call sites rather than only here. neither is covered
+		by a test, which #794 is for.
 
 		**outside the boundary rather than inside it**, so that the surface drawn when the shell
 		throws is drawn with the same words. it supplies context and renders nothing, so there is

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import * as Tooltip from '$lib/design/primitive/tooltip/index.js';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { cn, type WithElementRef } from '@rentable/design/tailwind.js';
 	import type { HTMLAttributes } from 'svelte/elements';
 	import {

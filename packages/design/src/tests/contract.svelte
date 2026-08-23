@@ -1,14 +1,19 @@
 <script lang="ts">
 	/**
-	 * The subject the direction half of the contract is proved against, and not part of the
-	 * interface.
+	 * The subject the provider itself is proved against, and not part of the interface.
 	 *
-	 * **It is a fixture rather than a packaged component because there is not yet a packaged
-	 * component that reads a direction.** Every family that sets `dir` on the element it renders
-	 * still reads it from this application's own locale metadata, and the ten that need nothing
-	 * else from a locale cross on #779; the first of those to arrive is what should replace this.
-	 * Until then the alternative is not covering the direction at all, and it is one of the two
-	 * things this whole move puts at risk.
+	 * **It renders both halves of the contract on one element, which is what keeps it here now
+	 * that #779 has landed packaged families that read a direction.** No packaged component does
+	 * both: `card` renders a direction and no word, `spinner` renders a word and no direction.
+	 *
+	 * `lib/tests/strings.svelte.test.ts` takes it three times. The language-switch test is the
+	 * one that needs both halves at once, because the failure it pins is the provider writing a
+	 * frozen object rather than getters, which shows up as a word and a direction going stale in
+	 * step. The other two cover the string on its own and the throw a missing provider raises,
+	 * and either could take a packaged component instead.
+	 *
+	 * A packaged family reading a direction is covered where it lives, in
+	 * `lib/primitive/card/tests/card.svelte.test.ts`.
 	 *
 	 * It sits in this `tests/` directory rather than beside `probe.svelte` because what it covers
 	 * is a module of the package rather than the runner itself, and a test here lives under the

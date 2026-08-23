@@ -36,7 +36,7 @@
 
 <script lang="ts">
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import * as Tooltip from '$lib/design/primitive/tooltip';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import type { Component } from 'svelte';
 
 	/**

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
-	import * as DropdownMenu from '$lib/design/primitive/dropdown-menu';
+	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import * as Sidebar from '$lib/design/primitive/sidebar';
 	import { useSidebar } from '$lib/design/primitive/sidebar';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
