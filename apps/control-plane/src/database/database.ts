@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+
 import { createClient, type Client } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 
@@ -104,17 +106,121 @@ export const resolveDatabase = (env: NodeJS.ProcessEnv): Resolution => {
 };
 
 /**
+ * How long the credential behind a hosted database has left.
+ *
+ * **The deadline is knowable and nothing else about the token is.** `exp` is read out of an
+ * unverified JWT, so a claim in the past is near-certain failure and a claim in the future promises
+ * nothing: this account's tokens can also be revoked in bulk, with no propagation time published.
+ * That asymmetry is why nothing here refuses. A token past its deadline is announced, loudly, and
+ * the process still starts. Refusing would put a working control plane at the mercy of this
+ * machine's clock being right, and a wrong line is a much smaller failure than an outage.
+ */
+export type Expiry =
+	| { standing: 'live'; expiresAt: number; remainingMs: number }
+	| { standing: 'expired'; expiresAt: number }
+	| { standing: 'unreadable' };
+
+/**
+ * The `exp` claim, or the honest admission that it could not be read.
+ *
+ * A JWT is three base64url segments and the middle one is the payload, so this is a decode and a
+ * `JSON.parse` and nothing else. **No key, no verification, and no library bought for it**: the
+ * remote is what decides whether a token is good, and this reads a number to put in a sentence.
+ *
+ * **Everything that is not a readable claim is one outcome.** A segment count other than three, a
+ * payload that is not an object, an `exp` that is absent or not a finite number, and anything that
+ * throws on the way all return `unreadable`. Turso mints JWTs today, and a token that stops being
+ * one is a fact about the token rather than grounds to refuse a database that may work perfectly.
+ */
+export const tokenExpiry = (authToken: string, now: () => number): Expiry => {
+	const segments = authToken.split('.');
+
+	if (segments.length !== 3) return { standing: 'unreadable' };
+
+	let claims: unknown;
+
+	try {
+		claims = JSON.parse(Buffer.from(segments[1] ?? '', 'base64url').toString('utf8'));
+	} catch {
+		return { standing: 'unreadable' };
+	}
+
+	if (typeof claims !== 'object' || claims === null) return { standing: 'unreadable' };
+
+	const { exp } = claims as { exp?: unknown };
+
+	if (typeof exp !== 'number' || !Number.isFinite(exp)) return { standing: 'unreadable' };
+
+	// RFC 7519 counts `exp` in seconds and every clock here is in milliseconds. This is the one
+	// unit error this function can make, which is why its tests state a date rather than compute
+	// one: getting it backwards puts the deadline in 1970 or in 56000 AD, and both read as absurd.
+	const expiresAt = exp * 1000;
+	const remainingMs = expiresAt - now();
+
+	return remainingMs > 0
+		? { standing: 'live', expiresAt, remainingMs }
+		: { standing: 'expired', expiresAt };
+};
+
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+
+/** a count somebody can act on. Days until there is less than one, then hours, because `0 days left` is the line that most needs to be readable. */
+const remaining = (ms: number): string => {
+	if (ms >= DAY_MS) {
+		const days = Math.floor(ms / DAY_MS);
+
+		return `${days} ${days === 1 ? 'day' : 'days'} left`;
+	}
+
+	if (ms >= HOUR_MS) {
+		const hours = Math.floor(ms / HOUR_MS);
+
+		return `${hours} ${hours === 1 ? 'hour' : 'hours'} left`;
+	}
+
+	return 'under an hour left';
+};
+
+/** UTC and unambiguous, the spelling [[references/turso]] records its dates in. */
+const on = (at: number): string => new Date(at).toISOString().slice(0, 10);
+
+/**
  * What the process says it is connected to.
  *
  * **The raw URL is never printed**, because libSQL accepts `?authToken=` inside one and a startup
  * line that passed whatever the query string held through would be a line that can print a
  * credential. {@link resolveDatabase} refuses such a URL, and this is the other half of the same
  * guard: the announcement is built from the parts that identify a database and from nothing else.
+ * The expiry is held to the same rule: it is built from the `exp` claim, and no branch of it echoes
+ * any part of the token it was read out of.
+ *
+ * **`now` is optional so that none of the four entrypoints has to be edited.** They each print what
+ * this returns already, which is what makes one function the whole change; a required parameter
+ * would mean four call sites and a fifth that somebody forgets.
  */
-export const describe = (configuration: DatabaseConfiguration): string => {
+export const describe = (
+	configuration: DatabaseConfiguration,
+	now: () => number = Date.now
+): string => {
 	const parsed = new URL(configuration.url);
 
-	if (configuration.kind === 'hosted') return `hosted ${parsed.protocol}//${parsed.host}`;
+	if (configuration.kind === 'hosted') {
+		const where = `hosted ${parsed.protocol}//${parsed.host}`;
+		const expiry = tokenExpiry(configuration.authToken, now);
+
+		if (expiry.standing === 'unreadable') return `${where}, token expiry unreadable`;
+
+		// The consequence in words rather than a negative number to interpret. When this line is
+		// printed the control plane is already answering 503 to everything, from a health route
+		// that keeps its reason out of the body on purpose, so this is the only place the cause is
+		// written down.
+		if (expiry.standing === 'expired') {
+			return `${where}, token EXPIRED ${on(expiry.expiresAt)} (every query will fail)`;
+		}
+
+		return `${where}, token expires ${on(expiry.expiresAt)} (${remaining(expiry.remainingMs)})`;
+	}
 
 	// The configured spelling rather than `parsed.pathname`, which resolves a relative file URL to
 	// `/control-plane.db` and so reports a file beside the process as one at the filesystem root.

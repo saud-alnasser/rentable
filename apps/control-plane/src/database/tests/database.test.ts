@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -10,6 +11,7 @@ import {
 	connect,
 	describe as describeDatabase,
 	resolveDatabase,
+	tokenExpiry,
 	type Resolution
 } from '../database.ts';
 
@@ -133,7 +135,10 @@ test('a relative file is not announced as an absolute one', () => {
 test('what the process announces identifies the database and carries no credential', () => {
 	const announced = describeDatabase({ kind: 'hosted', url: HOSTED, authToken: TOKEN });
 
-	assert.equal(announced, 'hosted libsql://cp-rentable-example.turso.io');
+	// `TOKEN` is a sentence rather than a JWT, so the expiry reads as unreadable. That is criterion
+	// 3's outcome arriving in criterion 4's test, and it is the right one: a token this function
+	// cannot decode must still leave a line that identifies the database and carries no credential.
+	assert.equal(announced, 'hosted libsql://cp-rentable-example.turso.io, token expiry unreadable');
 	assert.ok(!announced.includes(TOKEN), 'the announcement carries the token');
 	assert.ok(!announced.includes('?'), 'the announcement carries a query string');
 });
@@ -199,6 +204,182 @@ test('a local configuration opens the file it names', async () => {
 			() => {}
 		);
 	}
+});
+
+/**
+ * Acceptance criteria 1 through 6 of *the control plane says when its token expires*.
+ *
+ * **The token is built here rather than mocked**, which is what keeps every one of these off the
+ * network and off the account. Nothing verifies the signature, so the third segment is a constant;
+ * what is under test is the claim in the middle one and the sentence it produces.
+ */
+const jwtExpiringAt = (exp: unknown): string =>
+	[
+		Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url'),
+		Buffer.from(JSON.stringify({ id: 'a-database-id', exp })).toString('base64url'),
+		'not-a-signature-and-never-read'
+	].join('.');
+
+/** the deadline the live tokens carry, per [[references/turso]]: minted 2026-08-23 for 52 weeks. */
+const EXPIRES_AT = Date.UTC(2027, 7, 22);
+const MINTED_AT = Date.UTC(2026, 7, 23);
+const LIVE_TOKEN = jwtExpiringAt(EXPIRES_AT / 1000);
+
+const at = (ms: number) => () => ms;
+
+const hosted = (authToken: string) => ({ kind: 'hosted', url: HOSTED, authToken }) as const;
+
+// Criterion 1. The date is stated rather than computed, which is what makes a unit error impossible
+// to hide: reading `exp` as milliseconds puts this deadline in 1970 and the assertion prints it.
+test('a hosted database announces when its token expires and how long is left', () => {
+	assert.equal(
+		describeDatabase(hosted(LIVE_TOKEN), at(MINTED_AT)),
+		'hosted libsql://cp-rentable-example.turso.io, token expires 2027-08-22 (364 days left)'
+	);
+});
+
+// The counts either side of a day, because `0 days left` is the line somebody reads on the day it
+// matters and the one that must not say nothing.
+test('the count falls to hours inside the last day, and to neither inside the last hour', () => {
+	const before = (hours: number) => at(EXPIRES_AT - hours * 60 * 60 * 1000);
+
+	assert.match(describeDatabase(hosted(LIVE_TOKEN), before(25)), /\(1 day left\)$/);
+	assert.match(describeDatabase(hosted(LIVE_TOKEN), before(23)), /\(23 hours left\)$/);
+	assert.match(describeDatabase(hosted(LIVE_TOKEN), before(1)), /\(1 hour left\)$/);
+	assert.match(describeDatabase(hosted(LIVE_TOKEN), at(EXPIRES_AT - 1)), /\(under an hour left\)$/);
+});
+
+// Criterion 2. The consequence in words, because when this line is printed the control plane is
+// already answering 503 to everything from a route that keeps its reason out of the body, and this
+// is the only place the cause is written down.
+test('a token past its expiry says so, and says what it costs', () => {
+	assert.equal(
+		describeDatabase(hosted(LIVE_TOKEN), at(EXPIRES_AT + 1)),
+		'hosted libsql://cp-rentable-example.turso.io, token EXPIRED 2027-08-22 (every query will fail)'
+	);
+
+	// The boundary itself. A token whose deadline is exactly now has no time left, and a `>=` here
+	// would announce `under an hour left` on a credential the remote has already stopped taking.
+	assert.match(describeDatabase(hosted(LIVE_TOKEN), at(EXPIRES_AT)), /EXPIRED/);
+});
+
+// Criterion 3. Every shape that is not a readable claim, and the second half of each: the database
+// still resolves. Turso mints JWTs today, and a token that stops being one is a fact about the
+// token rather than grounds to refuse a database that may work perfectly.
+test('a token whose expiry cannot be read says so, and does not stop the database resolving', () => {
+	const header = Buffer.from(JSON.stringify({ alg: 'HS256' })).toString('base64url');
+
+	const unreadable = [
+		['not a JWT at all', 'a-token-that-nothing-may-print'],
+		['two segments rather than three', 'header.payload'],
+		[
+			'a payload that is not an object',
+			`${header}.${Buffer.from('"exp"').toString('base64url')}.sig`
+		],
+		[
+			'a payload that is not JSON',
+			`${header}.${Buffer.from('not json').toString('base64url')}.sig`
+		],
+		['no exp claim', jwtExpiringAt(undefined)],
+		['an exp that is not a number', jwtExpiringAt('soon')],
+		['an exp that is null', jwtExpiringAt(null)]
+	] as const;
+
+	for (const [why, token] of unreadable) {
+		assert.equal(
+			describeDatabase(hosted(token), at(MINTED_AT)),
+			'hosted libsql://cp-rentable-example.turso.io, token expiry unreadable',
+			`${why} was not announced as unreadable`
+		);
+
+		assert.deepEqual(
+			configuredBy({
+				CONTROL_PLANE_DATABASE_URL: HOSTED,
+				CONTROL_PLANE_DATABASE_TOKEN: token
+			}),
+			{ kind: 'hosted', url: HOSTED, authToken: token },
+			`${why} stopped the database resolving`
+		);
+	}
+});
+
+// Criterion 4. The refusals are what four acceptance criteria of the turso effort pinned, and this
+// effort must not add a fifth. An expired token is the case that would tempt one: it cannot work,
+// which is the exact wording of the guard beside it, and it is still not grounds to refuse, because
+// the claim is unverified and the clock is this machine's.
+test('an expired token is announced rather than refused, and no fifth refusal was added', () => {
+	const expired = jwtExpiringAt(Date.UTC(2020, 0, 1) / 1000);
+
+	assert.deepEqual(
+		configuredBy({
+			CONTROL_PLANE_DATABASE_URL: HOSTED,
+			CONTROL_PLANE_DATABASE_TOKEN: expired
+		}),
+		{ kind: 'hosted', url: HOSTED, authToken: expired }
+	);
+
+	// The four that do refuse, named here so that losing one is a failing test rather than a quiet
+	// loosening. Each carries the expired token where it takes one, so none of them can be passing
+	// for the new reason instead of its own.
+	assert.match(refusalOf(resolveDatabase({})), /CONTROL_PLANE_DATABASE_URL is not set/);
+	assert.match(
+		refusalOf(
+			resolveDatabase({
+				CONTROL_PLANE_DATABASE_URL: 'not a url',
+				CONTROL_PLANE_DATABASE_TOKEN: expired
+			})
+		),
+		/is not a URL/
+	);
+	assert.match(
+		refusalOf(
+			resolveDatabase({
+				CONTROL_PLANE_DATABASE_URL: `${HOSTED}?authToken=x`,
+				CONTROL_PLANE_DATABASE_TOKEN: expired
+			})
+		),
+		/carries an authToken in its query/
+	);
+	assert.match(
+		refusalOf(resolveDatabase({ CONTROL_PLANE_DATABASE_URL: HOSTED })),
+		/CONTROL_PLANE_DATABASE_TOKEN is not set/
+	);
+});
+
+// Criterion 5. The token is the one thing on this line that must never reach a log, and the expiry
+// is decoded out of it, so every branch is checked rather than the one printed most often.
+test('no announcement carries the token, or any segment of it', () => {
+	const segments = LIVE_TOKEN.split('.');
+
+	for (const now of [at(MINTED_AT), at(EXPIRES_AT + 1)]) {
+		const announced = describeDatabase(hosted(LIVE_TOKEN), now);
+
+		assert.ok(!announced.includes(LIVE_TOKEN), 'the announcement carries the whole token');
+
+		for (const segment of segments) {
+			assert.ok(
+				!announced.includes(segment),
+				`the announcement carries a segment of the token: ${segment.slice(0, 12)}`
+			);
+		}
+	}
+});
+
+// The decode under the sentence. `describe` is what four entrypoints print, and this is what it
+// reads; covering only the formatted line would pin the decode to a string somebody may reword.
+test('the exp claim is read in seconds, against a clock in milliseconds', () => {
+	assert.deepEqual(tokenExpiry(LIVE_TOKEN, at(MINTED_AT)), {
+		standing: 'live',
+		expiresAt: EXPIRES_AT,
+		remainingMs: EXPIRES_AT - MINTED_AT
+	});
+
+	assert.deepEqual(tokenExpiry(LIVE_TOKEN, at(EXPIRES_AT + 1)), {
+		standing: 'expired',
+		expiresAt: EXPIRES_AT
+	});
+
+	assert.deepEqual(tokenExpiry('', at(MINTED_AT)), { standing: 'unreadable' });
 });
 
 const SOURCE = fileURLToPath(new URL('../../', import.meta.url));
