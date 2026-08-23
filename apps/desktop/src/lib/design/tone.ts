@@ -27,9 +27,9 @@ import { tv } from 'tailwind-variants';
  * which, and most say neutral — a screen that declares nothing is indistinguishable from a screen
  * whose author never considered the question, and the two should not look the same in the source.
  *
- * The colours are `app.css`'s, which is the other half of this: `info` and `warning` were raw
- * palette values living inside the callout primitive, so two of the four things a callout could
- * say did not answer to this application's palette at all.
+ * The colours are `@rentable/design/tokens.css`'s, which is the other half of this: `info` and
+ * `warning` were raw palette values living inside the callout primitive, so two of the four
+ * things a callout could say did not answer to this application's palette at all.
  */
 export const TONES = ['neutral', 'info', 'success', 'warning', 'error'] as const;
 

@@ -227,10 +227,23 @@ drawing from it. What stays with the desktop application is what is about rents.
 - ~~**Those applications are Svelte.**~~ **Promoted to a constraint on 2026-08-23**, and
   strengthened: they are SvelteKit. It stopped being an assumption when the package was allowed
   to depend on it.
-- **Tailwind v4 tokens can be shipped from a package** and picked up by a consuming
-  application's stylesheet, `@theme static` included — whose comment in `app.css` records that
-  unused-value elimination drops theme entries nothing references. Unverified across a package
-  boundary.
+- ~~**Tailwind v4 tokens can be shipped from a package**~~ **Confirmed 2026-08-23 at #776**, and
+  it is no longer an assumption. `packages/design/src/lib/tokens.css` is imported by
+  `apps/desktop/src/app.css` and the emitted stylesheet is the same rule set it was before the
+  move. `@theme static` came with it and `--breakpoint-shell` is still emitted in `:root`.
+
+  Two things the assumption did not anticipate, both silent. **Import order is part of the
+  contract**: the package import must follow `@import 'tailwindcss'`, or the packaged
+  `@layer base` stops being ordered above preflight and every default border turns opaque white,
+  with a successful build. And the `@source` line is the other one, as this spec's `# Interfaces`
+  already said. The token file's own header now states all three lines.
+
+  One clause of the moved comment is **unproved rather than wrong**: it says `static` is what
+  stops `--breakpoint-shell` being eliminated "because it is referenced from script rather than
+  from a utility". Removing `static` at #776 produced a byte-identical bundle, because the
+  desktop's own `shell:` utilities reference the breakpoint today. The insurance is cheap and
+  correct in principle; the claim that it is load-bearing here is not demonstrated. The comment
+  was left unedited because criterion 1 required every comment to move unchanged.
 - **`components.json` can point the shadcn-svelte CLI into a workspace package.** Unverified.
   [[rules/frontend]] says all four alias keys route different kinds of generated file and every
   one must be repointed when the directory moves; it does not say whether the target may leave

@@ -3,8 +3,8 @@ import { MediaQuery } from 'svelte/reactivity';
 const SHELL_BREAKPOINT_PROPERTY = '--breakpoint-shell';
 
 /**
- * Build the media query matching every window narrower than the shell's breakpoint. `app.css`
- * declares that breakpoint and says why it is declared there.
+ * Build the media query matching every window narrower than the shell's breakpoint.
+ * `@rentable/design/tokens.css` declares that breakpoint and says why it is declared there.
  *
  * The value keeps its declared unit rather than being converted to pixels, which would put the
  * root font size in a second place. The outer parentheses are supplied here rather than left to

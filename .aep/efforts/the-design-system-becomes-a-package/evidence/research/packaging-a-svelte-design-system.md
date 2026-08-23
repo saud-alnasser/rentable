@@ -150,9 +150,13 @@ A no-build package exporting source through a `svelte` export condition is suppo
   workspace dependency. Unresolved, and it decides whether the package needs `.d.ts` at all.
 - **Whether the shadcn CLI actually writes correctly into a SvelteKit library project addressed
   by `--cwd`.** The mechanism is documented; this specific combination was not tried.
-- **The exact `@source` path** that works for a pnpm symlink, whether it must point at
-  `node_modules/@rentable/design` or at `packages/design`. The documented example uses the
-  `node_modules` path.
+- ~~**The exact `@source` path** that works for a pnpm symlink.~~ **Answered twice.** The
+  prototype found all four candidate forms work, including the two pointing at `packages/design`
+  rather than at `node_modules`, so the difference is not the path. #776 then shipped the
+  workspace-relative form for real, `@source '../../../packages/design/src'` from
+  `apps/desktop/src/app.css`, and proved it by violation: with the line, a packaged
+  `caret-lime-400` is emitted; without it the class is absent while the consumer's own classes
+  survive. That is the form in the tree.
 - Versions: findings 1 to 6 are read against current documentation on 2026-08-23 and were not
   pinned to the versions in this repository's lockfile (`tailwindcss ^4.3.3`,
   `@sveltejs/vite-plugin-svelte ^7.3.0`, `vite ^8.2.2`).
