@@ -13,8 +13,14 @@ table here, and a schema test fails if one appears.
 
 Signing in, the session that sign-in buys, the workspace an account is given at sign-up, minting
 the token a client syncs with, and settling that workspace's schema before the token goes out.
-**Nothing is deployed.** Whatever reaches this reaches a copy somebody is running, which today
-means a local one.
+**Nothing is deployed.** Whatever reaches this reaches a copy somebody started, on their own
+machine.
+
+**Where its records live is a separate question, and since #755 the answer is not that machine.**
+Accounts, workspaces, membership and sessions belong in a hosted Turso database, reached over
+libSQL by the same client a workspace's own database is reached with. A `file:` URL is still legal
+and is what development uses. Neither is a default, and _What it needs to start_ below is where
+that refusal is written out.
 
 **The desktop cannot open a workspace without it.** That is new: the sign-in wall (#571) and the
 removal of the mode discriminator (#566) left no local-only path to fall back to, so a build
@@ -34,10 +40,21 @@ ticket's.
 ## Running it locally
 
 ```sh
-cp .env.example .env             # then fill in the three Turso values
+cp .env.example .env             # then fill in the database, its token, and the three Turso values
 pnpm db:migrate:control-plane    # from the repository root
 pnpm dev                         # from the root: this and the desktop, together
 ```
+
+**The copied file names no database, and that is deliberate.** Put a hosted database's URL and its
+token in it to work against the real records, or `file:./control-plane.db` to develop against a
+file. Left as it is, every drizzle-kit command refuses and so does the process, each naming the
+variable that is missing. That is the whole point of #755: the old fallback made an unconfigured
+process look like a working one right up until somebody wondered where their accounts had gone.
+
+**A hosted database has to exist before the migrate can reach it.** Create it on Turso and mint a
+token for it first. drizzle-kit applies migrations and provisions nothing, so `db:migrate` against
+a database that is not there fails trying to connect. A `file:` database is the exception, because
+libSQL creates the file, which is why the three lines above are the whole of a local setup.
 
 `pnpm dev:control-plane` runs this one alone. It listens on `PORT`, 4000 by default, and the
 desktop has to be told the same number. `GET /health` queries the database before it answers, so
@@ -324,14 +341,15 @@ different scheme, and copying one into the other would make one person two accou
 ## Run it
 
 ```bash
-pnpm --filter ./apps/control-plane db:migrate   # create the database, or bring it up to date
+pnpm --filter ./apps/control-plane db:migrate   # bring its schema up to date. It creates no hosted database
 pnpm --filter ./apps/control-plane dev          # start it, reloading on a change
 ```
 
 Then `curl http://localhost:4000/health`, which answers `{"status":"ok"}` only after reaching
 the database — a process that started without one is the thing a health check exists to
-disprove. It does not say _which_ database: the URL goes to stdout at startup, where the person
-running it can see it and a caller cannot.
+disprove. It does not say _which_ database. What goes to stdout at startup is the scheme and the
+host, or the path for a file, which the person running it can see and a caller cannot. Never the
+URL itself, because libSQL accepts a token inside one.
 
 `pnpm sweep` migrates **every** workspace to the schema version this build ships, which is the
 one thing the mint will not do — see below. It is run by a person, never by a deploy.
@@ -453,26 +471,53 @@ stretch of runs printing no `[719]` line is the evidence to do it on.
 
 ## What it needs to start
 
-Its own database needs a path and nothing else. Provisioning needs three Turso values, and the
-process exits without them. `.env.example` is the whole surface:
+Its own database needs a URL, and a token where that URL is a hosted one. Provisioning needs
+three Turso values. The process exits without any of them. `.env.example` is the whole surface:
 
-| Variable                       | Default                   |                                                          |
-| ------------------------------ | ------------------------- | -------------------------------------------------------- |
-| `CONTROL_PLANE_DATABASE_URL`   | `file:./control-plane.db` | a local file, or a `libsql://` URL once this is deployed |
-| `CONTROL_PLANE_DATABASE_TOKEN` | unset                     | only for a hosted database                               |
-| `PORT`                         | `4000`                    |                                                          |
-| `TURSO_API_TOKEN`              | **required**              | a _Platform API_ token, not a database token             |
-| `TURSO_ORG`                    | **required**              | the organization slug                                    |
-| `TURSO_GROUP`                  | **required**              | an existing group the workspace databases are created in |
+| Variable                       | Default                  |                                                                    |
+| ------------------------------ | ------------------------ | ------------------------------------------------------------------ |
+| `CONTROL_PLANE_DATABASE_URL`   | **required**             | a hosted `libsql://` database, or a `file:` one to develop against |
+| `CONTROL_PLANE_DATABASE_TOKEN` | **required** when hosted | the database's own token. Never inside the URL                     |
+| `PORT`                         | `4000`                   |                                                                    |
+| `TURSO_API_TOKEN`              | **required**             | a _Platform API_ token, not a database token                       |
+| `TURSO_ORG`                    | **required**             | the organization slug                                              |
+| `TURSO_GROUP`                  | **required**             | an existing group the workspace databases are created in           |
 
 The three Turso variables are checked at startup and the process **exits rather than starting
 without them**. A control plane that cannot provision looks healthy, answers `/health`, signs
 people in, and then fails the one route it exists for — at which point the failure reads as Turso
 being down.
 
+**The database is refused at startup too, and by the same argument.** Unset, it used to fall back
+to `file:./control-plane.db`, so a process meant for the hosted database built a stray file beside
+itself and served every account out of it; a hosted URL with no token started, listened, and
+answered `/health` with a 503 that named no cause. Both are a sentence now, printed before
+anything opens.
+
+Four things are refused, and the scheme is what decides between the last two: a URL that is unset
+or blank, a URL that will not parse, a URL that names no host, and a hosted URL with no token.
+`file:` is local and needs nothing else; anything else is hosted and needs the token. **A Windows
+path lands in the third of those**, which is worth knowing before it happens:
+`C:/dev/control-plane.db` parses perfectly well, with `c:` as its scheme, so it is refused for
+naming no host rather than for not being a URL.
+
+**The same refusal reaches drizzle-kit, including the commands that open no database.**
+`drizzle.config.ts` imports the resolver rather than keeping a second copy of the rule, so
+`generate` and `check` refuse with nothing configured even though neither connects to anything.
+That is a cost rather than a design, and #758 carries the decision.
+
+**What the process announces is not the URL it was given.** libSQL accepts `authToken=` inside a
+URL, so the startup line is built from the scheme and the host, or from the path for a file:
+`hosted libsql://cp-example.turso.io`, or `local file ./control-plane.db`. A URL that carries a
+token in its query is refused rather than printed.
+
 **Both URLs go through the same libSQL client**, which is why it is here rather than the
-`better-sqlite3` the desktop tests run on: deploying is out of scope for this effort, and
-choosing a client that would have to be replaced to deploy is not the same as deferring it.
+`better-sqlite3` the desktop tests run on: one client covers the file and the hosted database, and
+that is exactly what makes a test over a file worth running. A client that had to be swapped to
+reach a hosted database would leave the whole suite proving something about a different driver.
+
+**Where this process runs has not moved.** It is still whatever copy somebody starts. Only its
+records are hosted, and nothing here is deployed.
 
 ## The schema
 
