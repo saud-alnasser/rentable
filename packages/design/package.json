@@ -19,7 +19,9 @@
 		"svelte.config.js"
 	],
 	"scripts": {
-		"check": "svelte-check --tsconfig ./tsconfig.json"
+		"check": "svelte-check --tsconfig ./tsconfig.json",
+		"lint": "eslint .",
+		"test": "vitest run"
 	},
 	"dependencies": {
 		"clsx": "^2.1.1",
@@ -27,9 +29,13 @@
 	},
 	"devDependencies": {
 		"@sveltejs/vite-plugin-svelte": "^7.3.0",
+		"@testing-library/svelte": "^5.4.2",
+		"jsdom": "^30.0.1",
 		"svelte": "^5.56.10",
 		"svelte-check": "^4.7.6",
 		"tailwindcss": "^4.3.3",
-		"typescript": "^6.0.3"
+		"typescript": "^6.0.3",
+		"vite": "^8.2.2",
+		"vitest": "^4.1.11"
 	}
 }

@@ -1,31 +1,40 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-22
+date: 2026-08-23
 kind: rule
 paths:
   - apps/desktop/src/**
   - apps/desktop/tauri/src/**
   - apps/control-plane/src/**
+  - packages/design/src/**
 use-when: "writing or changing a test, or deciding what a change must be tested at"
 ---
 
 <!--
   Path-scoped: the `paths:` frontmatter above is the authority, and the harness
-  enforces it — this rule loads when source under `apps/desktop/src/`,
-  `apps/desktop/tauri/src/`, or `apps/control-plane/src/` is read, and costs
-  nothing otherwise.
+  enforces it — this rule loads when source under any of the four paths listed
+  there is read, and costs nothing otherwise.
 
   The control plane was added to that list on 2026-08-18 with #549. **The
   TypeScript section applies to it word for word.** The Rust section has no
   subject there and the router level has none yet; when the control plane grows
   routes, they are covered end to end against a real database for the same
   reason the desktop's are.
+
+  `packages/design/src/**` was added on 2026-08-23 with #775, and it is the one
+  path here the TypeScript section does **not** describe word for word. Read
+  *Component tests* before writing a test there: it is the only place in the
+  repository where a second runner collects anything.
 -->
 
 # Testing
 
 ## TypeScript
+
+**This section describes every test that does not render a component.** One that does is
+collected by a different runner and is covered under *Component tests* below. Nothing this
+section covers moved when that runner arrived, and nothing is meant to.
 
 A test is `<name>.test.ts`, in a `tests/` directory under the directory it covers:
 `src/lib/api/period.ts` is covered by `src/lib/api/tests/period.test.ts`. It uses `node:test`
@@ -65,6 +74,56 @@ produces** — a two-key `Settings`, a `TranslationFunctions` with three of its 
 (`loadLocale('en')`, then `i18nObject('en')`) rather than standing one in.
 
 Commands are in [[references/node-test]], including the single-file invocation.
+
+## Component tests
+
+A component test renders a Svelte component and asserts on what reached the DOM. It lives in
+`packages/design/`, in a `tests/` directory the same way every other TypeScript test does, and
+**Vitest collects it rather than `node:test`.**
+
+*Why there are two runners rather than one: `node:test` works through `tsx`, and `tsx` fails on a
+`.svelte` import with `ERR_UNKNOWN_FILE_EXTENSION`. No flag fixes that — compiling a component
+needs the Svelte compiler in the module pipeline, which is what `@sveltejs/vite-plugin-svelte`
+is. Svelte's own documentation recommends Vitest for exactly this, and points at
+`@testing-library/svelte` over the lower-level `mount` API, which it calls "somewhat brittle".*
+
+**It is named `<name>.svelte.test.ts`, and that is the whole of what separates the two runners.**
+The `.svelte.` segment is not decoration. It is what lets the file use runes at all: the same file
+named `<name>.test.ts` raises `rune_outside_svelte` the moment it reaches `$effect.root()`, and
+renaming it is the entire fix. It is also what keeps Vitest off a `node:test` file, because
+`vitest.config.js` includes that shape and nothing wider.
+
+**Nothing `node:test` covers today moves to the other runner.** Those suites are pure logic,
+routers and runes; none of them renders, and a DOM buys them nothing. A module that moves into
+the design package takes its `node:test` test with it, keeps the plain `<name>.test.ts` name, and
+keeps running under `node:test`.
+
+**That last sentence is a promise the package's `test` script does not yet keep.** It runs
+`vitest run` alone, because no `node:test` file has moved into the package yet. **The ticket that
+moves the first one adds the `node:test` invocation beside it**, and the reason this is written
+down rather than left to be noticed is that the failure is misleading: measured on 2026-08-23, a
+`node:test` file collected by Vitest reported `No test suite found in file` and a summary line of
+`2 passed` that omitted the failing assertion altogether. The run does exit non-zero. It just does
+not say what is wrong.
+
+Three things bind a component test, and each of them is a way of passing while measuring nothing:
+
+- **An effect exercised outside a component needs `$effect.root()` and `flushSync()`**, in a file
+  named as above. Inside a component, `render` mounts it and its effects run. A rune module tested
+  directly has no root, so its effects never fire and the test is green having run none of the
+  code it names.
+- **`globals` is on in `vitest.config.js`, and it is not there for the convenience.**
+  `@testing-library/svelte` registers its `beforeEach` and `afterEach` hooks only when it finds
+  those functions as globals, and the first of them is what calls its `setup()`. Without
+  `setup()`, the `wrapper` option throws `WrapperNotSetupError` on use — and `wrapper` is how a
+  component that reads its strings from context is rendered under test at all. A test file still
+  imports `test` and `expect` explicitly; nothing here relies on a global being in scope.
+- **A fixture component is scaffolding**, and carries no `.test` in its name for the same reason
+  `api/tests/testing.ts` does not. `packages/design/src/tests/probe.svelte` is the standing one.
+  It sits outside `src/lib/` deliberately: the package's `exports` map sends `./*` to `./src/lib/*`,
+  so scaffolding kept under the library directory would be importable by every consumer.
+
+Commands are in [[references/vitest]], including the single-file invocation.
 
 ## Rust
 
