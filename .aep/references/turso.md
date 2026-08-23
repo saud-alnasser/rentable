@@ -145,6 +145,17 @@ Nothing here had tried an expiration as long as `52w` before; every example had 
 libsql://control-plane-saud-alnasser.aws-eu-west-1.turso.io`, which is the scheme and the host with
 no token and no query string.
 
+**Since #765 that line also carries the deadline**, read from the `exp` claim of whichever token is
+configured rather than from anything recorded here — so the date above is a record of one mint and
+never the thing a reader has to trust:
+
+```
+database hosted libsql://control-plane-saud-alnasser.aws-eu-west-1.turso.io, token expires 2027-08-22 (363 days left)
+```
+
+The token is not verified and nothing refuses on it, because the claim is unsigned and the clock is
+the process's own. `apps/control-plane/src/database/database.ts` is where it is read.
+
 The live test cleans up after itself, and it did: both databases held zero rows in all four tables
 afterwards. Nothing it does creates or deletes a database, so the account went from one to three
 and stays there.

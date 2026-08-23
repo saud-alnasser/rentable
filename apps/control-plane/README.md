@@ -56,6 +56,23 @@ token for it first. drizzle-kit applies migrations and provisions nothing, so `d
 a database that is not there fails trying to connect. A `file:` database is the exception, because
 libSQL creates the file, which is why the three lines above are the whole of a local setup.
 
+**That token expires, and the startup line is where the deadline is read.** Every entrypoint that
+opens a hosted database prints the date and how long is left beside the database it opened:
+
+```
+control plane listening on http://localhost:4000, database hosted libsql://<database>.turso.io, token expires <date> (<n> days left)
+```
+
+When the deadline passes the line says `token EXPIRED <date> (every query will fail)`, which is
+the only place that cause is written down: `GET /health` answers 503 for any database it cannot
+reach and keeps the reason out of the body on purpose. A token the process cannot decode is announced as
+`token expiry unreadable` rather than assumed good.
+
+**Nothing refuses on it and nothing re-mints it.** The claim is read out of an unverified token
+against this machine's clock, so a past deadline is near-certain failure while a live one promises
+nothing, and refusing would take a working control plane down on a clock that is wrong. Re-minting
+is a person's job, on the account that owns the database.
+
 `pnpm dev:control-plane` runs this one alone. It listens on `PORT`, 4000 by default, and the
 desktop has to be told the same number. `GET /health` queries the database before it answers, so
 a process that says `{"status":"ok"}` has reached its own storage rather than merely started.
