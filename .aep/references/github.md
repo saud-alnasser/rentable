@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-22
+date: 2026-08-23
 kind: reference
 use-when: "working with issues, pull requests, or CI runs on GitHub"
 ---
@@ -120,6 +120,20 @@ gh issue edit <parent> --remove-sub-issue <child>
 ```
 
 Read from `gh issue create --help` and `gh issue edit --help` on gh 2.96.0. Check the help before relying on them on an older install: this reference previously stated no such subcommand existed, which was true of the version it was written against.
+
+**Gating is a second relationship and it has its own flags**, on `gh issue edit` alone. They take
+numbers or URLs, and a comma-separated list where more than one applies:
+
+```
+gh issue edit <number> --add-blocked-by <blocker>     # this issue waits on that one
+gh issue edit <number> --add-blocking <blocked>       # the same edge, written from the other end
+gh issue edit <number> --remove-blocked-by <blocker>
+gh issue edit <number> --remove-blocking <blocked>
+```
+
+Read from `gh issue edit --help` on gh 2.96.0 and used to build #768's edge onto #765. This is what
+writes the `blockedBy` the frontier query below reads; there was no invocation here for it until
+2026-08-23, and the query had been documented for four months without one.
 
 The REST path still works and is the fallback where the flags are absent: parent/child goes through the sub-issues API with `gh api`:
 
