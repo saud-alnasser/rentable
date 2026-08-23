@@ -75,6 +75,14 @@ pnpm db:migrate:control-plane
 connects and listens, and a deploy that skipped this would serve a database missing its newest
 table.
 
+**Run against a hosted database for the first time on 2026-08-23**, #757. Every previous
+application of these migrations had been to a file, so the `turso` dialect carrying them over the
+wire was a configuration nobody had tested. One run against
+`libsql://control-plane-saud-alnasser.aws-eu-west-1.turso.io` applied all seven and left `account`,
+`workspace`, `membership` and `session`, with `__drizzle_migrations` holding one row per `.sql`
+file in `migrations/`. [[references/turso]] has the rest of that run, including the two databases
+it created.
+
 ## The dev-only commands
 
 ```bash

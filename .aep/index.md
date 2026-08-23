@@ -162,7 +162,7 @@ Start at [[protocol]].
 | sql-proxy-value-conversion | implemented | [[efforts/sql-proxy-value-conversion/spec]] | 0 | 0 | 0 |
 | surfaces-the-overhaul-left-behind | implemented | [[efforts/surfaces-the-overhaul-left-behind/spec]] | 0 | 0 | 0 |
 | the-control-plane-declares-what-it-accepts | implemented | [[efforts/the-control-plane-declares-what-it-accepts/spec]] | 0 | 1 | 0 |
-| the-control-plane-keeps-its-records-on-turso | accepted | [[efforts/the-control-plane-keeps-its-records-on-turso/spec]] | 0 | 0 | 0 |
+| the-control-plane-keeps-its-records-on-turso | implemented | [[efforts/the-control-plane-keeps-its-records-on-turso/spec]] | 0 | 0 | 0 |
 | the-landing-screen-is-figures-over-sections | implemented | [[efforts/the-landing-screen-is-figures-over-sections/spec]] | 0 | 1 | 0 |
 | the-repository-becomes-a-monorepo | implemented | [[efforts/the-repository-becomes-a-monorepo/spec]] | 2 | 0 | 0 |
 | the-shell-says-whose-workspace-this-is | implemented | [[efforts/the-shell-says-whose-workspace-this-is/spec]] | 0 | 0 | 0 |
