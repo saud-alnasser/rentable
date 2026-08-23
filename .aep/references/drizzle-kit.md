@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-20
+date: 2026-08-23
 kind: reference
 use-when: "the database schema changed and a migration has to be generated"
 ---
@@ -51,6 +51,15 @@ verb would leave which database it meant to the reader. Run it after every schem
 package whose schema changed. It writes one `.sql` file
 and updates `meta/`; read the file before committing it, because a generated migration that also
 has to *move* data is rewritten by hand rather than replaced.
+
+**Generating needs no database.** `apps/control-plane/drizzle.config.ts` refuses a configuration
+that cannot work, and drizzle-kit loads the config for every one of its commands, so between #755
+and #758 a `generate` on a clone with no `.env` refused as a `migrate` does. It does not now: the
+config reads the invocation and applies the refusal to `migrate`, `push`, `introspect` and
+`studio`, which open a database, and not to `generate`, `check`, `up`, `drop` and `export`, which
+do not. `apps/control-plane/src/database/drizzle-kit.ts` is the list, and it is a second place that
+knows drizzle-kit's commands — a drizzle-kit upgrade that adds one belongs there too, and its test
+file is what says so out loud.
 
 **Format what it wrote.** drizzle-kit rewrites `meta/_journal.json` with its own indentation, which
 `prettier --check .` fails and the `integration` gate runs — so a generated migration lands with a
