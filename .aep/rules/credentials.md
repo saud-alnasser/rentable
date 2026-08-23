@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-20
+date: 2026-08-22
 kind: rule
 paths:
   - apps/desktop/tauri/src/sync/**
@@ -87,10 +87,12 @@ The loopback server survives as `sync/google/test/server.rs` and is what the pro
 sign-in — the one Google request this application still issues — is tested against, along with
 every control-plane call.
 
-**The *never contact the live API from a test* clause has one declared exception since
-2026-08-20**, and it is [[rules/testing]]'s to state, under *Tests that reach a live remote*: the
-replica divergence tests reach a real Turso database, because what they measure is the remote's own
-merge behaviour and a loopback server for it would mean implementing the thing under test. Read
+**The *never contact the live API from a test* clause has declared exceptions since
+2026-08-20**, and they are [[rules/testing]]'s to state and to count, under *Tests that reach a live
+remote*. The first was the replica divergence tests, which reach a real Turso database because what
+they measure is the remote's own merge behaviour and a loopback server for it would mean
+implementing the thing under test. There are three as of 2026-08-22, each admitted for a property
+the others do not have. Read
 that section before writing anything else that reaches a live service. The clause above is
 otherwise unchanged and still binds every transport.
 

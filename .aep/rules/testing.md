@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-20
+date: 2026-08-22
 kind: rule
 paths:
   - apps/desktop/src/**
@@ -93,10 +93,12 @@ other otherwise. See [[references/cargo]].
 
 ## Tests that reach a live remote
 
-**Two sets do, and they are the exception rather than a second way of testing.** The four
+**Three sets do, and they are the exception rather than a second way of testing.** The four
 `losing_writer` tests at the foot of `tauri/src/database/mod.rs` open two replicas of one workspace
 against a database they provision on Turso; `control-plane/src/workspace/tests/provisioning.test.ts`
-signs up against a live account and reads the schema back off the database that sign-up produced.
+signs up against a live account and reads the schema back off the database that sign-up produced;
+`control-plane/src/database/tests/hosted.test.ts` migrates the control plane's *own* database over
+the wire, serves a sign-in from it, and asserts that a transaction which throws leaves nothing.
 Everything else in this repository is tested against a local file, a loopback HTTP server, or an
 in-memory engine, and that is not changing.
 
@@ -107,7 +109,24 @@ built here, because standing up the replication protocol would mean implementing
 under test — a bug in the stand-in would read as a finding about Turso. The second is there for a
 different reason: what it checks is whether **Turso's own SQL dialect** accepts this schema, and a
 `file:` database cannot answer a question about a remote's dialect however faithfully it runs the
-same code. Nothing else in the tree has either property.*
+same code.*
+
+**The third arrived on 2026-08-22 with #757, and it is a third property rather than a third
+instance of the first two.** The schema of the control plane's own database was already exercised,
+by every test in that package, against a file. What had never happened is the wire: the client, the
+token, and an interactive transaction crossing a network to a hosted database. A `file:` database
+cannot answer whether a remote honours `BEGIN`, and the effort that moved those records onto Turso
+rested on the assumption that it does. So the property is **whether a remote honours what the
+client asks of it**, and it is admitted here rather than absorbed silently into one of the two
+above.
+
+*The count in the heading sentence is the thing that goes stale. A fourth live test is a decision
+somebody takes here, in this section, naming its property, and not a file that quietly appears.*
+
+**One flag arms all the TypeScript ones.** `RENTABLE_LIVE_TURSO=1` is read by both control-plane
+files and the suite glob collects both, so setting it for a whole run provisions workspace
+databases whether or not that is what was wanted. Ask for a live file by name
+([[references/node-test]], *Run one file*) rather than setting the opt-in in a `.env`.
 
 **This does not reopen *Transport testing*.** That rule is about a transport whose serialisation
 and status handling are the subject; a loopback server exercises those better than a live API
