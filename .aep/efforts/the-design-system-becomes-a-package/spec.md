@@ -338,22 +338,48 @@ compile `@rentable/workspace-permission`, whose `tsconfig.json` states the idiom
 words: "The package has no build. `exports` points both conditions at `index.ts`, and every
 consumer compiles it."
 
+**Amended 2026-08-23, after the first acceptance criterion of the first ticket falsified the
+premise this rested on.** The shape is unchanged; what the package uses for its own imports is
+not.
+
+> ~~`$lib` resolves inside the package.~~ **It cannot.** SvelteKit's packaging documentation
+> says aliases are declared in `svelte.config.js` "so that they are processed by
+> `svelte-package`" — the alias has to be rewritten *before the source leaves the package*, and
+> with no build step nothing rewrites it. A `$lib/tailwind.js` specifier reaches the consumer
+> unrewritten and resolves against the **consumer's** library directory. It does not fail; it
+> resolves to the wrong file.
+> [[efforts/the-design-system-becomes-a-package/evidence/research/what-a-package-may-use-for-its-own-imports]]
+
+**The package uses subpath imports — `#lib/...` — declared in its own `imports` field.**
+Measured rather than argued:
+[[efforts/the-design-system-becomes-a-package/evidence/prototypes/a-source-exported-package-without-lib]]
+built the package, consumed it from the desktop, and ran seven measurements. All four clauses of
+the falsifier came back negative.
+
 Three things follow from that shape, and each of them is why it was chosen over the
 alternatives:
 
-- **`$lib` resolves inside the package**, so the shadcn-svelte CLI can write into it. The CLI
-  resolves its aliases through a project's own `svelte.config.js`
-  ([[efforts/the-design-system-becomes-a-package/evidence/research/packaging-a-svelte-design-system]],
-  finding 5), and there is no documented way to aim an application's aliases at a sibling
-  package. `components.json` therefore moves into `packages/design/` and the CLI is run with
-  `--cwd`.
+- **The shadcn-svelte CLI writes into it, and writes the alias itself.** This is the finding that
+  chose subpath imports over self-reference. The CLI resolves aliases through **tsconfig
+  `paths`** rather than through `svelte.config.js` alone, and given `paths` mapping `#lib/*` and
+  `components.json` aliases written as `#lib/...`, a generated `badge.svelte` arrived carrying
+  `import { cn, type WithElementRef } from "#lib/tailwind.js";` — compiling as written, with no
+  import to fix. **Self-reference would have needed every generated import rewritten by hand**,
+  which is the cost that sank approach B.
 - **The import rewrite is one substitution, not a redesign.** Today's internal specifiers are
   `$lib/design/tailwind.js` and its 267 siblings. Inside the package the same specifier becomes
-  `$lib/tailwind.js`: the `design/` segment drops, and nothing else about the shape of an import
-  changes. A package using relative paths instead would rewrite all of them by hand.
+  `#lib/tailwind.js`, and nothing else about the shape of an import changes. Note the `.js`
+  survives: `#lib/tailwind.js` resolved to `./src/lib/tailwind.ts` in the prototype, so the
+  repository's existing habit needs no adjustment.
 - **Nothing goes stale.** A `dist/` that a consumer resolves while the source beside it has moved
   on is a failure with no error attached to it, and this repository has deliberately avoided
   carrying one.
+
+**Types cross the boundary from raw source, with no build and no `.d.ts`.** The prototype proved
+it by violation rather than by a clean run: passing `label={42}` to a packaged component whose
+prop is a `string` produced `Type 'number' is not assignable to type 'string'` from the
+consumer's `svelte-check`. A run with no errors would not have distinguished a working boundary
+from one typed as `any`.
 
 ## The alternatives, and why they lost
 
@@ -371,6 +397,14 @@ published to a registry and read by strangers, and this one is neither. When the
 
 **B loses on requirement 7.** It is otherwise the leaner package, and it would be the answer if
 the primitives were hand-written rather than generated.
+
+**The 2026-08-23 amendment was checked against this table rather than assumed past it.** Losing
+`$lib` cost A its stated first advantage, which was most of why it beat B, so the comparison was
+re-run rather than patched. A still wins, and on the same ground: subpath imports keep the CLI
+working *and* keep the rewrite mechanical, which is exactly what `$lib` was there for. B's
+disadvantages are unchanged and C's build step is still a build step. **What did change is the
+margin** — A won on measurement this time instead of on reasoning, and the row that used to say
+`svelte-check` across the boundary was unverified no longer does.
 
 ## Three decisions inside the chosen shape
 
@@ -428,6 +462,17 @@ imports the stylesheet and omits it gets a silently unstyled application, so it 
 caller must understand to use this module, which is what [[skills/plan/depth]] means by an
 interface.
 
+**Measured 2026-08-23**, with a named utility in the package against a control in the desktop:
+with no `@source`, the package's class was absent from every emitted stylesheet while the
+desktop's own was present. With it, both appeared. **All four candidate path forms worked** —
+`../node_modules/@rentable/design`, that path with a `**/*.svelte` glob, `../../../packages/design/src`,
+and that path with a glob — so the pnpm symlink is not the obstacle the earlier research left
+open under *Not checked*.
+
+`#lib/...` is **internal and not part of this interface.** It is declared in the package's own
+`imports` field, which resolves only for specifiers inside the package, so no consumer ever
+writes one. That is the property `$lib` lacked.
+
 # Technical Approach
 
 Sequenced so that each step is separately reviewable and the tree compiles at the end of each.
@@ -435,6 +480,17 @@ Sequenced so that each step is separately reviewable and the tree compiles at th
 1. **Create the package empty and wire the graph.** `packages/design/` with its manifest,
    `svelte.config.js`, `tsconfig.json`, and a Vitest configuration. `turbo.json` gains it under
    the `test` task's `inputs`, per requirement 11. Nothing has moved yet, so nothing can break.
+
+   **What the package actually needs was measured, not guessed** — the prototype found each of
+   these by hitting the error that names it:
+
+   | It needs | Because |
+   | --- | --- |
+   | `imports: { "#lib/*": "./src/lib/*" }` | the internal alias, resolved only inside the package |
+   | `paths` in `tsconfig.json`, and **no `baseUrl`** | the CLI refuses without `paths`; `baseUrl` beside it raises a TypeScript 7 deprecation, and `paths` alone works |
+   | `tailwindcss` and `svelte` as its own devDependencies | `CLI Error: This CLI requires Tailwind CSS and Svelte to be installed` |
+   | `clsx` and `tailwind-merge` as real dependencies | `svelte-check` caught both as undeclared on the package's first run |
+   | `exports` subpaths carrying `svelte`, `types` and `default` | how a consumer resolves a component, and how its types cross |
 2. **Stand up the test runner and prove it**, against one trivial component written for the
    purpose and deleted after. This is first rather than last because criterion 13's failures
    cannot be demonstrated by a runner that arrives at the end.
@@ -467,7 +523,7 @@ Sequenced so that each step is separately reviewable and the tree compiles at th
 There is no data migration. What migrates is import specifiers, in two mechanical
 substitutions and one manual pass:
 
-- Inside the package: `$lib/design/` becomes `$lib/`. 268 occurrences of `tailwind.js` alone.
+- Inside the package: `$lib/design/` becomes `#lib/`. 268 occurrences of `tailwind.js` alone.
 - In `apps/desktop`: `$lib/design/<moved>` becomes `@rentable/design/<moved>`.
 - Manual: the i18n inversion, which is the only edit in this effort that changes what a file
   does rather than where it sits.
@@ -510,15 +566,21 @@ against `@rentable/desktop`, because that is the package a user can observe, whi
 - **The `@source` line is one line, and forgetting it costs a day.** Tailwind generates no
   utility for a class it never saw, so the application renders with correct markup and no styling
   and nothing reports an error. Step 3 of `# Technical Approach` is placed early specifically so
-  this fires while the change is still small enough to attribute.
-- **`svelte-check` across the boundary is unverified.** The research recorded it under *Not
-  checked*, and it decides whether approach A needs generated `.d.ts` after all — which is
-  approach C arriving through the back door. It is checked at step 1, before anything has moved,
-  and if it fails the choice between A and C is reopened rather than worked around.
-- **The shadcn CLI writing into a package addressed by `--cwd` is documented in its parts and
-  untried as a whole.** If step 7 fails, requirement 7 is met by a documented manual procedure in
-  [[references/shadcn-svelte]] and the failure is recorded there, rather than by pointing an
-  application's aliases outward, which is the shape the upstream bug reports describe.
+  this fires while the change is still small enough to attribute. **Confirmed by measurement on
+  2026-08-23** rather than inferred from documentation, and the remedy confirmed with it.
+- ~~**`svelte-check` across the boundary is unverified.**~~ **Retired 2026-08-23.** It was
+  measured, by violation rather than by a clean run: a wrong prop type across the boundary
+  produced `Type 'number' is not assignable to type 'string'`. Approach A needs no `.d.ts`.
+- ~~**The shadcn CLI writing into a package addressed by `--cwd` is untried as a whole.**~~
+  **Retired 2026-08-23.** It was tried, it works, and the two things it demanded on the way are
+  now in step 1's table. It also writes the internal alias itself, which is what chose subpath
+  imports over self-reference.
+- **The repository's ESLint configuration hands every `.svelte` file the desktop's
+  `svelte.config.js`.** `eslint.config.js` imports it by path and passes it as `svelteConfig` for
+  `**/*.svelte`, which after this effort is the wrong config for several hundred files that live
+  in a different package with a config of its own. Unmeasured — the prototype never ran ESLint —
+  and it belongs to the first ticket. **How it would show up**: parser errors on package files,
+  or worse, no errors and a rule silently not applying.
 - **Two test runners in one repository.** Already named under `# Risks`; the technical half is
   that Vitest and `node:test` will both collect a file named `*.test.ts` if their globs are
   allowed to overlap, and the package is the only place Vitest looks.
