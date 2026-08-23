@@ -1,9 +1,9 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-22
+date: 2026-08-23
 kind: spec
-status: accepted
+status: implemented
 ---
 
 # Problem

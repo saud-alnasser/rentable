@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-20
+date: 2026-08-23
 kind: reference
 use-when: 'provisioning a workspace database, minting a token to sync with one, or reading what the control plane does to Turso'
 ---
@@ -23,6 +23,13 @@ Two things, and neither is in the data path: **creating the database a workspace
 in**, and **minting the short-lived token a client syncs with**. Reads and writes go
 between a client's replica and its database directly; this API never sees a row of anybody's
 ledger.
+
+**Since 2026-08-23 the control plane's own records are on Turso as well, and they do not come
+through this API.** `control-plane` is an ordinary libSQL database that `@libsql/client` reaches
+over the wire, the same way a client reaches its workspace's. All this API did for it was create it
+once and mint one token; everything after that is SQL. Its URL and token are
+`CONTROL_PLANE_DATABASE_URL` and `CONTROL_PLANE_DATABASE_TOKEN`, and
+`apps/control-plane/.env.example` is where they are documented.
 
 ## Prerequisites
 
@@ -106,6 +113,42 @@ keys throughout and no `idmap`. #557's criterion 5 was recorded as *documented, 
 end* for want of exactly this, and `apps/control-plane/src/workspace/tests/provisioning.test.ts` is
 what exercises it.
 
+**Run live a third time 2026-08-23, at the human's request, and this one was not about a
+workspace.** It created the two databases the control plane's own records live in, minted a token
+for each, applied the migrations to one and served from it, and ran
+`apps/control-plane/src/database/tests/hosted.test.ts` against the other. #757 is the ticket.
+
+| | |
+| --- | --- |
+| `control-plane` | what the control plane serves from. Group `rentable`, created 2026-08-23 |
+| `control-plane-live-test` | what the live test writes into. Same group, same day |
+
+Neither is a `ws-` database and neither is a workspace. The names say so plainly, so that nobody
+reading the dashboard has to work it out from the group. What the run settled:
+
+| | |
+| --- | --- |
+| `expiration=52w` is accepted | the token's `exp - iat` is 31449600, exactly 364 days |
+| a token for a database that is not a workspace is scoped like one | its `id` claim is that database's `DbId` |
+| the migrations apply over the wire | every table in the schema, and seven `__drizzle_migrations` rows against seven `.sql` files |
+| the process serves from it | `/health` answered `{"status":"ok"}` |
+| a remote honours an interactive transaction | a `db.transaction()` that throws leaves none of its writes |
+
+**Three of those were assumptions the effort was built on**, and this run is where each stops being
+one: drizzle-kit's `turso` dialect carrying migrations to a remote, a token for a database that is
+not a `ws-` workspace being scoped the way the workspace tokens are, and a remote honouring an
+interactive transaction. Until this run the last was read off `drizzle-orm` 0.45.2's source
+rather than observed. [[references/drizzle-kit]] carries the migrate.
+
+Nothing here had tried an expiration as long as `52w` before; every example had stopped at
+`2w1d30m`. The startup line read `database hosted
+libsql://control-plane-saud-alnasser.aws-eu-west-1.turso.io`, which is the scheme and the host with
+no token and no query string.
+
+The live test cleans up after itself, and it did: both databases held zero rows in all four tables
+afterwards. Nothing it does creates or deletes a database, so the account went from one to three
+and stays there.
+
 **A separate finding, from #552's Rust work rather than from this run**: those migrations cannot be
 applied through a *sync* connection. `0003` drops and renames its tables, and the push that follows
 fails with `no such table: main.complex`, measured 2026-08-20 against a live account. That is not a
@@ -117,15 +160,20 @@ so nothing here would have found it.
 A live run creates a real database and is billed and quota-counted — the free tier permits 100.
 **It is the human's call**, the same standing rule as pushing.
 
-**It also leaves databases behind, and the count is not stable enough to list.** `gate-11` from
-the decision 11 prototype and `ws-effe2636-dccb-4dda-8e46-c0ad602bc1dc` from this verification were
-the two on 2026-08-18; #552's live tests add four per run on top of them, named `t552-<case>-<nonce>`,
-and #572's add two, named `ws-<uuid>` like any other workspace.
-None of them can be removed while the group is delete-protected, and against a quota of 100 that is
+**It also leaves databases behind.** #552's live tests add four per run, named
+`t552-<case>-<nonce>`, and #572's add two, named `ws-<uuid>` like any other workspace. Nothing in
+this repository can remove one from a delete-protected group, and against a quota of 100 that is
 worth watching rather than assuming.
 
 *The inventory was a list of names until 2026-08-20 and is a description now, because a list that
 grows by four whenever somebody runs a test is a list that is wrong more often than it is right.*
+
+**Counted 2026-08-23, before the third run above: one database,
+`ws-c8aa62a6-d4ea-45a6-a317-d2ca2530dd46`, with the group's `delete_protection` still `true`.**
+The two named here on 2026-08-18 and everything #552 and #572 left had gone.
+**How is not known from here.** Nothing in this repository
+deletes into a protected group, so whatever removed them was done outside it. Recorded because the
+paragraph above says the count only climbs, and the measurement says it does not.
 
 ## Failure handling
 
@@ -157,6 +205,12 @@ on purpose and no number of attempts changes that.
   workspace whose record could not be written, and the teardown in
   `workspace/tests/provisioning.test.ts`, which removes what its live run provisioned. A workspace's
   database is somebody's ledger, and nothing else is a reason to call it.
+- **Do not delete `control-plane` or `control-plane-live-test`.** One holds every account,
+  workspace, membership and session the control plane decides on; the other is what the live test
+  writes into, and it is reused rather than recreated for exactly this reason. No code path in this
+  repository may delete either, and `deleteDatabase` cannot reach them anyway: both its callers
+  remove something they just created. **The group's delete protection is not the guarantee here.**
+  Whatever cleared this account on or before 2026-08-23 got past it.
 - **Do not rotate or revoke the Platform API token.** It is the human's, and revoking it stops
   every mint.
 - **Do not run a live create or mint against the human's account without being asked to.**
