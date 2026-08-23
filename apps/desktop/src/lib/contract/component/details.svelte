@@ -8,12 +8,12 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { Contract } from '$lib/platform/database/schema';
-	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
-	import RecordSurface from '$lib/design/block/record-surface.svelte';
-	import Specification from '$lib/design/block/specification.svelte';
+	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
+	import RecordSurface from '@rentable/design/block/record-surface.svelte';
+	import Specification from '@rentable/design/block/specification.svelte';
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import * as Cell from '$lib/design/cell';
-	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
+	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import {
 		canManuallyTerminateContractStatus,

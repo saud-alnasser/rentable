@@ -1,8 +1,8 @@
 <script lang="ts">
 	import api from '$lib/api/caller';
 	import { tauri } from '$lib/platform/tauri';
-	import PageFrame from '$lib/design/block/page-frame.svelte';
-	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
+	import PageFrame from '@rentable/design/block/page-frame.svelte';
+	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';

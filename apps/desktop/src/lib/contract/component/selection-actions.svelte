@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { back } from '@rentable/design/back.svelte.js';
-	import SelectionDialog from '$lib/design/block/selection-dialog.svelte';
-	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
+	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
+	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import {
 		describeRefusals,
 		foreseenRefusals,

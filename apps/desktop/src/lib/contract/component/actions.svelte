@@ -18,7 +18,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { back } from '@rentable/design/back.svelte.js';
-	import DeleteDialog from '$lib/design/block/delete-dialog.svelte';
+	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import {
 		canManuallyTerminateContractStatus,

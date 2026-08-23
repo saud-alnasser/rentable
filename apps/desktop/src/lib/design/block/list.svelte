@@ -25,7 +25,7 @@
 <script lang="ts" generics="TData extends { id: string }, TGroup extends ListGroup">
 	import { browser } from '$app/environment';
 	import ExportDialog from '$lib/design/block/export-dialog.svelte';
-	import RecordActionControl from '$lib/design/block/record-action-control.svelte';
+	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Checkbox } from '@rentable/design/primitive/checkbox/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';

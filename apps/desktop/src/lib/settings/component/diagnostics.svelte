@@ -1,5 +1,5 @@
 <script lang="ts">
-	import SurfaceAction from '$lib/design/block/surface-action.svelte';
+	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';

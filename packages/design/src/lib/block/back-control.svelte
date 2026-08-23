@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { back } from '@rentable/design/back.svelte.js';
-	import { Button } from '@rentable/design/primitive/button/index.js';
-	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { back } from '#lib/back.svelte.js';
+	import { Button } from '#lib/primitive/button/index.js';
+	import * as Tooltip from '#lib/primitive/tooltip/index.js';
+	import { useDesignContract } from '#lib/strings.js';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 
 	/**
@@ -19,6 +19,8 @@
 		/** where back goes when the reader has been nowhere else — the concept's directory. */
 		fallback: string;
 	} = $props();
+
+	const contract = useDesignContract();
 </script>
 
 <Tooltip.Root>
@@ -28,15 +30,15 @@
 				{...props}
 				variant="outline"
 				size="icon-sm"
-				aria-label={$LL.common.ui.previous()}
+				aria-label={contract.strings.previous}
 				class="shrink-0 rounded-full bg-secondary"
 				onclick={() => back.go(fallback)}
 			>
 				<!-- the arrow mirrors with the locale: back is towards where reading starts. -->
 				<ArrowLeftIcon class="size-4 rtl:rotate-180" />
-				<span class="sr-only">{$LL.common.ui.previous()}</span>
+				<span class="sr-only">{contract.strings.previous}</span>
 			</Button>
 		{/snippet}
 	</Tooltip.Trigger>
-	<Tooltip.Content side="top" sideOffset={8}>{$LL.common.ui.previous()}</Tooltip.Content>
+	<Tooltip.Content side="top" sideOffset={8}>{contract.strings.previous}</Tooltip.Content>
 </Tooltip.Root>

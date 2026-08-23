@@ -1,11 +1,16 @@
 <script lang="ts">
-	import { isConfirmable, toConfirmation, type Blockers } from '@rentable/design/confirmation.js';
-	import { ConfirmationSubmission } from '@rentable/design/confirmation.svelte.js';
-	import type { ButtonVariant } from '@rentable/design/primitive/button/index.js';
-	import { Button } from '@rentable/design/primitive/button/index.js';
-	import { Callout } from '@rentable/design/primitive/callout/index.js';
-	import * as Dialog from '@rentable/design/primitive/dialog/index.js';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { isConfirmable, toConfirmation, type Blockers } from '#lib/confirmation.js';
+	import { ConfirmationSubmission } from '#lib/confirmation.svelte.js';
+	import type { ButtonVariant } from '#lib/primitive/button/index.js';
+	import { Button } from '#lib/primitive/button/index.js';
+	import { Callout } from '#lib/primitive/callout/index.js';
+	import * as Dialog from '#lib/primitive/dialog/index.js';
+	import { useDesignContract } from '#lib/strings.js';
+
+	// read above the props rather than below them, as `primitive/command/command-dialog` already
+	// does: four of this one's defaults are contract strings, and a default cannot name a binding
+	// declared after it.
+	const contract = useDesignContract();
 
 	/**
 	 * The one surface that asks before something is destroyed, shared by every action that does.
@@ -26,10 +31,10 @@
 		onSubmit,
 		record,
 		blockers,
-		title = $LL.common.actions.delete(),
-		description = $LL.common.deleteDialog.description(),
-		confirmLabel = $LL.common.actions.delete(),
-		confirmLoadingLabel = $LL.common.actions.deleting(),
+		title = contract.strings.delete,
+		description = contract.strings.deleteDescription,
+		confirmLabel = contract.strings.delete,
+		confirmLoadingLabel = contract.strings.deleting,
 		confirmVariant = 'destructive'
 	}: {
 		open: boolean;
@@ -62,7 +67,7 @@
 		isOpen: () => open,
 		perform: () => onSubmit(),
 		close: () => onOpenChange(false),
-		unexpected: () => $LL.common.messages.unexpectedError()
+		unexpected: () => contract.strings.unexpectedError
 	});
 </script>
 
@@ -79,10 +84,10 @@
 			     reads as that sentence's subject rather than as the record. -->
 			<div class="space-y-1">
 				<p class="text-sm leading-6 font-medium break-words">
-					{record || $LL.common.deleteDialog.unnamedRecord()}
+					{record || contract.strings.unnamedRecord}
 				</p>
 				<p class="text-sm leading-6 text-muted-foreground">
-					{isBlocked ? $LL.common.deleteDialog.blockedDescription() : description}
+					{isBlocked ? contract.strings.deleteBlockedDescription : description}
 				</p>
 			</div>
 
@@ -114,7 +119,7 @@
 				onclick={() => onOpenChange(false)}
 				class="w-full sm:w-auto"
 			>
-				{isBlocked ? $LL.common.ui.close() : $LL.common.actions.cancel()}
+				{isBlocked ? contract.strings.close : contract.strings.cancel}
 			</Button>
 
 			{#if !isBlocked}

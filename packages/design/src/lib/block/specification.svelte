@@ -11,7 +11,7 @@
 </script>
 
 <script lang="ts">
-	import { cn } from '@rentable/design/tailwind.js';
+	import { cn } from '#lib/tailwind.js';
 
 	/**
 	 * A record's fields, read as a specification.

@@ -64,9 +64,28 @@ reaching the user and everything else reading as an unexpected failure.
   import. The guard used to be *do not replace*; until #783 lands it is *do not add either*,
   because the reader who finds two spinners is told by nothing which of them the application
   draws.
-- **App-level composites go in `design/block/`**, never in the packaged `primitive/`. App-level
-  means shared by concepts; the application shell's own components are not, and live in
-  `layout` (#257).
+- **App-level composites go in a `block/`**, never in a `primitive/`. App-level means shared
+  by concepts; the application shell's own components are not, and live in `layout` (#257).
+  **Which `block/` is decided by what the composite reaches**, and #781 sorted the fifteen that
+  existed: `packages/design/src/lib/block/` holds the eleven that reach nothing but the design
+  system and what the package is already allowed (`$app/*`, which `record-surface` navigates
+  with), and `design/block/` here holds the four that reach past it. A new composite that
+  reaches `$lib/api`, `$lib/platform`, `$lib/error` or a concept belongs in this application; one
+  that reaches none of them belongs in the package, where a second client can draw it.
+
+  **Read the whole reach, not the import list.** Two of the four that stayed import nothing from
+  that list themselves: `export-dialog` reaches `$lib/platform` through `design/csv`, and
+  `record-card` reaches both `$lib/platform` and `$lib/error` through the class list it borrows
+  from `list.svelte`. A test applied to the first line of imports would have moved them both.
+  **A type-only import is a reach.** `csv.ts` names `$lib/platform/tauri` for two types and
+  nothing else, and the bar is not what survives the build but what resolves: `$lib` has no
+  meaning inside the package, so `svelte-check` fails there on an erased import as readily as on
+  a live one.
+
+  **`$lib/i18n` is not on that list, and it is the reach most likely to be mistaken for one.**
+  A `$LL` read is a cost rather than a bar, because the contract is what it inverts onto: #781
+  moved five blocks that each had one. All four that stayed read `$LL` too, and not one of them
+  stayed for that.
 - **`components.json`'s alias keys are the CLI's vocabulary, not ours.** `components`,
   `utils`, `ui`, and `hooks` each route a different kind of generated file, so they are
   not interchangeable and cannot be merged into one — which is why a `utils` key survives
@@ -205,9 +224,10 @@ words and its reading direction are supplied from outside: one typed object and 
 handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/design/strings.js` is
 the contract, and it holds what enforces it and why the direction travels with the words.
 
-*Everything above is unchanged for a component that lives in this application, and after #780 that
-is everything but the primitives: every block, every cell, and every component under a concept or
-under `layout`. What #780 finished is the primitive tree, not the crossing.*
+*Everything above is unchanged for a component that lives in this application, and after #781 that
+is every cell, every component under a concept or under `layout`, and the four blocks that have
+not crossed. What #780 and #781 finished is the primitive tree and eleven of the fifteen blocks,
+not the crossing.*
 
 **A packaged component that needs a reading direction reads `contract.direction` and never
 derives one.** #779 moved ten families whose only locale read was
@@ -216,7 +236,17 @@ same element. A component that imports a locale and maps it to a direction itsel
 the coupling the package exists to remove, in a place no grep for `$lib/i18n` would find. #780
 added the two families that read a direction for something other than the attribute — `sheet`
 picks the edge it slides in from, `sidebar` picks the side its tooltips stand on — and both read
-the same member. A direction derived from anything else is the same defect wearing a `$derived`.
+the same member. #781 added `block/form-surface`, whose panel is portalled to `document.body`
+and so states a direction rather than inheriting one. A direction derived from anything else is
+the same defect wearing a `$derived`.
+
+**A parameterised string is the contract's only where the package owns the number.**
+`DesignStrings` is 28 keys and 27 of them are plain strings; `moreRecords` is a function because
+`block/selection-dialog` counts the refused records it had no room to name, from a plan its
+consumer handed in, so there is no moment at which the consumer could have resolved the phrase.
+Every other counted phrase on that surface arrives as a prop, `describeReason` and `summarize`
+among them, because the words are the concept's. **Ask who knows the number**: the package, and
+it is a key; the caller, and it is a prop.
 
 **A packaged component registers no keyboard shortcut of its own.** A registration describes
 itself out of `TranslationFunctions`, which is this application's generated type, so one

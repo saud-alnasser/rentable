@@ -15,12 +15,20 @@ import { getContext } from 'svelte';
  * site wants the same value, so threading it through them would buy the same compile error at
  * several hundred times the cost.
  *
- * **Almost every key below is an accessible name rather than a visible word**, which is why the
- * keys read as labels for controls rather than as sentences. `next` and `previous` are the
- * exceptions: a pagination control renders both of them beside its glyph at the wider sizes.
- * `commandPalette`, `commandPaletteDescription`, `sidebar` and `mobileSidebarDescription` are
- * rendered into headers marked `sr-only`, which is a dialog's required title and description
- * present for a reader who cannot see the surface that carries them.
+ * **The keys divide by what renders them.** The seventeen the primitives read are almost all
+ * accessible names rather than visible words, which is why they read as labels for controls
+ * rather than as sentences: `next` and `previous` are the exceptions a pagination control puts
+ * beside its glyph at the wider sizes, and `commandPalette`, `commandPaletteDescription`,
+ * `sidebar` and `mobileSidebarDescription` go into headers marked `sr-only`, which is a dialog's
+ * required title and description present for a reader who cannot see the surface carrying them.
+ * The eleven the blocks added at #781 are the other kind, and are read aloud by nothing: they are
+ * the sentences and control words on a composed surface, which are the surface's own rather than
+ * its caller's.
+ *
+ * **One key is a function and every other one is a string.** `moreRecords` counts the records a
+ * selection dialog decided not to name, which is arithmetic over a plan the consumer handed in
+ * and therefore a number no consumer could have resolved the phrase against. When a key belongs
+ * here at all is [[rules/frontend]]'s, and it turns on which side knows the number.
  *
  * The type is the first enforcement and not the only one. A consumer whose object is missing a
  * key fails `svelte-check` at the place it renders the provider, and the message names the key;
@@ -30,31 +38,53 @@ import { getContext } from 'svelte';
 export type DesignStrings = {
 	/** the accessible name of the trail a breadcrumb renders, on the `nav` that holds it. */
 	breadcrumb: string;
-	/** the label on the close control a dialog and a sheet each render in their corner. */
+	/** the word on the control that leaves a dialog without doing the thing it asked about. */
+	cancel: string;
+	/** what closes a surface without acting: the corner control on a dialog and a sheet, and the
+	 * footer word on a block whose surface has nothing to confirm. */
 	close: string;
 	/** the command palette's title, rendered into a header only a screen reader reaches. */
 	commandPalette: string;
 	/** the command palette's description, in the same header and required beside the title. */
 	commandPaletteDescription: string;
+	/** the word on the control that destroys the record, and the delete dialog's own title. */
+	delete: string;
+	/** what a delete dialog says in place of {@link DesignStrings.deleteDescription} where
+	 * something still depends on the record, and there is no destructive control to describe. */
+	deleteBlockedDescription: string;
+	/** what a delete dialog says the deletion costs, on its own line under the record it names. */
+	deleteDescription: string;
+	/** the word that replaces {@link DesignStrings.delete} while the deletion is in flight. */
+	deleting: string;
 	/** the accessible name of a pagination control that advances a page. */
 	goToNextPage: string;
 	/** the accessible name of a pagination control that goes back a page. */
 	goToPreviousPage: string;
 	/** the accessible name of a spinner, which is a `role="status"` with nothing else to read. */
 	loading: string;
+	/** what a record surface says beneath its spinner while the record is still being read. */
+	loadingRecord: string;
 	/** what the sidebar's drawer presentation says it is, beside {@link DesignStrings.sidebar}. */
 	mobileSidebarDescription: string;
 	/** what a breadcrumb's ellipsis stands for, which is the crumbs it collapsed. */
 	more: string;
 	/** what a pagination ellipsis stands for, which is the pages it collapsed. */
 	morePages: string;
+	/** how a selection dialog names the refused records it had no room to list, given how many
+	 * were left out. The one key that takes an argument; the docstring above has why. */
+	moreRecords: (count: number) => string;
 	/** the visible word on a pagination control that advances a page. */
 	next: string;
 	/** the accessible name of a carousel control that advances a slide. */
 	nextSlide: string;
+	/** what a record surface says in place of the record where there is no such record. */
+	noResults: string;
+	/** what a selection dialog says where the plan it was handed turned every record away. */
+	nothingToDo: string;
 	/** the accessible name of the navigation a pagination control renders. */
 	pagination: string;
-	/** the visible word on a pagination control that goes back a page. */
+	/** what goes back: the visible word on a pagination control, and the accessible name of the
+	 * control a record surface puts above the record. */
 	previous: string;
 	/** the accessible name of a carousel control that goes back a slide. */
 	previousSlide: string;
@@ -62,6 +92,10 @@ export type DesignStrings = {
 	sidebar: string;
 	/** the accessible name of both controls that fold and unfold the sidebar. */
 	toggleSidebar: string;
+	/** what a confirmation reports where the action failed for a reason it has no words for. */
+	unexpectedError: string;
+	/** what a delete dialog calls the record where its surface passed no name for it. */
+	unnamedRecord: string;
 };
 
 /** which way the reader reads, supplied rather than derived because the package has no locale. */
@@ -95,10 +129,14 @@ export const DESIGN_CONTRACT = Symbol('rentable.design.contract');
  * **It fires when the calling component initialises, which for most of the package is not when
  * the screen draws.** Most of the families that read this are overlays whose content `bits-ui`
  * instantiates only once they open, so a missing provider surfaces on the first interaction
- * rather than on render. `card`, `toggle-group`, `breadcrumb`, `carousel`, `pagination` and the
- * sidebar's own chrome throw at render, because they are the ones that are not overlays. A test
- * that renders a subtree and asserts it survives is therefore proving less than it looks, unless
- * the subject is one of those or the overlay is opened.
+ * rather than on render. `card`, `toggle-group`, `breadcrumb`, `carousel`, `pagination`, the
+ * sidebar's own chrome, `block/record-surface` and `block/back-control` throw at render, because
+ * they are the ones that are not overlays. **`block/delete-dialog` throws at render as well, and
+ * it is an overlay.** Its own script reads the contract to default four of its props, before
+ * `bits-ui` has decided anything, and consumers mount it closed rather than behind an `{#if}`,
+ * so it runs when the page holding it first draws. The laziness is `Dialog.Content`'s, not the
+ * wrapper's, and any overlay that defaults a prop from the contract loses it the same way. A test that renders a subtree and asserts it survives is therefore
+ * proving less than it looks, unless the subject is one of those or the overlay is opened.
  */
 export function useDesignContract(): DesignContract {
 	const contract = getContext<DesignContract | undefined>(DESIGN_CONTRACT);

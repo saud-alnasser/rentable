@@ -151,7 +151,10 @@ Three things bind a component test, and each of them is a way of passing while m
 - **Reach for `wrapper` before writing a fixture.** `render(Subject, {}, { wrapper: Provider,
   wrapperProps: { … } })` puts a provider above the subject with nothing in between, which is
   most of what a fixture would have been for, and it is what `globals` is on for. A fixture earns
-  its place where `wrapper` cannot reach, which is two cases rather than one.
+  its place where `wrapper` cannot reach, which is three cases rather than one. **Where none of
+  them holds, there is no fixture**: two of the three block test files added at #781 render their
+  subjects directly with their own props, because a block takes props a `.ts` file can write. The
+  third took one for the third reason below and for that alone.
 
   **The subject needs a particular provider above it**, and not the one `wrapper` supplies.
   `contract-harness.svelte` is this: `rerender` drives the subject's props rather than the
@@ -163,6 +166,12 @@ Three things bind a component test, and each of them is a way of passing while m
   `bits-ui` only once the dialog is open, and every sidebar part reads state `Sidebar.Provider`
   creates. Seven of the eight fixtures added at #780 are this, and each says in its own
   docstring what it leaves out and why.
+
+  **The subject takes a snippet.** A snippet is the one kind of prop that cannot be written in a
+  `.ts` file at all, so a component with a required one needs a `.svelte` caller whatever else is
+  true of it. `form-surface-harness.svelte` at #781 is the only fixture here for this reason
+  alone: the subject renders on its own, it just cannot be handed its fields and its actions from
+  a test file.
 
 Commands are in [[references/vitest]], including the single-file invocation.
 

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import StandaloneSurface from '$lib/design/block/standalone-surface.svelte';
-	import SurfaceAction from '$lib/design/block/surface-action.svelte';
+	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
+	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
 	import { revealDiagnostics } from '$lib/platform/diagnostics';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';

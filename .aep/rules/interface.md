@@ -12,6 +12,7 @@ paths:
   - apps/desktop/src/lib/payment/component/**
   - apps/desktop/src/routes/**
   - apps/desktop/src/app.css
+  - packages/design/src/lib/block/**
   - packages/design/src/lib/primitive/**
   - packages/design/src/lib/tokens.css
 use-when: "a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell"
