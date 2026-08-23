@@ -1,4 +1,5 @@
 import { DesignProvider } from '#lib/strings.js';
+import { suppliedStrings } from '#tests/contract-strings.js';
 import { render, screen } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
 import { Card } from '../index.js';
@@ -26,7 +27,7 @@ test('a packaged family renders in the direction the contract supplied', () => {
 		{ 'data-testid': 'card' },
 		{
 			wrapper: DesignProvider,
-			wrapperProps: { strings: { loading: 'loading' }, direction: 'rtl' }
+			wrapperProps: { strings: suppliedStrings({ loading: 'loading' }), direction: 'rtl' }
 		}
 	);
 
@@ -39,7 +40,7 @@ test('the same family follows the consumer into the other direction', () => {
 		{ 'data-testid': 'card' },
 		{
 			wrapper: DesignProvider,
-			wrapperProps: { strings: { loading: 'loading' }, direction: 'ltr' }
+			wrapperProps: { strings: suppliedStrings({ loading: 'loading' }), direction: 'ltr' }
 		}
 	);
 

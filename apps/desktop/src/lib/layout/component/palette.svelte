@@ -19,7 +19,7 @@
 	import type { ResolvedPathname } from '$app/types';
 	import { withCreateIntent } from '@rentable/design/create-intent.js';
 	import { Kbd, KbdGroup } from '@rentable/design/primitive/kbd/index.js';
-	import * as Command from '$lib/design/primitive/command';
+	import * as Command from '@rentable/design/primitive/command/index.js';
 	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { TranslationFunctions } from '$lib/i18n/i18n-types';

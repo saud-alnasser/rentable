@@ -26,7 +26,7 @@
 	import { listenForWindowCloseRequests } from '$lib/layout/event';
 	import { createStartup } from '$lib/layout/startup';
 	import { browserStartupPorts } from '$lib/layout/startup-ports';
-	import { DesignProvider } from '@rentable/design/strings.js';
+	import { DesignProvider, type DesignStrings } from '@rentable/design/strings.js';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount } from 'svelte';
@@ -56,6 +56,42 @@
 	let shellState = $state(startup.snapshot);
 
 	const currentDirection = $derived(localesMetadata[$locale].direction);
+
+	/**
+	 * The words `@rentable/design` renders its own chrome with, which this application owns and
+	 * the package only asks for.
+	 *
+	 * **One object rather than seventeen props**, because every one of these is the same wherever
+	 * it appears: a close control says the same word in every dialog, and a spinner says the same
+	 * word wherever it spins. `@rentable/design/strings.js` carries that argument in full, along
+	 * with what each key labels.
+	 *
+	 * **Two of them are read from `common.table` rather than `common.ui`**, which is where this
+	 * application had already written the pagination labels. The contract is one flat set of the
+	 * keys the package actually renders, so it does not carry either namespace's shape.
+	 *
+	 * `$derived` rather than a constant, because a reader can change language without restarting
+	 * and every packaged component has to move with them.
+	 */
+	const designStrings: DesignStrings = $derived({
+		breadcrumb: $LL.common.ui.breadcrumb(),
+		close: $LL.common.ui.close(),
+		commandPalette: $LL.common.ui.commandPalette(),
+		commandPaletteDescription: $LL.common.ui.commandPaletteDescription(),
+		goToNextPage: $LL.common.table.goToNextPage(),
+		goToPreviousPage: $LL.common.table.goToPreviousPage(),
+		loading: $LL.common.ui.loading(),
+		mobileSidebarDescription: $LL.common.ui.mobileSidebarDescription(),
+		more: $LL.common.ui.more(),
+		morePages: $LL.common.ui.morePages(),
+		next: $LL.common.ui.next(),
+		nextSlide: $LL.common.ui.nextSlide(),
+		pagination: $LL.common.ui.pagination(),
+		previous: $LL.common.ui.previous(),
+		previousSlide: $LL.common.ui.previousSlide(),
+		sidebar: $LL.common.ui.sidebar(),
+		toggleSidebar: $LL.common.ui.toggleSidebar()
+	});
 
 	const DAY_CROSSING_CHECK_INTERVAL_MS = 60_000;
 
@@ -214,7 +250,7 @@
 		throws is drawn with the same words. it supplies context and renders nothing, so there is
 		nothing here for a boundary to catch.
 	-->
-	<DesignProvider strings={{ loading: $LL.common.ui.loading() }} direction={currentDirection}>
+	<DesignProvider strings={designStrings} direction={currentDirection}>
 		<!--
 			The outer of the application's two boundaries, and the honest floor under requirement 8.
 

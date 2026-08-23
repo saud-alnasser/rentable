@@ -1,5 +1,5 @@
 <script lang="ts">
-	import * as Sidebar from '$lib/design/primitive/sidebar';
+	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';

@@ -1,8 +1,9 @@
 import { DesignProvider } from '#lib/strings.js';
+import { suppliedStrings } from '#tests/contract-strings.js';
 import { render, screen } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
-import Contract from '../../tests/contract.svelte';
-import ContractHarness from '../../tests/contract-harness.svelte';
+import Contract from '#tests/contract.svelte';
+import ContractHarness from '#tests/contract-harness.svelte';
 
 /**
  * The two failures this move creates, and neither of them is caught by anything else here.
@@ -18,7 +19,10 @@ test('a component renders in the direction the contract supplied', () => {
 	render(
 		Contract,
 		{},
-		{ wrapper: DesignProvider, wrapperProps: { strings: { loading: 'loading' }, direction: 'rtl' } }
+		{
+			wrapper: DesignProvider,
+			wrapperProps: { strings: suppliedStrings({ loading: 'loading' }), direction: 'rtl' }
+		}
 	);
 
 	expect(screen.getByTestId('contract').getAttribute('dir')).toBe('rtl');
@@ -30,7 +34,7 @@ test('a component renders the string the contract supplied', () => {
 		{},
 		{
 			wrapper: DesignProvider,
-			wrapperProps: { strings: { loading: 'جارٍ التحميل' }, direction: 'rtl' }
+			wrapperProps: { strings: suppliedStrings({ loading: 'جارٍ التحميل' }), direction: 'rtl' }
 		}
 	);
 
@@ -50,11 +54,11 @@ test('a component renders the string the contract supplied', () => {
  */
 test('a language switch reaches a component that has already rendered', async () => {
 	const { rerender } = render(ContractHarness, {
-		strings: { loading: 'loading' },
+		strings: suppliedStrings({ loading: 'loading' }),
 		direction: 'ltr'
 	});
 
-	await rerender({ strings: { loading: 'جارٍ التحميل' }, direction: 'rtl' });
+	await rerender({ strings: suppliedStrings({ loading: 'جارٍ التحميل' }), direction: 'rtl' });
 
 	expect(screen.getByTestId('contract').getAttribute('dir')).toBe('rtl');
 	expect(screen.getByTestId('contract').textContent).toBe('جارٍ التحميل');

@@ -7,7 +7,6 @@ paths:
   - apps/desktop/src/lib/**/component/**
   - apps/desktop/src/lib/design/block/**
   - apps/desktop/src/lib/design/cell/**
-  - apps/desktop/src/lib/design/primitive/**
   - apps/desktop/src/lib/dashboard/**
   - apps/desktop/src/lib/contract/**
   - apps/desktop/src/lib/payment/component/**

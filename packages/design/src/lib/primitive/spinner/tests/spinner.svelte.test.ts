@@ -1,4 +1,5 @@
 import { DesignProvider } from '#lib/strings.js';
+import { suppliedStrings } from '#tests/contract-strings.js';
 import { render, screen } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
 import { Spinner } from '../index.js';
@@ -22,7 +23,7 @@ test('a packaged component renders the string the contract supplied', () => {
 		{},
 		{
 			wrapper: DesignProvider,
-			wrapperProps: { strings: { loading: 'loading' }, direction: 'ltr' }
+			wrapperProps: { strings: suppliedStrings({ loading: 'loading' }), direction: 'ltr' }
 		}
 	);
 
@@ -35,7 +36,7 @@ test('the words belong to the consumer, not to the package', () => {
 		{},
 		{
 			wrapper: DesignProvider,
-			wrapperProps: { strings: { loading: 'جارٍ التحميل' }, direction: 'rtl' }
+			wrapperProps: { strings: suppliedStrings({ loading: 'جارٍ التحميل' }), direction: 'rtl' }
 		}
 	);
 

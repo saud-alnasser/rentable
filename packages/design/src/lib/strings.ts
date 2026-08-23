@@ -13,10 +13,14 @@ import { getContext } from 'svelte';
  * **The direction rides in the same object as the words, deliberately.** It is ambient in the
  * same way they are: a family that needs it sets it on the element it renders and every call
  * site wants the same value, so threading it through them would buy the same compile error at
- * several hundred times the cost. *The figure this once quoted, twelve families across nineteen
- * files, was true when the contract was written at #777 and is not a fact about the contract.
- * Ten of those families crossed at #779; what is left is `dialog` and `sheet`, and they cross at
- * #780.*
+ * several hundred times the cost.
+ *
+ * **Almost every key below is an accessible name rather than a visible word**, which is why the
+ * keys read as labels for controls rather than as sentences. `next` and `previous` are the
+ * exceptions: a pagination control renders both of them beside its glyph at the wider sizes.
+ * `commandPalette`, `commandPaletteDescription`, `sidebar` and `mobileSidebarDescription` are
+ * rendered into headers marked `sr-only`, which is a dialog's required title and description
+ * present for a reader who cannot see the surface that carries them.
  *
  * The type is the first enforcement and not the only one. A consumer whose object is missing a
  * key fails `svelte-check` at the place it renders the provider, and the message names the key;
@@ -24,8 +28,40 @@ import { getContext } from 'svelte';
  * below is what catches that.
  */
 export type DesignStrings = {
+	/** the accessible name of the trail a breadcrumb renders, on the `nav` that holds it. */
+	breadcrumb: string;
+	/** the label on the close control a dialog and a sheet each render in their corner. */
+	close: string;
+	/** the command palette's title, rendered into a header only a screen reader reaches. */
+	commandPalette: string;
+	/** the command palette's description, in the same header and required beside the title. */
+	commandPaletteDescription: string;
+	/** the accessible name of a pagination control that advances a page. */
+	goToNextPage: string;
+	/** the accessible name of a pagination control that goes back a page. */
+	goToPreviousPage: string;
 	/** the accessible name of a spinner, which is a `role="status"` with nothing else to read. */
 	loading: string;
+	/** what the sidebar's drawer presentation says it is, beside {@link DesignStrings.sidebar}. */
+	mobileSidebarDescription: string;
+	/** what a breadcrumb's ellipsis stands for, which is the crumbs it collapsed. */
+	more: string;
+	/** what a pagination ellipsis stands for, which is the pages it collapsed. */
+	morePages: string;
+	/** the visible word on a pagination control that advances a page. */
+	next: string;
+	/** the accessible name of a carousel control that advances a slide. */
+	nextSlide: string;
+	/** the accessible name of the navigation a pagination control renders. */
+	pagination: string;
+	/** the visible word on a pagination control that goes back a page. */
+	previous: string;
+	/** the accessible name of a carousel control that goes back a slide. */
+	previousSlide: string;
+	/** what the sidebar's drawer presentation is titled, for a reader who cannot see it. */
+	sidebar: string;
+	/** the accessible name of both controls that fold and unfold the sidebar. */
+	toggleSidebar: string;
 };
 
 /** which way the reader reads, supplied rather than derived because the package has no locale. */
@@ -57,12 +93,12 @@ export const DESIGN_CONTRACT = Symbol('rentable.design.contract');
  * type-correct and wordless. The throw is the only thing left to catch it.
  *
  * **It fires when the calling component initialises, which for most of the package is not when
- * the screen draws.** Eight of the ten families that crossed at #779 call this from a `*-Content`
- * that `bits-ui` instantiates only once the overlay opens, so a missing provider surfaces on the
- * first interaction rather than on render. `card` and `toggle-group` throw at render because they
- * are the two that are not overlays. A test that renders a subtree and asserts it survives is
- * therefore proving less than it looks, unless the subject is one of those two or the overlay is
- * opened.
+ * the screen draws.** Most of the families that read this are overlays whose content `bits-ui`
+ * instantiates only once they open, so a missing provider surfaces on the first interaction
+ * rather than on render. `card`, `toggle-group`, `breadcrumb`, `carousel`, `pagination` and the
+ * sidebar's own chrome throw at render, because they are the ones that are not overlays. A test
+ * that renders a subtree and asserts it survives is therefore proving less than it looks, unless
+ * the subject is one of those or the overlay is opened.
  */
 export function useDesignContract(): DesignContract {
 	const contract = getContext<DesignContract | undefined>(DESIGN_CONTRACT);

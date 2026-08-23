@@ -119,24 +119,50 @@ Three things bind a component test, and each of them is a way of passing while m
   `setup()`, the `wrapper` option throws `WrapperNotSetupError` on use — and `wrapper` is how a
   component that reads its strings from context is rendered under test at all. A test file still
   imports `test` and `expect` explicitly; nothing here relies on a global being in scope.
-- **A fixture component is scaffolding**, and carries no `.test` in its name for the same reason
+- **A fixture is scaffolding**, and carries no `.test` in its name for the same reason
   `api/tests/testing.ts` does not. **Every one of them lives in `packages/design/src/tests/`**,
   whatever it covers and wherever the test that uses it sits: `probe.svelte` is the runner's,
-  `contract.svelte` and `contract-harness.svelte` are the string contract's. That directory is
-  outside `src/lib/`, which is what keeps them out of the package: the `exports` map sends `./*`
-  to `./src/lib/*`, so a fixture under the library directory is a component every consumer can
-  import, and one of these throws unless something above it renders the provider.
+  `contract.svelte` and `contract-harness.svelte` are the string contract's, and each
+  `<family>-harness.svelte` is a subject that cannot be rendered on its own.
+
+  That directory is outside `src/lib/`, which is what keeps them out of the package: the
+  `exports` map sends `./*` to `./src/lib/*`, so a fixture under the library directory is a
+  component every consumer can import, and one of these throws unless something above it renders
+  the provider.
+
+  **A module is scaffolding too, and the same reason sends it to the same place.** This is where
+  the design package parts from the TypeScript section above, which puts shared scaffolding under
+  the directory it covers. `contract-strings.ts` builds a complete `DesignStrings` for a test
+  that cares about one key; under `src/lib/tests/` it would be
+  `@rentable/design/tests/contract-strings.js` to every consumer. What decides this is the export
+  map, not whether the file is a component.
 
   *The tests themselves do sit under the directory they cover, and are exposed by that same map.
   The asymmetry is deliberate: a `.test.ts` is not something a consumer can mistake for part of
   the interface, and a fixture component is exactly that.*
 
+  **A test outside that directory reaches one through `#tests/<name>`**, which the package's
+  `imports` map resolves the way `#lib/*` resolves the library. Added at #780, when the first
+  fixtures for tests four directories down arrived and the relative path stopped being readable.
+  A test that sits in `src/tests/` itself keeps the relative form, as `probe.svelte.test.ts`
+  does: an alias to the directory a file is already in reads as though it points somewhere else.
+  `imports` is private to the package, so none of this adds anything a consumer can reach.
+
 - **Reach for `wrapper` before writing a fixture.** `render(Subject, {}, { wrapper: Provider,
   wrapperProps: { … } })` puts a provider above the subject with nothing in between, which is
   most of what a fixture would have been for, and it is what `globals` is on for. A fixture earns
-  its place where `wrapper` cannot reach: `contract-harness.svelte` exists because `rerender`
-  drives the subject's props rather than the wrapper's, and changing what the provider supplies
-  is the whole of what that one test does.
+  its place where `wrapper` cannot reach, which is two cases rather than one.
+
+  **The subject needs a particular provider above it**, and not the one `wrapper` supplies.
+  `contract-harness.svelte` is this: `rerender` drives the subject's props rather than the
+  wrapper's, and changing what the provider supplies is the whole of what that one test does.
+
+  **The subject is not a component but a tree.** A packaged component whose parent creates the
+  state it reads, or opens the portal it renders into, cannot be rendered on its own at all:
+  `Carousel.Next` reads a context `Carousel.Root` sets, `Dialog.Content` is instantiated by
+  `bits-ui` only once the dialog is open, and every sidebar part reads state `Sidebar.Provider`
+  creates. Seven of the eight fixtures added at #780 are this, and each says in its own
+  docstring what it leaves out and why.
 
 Commands are in [[references/vitest]], including the single-file invocation.
 

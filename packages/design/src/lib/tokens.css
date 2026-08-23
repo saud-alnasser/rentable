@@ -183,10 +183,9 @@
  * application has one scrollbar, and the primitives that hold a scroll container are generated:
  * a composing surface cannot reach inside one to apply a class, so for as long as this was
  * opt-in the command palette scrolled in the platform's vocabulary rather than the
- * application's, on a surface reached from every screen. Since #779 those containers are split
- * across two trees, `context-menu`, `dropdown-menu` and `select` in this package and `command`
- * and `sidebar` still under `apps/desktop/src/lib/design/primitive/`, which is a second reason
- * for a rule here rather than a class at each of them.
+ * application's, on a surface reached from every screen. All five of those containers are in this
+ * package as of #780, `command` and `sidebar` having been the last to cross, and a rule here
+ * rather than a class at each of them is what keeps them answering to one declaration.
  */
 
 *::-webkit-scrollbar {

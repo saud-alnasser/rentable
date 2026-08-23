@@ -41,28 +41,30 @@ reaching the user and everything else reading as an unexpected failure.
 
 ## Components
 
-- **`design/primitive/` was generated once and is owned now.** It holds shadcn-svelte
+- **The primitive tree was generated once and is owned now.** It holds shadcn-svelte
   primitives, and the two operations on it are not the same one: **a new primitive is added
   through the CLI; an existing primitive is changed by hand.** The generator writes whole
   files rather than merging, so the flags that make it replace one already here — `add
   --overwrite`, `init --reinstall` — discard whatever this repository put in it. Adding is
   safe; replacing is what there is no way back from. [[references/shadcn-svelte]] has both.
-  What they would discard is load-bearing. Seventeen of these files, across seven
-  primitive families, read the i18n store — for a translated string, or for `dir` on the
-  rendered element. A regenerated file carries neither and still compiles and renders, so
-  the damage shows up as a silently English, silently LTR primitive rather than as an
-  error. *It was eighteen families until 2026-08-23, when `spinner` crossed into
-  `@rentable/design` with #777 and took it to seventeen. #778 moved the families that read no
-  locale at all, so it moved this count by nothing. #779 moved the ten that read one for nothing
-  but a direction, and that is what took it to seven. Read the count as the shape rather than the
-  figure; what makes it right is the argument, not the arithmetic.*
+  What they would discard is load-bearing. Thirty-five of these files, across eighteen of the
+  56 families, read the contract `@rentable/design/strings.js` declares — for a string, or for
+  `dir` on the rendered element. A regenerated file carries neither and still compiles and
+  renders, so the damage shows up as a silently English, silently LTR primitive rather than as
+  an error. *This used to count files reading this application's i18n store, and it fell from
+  eighteen families to seven across #777, #778 and #779. It reached zero at #780, when the last
+  seven crossed. What replaced it is the count above, which is the same hazard against the
+  contract instead of against the store. Read it as the shape rather than the figure; what makes
+  it right is the argument, not the arithmetic.*
 
-  **A family that has crossed is a second hazard rather than one fewer.** The CLI still points
-  at this application: `components.json` maps `ui` to `$lib/design/primitive`, and repointing it
-  is #783's. So `add --overwrite spinner` today writes a fresh `$lib/design/primitive/spinner/`
-  into a tree no import points at any more, and what a reader then finds is two spinners, one of
-  them unreachable and neither of them announcing which.
-- **App-level composites go in `design/block/`**, never in `design/primitive/`. App-level
+  **Every family has crossed, and that makes the CLI more dangerous rather than less.**
+  `components.json` still maps `ui` to `$lib/design/primitive`, and repointing it is #783's.
+  As of #780 that path is a directory this application no longer has, so `add` there does not
+  overwrite anything — it creates the tree from nothing, outside the package, reachable by no
+  import. The guard used to be *do not replace*; until #783 lands it is *do not add either*,
+  because the reader who finds two spinners is told by nothing which of them the application
+  draws.
+- **App-level composites go in `design/block/`**, never in the packaged `primitive/`. App-level
   means shared by concepts; the application shell's own components are not, and live in
   `layout` (#257).
 - **`components.json`'s alias keys are the CLI's vocabulary, not ours.** `components`,
@@ -130,7 +132,7 @@ The steps in use:
 No two adjacent steps are closer than a third apart, which is what makes a difference in spacing
 read as a difference in grouping. It binds `p-*`, `m-*`, `gap-*` and `space-*` on anything
 composed here; a **size** — `size-4`, `h-8`, `max-w-*` — is a component's own dimension and is
-not on this ladder, and `design/primitive/` keeps the geometry it was ported with
+not on this ladder, and the packaged `primitive/` keeps the geometry it was ported with
 (ADR 0007).
 
 **Review enforces this, and no spacing token is added to the stylesheet for it.** A semantic
@@ -203,11 +205,25 @@ words and its reading direction are supplied from outside: one typed object and 
 handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/design/strings.js` is
 the contract, and it holds what enforces it and why the direction travels with the words.
 
-*Everything above is unchanged for a component that lives in this application, which after #779 is
-the seven primitive families still to cross and every block.*
+*Everything above is unchanged for a component that lives in this application, and after #780 that
+is everything but the primitives: every block, every cell, and every component under a concept or
+under `layout`. What #780 finished is the primitive tree, not the crossing.*
 
 **A packaged component that needs a reading direction reads `contract.direction` and never
 derives one.** #779 moved ten families whose only locale read was
 `dir={localesMetadata[$locale].direction}`, and each became `dir={contract.direction}` on the
 same element. A component that imports a locale and maps it to a direction itself has rebuilt
-the coupling the package exists to remove, in a place no grep for `$lib/i18n` would find.
+the coupling the package exists to remove, in a place no grep for `$lib/i18n` would find. #780
+added the two families that read a direction for something other than the attribute — `sheet`
+picks the edge it slides in from, `sidebar` picks the side its tooltips stand on — and both read
+the same member. A direction derived from anything else is the same defect wearing a `$derived`.
+
+**A packaged component registers no keyboard shortcut of its own.** A registration describes
+itself out of `TranslationFunctions`, which is this application's generated type, so one
+declared inside the package would be naming keys in a dictionary the package has no way to
+reach. #780 found the only instance and is where the rule comes from: `SidebarState` registered
+`sidebar.toggle` from its own constructor, and the registration moved to
+`layout/component/sidebar.svelte` while the key it answers stayed with the primitive as
+`SIDEBAR_KEYBOARD_SHORTCUT`. **A packaged component that wants a key states the key and lets its
+consumer register it**, which keeps one place the key is written down and puts the description
+where the dictionary is.

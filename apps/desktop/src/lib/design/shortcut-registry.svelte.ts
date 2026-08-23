@@ -57,7 +57,7 @@ class Shortcuts {
  * the session's one registry.
  *
  * A module rather than a context because a shortcut is registered from places that share no
- * ancestor — the shell, a primitive's own state, and whatever surface holds a key next — and
- * the sheet has to see all of them at once.
+ * ancestor: the shell, a rail that owns a packaged primitive's state, and whatever surface holds
+ * a key next, and the sheet has to see all of them at once.
  */
 export const shortcuts = new Shortcuts();

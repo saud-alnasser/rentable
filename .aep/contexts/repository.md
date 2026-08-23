@@ -1,7 +1,7 @@
 ---
 aep: 2.7.0
 owner: repository
-date: 2026-08-20
+date: 2026-08-23
 kind: context
 use-when: "a term, boundary, or constraint about this repository is in question, before reaching for a narrower context"
 ---
@@ -129,10 +129,13 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   `contract`, `payment`, `tenant`, `complex`, `dashboard`, `settings`, `sync`. A unit is
   reached only through the complex holding it, so it lives inside that concept rather than
   beside it. Three homes own no concept, and a domain rule lives in none of them —
-  **`design`**, the design system and the frontend machinery every concept shares — the
-  primitives, generated once and owned since, the composites built from them, and the
-  cross-concept helpers beside them: class merging, mutation handling, the workspace
-  query-cache policy; **`platform`**, capabilities that cross a process boundary or are
+  **`design`**, the frontend machinery every concept shares — the composites built on the
+  design system, the cells, and the cross-concept helpers beside them: mutation handling, the
+  workspace query-cache policy, undo, the shortcut registry, and the csv, filter, date and
+  import helpers. *It held the primitives and the class merging too until 2026-08-23. Both are
+  in `@rentable/design` now, which [[efforts/the-design-system-becomes-a-package/spec]] is
+  moving the rest of this directory towards; what stays here is what is about rents.*;
+  **`platform`**, capabilities that cross a process boundary or are
   nondeterministic (the desktop shell, the database, diagnostics, locale); and **`api`**,
   the in-webview caller itself: the request context, the tRPC wiring, and the root router
   that assembles every concept's procedures. The clock is the one capability `platform`

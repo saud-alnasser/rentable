@@ -5,7 +5,8 @@
 	"description": "the interface every rentable client is drawn from",
 	"type": "module",
 	"imports": {
-		"#lib/*": "./src/lib/*"
+		"#lib/*": "./src/lib/*",
+		"#tests/*": "./src/tests/*"
 	},
 	"exports": {
 		"./*": {
@@ -30,6 +31,7 @@
 		"@trpc/server": "^11.18.0",
 		"bits-ui": "^2.19.0",
 		"clsx": "^2.1.1",
+		"embla-carousel-svelte": "^8.6.0",
 		"formsnap": "^2.0.1",
 		"layerchart": "2.3.0",
 		"mode-watcher": "^1.1.0",
