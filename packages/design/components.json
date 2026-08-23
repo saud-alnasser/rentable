@@ -1,14 +1,15 @@
 {
 	"$schema": "https://shadcn-svelte.com/schema.json",
 	"tailwind": {
-		"css": "src\\app.css",
+		"css": "src/lib/tokens.css",
 		"baseColor": "zinc"
 	},
 	"aliases": {
-		"components": "$lib/design/block",
-		"utils": "@rentable/design/tailwind.ts",
-		"ui": "$lib/design/primitive",
-		"hooks": "$lib/design"
+		"components": "#lib/block",
+		"utils": "#lib/tailwind",
+		"ui": "#lib/primitive",
+		"hooks": "#lib",
+		"lib": "#lib"
 	},
 	"typescript": true,
 	"registry": "https://shadcn-svelte.com/registry"

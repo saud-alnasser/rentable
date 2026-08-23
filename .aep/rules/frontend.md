@@ -8,6 +8,7 @@ paths:
   - apps/desktop/src/routes/**
   - apps/desktop/src/app.css
   - packages/design/src/**
+  - packages/design/components.json
 use-when: "writing or changing Svelte components, routes, styles, or client state"
 ---
 
@@ -57,13 +58,15 @@ reaching the user and everything else reading as an unexpected failure.
   contract instead of against the store. Read it as the shape rather than the figure; what makes
   it right is the argument, not the arithmetic.*
 
-  **Every family has crossed, and that makes the CLI more dangerous rather than less.**
-  `components.json` still maps `ui` to `$lib/design/primitive`, and repointing it is #783's.
-  As of #780 that path is a directory this application no longer has, so `add` there does not
-  overwrite anything — it creates the tree from nothing, outside the package, reachable by no
-  import. The guard used to be *do not replace*; until #783 lands it is *do not add either*,
-  because the reader who finds two spinners is told by nothing which of them the application
-  draws.
+  **`components.json` lives in the package now**, at `packages/design/components.json`, with `ui`
+  mapped to `#lib/primitive`. #783 moved it and proved it rather than assuming it: the one
+  registry family the package did not already have was added through the CLI, landed under
+  `packages/design/src/lib/primitive/`, passed `pnpm check` once formatted, and was removed again
+  in the same branch. So the guard here is *do not replace*, and that is the only one — `add` on a family
+  that is not present writes into the package, which is what it is for.
+  *Between #780 and #783 it was also "do not add": the alias named a directory this application
+  had deleted, so `add` would have re-created the tree from nothing, outside the package and
+  reachable by no import.*
 - **App-level composites go in a `block/`**, never in a `primitive/`. App-level means shared
   by concepts; the application shell's own components are not, and live in `layout` (#257).
   **Which `block/` is decided by what the composite reaches**, and #781 sorted the fifteen that
@@ -87,22 +90,30 @@ reaching the user and everything else reading as an unexpected failure.
   moved five blocks that each had one. All four that stayed read `$LL` too, and not one of them
   stayed for that.
 - **`components.json`'s alias keys are the CLI's vocabulary, not ours.** `components`,
-  `utils`, `ui`, and `hooks` each route a different kind of generated file, so they are
-  not interchangeable and cannot be merged into one — which is why a `utils` key survives
-  here against the naming rule. Repoint every one of them when a directory moves.
-  **State `ui` and `hooks` even though they are optional**: their defaults are
-  `$lib/components/ui` and `$lib/hooks`, so omitting them makes the next generated
-  primitive recreate the plural `components/` tree this layout removed. `lib` is the only
-  one omitted, because `$lib` is genuinely its default.
-- **`utils` names the packaged file with its `.ts` extension**, `@rentable/design/tailwind.ts`,
-  and the extension is a guard rather than a formality. Read from the 1.5.0 bundle at #778: the
-  CLI writes a `utils` registry item to the alias verbatim where it already ends `.ts` or `.js`,
-  and appends `.ts` where it does not. Written `.js`, the target is a path no file occupies, so
-  a stock `cn` would land beside the owned module and win resolution for every one of the several
-  hundred sites that name it, silently. Written `.ts`, the target is the owned file, where the
-  documented `--overwrite` default applies and `git status` shows any write. **It is the one
-  alias here that is a package specifier rather than a `$lib` path**, which the CLI's own
-  refusal text calls off-contract, and #783 is where that stops being true.
+  `utils`, `ui` and `hooks` each route a different kind of generated file, so they are not
+  interchangeable and cannot be merged into one — which is why a `utils` key survives here
+  against the naming rule. Repoint every one of them when a directory moves. With `lib` they
+  read `#lib/block`, `#lib/tailwind`, `#lib/primitive`, `#lib` and `#lib`.
+  **All five are stated, and each for its own reason.** `ui` and `hooks` default to
+  `$lib/components/ui` and `$lib/hooks`, so omitting them makes the next generated primitive
+  recreate the plural `components/` tree this layout removed. **`lib` routes nothing**: the one
+  `registry:lib` item the registry has is `utils`, and the CLI resolves that through the `utils`
+  key before it consults `lib`. It is stated because the CLI validates it anyway, defaulting it
+  to `$lib`, which inside the package names nothing: the package declares no SvelteKit alias and its
+  `tsconfig.json` maps `#lib/*` alone, so the CLI refuses its own default before it fetches
+  anything — `Config Error: Invalid import alias found: ("lib": "$lib") in components.json.`
+  *This rule said `lib` was the one key safely omitted, because `$lib` was genuinely its default.
+  That was true while the file lived in `apps/desktop/`; #783 pointed the CLI at the package and
+  got the error.*
+- **`utils` is `#lib/tailwind`, and it carries no extension because it no longer needs one.**
+  Read from the 1.5.0 bundle at #778: the CLI writes a `utils` registry item to the alias verbatim
+  where it already ends `.ts` or `.js`, and appends `.ts` where it does not. Appending lands on
+  `src/lib/tailwind.ts`, which is the owned module, where the documented `--overwrite` default
+  applies and `git status` shows any write. *This read `@rentable/design/tailwind.ts` until #783,
+  and there the extension was load-bearing: a package specifier ending `.js` named a path no file
+  occupied, so a stock `cn` would have landed beside the owned module and won resolution for every
+  one of the several hundred sites that name it, silently. The alias is internal now, and it is no
+  longer the one the CLI's own refusal text calls off-contract.*
 - **Domain UI lives with its domain**, not in the shared component tree.
 
 ## Styling
@@ -119,11 +130,20 @@ two: `@import 'tailwindcss'` has to precede the package import, or `@theme`, `@l
 `@apply` resolve against nothing. Both that and a missing `@source` fail with a successful build
 and no error, which is why the file says so at the top rather than leaving it to be found.
 
-**`components.json` still names `app.css` under `tailwind.css`, and that is deliberate for now.**
-The shadcn CLI resolves the theme from the file named there, and only `app.css` assembles a whole
-one: `tokens.css` imports no Tailwind, so pointing the CLI at it would resolve nothing. The cost
-is that a registry item carrying `cssVars` writes tokens back into the window's file. Nothing has
-done that yet; where to point it once the package owns `components.json` is #783's.
+**`components.json` names `tokens.css` under `tailwind.css`**, settled at #783 on ownership: a
+registry item carrying `cssVars` or `@theme` is written into the file named there, and the only
+right home for a token is the token layer. While the file lived in `apps/desktop/` it named
+`app.css`, and leaving it there would have written packaged tokens into the window's own file —
+re-splitting the layer across two files with no error.
+
+**What pointing it there exposes, and why nothing reaches it.** The CLI does not read a theme out
+of that file, it writes into it, and it inserts only where the stylesheet already carries an
+`@import` or a `@theme` at-rule. `tokens.css` carries two, so a registry item's `cssVars` would
+land — and a `cssVars.dark` block brings `@custom-variant dark` and a `.dark {}` rule with it,
+into the one file whose header declares one palette and no modes. **No `add` reaches it.** All 56
+`registry:ui` items were read at #783 and not one carries `cssVars`; the theme lives in the
+`registry:style` `init` item, and `init` is not run here. That is what makes this safe, rather
+than the file being out of reach.
 Variants go through `tailwind-variants`, and class merging through the shared helper.
 
 **The shell's breakpoint is `shell:`, and it is declared once.** The sidebar family and the
