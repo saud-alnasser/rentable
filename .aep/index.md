@@ -33,7 +33,7 @@ Start at [[protocol]].
 | [[rules/frontend]] | writing or changing Svelte components, routes, styles, or client state | — | apps/desktop/src/lib/**, apps/desktop/src/routes/**, apps/desktop/src/app.css | repository |
 | [[rules/interface]] | a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell | — | apps/desktop/src/lib/**/component/**, apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/design/cell/**, apps/desktop/src/lib/design/primitive/**, apps/desktop/src/lib/dashboard/**, apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/component/**, apps/desktop/src/routes/**, apps/desktop/src/app.css | repository |
 | [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | prototype | apps/desktop/src/**, apps/desktop/tauri/src/**, apps/control-plane/src/** | repository |
-| [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | — | apps/desktop/src/**, apps/desktop/tauri/src/**, apps/control-plane/src/** | repository |
+| [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | — | apps/desktop/src/**, apps/desktop/tauri/src/**, apps/control-plane/src/**, packages/design/src/** | repository |
 | [[rules/tracker]] | creating, reading, claiming, or labelling a ticket, or deciding whether work is a ticket at all | specify, plan, implement, review | — | repository |
 | [[rules/version-control]] | branching, committing, opening a pull request, or landing work here | implement, review | — | repository |
 
@@ -71,6 +71,7 @@ Start at [[protocol]].
 | [[references/turso]] | provisioning a workspace database, minting a token to sync with one, or reading what the control plane does to Turso | — | repository |
 | [[references/typescript]] | type-checking this repository, or reading what its compiler is actually configured to enforce | implement, test, review | repository |
 | [[references/vite]] | building or serving this repository with Vite | implement, prototype, test | repository |
+| [[references/vitest]] | running or writing a component test | implement, test | repository |
 
 ## Modes
 

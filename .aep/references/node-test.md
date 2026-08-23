@@ -1,17 +1,20 @@
 ---
-aep: 2.5.1
+aep: 2.7.0
 owner: repository
-date: 2026-08-18
+date: 2026-08-23
 kind: reference
 use-when: "running or writing the TypeScript test suite"
 ---
 
 # node:test (TypeScript tests)
 
-The TypeScript test runner. Tests are `.test.ts`, under a `tests/` directory beside the code
-they cover, and they import `.ts` source directly — so they only run under `tsx`, which is what
-resolves the `$lib` alias and the TypeScript imports. Running them with bare `node --test`
-fails on the first import.
+The TypeScript test runner, for everything that does not render a component. A component test is
+collected by Vitest instead and has its own reference, [[references/vitest]]; [[rules/testing]] is
+what says which of the two a test belongs to.
+
+Tests are `.test.ts`, under a `tests/` directory beside the code they cover, and they import `.ts`
+source directly — so they only run under `tsx`, which is what resolves the `$lib` alias and the
+TypeScript imports. Running them with bare `node --test` fails on the first import.
 
 They were `.test.mjs` beside their subject until #559 (2026-08-18); a path in an older document
 that still reads that way is stale rather than a second convention.

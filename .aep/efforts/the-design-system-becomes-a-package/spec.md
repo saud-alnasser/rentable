@@ -554,8 +554,19 @@ Sequenced so that each step is separately reviewable and the tree compiles at th
    | `clsx` and `tailwind-merge` as real dependencies | `svelte-check` caught both as undeclared on the package's first run |
    | `exports` subpaths carrying `svelte`, `types` and `default` | how a consumer resolves a component, and how its types cross |
 2. **Stand up the test runner and prove it**, against one trivial component written for the
-   purpose and deleted after. This is first rather than last because criterion 13's failures
-   cannot be demonstrated by a runner that arrives at the end.
+   purpose. This is first rather than last because criterion 13's failures cannot be
+   demonstrated by a runner that arrives at the end.
+
+   *Corrected 2026-08-23 at #775: this step read "and deleted after", and that cannot be done.
+   Acceptance criterion 12 wants `pnpm test` from the root to run the package's component tests
+   on a clean checkout, and deleting the only subject leaves `vitest run` with no files at all
+   between here and the first real component three tickets later. Measured: with the only test
+   file moved away, `vitest run` exits 1 with `No test files found`, and so does the turbo task.
+   So the fixture stays, under `src/tests/`, outside the library directory the export map
+   publishes. Whether it is worth keeping past the point where real components exist is
+   **judgement rather than measurement**, and the argument is that a runner whose only subjects
+   are the components under active development reports each of its own faults as a fault in
+   whatever was being edited at the time.*
 3. **Move the token layer.** `tokens.css` into the package, the `@source` and the import into
    `apps/desktop/src/app.css`. Verified by the application still rendering, which is the step
    where an unregistered `@source` announces itself.

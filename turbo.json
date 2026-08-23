@@ -21,10 +21,10 @@
 			// `workspace-permission` joined them when the flag table moved out of the control
 			// plane: both applications' tests now assert against a table neither of them holds.
 			//
-			// `design` is listed before it holds anything. The interface moves into it over the
-			// tickets that follow, and from the first component onwards a desktop test renders
-			// markup this package owns, so a change to one moves nothing under `apps/desktop/`.
-			// Declaring the input now is what stops that from having to be remembered later.
+			// `design` is listed before the interface moves into it. That happens over the tickets
+			// that follow, and from the first component onwards a desktop test renders markup this
+			// package owns, so a change to one moves nothing under `apps/desktop/`. Declaring the
+			// input now is what stops that from having to be remembered later.
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/packages/design/**",
