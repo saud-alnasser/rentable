@@ -129,13 +129,17 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   `contract`, `payment`, `tenant`, `complex`, `dashboard`, `settings`, `sync`. A unit is
   reached only through the complex holding it, so it lives inside that concept rather than
   beside it. Three homes own no concept, and a domain rule lives in none of them —
-  **`design`**, the frontend machinery every concept shares — the four composites that reach
-  past the design system, two of them only through a module beneath them, the cells, and the cross-concept helpers beside them: mutation
-  handling, the workspace query-cache policy, undo, the shortcut registry, and the csv, filter,
-  date and import helpers. *It held the primitives, the class merging and eleven more composites
-  until 2026-08-23. All of those are in `@rentable/design` now, which
-  [[efforts/the-design-system-becomes-a-package/spec]] is moving the rest of this directory
-  towards; what stays here is what is about rents.*;
+  **`design`**, what is left of the frontend machinery once the shareable half became a
+  package — the two composites that reach past the design system, `list.svelte` and
+  `record-actions`, the cells, the toast provider that configures the packaged `Toaster`, and the
+  cross-concept helpers beside them: mutation handling, the workspace query-cache policy, undo,
+  the shortcut registry and what builds the list's registrations, and the filter, date and import
+  helpers. *It held 459 files until 2026-08-23 and holds 34. The 425 that left are 387 primitives,
+  thirteen of the fifteen composites, fifteen root modules with the class merging and `csv.ts`
+  among them, and the ten tests that moved with those; all of them are in `@rentable/design` now,
+  whose last move landed at #784 ([[efforts/the-design-system-becomes-a-package/spec]]). This read
+  "the frontend machinery every concept shares" until then, and what shares is exactly what
+  left.*;
   **`platform`**, capabilities that cross a process boundary or are
   nondeterministic (the desktop shell, the database, diagnostics, locale); and **`api`**,
   the in-webview caller itself: the request context, the tRPC wiring, and the root router
