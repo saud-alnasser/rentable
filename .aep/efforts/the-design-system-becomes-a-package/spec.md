@@ -537,11 +537,12 @@ runner collects what, per acceptance criterion 12.
 | `design/primitive/**` | `packages/design/src/lib/primitive/**` — 56 families, unchanged but for the i18n inversion and the `$lib/design/` to `#lib/` specifier substitution. *Complete at #780. `spinner` crossed early with the contract at #777, #778 took the 38 that render no string, #779 the ten that read a locale for nothing but a direction, and #780 the last seven.* |
 | `design/block/` — the six clean blocks | `packages/design/src/lib/block/` — `field-error`, `page-frame`, `record-action-control`, `specification`, `standalone-surface`, `surface-action`, moved as they stand. *Complete at #781, unchanged but for the specifier substitution.* |
 | `design/block/` — the seven i18n-only blocks | same destination, after requirement 4's inversion. **Five of the seven, at #781**: `back-control`, `delete-dialog`, `form-surface`, `record-surface`, `selection-dialog`. *`export-dialog` and `record-card` are not among them, and this row said they were until #781. Both were classified by reading their own imports, and both reach past the design system through one file that was not read with them: `export-dialog` imports `design/csv`, which imported `$lib/platform/tauri`, and `record-card` imported `recordCard` from `list.svelte`. Neither is a change to the grouping's argument, and both crossed at #782 once the module each waited on was placed, adding six keys to `DesignStrings` and taking it from 28 to 34.* |
-| `design/block/list.svelte`, `design/block/record-actions.svelte` | **both stay in `apps/desktop/src/lib/design/block/`.** Settled at #782; `# Open Questions` holds the rule and the reasoning. `list.svelte` registers three keyboard shortcuts, which [[rules/frontend]] forbids a packaged component outright, and it narrows through `design/filter`; `record-actions` reaches `design/mutation`, which is out of scope by name. *The two that were waiting on them no longer are: `record-card` crossed once `recordCard` moved onto it, and `export-dialog` once `csv.ts` crossed.* |
+| `design/block/list.svelte`, `design/block/record-actions.svelte` | **both stay in `apps/desktop/src/lib/design/block/`.** Settled at #782; `# Open Questions` holds the rule and the reasoning. `list.svelte` registers three keyboard shortcuts, which [[rules/frontend]] forbids a packaged component outright, and it narrows through `design/filter`; `record-actions` reaches `design/mutation`, which is out of scope by name. *The two that were waiting on them no longer are: `record-card` crossed once `recordCard` moved onto it, and `export-dialog` once `csv.ts` crossed.* *#784 asked the follow-on question these two and the three modules in the row below raise together — whether five files that are neither packageable nor obviously domain want a home of their own — and settled it as no. They stay under `design/`, which is where the machinery a concept reaches for has always lived here; a sixth top-level home for five files is a restructure, and #784's first constraint is that nothing new is built in it.* |
 | `design/{tailwind,tone,group,selection,shortcut,sort,identifier,money,is-below-shell-breakpoint}.ts` | `packages/design/src/lib/` — the nine root modules that already import nothing outside `design/` |
 | `design/{back,confirmation,list-keyboard,shortcut-registry}.*` | `packages/design/src/lib/` — `back` and `confirmation` reach only `$app/*`, `design/*`, or i18n types, all three of which the package may now have. **`shortcut-registry.svelte.ts` does not**, and this row said it did until #780: it reaches `$lib/platform/diagnostics`, which requirement 3 forbids. *#782 settled it by leaving all three of `shortcut-registry.{ts,svelte.ts}` and `list-keyboard.ts` with the application, and the ground is not the diagnostics reach: a registration describes itself out of `TranslationFunctions`, and nothing in the package holds a registry or wants one. So `back` and `confirmation` are what this row moves.* *Found while moving `sidebar` past it, which registered a keyboard shortcut from its own state. What that forces is a rule rather than a fact about this row, and [[rules/frontend]] holds it.* |
 | `design/{csv,filter,date,import,create-intent}.ts` | **settled at #782 for the first two.** `csv.ts` moves, declaring the two wire types it builds rather than importing them and taking an `ExportWriter` from its consumer; `filter.ts` stays, being domain. `date.ts` and `import.ts` stay, being locale formatting and database search; `create-intent.ts` moves with `$app/types` |
 | `design/cell/**`, `design/{query,mutation,inverse,undo-shortcut}.*` | stay in `apps/desktop/src/lib/design/` — the domain, per requirement 6 |
+| `design/provider/sonner.svelte` | **stays**, and no ticket named it until #784. It is not domain and it is not shared: it renders the packaged `Toaster` with `duration={1500}`, which is this application's choice about its own toasts, and `+layout.svelte` is its only consumer. A packaged component that fixed the duration would be deciding it for every consumer, so what belongs in the package is the `Toaster` and what belongs here is the number. |
 | `app.css`'s `:root`, `@theme`, `@theme static`, `@layer base`, scrollbar and reduced-motion blocks | `packages/design/src/lib/tokens.css` |
 | `app.css`'s window scroll lock | stays in `apps/desktop/src/app.css`, per requirement 5 |
 | `apps/desktop/components.json` | `packages/design/components.json`, with `ui` repointed at `#lib/primitive` and `components` at `#lib/block`. *This row said `$lib` until #783, and it was written before the amendment above replaced `$lib` with subpath imports throughout. `$lib` resolves nothing inside the package, and the CLI rejects it: all five aliases are `#lib/...`, `lib` among them.* |
@@ -734,6 +735,39 @@ Sequenced so that each step is separately reviewable and the tree compiles at th
    through the CLI with `--cwd packages/design`.
 8. **Delete what was left behind**, and take `apps/desktop/src/lib/design/` down to the domain.
 
+   *Done at #784, and there was nothing left behind to delete.* Each moving ticket used `git mv`
+   and rewrote its own specifiers, so the tree was already at 34 files when this step opened, down
+   from 459. What this step turned out to be is **verification, plus the one edit no moving ticket
+   could make**.
+
+   **The check that a moved file is gone has to be content over the whole application, not paths
+   under `design/`.** Comparing relative paths between `packages/design/src/lib/` and
+   `apps/desktop/src/lib/design/` is the obvious form and it is too weak: a copy left at
+   `apps/desktop/src/lib/layout/component/record-card.svelte` passes it and violates the criterion,
+   which says *gone from the application* rather than gone from one directory. What was run instead
+   is a content hash of every file under `packages/design/src` against every file under
+   `apps/desktop/src`, which finds zero identical pairs. *Raised at #784's own review; the weaker
+   sentence was what this paragraph said first.*
+
+   **The edit is the manifest.** Ten of the desktop's devDependencies had no import site left
+   anywhere in that application: `@tanstack/table-core`, `bits-ui`, `clsx`,
+   `embla-carousel-svelte`, `formsnap`, `layerchart`, `mode-watcher`, `paneforge`,
+   `tailwind-merge` and `vaul-svelte`. Every one is a dependency of something that crossed, and
+   every one is declared by `packages/design/package.json`. Eight are a primitive family's;
+   `clsx` and `tailwind-merge` are `tailwind.ts`'s, which is a helper rather than a family and
+   crossed first, at #777, because it is what `spinner` could not render without. #784's own notes
+   expected nine; `bits-ui` is the tenth, and it reads as used only because three components
+   mention it in a comment. **This could not be done family by family**: a manifest edit per crossing is nine
+   chances to remove something a route still imports, and the set is only closed once
+   `primitive/` is gone.
+
+   *Four more devDependencies have no import site and are **not** removed here:
+   `@fontsource/fira-mono`, `@neoconfetti/svelte`, `@tailwindcss/forms` and
+   `@tailwindcss/typography`. `git log -S` over the whole history finds each in the root manifest
+   at the initial commit and in #506's move, and in no source file ever. They are SvelteKit
+   template residue rather than anything this effort made dead, so removing them here would put an
+   unrelated change in a diff whose reviewability is the constraint the whole effort runs under.*
+
 # Migration
 
 There is no data migration. What migrates is import specifiers, in two mechanical
@@ -788,6 +822,17 @@ not a second pass over the tree.*
 with it and keeps running under `node:test`, because those are pure logic and gain nothing from a
 DOM. `[[skills/plan/depth]]`'s rule against layering does not fire here: no test is being replaced
 by a test at a different level, they are being relocated.
+
+**The Arabic pass ran at #784, over all thirteen routes**, and what it found is recorded at
+[[efforts/the-design-system-becomes-a-package/evidence/research/the-arabic-pass-over-the-thirteen-routes]]
+rather than here, because a pass is a discovery and this section says what checks a criterion.
+Two faults surfaced, #804 and #805, and both predate the effort.
+
+*What the pass cannot establish is the half of requirement 8 that needs a before.* It can say every
+surface is whole and reads correctly, which is what it says. It cannot say a spacing value is the
+one it was in June, because nothing was recorded to compare against. What carries that instead is
+the token layer moving in one piece at #776, and the risk that move actually ran was the unstyled
+component, which the pass does rule out.
 
 # Operational Considerations
 

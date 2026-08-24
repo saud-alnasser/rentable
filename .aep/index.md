@@ -165,7 +165,7 @@ Start at [[protocol]].
 | the-control-plane-declares-what-it-accepts | implemented | [[efforts/the-control-plane-declares-what-it-accepts/spec]] | 0 | 1 | 0 |
 | the-control-plane-keeps-its-records-on-turso | implemented | [[efforts/the-control-plane-keeps-its-records-on-turso/spec]] | 0 | 0 | 0 |
 | the-control-plane-says-when-its-token-expires | accepted | [[efforts/the-control-plane-says-when-its-token-expires/spec]] | 0 | 0 | 0 |
-| the-design-system-becomes-a-package | accepted | [[efforts/the-design-system-becomes-a-package/spec]] | 2 | 1 | 0 |
+| the-design-system-becomes-a-package | accepted | [[efforts/the-design-system-becomes-a-package/spec]] | 3 | 1 | 0 |
 | the-landing-screen-is-figures-over-sections | implemented | [[efforts/the-landing-screen-is-figures-over-sections/spec]] | 0 | 1 | 0 |
 | the-repository-becomes-a-monorepo | implemented | [[efforts/the-repository-becomes-a-monorepo/spec]] | 2 | 0 | 0 |
 | the-shell-says-whose-workspace-this-is | implemented | [[efforts/the-shell-says-whose-workspace-this-is/spec]] | 0 | 0 | 0 |
