@@ -1,9 +1,7 @@
 ---
-aep: 2.2.0
-owner: repository
-date: 2026-08-17
-kind: prototype
+
 ---
+
 
 # Can nine statuses be told apart without a word, and does a filled ring read as money?
 

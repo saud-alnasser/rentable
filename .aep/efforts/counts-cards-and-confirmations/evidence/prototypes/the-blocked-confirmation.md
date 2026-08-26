@@ -1,9 +1,7 @@
 ---
-aep: 2.2.0
-owner: repository
-date: 2026-08-17
-kind: prototype
+
 ---
+
 
 # Does the rebuilt confirmation dialog read as designed in the blocked case, where nothing destructive may be offered?
 

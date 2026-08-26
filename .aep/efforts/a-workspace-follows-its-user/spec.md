@@ -1,8 +1,4 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-22
-kind: spec
 status: implemented
 ---
 
@@ -657,7 +653,7 @@ its replacement.*
   a second thing to be wrong about.* `pnpm --filter ./apps/control-plane sweep` is the precedent
   this effort already set — a command a person runs on a day they picked — and **a second
   mechanism for the same job is one too many**. What shape the invocation takes is
-  [[modes/plan]]'s and is not settled here.
+  [[skills/plan]]'s and is not settled here.
 - **An operation that removes rows answers how many it removed.** *Added 2026-08-19 (#564).*
   *Why: both mechanisms already do, and it is not decoration — it is what tells "nobody was signed
   in" from "somebody was and is not now". An operator who cannot tell those apart has run a
@@ -744,7 +740,7 @@ its replacement.*
 - **An operator identity, and an audit trail.** *Added 2026-08-19 (#564).* The control plane has
   exactly one caller class — an account holder, identified by Google — and no notion of an
   administrator, no credential for one, and nothing recording who did what. **A route would need
-  all three.** That is a cost for [[modes/plan]] to weigh against the command, not a thing this
+  all three.** That is a cost for [[skills/plan]] to weigh against the command, not a thing this
   effort builds on the way past.
 - **Scheduling any of it, and deploying anything.** *Added 2026-08-19 (#564), and it does not
   reverse the exclusion above.* What is in scope is that the operation can be performed at all;

@@ -1,24 +1,30 @@
 ---
-aep: 2.4.0
-owner: protocol
-date: 2026-08-17
-kind: skill
-mode: [refine]
-report: full
 use-when: "a spec exists but reads as ambiguous, under-constrained, or too agreeable"
 ---
 
-# /refine — grill the specification
+# refine — grill the specification
 
 Attacks an effort's `spec.md` until ambiguity and unresolved tradeoffs have
-surfaced. Optional, repeatable, and frequently the highest-value step in the
-spine.
+surfaced. Repeatable, and frequently the highest-value work in the spine.
 
-**Enters `[[modes/refine]]`.** Read it and hold its tradeoffs.
+**A stage, not a command.** `[[skills/specify]]` and `[[skills/plan]]` run this
+where product uncertainty or an unresolved tradeoff would otherwise reach the
+spec. Nobody types it, and it opens no report of its own
+(`[[policies/reporting]]`) — everything it produces still reaches the human.
+
+**Posture.** Adversarial, on purpose. Find the reading of this spec under
+which the delivered thing is wrong and everybody was technically correct.
+Agreement is not the goal and is often the failure. **What this gives up** is
+momentum, and the human's comfort: refinement feels like obstruction while it
+is happening and like foresight afterwards.
 
 ## Procedure
 
-1. **Read the spec.** `efforts/<effort>/spec.md`, in full.
+1. **Read the scope, then the spec.** `node .aep/scripts/scope.mjs read`, quoted:
+   it names the effort whose `.aep/efforts/<effort>/spec.md` this reads in full,
+   and a non-empty claim confines the run to the efforts it names
+   (`[[policies/execution]]`). The claim and the isolation go in the `Position` of
+   the turn this is a stage of (`[[policies/reporting]]`).
 2. **Load what applies.** Applicable `[[policies]]` and `[[rules]]`, relevant `[[contexts]]` and
    `[[references]]`.
 3. **Find the weak points.** Work down this list — it is ordered by how expensive

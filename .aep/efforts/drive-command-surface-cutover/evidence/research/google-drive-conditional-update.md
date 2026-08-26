@@ -1,8 +1,5 @@
 ---
-aep: 2.1.1
-owner: repository
-date: 2026-08-17
-kind: research
+
 ---
 
 # Does the Google Drive API v3 support a conditional update — a compare-and-set — on an existing file's content or metadata?

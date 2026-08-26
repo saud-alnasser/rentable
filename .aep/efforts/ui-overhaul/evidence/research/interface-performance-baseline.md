@@ -1,8 +1,5 @@
 ---
-aep: 2.1.1
-owner: repository
-date: 2026-08-17
-kind: research
+
 ---
 
 # What does the interface cost today — search, scrolling, reconcile, and the query traffic behind one list page?

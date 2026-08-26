@@ -1,9 +1,7 @@
 ---
-aep: 2.5.1
-owner: repository
-date: 2026-08-18
-kind: prototype
+
 ---
+
 
 # Hypothesis
 
@@ -294,6 +292,6 @@ delete protection first, which is an account setting and the user's to change. T
 token used is likewise theirs to revoke.
 
 **One idea is worth promoting, and it is not code:** `url` as a function rather than a string,
-so a disconnected first launch opens. What ships is written under `[[modes/implement]]`, with
+so a disconnected first launch opens. What ships is written under `[[skills/implement]]`, with
 the handling a prototype deliberately skipped — and the promotion is recorded in `spec.md`,
 not here.

@@ -1,8 +1,4 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-23
-kind: reference
 use-when: "working with issues, pull requests, or CI runs on GitHub"
 ---
 
@@ -35,7 +31,7 @@ Run this before the first tracker operation of a session, not after a failure.
 gh issue create --title "<conventional title>" --body-file -
 ```
 
-**Creating an issue publishes.** It lands in a workspace other people read, so it is the human's call — the same standing rule as opening a pull request and as pushing, and for the same reason — [[policies/engineering]] carries it. Propose the whole set, show the exact titles rather than a summary, get it approved, then create. [[skills/tasks/labels]] has that procedure and applies it to labels and milestones too.
+**Creating an issue publishes.** It lands in a workspace other people read, so it is the human's call — the same standing rule as opening a pull request and as pushing, and for the same reason — [[policies/engineering]] carries it. Propose the whole set, show the exact titles rather than a summary, get it approved, then create. [[policies/execution]] has that procedure and applies it to labels and milestones too.
 
 `--body-file -` reads the body from stdin, which is how multi-line markdown survives intact — `--body` on a shell line does not. `-` for stdin, a path for a file.
 
@@ -71,7 +67,7 @@ gh label create "<name>" --color <hex> --description "<text>"
 
 **Which labels to apply, and whether to create one at all, is [[rules/tracker]]'s** — the example above is a real transition between two labels that exist.
 
-`gh label list` is the read that comes before `gh label create`, always — [[skills/tasks/labels]] has the reuse ladder. **Pass `--limit`**: the default is 30 and this repository's vocabulary is longer, so a bare call answers with a truncated list that reads as the whole one. `create` fails on a name that already exists rather than editing it, so the list is what tells you whether you are adding or colliding. `--color` takes a bare hex with no leading `#`.
+`gh label list` is the read that comes before `gh label create`, always — [[policies/execution]] has the reuse ladder. **Pass `--limit`**: the default is 30 and this repository's vocabulary is longer, so a bare call answers with a truncated list that reads as the whole one. `create` fails on a name that already exists rather than editing it, so the list is what tells you whether you are adding or colliding. `--color` takes a bare hex with no leading `#`.
 
 ## Pin and unpin an issue
 
@@ -193,7 +189,7 @@ Read from `gh issue create --help` and `gh issue edit --help` on gh 2.96.0. This
 
 ## What carries an effort here, and the query that finds its open work
 
-Resolved once against this tracker, per [[skills/tasks/labels]]. **Every fact
+Resolved once against this tracker, per [[policies/execution]]. **Every fact
 lands on a native feature, so no label is created for any of them.**
 
 | Fact | Carrier | Read it with |
@@ -274,6 +270,43 @@ gh issue view <effort-number> --json subIssues,subIssuesSummary \
 effort comes to assert it is delivered while live work sits under it. That is why
 the summary is projected alongside the children rather than fetched and dropped:
 the comparison is the point of the read.
+
+## The observation `reconcile.mjs` reads
+
+`.aep/scripts/reconcile.mjs` computes which efforts have tracker objects
+disagreeing with their `spec.md`, and it fetches nothing itself. That is
+deliberate: it is the slow owner of the terminal label, and the merge-time job in
+`.github/workflows/labeler.yml` is the fast one. A forge call inside the script
+would make the fallback carry the exact cost it exists to avoid.
+
+Two lists, and the exact fields the script reads:
+
+```
+gh issue list --state all --limit 200 --json number,state,labels
+gh pr list --state all --limit 200 --json number,state,labels,closingIssuesReferences
+```
+
+`closingIssuesReferences` is what ties a pull request to its effort, and it is
+populated by the closing keyword. A pull request that carries none is reported
+against no effort, which is the same omission the keyword exists to remove.
+
+They are combined into one object with an `issues` key and a `changeRequests`
+key, each holding that command's output unmodified. Nothing beyond `gh` is
+needed to do it:
+
+```
+{ printf '{"issues":'
+  gh issue list --state all --limit 200 --json number,state,labels
+  printf ',"changeRequests":'
+  gh pr list --state all --limit 200 --json number,state,labels,closingIssuesReferences
+  printf '}'
+} | node .aep/scripts/reconcile.mjs --observed -
+```
+
+It prints one line per finding and exits 1 where anything disagrees. Drift is a
+label to correct, never a spec to edit, including where a person moved the label
+by hand.
+
 
 ## Open a pull request
 

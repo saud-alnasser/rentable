@@ -1,8 +1,4 @@
 ---
-aep: 2.6.0
-owner: repository
-date: 2026-08-19
-kind: context
 paths:
   - apps/desktop/src/lib/platform/database/**
   - apps/desktop/tauri/src/database/**

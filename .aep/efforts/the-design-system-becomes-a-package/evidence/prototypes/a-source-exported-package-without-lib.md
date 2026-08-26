@@ -1,8 +1,5 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-23
-kind: prototype
+
 ---
 
 # Hypothesis
@@ -132,7 +129,7 @@ This is findings, not a decision. What the spec adopts is decided in `# Architec
 
 **Deleted.** The worktree `.aep/worktrees/alias-probe` was removed. Nothing from it is promoted;
 the configuration above is a record of what was measured, and what ships is written fresh under
-`[[modes/implement]]` against #774's acceptance criteria.
+`[[skills/implement]]` against #774's acceptance criteria.
 
 # Not checked
 

@@ -1,9 +1,4 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-22
-kind: reference
-mode: [implement, test]
 use-when: "running a task across this monorepo's packages, or explaining why one was skipped"
 ---
 

@@ -1,8 +1,5 @@
 ---
-aep: 2.5.1
-owner: repository
-date: 2026-08-19
-kind: research
+
 ---
 
 # Question

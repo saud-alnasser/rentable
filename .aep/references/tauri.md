@@ -1,8 +1,4 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-20
-kind: reference
 use-when: "building, running, or configuring the desktop shell"
 ---
 

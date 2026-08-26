@@ -1,9 +1,7 @@
 ---
-aep: 2.2.0
-owner: repository
-date: 2026-08-17
-kind: prototype
+
 ---
+
 
 # What should a group header in the contracts triage queue carry besides its name?
 

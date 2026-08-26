@@ -1,25 +1,35 @@
 ---
-aep: 2.4.0
-owner: protocol
-date: 2026-08-17
-kind: skill
-mode: [plan]
-report: full
 use-when: "a spec is settled and the technical approach is not yet decided"
 ---
 
 # /plan — define HOW it will be built
 
-Extends the **same** `spec.md` with the technical approach. Run it when the
-change is large enough, or unfamiliar enough, that starting to build would mean
-deciding architecture by accident.
+Writes the effort's `plan.md`, the technical approach behind a settled
+`spec.md`. Run it when the change is large enough, or unfamiliar enough, that
+starting to build would mean deciding architecture by accident, and **skip it
+where the approach is obvious** — an effort with no `plan.md` is not an
+incomplete effort.
 
-**Enters `[[modes/plan]]`.** Read it and hold its tradeoffs.
+**Posture.** Design against the codebase that exists rather than the one you
+would prefer, and read the seams you intend to cut before proposing where to
+cut them. A plan that would work in a clean repository and not in this one is
+not a plan. **What this gives up** is optionality: finishing means committing
+to an approach and writing down why the alternatives lost, which is
+uncomfortable precisely when it matters most.
 
 ## Procedure
 
-1. **Read the spec.** The effort's `spec.md`. If `status:` is still `draft` and material
+1. **Read the scope, then the spec.** `node .aep/scripts/scope.mjs read`, quoted:
+   it names the effort whose `spec.md` this reads, and a non-empty claim confines
+   the run to the efforts it names (`[[policies/execution]]`). The claim and the
+   isolation go in `Position`, beside that spec's `status:`
+   (`[[policies/reporting]]`). If `status:` is still `draft` and material
    questions are open, go back to `[[skills/refine]]` first.
+
+   **Where the effort is not the one this checkout is on, enter its working
+   surface rather than checking its branch out** (`[[policies/execution]]`). An
+   effort in flight holds its branch in a worktree, so `git switch` to it is
+   refused, and what this skill writes has to land on that branch.
 2. **Read the code you intend to change** — not the parts you remember, the parts
    you will touch. `[[policies/engineering]]`: names are not proof.
 3. **Load what applies.** Applicable `[[policies]]` and `[[rules]]`, relevant `[[contexts]]`, required
@@ -48,29 +58,25 @@ deciding architecture by accident.
    `[[skills/plan/design-it-twice]]` is how to generate ones that genuinely
    disagree. Where the approach turns on **where a module boundary goes**,
    `[[skills/plan/depth]]` has the vocabulary and the rules for moving one.
-7. **Write the approach** into `spec.md` — using `[[templates/spec.template]]` for the
-   headings — and set `status: accepted` once the human has agreed.
+7. **Write the approach** into `.aep/efforts/<effort>/plan.md`, using
+   `[[templates/plan.template]]`, and set `spec.md`'s `status: accepted` once the
+   human has agreed. **`status` stays the spec's** — an effort has one state, and
+   a plan declaring a second gives it two answers that can disagree.
 
 ## Output
 
-The same `spec.md`, gaining whichever of these apply:
-
-```markdown
-# Architecture
-# Components
-# Interfaces
-# Data Model
-# Technical Approach
-# Integration
-# Migration
-# Testing Strategy
-# Operational Considerations
-# Technical Risks
-```
+`.aep/efforts/<effort>/plan.md`, in the shape `[[templates/plan.template]]`
+gives. Take the headings the approach actually turns on and omit the rest — a
+plan carrying every one of them because the template offers every one of them
+has decided nothing and takes a reviewer's attention anyway.
 
 ## Constraints
 
-- **NEVER create `plan.md`.** `[[policies/execution]]` has the reason.
+- **The plan never restates the spec.** Requirements, acceptance criteria, and
+  scope live in `spec.md` and are referenced from `plan.md`
+  (`[[policies/execution]]`). Two files are what let the two travel separately:
+  the spec is what a reviewer agrees to, and the plan is what an implementer
+  follows.
 - **Planning MUST NOT silently expand product scope.** Technical discovery that
   exposes a product-level change **stops and surfaces it** — then `spec.md`'s
   WHAT is updated deliberately, not absorbed into the HOW.
@@ -81,8 +87,9 @@ The same `spec.md`, gaining whichever of these apply:
 
 ## Done when
 
-`status: accepted`, the approach is written, its rejected alternatives are named,
-and the testing strategy says how the acceptance criteria will be checked.
+`spec.md` carries `status: accepted`, `plan.md` holds the approach, its rejected
+alternatives are named, and the testing strategy says how each acceptance
+criterion will be checked.
 
 ## Next
 

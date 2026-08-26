@@ -1,15 +1,13 @@
 ---
-aep: 2.5.0
-owner: protocol
-date: 2026-08-17
 use-when: "adding orientation for an area of this repository"
 ---
 
 # Template — context
 
-Copy to `contexts/<area>.md` — or to `contexts/<project>/<area>.md` in a
-monorepo, when two projects would otherwise fight over the same area name. **One
-project directory deep, no more.** Contexts are always `owner: repository`.
+Copy to `.aep/contexts/<area>.md` — or to `.aep/contexts/<project>/<area>.md` in
+a monorepo, when two projects would otherwise fight over the same area name.
+**One project directory deep, no more.** `contexts/` is the repository's, and an
+upgrade never touches it.
 
 **The directory names; `paths:` scopes.** `web/auth` and `api/auth` can both be
 called `auth` because the directory holds the name — but a nested context still
@@ -18,10 +16,6 @@ one project has a single context and no name to fight over, flat is right.
 
 ```markdown
 ---
-aep: <release>
-owner: repository
-date: <YYYY-MM-DD>
-kind: context
 paths:                                   # omit if the area is not path-shaped
   - src/<area>/**
 use-when: "<the trigger — working on X, changing Y>"

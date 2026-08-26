@@ -1,8 +1,4 @@
 ---
-aep: 2.5.1
-owner: repository
-date: 2026-08-18
-kind: reference
 use-when: "a user-visible change needs a changelog entry before it lands"
 ---
 

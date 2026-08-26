@@ -1,8 +1,4 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-22
-kind: reference
 use-when: 'adding or changing a control plane route, its validation, its response body, or its logging'
 ---
 
