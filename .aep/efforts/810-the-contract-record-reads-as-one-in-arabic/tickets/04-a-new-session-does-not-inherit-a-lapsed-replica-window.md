@@ -13,7 +13,7 @@ is the only thing the screen offers it.
 
 ## Acceptance Criteria
 
-Traces requirement 5 of the spec, and its criterion 5 and criterion 6.
+Traces requirement 4 of the spec, and its criterion 4 and criterion 5.
 
 - [x] Signing in on a machine holding a lapsed `replica_expires_at` reaches the workspace, with no
       relaunch and no second sign-in. Verified against the running application by putting a lapsed

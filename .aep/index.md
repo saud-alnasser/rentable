@@ -121,8 +121,8 @@ Start at [[protocol]].
 | --- | --- | --- | --- | --- | --- |
 | 767-the-control-plane-says-when-its-token-expires | implemented | [[efforts/767-the-control-plane-says-when-its-token-expires/spec]] | 0 | 0 | 0 |
 | 773-the-design-system-becomes-a-package | accepted | [[efforts/773-the-design-system-becomes-a-package/spec]] | 3 | 1 | 1 |
-| 810-the-contract-record-reads-as-one-in-arabic | accepted | [[efforts/810-the-contract-record-reads-as-one-in-arabic/spec]] | 0 | 0 | 4 |
-| 811-the-gates-and-the-contract-follow-the-code-into-the-package | accepted | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]] | 0 | 0 | 5 |
+| 810-the-contract-record-reads-as-one-in-arabic | implemented | [[efforts/810-the-contract-record-reads-as-one-in-arabic/spec]] | 0 | 0 | 3 |
+| 811-the-gates-and-the-contract-follow-the-code-into-the-package | accepted | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]] | 0 | 0 | 6 |
 | 812-the-desktop-declares-what-it-uses | accepted | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
@@ -164,11 +164,11 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/773-the-design-system-becomes-a-package/tickets/01-a-second-consumer-proves-the-package-needs-no-change]] test(design): a second consumer proves the package needs no change | 773-the-design-system-becomes-a-package | open | — |
 | [[efforts/810-the-contract-record-reads-as-one-in-arabic/tickets/01-the-unit-pane-counts-in-the-readers-digits]] fix(contract): the unit pane counts in the reader's digits | 810-the-contract-record-reads-as-one-in-arabic | resolved | — |
 | [[efforts/810-the-contract-record-reads-as-one-in-arabic/tickets/02-the-contract-record-draws-its-phone-through-the-cell]] fix(contract): the contract record draws its phone through the cell that states the rule | 810-the-contract-record-reads-as-one-in-arabic | resolved | — |
-| [[efforts/810-the-contract-record-reads-as-one-in-arabic/tickets/03-a-test-holds-the-phone-rule-shut]] test(contract): a test holds the phone rule shut | 810-the-contract-record-reads-as-one-in-arabic | open | — |
 | [[efforts/810-the-contract-record-reads-as-one-in-arabic/tickets/04-a-new-session-does-not-inherit-a-lapsed-replica-window]] fix(sync): a new session does not inherit the replica window of the one before it | 810-the-contract-record-reads-as-one-in-arabic | resolved | — |
 | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/tickets/01-the-lint-gate-judges-navigation-in-the-package]] fix(tools): the lint gate judges navigation in the design package | 811-the-gates-and-the-contract-follow-the-code-into-the-package | open | — |
 | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/tickets/02-the-callout-carries-the-slot-attribute]] fix(design): the callout carries the slot attribute every other primitive carries | 811-the-gates-and-the-contract-follow-the-code-into-the-package | open | — |
 | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/tickets/03-a-record-that-is-loading-says-so-about-the-record]] fix(desktop): a record that is still loading says so about the record | 811-the-gates-and-the-contract-follow-the-code-into-the-package | open | — |
 | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/tickets/04-the-package-can-test-a-component-that-navigates]] test(design): the package can test a component that navigates | 811-the-gates-and-the-contract-follow-the-code-into-the-package | open | 03 |
 | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/tickets/05-the-screen-with-no-boundary-above-it-is-held-shut-by-a-test]] test(desktop): the screen with no boundary above it is held shut by a test rather than by three comments | 811-the-gates-and-the-contract-follow-the-code-into-the-package | open | — |
+| [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/tickets/06-a-test-holds-the-phone-rule-shut]] test(contract): a test holds the phone rule shut | 811-the-gates-and-the-contract-follow-the-code-into-the-package | open | 05 |
 | [[efforts/812-the-desktop-declares-what-it-uses/tickets/01-four-devdependencies-nothing-imports-are-removed]] chore(desktop): four devDependencies nothing has ever imported are removed | 812-the-desktop-declares-what-it-uses | open | — |

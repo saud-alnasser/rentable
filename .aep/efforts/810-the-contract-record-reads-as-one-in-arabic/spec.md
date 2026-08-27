@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: implemented
 ---
 
 # Problem
@@ -69,7 +69,6 @@ A sign-in that the control plane accepts admits the person who made it.
 
 - The unit pane's two count headings.
 - The contract record's phone row.
-- A test that catches the next surface written the hand-rolled way.
 - What a new session does with the replica window the session before it left behind.
 
 # Requirements
@@ -78,9 +77,7 @@ A sign-in that the control plane accepts admits the person who made it.
 2. The contract record renders a phone number with its country code leading in Arabic.
 3. Each number is drawn through the mechanism that already exists for it, rather than through
    a second spelling of the same rule.
-4. A phone number rendered under `dir="rtl"` is covered by a test, so the next hand-rolled one
-   is caught before a locale is opened.
-5. A session this machine has just established is not constrained by the replica window of the
+4. A session this machine has just established is not constrained by the replica window of the
    session before it.
 
 # Acceptance Criteria
@@ -92,13 +89,11 @@ A sign-in that the control plane accepts admits the person who made it.
    `apps/desktop/src/lib/platform/locale.ts`, and the contract record's phone goes through
    `Cell.Phone`, as the tenant record already does. Neither renders a number through string
    interpolation or a hand-rolled span.
-4. A component test renders a phone number under `dir="rtl"` and asserts that the country code
-   leads.
-5. Signing in on a machine whose replica window has lapsed admits that machine, without a
+4. Signing in on a machine whose replica window has lapsed admits that machine, without a
    relaunch and without a second sign-in.
-6. A refresh still keeps the replica window it was holding, so a lapsed replica credential goes
+5. A refresh still keeps the replica window it was holding, so a lapsed replica credential goes
    on stopping replication.
-7. `pnpm check`, `pnpm lint` and `pnpm test` pass.
+6. `pnpm check`, `pnpm lint` and `pnpm test` pass.
 
 # Constraints
 
@@ -125,6 +120,13 @@ A sign-in that the control plane accepts admits the person who made it.
   application's concepts, and #807 left it in the desktop deliberately.
 - **A general audit of every number this application renders.** The requirement is that these
   two go through the shared mechanism, not that the mechanism is proved complete.
+- **The test that holds the phone rule shut.** It was a requirement here until 2026-08-27,
+  when it turned out to need a component test harness `apps/desktop` does not have. Building
+  that harness is
+  `[[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]]`'s sixth
+  criterion, so the test moved there rather than holding this effort open behind another
+  effort's deliverable. *Why the move rather than the wait: the two render fixes and the
+  sign-in fix are done and gated, and the third of them is what makes the application usable.*
 - **Anything else about the sign-in wall.** The three situations it tells apart, the retry it
   offers, and what the control plane answers are all left as they are. What is in scope is one
   merge rule on one field.
@@ -136,9 +138,8 @@ A sign-in that the control plane accepts admits the person who made it.
 
 # Risks
 
-- **Criterion 4 needs a component test harness the desktop does not have.** `apps/desktop`'s
-  `test` script is `node --import tsx --test` alone; `vitest`, `jsdom` and
-  `@testing-library/svelte` are configured in `packages/design` only. Building that harness is
-  a requirement of `[[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]]`,
-  so this effort's fourth criterion is gated on that one landing. The first three are not, and
-  can land without it.
+- **Nothing stops the fourth surface being written the hand-rolled way.** This effort fixes the
+  two that were, and the rule goes on being enforced by nobody until
+  `[[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]]` lands the
+  test that holds it shut. That is the whole reason the test exists as a criterion somewhere
+  rather than nowhere, and it is why moving it was the answer rather than dropping it.
