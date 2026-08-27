@@ -6,17 +6,33 @@
 // The package has no build, so this is not a `vite.config.js` wearing another name. Nothing here
 // produces output; the only consumer is `vitest run`.
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	plugins: [svelte()],
-	// Under a test run the browser entry point is the right one, and svelte itself is what makes
-	// this load-bearing rather than defensive: its `exports` map sends `browser` to
-	// `index-client.js` and everything else to `index-server.js`. Measured on 2026-08-23 by
-	// removing this line, which turned both tests into `Svelte error` raised from
-	// `svelte/src/index-server.js` inside `mount`. The ternary is what keeps the condition scoped
-	// to the test run rather than applied to everything.
-	resolve: process.env.VITEST ? { conditions: ['browser'] } : undefined,
+	resolve: {
+		// **`$app/navigation` is supplied here and nowhere else.** Two modules in this package call
+		// `goto`, `svelte.config.js` declares no alias on purpose, and a library has no other way
+		// to say what that specifier means: an alias declared for the package would be rewritten
+		// on the way out by a build step this package does not have, and would reach the consumer
+		// pointing at a file it cannot see. So it is the runner's, and it points at scaffolding
+		// under `src/tests/`, which the `exports` map does not carry.
+		//
+		// Without it a test that touches either module fails at resolution rather than at an
+		// assertion: `Failed to resolve import "$app/navigation" from
+		// "src/lib/block/record-surface.svelte"`.
+		alias: {
+			'$app/navigation': fileURLToPath(new URL('./src/tests/app-navigation.ts', import.meta.url))
+		},
+		// Under a test run the browser entry point is the right one, and svelte itself is what makes
+		// this load-bearing rather than defensive: its `exports` map sends `browser` to
+		// `index-client.js` and everything else to `index-server.js`. Measured on 2026-08-23 by
+		// removing this line, which turned both tests into `Svelte error` raised from
+		// `svelte/src/index-server.js` inside `mount`. The ternary is what keeps the condition scoped
+		// to the test run rather than applied to everything.
+		conditions: process.env.VITEST ? ['browser'] : undefined
+	},
 	test: {
 		// **On, and not for the convenience.** `@testing-library/svelte` registers `beforeEach`
 		// and `afterEach` hooks only when it finds those functions as globals, and the first of
