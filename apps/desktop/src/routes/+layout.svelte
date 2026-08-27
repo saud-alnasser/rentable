@@ -90,7 +90,7 @@
 		goToNextPage: $LL.common.table.goToNextPage(),
 		goToPreviousPage: $LL.common.table.goToPreviousPage(),
 		loading: $LL.common.ui.loading(),
-		loadingRecord: $LL.common.messages.loadingApp(),
+		loadingRecord: $LL.common.messages.loadingRecord(),
 		mobileSidebarDescription: $LL.common.ui.mobileSidebarDescription(),
 		more: $LL.common.ui.more(),
 		morePages: $LL.common.ui.morePages(),

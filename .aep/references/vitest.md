@@ -4,13 +4,20 @@ use-when: "running or writing a component test"
 
 # Vitest (component tests)
 
-The second test runner, and it runs in `packages/design/` alone. [[rules/testing]], under
-*Component tests*, governs which of the two runners a test belongs to and how it is named;
-[[references/node-test]] is the other one's reference. What this file carries is the invocations.
+The second test runner. [[rules/testing]], under *Component tests*, governs which of the two
+runners a test belongs to and how it is named; [[references/node-test]] is the other one's
+reference. What this file carries is the invocations.
 
-`packages/design/vitest.config.js` is the configuration and the authority on what is collected.
-Read it rather than a copy: its comments record what each setting was measured to do, and a
-second statement of the glob here would be the copy that goes stale.
+**It runs in two packages.** `packages/design/` since #775, and `apps/desktop/` since #811 — *this
+file said `packages/design/` alone until then, and the count is the thing that goes stale.* Each
+has a `vitest.config.js` of its own and each is the authority on what its own run collects. Read
+them rather than a copy: their comments record what each setting was measured to do, and a second
+statement of the glob here would be the copy that drifts.
+
+The two differ in one line, and the difference is forced: the package's plugin is `svelte()` and
+the application's is `sveltekit()`, because a component in an application reaches `$lib/...` and
+`$app/...`. The package supplies `$app/navigation` through an alias to its own test scaffolding
+instead, which its config explains at the point it declares it.
 
 Docs: <https://vitest.dev/>. Fetch for filtering, coverage or the browser mode, none of which
 this repository uses.
@@ -23,15 +30,16 @@ Every command below was run against `vitest` 4.1.11 on 2026-08-23.
 pnpm test
 ```
 
-From the root, through `turbo run test`, which runs both runners. `pnpm --filter @rentable/design
-test` skips the cache, and since #778 it is not this runner by itself: the package's own script
-runs `node:test` first and Vitest after. `npx vitest run` in `packages/design/` is what runs this
-one alone.
+From the root, through `turbo run test`, which runs both runners in both packages. `pnpm --filter
+@rentable/design test` skips the cache and is not this runner by itself: that script runs
+`node:test` first and Vitest after, as `@rentable/desktop`'s has since #811. `npx vitest run`
+inside either package is what runs this one alone.
 
 ## Run one file
 
 ```bash
 cd packages/design && npx vitest run src/tests/probe.svelte.test.ts
+cd apps/desktop && npx vitest run src/lib/design/cell/tests/phone.svelte.test.ts
 ```
 
 This is the command to use while working. **`run` is not optional**: bare `npx vitest` starts the

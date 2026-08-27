@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: implemented
 ---
 
 # Problem
@@ -8,15 +8,27 @@ Across #778, #779 and #781, 38 primitive families, fourteen helper modules and a
 crossed out of `apps/desktop/src/lib/design/` and into `@rentable/design`. **Every mechanism
 that would have caught a mistake in that code stayed behind, and nothing failed when they did.**
 
-**The lint gate stopped seeing SvelteKit navigation.** `eslint.config.js:8` imports
-`apps/desktop/svelte.config.js` and hands it to the Svelte parser as `svelteConfig` for every
-file in the repository, so `svelte/no-navigation-without-resolve` scopes itself to that project
-and is inert everywhere else. Measured at #778 with a probe component under
-`packages/design/src/lib/primitive/`: `svelte/no-at-html-tags` reported and
-`no-navigation-without-resolve` did not, on the same file carrying a live `goto('/somewhere')`
-and a bare `href`. The Svelte plugin runs there; the SvelteKit-aware half does not. The only
-signal left is two `eslint-disable` directives eslint now reports as unused, which read as
-tidy-up rather than as a hole.
+**The lint gate half-sees SvelteKit navigation.** *This paragraph said the gate was inert in the
+package, on a probe taken at #778. Re-measured on 2026-08-27 while building ticket 01, that is no
+longer true, and the correction is left in place rather than rewritten away because it is what the
+requirements below were cut against.* The rule does reach `packages/design/src/**`:
+`packages/design/package.json` now declares `@sveltejs/kit` under `devDependencies`, which is what
+the plugin resolves a SvelteKit version from, and the dependency arrived when the package started
+importing `$app/*`. A probe in the same place carrying `goto('/somewhere')` and a bare
+`<a href="/elsewhere">` reported both.
+
+What is blind is the half that reads types. `no-navigation-without-resolve` accepts any value whose
+type is `ResolvedPathname`, `@sveltejs/kit` ships that defaulting to `string`, and `svelte-kit sync`
+is what narrows it per application. The package runs no sync and has no routes, so every `string`
+passes and only a literal written in the package is caught. The same `goto(where ?? fallback)`
+reports in `apps/desktop` and is silent in `packages/design`. **Nothing closes that from inside the
+package**, because narrowing the type would mean naming a consumer's routes in the library written
+not to know them. `[[references/eslint]]` carries the measurement and `[[rules/frontend]]` the
+obligation it leaves on both sides.
+
+The signal that remained was **four** `eslint-disable` directives eslint reports as unused, not two:
+`back.svelte.ts`, `block/record-card.svelte`, `block/record-surface.svelte` and
+`primitive/button/button.svelte`. Every one of them was measured to suppress nothing.
 
 **The package's own test runner cannot load a component that navigates.** Four modules in
 `@rentable/design` import `$app/*` — `back.svelte.ts`, `create-intent.ts`,
@@ -116,13 +128,27 @@ nobody executes.
 7. A test renders `startup-unreadable` with no `DesignProvider` and no `TooltipProvider` above
    it, as `+layout.svelte` does, and it passes. Removing `tooltip={false}` from either call site
    makes it fail, and the failure names the provider rather than surfacing as an unrelated
-   render error. Giving `StandaloneSurface` a `busy`, or a tone other than `error`, fails the
-   same way.
+   render error. ~~Giving `StandaloneSurface` a `busy`, or a tone other than `error`, fails the
+   same way.~~ **`or` is wrong, and the measurement is under ticket 05: it takes both.** The two
+   are redundant guards rather than one condition each, which is what
+   `startup-unreadable.svelte`'s own comment says and what this line lost. `busy` added with
+   `tone="error"` kept passes; `tone="error"` dropped with no `busy` passes; the two together
+   throw `a @rentable/design component rendered outside DesignProvider`. The criterion is met by a
+   test that renders `StandaloneSurface` busy and untoned directly and asserts on that throw,
+   which pins the mechanism rather than one mutation of it.
 8. A record surface that is still loading renders a sentence about the record rather than about
    the application, in both locales, and the contract key and what the desktop supplies for it
    agree, so a second consumer reading the docstring supplies the same kind of sentence.
 9. A component test renders `Cell.Phone` under `dir="rtl"` and asserts that the country code
    leads. It runs on the harness criterion 6 builds rather than on a second one.
+
+   **Met with one stated deviation, recorded at converge rather than negotiated during the
+   build.** jsdom lays nothing out, so the order the glyphs appear in is not observable and no
+   assertion can watch the country code move. What the test asserts instead is the mechanism that
+   moves it: under a body that is `rtl`, the element states `dir="ltr"` of its own rather than
+   taking the direction above it. Deleting `dir="ltr"` from the cell fails the file, so the
+   coverage is real, and it is one step removed from the words this line used. Asserting the order
+   itself would need a layout engine, which means a browser-mode runner and a decision of its own.
 10. `pnpm check`, `pnpm lint`, `pnpm test` and `pnpm build:web` pass.
 
 # Constraints
@@ -166,8 +192,22 @@ nobody executes.
 
 # Open Questions
 
-- **Is the loading sentence a prop or a contract key?** The constraint above has the test to
-  apply. The answer belongs in this spec before criterion 8 is built, not during it.
+- **Is the loading sentence a prop or a contract key?** ~~The constraint above has the test to
+  apply. The answer belongs in this spec before criterion 8 is built, not during it.~~
+  **Answered 2026-08-27, before ticket 03 was built: it is a contract key, and it stays where it
+  is.** `[[rules/frontend]]`'s test is *who knows the words*, and the words wanted here are that a
+  record is on its way. `record-surface` is the thing that knows it is in the loading state, and
+  the sentence is true of any record, so the package knows it. What the package cannot know is
+  which **kind** of record, and requirement 8 does not ask for the kind: it asks for words about
+  the record rather than about the application. Criterion 8 settles the same way from the other
+  end, since *the contract key and what the desktop supplies for it agree* presupposes there is
+  still a key to agree with.
+
+  So the desktop supplies `common.messages.loadingRecord`, `loading record...` and
+  `جاري تحميل السجل...`, in place of `loadingApp()`. **A per-concept sentence remains available and is a
+  prop when somebody wants one** — `loadingTenant` already exists and is what such a prop would be
+  handed. Nothing here forecloses that; it establishes what the surface says when no caller has an
+  opinion, which is the case every record page is in today.
 
 # Risks
 

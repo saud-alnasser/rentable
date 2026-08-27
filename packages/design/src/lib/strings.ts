@@ -71,7 +71,14 @@ export type DesignStrings = {
 	goToPreviousPage: string;
 	/** the accessible name of a spinner, which is a `role="status"` with nothing else to read. */
 	loading: string;
-	/** what a record surface says beneath its spinner while the record is still being read. */
+	/**
+	 * what a record surface says beneath its spinner while the record is still being read.
+	 *
+	 * **A sentence about the record, not about the application.** This block is shared by every
+	 * concept, so it cannot name which kind of record is on its way, and a consumer that supplies
+	 * its own startup message here tells a reader waiting on one record that the whole application
+	 * is loading. That is what the desktop did until this key got a sentence of its own.
+	 */
 	loadingRecord: string;
 	/** what the sidebar's drawer presentation says it is, beside {@link DesignStrings.sidebar}. */
 	mobileSidebarDescription: string;

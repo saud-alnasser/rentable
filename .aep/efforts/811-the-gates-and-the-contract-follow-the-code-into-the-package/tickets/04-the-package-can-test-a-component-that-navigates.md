@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: ['03']
 ---
 
@@ -14,14 +14,29 @@ does not is, and the three subjects #781 left uncovered are covered.
 
 Traces requirement 3 and requirement 4 of the spec, and its criterion 3 and criterion 4.
 
-- [ ] A component test in `packages/design` can render a subject that imports `$app/navigation`
-      without the run failing to resolve it.
-- [ ] `record-surface`'s two contract keys are covered: what it says while the record is on its
-      way, and what it says where there is no such record.
-- [ ] `back-control`'s reads of `previous` are covered.
-- [ ] Whatever supplies `$app/*` under test is scaffolding under `packages/design/src/tests/`,
-      reachable by no consumer, and `[[rules/testing]]` records the arrangement.
-- [ ] `pnpm check`, `pnpm lint` and `pnpm test` pass.
+- [x] A component test in `packages/design` can render a subject that imports `$app/navigation`
+      without the run failing to resolve it. `vitest.config.js` aliases the specifier to
+      `src/tests/app-navigation.ts`, and both new files render subjects that reach it:
+      `record-surface.svelte.test.ts` and `back-control.svelte.test.ts`, `Tests 3 passed` each.
+- [x] `record-surface`'s two contract keys are covered: what it says while the record is on its
+      way, and what it says where there is no such record. Both are asserted against a word the
+      test supplies through the contract, so a hard-coded string would fail rather than pass by
+      coincidence, and the not-found test asserts the loading sentence is **absent** as well.
+- [x] `back-control`'s reads of `previous` are covered. Two of the three are reachable at render,
+      the `aria-label` and the `sr-only` span, and both are asserted. The third is
+      `Tooltip.Content`, which bits-ui instantiates only on open, so a render-time test cannot
+      reach it: that is the limit the spec already names for eight families, and the test file
+      says so. Where the control navigates to is covered too, and the fallback is a different
+      screen from the trail so neither assertion can pass for the wrong reason.
+- [x] Whatever supplies `$app/*` under test is scaffolding under `packages/design/src/tests/`,
+      reachable by no consumer, and `[[rules/testing]]` records the arrangement. **Measured, not
+      argued**: `await import('@rentable/design/tests/app-navigation.js')` from `apps/desktop`
+      gives `ERR_MODULE_NOT_FOUND`, because the `exports` map sends `./*` to `./src/lib/*` and
+      this file is one directory above that. The rule records the alias, why it is the runner's
+      rather than the package's, and why `apps/desktop` needs none of it.
+- [x] `pnpm check`, `pnpm lint` and `pnpm test` pass. `check` reported `0 ERRORS 0 WARNINGS` on
+      2807 and 9209 files; `lint` printed the prettier line and nothing else; `test` reported
+      `Tasks: 4 successful, 4 total`, with the package's vitest half at `Tests 58 passed`.
 
 ## Relevant areas
 

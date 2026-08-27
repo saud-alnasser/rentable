@@ -20,8 +20,12 @@ use-when: "writing or changing a test, or deciding what a change must be tested 
 
   `packages/design/src/**` was added on 2026-08-23 with #775, and it is the one
   path here the TypeScript section does **not** describe word for word. Read
-  *Component tests* before writing a test there: it is the only place in the
-  repository where a second runner collects anything.
+  *Component tests* before writing a test there.
+
+  It stopped being the only such path on 2026-08-27 with #811, which gave
+  `apps/desktop` a runner of its own. *That sentence used to say it was the only
+  place in the repository where a second runner collects anything, and it is left
+  corrected rather than deleted because the count is the thing that goes stale.*
 -->
 
 # Testing
@@ -73,9 +77,28 @@ Commands are in [[references/node-test]], including the single-file invocation.
 
 ## Component tests
 
-A component test renders a Svelte component and asserts on what reached the DOM. It lives in
-`packages/design/`, in a `tests/` directory the same way every other TypeScript test does, and
-**Vitest collects it rather than `node:test`.**
+A component test renders a Svelte component and asserts on what reached the DOM. It lives in a
+`tests/` directory the same way every other TypeScript test does, and **Vitest collects it rather
+than `node:test`.**
+
+**Two packages have a runner, and the rule for which one a test belongs to is where the component
+does.** `packages/design/` has had one since #775. `apps/desktop/` got one at #811, because ten
+primitive families had become context reads and the screen that draws them outside every provider
+could not be covered at all. A component this application owns is tested here; a packaged one is
+tested in the package. **Neither runner reaches across.**
+
+The two configurations are deliberately the same file with one difference, and the difference is
+forced. `packages/design/vitest.config.js` uses `svelte()`: the package names its own files with
+subpath imports and wants the compiler and nothing else. `apps/desktop/vitest.config.js` uses
+`sveltekit()`, because a component here reaches `$lib/...` and `$app/...` and the framework plugin
+is what resolves both. Everything else is copied on purpose: `jsdom`, `globals`, a `setupFiles`
+holding the same bits-ui scroll-restore wait, and the same `include`. **A change to one is a
+question about the other.**
+
+*The setup file is duplicated rather than imported, and that is the export map's doing: the
+package's `exports` covers `src/lib/` alone, which is what keeps its fixtures out of every
+consumer, so `src/tests/setup.ts` is not something the desktop can reach. The copy says so in its
+own header and points at the original for the measurement.*
 
 *Why there are two runners rather than one: `node:test` works through `tsx`, and `tsx` fails on a
 `.svelte` import with `ERR_UNKNOWN_FILE_EXTENSION`. No flag fixes that — compiling a component
@@ -94,9 +117,10 @@ routers and runes; none of them renders, and a DOM buys them nothing. A module t
 the design package takes its `node:test` test with it, keeps the plain `<name>.test.ts` name, and
 keeps running under `node:test`.
 
-**The package's `test` script runs both runners**, and it has since the first nine `node:test`
-files crossed with #778. It is `node --import tsx --test "src/**/!(*.svelte).test.ts"` and then
-`vitest run`, and **the extglob is the whole of what keeps the two apart**: `src/**/*.test.ts`
+**Each package's `test` script runs both runners.** The package's has since the first nine
+`node:test` files crossed with #778; the desktop's since #811. Both are
+`node --import tsx --test "src/**/!(*.svelte).test.ts"` and then `vitest run`, and **the extglob is
+the whole of what keeps the two apart**: `src/**/*.test.ts`
 hands every component test to `node:test` as well. The reason this is written down rather than
 left to be noticed is that the failure in the other direction is misleading: measured on
 2026-08-23, a `node:test` file collected by Vitest reported `No test suite found in file` and a
@@ -144,6 +168,24 @@ Three things bind a component test, and each of them is a way of passing while m
   does: an alias to the directory a file is already in reads as though it points somewhere else.
   `imports` is private to the package, so none of this adds anything a consumer can reach.
 
+- **`$app/*` is supplied by the runner, never by the package.** Two modules in
+  `@rentable/design` call `goto` from `$app/navigation`, and `packages/design/svelte.config.js`
+  declares no alias on purpose: an alias in a library is rewritten by `svelte-package` on the way
+  out, this package has no build step, and the specifier would reach the consumer resolving
+  against *their* tree. So `packages/design/vitest.config.js` carries the alias and points it at
+  `src/tests/app-navigation.ts`, which is scaffolding like every other file in that directory and
+  is outside the `exports` map that would make it public.
+
+  *Added at #811. Before it, a component test that touched either module failed at resolution
+  rather than at an assertion: `Failed to resolve import "$app/navigation" from
+  "src/lib/block/record-surface.svelte"`. The stub records what it was asked to navigate to as
+  well as satisfying the import, because the one navigation worth watching in this package is an
+  effect: `record-surface` writes the chosen collection into the address with no reader acting.*
+
+  **`apps/desktop` needs none of this.** `sveltekit()` resolves `$app/*` there from the real
+  framework, which is the difference between testing an application and testing a library, and it
+  is why the two configurations differ in their plugin.
+
 - **Reach for `wrapper` before writing a fixture.** `render(Subject, {}, { wrapper: Provider,
   wrapperProps: { … } })` puts a provider above the subject with nothing in between, which is
   most of what a fixture would have been for, and it is what `globals` is on for. A fixture earns
@@ -155,6 +197,13 @@ Three things bind a component test, and each of them is a way of passing while m
   **The subject needs a particular provider above it**, and not the one `wrapper` supplies.
   `contract-harness.svelte` is this: `rerender` drives the subject's props rather than the
   wrapper's, and changing what the provider supplies is the whole of what that one test does.
+
+  **The subject needs two providers rather than one.** `wrapper` puts exactly one component above
+  the subject, so a subject that draws a tooltip *and* reads the string contract cannot be reached
+  by it: `Tooltip.Root` throws without `Tooltip.Provider`, and since #779 the tooltip's content
+  reads `DesignProvider`'s context too. `providers.svelte` is that pair, added at #811 for
+  `block/back-control` and for `block/record-surface`'s not-found branch, and it takes the string
+  contract's own props so a test hands it the same `wrapperProps` it would hand `DesignProvider`.
 
   **The subject is not a component but a tree.** A packaged component whose parent creates the
   state it reads, or opens the portal it renders into, cannot be rendered on its own at all:

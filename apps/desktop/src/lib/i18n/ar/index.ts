@@ -194,7 +194,7 @@ const ar = {
 			copied: 'تم النسخ إلى الحافظة',
 			copyFailed: 'لا يوجد ما يمكن نسخه.',
 			exported: 'تم التصدير إلى {path}',
-			loadingApp: 'جاري تحميل التطبيق...',
+			loadingRecord: 'جاري تحميل السجل...',
 			loadingSettings: 'جاري تحميل الإعدادات...',
 			noResults: 'لا توجد نتائج.',
 			unexpectedError: 'حدث خطأ غير متوقع!',

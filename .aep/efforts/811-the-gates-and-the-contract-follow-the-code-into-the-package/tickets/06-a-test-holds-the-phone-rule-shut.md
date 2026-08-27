@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: ['05']
 ---
 
@@ -14,11 +14,20 @@ that hand-rolls one fails a gate rather than a locale.
 
 Traces requirement 9 of the spec, and its criterion 9.
 
-- [ ] A component test renders `Cell.Phone` under `dir="rtl"` and asserts that the country code
-      leads.
-- [ ] The test runs on the harness ticket 05 builds, under `apps/desktop`, rather than on a
-      second runner or from `packages/design`.
-- [ ] `pnpm check`, `pnpm lint`, `pnpm test` and `pnpm build:web` pass.
+- [x] A component test renders `Cell.Phone` under `dir="rtl"` and asserts that the country code
+      leads. `apps/desktop/src/lib/design/cell/tests/phone.svelte.test.ts` renders it under a body
+      that is `rtl` and asserts the span states `dir="ltr"` of its own. **jsdom lays nothing out,
+      so glyph order is not observable**; what is asserted is the mechanism that produces it, and
+      the file says so where a reader would otherwise expect an assertion about order. **Measured
+      to be load-bearing**: with `dir="ltr"` deleted from `phone.svelte` the file reports
+      `1 failed | 1 passed` and `expected '' to be 'ltr'`.
+- [x] The test runs on the harness ticket 05 builds, under `apps/desktop`, rather than on a
+      second runner or from `packages/design`. It is collected by
+      `apps/desktop/vitest.config.js` and the subject stayed where #807 left it.
+- [x] `pnpm check`, `pnpm lint`, `pnpm test` and `pnpm build:web` pass. `check` reported
+      `0 ERRORS 0 WARNINGS` on 2803 and 9209 files; `lint` printed the prettier line and nothing
+      else; `test` reported `Tasks: 4 successful, 4 total` with the desktop's vitest half at
+      `Tests 5 passed`; `build:web` reported `Tasks: 1 successful, 1 total`.
 
 ## Relevant areas
 

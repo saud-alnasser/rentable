@@ -53,7 +53,8 @@
 		isLoading?: boolean;
 		/** Whether the record was found. A surface that is neither found nor loading says so. */
 		found?: boolean;
-		/** Where back goes when the reader arrived here from nowhere — the concept's directory. */
+		/** Where back goes when the reader arrived here from nowhere: the concept's directory,
+		    already resolved. */
 		backFallback: string;
 		/** This record's own address, already resolved and carrying no collection. */
 		path: string;
@@ -101,7 +102,6 @@
 
 		// `path` is a route the concept already resolved, so the base is on it once — resolving
 		// the href again would put it on twice.
-		// eslint-disable-next-line svelte/no-navigation-without-resolve
 		void goto(collectionHref(chosen), {
 			replaceState: true,
 			noScroll: true,

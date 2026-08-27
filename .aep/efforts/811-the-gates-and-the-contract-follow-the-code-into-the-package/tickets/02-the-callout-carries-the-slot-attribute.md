@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(design): the callout carries the slot attribute every other primitive carries
@@ -13,11 +13,20 @@ dialog title or a dialog footer, rather than for a class list.
 
 Traces requirement 5 of the spec, and its criterion 5.
 
-- [ ] `packages/design/src/lib/primitive/callout/callout.svelte` renders `data-slot="callout"`
-      on its root, as every other primitive family does.
-- [ ] The two block tests that anchor on its shape instead ask for the slot, and the comment
-      explaining why they could not goes with the workaround.
-- [ ] `pnpm check`, `pnpm lint` and `pnpm test` pass.
+- [x] `packages/design/src/lib/primitive/callout/callout.svelte` renders `data-slot="callout"`
+      on its root, as every other primitive family does. The spelling was read off the 241 files
+      that already carry one, and the attribute sits where they put it: after `bind:this`, before
+      `class` and `{...restProps}`, so a caller can still override it.
+- [x] The two block tests that anchor on its shape instead ask for the slot, and the comment
+      explaining why they could not goes with the workaround. Both now select
+      `[data-slot="dialog-content"] [data-slot="callout"]`, and both comments naming #796 went with
+      the class list. `vitest run` on the two files: `Test Files 2 passed (2)`, `Tests 16 passed`.
+      **The anchor was measured to be load-bearing**: with `data-slot="callout"` deleted from the
+      primitive, `delete-dialog.svelte.test.ts` reported `1 failed | 7 passed`.
+- [x] `pnpm check`, `pnpm lint` and `pnpm test` pass. `check` reported `0 ERRORS 0 WARNINGS` for
+      both `packages/design` and `apps/desktop` and `All matched files use Prettier code style!`;
+      `lint` printed the prettier line and nothing else; `test` reported
+      `Tasks: 4 successful, 4 total`.
 
 ## Relevant areas
 

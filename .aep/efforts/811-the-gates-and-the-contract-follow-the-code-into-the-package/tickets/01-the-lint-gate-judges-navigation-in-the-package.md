@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(tools): the lint gate judges navigation in the design package
@@ -15,20 +15,36 @@ directives mean what they say.
 
 Traces requirement 1 and requirement 2 of the spec, and its criterion 1 and criterion 2.
 
-- [ ] `svelte/no-navigation-without-resolve` reports on `packages/design/src/**`, or a rule
-      records that it does not and why.
-- [ ] The two `eslint-disable` directives eslint reports as unused resolve one way or the other:
-      they suppress a rule that fires, or they go.
-- [ ] `pnpm lint` reports zero warnings.
+- [x] `svelte/no-navigation-without-resolve` reports on `packages/design/src/**`, or a rule
+      records that it does not and why. **Both, and that is the finding.** A probe component at
+      `packages/design/src/lib/primitive/probe-nav.svelte` carrying `goto('/somewhere')` and
+      `<a href="/elsewhere">` reported `5:8 error Unexpected goto() call without resolve()` and
+      `9:4 error Unexpected href link without resolve()`, so the rule reaches the package. What
+      it cannot see is a value typed `string`: `goto(where ?? fallback)` written identically in
+      both projects reported in `apps/desktop` and was silent in `packages/design`.
+      `[[references/eslint]]` records the mechanism and both measurements;
+      `[[rules/frontend]]` records what that leaves the two sides owing. The probes were deleted.
+- [x] The two `eslint-disable` directives eslint reports as unused resolve one way or the other:
+      they suppress a rule that fires, or they go. **Four, not two, and they went.** Each was
+      deleted in turn and `eslint <file>` run against the result: all four reported nothing, so
+      none of them suppresses a rule that fires. The prose above each one stayed, and the three
+      props that carry a path now say in their own docstrings that it arrives resolved.
+- [x] `pnpm lint` reports zero warnings. `prettier --check . --end-of-line auto && eslint .`
+      printed `All matched files use Prettier code style!` and nothing else.
 
 ## Relevant areas
 
 `eslint.config.js:8` imports `apps/desktop/svelte.config.js`, and `:43` hands it to the Svelte
-parser as `svelteConfig` for every file in the repository. The rule scopes itself to that
-project, so it is inert everywhere else.
+parser as `svelteConfig` for every file in the repository. *That was believed to be what scoped the
+rule to one project. It is not: the plugin gates its SvelteKit rules on a `@sveltejs/kit` version it
+resolves from the file's own package, and `packages/design` declares one. `[[references/eslint]]`
+has the re-measurement, taken 2026-08-27.*
 
-The two directives are `packages/design/src/lib/back.svelte.ts:34` and
-`packages/design/src/lib/primitive/button/button.svelte:2`.
+There are **four** directives, not two: `packages/design/src/lib/back.svelte.ts:34`,
+`packages/design/src/lib/block/record-card.svelte:49`,
+`packages/design/src/lib/block/record-surface.svelte:104` and
+`packages/design/src/lib/primitive/button/button.svelte:2`. The last two arrived with #781, after
+this ticket was cut.
 
 ## Constraints
 
@@ -40,6 +56,11 @@ The two directives are `packages/design/src/lib/back.svelte.ts:34` and
 - **Do not delete the directives to clear the warnings.** Both are live surface:
   `back.svelte.ts` calls `goto`, and `button.svelte` renders anchors. Removing them clears the
   signal without closing the gap.
+
+  *Measured on 2026-08-27, this constraint's premise does not hold. With each directive deleted,
+  eslint reported nothing at its site: the value at all four is typed `string`, and a `string` is
+  what the rule accepts in a package with no route types. They suppress nothing, so the criterion's
+  second branch is the one that applies and they go. The prose above each stays.*
 
 ## Notes
 

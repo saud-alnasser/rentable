@@ -46,7 +46,6 @@
 <script lang="ts">
 	// `href` is a route the concept already resolved, so the base is on it once — resolving it here
 	// would put it on twice.
-	/* eslint-disable svelte/no-navigation-without-resolve */
 	import { Button } from '#lib/primitive/button/index.js';
 	import * as ContextMenu from '#lib/primitive/context-menu/index.js';
 	import * as DropdownMenu from '#lib/primitive/dropdown-menu/index.js';
@@ -78,7 +77,7 @@
 		content,
 		class: className
 	}: {
-		/** where the card opens. */
+		/** where the card opens, already resolved. */
 		href: string;
 		/** what the link is called, since it carries no text of its own. */
 		label: string;
