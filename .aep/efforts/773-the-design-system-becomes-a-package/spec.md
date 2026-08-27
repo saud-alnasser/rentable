@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: implemented
 ---
 
 # Problem
@@ -361,24 +361,39 @@ so the reasoning is not re-derived. The i18n seam is the other, and it became re
   `record-surface` moves as it stands, `back.svelte.ts` and `create-intent.ts` travel with it,
   and navigation is not something a consumer supplies. **What this buys is paid for in a
   constraint rather than free** — see `# Constraints`.
-- **What form the token layer takes** — one stylesheet the consumer imports, a Tailwind v4 theme
-  file, or something else. *Which rules stay behind is no longer open: requirement 5 and
-  acceptance criterion 5 settled that on 2026-08-23, when the window scroll lock turned out to
-  be sitting in the same file as the palette.*
-- **Whether a change to the package is something a changeset is written against.** The
-  machinery makes this consequential rather than clerical. `.changeset/config.json` sets
-  `privatePackages: {version: true, tag: true}` and `updateInternalDependencies: "patch"`, and
-  [[references/changesets]] records what a tag does here: it "is what triggers the signed Tauri
-  artifact build". So versioning the package patch-bumps `@rentable/desktop` and cuts a
-  four-platform desktop release. The three candidate answers are that the package is versioned
-  in its own right, that it is treated as `@rentable/control-plane` is and never gets one, or
-  that a design change gets its changeset written against the applications it reaches. Left
-  open rather than guessed, because it changes what shipping looks like.
-- **Whether `shell:` survives as a name** now that the shell is per application. Two things read
-  that number today, the stylesheet and `is-below-shell-breakpoint.svelte.ts`, and the whole
-  point of declaring it once is that they cannot disagree.
-- **Whether the package exports source or a built artifact**, and what that costs the desktop
-  application's Vite build and its `svelte-check` run.
+- ~~**What form the token layer takes**~~ **One stylesheet the consumer imports, and it takes
+  three lines rather than one.** Answered at #776. `packages/design/src/lib/tokens.css` holds
+  `@theme`, `@layer base` and `@apply`, so a consumer writes `@import 'tailwindcss'` first,
+  `@import '@rentable/design/tokens.css'` after it, and an `@source` naming this package's `src`.
+  Two of the three fail silently when wrong, which is why the file's own header states all of
+  them. *Which rules stay behind was settled on 2026-08-23, when the window scroll lock turned
+  out to be sitting in the same file as the palette.*
+- ~~**Whether a change to the package is something a changeset is written against.**~~ **It is
+  not, and the change it describes is.** Answered by the human on 2026-08-27, on the three
+  candidates put to them at #773: a design change a user can observe gets its changeset written
+  against each application that ships it, which today is `@rentable/desktop` alone, and no
+  changeset ever names `@rentable/design`. Written into [[references/changesets]] beside the
+  paragraph about the control plane, which is where the question gets asked again.
+
+  **One premise this question was built on was wrong, and the answer is not.** `tag: true` in
+  `privatePackages` would not give the package a tag: `release.yml` passes
+  `push-git-tags: false`, and the tag is cut by `.github/changeset-tag.cjs`, which reads
+  `apps/desktop/package.json` by path and can produce no other name. What survives the correction
+  is the consequence that made the question consequential — `updateInternalDependencies: "patch"`
+  patch-bumps `@rentable/desktop` off a design bump, the desktop's own version moves, and its tag
+  and four-platform artifact build follow from that. [[references/changesets]] carries the
+  correction.
+- ~~**Whether `shell:` survives as a name**~~ **It does, and both of its readers are now inside
+  the package.** `tokens.css` declares `--breakpoint-shell` once, and
+  `is-below-shell-breakpoint.svelte.ts` reads that same custom property at runtime rather than
+  restating the number, so the two cannot disagree. The name is the product's rather than one
+  window's, which is what let it cross with the palette.
+- ~~**Whether the package exports source or a built artifact**~~ **Source, and there is no build
+  step at all.** Answered at #774: `exports` points every condition at `./src/lib/*`, and each
+  consumer compiles it — Vite bundles it and `svelte-check` reads types straight out of the
+  `.svelte` files. The cost that was in question was measured on 2026-08-23 and is nil: a wrong
+  prop type across the boundary produced `Type 'number' is not assignable to type 'string'`
+  without a `.d.ts` anywhere. `packages/design/tsconfig.json` records it.
 
 # Risks
 

@@ -120,7 +120,7 @@ Start at [[protocol]].
 | Effort | Status | Spec | Research | Prototypes | Tickets |
 | --- | --- | --- | --- | --- | --- |
 | 767-the-control-plane-says-when-its-token-expires | implemented | [[efforts/767-the-control-plane-says-when-its-token-expires/spec]] | 0 | 0 | 0 |
-| 773-the-design-system-becomes-a-package | accepted | [[efforts/773-the-design-system-becomes-a-package/spec]] | 3 | 1 | 1 |
+| 773-the-design-system-becomes-a-package | implemented | [[efforts/773-the-design-system-becomes-a-package/spec]] | 3 | 1 | 1 |
 | 810-the-contract-record-reads-as-one-in-arabic | implemented | [[efforts/810-the-contract-record-reads-as-one-in-arabic/spec]] | 0 | 0 | 3 |
 | 811-the-gates-and-the-contract-follow-the-code-into-the-package | implemented | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]] | 0 | 0 | 6 |
 | 812-the-desktop-declares-what-it-uses | implemented | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
@@ -161,7 +161,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 
 | Ticket | Effort | Status | Blocked by |
 | --- | --- | --- | --- |
-| [[efforts/773-the-design-system-becomes-a-package/tickets/01-a-second-consumer-proves-the-package-needs-no-change]] test(design): a second consumer proves the package needs no change | 773-the-design-system-becomes-a-package | open | — |
+| [[efforts/773-the-design-system-becomes-a-package/tickets/01-a-second-consumer-proves-the-package-needs-no-change]] docs(design): a second consumer proves the package needs no change | 773-the-design-system-becomes-a-package | resolved | — |
 | [[efforts/810-the-contract-record-reads-as-one-in-arabic/tickets/01-the-unit-pane-counts-in-the-readers-digits]] fix(contract): the unit pane counts in the reader's digits | 810-the-contract-record-reads-as-one-in-arabic | resolved | — |
 | [[efforts/810-the-contract-record-reads-as-one-in-arabic/tickets/02-the-contract-record-draws-its-phone-through-the-cell]] fix(contract): the contract record draws its phone through the cell that states the rule | 810-the-contract-record-reads-as-one-in-arabic | resolved | — |
 | [[efforts/810-the-contract-record-reads-as-one-in-arabic/tickets/04-a-new-session-does-not-inherit-a-lapsed-replica-window]] fix(sync): a new session does not inherit the replica window of the one before it | 810-the-contract-record-reads-as-one-in-arabic | resolved | — |
