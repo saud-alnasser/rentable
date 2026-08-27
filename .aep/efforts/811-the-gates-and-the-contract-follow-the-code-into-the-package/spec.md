@@ -128,8 +128,14 @@ nobody executes.
 7. A test renders `startup-unreadable` with no `DesignProvider` and no `TooltipProvider` above
    it, as `+layout.svelte` does, and it passes. Removing `tooltip={false}` from either call site
    makes it fail, and the failure names the provider rather than surfacing as an unrelated
-   render error. Giving `StandaloneSurface` a `busy`, or a tone other than `error`, fails the
-   same way.
+   render error. ~~Giving `StandaloneSurface` a `busy`, or a tone other than `error`, fails the
+   same way.~~ **`or` is wrong, and the measurement is under ticket 05: it takes both.** The two
+   are redundant guards rather than one condition each, which is what
+   `startup-unreadable.svelte`'s own comment says and what this line lost. `busy` added with
+   `tone="error"` kept passes; `tone="error"` dropped with no `busy` passes; the two together
+   throw `a @rentable/design component rendered outside DesignProvider`. The criterion is met by a
+   test that renders `StandaloneSurface` busy and untoned directly and asserts on that throw,
+   which pins the mechanism rather than one mutation of it.
 8. A record surface that is still loading renders a sentence about the record rather than about
    the application, in both locales, and the contract key and what the desktop supplies for it
    agree, so a second consumer reading the docstring supplies the same kind of sentence.
