@@ -8,15 +8,27 @@ Across #778, #779 and #781, 38 primitive families, fourteen helper modules and a
 crossed out of `apps/desktop/src/lib/design/` and into `@rentable/design`. **Every mechanism
 that would have caught a mistake in that code stayed behind, and nothing failed when they did.**
 
-**The lint gate stopped seeing SvelteKit navigation.** `eslint.config.js:8` imports
-`apps/desktop/svelte.config.js` and hands it to the Svelte parser as `svelteConfig` for every
-file in the repository, so `svelte/no-navigation-without-resolve` scopes itself to that project
-and is inert everywhere else. Measured at #778 with a probe component under
-`packages/design/src/lib/primitive/`: `svelte/no-at-html-tags` reported and
-`no-navigation-without-resolve` did not, on the same file carrying a live `goto('/somewhere')`
-and a bare `href`. The Svelte plugin runs there; the SvelteKit-aware half does not. The only
-signal left is two `eslint-disable` directives eslint now reports as unused, which read as
-tidy-up rather than as a hole.
+**The lint gate half-sees SvelteKit navigation.** *This paragraph said the gate was inert in the
+package, on a probe taken at #778. Re-measured on 2026-08-27 while building ticket 01, that is no
+longer true, and the correction is left in place rather than rewritten away because it is what the
+requirements below were cut against.* The rule does reach `packages/design/src/**`:
+`packages/design/package.json` now declares `@sveltejs/kit` under `devDependencies`, which is what
+the plugin resolves a SvelteKit version from, and the dependency arrived when the package started
+importing `$app/*`. A probe in the same place carrying `goto('/somewhere')` and a bare
+`<a href="/elsewhere">` reported both.
+
+What is blind is the half that reads types. `no-navigation-without-resolve` accepts any value whose
+type is `ResolvedPathname`, `@sveltejs/kit` ships that defaulting to `string`, and `svelte-kit sync`
+is what narrows it per application. The package runs no sync and has no routes, so every `string`
+passes and only a literal written in the package is caught. The same `goto(where ?? fallback)`
+reports in `apps/desktop` and is silent in `packages/design`. **Nothing closes that from inside the
+package**, because narrowing the type would mean naming a consumer's routes in the library written
+not to know them. `[[references/eslint]]` carries the measurement and `[[rules/frontend]]` the
+obligation it leaves on both sides.
+
+The signal that remained was **four** `eslint-disable` directives eslint reports as unused, not two:
+`back.svelte.ts`, `block/record-card.svelte`, `block/record-surface.svelte` and
+`primitive/button/button.svelte`. Every one of them was measured to suppress nothing.
 
 **The package's own test runner cannot load a component that navigates.** Four modules in
 `@rentable/design` import `$app/*` — `back.svelte.ts`, `create-intent.ts`,

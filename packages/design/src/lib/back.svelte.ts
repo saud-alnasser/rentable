@@ -23,7 +23,8 @@ class Back {
 	forget = (screen: string) => backTrail.forget(screen);
 
 	/**
-	 * Go back, or to `fallback` where there is nowhere to go back to.
+	 * Go back, or to `fallback` where there is nowhere to go back to. `fallback` arrives
+	 * already resolved.
 	 *
 	 * Navigating rather than following a link, because the trail is the application's own and
 	 * arriving is what tells it: a link would be indistinguishable from opening the screen
@@ -31,7 +32,6 @@ class Back {
 	 */
 	// the destination is a path the router itself produced, so it is already resolved and the
 	// base is already on it — resolving it a second time would put the base on twice.
-	// eslint-disable-next-line svelte/no-navigation-without-resolve
 	go = (fallback: string) => goto(this.destination ?? fallback);
 }
 

@@ -41,7 +41,7 @@ The ignore set is two things and nothing else:
 
 ```js
 includeIgnoreFile(gitignorePath)              // the root .gitignore
-{ ignores: ['**/tauri/**', '**/src/lib/i18n/i18n-*.ts'] }
+{ ignores: ['**/tauri/**', '**/src/lib/i18n/i18n-*.ts', '.aep/scripts/**'] }
 ```
 
 **Both globs lead with `**/` because the config is at the repository root and what it covers
@@ -81,6 +81,51 @@ the worktree, and leaves the directory behind.
 `.aep/worktrees/` does not exist. So it is a main-checkout-only failure that reads as a code
 problem and is not one — observed 2026-08-19 with four worktrees present. Deleting the leftover
 directory clears it; adding `'**/.aep/worktrees/**'` to the `ignores` entry would prevent it.
+
+## The SvelteKit rules reach `packages/design`, and one half of them is blind there
+
+**They reach it.** Measured 2026-08-27 with a probe component under
+`packages/design/src/lib/primitive/`, carrying a live `goto('/somewhere')` and a bare
+`<a href="/elsewhere">`: `svelte/no-navigation-without-resolve` reported both.
+
+*This corrects the reading taken at #778, which put a probe in the same place and saw nothing.
+What changed between them is `packages/design/package.json`, which now declares
+`@sveltejs/kit` under `devDependencies` — the plugin gates its SvelteKit rules on
+`meta.conditions.svelteKitVersions`, and the version it compares is resolved by walking up from
+the file for a `node_modules/@sveltejs/kit` or a manifest that names one. The dependency arrived
+when the package started importing `$app/*`, and the rule started applying the same day without
+anybody asking it to.*
+
+**The half that reads types is blind.** `no-navigation-without-resolve` accepts any value whose
+type is structurally equal to `ResolvedPathname` from `$app/types`. `@sveltejs/kit` ships that
+type defaulting to `string` (`types/index.d.ts`, `ResolvedPathname(): string`), and
+`svelte-kit sync` is what narrows it per application — `apps/desktop/.svelte-kit/non-ambient.d.ts`
+declares it as a template literal over that application's own route union. **`packages/design`
+runs no sync and has no routes**, so `ResolvedPathname` stays `string` there and every `string`
+satisfies the check.
+
+The same expression, measured in both projects on 2026-08-27:
+
+```ts
+export function jump(where: string | null, fallback: string) {
+	return goto(where ?? fallback);        // apps/desktop  → reports
+}                                          // packages/design → silent
+```
+
+So what still reports in the package is a **literal**: `goto('/somewhere')` and
+`href="/elsewhere"` have literal types, which are assignable to `string` but not the reverse, and
+the check is assignability in both directions. What never reports is anything the compiler widens
+to `string` — which is every path a packaged component is handed as a prop.
+
+**This is not fixable from inside the package**, and that is the point rather than a limitation to
+work around: narrowing `ResolvedPathname` there would mean naming a consumer's routes in a library
+that exists not to know them. `[[rules/frontend]]` carries what a packaged component owes because
+of it.
+
+*The four `eslint-disable svelte/no-navigation-without-resolve` directives in the package were
+removed on 2026-08-27, having been measured to suppress nothing: with each one deleted, eslint
+reported nothing at its site. Their prose stayed, because why the path arrives resolved is still
+worth knowing.*
 
 ## Markdown is not linted
 

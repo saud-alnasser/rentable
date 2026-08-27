@@ -257,6 +257,21 @@ the same member. #781 added `block/form-surface`, whose panel is portalled to `d
 and so states a direction rather than inheriting one. A direction derived from anything else is
 the same defect wearing a `$derived`.
 
+**A path a packaged component navigates to is the caller's to resolve, and the gate does not
+check it.** `svelte/no-navigation-without-resolve` does run on `packages/design/src/**` — that was
+measured on 2026-08-27 and `[[references/eslint]]` has the probe — but the half of it that reads
+types cannot work there. It accepts any value typed `ResolvedPathname`, and `ResolvedPathname`
+degrades to `string` in a package that generates no route types, so every `href` and every `goto`
+argument a packaged component is *handed* passes. Only a literal written in the package itself is
+still caught.
+
+**Nothing can close that from inside the package**: narrowing the type would mean naming a
+consumer's routes in the library written not to know them. So it is an obligation on the two sides
+instead. **The consumer hands in a path it has already resolved**, which is what
+`record-card`, `record-surface` and `back` each say in a comment at the point they use one. **The
+packaged component says in its prop's own documentation that it expects a resolved path**, because
+that docstring is the only thing a second consumer will read before supplying one.
+
 **A parameterised string is the contract's only where the package owns the number.**
 `DesignStrings` is 34 keys and 33 of them are plain strings; `moreRecords` is a function because
 `block/selection-dialog` counts the refused records it had no room to name, from a plan its
