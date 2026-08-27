@@ -119,6 +119,8 @@ Start at [[protocol]].
 
 | Effort | Status | Spec | Research | Prototypes | Tickets |
 | --- | --- | --- | --- | --- | --- |
+| 767-the-control-plane-says-when-its-token-expires | implemented | [[efforts/767-the-control-plane-says-when-its-token-expires/spec]] | 0 | 0 | 0 |
+| 773-the-design-system-becomes-a-package | accepted | [[efforts/773-the-design-system-becomes-a-package/spec]] | 3 | 1 | 1 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -144,10 +146,16 @@ Start at [[protocol]].
 | surfaces-the-overhaul-left-behind | implemented | [[efforts/surfaces-the-overhaul-left-behind/spec]] | 0 | 0 | 0 |
 | the-control-plane-declares-what-it-accepts | implemented | [[efforts/the-control-plane-declares-what-it-accepts/spec]] | 0 | 1 | 0 |
 | the-control-plane-keeps-its-records-on-turso | implemented | [[efforts/the-control-plane-keeps-its-records-on-turso/spec]] | 0 | 0 | 0 |
-| the-control-plane-says-when-its-token-expires | accepted | [[efforts/the-control-plane-says-when-its-token-expires/spec]] | 0 | 0 | 0 |
-| the-design-system-becomes-a-package | accepted | [[efforts/the-design-system-becomes-a-package/spec]] | 3 | 1 | 0 |
 | the-landing-screen-is-figures-over-sections | implemented | [[efforts/the-landing-screen-is-figures-over-sections/spec]] | 0 | 1 | 0 |
 | the-repository-becomes-a-monorepo | implemented | [[efforts/the-repository-becomes-a-monorepo/spec]] | 2 | 0 | 0 |
 | the-shell-says-whose-workspace-this-is | implemented | [[efforts/the-shell-says-whose-workspace-this-is/spec]] | 0 | 0 | 0 |
 | ui-overhaul | implemented | [[efforts/ui-overhaul/spec]] | 3 | 0 | 0 |
 | work-the-surfaces-cannot-do | implemented | [[efforts/work-the-surfaces-cannot-do/spec]] | 1 | 1 | 0 |
+
+## Tickets
+
+Every task of every effort. The tracker carries the effort, never its tasks.
+
+| Ticket | Effort | Status | Blocked by |
+| --- | --- | --- | --- |
+| [[efforts/773-the-design-system-becomes-a-package/tickets/01-a-second-consumer-proves-the-package-needs-no-change]] test(design): a second consumer proves the package needs no change | 773-the-design-system-becomes-a-package | open | — |

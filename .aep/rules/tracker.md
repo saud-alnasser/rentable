@@ -19,34 +19,43 @@ commit discipline, how work lands — is [[rules/version-control]]'s.
 
 ## What a ticket is
 
+**A file, not an issue.** A ticket lives at `.aep/efforts/<effort>/tickets/<NN>-<slug>.md`
+and never becomes a GitHub issue of its own. AEP opens exactly two tracker objects for an
+effort — one issue carrying `spec.md`, one pull request carrying the approach — and
+[[policies/execution]] is where that count is fixed.
+
 **Branch-bound.** One ticket becomes one branch, which lands as one unit of review — from
 [[rules/version-control]], under *One ticket, one branch, one commit*.
 
-Work that produces no branch — a decision, an investigation — is **not a ticket here**, and
-opening one anyway creates an issue nothing can ever close by merging. Decision work lives
-in its effort's `spec.md`, and the map itself is a pinned issue.
+Work that produces no branch — a decision, an investigation — is **not a ticket here**.
+Decision work lives in its effort's `spec.md`.
 
-*Why: a ticket that no merge can close sits open forever and stops meaning anything.*
+*Why the count is two: per-task issues made a reader reconstruct the effort from a list of
+fragments. One issue is the effort, and its tasks sit in the repository beside the spec they
+trace to.*
 
 ## What a ticket's body looks like
 
-[[templates/ticket.template]] is the shape, and it applies here even though it is written for
-a local file — this repository has an external tracker, so the frontmatter has no home and its
-fields are carried by GitHub instead:
+[[templates/ticket.template]] is the shape, and the frontmatter has a home now: the ticket is
+a file, so its fields sit in the file and nothing is carried by GitHub.
 
 | Template frontmatter | Where it lives here |
 | --- | --- |
-| `status` | the issue's own open/closed state — never mirrored into the body |
-| `part-of` | the sub-issue relationship to the effort's map, **and** a `Part of #<map>` line |
-| `blocked-by` | the native blocking relationship, **and** a `Blocked by:` line |
+| `status` | the file's own `status:` — `open`, `resolved`, or `obsolete` |
+| `blocked-by` | the file's own `blocked-by:`, and nothing else |
 
-So a ticket opens with one line carrying `Part of`, `Blocked by`, and which requirement and
-criterion of the spec it traces — then a link to the spec naming the sections that are
-authoritative — and then the template's five sections, in its order and under its headings:
+**`part-of` is retired.** The effort is the directory the ticket sits in, and a field
+restating it is a second answer that can disagree with the first.
+
+So a ticket opens with a `Blocked by:` line where something gates it — then a link to the
+spec naming the sections that are authoritative — and then the template's five sections, in
+its order and under its headings:
 
 ```
 ## Outcome              one paragraph: what is true when this is done
-## Acceptance Criteria  checkboxes, each traceable to a criterion in the spec
+## Acceptance Criteria  the requirement and criterion numbers it traces, then the
+                        checkboxes. validate.mjs reads the citation from this section and
+                        from nowhere else, so a trace in the opening line does not count
 ## Relevant areas       paths, and where to start reading
 ## Constraints          what the implementer must respect that the spec does not say —
                         rejected alternatives, test obligations, declared increments
@@ -56,37 +65,30 @@ authoritative — and then the template's five sections, in its order and under 
 **A declared increment — research, grilling, prototype — is a Constraint**, not a section of
 its own: it binds the implementer before building and reads as optional anywhere else.
 
-*Why the duplication in the first two rows is not mirroring: the native relationship is
-structured and queryable, the body line is what a human reads without opening the sidebar.
-`status` is the one that must never be duplicated — two places to read whether work is done is
-one place to be wrong.*
+*Why nothing is mirrored onto GitHub any more: a task held in two places is a task whose two
+copies disagree the first time one is edited. The tracker carries the effort; the repository
+carries its tasks.*
 
-## What a map's body looks like
+## What the effort issue's body looks like
 
-**The map is not a ticket and does not take the shape above.** It indexes an effort, so it
-takes **the spec's own section names** — [[templates/spec.template]]'s — and under each one it
-gists what the spec says and links it. A heading on the map and a heading in the spec are then
-the same subject, and a reader moves between them without translating.
+**There is no map.** The effort issue *is* the effort, and its body is `spec.md` —
+[[skills/specify]] opens it that way, with each requirement's acceptance criterion as a
+checkbox. A second document indexing the spec would be a second place the spec can change.
 
-```
-## Problem  ## Goal  ## Scope  ## Sequence*  ## Constraints
-## Decisions  ## Open Questions  ## Risks  ## Out of scope  ## Drift found*
-```
+The pull request carries the approach from `plan.md`, and each ticket's criteria as
+checkboxes — or says the tickets are not yet cut, never an empty list.
 
-Two are the tracker's alone and are marked as such where they appear:
+The two things the map carried that no spec section owns still have homes:
 
-- **Sequence** — what order the tickets are taken in, and what gates what. The sub-issue list
-  carries state and cannot carry order. **Omitted where an effort has no tickets yet.**
-- **Drift found** — what the effort discovered about the repository that no spec section owns.
+- **Sequence** — what order the tickets are taken in, and what gates what — is `blocked-by:`
+  on the tickets themselves. It is an edge a script reads rather than prose somebody
+  maintains.
+- **Drift found** — what the effort discovered about the repository — goes in the spec, under
+  the section it bears on, or in a rule where it turns out to govern.
 
-`Decisions` indexes the spec's Architecture and its decision sections; `Open Questions` is
-what is not yet specified. **Omit a heading rather than writing "N/A" under it**, exactly as
-the spec template says — an absent section reads as not yet reached, which is usually the
-truth.
-
-**Nothing on a map is the source of truth for anything.** Live ticket state is the sub-issue
-list, and every claim under a heading belongs to the spec. *Why: a map that starts asserting
-rather than indexing is a second spec, and it is the copy that drifts.*
+**Neither tracker body is the source of truth.** `spec.md` and `plan.md` are what the effort
+is, and both bodies are projections of them ([[policies/execution]]). Where one disagrees
+with the file, the file wins and the body is corrected — never the reverse.
 
 ## Assignment
 

@@ -24,11 +24,11 @@ not.
 > with no build step nothing rewrites it. A `$lib/tailwind.js` specifier reaches the consumer
 > unrewritten and resolves against the **consumer's** library directory. It does not fail; it
 > resolves to the wrong file.
-> [[efforts/the-design-system-becomes-a-package/evidence/research/what-a-package-may-use-for-its-own-imports]]
+> [[efforts/773-the-design-system-becomes-a-package/evidence/research/what-a-package-may-use-for-its-own-imports]]
 
 **The package uses subpath imports — `#lib/...` — declared in its own `imports` field.**
 Measured rather than argued:
-[[efforts/the-design-system-becomes-a-package/evidence/prototypes/a-source-exported-package-without-lib]]
+[[efforts/773-the-design-system-becomes-a-package/evidence/prototypes/a-source-exported-package-without-lib]]
 built the package, consumed it from the desktop, and ran seven measurements. All four clauses of
 the falsifier came back negative.
 
@@ -235,7 +235,7 @@ entirely changes nothing: the desktop still type-checks and still bundles. It ea
 only if a condition ever diverges from `default`, which is what would happen if a `dist/` ever
 appeared. Keeping it is cheap and forward-safe; **recording it as verified would have been
 false**, and the research that called it required
-([[efforts/the-design-system-becomes-a-package/evidence/research/packaging-a-svelte-design-system]],
+([[efforts/773-the-design-system-becomes-a-package/evidence/research/packaging-a-svelte-design-system]],
 finding 3) was read against a package that resolves `.svelte` through it rather than through a
 `default` pointing at the same file.
 
@@ -403,7 +403,7 @@ DOM. `[[skills/plan/depth]]`'s rule against layering does not fire here: no test
 by a test at a different level, they are being relocated.
 
 **The Arabic pass ran at #784, over all thirteen routes**, and what it found is recorded at
-[[efforts/the-design-system-becomes-a-package/evidence/research/the-arabic-pass-over-the-thirteen-routes]]
+[[efforts/773-the-design-system-becomes-a-package/evidence/research/the-arabic-pass-over-the-thirteen-routes]]
 rather than here, because a pass is a discovery and this section says what checks a criterion.
 Two faults surfaced, #804 and #805, and both predate the effort.
 
