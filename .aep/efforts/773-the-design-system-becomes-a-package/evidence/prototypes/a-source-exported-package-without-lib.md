@@ -10,7 +10,7 @@ Vite bundles it, `svelte-check` type-checks across the boundary, the package's o
 without the package being a SvelteKit project, and the shadcn-svelte CLI can still write into it.
 
 Built because
-[[efforts/the-design-system-becomes-a-package/evidence/research/what-a-package-may-use-for-its-own-imports]]
+[[efforts/773-the-design-system-becomes-a-package/evidence/research/what-a-package-may-use-for-its-own-imports]]
 falsified the premise the accepted architecture rested on, and left four questions that only a
 build could answer.
 

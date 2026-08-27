@@ -133,7 +133,7 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   helpers. *It held 459 files until 2026-08-23 and holds 34. The 425 that left are 387 primitives,
   thirteen of the fifteen composites, fifteen root modules with the class merging and `csv.ts`
   among them, and the ten tests that moved with those; all of them are in `@rentable/design` now,
-  whose last move landed at #784 ([[efforts/the-design-system-becomes-a-package/spec]]). This read
+  whose last move landed at #784 ([[efforts/773-the-design-system-becomes-a-package/spec]]). This read
   "the frontend machinery every concept shares" until then, and what shares is exactly what
   left.*;
   **`platform`**, capabilities that cross a process boundary or are
