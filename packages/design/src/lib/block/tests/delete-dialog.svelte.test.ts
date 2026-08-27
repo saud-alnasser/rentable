@@ -128,11 +128,9 @@ test('a failure with no words of its own is reported in the contract sentence', 
 	await tick();
 	await tick();
 
-	// the callout carries no `data-slot`, alone among the primitives on this surface, so what
-	// identifies it is the shape it is drawn as. Raised as #796 rather than added here.
 	expect(
 		document
-			.querySelector('[data-slot="dialog-content"] div.rounded-md.border')
+			.querySelector('[data-slot="dialog-content"] [data-slot="callout"]')
 			?.textContent?.trim()
 	).toBe('حدث خطأ غير متوقع');
 });

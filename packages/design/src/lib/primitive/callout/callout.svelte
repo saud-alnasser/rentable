@@ -22,6 +22,7 @@
 </script>
 
 <div
+	data-slot="callout"
 	class={cn('rounded-md border p-3 text-sm', parts.edge(), parts.wash(), parts.text(), className)}
 	{...restProps}
 >
