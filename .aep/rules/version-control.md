@@ -55,7 +55,7 @@ produces no branch, so it never becomes a tracker item, and it lives in its effo
 
 A design session's resolutions land together, as one `docs:` pull request for that session
 rather than one per decision. **#221 is the shape**: a single session settled two decisions
-and wrote the map, landing three decision records, the design document, and the edits they
+and wrote what was then the effort's map, landing three decision records, the design document, and the edits they
 forced as one pull request closing no issue. It is the only precedent verified here — other
 recent `docs:` pull requests look similar but were ticket-backed (#199 closed #198, #206
 closed #204, #229 closed #222), so they are the ordinary rule, not this exception.
@@ -68,8 +68,13 @@ second convention:
 - **The branch drops the ticket id** — `graphite/<type>/<slug>`, as **Branch naming** states
   below, because with no ticket there is nothing to claim.
 
-The map itself is where the exception stops: a map *is* a tracker item, because only the map
-survives into build tickets.
+The effort issue is where the exception stops. Its body *is* `spec.md` ([[rules/tracker]]), so a
+decision recorded in the spec does reach the tracker — as an edit to a body that already exists,
+never as a tracker item of its own.
+
+*This said the map was where the exception stopped, which was true under 2.x. There is no map at
+3.5, and what it was pointing at is the same thing: the one place an effort's decisions surface
+on the tracker without anybody creating an object for them.*
 
 ## Branch naming
 

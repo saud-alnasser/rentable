@@ -71,7 +71,9 @@ gh label create "<name>" --color <hex> --description "<text>"
 
 ## Pin and unpin an issue
 
-The map lives as a pinned issue — [[rules/tracker]] has that rule; these are the invocations. Both take a number or a URL.
+**AEP pins nothing.** A pin is triage's, and the reason to make one is a human's; these are the invocations for when they ask. Both take a number or a URL.
+
+*This said the map lives as a pinned issue, which was true under 2.x, where an effort's tracker presence was an index issue over one issue per ticket. [[rules/tracker]] is flat that there is no map at 3.5, so the protocol no longer produces the thing that paragraph was about. #773 stays pinned because it is the effort in progress, which is a reason of its own.*
 
 ```
 gh issue pin <number>
@@ -105,6 +107,16 @@ gh issue develop <number> --list                  # read-only: branches linked t
 
 ## Link a parent and its sub-issues
 
+**AEP writes neither of these edges.** At 3.5 a task is a file under
+`.aep/efforts/<effort>/tickets/`, the effort it belongs to is the directory it sits in, and what
+gates it is `blocked-by:` in its own frontmatter. [[policies/execution]] is flat about it: a
+ticket is never a tracker object, and the dependency graph never leaves the repository.
+
+What is below is kept for two reasons. This repository holds 143 closed sub-issues written under
+2.x that somebody will eventually need to read, and triage still parents and gates ordinary
+issues by hand. *Both invocations were expensive to get right — the `-F` trap alone fails
+silently against the wrong issue — so they are recorded rather than deleted and rediscovered.*
+
 **`gh` has native flags for this as of 2.96.0**, and they take issue **numbers**, which is what makes them worth preferring over the API path below — the number is what you already have:
 
 ```
@@ -127,9 +139,9 @@ gh issue edit <number> --remove-blocked-by <blocker>
 gh issue edit <number> --remove-blocking <blocked>
 ```
 
-Read from `gh issue edit --help` on gh 2.96.0 and used to build #768's edge onto #765. This is what
-writes the `blockedBy` the frontier query below reads; there was no invocation here for it until
-2026-08-23, and the query had been documented for four months without one.
+Read from `gh issue edit --help` on gh 2.96.0 and used to build #768's edge onto #765, which is
+the last edge AEP wrote this way. It is what put the `blockedBy` on the closed issues that
+*Reading the graph 2.x left behind* queries.
 
 The REST path still works and is the fallback where the flags are absent: parent/child goes through the sub-issues API with `gh api`:
 
@@ -171,7 +183,9 @@ Where the API is unavailable or refused, a **task list in the parent body** (`- 
 
 ## Record a blocking relationship
 
-Blocking is not the same edge as parent/child — see the entry above for that one.
+Blocking is not the same edge as parent/child — see the entry above for that one, and for why
+AEP writes neither. A task's gate is `blocked-by:` in its ticket file; what follows is for the
+issues triage gates by hand.
 
 **`gh` has native flags for this as of 2.96.0**, and they take issue numbers:
 
@@ -187,76 +201,99 @@ Read from `gh issue create --help` and `gh issue edit --help` on gh 2.96.0. This
 
 **State the edge in the issue body as well.** "Blocked by #12, #14." The native relationship is structured and queryable; the body line is what a human reads without opening the sidebar, and it is what the local-file tracker does anyway. Neither replaces the other.
 
-## What carries an effort here, and the query that finds its open work
+## What carries an effort here, and where its open work is read
 
-Resolved once against this tracker, per [[policies/execution]]. **Every fact
-lands on a native feature, so no label is created for any of them.**
+Resolved once against this tracker, per [[policies/execution]]. **The tracker carries the
+effort. Everything about the effort's tasks is in the repository**, and the two halves are
+read with different tools.
 
 | Fact | Carrier | Read it with |
 | --- | --- | --- |
-| which effort a task belongs to | the sub-issue edge — the effort is the parent issue | `parent` in `--json` |
-| what gates a task | issue dependencies | `blockedBy` / `blocking` in `--json` |
-| open or resolved | the issue's own state | `state` |
-| obsolete | the close reason `not planned` | `stateReason`, which **reads back `NOT_PLANNED`** |
+| the effort itself | one issue, whose body is `spec.md` | `gh issue view <effort-number>` |
+| the effort's approach | one pull request, carrying `plan.md` | `gh pr view <number>` |
+| which effort a task belongs to | the `tickets/` directory the file sits in | `ls` |
+| what gates a task | `blocked-by:` in the ticket's own frontmatter | `frontier.mjs` |
+| a task open, resolved or obsolete | the ticket's own `status:` | `frontier.mjs` |
+| where the effort has got to | `spec.md`'s `status:`, projected as a label | `reconcile.mjs` |
+| an effort abandoned | the close reason `not planned` | `stateReason`, which **reads back `NOT_PLANNED`** |
 
-**Milestones are not the carrier.** This repository has none, and the hierarchy
-already answers the question — a milestone beside it would be a second copy of
-the same fact. **No label carries it either**, and none is to be created for it;
-the vocabulary and what governs it are [[rules/tracker]]'s.
+**The effort directory is named for the issue number**, which is the link in one direction;
+both bodies name the effort's path, which is the other. `reconcile.mjs` reads the number off
+the directory name with `/^(\d+)-/`, so an effort directory without one is invisible to it —
+that is the whole mechanism, and there is no registry behind it.
+
+**Milestones are not a carrier.** This repository has none, and the effort issue already
+answers the question a milestone would. **No label carries membership or gating either**, and
+none is to be created for it; the vocabulary and what governs it are [[rules/tracker]]'s.
 
 The frontier — the effort's open tasks that nothing open is waiting on:
 
 ```sh
-gh issue list --state open --limit 200 --json number,title,blockedBy,parent \
-  --jq '[.[] | select(.parent.number == <effort-number>)
-             | select([.blockedBy.nodes[] | select(.state == "OPEN")] | length == 0)
-             | {number, title}]'
+node .aep/scripts/frontier.mjs <effort-directory-name>
 ```
 
-The frontier is **computed from declared edges, never guessed** from which files
-a task looks like it touches — [[policies/execution]] requires exactly that.
+It reads every file under that effort's `tickets/` and prints each open one as `ready`,
+`blocked by <ids>`, or `parked`. Three things about it are worth knowing before trusting an
+answer:
 
-**`blockedBy`, `blocking`, and `subIssues` are connections, not arrays.** On gh
-2.96.0 each comes back as `{nodes: [...], totalCount: n}`, so the iteration is
-`.blockedBy.nodes[]`. **`parent` is the exception** — a plain object, read as
-`.parent.number`. Check the shape against the installed version before copying a
-query from elsewhere.
+- **An edge naming a ticket that does not exist is an error, not a skip.** Silently treating
+  it as satisfied would release work whose dependency nobody ever wrote.
+- **`blocked-by` ids are local to one effort.** They are the `NN` prefix on the filename, read
+  as a string, so `blocked-by: ['03']` and not `blocked-by: [3]`. A gate on another effort's
+  work cannot be written here at all: `frontier.mjs` throws on an id it cannot find. Write that
+  one in the ticket's Notes, where a human reads it.
+- **`obsolete` satisfies a gate.** A task nobody is going to do gates nothing, and leaving it as
+  a gate is how an effort stalls on work it already decided against.
 
-**The wrong form fails quietly first.** Bare `.blockedBy[]` does not error: jq
-iterates the object's values and emits the nodes array, then `totalCount`. The
-*expected an object but got: array* message only appears once something
-downstream accesses a field — `.blockedBy[].number`, or `.blockedBy[] |
-select(.state == "OPEN")`. So the loud failure is the second-best case; the
-first is a query that returns a plausible answer built from the wrong values.
-
-**Filter on `state` inside `nodes`, not on the count.** `totalCount` counts
-closed blockers too, so a task whose only blocker merged last week reads as
-blocked and never joins the frontier.
-
-**An open blocker that already has a branch does not block.** [[rules/version-control]]
-makes `blocked-by` mean *stack on top of 01*, not *wait until 01 is resolved* — so a
-ticket whose blockers are all built is buildable now, stacked on them. The query above
-cannot see that: it filters on issue state, and an issue stays open until its pull
-request merges. On a stack of a dozen unmerged branches it therefore answers **almost
-nothing is ready**, which is the opposite of true.
-
-So the query gives a *conservative* frontier, and the buildable one is that answer plus
-every ticket whose open blockers all have branches:
+**An open blocker that already has a branch does not block.** [[rules/version-control]] makes
+`blocked-by` mean *stack on top of 01*, not *wait until 01 is resolved* — so a ticket whose
+blockers are all built is buildable now, stacked on them. `frontier.mjs` reads `status:`, which
+a ticket does not leave until its work lands, so on a stack of unmerged branches it gives a
+*conservative* frontier. The buildable one is that answer plus every ticket whose open blockers
+all have branches:
 
 ```sh
 git branch --format='%(refname:short)'   # a branch carrying a ticket id is that ticket, claimed and built
 ```
 
-*Why this is not a defect in the query: state is the right filter for "is this work
-done", and it is what closes an effort. It is the wrong filter for "may I start", which
-on a stacked repository is a question about branches. Read both.*
+*Why this is not a defect in the script: `status:` is the right read for "is this work done",
+and it is what closes an effort. It is the wrong read for "may I start", which on a stacked
+repository is a question about branches. Read both.*
 
-**Raise `--limit` deliberately.** There is no server-side parent filter, so
-`--jq` narrows a page `gh` has already truncated at 30 — and a truncated page
-filters to a short list that reads as a complete answer, with the dropped tasks
-looking like *not in this effort* rather than *not fetched*. This repository
-carries roughly fifteen open issues, so one page covers it today; `--limit 200`
-is what keeps that true as it grows.
+*Why a script over a tracker query: the graph is read on every scheduling pass. Local, it is a
+field in a file. In the tracker it is something to fetch, paginate and interpret first, and
+[[policies/execution]] is flat about which side it lives on.*
+
+### Reading the graph 2.x left behind
+
+The 143 closed tickets under this repository's earlier efforts were issues, parented and gated
+through GitHub's own features. Nothing writes those edges now, and the queries below are for
+reading what is already there. **Every trap here was paid for once**, so it is kept rather than
+rediscovered.
+
+```sh
+gh issue list --state all --limit 200 --json number,title,state,blockedBy,parent \
+  --jq '[.[] | select(.parent.number == <effort-number>) | {number, state, title}]'
+```
+
+**`blockedBy`, `blocking`, and `subIssues` are connections, not arrays.** On gh 2.96.0 each
+comes back as `{nodes: [...], totalCount: n}`, so the iteration is `.blockedBy.nodes[]`.
+**`parent` is the exception** — a plain object, read as `.parent.number`. Check the shape
+against the installed version before copying a query from elsewhere.
+
+**The wrong form fails quietly first.** Bare `.blockedBy[]` does not error: jq iterates the
+object's values and emits the nodes array, then `totalCount`. The *expected an object but got:
+array* message only appears once something downstream accesses a field — `.blockedBy[].number`,
+or `.blockedBy[] | select(.state == "OPEN")`. So the loud failure is the second-best case; the
+first is a query that returns a plausible answer built from the wrong values.
+
+**Filter on `state` inside `nodes`, not on the count.** `totalCount` counts closed blockers too,
+so a task whose only blocker merged last week reads as blocked.
+
+**Raise `--limit` deliberately.** There is no server-side parent filter, so `--jq` narrows a
+page `gh` has already truncated at 30 — and a truncated page filters to a short list that reads
+as a complete answer, with the dropped tasks looking like *not in this effort* rather than *not
+fetched*.
 
 The parent's own view is the cheaper read when the edges are not needed:
 
@@ -265,12 +302,10 @@ gh issue view <effort-number> --json subIssues,subIssuesSummary \
   --jq '.subIssuesSummary, (.subIssues.nodes[] | "\(.number) \(.state) \(.title)")'
 ```
 
-`subIssuesSummary` is the progress read — `{completed, total, percentCompleted}`
-— and **a parent can be closed while it is short of `total`**, which is how an
-effort comes to assert it is delivered while live work sits under it. That is why
-the summary is projected alongside the children rather than fetched and dropped:
-the comparison is the point of the read.
-
+`subIssuesSummary` is the progress read — `{completed, total, percentCompleted}` — and **a
+parent can be closed while it is short of `total`**, which is how an effort came to assert it
+was delivered while live work sat under it. That is why the summary is projected alongside the
+children rather than fetched and dropped: the comparison is the point of the read.
 ## The observation `reconcile.mjs` reads
 
 `.aep/scripts/reconcile.mjs` computes which efforts have tracker objects
