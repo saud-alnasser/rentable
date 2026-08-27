@@ -110,6 +110,21 @@ pub(crate) struct IssuedSession {
     pub absolute_expires_at: i64,
 }
 
+/// Whether the answer being recorded starts a session or moves one this machine already had.
+///
+/// **The replica window is the whole of what turns on it.** A refresh mints nothing, so the window
+/// it was already holding is still the truth about the credential the replica syncs with. A new
+/// session has minted nothing *yet*, so the window it would inherit describes the session before
+/// it — and where that one has lapsed, carrying it forward closes the admission gate the mint runs
+/// behind, which leaves the only action the screen offers unable to work.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SessionOrigin {
+    /// a sign-in. This machine did not hold this session a moment ago.
+    Established,
+    /// a refresh, a rename, or a mint. The session was already this machine's.
+    Refreshed,
+}
+
 #[derive(Deserialize)]
 struct WireSession {
     token: String,
@@ -476,10 +491,17 @@ impl RemoteSync {
     /// Record what the control plane just issued: the token to the credential store, the window
     /// to the persisted store.
     ///
-    /// **The replica's expiry is kept where the answer did not carry one.** A refresh moves the
+    /// **The replica's expiry is kept where a refresh did not carry one.** A refresh moves the
     /// session and mints nothing, so forgetting the replica window on a refresh would make the
     /// client believe it may replicate until the session ends — which is precisely the drift the
     /// two fields exist to prevent.
+    ///
+    /// **A session being established keeps nothing**, and the distinction is [`SessionOrigin`]'s
+    /// rather than something read off the value. A window already lapsed at the moment somebody
+    /// signs in belongs to the session before this one; carried forward it survives the sign-in
+    /// meant to replace it, `windowClosesAt` takes it as the earliest of the three moments, and the
+    /// wall goes back up over a session the control plane had just accepted. The mint that would
+    /// answer with a live one runs in `bootstrap`, behind that wall.
     ///
     /// **The absolute lifetime is taken as answered and never merged with what was held.** Every
     /// answer carries it and no call moves it, so a held value differing from the answered one is
@@ -489,6 +511,7 @@ impl RemoteSync {
         &mut self,
         account_id: &str,
         issued: &IssuedSession,
+        origin: SessionOrigin,
     ) -> Result<SessionWindow, Error> {
         let account_id = sanitize_string(account_id);
         let now = timestamp::now();
@@ -505,14 +528,20 @@ impl RemoteSync {
             updated_at: now,
         })?;
 
-        let held = self.store.control_plane_session.clone();
+        let carried = match origin {
+            SessionOrigin::Established => None,
+            SessionOrigin::Refreshed => self
+                .store
+                .control_plane_session
+                .clone()
+                .filter(|held| held.account_id == account_id)
+                .and_then(|held| held.replica_expires_at),
+        };
+
         let window = SessionWindow {
             account_id: account_id.clone(),
             expires_at: issued.expires_at,
-            replica_expires_at: issued.replica_expires_at.or_else(|| {
-                held.filter(|held| held.account_id == account_id)
-                    .and_then(|held| held.replica_expires_at)
-            }),
+            replica_expires_at: issued.replica_expires_at.or(carried),
             absolute_expires_at: issued.absolute_expires_at,
             updated_at: now,
         };
@@ -678,7 +707,11 @@ pub(super) async fn establish_session(
                     .write();
             }
 
-            match remote_sync.record_control_plane_session(account_id, &issued) {
+            match remote_sync.record_control_plane_session(
+                account_id,
+                &issued,
+                SessionOrigin::Established,
+            ) {
                 Ok(window) => diagnostics::info("sync.session.established")
                     .with("account", account_id)
                     .with("expiresAt", window.expires_at.to_string())
@@ -872,9 +905,11 @@ pub(crate) async fn mint_workspace(app_state: &AppState) -> WorkspaceStanding {
 
             // The mint restarts the refresh window and the replica credential together, so the
             // window this machine believes has to move with it.
-            if let Err(error) =
-                remote_sync.record_control_plane_session(&held.account_id, &minted.session)
-            {
+            if let Err(error) = remote_sync.record_control_plane_session(
+                &held.account_id,
+                &minted.session,
+                SessionOrigin::Refreshed,
+            ) {
                 diagnostics::error("sync.session.notRecorded")
                     .with("error", error.to_string())
                     .write();
@@ -987,9 +1022,11 @@ pub(crate) async fn rename_workspace(app_state: &AppState, name: &str) -> Result
     // Logged rather than propagated, as every other site that writes this does. The rename landed
     // on the control plane; failing the whole call over the window not moving would report a
     // rename that happened as one that did not.
-    if let Err(error) =
-        remote_sync.record_control_plane_session(&session.account_id, &renamed.session)
-    {
+    if let Err(error) = remote_sync.record_control_plane_session(
+        &session.account_id,
+        &renamed.session,
+        SessionOrigin::Refreshed,
+    ) {
         diagnostics::error("sync.session.notRecorded")
             .with("error", error.to_string())
             .write();
@@ -1058,8 +1095,11 @@ pub(super) async fn renew_session(app_state: &AppState) -> Result<bool, Error> {
                     .write();
             }
 
-            let window =
-                remote_sync.record_control_plane_session(&held.account_id, &identified.session)?;
+            let window = remote_sync.record_control_plane_session(
+                &held.account_id,
+                &identified.session,
+                SessionOrigin::Refreshed,
+            )?;
 
             diagnostics::info("sync.session.renewed")
                 .with("account", held.account_id.as_str())
@@ -1735,7 +1775,11 @@ mod tests {
                             .expect("failed to initialize remote sync");
 
                     remote_sync
-                        .record_control_plane_session("account-1", &issued)
+                        .record_control_plane_session(
+                            "account-1",
+                            &issued,
+                            SessionOrigin::Refreshed,
+                        )
                         .expect("failed to record the session");
                 }
 
@@ -1800,6 +1844,7 @@ mod tests {
                             replica_expires_at: Some(AT + 3 * A_DAY),
                             absolute_expires_at: AT + 30 * A_DAY,
                         },
+                        SessionOrigin::Refreshed,
                     )
                     .expect("failed to record the mint");
 
@@ -1812,6 +1857,7 @@ mod tests {
                             replica_expires_at: None,
                             absolute_expires_at: AT + 30 * A_DAY,
                         },
+                        SessionOrigin::Refreshed,
                     )
                     .expect("failed to record the refresh");
 
@@ -1824,6 +1870,81 @@ mod tests {
                     window.replica_expires_at,
                     Some(AT + 3 * A_DAY),
                     "a refresh silently extended the credential the replica actually syncs with"
+                );
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
+    }
+
+    /// **Signing in starts a session that has minted nothing**, so the replica window it inherits
+    /// must be nothing rather than the previous session's. Carried forward, a window that had
+    /// already lapsed survives the sign-in meant to replace it, `windowClosesAt` takes it as the
+    /// earliest of the three moments, and the machine is walled out of a session the control plane
+    /// had just accepted — with the mint that would answer with a live window sitting behind that
+    /// same wall.
+    #[test]
+    fn signing_in_does_not_inherit_a_lapsed_replica_window() {
+        use std::sync::Arc;
+        use tokio::{runtime::Runtime, sync::RwLock};
+
+        use crate::{persisted::Persisted, settings::Settings};
+
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root =
+                    std::env::temp_dir().join(format!("remote-sync-signin-{}", timestamp::now()));
+                std::fs::create_dir_all(&root).expect("failed to create test root");
+
+                let settings_path = root.join(Settings::FILENAME);
+                let mut settings =
+                    Persisted::<Settings>::load(settings_path).expect("failed to load settings");
+                settings.database_path = root.join("app.db");
+                settings.commit().expect("failed to commit settings");
+
+                let mut remote_sync = RemoteSync::new(
+                    Arc::new(RwLock::new(settings)),
+                    root.join(RemoteSync::FILENAME),
+                )
+                .await
+                .expect("failed to initialize remote sync");
+
+                // the machine as it comes back from being offline: a mint from days ago, whose
+                // replica credential died before anybody reopened the application.
+                remote_sync
+                    .record_control_plane_session(
+                        "account-1",
+                        &IssuedSession {
+                            token: "rws_a-token".to_string(),
+                            expires_at: AT - A_DAY,
+                            replica_expires_at: Some(AT - A_DAY),
+                            absolute_expires_at: AT + 30 * A_DAY,
+                        },
+                        SessionOrigin::Refreshed,
+                    )
+                    .expect("failed to record the lapsed mint");
+
+                let window = remote_sync
+                    .record_control_plane_session(
+                        "account-1",
+                        &IssuedSession {
+                            token: "rws_a-token".to_string(),
+                            expires_at: AT + 3 * A_DAY,
+                            replica_expires_at: None,
+                            absolute_expires_at: AT + 30 * A_DAY,
+                        },
+                        SessionOrigin::Established,
+                    )
+                    .expect("failed to record the sign-in");
+
+                assert_eq!(
+                    window.replica_expires_at, None,
+                    "the sign-in inherited a replica window that had already lapsed, which is what                      walls the machine out of the session it just established"
+                );
+                assert_eq!(
+                    window.expires_at,
+                    AT + 3 * A_DAY,
+                    "the session the sign-in established did not take"
                 );
 
                 let _ = std::fs::remove_dir_all(&root);

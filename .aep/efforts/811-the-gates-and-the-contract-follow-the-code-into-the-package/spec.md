@@ -56,6 +56,13 @@ wants already exists and is not used.
 Four gaps and one defect, and the defect is the point: **the contract went wrong immediately,
 and the only reason anybody knows is that a human read the docstring against the locale file.**
 
+**And a rule the desktop already wrote down is waiting on the same harness.**
+`[[efforts/810-the-contract-record-reads-as-one-in-arabic/spec]]` fixed two surfaces that drew a
+number by hand, and the test that would catch the third could not be written, for the reason
+above: the desktop cannot render a component in a test. That effort carried the test as a
+criterion until 2026-08-27, when the human moved it here rather than hold two shipped fixes
+behind an effort that had not started. It is the first thing the harness is for.
+
 # Goal
 
 Code that lives in `@rentable/design` is judged by the same gates that judged it in
@@ -69,6 +76,7 @@ nobody executes.
 - A component test harness for `apps/desktop`, which has none.
 - `callout.svelte`'s root attribute, and the two block tests written around its absence.
 - What `record-surface` says while a record is on its way, in the contract and at the caller.
+- The phone rule the desktop states in `cell/phone.svelte` and nothing holds shut.
 
 # Requirements
 
@@ -84,6 +92,8 @@ nobody executes.
    guard that was dropped.
 8. A reader waiting on a record is told the record is on its way, in words about the record, in
    both locales, and the contract key and what the desktop supplies for it agree.
+9. A phone number rendered under `dir="rtl"` is covered by a test, so the next surface that
+   hand-rolls one is caught before a locale is opened.
 
 # Acceptance Criteria
 
@@ -111,7 +121,9 @@ nobody executes.
 8. A record surface that is still loading renders a sentence about the record rather than about
    the application, in both locales, and the contract key and what the desktop supplies for it
    agree, so a second consumer reading the docstring supplies the same kind of sentence.
-9. `pnpm check`, `pnpm lint`, `pnpm test` and `pnpm build:web` pass.
+9. A component test renders `Cell.Phone` under `dir="rtl"` and asserts that the country code
+   leads. It runs on the harness criterion 6 builds rather than on a second one.
+10. `pnpm check`, `pnpm lint`, `pnpm test` and `pnpm build:web` pass.
 
 # Constraints
 
@@ -141,7 +153,11 @@ nobody executes.
   instantiates only on open.** Their throw surfaces on first interaction rather than at render,
   so a render-time test does not reach them. Named here so the gap is on the record.
 - **Moving `Cell.Phone` or anything else across the boundary.** #807 settled what is in the
-  package.
+  package. Criterion 9 tests it where it lives, in `apps/desktop`, and that is the point of
+  putting it behind criterion 6 rather than criterion 3.
+- **The other numbers #810 left alone.** That effort fixed two surfaces and declined a general
+  audit. Criterion 9 inherits the same line: it holds the phone rule shut, not every number the
+  application renders.
 
 # Assumptions
 

@@ -3,6 +3,8 @@
 	import { resolve } from '$app/paths';
 	import type api from '$lib/api/caller';
 	import * as Cell from '$lib/design/cell';
+	import { locale } from '$lib/i18n/i18n-svelte';
+	import { formatLocaleNumber } from '$lib/platform/locale';
 	import { listRows } from '@rentable/design/group.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
@@ -96,12 +98,16 @@
 	});
 
 	const Icon = $derived(icon);
+	// the heading counts in the reader's digits, like the list beside it and the complex above
+	// it. The parentheses stay as they are: they are neutral characters, and the bidi algorithm
+	// mirrors a matched pair inside an RTL heading without being asked.
+	const count = $derived(formatLocaleNumber($locale, units.length));
 </script>
 
 <section class="flex min-h-0 flex-col gap-2">
 	<h3 class="shrink-0 text-xs tracking-[0.2em] text-muted-foreground uppercase">
 		{heading}
-		<span class="ms-1 tracking-normal">({units.length})</span>
+		<span class="ms-1 tracking-normal">({count})</span>
 	</h3>
 
 	{#if isLoading}
