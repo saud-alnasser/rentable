@@ -29,7 +29,6 @@
 	} from '$lib/contract/query';
 	import { useFetchContractPayments } from '$lib/payment/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import PaymentLedger from '$lib/payment/component/ledger.svelte';
 	import { useFetchTenant } from '$lib/tenant/query';
 	import BanIcon from '@lucide/svelte/icons/ban';
@@ -221,10 +220,14 @@
 	/>
 {/snippet}
 
+<!-- the cell holds a number at `ltr`, so only a number goes through it: the stand-in is the
+     reader's word and takes the reader's direction. -->
 {#snippet phone()}
-	<span dir={localesMetadata[$locale].direction}>
-		{tenantQuery.data?.phone || $LL.common.messages.unknown()}
-	</span>
+	{#if tenantQuery.data?.phone}
+		<Cell.Phone phone={tenantQuery.data.phone} />
+	{:else}
+		{$LL.common.messages.unknown()}
+	{/if}
 {/snippet}
 
 {#snippet fields()}

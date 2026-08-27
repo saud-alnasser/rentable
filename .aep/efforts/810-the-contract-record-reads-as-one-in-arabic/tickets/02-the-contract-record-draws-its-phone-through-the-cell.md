@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(contract): the contract record draws its phone through the cell that states the rule
@@ -14,10 +14,16 @@ rather than two.
 
 Traces requirement 2 and requirement 3 of the spec, and its criterion 2 and criterion 3.
 
-- [ ] `/contracts/[id]` renders the phone row with the leading `+` at the start of the number
-      in Arabic.
-- [ ] The row is drawn by `Cell.Phone` rather than by a hand-rolled span.
-- [ ] `pnpm check`, `pnpm lint` and `pnpm test` pass.
+- [x] `/contracts/[id]` renders the phone row with the leading `+` at the start of the number
+      in Arabic. Verified on two contracts in the running application: `+966570493924` on the one
+      the ticket measured, which read `966570493924+` before the change, and `+966517920133` on a
+      second.
+- [x] The row is drawn by `Cell.Phone` rather than by a hand-rolled span. The stand-in is not:
+      `$LL.common.messages.unknown()` is the reader's word and stays outside the cell, which holds
+      its content at `ltr`. That is [[rules/frontend]] under *i18n*, where the attribute is
+      conditional on there being a figure.
+- [x] `pnpm check`, `pnpm lint` and `pnpm test` pass. `check` reported
+      `9137 FILES 0 ERRORS 0 WARNINGS`, `lint` exited 0, `test` reported `4 successful, 4 total`.
 
 ## Relevant areas
 
