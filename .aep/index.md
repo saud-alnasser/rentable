@@ -123,7 +123,7 @@ Start at [[protocol]].
 | 773-the-design-system-becomes-a-package | accepted | [[efforts/773-the-design-system-becomes-a-package/spec]] | 3 | 1 | 1 |
 | 810-the-contract-record-reads-as-one-in-arabic | implemented | [[efforts/810-the-contract-record-reads-as-one-in-arabic/spec]] | 0 | 0 | 3 |
 | 811-the-gates-and-the-contract-follow-the-code-into-the-package | implemented | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]] | 0 | 0 | 6 |
-| 812-the-desktop-declares-what-it-uses | accepted | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
+| 812-the-desktop-declares-what-it-uses | implemented | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -171,4 +171,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/tickets/04-the-package-can-test-a-component-that-navigates]] test(design): the package can test a component that navigates | 811-the-gates-and-the-contract-follow-the-code-into-the-package | resolved | 03 |
 | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/tickets/05-the-screen-with-no-boundary-above-it-is-held-shut-by-a-test]] test(desktop): the screen with no boundary above it is held shut by a test rather than by three comments | 811-the-gates-and-the-contract-follow-the-code-into-the-package | resolved | — |
 | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/tickets/06-a-test-holds-the-phone-rule-shut]] test(contract): a test holds the phone rule shut | 811-the-gates-and-the-contract-follow-the-code-into-the-package | resolved | 05 |
-| [[efforts/812-the-desktop-declares-what-it-uses/tickets/01-four-devdependencies-nothing-imports-are-removed]] chore(desktop): four devDependencies nothing has ever imported are removed | 812-the-desktop-declares-what-it-uses | open | — |
+| [[efforts/812-the-desktop-declares-what-it-uses/tickets/01-four-devdependencies-nothing-imports-are-removed]] chore(desktop): four devDependencies nothing has ever imported are removed | 812-the-desktop-declares-what-it-uses | resolved | — |
