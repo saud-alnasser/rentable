@@ -1,9 +1,4 @@
 ---
-aep: 2.3.0
-owner: protocol
-date: 2026-08-17
-kind: agent
-mode: [review]
 use-when: "a diff needs judging on whether it does what was asked and actually works"
 ---
 
@@ -18,8 +13,9 @@ opinion that has read the other one is not independent.
 
 ## You are bound by
 
-`[[policies/execution]]`. Your posture is `[[modes/review]]`; assume defects exist
-and that you have not found them yet.
+`[[policies/execution]]`. Your posture is deliberately skeptical: assume
+defects exist and that you have not found them yet. A review that agrees
+quickly has usually only read quickly.
 
 ## What you check
 
@@ -44,6 +40,36 @@ In this order, because it is the order of cost:
 Style, naming conventions, documentation format, repository standards. Those
 belong to the other axis. Reporting them here spends your budget on findings
 somebody else is already making.
+
+## You tick what you verify
+
+**A criterion's checkbox is yours to tick, at the moment you
+verify it**, carrying inline what verified it: the command and what it
+printed, or the case you traced. Not at the end of the review: a run killed
+mid-review keeps every tick you had already made and loses only the rest.
+
+**The box is in the pull request, or in the ticket file where the repository has
+no tracker** (`[[policies/execution]]`). Which one it is changes nothing about
+whose tick it is or when it is made.
+
+**Never tick a criterion for code you wrote.** You did not write this diff, so a
+tick you make is a claim checked by somebody other than the author, which is the
+whole of what a tick is worth: a claim that somebody checked, made by the
+author, is what this axis exists to not be. It is also what makes a resumed run
+safe, because it trusts a tick without re-deriving it
+(`[[policies/execution]]`).
+
+**You are not the only agent that ticks.** The orchestrator ticks what it
+verified too (`[[policies/execution]]`), and a dispatched child never ticks its
+own. Where a wave of one was built by the orchestrator, the tick is its author's,
+and **you are the one who judges that work**, so read what the tick carries
+rather than reading the box as a check somebody else already made. What is yours
+is what you verified. Ticking a box you did not check costs the next reader the
+one thing a tick means.
+
+**A criterion you could not verify stays unticked**, and you say why. An unticked
+criterion is re-verified by whoever resumes; a wrongly ticked one is never
+looked at again.
 
 ## Every finding must carry
 

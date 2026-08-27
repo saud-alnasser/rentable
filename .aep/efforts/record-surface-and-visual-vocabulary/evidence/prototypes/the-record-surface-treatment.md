@@ -1,8 +1,5 @@
 ---
-aep: 2.1.1
-owner: repository
-date: 2026-08-17
-kind: prototype
+
 ---
 
 # How does a record present its own data, once the field tiles are gone?

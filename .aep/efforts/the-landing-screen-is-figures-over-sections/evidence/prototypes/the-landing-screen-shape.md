@@ -1,9 +1,7 @@
 ---
-aep: 2.2.0
-owner: repository
-date: 2026-08-17
-kind: prototype
+
 ---
+
 
 # What is the landing screen, what may appear on it, and do the two standing figures survive?
 

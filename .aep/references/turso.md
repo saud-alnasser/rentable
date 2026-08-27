@@ -1,8 +1,4 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-23
-kind: reference
 use-when: 'provisioning a workspace database, minting a token to sync with one, or reading what the control plane does to Turso'
 ---
 

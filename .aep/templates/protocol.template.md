@@ -1,13 +1,10 @@
 ---
-aep: 2.3.0
-owner: protocol
-date: 2026-08-17
 use-when: "auditing what the bootstrap must contain, or porting AEP to a runtime whose entrypoint differs"
 ---
 
 # Template — protocol.md
 
-**You do not write this file.** `protocol.md` is `owner: protocol`, installed
+**You do not write this file.** `protocol.md` is the protocol's, installed
 verbatim, and replaced by every upgrade (`[[policies/artifacts]]`). This template
 records the shape it must hold — so an audit can check it, and so a port to
 another runtime knows what the bootstrap is obliged to answer.
@@ -16,10 +13,6 @@ another runtime knows what the bootstrap is obliged to answer.
 
 ```markdown
 ---
-aep: <release>
-owner: protocol
-date: <YYYY-MM-DD>
-kind: protocol
 use-when: "at the start of every session, before anything else"
 ---
 

@@ -1,8 +1,4 @@
 ---
-aep: 2.3.0
-owner: repository
-date: 2026-08-17
-kind: reference
 use-when: "inspecting history, diffing, or recovering where a concept moved"
 ---
 

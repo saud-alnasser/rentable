@@ -1,9 +1,4 @@
 ---
-aep: 2.3.0
-owner: repository
-date: 2026-08-17
-kind: rule
-mode: [specify, plan, implement, review]
 use-when: "creating, reading, claiming, or labelling a ticket, or deciding whether work is a ticket at all"
 ---
 
@@ -113,7 +108,7 @@ convention is what is recorded here; the values are read from the tracker.**
 | `size:` | how large a pull request is | describes a **pull request**, not an issue |
 
 **Read the whole list before applying or proposing a label**, never the first page — the
-ladder in [[skills/tasks/labels]] requires it before anything is created, and the
+ladder in [[policies/execution]] requires it before anything is created, and the
 vocabulary here is longer than the default page. [[references/github]] has the invocation
 and what the flag does.
 

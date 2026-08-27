@@ -1,8 +1,4 @@
 ---
-aep: 2.1.1
-owner: repository
-date: 2026-08-17
-kind: reference
 use-when: "running, building, or testing the Rust crate in apps/desktop/tauri/"
 ---
 

@@ -1,8 +1,4 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-22
-kind: rule
 paths:
   - apps/desktop/tauri/src/sync/**
   - apps/desktop/src/lib/sync/**

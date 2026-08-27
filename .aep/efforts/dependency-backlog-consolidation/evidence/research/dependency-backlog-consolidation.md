@@ -1,8 +1,5 @@
 ---
-aep: 2.1.1
-owner: repository
-date: 2026-08-17
-kind: research
+
 ---
 
 # Which of the thirteen open Renovate updates can land together, and which cannot?

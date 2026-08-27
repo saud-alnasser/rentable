@@ -1,8 +1,4 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-23
-kind: context
 use-when: "a term, boundary, or constraint about this repository is in question, before reaching for a narrower context"
 ---
 

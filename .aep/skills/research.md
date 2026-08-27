@@ -1,19 +1,22 @@
 ---
-aep: 2.4.0
-owner: protocol
-date: 2026-08-17
-kind: skill
-mode: [research]
-report: full
 use-when: "a decision turns on a fact that is not in this repository"
 ---
 
-# /research — establish what is true
+# research — establish what is true
 
 Investigates one question against primary sources and writes the answer as
-evidence. A **capability, never a stage** — most changes never need it.
+evidence.
 
-**Enters `[[modes/research]]`.** Read it and hold its tradeoffs.
+**A stage, not a command.** `[[skills/specify]]` and `[[skills/plan]]` run this
+where a material fact is not in this repository, inside the same invocation.
+Nobody types it, and it opens no report of its own (`[[policies/reporting]]`).
+Most changes never need it.
+
+**Posture.** Evidence over conclusions. Keep what the source says, what you
+observed, what you infer, and what you conclude labelled apart — collapsing
+them is how a guess acquires a citation. **What this gives up** is speed, and
+the comfort of a confident answer: research ending in "the source does not
+say" has succeeded.
 
 ## When this is the right instrument
 
@@ -30,7 +33,9 @@ here (`[[skills/prototype]]`).
 
 1. **Write the question down first**, as one sentence that an answer could be
    wrong about. A vague question returns a summary of the topic.
-2. **Check what is already recorded.** `efforts/<effort>/evidence/research/` — it may already be answered.
+2. **Check what is already recorded** under
+   `.aep/efforts/<effort>/evidence/research/`. The question may be answered
+   there.
 3. **Go to primary sources.** The specification, the reference documentation, the
    library's own source, the changelog, the issue tracker.
 4. **Trace every claim** back to the source that owns it.
@@ -41,7 +46,7 @@ here (`[[skills/prototype]]`).
 
 ## Output
 
-`efforts/<effort>/evidence/research/<question-slug>.md`, in the shape
+`.aep/efforts/<effort>/evidence/research/<question-slug>.md`, in the shape
 `[[templates/research.template]]` gives: Question, Sources, Findings, Conclusion, and what
 was **not** checked.
 

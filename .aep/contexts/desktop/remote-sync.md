@@ -1,8 +1,4 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-20
-kind: context
 paths:
   - apps/desktop/tauri/src/sync/**
   - apps/desktop/tauri/src/http.rs

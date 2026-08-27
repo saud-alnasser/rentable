@@ -1,8 +1,5 @@
 ---
-aep: 2.1.1
-owner: repository
-date: 2026-08-17
-kind: research
+
 ---
 
 # Does a motion library beat Svelte's built-ins for this application's animation needs?

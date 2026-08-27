@@ -1,8 +1,5 @@
 ---
-aep: 2.1.1
-owner: repository
-date: 2026-08-17
-kind: research
+
 ---
 
 # What are Rhea's geometry values, and what has to change when they are hand-ported onto these primitives?

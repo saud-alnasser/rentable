@@ -1,9 +1,4 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-23
-kind: rule
-mode: [prototype]
 paths:
   - apps/desktop/src/**
   - apps/desktop/tauri/src/**

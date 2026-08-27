@@ -1,9 +1,7 @@
 ---
-aep: 2.2.0
-owner: repository
-date: 2026-08-17
-kind: prototype
+
 ---
+
 
 # Should a directory row be a spaced card that lifts, and how raised should it be at rest?
 

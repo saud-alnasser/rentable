@@ -1,8 +1,4 @@
 ---
-aep: 2.1.1
-owner: repository
-date: 2026-08-17
-kind: context
 paths:
   - apps/desktop/src/lib/tenant/**
 use-when: "the request touches tenants, identity, or phone numbers"

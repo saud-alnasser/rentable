@@ -1,8 +1,5 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-21
-kind: prototype
+
 ---
 
 > Three variants of the updates section, inside the existing `/settings` route, selected by the
@@ -130,7 +127,7 @@ presentation needs one of the two.
 **The winning variant's markup was carried into `settings/component/updates.svelte` rather than
 rewritten from nothing, on the human's instruction on 2026-08-21: "use the code just alter it to
 fit as an actual impl."** That is a deliberate override of `[[skills/prototype]]`, which says
-promoted code is rewritten under `[[modes/implement]]` rather than moved, and it is recorded here
+promoted code is rewritten under `[[skills/implement]]` rather than moved, and it is recorded here
 as an override rather than presented as the default. `[[policies/authority]]` rank 1 is what
 carries it.
 

@@ -1,9 +1,4 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-23
-kind: reference
-mode: [implement, test]
 use-when: "running or writing a component test"
 ---
 

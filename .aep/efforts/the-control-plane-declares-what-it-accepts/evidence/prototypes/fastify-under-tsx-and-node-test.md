@@ -1,8 +1,5 @@
 ---
-aep: 2.7.0
-owner: repository
-date: 2026-08-22
-kind: prototype
+
 ---
 
 # Prototype — Fastify under `tsx` and `node:test`

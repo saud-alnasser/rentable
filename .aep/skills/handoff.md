@@ -1,9 +1,4 @@
 ---
-aep: 2.4.0
-owner: protocol
-date: 2026-08-17
-kind: skill
-report: full
 use-when: "this session is ending or has run long, and the next session must pick the work up"
 ---
 
@@ -26,12 +21,12 @@ compaction keeps you here and loses the verbatim history; a handoff forks.
 
    | What you learned | Where it goes |
    | --- | --- |
-   | a fact established from sources | `efforts/<e>/evidence/research/` |
-   | an experiment's outcome | `efforts/<e>/evidence/prototypes/` |
+   | a fact established from sources | `.aep/efforts/<e>/evidence/research/` |
+   | an experiment's outcome | `.aep/efforts/<e>/evidence/prototypes/` |
    | a change to what is being built | the effort's `spec.md` |
-   | how an area of the repository works | `contexts/` |
-   | how a tool is operated here | `references/` |
-   | a requirement on behaviour | `rules/` |
+   | how an area of the repository works | `.aep/contexts/<area>.md` |
+   | how a tool is operated here | `.aep/references/<tool>.md` |
+   | a requirement on behaviour | `.aep/rules/<name>.md` |
 
    **What is left over is what a handoff is for**: the state of *this session's*
    work, which belongs to no artifact.

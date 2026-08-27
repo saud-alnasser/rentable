@@ -16,7 +16,11 @@ export default ts.config(
 		// build output nor the typesafe-i18n generated modules. Both are machine-written, so
 		// anything reported in them is unfixable at the source and `tauri/target` alone is
 		// over a hundred files of build output to walk.
-		ignores: ['**/tauri/**', '**/src/lib/i18n/i18n-*.ts']
+		//
+		// `.aep/scripts` is the same case for a different reason: the protocol ships those
+		// files and every `/aep:update` replaces them, so a fix applied here is gone on the
+		// next upgrade and reads as a local edit to the one after that.
+		ignores: ['**/tauri/**', '**/src/lib/i18n/i18n-*.ts', '.aep/scripts/**']
 	},
 	js.configs.recommended,
 	...ts.configs.recommended,
