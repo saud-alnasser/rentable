@@ -201,7 +201,7 @@ const en = {
 			copied: 'copied to the clipboard',
 			copyFailed: 'nothing could be copied.',
 			exported: 'exported to {path:string}',
-			loadingApp: 'loading app...',
+			loadingRecord: 'loading record...',
 			loadingSettings: 'loading settings...',
 			noResults: 'no results.',
 			unexpectedError: 'unexpected error occurred!',

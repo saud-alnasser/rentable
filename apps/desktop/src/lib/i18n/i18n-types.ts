@@ -696,9 +696,9 @@ type RootTranslation = {
 			 */
 			exported: RequiredParams<'path'>
 			/**
-			 * l​o​a​d​i​n​g​ ​a​p​p​.​.​.
+			 * l​o​a​d​i​n​g​ ​r​e​c​o​r​d​.​.​.
 			 */
-			loadingApp: string
+			loadingRecord: string
 			/**
 			 * l​o​a​d​i​n​g​ ​s​e​t​t​i​n​g​s​.​.​.
 			 */
@@ -2935,9 +2935,9 @@ export type TranslationFunctions = {
 			 */
 			exported: (arg: { path: string }) => LocalizedString
 			/**
-			 * loading app...
+			 * loading record...
 			 */
-			loadingApp: () => LocalizedString
+			loadingRecord: () => LocalizedString
 			/**
 			 * loading settings...
 			 */

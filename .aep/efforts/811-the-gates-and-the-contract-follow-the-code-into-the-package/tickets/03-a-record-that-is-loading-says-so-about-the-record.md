@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): a record that is still loading says so about the record
@@ -15,12 +15,22 @@ sentence.
 
 Traces requirement 8 of the spec, and its criterion 8.
 
-- [ ] A record surface that is still loading renders a sentence about the record rather than
-      about the application, in both locales.
-- [ ] The contract key and what the desktop supplies for it agree.
-- [ ] The spec's Open Question is answered in the spec before this is built, not during it:
-      whether the sentence is the contract's or the caller's.
-- [ ] `pnpm check`, `pnpm lint` and `pnpm test` pass.
+- [x] A record surface that is still loading renders a sentence about the record rather than
+      about the application, in both locales. `common.messages.loadingRecord` is
+      `loading record...` and `جاري تحميل السجل...`, added beside `loadingSettings` in both locale
+      files and regenerated into `i18n-types.ts` with `pnpm i18n`.
+- [x] The contract key and what the desktop supplies for it agree. `+layout.svelte:93` supplies
+      `$LL.common.messages.loadingRecord()` where it supplied `loadingApp()`, and
+      `DesignStrings.loadingRecord`'s docstring now says the sentence is about the record and not
+      about the application, and why this key cannot name the record's kind. **`loadingApp` went
+      with it**: this change was its only reader, and a grep over `apps/` returns it in the locale
+      files alone.
+- [x] The spec's Open Question is answered in the spec before this is built, not during it:
+      whether the sentence is the contract's or the caller's. Answered under `# Open Questions`,
+      by applying `[[rules/frontend]]`'s *who knows the words* test. It is a contract key.
+- [x] `pnpm check`, `pnpm lint` and `pnpm test` pass. `check` reported `0 ERRORS 0 WARNINGS` for
+      both projects and `All matched files use Prettier code style!`; `lint` printed the prettier
+      line and nothing else; `test` reported `Tasks: 4 successful, 4 total`.
 
 ## Relevant areas
 

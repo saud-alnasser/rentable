@@ -178,8 +178,22 @@ nobody executes.
 
 # Open Questions
 
-- **Is the loading sentence a prop or a contract key?** The constraint above has the test to
-  apply. The answer belongs in this spec before criterion 8 is built, not during it.
+- **Is the loading sentence a prop or a contract key?** ~~The constraint above has the test to
+  apply. The answer belongs in this spec before criterion 8 is built, not during it.~~
+  **Answered 2026-08-27, before ticket 03 was built: it is a contract key, and it stays where it
+  is.** `[[rules/frontend]]`'s test is *who knows the words*, and the words wanted here are that a
+  record is on its way. `record-surface` is the thing that knows it is in the loading state, and
+  the sentence is true of any record, so the package knows it. What the package cannot know is
+  which **kind** of record, and requirement 8 does not ask for the kind: it asks for words about
+  the record rather than about the application. Criterion 8 settles the same way from the other
+  end, since *the contract key and what the desktop supplies for it agree* presupposes there is
+  still a key to agree with.
+
+  So the desktop supplies `common.messages.loadingRecord`, `loading record...` and
+  `جاري تحميل السجل...`, in place of `loadingApp()`. **A per-concept sentence remains available and is a
+  prop when somebody wants one** — `loadingTenant` already exists and is what such a prop would be
+  handed. Nothing here forecloses that; it establishes what the surface says when no caller has an
+  opinion, which is the case every record page is in today.
 
 # Risks
 
