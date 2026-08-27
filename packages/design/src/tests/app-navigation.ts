@@ -1,7 +1,7 @@
 /**
  * What `$app/navigation` resolves to under `vitest run`, and the only thing that supplies it here.
  *
- * **The package imports `$app/*` and that is settled** — `back.svelte.ts` and
+ * **The package imports `$app/*` and that is settled.** `back.svelte.ts` and
  * `block/record-surface.svelte` both call `goto`. What was never settled is what those specifiers
  * resolve to under a test: `svelte.config.js` declares no alias on purpose, because an alias in a
  * library reaches the consumer unrewritten, and `vitest.config.js` declared none either. So a test

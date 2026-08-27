@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: implemented
 ---
 
 # Problem
@@ -141,6 +141,14 @@ nobody executes.
    agree, so a second consumer reading the docstring supplies the same kind of sentence.
 9. A component test renders `Cell.Phone` under `dir="rtl"` and asserts that the country code
    leads. It runs on the harness criterion 6 builds rather than on a second one.
+
+   **Met with one stated deviation, recorded at converge rather than negotiated during the
+   build.** jsdom lays nothing out, so the order the glyphs appear in is not observable and no
+   assertion can watch the country code move. What the test asserts instead is the mechanism that
+   moves it: under a body that is `rtl`, the element states `dir="ltr"` of its own rather than
+   taking the direction above it. Deleting `dir="ltr"` from the cell fails the file, so the
+   coverage is real, and it is one step removed from the words this line used. Asserting the order
+   itself would need a layout engine, which means a browser-mode runner and a decision of its own.
 10. `pnpm check`, `pnpm lint`, `pnpm test` and `pnpm build:web` pass.
 
 # Constraints

@@ -122,7 +122,7 @@ Start at [[protocol]].
 | 767-the-control-plane-says-when-its-token-expires | implemented | [[efforts/767-the-control-plane-says-when-its-token-expires/spec]] | 0 | 0 | 0 |
 | 773-the-design-system-becomes-a-package | accepted | [[efforts/773-the-design-system-becomes-a-package/spec]] | 3 | 1 | 1 |
 | 810-the-contract-record-reads-as-one-in-arabic | implemented | [[efforts/810-the-contract-record-reads-as-one-in-arabic/spec]] | 0 | 0 | 3 |
-| 811-the-gates-and-the-contract-follow-the-code-into-the-package | accepted | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]] | 0 | 0 | 6 |
+| 811-the-gates-and-the-contract-follow-the-code-into-the-package | implemented | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]] | 0 | 0 | 6 |
 | 812-the-desktop-declares-what-it-uses | accepted | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |

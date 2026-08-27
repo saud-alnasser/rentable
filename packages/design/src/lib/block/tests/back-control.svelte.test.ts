@@ -16,9 +16,9 @@ import { beforeEach, expect, test } from 'vitest';
  * calls `goto` through `back.svelte.ts`. `#tests/app-navigation.js` is what that specifier
  * resolves to, and it records the call rather than only satisfying the import.
  *
- * **The word is read three times on one control** — as the button's `aria-label`, as the visually
- * hidden text inside it, and as the tooltip's content — and all three are the contract's rather
- * than a prop, so a consumer cannot correct any of them. Only two of the three are reachable at
+ * **The word is read three times on one control**: as the button's `aria-label`, as the visually
+ * hidden text inside it, and as the tooltip's content. All three are the contract's rather than a
+ * prop, so a consumer cannot correct any of them. Only two of the three are reachable at
  * render: `Tooltip.Content` is instantiated by bits-ui when the tooltip opens, so a render-time
  * assertion cannot see it. That is the same limit the spec names for eight primitive families,
  * and it is written here rather than left as a gap somebody rediscovers.
