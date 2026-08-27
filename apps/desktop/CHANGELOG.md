@@ -1,5 +1,101 @@
 # rentable
 
+## 0.14.0
+
+### Minor Changes
+
+- [#623](https://github.com/saud-alnasser/rentable/pull/623) [`5c44585`](https://github.com/saud-alnasser/rentable/commit/5c44585c64006b41d2dbf9478b6b477e1884b451) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - your workspace follows you between machines: what you record on one reaches the others, and what
+  they record reaches you. the copy on a machine stays for as long as you have access to that
+  workspace, so signing out and back in costs nothing.
+
+- [#600](https://github.com/saud-alnasser/rentable/pull/600) [`df2ed68`](https://github.com/saud-alnasser/rentable/commit/df2ed68d55867f15594185f2d5053e6b121cbd0e) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - sign in with google to open the app; signing out returns to the sign-in screen, and settings names the account this machine holds
+
+- [#609](https://github.com/saud-alnasser/rentable/pull/609) [`ba42aba`](https://github.com/saud-alnasser/rentable/commit/ba42abaf2a0de7fedc63874c1547270be90a420f) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - retire Google Drive sync — a workspace is kept for you now, and signing in with Google is what survives it
+
+- [#579](https://github.com/saud-alnasser/rentable/pull/579) [`e691cd4`](https://github.com/saud-alnasser/rentable/commit/e691cd470d0f920476ea1da7c8c180760a534d29) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - give every record an identity of its own rather than the next number up
+
+- [#611](https://github.com/saud-alnasser/rentable/pull/611) [`46a553d`](https://github.com/saud-alnasser/rentable/commit/46a553ddf0b43ef3354d11dea3f120fc2d72bdad) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - stop keeping backup files on this machine. a workspace is kept for you now, and its point-in-time copies are kept with it
+
+- [#608](https://github.com/saud-alnasser/rentable/pull/608) [`766f593`](https://github.com/saud-alnasser/rentable/commit/766f5935e6dd36b3d4f8f1d3a8a52015ca2a4727) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - stop applying migrations on this machine — a workspace's schema is applied where the workspace is
+
+- [#639](https://github.com/saud-alnasser/rentable/pull/639) [`5d9d415`](https://github.com/saud-alnasser/rentable/commit/5d9d415f222236a2f0bbeeda1d2e6285b6804144) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the sidebar names the workspace on top and the account underneath, each opening its own menu: signing out and settings move there from the settings page, and your Google profile picture is fetched once at sign-in and kept on this machine, so a row draws with no network and is cleared when you sign out
+
+- [#640](https://github.com/saud-alnasser/rentable/pull/640) [`a62ea65`](https://github.com/saud-alnasser/rentable/commit/a62ea6508e5a3dc0baca872e98441f2f4dac4eef) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - settings splits into three pages, one per thing you can configure: the application at `/settings`, the person at `/account`, and the workspace at `/workspace`, which is where sync status, syncing now, and importing and exporting a workspace now live
+
+### Patch Changes
+
+- [#675](https://github.com/saud-alnasser/rentable/pull/675) [`9e5d82d`](https://github.com/saud-alnasser/rentable/commit/9e5d82d97b6d8bdbc91181e6a44643e4cde32860) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - terminate, restore or delete a selection of contracts and the notice that says how many went through now offers to take the whole action back, the way every other change in the application does
+
+- [#680](https://github.com/saud-alnasser/rentable/pull/680) [`9080c46`](https://github.com/saud-alnasser/rentable/commit/9080c464593dccb17f7fdc82ab65026028f526c9) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a component that fails while drawing no longer takes the window with it. the screen it was on is replaced with a card that says what happened and offers to draw it again or to leave for the dashboard, with the rail and the titlebar still there. where the chrome itself is what failed there is no rail to keep, so the same card is drawn on its own rather than a blank window. both are written to the diagnostics file on this machine
+
+- [#815](https://github.com/saud-alnasser/rentable/pull/815) [`45f9248`](https://github.com/saud-alnasser/rentable/commit/45f92481f57fa6fec523185ff0ecbb309f6c52da) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a contract record now draws the tenant's phone number the way the tenant record and the directory already do, so in Arabic the country code sits at the start of the number instead of the end
+
+- [#685](https://github.com/saud-alnasser/rentable/pull/685) [`20ff178`](https://github.com/saud-alnasser/rentable/commit/20ff178a116d232bc06678f7e7aaeb29eddcc8ce) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the contracts list no longer reads every payment in the workspace to count each contract's own, so it opens in a fraction of the time on a filled workspace
+
+- [#815](https://github.com/saud-alnasser/rentable/pull/815) [`45f9248`](https://github.com/saud-alnasser/rentable/commit/45f92481f57fa6fec523185ff0ecbb309f6c52da) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the two unit panes on a contract now count in the reader's digits, so in Arabic their headings read in Arabic-Indic numerals like every other count on the screen rather than in Latin ones
+
+- [#673](https://github.com/saud-alnasser/rentable/pull/673) [`e6aa0df`](https://github.com/saud-alnasser/rentable/commit/e6aa0df6c8ccd01d952ca1a4b5a94d6a95b294a0) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - open a rank from the dashboard and the contracts list reads the contracts in it rather than every contract in the workspace
+
+- [#816](https://github.com/saud-alnasser/rentable/pull/816) [`c75f02a`](https://github.com/saud-alnasser/rentable/commit/c75f02add2cf47fe752bc8cd8a982e7de732ab02) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a record page that is still loading says the record is on its way, rather than saying the app is loading
+
+- [#686](https://github.com/saud-alnasser/rentable/pull/686) [`f8f1208`](https://github.com/saud-alnasser/rentable/commit/f8f1208307de53b72b044e28a4ca3952c4337290) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - searching by a name in Latin letters no longer pays for the Arabic folding it cannot use, so a large directory searches several times faster
+
+- [#689](https://github.com/saud-alnasser/rentable/pull/689) [`44e4150`](https://github.com/saud-alnasser/rentable/commit/44e4150df6d130cd0918c39997bef1083d32c4fe) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - following a see all on the dashboard opens the contracts list narrowed to that rank, where it was reaching the error screen instead. the narrowing is then the reader's to change or clear from the list's own filter, and a reload does not put back one they have cleared
+
+- [#672](https://github.com/saud-alnasser/rentable/pull/672) [`ffac49d`](https://github.com/saud-alnasser/rentable/commit/ffac49d651a58bf7e50e40c0bbeef611474d83e5) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a workspace replica is named for the workspace the way the control plane names it, so a machine that has one already pulls a fresh copy once after updating
+
+- [#677](https://github.com/saud-alnasser/rentable/pull/677) [`5737a57`](https://github.com/saud-alnasser/rentable/commit/5737a57b43a33d61ac7e97fbb8d0d6a923a4c9e6) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - select several complexes, or several of a complex's units, and delete the whole selection at once. the confirmation asks the workspace what would happen rather than reading the rows, so a unit whose contract has not started yet is shown as refused even though the list calls it vacant. one undo puts the set back whole
+
+- [#674](https://github.com/saud-alnasser/rentable/pull/674) [`cc02a51`](https://github.com/saud-alnasser/rentable/commit/cc02a51ca89c66824cb2d16dee7b01c4121eda1c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - select several contracts on any of the three lists that hold them and terminate, restore or delete the whole selection at once, after a confirmation that has already asked what would happen and shows how many would go through and how many would not
+
+- [#678](https://github.com/saud-alnasser/rentable/pull/678) [`07579dd`](https://github.com/saud-alnasser/rentable/commit/07579ddc0ca388ab5f8e58d03a2f420e79d78c75) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - select several payments on a contract's statement and delete the whole selection at once, after a confirmation that says how many would go through. one undo puts the set back whole, and the contract's paid amount is recomputed once rather than once per payment
+
+- [#676](https://github.com/saud-alnasser/rentable/pull/676) [`27d5f61`](https://github.com/saud-alnasser/rentable/commit/27d5f615e803296d5896671e35e1c4d2a1877377) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - select several tenants in the directory and delete the whole selection at once, after a confirmation that says how many would go through and names the ones still holding contracts. one undo puts the set back whole
+
+- [#691](https://github.com/saud-alnasser/rentable/pull/691) [`f5fc04d`](https://github.com/saud-alnasser/rentable/commit/f5fc04dc7d4067692b5f8eaaa888d4a437a1d34b) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - every list that acts on a selection now says when the workspace changed while the confirmation was open, naming what it could not do
+
+- [#692](https://github.com/saud-alnasser/rentable/pull/692) [`aa137e6`](https://github.com/saud-alnasser/rentable/commit/aa137e6e51e072dc7baaff1fed02d211a910172e) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a startup that fails before the application has loaded a language now shows what went wrong and offers the diagnostics folder, instead of an empty window
+
+- [#666](https://github.com/saud-alnasser/rentable/pull/666) [`625b140`](https://github.com/saud-alnasser/rentable/commit/625b140991c3a8be268f0e58ef43e475e39a10ea) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a toast says what kind of thing happened in its colour, not only in its glyph
+
+- [#625](https://github.com/saud-alnasser/rentable/pull/625) [`648e922`](https://github.com/saud-alnasser/rentable/commit/648e922054b75fd6edeb4e9d854d4ce089da9190) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a workspace file imports again when its contracts hold units; before, any assignment refused the whole import
+
+- [#706](https://github.com/saud-alnasser/rentable/pull/706) [`cedf9e5`](https://github.com/saud-alnasser/rentable/commit/cedf9e539263bdff5551fdba09b4cac755b811af) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a workspace can be renamed from the workspace page, and the name reaches the sidebar, the workspace menu and the page without restarting the app. it is the control plane that holds the name, so another machine signed in to the same workspace picks it up on its own
+
+- [#702](https://github.com/saud-alnasser/rentable/pull/702) [`03d0b8a`](https://github.com/saud-alnasser/rentable/commit/03d0b8ae98066cb48319aba1e6b9619d55780c42) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a workspace signed in to an account is now named by what the account it belongs to is called, rather than by "primary workspace" in english on every install. a machine that has never reached a control plane still reads the old name, because there is nothing to have told it another one
+
+- [#753](https://github.com/saud-alnasser/rentable/pull/753) [`6aeb1c2`](https://github.com/saud-alnasser/rentable/commit/6aeb1c2d551acfd5c3c8c6fb9d3e2bb89c5a5a87) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a workspace file is held to the same rules as the forms it stands in for. a contract costing nothing, a contract whose term is not a whole number of its own billing cycles, a payment of nothing, a payment dated after the day the file is read, and a payment against a contract that has been terminated are each named as the row at fault before anything is written, where before they were written and left a workspace the application itself would refuse to create
+
+- [#582](https://github.com/saud-alnasser/rentable/pull/582) [`756523c`](https://github.com/saud-alnasser/rentable/commit/756523caea16e9da91965f0a63666c542f46c461) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - say so when a change cannot be taken back because its record is no longer there
+
+- [#679](https://github.com/saud-alnasser/rentable/pull/679) [`a1dbb34`](https://github.com/saud-alnasser/rentable/commit/a1dbb34a3824861954744f545d99c69ac76df47b) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - every list that exports now offers exporting just the records you have selected, in the same columns and under the same file naming as exporting the whole list. the file says how many were selected, so it does not quietly replace the one holding everything
+
+- [#688](https://github.com/saud-alnasser/rentable/pull/688) [`9024b14`](https://github.com/saud-alnasser/rentable/commit/9024b14b75031ad7825dec6135ffbbfa333b6bef) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a complex, unit, contract, payment or tenant form that fails for a reason it cannot explain now says so once rather than raising the same message twice
+
+- [#701](https://github.com/saud-alnasser/rentable/pull/701) [`917cb45`](https://github.com/saud-alnasser/rentable/commit/917cb455fc19c8d87ab1895b2f9e8f305d0d2ae6) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the settings row in the account menu now opens settings on a machine nobody has signed in on, instead of changing the address and leaving the sign-in card on screen. the language control is the one most people want before they can read their way in, and it works there along with notices, updates and diagnostics
+
+- [#585](https://github.com/saud-alnasser/rentable/pull/585) [`0aa646c`](https://github.com/saud-alnasser/rentable/commit/0aa646c631604bd40b15495c28213a25d0890cde) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - sign in with google without linking a drive folder, and link a folder without signing in again
+
+- [#815](https://github.com/saud-alnasser/rentable/pull/815) [`45f9248`](https://github.com/saud-alnasser/rentable/commit/45f92481f57fa6fec523185ff0ecbb309f6c52da) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - signing in after a spell offline now opens the workspace again instead of returning to the same screen, because a new session no longer inherits the expired credential of the one before it
+
+- [#681](https://github.com/saud-alnasser/rentable/pull/681) [`33aeeff`](https://github.com/saud-alnasser/rentable/commit/33aeeff16516e3695732e6e6198777fa4c85d9c9) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - internal: everything the application does between the process starting and a person being able to use it now lives in one unit that can be run without a window, and the eight ways a launch can go are covered by tests rather than by launching the application eight times. nothing about what a launch does has changed
+
+- [#638](https://github.com/saud-alnasser/rentable/pull/638) [`1ceab14`](https://github.com/saud-alnasser/rentable/commit/1ceab14689921c5cac25935b6ed5c15c9120fe21) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the sign-in screen reads as a login page: a title, a line under it, and the way in — the coloured box that used to greet every visit now appears only when an attempt actually fails
+
+- [#635](https://github.com/saud-alnasser/rentable/pull/635) [`c652520`](https://github.com/saud-alnasser/rentable/commit/c652520d1da02e0dbc67102a184045413c4d8f3c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the sign-in screen names the app, carries one notice box, and stops asking you to sign in again when you already are: a machine that reached Google but not rentable now offers a retry that opens no browser window
+
+- [#705](https://github.com/saud-alnasser/rentable/pull/705) [`99dd59c`](https://github.com/saud-alnasser/rentable/commit/99dd59c5bcbf15a174ac27a2eab1743470efc46f) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the export and import section of the workspace page is called that, instead of saying "move this workspace" twice in a row above two buttons it did not describe
+
+- [#700](https://github.com/saud-alnasser/rentable/pull/700) [`39389d0`](https://github.com/saud-alnasser/rentable/commit/39389d0267caa23b440d20609e978541af52fabe) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the updates and diagnostics rows in settings are now controls rather than sections: the version you are on and the version you could have are stated side by side in one treatment, checking is a single icon, and what a check finds is announced and then gets out of the way instead of sitting on the page for the rest of the visit
+
+- [#736](https://github.com/saud-alnasser/rentable/pull/736) [`0e58cfb`](https://github.com/saud-alnasser/rentable/commit/0e58cfb4409c71e18054d6c06cfa1b7d445e31b6) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - signing in from the sidebar menu now opens the sign-in screen instead of going straight to google, so the screen that says what you are signing in with is always shown first
+
+- [#683](https://github.com/saud-alnasser/rentable/pull/683) [`ab2bda2`](https://github.com/saud-alnasser/rentable/commit/ab2bda2b7c593b6e4ccabc3eaaa1e619f0de8130) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - every title in the application is cased the way the rest of them already were: the settings, account and workspace pages and their group headings, and each dashboard rank. the seven standalone screens take sentence case instead, because five of them are titled with a sentence rather than a name
+
+- [#682](https://github.com/saud-alnasser/rentable/pull/682) [`2a9606d`](https://github.com/saud-alnasser/rentable/commit/2a9606dce7bf4f0999460adc471c444695de0b8f) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - units can be added to a complex in runs, the way they can when the complex is created: typing `a1-18` on an existing complex names a 1 through a 18 and adds them to the list below, where each one can be corrected or removed, and pressing create writes the whole list as one change that one undo takes back
+
+- [#732](https://github.com/saud-alnasser/rentable/pull/732) [`8189b96`](https://github.com/saud-alnasser/rentable/commit/8189b966b94ad3cbfc2a844df13abb9cf464b321) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the two version numbers on the update-recovery screen now read left to right in Arabic, so a version carrying a suffix like `1.2.3-beta.1` is no longer reordered on screen, while the words that stand in for a version when there is none still read in the reader's direction
+
 ## 0.13.0
 
 ### Minor Changes
