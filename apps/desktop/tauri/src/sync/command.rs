@@ -5,6 +5,7 @@ use super::control::rename_workspace as rename_control_plane_workspace;
 use super::control::renew_session as renew_control_plane_session;
 use super::sign_in::{sign_in_with_google, sign_out_of_google};
 use super::store::RemoteSyncState;
+use super::turso::consent::{TursoConsentResult, TursoConsentStart, TursoEndpoints};
 
 #[tauri::command]
 pub async fn remote_sync_state_get(
@@ -156,4 +157,39 @@ pub async fn google_sign_out(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<RemoteSyncState, Error> {
     sign_out_of_google(app_state.inner()).await
+}
+
+/// Ask Turso for the authority this application needs, and answer with the page to open.
+///
+/// **The browser is opened by the caller**, which is how signing in with Google already works:
+/// the consent screen is the person's and the application's part of it ends at composing the
+/// URL. What is held here is the PKCE verifier and the state, neither of which the web layer
+/// is given, so a caller cannot redeem the code that comes back on its own.
+///
+/// Nothing is granted by this call. It claims a loopback port, registers this application as a
+/// public client on it, and returns; what the person does next arrives on that port and is read
+/// by [`organization_consent_result`].
+#[tauri::command]
+pub async fn organization_consent_begin(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<TursoConsentStart, Error> {
+    app_state.consent.begin(TursoEndpoints::production()).await
+}
+
+/// How far one consent has got, and where it was granted, which organizations it reaches.
+///
+/// **It returns no token**, which is [[rules/credentials]]'s *Client boundary* at the one place
+/// this application obtains a Platform API token: the token is filed in the operating system's
+/// credential store by the call that redeems it and never crosses to TypeScript. The
+/// organizations are facts about that credential, and they are what requirement 22 turns on.
+///
+/// Polled while the status is `pending`. A consent that failed says so and says why; one the
+/// person abandoned says that instead, because closing the browser tab is the ordinary way a
+/// consent ends and there is nothing to report about it.
+#[tauri::command]
+pub async fn organization_consent_result(
+    app_state: tauri::State<'_, AppState>,
+    session_id: String,
+) -> Result<TursoConsentResult, Error> {
+    app_state.consent.result(&session_id).await
 }

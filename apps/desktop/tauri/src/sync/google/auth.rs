@@ -276,6 +276,29 @@ fn google_sign_in_scopes() -> Vec<String> {
     ]
 }
 
+/// what Google asks for on top of the two RFCs, and it is here because it is Google's.
+///
+/// **`access_type=offline` with `prompt=consent` is what yields a refresh token**, and
+/// without both the grant is an access token that ages out in an hour with nothing to
+/// renew it from. Google returns a refresh token only on a consent it treats as new, so
+/// dropping `prompt` would leave a second sign-in on the same machine with no refresh
+/// token and no error to show for it.
+///
+/// `include_granted_scopes` keeps whatever the person has already granted this client
+/// rather than replacing it, which matters because these three scopes were not always
+/// the whole set.
+///
+/// *They sat in the authorization builder until a second authorization server arrived.
+/// None of the three is in RFC 6749 or RFC 7636, and a Turso consent carrying them would
+/// be sending one provider's vocabulary to another.*
+pub(crate) fn google_authorization_parameters() -> [(&'static str, &'static str); 3] {
+    [
+        ("access_type", "offline"),
+        ("include_granted_scopes", "true"),
+        ("prompt", "consent"),
+    ]
+}
+
 #[cfg(not(test))]
 fn format_keyring_error(action: &str, account_id: &str, error: KeyringError) -> Error {
     Error::Credential {
@@ -294,7 +317,26 @@ fn test_google_credentials_store() -> &'static Mutex<HashMap<String, StoredGoogl
 
 #[cfg(test)]
 mod tests {
-    use super::{access_token_is_fresh, google_sign_in_scopes};
+    use super::{access_token_is_fresh, google_authorization_parameters, google_sign_in_scopes};
+
+    /// **A refresh token arrives only where both of these are asked for**, and its absence
+    /// is invisible until an hour after somebody signed in, on a machine nobody is
+    /// watching. Google issues one on a consent it treats as new, so `prompt=consent` is
+    /// what makes the second sign-in on a machine yield the same thing as the first.
+    ///
+    /// The three moved out of the shared authorization builder when a second provider
+    /// started using it, which is exactly the move that could drop one silently.
+    #[test]
+    fn the_sign_in_asks_google_for_a_refresh_token() {
+        assert_eq!(
+            google_authorization_parameters(),
+            [
+                ("access_type", "offline"),
+                ("include_granted_scopes", "true"),
+                ("prompt", "consent"),
+            ]
+        );
+    }
 
     /// The control-plane API identifies an account by Google's `sub`, and OpenID Connect is
     /// what defines that claim. Dropping this scope would leave the API matching on something

@@ -8,7 +8,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{error::Error, timestamp};
 
-use super::google::auth::{access_token_is_fresh, google_oauth_client_id, request_google_tokens};
+use super::google::auth::{
+    access_token_is_fresh, google_authorization_parameters, google_oauth_client_id,
+    request_google_tokens,
+};
 use super::oauth::{
     authorization::build_authorization_url,
     loopback::{LoopbackCallback, LoopbackWait},
@@ -314,6 +317,7 @@ impl RemoteSync {
             &redirect_uri,
             &expected_state,
             &pkce_challenge(&code_verifier),
+            &google_authorization_parameters(),
         )?;
 
         {

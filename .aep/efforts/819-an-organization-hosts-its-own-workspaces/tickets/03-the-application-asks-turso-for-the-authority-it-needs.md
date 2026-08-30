@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: ['02']
 ---
 
@@ -18,23 +18,29 @@ Traces requirement 4 and requirement 5 of
 [[efforts/819-an-organization-hosts-its-own-workspaces/spec]], and its criterion 4 and
 criterion 5.
 
-- [ ] The requested scope set is a constant with a test over it, and the test asserts the set by
+- [x] The requested scope set is a constant with a test over it, and the test asserts the set by
       value rather than asserting it is non-empty. Database deletion is absent from it. **The test
       is what makes criterion 4 checkable at all**, because the consent screen itself is the
       human's and cannot be asserted from here.
-- [ ] The token exchange and the authorization URL are exercised against a loopback HTTP server,
+      *Verified: `TURSO_CONSENT_SCOPES` is `["read", "db:create", "db:mint-token"]` and two tests pin it: one asserts the array by value, the other asserts no scope in it destroys anything. Deletion and rotation are both absent.*
+- [x] The token exchange and the authorization URL are exercised against a loopback HTTP server,
       as [[rules/credentials]] endorses under *Transport testing*. The serialisation and the status
       handling are the subject, and a live server tests them worse.
-- [ ] The Platform API token reaches the OS keyring under one new service, `rentable.turso-platform`,
+      *Verified: 17 tests drive registration, the authorization URL, the exchange and the listing against one scripted loopback server at the paths Turso publishes, which is what *Transport testing* endorses.*
+- [x] The Platform API token reaches the OS keyring under one new service, `rentable.turso-platform`,
       beside the two that exist. A test asserts it is written nowhere else: not a file, not a
       column, not an environment variable, not a log line.
-- [ ] `organization_consent_begin` and `organization_consent_result` exist as Tauri commands with
+      *Verified: `rentable.turso-platform` appears in `consent.rs` and nowhere else in the tree. `nothing_but_this_module_names_the_platform_token_service` walks the source and `the_consent_writes_no_log_line_that_could_carry_the_token` covers the log. The grep test was mutation-checked: planting the service name in `settings.rs` fails it.*
+- [x] `organization_consent_begin` and `organization_consent_result` exist as Tauri commands with
       the shapes [[efforts/819-an-organization-hosts-its-own-workspaces/plan]] gives under
       *Interfaces*. `organization_consent_result` returns the organizations the token can reach and
       whether each is personal, which is what requirement 22 needs, and it returns **no token**.
-- [ ] A failed or abandoned consent leaves nothing in the keyring and says which of the two it was.
+      *Verified: both exist in `sync/command.rs` and return the plan's shapes, `{ session_id, authorization_url }` and `{ status, organizations: [{ slug, is_personal }] }`. `TursoConsentResult` carries no token and its doc comment says so. It carries one field beyond the plan, `error`, because a status of `failed` with nothing to show is a screen that can only say something went wrong.*
+- [x] A failed or abandoned consent leaves nothing in the keyring and says which of the two it was.
       A user who closes the browser tab is the common case, not the exceptional one.
-- [ ] `cargo test`, `cargo clippy` and the repository's gates pass.
+      *Verified: six tests cover it: declined, refused, unanswered until the patience runs out, a state that does not match, a refused exchange and a refused listing. Each asserts the keyring is empty, and `Declined` is a separate outcome from `Failed`, which is what tells the two apart. Nothing is filed until the exchange and the listing have both succeeded, so a failure has nothing to clean up.*
+- [x] `cargo test`, `cargo clippy` and the repository's gates pass.
+      *Verified: `cargo test --manifest-path ./tauri/Cargo.toml -- --test-threads=1`, which is what `pnpm test:rust` runs and what `[[references/cargo]]` says is required, reports 204 passed, 0 failed, 4 ignored. `cargo fmt --check` clean, `cargo clippy --all-targets` five warnings all pre-existing and none in this ticket's files, `pnpm check`, `eslint`, `pnpm test` (4 of 4) and `pnpm build:web` pass, and 189 artifacts validate.*
 
 ## Relevant areas
 

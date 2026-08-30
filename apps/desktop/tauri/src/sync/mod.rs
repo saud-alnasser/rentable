@@ -5,6 +5,7 @@ pub mod oauth;
 mod session;
 mod sign_in;
 mod store;
+pub mod turso;
 
 pub use command::*;
 pub use control::SessionWindow;

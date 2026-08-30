@@ -27,6 +27,7 @@ use crate::diagnostics::{DiagnosticLog, RotationLimits};
 use crate::persisted::Persisted;
 use crate::settings::Settings;
 use crate::sync::RemoteSync;
+use crate::sync::turso::consent::TursoConsent;
 use crate::update::Update;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -130,6 +131,7 @@ pub fn run() {
                     settings,
                     remote_sync,
                     update,
+                    consent: Arc::new(TursoConsent::new()),
                 });
             });
 
@@ -156,6 +158,8 @@ pub fn run() {
             sync::remote_sync_push,
             sync::google_sign_in,
             sync::google_sign_out,
+            sync::organization_consent_begin,
+            sync::organization_consent_result,
             export::export_write,
             export::export_write_workbook,
             import::import_read,
