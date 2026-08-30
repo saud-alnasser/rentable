@@ -1,5 +1,5 @@
 ---
-status: draft
+status: accepted
 ---
 
 # Problem
@@ -70,196 +70,196 @@ chooses to show them.
 
 # Requirements
 
-**1. An organization exists, and it owns workspaces.**
-A workspace belongs to exactly one organization. An organization holds one or more
-workspaces. `workspace.ownerAccountId` being `.unique()` is the constraint this removes.
+1. **An organization exists, and it owns workspaces.**
+    A workspace belongs to exactly one organization. An organization holds one or more
+    workspaces. `workspace.ownerAccountId` being `.unique()` is the constraint this removes.
 
-**2. An organization's records live on the customer's own Turso account, in one database.**
-The organization database replaces `control-plane`'s `account`, `workspace`, `membership`
-and `session` tables. It holds no rents record: a ledger is a workspace database, and the
-separation the control plane had between the credential path and the data path survives as
-a separation between two databases rather than between a service and its clients.
+2. **An organization's records live on the customer's own Turso account, in one database.**
+    The organization database replaces `control-plane`'s `account`, `workspace`, `membership`
+    and `session` tables. It holds no rents record: a ledger is a workspace database, and the
+    separation the control plane had between the credential path and the data path survives as
+    a separation between two databases rather than between a service and its clients.
 
-**The two are never collapsed into one database**, not even for an organization holding a
-single workspace. A workspace credential is whole-database, so a directory sharing a file
-with a ledger is a directory every full-access member can read outside the application, and
-requirement 15 would then rest entirely on requirement 16's signatures. *Settled 2026-08-30;
-it was an open question, and the answer follows from the credential granularity rather than
-from a preference.*
+    **The two are never collapsed into one database**, not even for an organization holding a
+    single workspace. A workspace credential is whole-database, so a directory sharing a file
+    with a ledger is a directory every full-access member can read outside the application, and
+    requirement 15 would then rest entirely on requirement 16's signatures. *Settled 2026-08-30;
+    it was an open question, and the answer follows from the credential granularity rather than
+    from a preference.*
 
-**3. The owner grants the application authority over their Turso account by browser
-consent, and types nothing.**
-No Platform API token is pasted, and no organization slug or group name is typed. The
-consent is the whole of it.
+3. **The owner grants the application authority over their Turso account by browser
+    consent, and types nothing.**
+    No Platform API token is pasted, and no organization slug or group name is typed. The
+    consent is the whole of it.
 
-**4. The application asks for the narrowest Turso authority that does the job.**
-Creating databases and minting credentials for them. Never deleting a database, unless the
-human is deleting a workspace in the interface at that moment.
+4. **The application asks for the narrowest Turso authority that does the job.**
+    Creating databases and minting credentials for them. Never deleting a database, unless the
+    human is deleting a workspace in the interface at that moment.
 
-**5. The owner's Turso authority is held on the owner's machine and never written to any
-database.**
-It is re-obtainable by repeating the consent, which is why it is never sealed into the
-vault: a credential a person can re-acquire for themselves is not one worth storing where
-an attacker could reach it.
+5. **The owner's Turso authority is held on the owner's machine and never written to any
+    database.**
+    It is re-obtainable by repeating the consent, which is why it is never sealed into the
+    vault: a credential a person can re-acquire for themselves is not one worth storing where
+    an attacker could reach it.
 
-**6. An owner moves to a new machine without losing the organization.**
-Install, join, sign in, and repeat the consent once. No device is the organization's
-keeper.
+6. **An owner moves to a new machine without losing the organization.**
+    Install, join, sign in, and repeat the consent once. No device is the organization's
+    keeper.
 
-**7. A member is invited by email, from a dashboard inside the application.**
-The invitation names their role and which workspaces they belong to, and produces a link
-and a generated password. **The application sends no mail**: we have registered with no
-mail service, so the interface says so and offers what a person needs to send it
-themselves.
+7. **A member is invited by email, from a dashboard inside the application.**
+    The invitation names their role and which workspaces they belong to, and produces a link
+    and a generated password. **The application sends no mail**: we have registered with no
+    mail service, so the interface says so and offers what a person needs to send it
+    themselves.
 
-**8. A member joins by opening the link, which registers the organization on that machine.**
-The link carries what the machine needs to find the organization and nothing that is
-useful on its own.
+8. **A member joins by opening the link, which registers the organization on that machine.**
+    The link carries what the machine needs to find the organization and nothing that is
+    useful on its own.
 
-**9. A member signs in with an email and a password, and the password unlocks their
-credentials rather than being compared against a stored value.**
-A wrong password yields no usable key. There is no comparison for a modified client to
-skip.
+9. **A member signs in with an email and a password, and the password unlocks their
+    credentials rather than being compared against a stored value.**
+    A wrong password yields no usable key. There is no comparison for a modified client to
+    skip.
 
-**10. A first sign-in requires the password to be changed.**
+10. **A first sign-in requires the password to be changed.**
 
-**11. Roles decide administration, and administration is enforced by what a member's vault
-holds.**
-An owner creates and destroys workspaces and removes members. An administrator invites,
-resets passwords, and manages membership.
+11. **Roles decide administration, and administration is enforced by what a member's vault
+    holds.**
+    An owner creates and destroys workspaces and removes members. An administrator invites,
+    resets passwords, and manages membership.
 
-**Only an owner creates or destroys a workspace, and this is forced rather than chosen.**
-Creating one means creating a database on the customer's Turso account, which needs the
-platform authority requirement 5 keeps on the owner's machine and out of every database. An
-administrator therefore has nothing to create a database with. *Settled 2026-08-30; the open
-question asked whether administrators should be permitted to, and requirement 5 had already
-answered it.* A member reads and writes the workspaces they
-belong to. A member who is granted read-only access cannot write, and the refusal comes
-from Turso rather than from the interface.
+    **Only an owner creates or destroys a workspace, and this is forced rather than chosen.**
+    Creating one means creating a database on the customer's Turso account, which needs the
+    platform authority requirement 5 keeps on the owner's machine and out of every database. An
+    administrator therefore has nothing to create a database with. *Settled 2026-08-30; the open
+    question asked whether administrators should be permitted to, and requirement 5 had already
+    answered it.* A member reads and writes the workspaces they
+    belong to. A member who is granted read-only access cannot write, and the refusal comes
+    from Turso rather than from the interface.
 
-**12. Administration is not the owner's alone.**
-`packages/workspace-permission` already names `inviteMember`, `removeMember`, `changeRole`,
-`renameWorkspace`, `deleteWorkspace` and `transferOwnership` as separate acts. Which of
-them a role carries is what a role means.
+12. **Administration is not the owner's alone.**
+    `packages/workspace-permission` already names `inviteMember`, `removeMember`, `changeRole`,
+    `renameWorkspace`, `deleteWorkspace` and `transferOwnership` as separate acts. Which of
+    them a role carries is what a role means.
 
-**13. A member can change their own password, and an administrator can reset one they do
-not know.**
-A reset does not require the old password and does not reveal the member's existing
-credentials to the administrator performing it.
+13. **A member can change their own password, and an administrator can reset one they do
+    not know.**
+    A reset does not require the old password and does not reveal the member's existing
+    credentials to the administrator performing it.
 
-**A reset is a reissue, and no escrow copy of anybody's vault exists.** A vault is sealed to
-its member's password, so an administrator cannot open one; a reset builds a fresh vault
-from credentials the administrator already holds, under a new password, by the same path an
-invitation takes. **The limit is deliberate**: an administrator restores access only to
-workspaces they can reach themselves, and a member locked out of a workspace no present
-administrator belongs to waits for one who does.
+    **A reset is a reissue, and no escrow copy of anybody's vault exists.** A vault is sealed to
+    its member's password, so an administrator cannot open one; a reset builds a fresh vault
+    from credentials the administrator already holds, under a new password, by the same path an
+    invitation takes. **The limit is deliberate**: an administrator restores access only to
+    workspaces they can reach themselves, and a member locked out of a workspace no present
+    administrator belongs to waits for one who does.
 
-*Settled 2026-08-30. The alternative was a copy of every vault sealed to an organization
-administration key, which would let any administrator restore anything. It was rejected
-because that key opens every member's credentials at once, which is a second master secret
-beside the owner's Turso authority and the obvious thing to steal. Reissue creates no secret
-that did not already exist.*
+    *Settled 2026-08-30. The alternative was a copy of every vault sealed to an organization
+    administration key, which would let any administrator restore anything. It was rejected
+    because that key opens every member's credentials at once, which is a second master secret
+    beside the owner's Turso authority and the obvious thing to steal. Reissue creates no secret
+    that did not already exist.*
 
-**A member may choose their own password at first change, subject to a strength floor
-checked on the machine.** The password is the only thing between an attacker holding the
-ciphertext and the workspace, and there is no server to slow them down, so the interface
-says exactly that rather than showing a meter. *Settled 2026-08-30; risk 4 raised it. A
-password nobody can remember is written on a note beside the machine, which is worse than a
-chosen one that clears the floor.*
+    **A member may choose their own password at first change, subject to a strength floor
+    checked on the machine.** The password is the only thing between an attacker holding the
+    ciphertext and the workspace, and there is no server to slow them down, so the interface
+    says exactly that rather than showing a meter. *Settled 2026-08-30; risk 4 raised it. A
+    password nobody can remember is written on a note beside the machine, which is worse than a
+    chosen one that clears the floor.*
 
-**14. Removing a member ends their access, and how fast is the administrator's choice.**
+14. **Removing a member ends their access, and how fast is the administrator's choice.**
 
-Turso rotates credentials per database and totally, so cutting off one member cuts off every
-member of that workspace at once. Removal therefore has two paths and the interface offers
-both:
+    Turso rotates credentials per database and totally, so cutting off one member cuts off every
+    member of that workspace at once. Removal therefore has two paths and the interface offers
+    both:
 
-- **Remove** stops renewing. The member's credential dies when it expires, access ends within
-  its lifetime, and nobody else is disturbed. This is what the control plane does today, and
-  it is the default.
-- **Remove and lock out now** rotates the workspace's credentials. The removed member is cut
-  off immediately, and every remaining member's sync stops until their application reaches
-  the organization database and collects a re-sealed credential. The interface says so before
-  it does it.
+    - **Remove** stops renewing. The member's credential dies when it expires, access ends within
+      its lifetime, and nobody else is disturbed. This is what the control plane does today, and
+      it is the default.
+    - **Remove and lock out now** rotates the workspace's credentials. The removed member is cut
+      off immediately, and every remaining member's sync stops until their application reaches
+      the organization database and collects a re-sealed credential. The interface says so before
+      it does it.
 
-**What removal never does is take back what is already on their disk.** Their replica holds
-the rows it held, and requirement 18 means their application still opens. Removal ends future
-synchronisation and nothing else, and saying otherwise would be a promise the architecture
-cannot keep.
+    **What removal never does is take back what is already on their disk.** Their replica holds
+    the rows it held, and requirement 18 means their application still opens. Removal ends future
+    synchronisation and nothing else, and saying otherwise would be a promise the architecture
+    cannot keep.
 
-*Settled 2026-08-30. Rotating always was rejected because an ordinary departure would break
-every colleague's sync, including anybody offline at the time. Never rotating was rejected
-because it leaves no answer at all for the departure that is not ordinary.*
+    *Settled 2026-08-30. Rotating always was rejected because an ordinary departure would break
+    every colleague's sync, including anybody offline at the time. Never rotating was rejected
+    because it leaves no answer at all for the departure that is not ordinary.*
 
-**15. The holder of an invite link alone learns nothing about who is in the organization.**
-Names, email addresses and workspace names are not legible to somebody holding only what
-the link carries.
+15. **The holder of an invite link alone learns nothing about who is in the organization.**
+    Names, email addresses and workspace names are not legible to somebody holding only what
+    the link carries.
 
-**16. A member's role, permissions and identity cannot be altered by another member.**
-Turso's permissions are per table and not per row, so every member who can write the
-organization database can write every row of it. The fields that carry authority must be
-proof against that.
+16. **A member's role, permissions and identity cannot be altered by another member.**
+    Turso's permissions are per table and not per row, so every member who can write the
+    organization database can write every row of it. The fields that carry authority must be
+    proof against that.
 
-**17. The login screen lists the organizations this machine has joined, and switches
-between them.**
-One person may hold different roles in different organizations, and one machine may be
-used by more than one of them.
+17. **The login screen lists the organizations this machine has joined, and switches
+    between them.**
+    One person may hold different roles in different organizations, and one machine may be
+    used by more than one of them.
 
-**18. Signing in works with no network.**
-Only synchronising needs one. This replaces the three-day refresh window, which
-[[contexts/desktop/remote-sync]] describes and which exists because a service had to be
-reachable.
+18. **Signing in works with no network.**
+    Only synchronising needs one. This replaces the three-day refresh window, which
+    [[contexts/desktop/remote-sync]] describes and which exists because a service had to be
+    reachable.
 
-**19. Google sign-in is retired.**
-It is a service we registered with, its client id and secret ship in every build, and its
-only remaining job is answering who somebody is — which the organization now answers.
-*This is the second retirement of a Google integration here; Drive sync went at #554 and
-sign-in is what survived it.*
+19. **Google sign-in is retired.**
+    It is a service we registered with, its client id and secret ship in every build, and its
+    only remaining job is answering who somebody is — which the organization now answers.
+    *This is the second retirement of a Google integration here; Drive sync went at #554 and
+    sign-in is what survived it.*
 
-**20. `apps/control-plane/` is retired, and what it knew that is still true survives as a
-package.**
-The Turso Platform API client, provisioning, and the workspace migration runner are used
-by the desktop now. A hosted tier remains possible later without being planned: what makes
-it possible is that the knowledge lives somewhere neither application owns.
+20. **`apps/control-plane/` is retired, and what it knew that is still true survives as a
+    package.**
+    The Turso Platform API client, provisioning, and the workspace migration runner are used
+    by the desktop now. A hosted tier remains possible later without being planned: what makes
+    it possible is that the knowledge lives somewhere neither application owns.
 
-**21. Both locales, both directions.**
-Every surface this effort adds — consent, join, sign-in, the administration dashboard —
-is first-class in Arabic and English, as everything here is.
+21. **Both locales, both directions.**
+    Every surface this effort adds — consent, join, sign-in, the administration dashboard —
+    is first-class in Arabic and English, as everything here is.
 
-**22. An organization outlives the person who created it.**
-Where the consented Turso account reaches an organization, the application provisions into
-that organization rather than the personal account, selects it without asking, and the owner
-role becomes whoever can consent on it. Where it reaches none, the personal account is used
-and **the application states plainly that the organization ends with that account**, at the
-moment the choice is made rather than in documentation somewhere.
+22. **An organization outlives the person who created it.**
+    Where the consented Turso account reaches an organization, the application provisions into
+    that organization rather than the personal account, selects it without asking, and the owner
+    role becomes whoever can consent on it. Where it reaches none, the personal account is used
+    and **the application states plainly that the organization ends with that account**, at the
+    moment the choice is made rather than in documentation somewhere.
 
-*Two Turso mechanisms carry succession and both were found 2026-08-30. A second admin on the
-customer's Turso organization can complete the consent, and the group transfer endpoint moves
-a group to another organization with, in Turso's words, existing database URLs and tokens
-continuing to work. Neither reprovisions anything and neither reseals a vault. Requiring an
-organization outright was rejected because whether one needs a paid plan could not be
-established, and a requirement resting on an unverified price breaks for the customer who
-cannot pay it.*
+    *Two Turso mechanisms carry succession and both were found 2026-08-30. A second admin on the
+    customer's Turso organization can complete the consent, and the group transfer endpoint moves
+    a group to another organization with, in Turso's words, existing database URLs and tokens
+    continuing to work. Neither reprovisions anything and neither reseals a vault. Requiring an
+    organization outright was rejected because whether one needs a paid plan could not be
+    established, and a requirement resting on an unverified price breaks for the customer who
+    cannot pay it.*
 
-**23. An invitation expires; the link does not.**
-The link is a locator and carries no credential (requirement 8), so nothing about it goes
-stale. The invitation it points at is a row in the organization database with a lifetime,
-revocable and reissuable from the dashboard. A link opened after its invitation lapsed still
-finds the organization, and says the invitation lapsed rather than failing.
+23. **An invitation expires; the link does not.**
+    The link is a locator and carries no credential (requirement 8), so nothing about it goes
+    stale. The invitation it points at is a row in the organization database with a lifetime,
+    revocable and reissuable from the dashboard. A link opened after its invitation lapsed still
+    finds the organization, and says the invitation lapsed rather than failing.
 
-**24. A workspace is never opened by a build that does not understand its schema.**
-With no server, a migration is applied by a client, and a second client on an older build
-must not read the result. The older build says the workspace needs a newer version of the
-application and offers nothing else. **Which client applies a pending migration, and under
-what lock, is [[skills/plan]]'s**; that no build ever reads a schema it was not written
-against is this requirement.
+24. **A workspace is never opened by a build that does not understand its schema.**
+    With no server, a migration is applied by a client, and a second client on an older build
+    must not read the result. The older build says the workspace needs a newer version of the
+    application and offers nothing else. **Which client applies a pending migration, and under
+    what lock, is [[skills/plan]]'s**; that no build ever reads a schema it was not written
+    against is this requirement.
 
-**25. A refusal belonging to the customer's Turso account is explained as one.**
-When Turso refuses for quota or for billing, the member is told the organization's account
-needs attention rather than shown a synchronisation error. **The local replica keeps serving
-every read and every write throughout**, because requirement 18 does not depend on the
-account being in good standing. Account detail reaches the owner and nobody else.
+25. **A refusal belonging to the customer's Turso account is explained as one.**
+    When Turso refuses for quota or for billing, the member is told the organization's account
+    needs attention rather than shown a synchronisation error. **The local replica keeps serving
+    every read and every write throughout**, because requirement 18 does not depend on the
+    account being in good standing. Account detail reaches the owner and nobody else.
 
-# Acceptance criteria
+# Acceptance Criteria
 
 1. A workspace row names an organization, and two workspaces of one organization can exist
    at once. Nothing constrains an account to one workspace.
@@ -363,7 +363,7 @@ account being in good standing. Account detail reaches the owner and nobody else
   including the one shaped like a backend runs inside the application; this makes it true
   of the last layer that did not.
 
-# Out of scope
+# Out of Scope
 
 - **A hosted tier.** Requirement 20 keeps it possible and this effort does not build it,
   configure it, or leave a switch for it. A second entry under `apps/` is a later effort's,
@@ -416,7 +416,7 @@ account being in good standing. Account detail reaches the owner and nobody else
   This is an assumption about cost landing on the customer being tolerable, not about it
   being free forever.
 
-# Open questions
+# Open Questions
 
 *Six questions stood here on 2026-08-30 and four were settled the same day, into requirements
 11, 13, 14 and 22 to 25, each carrying the reasoning where it was decided. What remains is

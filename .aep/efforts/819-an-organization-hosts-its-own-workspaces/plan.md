@@ -125,7 +125,7 @@ the personal account with the consequence stated, without asking the human to ch
 `member_reset` returning `unreachable_workspaces` is requirement 13's stated limit made visible at
 the call rather than discovered by the member.
 
-# Data model
+# Data Model
 
 `organization.db`, on the customer's account. Every `_sealed` column is ciphertext under the
 organization content key; every `signature` covers the authority fields of its own row and names
@@ -179,7 +179,7 @@ keeps a local list of the organizations this machine has joined, so sign-in alre
 member id before a password is typed. `email_local_hint` is a locally-stored convenience for
 telling two members apart on a shared machine, not a lookup key in the database.
 
-# Technical approach
+# Technical Approach
 
 The order is fixed by what can still fail, and by risk 5: deleting the only working account system
 half-way leaves the application unusable.
@@ -231,7 +231,7 @@ Steps 3 and 4 are independent of 1 and 2 and can proceed while the consent quest
   application's life when that is true, and it is why the effort is worth doing now rather than
   after the first customer.
 
-# Testing strategy
+# Testing Strategy
 
 | Criterion | Checked by |
 | --- | --- |
@@ -266,7 +266,7 @@ remote*, counts three today and requires a new one to be admitted deliberately, 
 property. Criteria 6, 11, 14 and the provisioning step of 2 are candidates and **each needs that
 section edited before it is written**, not after.
 
-# Operational considerations
+# Operational Considerations
 
 - **Every customer now operates a Turso account**, and every failure it can have arrives as a
   failure of this application. Requirement 25 is the surface; the support burden behind it is the
@@ -278,7 +278,7 @@ section edited before it is written**, not after.
   human can read the row.
 - **The first run needs a network and a browser.** Everything after it does not.
 
-# Technical risks
+# Technical Risks
 
 - **The key schedule is wrong in a way that reviews well.** It is the spec's second risk and the
   reason step 3 is built alone, test-first, before there is any other code in the diff to look at
