@@ -5,6 +5,7 @@ pub mod error;
 pub mod export;
 pub mod http;
 mod import;
+pub mod organization;
 pub mod persisted;
 pub mod settings;
 pub mod state;

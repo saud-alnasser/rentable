@@ -73,6 +73,36 @@ rustls = { version = "0.23.43", default-features = false, features = ["ring", "s
 # store crate directly, which buys control this crate has no use for.
 keyring = { version = "4.1.6", default-features = false, features = ["v1"] }
 turso = { version = "0.8.0-pre.7", default-features = false, features = ["sync"] }
+# the four below are the organization vault's key schedule and nothing else uses them.
+# `src/organization/vault.rs` is where each one is called, and the module is pure functions
+# over bytes, so none of them reaches a database, a socket, or the IPC boundary.
+#
+# turning a member's password into a key, which is the whole defence the vault has. There is
+# no server to rate limit a guess, so cost per guess is the only thing between an attacker
+# holding the ciphertext and the workspace, and Argon2id is the memory-hard function that
+# sets it. `password-hash` is off: the salt and the cost live in their own columns, so the
+# PHC string this crate would otherwise encode has nowhere to go and nothing to read it.
+# `alloc` stays because it is what `hash_password_into` allocates its blocks with.
+argon2 = { version = "0.6.0", default-features = false, features = ["alloc"] }
+# sealing under a derived key. XChaCha20-Poly1305 takes a 24-byte nonce, which is wide enough
+# to draw at random per seal without tracking a counter across machines that never meet. A
+# vault is re-sealed on every password change, on whichever machine the member is sitting at,
+# and no machine can see what another one drew. Its tag is also the whole of what a wrong
+# password fails on. `getrandom` is off because nonces are drawn the way this crate already
+# draws random bytes, through `getrandom::fill`.
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc"] }
+# turning a Diffie-Hellman shared secret into a key. The raw output of x25519 is a curve point
+# rather than a uniform key, and HKDF-SHA256 is what makes it one. The ephemeral and recipient
+# public keys are bound in as `info`, so a sealed credential cannot be replayed at another
+# member. It is also what mixes the invitation's two halves, neither of which travels
+# with the other. `sha2` is already here and is the hash it runs over.
+hkdf = "0.13.0"
+# the keypair a credential is sealed to. An administrator grants a workspace to a member whose
+# password they do not know, which is the property the whole design turns on and the reason
+# this is asymmetric rather than a second symmetric seal. `static_secrets` is what allows the
+# secret half to be held as bytes at all, which is what there is to seal; the default features
+# are kept for `zeroize`, which scrubs that half when it drops.
+x25519-dalek = { version = "3.0.0", features = ["static_secrets"] }
 
 # the Drive transport is tested against a real HTTP server on loopback rather
 # than a mocked transport, so header construction, retry, and error mapping are
@@ -89,3 +119,12 @@ bytes = { version = "1.12.1" }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2.10.0"
+
+# Argon2id is memory-hard on purpose, and an unoptimized build of it is several times
+# slower than the one that ships. Left alone, that difference lands in two places: a
+# developer waits seconds at every sign-in against a debug build, and the test that
+# proves the shipping cost is usable measures the build profile instead of the cost.
+# So this one dependency is optimized in development as well, which changes nothing
+# about the release binary and nothing about what the schedule computes.
+[profile.dev.package.argon2]
+opt-level = 3
