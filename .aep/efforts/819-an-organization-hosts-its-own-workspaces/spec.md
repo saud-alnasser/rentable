@@ -88,19 +88,34 @@ chooses to show them.
     from a preference.*
 
 3. **The owner grants the application authority over their Turso account by browser
-    consent, and types nothing.**
-    No Platform API token is pasted, and no organization slug or group name is typed. The
-    consent is the whole of it.
+    consent, and types nothing into this application.**
+    No Platform API token is pasted, no organization slug is typed, no group name is typed here,
+    and no URL is entered. **One preparation happens in Turso's own dashboard first**: the
+    customer creates an empty group and picks it on the consent screen. That is not a preference.
+    A consent grants authority over one group, the application cannot create a group, and the
+    screen offers no way to make one ([[efforts/819-an-organization-hosts-its-own-workspaces/evidence/prototypes/one-real-consent]]). An empty
+    group is what keeps the credential's reach to databases this application made, which is why
+    this requirement no longer claims the consent is the whole of the setup.
 
-4. **The application asks for the narrowest Turso authority that does the job.**
-    Creating databases and minting credentials for them. Never deleting a database, unless the
-    human is deleting a workspace in the interface at that moment.
+4. **The application asks for the narrowest Turso authority that does the job, and states what
+    it is actually given.**
+    It requests reading, creating databases, and minting credentials for them. **Turso grants
+    nine scopes regardless**, `db:delete` and `db:rotate-creds` among them, so the request is
+    intent and not a boundary ([[efforts/819-an-organization-hosts-its-own-workspaces/evidence/prototypes/one-real-consent]]). Two things follow.
+    The narrow set is still what is requested, so what was intended is on the record. And
+    **delete protection is turned on for every workspace database the application creates**,
+    which is the only barrier available: it stops a stray delete, and it stops nothing that turns
+    the protection off first, because the same grant carries `db:configure`.
 
-5. **The owner's Turso authority is held on the owner's machine and never written to any
-    database.**
+5. **The owner's Turso authority is held on the owner's machine, never written to any
+    database, and can be given up.**
     It is re-obtainable by repeating the consent, which is why it is never sealed into the
     vault: a credential a person can re-acquire for themselves is not one worth storing where
-    an attacker could reach it.
+    an attacker could reach it. **The token does not expire**, measured 2026-08-30 as
+    `{"exp":-1}` ([[efforts/819-an-organization-hosts-its-own-workspaces/evidence/prototypes/one-real-consent]]), so nothing retires it on
+    its own. The owner therefore gets a disconnect action that forgets it locally and names where
+    it is revoked in Turso, and every provisioning path is written to re-consent rather than to
+    assume a token is still there.
 
 6. **An owner moves to a new machine without losing the organization.**
     Install, join, sign in, and repeat the consent once. No device is the organization's
@@ -226,19 +241,22 @@ chooses to show them.
     is first-class in Arabic and English, as everything here is.
 
 22. **An organization outlives the person who created it.**
-    Where the consented Turso account reaches an organization, the application provisions into
-    that organization rather than the personal account, selects it without asking, and the owner
-    role becomes whoever can consent on it. Where it reaches none, the personal account is used
-    and **the application states plainly that the organization ends with that account**, at the
-    moment the choice is made rather than in documentation somewhere.
+    The organization is whichever one holds the group the owner picked during consent, and there
+    is no selection for the application to make. A group-scoped credential cannot list
+    organizations and cannot tell a personal account from a team one
+    ([[efforts/819-an-organization-hosts-its-own-workspaces/evidence/prototypes/one-real-consent]]). So **the application states plainly
+    what succession costs, at the moment the organization is created** rather than in
+    documentation somewhere, and it states it in every case rather than only for a personal
+    account, because it cannot tell which it is in.
 
-    *Two Turso mechanisms carry succession and both were found 2026-08-30. A second admin on the
-    customer's Turso organization can complete the consent, and the group transfer endpoint moves
-    a group to another organization with, in Turso's words, existing database URLs and tokens
-    continuing to work. Neither reprovisions anything and neither reseals a vault. Requiring an
-    organization outright was rejected because whether one needs a paid plan could not be
-    established, and a requirement resting on an unverified price breaks for the customer who
-    cannot pay it.*
+    *Succession is the customer's to perform and both mechanisms live in Turso rather than here.
+    A second administrator on the customer's Turso organization can complete the consent. The
+    group transfer endpoint moves a group to another organization with, in Turso's words,
+    existing database URLs and tokens continuing to work, and it is **out of reach for a
+    group-scoped token**, so the application names it rather than offering it. Neither
+    reprovisions anything and neither reseals a vault. Requiring an organization outright was
+    rejected because whether one needs a paid plan could not be established; that question is now
+    moot rather than answered, since the application never chooses an organization.*
 
 23. **An invitation expires; the link does not.**
     The link is a locator and carries no credential (requirement 8), so nothing about it goes
@@ -265,11 +283,13 @@ chooses to show them.
    at once. Nothing constrains an account to one workspace.
 2. A schema test fails if a rents domain table appears in the organization database, as
    `apps/control-plane/src/tests/boundary.test.ts` does today for the control plane.
-3. A first run creates an organization without the human typing a token, a slug, a group
-   name, or a URL. The setup screens are walked and the only text entered is the
-   organization's name and a password.
+3. A first run creates an organization and the only text entered into this application is the
+   organization's name and a password. No token, no slug, no group name and no URL is typed
+   here. The group is created by the customer in Turso's dashboard beforehand, which the setup
+   screens explain. The walk-through test asserts the fields the setup path offers.
 4. The consent requests a scope set that excludes database deletion, and a test pins the
-   set requested.
+   set requested. A second test asserts delete protection is on for every workspace database the
+   application creates, because the granted set carries deletion whatever is asked for.
 5. Nothing writes the Platform API token into any database. A test reads the organization
    database's schema and its writers and fails if the token can reach either.
 6. An owner's organization is restored on a second machine from the link, the email, the
@@ -312,9 +332,9 @@ chooses to show them.
     `integration` gate pass without it.
 21. Every new surface renders correctly in Arabic and in English, right to left and left
     to right.
-22. Where the consented account reaches an organization, the application provisions into it
-    without asking. Where it reaches none, the personal account is used and the screen states
-    that the organization ends with it. A test covers both answers.
+22. The application provisions into the organization holding the selected group, and the screen
+    states what succession costs before the organization is created. A test covers the statement
+    being shown, and a test asserts the application never asks Turso to list organizations.
 23. An invitation past its lifetime is refused, and opening its link shows the organization
     by name with the reason. An administrator revokes an unused invitation and the link stops
     working.
@@ -395,13 +415,13 @@ chooses to show them.
 
 # Assumptions
 
-- **Turso's OAuth 2.1 authorization endpoint honours a loopback redirect from a client that
-  is not an MCP agent.** Its registration endpoint accepted one, and the metadata advertises
-  a public client with PKCE, which is the ordinary shape for a desktop application. The
-  authorize step is where it could still refuse. **This is the assumption the whole effort
-  stands on**, and it is the first thing a prototype should attack.
-- **The consent screen lets the caller request a scope set** rather than always offering the
-  human the full picker. Requirement 4 is weaker if it does not.
+*Two assumptions stood here and both were settled on 2026-08-30 by three real consents against a
+free-tier account ([[efforts/819-an-organization-hosts-its-own-workspaces/evidence/prototypes/one-real-consent]]). The authorize endpoint
+**does** honour a loopback redirect from a client that is not an MCP agent, once RFC 8707's
+`resource` parameter is present, so what the whole effort stands on is a fact. The consent screen
+**does not** let the caller request a scope set: three were asked for and nine granted, which is
+what requirement 4 is now written against.*
+
 - **A `read-only` credential is enough for a member to reach the organization database
   before their vault is open, and a `full-access` one after.** If a joining member must
   write before they have unlocked anything, requirement 15's protection is harder.
@@ -419,25 +439,38 @@ chooses to show them.
 # Open Questions
 
 *Six questions stood here on 2026-08-30 and four were settled the same day, into requirements
-11, 13, 14 and 22 to 25, each carrying the reasoning where it was decided. What remains is
-two, they are both factual rather than product, and **one prototype answers both**.*
+11, 13, 14 and 22 to 25. The remaining two were taken to a prototype and neither survived as a
+question.*
 
-- **Whether the consent screen grants the scope set the caller asks for**, or always presents
-  the human the full picker. Requirement 4 is a request either way; whether it is a
-  constraint depends on this. The authorization server metadata advertises no
-  `scopes_supported`, so nothing short of completing a consent settles it.
-- **Whether a Turso organization requires a paid plan.** It decides whether requirement 22's
-  preferred path is available to every customer or only to some. Turso's pricing page names
-  no organization tier and no seat at all, checked 2026-08-30, so the source is silent rather
-  than negative. Requirement 22 is written to survive either answer, which is why this
-  question blocks nothing.
+- ~~Whether the consent screen grants the scope set the caller asks for~~ **Answered: it does
+  not.** Three scopes were requested and nine granted, the full set for the group. Requirement 4
+  carries the consequence.
+- ~~Whether a Turso organization requires a paid plan~~ **Moot rather than answered.** It
+  mattered while the application chose between an organization and a personal account.
+  It cannot: the organization is whichever holds the selected group, and the listing that would
+  distinguish them answers 403 to a group-scoped token. Requirement 22 is rewritten around
+  having no choice to make, and the price of an organization no longer decides anything here.
+
+**One question the prototype opened and did not close.** Whether `{"exp":-1}` from
+`/v1/auth/validate` means no expiry, which is how requirement 5 reads it, or a lifetime that is
+simply not reported. Turso documents neither. It is answerable only by keeping a token and using
+it much later, and requirement 5's disconnect action is what makes either answer survivable.
 
 # Risks
 
-- **The consent flow is refused at the authorize step**, and there is no supported way for
-  a desktop application to obtain a customer's Turso authority without pasting a token.
-  This is the assumption above, restated as what it costs: requirement 3 falls, onboarding
-  becomes a token paste, and the effort survives in a worse form rather than dying.
+- ~~The consent flow is refused at the authorize step~~ **Struck 2026-08-30.** It is not
+  refused. Three consents completed and the loopback redirect is honoured.
+- **The credential reaches further than the application does.** The consent grants nine scopes
+  over a whole group and the token never expires, so every database sharing that group is inside
+  its reach. Requirement 3's empty-group preparation is the mitigation and it is a customer's
+  step performed outside this application, which means it is the step most likely to be skipped.
+  A customer who picks a populated group hands this application deletion rights over databases it
+  did not create.
+- **The setup depends on a surface Turso built for AI agents.** The organization slug is not in
+  the token and no Platform API path yields it to a group-scoped caller, so it is read once from
+  a database hostname returned by `mcp.turso.ai`, whose tool schemas Turso versions at `v0.1.0`
+  and documents for agents rather than for clients. It is one lookup at first run rather than the
+  provisioning path, which is what bounds the damage when it changes.
 - **The credential design is wrong in a way that reviews well.** This is real cryptographic
   plumbing — a key derivation, a sealed credential, a signature over authority fields, a
   rotation path — and it is the kind of thing that passes every test and is broken anyway.

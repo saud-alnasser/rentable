@@ -7,8 +7,9 @@ use-when: "building a ticket in this effort and the approach is not obvious from
 **The organization database is a replica like any workspace, and a member's authority is what
 their password unlocks inside it.**
 
-Three decisions carry the whole approach. Each was put to the human on 2026-08-30 with its
-alternatives, and each was delegated back on one criterion, most secure and most usable.
+Four decisions carry the whole approach. The first three were put to the human on 2026-08-30 with
+their alternatives and delegated back on one criterion, most secure and most usable. The fourth
+was forced by evidence on the same day and decided the same way.
 
 ## The credential reaches a member as a sealed grant
 
@@ -60,6 +61,42 @@ written again.
 | Owner's machine only | one writer, so no lease and no race | every member waits for the owner to launch the application | on a small team that is days of everybody blocked | nothing to maintain, plenty to explain |
 | Only when asked | nothing surprising happens to a live ledger | an organization that never presses it stops receiving fixes silently | the failure is invisible by construction | a support burden with no signal behind it |
 
+## Turso authority arrives by consent, and the slug arrives by one MCP lookup
+
+**The consent yields authority over one group, not over an account, and it does not carry the
+organization slug that every Platform API path needs** ([[efforts/819-an-organization-hosts-its-own-workspaces/evidence/prototypes/one-real-consent]]).
+Three consents established it. `org_id` in the token is a number, and
+`/v1/organizations/26543` answers *organization 26543 not found*, so nothing maps the claim to a
+slug. `/v1/auth/validate` answers 200, so the credential itself is accepted by the Platform API
+and the slug is the only thing missing.
+
+**So the slug is read once, from a database hostname, through the MCP server the token was issued
+for.** `list_databases` returns `Name` and `hostname` per database, and a hostname is
+`<name>-<organization slug>.<region>.turso.io`. Removing the `Name` the same record carries leaves
+the slug with no ambiguity about where the dashes belong. Where the group is empty, which
+requirement 3 asks the customer to arrange, the first `create_database` returns the hostname that
+answers it. **The slug is then stored locally and every later call is the REST Platform API**, the
+one `apps/control-plane/src/workspace/turso.ts` already speaks.
+
+| | Advantages | Disadvantages | Risks | Maintenance |
+| --- | --- | --- | --- | --- |
+| **Consent, one MCP lookup, then REST** (taken) | requirement 3 survives whole; the credential path stays on the documented REST API; `turso.ts` ports across as costed | two Turso surfaces instead of one | Turso changes an MCP tool schema and first-run setup breaks, with an obvious failure and no effect on a provisioned installation | one lookup and one hostname parse, both exercised on every first run |
+| REST alone, slug from the token | one surface, nothing to parse | **impossible**: measured 404 on every organization path, and no route yields the slug | none, it does not exist | none |
+| MCP alone | one surface; no slug needed anywhere | **cannot mint a database token**, and requirement 9's grants are made of minted tokens | the whole credential path on agent-facing schemas versioned `v0.1.0` | a surface nobody else in this codebase reads |
+| REST, the customer types the slug | one surface, nothing agent-facing | requirement 3 loses a field for a string that is already discoverable | a mistyped slug is a 404 a customer cannot interpret | a field to validate and explain forever |
+| Pasted Platform API token | known to work; it is today's control plane | reinstates the setup checklist this effort exists to delete | the effort ships without its headline | unchanged from today |
+
+**The consent request is not complete without RFC 8707's `resource` parameter**, value
+`https://mcp.turso.ai/mcp` from `api.turso.tech/.well-known/oauth-protected-resource`. Without it
+the authorize endpoint answers *this authorization request is missing required OAuth parameters*
+and never reaches a consent screen. `sync/turso/consent.rs` does not send it today, and that is a
+defect ticket 03 landed with rather than a new decision.
+
+**What this design accepts.** The token carries nine scopes, `db:delete` and `db:rotate-creds`
+among them, and never expires. Requirement 3's empty group is what bounds its reach, requirement
+4's delete protection is what blunts the accident, and requirement 5's disconnect is what ends it.
+None of the three is enforced by Turso, and the plan says so rather than implying otherwise.
+
 ## What is reused rather than built
 
 **The consent flow already exists.** `sync/session.rs::begin_google_sign_in` binds
@@ -69,17 +106,18 @@ generic part of it is already separate in `sync/google/auth.rs`: `random_url_saf
 `pkce_challenge`, `build_authorization_url`, `authorization_code_form`, `parse_token_response`,
 `parse_http_request_path`, `parse_query_map`.
 
-**So requirement 3 is a re-parameterisation of working code, not new machinery.** What is genuinely
-unknown is Turso's side of it, and that is the effort's load-bearing assumption rather than
-anything here.
+**So requirement 3 is a re-parameterisation of working code, not new machinery.** Turso's side of
+it was the effort's load-bearing assumption and is now settled: three consents completed on
+2026-08-30 ([[efforts/819-an-organization-hosts-its-own-workspaces/evidence/prototypes/one-real-consent]]).
 
 # Components
 
 | Component | Becomes responsible for |
 | --- | --- |
 | `apps/desktop/tauri/src/sync/oauth/` | the provider-agnostic PKCE and loopback core, lifted out of `sync/google/auth.rs` unchanged in behaviour |
-| `apps/desktop/tauri/src/sync/turso/consent.rs` | the Turso authorization code flow, the scope set requested, and the platform token's home in the OS keyring |
-| `apps/desktop/tauri/src/sync/turso/platform.rs` | the Platform API calls, ported from `apps/control-plane/src/workspace/turso.ts` and keeping its port shape so tests answer in memory |
+| `apps/desktop/tauri/src/sync/turso/consent.rs` | the Turso authorization code flow including the `resource` indicator, the scope set requested, the token's home in the OS keyring, and forgetting it on disconnect |
+| `apps/desktop/tauri/src/sync/turso/discovery.rs` | the one MCP call and the hostname parse that yield the organization slug. **Separate from `platform.rs` on purpose**: it is the only thing in the tree that speaks to `mcp.turso.ai`, and when that surface moves the diff is one file |
+| `apps/desktop/tauri/src/sync/turso/platform.rs` | the Platform API calls, ported from `apps/control-plane/src/workspace/turso.ts` and keeping its port shape so tests answer in memory. Takes the slug rather than discovering it, and turns delete protection on at create |
 | `apps/desktop/tauri/src/organization/vault.rs` | the key schedule: derive, seal, unseal, re-seal. Knows nothing about Turso or about rows |
 | `apps/desktop/tauri/src/organization/authority.rs` | the certificate chain: sign, verify, revoke. The only place a signature is checked |
 | `apps/desktop/tauri/src/organization/store.rs` | the organization replica, its schema, and the queries over it |
@@ -103,7 +141,8 @@ about credentials, never credentials.
 
 ```
 organization_consent_begin()            -> { session_id, authorization_url }
-organization_consent_result(session_id) -> { status, organizations: [{ slug, is_personal }] }
+organization_consent_result(session_id) -> { status, organization_slug, group }
+organization_disconnect()               -> ()
 organization_create(name, slug)         -> { organization_id, join_link }
 organization_join(link, email, password)-> { organization_id, must_change_password }
 organization_sign_in(org_id, email, password) -> { member_id, role, permissions, workspaces }
@@ -118,9 +157,13 @@ workspace_create(name)                  -> { workspace_id }
 workspace_open(workspace_id)            -> () | SchemaTooNew { required_version }
 ```
 
-`organization_consent_result` returning the organizations the consent can reach is what
-requirement 22 needs: the application selects an organization where one exists and falls back to
-the personal account with the consequence stated, without asking the human to choose a slug.
+`organization_consent_result` returns the slug and the group it discovered rather than a list to
+choose from, because there is nothing to choose: the organization is whichever holds the group the
+human picked, and a group-scoped token cannot enumerate the alternatives. Requirement 22's
+statement about succession is shown on the strength of that, in every case.
+
+`organization_disconnect` is requirement 5's, and it exists because the token has no expiry to
+wait for.
 
 `member_reset` returning `unreachable_workspaces` is requirement 13's stated limit made visible at
 the call rather than discovered by the member.
@@ -184,13 +227,15 @@ telling two members apart on a shared machine, not a lookup key in the database.
 The order is fixed by what can still fail, and by risk 5: deleting the only working account system
 half-way leaves the application unusable.
 
-1. **Prove the consent.** Extract the provider-agnostic OAuth core out of `sync/google/auth.rs`
-   with no behaviour change, then drive one real Turso consent. **This is first because it can
-   fail**, and everything from step 2 onwards assumes it did not. If the authorize endpoint
-   refuses a loopback redirect, requirement 3 falls back to a pasted token and steps 2 onwards are
-   unchanged.
+1. **Prove the consent.** Done, 2026-08-30, three times
+   ([[efforts/819-an-organization-hosts-its-own-workspaces/evidence/prototypes/one-real-consent]]). What remains of this step is
+   sending the `resource` indicator that `consent.rs` currently omits, without which no consent
+   completes at all.
 2. **Port the Platform API client into Rust**, keeping `turso.ts`'s port shape so its tests still
-   answer in memory, and provision a group and a database against a live account once.
+   answer in memory. Slug discovery lands here as its own module, and provisioning creates a
+   database in the group the consent named and turns delete protection on. **A group is not
+   created**: nothing available to the application can, and requirement 3 puts that step in the
+   customer's hands before the consent.
 3. **Build the vault and the authority chain, test-first, with no database and no network.** They
    are pure functions over bytes. This is where the cryptographic review happens, while there is
    nothing else in the diff to hide it.
@@ -237,8 +282,8 @@ Steps 3 and 4 are independent of 1 and 2 and can proceed while the consent quest
 | --- | --- |
 | 1 | schema test: two workspaces of one organization, no unique constraint on an account |
 | 2 | boundary test over the organization schema, the shape `control-plane/src/tests/boundary.test.ts` already has |
-| 3 | a walk-through test of the setup path asserting the typed fields are name and password only |
-| 4 | the requested scope set is pinned in a unit test against the authorization URL builder |
+| 3 | a walk-through test of the setup path asserting the typed fields are name and password only, and that the group preparation is explained rather than asked for |
+| 4 | the requested scope set is pinned in a unit test against the authorization URL builder, and a second test asserts delete protection is on for every database the application creates |
 | 5 | a test that greps the organization schema and every writer for the platform token's keyring handle |
 | 6 | live: provision on machine A, restore on machine B from link, email, password and one consent, A offline |
 | 7 | invite returns a link and a password; the password is asserted independent of email and name |
@@ -256,7 +301,7 @@ Steps 3 and 4 are independent of 1 and 2 and can proceed while the consent quest
 | 19 | a test fails if any Google OAuth client id, secret or scope returns to the tree |
 | 20 | `pnpm build` and `integration` pass with `apps/control-plane/` gone |
 | 21 | both locales rendered for each new surface, right to left and left to right |
-| 22 | both answers covered: an account reaching an organization, and one reaching none |
+| 22 | the succession statement is shown before the organization is created, and a test asserts no call is ever made to list organizations |
 | 23 | a lapsed invitation is refused and its link still names the organization; a revoked one stops working |
 | 24 | a migrated workspace opened by the previous schema version reads nothing and says why |
 | 25 | a quota refusal produces an account message; reads and writes continue locally; a non-owner sees no account detail |
@@ -283,9 +328,18 @@ section edited before it is written**, not after.
 - **The key schedule is wrong in a way that reviews well.** It is the spec's second risk and the
   reason step 3 is built alone, test-first, before there is any other code in the diff to look at
   instead. It shows up as nothing at all.
-- **The consent is refused at the authorize step.** Attacked on 2026-08-30 and found unanswerable
-  from outside: the endpoint authenticates before it validates, so every probe returns the same
-  redirect. Step 1 is where it is settled and the fallback is a pasted token.
+- ~~The consent is refused at the authorize step~~ **Settled 2026-08-30 and not a risk.** Three
+  consents completed against a free-tier account.
+- **A customer picks a populated group.** Requirement 3 asks them to prepare an empty one in
+  Turso's dashboard, and nothing enforces it. The consent then grants nine scopes over databases
+  the application never created. It is the one step of setup that happens outside this application
+  and therefore the one most likely to be skipped.
+- **The MCP tool schema moves.** `turso-cloud-mcp` reports `v0.1.0` and Turso documents it for
+  agents. `discovery.rs` is one file and one call so that the failure is a first run that cannot
+  find a slug, with every provisioned installation unaffected.
+- **`{"exp":-1}` does not mean what it reads as.** Requirement 5 treats it as no expiry. If a
+  lifetime exists and is simply unreported, provisioning starts failing at a moment nobody
+  predicted, which is why every path re-consents on refusal rather than assuming a live token.
 - **`turso` 0.8.0-pre.7 holding two synced databases at once is unproven.** The organization
   replica and the workspace replica are two engines over two files, which `database/mod.rs` says is
   permitted, but nothing here has ever opened two. It would first show up as a hang on turso's IO

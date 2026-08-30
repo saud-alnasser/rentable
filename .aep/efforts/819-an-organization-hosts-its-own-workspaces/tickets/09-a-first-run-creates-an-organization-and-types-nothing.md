@@ -8,9 +8,10 @@ blocked-by: ['04', '08']
 ## Outcome
 
 An owner installs the application, names their organization, sets a password, and grants the
-consent in a browser. The application picks the Turso organization the consent reaches, provisions
-the group and the organization database, writes the organization key and the owner's member row,
-and the owner is signed in. No token, slug, group name, or URL is typed.
+consent in a browser over a group they prepared in Turso's dashboard. The application discovers the
+organization slug, provisions the organization database into that group, writes the organization
+key and the owner's member row, and the owner is signed in. No token, slug, group name, or URL is
+typed into this application.
 
 ## Acceptance Criteria
 
@@ -21,10 +22,16 @@ and criterion 22.
 - [ ] A walk-through test of the setup path asserts that **the only text entered is the
       organization's name and a password**. It asserts over the fields the walk presents, so a
       field added later that asks for a slug fails the test rather than passing review.
-- [ ] Where the consented account reaches a Turso organization, the application provisions into it
-      without asking. Where it reaches none, the personal account is used and **the screen states
-      that the organization ends with that account**, at that moment rather than in documentation.
-      A test covers both answers.
+- [ ] The application provisions into the organization holding the selected group, without asking,
+      because there is nothing to ask: a group-scoped token cannot list organizations and cannot tell
+      a personal account from a team one. **The screen states what succession costs before the
+      organization is created**, in every case rather than only for a personal account, and names
+      group transfer as something the customer performs in Turso rather than something offered here.
+      A test covers the statement being shown and asserts no organization listing is attempted.
+- [ ] **The group preparation is explained, not asked for.** The setup walk tells the owner to
+      create an empty group in Turso's dashboard and why it matters, before sending them to the
+      consent. A test asserts the walk presents no field for it, so explaining it never becomes
+      asking for it.
 - [ ] The organization key is generated here and the owner's certificate is issued under it. Where
       the organization key lives is a decision this ticket makes and records in the commit; it is
       not in the database it protects.

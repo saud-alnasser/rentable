@@ -1,6 +1,6 @@
 ---
 status: open
-blocked-by: ['01', '04']
+blocked-by: ['01', '21']
 ---
 
 # feat(sync): the Platform API client moves into Rust
@@ -8,10 +8,10 @@ blocked-by: ['01', '04']
 ## Outcome
 
 `sync/turso/platform.rs` does what `apps/control-plane/src/workspace/turso.ts` does today: create a
-database, mint a credential for it with an expiry, delete one, and list the organizations a token
-reaches. It keeps `turso.ts`'s port shape, so its tests answer in memory the way the control
-plane's do, and it provisions a group and a database against a live account once to prove the port
-is honest.
+database, mint a credential for it with an expiry, and delete one. It keeps `turso.ts`'s port
+shape, so its tests answer in memory the way the control plane's do. It is **given** the
+organization slug and the group rather than discovering either, and it creates one database against
+a live account once to prove the port is honest.
 
 ## Acceptance Criteria
 
@@ -21,8 +21,17 @@ Traces requirement 4 and requirement 20 of
 - [ ] The operations `createDatabase`, `mintToken` and `deleteDatabase` exist in Rust with the same
       arguments and the same failure vocabulary they have in TypeScript, and a fake implementation
       of the port answers them in memory so every caller above is testable without a network.
-- [ ] Listing the organizations a token reaches is part of the port, because requirement 22 needs
-      it and ticket 03 returns it from the consent. One implementation, not two.
+- [ ] **Nothing here lists organizations.** A group-scoped token answers 403 at that endpoint
+      ([[efforts/819-an-organization-hosts-its-own-workspaces/evidence/prototypes/one-real-consent]]), and requirement 22 no longer
+      needs it. A test asserts no call is ever made to `/v1/organizations`.
+- [ ] **Delete protection is turned on for every database this creates**, in the same operation that
+      creates it rather than in a later pass, so a database is never briefly unprotected. Requirement
+      4 asks for it because the granted scope set carries deletion whatever was requested. The
+      module's own documentation states that a caller holding `db:configure` can turn it off again,
+      so nobody reads it as a guarantee.
+- [ ] **No group is created.** Nothing available to the application can create one, and requirement
+      3 puts that step in the customer's hands before the consent. The group is a value this port is
+      handed.
 - [ ] **Deletion is behind an explicit caller-supplied intent**, not merely a method that exists.
       Requirement 4 permits deleting only while the human is deleting a workspace in the interface
       at that moment, and a port that offers deletion as freely as creation makes that requirement
@@ -30,9 +39,9 @@ Traces requirement 4 and requirement 20 of
 - [ ] A quota or billing refusal is a distinguishable error rather than a generic HTTP failure.
       Requirement 25 needs to tell an account problem from a network problem, and the place that
       distinction is made is here, at the response, not three layers up by guessing at a message.
-- [ ] Live, once, and asked for first: a group and a database are created against a real account,
-      a credential is minted for it, and the database is deleted again by the same run. Admitted by
-      name in ticket 01.
+- [ ] Live, once, and asked for first: a database is created in the group the consent named, a
+      credential is minted for it, delete protection is asserted on, and the database is deleted
+      again by the same run after the protection is lifted. Admitted by name in ticket 01.
 - [ ] `cargo test`, `cargo clippy` and the repository's gates pass.
 
 ## Relevant areas

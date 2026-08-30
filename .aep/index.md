@@ -124,7 +124,7 @@ Start at [[protocol]].
 | 810-the-contract-record-reads-as-one-in-arabic | implemented | [[efforts/810-the-contract-record-reads-as-one-in-arabic/spec]] | 0 | 0 | 3 |
 | 811-the-gates-and-the-contract-follow-the-code-into-the-package | implemented | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]] | 0 | 0 | 6 |
 | 812-the-desktop-declares-what-it-uses | implemented | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
-| 819-an-organization-hosts-its-own-workspaces | accepted | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 0 | 19 |
+| 819-an-organization-hosts-its-own-workspaces | accepted | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 22 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -176,8 +176,8 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/01-the-live-remote-rule-admits-this-efforts-tests-by-name]] docs(aep): the live remote rule admits this effort's tests by name | 819-an-organization-hosts-its-own-workspaces | resolved | — |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/02-the-oauth-core-stops-being-googles]] refactor(sync): the OAuth core stops being Google's | 819-an-organization-hosts-its-own-workspaces | resolved | — |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/03-the-application-asks-turso-for-the-authority-it-needs]] feat(sync): the application asks Turso for the authority it needs | 819-an-organization-hosts-its-own-workspaces | resolved | 02 |
-| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/04-one-real-consent-settles-what-no-probe-could]] spike(sync): one real consent settles what no probe could | 819-an-organization-hosts-its-own-workspaces | open | 01, 03 |
-| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/05-the-platform-api-client-moves-into-rust]] feat(sync): the Platform API client moves into Rust | 819-an-organization-hosts-its-own-workspaces | open | 01, 04 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/04-one-real-consent-settles-what-no-probe-could]] spike(sync): one real consent settles what no probe could | 819-an-organization-hosts-its-own-workspaces | resolved | 01, 03 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/05-the-platform-api-client-moves-into-rust]] feat(sync): the Platform API client moves into Rust | 819-an-organization-hosts-its-own-workspaces | open | 01, 21 |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/06-the-vault-is-a-key-schedule-and-nothing-else]] feat(organization): the vault is a key schedule and nothing else | 819-an-organization-hosts-its-own-workspaces | resolved | — |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/07-authority-is-signed-along-a-chain]] feat(organization): authority is signed along a chain | 819-an-organization-hosts-its-own-workspaces | resolved | 06 |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/08-the-organization-database-is-a-replica]] feat(organization): the organization database is a replica | 819-an-organization-hosts-its-own-workspaces | open | 05, 06, 07 |
@@ -192,3 +192,6 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/17-a-refusal-from-the-account-is-explained-as-the-accounts]] feat(organization): a refusal from the account is explained as the account's | 819-an-organization-hosts-its-own-workspaces | open | 14 |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/18-a-second-machine-restores-the-organization]] test(organization): a second machine restores the organization | 819-an-organization-hosts-its-own-workspaces | open | 12 |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/19-the-control-plane-and-google-sign-in-are-retired]] chore(desktop): the control plane and Google sign-in are retired | 819-an-organization-hosts-its-own-workspaces | open | 13, 15, 16, 17, 18 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/20-the-consent-carries-its-resource-and-can-be-given-up]] fix(sync): the consent carries its resource and can be given up | 819-an-organization-hosts-its-own-workspaces | open | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/21-the-organization-slug-is-discovered-once]] feat(sync): the organization slug is discovered once | 819-an-organization-hosts-its-own-workspaces | open | 20, 22 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/22-the-live-remote-rule-catches-up-with-the-amended-plan]] docs(aep): the live remote rule catches up with the amended plan | 819-an-organization-hosts-its-own-workspaces | open | — |
