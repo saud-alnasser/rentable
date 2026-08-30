@@ -247,8 +247,8 @@ other otherwise. See [[references/cargo]].
 
 ## Tests that reach a live remote
 
-**Seven sets are admitted, in six properties, and they are the exception rather than a second way
-of testing.** Three of the seven exist. The other four are admitted below before they are written,
+**Eight sets are admitted, in seven properties, and they are the exception rather than a second way
+of testing.** Three of the eight exist. The other five are admitted below before they are written,
 which is what this section is for. The four `losing_writer` tests at the foot of
 `tauri/src/database/mod.rs` open two replicas of one workspace against a database they provision on
 Turso; `control-plane/src/workspace/tests/provisioning.test.ts` signs up against a live account and
@@ -284,9 +284,18 @@ the file once it exists. All four are Rust.
 
 **A fourth property: whether the Platform API takes what a Rust port sends.** Ticket 05 moves the
 client in `control-plane/src/workspace/turso.ts` into `tauri/src/sync/turso/platform.rs`, and its
-live half creates a group and a database, mints a credential against that database, and deletes the
-database it just made. The in-memory fake that every caller above it is tested against answers
-whatever the port was told to answer, so it can confirm the caller and never the contract. A
+live half creates a database in a group the consent named, mints a credential against that
+database, asserts delete protection is on, and deletes the database it just made once that
+protection has been lifted. **No group is created.** Nothing available to the application can make
+one: the consent screen selects a group and offers no way to create one, and the token cannot
+create an organization either
+([[efforts/819-an-organization-hosts-its-own-workspaces/evidence/prototypes/one-real-consent]]), so
+requirement 3 of that effort's spec puts the empty group in the customer's hands, in Turso's own
+dashboard, before the consent. *This paragraph said the live half created a group as well as a
+database until the consent on 2026-08-30 measured otherwise, and it is corrected rather than
+deleted for the same reason the count in the heading sentence is.* The in-memory fake that every
+caller above it is tested against answers whatever the port was told to answer, so it can confirm
+the caller and never the contract. A
 loopback server is that same belief written down a second time, and a bug in it would read as a
 finding about Turso. A `file:` database has no Platform API at all: this is an HTTP control surface
 rather than SQL. The second set above does spend the Platform API on its way to a question about
@@ -324,6 +333,25 @@ first machine going offline. This is the property the spec's second face asks fo
 including us is a dependency the organization did not agree to, and it is the one in this list
 where a passing local test would actively mislead.
 
+**A fifth was admitted on 2026-08-30 as well**, in the re-plan that day's one real consent forced.
+It is Rust like the four above and it joins them under the same flag, and it is a new property
+rather than another instance of any of them.
+
+**A seventh property: whether Turso's MCP server yields the organization slug for the group a
+consent was granted over.** Ticket 21, for criterion 3: one real consent, an `initialize` and one
+`tools/call` of `list_databases` against `https://mcp.turso.ai/mcp`, and the slug read out of a
+returned hostname matches the account the consent was granted on. **It is the only route to the
+slug that exists.** Every Platform API path this effort needs is `/v1/organizations/{slug}/...`, the
+numeric `org_id` in the token's claims answers 404 in every one of those paths tried, and the token
+answers 403 at the organizations listing
+([[efforts/819-an-organization-hosts-its-own-workspaces/evidence/prototypes/one-real-consent]]).
+A loopback server would answer whatever we scripted it to, which is the belief restated as a
+fixture, and what is under test is precisely whether Turso's reply carries a hostname in the shape
+the parse depends on. An in-memory fake is that same belief a third time, and a `file:` database has
+no MCP server to ask. It is not an instance of the fourth property either, because the subject is a
+different server speaking a different protocol, and Turso documents this tool set for agents rather
+than for clients, which is what makes its shape a question rather than an assumption.
+
 *The count in the heading sentence is the thing that goes stale. Another live test is a decision
 somebody takes here, in this section, naming its property and saying whether it is a new property or
 another instance of one already listed, and not a file that quietly appears.*
@@ -333,8 +361,8 @@ and the suite glob collects both, so setting it for a whole run provisions works
 whether or not that is what was wanted. Ask for a live file by name ([[references/node-test]], *Run
 one file*) rather than setting the opt-in in a `.env`.
 
-**The four Rust tests admitted above join that flag rather than taking one of their own** *(decided
-2026-08-30, in the ticket that admitted them)*. They carry `#[ignore]` and they read
+**The five Rust tests admitted above join that flag rather than taking one of their own** *(decided
+2026-08-30, in the ticket that admitted the first four; the fifth joins them for the same reason)*. They carry `#[ignore]` and they read
 `RENTABLE_LIVE_TURSO`, and both are required. The reason is that `#[ignore]` alone stops being much
 of a gate at this size: `cargo test -- --ignored` asks for every ignored test in a crate rather than
 for one by name, this effort at least doubles what that sweep reaches, and every test it reaches
@@ -366,7 +394,7 @@ than a precedent:
   gate that provisions databases in somebody's account depends on a third party's uptime and on a
   secret every workflow can read. A live run is a case the human authorizes, one at a time, and
   [[references/turso]], under *Never run*, is where that standing rule already sat. The opt-in is
-  `#[ignore]` on the Rust side, joined by `RENTABLE_LIVE_TURSO=1` for the four admitted above, and
+  `#[ignore]` on the Rust side, joined by `RENTABLE_LIVE_TURSO=1` for the five admitted above, and
   `RENTABLE_LIVE_TURSO=1` alone on the TypeScript side, because `node:test` has no equivalent of
   `#[ignore]` to ask for by name.
 - **Credentials missing is a failure, not a skip.** Asking for an ignored test is deliberate, so a
