@@ -247,10 +247,12 @@ other otherwise. See [[references/cargo]].
 
 ## Tests that reach a live remote
 
-**Three sets do, and they are the exception rather than a second way of testing.** The four
-`losing_writer` tests at the foot of `tauri/src/database/mod.rs` open two replicas of one workspace
-against a database they provision on Turso; `control-plane/src/workspace/tests/provisioning.test.ts`
-signs up against a live account and reads the schema back off the database that sign-up produced;
+**Seven sets are admitted, in six properties, and they are the exception rather than a second way
+of testing.** Three of the seven exist. The other four are admitted below before they are written,
+which is what this section is for. The four `losing_writer` tests at the foot of
+`tauri/src/database/mod.rs` open two replicas of one workspace against a database they provision on
+Turso; `control-plane/src/workspace/tests/provisioning.test.ts` signs up against a live account and
+reads the schema back off the database that sign-up produced;
 `control-plane/src/database/tests/hosted.test.ts` migrates the control plane's *own* database over
 the wire, serves a sign-in from it, and asserts that a transaction which throws leaves nothing.
 Everything else in this repository is tested against a local file, a loopback HTTP server, or an
@@ -274,18 +276,82 @@ rested on the assumption that it does. So the property is **whether a remote hon
 client asks of it**, and it is admitted here rather than absorbed silently into one of the two
 above.
 
-*The count in the heading sentence is the thing that goes stale. A fourth live test is a decision
-somebody takes here, in this section, naming its property, and not a file that quietly appears.*
+**Four more were admitted on 2026-08-30, before any of them was written.**
+[[efforts/819-an-organization-hosts-its-own-workspaces/spec]] puts the customer's own Turso account
+at the centre of the product, and four of its criteria cannot be answered anywhere but on one. They
+are **three properties, not four**, and the ticket that builds each is named so a reader can find
+the file once it exists. All four are Rust.
 
-**One flag arms all the TypeScript ones.** `RENTABLE_LIVE_TURSO=1` is read by both control-plane
-files and the suite glob collects both, so setting it for a whole run provisions workspace
-databases whether or not that is what was wanted. Ask for a live file by name
-([[references/node-test]], *Run one file*) rather than setting the opt-in in a `.env`.
+**A fourth property: whether the Platform API takes what a Rust port sends.** Ticket 05 moves the
+client in `control-plane/src/workspace/turso.ts` into `tauri/src/sync/turso/platform.rs`, and its
+live half creates a group and a database, mints a credential against that database, and deletes the
+database it just made. The in-memory fake that every caller above it is tested against answers
+whatever the port was told to answer, so it can confirm the caller and never the contract. A
+loopback server is that same belief written down a second time, and a bug in it would read as a
+finding about Turso. A `file:` database has no Platform API at all: this is an HTTP control surface
+rather than SQL. The second set above does spend the Platform API on its way to a question about
+the dialect, but it spends it from TypeScript and it is not what that set measures. Here the API is
+the subject, reached from a different HTTP stack, and a port rewritten in another language has no
+other witness that the request shape and the failure vocabulary survived the move.
+
+**A fifth property: whether the remote enforces the limits of a credential we minted. Two
+instances.** The first is ticket 14's, for criterion 11: a member holding a `read-only` grant
+writes, and the refusal comes back **from Turso** rather than from the interface, with an
+administrator's attempt to delete a workspace database refused in the same test for want of
+authority rather than for want of a button. The second is ticket 15's, for criterion 14, and it
+covers both removal paths and what each costs the members who stay: after an ordinary removal no
+new credential is issued to the departing member, their existing one dies at its expiry, and every
+remaining member's sync is unbroken; after a lock-out the removed member's existing credential is
+refused at once, and every remaining member of that workspace stalls until their application
+reaches the organization database and collects a re-sealed grant. **They are one property with two
+instances rather than two admissions**, because one sentence covers both and neither carries a
+reason the other does not: a credential's scope, its lifetime, and the blast radius of revoking it
+are all the same question about who is doing the enforcing.
+
+Nothing local can hold that property. A loopback server or an in-memory fake refuses because we
+wrote the refusal, which is the finding restated as a fixture, and a `file:` database has no notion
+of a scoped credential to refuse with. What requirement 11 and requirement 14 both claim is that the
+authority is the account's rather than the application's, so the account is the only witness whose
+answer means anything.
+
+**A sixth property: whether the organization lives on the remote rather than on the machine that
+made it.** Ticket 18, for criterion 6: machine A provisions, machine A goes offline, and machine B
+restores the organization from the link, the email, the password and one consent. A `file:` database
+sits on one machine by definition, so two processes over one path would prove that a path was
+shared and not that anything outlived its first machine. A loopback server and an in-memory engine
+are worse, because both die with the process that started them, and that process going away is the
+first machine going offline. This is the property the spec's second face asks for, that nobody
+including us is a dependency the organization did not agree to, and it is the one in this list
+where a passing local test would actively mislead.
+
+*The count in the heading sentence is the thing that goes stale. Another live test is a decision
+somebody takes here, in this section, naming its property and saying whether it is a new property or
+another instance of one already listed, and not a file that quietly appears.*
+
+**One flag arms the TypeScript ones.** `RENTABLE_LIVE_TURSO=1` is read by both control-plane files
+and the suite glob collects both, so setting it for a whole run provisions workspace databases
+whether or not that is what was wanted. Ask for a live file by name ([[references/node-test]], *Run
+one file*) rather than setting the opt-in in a `.env`.
+
+**The four Rust tests admitted above join that flag rather than taking one of their own** *(decided
+2026-08-30, in the ticket that admitted them)*. They carry `#[ignore]` and they read
+`RENTABLE_LIVE_TURSO`, and both are required. The reason is that `#[ignore]` alone stops being much
+of a gate at this size: `cargo test -- --ignored` asks for every ignored test in a crate rather than
+for one by name, this effort at least doubles what that sweep reaches, and every test it reaches
+provisions on somebody's account. **A Rust live test that runs with the flag unset fails rather
+than skipping**, and its message names the flag, so a sweep nobody meant as a live run costs a
+failed run instead of a handful of databases. A second flag name was rejected: it would be one more
+thing to know, and the only hazard it prevents that this one does not is that both halves can be
+armed by one export, which nobody has been bitten by.
+
+**The four `losing_writer` tests are not retrofitted here.** `#[ignore]` is still their whole
+opt-in, so `cargo test -- --ignored` reaches them with the flag unset. Bringing them onto the flag
+is a change to source, and what is decided here is documentation.
 
 **This does not reopen *Transport testing*.** That rule is about a transport whose serialisation
 and status handling are the subject; a loopback server exercises those better than a live API
 does, and it is still what a new transport gets. What is different here is that the subject is the
-remote's own merge behaviour rather than the client's handling of it.
+remote's own behaviour rather than the client's handling of it.
 
 Three things bind a live test, and all three are the reason this is a declared exception rather
 than a precedent:
@@ -300,8 +366,9 @@ than a precedent:
   gate that provisions databases in somebody's account depends on a third party's uptime and on a
   secret every workflow can read. A live run is a case the human authorizes, one at a time, and
   [[references/turso]], under *Never run*, is where that standing rule already sat. The opt-in is
-  `--ignored` on the Rust side and `RENTABLE_LIVE_TURSO=1` on the TypeScript side, because
-  `node:test` has no equivalent of `#[ignore]` to ask for by name.
+  `#[ignore]` on the Rust side, joined by `RENTABLE_LIVE_TURSO=1` for the four admitted above, and
+  `RENTABLE_LIVE_TURSO=1` alone on the TypeScript side, because `node:test` has no equivalent of
+  `#[ignore]` to ask for by name.
 - **Credentials missing is a failure, not a skip.** Asking for an ignored test is deliberate, so a
   run that meant to be live and silently was not is the one outcome worth refusing.
 

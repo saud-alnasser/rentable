@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # docs(aep): the live remote rule admits this effort's tests by name
@@ -17,23 +17,28 @@ Traces criterion 6, criterion 11 and criterion 14 of
 [[efforts/819-an-organization-hosts-its-own-workspaces/spec]], each of which reaches a live
 Turso account and none of which can be written until this lands.
 
-- [ ] *Tests that reach a live remote* names each admission separately, with the property it
+- [x] *Tests that reach a live remote* names each admission separately, with the property it
       measures and why a local file, a loopback server, or an in-memory engine cannot answer it.
       The four are: provisioning a group and a database from Rust (ticket 05); a `read-only`
       grant's write being refused **by Turso** rather than by the application (criterion 11); the
       two removal paths and what each costs the remaining members (criterion 14); and a second
       machine reading what the first wrote (criterion 6).
-- [ ] The count in the heading sentence is corrected rather than left stale. It reads "three"
+      *Verified: the fourth, fifth and sixth properties each name the ticket that builds them and rule out a fake, a loopback server and a `file:` database in turn.*
+- [x] The count in the heading sentence is corrected rather than left stale. It reads "three"
       today and the section says in as many words that the count is the thing that goes stale.
-- [ ] Where two of these measure the same property, they are admitted as one property with two
+      *Verified: `grep -c 'Seven sets are admitted, in six properties'` returns 1, and `grep -n 'Three sets'` returns nothing.*
+- [x] Where two of these measure the same property, they are admitted as one property with two
       instances rather than as two admissions. The section already distinguishes a third property
       from a third instance, and repeating that distinction is the point of writing it down.
-- [ ] The opt-in flag is stated for the Rust ones. `RENTABLE_LIVE_TURSO=1` arms both TypeScript
+      *Verified: the fifth property is headed *Two instances* and says in bold that it is one property with two instances rather than two admissions. Seven sets over six properties is that arithmetic.*
+- [x] The opt-in flag is stated for the Rust ones. `RENTABLE_LIVE_TURSO=1` arms both TypeScript
       files today and the section warns that setting it for a whole run provisions databases
       nobody asked for; whether the Rust tests join that flag or take their own is decided here
       and written down, not discovered by whoever runs the suite next.
-- [ ] `node .aep/scripts/validate.mjs` passes and `.aep/index.md` is regenerated rather than
+      *Verified: the four Rust tests join `RENTABLE_LIVE_TURSO` on top of `#[ignore]`, both required, and fail rather than skip when the flag is unset. The rejected second flag is recorded beside the decision.*
+- [x] `node .aep/scripts/validate.mjs` passes and `.aep/index.md` is regenerated rather than
       edited.
+      *Verified: `node .aep/scripts/index.mjs` wrote `.aep/index.md` and left no diff, and `node .aep/scripts/validate.mjs` printed `188 artifacts checked, no failures`.*
 
 ## Relevant areas
 
