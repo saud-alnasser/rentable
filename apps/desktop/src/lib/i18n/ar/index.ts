@@ -688,6 +688,16 @@ const ar = {
 			'مساحة العمل هذه غير متصلة منذ ثلاثة أيام. سجّل الدخول بحساب Google مجدداً لمتابعة المزامنة — لم يُفقد أي شيء سجّلته.'
 	},
 
+	organization: {
+		disconnectAction: 'فصل حساب Turso',
+		disconnectDescription:
+			'يحتفظ هذا الجهاز برمز وصول إلى حساب Turso الذي تقوم عليه مؤسستك. وفصله ينسى الرمز هنا، فلا يبقى على هذا الجهاز ما يصل إلى ذلك الحساب.',
+		disconnectRevokes:
+			'نسيان الرمز لا يلغيه. يبقى ما منحته قائماً حتى تنهيه بنفسك من لوحة تحكم Turso على app.turso.tech.',
+		disconnectRevokesAt: 'app.turso.tech',
+		disconnected: 'لم يعد هذا الجهاز يحتفظ برمز وصول إلى حساب Turso.'
+	},
+
 	workspace: {
 		groupIdentity: 'مساحة العمل هذه',
 		groupMembers: 'الأعضاء',

@@ -69,9 +69,10 @@ Whatever this uses for HTTP goes through the same place.
 
 ## Notes
 
-Blocked on ticket 04 because the live half needs a Platform API token, and 04 is where one is
-obtained by the route this effort intends. If 04 finds the consent refused, the token arrives by
-paste instead and this ticket is unchanged.
+Blocked on ticket 21 because the live half needs both a Platform API token and the organization
+slug every Platform API path is built from. Ticket 04 obtained the first and found that the second
+is not in the token, so ticket 21 is what supplies it. *This paragraph named ticket 04 until the
+re-plan on 2026-08-30 moved the edge, and the frontmatter moved before the prose did.*
 
 The port shape is worth defending under review. It is what lets tickets 09, 14 and 15 be tested
 without a network, and the alternative, a client that talks to `reqwest` directly from every call

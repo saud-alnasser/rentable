@@ -2189,6 +2189,28 @@ type RootTranslation = {
 		 */
 		sessionExpired: string
 	}
+	organization: {
+		/**
+		 * d​i​s​c​o​n​n​e​c​t​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
+		 */
+		disconnectAction: string
+		/**
+		 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​a​ ​t​o​k​e​n​ ​f​o​r​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​v​e​s​ ​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​i​n​g​ ​f​o​r​g​e​t​s​ ​i​t​ ​h​e​r​e​,​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​c​a​n​ ​r​e​a​c​h​ ​t​h​a​t​ ​a​c​c​o​u​n​t​ ​a​f​t​e​r​w​a​r​d​s​.
+		 */
+		disconnectDescription: string
+		/**
+		 * f​o​r​g​e​t​t​i​n​g​ ​t​h​e​ ​t​o​k​e​n​ ​d​o​e​s​ ​n​o​t​ ​r​e​v​o​k​e​ ​i​t​.​ ​w​h​a​t​ ​y​o​u​ ​g​r​a​n​t​e​d​ ​s​t​a​y​s​ ​g​r​a​n​t​e​d​ ​u​n​t​i​l​ ​y​o​u​ ​e​n​d​ ​i​t​ ​y​o​u​r​s​e​l​f​,​ ​o​n​ ​t​u​r​s​o​'​s​ ​o​w​n​ ​d​a​s​h​b​o​a​r​d​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​.
+		 */
+		disconnectRevokes: string
+		/**
+		 * a​p​p​.​t​u​r​s​o​.​t​e​c​h
+		 */
+		disconnectRevokesAt: string
+		/**
+		 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​n​o​ ​l​o​n​g​e​r​ ​h​o​l​d​s​ ​a​ ​t​o​k​e​n​ ​f​o​r​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.
+		 */
+		disconnected: string
+	}
 	workspace: {
 		/**
 		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e
@@ -4355,6 +4377,28 @@ export type TranslationFunctions = {
 		 * this workspace has been offline for three days. sign in with Google again to keep it in sync — nothing you recorded has been lost.
 		 */
 		sessionExpired: () => LocalizedString
+	}
+	organization: {
+		/**
+		 * disconnect turso account
+		 */
+		disconnectAction: () => LocalizedString
+		/**
+		 * this machine holds a token for the turso account your organization lives on. disconnecting forgets it here, and nothing on this machine can reach that account afterwards.
+		 */
+		disconnectDescription: () => LocalizedString
+		/**
+		 * forgetting the token does not revoke it. what you granted stays granted until you end it yourself, on turso's own dashboard at app.turso.tech.
+		 */
+		disconnectRevokes: () => LocalizedString
+		/**
+		 * app.turso.tech
+		 */
+		disconnectRevokesAt: () => LocalizedString
+		/**
+		 * this machine no longer holds a token for your turso account.
+		 */
+		disconnected: () => LocalizedString
 	}
 	workspace: {
 		/**

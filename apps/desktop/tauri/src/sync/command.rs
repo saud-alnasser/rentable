@@ -176,12 +176,11 @@ pub async fn organization_consent_begin(
     app_state.consent.begin(TursoEndpoints::production()).await
 }
 
-/// How far one consent has got, and where it was granted, which organizations it reaches.
+/// How far one consent has got.
 ///
 /// **It returns no token**, which is [[rules/credentials]]'s *Client boundary* at the one place
 /// this application obtains a Platform API token: the token is filed in the operating system's
-/// credential store by the call that redeems it and never crosses to TypeScript. The
-/// organizations are facts about that credential, and they are what requirement 22 turns on.
+/// credential store by the call that redeems it and never crosses to TypeScript.
 ///
 /// Polled while the status is `pending`. A consent that failed says so and says why; one the
 /// person abandoned says that instead, because closing the browser tab is the ordinary way a
@@ -192,4 +191,21 @@ pub async fn organization_consent_result(
     session_id: String,
 ) -> Result<TursoConsentResult, Error> {
     app_state.consent.result(&session_id).await
+}
+
+/// Hand the Turso authority back.
+///
+/// The token is removed from this machine's credential store and the consents this process
+/// started are dropped with it, so nothing is left that a later run could read as a grant.
+///
+/// **Nothing is revoked at Turso by this**, and the surface offering it has to say so. There
+/// is no revocation endpoint in the authorization server's metadata and the token carries no
+/// expiry, so what the account granted stays granted until the person ends it in Turso's own
+/// dashboard.
+///
+/// It answers nothing, and disconnecting a machine that holds no token is not an error: the
+/// caller asked for there to be no token, and afterwards there is none.
+#[tauri::command]
+pub async fn organization_disconnect(app_state: tauri::State<'_, AppState>) -> Result<(), Error> {
+    app_state.consent.disconnect()
 }

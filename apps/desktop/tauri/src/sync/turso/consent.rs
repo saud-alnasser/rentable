@@ -5,16 +5,17 @@
 //! in the operating system's credential store and never anywhere else.
 //!
 //! **The token does not cross the IPC boundary** ([[rules/credentials]], *Client boundary*).
-//! What the web layer is told is that a consent was granted and which organizations it
-//! reaches, which are facts about a credential rather than the credential.
+//! What the web layer is told is how far a consent got, which is a fact about a credential
+//! rather than the credential.
 //!
-//! **Nothing here is proven against the live authorization server.** The endpoints and the
-//! client registration below are read off Turso's own authorization server metadata and one
-//! registration request, recorded in this effort's evidence under
-//! `what-turso-lets-a-desktop-client-do-alone`. Whether the authorize step honours a loopback
-//! redirect, and whether the consent screen grants the scope set asked for rather than
-//! presenting the whole picker, are open questions that only a human completing one consent
-//! settles. Nothing here is written as though either answer were known.
+//! **Three real consents on 2026-08-30 settled what this module was written not knowing**,
+//! and the evidence is `one-real-consent` in this effort. Three things came out of it and all
+//! three are here. The authorize endpoint is an MCP one and refuses a request without RFC
+//! 8707's resource indicator, so `resource` rides on the authorization request and on the
+//! grant. The issued token is scoped to one group and `GET /v1/organizations` answers 403 for
+//! it, so this module asks nothing of the Platform API and the organization slug arrives
+//! elsewhere. And the token carries four claims, none of them `exp`, so nothing retires it on
+//! its own and giving it up is an act somebody performs rather than a deadline.
 
 use std::{
     collections::HashMap,
@@ -49,31 +50,48 @@ const TURSO_AUTHORIZE_ENDPOINT: &str = "https://app.turso.tech/oauth/mcp/authori
 
 const TURSO_TOKEN_ENDPOINT: &str = "https://api.turso.tech/v1/oauth/token";
 
-/// The Platform API's base. The only call made against it here is the organizations listing,
-/// which is what the consent's own answer is built from.
-const TURSO_PLATFORM_API: &str = "https://api.turso.tech";
+/// The one resource this authorization server issues for, RFC 8707.
+///
+/// **Read off Turso's own protected-resource document rather than guessed.**
+/// `GET https://api.turso.tech/.well-known/oauth-protected-resource` answers
+/// `{"authorization_servers":["https://api.turso.tech"],"resource":"https://mcp.turso.ai/mcp"}`,
+/// and that document names exactly one value.
+///
+/// **Without it there is no consent screen at all.** The authorize endpoint is an MCP one and
+/// the MCP authorization profile makes the indicator mandatory on the authorization request
+/// and on the grant. A request carrying the whole of RFC 6749 and RFC 7636 and nothing else
+/// renders *Invalid request. This authorization request is missing required OAuth parameters*
+/// in the browser, measured 2026-08-30.
+///
+/// It narrows nothing that can be seen from here. The issued token carries no `aud` claim,
+/// so what bounds the grant is the group the person picks on the consent screen.
+const TURSO_RESOURCE_INDICATOR: &str = "https://mcp.turso.ai/mcp";
 
 /// What this application asks a person to grant, and it is the narrowest set that does the
 /// job requirement 4 states.
 ///
-/// **Deletion is absent, deliberately.** `db:delete` would let a defect or a compromised
-/// machine remove a customer's ledger, and nothing this application does needs it: a
-/// workspace being deleted from the interface is a separate act and would be a separate
-/// consent. `db:rotate-creds` and `group:rotate-creds` are absent for the same reason,
+/// **It is what is asked for and it is not what is held.** Turso grants nine scopes whatever
+/// this list says, measured on 2026-08-30 off the `scopes` claim of a real token:
+/// `db:configure`, `db:create`, `db:delete`, `db:mint-token`, `db:rotate-creds`,
+/// `group:configure`, `group:mint-token`, `group:rotate-creds` and `read`. Six of them were
+/// never requested, and two of those six delete a database and rotate a group's credentials.
+/// Nothing in this application may read this list as a description of its own authority,
+/// which is why nothing outside this module can see it.
+///
+/// **Deletion is absent, deliberately, and that is intent rather than a boundary.**
+/// `db:delete` would let a defect or a compromised machine remove a customer's ledger, and
+/// nothing this application does needs it: a workspace being deleted from the interface is a
+/// separate act. `db:rotate-creds` and `group:rotate-creds` are absent for the same reason,
 /// and the Platform API's own note is that rotation is destructive: it invalidates every
 /// SQL credential a database has issued, which on this design would lock every member out
-/// of a workspace at once.
+/// of a workspace at once. Asking narrowly still costs nothing and puts what was intended on
+/// the record, which is the whole of what requirement 4 can still claim.
 ///
-/// `read` is what the organizations listing needs, which is what requirement 22 turns on.
 /// `db:create` and `db:mint-token` are provisioning a workspace and handing one member a
-/// credential for it, which is the whole of what this application asks a customer's account
-/// to do.
-///
-/// **This is a request rather than a guarantee.** The authorization server metadata
-/// advertises no `scopes_supported`, so whether the consent screen grants what is asked for
-/// or presents the person the full picker is unknown until a consent is completed. Nothing
-/// here depends on the answer.
-pub(crate) const TURSO_CONSENT_SCOPES: [&str; 3] = ["read", "db:create", "db:mint-token"];
+/// credential for it. `read` is what reading back a database record needs; it was asked for
+/// as the organizations listing's scope until that listing turned out to be refused for a
+/// group-scoped token.
+const TURSO_CONSENT_SCOPES: [&str; 3] = ["read", "db:create", "db:mint-token"];
 
 /// Where the Platform API token is filed in the platform's credential store.
 ///
@@ -113,18 +131,21 @@ const TURSO_CONSENT_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 /// OAuth error and is not a failure of anything.
 const OAUTH_ACCESS_DENIED: &str = "access_denied";
 
-/// The three URLs one consent is driven against, and the Platform API it then reads.
+/// The three URLs one consent is driven against.
 ///
-/// They are a value rather than four constants read at each call site so that the whole flow
+/// They are a value rather than three constants read at each call site so that the whole flow
 /// can be pointed at a loopback server. [[rules/credentials]], under *Transport testing*, is
 /// why: what breaks in this module is the serialisation and the status handling, and a mocked
 /// client tests the mock's idea of HTTP rather than the request.
+///
+/// **There is no Platform API base here**, and there was one until the listing this module
+/// used to make turned out to be refused. Nothing in a consent asks Turso a question; the
+/// Platform API belongs to whatever spends the token afterwards.
 #[derive(Clone, Debug)]
 pub struct TursoEndpoints {
     registration: String,
     authorize: String,
     token: String,
-    platform: String,
 }
 
 impl TursoEndpoints {
@@ -134,7 +155,6 @@ impl TursoEndpoints {
             registration: TURSO_REGISTRATION_ENDPOINT.to_string(),
             authorize: TURSO_AUTHORIZE_ENDPOINT.to_string(),
             token: TURSO_TOKEN_ENDPOINT.to_string(),
-            platform: TURSO_PLATFORM_API.to_string(),
         }
     }
 
@@ -145,7 +165,6 @@ impl TursoEndpoints {
             registration: format!("{base}/v1/oauth/register"),
             authorize: format!("{base}/oauth/mcp/authorize"),
             token: format!("{base}/v1/oauth/token"),
-            platform: base.to_string(),
         }
     }
 }
@@ -171,7 +190,7 @@ pub enum TursoConsentStatus {
     /// the consent screen is open and nothing has come back yet.
     #[default]
     Pending,
-    /// the token is in the keyring and the organizations it reaches are known.
+    /// the token is in the keyring, where the next run will look for it.
     Granted,
     /// the authorization server refused, or the exchange did.
     Failed,
@@ -179,27 +198,17 @@ pub enum TursoConsentStatus {
     Abandoned,
 }
 
-/// one organization the consented token can reach.
-///
-/// **The slug rather than the name**, because the slug is what every Platform API path is
-/// built from and the name is a label. `is_personal` is Turso's `type` field, which its API
-/// documents as always either `personal` or `team`: a personal account is the one that ends
-/// with the person, which is what requirement 22 makes the application say out loud rather
-/// than leave for somebody to discover.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct ConsentOrganization {
-    pub slug: String,
-    pub is_personal: bool,
-}
-
 /// What a consent came to, and **no token**.
 ///
-/// The organizations are what requirement 22 needs: the application provisions into an
-/// organization where the account reaches one and falls back to the personal account
-/// otherwise, without asking anybody to type a slug.
+/// **It carried a list of organizations until 2026-08-30 and cannot again.** The token a
+/// consent issues is scoped to one group, `GET /v1/organizations` answers
+/// `group-scoped token cannot access org-level resources` for it, and no listing this
+/// credential can make would tell a personal account from a team one. There is nothing for
+/// the application to choose between either: the organization is whichever holds the group
+/// the person picked on Turso's own screen. Which organization that is comes back from a
+/// separate lookup rather than from here.
 ///
-/// `error` carries the refusal where there was one. It is beyond the two fields the plan's
+/// `error` carries the refusal where there was one. It is beyond the fields the plan's
 /// *Interfaces* names, and it is here because a status of `failed` with nothing to show is a
 /// screen that can only say something went wrong.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -207,7 +216,6 @@ pub struct ConsentOrganization {
 pub struct TursoConsentResult {
     pub session_id: String,
     pub status: TursoConsentStatus,
-    pub organizations: Vec<ConsentOrganization>,
     pub error: Option<String>,
 }
 
@@ -239,7 +247,6 @@ struct ConsentSession {
     /// held between the callback landing and the next read redeeming it. A code is
     /// redeemable once, so it is taken as it is read.
     authorization_code: Option<String>,
-    organizations: Vec<ConsentOrganization>,
     error: Option<String>,
 }
 
@@ -307,7 +314,6 @@ impl ConsentSession {
         TursoConsentResult {
             session_id: self.session_id.clone(),
             status: self.status,
-            organizations: self.organizations.clone(),
             error: self.error.clone(),
         }
     }
@@ -368,10 +374,7 @@ impl TursoConsent {
             &redirect_uri,
             &expected_state,
             &pkce_challenge(&code_verifier),
-            // **none, and that is the whole of what Turso asks for on top of the two RFCs.**
-            // Google's three parameters are Google's, and sending them here would be one
-            // provider's vocabulary at another provider's endpoint.
-            &[],
+            &turso_provider_parameters(),
         )?;
 
         let session_id = format!("turso-consent-{}", random_url_safe_token()?);
@@ -390,7 +393,6 @@ impl TursoConsent {
                     endpoints,
                     status: TursoConsentStatus::Pending,
                     authorization_code: None,
-                    organizations: Vec::new(),
                     error: None,
                 },
             );
@@ -423,16 +425,16 @@ impl TursoConsent {
         })
     }
 
-    /// How far one consent has got, and where it is granted, which organizations it reaches.
+    /// How far one consent has got.
     ///
     /// **This is where the code is redeemed**, so the caller never sees one. The read that
-    /// finds a code exchanges it, asks Turso which organizations the token reaches, and only
-    /// then files the token.
+    /// finds a code exchanges it, files the token, and reads it back from where it was filed.
     ///
     /// **The order is the criterion.** A consent that fails leaves nothing in the credential
-    /// store, and the way that is true is that nothing is written until everything has
+    /// store, and the way that is true is that nothing is written until the exchange has
     /// succeeded, rather than by writing early and cleaning up after a failure that may be
-    /// the process going away.
+    /// the process going away. The read back is the other half of it: granted means the next
+    /// run will find the token, which is a different claim from the write having returned.
     pub async fn result(&self, session_id: &str) -> Result<TursoConsentResult, Error> {
         let session_id = session_id.trim().to_string();
 
@@ -465,10 +467,13 @@ impl TursoConsent {
             &authorization_code,
         )
         .await
-        .and_then(|(access_token, organizations)| {
+        .and_then(|access_token| {
             store_platform_token(&access_token)?;
 
-            Ok(organizations)
+            // read back from where the next run will look, and drop what comes back. A
+            // credential store that accepted a write and kept nothing would otherwise be
+            // reported as a grant and discovered as a failure at the first provisioning.
+            platform_token().map(|_| ())
         });
 
         let mut sessions = self.sessions.lock().map_err(|_| consents_poisoned())?;
@@ -477,9 +482,8 @@ impl TursoConsent {
             .ok_or_else(consent_not_found)?;
 
         match granted {
-            Ok(organizations) => {
+            Ok(()) => {
                 session.status = TursoConsentStatus::Granted;
-                session.organizations = organizations;
                 session.error = None;
             }
             Err(error) => {
@@ -490,6 +494,39 @@ impl TursoConsent {
 
         Ok(session.report())
     }
+
+    /// Give the authority back.
+    ///
+    /// **It forgets the token here and revokes nothing**, because there is nothing to call:
+    /// Turso's authorization server metadata advertises no revocation endpoint, and the token
+    /// carries no expiry to wait out. Whatever this application no longer holds, the account
+    /// still has granted, and the surface that offers this says so.
+    ///
+    /// The consents this process started go with it. A session that reported `granted` is a
+    /// live grant as far as a caller polling it can tell, and leaving one behind a disconnect
+    /// would be the application contradicting itself within one run.
+    ///
+    /// Disconnecting twice is not an error. There is no state to be in beyond holding the
+    /// token or not, and a person pressing the button again means the same thing both times.
+    pub fn disconnect(&self) -> Result<(), Error> {
+        forget_platform_token()?;
+
+        self.sessions
+            .lock()
+            .map_err(|_| consents_poisoned())?
+            .clear();
+
+        Ok(())
+    }
+}
+
+/// What Turso asks for on top of RFC 6749 and RFC 7636, which is the resource indicator and
+/// nothing else.
+///
+/// Both requests carry it, and they carry the same value: RFC 8707 has the token endpoint
+/// check the indicator against the one the authorization request was granted under.
+fn turso_provider_parameters() -> [(&'static str, &'static str); 1] {
+    [("resource", TURSO_RESOURCE_INDICATOR)]
 }
 
 /// How Turso's authorization server is reached, as the neutral core wants it.
@@ -570,17 +607,22 @@ async fn register_client(endpoints: &TursoEndpoints, redirect_uri: &str) -> Resu
     })
 }
 
-/// Redeem the code, then ask what the token reaches.
+/// Redeem the code.
 ///
 /// The token is returned rather than filed here, so that its one caller decides when it is
-/// safe to keep. Nothing has been granted until both halves have worked.
+/// safe to keep.
+///
+/// **Nothing else is asked of Turso.** This called `GET /v1/organizations` afterwards until
+/// 2026-08-30, when a real consent answered 403 to it: the token is scoped to one group and
+/// cannot see the account it was granted on. A consent that redeemed a working token and then
+/// failed on that listing reported `failed`, which is why it is gone rather than tolerated.
 async fn redeem_consent(
     endpoints: &TursoEndpoints,
     client_id: &str,
     redirect_uri: &str,
     code_verifier: &str,
     authorization_code: &str,
-) -> Result<(String, Vec<ConsentOrganization>), Error> {
+) -> Result<String, Error> {
     let form = authorization_code_form(
         client_id,
         // a public client, so there is no secret to send and an empty one is a rejected
@@ -589,11 +631,10 @@ async fn redeem_consent(
         redirect_uri,
         code_verifier,
         authorization_code,
+        &turso_provider_parameters(),
     );
-    let platform_token = request_platform_token(&endpoints.token, &form).await?;
-    let organizations = list_organizations(endpoints, &platform_token).await?;
 
-    Ok((platform_token, organizations))
+    request_platform_token(&endpoints.token, &form).await
 }
 
 /// Send a prepared grant to Turso's token endpoint and read what came back.
@@ -625,89 +666,6 @@ async fn request_platform_token(
     let payload = serde_json::from_str::<OAuthTokenResponse>(&body).unwrap_or_default();
 
     parse_token_response(status, payload, crate::timestamp::now()).map(|tokens| tokens.access_token)
-}
-
-/// one organization as Turso reports it.
-#[derive(Debug, Default, Deserialize)]
-struct OrganizationRecord {
-    #[serde(default)]
-    slug: String,
-    /// Turso's own field name. Its API documents this as always either `personal` or `team`.
-    #[serde(default, rename = "type")]
-    account_type: String,
-}
-
-/// the listing, read both ways it could arrive.
-///
-/// **Turso's OpenAPI schema says a bare array, and no live answer has been read.** The
-/// wrapped form is accepted as well because every other Platform API answer this repository
-/// has met is an object with one key, and because [[references/turso]] records that Turso's
-/// field names are Go struct names showing through rather than what a JSON API usually looks
-/// like. Ticket 04 is where a real answer is seen; whichever it turns out to be, this reads
-/// it rather than failing in a way that would read as a defect in the consent.
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum OrganizationsPayload {
-    Bare(Vec<OrganizationRecord>),
-    Wrapped {
-        organizations: Vec<OrganizationRecord>,
-    },
-}
-
-/// Ask which organizations the consented token reaches.
-///
-/// **This is the consent's own answer rather than the Platform API client**, which is
-/// `platform.rs`'s and does not exist yet. The listing is here because the consent result is
-/// what it is for: an application that learns nothing about what it was granted cannot
-/// provision into an organization without asking somebody to type a slug.
-async fn list_organizations(
-    endpoints: &TursoEndpoints,
-    platform_token: &str,
-) -> Result<Vec<ConsentOrganization>, Error> {
-    let client = build_client(TURSO_REQUEST_TIMEOUT)?;
-    let response = client
-        .get(format!("{}/v1/organizations", endpoints.platform))
-        .bearer_auth(platform_token)
-        .send()
-        .await
-        .map_err(|error| Error::Network {
-            message: format!("could not ask turso which organizations this reaches: {error}"),
-        })?;
-
-    let status = response.status().as_u16();
-    let body = response.text().await.map_err(|error| Error::Network {
-        message: format!("turso's organizations answer did not arrive in full: {error}"),
-    })?;
-
-    if !(200..300).contains(&status) {
-        return Err(Error::Network {
-            message: format!("turso refused to list its organizations ({status})"),
-        });
-    }
-
-    Ok(read_organizations(&body))
-}
-
-/// Read a listing into what the web layer is told.
-///
-/// Separate from the request so the shape can be tested without one, and because this is
-/// where the personal account is told from an organization, which is the fact requirement 22
-/// rests on.
-fn read_organizations(body: &str) -> Vec<ConsentOrganization> {
-    let records = match serde_json::from_str::<OrganizationsPayload>(body) {
-        Ok(OrganizationsPayload::Bare(records)) => records,
-        Ok(OrganizationsPayload::Wrapped { organizations }) => organizations,
-        Err(_) => Vec::new(),
-    };
-
-    records
-        .into_iter()
-        .filter(|record| !record.slug.trim().is_empty())
-        .map(|record| ConsentOrganization {
-            is_personal: record.account_type.trim().eq_ignore_ascii_case("personal"),
-            slug: record.slug.trim().to_string(),
-        })
-        .collect()
 }
 
 /// Wait for the browser to come back, and settle the consent with what it carried.
@@ -799,6 +757,35 @@ fn store_platform_token(platform_token: &str) -> Result<(), Error> {
         .map_err(|error| format_keyring_error("store", error))
 }
 
+/// The authority this machine holds, for whatever is about to spend it.
+///
+/// **No authority is a refusal rather than an absence**, and it is `NotConfigured` because
+/// that is a thing somebody can do something about: grant the consent again. A provisioning
+/// path that read an `Option` here would have to decide what nothing means at every call
+/// site, and the one that forgot would send an empty bearer token to Turso and report
+/// whatever Turso said about it.
+#[cfg(not(test))]
+pub(crate) fn platform_token() -> Result<String, Error> {
+    match platform_keyring_entry()?.get_password() {
+        Ok(platform_token) => Ok(platform_token),
+        Err(KeyringError::NoEntry) => Err(no_platform_authority()),
+        Err(error) => Err(format_keyring_error("read", error)),
+    }
+}
+
+/// Forget the token, and leave nothing a later run could read as a grant.
+///
+/// A store that holds no entry is already in the state this asks for, so `NoEntry` is the
+/// outcome rather than a failure. It is the same reading `delete_google_credentials` takes
+/// next door, for the same reason: the caller asked for the entry to be gone.
+#[cfg(not(test))]
+fn forget_platform_token() -> Result<(), Error> {
+    match platform_keyring_entry()?.delete_credential() {
+        Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
+        Err(error) => Err(format_keyring_error("forget", error)),
+    }
+}
+
 #[cfg(not(test))]
 fn platform_keyring_entry() -> Result<KeyringEntry, Error> {
     KeyringEntry::new(
@@ -817,7 +804,7 @@ fn format_keyring_error(action: &str, error: KeyringError) -> Error {
     }
 }
 
-/// the credential store a test has. It stands in for exactly the two calls above, so a test
+/// the credential store a test has. It stands in for exactly the three calls above, so a test
 /// asserts on where the token went rather than on a mocked keyring's idea of it.
 #[cfg(test)]
 fn store_platform_token(platform_token: &str) -> Result<(), Error> {
@@ -826,6 +813,24 @@ fn store_platform_token(platform_token: &str) -> Result<(), Error> {
         .map_err(|_| consents_poisoned())?;
 
     *stored = Some(platform_token.to_string());
+
+    Ok(())
+}
+
+#[cfg(test)]
+pub(crate) fn platform_token() -> Result<String, Error> {
+    test_platform_token()
+        .lock()
+        .map_err(|_| consents_poisoned())?
+        .clone()
+        .ok_or_else(no_platform_authority)
+}
+
+#[cfg(test)]
+fn forget_platform_token() -> Result<(), Error> {
+    *test_platform_token()
+        .lock()
+        .map_err(|_| consents_poisoned())? = None;
 
     Ok(())
 }
@@ -853,21 +858,52 @@ fn consent_not_found() -> Error {
     }
 }
 
+/// what a caller is told where this machine holds nothing.
+///
+/// **It names the consent rather than Turso**, because Turso was never asked: a machine that
+/// has disconnected, or has never connected, fails here and sends nothing.
+fn no_platform_authority() -> Error {
+    Error::NotConfigured {
+        message: "this machine holds no turso authority. connect a turso account to provision"
+            .to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, path::Path, time::Duration};
 
     use serde_json::json;
 
-    use crate::sync::google::test::server::{ScriptedResponse, ScriptedServer};
+    use crate::{
+        error::Error,
+        sync::google::test::server::{ScriptedResponse, ScriptedServer},
+    };
 
     use super::{
-        ConsentOrganization, TURSO_CONSENT_SCOPES, TURSO_PLATFORM_KEYRING_ACCOUNT,
-        TURSO_PLATFORM_KEYRING_SERVICE, TursoConsent, TursoConsentStatus, TursoEndpoints,
-        read_organizations, test_platform_token,
+        TURSO_CONSENT_SCOPES, TURSO_PLATFORM_KEYRING_ACCOUNT, TURSO_PLATFORM_KEYRING_SERVICE,
+        TURSO_RESOURCE_INDICATOR, TursoConsent, TursoConsentStatus, TursoEndpoints, platform_token,
+        test_platform_token,
     };
 
     const ACCESS_TOKEN: &str = "the-platform-api-token";
+
+    /// **the nine scopes a real consent issued**, read off the `scopes` claim of a token
+    /// granted on 2026-08-30 against a request that asked for three. It is written out here
+    /// rather than in the module because it is a measurement rather than a setting, and
+    /// because a constant the module could read is a constant something in the module would
+    /// eventually read as its own authority.
+    const SCOPES_TURSO_GRANTS_WHATEVER_IS_ASKED: [&str; 9] = [
+        "db:configure",
+        "db:create",
+        "db:delete",
+        "db:mint-token",
+        "db:rotate-creds",
+        "group:configure",
+        "group:mint-token",
+        "group:rotate-creds",
+        "read",
+    ];
 
     fn forget_the_stored_token() {
         *test_platform_token()
@@ -897,17 +933,6 @@ mod tests {
         ScriptedResponse::new(
             200,
             json!({ "access_token": ACCESS_TOKEN, "expires_in": 3600 }).to_string(),
-        )
-    }
-
-    fn organizations_answer() -> ScriptedResponse {
-        ScriptedResponse::new(
-            200,
-            json!([
-                { "name": "personal", "slug": "saud-alnasser", "type": "personal" },
-                { "name": "Acme", "slug": "acme", "type": "team" },
-            ])
-            .to_string(),
         )
     }
 
@@ -1006,6 +1031,67 @@ mod tests {
         }
     }
 
+    /// **what is asked for is not what is held, and this is where that is written down.**
+    ///
+    /// Turso issued nine scopes against a request for three. Six arrived unasked, and two of
+    /// those six delete a database and rotate a group's credentials. A reader who came away
+    /// from the requested set believing it described this application's authority would be
+    /// wrong by exactly this margin.
+    #[test]
+    fn the_set_turso_grants_is_not_the_set_this_application_requests() {
+        let unasked = SCOPES_TURSO_GRANTS_WHATEVER_IS_ASKED
+            .into_iter()
+            .filter(|scope| !TURSO_CONSENT_SCOPES.contains(scope))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            unasked,
+            vec![
+                "db:configure",
+                "db:delete",
+                "db:rotate-creds",
+                "group:configure",
+                "group:mint-token",
+                "group:rotate-creds",
+            ],
+            "the measured grant stopped being wider than the request, which would be a change at turso rather than here"
+        );
+
+        for held in ["db:delete", "db:rotate-creds"] {
+            assert!(
+                !TURSO_CONSENT_SCOPES.contains(&held),
+                "{held} was requested, so the request and the grant are no longer telling two different stories"
+            );
+        }
+    }
+
+    /// **nothing may consult the requested set as though it were the granted one**, and the
+    /// way that is enforced is that nothing outside this module can see it. A caller deciding
+    /// what it is allowed to do from this list would be reading a request as a boundary,
+    /// which is the belief the nine-scope grant makes false.
+    #[test]
+    fn the_requested_scope_set_is_readable_nowhere_but_here() {
+        let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut named = Vec::new();
+
+        visit(&crate_root.join("src"), &mut |path, source| {
+            if source.contains("TURSO_CONSENT_SCOPES") {
+                named.push(
+                    path.strip_prefix(crate_root)
+                        .unwrap_or(path)
+                        .to_string_lossy()
+                        .replace('\\', "/"),
+                );
+            }
+        });
+
+        assert_eq!(
+            named,
+            vec!["src/sync/turso/consent.rs".to_string()],
+            "the requested scope set is read outside the module that asks for it"
+        );
+    }
+
     #[tokio::test]
     async fn the_registration_asks_turso_for_a_public_client_on_the_loopback_redirect() {
         let server = ScriptedServer::start(vec![registration_answer()]).await;
@@ -1085,18 +1171,42 @@ mod tests {
         );
     }
 
-    /// the whole flow on the wire: register, arrive on the loopback redirect, exchange, and
-    /// ask what the token reaches.
+    /// **without this parameter there is no consent screen to reach.**
+    ///
+    /// The authorize endpoint is an MCP one, and a request carrying the whole of RFC 6749 and
+    /// RFC 7636 and nothing else rendered *Invalid request. This authorization request is
+    /// missing required OAuth parameters* in a browser on 2026-08-30. The value is the one
+    /// `api.turso.tech/.well-known/oauth-protected-resource` publishes, and it is pinned by
+    /// value here so that a later edit has to go and read that document again.
     #[tokio::test]
-    async fn a_granted_consent_exchanges_the_code_and_reports_the_organizations_it_reaches() {
+    async fn the_authorization_url_carries_the_resource_turso_publishes() {
+        let server = ScriptedServer::start(vec![registration_answer()]).await;
+        let consent = TursoConsent::new();
+        let started = consent
+            .begin(TursoEndpoints::at(&server.url("")))
+            .await
+            .expect("failed to begin the consent");
+        let parameters = authorization_parameters(&started.authorization_url);
+
+        assert_eq!(TURSO_RESOURCE_INDICATOR, "https://mcp.turso.ai/mcp");
+        assert_eq!(
+            parameters.get("resource").map(String::as_str),
+            Some(TURSO_RESOURCE_INDICATOR),
+            "the authorization request carried no resource indicator: {parameters:?}"
+        );
+    }
+
+    /// the whole flow on the wire: register, arrive on the loopback redirect, and exchange.
+    ///
+    /// **Three requests until 2026-08-30 and two now.** The consent asked Turso which
+    /// organizations the token reached, and the answer was a 403: the token is scoped to one
+    /// group. Nothing is asked of the Platform API here any more, and the request count is
+    /// asserted so that a listing cannot come back without this test noticing.
+    #[tokio::test]
+    async fn a_granted_consent_exchanges_the_code_and_asks_turso_nothing_else() {
         forget_the_stored_token();
 
-        let server = ScriptedServer::start(vec![
-            registration_answer(),
-            token_answer(),
-            organizations_answer(),
-        ])
-        .await;
+        let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
         let consent = TursoConsent::new();
         let started = consent
             .begin(TursoEndpoints::at(&server.url("")))
@@ -1114,23 +1224,9 @@ mod tests {
         let exchanged = url::form_urlencoded::parse(exchange.body.as_bytes())
             .map(|(key, value)| (key.into_owned(), value.into_owned()))
             .collect::<HashMap<_, _>>();
-        let listing = server.request(2);
         let parameters = authorization_parameters(&started.authorization_url);
 
         assert_eq!(result.status, TursoConsentStatus::Granted);
-        assert_eq!(
-            result.organizations,
-            vec![
-                ConsentOrganization {
-                    slug: "saud-alnasser".to_string(),
-                    is_personal: true,
-                },
-                ConsentOrganization {
-                    slug: "acme".to_string(),
-                    is_personal: false,
-                },
-            ]
-        );
 
         assert_eq!(exchange.target, "/v1/oauth/token");
         assert_eq!(
@@ -1155,11 +1251,23 @@ mod tests {
             "a public client sent a secret it does not have: {exchanged:?}"
         );
 
-        assert_eq!(listing.method, "GET");
-        assert_eq!(listing.target, "/v1/organizations");
+        // **the grant carries the indicator too**, and it carries the same value: RFC 8707
+        // has the token endpoint check what is asked for against what was authorized.
         assert_eq!(
-            listing.header("authorization"),
-            Some(format!("Bearer {ACCESS_TOKEN}").as_str())
+            exchanged.get("resource").map(String::as_str),
+            Some(TURSO_RESOURCE_INDICATOR),
+            "the grant carried no resource indicator: {exchanged:?}"
+        );
+        assert_eq!(
+            exchanged.get("resource"),
+            parameters.get("resource"),
+            "the grant named a different resource than the authorization asked for"
+        );
+
+        assert_eq!(
+            server.request_count(),
+            2,
+            "the consent made a request beyond registering and exchanging, and the only one it ever made was the organizations listing that a group-scoped token is refused"
         );
     }
 
@@ -1168,12 +1276,7 @@ mod tests {
     async fn the_platform_token_reaches_the_keyring_and_nothing_the_caller_can_read() {
         forget_the_stored_token();
 
-        let server = ScriptedServer::start(vec![
-            registration_answer(),
-            token_answer(),
-            organizations_answer(),
-        ])
-        .await;
+        let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
         let consent = TursoConsent::new();
         let started = consent
             .begin(TursoEndpoints::at(&server.url("")))
@@ -1274,7 +1377,6 @@ mod tests {
 
         assert_eq!(result.status, TursoConsentStatus::Abandoned);
         assert_eq!(stored_token(), None);
-        assert!(result.organizations.is_empty());
     }
 
     #[tokio::test]
@@ -1387,18 +1489,17 @@ mod tests {
         );
     }
 
-    /// a listing that never arrives means the token was granted and nothing is known about
-    /// what it reaches, which is not a consent this application can act on. Nothing is filed.
+    /// **the token is given up here and nowhere else**, which is requirement 5's second half:
+    /// the token never expires, so somebody has to be able to end it.
+    ///
+    /// What is asserted after the disconnect is what the next run would find. The credential
+    /// store is empty, and the call a provisioning path makes refuses locally rather than
+    /// sending an empty bearer token to Turso and reporting whatever Turso said about it.
     #[tokio::test]
-    async fn a_listing_that_is_refused_leaves_nothing_in_the_keyring() {
+    async fn a_disconnect_forgets_the_token_and_leaves_no_authority_to_find() {
         forget_the_stored_token();
 
-        let server = ScriptedServer::start(vec![
-            registration_answer(),
-            token_answer(),
-            ScriptedResponse::new(401, "{}"),
-        ])
-        .await;
+        let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
         let consent = TursoConsent::new();
         let started = consent
             .begin(TursoEndpoints::at(&server.url("")))
@@ -1411,60 +1512,79 @@ mod tests {
         )
         .await;
 
-        let result = settled(&consent, &started.session_id).await;
+        assert_eq!(
+            settled(&consent, &started.session_id).await.status,
+            TursoConsentStatus::Granted
+        );
+        assert_eq!(stored_token().as_deref(), Some(ACCESS_TOKEN));
+        assert!(
+            platform_token().is_ok(),
+            "a granted consent left nothing for a provisioning call to spend"
+        );
 
-        assert_eq!(result.status, TursoConsentStatus::Failed);
+        consent.disconnect().expect("failed to disconnect");
+
+        assert_eq!(stored_token(), None, "the keyring entry outlived the disconnect");
+
+        let refusal = platform_token().expect_err("authority survived the disconnect");
+
+        assert!(
+            matches!(refusal, Error::NotConfigured { .. }),
+            "a machine holding no authority reported something other than having none: {refusal}"
+        );
+        assert!(
+            refusal.to_string().contains("no turso authority"),
+            "the refusal did not say what is missing: {refusal}"
+        );
+        assert_eq!(
+            server.request_count(),
+            2,
+            "the disconnect reached turso, which has no revocation endpoint to reach"
+        );
+    }
+
+    /// a session that reported `granted` is a live grant to anything still polling it, so it
+    /// goes with the token rather than outliving it.
+    #[tokio::test]
+    async fn a_disconnect_leaves_no_consent_a_later_read_could_take_for_a_grant() {
+        forget_the_stored_token();
+
+        let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
+        let consent = TursoConsent::new();
+        let started = consent
+            .begin(TursoEndpoints::at(&server.url("")))
+            .await
+            .expect("failed to begin the consent");
+
+        arrive_at_the_callback(
+            &started.authorization_url,
+            &[("code", "the-authorization-code"), ("state", "")],
+        )
+        .await;
+
+        settled(&consent, &started.session_id).await;
+        consent.disconnect().expect("failed to disconnect");
+
+        let error = consent
+            .result(&started.session_id)
+            .await
+            .expect_err("a disconnected consent still reported on itself");
+
+        assert!(matches!(error, Error::NotFound { .. }));
+    }
+
+    /// pressing it twice means the same thing both times, and a machine that never connected
+    /// is already in the state it asks for.
+    #[test]
+    fn disconnecting_what_was_never_connected_is_not_an_error() {
+        forget_the_stored_token();
+
+        let consent = TursoConsent::new();
+
+        consent.disconnect().expect("the first disconnect failed");
+        consent.disconnect().expect("the second disconnect failed");
+
         assert_eq!(stored_token(), None);
-    }
-
-    /// **which answer requirement 22 gets**, read off the field Turso's API documents for it.
-    #[test]
-    fn a_personal_account_is_told_apart_by_the_type_turso_reports() {
-        let organizations = read_organizations(
-            &json!([
-                { "slug": "a-person", "type": "personal" },
-                { "slug": "a-company", "type": "team" },
-            ])
-            .to_string(),
-        );
-
-        assert_eq!(
-            organizations,
-            vec![
-                ConsentOrganization {
-                    slug: "a-person".to_string(),
-                    is_personal: true,
-                },
-                ConsentOrganization {
-                    slug: "a-company".to_string(),
-                    is_personal: false,
-                },
-            ]
-        );
-    }
-
-    /// an account that reaches no organization at all is requirement 22's other answer, and
-    /// it is an empty listing rather than a failure.
-    #[test]
-    fn an_account_that_reaches_nothing_reports_nothing() {
-        assert!(read_organizations("[]").is_empty());
-        assert!(read_organizations("{\"organizations\": []}").is_empty());
-    }
-
-    /// no live answer has been read, so the listing is accepted either way it could arrive.
-    #[test]
-    fn a_listing_is_read_whether_or_not_it_is_wrapped() {
-        let wrapped = read_organizations(
-            &json!({ "organizations": [{ "slug": "a-company", "type": "team" }] }).to_string(),
-        );
-
-        assert_eq!(
-            wrapped,
-            vec![ConsentOrganization {
-                slug: "a-company".to_string(),
-                is_personal: false,
-            }]
-        );
     }
 
     /// every `.rs` file under `root`, for the source-level assertion above.

@@ -160,6 +160,7 @@ pub fn run() {
             sync::google_sign_out,
             sync::organization_consent_begin,
             sync::organization_consent_result,
+            sync::organization_disconnect,
             export::export_write,
             export::export_write_workbook,
             import::import_read,

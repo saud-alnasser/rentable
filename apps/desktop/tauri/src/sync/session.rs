@@ -498,6 +498,9 @@ impl RemoteSync {
             &redirect_uri,
             &code_verifier,
             &authorization_code,
+            // Google defines nothing on the grant itself. Its three parameters are the
+            // authorization request's and are sent there.
+            &[],
         );
         let tokens = request_google_tokens(&config.token_endpoint, &form, timestamp::now()).await?;
         let access_token = tokens.access_token.clone();

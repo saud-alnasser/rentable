@@ -50,9 +50,14 @@ and criterion 22.
 being replaced.
 
 `apps/desktop/tauri/src/sync/turso/consent.rs` from ticket 03 supplies
-`organization_consent_begin` and `organization_consent_result`, and the latter returns the
-organizations the token reaches with `is_personal` on each, which is the whole of what requirement
-22's choice needs.
+`organization_consent_begin` and `organization_consent_result`, and ticket 20 added
+`organization_disconnect` beside them. **The result carries no organizations.** It returned a list
+with `is_personal` on each until ticket 20 removed it, because a group-scoped token answers 403 at
+that endpoint, and the amended requirement 22 has no choice for it to inform: the organization is
+whichever holds the selected group. Ticket 21 is what puts the slug on that result.
+
+The disconnect copy exists in both locales and renders nowhere. This ticket owns the screens, so it
+is this ticket that gives it somewhere to appear.
 
 `apps/control-plane/src/workspace/migration.ts` shows how the control plane applies
 `@rentable/workspace-migrations` and mints a short-lived credential for it,

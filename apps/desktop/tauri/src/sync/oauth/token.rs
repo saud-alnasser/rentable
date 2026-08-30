@@ -44,12 +44,23 @@ pub(crate) struct OAuthTokenResponse {
 /// `redirect_uri` and `code_verifier` are replayed rather than re-derived:
 /// the authorization server checks both against what the authorization request
 /// carried.
+///
+/// `provider_parameters` are whatever the server being asked defines on top of
+/// RFC 6749 and RFC 7636, and they are the caller's for the reason
+/// [`build_authorization_url`]'s are: they are the one part of a grant that is
+/// not the protocol. RFC 8707's `resource` is the case that put this hook here.
+/// An authorization server that requires a resource indicator requires it on
+/// both requests, and a value baked in at this level would be one provider's
+/// audience sent to every other provider's token endpoint.
+///
+/// [`build_authorization_url`]: super::authorization::build_authorization_url
 pub(crate) fn authorization_code_form(
     client_id: &str,
     client_secret: Option<&str>,
     redirect_uri: &str,
     code_verifier: &str,
     code: &str,
+    provider_parameters: &[(&str, &str)],
 ) -> Vec<(String, String)> {
     let mut form = vec![
         ("client_id".to_string(), client_id.to_string()),
@@ -60,6 +71,10 @@ pub(crate) fn authorization_code_form(
     ];
 
     append_client_secret(&mut form, client_secret);
+
+    for (name, value) in provider_parameters {
+        form.push(((*name).to_string(), (*value).to_string()));
+    }
 
     form
 }
@@ -184,6 +199,7 @@ mod tests {
             "http://127.0.0.1:5173/callback",
             "the-verifier",
             "the-code",
+            &[],
         )
         .into_iter()
         .collect::<HashMap<_, _>>();
@@ -236,7 +252,7 @@ mod tests {
     #[test]
     fn a_grant_omits_the_client_secret_when_there_is_none_configured() {
         for form in [
-            authorization_code_form("client-id", None, "http://127.0.0.1/callback", "v", "c"),
+            authorization_code_form("client-id", None, "http://127.0.0.1/callback", "v", "c", &[]),
             refresh_token_form("client-id", None, "the-refresh-token"),
         ] {
             assert!(
@@ -244,6 +260,57 @@ mod tests {
                 "an unconfigured client secret still reached the request: {form:?}"
             );
         }
+    }
+
+    /// **the grant carries nothing a provider did not ask for**, which is what makes this
+    /// form usable by a second authorization server. A `resource` sent to Google would be
+    /// an audience Google has never defined.
+    #[test]
+    fn a_grant_that_asks_for_no_provider_parameters_carries_none() {
+        let names = authorization_code_form(
+            "client-id",
+            None,
+            "http://127.0.0.1:5173/callback",
+            "the-verifier",
+            "the-code",
+            &[],
+        )
+        .into_iter()
+        .map(|(key, _)| key)
+        .collect::<Vec<_>>();
+
+        assert_eq!(
+            names,
+            vec![
+                "client_id",
+                "redirect_uri",
+                "grant_type",
+                "code_verifier",
+                "code",
+            ],
+            "the neutral form grew a field nobody asked for"
+        );
+    }
+
+    /// RFC 8707's resource indicator is the case this hook exists for, and it rides on the
+    /// grant as well as on the authorization request.
+    #[test]
+    fn the_provider_parameters_a_caller_gives_reach_the_grant() {
+        let form = authorization_code_form(
+            "client-id",
+            None,
+            "http://127.0.0.1:5173/callback",
+            "the-verifier",
+            "the-code",
+            &[("resource", "https://mcp.example.test/mcp")],
+        )
+        .into_iter()
+        .collect::<HashMap<_, _>>();
+
+        assert_eq!(
+            form.get("resource").map(String::as_str),
+            Some("https://mcp.example.test/mcp")
+        );
     }
 
     #[test]

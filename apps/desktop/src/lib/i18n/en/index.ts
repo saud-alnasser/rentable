@@ -707,6 +707,16 @@ const en = {
 			'this workspace has been offline for three days. sign in with Google again to keep it in sync — nothing you recorded has been lost.'
 	},
 
+	organization: {
+		disconnectAction: 'disconnect turso account',
+		disconnectDescription:
+			'this machine holds a token for the turso account your organization lives on. disconnecting forgets it here, and nothing on this machine can reach that account afterwards.',
+		disconnectRevokes:
+			"forgetting the token does not revoke it. what you granted stays granted until you end it yourself, on turso's own dashboard at app.turso.tech.",
+		disconnectRevokesAt: 'app.turso.tech',
+		disconnected: 'this machine no longer holds a token for your turso account.'
+	},
+
 	workspace: {
 		groupIdentity: 'this workspace',
 		groupMembers: 'members',
