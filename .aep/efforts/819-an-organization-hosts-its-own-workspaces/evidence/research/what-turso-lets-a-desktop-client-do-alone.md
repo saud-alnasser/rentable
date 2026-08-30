@@ -137,7 +137,71 @@ million row reads per month. Clerk, read only to price the route being declined:
 users, 100 organizations, 20 members per organization, custom JWT templates, all on the
 free plan.
 
-# Conclusion
+**observation — the authorize endpoint validates nothing before authentication, so no
+unauthenticated probe can settle the redirect question.** Five `GET` requests to
+`https://app.turso.tech/oauth/mcp/authorize` on 2026-08-30, differing only in
+`redirect_uri`: `http://127.0.0.1:8976/callback`, `http://localhost:8976/callback`,
+`https://attacker.example/callback`, and `rentable://oauth/callback`. **All four answered
+identically** — `307` to `/login?redirect_url=<the whole request, re-encoded>`. A fifth
+carrying a client id that does not exist answered the same way, and so did a request with no
+query string at all.
+
+**interpretation — the endpoint is an authentication gate first and an authorization
+endpoint second.** It echoes whatever it was given into a login redirect without inspecting
+any of it. A hostile redirect being treated the same as a loopback one is therefore not
+evidence that the loopback is accepted; it is evidence that nothing has been checked yet.
+
+**conclusion — the assumption stands exactly where it stood, and the way to settle it is
+now known.** It needs a human signed into a real Turso account completing one consent, and
+it cannot be automated, delegated, or inferred from a probe. Recorded because the obvious
+next move is to keep probing the endpoint, and more probes will keep returning this same
+307.
+
+**observation — there is one authorization server, and it is the account's own rather than
+an MCP one.** `https://api.turso.tech/.well-known/oauth-authorization-server` answered 200
+with a document **byte-identical** to the one `https://mcp.turso.ai` serves, on 2026-08-30.
+
+**interpretation — the surface is less provisional than it looked.** The evidence above
+recorded it as "documented as an MCP integration rather than as a public one", which was
+read off the documentation. The metadata is published at the issuer's own well-known path,
+which is where RFC 8414 says an authorization server advertises itself to any client. That
+`mcp` appears in the authorize path is a fact about the URL Turso chose, not about who may
+call it.
+
+*This does not make the redirect question answered. It makes the client's position better
+if the answer is yes, and it removes one of the three grounds under the beta risk in the
+spec.*
+
+**source — a Turso organization holds members, with three roles.**
+`GET` and `POST /v1/organizations/{organizationSlug}/members`, from `openapi.json` read
+2026-08-30. The create body takes a `username` that must belong to "an existing Turso user"
+and a `role` of `admin`, `member`, or `viewer`, defaulting to `member`. The CLI
+mirrors it as `turso org members add <username> [--admin]`.
+
+**source — a group can be transferred to another organization, and its credentials survive.**
+`POST /v1/organizations/{org}/groups/{group}/transfer`, body `{"organization": "<slug>"}`.
+The documentation says transfers go only to "organizations you own or are an admin" of, and
+warns: "Existing database URL and tokens will continue to work, but should update your
+application to use the new URL and token as soon as possible."
+
+**conclusion — owner succession has two mechanisms and neither is ours to build.** A second
+admin on the customer's Turso organization can complete the consent, and a group carrying
+every rentable database can move to a different organization without reprovisioning a
+database, reissuing a credential, or resealing a vault. Both need the customer to have
+connected an organization rather than a personal Turso account, which is the whole of what
+requirement 22 turns on.
+
+**observation — Turso's pricing page names no organization tier, no seat, and no member
+charge.** Read 2026-08-30. The plan names on the page are Free, Developer, Scaler, Pro and
+Enterprise, and a search of the rendered text for organization, team, seat and invite
+returned only the site's own schema.org markup.
+
+**interpretation — the source is silent, not negative.** Whether creating a Turso
+organization requires a paid plan is unanswered by the page that would ordinarily answer it.
+It is recorded as unresolved rather than assumed either way, because requirement 22 was
+written to survive both answers and would have to be rewritten if either were assumed and
+wrong.
+
 
 **A desktop application can very probably obtain a customer's scoped Turso authority
 through a browser consent with nothing pasted, and once it has it, Turso enforces the scope
@@ -149,12 +213,18 @@ What it cannot do: mint a credential narrower than whole-database read-only, rev
 member without revoking all, or accept an identity provider other than Clerk or Auth0.
 
 The one thing standing between "very probably" and "yes" is whether the authorize endpoint
-honours a loopback redirect for a client that is not an MCP agent.
+honours a loopback redirect for a client that is not an MCP agent. **That question was
+attacked on 2026-08-30 and cannot be answered from outside**: the endpoint authenticates
+before it validates, and answers every malformed, hostile, and well-formed request with the
+same redirect to its login page. A human completing one consent against a real account is
+the only instrument that settles it.
 
 # Not checked
 
 - **The authorize step itself.** Completing it needs the human at a browser and consents
   against their real account. Not done, and it is the first thing a prototype should do.
+  **Probed from outside on 2026-08-30 and found unprobeable**; the findings above say why,
+  and the cost of learning it was five requests that created nothing.
 - **Whether the consent screen accepts a requested scope set** or always presents the full
   picker to the human. The metadata advertises no `scopes_supported`.
 - **Whether the token the consent mints can be refreshed.** `grant_types_supported` lists
@@ -169,3 +239,9 @@ honours a loopback redirect for a client that is not an MCP agent.
   about it and nothing was run.
 - **Turso's terms of service**, on whether an application driving this OAuth surface on a
   customer's behalf is permitted. Not a technical question and not looked at.
+- **Whether creating a Turso organization requires a paid plan.** The pricing page is silent
+  and no other source was read. It is an open question in the spec.
+- **Whether a group transfer moves the databases' data or only their ownership**, and what
+  the promised continuity of URLs and tokens costs in downtime. The warning implies the
+  credentials keep working and says to replace them anyway, which is two statements that fit
+  together only if the old ones expire on their own schedule. Nothing was run.
