@@ -103,6 +103,20 @@ hkdf = "0.13.0"
 # secret half to be held as bytes at all, which is what there is to seal; the default features
 # are kept for `zeroize`, which scrubs that half when it drops.
 x25519-dalek = { version = "3.0.0", features = ["static_secrets"] }
+# the one crypto dependency here that is not the vault's. `src/organization/authority.rs` is
+# where it is called, and that module is pure functions over bytes in the same way: no database,
+# no socket, no IPC boundary, and no idea what a password is.
+#
+# signing a row's authority fields, and the certificate that authorises the signer. Turso mints
+# whole-database credentials and nothing finer exists, so every member who can write the
+# organization database can write every row of it, and a signature is the only thing left that
+# can make `role`, `permissions` and `public_key` proof against their own reader. Ed25519 rather
+# than anything else because the curve arithmetic is already compiled here: x25519-dalek pulled
+# curve25519-dalek 5 in, this is the same family over the same field, and it adds an
+# implementation rather than a second one to review. Deterministic, so a checked-in signature is
+# a vector a dependency upgrade has to reproduce. The default features are kept for `zeroize`,
+# which scrubs a signing key when it drops, exactly as x25519-dalek's are.
+ed25519-dalek = "3.0.0"
 
 # the Drive transport is tested against a real HTTP server on loopback rather
 # than a mocked transport, so header construction, retry, and error mapping are
