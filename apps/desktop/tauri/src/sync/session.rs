@@ -1,7 +1,5 @@
 use std::{
     collections::HashMap,
-    io::{Read, Write},
-    net::TcpListener,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -10,10 +8,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{error::Error, timestamp};
 
-use super::google::auth::{
-    GoogleOAuthTokens, access_token_is_fresh, authorization_code_form, build_authorization_url,
-    google_oauth_client_id, parse_http_request_path, parse_query_map, pkce_challenge,
-    random_url_safe_token, refresh_token_form, request_google_tokens,
+use super::google::auth::{access_token_is_fresh, google_oauth_client_id, request_google_tokens};
+use super::oauth::{
+    authorization::build_authorization_url,
+    loopback::{LoopbackCallback, LoopbackWait},
+    pkce::{pkce_challenge, random_url_safe_token},
+    token::{OAuthTokens, authorization_code_form, refresh_token_form},
 };
 use super::store::{
     RemoteSync, RemoteSyncAccount, RemoteSyncAccountStatus, RemoteSyncState,
@@ -196,7 +196,7 @@ pub(super) struct GoogleSignInSession {
     /// What the code was redeemed for, held until the account it belongs to is
     /// known. The profile read that names that account needs an access token,
     /// so the redemption necessarily happens first.
-    pub(super) tokens: Option<GoogleOAuthTokens>,
+    pub(super) tokens: Option<OAuthTokens>,
 }
 
 impl GoogleSignInSession {
@@ -286,8 +286,12 @@ impl GoogleSignInSession {
 const SIGNED_OUT_MESSAGE: &str =
     "signed out of google. sign in again to keep this workspace syncing on this machine";
 
-const GOOGLE_SIGN_IN_POLL_INTERVAL: Duration = Duration::from_millis(200);
 const GOOGLE_SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
+/// The path Google is registered to redirect to. It is here rather than in the loopback
+/// listener because it is part of the OAuth client's registration, which is Google's side of
+/// this and not the protocol's.
+const GOOGLE_SIGN_IN_CALLBACK_PATH: &str = "/callback";
 
 impl RemoteSync {
     pub fn begin_google_sign_in(&mut self) -> Result<GoogleSignInSessionStart, Error> {
@@ -300,11 +304,10 @@ impl RemoteSync {
         let expected_state = random_url_safe_token()?;
         let code_verifier = random_url_safe_token()?;
 
-        let listener = TcpListener::bind("127.0.0.1:0")?;
-        let port = listener.local_addr()?.port();
+        let callback = LoopbackCallback::bind(GOOGLE_SIGN_IN_CALLBACK_PATH)?;
 
         let session_id = format!("google-sign-in-{}", timestamp::now());
-        let redirect_uri = format!("http://127.0.0.1:{port}/callback");
+        let redirect_uri = callback.redirect_uri().to_string();
         let authorization_url = build_authorization_url(
             &self.google_oauth_config(),
             &client_id,
@@ -339,7 +342,7 @@ impl RemoteSync {
 
         std::thread::spawn(move || {
             let Err(error) =
-                handle_google_sign_in_callback(listener, sessions.clone(), &session_id_for_thread)
+                handle_google_sign_in_callback(callback, sessions.clone(), &session_id_for_thread)
             else {
                 return;
             };
@@ -861,54 +864,43 @@ impl RemoteSync {
 }
 
 fn handle_google_sign_in_callback(
-    listener: TcpListener,
+    callback: LoopbackCallback,
     auth_sessions: Arc<Mutex<HashMap<String, GoogleSignInSession>>>,
     session_id: &str,
 ) -> Result<(), Error> {
-    listener.set_nonblocking(true)?;
-
     let started_at = std::time::Instant::now();
-    let (mut stream, _) = loop {
-        match listener.accept() {
-            Ok(connection) => break connection,
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                let status = {
-                    let sessions = auth_sessions
-                        .lock()
-                        .map_err(|_| oauth_sessions_poisoned())?;
 
-                    sessions
-                        .get(session_id)
-                        .map(|session| session.status.clone())
-                };
+    // the five minutes are this sign-in's patience rather than the listener's, and so is the
+    // code the surface reads back off a timeout, so both are decided here and the wait only
+    // asks whether to carry on.
+    let waited = callback.accept(|| {
+        let status = {
+            let sessions = auth_sessions
+                .lock()
+                .map_err(|_| oauth_sessions_poisoned())?;
 
-                match status {
-                    Some(GoogleSignInSessionStatus::Pending) => {
-                        if started_at.elapsed() >= GOOGLE_SIGN_IN_TIMEOUT {
-                            return Err(Error::TimedOut {
-                                message: "GOOGLE_SIGN_IN_TIMED_OUT".to_string(),
-                            });
-                        }
+            sessions
+                .get(session_id)
+                .map(|session| session.status.clone())
+        };
 
-                        std::thread::sleep(GOOGLE_SIGN_IN_POLL_INTERVAL);
-                    }
-                    Some(_) | None => return Ok(()),
+        match status {
+            Some(GoogleSignInSessionStatus::Pending) => {
+                if started_at.elapsed() >= GOOGLE_SIGN_IN_TIMEOUT {
+                    return Err(Error::TimedOut {
+                        message: "GOOGLE_SIGN_IN_TIMED_OUT".to_string(),
+                    });
                 }
+
+                Ok(LoopbackWait::Continue)
             }
-            Err(error) => return Err(error.into()),
+            Some(_) | None => Ok(LoopbackWait::Abandon),
         }
-    };
-
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
-    let _ = stream.set_write_timeout(Some(Duration::from_secs(30)));
-
-    let mut buffer = [0_u8; 16 * 1024];
-    let count = stream.read(&mut buffer)?;
-    let request = String::from_utf8_lossy(&buffer[..count]).to_string();
-    let path = parse_http_request_path(&request).ok_or_else(|| Error::InvalidInput {
-        message: "failed to parse oauth callback request".to_string(),
     })?;
-    let query = parse_query_map(path);
+
+    let Some(request) = waited else {
+        return Ok(());
+    };
 
     let html_message = {
         let mut sessions = auth_sessions
@@ -919,7 +911,7 @@ fn handle_google_sign_in_callback(
             .get_mut(session_id)
             .ok_or_else(oauth_session_not_found)?;
 
-        let outcome = session.read_callback(&query);
+        let outcome = session.read_callback(request.query());
         let proposed = outcome.callback_page_message();
 
         if session.settle(outcome) {
@@ -932,18 +924,7 @@ fn handle_google_sign_in_callback(
         }
     };
 
-    let body = format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Rentable</title></head><body style=\"font-family: system-ui, sans-serif; padding: 32px;\"><h2>Rentable</h2><p>{html_message}</p></body></html>"
-    );
-    let response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        body.len(),
-        body
-    );
-
-    stream.write_all(response.as_bytes())?;
-
-    Ok(())
+    request.respond(&html_message)
 }
 
 /// the oauth sessions map is only ever held for a field read or write, so a
@@ -975,7 +956,7 @@ mod tests {
         error::Error,
         persisted::Persisted,
         settings::Settings,
-        sync::{RemoteSync, google::auth::GoogleOAuthTokens, store::RemoteSyncAccountStatus},
+        sync::{RemoteSync, oauth::token::OAuthTokens, store::RemoteSyncAccountStatus},
     };
 
     fn unique_dir(name: &str) -> PathBuf {
@@ -1021,7 +1002,7 @@ mod tests {
 
         let mut redeemed = pending_sign_in_session();
         redeemed.status = GoogleSignInSessionStatus::Completed;
-        redeemed.tokens = Some(GoogleOAuthTokens {
+        redeemed.tokens = Some(OAuthTokens {
             access_token: "access-token".to_string(),
             refresh_token: Some("refresh-token".to_string()),
             expires_at: Some(crate::timestamp::now() + 10 * 60_000),
@@ -1377,7 +1358,7 @@ mod tests {
         let mut session = pending_sign_in_session();
         session.status = GoogleSignInSessionStatus::Completed;
         session.authorization_code = Some("the-code".to_string());
-        session.tokens = Some(GoogleOAuthTokens {
+        session.tokens = Some(OAuthTokens {
             access_token: "the-access-token".to_string(),
             refresh_token: Some("the-refresh-token".to_string()),
             expires_at: Some(999),

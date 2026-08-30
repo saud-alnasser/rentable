@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # refactor(sync): the OAuth core stops being Google's
@@ -17,20 +17,25 @@ Traces requirement 3 of [[efforts/819-an-organization-hosts-its-own-workspaces/s
 none of requirement 3 itself; it is what ticket 03 needs in order to build it without writing a
 second copy of a PKCE implementation.
 
-- [ ] `sync/oauth/` holds the parts that name no provider: `random_url_safe_token`,
+- [x] `sync/oauth/` holds the parts that name no provider: `random_url_safe_token`,
       `pkce_challenge`, `build_authorization_url`, `authorization_code_form`,
       `parse_token_response`, `parse_http_request_path`, `parse_query_map`, and the loopback
       listener `sync/session.rs::begin_google_sign_in` builds inline today.
-- [ ] The loopback listener is a function that takes the callback path and returns the bound port
+      *Verified: all eight live under `sync/oauth/` in `pkce.rs`, `authorization.rs`, `token.rs` and `loopback.rs`. Only test fixtures and doc comments there name Google, which criterion 4 requires, since a moved test is not rewritten.*
+- [x] The loopback listener is a function that takes the callback path and returns the bound port
       and the parsed query, rather than a block inside a Google-named function. It is the piece
       ticket 03 cannot re-derive, and leaving it inline is what would force a second copy.
-- [ ] What stays in `sync/google/` is what is Google's: the endpoint URLs, the client id and
+      *Verified: `LoopbackCallback::bind(path)` returns the bound redirect and `accept` returns the parsed query. `session.rs` imports neither `TcpListener` nor `std::io` any more. It is two calls rather than one because the port must be known before the browser opens and the query only exists afterwards.*
+- [x] What stays in `sync/google/` is what is Google's: the endpoint URLs, the client id and
       secret, the scope strings, and the shape of Google's own token response.
-- [ ] **No behaviour changes and it is demonstrated rather than asserted.** Every existing test
+      *Verified: `sync/google/auth.rs` keeps both endpoints, the three scope constants, the client id and secret reads, and `rentable.google-drive`. It went from 941 lines to 351.*
+- [x] **No behaviour changes and it is demonstrated rather than asserted.** Every existing test
       over `sync/google/auth.rs` passes with its assertions untouched, and where a test moves it
       moves without being rewritten. A test whose expectations had to change means this was not a
       refactor.
-- [ ] `cargo test`, `cargo clippy` and the repository's gates pass.
+      *Verified: 105 assertion lines before the move and 105 after, byte-identical when sorted, over 34 tests before and 34 after. Two error strings lose the word google, which nothing asserts and which no provider-neutral function can keep; it is named in the commit and carried to the close.*
+- [x] `cargo test`, `cargo clippy` and the repository's gates pass.
+      *Verified: `cargo test` 155 passed, 0 failed, 4 ignored. `cargo fmt --check` clean. `cargo clippy --all-targets` 5 warnings, every one pre-existing and none in the moved code. `pnpm check`, `pnpm exec eslint .` and `pnpm test` (4 of 4) pass. `188 artifacts checked, no failures`.*
 
 ## Relevant areas
 
