@@ -40,7 +40,7 @@ serde_json = { version = "1.0.151" }
 # than as a webview library — see the effort's evidence, `where-the-spreadsheet-format-belongs`:
 # the best-covered npm package has no patched release on the registry, and the reader the
 # import direction needs is materially stronger here than anything on that side.
-rust_xlsxwriter = { version = "0.98.2" }
+rust_xlsxwriter = { version = "0.99.0" }
 # reading the same format back. The pair was chosen together in the effort's evidence,
 # `where-the-spreadsheet-format-belongs` — reading is the heavier half and this is the
 # strongest artifact in that comparison.
