@@ -21,6 +21,8 @@ use super::{
     turso::discovery::TursoOrganization,
 };
 
+use crate::organization::JoinedOrganization;
+
 pub struct RemoteSync {
     pub(super) settings: Arc<RwLock<Persisted<Settings>>>,
     pub(super) store: Persisted<RemoteSyncStore>,
@@ -206,6 +208,16 @@ pub struct RemoteSyncStore {
     ///
     /// Absent on every machine that has not granted a Turso consent, which today is all of them.
     pub turso_organization: Option<TursoOrganization>,
+    /// the organizations this machine has joined, which is what the sign-in screen lists
+    /// (requirement 17) and what tells sign-in which member row is this person's before a
+    /// password is typed.
+    ///
+    /// **Facts about this machine, in the clear, and none of them a credential.** The name is
+    /// the one the person typed or was shown; the verifying key is the one their join link pinned,
+    /// held here so that every later verification uses it and never one read out of the database
+    /// it judges; the remote is where the replica syncs. What opens anything is the password, and
+    /// it is nowhere.
+    pub organizations: Vec<JoinedOrganization>,
 }
 
 /// one workspace replica on this machine, and the account whose membership keeps it.
@@ -255,6 +267,7 @@ impl Default for RemoteSyncStore {
             control_plane_session: None,
             replicas: Vec::new(),
             turso_organization: None,
+            organizations: Vec::new(),
         }
     }
 }
@@ -316,6 +329,15 @@ impl Persistable for RemoteSyncStore {
         // application builds would carry the hole into a URL.
         self.turso_organization
             .take_if(|organization| organization.slug.trim().is_empty());
+
+        // an organization with no id, no key or no remote cannot be signed in to, and a row
+        // saying otherwise would be listed on the sign-in screen as a place nobody can go.
+        self.organizations.retain(|organization| {
+            !organization.id.trim().is_empty()
+                && !organization.verifying_key.trim().is_empty()
+                && !organization.remote_url.trim().is_empty()
+                && !organization.member_id.trim().is_empty()
+        });
     }
 }
 
@@ -344,6 +366,12 @@ impl RemoteSync {
 
     pub fn workspace(&self) -> RemoteSyncWorkspace {
         self.store.workspace.clone()
+    }
+
+    /// The machine's own record, for the organization work that reads and writes what this
+    /// machine has joined and which Turso organization its consent is over.
+    pub fn store_mut(&mut self) -> &mut Persisted<RemoteSyncStore> {
+        &mut self.store
     }
 
     /// who this machine is signed in as, or nobody.

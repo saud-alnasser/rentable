@@ -21,9 +21,21 @@ import type { StartupSnapshot } from './startup';
 export type ShellSurface = 'loading' | 'sign-in' | 'recovery' | 'error' | 'route';
 
 /**
+ * Where an organization is created: the first run's own address.
+ *
+ * Reached from the sign-in card, and it opens with nobody signed in because it is how a person
+ * comes to be somebody here: an organization has no members until the walk on this address has
+ * made its owner. Every procedure behind it is public and reaches no database, which is the test
+ * `/settings` passed to be the first.
+ */
+export const THE_FIRST_RUN = '/organization/new';
+
+/**
  * The addresses that draw with nobody signed in.
  *
- * **One, and it stays one.** Criterion 7 of [[efforts/capabilities-only-one-surface-got]] settled
+ * **One, and it stays one**, said 2026-08-21, and it is two since 2026-09-11 for the reason the
+ * constant above gives; the first run is the one address that cannot be behind the wall it
+ * exists to get a person past. What follows is otherwise unchanged. Criterion 7 of [[efforts/capabilities-only-one-surface-got]] settled
  * that the four destinations, the search, the workspace control and the shortcut sheet go on
  * refusing, and this does not reopen it: those refuse in the frame and the rail, on the shell
  * state, and none of them consults an address. What is different about settings is that every
@@ -33,7 +45,7 @@ export type ShellSurface = 'loading' | 'sign-in' | 'recovery' | 'error' | 'route
  * The language control is the reason it is this page and not another: it is the setting somebody
  * is most likely to want before they can read anything else on the way in.
  */
-const OPENS_SIGNED_OUT: readonly string[] = ['/settings'];
+const OPENS_SIGNED_OUT: readonly string[] = ['/settings', THE_FIRST_RUN];
 
 /**
  * Where the rail's way in sends a reader.
@@ -54,8 +66,8 @@ export const THE_WAY_IN = '/';
 /**
  * Whether this address draws while the shell is waiting for somebody to sign in.
  *
- * Exact rather than prefixed: nothing nests under `/settings`, and a prefix would silently admit
- * anything that ever did.
+ * Exact rather than prefixed: nothing nests under either address, and a prefix would silently
+ * admit anything that ever did.
  */
 export function opensSignedOut(pathname: string) {
 	return OPENS_SIGNED_OUT.includes(pathname);

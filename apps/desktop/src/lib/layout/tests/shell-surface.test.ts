@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { opensSignedOut, shellSurface, THE_WAY_IN, wayInFrom } from '$lib/layout/shell-surface.ts';
+import {
+	opensSignedOut,
+	shellSurface,
+	THE_FIRST_RUN,
+	THE_WAY_IN,
+	wayInFrom
+} from '$lib/layout/shell-surface.ts';
 import { fakeRecovery, harness, signedOut } from './testing.ts';
 
 /**
@@ -167,4 +173,19 @@ test('the address matches exactly, so nothing that merely starts with it is admi
 	assert.equal(opensSignedOut('/settings/anything'), false);
 	assert.equal(opensSignedOut('/settingsomething'), false);
 	assert.equal(opensSignedOut('/'), false);
+});
+
+// the first run is the one address that cannot be behind the wall it exists to get a person
+// past: an organization has no members until the walk there has made its owner.
+test('the first run opens signed out, and draws as a route rather than the card', async () => {
+	assert.equal(opensSignedOut(THE_FIRST_RUN), true);
+	assert.equal(opensSignedOut(`${THE_FIRST_RUN}/anything`), false);
+
+	const { startup } = harness({ remoteSync: signedOut() });
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(shellSurface(startup.snapshot, THE_FIRST_RUN), 'route');
+	assert.equal(wayInFrom(THE_FIRST_RUN), THE_WAY_IN);
 });

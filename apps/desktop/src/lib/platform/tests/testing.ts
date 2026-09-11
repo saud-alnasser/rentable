@@ -139,6 +139,12 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			get: async () => settings,
 			set: async () => settings
 		},
+		organization: {
+			consentBegin: refuse('organization.consentBegin'),
+			consentResult: refuse('organization.consentResult'),
+			disconnect: refuse('organization.disconnect'),
+			create: refuse('organization.create')
+		},
 		remoteSync: {
 			getState: refuse('remoteSync.getState'),
 			renewSession: refuse('remoteSync.renewSession'),

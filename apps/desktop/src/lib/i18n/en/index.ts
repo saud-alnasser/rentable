@@ -370,6 +370,7 @@ const en = {
 		},
 
 		signIn: {
+			setUpOrganization: 'set up an organization instead',
 			authorizing: 'finish signing in with Google in the browser window that just opened.',
 			signInWithGoogle: 'sign in with Google',
 			description:
@@ -708,6 +709,46 @@ const en = {
 	},
 
 	organization: {
+		setup: {
+			setupTitle: 'set up an organization',
+			setupDescription:
+				'rentable runs on a turso account you own. your records live there, and nowhere of ours.',
+			connectTitle: 'connect your turso account',
+			connectDescription: 'one consent in the browser, and nothing is pasted or typed here.',
+			groupPreparation:
+				"first, in turso's own dashboard, create an empty group for rentable and pick it on the consent screen. the consent grants rentable authority over that one group, so an empty one keeps that authority to the databases rentable creates.",
+			accountCreation: 'no turso account yet? the consent screen is where you make one.',
+			succession:
+				'the organization will live in whichever turso organization holds the group you pick. if that is a personal account, only you can grant rentable authority over it again. a second administrator on a turso organization can do the same, and turso can move a group to another organization from its own dashboard. rentable does neither for you.',
+			openDashboard: 'open turso dashboard',
+			connect: 'connect turso account',
+			connecting: 'finish the consent in the browser window that just opened.',
+			connected: 'turso account connected.',
+			consentAbandoned: 'the consent was not granted. nothing was created.',
+			consentFailed: 'turso refused the consent.',
+			nameTitle: 'name it',
+			nameDescription:
+				"the organization's name, and the password that unlocks your place in it. nothing else is typed here.",
+			nameLabel: 'organization name',
+			nameRequired: 'give the organization a name.',
+			nameTooLong: 'that name is too long.',
+			passwordLabel: 'your password',
+			passwordFloor:
+				'use at least 12 characters. there is no server to slow a guess down, so the password is the only thing between anybody holding the records and reading them.',
+			passwordTooShort: 'use at least 12 characters.',
+			create: 'create organization',
+			creating: 'creating the organization on your turso account...',
+			doneTitle: 'your organization is ready',
+			doneDescription:
+				'hand this link to the people you invite. it finds the organization and nothing more; each invitation and password are separate.',
+			linkLabel: 'join link',
+			copyLink: 'copy link',
+			linkCopied: 'link copied.',
+			notYetSent:
+				'the organization is on this machine and will reach turso when the connection returns. the link works once it has.',
+			continue: 'continue',
+			back: 'back'
+		},
 		disconnectAction: 'disconnect turso account',
 		disconnectDescription:
 			'this machine holds a token for the turso account your organization lives on. disconnecting forgets it here, and nothing on this machine can reach that account afterwards.',

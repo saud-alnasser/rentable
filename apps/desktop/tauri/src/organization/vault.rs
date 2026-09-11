@@ -91,6 +91,9 @@ const INVITATION_DOMAIN: &[u8] = b"rentable.organization.vault.invitation.v1";
 /// Prefixes the associated data of every column sealed under the content key.
 const CONTENT_DOMAIN: &[u8] = b"rentable.organization.vault.content.v1";
 
+/// Prefixes the info of every seed derived from a member's secret.
+const SEED_DOMAIN: &[u8] = b"rentable.organization.vault.seed.v1";
+
 /// The Argon2id cost one vault was sealed under.
 ///
 /// **This is data the caller supplies and this module carries beside the
@@ -232,6 +235,33 @@ impl MemberSecretKey {
     pub fn public_key(&self) -> [u8; PUBLIC_KEY_BYTES] {
         PublicKey::from(&self.0).to_bytes()
     }
+
+    /// A key seed that follows from this secret and from `purpose`, and from
+    /// nothing stored anywhere.
+    ///
+    /// **This is where a member's signing keys come from.** An administrator's
+    /// signing key, and the owner's organization key, are derived from the one
+    /// secret their password opens rather than kept in a column or a keyring:
+    /// a password change re-seals the same secret, so the keys survive it; a new
+    /// machine opens the same vault, so they arrive there with the member; and a
+    /// reset replaces the secret, so they are replaced with it, which is when the
+    /// certificates over them are reissued. Nothing sits in the database it
+    /// protects and nothing sits on one machine, which are the two homes the
+    /// alternatives had and the two requirements they each failed.
+    ///
+    /// HKDF-SHA256 over the secret's bytes with `purpose` as the info, so two
+    /// purposes yield two unrelated seeds and neither says anything about the
+    /// agreement key it was drawn from.
+    pub fn derive_seed(&self, purpose: &str) -> Result<[u8; SECRET_KEY_BYTES], Error> {
+        let mut seed = [0_u8; SECRET_KEY_BYTES];
+        let mut info = SEED_DOMAIN.to_vec();
+        info.push(b'.');
+        info.extend_from_slice(purpose.as_bytes());
+
+        expand(None, self.0.as_bytes(), &info, &mut seed)?;
+
+        Ok(seed)
+    }
 }
 
 /// What a member's row carries: the public half of their keypair, the secret half
@@ -297,9 +327,22 @@ pub fn derive_member_key(
 /// Builds a member a fresh vault: a new keypair, a new salt, and the secret half
 /// sealed under the password at the cost the caller asked for.
 pub fn create_vault(password: &str, kdf_params: KdfParams) -> Result<Vault, Error> {
-    let secret_key = MemberSecretKey(StaticSecret::from(random_bytes::<SECRET_KEY_BYTES>()?));
+    create_vault_with_secret(password, kdf_params).map(|(vault, _)| vault)
+}
 
-    reseal_vault(&secret_key, password, kdf_params)
+/// [`create_vault`], keeping the secret key in hand.
+///
+/// For the caller that has just made a member and has keys to derive from their
+/// secret before it is ever sealed: opening the vault again would cost a second
+/// derivation for a value this function already holds.
+pub fn create_vault_with_secret(
+    password: &str,
+    kdf_params: KdfParams,
+) -> Result<(Vault, MemberSecretKey), Error> {
+    let secret_key = MemberSecretKey(StaticSecret::from(random_bytes::<SECRET_KEY_BYTES>()?));
+    let vault = reseal_vault(&secret_key, password, kdf_params)?;
+
+    Ok((vault, secret_key))
 }
 
 /// Opens a vault with a password, yielding the secret key it was sealing.
@@ -860,6 +903,41 @@ mod tests {
         assert_eq!(
             open_invitation(&link_secret, "a generated password", &sealed).expect("failed to open"),
             payload
+        );
+    }
+
+    // seeds derived from a member's secret
+
+    #[test]
+    fn a_seed_follows_from_the_secret_and_the_purpose_and_survives_a_password_change() {
+        let (vault, secret) =
+            create_vault_with_secret("a password", test_cost()).expect("failed to create");
+        let reopened = open_vault("a password", &vault).expect("failed to open");
+        let resealed =
+            reseal_vault(&secret, "a new password", test_cost()).expect("failed to reseal");
+        let after_change = open_vault("a new password", &resealed).expect("failed to open");
+
+        let organization = secret.derive_seed("organization-key").expect("a seed");
+
+        assert_eq!(
+            reopened.derive_seed("organization-key").expect("a seed"),
+            organization
+        );
+        assert_eq!(
+            after_change
+                .derive_seed("organization-key")
+                .expect("a seed"),
+            organization
+        );
+        assert_ne!(
+            secret.derive_seed("administrator-key").expect("a seed"),
+            organization
+        );
+
+        let (_, other) = create_vault_with_secret("a password", test_cost()).expect("failed");
+        assert_ne!(
+            other.derive_seed("organization-key").expect("a seed"),
+            organization
         );
     }
 

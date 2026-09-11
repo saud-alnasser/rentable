@@ -185,6 +185,44 @@ pub trait TursoPlatform {
         name: &str,
         intent: DeletionIntent,
     ) -> impl Future<Output = Result<(), PlatformError>> + Send;
+
+    /// Turn delete protection on for a database this port did not create.
+    ///
+    /// One caller: the first run into an empty group, where the organization's database is
+    /// created through the MCP server because no slug exists yet for this port to create it with
+    /// (`discovery.rs`). Everything this port creates itself is protected inside the create.
+    fn protect_database(
+        &self,
+        name: &str,
+    ) -> impl Future<Output = Result<(), PlatformError>> + Send;
+}
+
+/// A shared port is a port: a caller that is handed the platform by a factory can keep a handle on
+/// the same one, which is what lets a test read back what an in-memory platform was asked.
+impl<T: TursoPlatform + Sync + Send> TursoPlatform for std::sync::Arc<T> {
+    async fn create_database(&self, name: &str) -> Result<WorkspaceDatabase, PlatformError> {
+        (**self).create_database(name).await
+    }
+
+    async fn mint_token(
+        &self,
+        database_name: &str,
+        expiration: &str,
+    ) -> Result<String, PlatformError> {
+        (**self).mint_token(database_name, expiration).await
+    }
+
+    async fn delete_database(
+        &self,
+        name: &str,
+        intent: DeletionIntent,
+    ) -> Result<(), PlatformError> {
+        (**self).delete_database(name, intent).await
+    }
+
+    async fn protect_database(&self, name: &str) -> Result<(), PlatformError> {
+        (**self).protect_database(name).await
+    }
 }
 
 /// Where the Platform API lives. A value rather than the constant so the whole client can be pointed
@@ -379,6 +417,20 @@ impl TursoPlatform for PlatformApi {
             })
     }
 
+    async fn protect_database(&self, name: &str) -> Result<(), PlatformError> {
+        let client = client()?;
+        let platform_token = authority()?;
+
+        self.set_delete_protection(
+            &client,
+            &platform_token,
+            name,
+            true,
+            "protect the workspace database",
+        )
+        .await
+    }
+
     async fn delete_database(
         &self,
         name: &str,
@@ -518,6 +570,9 @@ struct InMemoryState {
     minted: Vec<(String, String)>,
     deleted: Vec<(String, DeletionIntent)>,
     refuse_next: Option<PlatformError>,
+    /// how many operations have been asked, so a refusal can be placed on the nth.
+    asked: usize,
+    refuse_at: Option<(usize, PlatformError)>,
 }
 
 #[cfg(test)]
@@ -536,9 +591,25 @@ impl InMemoryPlatform {
         }
     }
 
+    /// A database that exists on the account already, unprotected, as the MCP first-create leaves
+    /// one, so a caller's protect-after-create is testable.
+    pub(crate) fn holding_unprotected(&self, name: &str) {
+        self.locked().databases.push(InMemoryDatabase {
+            name: name.to_string(),
+            delete_protection: false,
+        });
+    }
+
     /// the next operation fails with `error`, and the one after it is answered normally.
     pub(crate) fn refuse_next(&self, error: PlatformError) {
         self.locked().refuse_next = Some(error);
+    }
+
+    /// the `nth` operation asked of this fake, counting from one, fails with `error`. For a
+    /// caller whose sequence is fixed and whose handling of a failure part-way through is what is
+    /// under test.
+    pub(crate) fn refuse_nth(&self, nth: usize, error: PlatformError) {
+        self.locked().refuse_at = Some((nth, error));
     }
 
     pub(crate) fn databases(&self) -> Vec<InMemoryDatabase> {
@@ -561,6 +632,15 @@ impl InMemoryPlatform {
     }
 
     fn take_refusal(state: &mut InMemoryState) -> Result<(), PlatformError> {
+        state.asked += 1;
+
+        if let Some((nth, _)) = &state.refuse_at
+            && *nth == state.asked
+            && let Some((_, error)) = state.refuse_at.take()
+        {
+            return Err(error);
+        }
+
         match state.refuse_next.take() {
             Some(error) => Err(error),
             None => Ok(()),
@@ -614,6 +694,30 @@ impl TursoPlatform for InMemoryPlatform {
             .push((database_name.to_string(), expiration.to_string()));
 
         Ok(format!("token-for-{database_name}-{expiration}"))
+    }
+
+    /// **A name this fake has never seen is taken as a database the MCP server created**, which
+    /// is the one way a database arrives on the account without passing through this port, and
+    /// the only caller of `protect_database`. Turso would refuse a name that does not exist; the
+    /// fake cannot tell that case from the MCP one, and the scripted MCP server in the same test
+    /// is what pins the create.
+    async fn protect_database(&self, name: &str) -> Result<(), PlatformError> {
+        let mut state = self.locked();
+        Self::take_refusal(&mut state)?;
+
+        match state
+            .databases
+            .iter_mut()
+            .find(|database| database.name == name)
+        {
+            Some(database) => database.delete_protection = true,
+            None => state.databases.push(InMemoryDatabase {
+                name: name.to_string(),
+                delete_protection: true,
+            }),
+        }
+
+        Ok(())
     }
 
     async fn delete_database(
@@ -873,6 +977,31 @@ mod tests {
         assert_eq!(remove.target, "/v1/organizations/an-org/databases/ws-1");
         assert_eq!(server.request_count(), 2);
         assert_never_lists_organizations(&server);
+    }
+
+    /// The one operation for a database this port did not create: the organization's own, made
+    /// through the MCP server on a first run into an empty group.
+    #[tokio::test]
+    async fn protecting_a_database_this_port_did_not_create_is_the_same_patch() {
+        let (platform, server) = platform_answering(vec![configured(true)]).await;
+
+        platform
+            .protect_database("org-7f3a")
+            .await
+            .expect("the protect failed");
+
+        let protect = server.request(0);
+
+        assert_eq!(protect.method, "PATCH");
+        assert_eq!(
+            protect.target,
+            "/v1/organizations/an-org/databases/org-7f3a/configuration"
+        );
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&protect.body).expect("a json body"),
+            json!({ "delete_protection": true })
+        );
+        assert_eq!(server.request_count(), 1);
     }
 
     // Turso's own message names a database and sometimes an organization. The caller is asking
@@ -1145,12 +1274,26 @@ mod tests {
         ));
         assert_eq!(platform.minted().len(), 1, "a refused mint minted nothing");
 
+        platform.holding_unprotected("org-1");
+        assert!(!platform.databases()[1].delete_protection);
+        platform
+            .protect_database("org-1")
+            .await
+            .expect("the protect failed");
+        assert!(platform.databases()[1].delete_protection);
+        // a name never seen is the MCP server's database arriving, and it arrives protected.
+        platform
+            .protect_database("org-9")
+            .await
+            .expect("an unseen database was refused");
+        assert!(platform.databases()[2].delete_protection);
+
         platform
             .delete_database("ws-1", DeletionIntent::WorkspaceDeletedByHuman)
             .await
             .expect("the delete failed");
 
-        assert!(platform.databases().is_empty());
+        assert_eq!(platform.databases().len(), 2);
         assert_eq!(
             platform.deleted(),
             vec![("ws-1".to_string(), DeletionIntent::WorkspaceDeletedByHuman)]

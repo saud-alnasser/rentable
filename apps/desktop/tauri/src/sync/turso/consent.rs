@@ -1379,6 +1379,45 @@ mod tests {
         assert_eq!(stored_token(), None);
     }
 
+    /// **A consent the person abandons leaves no half-created organization.** The first run spends
+    /// the authority the consent filed, and an abandoned one filed none, so the first run refuses
+    /// before it asks anything of Turso: no database, no replica, no organization on this machine.
+    #[tokio::test]
+    async fn an_abandoned_consent_leaves_a_first_run_nothing_to_spend_and_nothing_is_created() {
+        forget_the_stored_token();
+
+        let server = ScriptedServer::start(vec![registration_answer()]).await;
+        let consent = TursoConsent::new();
+        let started = consent
+            .begin(TursoEndpoints::at(&server.url("")))
+            .await
+            .expect("failed to begin the consent");
+
+        arrive_at_the_callback(&started.authorization_url, &[("error", "access_denied")]).await;
+
+        assert_eq!(
+            settled(&consent, &started.session_id).await.status,
+            TursoConsentStatus::Abandoned
+        );
+
+        let refusal = crate::organization::setup::authority()
+            .expect_err("a first run found authority after an abandoned consent");
+
+        assert!(
+            matches!(refusal, Error::NotConfigured { .. }),
+            "{refusal:?}"
+        );
+        assert!(
+            refusal.to_string().contains("connect the turso account"),
+            "{refusal}"
+        );
+        assert_eq!(
+            server.request_count(),
+            1,
+            "the registration, and nothing a first run would have asked"
+        );
+    }
+
     #[tokio::test]
     async fn a_refused_consent_fails_and_leaves_the_keyring_empty() {
         forget_the_stored_token();

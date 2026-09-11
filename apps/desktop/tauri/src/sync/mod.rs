@@ -10,4 +10,4 @@ pub mod turso;
 pub use command::*;
 pub use control::SessionWindow;
 pub(crate) use control::{WorkspaceStanding, check_membership, mint_workspace};
-pub use store::{RemoteSync, RemoteSyncWorkspace};
+pub use store::{RemoteSync, RemoteSyncStore, RemoteSyncWorkspace};

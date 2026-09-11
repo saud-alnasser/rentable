@@ -193,9 +193,17 @@ pub struct Signer<'a> {
 }
 
 /// The organization replica on this machine.
+///
+/// `Debug` says which file it is over and nothing about the rows, which is all a log line needs.
 pub struct OrganizationStore {
     database: turso::sync::Database,
     connection: turso::Connection,
+}
+
+impl std::fmt::Debug for OrganizationStore {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("OrganizationStore")
+    }
 }
 
 impl OrganizationStore {

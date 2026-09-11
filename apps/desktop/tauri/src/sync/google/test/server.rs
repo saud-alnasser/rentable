@@ -27,7 +27,7 @@ use tokio::net::TcpListener;
 const SCRIPT_EXHAUSTED_STATUS: u16 = 599;
 
 /// one answer the server is told to give, in order.
-pub(in crate::sync) enum ScriptedResponse {
+pub(crate) enum ScriptedResponse {
     Respond {
         status: u16,
         headers: Vec<(String, String)>,
@@ -39,7 +39,7 @@ pub(in crate::sync) enum ScriptedResponse {
 }
 
 impl ScriptedResponse {
-    pub(in crate::sync) fn new(status: u16, body: impl Into<Vec<u8>>) -> Self {
+    pub(crate) fn new(status: u16, body: impl Into<Vec<u8>>) -> Self {
         Self::Respond {
             status,
             headers: Vec::new(),
@@ -52,7 +52,7 @@ impl ScriptedResponse {
     /// The `headers` field predates any caller, because every request tested here until 2026-08-20
     /// was JSON and read by shape rather than by declaration. The picture read is the first that
     /// decides from the content type, so it is the first that needs a server able to state one.
-    pub(in crate::sync) fn of(status: u16, content_type: &str, body: impl Into<Vec<u8>>) -> Self {
+    pub(crate) fn of(status: u16, content_type: &str, body: impl Into<Vec<u8>>) -> Self {
         Self::Respond {
             status,
             headers: vec![("content-type".to_string(), content_type.to_string())],
@@ -60,7 +60,7 @@ impl ScriptedResponse {
         }
     }
 
-    pub(in crate::sync) fn hangup() -> Self {
+    pub(crate) fn hangup() -> Self {
         Self::Hangup
     }
 }
@@ -68,7 +68,7 @@ impl ScriptedResponse {
 /// one request as it arrived, kept so a test can assert on what was actually
 /// sent rather than on what the caller meant to send.
 #[derive(Clone)]
-pub(in crate::sync) struct RecordedRequest {
+pub(crate) struct RecordedRequest {
     pub method: String,
     /// the request-target: the path and, where there was one, the query.
     pub target: String,
@@ -85,7 +85,7 @@ pub(in crate::sync) struct RecordedRequest {
 
 impl RecordedRequest {
     /// a header by name, matched case-insensitively as HTTP requires.
-    pub(in crate::sync) fn header(&self, name: &str) -> Option<&str> {
+    pub(crate) fn header(&self, name: &str) -> Option<&str> {
         self.headers
             .iter()
             .find(|(header, _)| header.eq_ignore_ascii_case(name))
@@ -106,7 +106,7 @@ struct ServerState {
 ///
 /// Nothing shuts it down: `#[tokio::test]` drops the runtime when the test
 /// ends, which cancels the accept loop and every connection it spawned.
-pub(in crate::sync) struct ScriptedServer {
+pub(crate) struct ScriptedServer {
     base_url: String,
     state: Arc<Mutex<ServerState>>,
 }
@@ -115,7 +115,7 @@ impl ScriptedServer {
     /// bind, start accepting, and answer each request with the next scripted
     /// entry. Returns once the port is known, so the first request a test makes
     /// cannot outrun the listener.
-    pub(in crate::sync) async fn start(script: Vec<ScriptedResponse>) -> Self {
+    pub(crate) async fn start(script: Vec<ScriptedResponse>) -> Self {
         let listener = TcpListener::bind(("127.0.0.1", 0))
             .await
             .expect("failed to bind the scripted google server");
@@ -160,17 +160,17 @@ impl ScriptedServer {
     }
 
     /// an absolute URL for `path`, which must start with `/`.
-    pub(in crate::sync) fn url(&self, path: &str) -> String {
+    pub(crate) fn url(&self, path: &str) -> String {
         format!("{}{path}", self.base_url)
     }
 
-    pub(in crate::sync) fn request_count(&self) -> usize {
+    pub(crate) fn request_count(&self) -> usize {
         self.locked().recorded.len()
     }
 
     /// the `index`th request the server received, in arrival order. Reading one
     /// leaves the log alone, so two reads of the same index agree.
-    pub(in crate::sync) fn request(&self, index: usize) -> RecordedRequest {
+    pub(crate) fn request(&self, index: usize) -> RecordedRequest {
         let state = self.locked();
 
         state

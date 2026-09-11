@@ -218,6 +218,35 @@ export type UpdaterDownloadEvent =
 export type Unlisten = () => void;
 
 /**
+ * a started Turso consent: the address the person answers at, and the handle the shell reports
+ * its progress under. What is behind the address stays in Rust.
+ */
+export type OrganizationConsentStart = {
+	sessionId: string;
+	authorizationUrl: string;
+};
+
+/**
+ * how far one consent has got. `granted` means the token is in the keyring, where the next
+ * command will look for it; it is never in this value.
+ */
+export type OrganizationConsentResult = {
+	sessionId: string;
+	status: 'pending' | 'granted' | 'failed' | 'abandoned';
+	error: string | null;
+};
+
+/**
+ * what a first run answers with: the organization's id, the link an owner hands out, and
+ * whether the rows have reached Turso yet. No key, no token, no password.
+ */
+export type OrganizationCreated = {
+	organizationId: string;
+	joinLink: string;
+	synced: boolean;
+};
+
+/**
  * what the API may ask of the shell it runs in.
  *
  * Declared, not read off an implementation — that is the whole of it. The Tauri facade
@@ -314,6 +343,25 @@ export type Host = {
 	settings: {
 		get: () => Promise<Settings>;
 		set: (changeset: SettingsChangeset) => Promise<Settings>;
+	};
+	/**
+	 * an organization on a Turso account the customer owns.
+	 *
+	 * Everything here spends a credential or makes one, so all of it is Rust's and the web layer
+	 * observes outcomes ([[rules/credentials]], *Client boundary*).
+	 */
+	organization: {
+		/** open the consent: a browser address to send the person to, and a session to poll. */
+		consentBegin: () => Promise<OrganizationConsentStart>;
+		/** how far the consent has got. Polled while `pending`. */
+		consentResult: (sessionId: string) => Promise<OrganizationConsentResult>;
+		/** forget the Turso authority this machine holds. Nothing is revoked at Turso. */
+		disconnect: () => Promise<void>;
+		/**
+		 * create an organization on the consented account from the two things a first run
+		 * collects. Refuses, creating nothing, where no consent has been granted.
+		 */
+		create: (name: string, password: string) => Promise<OrganizationCreated>;
 	};
 	remoteSync: {
 		getState: () => Promise<RemoteSyncState>;

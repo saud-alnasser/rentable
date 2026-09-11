@@ -38,7 +38,8 @@
 		phase,
 		errorMessage,
 		onSignIn,
-		onRetry
+		onRetry,
+		onSetUpOrganization
 	}: {
 		/** which of the three situations this is, from `workspaceAdmission`. */
 		situation: 'noAccount' | 'windowClosed' | 'noSession';
@@ -51,6 +52,12 @@
 		errorMessage: string | null;
 		onSignIn: () => void;
 		onRetry: () => void;
+		/**
+		 * the other way in: an organization on the person's own Turso account, which is the first
+		 * run's walk rather than a provider. A link rather than a second button, because it is the
+		 * tertiary of this screen until Google sign-in retires and it becomes the only way.
+		 */
+		onSetUpOrganization: () => void;
 	} = $props();
 
 	const isBusy = $derived(isSigningIn || isRetrying);
@@ -163,6 +170,17 @@
 
 		{#if working}
 			<p class="text-center text-sm text-muted-foreground">{working}</p>
+		{/if}
+
+		{#if situation === 'noAccount'}
+			<Button
+				variant="link"
+				class="w-full justify-center"
+				onclick={onSetUpOrganization}
+				disabled={isBusy}
+			>
+				{$LL.layout.signIn.setUpOrganization()}
+			</Button>
 		{/if}
 	</div>
 </StandaloneSurface>

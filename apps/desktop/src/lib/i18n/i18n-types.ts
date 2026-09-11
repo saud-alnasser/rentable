@@ -1232,6 +1232,10 @@ type RootTranslation = {
 		}
 		signIn: {
 			/**
+			 * s​e​t​ ​u​p​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​n​s​t​e​a​d
+			 */
+			setUpOrganization: string
+			/**
 			 * f​i​n​i​s​h​ ​s​i​g​n​i​n​g​ ​i​n​ ​w​i​t​h​ ​G​o​o​g​l​e​ ​i​n​ ​t​h​e​ ​b​r​o​w​s​e​r​ ​w​i​n​d​o​w​ ​t​h​a​t​ ​j​u​s​t​ ​o​p​e​n​e​d​.
 			 */
 			authorizing: string
@@ -2190,6 +2194,132 @@ type RootTranslation = {
 		sessionExpired: string
 	}
 	organization: {
+		setup: {
+			/**
+			 * s​e​t​ ​u​p​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			setupTitle: string
+			/**
+			 * r​e​n​t​a​b​l​e​ ​r​u​n​s​ ​o​n​ ​a​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​y​o​u​ ​o​w​n​.​ ​y​o​u​r​ ​r​e​c​o​r​d​s​ ​l​i​v​e​ ​t​h​e​r​e​,​ ​a​n​d​ ​n​o​w​h​e​r​e​ ​o​f​ ​o​u​r​s​.
+			 */
+			setupDescription: string
+			/**
+			 * c​o​n​n​e​c​t​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
+			 */
+			connectTitle: string
+			/**
+			 * o​n​e​ ​c​o​n​s​e​n​t​ ​i​n​ ​t​h​e​ ​b​r​o​w​s​e​r​,​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​i​s​ ​p​a​s​t​e​d​ ​o​r​ ​t​y​p​e​d​ ​h​e​r​e​.
+			 */
+			connectDescription: string
+			/**
+			 * f​i​r​s​t​,​ ​i​n​ ​t​u​r​s​o​'​s​ ​o​w​n​ ​d​a​s​h​b​o​a​r​d​,​ ​c​r​e​a​t​e​ ​a​n​ ​e​m​p​t​y​ ​g​r​o​u​p​ ​f​o​r​ ​r​e​n​t​a​b​l​e​ ​a​n​d​ ​p​i​c​k​ ​i​t​ ​o​n​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​g​r​a​n​t​s​ ​r​e​n​t​a​b​l​e​ ​a​u​t​h​o​r​i​t​y​ ​o​v​e​r​ ​t​h​a​t​ ​o​n​e​ ​g​r​o​u​p​,​ ​s​o​ ​a​n​ ​e​m​p​t​y​ ​o​n​e​ ​k​e​e​p​s​ ​t​h​a​t​ ​a​u​t​h​o​r​i​t​y​ ​t​o​ ​t​h​e​ ​d​a​t​a​b​a​s​e​s​ ​r​e​n​t​a​b​l​e​ ​c​r​e​a​t​e​s​.
+			 */
+			groupPreparation: string
+			/**
+			 * n​o​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​y​e​t​?​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​ ​i​s​ ​w​h​e​r​e​ ​y​o​u​ ​m​a​k​e​ ​o​n​e​.
+			 */
+			accountCreation: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​i​l​l​ ​l​i​v​e​ ​i​n​ ​w​h​i​c​h​e​v​e​r​ ​t​u​r​s​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​h​o​l​d​s​ ​t​h​e​ ​g​r​o​u​p​ ​y​o​u​ ​p​i​c​k​.​ ​i​f​ ​t​h​a​t​ ​i​s​ ​a​ ​p​e​r​s​o​n​a​l​ ​a​c​c​o​u​n​t​,​ ​o​n​l​y​ ​y​o​u​ ​c​a​n​ ​g​r​a​n​t​ ​r​e​n​t​a​b​l​e​ ​a​u​t​h​o​r​i​t​y​ ​o​v​e​r​ ​i​t​ ​a​g​a​i​n​.​ ​a​ ​s​e​c​o​n​d​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​o​n​ ​a​ ​t​u​r​s​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​c​a​n​ ​d​o​ ​t​h​e​ ​s​a​m​e​,​ ​a​n​d​ ​t​u​r​s​o​ ​c​a​n​ ​m​o​v​e​ ​a​ ​g​r​o​u​p​ ​t​o​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​f​r​o​m​ ​i​t​s​ ​o​w​n​ ​d​a​s​h​b​o​a​r​d​.​ ​r​e​n​t​a​b​l​e​ ​d​o​e​s​ ​n​e​i​t​h​e​r​ ​f​o​r​ ​y​o​u​.
+			 */
+			succession: string
+			/**
+			 * o​p​e​n​ ​t​u​r​s​o​ ​d​a​s​h​b​o​a​r​d
+			 */
+			openDashboard: string
+			/**
+			 * c​o​n​n​e​c​t​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
+			 */
+			connect: string
+			/**
+			 * f​i​n​i​s​h​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​i​n​ ​t​h​e​ ​b​r​o​w​s​e​r​ ​w​i​n​d​o​w​ ​t​h​a​t​ ​j​u​s​t​ ​o​p​e​n​e​d​.
+			 */
+			connecting: string
+			/**
+			 * t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​c​o​n​n​e​c​t​e​d​.
+			 */
+			connected: string
+			/**
+			 * t​h​e​ ​c​o​n​s​e​n​t​ ​w​a​s​ ​n​o​t​ ​g​r​a​n​t​e​d​.​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​r​e​a​t​e​d​.
+			 */
+			consentAbandoned: string
+			/**
+			 * t​u​r​s​o​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​c​o​n​s​e​n​t​.
+			 */
+			consentFailed: string
+			/**
+			 * n​a​m​e​ ​i​t
+			 */
+			nameTitle: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​n​a​m​e​,​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​t​h​a​t​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​i​t​.​ ​n​o​t​h​i​n​g​ ​e​l​s​e​ ​i​s​ ​t​y​p​e​d​ ​h​e​r​e​.
+			 */
+			nameDescription: string
+			/**
+			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​n​a​m​e
+			 */
+			nameLabel: string
+			/**
+			 * g​i​v​e​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​ ​n​a​m​e​.
+			 */
+			nameRequired: string
+			/**
+			 * t​h​a​t​ ​n​a​m​e​ ​i​s​ ​t​o​o​ ​l​o​n​g​.
+			 */
+			nameTooLong: string
+			/**
+			 * y​o​u​r​ ​p​a​s​s​w​o​r​d
+			 */
+			passwordLabel: string
+			/**
+			 * u​s​e​ ​a​t​ ​l​e​a​s​t​ ​1​2​ ​c​h​a​r​a​c​t​e​r​s​.​ ​t​h​e​r​e​ ​i​s​ ​n​o​ ​s​e​r​v​e​r​ ​t​o​ ​s​l​o​w​ ​a​ ​g​u​e​s​s​ ​d​o​w​n​,​ ​s​o​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​t​h​e​ ​o​n​l​y​ ​t​h​i​n​g​ ​b​e​t​w​e​e​n​ ​a​n​y​b​o​d​y​ ​h​o​l​d​i​n​g​ ​t​h​e​ ​r​e​c​o​r​d​s​ ​a​n​d​ ​r​e​a​d​i​n​g​ ​t​h​e​m​.
+			 */
+			passwordFloor: string
+			/**
+			 * u​s​e​ ​a​t​ ​l​e​a​s​t​ ​1​2​ ​c​h​a​r​a​c​t​e​r​s​.
+			 */
+			passwordTooShort: string
+			/**
+			 * c​r​e​a​t​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			create: string
+			/**
+			 * c​r​e​a​t​i​n​g​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​.​.
+			 */
+			creating: string
+			/**
+			 * y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​r​e​a​d​y
+			 */
+			doneTitle: string
+			/**
+			 * h​a​n​d​ ​t​h​i​s​ ​l​i​n​k​ ​t​o​ ​t​h​e​ ​p​e​o​p​l​e​ ​y​o​u​ ​i​n​v​i​t​e​.​ ​i​t​ ​f​i​n​d​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​m​o​r​e​;​ ​e​a​c​h​ ​i​n​v​i​t​a​t​i​o​n​ ​a​n​d​ ​p​a​s​s​w​o​r​d​ ​a​r​e​ ​s​e​p​a​r​a​t​e​.
+			 */
+			doneDescription: string
+			/**
+			 * j​o​i​n​ ​l​i​n​k
+			 */
+			linkLabel: string
+			/**
+			 * c​o​p​y​ ​l​i​n​k
+			 */
+			copyLink: string
+			/**
+			 * l​i​n​k​ ​c​o​p​i​e​d​.
+			 */
+			linkCopied: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​w​i​l​l​ ​r​e​a​c​h​ ​t​u​r​s​o​ ​w​h​e​n​ ​t​h​e​ ​c​o​n​n​e​c​t​i​o​n​ ​r​e​t​u​r​n​s​.​ ​t​h​e​ ​l​i​n​k​ ​w​o​r​k​s​ ​o​n​c​e​ ​i​t​ ​h​a​s​.
+			 */
+			notYetSent: string
+			/**
+			 * c​o​n​t​i​n​u​e
+			 */
+			continue: string
+			/**
+			 * b​a​c​k
+			 */
+			back: string
+		}
 		/**
 		 * d​i​s​c​o​n​n​e​c​t​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
 		 */
@@ -3465,6 +3595,10 @@ export type TranslationFunctions = {
 		}
 		signIn: {
 			/**
+			 * set up an organization instead
+			 */
+			setUpOrganization: () => LocalizedString
+			/**
 			 * finish signing in with Google in the browser window that just opened.
 			 */
 			authorizing: () => LocalizedString
@@ -4379,6 +4513,132 @@ export type TranslationFunctions = {
 		sessionExpired: () => LocalizedString
 	}
 	organization: {
+		setup: {
+			/**
+			 * set up an organization
+			 */
+			setupTitle: () => LocalizedString
+			/**
+			 * rentable runs on a turso account you own. your records live there, and nowhere of ours.
+			 */
+			setupDescription: () => LocalizedString
+			/**
+			 * connect your turso account
+			 */
+			connectTitle: () => LocalizedString
+			/**
+			 * one consent in the browser, and nothing is pasted or typed here.
+			 */
+			connectDescription: () => LocalizedString
+			/**
+			 * first, in turso's own dashboard, create an empty group for rentable and pick it on the consent screen. the consent grants rentable authority over that one group, so an empty one keeps that authority to the databases rentable creates.
+			 */
+			groupPreparation: () => LocalizedString
+			/**
+			 * no turso account yet? the consent screen is where you make one.
+			 */
+			accountCreation: () => LocalizedString
+			/**
+			 * the organization will live in whichever turso organization holds the group you pick. if that is a personal account, only you can grant rentable authority over it again. a second administrator on a turso organization can do the same, and turso can move a group to another organization from its own dashboard. rentable does neither for you.
+			 */
+			succession: () => LocalizedString
+			/**
+			 * open turso dashboard
+			 */
+			openDashboard: () => LocalizedString
+			/**
+			 * connect turso account
+			 */
+			connect: () => LocalizedString
+			/**
+			 * finish the consent in the browser window that just opened.
+			 */
+			connecting: () => LocalizedString
+			/**
+			 * turso account connected.
+			 */
+			connected: () => LocalizedString
+			/**
+			 * the consent was not granted. nothing was created.
+			 */
+			consentAbandoned: () => LocalizedString
+			/**
+			 * turso refused the consent.
+			 */
+			consentFailed: () => LocalizedString
+			/**
+			 * name it
+			 */
+			nameTitle: () => LocalizedString
+			/**
+			 * the organization's name, and the password that unlocks your place in it. nothing else is typed here.
+			 */
+			nameDescription: () => LocalizedString
+			/**
+			 * organization name
+			 */
+			nameLabel: () => LocalizedString
+			/**
+			 * give the organization a name.
+			 */
+			nameRequired: () => LocalizedString
+			/**
+			 * that name is too long.
+			 */
+			nameTooLong: () => LocalizedString
+			/**
+			 * your password
+			 */
+			passwordLabel: () => LocalizedString
+			/**
+			 * use at least 12 characters. there is no server to slow a guess down, so the password is the only thing between anybody holding the records and reading them.
+			 */
+			passwordFloor: () => LocalizedString
+			/**
+			 * use at least 12 characters.
+			 */
+			passwordTooShort: () => LocalizedString
+			/**
+			 * create organization
+			 */
+			create: () => LocalizedString
+			/**
+			 * creating the organization on your turso account...
+			 */
+			creating: () => LocalizedString
+			/**
+			 * your organization is ready
+			 */
+			doneTitle: () => LocalizedString
+			/**
+			 * hand this link to the people you invite. it finds the organization and nothing more; each invitation and password are separate.
+			 */
+			doneDescription: () => LocalizedString
+			/**
+			 * join link
+			 */
+			linkLabel: () => LocalizedString
+			/**
+			 * copy link
+			 */
+			copyLink: () => LocalizedString
+			/**
+			 * link copied.
+			 */
+			linkCopied: () => LocalizedString
+			/**
+			 * the organization is on this machine and will reach turso when the connection returns. the link works once it has.
+			 */
+			notYetSent: () => LocalizedString
+			/**
+			 * continue
+			 */
+			continue: () => LocalizedString
+			/**
+			 * back
+			 */
+			back: () => LocalizedString
+		}
 		/**
 		 * disconnect turso account
 		 */

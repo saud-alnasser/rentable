@@ -186,8 +186,14 @@ impl Database {
     ///
     /// Best effort per file, because a file that is already gone is the outcome this wanted.
     pub fn remove_replica(database_path: &Path, workspace_id: &str) -> bool {
-        let replica = Self::replica_path(database_path, workspace_id);
-        let mut removed = std::fs::remove_file(&replica).is_ok();
+        Self::remove_replica_files(&Self::replica_path(database_path, workspace_id))
+    }
+
+    /// Remove one replica's file and everything the engine keeps beside it, whatever the replica
+    /// is a replica of. The organization replica goes the same way as a workspace's, and this is
+    /// the one place the sidecar list is spelled.
+    pub(crate) fn remove_replica_files(replica: &Path) -> bool {
+        let mut removed = std::fs::remove_file(replica).is_ok();
 
         for suffix in Self::REPLICA_SIDECARS {
             let path = PathBuf::from(format!("{}{suffix}", replica.display()));

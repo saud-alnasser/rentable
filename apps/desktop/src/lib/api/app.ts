@@ -1,6 +1,7 @@
 import type { Recovery } from '$lib/platform/tauri';
 import { procedure, router } from '$lib/api/trpc';
 import { reconcile } from '$lib/contract/reconcile';
+import { organization } from '$lib/organization/router';
 import settings from '$lib/settings/router';
 import { remoteSync } from '$lib/sync/router';
 import z from 'zod';
@@ -11,6 +12,7 @@ export default router({
 	}),
 	settings,
 	remoteSync,
+	organization,
 	// **`public`, both of them.** Updating is this installation's business rather than an
 	// account's: the settings page offers it, neither call touches the workspace, and which
 	// addresses draw with nobody signed in is `layout/shell-surface.ts`'s answer rather than a

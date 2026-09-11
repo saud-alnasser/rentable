@@ -12,6 +12,38 @@
 //! signs and verifies through the chain, so the two questions above still have one
 //! answer each.
 
+//! What follows the three is the work over them: the link a machine finds an
+//! organization by, and the first run that creates one.
+
+use serde::{Deserialize, Serialize};
+
 pub mod authority;
+mod command;
+pub mod link;
+pub mod setup;
 pub mod store;
 pub mod vault;
+
+pub use command::*;
+
+/// One organization this machine has joined, as `remote-sync.json` keeps it.
+///
+/// The verifying key is base64url, as the join link spells it, and it is **the copy every
+/// verification on this machine uses**: pinned from the link at join, never refreshed from the
+/// database it judges.
+#[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct JoinedOrganization {
+    pub id: String,
+    /// what the person typed at creation, or what the invitation showed them. Shown on the
+    /// sign-in screen; the sealed copy in the database is what every other machine reads.
+    pub name: String,
+    pub verifying_key: String,
+    pub remote_url: String,
+    /// this person's member row in that organization.
+    pub member_id: String,
+    /// their role there, as last read. A display fact: what a member may do is what their vault
+    /// holds, never this.
+    pub role: String,
+    pub joined_at: i64,
+}

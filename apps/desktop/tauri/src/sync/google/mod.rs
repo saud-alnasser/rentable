@@ -11,4 +11,4 @@ pub mod picture;
 pub mod profile;
 
 #[cfg(test)]
-pub(super) mod test;
+pub(crate) mod test;

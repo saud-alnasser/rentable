@@ -14,6 +14,9 @@ import type {
 	GoogleSignInPhase,
 	Host,
 	ImportTable,
+	OrganizationConsentResult,
+	OrganizationConsentStart,
+	OrganizationCreated,
 	Recovery,
 	RemoteSyncState,
 	Settings,
@@ -37,6 +40,9 @@ export type {
 	ExportSheet,
 	GoogleSignInPhase,
 	ImportTable,
+	OrganizationConsentResult,
+	OrganizationConsentStart,
+	OrganizationCreated,
 	Recovery,
 	RemoteSyncAccount,
 	RemoteSyncAccountStatus,
@@ -195,6 +201,14 @@ export const tauri = {
 			onPhase: (listener: (phase: GoogleSignInPhase) => void) =>
 				listen<GoogleSignInPhase>(GOOGLE_SIGN_IN_PHASE_EVENT, (event) => listener(event.payload))
 		}
+	},
+	organization: {
+		consentBegin: () => invoke<OrganizationConsentStart>('organization_consent_begin'),
+		consentResult: (sessionId: string) =>
+			invoke<OrganizationConsentResult>('organization_consent_result', { sessionId }),
+		disconnect: () => invoke<void>('organization_disconnect'),
+		create: (name: string, password: string) =>
+			invoke<OrganizationCreated>('organization_create', { name, password })
 	},
 	remoteSync: {
 		getState: () => invoke<RemoteSyncState>('remote_sync_state_get'),

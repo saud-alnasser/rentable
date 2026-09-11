@@ -162,6 +162,7 @@ pub fn run() {
             sync::organization_consent_begin,
             sync::organization_consent_result,
             sync::organization_disconnect,
+            organization::organization_create,
             export::export_write,
             export::export_write_workbook,
             import::import_read,

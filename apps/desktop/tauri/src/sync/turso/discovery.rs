@@ -20,8 +20,9 @@
 //! customer who has not started, and a change here can never break a customer who already has.
 //!
 //! **MCP cannot replace the Platform API and is not asked to.** Its tool set has no way to mint a
-//! per-database credential, which is what requirement 9's grants are made of. It supplies the slug
-//! and nothing else.
+//! per-database credential, which is what requirement 9's grants are made of. It supplies the slug,
+//! and on a first run into an empty group it creates the one database the slug is then read from,
+//! because the Platform API cannot create anything without a slug already in hand. Nothing else.
 //!
 //! **One test here reaches Turso**, admitted in [[rules/testing]] under *Tests that reach a live
 //! remote* as the seventh property. Nothing local can hold it: a loopback server answers whatever
@@ -45,7 +46,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::{error::Error, http::build_client, persisted::Persisted, sync::store::RemoteSyncStore};
+use crate::{error::Error, http::build_client, persisted::Persisted, sync::RemoteSyncStore};
 
 /// Where the MCP server lives, and the same value the consent names as its resource indicator.
 /// The authority this spends was issued *for* this resource, which is why one string is both.
@@ -59,6 +60,11 @@ const MCP_CLIENT_NAME: &str = "Rentable";
 /// The tool that carries the hostname. It reads and creates nothing
 /// ([[references/turso]], *Never run*).
 const MCP_LIST_DATABASES: &str = "list_databases";
+
+/// The one tool here that creates anything, and only on a first run into an empty group, where
+/// nothing else can. Its schema, read off `tools/list` on 2026-09-11: `name` required, `group`
+/// optional and defaulting to the organization's default, `size_limit` and `use_tursodb` optional.
+const MCP_CREATE_DATABASE: &str = "create_database";
 
 const MCP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -80,7 +86,7 @@ impl McpEndpoint {
     }
 
     #[cfg(test)]
-    fn at(base: &str) -> Self {
+    pub(crate) fn at(base: &str) -> Self {
         Self {
             url: format!("{base}/mcp"),
         }
@@ -155,9 +161,87 @@ pub async fn look_up_organization(
     endpoint: &McpEndpoint,
 ) -> Result<OrganizationLookup, Error> {
     let client = build_client(MCP_REQUEST_TIMEOUT)?;
+    let session = handshake(&client, endpoint, platform_token).await?;
+    let databases = list_databases(&client, endpoint, platform_token, session.as_deref()).await?;
 
-    let (_, session) = call(
+    let Some(record) = databases.first() else {
+        return Ok(OrganizationLookup::NoDatabaseYet);
+    };
+
+    Ok(OrganizationLookup::Found(organization_of(record)?))
+}
+
+/// What creating the first database in an empty group yields: the organization and the group the
+/// consent turned out to be over, and the hostname of the database that answered it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FirstDatabase {
+    pub organization: TursoOrganization,
+    pub hostname: String,
+}
+
+/// Create the first database in a group that holds none, and read the slug and the group out of
+/// what comes back.
+///
+/// **The one create this module makes, and the reason it is here rather than in `platform.rs`.**
+/// Requirement 3 asks the customer to prepare an *empty* group, so on the ordinary first run the
+/// listing has nothing to read a slug from, and the Platform API cannot create anything without
+/// that slug in its path and the group's name in its body. The MCP server needs neither: its
+/// `create_database` tool takes a name, and the group-scoped token decides where it lands. The
+/// reply's shape is undocumented (`additionalProperties: true`, read off `tools/list` on
+/// 2026-09-11), so nothing is read out of it; the listing is asked again and the record carrying
+/// the name just created is what answers, in the one shape this module already reads.
+///
+/// **The group is deliberately not passed.** The tool's own description says it defaults to the
+/// organization's default group, and a group-scoped token has one group to default to. Were that
+/// ever not so, the database would land where the listing cannot see it, the record would be
+/// missing, and this fails loudly rather than returning a slug for a database in the wrong place.
+/// Delete protection is the Platform API's to turn on afterwards, once the slug is known.
+pub async fn create_first_database(
+    platform_token: &str,
+    endpoint: &McpEndpoint,
+    name: &str,
+) -> Result<FirstDatabase, Error> {
+    let client = build_client(MCP_REQUEST_TIMEOUT)?;
+    let session = handshake(&client, endpoint, platform_token).await?;
+
+    call(
         &client,
+        endpoint,
+        platform_token,
+        session.as_deref(),
+        &json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": { "name": MCP_CREATE_DATABASE, "arguments": { "name": name } }
+        }),
+    )
+    .await?;
+
+    let databases = list_databases(&client, endpoint, platform_token, session.as_deref()).await?;
+    let record = databases
+        .iter()
+        .find(|record| record.name == name)
+        .ok_or_else(|| Error::Integrity {
+            message: "turso created the organization's database somewhere this application \
+                      cannot see. Setting up an organization needs the account's support."
+                .to_string(),
+        })?;
+
+    Ok(FirstDatabase {
+        organization: organization_of(record)?,
+        hostname: record.hostname.clone(),
+    })
+}
+
+/// `initialize`, and the session it opened where the server opened one.
+async fn handshake(
+    client: &reqwest::Client,
+    endpoint: &McpEndpoint,
+    platform_token: &str,
+) -> Result<Option<String>, Error> {
+    let (_, session) = call(
+        client,
         endpoint,
         platform_token,
         None,
@@ -174,26 +258,35 @@ pub async fn look_up_organization(
     )
     .await?;
 
+    Ok(session)
+}
+
+/// One `list_databases`, inside a conversation the handshake opened.
+async fn list_databases(
+    client: &reqwest::Client,
+    endpoint: &McpEndpoint,
+    platform_token: &str,
+    session: Option<&str>,
+) -> Result<Vec<DatabaseRecord>, Error> {
     let (listing, _) = call(
-        &client,
+        client,
         endpoint,
         platform_token,
-        session.as_deref(),
+        session,
         &json!({
             "jsonrpc": "2.0",
-            "id": 2,
+            "id": 3,
             "method": "tools/call",
             "params": { "name": MCP_LIST_DATABASES, "arguments": {} }
         }),
     )
     .await?;
 
-    let databases = databases_from(&listing)?;
+    databases_from(&listing)
+}
 
-    let Some(record) = databases.first() else {
-        return Ok(OrganizationLookup::NoDatabaseYet);
-    };
-
+/// The organization and group one record names.
+fn organization_of(record: &DatabaseRecord) -> Result<TursoOrganization, Error> {
     let slug = slug_from_hostname(&record.name, &record.hostname).ok_or_else(|| {
         // the hostname itself is withheld: it carries a customer's database name.
         Error::Integrity {
@@ -204,10 +297,10 @@ pub async fn look_up_organization(
         }
     })?;
 
-    Ok(OrganizationLookup::Found(TursoOrganization {
+    Ok(TursoOrganization {
         slug,
         group: record.group.clone(),
-    }))
+    })
 }
 
 /// The organization this machine's consent is over: asked for once, and remembered.
@@ -385,8 +478,8 @@ mod tests {
     use crate::{persisted::Persisted, sync::store::RemoteSyncStore};
 
     use super::{
-        McpEndpoint, OrganizationLookup, TursoOrganization, look_up_organization, organization,
-        slug_from_hostname,
+        FirstDatabase, McpEndpoint, OrganizationLookup, TursoOrganization, create_first_database,
+        look_up_organization, organization, slug_from_hostname,
     };
 
     const TOKEN: &str = "the-platform-api-token";
@@ -440,6 +533,93 @@ mod tests {
     fn load_store(directory: &std::path::Path) -> Persisted<RemoteSyncStore> {
         Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
             .expect("the store could not be loaded")
+    }
+
+    /// The first run into the empty group requirement 3 asks for: `create_database` by name and
+    /// nothing else, then the listing read again, and the slug and the group taken off the
+    /// record that carries the name just created rather than off the create's own reply.
+    #[tokio::test]
+    async fn the_first_database_is_created_by_name_and_read_back_out_of_the_listing() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            ScriptedResponse::new(
+                200,
+                json!({ "jsonrpc": "2.0", "id": 2, "result": { "content": [{ "type": "text", "text": "created" }] } })
+                    .to_string(),
+            ),
+            listing(json!([{
+                "Name": "org-7f3a",
+                "hostname": "org-7f3a-acme-co.aws-eu-west-1.turso.io",
+                "group": "rentable-empty"
+            }])),
+        ])
+        .await;
+
+        let first = create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a")
+            .await
+            .expect("the first create failed");
+
+        assert_eq!(
+            first,
+            FirstDatabase {
+                organization: TursoOrganization {
+                    slug: "acme-co".to_string(),
+                    group: "rentable-empty".to_string(),
+                },
+                hostname: "org-7f3a-acme-co.aws-eu-west-1.turso.io".to_string(),
+            }
+        );
+
+        let create = server.request(1);
+        let payload: serde_json::Value = serde_json::from_str(&create.body).expect("json");
+
+        assert_eq!(payload["method"], "tools/call");
+        assert_eq!(payload["params"]["name"], "create_database");
+        assert_eq!(
+            payload["params"]["arguments"],
+            json!({ "name": "org-7f3a" })
+        );
+        assert!(
+            payload["params"]["arguments"].get("group").is_none(),
+            "a group was passed, and the consented token is what decides the group"
+        );
+        assert_eq!(
+            server.request_count(),
+            3,
+            "handshake, create, listing, and nothing else"
+        );
+    }
+
+    /// A database the listing cannot see is a database in the wrong place, and the create is
+    /// reported as a failure rather than as a slug read off some other record.
+    #[tokio::test]
+    async fn a_created_database_the_listing_does_not_carry_is_a_failure_not_a_guess() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            ScriptedResponse::new(
+                200,
+                json!({ "jsonrpc": "2.0", "id": 2, "result": { "content": [] } }).to_string(),
+            ),
+            listing(json!([{
+                "Name": "somebody-elses",
+                "hostname": "somebody-elses-acme-co.aws-eu-west-1.turso.io",
+                "group": "other"
+            }])),
+        ])
+        .await;
+
+        let error = create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a")
+            .await
+            .expect_err("a slug was read off a record that is not the created database");
+
+        assert!(
+            matches!(error, crate::error::Error::Integrity { .. }),
+            "{error:?}"
+        );
+        assert!(
+            error.to_string().contains("Setting up an organization"),
+            "{error}"
+        );
     }
 
     #[test]

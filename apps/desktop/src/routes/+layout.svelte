@@ -17,7 +17,7 @@
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
 	import LayoutStartupUnreadable from '$lib/layout/component/startup-unreadable.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
-	import { shellSurface, wayInFrom } from '$lib/layout/shell-surface';
+	import { THE_FIRST_RUN, shellSurface, wayInFrom } from '$lib/layout/shell-surface';
 	import { startupSurfaceBeforeLocale } from '$lib/layout/startup-surface';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
@@ -304,6 +304,7 @@
 									errorMessage={shellState.error}
 									onSignIn={() => void startup.signIn()}
 									onRetry={() => void startup.retrySession()}
+									onSetUpOrganization={() => void goto(resolve(THE_FIRST_RUN))}
 								/>
 							{:else if surface === 'recovery' && shellState.recovery}
 								<LayoutStartupRecovery
