@@ -151,7 +151,19 @@ export const organization = router({
 			.permitted('inviteMember')
 			.input(z.object({ memberId: z.string().trim().min(1) }))
 			.mutation(async ({ input, ctx }): Promise<Invited> => {
-				return ctx.host.organization.invitation.reissue(input.memberId);
+				return ctx.host.organization.resetMember(input.memberId);
+			})
+	},
+	/**
+	 * The signed-in member's own password. `member`, because it is theirs: the current password
+	 * is what the shell checks, and the floor is the first run's, refused here before the
+	 * derivation runs for a caller that is not the form.
+	 */
+	password: {
+		change: procedure.member
+			.input(z.object({ current: z.string().min(1), next: z.string().min(PASSWORD_FLOOR) }))
+			.mutation(async ({ input, ctx }): Promise<void> => {
+				await ctx.host.organization.changePassword(input.current, input.next);
 			})
 	}
 });

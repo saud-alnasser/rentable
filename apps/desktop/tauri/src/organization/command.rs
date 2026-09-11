@@ -10,6 +10,7 @@ use super::{
     join::{self, LinkFacts},
     link::JoinLink,
     migrate::Pipeline,
+    password,
     session::{self, CredentialSlot, SessionFacts, WorkspaceFacts},
     setup::{self, CreateOrganization, OrganizationCreated, Remote},
     store::OrganizationStore,
@@ -455,10 +456,11 @@ pub async fn member_invite(
     .await
 }
 
-/// Invite a member again: a fresh vault under a fresh password, and a fresh invitation. What a
-/// reset is, for a member whose password nobody knows.
+/// Reset a member's password: a fresh vault under a fresh password, everything the resetting
+/// administrator reaches re-sealed to it, and a fresh invitation. What a reset is, for a member
+/// whose password nobody knows; the answer names the workspaces it could not restore.
 #[tauri::command]
-pub async fn invitation_reissue(
+pub async fn member_reset(
     app_state: tauri::State<'_, AppState>,
     member_id: String,
 ) -> Result<Invited, Error> {
@@ -476,6 +478,33 @@ pub async fn invitation_reissue(
         timestamp::now(),
     )
     .await
+}
+
+/// Change the signed-in member's own password. The current one opens the vault, the new one has
+/// to reach the floor, and nothing else on the database moves. Neither password crosses back.
+#[tauri::command]
+pub async fn organization_change_password(
+    app_state: tauri::State<'_, AppState>,
+    current: String,
+    new: String,
+) -> Result<OrganizationState, Error> {
+    {
+        let mut member = app_state.member.write().await;
+        let store = app_state.organization.read().await;
+        let (member, store) = signed_in(&mut member, &store)?;
+
+        password::change_password(
+            store,
+            member,
+            &current,
+            &new,
+            setup::SHIPPING_KDF,
+            timestamp::now(),
+        )
+        .await?;
+    }
+
+    organization_state_get(app_state).await
 }
 
 /// Revoke an unused invitation. The link that named it opens nothing afterwards.

@@ -3,6 +3,17 @@ import type { BaseTranslation } from '../i18n-types';
 const en = {
 	account: {
 		groupIdentity: 'signed in as',
+		password: {
+			title: 'password',
+			description:
+				'the password that unlocks your place in the organization, on every machine you sign in from.',
+			currentLabel: 'current password',
+			nextLabel: 'new password',
+			confirmLabel: 'new password, again',
+			mismatch: 'the two do not match.',
+			change: 'change password',
+			changed: 'your password was changed.'
+		},
 		title: 'account'
 	},
 
@@ -370,6 +381,12 @@ const en = {
 			members: '{count|number} member(s)'
 		},
 
+		changePassword: {
+			title: 'choose your password',
+			description:
+				'the password you were handed was drawn by somebody else. choose your own before going on; nothing else opens until you do.',
+			handedLabel: 'the password you were handed'
+		},
 		noWorkspace: {
 			nameLabel: 'workspace name',
 			create: 'create workspace',
@@ -819,7 +836,9 @@ const en = {
 			passwordCopied: 'password copied.',
 			done: 'done',
 			notYetSignedIn: 'not yet signed in',
-			reissue: 'reissue invitation',
+			resetPassword: 'reset password',
+			unreachableWorkspaces:
+				'you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.',
 			standingOpen: 'open',
 			standingLapsed: 'lapsed',
 			standingConsumed: 'used',

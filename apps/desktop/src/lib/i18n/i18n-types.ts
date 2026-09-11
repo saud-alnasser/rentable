@@ -19,6 +19,40 @@ type RootTranslation = {
 		 * s​i​g​n​e​d​ ​i​n​ ​a​s
 		 */
 		groupIdentity: string
+		password: {
+			/**
+			 * p​a​s​s​w​o​r​d
+			 */
+			title: string
+			/**
+			 * t​h​e​ ​p​a​s​s​w​o​r​d​ ​t​h​a​t​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​o​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​ ​y​o​u​ ​s​i​g​n​ ​i​n​ ​f​r​o​m​.
+			 */
+			description: string
+			/**
+			 * c​u​r​r​e​n​t​ ​p​a​s​s​w​o​r​d
+			 */
+			currentLabel: string
+			/**
+			 * n​e​w​ ​p​a​s​s​w​o​r​d
+			 */
+			nextLabel: string
+			/**
+			 * n​e​w​ ​p​a​s​s​w​o​r​d​,​ ​a​g​a​i​n
+			 */
+			confirmLabel: string
+			/**
+			 * t​h​e​ ​t​w​o​ ​d​o​ ​n​o​t​ ​m​a​t​c​h​.
+			 */
+			mismatch: string
+			/**
+			 * c​h​a​n​g​e​ ​p​a​s​s​w​o​r​d
+			 */
+			change: string
+			/**
+			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​w​a​s​ ​c​h​a​n​g​e​d​.
+			 */
+			changed: string
+		}
 		/**
 		 * a​c​c​o​u​n​t
 		 */
@@ -1233,6 +1267,20 @@ type RootTranslation = {
 			 * @param {unknown} count
 			 */
 			members: RequiredParams<'count|number'>
+		}
+		changePassword: {
+			/**
+			 * c​h​o​o​s​e​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d
+			 */
+			title: string
+			/**
+			 * t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​w​e​r​e​ ​h​a​n​d​e​d​ ​w​a​s​ ​d​r​a​w​n​ ​b​y​ ​s​o​m​e​b​o​d​y​ ​e​l​s​e​.​ ​c​h​o​o​s​e​ ​y​o​u​r​ ​o​w​n​ ​b​e​f​o​r​e​ ​g​o​i​n​g​ ​o​n​;​ ​n​o​t​h​i​n​g​ ​e​l​s​e​ ​o​p​e​n​s​ ​u​n​t​i​l​ ​y​o​u​ ​d​o​.
+			 */
+			description: string
+			/**
+			 * t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​w​e​r​e​ ​h​a​n​d​e​d
+			 */
+			handedLabel: string
 		}
 		noWorkspace: {
 			/**
@@ -2539,9 +2587,14 @@ type RootTranslation = {
 			 */
 			notYetSignedIn: string
 			/**
-			 * r​e​i​s​s​u​e​ ​i​n​v​i​t​a​t​i​o​n
+			 * r​e​s​e​t​ ​p​a​s​s​w​o​r​d
 			 */
-			reissue: string
+			resetPassword: string
+			/**
+			 * y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​{​w​o​r​k​s​p​a​c​e​s​}​,​ ​s​o​ ​t​h​e​ ​r​e​s​e​t​ ​c​o​u​l​d​ ​n​o​t​ ​r​e​s​t​o​r​e​ ​i​t​.​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​w​h​o​ ​d​o​e​s​ ​c​a​n​ ​g​r​a​n​t​ ​i​t​ ​a​g​a​i​n​.
+			 * @param {string} workspaces
+			 */
+			unreachableWorkspaces: RequiredParams<'workspaces'>
 			/**
 			 * o​p​e​n
 			 */
@@ -2698,6 +2751,40 @@ export type TranslationFunctions = {
 		 * signed in as
 		 */
 		groupIdentity: () => LocalizedString
+		password: {
+			/**
+			 * password
+			 */
+			title: () => LocalizedString
+			/**
+			 * the password that unlocks your place in the organization, on every machine you sign in from.
+			 */
+			description: () => LocalizedString
+			/**
+			 * current password
+			 */
+			currentLabel: () => LocalizedString
+			/**
+			 * new password
+			 */
+			nextLabel: () => LocalizedString
+			/**
+			 * new password, again
+			 */
+			confirmLabel: () => LocalizedString
+			/**
+			 * the two do not match.
+			 */
+			mismatch: () => LocalizedString
+			/**
+			 * change password
+			 */
+			change: () => LocalizedString
+			/**
+			 * your password was changed.
+			 */
+			changed: () => LocalizedString
+		}
 		/**
 		 * account
 		 */
@@ -3855,6 +3942,20 @@ export type TranslationFunctions = {
 			 * {count|number} member(s)
 			 */
 			members: (arg: { count: unknown }) => LocalizedString
+		}
+		changePassword: {
+			/**
+			 * choose your password
+			 */
+			title: () => LocalizedString
+			/**
+			 * the password you were handed was drawn by somebody else. choose your own before going on; nothing else opens until you do.
+			 */
+			description: () => LocalizedString
+			/**
+			 * the password you were handed
+			 */
+			handedLabel: () => LocalizedString
 		}
 		noWorkspace: {
 			/**
@@ -5116,9 +5217,13 @@ export type TranslationFunctions = {
 			 */
 			notYetSignedIn: () => LocalizedString
 			/**
-			 * reissue invitation
+			 * reset password
 			 */
-			reissue: () => LocalizedString
+			resetPassword: () => LocalizedString
+			/**
+			 * you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.
+			 */
+			unreachableWorkspaces: (arg: { workspaces: string }) => LocalizedString
 			/**
 			 * open
 			 */

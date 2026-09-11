@@ -148,6 +148,16 @@ impl KdfParams {
 /// when it drops.
 pub struct MemberKey([u8; MEMBER_KEY_BYTES]);
 
+impl MemberKey {
+    /// Any thirty-two bytes as a member key, for the test that tries every key an administrator
+    /// holds against a vault they did not build. Nothing outside a test makes one this way: a
+    /// member key is derived from a password, and that derivation is the whole of the defence.
+    #[cfg(test)]
+    pub(crate) fn from_bytes(bytes: [u8; MEMBER_KEY_BYTES]) -> Self {
+        Self(bytes)
+    }
+}
+
 /// Scrubbed on the way out, by a volatile write rather than an assignment: an
 /// assignment to a value about to be released is a dead store and the optimiser
 /// may drop it. This is what the `zeroize` crate does, written out in six lines
@@ -234,6 +244,12 @@ impl MemberSecretKey {
     /// that is ever written down.
     pub fn public_key(&self) -> [u8; PUBLIC_KEY_BYTES] {
         PublicKey::from(&self.0).to_bytes()
+    }
+
+    /// The secret's own bytes, for the test that tries them as a key against another's vault.
+    #[cfg(test)]
+    pub(crate) fn to_bytes(&self) -> [u8; SECRET_KEY_BYTES] {
+        self.0.to_bytes()
     }
 
     /// A key seed that follows from this secret and from `purpose`, and from
@@ -532,7 +548,10 @@ pub fn open_invitation(
 /// Separate from [`open_vault`] only so a test can offer a key that no password
 /// of this vault would have produced. There is nothing here that a caller holding
 /// the right key does differently from one holding the wrong key.
-fn open_sealed_secret_key(member_key: &MemberKey, vault: &Vault) -> Result<MemberSecretKey, Error> {
+pub(crate) fn open_sealed_secret_key(
+    member_key: &MemberKey,
+    vault: &Vault,
+) -> Result<MemberSecretKey, Error> {
     let (nonce, ciphertext) = split_nonce(&vault.sealed_secret_key)?;
 
     let plaintext = unseal_bytes(

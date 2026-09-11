@@ -46,6 +46,11 @@ export type Admission =
 			 */
 			reason: 'noOrganization' | 'locked';
 	  }
+	/**
+	 * a vault is open, and the password that opened it is one somebody else drew: the member has
+	 * to choose their own before they reach anything else, which the shell refuses regardless.
+	 */
+	| { kind: 'passwordChangeRequired'; session: OrganizationSession }
 	| { kind: 'admitted'; session: OrganizationSession };
 
 /**
@@ -60,7 +65,9 @@ export function organizationAdmission(state: OrganizationState | null | undefine
 	}
 
 	if (state.session) {
-		return { kind: 'admitted', session: state.session };
+		return state.session.mustChangePassword
+			? { kind: 'passwordChangeRequired', session: state.session }
+			: { kind: 'admitted', session: state.session };
 	}
 
 	return {

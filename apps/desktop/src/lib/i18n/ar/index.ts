@@ -3,6 +3,16 @@ import type { Translation } from '../i18n-types';
 const ar = {
 	account: {
 		groupIdentity: 'مسجل الدخول باسم',
+		password: {
+			title: 'كلمة المرور',
+			description: 'كلمة المرور التي تفتح مكانك في المؤسسة، على كل جهاز تسجل الدخول منه.',
+			currentLabel: 'كلمة المرور الحالية',
+			nextLabel: 'كلمة المرور الجديدة',
+			confirmLabel: 'كلمة المرور الجديدة مرة أخرى',
+			mismatch: 'الاثنتان غير متطابقتين.',
+			change: 'غيّر كلمة المرور',
+			changed: 'تم تغيير كلمة مرورك.'
+		},
 		title: 'الحساب'
 	},
 
@@ -362,6 +372,12 @@ const ar = {
 			members: '{count|number} عضو'
 		},
 
+		changePassword: {
+			title: 'اختر كلمة مرورك',
+			description:
+				'كلمة المرور التي سُلّمت إليك اختارها شخص آخر. اختر كلمة مرورك قبل المتابعة؛ لا يُفتح شيء آخر حتى تفعل.',
+			handedLabel: 'كلمة المرور التي سُلّمت إليك'
+		},
 		noWorkspace: {
 			nameLabel: 'اسم مساحة العمل',
 			create: 'أنشئ مساحة العمل',
@@ -792,7 +808,9 @@ const ar = {
 			passwordCopied: 'نُسخت كلمة المرور.',
 			done: 'تم',
 			notYetSignedIn: 'لم يسجل الدخول بعد',
-			reissue: 'أعد إصدار الدعوة',
+			resetPassword: 'أعد تعيين كلمة المرور',
+			unreachableWorkspaces:
+				'أنت لا تملك {workspaces}، لذا لم تستطع إعادة التعيين استعادتها. يمكن لمدير يملكها منحها مجددًا.',
 			standingOpen: 'مفتوحة',
 			standingLapsed: 'منتهية',
 			standingConsumed: 'مستخدمة',

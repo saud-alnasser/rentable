@@ -345,6 +345,11 @@ export type Invited = {
 	joinLink: string;
 	generatedPassword: string;
 	expiresAt: number;
+	/**
+	 * on a reset, the workspaces the member held that the resetting administrator could not
+	 * restore, because they hold no full credential on them themselves. Empty on an invitation.
+	 */
+	unreachableWorkspaces: { id: string; name: string }[];
 };
 
 /**
@@ -534,9 +539,20 @@ export type Host = {
 			list: () => Promise<OrganizationInvitation[]>;
 			/** revoke an unused invitation; the link that named it opens nothing afterwards. */
 			revoke: (invitationId: string) => Promise<void>;
-			/** invite a member again: a fresh vault under a fresh password. What a reset is. */
-			reissue: (memberId: string) => Promise<Invited>;
 		};
+		/**
+		 * reset a member's password: a fresh vault under a fresh generated password, everything
+		 * the resetting administrator reaches re-sealed to it, and a fresh invitation. The answer
+		 * names the workspaces it could not restore. The member's previous password is not needed
+		 * and not learned.
+		 */
+		resetMember: (memberId: string) => Promise<Invited>;
+		/**
+		 * change the signed-in member's own password. The current one has to open the vault and
+		 * the new one has to reach the floor; nothing else on the database moves, and what comes
+		 * back is where the machine stands, with the requirement to change cleared.
+		 */
+		changePassword: (current: string, next: string) => Promise<OrganizationState>;
 	};
 	remoteSync: {
 		getState: () => Promise<RemoteSyncState>;

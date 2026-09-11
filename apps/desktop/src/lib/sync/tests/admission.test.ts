@@ -61,13 +61,17 @@ test('an open vault admits, and the session is what the application is admitted 
 	assert.equal(organizationAdmission.length, 1, 'the wall takes no clock');
 });
 
-// a member who must still change their password is admitted at the door; the refusal of
-// everything else is at each command, which is the sign-in ticket's second criterion, and the
-// screen that follows is what the session's own fact decides.
-test('a member who must change their password is admitted, and the fact travels with them', () => {
+// a member who must still change their password is in, on a password somebody else drew, and
+// the one thing on offer is choosing their own: the shell refuses everything else at each command,
+// which is the sign-in ticket's second criterion, and this is the screen that says so first. The
+// session travels with the answer, because the screen names the organization from it.
+test('a member who must change their password is asked to, and reaches nothing else', () => {
 	const session = fakeOrganizationSession({ mustChangePassword: true });
 	const admission = organizationAdmission(fakeOrganizationState({ session }));
 
-	assert.equal(admission.kind, 'admitted');
-	assert.equal(admission.kind === 'admitted' && admission.session.mustChangePassword, true);
+	assert.equal(admission.kind, 'passwordChangeRequired');
+	assert.equal(
+		admission.kind === 'passwordChangeRequired' && admission.session.organizationName,
+		session.organizationName
+	);
 });

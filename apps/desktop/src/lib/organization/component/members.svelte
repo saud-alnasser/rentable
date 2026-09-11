@@ -74,7 +74,7 @@
 					<RefreshCwIcon class="size-4" />
 					{reissuing === member.id
 						? $LL.common.actions.working()
-						: $LL.organization.dashboard.reissue()}
+						: $LL.organization.dashboard.resetPassword()}
 				</Button>
 			{/if}
 		</Field.Field>

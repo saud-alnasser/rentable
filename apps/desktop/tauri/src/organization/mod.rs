@@ -23,6 +23,7 @@ pub mod invite;
 pub mod join;
 pub mod link;
 pub mod migrate;
+pub mod password;
 pub mod permission;
 pub mod session;
 pub mod setup;

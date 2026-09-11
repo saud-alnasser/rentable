@@ -26,6 +26,11 @@ export const unlocked = () => fakeOrganizationState();
 export const locked = () => fakeOrganizationState({ session: null });
 /** a machine that has joined nothing. */
 export const nowhereToGo = (): OrganizationState => ({ organizations: [], session: null });
+/** a machine whose person is in on a password somebody else drew, and has to choose their own. */
+export const mustChangePassword = () =>
+	fakeOrganizationState({
+		session: { ...fakeOrganizationState().session!, mustChangePassword: true }
+	});
 /** a machine whose person is admitted to an organization with no workspace in it yet. */
 export const withoutWorkspace = () =>
 	fakeOrganizationState({
@@ -94,6 +99,8 @@ export function harness(
 		signInWith?: (organizationId: string, password: string) => Promise<OrganizationState>;
 		/** what a link and a password do: the state joining leaves the machine in, or the refusal. */
 		joinWith?: (link: string, password: string) => Promise<OrganizationState>;
+		/** what changing the password does: the state it leaves the machine in, or the refusal. */
+		changePasswordWith?: (current: string, next: string) => Promise<OrganizationState>;
 	} = {}
 ): Harness {
 	const journal: Journal = {
@@ -164,6 +171,14 @@ export function harness(
 			},
 			join: async (link, password) => {
 				organization = await (overrides.joinWith ?? (async () => unlocked()))(link, password);
+
+				return organization;
+			},
+			changePassword: async (current, next) => {
+				organization = await (overrides.changePasswordWith ?? (async () => unlocked()))(
+					current,
+					next
+				);
 
 				return organization;
 			},

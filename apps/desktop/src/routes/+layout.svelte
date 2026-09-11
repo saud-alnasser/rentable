@@ -21,6 +21,7 @@
 	import { startupSurfaceBeforeLocale } from '$lib/layout/startup-surface';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
+	import LayoutStartupChangePassword from '$lib/layout/component/startup-change-password.svelte';
 	import LayoutStartupNoWorkspace from '$lib/layout/component/startup-no-workspace.svelte';
 	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
 	import LayoutStartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
@@ -245,7 +246,7 @@
 		// a person is in and there is no workspace: the rail is up, and it has no workspace to
 		// name, which is the shape the signed-out rail already draws. What the rail says for this
 		// state is the workspace ticket's to decide when there is a workspace to create.
-		if (shellState.state === 'no-workspace') {
+		if (shellState.state === 'no-workspace' || shellState.state === 'change-password') {
 			return 'signed-out';
 		}
 
@@ -354,6 +355,13 @@
 										void startup.signIn(organizationId, password)}
 									onSetUpOrganization={() => void goto(resolve(THE_FIRST_RUN))}
 									onJoinByLink={() => void goto(resolve(THE_JOIN))}
+								/>
+							{:else if surface === 'change-password'}
+								<LayoutStartupChangePassword
+									organizationName={shellState.organization?.session?.organizationName ?? ''}
+									isChanging={shellState.isSigningIn}
+									errorMessage={shellState.error}
+									onChange={(current, next) => void startup.changePassword(current, next)}
 								/>
 							{:else if surface === 'no-workspace'}
 								<LayoutStartupNoWorkspace

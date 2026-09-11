@@ -15,7 +15,9 @@ import {
 	fakeRecovery,
 	harness,
 	locked,
+	mustChangePassword,
 	nowhereToGo,
+	unlocked,
 	withoutWorkspace
 } from './testing.ts';
 
@@ -208,7 +210,7 @@ test('and a member with a workspace reaches it after the sign-in, re-entering at
 
 // --- 4b. Joining by a link, which is a sign-in with a step before it and one after ---------
 
-test('a link and the generated password join, on a machine that had joined nothing, and go on in', async () => {
+test('a link and the generated password join, on a machine that had joined nothing, and stop at the password', async () => {
 	const asked: [string, string][] = [];
 	const { startup, journal } = harness({
 		organization: nowhereToGo(),
@@ -226,7 +228,14 @@ test('a link and the generated password join, on a machine that had joined nothi
 					workspaces: [fakeOrganizationWorkspace({ id: 'north' })]
 				})
 			};
-		}
+		},
+		changePasswordWith: async () => ({
+			organizations: [{ id: 'acme', name: 'Acme', memberId: 'sami', role: 'member', joinedAt: 1 }],
+			session: fakeOrganizationSession({
+				mustChangePassword: false,
+				workspaces: [fakeOrganizationWorkspace({ id: 'north' })]
+			})
+		})
 	});
 
 	await startup.start();
@@ -238,10 +247,17 @@ test('a link and the generated password join, on a machine that had joined nothi
 	assert.equal(joined, true);
 	assert.deepEqual(asked, [['rentable://join/abc', 'abcde-fghjk-mnpqr-stuvw']]);
 	assert.ok(!JSON.stringify(startup.snapshot).includes('abcde-fghjk'));
-	assert.equal(startup.snapshot.state, 'ready');
+	// in, on the password somebody else drew: the next screen is choosing their own, and the
+	// workspace they were granted opens after that and not before.
+	assert.equal(startup.snapshot.state, 'change-password');
 	assert.equal(startup.snapshot.organization?.organizations[0]?.name, 'Acme');
-	assert.deepEqual(journal.workspacesOpened, ['north']);
+	assert.deepEqual(journal.workspacesOpened, []);
 	assert.equal(journal.contextsForgotten, 1);
+
+	await startup.changePassword('abcde-fghjk-mnpqr-stuvw', 'a password of my own');
+
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.deepEqual(journal.workspacesOpened, ['north']);
 });
 
 test('and a refused invitation leaves the person at the join screen with the sentence', async () => {
@@ -262,6 +278,63 @@ test('and a refused invitation leaves the person at the join screen with the sen
 		startup.snapshot.error,
 		'the invitation to Acme has lapsed; ask whoever invited you for a new one'
 	);
+	assert.equal(startup.snapshot.isSigningIn, false);
+	assert.equal(journal.bootstrapped, 0);
+});
+
+// --- 4c. A password somebody else drew ----------------------------------------------------
+
+test('a member on a handed password is asked to choose their own, and reaches nothing else', async () => {
+	const { startup, journal } = harness({ organization: mustChangePassword() });
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'change-password');
+	assert.equal(startup.snapshot.railIsUp, true, 'a person is in');
+	assert.deepEqual(journal.workspacesOpened, [], 'no workspace was opened for them');
+	assert.equal(journal.bootstrapped, 0);
+	assert.equal(journal.shown, 1);
+});
+
+test('and choosing one goes on into the application, with neither password held', async () => {
+	const asked: [string, string][] = [];
+	const { startup, journal } = harness({
+		organization: mustChangePassword(),
+		changePasswordWith: async (current, next) => {
+			asked.push([current, next]);
+
+			return unlocked();
+		}
+	});
+
+	await startup.start();
+	assert.equal(startup.snapshot.state, 'change-password');
+
+	const changed = await startup.changePassword('abcde-fghjk-mnpqr-stuvw', 'a password of my own');
+
+	assert.equal(changed, true);
+	assert.deepEqual(asked, [['abcde-fghjk-mnpqr-stuvw', 'a password of my own']]);
+	assert.ok(!JSON.stringify(startup.snapshot).includes('abcde-fghjk'));
+	assert.ok(!JSON.stringify(startup.snapshot).includes('a password of my own'));
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(journal.bootstrapped, 1);
+});
+
+test('and a refused change leaves the person at the screen with the sentence', async () => {
+	const { startup, journal } = harness({
+		organization: mustChangePassword(),
+		changePasswordWith: async () => {
+			throw new Error('the sealed value did not open');
+		}
+	});
+
+	await startup.start();
+
+	const changed = await startup.changePassword('not the password', 'a password of my own');
+
+	assert.equal(changed, false);
+	assert.equal(startup.snapshot.state, 'change-password');
+	assert.equal(startup.snapshot.error, 'the sealed value did not open');
 	assert.equal(startup.snapshot.isSigningIn, false);
 	assert.equal(journal.bootstrapped, 0);
 });

@@ -25,6 +25,12 @@
 //! is told the invitation lapsed. Revoking is deleting the row, and the link then finds nothing to
 //! open; reissuing is a fresh invitation for the same member, which rewrites their vault under a
 //! new password and re-seals what the reissuer can reach, and it is the path a reset takes.
+//!
+//! **A reset says what it could not restore** (requirement 13). The old vault is gone with the
+//! reissue and every grant sealed to it is dead; the reissuer re-seals the ones they hold a full
+//! credential on themselves, and the rest are removed and named in the answer, so the member
+//! knows which workspaces they wait on somebody else for. There is no master key to do better
+//! with, and the spec accepted that deliberately.
 
 use serde::{Deserialize, Serialize};
 
@@ -64,6 +70,17 @@ pub struct Invited {
     pub join_link: String,
     pub generated_password: String,
     pub expires_at: i64,
+    /// on a reissue, the workspaces the member held that the reissuer could not re-seal, because
+    /// the reissuer holds no full credential on them. Empty on a fresh invitation.
+    pub unreachable_workspaces: Vec<UnreachableWorkspace>,
+}
+
+/// A workspace a reset could not restore: the member waits on somebody who reaches it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnreachableWorkspace {
+    pub id: String,
+    pub name: String,
 }
 
 /// What the dashboard lists for one invitation.
@@ -206,15 +223,48 @@ pub async fn reissue_invitation(
         &member.display_name_sealed,
     )?;
     let role = member.role.clone();
-    let workspace_ids: Vec<String> = store
+
+    // what the member held, split by what the reissuer can re-seal: a workspace the reissuer
+    // holds full access to is granted again to the fresh vault; one they do not is removed,
+    // because a grant sealed to a vault that is gone is a sign-in that fails, and it is named in
+    // the answer so the member knows whom to wait on.
+    let mut workspace_ids = Vec::new();
+    let mut unreachable_workspaces = Vec::new();
+    let workspaces = store.workspaces(&session.verifying_key).await?;
+
+    for grant in store
         .grants(&session.verifying_key)
         .await?
         .into_iter()
         .filter(|grant| {
             grant.member_id == member_id && grant.workspace_id != session.organization_id
         })
-        .map(|grant| grant.workspace_id)
-        .collect();
+    {
+        let reachable = session
+            .workspace_credentials
+            .get(&grant.workspace_id)
+            .is_some_and(|held| held.access == AccessLevel::FullAccess);
+
+        if reachable {
+            workspace_ids.push(grant.workspace_id);
+        } else {
+            let name = match workspaces
+                .iter()
+                .find(|workspace| workspace.id == grant.workspace_id)
+            {
+                Some(workspace) => {
+                    opened(session, "workspace.name_sealed", &workspace.name_sealed)?
+                }
+                None => grant.workspace_id.clone(),
+            };
+
+            store.delete_grant(member_id, &grant.workspace_id).await?;
+            unreachable_workspaces.push(UnreachableWorkspace {
+                id: grant.workspace_id,
+                name,
+            });
+        }
+    }
 
     // any invitation still standing for them goes: one open invitation per member.
     for stale in store
@@ -226,7 +276,7 @@ pub async fn reissue_invitation(
         store.delete_invitation(&stale.id).await?;
     }
 
-    issue(
+    let mut invited = issue(
         store,
         session,
         link,
@@ -238,7 +288,11 @@ pub async fn reissue_invitation(
         kdf_params,
         now,
     )
-    .await
+    .await?;
+
+    invited.unreachable_workspaces = unreachable_workspaces;
+
+    Ok(invited)
 }
 
 /// Revoke an unused invitation: the row goes, and the link stops opening anything.
@@ -560,6 +614,7 @@ async fn issue(
         invitation_id,
         generated_password,
         expires_at,
+        unreachable_workspaces: Vec::new(),
     })
 }
 

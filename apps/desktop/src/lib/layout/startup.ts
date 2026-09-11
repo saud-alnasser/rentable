@@ -36,7 +36,8 @@ import type { StartupStage } from './startup-stage';
  * has not created one yet admits its members to nothing, which is a state of its own rather than a
  * failure to start. Creating one is the workspace ticket's; this state is where that surface goes.
  */
-export type StartupState = 'loading' | 'sign-in' | 'no-workspace' | 'ready' | 'error' | 'recovery';
+export type StartupState =
+	'loading' | 'sign-in' | 'change-password' | 'no-workspace' | 'ready' | 'error' | 'recovery';
 
 /**
  * why the wall is up, which is only read while it is. The organization's two reasons, from
@@ -104,6 +105,8 @@ export type StartupPorts = {
 		signIn(organizationId: string, password: string): Promise<OrganizationState>;
 		/** join the organization a link names with the generated password, and sign in to it. */
 		join(link: string, password: string): Promise<OrganizationState>;
+		/** change the signed-in member's own password, and clear the requirement to. */
+		changePassword(current: string, next: string): Promise<OrganizationState>;
 		signOut(): Promise<OrganizationState>;
 		/** open one of the workspaces the session holds a grant on, before the bootstrap. */
 		openWorkspace(workspaceId: string): Promise<unknown>;
@@ -263,6 +266,15 @@ export class Startup {
 	 */
 	async #admit() {
 		const admission = organizationAdmission(this.#snapshot.organization);
+
+		// a person is in, on a password somebody else drew: the rail is up and the one thing on
+		// offer is choosing their own. The shell refuses everything else for them regardless.
+		if (admission.kind === 'passwordChangeRequired') {
+			this.#set({ error: null, recovery: null, state: 'change-password', railIsUp: true });
+			await this.#ports.window.show();
+
+			return false;
+		}
 
 		if (admission.kind !== 'signInRequired') {
 			return true;
@@ -501,6 +513,45 @@ export class Startup {
 
 		try {
 			this.#set({ organization: await this.#ports.organization.join(link, password) });
+		} catch (error) {
+			this.#set({ error: this.#ports.describeError(error) });
+
+			return false;
+		} finally {
+			this.#set({ isSigningIn: false });
+		}
+
+		this.#rememberSession();
+
+		if (!(await this.#admit())) {
+			return true;
+		}
+
+		if (!(await this.#hasWorkspace())) {
+			return true;
+		}
+
+		await this.#enterApplication();
+
+		return true;
+	}
+
+	/**
+	 * Choose a password of one's own, on the screen that requires it, and go on in.
+	 *
+	 * The same shape as `signIn`: two passwords handed to the shell and never held, a refusal
+	 * shown on the screen the person is standing at, and the ordinary path past the wall once the
+	 * requirement is cleared. Two derivations rather than one, which is why it says it is working.
+	 */
+	async changePassword(current: string, next: string) {
+		if (this.#snapshot.isSigningIn) {
+			return false;
+		}
+
+		this.#set({ isSigningIn: true, error: null });
+
+		try {
+			this.#set({ organization: await this.#ports.organization.changePassword(current, next) });
 		} catch (error) {
 			this.#set({ error: this.#ports.describeError(error) });
 

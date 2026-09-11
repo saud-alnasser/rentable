@@ -468,6 +468,57 @@ impl OrganizationStore {
         Ok(())
     }
 
+    /// Re-seal a member's vault under a new password, and say whether they still have to change
+    /// it. The one write on a member row that carries no signature, and deliberately: the public
+    /// key, the role and the permissions are what the chain signs, and none of them moves here.
+    /// A member re-sealing their own vault writes nothing an authority has to vouch for, which is
+    /// what makes a password change a write a member may perform on a database they hold full
+    /// access to (ticket 07). A vault whose public key differs from the row's is refused, because
+    /// that would be a new keypair, and a new keypair is a signed write.
+    pub async fn reseal_member(
+        &self,
+        member_id: &str,
+        vault: &Vault,
+        must_change_password: bool,
+        now: i64,
+    ) -> Result<(), Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"public_key\" FROM \"member\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(member_id.to_string())],
+            )
+            .await?;
+        let row = rows.next().await?.ok_or_else(|| Error::NotFound {
+            message: "that member is not in this organization".to_string(),
+        })?;
+
+        if blob(&row, 0)? != vault.public_key {
+            return Err(Error::Integrity {
+                message: "a vault re-sealed under a password keeps its keypair; this one did not"
+                    .to_string(),
+            });
+        }
+
+        self.connection
+            .execute(
+                "UPDATE \"member\" SET \"sealed_secret_key\" = ?, \"kdf_salt\" = ?, \
+                 \"kdf_params\" = ?, \"must_change_password\" = ?, \"updated_at\" = ? \
+                 WHERE \"id\" = ?",
+                vec![
+                    turso::Value::Blob(vault.sealed_secret_key.clone()),
+                    turso::Value::Blob(vault.kdf_salt.to_vec()),
+                    turso::Value::Text(vault.kdf_params.encode()),
+                    turso::Value::Integer(i64::from(must_change_password)),
+                    turso::Value::Integer(now),
+                    turso::Value::Text(member_id.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
     /// Every member, each verified against the chain before it is returned.
     ///
     /// `organization_verifying_key` is the one the caller pinned from its join link, never the
@@ -838,6 +889,22 @@ impl OrganizationStore {
             .execute(
                 "DELETE FROM \"invitation\" WHERE \"id\" = ?",
                 vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Remove one grant: what a reset does with a grant it cannot re-seal, because the vault it
+    /// was sealed to is gone and a grant nobody can open is a sign-in that fails.
+    pub async fn delete_grant(&self, member_id: &str, workspace_id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"grant\" WHERE \"member_id\" = ? AND \"workspace_id\" = ?",
+                vec![
+                    turso::Value::Text(member_id.to_string()),
+                    turso::Value::Text(workspace_id.to_string()),
+                ],
             )
             .await?;
 

@@ -105,6 +105,16 @@
 			</Button>
 		</div>
 
+		{#if invited.unreachableWorkspaces.length > 0}
+			<!-- requirement 13's limit, said at the moment it bites: what the reset could not
+			     restore, because the resetting administrator does not reach it themselves. -->
+			<Callout tone="warning" data-invited-unreachable>
+				{$LL.organization.dashboard.unreachableWorkspaces({
+					workspaces: invited.unreachableWorkspaces.map((workspace) => workspace.name).join(', ')
+				})}
+			</Callout>
+		{/if}
+
 		<div class="space-y-2">
 			<p class="text-sm font-medium">{$LL.organization.dashboard.generatedPassword()}</p>
 			<code

@@ -47,7 +47,8 @@ const invited = {
 	invitationId: 'invitation-1',
 	joinLink: 'rentable://join/abc',
 	generatedPassword: 'abcde-fghjk-mnpqr-stuvw',
-	expiresAt: 0
+	expiresAt: 0,
+	unreachableWorkspaces: []
 };
 
 const form = (
@@ -117,6 +118,28 @@ test('what an invitation made is shown once, as machine strings, with the statem
 		screen.getByRole('button', { name: en.organization.dashboard.copyPassword })
 	).toBeDefined();
 	expect(screen.getByText(en.organization.dashboard.passwordOnce)).toBeDefined();
+});
+
+// requirement 13's limit, at the moment it bites: a reset that could not restore a workspace says
+// which, so the member knows whom to wait on rather than discovering it at a locked door.
+test('a reset that could not restore a workspace names it, and an invitation says nothing of the kind', () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const reset = form({
+		invited: { ...invited, unreachableWorkspaces: [{ id: 'ws-2', name: 'South' }] }
+	});
+	const notice = document.querySelector('[data-invited-unreachable]');
+
+	expect(notice?.textContent).toContain('South');
+	expect(notice?.textContent).toBe(
+		en.organization.dashboard.unreachableWorkspaces.replace('{workspaces}', 'South')
+	);
+	reset.unmount();
+
+	form({ invited });
+
+	expect(document.querySelector('[data-invited-unreachable]')).toBeNull();
 });
 
 test('the same panel in arabic says the same, and the two strings still read left to right', () => {

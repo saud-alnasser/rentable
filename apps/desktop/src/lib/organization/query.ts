@@ -186,6 +186,28 @@ export function useRevokeInvitation(
 	}));
 }
 
+/**
+ * the signed-in member's own password, changed from the account page. The refusal a person
+ * can act on, a password under the floor or a current one that did not open, is shown.
+ */
+export function useChangePassword(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).account.password.changed(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	return createMutation(() => ({
+		mutationFn: ({ current, next }: { current: string; next: string }) =>
+			api.app.organization.password.change({ current, next }),
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** reset a member's password: a reissue from what the resetting administrator holds. */
 export function useReissueInvitation(
 	opts: MutationOptions = {
 		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }

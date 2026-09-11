@@ -169,9 +169,10 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			},
 			invitation: {
 				list: refuse('organization.invitation.list'),
-				revoke: refuse('organization.invitation.revoke'),
-				reissue: refuse('organization.invitation.reissue')
-			}
+				revoke: refuse('organization.invitation.revoke')
+			},
+			resetMember: refuse('organization.resetMember'),
+			changePassword: refuse('organization.changePassword')
 		},
 		remoteSync: {
 			getState: refuse('remoteSync.getState'),

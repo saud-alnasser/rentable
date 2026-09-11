@@ -256,9 +256,11 @@ export const tauri = {
 		},
 		invitation: {
 			list: () => invoke<OrganizationInvitation[]>('organization_invitations'),
-			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId }),
-			reissue: (memberId: string) => invoke<Invited>('invitation_reissue', { memberId })
-		}
+			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId })
+		},
+		resetMember: (memberId: string) => invoke<Invited>('member_reset', { memberId }),
+		changePassword: (current: string, next: string) =>
+			invoke<OrganizationState>('organization_change_password', { current, new: next })
 	},
 	remoteSync: {
 		getState: () => invoke<RemoteSyncState>('remote_sync_state_get'),
