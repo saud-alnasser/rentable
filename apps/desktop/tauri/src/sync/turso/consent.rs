@@ -807,7 +807,7 @@ fn format_keyring_error(action: &str, error: KeyringError) -> Error {
 /// the credential store a test has. It stands in for exactly the three calls above, so a test
 /// asserts on where the token went rather than on a mocked keyring's idea of it.
 #[cfg(test)]
-fn store_platform_token(platform_token: &str) -> Result<(), Error> {
+pub(in crate::sync::turso) fn store_platform_token(platform_token: &str) -> Result<(), Error> {
     let mut stored = test_platform_token()
         .lock()
         .map_err(|_| consents_poisoned())?;

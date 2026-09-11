@@ -11,3 +11,5 @@
 pub mod consent;
 
 pub mod discovery;
+
+pub mod platform;

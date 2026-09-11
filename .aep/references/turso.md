@@ -49,12 +49,17 @@ not print it, do not commit it, and do not assume it is the one production uses.
 There is no CLI in this repository's path. Everything is HTTP, against `https://api.turso.tech`,
 with `Authorization: Bearer <TURSO_API_TOKEN>`.
 
-**Two callers now, and only one of them ships.** `apps/control-plane/src/workspace/turso.ts` is the
+**Three callers now, and two of them ship.** `apps/control-plane/src/workspace/turso.ts` is the
 service, and it is the one the endpoints below are documented for.
-`apps/desktop/tauri/src/database/test/workspace.rs` is the other, added 2026-08-20 by #552: it
+`apps/desktop/tauri/src/database/test/workspace.rs` is the second, added 2026-08-20 by #552: it
 provisions and destroys a database per test so that two replicas have something to diverge against,
 and it is `#[cfg(test)]` and `#[ignore]`d — [[rules/testing]], under *Tests that reach a live
-remote*, is what bounds it. Nothing in the shipping desktop binary reaches this API.
+remote*, is what bounds it. **`apps/desktop/tauri/src/sync/turso/platform.rs` is the third, since
+2026-09-11 and effort 819**: `turso.ts` ported into the desktop with its port shape intact, spending
+a token a browser consent filed in the keyring rather than `TURSO_API_TOKEN`, and reaching the
+customer's own account rather than ours. It is the first thing in the shipping desktop binary to
+reach this API. It adds the configuration call below to the three `turso.ts` makes, and its
+deletion is behind a caller-stated intent rather than a method that merely exists.
 
 ```
 POST   /v1/organizations/{org}/databases
@@ -63,6 +68,10 @@ POST   /v1/organizations/{org}/databases
 POST   /v1/organizations/{org}/databases/{database}/auth/tokens?expiration=3d&authorization=full-access
 
 DELETE /v1/organizations/{org}/databases/{database}
+
+PATCH  /v1/organizations/{org}/databases/{database}/configuration
+       {"delete_protection": true}          desktop only; on at create, lifted before a delete
+GET    /v1/organizations/{org}/databases/{database}/configuration
 ```
 
 `expiration` takes Turso's own duration spelling — `2w1d30m` — and defaults to `never`, which
@@ -202,6 +211,16 @@ them, and a script holding it did.
 for a group, `PATCH /v1/organizations/{org}/databases/{name}/configuration` for a single database.
 `PATCH .../groups/{group}` is not a route.
 
+**The database-level path was run live on 2026-09-11, at the human's request, and it holds.**
+Effort 819's `platform.rs` created `t819-05-18d450c2cbb1d764` in group `rentable` with a
+consent-issued group-scoped token, set `delete_protection` to `true` through that path, read it
+back as `true` from the matching `GET`, minted a `1h` token, set the protection to `false`, and
+deleted the database, in one run. So the documented path applies and reports the change, and a
+database-level protection is lifted by the same grant that set it, which is why the desktop treats
+it as a barrier against a stray delete and not as a guarantee. **The group-level path and the
+question of why thirty deletes succeeded on 2026-08-20 are still untested.** Turso's create takes
+no protection field, so on the desktop the protection is a second request made inside the create.
+
 **What the run did not settle is why thirty deletes succeeded at all**, two days after
 *Failure handling* measured a 403 refusing exactly that. Three readings of the group's own state
 bracket the wipe and do not agree: `true` at 05:48, `false` at 05:53, `true` again on 2026-08-23.
@@ -242,7 +261,10 @@ on purpose and no number of attempts changes that.
   callers and both created what they remove: the service's own path, where a database was made for a
   workspace whose record could not be written, and the teardown in
   `workspace/tests/provisioning.test.ts`, which removes what its live run provisioned. A workspace's
-  database is somebody's ledger, and nothing else is a reason to call it.
+  database is somebody's ledger, and nothing else is a reason to call it. **On the desktop the same
+  rule is a type**: `platform.rs`'s `delete_database` takes a `DeletionIntent`, and its two variants
+  are exactly these two reasons, an owner deleting the workspace in the interface now, and a database
+  this process just created and could not finish making into a workspace.
 - **Do not delete `control-plane` or `control-plane-live-test`.** One holds every account,
   workspace, membership and session the control plane decides on; the other is what the live test
   writes into, and it is reused rather than recreated for exactly this reason. No code path in this
