@@ -23,6 +23,7 @@ fn main() {
 
     mirror_migrations(&migrations, &manifest_dir.join("migrations"));
     write_workspace_schema_version(&migrations);
+    write_workspace_migrations(&manifest_dir.join("migrations"));
 
     tauri_build::build()
 }
@@ -129,6 +130,50 @@ fn write_workspace_schema_version(migrations: &Path) {
         ),
     )
     .expect("cannot write the workspace schema version");
+}
+
+/// The shipped migrations, embedded in the binary in the order they apply.
+///
+/// **The desktop applies migrations again, and this is how the SQL reaches a machine.** A
+/// workspace is created by a client now rather than by a service, so the client has to carry what
+/// the service carried: every `.sql` file, in `drizzle-kit`'s numbered order, as text the compiler
+/// sees. `include_str!` against the mirrored copy above, so the one tracked copy in the package is
+/// still the only source and a build that did not re-run when a migration was added is caught by
+/// the same directory read the version is counted from.
+fn write_workspace_migrations(mirrored: &Path) {
+    let mut files = sql_files(mirrored);
+
+    // the same order both runners apply them in: a plain sort over names drizzle-kit numbers
+    // from `0000`.
+    files.sort();
+
+    let entries: Vec<String> = files
+        .iter()
+        .map(|file| {
+            let name = file
+                .file_name()
+                .and_then(|name| name.to_str())
+                .expect("a migration with no name");
+            let path = file
+                .canonicalize()
+                .unwrap_or_else(|error| panic!("cannot resolve {}: {error}", file.display()));
+
+            // Windows canonicalises to a verbatim path, `\\?\C:\...`, which `include_str!` does
+            // not take; the prefix is dropped and the rest is a path the macro reads.
+            let path = path.to_string_lossy();
+            let path = path.strip_prefix(r"\\?\").unwrap_or(&path);
+
+            format!("    ({name:?}, include_str!({path:?})),")
+        })
+        .collect();
+    let out_dir = PathBuf::from(env::var("OUT_DIR").expect("missing out dir"));
+    let source = format!(
+        "pub const WORKSPACE_MIGRATIONS: &[(&str, &str)] = &[\n{}\n];\n",
+        entries.join("\n")
+    );
+
+    fs::write(out_dir.join("workspace-migrations.rs"), source)
+        .expect("cannot write the workspace migrations");
 }
 
 fn read_env_value(path: &PathBuf, key: &str) -> Option<String> {

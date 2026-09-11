@@ -52,6 +52,7 @@ export function fakeAccount(overrides: Partial<RemoteSyncAccount> = {}): RemoteS
 /** A workspace as the store holds one. */
 export function fakeWorkspace(overrides: Partial<RemoteSyncWorkspace> = {}): RemoteSyncWorkspace {
 	return {
+		remoteId: null,
 		id: 'workspace',
 		name: 'Workspace',
 		localDatabasePath: 'C:/rentable/app.db',
@@ -150,7 +151,14 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			create: refuse('organization.create'),
 			getState: refuse('organization.getState'),
 			signIn: refuse('organization.signIn'),
-			signOut: refuse('organization.signOut')
+			signOut: refuse('organization.signOut'),
+			workspace: {
+				create: refuse('organization.workspace.create'),
+				open: refuse('organization.workspace.open'),
+				grant: refuse('organization.workspace.grant'),
+				remove: refuse('organization.workspace.remove'),
+				renewCredentials: refuse('organization.workspace.renewCredentials')
+			}
 		},
 		remoteSync: {
 			getState: refuse('remoteSync.getState'),

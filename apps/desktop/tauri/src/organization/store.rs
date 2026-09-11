@@ -685,6 +685,25 @@ impl OrganizationStore {
         Ok(grants)
     }
 
+    /// Remove a workspace's row and every grant on it. The one deletion the store makes, for the
+    /// one moment requirement 4 permits it; the database it names is the port's to remove first.
+    pub async fn delete_workspace(&self, workspace_id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"grant\" WHERE \"workspace_id\" = ?",
+                vec![turso::Value::Text(workspace_id.to_string())],
+            )
+            .await?;
+        self.connection
+            .execute(
+                "DELETE FROM \"workspace\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(workspace_id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
     /// The connection, for a test that has to write a row the store would never write.
     #[cfg(test)]
     pub(crate) fn connection(&self) -> &turso::Connection {
@@ -1433,7 +1452,11 @@ mod tests {
             .await
             .expect("the live create failed");
         let token = platform
-            .mint_token(&name, "1h")
+            .mint_token(
+                &name,
+                "1h",
+                crate::sync::turso::platform::AccessLevel::FullAccess,
+            )
             .await
             .expect("the live mint failed");
         let remote_url = format!("libsql://{}", database.hostname);

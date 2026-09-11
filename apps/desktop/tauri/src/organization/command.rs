@@ -6,13 +6,15 @@ use crate::{error::Error, state::AppState, timestamp};
 
 use super::{
     JoinedOrganization,
-    session::{self, CredentialSlot, SessionFacts},
+    migrate::Pipeline,
+    session::{self, CredentialSlot, SessionFacts, WorkspaceFacts},
     setup::{self, CreateOrganization, OrganizationCreated, Remote},
     store::OrganizationStore,
+    workspace,
 };
 use crate::sync::turso::{
     discovery::McpEndpoint,
-    platform::{PlatformApi, PlatformEndpoint},
+    platform::{AccessLevel, PlatformApi, PlatformEndpoint},
 };
 
 /// One organization this machine has joined, as the sign-in screen lists it. No key.
@@ -234,4 +236,183 @@ async fn current_facts(app_state: &AppState) -> Result<Option<SessionFacts>, Err
     };
 
     session::facts_of(store, member).await.map(Some)
+}
+
+/// The Platform API client this machine can build, where it holds the authority and knows the
+/// organization: the owner's machine after a consent, and nobody else's. `None` is not a failure;
+/// it is what makes a read-only grant, a create and a delete the owner's, at the command.
+async fn owner_platform(app_state: &AppState) -> Option<PlatformApi> {
+    setup::authority().ok()?;
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let organization = remote_sync.store_mut().turso_organization.clone()?;
+
+    Some(PlatformApi::new(
+        PlatformEndpoint::production(),
+        organization,
+    ))
+}
+
+/// The signed-in member and their organization replica, or the wall.
+fn signed_in<'a>(
+    member: &'a mut Option<session::MemberSession>,
+    store: &'a Option<OrganizationStore>,
+) -> Result<(&'a mut session::MemberSession, &'a OrganizationStore), Error> {
+    match (member.as_mut(), store.as_ref()) {
+        (Some(member), Some(store)) => Ok((member, store)),
+        _ => Err(Error::PreconditionFailed {
+            message: "nobody is signed in to an organization on this machine".to_string(),
+        }),
+    }
+}
+
+/// Create a workspace on the account, migrated and granted to the owner. Owner only, at the
+/// command: anybody else is told to ask the owner, before any request.
+#[tauri::command]
+pub async fn workspace_create(
+    app_state: tauri::State<'_, AppState>,
+    name: String,
+) -> Result<WorkspaceFacts, Error> {
+    let platform = owner_platform(&app_state)
+        .await
+        .ok_or_else(|| Error::Forbidden {
+            message:
+                "only an owner can create a workspace, from the machine that connected the turso \
+                  account. ask the owner"
+                    .to_string(),
+        })?;
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    workspace::create_workspace(
+        store,
+        member,
+        &platform,
+        Pipeline::of,
+        &name,
+        timestamp::now(),
+    )
+    .await
+}
+
+/// Grant a workspace to a member. Full access re-seals the caller's own credential; read-only is
+/// minted, which only the owner's machine can do.
+#[tauri::command]
+pub async fn workspace_grant(
+    app_state: tauri::State<'_, AppState>,
+    workspace_id: String,
+    member_id: String,
+    access: AccessLevel,
+) -> Result<(), Error> {
+    let platform = owner_platform(&app_state).await;
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    workspace::grant_workspace(
+        store,
+        member,
+        platform.as_ref(),
+        &workspace_id,
+        &member_id,
+        access,
+    )
+    .await
+}
+
+/// Delete a workspace: the one moment requirement 4 permits deleting a database, through the one
+/// intent the port takes for it. Owner only.
+#[tauri::command]
+pub async fn workspace_delete(
+    app_state: tauri::State<'_, AppState>,
+    workspace_id: String,
+) -> Result<(), Error> {
+    let platform = owner_platform(&app_state)
+        .await
+        .ok_or_else(|| Error::Forbidden {
+            message:
+                "only an owner can delete a workspace, from the machine that connected the turso \
+                  account. ask the owner"
+                    .to_string(),
+        })?;
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    workspace::delete_workspace(store, member, &platform, &workspace_id).await
+}
+
+/// Open a workspace this member holds a grant on: record it as this machine's current workspace,
+/// hold the credential the vault unsealed for the replica, and open the replica.
+///
+/// **The credential never leaves Rust.** What comes back is the workspace as a fact; the token is
+/// in the sync state's own hands and the replica asks it per request.
+#[tauri::command]
+pub async fn workspace_open(
+    app_state: tauri::State<'_, AppState>,
+    workspace_id: String,
+) -> Result<WorkspaceFacts, Error> {
+    let opened = {
+        let mut member = app_state.member.write().await;
+        let store = app_state.organization.read().await;
+        let (member, store) = signed_in(&mut member, &store)?;
+
+        member.settled()?;
+
+        let workspaces = store.workspaces(&member.verifying_key).await?;
+
+        workspace::openable(member, &workspaces, &workspace_id)?.ok_or_else(|| {
+            Error::Forbidden {
+                message: "you hold no grant on that workspace".to_string(),
+            }
+        })?
+    };
+    let (facts, credential) = opened;
+
+    {
+        let permissions = app_state
+            .member
+            .read()
+            .await
+            .as_ref()
+            .map(|member| member.permissions)
+            .unwrap_or_default();
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync.open_organization_workspace(
+            &facts.id,
+            &facts.name,
+            &format!("libsql://{}", facts.database_hostname),
+            permissions,
+            &credential.token,
+        )?;
+    }
+
+    if let Some(error) = crate::bootstrap::open_database(&app_state).await {
+        return Err(error);
+    }
+
+    Ok(facts)
+}
+
+/// Mint fresh credentials for every grant and re-seal them, on the owner's machine. Answers with
+/// how many grants were renewed.
+#[tauri::command]
+pub async fn organization_renew_credentials(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<usize, Error> {
+    let platform = owner_platform(&app_state)
+        .await
+        .ok_or_else(|| Error::Forbidden {
+            message:
+                "credentials are renewed on the owner's machine, which holds the turso authority"
+                    .to_string(),
+        })?;
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    let organization_database = format!("org-{}", member.organization_id);
+
+    workspace::renew_credentials(store, member, &platform, &organization_database).await
 }

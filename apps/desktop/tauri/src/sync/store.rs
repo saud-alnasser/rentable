@@ -374,6 +374,34 @@ impl RemoteSync {
         &mut self.store
     }
 
+    /// Hold the credential a member's vault unsealed for the current workspace, for the replica.
+    pub(crate) fn hold_organization_workspace_token(&mut self, token: &str) {
+        self.hold_workspace_token(token);
+    }
+
+    /// The workspace a member opened from their organization: recorded as this machine's current
+    /// workspace, with the credential their vault unsealed held for the replica to sync with.
+    ///
+    /// What a control-plane mint used to learn in two calls arrives here in one, because the
+    /// organization replica already holds the name, the remote and what the member may do, and
+    /// the credential was sealed to them rather than minted for the occasion.
+    pub(crate) fn open_organization_workspace(
+        &mut self,
+        remote_id: &str,
+        name: &str,
+        url: &str,
+        permissions: i64,
+        token: &str,
+    ) -> Result<(), Error> {
+        self.hold_workspace_token(token);
+        self.record_remote_workspace(LearnedWorkspace {
+            remote_id,
+            name: Some(name),
+            url: Some(url),
+            permissions: Some(permissions),
+        })
+    }
+
     /// who this machine is signed in as, or nobody.
     ///
     /// **A row is not a sign-in**, which is why the status is what decides rather than the row

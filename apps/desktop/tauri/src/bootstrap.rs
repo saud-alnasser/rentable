@@ -106,11 +106,19 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
     // asked to stop holding it.
     forget_replicas_no_longer_on_disk(app_state).await;
 
-    // **The membership check is the mint**, which is the whole reason this is not a separate call:
+    // **A workspace opened from an organization needs no mint.** The credential is what the
+    // member's vault unsealed, held for the replica by `workspace_open`, and the remote is on the
+    // signed row; the control plane is asked nothing. Everything below this arm is the
+    // control-plane path, which stands until the ticket that retires it.
+    //
+    // **The membership check is the mint** on that path, which is why it is not a separate call:
     // the control plane consults membership on every mint, so a refusal naming it is the service
     // saying this machine should not be holding that replica any more. Every other outcome leaves
     // the replica where it is.
-    let standing = crate::sync::mint_workspace(app_state).await;
+    let standing = match organization_standing(app_state).await {
+        Some(standing) => standing,
+        None => crate::sync::mint_workspace(app_state).await,
+    };
 
     let workspace = {
         let remote_sync = app_state.remote_sync.read().await;
@@ -334,4 +342,22 @@ async fn forget_replicas_no_longer_on_disk(app_state: &AppState) {
                 .write();
         }
     }
+}
+
+/// Where the current workspace stands when it is one the signed-in member holds a grant on:
+/// minted already, in the sense that a credential is in hand, at the remote the signed row names.
+/// `None` where no member is signed in or the current workspace is not one of theirs, which is
+/// the control-plane path's to answer.
+async fn organization_standing(app_state: &AppState) -> Option<crate::sync::WorkspaceStanding> {
+    let member = app_state.member.read().await;
+    let member = member.as_ref()?;
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let workspace = remote_sync.workspace();
+    let remote_id = workspace.remote_id.as_deref()?;
+    let held = member.workspace_credentials.get(remote_id)?;
+    let url = workspace.remote_url.clone()?;
+
+    remote_sync.hold_organization_workspace_token(&held.token);
+
+    Some(crate::sync::WorkspaceStanding::Minted(url))
 }

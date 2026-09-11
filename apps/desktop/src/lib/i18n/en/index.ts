@@ -370,6 +370,13 @@ const en = {
 		},
 
 		noWorkspace: {
+			nameLabel: 'workspace name',
+			create: 'create workspace',
+			creating:
+				'creating the workspace on your turso account, and giving it its shape. this takes a moment.',
+			created: 'the workspace was created.',
+			ownerOnly:
+				'an owner creates the first workspace, from the machine that connected the turso account. ask the owner.',
 			title: 'no workspace yet',
 			description: 'this organization holds no workspace. an owner creates the first one.'
 		},

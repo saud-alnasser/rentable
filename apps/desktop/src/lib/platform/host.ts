@@ -114,6 +114,13 @@ export type RemoteSyncWorkspace = {
 	name: string;
 	localDatabasePath: string;
 	/**
+	 * the workspace this machine has open, by the id the organization knows it under, or `null`
+	 * where it has never opened one. Read by startup to reopen the one held last; Rust has carried
+	 * it since sign-in learned a workspace, and this side reads it since organizations gave a
+	 * member several to choose between.
+	 */
+	remoteId: string | null;
+	/**
 	 * what the signed-in account may do in this workspace, as one number.
 	 *
 	 * **Never read as a number.** `permits` from `@rentable/workspace-permission` is what answers a
@@ -418,6 +425,29 @@ export type Host = {
 		signIn: (organizationId: string, password: string) => Promise<OrganizationState>;
 		/** drop the keys this process held, and put the wall back up. */
 		signOut: () => Promise<OrganizationState>;
+		workspace: {
+			/**
+			 * create a workspace on the account: a database, migrated, recorded, and granted to the
+			 * owner. Refuses anybody but the owner, before any request, and says to ask the owner.
+			 */
+			create: (name: string) => Promise<OrganizationWorkspace>;
+			/**
+			 * open a workspace this member holds a grant on: it becomes this machine's current
+			 * workspace and its replica opens with the credential the vault unsealed. The credential
+			 * stays on the other side.
+			 */
+			open: (workspaceId: string) => Promise<OrganizationWorkspace>;
+			/** grant a workspace to a member, at `full-access` or `read-only`. */
+			grant: (
+				workspaceId: string,
+				memberId: string,
+				access: 'full-access' | 'read-only'
+			) => Promise<void>;
+			/** delete a workspace and its database: the owner's, and the one moment deletion is permitted. */
+			remove: (workspaceId: string) => Promise<void>;
+			/** mint fresh credentials for every grant and re-seal them, on the owner's machine. */
+			renewCredentials: () => Promise<number>;
+		};
 	};
 	remoteSync: {
 		getState: () => Promise<RemoteSyncState>;

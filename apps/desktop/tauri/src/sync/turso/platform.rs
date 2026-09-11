@@ -55,6 +55,7 @@
 
 use std::{future::Future, time::Duration};
 
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::{diagnostics, error::Error, http::build_client};
@@ -66,10 +67,37 @@ const TURSO_PLATFORM_API: &str = "https://api.turso.tech";
 /// Matches the timeout every other credential-path request in this crate sets.
 const PLATFORM_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// `full-access` is the only authorization this port mints today, as `turso.ts` did: the mint
-/// exposes `full-access | read-only` and nothing finer. A read-only grant is requirement 11's and
-/// arrives with the ticket that builds it, as a second value here rather than a second port.
-const FULL_ACCESS: &str = "full-access";
+/// What a minted credential is good for. The mint exposes `full-access | read-only` and nothing
+/// finer, which is the granularity every grant in the organization has.
+///
+/// `turso.ts` minted `full-access` alone; the read-only half arrived with the workspace ticket,
+/// because requirement 11's read-only member is refused by Turso rather than by the interface,
+/// and Turso refuses on the credential it minted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AccessLevel {
+    FullAccess,
+    ReadOnly,
+}
+
+impl AccessLevel {
+    /// The spelling Turso's mint takes and a grant row stores.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::FullAccess => "full-access",
+            Self::ReadOnly => "read-only",
+        }
+    }
+
+    /// The spelling read back off a grant row. Anything else is a row nobody here wrote.
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "full-access" => Some(Self::FullAccess),
+            "read-only" => Some(Self::ReadOnly),
+            _ => None,
+        }
+    }
+}
 
 /// One workspace database on the customer's account.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -170,12 +198,13 @@ pub trait TursoPlatform {
         name: &str,
     ) -> impl Future<Output = Result<WorkspaceDatabase, PlatformError>> + Send;
 
-    /// A full-access token for one database, expiring after `expiration` in Turso's own duration
-    /// spelling, `3d` and the like.
+    /// A token for one database at `access`, expiring after `expiration` in Turso's own duration
+    /// spelling, `3d` and the like, or `never`.
     fn mint_token(
         &self,
         database_name: &str,
         expiration: &str,
+        access: AccessLevel,
     ) -> impl Future<Output = Result<String, PlatformError>> + Send;
 
     /// Remove `name`, lifting its delete protection first. The intent is the caller's statement of
@@ -208,8 +237,9 @@ impl<T: TursoPlatform + Sync + Send> TursoPlatform for std::sync::Arc<T> {
         &self,
         database_name: &str,
         expiration: &str,
+        access: AccessLevel,
     ) -> Result<String, PlatformError> {
-        (**self).mint_token(database_name, expiration).await
+        (**self).mint_token(database_name, expiration, access).await
     }
 
     async fn delete_database(
@@ -388,6 +418,7 @@ impl TursoPlatform for PlatformApi {
         &self,
         database_name: &str,
         expiration: &str,
+        access: AccessLevel,
     ) -> Result<String, PlatformError> {
         let what = "mint a token for this workspace";
         let client = client()?;
@@ -399,7 +430,7 @@ impl TursoPlatform for PlatformApi {
             .map_err(|_| PlatformError::Unreachable { what })?;
         url.query_pairs_mut()
             .append_pair("expiration", expiration)
-            .append_pair("authorization", FULL_ACCESS);
+            .append_pair("authorization", access.as_str());
 
         let body = call(what, client.post(url).bearer_auth(&platform_token)).await?;
 
@@ -567,7 +598,7 @@ pub(crate) struct InMemoryPlatform {
 #[derive(Default)]
 struct InMemoryState {
     databases: Vec<InMemoryDatabase>,
-    minted: Vec<(String, String)>,
+    minted: Vec<(String, String, AccessLevel)>,
     deleted: Vec<(String, DeletionIntent)>,
     refuse_next: Option<PlatformError>,
     /// how many operations have been asked, so a refusal can be placed on the nth.
@@ -616,8 +647,8 @@ impl InMemoryPlatform {
         self.locked().databases.clone()
     }
 
-    /// every mint, as `(database, expiration)`, in order.
-    pub(crate) fn minted(&self) -> Vec<(String, String)> {
+    /// every mint, as `(database, expiration, access)`, in order.
+    pub(crate) fn minted(&self) -> Vec<(String, String, AccessLevel)> {
         self.locked().minted.clone()
     }
 
@@ -675,6 +706,7 @@ impl TursoPlatform for InMemoryPlatform {
         &self,
         database_name: &str,
         expiration: &str,
+        access: AccessLevel,
     ) -> Result<String, PlatformError> {
         let mut state = self.locked();
         Self::take_refusal(&mut state)?;
@@ -691,9 +723,12 @@ impl TursoPlatform for InMemoryPlatform {
 
         state
             .minted
-            .push((database_name.to_string(), expiration.to_string()));
+            .push((database_name.to_string(), expiration.to_string(), access));
 
-        Ok(format!("token-for-{database_name}-{expiration}"))
+        Ok(format!(
+            "token-for-{database_name}-{expiration}-{}",
+            access.as_str()
+        ))
     }
 
     /// **A name this fake has never seen is taken as a database the MCP server created**, which
@@ -754,8 +789,8 @@ mod tests {
     use crate::sync::turso::discovery::TursoOrganization;
 
     use super::{
-        DeletionIntent, InMemoryPlatform, PlatformApi, PlatformEndpoint, PlatformError,
-        TursoPlatform, WorkspaceDatabase, belongs_to_the_account,
+        AccessLevel, DeletionIntent, InMemoryPlatform, PlatformApi, PlatformEndpoint,
+        PlatformError, TursoPlatform, WorkspaceDatabase, belongs_to_the_account,
     };
 
     const TOKEN: &str = "a-platform-token";
@@ -915,7 +950,7 @@ mod tests {
         .await;
 
         let token = platform
-            .mint_token("ws-1", "3d")
+            .mint_token("ws-1", "3d", AccessLevel::FullAccess)
             .await
             .expect("the mint failed");
 
@@ -1085,7 +1120,7 @@ mod tests {
         let (platform, _server) = platform_answering(vec![ScriptedResponse::hangup()]).await;
 
         let error = platform
-            .mint_token("ws-1", "3d")
+            .mint_token("ws-1", "3d", AccessLevel::FullAccess)
             .await
             .expect_err("a dropped connection was read as a token");
 
@@ -1180,7 +1215,7 @@ mod tests {
             platform_answering(vec![ScriptedResponse::new(200, json!({}).to_string())]).await;
 
         let error = platform
-            .mint_token("ws-1", "3d")
+            .mint_token("ws-1", "3d", AccessLevel::ReadOnly)
             .await
             .expect_err("an empty token was handed back");
 
@@ -1255,11 +1290,15 @@ mod tests {
         );
 
         assert_eq!(
-            platform.mint_token("ws-1", "3d").await,
-            Ok("token-for-ws-1-3d".to_string())
+            platform
+                .mint_token("ws-1", "3d", AccessLevel::FullAccess)
+                .await,
+            Ok("token-for-ws-1-3d-full-access".to_string())
         );
         assert_eq!(
-            platform.mint_token("ws-9", "3d").await,
+            platform
+                .mint_token("ws-9", "3d", AccessLevel::FullAccess)
+                .await,
             Err(PlatformError::Refused {
                 what: "mint a token for this workspace"
             })
@@ -1269,7 +1308,9 @@ mod tests {
             what: "mint a token for this workspace",
         });
         assert!(matches!(
-            platform.mint_token("ws-1", "3d").await,
+            platform
+                .mint_token("ws-1", "3d", AccessLevel::ReadOnly)
+                .await,
             Err(PlatformError::AccountRefused { .. })
         ));
         assert_eq!(platform.minted().len(), 1, "a refused mint minted nothing");
@@ -1364,7 +1405,7 @@ mod tests {
         );
 
         let token = platform
-            .mint_token(&name, "1h")
+            .mint_token(&name, "1h", AccessLevel::FullAccess)
             .await
             .expect("the live mint failed");
 

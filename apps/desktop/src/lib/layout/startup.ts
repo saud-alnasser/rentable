@@ -103,6 +103,8 @@ export type StartupPorts = {
 		getState(): Promise<OrganizationState>;
 		signIn(organizationId: string, password: string): Promise<OrganizationState>;
 		signOut(): Promise<OrganizationState>;
+		/** open one of the workspaces the session holds a grant on, before the bootstrap. */
+		openWorkspace(workspaceId: string): Promise<unknown>;
 	};
 	workspace: {
 		bootstrap(): Promise<Recovery>;
@@ -270,20 +272,40 @@ export class Startup {
 	}
 
 	/**
-	 * Whether the admitted member has a workspace to open, drawing the state where they do not.
+	 * Whether the admitted member has a workspace to open, opening one where they do and drawing
+	 * the state where they do not.
 	 *
 	 * **Admitted and going nowhere is a state rather than a failure.** An organization whose owner
 	 * has created no workspace yet admits its members to nothing behind the wall, and the bootstrap
 	 * that opens a workspace has nothing to open. The rail is up, because a person is in.
+	 *
+	 * **Where there is one, the one this machine had open last is opened again, and otherwise the
+	 * first.** The choice is made here and handed to the shell, which holds the credential the
+	 * vault unsealed for it; the bootstrap that follows finds the replica already named. A
+	 * workspace the session no longer holds a grant on is not reopened, because the grant is what
+	 * says it may be.
 	 */
 	async #hasWorkspace() {
 		const admission = organizationAdmission(this.#snapshot.organization);
 
-		if (admission.kind === 'admitted' && admission.session.workspaces.length === 0) {
+		if (admission.kind !== 'admitted') {
+			return true;
+		}
+
+		const { workspaces } = admission.session;
+
+		if (workspaces.length === 0) {
 			this.#set({ error: null, recovery: null, state: 'no-workspace', railIsUp: true });
 			await this.#ports.window.show();
 
 			return false;
+		}
+
+		const last = this.#snapshot.remoteSync?.workspace.remoteId ?? null;
+		const chosen = workspaces.find((workspace) => workspace.id === last) ?? workspaces[0];
+
+		if (chosen) {
+			await this.#ports.organization.openWorkspace(chosen.id);
 		}
 
 		return true;
@@ -487,6 +509,33 @@ export class Startup {
 	/** Try the whole startup again. What the failure and recovery screens offer. */
 	retry() {
 		return this.start();
+	}
+
+	/**
+	 * A workspace was just created for the member who is in: read where the machine stands again,
+	 * open it, and go on into the application. What the no-workspace surface calls once the shell
+	 * has answered, and the same path a sign-in takes past the wall.
+	 */
+	async workspaceCreated() {
+		try {
+			this.#set({ organization: await this.#ports.organization.getState() });
+		} catch (error) {
+			this.#set({ error: this.#ports.describeError(error) });
+
+			return;
+		}
+
+		this.#rememberSession();
+
+		if (!(await this.#admit())) {
+			return;
+		}
+
+		if (!(await this.#hasWorkspace())) {
+			return;
+		}
+
+		await this.#enterApplication();
 	}
 
 	/**

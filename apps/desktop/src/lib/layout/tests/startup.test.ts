@@ -2,6 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+	fakeOrganizationSession,
+	fakeOrganizationState,
+	fakeOrganizationWorkspace,
+	fakeSyncState,
+	fakeWorkspace
+} from '$lib/platform/tests/testing.ts';
+
+import {
 	A_DAY,
 	AT,
 	fakeRecovery,
@@ -65,6 +73,8 @@ test('a launch on a signed-in machine reaches the application', async () => {
 	assert.equal(startup.snapshot.state, 'ready');
 	assert.equal(startup.snapshot.railIsUp, true);
 	assert.equal(startup.snapshot.error, null);
+	// the workspace the session holds is opened before the bootstrap, which then finds it named.
+	assert.deepEqual(journal.workspacesOpened, ['north']);
 	assert.equal(journal.bootstrapped, 1);
 	assert.equal(journal.synced, 1);
 	assert.equal(journal.reconciled, 1);
@@ -148,9 +158,40 @@ test('and a member admitted to an organization with no workspace yet is in, with
 	assert.equal(startup.snapshot.state, 'no-workspace');
 	// a person is in, so the rail is up; and nothing that needs a workspace ran.
 	assert.equal(startup.snapshot.railIsUp, true);
+	assert.deepEqual(journal.workspacesOpened, []);
 	assert.equal(journal.bootstrapped, 0);
 	assert.equal(journal.reconciled, 0);
 	assert.equal(journal.shown, 1);
+});
+
+// the one this machine had open last is opened again where the session still holds it, and the
+// first otherwise: a grant that was taken away is not reopened on the strength of a memory.
+test('and the workspace opened is the one held last, where the session still holds a grant on it', async () => {
+	const held = fakeOrganizationState({
+		session: fakeOrganizationSession({
+			workspaces: [
+				fakeOrganizationWorkspace({ id: 'north' }),
+				fakeOrganizationWorkspace({ id: 'south', name: 'South' })
+			]
+		})
+	});
+	const remembered = harness({
+		remoteSync: fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'south' }) }),
+		organization: held
+	});
+
+	await remembered.startup.start();
+
+	assert.deepEqual(remembered.journal.workspacesOpened, ['south']);
+
+	const lost = harness({
+		remoteSync: fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'gone' }) }),
+		organization: held
+	});
+
+	await lost.startup.start();
+
+	assert.deepEqual(lost.journal.workspacesOpened, ['north']);
 });
 
 test('and a member with a workspace reaches it after the sign-in, re-entering at the workspace stage', async () => {

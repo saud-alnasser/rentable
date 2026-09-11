@@ -85,20 +85,36 @@ test('the wall renders in arabic with the same one field', () => {
 test('a member with no workspace is told so, by organization name', () => {
 	loadLocale('en');
 	setLocale('en');
-	render(StartupNoWorkspace, { organizationName: 'Acme Rentals' });
+	render(StartupNoWorkspace, {
+		organizationName: 'Acme Rentals',
+		canCreate: true,
+		isCreating: false,
+		onCreate: () => {}
+	});
 
 	expect(screen.getByText(en.layout.noWorkspace.title)).toBeDefined();
 	expect(screen.getByText(en.layout.noWorkspace.description)).toBeDefined();
 	expect(screen.getByText('Acme Rentals')).toBeDefined();
+	// the owner is offered the one way past it: a name, and a create.
+	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual(['name']);
+	expect(screen.getByRole('button', { name: en.layout.noWorkspace.create })).toBeDefined();
 });
 
 test('and in arabic', () => {
 	loadLocale('ar');
 	setLocale('ar');
-	render(StartupNoWorkspace, { organizationName: 'شركة' });
+	render(StartupNoWorkspace, {
+		organizationName: 'شركة',
+		canCreate: false,
+		isCreating: false,
+		onCreate: () => {}
+	});
 
 	expect(screen.getByText(ar.layout.noWorkspace.title)).toBeDefined();
 	expect(screen.getByText('شركة')).toBeDefined();
+	// and a member who is not the owner is told whose act it is, with nothing to press.
+	expect(inputsOnScreen()).toEqual([]);
+	expect(screen.getByText(ar.layout.noWorkspace.ownerOnly)).toBeDefined();
 
 	setLocale('en');
 });

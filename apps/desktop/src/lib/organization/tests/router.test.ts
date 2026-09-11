@@ -107,6 +107,16 @@ test('an empty name or a password under the floor is refused before the host is 
 test('nothing here asks the host to list organizations', () => {
 	const procedures = Object.keys(organization._def.procedures).sort();
 
-	assert.deepEqual(procedures, ['consent.begin', 'consent.disconnect', 'consent.result', 'create']);
+	assert.deepEqual(procedures, [
+		'consent.begin',
+		'consent.disconnect',
+		'consent.result',
+		'create',
+		'workspace.create',
+		'workspace.grant',
+		'workspace.open',
+		'workspace.remove',
+		'workspace.renewCredentials'
+	]);
 	assert.ok(!procedures.some((name) => /list|organizations/i.test(name)));
 });

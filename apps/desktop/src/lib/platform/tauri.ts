@@ -18,6 +18,7 @@ import type {
 	OrganizationConsentStart,
 	OrganizationCreated,
 	OrganizationState,
+	OrganizationWorkspace,
 	Recovery,
 	RemoteSyncState,
 	Settings,
@@ -217,7 +218,16 @@ export const tauri = {
 		getState: () => invoke<OrganizationState>('organization_state_get'),
 		signIn: (organizationId: string, password: string) =>
 			invoke<OrganizationState>('organization_sign_in', { organizationId, password }),
-		signOut: () => invoke<OrganizationState>('organization_sign_out')
+		signOut: () => invoke<OrganizationState>('organization_sign_out'),
+		workspace: {
+			create: (name: string) => invoke<OrganizationWorkspace>('workspace_create', { name }),
+			open: (workspaceId: string) =>
+				invoke<OrganizationWorkspace>('workspace_open', { workspaceId }),
+			grant: (workspaceId: string, memberId: string, access: 'full-access' | 'read-only') =>
+				invoke<void>('workspace_grant', { workspaceId, memberId, access }),
+			remove: (workspaceId: string) => invoke<void>('workspace_delete', { workspaceId }),
+			renewCredentials: () => invoke<number>('organization_renew_credentials')
+		}
 	},
 	remoteSync: {
 		getState: () => invoke<RemoteSyncState>('remote_sync_state_get'),

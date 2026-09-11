@@ -44,7 +44,7 @@ use crate::{
         RemoteSyncStore,
         turso::{
             discovery::{self, McpEndpoint, TursoOrganization},
-            platform::{DeletionIntent, TursoPlatform},
+            platform::{AccessLevel, DeletionIntent, TursoPlatform},
         },
     },
 };
@@ -254,10 +254,20 @@ async fn finish<P: TursoPlatform>(
     platform.protect_database(database_name).await?;
 
     let owner_credential = platform
-        .mint_token(database_name, ORGANIZATION_CREDENTIAL_LIFETIME)
+        .mint_token(
+            database_name,
+            ORGANIZATION_CREDENTIAL_LIFETIME,
+            AccessLevel::FullAccess,
+        )
         .await?;
+    // read-only: what a join link carries reads the directory and writes nothing to it, which is
+    // what keeps a link found in a chat history a locator.
     let link_credential = platform
-        .mint_token(database_name, LINK_CREDENTIAL_LIFETIME)
+        .mint_token(
+            database_name,
+            LINK_CREDENTIAL_LIFETIME,
+            AccessLevel::ReadOnly,
+        )
         .await?;
     // what every other machine reaches the organization at, and what the rows record. The
     // replica on this machine is opened against it where there is one to open against.
@@ -498,7 +508,7 @@ mod tests {
             google::test::server::{ScriptedResponse, ScriptedServer},
             turso::{
                 discovery::McpEndpoint,
-                platform::{DeletionIntent, InMemoryPlatform, PlatformError},
+                platform::{AccessLevel, DeletionIntent, InMemoryPlatform, PlatformError},
             },
         },
     };
@@ -607,8 +617,16 @@ mod tests {
         assert_eq!(
             platform.minted(),
             vec![
-                (database_name.clone(), "4w".to_string()),
-                (database_name.clone(), "never".to_string())
+                (
+                    database_name.clone(),
+                    "4w".to_string(),
+                    AccessLevel::FullAccess
+                ),
+                (
+                    database_name.clone(),
+                    "never".to_string(),
+                    AccessLevel::ReadOnly
+                )
             ]
         );
         assert!(platform.deleted().is_empty());
@@ -627,7 +645,7 @@ mod tests {
         );
         assert_eq!(
             link.read_only_credential,
-            format!("token-for-{database_name}-never")
+            format!("token-for-{database_name}-never-read-only")
         );
 
         // the rows, verified against the key the link carries and nothing else.

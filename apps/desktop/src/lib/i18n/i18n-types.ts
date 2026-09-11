@@ -1232,6 +1232,26 @@ type RootTranslation = {
 		}
 		noWorkspace: {
 			/**
+			 * w​o​r​k​s​p​a​c​e​ ​n​a​m​e
+			 */
+			nameLabel: string
+			/**
+			 * c​r​e​a​t​e​ ​w​o​r​k​s​p​a​c​e
+			 */
+			create: string
+			/**
+			 * c​r​e​a​t​i​n​g​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​o​n​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​g​i​v​i​n​g​ ​i​t​ ​i​t​s​ ​s​h​a​p​e​.​ ​t​h​i​s​ ​t​a​k​e​s​ ​a​ ​m​o​m​e​n​t​.
+			 */
+			creating: string
+			/**
+			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​w​a​s​ ​c​r​e​a​t​e​d​.
+			 */
+			created: string
+			/**
+			 * a​n​ ​o​w​n​e​r​ ​c​r​e​a​t​e​s​ ​t​h​e​ ​f​i​r​s​t​ ​w​o​r​k​s​p​a​c​e​,​ ​f​r​o​m​ ​t​h​e​ ​m​a​c​h​i​n​e​ ​t​h​a​t​ ​c​o​n​n​e​c​t​e​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​a​s​k​ ​t​h​e​ ​o​w​n​e​r​.
+			 */
+			ownerOnly: string
+			/**
 			 * n​o​ ​w​o​r​k​s​p​a​c​e​ ​y​e​t
 			 */
 			title: string
@@ -3644,6 +3664,26 @@ export type TranslationFunctions = {
 			members: (arg: { count: unknown }) => LocalizedString
 		}
 		noWorkspace: {
+			/**
+			 * workspace name
+			 */
+			nameLabel: () => LocalizedString
+			/**
+			 * create workspace
+			 */
+			create: () => LocalizedString
+			/**
+			 * creating the workspace on your turso account, and giving it its shape. this takes a moment.
+			 */
+			creating: () => LocalizedString
+			/**
+			 * the workspace was created.
+			 */
+			created: () => LocalizedString
+			/**
+			 * an owner creates the first workspace, from the machine that connected the turso account. ask the owner.
+			 */
+			ownerOnly: () => LocalizedString
 			/**
 			 * no workspace yet
 			 */

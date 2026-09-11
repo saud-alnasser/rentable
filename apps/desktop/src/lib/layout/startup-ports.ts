@@ -45,7 +45,8 @@ export function browserStartupPorts(queryClient: QueryClient): StartupPorts {
 		organization: {
 			getState: () => tauri.organization.getState(),
 			signIn: (organizationId, password) => tauri.organization.signIn(organizationId, password),
-			signOut: () => tauri.organization.signOut()
+			signOut: () => tauri.organization.signOut(),
+			openWorkspace: (workspaceId) => tauri.organization.workspace.open(workspaceId)
 		},
 		workspace: {
 			bootstrap: () => api.app.bootstrap(),

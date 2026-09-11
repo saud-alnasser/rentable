@@ -62,6 +62,8 @@ export type Journal = {
 	sessionsExpired: number;
 	localesLoaded: string[];
 	localeSet: string | null;
+	/** the workspaces the unit asked the shell to open, in order. */
+	workspacesOpened: string[];
 };
 
 export type Harness = {
@@ -108,7 +110,8 @@ export function harness(
 		failures: [],
 		sessionsExpired: 0,
 		localesLoaded: [],
-		localeSet: null
+		localeSet: null,
+		workspacesOpened: []
 	};
 	const seen: StartupSnapshot[] = [];
 	const now = { value: AT };
@@ -161,6 +164,9 @@ export function harness(
 				organization = { ...organization, session: null };
 
 				return organization;
+			},
+			openWorkspace: async (workspaceId) => {
+				journal.workspacesOpened.push(workspaceId);
 			}
 		},
 		workspace: {

@@ -84,3 +84,23 @@ export function useCreateOrganization(
 		onError: (e) => onMutationError(opts, e)
 	}));
 }
+
+/**
+ * create the first workspace, or another. The refusal a person can act on, an owner elsewhere,
+ * arrives as `BAD_REQUEST` or a forbidden and is shown; everything else reads as unexpected.
+ */
+export function useCreateWorkspace(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).layout.noWorkspace.created(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	return createMutation(() => ({
+		mutationFn: ({ name }: { name: string }) => api.app.organization.workspace.create({ name }),
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e) => onMutationError(opts, e)
+	}));
+}

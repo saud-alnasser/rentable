@@ -23,11 +23,16 @@
 //! and nothing serialises it; what crosses to the web layer is [`SessionFacts`], facts about the
 //! member and their workspaces, and no key ([[rules/credentials]], *Client boundary*).
 
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
+
+use crate::sync::turso::platform::AccessLevel;
 
 use super::{
     JoinedOrganization,
@@ -60,6 +65,22 @@ pub struct MemberSession {
     pub content_key: ContentKey,
     /// what the organization replica syncs with, unsealed from this member's grant.
     pub organization_credential: CredentialSlot,
+    /// every workspace credential this member's grants held, unsealed, by workspace id. What a
+    /// member can open is exactly this map, and nothing adds to it but a grant the vault opens.
+    pub workspace_credentials: HashMap<String, WorkspaceCredential>,
+}
+
+/// One unsealed workspace credential and what it is good for.
+#[derive(Clone)]
+pub struct WorkspaceCredential {
+    pub token: String,
+    pub access: AccessLevel,
+}
+
+impl std::fmt::Debug for WorkspaceCredential {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "WorkspaceCredential({})", self.access.as_str())
+    }
 }
 
 impl std::fmt::Debug for MemberSession {
@@ -161,18 +182,24 @@ pub async fn sign_in(
     // replica syncs with from now on. Absent, the member reads what the replica already holds and
     // nothing new arrives, which is the offline case rather than a failure of signing in.
     let grants = store.grants(&verifying_key).await?;
+    let mut workspace_credentials = HashMap::new();
 
-    if let Some(grant) = grants
-        .iter()
-        .find(|grant| grant.member_id == member.id && grant.workspace_id == joined.id)
-    {
-        let token = unseal_with_secret_key(&secret, &grant.sealed_credential)?;
+    for grant in grants.iter().filter(|grant| grant.member_id == member.id) {
+        let token = String::from_utf8(unseal_with_secret_key(&secret, &grant.sealed_credential)?)
+            .map_err(|_| Error::Integrity {
+            message: "a sealed credential is not text".to_string(),
+        })?;
 
-        *credential.lock().map_err(|_| Error::Internal {
-            message: "the credential slot was poisoned".to_string(),
-        })? = Some(String::from_utf8(token).map_err(|_| Error::Integrity {
-            message: "the sealed credential is not text".to_string(),
-        })?);
+        if grant.workspace_id == joined.id {
+            *credential.lock().map_err(|_| Error::Internal {
+                message: "the credential slot was poisoned".to_string(),
+            })? = Some(token);
+        } else if let Some(access) = AccessLevel::parse(&grant.access_level) {
+            workspace_credentials.insert(
+                grant.workspace_id.clone(),
+                WorkspaceCredential { token, access },
+            );
+        }
     }
 
     Ok(MemberSession {
@@ -185,6 +212,7 @@ pub async fn sign_in(
         secret,
         content_key,
         organization_credential: Arc::clone(credential),
+        workspace_credentials,
     })
 }
 
@@ -421,7 +449,7 @@ mod tests {
 
         assert_eq!(
             unsealed.as_deref(),
-            Some(format!("token-for-org-{}-4w", joined.id).as_str())
+            Some(format!("token-for-org-{}-4w-full-access", joined.id).as_str())
         );
         assert_eq!(
             format!("{session:?}"),

@@ -25,6 +25,7 @@
 	import LayoutStartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
 	import { listenForWindowCloseRequests } from '$lib/layout/event';
 	import { createStartup } from '$lib/layout/startup';
+	import { useCreateWorkspace } from '$lib/organization/query';
 	import { browserStartupPorts } from '$lib/layout/startup-ports';
 	import { DesignProvider, type DesignStrings } from '@rentable/design/strings.js';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
@@ -111,6 +112,24 @@
 	});
 
 	const DAY_CROSSING_CHECK_INTERVAL_MS = 60_000;
+
+	/**
+	 * the first workspace, created from the no-workspace surface. The mutation is the owner's and
+	 * the shell refuses anybody else; once it answers, startup reads where the machine stands and
+	 * goes on in, which is the same path a sign-in takes past the wall.
+	 */
+	const createWorkspace = useCreateWorkspace();
+
+	const createFirstWorkspace = async (name: string) => {
+		try {
+			await createWorkspace.mutateAsync({ name });
+		} catch {
+			// said by the shared handler; the surface keeps what they typed.
+			return;
+		}
+
+		await startup.workspaceCreated();
+	};
 
 	onMount(() => {
 		const stopObserving = startup.observe((snapshot) => {
@@ -316,6 +335,9 @@
 							{:else if surface === 'no-workspace'}
 								<LayoutStartupNoWorkspace
 									organizationName={shellState.organization?.session?.organizationName ?? ''}
+									canCreate={shellState.organization?.session?.role === 'owner'}
+									isCreating={createWorkspace.isPending}
+									onCreate={(name) => void createFirstWorkspace(name)}
 								/>
 							{:else if surface === 'recovery' && shellState.recovery}
 								<LayoutStartupRecovery

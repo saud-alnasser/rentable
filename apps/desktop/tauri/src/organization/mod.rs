@@ -20,10 +20,13 @@ use serde::{Deserialize, Serialize};
 pub mod authority;
 mod command;
 pub mod link;
+pub mod migrate;
+pub mod permission;
 pub mod session;
 pub mod setup;
 pub mod store;
 pub mod vault;
+pub mod workspace;
 
 pub use command::*;
 

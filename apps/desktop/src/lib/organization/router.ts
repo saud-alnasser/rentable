@@ -1,7 +1,8 @@
 import type {
 	OrganizationConsentResult,
 	OrganizationConsentStart,
-	OrganizationCreated
+	OrganizationCreated,
+	OrganizationWorkspace
 } from '$lib/platform/tauri';
 import { procedure, router } from '$lib/api/trpc';
 import z from 'zod';
@@ -55,5 +56,51 @@ export const organization = router({
 		)
 		.mutation(async ({ input, ctx }): Promise<OrganizationCreated> => {
 			return ctx.host.organization.create(input.name, input.password);
+		}),
+	/**
+	 * A workspace: created by the owner, opened by whoever holds a grant, granted and removed by
+	 * whoever's row carries the act.
+	 *
+	 * **`member` for creating, and the owner check is Rust's.** There is no `createWorkspace` act in
+	 * `packages/workspace-permission`, because creating one was never an act a role could be given:
+	 * it needs the platform authority only the owner's machine holds, and the shell refuses anybody
+	 * else before any request. What this side can say is that somebody is signed in.
+	 */
+	workspace: {
+		create: procedure.member
+			.input(z.object({ name: z.string().trim().min(1).max(ORGANIZATION_NAME_LIMIT) }))
+			.mutation(async ({ input, ctx }): Promise<OrganizationWorkspace> => {
+				return ctx.host.organization.workspace.create(input.name);
+			}),
+		open: procedure.member
+			.input(z.object({ workspaceId: z.string().trim().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<OrganizationWorkspace> => {
+				return ctx.host.organization.workspace.open(input.workspaceId);
+			}),
+		grant: procedure
+			.permitted('inviteMember')
+			.input(
+				z.object({
+					workspaceId: z.string().trim().min(1),
+					memberId: z.string().trim().min(1),
+					access: z.enum(['full-access', 'read-only'])
+				})
+			)
+			.mutation(async ({ input, ctx }): Promise<void> => {
+				return ctx.host.organization.workspace.grant(
+					input.workspaceId,
+					input.memberId,
+					input.access
+				);
+			}),
+		remove: procedure
+			.permitted('deleteWorkspace')
+			.input(z.object({ workspaceId: z.string().trim().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<void> => {
+				return ctx.host.organization.workspace.remove(input.workspaceId);
+			}),
+		renewCredentials: procedure.member.mutation(async ({ ctx }): Promise<number> => {
+			return ctx.host.organization.workspace.renewCredentials();
 		})
+	}
 });
