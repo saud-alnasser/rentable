@@ -33,6 +33,11 @@
 	 * each organization it joined, so an email typed here would be compared against a local string,
 	 * which is exactly the check requirement 9 says a modified client can skip. The organization is
 	 * chosen, the password is typed, and what the password opens is the whole of the sign-in.
+	 *
+	 * **The third way through is a link.** A person who was invited opens the link they were
+	 * handed, and the operating system brings them to the join screen; one whose platform did not
+	 * hand it over reaches the same screen from here and pastes it. Offered in both situations,
+	 * because a machine that has joined one organization can be invited to a second.
 	 */
 	let {
 		situation,
@@ -40,7 +45,8 @@
 		isSigningIn,
 		errorMessage,
 		onSignIn,
-		onSetUpOrganization
+		onSetUpOrganization,
+		onJoinByLink
 	}: {
 		/** which of the two situations this is, from `organizationAdmission`. */
 		situation: 'noOrganization' | 'locked';
@@ -52,6 +58,8 @@
 		onSignIn: (organizationId: string, password: string) => void;
 		/** the first run: an organization on the person's own Turso account. */
 		onSetUpOrganization: () => void;
+		/** the join screen: an invitation link, pasted or handed over by the operating system. */
+		onJoinByLink: () => void;
 	} = $props();
 
 	let organizationId = $state<string>('');
@@ -109,6 +117,9 @@
 		{#if situation === 'noOrganization'}
 			<Button class="w-full justify-center" onclick={onSetUpOrganization}>
 				{$LL.layout.signIn.setUpOrganization()}
+			</Button>
+			<Button variant="link" class="w-full justify-center" onclick={onJoinByLink}>
+				{$LL.layout.signIn.openInvitation()}
 			</Button>
 		{:else}
 			<form
@@ -177,6 +188,15 @@
 				     bar: too short to fill one, too long to show nothing. -->
 				<p class="text-center text-sm text-muted-foreground">{$LL.layout.signIn.unlocking()}</p>
 			{/if}
+
+			<Button
+				variant="link"
+				class="w-full justify-center"
+				onclick={onJoinByLink}
+				disabled={isSigningIn}
+			>
+				{$LL.layout.signIn.openInvitation()}
+			</Button>
 
 			<Button
 				variant="link"

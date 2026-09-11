@@ -30,6 +30,9 @@ export type ShellSurface = 'loading' | 'sign-in' | 'no-workspace' | 'recovery' |
  */
 export const THE_FIRST_RUN = '/organization/new';
 
+/** the join screen: a link, and the generated password that opens the invitation in it. */
+export const THE_JOIN = '/organization/join';
+
 /**
  * The addresses that draw with nobody signed in.
  *
@@ -45,7 +48,7 @@ export const THE_FIRST_RUN = '/organization/new';
  * The language control is the reason it is this page and not another: it is the setting somebody
  * is most likely to want before they can read anything else on the way in.
  */
-const OPENS_SIGNED_OUT: readonly string[] = ['/settings', THE_FIRST_RUN];
+const OPENS_SIGNED_OUT: readonly string[] = ['/settings', THE_FIRST_RUN, THE_JOIN];
 
 /**
  * Where the rail's way in sends a reader.

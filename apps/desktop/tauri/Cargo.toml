@@ -33,6 +33,12 @@ tauri-build = { version = "2.6.3", features = [] }
 [dependencies]
 tauri = { version = "2.11.5", features = [] }
 tauri-plugin-opener = { version = "2.5.4" }
+# receiving a `rentable://` join link from the operating system. `organization/join.rs` records
+# how a link reaches the application on each platform; the scheme is in `tauri.conf.json`.
+tauri-plugin-deep-link = { version = "2.4.10" }
+# one running instance, so a link opened while the application runs reaches it rather than
+# starting a second; `deep-link` is what forwards the link to the plugin above.
+tauri-plugin-single-instance = { version = "2.4.4", features = ["deep-link"] }
 tauri-plugin-fs = { version = "2.5.1" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151" }

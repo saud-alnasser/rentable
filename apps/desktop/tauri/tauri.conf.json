@@ -39,6 +39,11 @@
 		]
 	},
 	"plugins": {
+		"deep-link": {
+			"desktop": {
+				"schemes": ["rentable"]
+			}
+		},
 		"updater": {
 			"endpoints": [
 				"https://github.com/saud-alnasser/rentable/releases/latest/download/latest.json"

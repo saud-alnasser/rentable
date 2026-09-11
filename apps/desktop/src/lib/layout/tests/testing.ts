@@ -92,6 +92,8 @@ export function harness(
 		loadLocale?: (locale: string) => Promise<void>;
 		/** what a password does: the state it leaves the machine in, or the refusal it meets. */
 		signInWith?: (organizationId: string, password: string) => Promise<OrganizationState>;
+		/** what a link and a password do: the state joining leaves the machine in, or the refusal. */
+		joinWith?: (link: string, password: string) => Promise<OrganizationState>;
 	} = {}
 ): Harness {
 	const journal: Journal = {
@@ -157,6 +159,11 @@ export function harness(
 					organizationId,
 					password
 				);
+
+				return organization;
+			},
+			join: async (link, password) => {
+				organization = await (overrides.joinWith ?? (async () => unlocked()))(link, password);
 
 				return organization;
 			},

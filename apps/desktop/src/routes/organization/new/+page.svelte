@@ -11,6 +11,7 @@
 	} from '$lib/organization/query';
 	import { SETUP_STEPS, TURSO_DASHBOARD_URL, type SetupStep } from '$lib/organization/setup';
 	import { THE_WAY_IN } from '$lib/layout/shell-surface';
+	import { useStartup } from '$lib/layout/startup-context';
 
 	/**
 	 * The first run's address, and the one that wires the walk to the shell.
@@ -20,6 +21,8 @@
 	 * creating the organization, and copying the link. It opens with nobody signed in, which
 	 * `layout/shell-surface.ts` decides, because it is how a person comes to be somebody here.
 	 */
+	const startup = useStartup();
+
 	let step = $state<SetupStep>('connect');
 	let sessionId = $state<string | null>(null);
 	let created = $state<OrganizationCreated | null>(null);
@@ -87,9 +90,11 @@
 		const index = SETUP_STEPS.indexOf(step);
 
 		if (step === 'done') {
-			// the walk is over. Where the owner lands next is the sign-in ticket's; until then the
-			// way in is home, where the shell says what it is waiting for.
+			// the walk is over and the owner is in: the shell signed them in as it created the
+			// organization, and the startup unit reads where the machine stands again and goes on
+			// in from the way in, which is the path a sign-in takes past the wall.
 			void goto(resolve(THE_WAY_IN));
+			void startup.standingChanged();
 
 			return;
 		}

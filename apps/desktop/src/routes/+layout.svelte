@@ -16,7 +16,8 @@
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
 	import LayoutStartupUnreadable from '$lib/layout/component/startup-unreadable.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
-	import { THE_FIRST_RUN, shellSurface, wayInFrom } from '$lib/layout/shell-surface';
+	import { THE_FIRST_RUN, THE_JOIN, shellSurface, wayInFrom } from '$lib/layout/shell-surface';
+	import { linkArrived } from '$lib/organization/join';
 	import { startupSurfaceBeforeLocale } from '$lib/layout/startup-surface';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
@@ -25,11 +26,13 @@
 	import LayoutStartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
 	import { listenForWindowCloseRequests } from '$lib/layout/event';
 	import { createStartup } from '$lib/layout/startup';
+	import { provideStartup } from '$lib/layout/startup-context';
 	import { useCreateWorkspace } from '$lib/organization/query';
 	import { browserStartupPorts } from '$lib/layout/startup-ports';
 	import { DesignProvider, type DesignStrings } from '@rentable/design/strings.js';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
+	import { tauri } from '$lib/platform/tauri';
 	import { onMount } from 'svelte';
 	import '../app.css';
 
@@ -51,6 +54,8 @@
 	 * this file can render from, deciding how much of the shell each state draws, and drawing it.
 	 */
 	const startup = createStartup(browserStartupPorts(queryClient));
+
+	provideStartup(startup);
 
 	// the one reactive thing. The unit is a plain object with observers, because a runes file
 	// cannot be imported by a `node:test` at all, and being testable is the point of it.
@@ -128,7 +133,7 @@
 			return;
 		}
 
-		await startup.workspaceCreated();
+		await startup.standingChanged();
 	};
 
 	onMount(() => {
@@ -144,6 +149,14 @@
 		const stopListeningForSignOut = listenForSignOut(() => {
 			void startup.signOut();
 		});
+		// a `rentable://` link the operating system handed the process: held where the join screen
+		// takes it, and the screen put on. The one it was launched with is taken once the shell is
+		// up, because it arrived before anything was listening; every later one is an event.
+		let unlistenLink: (() => void) | undefined;
+		const openJoinScreen = (link: string) => {
+			linkArrived(link);
+			void goto(resolve(THE_JOIN));
+		};
 		const dayCrossingInterval = setInterval(() => {
 			void startup.reconcileOnDayCrossing();
 		}, DAY_CROSSING_CHECK_INTERVAL_MS);
@@ -162,7 +175,15 @@
 				void startup.closeWindow(startup.closesWithoutSyncing);
 			});
 
+			unlistenLink = await tauri.organization.onLink(openJoinScreen);
+
 			await startup.start();
+
+			const waiting = await tauri.organization.linkTake();
+
+			if (waiting) {
+				openJoinScreen(waiting);
+			}
 		})();
 
 		return () => {
@@ -172,6 +193,7 @@
 			stopObserving();
 			unlistenCloseRequested?.();
 			stopListeningForCloseRequests?.();
+			unlistenLink?.();
 		};
 	});
 
@@ -331,6 +353,7 @@
 									onSignIn={(organizationId, password) =>
 										void startup.signIn(organizationId, password)}
 									onSetUpOrganization={() => void goto(resolve(THE_FIRST_RUN))}
+									onJoinByLink={() => void goto(resolve(THE_JOIN))}
 								/>
 							{:else if surface === 'no-workspace'}
 								<LayoutStartupNoWorkspace

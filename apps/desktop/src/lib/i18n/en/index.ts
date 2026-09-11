@@ -396,6 +396,7 @@ const en = {
 			roleAdministrator: 'administrator',
 			roleMember: 'member',
 			setUpOrganization: 'set up an organization instead',
+			openInvitation: 'open an invitation link',
 			authorizing: 'finish signing in with Google in the browser window that just opened.',
 			signInWithGoogle: 'sign in with Google',
 			description:
@@ -773,6 +774,29 @@ const en = {
 				'the organization is on this machine and will reach turso when the connection returns. the link works once it has.',
 			continue: 'continue',
 			back: 'back'
+		},
+		join: {
+			title: 'join an organization',
+			description:
+				'open the invitation you were handed: a link, and the password that came with it.',
+			linkLabel: 'invitation link',
+			open: 'open link',
+			reading: 'reading the invitation...',
+			unreadable:
+				'this is not a rentable invitation link. paste the whole link, exactly as it was handed to you.',
+			unreachable:
+				'the organization could not be reached. the link is right; try again once the connection is back.',
+			tryAgain: 'try again',
+			pasteAnother: 'paste another link',
+			found: 'this link finds {name}.',
+			refusedLapsed:
+				'the invitation has lapsed. ask whoever invited you for a new one; the link itself does not expire.',
+			refusedConsumed: 'the invitation was already used. sign in with your password instead.',
+			refusedRevoked: 'the invitation was revoked. ask whoever invited you for a new one.',
+			refusedNone: 'this link carries no invitation. ask whoever invited you for one made for you.',
+			passwordLabel: 'the password you were handed',
+			join: 'join',
+			signInInstead: 'sign in instead'
 		},
 		dashboard: {
 			members: 'members',

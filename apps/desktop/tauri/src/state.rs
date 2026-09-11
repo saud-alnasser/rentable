@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;
 
 use crate::{
@@ -34,4 +34,8 @@ pub struct AppState {
     /// the credential their password unsealed. `None` is the wall. Nothing in it is serialised;
     /// the facts about it cross to the web layer as `SessionFacts`.
     pub member: Arc<RwLock<Option<MemberSession>>>,
+    /// a `rentable://` link the operating system handed this process and the shell has not taken
+    /// yet: the one it was launched with, or one opened before the webview was listening. The
+    /// shell takes it once at startup; every later arrival reaches it as an event as well.
+    pub arriving_link: Arc<Mutex<Option<String>>>,
 }

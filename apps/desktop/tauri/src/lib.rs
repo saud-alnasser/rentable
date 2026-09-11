@@ -18,8 +18,9 @@ use database::Database;
 use state::AppState;
 use std::env;
 use std::path::PathBuf;
-use std::sync::Arc;
-use tauri::{Manager, async_runtime};
+use std::sync::{Arc, Mutex};
+use tauri::{Emitter, Manager, async_runtime};
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_fs::FsExt;
 use tokio::sync::RwLock;
 
@@ -29,6 +30,31 @@ use crate::settings::Settings;
 use crate::sync::RemoteSync;
 use crate::sync::turso::consent::TursoConsent;
 use crate::update::Update;
+
+/// The event the shell listens to for a link that arrives while it is running.
+pub const LINK_ARRIVED_EVENT: &str = "organization:link";
+
+/// A `rentable://` link reached this process: hold it for the shell to take, and tell the shell.
+/// Held as well as announced because the two races both happen: a launch hands the link over
+/// before the webview exists, and an arrival while running finds the webview listening.
+fn arrive(handle: &tauri::AppHandle, link: String) {
+    if let Some(state) = handle.try_state::<AppState>()
+        && let Ok(mut arriving) = state.arriving_link.lock()
+    {
+        *arriving = Some(link.clone());
+    }
+
+    if let Err(error) = handle.emit(LINK_ARRIVED_EVENT, link) {
+        diagnostics::warn("organization.link.notAnnounced")
+            .with("error", error.to_string().as_str())
+            .write();
+    }
+
+    if let Some(window) = handle.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -44,6 +70,19 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        // first, so that a second launch with a link on its command line reaches the instance
+        // already running rather than starting another: the `deep-link` feature hands the
+        // arguments to the deep-link plugin below, whose handler is the one place a link lands.
+        .plugin(tauri_plugin_single_instance::init(
+            |app, _arguments, _cwd| {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
+                }
+            },
+        ))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -134,8 +173,41 @@ pub fn run() {
                     consent: Arc::new(TursoConsent::new()),
                     organization: Arc::new(RwLock::new(None)),
                     member: Arc::new(RwLock::new(None)),
+                    arriving_link: Arc::new(Mutex::new(None)),
                 });
             });
+
+            // **How a join link reaches the application** (`organization/join.rs` records the
+            // decision). The `rentable` scheme is registered with the operating system by the
+            // installer on Windows and Linux and by `Info.plist` on macOS, from the plugin's
+            // configuration; a development build has no installer, so it registers the scheme for
+            // its own executable here, and a failure to is logged rather than fatal, because the
+            // join screen also takes a pasted link.
+            #[cfg(any(windows, target_os = "linux"))]
+            if let Err(error) = app.deep_link().register_all() {
+                diagnostics::warn("organization.link.schemeNotRegistered")
+                    .with("error", error.to_string().as_str())
+                    .write();
+            }
+
+            // a link opened while the application runs, or forwarded by the second launch the
+            // single-instance plugin turned away: held for the shell to take, and announced to it.
+            let handle = app.handle().clone();
+
+            app.deep_link().on_open_url(move |event| {
+                let Some(link) = event.urls().first().map(|url| url.to_string()) else {
+                    return;
+                };
+
+                arrive(&handle, link);
+            });
+
+            // the link this process was launched with, if any.
+            if let Ok(Some(urls)) = app.deep_link().get_current()
+                && let Some(link) = urls.first().map(|url| url.to_string())
+            {
+                arrive(app.handle(), link);
+            }
 
             Ok(())
         })
@@ -177,6 +249,9 @@ pub fn run() {
             organization::invitation_revoke,
             organization::organization_members,
             organization::organization_invitations,
+            organization::organization_link_take,
+            organization::organization_link_inspect,
+            organization::organization_join,
             export::export_write,
             export::export_write_workbook,
             import::import_read,

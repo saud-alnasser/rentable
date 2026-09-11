@@ -206,6 +206,66 @@ test('and a member with a workspace reaches it after the sign-in, re-entering at
 	assert.deepEqual(journal.stages.slice(-3), ['workspace', 'changes', 'records']);
 });
 
+// --- 4b. Joining by a link, which is a sign-in with a step before it and one after ---------
+
+test('a link and the generated password join, on a machine that had joined nothing, and go on in', async () => {
+	const asked: [string, string][] = [];
+	const { startup, journal } = harness({
+		organization: nowhereToGo(),
+		joinWith: async (link, password) => {
+			asked.push([link, password]);
+
+			// what joining leaves the machine in: the organization recorded, and the member in,
+			// holding the workspace they were invited into.
+			return {
+				organizations: [
+					{ id: 'acme', name: 'Acme', memberId: 'sami', role: 'member', joinedAt: 1 }
+				],
+				session: fakeOrganizationSession({
+					mustChangePassword: true,
+					workspaces: [fakeOrganizationWorkspace({ id: 'north' })]
+				})
+			};
+		}
+	});
+
+	await startup.start();
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(startup.snapshot.signInReason, 'noOrganization');
+
+	const joined = await startup.joinByLink('rentable://join/abc', 'abcde-fghjk-mnpqr-stuvw');
+
+	assert.equal(joined, true);
+	assert.deepEqual(asked, [['rentable://join/abc', 'abcde-fghjk-mnpqr-stuvw']]);
+	assert.ok(!JSON.stringify(startup.snapshot).includes('abcde-fghjk'));
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(startup.snapshot.organization?.organizations[0]?.name, 'Acme');
+	assert.deepEqual(journal.workspacesOpened, ['north']);
+	assert.equal(journal.contextsForgotten, 1);
+});
+
+test('and a refused invitation leaves the person at the join screen with the sentence', async () => {
+	const { startup, journal } = harness({
+		organization: nowhereToGo(),
+		joinWith: async () => {
+			throw new Error('the invitation to Acme has lapsed; ask whoever invited you for a new one');
+		}
+	});
+
+	await startup.start();
+
+	const joined = await startup.joinByLink('rentable://join/abc', 'abcde-fghjk-mnpqr-stuvw');
+
+	assert.equal(joined, false);
+	assert.equal(startup.snapshot.state, 'sign-in', 'still standing at the wall');
+	assert.equal(
+		startup.snapshot.error,
+		'the invitation to Acme has lapsed; ask whoever invited you for a new one'
+	);
+	assert.equal(startup.snapshot.isSigningIn, false);
+	assert.equal(journal.bootstrapped, 0);
+});
+
 // --- 5. A pending recovery -------------------------------------------------------------
 
 test('a pending recovery stops startup and shows what is waiting', async () => {

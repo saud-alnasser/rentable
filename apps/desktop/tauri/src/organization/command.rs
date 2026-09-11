@@ -7,6 +7,8 @@ use crate::{error::Error, state::AppState, timestamp};
 use super::{
     JoinedOrganization,
     invite::{self, Invitation, InvitationFacts, Invited, MemberFacts},
+    join::{self, LinkFacts},
+    link::JoinLink,
     migrate::Pipeline,
     session::{self, CredentialSlot, SessionFacts, WorkspaceFacts},
     setup::{self, CreateOrganization, OrganizationCreated, Remote},
@@ -511,4 +513,117 @@ pub async fn organization_invitations(
     let (member, store) = signed_in(&mut member, &store)?;
 
     invite::invitations(store, member, timestamp::now()).await
+}
+
+/// The link the operating system handed this process, if one is waiting: a launch with a link
+/// on the command line, or a link opened while the application was already running and before
+/// the shell was listening. Taken once; the shell reads it at startup and then listens for the
+/// event the same arrival raises afterwards.
+#[tauri::command]
+pub async fn organization_link_take(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<Option<String>, Error> {
+    let mut arriving = app_state
+        .arriving_link
+        .lock()
+        .map_err(|_| Error::Internal {
+            message: "the arriving link was poisoned".to_string(),
+        })?;
+
+    Ok(arriving.take())
+}
+
+/// Read a link: which organization it names and where its invitation stands, before a password
+/// is asked for. The link is parsed here, the organization is reached with the credential it
+/// carries, and what crosses back is a name and a standing ([[rules/credentials]]).
+#[tauri::command]
+pub async fn organization_link_inspect(
+    app_state: tauri::State<'_, AppState>,
+    link: String,
+) -> Result<LinkFacts, Error> {
+    let link = JoinLink::decode(&link)?;
+    let (store, _) = reached(&app_state, &link).await?;
+
+    join::inspect(&store, &link, timestamp::now()).await
+}
+
+/// Join the organization a link names, with the generated password the person was handed, and
+/// sign them in to it. Refused while somebody is signed in here: joining is a way through the
+/// wall, and the wall is down.
+#[tauri::command]
+pub async fn organization_join(
+    app_state: tauri::State<'_, AppState>,
+    link: String,
+    password: String,
+) -> Result<OrganizationState, Error> {
+    if app_state.member.read().await.is_some() {
+        return Err(Error::PreconditionFailed {
+            message: "sign out before joining another organization on this machine".to_string(),
+        });
+    }
+
+    let link = JoinLink::decode(&link)?;
+    let (store, credential) = reached(&app_state, &link).await?;
+    let member = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        join::join(
+            &store,
+            remote_sync.store_mut(),
+            &link,
+            &password,
+            &credential,
+            timestamp::now(),
+        )
+        .await?
+    };
+
+    *app_state.organization.write().await = Some(store);
+    *app_state.member.write().await = Some(member);
+
+    organization_state_get(app_state).await
+}
+
+/// The organization a link names, reached: its replica on this machine, opened against the
+/// remote the link spells with the read-only credential it carries, and pulled. A machine that
+/// has never seen the organization and cannot reach it now has nothing to say about the link,
+/// and says so as a network failure rather than as a refusal.
+async fn reached(
+    app_state: &AppState,
+    link: &JoinLink,
+) -> Result<(OrganizationStore, CredentialSlot), Error> {
+    let database_path = {
+        let settings = app_state.settings.read().await;
+
+        settings.database_path.clone()
+    };
+    let credential: CredentialSlot = Arc::new(Mutex::new(Some(link.read_only_credential.clone())));
+    let slot = Arc::clone(&credential);
+    let store = OrganizationStore::open(
+        &OrganizationStore::replica_path(&database_path, &link.organization_id),
+        Some(link.remote_url.clone()),
+        move || {
+            let slot = Arc::clone(&slot);
+
+            async move {
+                slot.lock()
+                    .ok()
+                    .and_then(|slot| slot.clone())
+                    .ok_or_else(|| turso::Error::Misuse("no credential is held".into()))
+            }
+        },
+    )
+    .await?;
+
+    if !store.pull().await && store.organization().await?.is_none() {
+        return Err(Error::Network {
+            message: format!(
+                "{} could not be reached; the link is right, and the connection is what to try \
+                 again",
+                link.organization_name
+            ),
+        });
+    }
+
+    Ok((store, credential))
 }

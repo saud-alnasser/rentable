@@ -290,6 +290,20 @@ export type OrganizationSession = {
 	workspaces: OrganizationWorkspace[];
 };
 
+/** where a link's invitation stands, as the join screen is told before it asks for anything. */
+export type LinkStanding = 'open' | 'lapsed' | 'consumed' | 'revoked' | 'none';
+
+/**
+ * what a join link says once the organization it names has been reached: its name, where it is,
+ * and where the invitation stands. No credential, no key, no secret; the link was parsed in Rust.
+ */
+export type LinkFacts = {
+	organizationId: string;
+	organizationName: string;
+	remoteUrl: string;
+	standing: LinkStanding;
+};
+
 /**
  * where this machine stands with organizations: which it has joined, and who is signed in.
  * What the sign-in wall admits on.
@@ -459,6 +473,26 @@ export type Host = {
 		signIn: (organizationId: string, password: string) => Promise<OrganizationState>;
 		/** drop the keys this process held, and put the wall back up. */
 		signOut: () => Promise<OrganizationState>;
+		/**
+		 * a `rentable://` link the operating system handed the process before the shell was
+		 * listening: the one it was launched with, or one opened before the webview existed. Taken
+		 * once; `null` where none is waiting.
+		 */
+		linkTake: () => Promise<string | null>;
+		/** a link that arrives while the shell is running. Resolves to its own removal. */
+		onLink: (listener: (link: string) => void) => Promise<Unlisten>;
+		/**
+		 * read a link: which organization it names and where its invitation stands. Rejects as
+		 * `invalidInput` where the text is not a link, and as `network` where the organization
+		 * could not be reached from a machine that has never seen it.
+		 */
+		linkInspect: (link: string) => Promise<LinkFacts>;
+		/**
+		 * join the organization a link names with the generated password the person was handed,
+		 * and sign them in. A lapsed, revoked or used invitation rejects naming the organization;
+		 * a wrong password rejects saying only that the value did not open.
+		 */
+		join: (link: string, password: string) => Promise<OrganizationState>;
 		workspace: {
 			/**
 			 * create a workspace on the account: a database, migrated, recorded, and granted to the

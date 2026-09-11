@@ -5,10 +5,11 @@ import {
 	opensSignedOut,
 	shellSurface,
 	THE_FIRST_RUN,
+	THE_JOIN,
 	THE_WAY_IN,
 	wayInFrom
 } from '$lib/layout/shell-surface.ts';
-import { fakeRecovery, harness, locked, withoutWorkspace } from './testing.ts';
+import { fakeRecovery, harness, locked, nowhereToGo, withoutWorkspace } from './testing.ts';
 
 /**
  * WHICH ADDRESS DRAWS, AND IN WHICH STATE
@@ -202,4 +203,19 @@ test('the first run opens signed out, and draws as a route rather than the card'
 	assert.equal(startup.snapshot.state, 'sign-in');
 	assert.equal(shellSurface(startup.snapshot, THE_FIRST_RUN), 'route');
 	assert.equal(wayInFrom(THE_FIRST_RUN), THE_WAY_IN);
+});
+
+// and the join screen is the other: a link opens the application on a machine that has joined
+// nothing, and the screen it lands on is the one that reads the link.
+test('the join screen opens signed out, and draws as a route rather than the card', async () => {
+	assert.equal(opensSignedOut(THE_JOIN), true);
+	assert.equal(opensSignedOut(`${THE_JOIN}/anything`), false);
+
+	const { startup } = harness({ organization: nowhereToGo() });
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(shellSurface(startup.snapshot, THE_JOIN), 'route');
+	assert.equal(wayInFrom(THE_JOIN), THE_WAY_IN);
 });

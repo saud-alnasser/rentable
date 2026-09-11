@@ -15,6 +15,7 @@ import type {
 	Host,
 	ImportTable,
 	Invited,
+	LinkFacts,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
@@ -47,6 +48,8 @@ export type {
 	ImportTable,
 	Invited,
 	JoinedOrganization,
+	LinkFacts,
+	LinkStanding,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
@@ -67,6 +70,8 @@ export type {
 
 /** the Rust side is `GOOGLE_SIGN_IN_PHASE_EVENT` in `tauri/src/sync/sign_in.rs`, and the two are one name. */
 const GOOGLE_SIGN_IN_PHASE_EVENT = 'rentable:google-sign-in-phase';
+/** the Rust side is `LINK_ARRIVED_EVENT` in `tauri/src/lib.rs`, and the two are one name. */
+const LINK_ARRIVED_EVENT = 'organization:link';
 
 function mapUpdate(update: TauriUpdate): AvailableUpdate {
 	return {
@@ -225,6 +230,12 @@ export const tauri = {
 		signIn: (organizationId: string, password: string) =>
 			invoke<OrganizationState>('organization_sign_in', { organizationId, password }),
 		signOut: () => invoke<OrganizationState>('organization_sign_out'),
+		linkTake: () => invoke<string | null>('organization_link_take'),
+		onLink: (listener: (link: string) => void) =>
+			listen<string>(LINK_ARRIVED_EVENT, (event) => listener(event.payload)),
+		linkInspect: (link: string) => invoke<LinkFacts>('organization_link_inspect', { link }),
+		join: (link: string, password: string) =>
+			invoke<OrganizationState>('organization_join', { link, password }),
 		workspace: {
 			create: (name: string) => invoke<OrganizationWorkspace>('workspace_create', { name }),
 			open: (workspaceId: string) =>

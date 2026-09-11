@@ -102,6 +102,8 @@ export type StartupPorts = {
 	organization: {
 		getState(): Promise<OrganizationState>;
 		signIn(organizationId: string, password: string): Promise<OrganizationState>;
+		/** join the organization a link names with the generated password, and sign in to it. */
+		join(link: string, password: string): Promise<OrganizationState>;
 		signOut(): Promise<OrganizationState>;
 		/** open one of the workspaces the session holds a grant on, before the bootstrap. */
 		openWorkspace(workspaceId: string): Promise<unknown>;
@@ -481,6 +483,48 @@ export class Startup {
 	}
 
 	/**
+	 * Join at the wall, by a link and the generated password, and go straight on in.
+	 *
+	 * **The same shape as `signIn`, because joining is a sign-in with one step before it and one
+	 * after**: the shell opens the invitation with the link's half and the password, signs the
+	 * person in to the row it names, spends the invitation, and records the organization on this
+	 * machine. What comes back is where the machine stands, and the wall reads that. A refusal
+	 * stays on the join screen with its sentence, for the reason a wrong password stays on the
+	 * sign-in card: the person is still standing at the wall and needs the control.
+	 */
+	async joinByLink(link: string, password: string) {
+		if (this.#snapshot.isSigningIn) {
+			return false;
+		}
+
+		this.#set({ isSigningIn: true, error: null });
+
+		try {
+			this.#set({ organization: await this.#ports.organization.join(link, password) });
+		} catch (error) {
+			this.#set({ error: this.#ports.describeError(error) });
+
+			return false;
+		} finally {
+			this.#set({ isSigningIn: false });
+		}
+
+		this.#rememberSession();
+
+		if (!(await this.#admit())) {
+			return true;
+		}
+
+		if (!(await this.#hasWorkspace())) {
+			return true;
+		}
+
+		await this.#enterApplication();
+
+		return true;
+	}
+
+	/**
 	 * what both ways through the wall do once they are through it.
 	 *
 	 * The session is remembered where the settings page reads it, and the held API context is
@@ -512,11 +556,13 @@ export class Startup {
 	}
 
 	/**
-	 * A workspace was just created for the member who is in: read where the machine stands again,
-	 * open it, and go on into the application. What the no-workspace surface calls once the shell
-	 * has answered, and the same path a sign-in takes past the wall.
+	 * Where the machine stands changed under the shell: read it again, admit on it, open a
+	 * workspace where there is one, and go on into the application. The same path a sign-in takes
+	 * past the wall, for the two things that happen beside the wall rather than at it: the
+	 * no-workspace surface created a workspace for the member who is in, and the first run
+	 * created an organization and signed its owner in on a route the wall had let through.
 	 */
-	async workspaceCreated() {
+	async standingChanged() {
 		try {
 			this.#set({ organization: await this.#ports.organization.getState() });
 		} catch (error) {

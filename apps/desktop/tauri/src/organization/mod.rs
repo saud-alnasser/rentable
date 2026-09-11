@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 pub mod authority;
 mod command;
 pub mod invite;
+pub mod join;
 pub mod link;
 pub mod migrate;
 pub mod permission;

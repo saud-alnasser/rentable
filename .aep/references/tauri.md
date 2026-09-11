@@ -58,6 +58,28 @@ The bar for switching between a prototype's variants is
 `apps/desktop/src/lib/prototype/switcher.svelte`,
 and it renders under `dev` only.
 
+## Open the app with a join link
+
+```powershell
+Start-Process "rentable://join/..."      # Windows
+xdg-open "rentable://join/..."           # Linux
+open "rentable://join/..."               # macOS
+```
+
+The `rentable` scheme belongs to the application. `tauri.conf.json` declares it under
+`plugins.deep-link.desktop.schemes`, which is what the installer registers on Windows and Linux
+and what `Info.plist` carries on macOS; a development build has no installer, so
+`apps/desktop/tauri/src/lib.rs` registers the scheme for its own executable at startup
+(`register_all`), which is why `pnpm tauri dev` has to have run once on a machine before the
+command above reaches it there. The single-instance plugin is what makes a second launch with a
+link hand it to the instance already running instead of opening another window.
+
+What happens next is `apps/desktop/tauri/src/organization/join.rs`'s: Rust holds the link,
+announces it to the shell, and the shell puts the join screen on with the link already read.
+A link that reaches nothing, because a chat client refuses unknown schemes or the machine has
+never run the application, is pasted into the same screen. The scheme's spelling is
+`organization/link.rs`'s and nothing else parses a link.
+
 ## Build a release bundle
 
 ```bash

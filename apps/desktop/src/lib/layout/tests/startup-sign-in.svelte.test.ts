@@ -31,6 +31,7 @@ const card = (
 		errorMessage: null,
 		onSignIn: noop,
 		onSetUpOrganization: noop,
+		onJoinByLink: noop,
 		...overrides
 	});
 
@@ -59,6 +60,8 @@ test('a machine that has joined nothing asks for nothing and offers the first ru
 	expect(inputsOnScreen()).toEqual([]);
 	expect(screen.getByText(en.layout.signIn.noOrganizationTitle)).toBeDefined();
 	expect(screen.getByRole('button', { name: en.layout.signIn.setUpOrganization })).toBeDefined();
+	// and the other way in: an invitation somebody was handed, which opens the join screen.
+	expect(screen.getByRole('button', { name: en.layout.signIn.openInvitation })).toBeDefined();
 });
 
 test('a password that did not open is said on the wall, with the one sentence allowed', () => {
