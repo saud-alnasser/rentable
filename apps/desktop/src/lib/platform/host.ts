@@ -246,6 +246,52 @@ export type OrganizationCreated = {
 	synced: boolean;
 };
 
+/** one organization this machine has joined, as the sign-in screen lists it. No key. */
+export type JoinedOrganization = {
+	id: string;
+	name: string;
+	memberId: string;
+	/** their role there, as last read. A display fact: what a member may do is what their vault holds. */
+	role: string;
+	joinedAt: number;
+};
+
+/** one workspace a signed-in member holds a grant on. No credential. */
+export type OrganizationWorkspace = {
+	id: string;
+	name: string;
+	databaseName: string;
+	databaseHostname: string;
+	schemaVersion: number;
+	/** what the member's grant is good for, `full-access` or `read-only`. */
+	accessLevel: string;
+};
+
+/**
+ * the member whose password opened a vault in this process: facts about them and their
+ * workspaces, and no key. `null` on the far side of the wall.
+ */
+export type OrganizationSession = {
+	organizationId: string;
+	organizationName: string;
+	memberId: string;
+	email: string;
+	displayName: string;
+	role: string;
+	permissions: number;
+	mustChangePassword: boolean;
+	workspaces: OrganizationWorkspace[];
+};
+
+/**
+ * where this machine stands with organizations: which it has joined, and who is signed in.
+ * What the sign-in wall admits on.
+ */
+export type OrganizationState = {
+	organizations: JoinedOrganization[];
+	session: OrganizationSession | null;
+};
+
 /**
  * what the API may ask of the shell it runs in.
  *
@@ -359,9 +405,19 @@ export type Host = {
 		disconnect: () => Promise<void>;
 		/**
 		 * create an organization on the consented account from the two things a first run
-		 * collects. Refuses, creating nothing, where no consent has been granted.
+		 * collects. Refuses, creating nothing, where no consent has been granted, and signs the
+		 * owner in where it succeeds.
 		 */
 		create: (name: string, password: string) => Promise<OrganizationCreated>;
+		/** which organizations this machine has joined, and who is signed in. */
+		getState: () => Promise<OrganizationState>;
+		/**
+		 * open a vault with a password, with or without a network. A wrong password rejects
+		 * saying only that the value did not open; nothing distinguishes which half was wrong.
+		 */
+		signIn: (organizationId: string, password: string) => Promise<OrganizationState>;
+		/** drop the keys this process held, and put the wall back up. */
+		signOut: () => Promise<OrganizationState>;
 	};
 	remoteSync: {
 		getState: () => Promise<RemoteSyncState>;

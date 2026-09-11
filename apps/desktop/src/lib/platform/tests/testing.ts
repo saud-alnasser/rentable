@@ -8,6 +8,10 @@
 // different one.
 
 import type {
+	JoinedOrganization,
+	OrganizationSession,
+	OrganizationState,
+	OrganizationWorkspace,
 	Host,
 	RemoteSyncAccount,
 	RemoteSyncState,
@@ -143,7 +147,10 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			consentBegin: refuse('organization.consentBegin'),
 			consentResult: refuse('organization.consentResult'),
 			disconnect: refuse('organization.disconnect'),
-			create: refuse('organization.create')
+			create: refuse('organization.create'),
+			getState: refuse('organization.getState'),
+			signIn: refuse('organization.signIn'),
+			signOut: refuse('organization.signOut')
 		},
 		remoteSync: {
 			getState: refuse('remoteSync.getState'),
@@ -153,6 +160,68 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			push: refuse('remoteSync.push'),
 			renameWorkspace: refuse('remoteSync.renameWorkspace')
 		},
+		...overrides
+	};
+}
+
+/** an organization this machine has joined, as the sign-in screen lists it. */
+export function fakeJoinedOrganization(
+	overrides: Partial<JoinedOrganization> = {}
+): JoinedOrganization {
+	return {
+		id: 'acme',
+		name: 'Acme Rentals',
+		memberId: 'member-owner',
+		role: 'owner',
+		joinedAt: 0,
+		...overrides
+	};
+}
+
+/** a workspace a signed-in member holds a grant on. */
+export function fakeOrganizationWorkspace(
+	overrides: Partial<OrganizationWorkspace> = {}
+): OrganizationWorkspace {
+	return {
+		id: 'north',
+		name: 'North Properties',
+		databaseName: 'ws-north',
+		databaseHostname: 'ws-north-acme.aws-eu-west-1.turso.io',
+		schemaVersion: 5,
+		accessLevel: 'full-access',
+		...overrides
+	};
+}
+
+/** the member whose password opened a vault, with one workspace unless a test says otherwise. */
+export function fakeOrganizationSession(
+	overrides: Partial<OrganizationSession> = {}
+): OrganizationSession {
+	return {
+		organizationId: 'acme',
+		organizationName: 'Acme Rentals',
+		memberId: 'member-owner',
+		email: 'person@example.com',
+		displayName: 'Person Example',
+		role: 'owner',
+		permissions: 0,
+		mustChangePassword: false,
+		workspaces: [fakeOrganizationWorkspace()],
+		...overrides
+	};
+}
+
+/**
+ * where a machine stands with organizations. The default is a machine that has joined one and
+ * whose person is signed in to it, because that is what most paths behind the wall want; a test
+ * about the wall itself says which side of it the machine is on.
+ */
+export function fakeOrganizationState(
+	overrides: Partial<OrganizationState> = {}
+): OrganizationState {
+	return {
+		organizations: [fakeJoinedOrganization()],
+		session: fakeOrganizationSession(),
 		...overrides
 	};
 }

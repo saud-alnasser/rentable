@@ -1,7 +1,4 @@
-import type { RemoteSyncAccount, RemoteSyncState } from '$lib/platform/host';
-
-import { workspaceReplicationStanding } from './session';
-import { signedInAccount } from './account';
+import type { OrganizationSession, OrganizationState } from '$lib/platform/host';
 
 /**
  * ADMISSION
@@ -9,30 +6,30 @@ import { signedInAccount } from './account';
  * whether this machine may use the application at all, and what stands in the way where it may
  * not.
  *
- * **A different question from `./session`, and one layer in front of it.** That file answers *may
- * this workspace still replicate* — a question about a credential, whose answer stops data
- * crossing the network and touches nothing a user sees. This one answers *may this person in*,
- * and its refusal is the whole window: no surface renders workspace data behind it and no write
- * reaches the database, because the application has not started.
+ * **It used to answer in terms of an account and a session window.** Three reasons stood here:
+ * no Google account, a session window closed after three days out of contact, and an identity
+ * with no session because a control plane could not be reached. All three were facts about a
+ * service, and requirement 18 of the organization effort removes the service: signing in works
+ * with the network down, because what admits a person is a password opening a vault on this
+ * machine, and nothing about that has a window.
  *
- * **There is nothing to be admitted to without an account.** Requirement 3 makes signing up the
- * act that brings the workspace into being, so an install that has never signed in holds no
- * workspace to show rather than an empty one — which is why this is a wall rather than a prompt
- * that can be dismissed, and why the screen behind it renders nothing at all.
+ * **So the question is asked of the organization state, and the two refusals are the
+ * organization's own.** A machine that has joined no organization has nothing to sign in to, and
+ * the way past that is the first run or a join link. A machine that has joined one and holds no
+ * open vault is locked, and the way past that is a password. Neither is a lock a returning network
+ * lifts, because neither was put up by a network going away.
  *
- * **The session's window is the second gate and not the first.** Requirement 15 closes the
- * refresh window after three days offline, and past it the application locks behind the same
- * screen until a network returns — at which point the held token refreshes with nobody typing
- * anything. That is a lock rather than a sign-out, so the two refusals are told apart here even
- * though the screen they reach is one: what the user has to do about each is different.
+ * **There is nothing to be admitted to without an organization.** Its refusal is the whole window:
+ * no surface renders workspace data behind it and no write reaches any database, because the
+ * application has not started.
  */
 
 /**
  * where this machine stands with the sign-in wall.
  *
  * `starting` is the shell not having reported yet, and it is deliberately neither of the other
- * two: a state still loading is not an install that failed to sign in, and answering it with a
- * demand would put the login page in front of every launch for as long as the first read takes.
+ * two: a state still loading is not a machine with no organization, and answering it with a demand
+ * would put the sign-in card in front of every launch for as long as the first read takes.
  */
 export type Admission =
 	| { kind: 'starting' }
@@ -41,63 +38,33 @@ export type Admission =
 			/**
 			 * why, because the two are not the same thing to the person reading the screen.
 			 *
-			 * `noAccount` is an install nobody has signed in on — the whole application is on the far
-			 * side of a Google account it does not have. `windowClosed` is a signed-in machine that
-			 * has been out of contact past its window: the same screen, but the workspace is still
-			 * there and reconnecting is what opens it, rather than signing up for anything.
-			 *
-			 * `noSession` is the third, and it is the one that was being read as one of the other
-			 * two. This machine answered a consent screen and holds an identity; what it never got
-			 * is a session, because establishing one runs after the sign-in and is allowed to fail.
-			 * It is not somebody who has never signed in, and it is not somebody who went offline
-			 * for three days, so it is offered a retry rather than either of those sentences.
+			 * `noOrganization` is a machine that has joined nothing: there is no vault to open and
+			 * no password to type, and the screen offers the first run instead. `locked` is a machine
+			 * that has joined at least one organization and holds no open vault, which is every
+			 * launch after the first and every sign-out: the screen lists what it has joined and asks
+			 * for a password.
 			 */
-			reason: 'noAccount' | 'windowClosed' | 'noSession';
+			reason: 'noOrganization' | 'locked';
 	  }
-	| { kind: 'admitted'; account: RemoteSyncAccount };
+	| { kind: 'admitted'; session: OrganizationSession };
 
 /**
- * Where this machine stands with the sign-in wall, given the state the shell reported and the time.
+ * Where this machine stands with the sign-in wall, given the organization state the shell reported.
  *
- * The clock is an argument for the reason `replicationStanding`'s is: requirement 15 is three days
- * passing, and a test has to reach the far side of a window without moving the machine's clock.
- *
- * **The window is consulted only where there is a control plane to have heard from.** A build that
- * was never told where one is can never hold a session, so reading its absence as a closed window
- * would lock every such build out of itself the moment somebody signed in — the same trap
- * `hostedOutcome` guards in `./workspace`, and the same capability flag answers it. The build
- * either has somewhere to sign in to or it does not, and that is a fact about the build rather
- * than about the person.
+ * **No clock.** The window that used to be consulted here is gone with the service that issued
+ * it; a vault is open or it is not, and time does not move that.
  */
-export function workspaceAdmission(
-	state: RemoteSyncState | null | undefined,
-	now: number = Date.now()
-): Admission {
+export function organizationAdmission(state: OrganizationState | null | undefined): Admission {
 	if (!state) {
 		return { kind: 'starting' };
 	}
 
-	const account = signedInAccount(state);
-
-	if (!account) {
-		return { kind: 'signInRequired', reason: 'noAccount' };
+	if (state.session) {
+		return { kind: 'admitted', session: state.session };
 	}
 
-	if (
-		state.controlPlaneReady &&
-		workspaceReplicationStanding(state, now).kind === 'signInRequired'
-	) {
-		// **The window is what tells the two apart, and its absence is not its expiry.** A machine
-		// that holds one has had a session and let it run down; a machine that holds none never got
-		// one, which after a successful sign-in means the control plane was not reached.
-		// `replicationStanding` deliberately does not distinguish them, because what it answers is
-		// whether replication may continue and the answer is no either way. This is the layer that
-		// has to, because what the person is told and what they can do about it differ.
-		return {
-			kind: 'signInRequired',
-			reason: state.session ? 'windowClosed' : 'noSession'
-		};
-	}
-
-	return { kind: 'admitted', account };
+	return {
+		kind: 'signInRequired',
+		reason: state.organizations.length === 0 ? 'noOrganization' : 'locked'
+	};
 }

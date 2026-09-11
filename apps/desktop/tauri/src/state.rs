@@ -2,8 +2,13 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::{
-    database::Database, organization::store::OrganizationStore, persisted::Persisted,
-    settings::Settings, sync::RemoteSync, sync::turso::consent::TursoConsent, update::Update,
+    database::Database,
+    organization::{session::MemberSession, store::OrganizationStore},
+    persisted::Persisted,
+    settings::Settings,
+    sync::RemoteSync,
+    sync::turso::consent::TursoConsent,
+    update::Update,
 };
 
 pub struct AppState {
@@ -25,4 +30,8 @@ pub struct AppState {
     /// signs in to one, which is the sign-in ticket's to do; the slot is here so the two engines
     /// are held side by side by the same state rather than one of them hanging off the other.
     pub organization: Arc<RwLock<Option<OrganizationStore>>>,
+    /// the member signed in to that organization, for the run of the process: their keys and
+    /// the credential their password unsealed. `None` is the wall. Nothing in it is serialised;
+    /// the facts about it cross to the web layer as `SessionFacts`.
+    pub member: Arc<RwLock<Option<MemberSession>>>,
 }

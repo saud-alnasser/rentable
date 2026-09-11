@@ -1,36 +1,30 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { RemoteSyncAccount } from '$lib/platform/host.ts';
+import type { OrganizationSession } from '$lib/platform/host.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { fakeIdentity } from '$lib/api/tests/testing.ts';
 import {
-	fakeAccount,
 	fakeHost,
-	fakeSyncState,
-	fakeWorkspace
+	fakeOrganizationSession,
+	fakeOrganizationState
 } from '$lib/platform/tests/testing.ts';
 import { maskOf, permits } from '@rentable/workspace-permission';
 
 import { context } from '../context.ts';
 
-// a shell reporting the account this machine is signed in as.
+// a shell reporting whose vault is open on this machine, or nobody's.
 //
-// The state is written out in full by the fixtures behind it. *It used to set
-// `workspace.accountId` to `null` deliberately — that field was the Drive link rather than who
-// was signed in, and a fixture that set it would have let a context reading the wrong field pass
-// every test below. The field went with Drive sync, so there is one place left to read.*
-function shellReporting(accounts: RemoteSyncAccount[] = [fakeAccount()]) {
-	const state = fakeSyncState({ accounts, workspace: fakeWorkspace() });
+// The state is written out in full by the fixtures behind it. *It used to report a Google account
+// off the sync state; the wall admits on the organization state now, and this is the same read,
+// so a context reading the old field would fail every test below rather than pass them.*
+function shellReporting(session: OrganizationSession | null = fakeOrganizationSession()) {
+	const state = fakeOrganizationState({ session });
 
 	return fakeHost({
-		remoteSync: {
-			getState: async () => state,
-			renewSession: async () => state,
-			establishSession: async () => state,
-			replicate: async () => ({ pushed: true, received: false }),
-			push: async () => true,
-			renameWorkspace: async () => state
+		organization: {
+			...fakeHost().organization,
+			getState: async () => state
 		}
 	});
 }
@@ -65,7 +59,7 @@ test('every request carries an identity, and it is one of the four members', asy
 
 	assert.deepEqual(Object.keys(ctx).sort(), ['clock', 'db', 'host', 'identity']);
 	assert.deepEqual(ctx.identity, {
-		accountId: 'account',
+		accountId: 'member-owner',
 		email: 'person@example.com',
 		displayName: 'Person Example',
 		permissions: 0
@@ -86,21 +80,23 @@ test('an omitted clock defaults to the system clock', async () => {
 	assert.ok(now >= before && now <= after, 'clock.now() reports the current wall-clock time');
 });
 
-// **The acting user is who is signed in, not which folder is linked.** This is the read that
-// changed: `workspace.accountId` has one writer in the tree — the Drive link — so resolving
-// through it answered for a linked workspace and for nothing else. The fixture above leaves that
-// field null, which is what an ordinary signed-in machine looks like.
-test('a signed-in machine names its person, with no Drive folder in sight', async () => {
+// **The acting user is whose vault is open**, which is the read the wall admits on. The member's
+// id stands where an account id stood, because a member is what an account became.
+test('a signed-in machine names its member, off the organization state', async () => {
 	const ctx = await context({
 		db: createMemoryDatabase(),
 		clock: { now: () => 0 },
-		host: shellReporting([
-			fakeAccount({ id: 'account-9', email: 'her@example.com', displayName: 'Her Name' })
-		])
+		host: shellReporting(
+			fakeOrganizationSession({
+				memberId: 'member-9',
+				email: 'her@example.com',
+				displayName: 'Her Name'
+			})
+		)
 	});
 
 	assert.deepEqual(ctx.identity, {
-		accountId: 'account-9',
+		accountId: 'member-9',
 		email: 'her@example.com',
 		displayName: 'Her Name',
 		permissions: 0
@@ -114,20 +110,20 @@ test('a machine nobody has signed in on is answered with nobody', async () => {
 	const actor = await actorFrom({
 		db: createMemoryDatabase(),
 		clock: { now: () => 0 },
-		host: shellReporting([])
+		host: shellReporting(null)
 	});
 
 	assert.equal(actor, null);
 });
 
-// Signing out keeps the account row so whatever was linked under it can say what it is waiting
-// for, which means the row is present and the machine is not signed in. Reading the row rather
-// than its status would hand a procedure somebody who has left.
-test('a machine that signed out names nobody, row and all', async () => {
+// Signing out keeps the organization joined so the wall can list it, which means the machine
+// still knows the member and is not signed in. Reading what the machine remembers rather than
+// whose vault is open would hand a procedure somebody who has left.
+test('a machine that signed out names nobody, joined organization and all', async () => {
 	const actor = await actorFrom({
 		db: createMemoryDatabase(),
 		clock: { now: () => 0 },
-		host: shellReporting([fakeAccount({ status: 'needsReconnect', refreshTokenAvailable: false })])
+		host: shellReporting(null)
 	});
 
 	assert.equal(actor, null);
@@ -155,7 +151,7 @@ test('nobody is invented to fill the gap', async () => {
 	const actor = await actorFrom({
 		db: createMemoryDatabase(),
 		clock: { now: () => 0 },
-		host: shellReporting([])
+		host: shellReporting(null)
 	});
 
 	assert.equal(actor, null, 'a machine with no account was given a stand-in actor');
@@ -190,7 +186,7 @@ test('an identity supplied as undefined falls back to the host rather than empty
 	});
 
 	assert.deepEqual(ctx.identity, {
-		accountId: 'account',
+		accountId: 'member-owner',
 		email: 'person@example.com',
 		displayName: 'Person Example',
 		permissions: 0
@@ -198,29 +194,17 @@ test('an identity supplied as undefined falls back to the host rather than empty
 });
 
 /**
- * **What this account may do comes off the workspace on the same answer**, which is the read
- * `actingIdentity` was already making: `signedInAccount` is handed the whole state, and the
- * workspace is on it.
+ * **What this member may do comes off their verified row on the same answer**, which the session
+ * carries: `actingIdentity` is handed the whole state, and the permissions are on it.
  *
  * The number is deliberately not `0` here. Every other test in this file resolves against a
- * workspace that administers nothing, so a context that dropped the field entirely would agree
- * with all of them.
+ * member who administers nothing, so a context that dropped the field entirely would agree with
+ * all of them.
  */
-test('who is acting carries what they may do in the workspace, off the same answer', async () => {
-	const state = fakeSyncState({
-		accounts: [fakeAccount()],
-		workspace: fakeWorkspace({ permissions: maskOf('renameWorkspace', 'inviteMember') })
-	});
-	const host = fakeHost({
-		remoteSync: {
-			getState: async () => state,
-			renewSession: async () => state,
-			establishSession: async () => state,
-			replicate: async () => ({ pushed: true, received: false }),
-			push: async () => true,
-			renameWorkspace: async () => state
-		}
-	});
+test('who is acting carries what they may do, off the same answer', async () => {
+	const host = shellReporting(
+		fakeOrganizationSession({ permissions: maskOf('renameWorkspace', 'inviteMember') })
+	);
 
 	const actor = await actorFrom({ db: createMemoryDatabase(), clock: { now: () => 0 }, host });
 

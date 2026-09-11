@@ -18,7 +18,7 @@ import type { StartupSnapshot } from './startup';
  */
 
 /** what the frame draws in place of its children, or `route` for the children themselves. */
-export type ShellSurface = 'loading' | 'sign-in' | 'recovery' | 'error' | 'route';
+export type ShellSurface = 'loading' | 'sign-in' | 'no-workspace' | 'recovery' | 'error' | 'route';
 
 /**
  * Where an organization is created: the first run's own address.
@@ -109,6 +109,10 @@ export function shellSurface(snapshot: StartupSnapshot, pathname: string): Shell
 			return 'loading';
 		case 'sign-in':
 			return opensSignedOut(pathname) ? 'route' : 'sign-in';
+		// over every address, the first run's included: a person is in, and there is no workspace
+		// for any address to draw from, so no address changes the answer.
+		case 'no-workspace':
+			return 'no-workspace';
 		case 'recovery':
 			return snapshot.recovery ? 'recovery' : 'route';
 		case 'error':

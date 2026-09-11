@@ -17,6 +17,7 @@ import type {
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
+	OrganizationState,
 	Recovery,
 	RemoteSyncState,
 	Settings,
@@ -40,9 +41,13 @@ export type {
 	ExportSheet,
 	GoogleSignInPhase,
 	ImportTable,
+	JoinedOrganization,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
+	OrganizationSession,
+	OrganizationState,
+	OrganizationWorkspace,
 	Recovery,
 	RemoteSyncAccount,
 	RemoteSyncAccountStatus,
@@ -208,7 +213,11 @@ export const tauri = {
 			invoke<OrganizationConsentResult>('organization_consent_result', { sessionId }),
 		disconnect: () => invoke<void>('organization_disconnect'),
 		create: (name: string, password: string) =>
-			invoke<OrganizationCreated>('organization_create', { name, password })
+			invoke<OrganizationCreated>('organization_create', { name, password }),
+		getState: () => invoke<OrganizationState>('organization_state_get'),
+		signIn: (organizationId: string, password: string) =>
+			invoke<OrganizationState>('organization_sign_in', { organizationId, password }),
+		signOut: () => invoke<OrganizationState>('organization_sign_out')
 	},
 	remoteSync: {
 		getState: () => invoke<RemoteSyncState>('remote_sync_state_get'),

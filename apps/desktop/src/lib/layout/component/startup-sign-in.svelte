@@ -1,183 +1,188 @@
 <script lang="ts">
-	import type { GoogleSignInPhase } from '$lib/platform/host';
+	import type { JoinedOrganization } from '$lib/platform/host';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
-	import type { Tone } from '@rentable/design/tone.js';
+	import * as Field from '@rentable/design/primitive/field/index.js';
+	import { Input } from '@rentable/design/primitive/input/index.js';
+	import * as Select from '@rentable/design/primitive/select/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import LockOpenIcon from '@lucide/svelte/icons/lock-open';
 
 	/**
 	 * The wall, and the ways through it.
 	 *
 	 * Nothing renders behind it: not a workspace, not a name, not a count. That is the criterion
-	 * rather than a styling choice — an install nobody has signed in on has no workspace to draw
-	 * from, because signing up is the act that brings one into being.
+	 * rather than a styling choice: a machine nobody has unlocked has no workspace to draw from.
 	 *
 	 * **It reads as a login page, and the shape is the human's, settled on screen on 2026-08-20**:
-	 * one word of title, a line under it, air, and the way in. Nothing else. Two versions carrying
-	 * the mark and the product name were built first, one centred above the card following
-	 * `login-03` and one at the top of the card, and both were removed on sight. **A desktop
-	 * window names its application three times before this card gets a turn** — the title bar, the
-	 * taskbar, and the installer that put it there — so a fourth was decoration on the one screen
-	 * that should be quickest to get past. It stays on the shared application surface, which
-	 * [[rules/interface]] under *Application surfaces* requires and which the same conversation
-	 * confirmed over a page of its own.
+	 * one word of title, a line under it, air, and the way in. Nothing else. A desktop window names
+	 * its application three times before this card gets a turn, so the mark stays off it. It stays
+	 * on the shared application surface, which [[rules/interface]] under *Application surfaces*
+	 * requires.
 	 *
-	 * **Three situations, and the third is why this was rewritten.** Never having signed in, having
-	 * been out of contact past the window, and holding an identity with no session are different
-	 * things to the person reading them. The third used to render as one of the other two, so a
-	 * machine whose control plane was unreachable was told to sign in again. That opens a consent
-	 * screen, answers it, and arrives back here, because the consent screen was never what failed.
-	 * It is offered the call that did fail instead.
+	 * **Two situations, and neither is a service's.** A machine that has joined no organization
+	 * has nothing to unlock, and is offered the first run. A machine that has joined one lists what
+	 * it has joined and asks for a password, which opens a vault on this machine with or without a
+	 * network; there is no window to run out and no session to re-establish. *Three situations
+	 * stood here until organizations: no account, a window closed after three days, and an identity
+	 * with no session. Every one was about a control plane, and the control plane is what the
+	 * organization replaces.*
+	 *
+	 * **The password field is the only field.** This machine already knows which member it is in
+	 * each organization it joined, so an email typed here would be compared against a local string,
+	 * which is exactly the check requirement 9 says a modified client can skip. The organization is
+	 * chosen, the password is typed, and what the password opens is the whole of the sign-in.
 	 */
 	let {
 		situation,
+		organizations,
 		isSigningIn,
-		isRetrying,
-		phase,
 		errorMessage,
 		onSignIn,
-		onRetry,
 		onSetUpOrganization
 	}: {
-		/** which of the three situations this is, from `workspaceAdmission`. */
-		situation: 'noAccount' | 'windowClosed' | 'noSession';
-		/** a sign-in is outstanding — the consent screen is open, or its result is being applied. */
+		/** which of the two situations this is, from `organizationAdmission`. */
+		situation: 'noOrganization' | 'locked';
+		/** what this machine has joined, which is what it can unlock. */
+		organizations: JoinedOrganization[];
+		/** a password is being tried, which is a key derivation the person is waiting on. */
 		isSigningIn: boolean;
-		/** the control plane is being reached with the identity this machine already holds. */
-		isRetrying: boolean;
-		/** how far the outstanding sign-in has got, where the shell has said. */
-		phase: GoogleSignInPhase | null;
 		errorMessage: string | null;
-		onSignIn: () => void;
-		onRetry: () => void;
-		/**
-		 * the other way in: an organization on the person's own Turso account, which is the first
-		 * run's walk rather than a provider. A link rather than a second button, because it is the
-		 * tertiary of this screen until Google sign-in retires and it becomes the only way.
-		 */
+		onSignIn: (organizationId: string, password: string) => void;
+		/** the first run: an organization on the person's own Turso account. */
 		onSetUpOrganization: () => void;
 	} = $props();
 
-	const isBusy = $derived(isSigningIn || isRetrying);
+	let organizationId = $state<string>('');
+	let password = $state('');
+
+	// the one joined organization needs no choosing, and the first of several is the default.
+	const chosen = $derived(
+		organizations.find((organization) => organization.id === organizationId) ??
+			organizations[0] ??
+			null
+	);
 
 	const title = $derived(
-		{
-			noAccount: $LL.layout.signIn.title(),
-			windowClosed: $LL.layout.signIn.lockedTitle(),
-			noSession: $LL.layout.signIn.incompleteTitle()
-		}[situation]
+		situation === 'noOrganization'
+			? $LL.layout.signIn.noOrganizationTitle()
+			: $LL.layout.signIn.title()
 	);
 
 	const description = $derived(
-		{
-			noAccount: $LL.layout.signIn.description(),
-			windowClosed: $LL.layout.signIn.lockedDescription(),
-			noSession: $LL.layout.signIn.incompleteDescription()
-		}[situation]
+		situation === 'noOrganization'
+			? $LL.layout.signIn.noOrganizationDescription()
+			: $LL.layout.signIn.organizationDescription()
 	);
+
+	const canUnlock = $derived(chosen !== null && password.length > 0 && !isSigningIn);
+
+	const unlock = () => {
+		if (!chosen || !canUnlock) return;
+
+		onSignIn(chosen.id, password);
+	};
 
 	/**
-	 * The box above the way in, and there is one only where something has to be said.
-	 *
-	 * **A notice on every visit is not a notice**, which is the correction the human made on
-	 * 2026-08-20: the card carried a standing information box saying that signing in needs a
-	 * network, on the screen whose own button is about to prove it. A reader who meets a coloured
-	 * panel every time stops reading the one that matters, so the box is now the warning and the
-	 * error and nothing else.
-	 *
-	 * An attempt that failed is the most urgent thing on the screen and takes the error
-	 * treatment. A machine holding an identity it could not open a session with is a warning,
-	 * because nothing is wrong with the account and the next attempt may well work. Everything
-	 * else says what it has to say in the title and the line under it.
+	 * what the role reads as, in the reader's words. The vocabulary is
+	 * `packages/workspace-permission`'s and a role this build has never heard of is shown as it
+	 * is spelled rather than hidden.
 	 */
-	const notice = $derived.by((): { tone: Tone; message: string } | null => {
-		if (errorMessage) {
-			return { tone: 'error', message: errorMessage };
-		}
-
-		if (situation === 'noSession') {
-			return { tone: 'warning', message: $LL.layout.signIn.incomplete() };
-		}
-
-		return null;
-	});
-
-	/** what the shell is doing, said only while it is doing it. */
-	const working = $derived(
-		isRetrying
-			? $LL.layout.signIn.reaching()
-			: phase === 'finalizing'
-				? $LL.layout.signIn.finalizing()
-				: phase === 'authorizing'
-					? $LL.layout.signIn.authorizing()
-					: null
-	);
+	const roleLabel = (role: string) =>
+		({
+			owner: $LL.layout.signIn.roleOwner(),
+			administrator: $LL.layout.signIn.roleAdministrator(),
+			member: $LL.layout.signIn.roleMember()
+		})[role] ?? role;
 </script>
 
-<StandaloneSurface tone="neutral" {title} {description} busy={isBusy}>
+<StandaloneSurface tone="neutral" {title} {description} busy={isSigningIn}>
 	<!-- the extra step above what the surface gives every screen: with the card down to a title,
-	     a line and a button, the gap between saying what this is and offering the way through it
+	     a line and a way in, the gap between saying what this is and offering the way through it
 	     is the only grouping left to draw. -->
-	<div class="space-y-4 pt-2">
-		{#if notice}
-			<Callout tone={notice.tone}>{notice.message}</Callout>
+	<div class="space-y-4 pt-2" data-sign-in-situation={situation}>
+		{#if errorMessage}
+			<Callout tone="error">{errorMessage}</Callout>
 		{/if}
 
-		<!-- the way in. **Outlined rather than solid, which is the one place this card argues with
-		     *Semantics are secondary* (p.60) and says why**: that section wants a primary action
-		     solid and high contrast, and it is reasoning about a page where several actions
-		     compete. Nothing competes here. What decides instead is the mark: a provider's logo
-		     belongs on a neutral surface, and Google's on a filled accent button reads as a
-		     generic glyph somebody tinted. Leaving this screen as somebody else stays a link,
-		     which is that same section's tertiary and is not in contest. -->
-		<div class="space-y-2">
-			{#if situation === 'noSession'}
-				<Button class="w-full justify-center" onclick={onRetry} disabled={isBusy}>
-					<RefreshCwIcon class="size-4" />
-					{isRetrying ? $LL.common.actions.working() : $LL.layout.signIn.tryAgain()}
-				</Button>
+		{#if situation === 'noOrganization'}
+			<Button class="w-full justify-center" onclick={onSetUpOrganization}>
+				{$LL.layout.signIn.setUpOrganization()}
+			</Button>
+		{:else}
+			<form
+				class="space-y-4"
+				onsubmit={(event) => {
+					event.preventDefault();
+					unlock();
+				}}
+			>
+				<Field.Field>
+					<Field.Label for="sign-in-organization">{$LL.layout.signIn.organization()}</Field.Label>
+					{#if organizations.length > 1}
+						<Select.Root
+							type="single"
+							value={chosen?.id ?? ''}
+							onValueChange={(value) => {
+								if (value) organizationId = value;
+							}}
+						>
+							<Select.Trigger id="sign-in-organization" class="w-full">
+								{chosen?.name ?? ''}
+							</Select.Trigger>
+							<Select.Content>
+								{#each organizations as organization (organization.id)}
+									<Select.Item value={organization.id} label={organization.name}>
+										{organization.name}
+										<span class="text-muted-foreground">
+											{roleLabel(organization.role)}
+										</span>
+									</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					{:else if chosen}
+						<!-- one organization, named rather than chosen, with the role this machine
+						     last saw for the person: a fact to recognise oneself by, never authority. -->
+						<p id="sign-in-organization" class="text-sm" data-sign-in-organization={chosen.id}>
+							<span class="font-medium">{chosen.name}</span>
+							<span class="text-muted-foreground"> · {roleLabel(chosen.role)}</span>
+						</p>
+					{/if}
+				</Field.Field>
 
-				<Button variant="link" class="w-full justify-center" onclick={onSignIn} disabled={isBusy}>
-					{$LL.layout.signIn.useDifferentAccount()}
+				<Field.Field>
+					<Field.Label for="sign-in-password">{$LL.layout.signIn.password()}</Field.Label>
+					<Input
+						id="sign-in-password"
+						name="password"
+						type="password"
+						autocomplete="current-password"
+						bind:value={password}
+						disabled={isSigningIn}
+					/>
+				</Field.Field>
+
+				<Button type="submit" class="w-full justify-center" disabled={!canUnlock}>
+					<LockOpenIcon class="size-4" />
+					{isSigningIn ? $LL.common.actions.working() : $LL.layout.signIn.unlock()}
 				</Button>
-			{:else}
-				<Button
-					variant="outline"
-					class="h-10 w-full justify-center"
-					onclick={onSignIn}
-					disabled={isBusy}
-				>
-					<!-- Google's own mark, inlined and drawn in the button's own colour. The coloured
-					     version needs a light plate under it, which this application cannot promise
-					     in both themes. -->
-					<svg viewBox="0 0 24 24" class="size-4 shrink-0" aria-hidden="true">
-						<path
-							d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"
-							fill="currentColor"
-						/>
-					</svg>
-					<!-- the provider phrase, small. The rail says 'sign-in' and this card is the only
-					     place the provider is named, so it is a detail rather than the heading of
-					     the control. -->
-					<span class="text-sm">
-						{isSigningIn ? $LL.common.actions.working() : $LL.layout.signIn.signInWithGoogle()}
-					</span>
-				</Button>
+			</form>
+
+			{#if isSigningIn}
+				<!-- Argon2id is running where a person is waiting: a quarter of a second on a fast
+				     machine, longer on a slow one, and the screen says so rather than sitting still.
+				     Ticket 06 measured it, and the measurement is why this is a sentence and not a
+				     bar: too short to fill one, too long to show nothing. -->
+				<p class="text-center text-sm text-muted-foreground">{$LL.layout.signIn.unlocking()}</p>
 			{/if}
-		</div>
 
-		{#if working}
-			<p class="text-center text-sm text-muted-foreground">{working}</p>
-		{/if}
-
-		{#if situation === 'noAccount'}
 			<Button
 				variant="link"
 				class="w-full justify-center"
 				onclick={onSetUpOrganization}
-				disabled={isBusy}
+				disabled={isSigningIn}
 			>
 				{$LL.layout.signIn.setUpOrganization()}
 			</Button>

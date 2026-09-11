@@ -361,7 +361,23 @@ const ar = {
 			members: '{count|number} عضو'
 		},
 
+		noWorkspace: {
+			title: 'لا مساحة عمل بعد',
+			description: 'لا تحمل هذه المؤسسة أي مساحة عمل. المالك هو من ينشئ الأولى.'
+		},
+
 		signIn: {
+			noOrganizationTitle: 'لا مؤسسة على هذا الجهاز بعد',
+			noOrganizationDescription: 'أنشئ واحدة على حساب Turso الخاص بك. كل ما فيها يبقى هناك.',
+			organizationDescription:
+				'كلمة مرورك تفتح مكانك في المؤسسة، على هذا الجهاز، مع اتصال أو من دونه.',
+			organization: 'المؤسسة',
+			password: 'كلمة المرور',
+			unlock: 'افتح',
+			unlocking: 'يجري فتح مكانك في المؤسسة. يستغرق هذا لحظة عن قصد.',
+			roleOwner: 'مالك',
+			roleAdministrator: 'مدير',
+			roleMember: 'عضو',
 			setUpOrganization: 'أنشئ مؤسسة بدلاً من ذلك',
 			authorizing: 'أكمل تسجيل الدخول عبر Google في نافذة المتصفح التي فتحت للتو.',
 			signInWithGoogle: 'تسجيل الدخول باستخدام Google',

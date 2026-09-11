@@ -38,6 +38,7 @@ async function signedOutApi(host: Host) {
 function hostRecording(asked: string[]): Host {
 	return fakeHost({
 		organization: {
+			...fakeHost().organization,
 			consentBegin: async () => {
 				asked.push('consentBegin');
 

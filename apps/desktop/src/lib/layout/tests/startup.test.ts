@@ -6,9 +6,9 @@ import {
 	AT,
 	fakeRecovery,
 	harness,
-	signedIn,
-	signedOut,
-	withoutSession
+	locked,
+	nowhereToGo,
+	withoutWorkspace
 } from './testing.ts';
 
 /**
@@ -23,15 +23,15 @@ import {
  * handed a window, a control plane and a workspace, and a test says what each of them does.
  */
 
-// --- 1. First launch, with no account -------------------------------------------------
+// --- 1. First launch, with no organization --------------------------------------------
 
-test('a first launch with no account stops at the wall, and opens nothing behind it', async () => {
-	const { startup, journal } = harness({ remoteSync: signedOut() });
+test('a first launch with no organization stops at the wall, and opens nothing behind it', async () => {
+	const { startup, journal } = harness({ organization: nowhereToGo() });
 
 	await startup.start();
 
 	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(startup.snapshot.signInReason, 'noAccount');
+	assert.equal(startup.snapshot.signInReason, 'noOrganization');
 	// the rail is up: an application waiting for a person is an application that is running.
 	assert.equal(startup.snapshot.railIsUp, true);
 	assert.equal(journal.shown, 1, 'the window is shown, because there is something to answer');
@@ -45,7 +45,7 @@ test('a first launch with no account stops at the wall, and opens nothing behind
 
 test('and the locale is loaded before the wall, so the wall is readable', async () => {
 	const { startup, journal } = harness({
-		remoteSync: signedOut(),
+		organization: nowhereToGo(),
 		settings: async () => ({ locale: 'ar' })
 	});
 
@@ -82,11 +82,11 @@ test('and reports every stage it passes, in order, and says when it is done', as
 	assert.equal(journal.completed, 1);
 });
 
-// the bootstrap can change the answer: minting is what learns this account is no longer a member
-// of the workspace this machine held. Admitting only before it would carry on into a database
-// that is nobody's.
-test('and a machine the bootstrap turns out of the workspace meets the wall after it', async () => {
-	const { startup, journal } = harness({ afterBootstrap: signedOut() });
+// the bootstrap can change the answer: what it opens is read back afterwards, and a member whose
+// place changed under them while it ran meets the wall. Admitting only before it would carry on
+// into a database that is nobody's.
+test('and a machine the bootstrap turns out of the organization meets the wall after it', async () => {
+	const { startup, journal } = harness({ afterBootstrap: locked() });
 
 	await startup.start();
 
@@ -95,97 +95,74 @@ test('and a machine the bootstrap turns out of the workspace meets the wall afte
 	assert.equal(journal.reconciled, 0, 'and nothing after it did');
 });
 
-// --- 3. A sign-in that fails at the consent screen -------------------------------------
+// --- 3. A password that does not open the vault -----------------------------------------
 
-test('abandoning the consent screen leaves the wall as it was, and says nothing', async () => {
-	const { startup } = harness({
-		remoteSync: signedOut(),
+test('a wrong password leaves the wall as it was, and says only that the value did not open', async () => {
+	const { startup, journal } = harness({
+		organization: locked(),
 		signInWith: async () => {
-			throw new Error('user cancelled');
-		},
-		isCancellation: () => true
-	});
-
-	await startup.start();
-	await startup.signIn();
-
-	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(startup.snapshot.error, null, 'an answer, not a failure');
-	assert.equal(startup.snapshot.isSigningIn, false);
-	assert.equal(startup.snapshot.signInPhase, null);
-});
-
-test('and a consent screen that actually fails says so on the wall rather than on an error screen', async () => {
-	const { startup } = harness({
-		remoteSync: signedOut(),
-		signInWith: async () => {
-			throw new Error('google said no');
+			throw new Error('the sealed value did not open');
 		}
 	});
 
 	await startup.start();
-	await startup.signIn();
+	await startup.signIn('acme', 'not the password');
 
 	assert.equal(startup.snapshot.state, 'sign-in', 'the person is still standing at it');
-	assert.equal(startup.snapshot.error, 'google said no');
+	assert.equal(startup.snapshot.signInReason, 'locked');
+	assert.equal(startup.snapshot.error, 'the sealed value did not open');
+	assert.equal(startup.snapshot.isSigningIn, false);
+	assert.equal(journal.bootstrapped, 0, 'nothing behind the wall ran');
 });
 
-// --- 4. Signed in, and no control plane reached ----------------------------------------
+// --- 4. A password that opens it, with and without a workspace to open --------------------
 
-test('a sign-in that reaches no control plane holds an identity and no session', async () => {
+test('the right password goes straight on into the application, and the password is not held', async () => {
+	const asked: [string, string][] = [];
 	const { startup, journal } = harness({
-		remoteSync: signedOut(),
-		signInWith: async () => withoutSession()
+		organization: locked(),
+		signInWith: async (organizationId, password) => {
+			asked.push([organizationId, password]);
+
+			return { ...locked(), session: { ...withoutWorkspace().session!, workspaces: [] } };
+		}
 	});
 
 	await startup.start();
-	await startup.signIn();
-
 	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(startup.snapshot.signInReason, 'noSession', 'not noAccount, and not windowClosed');
-	assert.equal(startup.snapshot.error, null, 'the wall says it, so nothing is written here');
-	assert.equal(journal.bootstrapped, 0);
+
+	// the shell is handed the password once; the snapshot never carries it.
+	await startup.signIn('acme', 'a long enough password');
+
+	assert.deepEqual(asked, [['acme', 'a long enough password']]);
+	assert.ok(!JSON.stringify(startup.snapshot).includes('a long enough password'));
 	// the context was built while nobody was signed in, so it belongs to nobody.
 	assert.equal(journal.contextsForgotten, 1);
 });
 
-test('and the retry repeats that one call, opening no browser, and goes on when it works', async () => {
-	let established = 0;
-	const { startup, journal } = harness({
-		remoteSync: signedOut(),
-		signInWith: async () => withoutSession(),
-		establishSession: async () => {
-			established += 1;
-
-			return signedIn();
-		}
-	});
+test('and a member admitted to an organization with no workspace yet is in, with nowhere to go', async () => {
+	const { startup, journal } = harness({ organization: withoutWorkspace() });
 
 	await startup.start();
-	await startup.signIn();
-	await startup.retrySession();
 
-	assert.equal(established, 1);
-	assert.equal(startup.snapshot.state, 'ready');
-	assert.equal(startup.snapshot.isRetryingSession, false);
-	// re-entering at `workspace` is honest: those three stages are what this path has done.
-	assert.deepEqual(journal.stages.slice(-3), ['workspace', 'changes', 'records']);
+	assert.equal(startup.snapshot.state, 'no-workspace');
+	// a person is in, so the rail is up; and nothing that needs a workspace ran.
+	assert.equal(startup.snapshot.railIsUp, true);
+	assert.equal(journal.bootstrapped, 0);
+	assert.equal(journal.reconciled, 0);
+	assert.equal(journal.shown, 1);
 });
 
-test('and being unreachable again leaves the wall exactly where it was', async () => {
-	const { startup } = harness({
-		remoteSync: signedOut(),
-		signInWith: async () => withoutSession(),
-		establishSession: async () => withoutSession()
-	});
+test('and a member with a workspace reaches it after the sign-in, re-entering at the workspace stage', async () => {
+	const { startup, journal } = harness({ organization: locked() });
 
 	await startup.start();
-	await startup.signIn();
-	await startup.retrySession();
+	await startup.signIn('acme', 'a long enough password');
 
-	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(startup.snapshot.signInReason, 'noSession');
-	assert.equal(startup.snapshot.error, null, 'nothing new to say');
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(startup.snapshot.isSigningIn, false);
+	// re-entering at `workspace` is honest: those three stages are what this path has done.
+	assert.deepEqual(journal.stages.slice(-3), ['workspace', 'changes', 'records']);
 });
 
 // --- 5. A pending recovery -------------------------------------------------------------
@@ -258,7 +235,7 @@ test('and retrying it runs the whole path again, from the first stage', async ()
 
 // --- 7. A sign-out while the application is running ------------------------------------
 
-test('signing out puts the wall back up and clears what was drawn for whoever left', async () => {
+test('signing out puts the wall back up, locked, and clears what was drawn for whoever left', async () => {
 	const { startup, journal } = harness();
 
 	await startup.start();
@@ -267,8 +244,9 @@ test('signing out puts the wall back up and clears what was drawn for whoever le
 	const clearedBefore = journal.cacheCleared;
 	await startup.signOut();
 
+	// locked rather than nowhere to go: the organization is still joined, and a password opens it.
 	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(startup.snapshot.signInReason, 'noAccount');
+	assert.equal(startup.snapshot.signInReason, 'locked');
 	assert.equal(journal.cacheCleared, clearedBefore + 1, 'the workspace behind it is not readable');
 	// the held context names an account this machine no longer has credentials for.
 	assert.ok(journal.contextsForgotten > 0);
@@ -288,7 +266,7 @@ test('closing a running application pushes what it holds before the window goes'
 });
 
 test('and closing from any other state syncs nothing, because there is nothing behind it', async () => {
-	const { startup, journal } = harness({ remoteSync: signedOut() });
+	const { startup, journal } = harness({ organization: locked() });
 
 	await startup.start();
 	assert.equal(startup.snapshot.state, 'sign-in');

@@ -1,7 +1,7 @@
 import { createStartup, type StartupPorts, type StartupSnapshot } from '$lib/layout/startup.ts';
 import type { StartupStage } from '$lib/layout/startup-stage.ts';
-import { fakeAccount, fakeSyncState } from '$lib/platform/tests/testing.ts';
-import type { Recovery, RemoteSyncState } from '$lib/platform/host.ts';
+import { fakeAccount, fakeOrganizationState, fakeSyncState } from '$lib/platform/tests/testing.ts';
+import type { OrganizationState, Recovery, RemoteSyncState } from '$lib/platform/host.ts';
 
 /**
  * Shared harness for driving startup with no window.
@@ -19,9 +19,18 @@ export const A_DAY = 24 * 60 * 60 * 1000;
 
 export const signedIn = () => fakeSyncState({ accounts: [fakeAccount()] });
 export const signedOut = () => fakeSyncState();
-/** an account, a control plane to reach, and no session: the wall that offers the call again. */
-export const withoutSession = () =>
-	fakeSyncState({ accounts: [fakeAccount()], controlPlaneReady: true, session: null });
+
+/** a machine that has joined an organization and whose person's vault is open, with a workspace. */
+export const unlocked = () => fakeOrganizationState();
+/** a machine that has joined an organization and holds no open vault. */
+export const locked = () => fakeOrganizationState({ session: null });
+/** a machine that has joined nothing. */
+export const nowhereToGo = (): OrganizationState => ({ organizations: [], session: null });
+/** a machine whose person is admitted to an organization with no workspace in it yet. */
+export const withoutWorkspace = () =>
+	fakeOrganizationState({
+		session: { ...fakeOrganizationState().session!, workspaces: [] }
+	});
 
 export function fakeRecovery(overrides: Partial<Recovery> = {}): Recovery {
 	return {
@@ -71,14 +80,16 @@ export type Harness = {
 export function harness(
 	overrides: {
 		remoteSync?: RemoteSyncState;
-		afterBootstrap?: RemoteSyncState;
+		/** where the machine stands with organizations; unlocked with a workspace unless said. */
+		organization?: OrganizationState;
+		/** what the organization state answers after the bootstrap, where that differs. */
+		afterBootstrap?: OrganizationState;
 		bootstrap?: () => Promise<Recovery>;
 		settings?: () => Promise<{ locale?: string | null }>;
 		/** what loading a locale does, for the paths where the dictionary is what fails. */
 		loadLocale?: (locale: string) => Promise<void>;
-		signInWith?: () => Promise<RemoteSyncState>;
-		establishSession?: () => Promise<RemoteSyncState>;
-		isCancellation?: (error: unknown) => boolean;
+		/** what a password does: the state it leaves the machine in, or the refusal it meets. */
+		signInWith?: (organizationId: string, password: string) => Promise<OrganizationState>;
 	} = {}
 ): Harness {
 	const journal: Journal = {
@@ -102,10 +113,13 @@ export function harness(
 	const seen: StartupSnapshot[] = [];
 	const now = { value: AT };
 
-	// what `remoteSync.getState` answers with, which the unit reads more than once: at the account
-	// stage, again after the bootstrap, and after a sync manager reports.
-	let state = overrides.remoteSync ?? signedIn();
-	let readCount = 0;
+	// what `remoteSync.getState` answers with, which the unit reads at the account stage, again
+	// after the bootstrap, and after a sync manager reports.
+	const state = overrides.remoteSync ?? signedIn();
+	// what `organization.getState` answers with, which is what the wall admits on. The second read
+	// is the one after the bootstrap, which is allowed to answer differently.
+	let organization = overrides.organization ?? unlocked();
+	let organizationReads = 0;
 
 	const ports: StartupPorts = {
 		window: {
@@ -123,22 +137,32 @@ export function harness(
 			? { get: overrides.settings }
 			: { get: async () => ({ locale: 'en' }) },
 		remoteSync: {
+			getState: async () => state
+		},
+		organization: {
 			getState: async () => {
-				readCount += 1;
+				organizationReads += 1;
 
-				// the second read is the one after the bootstrap, which is allowed to answer
-				// differently: minting is what learns this account left the workspace.
-				return readCount >= 2 && overrides.afterBootstrap ? overrides.afterBootstrap : state;
+				return organizationReads >= 2 && overrides.afterBootstrap
+					? overrides.afterBootstrap
+					: organization;
 			},
-			// what these two answer with becomes what the world holds, because that is what they do:
-			// Rust updates its state store, and the next `getState` reads the result.
-			establishSession: async () => {
-				state = await (overrides.establishSession ?? (async () => signedIn()))();
+			// what these two answer with becomes what the world holds, because that is what they
+			// do: Rust updates what it holds, and the next `getState` reads the result.
+			signIn: async (organizationId, password) => {
+				organization = await (overrides.signInWith ?? (async () => unlocked()))(
+					organizationId,
+					password
+				);
 
-				return state;
+				return organization;
+			},
+			signOut: async () => {
+				organization = { ...organization, session: null };
+
+				return organization;
 			}
 		},
-		auth: { onPhase: async () => () => {} },
 		workspace: {
 			bootstrap:
 				overrides.bootstrap ??
@@ -164,14 +188,6 @@ export function harness(
 				return { state: given ?? state };
 			},
 			announceReceived: async () => now.value
-		},
-		signIn: {
-			withGoogle: async () => {
-				state = await (overrides.signInWith ?? (async () => signedIn()))();
-
-				return state;
-			},
-			isCancellation: overrides.isCancellation ?? (() => false)
 		},
 		locale: {
 			load: async (locale) => {

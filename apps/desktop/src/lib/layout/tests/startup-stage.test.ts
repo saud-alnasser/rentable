@@ -7,7 +7,7 @@ import {
 	startupProgressFor,
 	startupProgressWithin
 } from '../startup-stage.ts';
-import { harness, signedOut, withoutSession } from './testing.ts';
+import { harness, locked } from './testing.ts';
 
 /**
  * THE BAR IS A REPORT, AND THIS IS WHAT MAKES IT ONE
@@ -65,21 +65,16 @@ test('the stages a startup reports ascend through the list, in the order it runs
 	assert.deepEqual(reported, [...STARTUP_STAGES], 'every stage, once, in the declared order');
 });
 
-// The two paths that re-enter partway along, which is honest rather than a defect: signing in and
-// retrying a session both start where the workspace opens, because the three stages before that
-// are what they have already done.
+// The path that re-enters partway along, which is honest rather than a defect: signing in starts
+// where the workspace opens, because the two stages before that are what it has already done.
 test('a path that re-enters partway along starts partway along, and still ascends', async () => {
-	const { startup, journal } = harness({
-		remoteSync: signedOut(),
-		signInWith: async () => withoutSession()
-	});
+	const { startup, journal } = harness({ organization: locked() });
 
 	await startup.start();
 	assert.deepEqual(journal.stages, ['settings', 'account'], 'as far as the wall, and no further');
 
 	journal.stages.length = 0;
-	await startup.signIn();
-	await startup.retrySession();
+	await startup.signIn('acme', 'a long enough password');
 
 	assert.deepEqual(journal.stages, ['workspace', 'changes', 'records']);
 });

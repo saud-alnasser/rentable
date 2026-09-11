@@ -133,6 +133,7 @@ pub fn run() {
                     update,
                     consent: Arc::new(TursoConsent::new()),
                     organization: Arc::new(RwLock::new(None)),
+                    member: Arc::new(RwLock::new(None)),
                 });
             });
 
@@ -163,6 +164,9 @@ pub fn run() {
             sync::organization_consent_result,
             sync::organization_disconnect,
             organization::organization_create,
+            organization::organization_state_get,
+            organization::organization_sign_in,
+            organization::organization_sign_out,
             export::export_write,
             export::export_write_workbook,
             import::import_read,

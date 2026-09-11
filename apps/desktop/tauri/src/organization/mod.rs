@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 pub mod authority;
 mod command;
 pub mod link;
+pub mod session;
 pub mod setup;
 pub mod store;
 pub mod vault;

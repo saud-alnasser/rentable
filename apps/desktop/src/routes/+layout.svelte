@@ -2,7 +2,6 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { signedInAccount } from '$lib/sync/account';
 	import { startWorkspaceSyncManager } from '$lib/sync/autosync';
 	import { listenForSignOut } from '$lib/sync/sign-in';
 	import { trustWorkspaceData } from '$lib/design/query';
@@ -21,6 +20,7 @@
 	import { startupSurfaceBeforeLocale } from '$lib/layout/startup-surface';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
+	import LayoutStartupNoWorkspace from '$lib/layout/component/startup-no-workspace.svelte';
 	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
 	import LayoutStartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
 	import { listenForWindowCloseRequests } from '$lib/layout/event';
@@ -201,8 +201,16 @@
 			return 'signed-out';
 		}
 
+		// a person is in and there is no workspace: the rail is up, and it has no workspace to
+		// name, which is the shape the signed-out rail already draws. What the rail says for this
+		// state is the workspace ticket's to decide when there is a workspace to create.
+		if (shellState.state === 'no-workspace') {
+			return 'signed-out';
+		}
+
 		if (shellState.state === 'loading' && shellState.railIsUp) {
-			return signedInAccount(shellState.remoteSync) ? 'full' : 'signed-out';
+			// what the rail says still follows who is in, and who is in is whose vault is open.
+			return shellState.organization?.session ? 'full' : 'signed-out';
 		}
 
 		return 'bare';
@@ -298,13 +306,16 @@
 							{:else if surface === 'sign-in'}
 								<LayoutStartupSignIn
 									situation={shellState.signInReason}
+									organizations={shellState.organization?.organizations ?? []}
 									isSigningIn={shellState.isSigningIn}
-									isRetrying={shellState.isRetryingSession}
-									phase={shellState.signInPhase}
 									errorMessage={shellState.error}
-									onSignIn={() => void startup.signIn()}
-									onRetry={() => void startup.retrySession()}
+									onSignIn={(organizationId, password) =>
+										void startup.signIn(organizationId, password)}
 									onSetUpOrganization={() => void goto(resolve(THE_FIRST_RUN))}
+								/>
+							{:else if surface === 'no-workspace'}
+								<LayoutStartupNoWorkspace
+									organizationName={shellState.organization?.session?.organizationName ?? ''}
 								/>
 							{:else if surface === 'recovery' && shellState.recovery}
 								<LayoutStartupRecovery

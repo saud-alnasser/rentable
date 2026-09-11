@@ -369,7 +369,24 @@ const en = {
 			members: '{count|number} member(s)'
 		},
 
+		noWorkspace: {
+			title: 'no workspace yet',
+			description: 'this organization holds no workspace. an owner creates the first one.'
+		},
+
 		signIn: {
+			noOrganizationTitle: 'no organization on this machine yet',
+			noOrganizationDescription:
+				'set one up on your own turso account. everything in it stays there.',
+			organizationDescription:
+				'your password unlocks your place in the organization, on this machine, with or without a connection.',
+			organization: 'organization',
+			password: 'password',
+			unlock: 'unlock',
+			unlocking: 'unlocking your place in the organization. this takes a moment on purpose.',
+			roleOwner: 'owner',
+			roleAdministrator: 'administrator',
+			roleMember: 'member',
 			setUpOrganization: 'set up an organization instead',
 			authorizing: 'finish signing in with Google in the browser window that just opened.',
 			signInWithGoogle: 'sign in with Google',
