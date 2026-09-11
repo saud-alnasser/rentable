@@ -18,6 +18,7 @@ use super::{
     control::{SessionWindow, control_plane_url},
     google::auth::google_oauth_client_id,
     session::GoogleSignInSession,
+    turso::discovery::TursoOrganization,
 };
 
 pub struct RemoteSync {
@@ -190,6 +191,21 @@ pub struct RemoteSyncStore {
     ///
     /// A list because one machine can hold replicas for several accounts.
     pub replicas: Vec<LocalReplica>,
+    /// which Turso organization and group the consent on this machine was granted over.
+    ///
+    /// **Kept because it cannot be asked for twice cheaply.** A consented token carries neither
+    /// the organization slug nor anything that maps to one, and the only route to it is a lookup
+    /// against Turso's MCP server (`sync/turso/discovery.rs`). That surface is versioned at
+    /// `v0.1.0` and documented for agents, so asking it once at setup and never again is what
+    /// keeps a change there off the provisioning path.
+    ///
+    /// **Not a credential, and deliberately not in the keyring.** A slug is a name that appears
+    /// in every Platform API URL this application builds; filing it as a secret would imply the
+    /// URLs were. It is not in the organization database either, because it is a fact about this
+    /// machine's grant rather than about the organization's members.
+    ///
+    /// Absent on every machine that has not granted a Turso consent, which today is all of them.
+    pub turso_organization: Option<TursoOrganization>,
 }
 
 /// one workspace replica on this machine, and the account whose membership keeps it.
@@ -238,6 +254,7 @@ impl Default for RemoteSyncStore {
             device_id: String::new(),
             control_plane_session: None,
             replicas: Vec::new(),
+            turso_organization: None,
         }
     }
 }
@@ -294,6 +311,11 @@ impl Persistable for RemoteSyncStore {
 
         self.control_plane_session
             .take_if(|session| session.account_id.is_empty() || session.expires_at <= 0);
+
+        // a remembered organization with no slug is not one, and every Platform API path this
+        // application builds would carry the hole into a URL.
+        self.turso_organization
+            .take_if(|organization| organization.slug.trim().is_empty());
     }
 }
 

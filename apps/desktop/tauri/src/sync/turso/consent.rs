@@ -1524,7 +1524,11 @@ mod tests {
 
         consent.disconnect().expect("failed to disconnect");
 
-        assert_eq!(stored_token(), None, "the keyring entry outlived the disconnect");
+        assert_eq!(
+            stored_token(),
+            None,
+            "the keyring entry outlived the disconnect"
+        );
 
         let refusal = platform_token().expect_err("authority survived the disconnect");
 

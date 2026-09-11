@@ -252,7 +252,14 @@ mod tests {
     #[test]
     fn a_grant_omits_the_client_secret_when_there_is_none_configured() {
         for form in [
-            authorization_code_form("client-id", None, "http://127.0.0.1/callback", "v", "c", &[]),
+            authorization_code_form(
+                "client-id",
+                None,
+                "http://127.0.0.1/callback",
+                "v",
+                "c",
+                &[],
+            ),
             refresh_token_form("client-id", None, "the-refresh-token"),
         ] {
             assert!(

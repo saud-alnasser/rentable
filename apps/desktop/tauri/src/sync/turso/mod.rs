@@ -9,3 +9,5 @@
 //! credential are the Platform API's, and they are `platform.rs`'s once that exists.
 
 pub mod consent;
+
+pub mod discovery;
