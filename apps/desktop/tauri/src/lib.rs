@@ -132,6 +132,7 @@ pub fn run() {
                     remote_sync,
                     update,
                     consent: Arc::new(TursoConsent::new()),
+                    organization: Arc::new(RwLock::new(None)),
                 });
             });
 

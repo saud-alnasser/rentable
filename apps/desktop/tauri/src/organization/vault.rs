@@ -65,6 +65,9 @@ pub const SECRET_KEY_BYTES: usize = 32;
 /// The width of the secret half an invitation link carries.
 pub const INVITATION_SECRET_BYTES: usize = 32;
 
+/// The width of the organization content key.
+pub const CONTENT_KEY_BYTES: usize = 32;
+
 /// Poly1305's tag, appended to every ciphertext this module produces.
 const TAG_BYTES: usize = 16;
 
@@ -84,6 +87,9 @@ const SEALED_BOX_DOMAIN: &[u8] = b"rentable.organization.vault.sealed-box.v1";
 
 /// Separates the invitation key derivation from every other use of HKDF here.
 const INVITATION_DOMAIN: &[u8] = b"rentable.organization.vault.invitation.v1";
+
+/// Prefixes the associated data of every column sealed under the content key.
+const CONTENT_DOMAIN: &[u8] = b"rentable.organization.vault.content.v1";
 
 /// The Argon2id cost one vault was sealed under.
 ///
@@ -166,6 +172,46 @@ impl Drop for MemberKey {
 impl fmt::Debug for MemberKey {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("MemberKey(redacted)")
+    }
+}
+
+/// The organization content key: what every `_sealed` column in the organization
+/// database is sealed under, so that a name or an address is legible to a member
+/// whose vault is open and to nobody holding only the database.
+///
+/// One per organization. It reaches a member sealed to their public key, in
+/// `member.sealed_content_key`, and is unsealed with the secret key their password
+/// opens. Scrubbed on drop and redacted in `Debug`, for the reasons [`MemberKey`]
+/// gives.
+pub struct ContentKey([u8; CONTENT_KEY_BYTES]);
+
+impl ContentKey {
+    /// Reads a key back from the bytes a member unsealed.
+    pub fn from_bytes(bytes: [u8; CONTENT_KEY_BYTES]) -> Self {
+        Self(bytes)
+    }
+
+    /// The bytes to seal to a member's public key. Nowhere else.
+    pub fn to_bytes(&self) -> [u8; CONTENT_KEY_BYTES] {
+        self.0
+    }
+}
+
+impl Drop for ContentKey {
+    fn drop(&mut self) {
+        for byte in &mut self.0 {
+            // SAFETY: as for `MemberKey`, a volatile write through a pointer to a
+            // byte this value owns and is releasing.
+            unsafe { std::ptr::write_volatile(byte, 0) };
+        }
+
+        std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+impl fmt::Debug for ContentKey {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ContentKey(redacted)")
     }
 }
 
@@ -351,6 +397,39 @@ pub fn unseal_with_secret_key(
     let (key, nonce) = sealed_box_key(&shared, &ephemeral_public_key, &secret_key.public_key())?;
 
     unseal_bytes(&key, &nonce, ciphertext, SEALED_BOX_DOMAIN)
+}
+
+/// Draws a fresh organization content key. Once per organization, at creation.
+pub fn generate_content_key() -> Result<ContentKey, Error> {
+    Ok(ContentKey(random_bytes::<CONTENT_KEY_BYTES>()?))
+}
+
+/// Seals one column value under the content key, yielding the nonce followed by
+/// the ciphertext.
+///
+/// `column` is bound as associated data, so a ciphertext lifted out of
+/// `member.email_sealed` and written into `member.display_name_sealed` does not
+/// open there: a value is legible only in the place it was sealed for.
+pub fn seal_content(key: &ContentKey, column: &str, plaintext: &[u8]) -> Result<Vec<u8>, Error> {
+    let nonce = random_bytes::<NONCE_BYTES>()?;
+
+    let mut sealed = nonce.to_vec();
+    sealed.extend_from_slice(&seal_bytes(
+        &key.0,
+        &nonce,
+        plaintext,
+        &content_aad(column),
+    )?);
+
+    Ok(sealed)
+}
+
+/// The other direction. A wrong key, a wrong column or a changed byte all fail
+/// the same way, as [`Error::Integrity`] saying only that the value did not open.
+pub fn open_content(key: &ContentKey, column: &str, sealed: &[u8]) -> Result<Vec<u8>, Error> {
+    let (nonce, ciphertext) = split_nonce(sealed)?;
+
+    unseal_bytes(&key.0, &nonce, ciphertext, &content_aad(column))
 }
 
 /// Seals an invitation payload under both of its halves: the secret the link
@@ -561,6 +640,16 @@ fn invitation_key(
 }
 
 /// What an invitation is authenticated against.
+/// The associated data one sealed column carries: the domain and the column's
+/// own name.
+fn content_aad(column: &str) -> Vec<u8> {
+    let mut aad = CONTENT_DOMAIN.to_vec();
+    aad.push(b'.');
+    aad.extend_from_slice(column.as_bytes());
+
+    aad
+}
+
 fn invitation_aad(kdf_salt: &[u8; KDF_SALT_BYTES], kdf_params: KdfParams) -> Vec<u8> {
     let mut aad = INVITATION_DOMAIN.to_vec();
 
@@ -772,6 +861,69 @@ mod tests {
             open_invitation(&link_secret, "a generated password", &sealed).expect("failed to open"),
             payload
         );
+    }
+
+    // the content key
+
+    #[test]
+    fn a_sealed_column_opens_under_its_key_in_its_own_column_and_nowhere_else() {
+        let key = generate_content_key().expect("failed to draw a content key");
+        let other = generate_content_key().expect("failed to draw a second key");
+
+        let sealed = seal_content(&key, "member.email_sealed", b"somebody@example.com")
+            .expect("failed to seal");
+
+        assert_eq!(
+            open_content(&key, "member.email_sealed", &sealed).expect("failed to open"),
+            b"somebody@example.com"
+        );
+        assert!(
+            !sealed
+                .windows(b"somebody".len())
+                .any(|window| window == b"somebody"),
+            "the plaintext is legible in the ciphertext"
+        );
+
+        // lifted into another column, it does not open there
+        assert_eq!(
+            open_content(&key, "member.display_name_sealed", &sealed)
+                .expect_err("a ciphertext opened in a column it was not sealed for")
+                .to_string(),
+            UNOPENABLE
+        );
+        // and a different organization's key opens nothing
+        assert_eq!(
+            open_content(&other, "member.email_sealed", &sealed)
+                .expect_err("another key opened it")
+                .to_string(),
+            UNOPENABLE
+        );
+    }
+
+    #[test]
+    fn the_content_key_travels_to_a_member_as_a_sealed_box_and_nowhere_in_the_clear() {
+        let key = generate_content_key().expect("failed to draw a content key");
+        let vault = create_vault("a password", test_cost()).expect("failed to create");
+
+        let sealed_content_key =
+            seal_to_public_key(&vault.public_key, &key.to_bytes()).expect("failed to seal");
+        let secret_key = open_vault("a password", &vault).expect("failed to open");
+        let unsealed = unseal_with_secret_key(&secret_key, &sealed_content_key)
+            .expect("the member could not unseal the content key");
+
+        let mut bytes = [0_u8; CONTENT_KEY_BYTES];
+        bytes.copy_from_slice(&unsealed);
+        let recovered = ContentKey::from_bytes(bytes);
+
+        let sealed = seal_content(&key, "organization.name_sealed", b"Acme Rentals")
+            .expect("failed to seal");
+
+        assert_eq!(
+            open_content(&recovered, "organization.name_sealed", &sealed)
+                .expect("the recovered key did not open what the original sealed"),
+            b"Acme Rentals"
+        );
+        assert_eq!(format!("{key:?}"), "ContentKey(redacted)");
     }
 
     // a wrong password is indistinguishable from anything else
