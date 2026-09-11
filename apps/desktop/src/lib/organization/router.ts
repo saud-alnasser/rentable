@@ -1,7 +1,10 @@
 import type {
+	Invited,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
+	OrganizationInvitation,
+	OrganizationMember,
 	OrganizationWorkspace
 } from '$lib/platform/tauri';
 import { procedure, router } from '$lib/api/trpc';
@@ -102,5 +105,53 @@ export const organization = router({
 		renewCredentials: procedure.member.mutation(async ({ ctx }): Promise<number> => {
 			return ctx.host.organization.workspace.renewCredentials();
 		})
+	},
+	/**
+	 * Members and their invitations, which is the dashboard.
+	 *
+	 * **Inviting is `permitted('inviteMember')` here and refused again in Rust**, on the member's
+	 * verified row; this is the earlier of the two refusals, made so a caller is turned away before
+	 * a round trip, and never the deciding one. Listing is any signed-in member's: who is in the
+	 * organization is not a secret from the people in it.
+	 */
+	member: {
+		list: procedure.member.query(async ({ ctx }): Promise<OrganizationMember[]> => {
+			return ctx.host.organization.member.list();
+		}),
+		invite: procedure
+			.permitted('inviteMember')
+			.input(
+				z.object({
+					email: z.string().trim().min(3).max(254).includes('@'),
+					displayName: z.string().trim().min(1).max(ORGANIZATION_NAME_LIMIT),
+					role: z.enum(['administrator', 'member']),
+					workspaceIds: z.array(z.string().trim().min(1))
+				})
+			)
+			.mutation(async ({ input, ctx }): Promise<Invited> => {
+				return ctx.host.organization.member.invite(
+					input.email,
+					input.displayName,
+					input.role,
+					input.workspaceIds
+				);
+			})
+	},
+	invitation: {
+		list: procedure.member.query(async ({ ctx }): Promise<OrganizationInvitation[]> => {
+			return ctx.host.organization.invitation.list();
+		}),
+		revoke: procedure
+			.permitted('inviteMember')
+			.input(z.object({ invitationId: z.string().trim().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<void> => {
+				return ctx.host.organization.invitation.revoke(input.invitationId);
+			}),
+		reissue: procedure
+			.permitted('inviteMember')
+			.input(z.object({ memberId: z.string().trim().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<Invited> => {
+				return ctx.host.organization.invitation.reissue(input.memberId);
+			})
 	}
 });

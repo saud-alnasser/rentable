@@ -308,6 +308,13 @@ async fn finish<P: TursoPlatform>(
             name_sealed: seal_content(&content_key, "organization.name_sealed", name.as_bytes())?,
             verifying_key,
             remote_url: remote_url.clone(),
+            // sealed rather than in the clear: a member whose vault is open makes a link from it,
+            // and a reader of the database alone gets no credential out of it.
+            link_credential_sealed: seal_content(
+                &content_key,
+                "organization.link_credential_sealed",
+                link_credential.as_bytes(),
+            )?,
             created_at: now,
         })
         .await?;
@@ -378,6 +385,7 @@ async fn finish<P: TursoPlatform>(
 
     let join_link = JoinLink::new(
         organization_id,
+        name,
         &verifying_key,
         &remote_url,
         &link_credential,

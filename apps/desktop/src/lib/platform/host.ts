@@ -299,6 +299,40 @@ export type OrganizationState = {
 	session: OrganizationSession | null;
 };
 
+/** one member as the dashboard lists them. Names opened on the other side; no key, no credential. */
+export type OrganizationMember = {
+	id: string;
+	email: string;
+	displayName: string;
+	role: string;
+	permissions: number;
+	mustChangePassword: boolean;
+	workspaceIds: string[];
+	createdAt: number;
+};
+
+/** one invitation and where it stands now. */
+export type OrganizationInvitation = {
+	id: string;
+	memberId: string;
+	expiresAt: number;
+	consumedAt: number | null;
+	createdAt: number;
+	standing: 'open' | 'lapsed' | 'consumed';
+};
+
+/**
+ * what an invitation makes, shown to the administrator once. The password is in it because it has
+ * to be shown; it crosses exactly once and is held nowhere afterwards.
+ */
+export type Invited = {
+	memberId: string;
+	invitationId: string;
+	joinLink: string;
+	generatedPassword: string;
+	expiresAt: number;
+};
+
 /**
  * what the API may ask of the shell it runs in.
  *
@@ -447,6 +481,27 @@ export type Host = {
 			remove: (workspaceId: string) => Promise<void>;
 			/** mint fresh credentials for every grant and re-seal them, on the owner's machine. */
 			renewCredentials: () => Promise<number>;
+		};
+		member: {
+			/** every member, with names opened by the vault this process holds. */
+			list: () => Promise<OrganizationMember[]>;
+			/**
+			 * invite a member: a row they will sign in to, a link, and a generated password, shown
+			 * once. The application sends neither; the administrator hands them over.
+			 */
+			invite: (
+				email: string,
+				displayName: string,
+				role: 'administrator' | 'member',
+				workspaceIds: string[]
+			) => Promise<Invited>;
+		};
+		invitation: {
+			list: () => Promise<OrganizationInvitation[]>;
+			/** revoke an unused invitation; the link that named it opens nothing afterwards. */
+			revoke: (invitationId: string) => Promise<void>;
+			/** invite a member again: a fresh vault under a fresh password. What a reset is. */
+			reissue: (memberId: string) => Promise<Invited>;
 		};
 	};
 	remoteSync: {

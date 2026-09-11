@@ -14,9 +14,12 @@ import type {
 	GoogleSignInPhase,
 	Host,
 	ImportTable,
+	Invited,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
+	OrganizationInvitation,
+	OrganizationMember,
 	OrganizationState,
 	OrganizationWorkspace,
 	Recovery,
@@ -42,10 +45,13 @@ export type {
 	ExportSheet,
 	GoogleSignInPhase,
 	ImportTable,
+	Invited,
 	JoinedOrganization,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
+	OrganizationInvitation,
+	OrganizationMember,
 	OrganizationSession,
 	OrganizationState,
 	OrganizationWorkspace,
@@ -227,6 +233,20 @@ export const tauri = {
 				invoke<void>('workspace_grant', { workspaceId, memberId, access }),
 			remove: (workspaceId: string) => invoke<void>('workspace_delete', { workspaceId }),
 			renewCredentials: () => invoke<number>('organization_renew_credentials')
+		},
+		member: {
+			list: () => invoke<OrganizationMember[]>('organization_members'),
+			invite: (
+				email: string,
+				displayName: string,
+				role: 'administrator' | 'member',
+				workspaceIds: string[]
+			) => invoke<Invited>('member_invite', { email, displayName, role, workspaceIds })
+		},
+		invitation: {
+			list: () => invoke<OrganizationInvitation[]>('organization_invitations'),
+			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId }),
+			reissue: (memberId: string) => invoke<Invited>('invitation_reissue', { memberId })
 		}
 	},
 	remoteSync: {

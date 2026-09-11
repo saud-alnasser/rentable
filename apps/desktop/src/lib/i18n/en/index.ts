@@ -213,6 +213,7 @@ const en = {
 			complexes: 'complexes',
 			contracts: 'contracts',
 			dashboard: 'dashboard',
+			organization: 'organization',
 			payments: 'payments',
 			primary: 'primary',
 			settings: 'settings',
@@ -772,6 +773,38 @@ const en = {
 				'the organization is on this machine and will reach turso when the connection returns. the link works once it has.',
 			continue: 'continue',
 			back: 'back'
+		},
+		dashboard: {
+			members: 'members',
+			invitations: 'invitations',
+			workspaces: 'workspaces',
+			inviteTitle: 'invite somebody',
+			inviteDescription:
+				'an invitation makes their place in the organization. you hand them the link and the password yourself.',
+			email: 'email',
+			role: 'role',
+			administratorsAreTheOwners: 'only the owner can invite an administrator.',
+			noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
+			invite: 'invite',
+			cannotSend:
+				'rentable sends nothing. copy the link and the password below and hand them to the person yourself; the password is shown once.',
+			generatedPassword: 'generated password',
+			passwordOnce:
+				'this is the only time the password is shown. they change it on their first sign-in.',
+			copyPassword: 'copy password',
+			passwordCopied: 'password copied.',
+			done: 'done',
+			notYetSignedIn: 'not yet signed in',
+			reissue: 'reissue invitation',
+			standingOpen: 'open',
+			standingLapsed: 'lapsed',
+			standingConsumed: 'used',
+			noInvitations: 'no invitations.',
+			revoke: 'revoke',
+			revoked: 'the invitation was revoked.',
+			noWorkspaces: 'no workspace yet.',
+			accessFull: 'full access',
+			accessReadOnly: 'read only'
 		},
 		disconnectAction: 'disconnect turso account',
 		disconnectDescription:

@@ -6,6 +6,7 @@ use crate::{error::Error, state::AppState, timestamp};
 
 use super::{
     JoinedOrganization,
+    invite::{self, Invitation, InvitationFacts, Invited, MemberFacts},
     migrate::Pipeline,
     session::{self, CredentialSlot, SessionFacts, WorkspaceFacts},
     setup::{self, CreateOrganization, OrganizationCreated, Remote},
@@ -415,4 +416,99 @@ pub async fn organization_renew_credentials(
     let organization_database = format!("org-{}", member.organization_id);
 
     workspace::renew_credentials(store, member, &platform, &organization_database).await
+}
+
+/// Invite a member: a row, a link and a generated password, shown once. The application sends
+/// nothing; the administrator hands both over themselves.
+///
+/// **The password crosses exactly once, here, because it has to be shown**, and it is held
+/// nowhere afterwards ([[rules/credentials]], *Client boundary*). Everything else the invitation
+/// makes stays on this side: the member's vault, the content key sealed to them, and the grants.
+#[tauri::command]
+pub async fn member_invite(
+    app_state: tauri::State<'_, AppState>,
+    email: String,
+    display_name: String,
+    role: String,
+    workspace_ids: Vec<String>,
+) -> Result<Invited, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    let link = invite::organization_link(store, member).await?;
+
+    invite::invite_member(
+        store,
+        member,
+        &link,
+        Invitation {
+            email: &email,
+            display_name: &display_name,
+            role: &role,
+            workspace_ids: &workspace_ids,
+        },
+        invite::INVITED_KDF,
+        timestamp::now(),
+    )
+    .await
+}
+
+/// Invite a member again: a fresh vault under a fresh password, and a fresh invitation. What a
+/// reset is, for a member whose password nobody knows.
+#[tauri::command]
+pub async fn invitation_reissue(
+    app_state: tauri::State<'_, AppState>,
+    member_id: String,
+) -> Result<Invited, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    let link = invite::organization_link(store, member).await?;
+
+    invite::reissue_invitation(
+        store,
+        member,
+        &link,
+        &member_id,
+        invite::INVITED_KDF,
+        timestamp::now(),
+    )
+    .await
+}
+
+/// Revoke an unused invitation. The link that named it opens nothing afterwards.
+#[tauri::command]
+pub async fn invitation_revoke(
+    app_state: tauri::State<'_, AppState>,
+    invitation_id: String,
+) -> Result<(), Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    invite::revoke_invitation(store, member, &invitation_id).await
+}
+
+/// Every member, for the dashboard. Names opened with the content key the session holds.
+#[tauri::command]
+pub async fn organization_members(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<Vec<MemberFacts>, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    invite::members(store, member).await
+}
+
+/// Every invitation with where it stands, for the dashboard.
+#[tauri::command]
+pub async fn organization_invitations(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<Vec<InvitationFacts>, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    invite::invitations(store, member, timestamp::now()).await
 }

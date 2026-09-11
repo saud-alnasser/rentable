@@ -734,6 +734,10 @@ type RootTranslation = {
 			 */
 			dashboard: string
 			/**
+			 * o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			organization: string
+			/**
 			 * p​a​y​m​e​n​t​s
 			 */
 			payments: string
@@ -2390,6 +2394,116 @@ type RootTranslation = {
 			 */
 			back: string
 		}
+		dashboard: {
+			/**
+			 * m​e​m​b​e​r​s
+			 */
+			members: string
+			/**
+			 * i​n​v​i​t​a​t​i​o​n​s
+			 */
+			invitations: string
+			/**
+			 * w​o​r​k​s​p​a​c​e​s
+			 */
+			workspaces: string
+			/**
+			 * i​n​v​i​t​e​ ​s​o​m​e​b​o​d​y
+			 */
+			inviteTitle: string
+			/**
+			 * a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​m​a​k​e​s​ ​t​h​e​i​r​ ​p​l​a​c​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​y​o​u​ ​h​a​n​d​ ​t​h​e​m​ ​t​h​e​ ​l​i​n​k​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​r​s​e​l​f​.
+			 */
+			inviteDescription: string
+			/**
+			 * e​m​a​i​l
+			 */
+			email: string
+			/**
+			 * r​o​l​e
+			 */
+			role: string
+			/**
+			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​i​n​v​i​t​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
+			 */
+			administratorsAreTheOwners: string
+			/**
+			 * n​o​ ​w​o​r​k​s​p​a​c​e​ ​t​o​ ​g​r​a​n​t​ ​y​e​t​.​ ​t​h​e​y​ ​c​a​n​ ​b​e​ ​g​r​a​n​t​e​d​ ​o​n​e​ ​l​a​t​e​r​.
+			 */
+			noWorkspaceToGrant: string
+			/**
+			 * i​n​v​i​t​e
+			 */
+			invite: string
+			/**
+			 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​.​ ​c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​b​e​l​o​w​ ​a​n​d​ ​h​a​n​d​ ​t​h​e​m​ ​t​o​ ​t​h​e​ ​p​e​r​s​o​n​ ​y​o​u​r​s​e​l​f​;​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​s​h​o​w​n​ ​o​n​c​e​.
+			 */
+			cannotSend: string
+			/**
+			 * g​e​n​e​r​a​t​e​d​ ​p​a​s​s​w​o​r​d
+			 */
+			generatedPassword: string
+			/**
+			 * t​h​i​s​ ​i​s​ ​t​h​e​ ​o​n​l​y​ ​t​i​m​e​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​s​h​o​w​n​.​ ​t​h​e​y​ ​c​h​a​n​g​e​ ​i​t​ ​o​n​ ​t​h​e​i​r​ ​f​i​r​s​t​ ​s​i​g​n​-​i​n​.
+			 */
+			passwordOnce: string
+			/**
+			 * c​o​p​y​ ​p​a​s​s​w​o​r​d
+			 */
+			copyPassword: string
+			/**
+			 * p​a​s​s​w​o​r​d​ ​c​o​p​i​e​d​.
+			 */
+			passwordCopied: string
+			/**
+			 * d​o​n​e
+			 */
+			done: string
+			/**
+			 * n​o​t​ ​y​e​t​ ​s​i​g​n​e​d​ ​i​n
+			 */
+			notYetSignedIn: string
+			/**
+			 * r​e​i​s​s​u​e​ ​i​n​v​i​t​a​t​i​o​n
+			 */
+			reissue: string
+			/**
+			 * o​p​e​n
+			 */
+			standingOpen: string
+			/**
+			 * l​a​p​s​e​d
+			 */
+			standingLapsed: string
+			/**
+			 * u​s​e​d
+			 */
+			standingConsumed: string
+			/**
+			 * n​o​ ​i​n​v​i​t​a​t​i​o​n​s​.
+			 */
+			noInvitations: string
+			/**
+			 * r​e​v​o​k​e
+			 */
+			revoke: string
+			/**
+			 * t​h​e​ ​i​n​v​i​t​a​t​i​o​n​ ​w​a​s​ ​r​e​v​o​k​e​d​.
+			 */
+			revoked: string
+			/**
+			 * n​o​ ​w​o​r​k​s​p​a​c​e​ ​y​e​t​.
+			 */
+			noWorkspaces: string
+			/**
+			 * f​u​l​l​ ​a​c​c​e​s​s
+			 */
+			accessFull: string
+			/**
+			 * r​e​a​d​ ​o​n​l​y
+			 */
+			accessReadOnly: string
+		}
 		/**
 		 * d​i​s​c​o​n​n​e​c​t​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
 		 */
@@ -3194,6 +3308,10 @@ export type TranslationFunctions = {
 			 * dashboard
 			 */
 			dashboard: () => LocalizedString
+			/**
+			 * organization
+			 */
+			organization: () => LocalizedString
 			/**
 			 * payments
 			 */
@@ -4778,6 +4896,116 @@ export type TranslationFunctions = {
 			 * back
 			 */
 			back: () => LocalizedString
+		}
+		dashboard: {
+			/**
+			 * members
+			 */
+			members: () => LocalizedString
+			/**
+			 * invitations
+			 */
+			invitations: () => LocalizedString
+			/**
+			 * workspaces
+			 */
+			workspaces: () => LocalizedString
+			/**
+			 * invite somebody
+			 */
+			inviteTitle: () => LocalizedString
+			/**
+			 * an invitation makes their place in the organization. you hand them the link and the password yourself.
+			 */
+			inviteDescription: () => LocalizedString
+			/**
+			 * email
+			 */
+			email: () => LocalizedString
+			/**
+			 * role
+			 */
+			role: () => LocalizedString
+			/**
+			 * only the owner can invite an administrator.
+			 */
+			administratorsAreTheOwners: () => LocalizedString
+			/**
+			 * no workspace to grant yet. they can be granted one later.
+			 */
+			noWorkspaceToGrant: () => LocalizedString
+			/**
+			 * invite
+			 */
+			invite: () => LocalizedString
+			/**
+			 * rentable sends nothing. copy the link and the password below and hand them to the person yourself; the password is shown once.
+			 */
+			cannotSend: () => LocalizedString
+			/**
+			 * generated password
+			 */
+			generatedPassword: () => LocalizedString
+			/**
+			 * this is the only time the password is shown. they change it on their first sign-in.
+			 */
+			passwordOnce: () => LocalizedString
+			/**
+			 * copy password
+			 */
+			copyPassword: () => LocalizedString
+			/**
+			 * password copied.
+			 */
+			passwordCopied: () => LocalizedString
+			/**
+			 * done
+			 */
+			done: () => LocalizedString
+			/**
+			 * not yet signed in
+			 */
+			notYetSignedIn: () => LocalizedString
+			/**
+			 * reissue invitation
+			 */
+			reissue: () => LocalizedString
+			/**
+			 * open
+			 */
+			standingOpen: () => LocalizedString
+			/**
+			 * lapsed
+			 */
+			standingLapsed: () => LocalizedString
+			/**
+			 * used
+			 */
+			standingConsumed: () => LocalizedString
+			/**
+			 * no invitations.
+			 */
+			noInvitations: () => LocalizedString
+			/**
+			 * revoke
+			 */
+			revoke: () => LocalizedString
+			/**
+			 * the invitation was revoked.
+			 */
+			revoked: () => LocalizedString
+			/**
+			 * no workspace yet.
+			 */
+			noWorkspaces: () => LocalizedString
+			/**
+			 * full access
+			 */
+			accessFull: () => LocalizedString
+			/**
+			 * read only
+			 */
+			accessReadOnly: () => LocalizedString
 		}
 		/**
 		 * disconnect turso account

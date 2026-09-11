@@ -7,6 +7,7 @@ import LayoutDashboardIcon from '@tabler/icons-svelte/icons/layout-dashboard';
 import BuildingIcon from '@tabler/icons-svelte/icons/building';
 import SettingsIcon from '@tabler/icons-svelte/icons/settings';
 import UserCircleIcon from '@tabler/icons-svelte/icons/user-circle';
+import UsersGroupIcon from '@tabler/icons-svelte/icons/users-group';
 import UserIcon from '@tabler/icons-svelte/icons/user';
 
 /** A place the shell can send the user, wherever the shell offers to do so. */
@@ -45,6 +46,7 @@ export const primaryDestinations: Destination[] = [
  * searches it, and a person typing "settings" into the palette is asking for the same place.
  */
 export const secondaryDestinations: Destination[] = [
+	{ url: '/organization', icon: UsersGroupIcon, label: (t) => t.common.nav.organization() },
 	{ url: '/workspace', icon: BuildingIcon, label: (t) => t.common.nav.workspace() },
 	{ url: '/account', icon: UserCircleIcon, label: (t) => t.common.nav.account() },
 	{ url: '/settings', icon: SettingsIcon, label: (t) => t.common.nav.settings() }

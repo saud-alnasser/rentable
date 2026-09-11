@@ -1,13 +1,16 @@
 import api from '$lib/api/caller';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { LL } from '$lib/i18n/i18n-svelte';
-import type { OrganizationConsentResult } from '$lib/platform/tauri';
-import { createMutation, createQuery } from '@tanstack/svelte-query';
+import { tauri, type OrganizationConsentResult } from '$lib/platform/tauri';
+import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 export const keys = {
 	all: ['organization'],
-	consent: (sessionId: string) => ['organization', 'consent', sessionId]
+	consent: (sessionId: string) => ['organization', 'consent', sessionId],
+	members: ['organization', 'members'],
+	invitations: ['organization', 'invitations'],
+	state: ['organization', 'state']
 } as const;
 
 /** how often a pending consent is asked about, while the browser tab is open somewhere else. */
@@ -101,6 +104,102 @@ export function useCreateWorkspace(
 	return createMutation(() => ({
 		mutationFn: ({ name }: { name: string }) => api.app.organization.workspace.create({ name }),
 		onSuccess: () => onMutationSuccess(opts),
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+export function useFetchMembers() {
+	return createQuery(() => ({
+		queryKey: keys.members,
+		queryFn: () => api.app.organization.member.list()
+	}));
+}
+
+export function useFetchInvitations() {
+	return createQuery(() => ({
+		queryKey: keys.invitations,
+		queryFn: () => api.app.organization.invitation.list()
+	}));
+}
+
+/** where this machine stands: the organizations it joined and who is in. */
+export function useFetchOrganizationState() {
+	return createQuery(() => ({
+		queryKey: keys.state,
+		queryFn: () => tauri.organization.getState()
+	}));
+}
+
+/**
+ * invite a member. What comes back is shown once by the surface that asked; this hook only
+ * refreshes the two lists it changed.
+ */
+export function useInviteMember(
+	opts: MutationOptions = {
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({
+			email,
+			displayName,
+			role,
+			workspaceIds
+		}: {
+			email: string;
+			displayName: string;
+			role: 'administrator' | 'member';
+			workspaceIds: string[];
+		}) => api.app.organization.member.invite({ email, displayName, role, workspaceIds }),
+		onSuccess: async () => {
+			await Promise.all([
+				client.invalidateQueries({ queryKey: keys.members }),
+				client.invalidateQueries({ queryKey: keys.invitations })
+			]);
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+export function useRevokeInvitation(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.revoked(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ invitationId }: { invitationId: string }) =>
+			api.app.organization.invitation.revoke({ invitationId }),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.invitations });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+export function useReissueInvitation(
+	opts: MutationOptions = {
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ memberId }: { memberId: string }) =>
+			api.app.organization.invitation.reissue({ memberId }),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.invitations });
+			onMutationSuccess(opts);
+		},
 		onError: (e) => onMutationError(opts, e)
 	}));
 }

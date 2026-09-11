@@ -36,27 +36,77 @@ const LINK_PREFIX: &str = "rentable://join/";
 #[serde(rename_all = "camelCase")]
 pub struct JoinLink {
     pub organization_id: String,
+    /// the organization's name, in the clear: what a lapsed invitation is refused in the name of
+    /// (requirement 23), and not among the three things criterion 15 keeps from a link's holder.
+    pub organization_name: String,
     /// the Ed25519 verifying key every row is judged against, base64url.
     pub verifying_key: String,
     /// where the organization database is, `libsql://...`.
     pub remote_url: String,
     /// reads the organization database, and nothing in it is legible without a vault.
     pub read_only_credential: String,
+    /// the invitation this link was made for, where it was made for one: an owner's own link,
+    /// produced at the first run, carries none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invitation: Option<InvitationHalf>,
+}
+
+/// The half of an invitation a link carries: which one, and the secret that opens its payload
+/// together with the password the person carries. Neither half opens anything alone.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InvitationHalf {
+    pub id: String,
+    /// base64url of the invitation secret.
+    pub secret: String,
 }
 
 impl JoinLink {
     pub fn new(
         organization_id: &str,
+        organization_name: &str,
         verifying_key: &[u8; VERIFYING_KEY_BYTES],
         remote_url: &str,
         read_only_credential: &str,
     ) -> Self {
         Self {
             organization_id: organization_id.to_string(),
+            organization_name: organization_name.to_string(),
             verifying_key: BASE64URL.encode(verifying_key),
             remote_url: remote_url.to_string(),
             read_only_credential: read_only_credential.to_string(),
+            invitation: None,
         }
+    }
+
+    /// The same link, made for one invitation.
+    pub fn for_invitation(mut self, id: &str, secret: &[u8]) -> Self {
+        self.invitation = Some(InvitationHalf {
+            id: id.to_string(),
+            secret: BASE64URL.encode(secret),
+        });
+
+        self
+    }
+
+    /// The invitation secret as the vault takes it, where the link carries one.
+    pub fn invitation_secret(
+        &self,
+    ) -> Result<Option<(String, [u8; super::vault::INVITATION_SECRET_BYTES])>, Error> {
+        let Some(half) = &self.invitation else {
+            return Ok(None);
+        };
+        let bytes = BASE64URL
+            .decode(&half.secret)
+            .map_err(|_| Error::InvalidInput {
+                message: "this join link carries an invitation it cannot open".to_string(),
+            })?;
+        let secret = <[u8; super::vault::INVITATION_SECRET_BYTES]>::try_from(bytes.as_slice())
+            .map_err(|_| Error::InvalidInput {
+                message: "this join link carries an invitation it cannot open".to_string(),
+            })?;
+
+        Ok(Some((half.id.clone(), secret)))
     }
 
     /// The link as a person sees it and sends it: one line, one scheme, base64url of the fields.
@@ -114,6 +164,7 @@ mod tests {
     fn link() -> JoinLink {
         JoinLink::new(
             "7f3a",
+            "Acme",
             &[7_u8; 32],
             "libsql://org-7f3a-acme.aws-eu-west-1.turso.io",
             "a-read-only-credential",
@@ -133,9 +184,10 @@ mod tests {
         assert_eq!(link().verifying_key_bytes().expect("a key"), [7_u8; 32]);
     }
 
-    /// The four fields and nothing else: a link carries no password, no invitation and no key.
+    /// The five fields and nothing else: an owner's own link carries no password, no invitation
+    /// and no key; one made for an invitation carries its half, and still no password.
     #[test]
-    fn a_link_carries_the_four_fields_and_nothing_else() {
+    fn a_link_carries_the_five_fields_and_nothing_else() {
         let encoded = link().encode().expect("failed to encode");
         let json = base64::Engine::decode(
             &base64::engine::general_purpose::URL_SAFE_NO_PAD,
@@ -155,11 +207,23 @@ mod tests {
             names,
             [
                 "organizationId",
+                "organizationName",
                 "readOnlyCredential",
                 "remoteUrl",
                 "verifyingKey"
             ]
         );
+
+        let invited = link().for_invitation("inv-1", &[9_u8; 32]);
+        let encoded = invited.encode().expect("failed to encode");
+        let decoded = JoinLink::decode(&encoded).expect("failed to decode");
+
+        assert_eq!(decoded, invited);
+        assert_eq!(
+            decoded.invitation_secret().expect("the half"),
+            Some(("inv-1".to_string(), [9_u8; 32]))
+        );
+        assert!(!encoded.contains("password"), "{encoded}");
     }
 
     #[test]

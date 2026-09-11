@@ -590,6 +590,12 @@ mod tests {
                     .expect("sealed"),
                 verifying_key: organization_key.verifying_key(),
                 remote_url: "libsql://org-b-other.aws-eu-west-1.turso.io".to_string(),
+                link_credential_sealed: seal_content(
+                    &content_key,
+                    "organization.link_credential_sealed",
+                    b"a-read-only-credential",
+                )
+                .expect("sealed"),
                 created_at: 1_757_000_000_000,
             })
             .await

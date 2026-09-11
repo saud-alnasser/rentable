@@ -84,6 +84,10 @@ const WORKSPACE_DOMAIN: &[u8] = b"rentable.organization.authority.workspace.v1";
 /// Separates a `grant` row's preimage from every other row's.
 const GRANT_DOMAIN: &[u8] = b"rentable.organization.authority.grant.v1";
 
+/// The fourth row, which the invitation ticket gave a signature: the plan's data model gave the
+/// row the column, and the ticket that writes one is the ticket that signs it.
+const INVITATION_DOMAIN: &[u8] = b"rentable.organization.authority.invitation.v1";
+
 /// The first check's refusal: the row does not carry the signature the
 /// certificate it names would have produced.
 const FORGED_ROW: &str = "the row is not signed by the certificate it names";
@@ -131,9 +135,10 @@ pub struct Certificate {
 /// The authority fields of one row: exactly what its signature covers, and
 /// nothing else the row happens to carry.
 ///
-/// The three variants are the three rows the plan gives signed fields. A fourth
-/// row grows a signature the day something needs one, and it arrives here rather
-/// than as a second encoding somewhere else.
+/// Three variants were the three rows the plan gives signed fields. The fourth
+/// arrived with the invitation ticket, here rather than as a second encoding
+/// somewhere else: an unsigned invitation row is one any member could have
+/// written, and a member who could write one could invite whoever they liked.
 #[derive(Clone, Copy, Debug)]
 pub enum Authority<'a> {
     /// A `member` row.
@@ -142,6 +147,21 @@ pub enum Authority<'a> {
     Workspace(WorkspaceAuthority<'a>),
     /// A `grant` row.
     Grant(GrantAuthority<'a>),
+    /// An `invitation` row.
+    Invitation(InvitationAuthority<'a>),
+}
+
+/// What an `invitation` row puts under signature: which invitation it is, what
+/// it seals, and how long it stands. `consumed_at` is written by the machine
+/// that consumes it and is not covered, for the reason `revoked_at` is not on a
+/// certificate: it does not exist when the row is signed.
+#[derive(Clone, Copy, Debug)]
+pub struct InvitationAuthority<'a> {
+    pub id: &'a str,
+    /// The payload the link's secret and the person's password open together.
+    pub sealed_payload: &'a [u8],
+    /// When the invitation lapses, in milliseconds.
+    pub expires_at: i64,
 }
 
 /// What a `member` row puts under signature.
@@ -435,6 +455,17 @@ fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
             field(&mut message, sealed_credential);
             field(&mut message, access_level.as_bytes());
             optional_field(&mut message, credential_expires_at.map(str::as_bytes));
+        }
+        Authority::Invitation(InvitationAuthority {
+            id,
+            sealed_payload,
+            expires_at,
+        }) => {
+            message.extend_from_slice(INVITATION_DOMAIN);
+            field(&mut message, certificate_id.as_bytes());
+            field(&mut message, id.as_bytes());
+            field(&mut message, sealed_payload);
+            field(&mut message, &expires_at.to_be_bytes());
         }
     }
 

@@ -34,10 +34,10 @@ use crate::{database::Database, error::Error};
 
 use super::{
     authority::{
-        Authority, Certificate, GrantAuthority, MemberAuthority, VERIFYING_KEY_BYTES,
-        WorkspaceAuthority, sign, verify,
+        Authority, Certificate, GrantAuthority, InvitationAuthority, MemberAuthority,
+        VERIFYING_KEY_BYTES, WorkspaceAuthority, sign, verify,
     },
-    vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
+    vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, SealedInvitation, Vault},
 };
 
 /// The seven tables, in the order the schema creates them. A test pins this list against what
@@ -67,6 +67,7 @@ const SCHEMA: [&str; 7] = [
         \"name_sealed\" BLOB NOT NULL, \
         \"verifying_key\" BLOB NOT NULL, \
         \"remote_url\" TEXT NOT NULL, \
+        \"link_credential_sealed\" BLOB NOT NULL, \
         \"created_at\" INTEGER NOT NULL)",
     "CREATE TABLE IF NOT EXISTS \"member\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
@@ -112,7 +113,10 @@ const SCHEMA: [&str; 7] = [
         PRIMARY KEY (\"member_id\", \"workspace_id\"))",
     "CREATE TABLE IF NOT EXISTS \"invitation\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"member_id\" TEXT NOT NULL, \
         \"sealed_payload\" BLOB NOT NULL, \
+        \"kdf_salt\" BLOB NOT NULL, \
+        \"kdf_params\" TEXT NOT NULL, \
         \"expires_at\" INTEGER NOT NULL, \
         \"consumed_at\" INTEGER, \
         \"certificate_id\" TEXT NOT NULL, \
@@ -135,6 +139,10 @@ pub struct OrganizationRecord {
     /// this column is what lets it notice the two disagree.
     pub verifying_key: [u8; VERIFYING_KEY_BYTES],
     pub remote_url: String,
+    /// the read-only credential every join link carries, sealed under the content key: any
+    /// member whose vault is open can make a link, and nobody holding the database alone can use
+    /// it.
+    pub link_credential_sealed: Vec<u8>,
     pub created_at: i64,
 }
 
@@ -181,6 +189,21 @@ pub struct GrantRecord {
     pub sealed_credential: Vec<u8>,
     pub access_level: String,
     pub credential_expires_at: Option<String>,
+}
+
+/// An `invitation` row: what a joining member opens with the link's secret and their generated
+/// password, and how long it stands. The id, the sealed payload and the expiry are under signature;
+/// `member_id` names whose invitation it is for the dashboard, and the derivation fields are the
+/// invitation's own, as a vault's are a member's: rewriting them breaks the invitation and nothing
+/// else.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InvitationRecord {
+    pub id: String,
+    pub member_id: String,
+    pub sealed: SealedInvitation,
+    pub expires_at: i64,
+    pub consumed_at: Option<i64>,
+    pub created_at: i64,
 }
 
 /// Who is writing: an administrator's key and the certificate that makes it an authority.
@@ -300,13 +323,15 @@ impl OrganizationStore {
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"organization\" \
-                 (\"id\", \"name_sealed\", \"verifying_key\", \"remote_url\", \"created_at\") \
-                 VALUES (?, ?, ?, ?, ?)",
+                 (\"id\", \"name_sealed\", \"verifying_key\", \"remote_url\", \
+                  \"link_credential_sealed\", \"created_at\") \
+                 VALUES (?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(organization.id.clone()),
                     turso::Value::Blob(organization.name_sealed.clone()),
                     turso::Value::Blob(organization.verifying_key.to_vec()),
                     turso::Value::Text(organization.remote_url.clone()),
+                    turso::Value::Blob(organization.link_credential_sealed.clone()),
                     turso::Value::Integer(organization.created_at),
                 ],
             )
@@ -319,7 +344,8 @@ impl OrganizationStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT \"id\", \"name_sealed\", \"verifying_key\", \"remote_url\", \"created_at\" \
+                "SELECT \"id\", \"name_sealed\", \"verifying_key\", \"remote_url\", \
+                        \"link_credential_sealed\", \"created_at\" \
                  FROM \"organization\" LIMIT 1",
                 (),
             )
@@ -334,7 +360,8 @@ impl OrganizationStore {
             name_sealed: blob(&row, 1)?,
             verifying_key: fixed::<VERIFYING_KEY_BYTES>(&row, 2, "verifying_key")?,
             remote_url: text(&row, 3)?,
-            created_at: integer(&row, 4)?,
+            link_credential_sealed: blob(&row, 4)?,
+            created_at: integer(&row, 5)?,
         }))
     }
 
@@ -685,8 +712,140 @@ impl OrganizationStore {
         Ok(grants)
     }
 
-    /// Remove a workspace's row and every grant on it. The one deletion the store makes, for the
-    /// one moment requirement 4 permits it; the database it names is the port's to remove first.
+    // invitations
+
+    pub async fn write_invitation(
+        &self,
+        signer: &Signer<'_>,
+        invitation: &InvitationRecord,
+    ) -> Result<(), Error> {
+        let signature = sign(
+            signer.key,
+            signer.certificate,
+            Authority::Invitation(InvitationAuthority {
+                id: &invitation.id,
+                sealed_payload: &invitation.sealed.sealed_payload,
+                expires_at: invitation.expires_at,
+            }),
+        )?;
+
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"invitation\" \
+                 (\"id\", \"member_id\", \"sealed_payload\", \"kdf_salt\", \"kdf_params\", \
+                  \"expires_at\", \"consumed_at\", \"certificate_id\", \"signature\", \
+                  \"created_at\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(invitation.id.clone()),
+                    turso::Value::Text(invitation.member_id.clone()),
+                    turso::Value::Blob(invitation.sealed.sealed_payload.clone()),
+                    turso::Value::Blob(invitation.sealed.kdf_salt.to_vec()),
+                    turso::Value::Text(invitation.sealed.kdf_params.encode()),
+                    turso::Value::Integer(invitation.expires_at),
+                    invitation
+                        .consumed_at
+                        .map_or(turso::Value::Null, turso::Value::Integer),
+                    turso::Value::Text(signer.certificate.id.clone()),
+                    turso::Value::Blob(signature),
+                    turso::Value::Integer(invitation.created_at),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Every invitation, each verified before it is returned.
+    pub async fn invitations(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Vec<InvitationRecord>, Error> {
+        let certificates = self.certificates().await?;
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"member_id\", \"sealed_payload\", \"kdf_salt\", \"kdf_params\", \
+                        \"expires_at\", \"consumed_at\", \"certificate_id\", \"signature\", \
+                        \"created_at\" \
+                 FROM \"invitation\" ORDER BY \"created_at\", \"id\"",
+                (),
+            )
+            .await?;
+        let mut invitations = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            let id = text(&row, 0)?;
+            let sealed_payload = blob(&row, 2)?;
+            let expires_at = integer(&row, 5)?;
+            let certificate_id = text(&row, 7)?;
+            let signature = blob(&row, 8)?;
+
+            verified(
+                organization_verifying_key,
+                &certificates,
+                "invitation",
+                &id,
+                &certificate_id,
+                Authority::Invitation(InvitationAuthority {
+                    id: &id,
+                    sealed_payload: &sealed_payload,
+                    expires_at,
+                }),
+                &signature,
+            )?;
+
+            invitations.push(InvitationRecord {
+                id,
+                member_id: text(&row, 1)?,
+                sealed: SealedInvitation {
+                    sealed_payload,
+                    kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 3, "kdf_salt")?,
+                    kdf_params: KdfParams::parse(&text(&row, 4)?)?,
+                },
+                expires_at,
+                consumed_at: match row.get_value(6)? {
+                    turso::Value::Integer(value) => Some(value),
+                    _ => None,
+                },
+                created_at: integer(&row, 9)?,
+            });
+        }
+
+        Ok(invitations)
+    }
+
+    /// Mark an invitation consumed. Unsigned on purpose: the machine that consumes it holds no
+    /// administrator key, and a consumed invitation is spent whether or not the mark is trusted,
+    /// because the member row it pointed at now has a password of the member's own.
+    pub async fn consume_invitation(&self, id: &str, now: i64) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "UPDATE \"invitation\" SET \"consumed_at\" = ? WHERE \"id\" = ?",
+                vec![
+                    turso::Value::Integer(now),
+                    turso::Value::Text(id.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Revoke an invitation: the row goes, and the link that named it finds nothing.
+    pub async fn delete_invitation(&self, id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"invitation\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Remove a workspace's row and every grant on it, for the one moment requirement 4 permits
+    /// it; the database it names is the port's to remove first.
     pub async fn delete_workspace(&self, workspace_id: &str) -> Result<(), Error> {
         self.connection
             .execute(
@@ -947,6 +1106,10 @@ mod tests {
                 name_sealed: chain.sealed("organization.name_sealed", "Acme Rentals"),
                 verifying_key: chain.verifying_key(),
                 remote_url: "libsql://org-acme-acme.aws-eu-west-1.turso.io".to_string(),
+                link_credential_sealed: chain.sealed(
+                    "organization.link_credential_sealed",
+                    "a-read-only-credential",
+                ),
                 created_at: 1_757_000_000_000,
             })
             .await
@@ -1128,6 +1291,7 @@ mod tests {
             "North Properties",
             "South Properties",
             "Acme Rentals",
+            "a-read-only-credential",
         ];
         let mut cells = 0;
 
