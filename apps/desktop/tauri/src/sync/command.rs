@@ -73,7 +73,9 @@ pub async fn remote_sync_replicate(
         // the remote was reached, or could not be: the offline case, which needs nothing.
         SyncRefusal::None => {
             if replicated.pushed || replicated.received {
-                app_state.remote_sync.write().await.clear_account_refusal();
+                let mut remote_sync = app_state.remote_sync.write().await;
+                remote_sync.clear_account_refusal();
+                remote_sync.clear_credential_refusal();
             }
 
             Ok(Replication::from(replicated))
@@ -96,11 +98,28 @@ pub async fn remote_sync_replicate(
         // under it, and nobody has to do anything.
         SyncRefusal::Credential => {
             if !crate::organization::reconnect(&app_state).await {
+                app_state
+                    .remote_sync
+                    .write()
+                    .await
+                    .note_credential_refusal(crate::timestamp::now());
                 return Ok(Replication::from(replicated));
             }
 
             let db = app_state.db.read().await;
             let again = db.replicate().await;
+
+            // the reconnect collected a fresh credential and the retry went through, or it did
+            // not and the member is told their credential needs attention rather than shown
+            // nothing wrong (requirement 25's shape, for the credential rather than the account).
+            {
+                let mut remote_sync = app_state.remote_sync.write().await;
+                if matches!(again.refusal, SyncRefusal::None) && (again.pushed || again.received) {
+                    remote_sync.clear_credential_refusal();
+                } else if matches!(again.refusal, SyncRefusal::Credential) {
+                    remote_sync.note_credential_refusal(crate::timestamp::now());
+                }
+            }
 
             Ok(Replication {
                 pushed: replicated.pushed || again.pushed,

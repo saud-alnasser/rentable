@@ -52,6 +52,7 @@ export function fakeSyncState(overrides: Partial<RemoteSyncState> = {}): RemoteS
 		startupPromptEnabled: false,
 		deviceId: 'device',
 		accountRefusal: null,
+		credentialRefusal: null,
 		...overrides
 	};
 }

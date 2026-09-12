@@ -881,6 +881,9 @@ const en = {
 		syncStatusNeedsReconnect: 'needs reconnect',
 		syncStatusSynced: 'synced',
 		syncStatusAccountRefused: 'account needs attention',
+		syncStatusCredentialRefused: 'access needs attention',
+		credentialRefused:
+			"your access to this workspace was refreshed, and this machine is collecting the new credential. if it does not clear on its own, ask the organization's owner. everything here keeps working meanwhile.",
 		accountRefusedMember:
 			"the organization's turso account needs attention, so nothing is reaching turso for now. tell {owner}. everything here keeps working on this machine, and what you write goes out once it is seen to.",
 		accountRefusedOwner:

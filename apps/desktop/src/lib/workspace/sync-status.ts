@@ -15,7 +15,7 @@ import type { TranslationFunctions } from '$lib/i18n/i18n-types';
  * one their grant names. What is left is the account's refusal (requirement 25), a fault the
  * replica or the shell reported, and synced.*
  */
-export type SyncStatus = 'accountRefused' | 'needsReconnect' | 'synced';
+export type SyncStatus = 'accountRefused' | 'credentialRefused' | 'needsReconnect' | 'synced';
 
 /**
  * What the badge draws for each answer.
@@ -25,6 +25,7 @@ export type SyncStatus = 'accountRefused' | 'needsReconnect' | 'synced';
  */
 const VARIANT: Record<SyncStatus, BadgeVariant> = {
 	accountRefused: 'error',
+	credentialRefused: 'error',
 	needsReconnect: 'error',
 	synced: 'default'
 };
@@ -35,6 +36,13 @@ export const syncStatusOf = (state: RemoteSyncState): SyncStatus => {
 	// person offline need different things (requirement 25).
 	if (state.accountRefusal) {
 		return 'accountRefused';
+	}
+
+	// this member's credential, refused by Turso and not settled by a reconnect: a lock-out
+	// rotated it and no re-sealed one has arrived. Read before a fault, because it is a definite
+	// answer about why nothing syncs where a fault is a stale report.
+	if (state.credentialRefusal) {
+		return 'credentialRefused';
 	}
 
 	// the one fault in the list, and the only one a person can act on by doing something.
@@ -53,6 +61,7 @@ export const syncFaultOf = (state: RemoteSyncState): string | null =>
 export const syncStatusLabel = (status: SyncStatus, LL: TranslationFunctions): string =>
 	({
 		accountRefused: LL.workspace.syncStatusAccountRefused(),
+		credentialRefused: LL.workspace.syncStatusCredentialRefused(),
 		needsReconnect: LL.workspace.syncStatusNeedsReconnect(),
 		synced: LL.workspace.syncStatusSynced()
 	})[status];

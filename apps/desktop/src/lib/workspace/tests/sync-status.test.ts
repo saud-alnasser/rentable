@@ -35,3 +35,22 @@ test('the account being refused reads first, and apart from a fault', () => {
 	assert.equal(syncStatusVariant('accountRefused'), 'error');
 	assert.notEqual(syncStatusOf(refused), syncStatusOf(fakeSyncState()));
 });
+
+// F5: a credential Turso refused and a reconnect did not settle is its own answer, read before a
+// fault (a definite reason nothing syncs, where a fault is a stale report) and after the account's
+// (which is the owner's to see to first).
+test('a refused credential reads as its own status, after the account and before a fault', () => {
+	const state = fakeSyncState({
+		credentialRefusal: { since: 2 },
+		workspace: fakeWorkspace({ lastError: 'something stale' })
+	});
+
+	assert.equal(syncStatusOf(state), 'credentialRefused');
+	assert.equal(syncStatusVariant('credentialRefused'), 'error');
+
+	const account = fakeSyncState({
+		accountRefusal: { since: 1 },
+		credentialRefusal: { since: 2 }
+	});
+	assert.equal(syncStatusOf(account), 'accountRefused');
+});

@@ -121,6 +121,12 @@ export type RemoteSyncState = {
 	 * `organization.accountRefusalDetail`.
 	 */
 	accountRefusal: { since: number } | null;
+	/**
+	 * a replication Turso refused for this member's credential that a reconnect did not settle,
+	 * standing until one goes through. A lock-out rotated the credential and this machine has no
+	 * re-sealed one yet; the member is told their access needs attention rather than shown nothing.
+	 */
+	credentialRefusal: { since: number } | null;
 };
 
 /** why a replication did not go, where Turso said: the account's, the credential's, or neither. */

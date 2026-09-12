@@ -851,6 +851,9 @@ const ar = {
 		syncStatusNeedsReconnect: 'يحتاج إلى إعادة ربط',
 		syncStatusSynced: 'تمت مزامنته',
 		syncStatusAccountRefused: 'الحساب يحتاج إلى اهتمام',
+		syncStatusCredentialRefused: 'صلاحية الوصول تحتاج إلى اهتمام',
+		credentialRefused:
+			'تم تحديث صلاحية وصولك إلى مساحة العمل هذه، وهذا الجهاز يجمع بيانات الاعتماد الجديدة. إذا لم يُحل الأمر من تلقاء نفسه، فاسأل مالك المنظمة. يستمر كل شيء هنا في العمل في هذه الأثناء.',
 		accountRefusedMember:
 			'حساب Turso الخاص بالمؤسسة يحتاج إلى اهتمام، لذا لا يصل شيء إلى Turso حاليًا. أخبر {owner}. كل شيء هنا يواصل العمل على هذا الجهاز، وما تكتبه يُرسل حين يُعتنى بالحساب.',
 		accountRefusedOwner:

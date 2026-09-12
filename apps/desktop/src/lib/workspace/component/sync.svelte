@@ -114,6 +114,11 @@
 				{$LL.organization.setup.openDashboard()}
 			</Button>
 		{/if}
+	{:else if status === 'credentialRefused'}
+		<!-- this member's credential, rotated by a lock-out and not yet replaced on this machine.
+		     The application collects the re-sealed one on its own when the organization database is
+		     reachable; if it does not clear, there is none to collect and the owner is who to ask. -->
+		<Callout tone="warning" data-credential-refusal>{$LL.workspace.credentialRefused()}</Callout>
 	{:else if fault}
 		<!-- the fault itself, and only where there is one. The badge says *that* something is wrong
 		     in a word; this is the sentence the service or the replica gave, which is the half a

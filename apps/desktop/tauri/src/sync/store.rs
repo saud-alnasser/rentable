@@ -30,6 +30,12 @@ pub struct RemoteSync {
     /// the next one is what settles it. The detail is Turso's own sentence and crosses to the
     /// owner alone (`organization::account_refusal_detail`).
     pub(super) account_refusal: Option<AccountRefusal>,
+    /// the last replication Turso refused for this member's credential that a reconnect did not
+    /// settle, until one goes through. In memory, like the account refusal above. A lock-out
+    /// rotated the credential and this machine either has not yet collected the re-sealed one or
+    /// there is none to collect, so the member is told their access needs attention rather than
+    /// shown nothing wrong.
+    pub(super) credential_refusal: Option<i64>,
 }
 
 /// A replication Turso refused for the account: when, and what it said.
@@ -44,6 +50,14 @@ pub struct AccountRefusal {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountRefusalFacts {
+    pub since: i64,
+}
+
+/// What a member is told about a standing credential refusal a reconnect did not settle: that
+/// there is one, and since when.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialRefusalFacts {
     pub since: i64,
 }
 
@@ -191,6 +205,10 @@ pub struct RemoteSyncState {
     /// through. Distinct from every other reason a machine is not syncing, because a person over
     /// quota and a person offline need different things.
     pub account_refusal: Option<AccountRefusalFacts>,
+    /// a replication Turso refused for this member's credential that a reconnect did not settle,
+    /// standing until one goes through. Distinct from the account's refusal, which is the owner's
+    /// to see to, and from a fault: this is a credential that stopped being accepted.
+    pub credential_refusal: Option<CredentialRefusalFacts>,
 }
 
 impl Default for RemoteSyncStore {
@@ -263,6 +281,7 @@ impl RemoteSync {
             store,
             workspace_token: None,
             account_refusal: None,
+            credential_refusal: None,
         };
         this.reconcile().await?;
         Ok(this)
@@ -527,6 +546,9 @@ impl RemoteSync {
                 .map(|refusal| AccountRefusalFacts {
                     since: refusal.since,
                 }),
+            credential_refusal: self
+                .credential_refusal
+                .map(|since| CredentialRefusalFacts { since }),
         }
     }
 
@@ -547,6 +569,17 @@ impl RemoteSync {
     /// A replication went through, so whatever the account was refused for is over.
     pub(crate) fn clear_account_refusal(&mut self) {
         self.account_refusal = None;
+    }
+
+    /// Turso refused a replication for this member's credential and a reconnect did not settle it.
+    /// The first refusal's moment stands until one goes through.
+    pub(crate) fn note_credential_refusal(&mut self, now: i64) {
+        self.credential_refusal.get_or_insert(now);
+    }
+
+    /// A replication went through, so whatever the credential was refused for is over.
+    pub(crate) fn clear_credential_refusal(&mut self) {
+        self.credential_refusal = None;
     }
 
     /// Turso's own sentence about the standing refusal, for the owner and nobody else; the
@@ -685,6 +718,7 @@ mod tests {
                 .expect("store"),
             workspace_token: None,
             account_refusal: None,
+            credential_refusal: None,
         }
     }
 
