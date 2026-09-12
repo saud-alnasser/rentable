@@ -189,7 +189,21 @@ test('a member with no workspace is told so, by organization name', () => {
 	expect(screen.getByText('Acme Rentals')).toBeDefined();
 	// the owner is offered the one way past it: a name, and a create.
 	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual(['name']);
-	expect(screen.getByRole('button', { name: en.layout.noWorkspace.create })).toBeDefined();
+
+	// requirement 15 of the redesign: the field leads with its subject's glyph inside the input
+	// group, and the glyph is muted rather than as dark as the label.
+	const addon = document.querySelector('[data-slot=input-group-addon]');
+
+	expect(addon).not.toBeNull();
+	expect(addon?.querySelector('svg')).not.toBeNull();
+	expect(addon?.className).toContain('text-muted-foreground');
+	expect(addon?.parentElement?.getAttribute('data-slot')).toBe('input-group');
+	expect(addon?.parentElement?.querySelector('input[name=name]')).not.toBeNull();
+
+	// requirement 14: the create carries its verb's glyph before its label.
+	const create = screen.getByRole('button', { name: en.layout.noWorkspace.create });
+
+	expect(create.querySelector('svg')).not.toBeNull();
 });
 
 test('and in arabic', () => {

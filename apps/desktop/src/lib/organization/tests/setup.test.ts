@@ -5,12 +5,16 @@ import { fileURLToPath } from 'node:url';
 
 import ar from '$lib/i18n/ar/index.ts';
 import en from '$lib/i18n/en/index.ts';
+import { i18nObject } from '$lib/i18n/i18n-util.ts';
+import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import {
 	PASSWORD_FLOOR,
 	SETUP_WALK,
 	fieldsPresented,
 	statementsBeforeCreation
 } from '$lib/organization/setup.ts';
+import { workspaceFormSchema } from '$lib/organization/workspace-form.ts';
+import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
 
 /**
  * THE WALK, ASSERTED OVER
@@ -86,4 +90,43 @@ test('the succession statement names turso as where a group moves, in both local
 	assert.match(en.organization.setup.succession, /rentable does neither/i);
 	assert.match(ar.organization.setup.succession, /Turso/);
 	assert.match(ar.organization.setup.succession, /نقل/);
+});
+
+/**
+ * Requirement 13 of the redesign: the no-workspace surface, the walk's last step and the
+ * new-workspace dialog each draw the one workspace form, so a name over the limit is refused
+ * with the same sentence wherever it was typed. This pins that sentence to the schema they all
+ * read, and the surfaces' own tests have one thing to equal.
+ */
+test('a workspace name over the limit is refused with the one sentence every surface reads', () => {
+	for (const locale of ['en', 'ar'] as const) {
+		loadLocale(locale);
+
+		const schema = workspaceFormSchema(i18nObject(locale));
+		const messages = { en, ar }[locale].workspace;
+
+		const overTheLimit = schema.safeParse({ name: 'n'.repeat(WORKSPACE_NAME_LIMIT + 1) });
+
+		assert.equal(overTheLimit.success, false);
+		assert.deepEqual(
+			overTheLimit.error?.issues.map((issue) => issue.message),
+			[messages.nameTooLong],
+			`${locale}: the over-limit message`
+		);
+
+		const empty = schema.safeParse({ name: '   ' });
+
+		assert.equal(empty.success, false);
+		assert.deepEqual(
+			empty.error?.issues.map((issue) => issue.message),
+			[messages.nameRequired],
+			`${locale}: the required message`
+		);
+
+		// and the bound itself is admitted, trimmed, which is the row's own rule.
+		const atTheBound = schema.safeParse({ name: ` ${'n'.repeat(WORKSPACE_NAME_LIMIT)} ` });
+
+		assert.equal(atTheBound.success, true);
+		assert.equal(atTheBound.data?.name, 'n'.repeat(WORKSPACE_NAME_LIMIT));
+	}
 });
