@@ -47,10 +47,10 @@ Traces requirement 13, requirement 14 and requirement 16 of
       nothing. A test removes an administrator who signed rows, then shows a row that administrator
       newly signs after removal is refused by every other client on read, while the rows they had
       legitimately signed still verify.
-- [ ] **A removed member earns no fresh credential from a replayed row.** `renew_credentials`
-      issues to a grant only where the member's current row is not `removed`. A test writes a
-      removed member's old grant row back into the store and shows the next renewal seals them
-      nothing.
+- [ ] **A removed administrator's re-inserted rows are refused, and the replay that earns a
+      credential is closed by ticket 24's renewal filter, which this ticket depends on for the
+      whole of F2.** This ticket revokes the certificate; ticket 24 stops a replayed grant earning
+      a credential. Neither closes F2 alone.
 - [ ] The re-signing is one routine used by reset, removal, and any future revocation, so the three
       cannot drift; `[[efforts/819-an-organization-hosts-its-own-workspaces/plan]]`'s "revoked by one row, nothing resealed" is corrected to say what the
       code does, and the limit (a revocation re-signs the revoked certificate's rows first) is
