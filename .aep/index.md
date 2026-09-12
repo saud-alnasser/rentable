@@ -125,6 +125,7 @@ Start at [[protocol]].
 | 811-the-gates-and-the-contract-follow-the-code-into-the-package | implemented | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]] | 0 | 0 | 6 |
 | 812-the-desktop-declares-what-it-uses | implemented | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
 | 819-an-organization-hosts-its-own-workspaces | implemented | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 28 |
+| 824-the-way-in-and-the-workspace-control-are-redesigned | draft | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 0 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
