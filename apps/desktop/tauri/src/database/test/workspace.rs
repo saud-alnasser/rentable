@@ -3,7 +3,7 @@
 //! What the tests over this scaffolding measure is what a losing writer loses when two replicas
 //! of one workspace diverge (#552, acceptance criteria 9 and 17). They live at the foot of
 //! `database/mod.rs`, beside the `open_replica` they go through; this is the part that provisions
-//! a database to diverge against, which is the Turso-side counterpart of `sync/google/test/server.rs`.
+//! a database to diverge against, which is the Turso-side counterpart of `sync/test/server.rs`.
 //!
 //! **A live account is reached, and there is no local stand-in.** The sync engine speaks HTTP to
 //! a remote; the crate's own harness wants a separate server binary, and writing one would mean
@@ -19,7 +19,7 @@
 //! meant to be live and silently was not is the one outcome worth refusing.
 //!
 //! Three variables are needed and **`apps/desktop/.env` carries only two of them**,
-//! `TURSO_API_TOKEN` and `TURSO_ORG`. `TURSO_GROUP` is `apps/control-plane/.env.example`'s and
+//! `TURSO_API_TOKEN` and `TURSO_ORG`. `TURSO_GROUP` is named in `apps/desktop/.env.example` and
 //! has to be supplied; the group has to exist already, and it must not be delete-protected or the
 //! teardown below cannot remove what it created.
 //!
@@ -48,7 +48,7 @@ pub(in crate::database) struct LiveWorkspace {
 }
 
 impl LiveWorkspace {
-    /// Provision one, the way the control plane does: create the database, then mint a
+    /// Provision one, the way the owner's machine does: create the database, then mint a
     /// full-access token scoped to it.
     ///
     /// **Missing credentials panic.** These tests are `#[ignore]`d, so reaching this function
@@ -159,60 +159,34 @@ impl LiveWorkspace {
     /// It is known to fail on some accounts, and this repository already measured why: Turso
     /// will not delete any database inside a delete-protected group, and answers `403 group
     /// <name> is delete-protected and cannot be deleted` even though the database itself is
-    /// not protected. `workspace/turso.ts` records the same finding for the control plane.
+    /// not protected. `packages/turso-platform/index.ts` records the same finding.
     ///
     /// **The first draft of this checked only whether the request was sent**, so a 403 read as
     /// a successful cleanup and four databases were left in the account with nothing said.
-    /// Apply the first `up_to` migrations to the **remote** database, as the control plane does.
+    /// Apply the first `up_to` migrations to the **remote** database, as `organization/migrate.rs` does.
     ///
-    /// It opens the workspace database with the token it minted and issues DDL over libSQL's HTTP
-    /// protocol, which is `apps/control-plane/src/workspace/migration.ts` in one Rust function and
-    /// without the ledger — the ledger is the control plane's business and nothing here reads it.
+    /// **Promoted, not duplicated.** This posted the statements to `/v2/pipeline` itself until
+    /// the migration ticket of [[efforts/819-an-organization-hosts-its-own-workspaces/spec]], and
+    /// it was the proof that the wire path works; `organization/migrate.rs` is that path in
+    /// shipping code, and this now goes through it, so the runner the tests rely on is the runner
+    /// the application ships. A sync connection cannot carry `0003`'s drops and renames, measured
+    /// on 2026-08-20 by #552, which is why it was ever over the wire.
     ///
     /// **This is the only way the shipped schema reaches a workspace in these tests.** Issuing it
     /// through a replica cannot work past `0003_serious_synch.sql`; see [`apply_schema`].
     pub(in crate::database) async fn apply_schema_remotely(&self, up_to: usize) {
-        let client = crate::http::build_client(Duration::from_secs(60)).expect("an https client");
         let host = self
             .url
             .strip_prefix("libsql://")
             .expect("a libsql:// workspace url");
 
-        let mut requests: Vec<serde_json::Value> = migration_statements(up_to)
-            .into_iter()
-            .map(|sql| serde_json::json!({ "type": "execute", "stmt": { "sql": sql } }))
-            .collect();
-
-        requests.push(serde_json::json!({ "type": "close" }));
-
-        let answered: serde_json::Value = client
-            .post(format!("https://{host}/v2/pipeline"))
-            .bearer_auth(&self.token)
-            .json(&serde_json::json!({ "requests": requests }))
-            .send()
-            .await
-            .expect("apply the schema remotely")
-            .error_for_status()
-            .expect("the workspace database refused the schema")
-            .json()
-            .await
-            .expect("the schema response");
-
-        // The pipeline answers 200 with a per-statement result, so a failed statement is in the
-        // body rather than in the status. Reading it is the difference between a schema that was
-        // applied and one that was merely sent.
-        if let Some(results) = answered
-            .get("results")
-            .and_then(serde_json::Value::as_array)
-        {
-            for result in results {
-                assert_ne!(
-                    result.get("type").and_then(serde_json::Value::as_str),
-                    Some("error"),
-                    "a migration statement was refused by the workspace database: {result}"
-                );
-            }
-        }
+        crate::organization::migrate::apply(
+            &crate::organization::migrate::Pipeline::of(host),
+            &self.token,
+            up_to,
+        )
+        .await
+        .expect("apply the schema remotely");
     }
 
     pub(in crate::database) async fn destroy(self) {
@@ -314,7 +288,7 @@ pub(in crate::database) fn shipped_migration_count() -> usize {
 /// Measured against a live account 2026-08-20.
 ///
 /// So the shipped schema goes on through [`LiveWorkspace::apply_schema_remotely`] instead, which
-/// is the faithful path anyway: requirement 11 puts migrations on the control plane, and a
+/// is the faithful path anyway: requirement 11 puts migrations over the wire, and a
 /// replica receives the schema as replicated pages rather than applying it.
 pub(in crate::database) async fn apply_schema(connection: &turso::Connection, up_to: usize) {
     for statement in migration_statements(up_to) {

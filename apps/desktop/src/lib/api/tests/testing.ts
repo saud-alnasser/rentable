@@ -17,8 +17,8 @@ import { caller, context } from '../trpc.ts';
 /**
  * The person a request is acting as.
  *
- * Written out here rather than derived from {@link fakeAccount}, because the two are not the same
- * thing wearing different names: an account is a row this machine holds, and an identity is who a
+ * Written out here rather than derived from a session fixture, because the two are not the same
+ * thing wearing different names: a session is what the vault opened, and an identity is who a
  * procedure is answering for. They agree today and a test that needs them to disagree can say so.
  */
 export function fakeIdentity(overrides: Partial<Identity> = {}): Identity {

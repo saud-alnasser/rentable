@@ -2,9 +2,8 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { signedInAccount } from '$lib/sync/account';
 	import { startWorkspaceSyncManager } from '$lib/sync/autosync';
-	import { listenForSignOut } from '$lib/sync/sign-in';
+	import { listenForSignOut } from '$lib/sync/sign-out';
 	import { trustWorkspaceData } from '$lib/design/query';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
 	import SonnerProvider from '$lib/design/provider/sonner.svelte';
@@ -17,18 +16,25 @@
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
 	import LayoutStartupUnreadable from '$lib/layout/component/startup-unreadable.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
-	import { shellSurface, wayInFrom } from '$lib/layout/shell-surface';
+	import { THE_FIRST_RUN, THE_JOIN, shellSurface, wayInFrom } from '$lib/layout/shell-surface';
+	import { linkArrived } from '$lib/organization/join';
+	import { noteMigration } from '$lib/layout/migration-notice.svelte';
 	import { startupSurfaceBeforeLocale } from '$lib/layout/startup-surface';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
+	import LayoutStartupChangePassword from '$lib/layout/component/startup-change-password.svelte';
+	import LayoutStartupNoWorkspace from '$lib/layout/component/startup-no-workspace.svelte';
 	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
 	import LayoutStartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
 	import { listenForWindowCloseRequests } from '$lib/layout/event';
 	import { createStartup } from '$lib/layout/startup';
+	import { provideStartup } from '$lib/layout/startup-context';
+	import { useCreateWorkspace } from '$lib/organization/query';
 	import { browserStartupPorts } from '$lib/layout/startup-ports';
 	import { DesignProvider, type DesignStrings } from '@rentable/design/strings.js';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
+	import { tauri } from '$lib/platform/tauri';
 	import { onMount } from 'svelte';
 	import '../app.css';
 
@@ -50,6 +56,8 @@
 	 * this file can render from, deciding how much of the shell each state draws, and drawing it.
 	 */
 	const startup = createStartup(browserStartupPorts(queryClient));
+
+	provideStartup(startup);
 
 	// the one reactive thing. The unit is a plain object with observers, because a runes file
 	// cannot be imported by a `node:test` at all, and being testable is the point of it.
@@ -112,6 +120,24 @@
 
 	const DAY_CROSSING_CHECK_INTERVAL_MS = 60_000;
 
+	/**
+	 * the first workspace, created from the no-workspace surface. The mutation is the owner's and
+	 * the shell refuses anybody else; once it answers, startup reads where the machine stands and
+	 * goes on in, which is the same path a sign-in takes past the wall.
+	 */
+	const createWorkspace = useCreateWorkspace();
+
+	const createFirstWorkspace = async (name: string) => {
+		try {
+			await createWorkspace.mutateAsync({ name });
+		} catch {
+			// said by the shared handler; the surface keeps what they typed.
+			return;
+		}
+
+		await startup.standingChanged();
+	};
+
 	onMount(() => {
 		const stopObserving = startup.observe((snapshot) => {
 			shellState = snapshot;
@@ -125,6 +151,15 @@
 		const stopListeningForSignOut = listenForSignOut(() => {
 			void startup.signOut();
 		});
+		// a `rentable://` link the operating system handed the process: held where the join screen
+		// takes it, and the screen put on. The one it was launched with is taken once the shell is
+		// up, because it arrived before anything was listening; every later one is an event.
+		let unlistenLink: (() => void) | undefined;
+		let unlistenMigration: (() => void) | undefined;
+		const openJoinScreen = (link: string) => {
+			linkArrived(link);
+			void goto(resolve(THE_JOIN));
+		};
 		const dayCrossingInterval = setInterval(() => {
 			void startup.reconcileOnDayCrossing();
 		}, DAY_CROSSING_CHECK_INTERVAL_MS);
@@ -143,7 +178,16 @@
 				void startup.closeWindow(startup.closesWithoutSyncing);
 			});
 
+			unlistenLink = await tauri.organization.onLink(openJoinScreen);
+			unlistenMigration = await tauri.organization.onMigration(noteMigration);
+
 			await startup.start();
+
+			const waiting = await tauri.organization.linkTake();
+
+			if (waiting) {
+				openJoinScreen(waiting);
+			}
 		})();
 
 		return () => {
@@ -153,6 +197,8 @@
 			stopObserving();
 			unlistenCloseRequested?.();
 			stopListeningForCloseRequests?.();
+			unlistenLink?.();
+			unlistenMigration?.();
 		};
 	});
 
@@ -201,8 +247,16 @@
 			return 'signed-out';
 		}
 
+		// a person is in and there is no workspace: the rail is up, and it has no workspace to
+		// name, which is the shape the signed-out rail already draws. What the rail says for this
+		// state is the workspace ticket's to decide when there is a workspace to create.
+		if (shellState.state === 'no-workspace' || shellState.state === 'change-password') {
+			return 'signed-out';
+		}
+
 		if (shellState.state === 'loading' && shellState.railIsUp) {
-			return signedInAccount(shellState.remoteSync) ? 'full' : 'signed-out';
+			// what the rail says still follows who is in, and who is in is whose vault is open.
+			return shellState.organization?.session ? 'full' : 'signed-out';
 		}
 
 		return 'bare';
@@ -298,12 +352,27 @@
 							{:else if surface === 'sign-in'}
 								<LayoutStartupSignIn
 									situation={shellState.signInReason}
+									organizations={shellState.organization?.organizations ?? []}
 									isSigningIn={shellState.isSigningIn}
-									isRetrying={shellState.isRetryingSession}
-									phase={shellState.signInPhase}
 									errorMessage={shellState.error}
-									onSignIn={() => void startup.signIn()}
-									onRetry={() => void startup.retrySession()}
+									onSignIn={(organizationId, password) =>
+										void startup.signIn(organizationId, password)}
+									onSetUpOrganization={() => void goto(resolve(THE_FIRST_RUN))}
+									onJoinByLink={() => void goto(resolve(THE_JOIN))}
+								/>
+							{:else if surface === 'change-password'}
+								<LayoutStartupChangePassword
+									organizationName={shellState.organization?.session?.organizationName ?? ''}
+									isChanging={shellState.isSigningIn}
+									errorMessage={shellState.error}
+									onChange={(current, next) => void startup.changePassword(current, next)}
+								/>
+							{:else if surface === 'no-workspace'}
+								<LayoutStartupNoWorkspace
+									organizationName={shellState.organization?.session?.organizationName ?? ''}
+									canCreate={shellState.organization?.session?.role === 'owner'}
+									isCreating={createWorkspace.isPending}
+									onCreate={(name) => void createFirstWorkspace(name)}
 								/>
 							{:else if surface === 'recovery' && shellState.recovery}
 								<LayoutStartupRecovery

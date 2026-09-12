@@ -1,8 +1,8 @@
 # rentable
 
 An offline-first desktop tracker for rents payments — a Tauri 2 (Rust) shell around a
-SvelteKit 2 / Svelte 5 frontend, with a local SQLite database and optional Google Drive
-backup. Everything runs in the desktop app.
+SvelteKit 2 / Svelte 5 frontend, with a local SQLite database that replicates to a Turso
+account the organization's owner holds. Everything runs in the desktop app.
 
 ## Start here
 

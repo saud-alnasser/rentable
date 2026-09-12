@@ -4,12 +4,12 @@ import test from 'node:test';
 import { ADMINISTRATION_BY_ROLE, maskOf } from '@rentable/workspace-permission';
 
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
-import type { Host, RemoteSyncState } from '$lib/platform/host.ts';
+import type { Host, OrganizationSession } from '$lib/platform/host.ts';
 import {
-	fakeAccount,
 	fakeHost,
-	fakeSyncState,
-	fakeWorkspace
+	fakeOrganizationSession,
+	fakeOrganizationState,
+	fakeSyncState
 } from '$lib/platform/tests/testing.ts';
 import { appRouter } from '../router.ts';
 import { caller, context, procedure, router } from '../trpc.ts';
@@ -41,12 +41,10 @@ async function signedOutApi() {
 				check: async () => null
 			},
 			remoteSync: {
-				getState: async () => fakeSyncState({ accounts: [] }),
-				renewSession: async () => fakeSyncState({ accounts: [] }),
-				establishSession: async () => fakeSyncState({ accounts: [] }),
-				replicate: async () => ({ pushed: false, received: false }),
+				getState: async () => fakeSyncState(),
+				replicate: async () => ({ pushed: false, received: false, refusal: 'none' as const }),
 				push: async () => false,
-				renameWorkspace: async () => fakeSyncState({ accounts: [] })
+				renameWorkspace: async () => fakeSyncState()
 			}
 		}),
 		identity: null
@@ -126,7 +124,7 @@ test('what the shell knows about syncing is readable either way', async () => {
 });
 
 // **And the one beside it that is not.** Reading what this machine has synced is a fact about the
-// machine; renaming the workspace is a write against a row the control plane guards with a
+// machine; renaming the workspace is a write against a row the organization guards with a
 // permission, so it needs an acting user however small the change looks. The fake host refuses
 // `remoteSync.renameWorkspace` by name, so a procedure that let this through would fail with that
 // refusal rather than this one, which is what makes the assertion say something.
@@ -164,15 +162,12 @@ const permittedRouter = router({
  * `Host['remoteSync']` is a whole object, so an override supplies all of it or none — a partial
  * would not type-check. Written once here rather than twice below.
  */
-function shellAnswering(state: RemoteSyncState): Host {
+/** a shell answering whose vault is open, which is what a resolved identity is read off. */
+function shellAnswering(session: OrganizationSession | null): Host {
 	return fakeHost({
-		remoteSync: {
-			getState: async () => state,
-			renewSession: async () => state,
-			establishSession: async () => state,
-			replicate: async () => ({ pushed: false, received: false }),
-			push: async () => false,
-			renameWorkspace: async () => state
+		organization: {
+			...fakeHost().organization,
+			getState: async () => fakeOrganizationState({ session })
 		}
 	});
 }
@@ -240,7 +235,7 @@ test('a signed-out caller is unauthorized rather than forbidden', async () => {
 	const ctx = await context({
 		db: createMemoryDatabase(),
 		clock: { now: () => NOW },
-		host: shellAnswering(fakeSyncState({ accounts: [] })),
+		host: shellAnswering(null),
 		identity: null
 	});
 
@@ -252,21 +247,15 @@ test('a signed-out caller is unauthorized rather than forbidden', async () => {
 /**
  * **What the shell said is what the procedure asks about**, which is the half a supplied identity
  * cannot show: every test above hands `context()` an identity outright, so none of them proves
- * that a resolved one carries the permissions the control plane sent.
+ * that a resolved one carries the permissions the member's verified row holds.
  *
  * This one lets the context resolve it off a fake host, the way the application does.
  */
 test('the permissions a procedure reads are the ones the shell answered with', async () => {
-	const signedIn = fakeAccount();
 	const ctx = await context({
 		db: createMemoryDatabase(),
 		clock: { now: () => NOW },
-		host: shellAnswering(
-			fakeSyncState({
-				accounts: [signedIn],
-				workspace: fakeWorkspace({ permissions: maskOf('renameWorkspace') })
-			})
-		)
+		host: shellAnswering(fakeOrganizationSession({ permissions: maskOf('renameWorkspace') }))
 	});
 
 	assert.equal(ctx.identity?.permissions, maskOf('renameWorkspace'));

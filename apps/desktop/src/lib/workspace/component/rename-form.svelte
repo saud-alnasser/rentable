@@ -18,7 +18,7 @@
 	 * a write, and [[rules/interface]] under *Form surface* puts a surface that writes on this
 	 * component whatever its size — so one field is light rather than something else.
 	 *
-	 * **The three names the control plane will not store are refused here first**, on the field the
+	 * **The three names the organization will not store are refused here first**, on the field the
 	 * reader typed in. It refuses them too, and so does the procedure between them; what is
 	 * different about this one is that it is the only one whose answer a person can act on without
 	 * a round trip, and the only one that can mark the control they are looking at.
@@ -73,7 +73,7 @@
 				} catch {
 					// the shared error handler has already said what went wrong. The surface stays open
 					// on what they typed, because the failures that reach here are the ones a person
-					// retries: an unreachable control plane, a session that closed.
+					// retries: an unreachable remote, a session that closed.
 				}
 			}
 		}

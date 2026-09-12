@@ -8,8 +8,11 @@
 // different one.
 
 import type {
+	JoinedOrganization,
+	OrganizationSession,
+	OrganizationState,
+	OrganizationWorkspace,
 	Host,
-	RemoteSyncAccount,
 	RemoteSyncState,
 	RemoteSyncWorkspace,
 	Settings
@@ -27,27 +30,10 @@ export function fakeSettings(overrides: Partial<Settings> = {}): Settings {
 	};
 }
 
-/** An account as the store holds one: signed in and in good standing. */
-export function fakeAccount(overrides: Partial<RemoteSyncAccount> = {}): RemoteSyncAccount {
-	return {
-		id: 'account',
-		status: 'ready',
-		email: 'person@example.com',
-		displayName: 'Person Example',
-		avatarImage: null,
-		providerUserId: null,
-		tokenExpiresAt: null,
-		refreshTokenAvailable: true,
-		lastError: null,
-		createdAt: 0,
-		updatedAt: 0,
-		...overrides
-	};
-}
-
 /** A workspace as the store holds one. */
 export function fakeWorkspace(overrides: Partial<RemoteSyncWorkspace> = {}): RemoteSyncWorkspace {
 	return {
+		remoteId: null,
 		id: 'workspace',
 		name: 'Workspace',
 		localDatabasePath: 'C:/rentable/app.db',
@@ -62,13 +48,11 @@ export function fakeWorkspace(overrides: Partial<RemoteSyncWorkspace> = {}): Rem
 /** What `remoteSync.getState` answers with. */
 export function fakeSyncState(overrides: Partial<RemoteSyncState> = {}): RemoteSyncState {
 	return {
-		accounts: [],
 		workspace: fakeWorkspace(),
 		startupPromptEnabled: false,
-		googleSignInReady: false,
-		controlPlaneReady: false,
-		session: null,
 		deviceId: 'device',
+		accountRefusal: null,
+		credentialRefusal: null,
 		...overrides
 	};
 }
@@ -96,13 +80,6 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 
 	return {
 		bootstrap: refuse('bootstrap'),
-		auth: {
-			google: {
-				signIn: refuse('auth.google.signIn'),
-				signOut: refuse('auth.google.signOut'),
-				onPhase: refuse('auth.google.onPhase')
-			}
-		},
 		window: {
 			show: refuse('window.show'),
 			hide: refuse('window.hide'),
@@ -139,14 +116,114 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			get: async () => settings,
 			set: async () => settings
 		},
+		organization: {
+			consentBegin: refuse('organization.consentBegin'),
+			consentResult: refuse('organization.consentResult'),
+			disconnect: refuse('organization.disconnect'),
+			create: refuse('organization.create'),
+			getState: refuse('organization.getState'),
+			signIn: refuse('organization.signIn'),
+			signOut: refuse('organization.signOut'),
+			linkTake: refuse('organization.linkTake'),
+			onLink: refuse('organization.onLink'),
+			onMigration: refuse('organization.onMigration'),
+			linkInspect: refuse('organization.linkInspect'),
+			join: refuse('organization.join'),
+			restore: refuse('organization.restore'),
+			reconnectAuthority: refuse('organization.reconnectAuthority'),
+			renewDue: refuse('organization.renewDue'),
+			ownLink: refuse('organization.ownLink'),
+			workspace: {
+				create: refuse('organization.workspace.create'),
+				open: refuse('organization.workspace.open'),
+				grant: refuse('organization.workspace.grant'),
+				remove: refuse('organization.workspace.remove'),
+				renewCredentials: refuse('organization.workspace.renewCredentials')
+			},
+			member: {
+				list: refuse('organization.member.list'),
+				invite: refuse('organization.member.invite'),
+				remove: refuse('organization.member.remove'),
+				lockOutCost: refuse('organization.member.lockOutCost')
+			},
+			invitation: {
+				list: refuse('organization.invitation.list'),
+				revoke: refuse('organization.invitation.revoke')
+			},
+			resetMember: refuse('organization.resetMember'),
+			changePassword: refuse('organization.changePassword'),
+			accountRefusalDetail: refuse('organization.accountRefusalDetail')
+		},
 		remoteSync: {
 			getState: refuse('remoteSync.getState'),
-			renewSession: refuse('remoteSync.renewSession'),
-			establishSession: refuse('remoteSync.establishSession'),
 			replicate: refuse('remoteSync.replicate'),
 			push: refuse('remoteSync.push'),
 			renameWorkspace: refuse('remoteSync.renameWorkspace')
 		},
+		...overrides
+	};
+}
+
+/** an organization this machine has joined, as the sign-in screen lists it. */
+export function fakeJoinedOrganization(
+	overrides: Partial<JoinedOrganization> = {}
+): JoinedOrganization {
+	return {
+		id: 'acme',
+		name: 'Acme Rentals',
+		memberId: 'member-owner',
+		role: 'owner',
+		joinedAt: 0,
+		...overrides
+	};
+}
+
+/** a workspace a signed-in member holds a grant on. */
+export function fakeOrganizationWorkspace(
+	overrides: Partial<OrganizationWorkspace> = {}
+): OrganizationWorkspace {
+	return {
+		id: 'north',
+		name: 'North Properties',
+		databaseName: 'ws-north',
+		databaseHostname: 'ws-north-acme.aws-eu-west-1.turso.io',
+		schemaVersion: 5,
+		accessLevel: 'full-access',
+		...overrides
+	};
+}
+
+/** the member whose password opened a vault, with one workspace unless a test says otherwise. */
+export function fakeOrganizationSession(
+	overrides: Partial<OrganizationSession> = {}
+): OrganizationSession {
+	return {
+		organizationId: 'acme',
+		organizationName: 'Acme Rentals',
+		memberId: 'member-owner',
+		email: 'person@example.com',
+		displayName: 'Person Example',
+		role: 'owner',
+		permissions: 0,
+		mustChangePassword: false,
+		workspaces: [fakeOrganizationWorkspace()],
+		ownerDisplayName: 'Olivia Owner',
+		...overrides
+	};
+}
+
+/**
+ * where a machine stands with organizations. The default is a machine that has joined one and
+ * whose person is signed in to it, because that is what most paths behind the wall want; a test
+ * about the wall itself says which side of it the machine is on.
+ */
+export function fakeOrganizationState(
+	overrides: Partial<OrganizationState> = {}
+): OrganizationState {
+	return {
+		organizations: [fakeJoinedOrganization()],
+		session: fakeOrganizationSession(),
+		holdsTursoAuthority: true,
 		...overrides
 	};
 }

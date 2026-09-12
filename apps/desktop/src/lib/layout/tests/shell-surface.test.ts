@@ -1,8 +1,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { opensSignedOut, shellSurface, THE_WAY_IN, wayInFrom } from '$lib/layout/shell-surface.ts';
-import { fakeRecovery, harness, signedOut } from './testing.ts';
+import {
+	opensSignedOut,
+	shellSurface,
+	THE_FIRST_RUN,
+	THE_JOIN,
+	THE_WAY_IN,
+	wayInFrom
+} from '$lib/layout/shell-surface.ts';
+import {
+	fakeRecovery,
+	harness,
+	locked,
+	mustChangePassword,
+	nowhereToGo,
+	withoutWorkspace
+} from './testing.ts';
 
 /**
  * WHICH ADDRESS DRAWS, AND IN WHICH STATE
@@ -31,7 +45,7 @@ const ADDRESSES = [
 // --- The wall, which is the one state that reads the address ---------------------------
 
 test('with nobody signed in, settings draws the settings page rather than the card', async () => {
-	const { startup } = harness({ remoteSync: signedOut() });
+	const { startup } = harness({ organization: locked() });
 
 	await startup.start();
 
@@ -40,7 +54,7 @@ test('with nobody signed in, settings draws the settings page rather than the ca
 });
 
 test('and every other address draws the card', async () => {
-	const { startup } = harness({ remoteSync: signedOut() });
+	const { startup } = harness({ organization: locked() });
 
 	await startup.start();
 
@@ -54,7 +68,7 @@ test('and the way in from the rail lands on an address the card draws over', asy
 	// makes it work is that its destination is not one of the addresses that open signed out. On
 	// `/settings` the card is not drawn, and the row reached the consent screen from there without
 	// the surface that names the provider ever appearing.
-	const { startup } = harness({ remoteSync: signedOut() });
+	const { startup } = harness({ organization: locked() });
 
 	await startup.start();
 
@@ -92,12 +106,12 @@ test('and signing out on the settings page leaves it drawn, where signing out el
 test('and signing back in returns the reader to the address they were on', async () => {
 	// there is no navigation to assert on, which is the point: the card is drawn over the route, so
 	// the address never moved and the route underneath it draws again.
-	const { startup } = harness({ remoteSync: signedOut() });
+	const { startup } = harness({ organization: locked() });
 
 	await startup.start();
 	assert.equal(shellSurface(startup.snapshot, '/tenants/a-tenant'), 'sign-in');
 
-	await startup.signIn();
+	await startup.signIn('acme', 'a long enough password');
 
 	assert.equal(startup.snapshot.state, 'ready');
 	assert.equal(shellSurface(startup.snapshot, '/tenants/a-tenant'), 'route');
@@ -167,4 +181,63 @@ test('the address matches exactly, so nothing that merely starts with it is admi
 	assert.equal(opensSignedOut('/settings/anything'), false);
 	assert.equal(opensSignedOut('/settingsomething'), false);
 	assert.equal(opensSignedOut('/'), false);
+});
+
+// a member admitted to an organization with no workspace in it is in and going nowhere: the
+// surface says so over every address, because there is no workspace for any address to draw.
+test('a member with no workspace sees the no-workspace surface over every address', async () => {
+	const { startup } = harness({ organization: withoutWorkspace() });
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'no-workspace');
+
+	for (const address of [...ADDRESSES, '/settings', THE_FIRST_RUN]) {
+		assert.equal(shellSurface(startup.snapshot, address), 'no-workspace', address);
+	}
+});
+
+// a member on a handed password is in and reaches nothing else: the surface says so over every
+// address, the first run and the settings page included, because the shell refuses every act for
+// them until they have chosen a password of their own.
+test('a member who must change their password sees that screen over every address', async () => {
+	const { startup } = harness({ organization: mustChangePassword() });
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'change-password');
+
+	for (const address of [...ADDRESSES, '/settings', THE_FIRST_RUN, THE_JOIN]) {
+		assert.equal(shellSurface(startup.snapshot, address), 'change-password', address);
+	}
+});
+
+// the first run is the one address that cannot be behind the wall it exists to get a person
+// past: an organization has no members until the walk there has made its owner.
+test('the first run opens signed out, and draws as a route rather than the card', async () => {
+	assert.equal(opensSignedOut(THE_FIRST_RUN), true);
+	assert.equal(opensSignedOut(`${THE_FIRST_RUN}/anything`), false);
+
+	const { startup } = harness({ organization: locked() });
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(shellSurface(startup.snapshot, THE_FIRST_RUN), 'route');
+	assert.equal(wayInFrom(THE_FIRST_RUN), THE_WAY_IN);
+});
+
+// and the join screen is the other: a link opens the application on a machine that has joined
+// nothing, and the screen it lands on is the one that reads the link.
+test('the join screen opens signed out, and draws as a route rather than the card', async () => {
+	assert.equal(opensSignedOut(THE_JOIN), true);
+	assert.equal(opensSignedOut(`${THE_JOIN}/anything`), false);
+
+	const { startup } = harness({ organization: nowhereToGo() });
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(shellSurface(startup.snapshot, THE_JOIN), 'route');
+	assert.equal(wayInFrom(THE_JOIN), THE_WAY_IN);
 });

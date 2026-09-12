@@ -12,7 +12,7 @@
 	 * What the workspace is called, and the picture it does not have yet.
 	 *
 	 * **The icon is a placeholder rather than an unset value, and the difference matters.** The
-	 * workspace record in the control plane has no icon column at all, so there is nothing to read
+	 * workspace row in the organization has no icon column at all, so there is nothing to read
 	 * and nothing that failed to load. Drawing the slot now is deliberate: the page is shaped
 	 * around it before there is a mechanism, the same way the create-workspace row is, so that
 	 * arriving at one does not mean redesigning the page around it.
@@ -23,7 +23,7 @@
 	 * `[[efforts/settings-and-the-workspace-finish-what-they-offer]]` replaced that control with
 	 * the rename and left the sentence about the picture where a reader was already reading it.*
 	 *
-	 * **The name it draws is the control plane's**, not this machine's, so it is the same name on
+	 * **The name it draws is the organization's**, not this machine's, so it is the same name on
 	 * every machine signed in to this workspace and it changes on all of them.
 	 *
 	 * **The rename is offered only to a member the workspace permits to take it**, and it is
@@ -37,7 +37,7 @@
 	 *
 	 * **Drawing it is a courtesy and the procedure behind it is what makes hiding it honest.**
 	 * `remoteSync.rename` refuses the same member whether or not this drew the button, and the
-	 * control plane refuses it again after that.
+	 * Rust side refuses it again after that, on the signed row.
 	 */
 	let { workspace }: { workspace: RemoteSyncWorkspace } = $props();
 

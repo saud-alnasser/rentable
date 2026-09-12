@@ -18,12 +18,28 @@ import type { StartupSnapshot } from './startup';
  */
 
 /** what the frame draws in place of its children, or `route` for the children themselves. */
-export type ShellSurface = 'loading' | 'sign-in' | 'recovery' | 'error' | 'route';
+export type ShellSurface =
+	'loading' | 'sign-in' | 'change-password' | 'no-workspace' | 'recovery' | 'error' | 'route';
+
+/**
+ * Where an organization is created: the first run's own address.
+ *
+ * Reached from the sign-in card, and it opens with nobody signed in because it is how a person
+ * comes to be somebody here: an organization has no members until the walk on this address has
+ * made its owner. Every procedure behind it is public and reaches no database, which is the test
+ * `/settings` passed to be the first.
+ */
+export const THE_FIRST_RUN = '/organization/new';
+
+/** the join screen: a link, and the generated password that opens the invitation in it. */
+export const THE_JOIN = '/organization/join';
 
 /**
  * The addresses that draw with nobody signed in.
  *
- * **One, and it stays one.** Criterion 7 of [[efforts/capabilities-only-one-surface-got]] settled
+ * **One, and it stays one**, said 2026-08-21, and it is two since 2026-09-11 for the reason the
+ * constant above gives; the first run is the one address that cannot be behind the wall it
+ * exists to get a person past. What follows is otherwise unchanged. Criterion 7 of [[efforts/capabilities-only-one-surface-got]] settled
  * that the four destinations, the search, the workspace control and the shortcut sheet go on
  * refusing, and this does not reopen it: those refuse in the frame and the rail, on the shell
  * state, and none of them consults an address. What is different about settings is that every
@@ -33,7 +49,7 @@ export type ShellSurface = 'loading' | 'sign-in' | 'recovery' | 'error' | 'route
  * The language control is the reason it is this page and not another: it is the setting somebody
  * is most likely to want before they can read anything else on the way in.
  */
-const OPENS_SIGNED_OUT: readonly string[] = ['/settings'];
+const OPENS_SIGNED_OUT: readonly string[] = ['/settings', THE_FIRST_RUN, THE_JOIN];
 
 /**
  * Where the rail's way in sends a reader.
@@ -54,8 +70,8 @@ export const THE_WAY_IN = '/';
 /**
  * Whether this address draws while the shell is waiting for somebody to sign in.
  *
- * Exact rather than prefixed: nothing nests under `/settings`, and a prefix would silently admit
- * anything that ever did.
+ * Exact rather than prefixed: nothing nests under either address, and a prefix would silently
+ * admit anything that ever did.
  */
 export function opensSignedOut(pathname: string) {
 	return OPENS_SIGNED_OUT.includes(pathname);
@@ -97,6 +113,12 @@ export function shellSurface(snapshot: StartupSnapshot, pathname: string): Shell
 			return 'loading';
 		case 'sign-in':
 			return opensSignedOut(pathname) ? 'route' : 'sign-in';
+		// over every address, the first run's included: a person is in, and there is no workspace
+		// for any address to draw from, so no address changes the answer.
+		case 'change-password':
+			return 'change-password';
+		case 'no-workspace':
+			return 'no-workspace';
 		case 'recovery':
 			return snapshot.recovery ? 'recovery' : 'route';
 		case 'error':

@@ -1,7 +1,6 @@
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 
 import type { Host } from '$lib/platform/host';
-import { signedInAccount } from '$lib/sync/account';
 
 /**
  * DATABASE
@@ -56,9 +55,9 @@ export type { Host };
  * does not type-check where a person is wanted, and the middleware that refuses it is the only
  * thing between it and a procedure.
  *
- * What a *user record* holds is not settled here — it is the control plane's, and it arrives
- * with the accounts it describes. The first three fields are what this application can already
- * say about a person today, and all three survive whatever the control plane adds. The fourth is
+ * What a *user record* holds is not settled here: it is the organization's member row, and it
+ * arrives with the session that unsealed it. The first three fields are what this application can
+ * already say about a person today, and all three survive whatever the row grows. The fourth is
  * not about the person at all: it is about this account *in this workspace*, which is why it
  * arrives with the workspace rather than with the account.
  */
@@ -76,9 +75,9 @@ export type Identity = {
 	 *
 	 * **Never read as a number.** `permits` from `@rentable/workspace-permission` answers a
 	 * question about it by the name of an act, and that package is the only place the bits are
-	 * named — on this side or the control plane's.
+	 * named, on this side or the Rust side.
 	 *
-	 * `0` where the shell could not be reached, where the control plane has said nothing, and on
+	 * `0` where the shell could not be reached, where no session has been opened, and on
 	 * a machine nobody is signed in on. All three mean the same thing to a procedure: this caller
 	 * administers nothing.
 	 */
@@ -107,11 +106,11 @@ const systemClock: Clock = {
 /**
  * who the shell says is acting, or nobody.
  *
- * **It reads who is signed in.** It used to resolve through `workspace.accountId`, which only a
- * Google Drive link ever wrote — so it could answer only for a workspace linked to a folder, and
- * answered nothing for the ordinary signed-in machine. Drive sync retired and the field went with
- * it; `signedInAccount` reads the account rows, which is the same read the sign-in wall admits
- * on, so the two cannot come to disagree about who is here.
+ * **It reads whose vault is open.** It used to read who was signed in with Google, off the same
+ * state the sign-in wall admitted on, and it reads the organization state now for the same
+ * reason: the wall admits a member whose password opened a vault, and this is the same read, so
+ * the two cannot come to disagree about who is here. The member's id stands where an account id
+ * stood, because a member is what an account became.
  *
  * A shell that cannot be reached answers nobody rather than throwing here. The refusal belongs
  * to the caller below, which states it once for both ways of having no acting user: a client
@@ -125,22 +124,22 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
 	// unanswered question, while a failure to make sense of the answer is a defect, and
 	// swallowing the second inside the first would report it as a request nobody made.
 	try {
-		state = await host.remoteSync.getState();
+		state = await host.organization.getState();
 	} catch {
 		return null;
 	}
 
-	const account = signedInAccount(state);
+	const session = state.session;
 
 	return (
-		account && {
-			accountId: account.id,
-			email: account.email,
-			displayName: account.displayName,
-			// **Off the same answer, on the same read.** The workspace is on the object
-			// `signedInAccount` was just handed, so what this account may do costs nothing beyond
-			// what resolving who they are already cost.
-			permissions: state.workspace.permissions
+		session && {
+			accountId: session.memberId,
+			email: session.email,
+			displayName: session.displayName,
+			// **Off the same answer, on the same read.** What this member may administer is on
+			// their verified row, and the session carries it, so what they may do costs nothing
+			// beyond what resolving who they are already cost.
+			permissions: session.permissions
 		}
 	);
 }

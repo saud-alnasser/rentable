@@ -1,0 +1,39 @@
+{
+	"private": true,
+	"name": "@rentable/turso-platform",
+	"version": "0.0.0",
+	"description": "turso's platform api and the workspace migration runner, in typescript, kept for a hosted tier that is possible and not planned",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./index.ts",
+			"default": "./index.ts"
+		},
+		"./migration": {
+			"types": "./migration.ts",
+			"default": "./migration.ts"
+		},
+		"./failure": {
+			"types": "./failure.ts",
+			"default": "./failure.ts"
+		}
+	},
+	"files": [
+		"index.ts",
+		"migration.ts",
+		"failure.ts"
+	],
+	"scripts": {
+		"check": "tsc -p ./tsconfig.json",
+		"test": "node --import tsx --test \"tests/**/*.test.ts\""
+	},
+	"dependencies": {
+		"@libsql/client": "^0.17.4",
+		"@rentable/workspace-migrations": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^24.13.3",
+		"tsx": "^4.23.12",
+		"typescript": "^6.0.3"
+	}
+}

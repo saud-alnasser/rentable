@@ -22,12 +22,12 @@ Start at [[protocol]].
 | Artifact | Load when | Paths | Owner |
 | --- | --- | --- | --- |
 | [[rules/api-layer]] | adding or changing a router, a domain module, a database client or transport, or anything crossing the Tauri IPC boundary | apps/desktop/src/lib/api/**, apps/desktop/src/lib/*/router.ts, apps/desktop/src/lib/*/reconcile.ts, apps/desktop/src/lib/platform/host.ts, apps/desktop/src/lib/platform/tauri.ts, apps/desktop/src/lib/platform/database/** | — |
-| [[rules/credentials]] | a credential this application holds is being stored, refreshed, or handed to somebody | apps/desktop/tauri/src/sync/**, apps/desktop/src/lib/sync/** | — |
+| [[rules/credentials]] | a credential this application holds is being stored, refreshed, or handed to somebody | apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/organization/**, apps/desktop/src/lib/sync/**, apps/desktop/src/lib/organization/** | — |
 | [[rules/data]] | a read, a write, a cached query, derived state, or undo is in question | apps/desktop/src/lib/design/**, apps/desktop/src/lib/api/**, apps/desktop/src/lib/platform/database/**, apps/desktop/src/lib/payment/**, apps/desktop/src/lib/contract/reconcile.ts, apps/desktop/tauri/src/database/** | — |
 | [[rules/frontend]] | writing or changing Svelte components, routes, styles, or client state | apps/desktop/src/lib/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/**, packages/design/components.json | — |
 | [[rules/interface]] | a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell | apps/desktop/src/lib/**/component/**, apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/design/cell/**, apps/desktop/src/lib/dashboard/**, apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/component/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/lib/block/**, packages/design/src/lib/primitive/**, packages/design/src/lib/tokens.css | — |
-| [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | apps/desktop/src/**, apps/desktop/tauri/src/**, apps/control-plane/src/**, packages/design/src/** | — |
-| [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | apps/desktop/src/**, apps/desktop/tauri/src/**, apps/control-plane/src/**, packages/design/src/** | — |
+| [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/turso-platform/**, packages/design/src/** | — |
+| [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/**, packages/turso-platform/** | — |
 | [[rules/tracker]] | creating, reading, claiming, or labelling a ticket, or deciding whether work is a ticket at all | — | — |
 | [[rules/version-control]] | branching, committing, opening a pull request, or landing work here | — | — |
 
@@ -36,9 +36,10 @@ Start at [[protocol]].
 | Artifact | Load when | Paths | Owner |
 | --- | --- | --- | --- |
 | [[contexts/desktop/contract]] | the request touches contracts, payments, unit assignments, or any derived status | apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/** | — |
+| [[contexts/desktop/organization]] | the request touches an organization, its members, their vaults, or the account it lives on | apps/desktop/tauri/src/organization/**, apps/desktop/src/lib/organization/**, apps/desktop/src/lib/layout/startup.ts | — |
 | [[contexts/desktop/persistence]] | the request touches the schema, migrations, or how queries reach SQLite | apps/desktop/src/lib/platform/database/**, apps/desktop/tauri/src/database/**, apps/desktop/tauri/migrations/** | — |
 | [[contexts/desktop/property]] | the request touches complexes or units | apps/desktop/src/lib/complex/** | — |
-| [[contexts/desktop/remote-sync]] | the request touches signing in, or the session a workspace replicates under | apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/http.rs, apps/desktop/src/lib/sync/** | — |
+| [[contexts/desktop/remote-sync]] | the request touches signing in, or the credential a workspace replicates under | apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/http.rs, apps/desktop/src/lib/sync/** | — |
 | [[contexts/desktop/tenant]] | the request touches tenants, identity, or phone numbers | apps/desktop/src/lib/tenant/** | — |
 | [[contexts/repository]] | a term, boundary, or constraint about this repository is in question, before reaching for a narrower context | — | — |
 
@@ -50,7 +51,6 @@ Start at [[protocol]].
 | [[references/changesets]] | a user-visible change needs a changelog entry before it lands | — |
 | [[references/drizzle-kit]] | the database schema changed and a migration has to be generated | — |
 | [[references/eslint]] | linting, or a CI lint failure has to be reproduced locally | — |
-| [[references/fastify]] | adding or changing a control plane route, its validation, its response body, or its logging | — |
 | [[references/git]] | inspecting history, diffing, or recovering where a concept moved | — |
 | [[references/github]] | working with issues, pull requests, or CI runs on GitHub | — |
 | [[references/graphite]] | branching, committing, or restacking — gt replaces git commit here | — |
@@ -62,7 +62,7 @@ Start at [[protocol]].
 | [[references/svelte]] | building or running this Svelte or SvelteKit application | — |
 | [[references/tauri]] | building, running, or configuring the desktop shell | — |
 | [[references/turborepo]] | running a task across this monorepo's packages, or explaining why one was skipped | — |
-| [[references/turso]] | provisioning a workspace database, minting a token to sync with one, or reading what the control plane does to Turso | — |
+| [[references/turso]] | provisioning a workspace database, minting a token to sync with one, or reading what the desktop does to Turso | — |
 | [[references/typescript]] | type-checking this repository, or reading what its compiler is actually configured to enforce | — |
 | [[references/vite]] | building or serving this repository with Vite | — |
 | [[references/vitest]] | running or writing a component test | — |
@@ -124,6 +124,7 @@ Start at [[protocol]].
 | 810-the-contract-record-reads-as-one-in-arabic | implemented | [[efforts/810-the-contract-record-reads-as-one-in-arabic/spec]] | 0 | 0 | 3 |
 | 811-the-gates-and-the-contract-follow-the-code-into-the-package | implemented | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]] | 0 | 0 | 6 |
 | 812-the-desktop-declares-what-it-uses | implemented | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
+| 819-an-organization-hosts-its-own-workspaces | implemented | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 28 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -172,3 +173,31 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/tickets/05-the-screen-with-no-boundary-above-it-is-held-shut-by-a-test]] test(desktop): the screen with no boundary above it is held shut by a test rather than by three comments | 811-the-gates-and-the-contract-follow-the-code-into-the-package | resolved | — |
 | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/tickets/06-a-test-holds-the-phone-rule-shut]] test(contract): a test holds the phone rule shut | 811-the-gates-and-the-contract-follow-the-code-into-the-package | resolved | 05 |
 | [[efforts/812-the-desktop-declares-what-it-uses/tickets/01-four-devdependencies-nothing-imports-are-removed]] chore(desktop): four devDependencies nothing has ever imported are removed | 812-the-desktop-declares-what-it-uses | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/01-the-live-remote-rule-admits-this-efforts-tests-by-name]] docs(aep): the live remote rule admits this effort's tests by name | 819-an-organization-hosts-its-own-workspaces | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/02-the-oauth-core-stops-being-googles]] refactor(sync): the OAuth core stops being Google's | 819-an-organization-hosts-its-own-workspaces | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/03-the-application-asks-turso-for-the-authority-it-needs]] feat(sync): the application asks Turso for the authority it needs | 819-an-organization-hosts-its-own-workspaces | resolved | 02 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/04-one-real-consent-settles-what-no-probe-could]] spike(sync): one real consent settles what no probe could | 819-an-organization-hosts-its-own-workspaces | resolved | 01, 03 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/05-the-platform-api-client-moves-into-rust]] feat(sync): the Platform API client moves into Rust | 819-an-organization-hosts-its-own-workspaces | resolved | 01, 21 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/06-the-vault-is-a-key-schedule-and-nothing-else]] feat(organization): the vault is a key schedule and nothing else | 819-an-organization-hosts-its-own-workspaces | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/07-authority-is-signed-along-a-chain]] feat(organization): authority is signed along a chain | 819-an-organization-hosts-its-own-workspaces | resolved | 06 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/08-the-organization-database-is-a-replica]] feat(organization): the organization database is a replica | 819-an-organization-hosts-its-own-workspaces | resolved | 05, 06, 07 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/09-a-first-run-creates-an-organization-and-types-nothing]] feat(organization): a first run creates an organization and types nothing | 819-an-organization-hosts-its-own-workspaces | resolved | 04, 08 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/10-a-password-unlocks-a-vault-offline-in-any-organization]] feat(organization): a password unlocks a vault, offline, in any organization | 819-an-organization-hosts-its-own-workspaces | resolved | 09 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/11-an-administrator-invites-a-member]] feat(organization): an administrator invites a member | 819-an-organization-hosts-its-own-workspaces | resolved | 10 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/12-a-member-joins-by-opening-a-link]] feat(organization): a member joins by opening a link | 819-an-organization-hosts-its-own-workspaces | resolved | 11 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/13-a-member-changes-their-password-and-an-administrator-resets-one]] feat(organization): a member changes their password and an administrator resets one | 819-an-organization-hosts-its-own-workspaces | resolved | 12 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/14-an-owner-creates-a-workspace-and-grants-it]] feat(organization): an owner creates a workspace and grants it | 819-an-organization-hosts-its-own-workspaces | resolved | 10 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/15-removal-has-two-speeds]] feat(organization): removal has two speeds | 819-an-organization-hosts-its-own-workspaces | resolved | 14 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/16-a-migration-reaches-a-workspace-under-a-lease]] feat(organization): a migration reaches a workspace under a lease | 819-an-organization-hosts-its-own-workspaces | resolved | 14 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/17-a-refusal-from-the-account-is-explained-as-the-accounts]] feat(organization): a refusal from the account is explained as the account's | 819-an-organization-hosts-its-own-workspaces | resolved | 14 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/18-a-second-machine-restores-the-organization]] test(organization): a second machine restores the organization | 819-an-organization-hosts-its-own-workspaces | resolved | 12 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/19-the-control-plane-and-google-sign-in-are-retired]] chore(desktop): the control plane and Google sign-in are retired | 819-an-organization-hosts-its-own-workspaces | resolved | 13, 15, 16, 17, 18 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/20-the-consent-carries-its-resource-and-can-be-given-up]] fix(sync): the consent carries its resource and can be given up | 819-an-organization-hosts-its-own-workspaces | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/21-the-organization-slug-is-discovered-once]] feat(sync): the organization slug is discovered once | 819-an-organization-hosts-its-own-workspaces | resolved | 20, 22 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/22-the-live-remote-rule-catches-up-with-the-amended-plan]] docs(aep): the live remote rule catches up with the amended plan | 819-an-organization-hosts-its-own-workspaces | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/23-authority-survives-a-reset-and-ends-at-a-removal]] fix(organization): authority survives a reset and ends at a removal | 819-an-organization-hosts-its-own-workspaces | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/24-credentials-renew-and-never-for-a-removed-member]] fix(organization): credentials renew before they lapse, and never for a removed member | 819-an-organization-hosts-its-own-workspaces | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/25-a-credential-refusal-is-shown]] fix(desktop): a credential refusal is shown rather than read as synced | 819-an-organization-hosts-its-own-workspaces | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/26-the-schema-guard-reads-a-pulled-row]] fix(organization): the schema guard reads a pulled row, and the loopback closes cleanly | 819-an-organization-hosts-its-own-workspaces | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/27-the-organizations-own-link-can-be-read-again]] fix(organization): the organization's own link can be read again | 819-an-organization-hosts-its-own-workspaces | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/28-removal-survives-a-replayed-row]] fix(organization): removal durably ends access, against a replayed row | 819-an-organization-hosts-its-own-workspaces | resolved | — |

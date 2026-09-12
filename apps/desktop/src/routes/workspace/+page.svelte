@@ -3,8 +3,8 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { useFetchMembers, useFetchOrganizationState } from '$lib/organization/query';
 	import { useFetchRemoteSyncState } from '$lib/settings/query';
-	import { signedInAccount } from '$lib/sync/account';
 	import WorkspaceIdentity from '$lib/workspace/component/identity.svelte';
 	import WorkspaceMembers from '$lib/workspace/component/members.svelte';
 	import WorkspaceSync from '$lib/workspace/component/sync.svelte';
@@ -24,9 +24,11 @@
 	 * inside the shell cannot be reached before either has happened.
 	 */
 	const remoteSyncQuery = useFetchRemoteSyncState();
+	// who is reading, for the one sentence on this page that differs by reader (requirement 25).
+	const organizationQuery = useFetchOrganizationState();
+	const membersQuery = useFetchMembers();
 
 	const syncState = $derived(remoteSyncQuery.data);
-	const account = $derived(signedInAccount(remoteSyncQuery.data));
 </script>
 
 {#if syncState}
@@ -43,16 +45,17 @@
 
 			<Field.Set>
 				<Field.Legend>{$LL.workspace.groupMembers()}</Field.Legend>
-				{#if account}
-					<WorkspaceMembers {account} />
-				{/if}
+				<WorkspaceMembers
+					members={membersQuery.data ?? []}
+					workspaceId={syncState.workspace.remoteId}
+				/>
 			</Field.Set>
 
 			<Separator />
 
 			<Field.Set>
 				<Field.Legend>{$LL.workspace.groupSync()}</Field.Legend>
-				<WorkspaceSync {syncState} />
+				<WorkspaceSync {syncState} session={organizationQuery.data?.session ?? null} />
 			</Field.Set>
 
 			<Separator />

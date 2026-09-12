@@ -1,8 +1,14 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;
 
 use crate::{
-    database::Database, persisted::Persisted, settings::Settings, sync::RemoteSync, update::Update,
+    database::Database,
+    organization::{session::MemberSession, store::OrganizationStore},
+    persisted::Persisted,
+    settings::Settings,
+    sync::RemoteSync,
+    sync::turso::consent::TursoConsent,
+    update::Update,
 };
 
 pub struct AppState {
@@ -10,4 +16,26 @@ pub struct AppState {
     pub settings: Arc<RwLock<Persisted<Settings>>>,
     pub remote_sync: Arc<RwLock<RemoteSync>>,
     pub update: Arc<RwLock<Update>>,
+    /// the Turso consents this process has started.
+    ///
+    /// **Not behind an `RwLock` like the four above**, because it holds its own lock over the
+    /// one map it has. A second lock around it would be held across the token exchange, which
+    /// is a network round trip, and would stop the interface reading how far any consent had
+    /// got while any other consent was being redeemed.
+    pub consent: Arc<TursoConsent>,
+    /// the organization replica this machine has open, beside the workspace engine in `db`.
+    ///
+    /// **A second `turso::sync::Database` and not a third `Engine` arm**: `Engine` answers what
+    /// the workspace is open as, and an organization is not a workspace. `None` until a member
+    /// signs in to one, which is the sign-in ticket's to do; the slot is here so the two engines
+    /// are held side by side by the same state rather than one of them hanging off the other.
+    pub organization: Arc<RwLock<Option<OrganizationStore>>>,
+    /// the member signed in to that organization, for the run of the process: their keys and
+    /// the credential their password unsealed. `None` is the wall. Nothing in it is serialised;
+    /// the facts about it cross to the web layer as `SessionFacts`.
+    pub member: Arc<RwLock<Option<MemberSession>>>,
+    /// a `rentable://` link the operating system handed this process and the shell has not taken
+    /// yet: the one it was launched with, or one opened before the webview was listening. The
+    /// shell takes it once at startup; every later arrival reaches it as an event as well.
+    pub arriving_link: Arc<Mutex<Option<String>>>,
 }

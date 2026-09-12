@@ -1,8 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{path::PathBuf, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
@@ -14,69 +10,55 @@ use crate::{
     timestamp,
 };
 
-use super::{
-    control::{SessionWindow, control_plane_url},
-    google::auth::google_oauth_client_id,
-    session::GoogleSignInSession,
-};
+use super::turso::discovery::TursoOrganization;
+
+use crate::organization::JoinedOrganization;
 
 pub struct RemoteSync {
     pub(super) settings: Arc<RwLock<Persisted<Settings>>>,
     pub(super) store: Persisted<RemoteSyncStore>,
-    pub(super) auth_sessions: Arc<Mutex<HashMap<String, GoogleSignInSession>>>,
     /// the Turso credential the replica syncs with, for as long as this process runs.
     ///
     /// **In memory rather than in the store or the keyring, and that is the shape rather than a
-    /// shortcut.** It is short-lived by construction — three days, and re-minted by reaching the
-    /// control plane — so a copy that outlived the process would be a credential on disk with
-    /// nothing gained: the mint is what a machine needs on the next launch anyway, and it needs a
-    /// session for that rather than this. The store is serialised to a plain file, so a field here
-    /// is exactly the field that must not be in it.
+    /// shortcut.** It is what the member's vault unsealed at sign-in, and the vault is where it
+    /// lives; a copy that outlived the process would be a credential on disk with nothing gained,
+    /// because the next launch opens the vault again. The store is serialised to a plain file, so
+    /// a field here is exactly the field that must not be in it.
     pub(super) workspace_token: Option<String>,
+    /// the last replication Turso refused for the organization's account, until one goes
+    /// through. In memory, like the credential above: it is a fact about the last request and
+    /// the next one is what settles it. The detail is Turso's own sentence and crosses to the
+    /// owner alone (`organization::account_refusal_detail`).
+    pub(super) account_refusal: Option<AccountRefusal>,
+    /// the last replication Turso refused for this member's credential that a reconnect did not
+    /// settle, until one goes through. In memory, like the account refusal above. A lock-out
+    /// rotated the credential and this machine either has not yet collected the re-sealed one or
+    /// there is none to collect, so the member is told their access needs attention rather than
+    /// shown nothing wrong.
+    pub(super) credential_refusal: Option<i64>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+/// A replication Turso refused for the account: when, and what it said.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AccountRefusal {
+    pub since: i64,
+    pub detail: String,
+}
+
+/// What every member is told about a standing account refusal: that there is one, and since
+/// when. Turso's sentence is not in it (requirement 25).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub enum RemoteSyncAccountStatus {
-    #[default]
-    Pending,
-    Ready,
-    NeedsReconnect,
+pub struct AccountRefusalFacts {
+    pub since: i64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct RemoteSyncAccount {
-    pub id: String,
-    pub status: RemoteSyncAccountStatus,
-    pub email: String,
-    pub display_name: String,
-    /// where Google says the picture is. **Nothing draws from it**, and it is kept because it is
-    /// what a later refresh would fetch. See `avatar_image`.
-    pub avatar_url: Option<String>,
-    /// the picture itself, as a complete `data:` URL, fetched once when this account signed in.
-    ///
-    /// **Here rather than at the end of a URL, because this application works offline.** A
-    /// surface drawing `avatar_url` reaches Google every time it renders, so it shows nothing
-    /// with no network and tells Google when the application was opened. `google/picture.rs` has
-    /// the bounds it is kept under.
-    ///
-    /// **It goes when the identity does.** It is a photograph of a person, so it lives exactly as
-    /// long as the credentials do rather than as long as the row: the two places that give an
-    /// identity up clear it, and the row they leave behind says what it is waiting for without
-    /// carrying their face.
-    pub avatar_image: Option<String>,
-    /// who Google says this is - the OpenID `sub` claim, which is what the control-plane API
-    /// keys an account by.
-    ///
-    /// *It held Drive's `permissionId` until Drive sync retired: the same person under a scheme
-    /// nothing else here spoke. One scheme is left and it is the API's.*
-    pub provider_user_id: Option<String>,
-    pub token_expires_at: Option<i64>,
-    pub refresh_token_available: bool,
-    pub last_error: Option<String>,
-    pub created_at: i64,
-    pub updated_at: i64,
+/// What a member is told about a standing credential refusal a reconnect did not settle: that
+/// there is one, and since when.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialRefusalFacts {
+    pub since: i64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -85,25 +67,25 @@ pub struct RemoteSyncWorkspace {
     pub id: String,
     pub name: String,
     pub local_database_path: PathBuf,
-    /// the control plane's own id for this workspace, learned at sign-in.
+    /// the organization's own id for this workspace, learned at sign-in.
     ///
     /// **Separate from `id`, which is this machine's and predates any account.** They could have
     /// been collapsed and were not: `id` is what every local record and every diagnostic already
     /// names, and rewriting it on first sign-in would rename a workspace under everything holding
-    /// it. This is the name the mint answers to, and it is `None` on a machine that has never
-    /// reached a control plane.
+    /// it. This is the name the organization's rows carry, and it is `None` on a machine that has
+    /// never opened one.
     pub remote_id: Option<String>,
     /// what the replica syncs against, `libsql://` and all. `None` until something has minted.
     ///
     /// **A URL is not a credential** and crosses to TypeScript with the rest of the state; the
     /// token it is reached with does not ([[rules/credentials]], under *Client boundary*).
     pub remote_url: Option<String>,
-    /// what the signed-in account may do in this workspace, as the one number the control plane
+    /// what the signed-in member may do in this workspace, as the one number their signed row
     /// keeps it as.
     ///
     /// **A fact about what an account may ask for, not a thing that lets anybody ask**, so it
     /// crosses to TypeScript with the rest of the state exactly as the session's moments do
-    /// ([[rules/credentials]], under *Client boundary*). The control plane is still what decides;
+    /// ([[rules/credentials]], under *Client boundary*). The signed row is still what decides;
     /// this is the same answer offered earlier, so a control nobody may use is not drawn as one
     /// they may.
     ///
@@ -120,11 +102,11 @@ pub struct RemoteSyncWorkspace {
     pub updated_at: i64,
 }
 
-/// what a workspace is called on a machine that has never reached a control plane.
+/// what a workspace is called on a machine that has never opened an organization.
 ///
-/// **A fallback and not the name.** The control plane holds the name, it is sent on every
-/// identifying answer, and a machine that has heard one uses it. This is what is left for a
-/// machine that has heard none: an install with no control plane behind it still has a workspace,
+/// **A fallback and not the name.** The organization holds the name, sealed on the workspace
+/// row, and a machine that has read it uses it. This is what is left for a
+/// machine that has read none: an install with no organization behind it still has a workspace,
 /// and a workspace with no name at all would read as a defect on every surface that draws one.
 ///
 /// *It was written out at all three of those places and reached by defaulting, so every install
@@ -132,16 +114,16 @@ pub struct RemoteSyncWorkspace {
 /// here on 2026-08-21.*
 pub(super) const DEFAULT_WORKSPACE_NAME: &str = "Primary workspace";
 
-/// what a call to the control plane learned about the workspace this machine belongs to.
+/// what an opening of the organization learned about the workspace this machine belongs to.
 ///
 /// Every field is what *that* call answered with rather than what is true of the workspace: the
 /// two callers know different halves, and `None` means this call did not say rather than the
 /// workspace not having one.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct LearnedWorkspace<'a> {
-    /// the control plane's own id for it, which every call that learns anything carries.
+    /// the organization's own id for it, which every call that learns anything carries.
     pub remote_id: &'a str,
-    /// what the control plane calls it. An identifying answer carries this; a mint does not.
+    /// what the organization calls it. An opening carries this; a bare credential refresh does not.
     pub name: Option<&'a str>,
     /// what the replica syncs against. A mint carries this; an identifying answer does not.
     pub url: Option<&'a str>,
@@ -150,30 +132,12 @@ pub(super) struct LearnedWorkspace<'a> {
     pub permissions: Option<i64>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct StoredGoogleCredentials {
-    pub account_id: String,
-    pub access_token: String,
-    pub refresh_token: String,
-    pub token_expires_at: Option<i64>,
-    pub updated_at: i64,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct RemoteSyncStore {
-    pub accounts: Vec<RemoteSyncAccount>,
     pub workspace: RemoteSyncWorkspace,
     pub startup_prompt_enabled: bool,
     pub device_id: String,
-    /// how much longer this machine may go on replicating (#550).
-    ///
-    /// **Persisted rather than held for the run of the process**, which is the whole of what
-    /// requirement 15 asks for: a signed-in client works offline for *three days*, and a window
-    /// that started again at every launch would be a window measured in one sitting. Absent on
-    /// every machine that has not signed in to a control plane, which today is all of them.
-    pub control_plane_session: Option<SessionWindow>,
     /// every workspace replica this machine holds, and whose it is.
     ///
     /// **A replica is kept indefinitely and membership is what keeps it.** It is not deleted on
@@ -190,77 +154,78 @@ pub struct RemoteSyncStore {
     ///
     /// A list because one machine can hold replicas for several accounts.
     pub replicas: Vec<LocalReplica>,
+    /// which Turso organization and group the consent on this machine was granted over.
+    ///
+    /// **Kept because it cannot be asked for twice cheaply.** A consented token carries neither
+    /// the organization slug nor anything that maps to one, and the only route to it is a lookup
+    /// against Turso's MCP server (`sync/turso/discovery.rs`). That surface is versioned at
+    /// `v0.1.0` and documented for agents, so asking it once at setup and never again is what
+    /// keeps a change there off the provisioning path.
+    ///
+    /// **Not a credential, and deliberately not in the keyring.** A slug is a name that appears
+    /// in every Platform API URL this application builds; filing it as a secret would imply the
+    /// URLs were. It is not in the organization database either, because it is a fact about this
+    /// machine's grant rather than about the organization's members.
+    ///
+    /// Absent on every machine that has not granted a Turso consent, which today is all of them.
+    pub turso_organization: Option<TursoOrganization>,
+    /// the organizations this machine has joined, which is what the sign-in screen lists
+    /// (requirement 17) and what tells sign-in which member row is this person's before a
+    /// password is typed.
+    ///
+    /// **Facts about this machine, in the clear, and none of them a credential.** The name is
+    /// the one the person typed or was shown; the verifying key is the one their join link pinned,
+    /// held here so that every later verification uses it and never one read out of the database
+    /// it judges; the remote is where the replica syncs. What opens anything is the password, and
+    /// it is nowhere.
+    pub organizations: Vec<JoinedOrganization>,
 }
 
-/// one workspace replica on this machine, and the account whose membership keeps it.
+/// one workspace replica on this machine, and the member whose grant keeps it.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct LocalReplica {
-    /// the control plane's id for the workspace, which is what the file is named for.
+    /// the workspace's id in its organization, which is what the file is named for.
     pub workspace_id: String,
-    /// the account this machine held it for. **A replica is only ever checkable while somebody
-    /// can sign in as this account**, which is why it is recorded rather than inferred.
-    pub account_id: String,
+    /// the member this machine held it for. **A replica is only ever checkable while that
+    /// member's vault is open**, which is why it is recorded rather than inferred. *It was the
+    /// control plane's account id until the retirement, under the same name.*
+    #[serde(alias = "accountId")]
+    pub member_id: String,
     pub created_at: i64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteSyncState {
-    pub accounts: Vec<RemoteSyncAccount>,
     pub workspace: RemoteSyncWorkspace,
     pub startup_prompt_enabled: bool,
-    /// whether this build was given an OAuth client to sign in with.
-    ///
-    /// *It was `google_drive_ready` and reported this same fact: the client id is the OAuth
-    /// registration's, and it was Drive's only in the sense that Drive was the only thing that
-    /// spent it.*
-    pub google_sign_in_ready: bool,
-    /// whether this build was told where a control plane is. Reported for the same reason
-    /// `google_sign_in_ready` is: a capability the caller can see, rather than one it discovers
-    /// by a call failing.
-    pub control_plane_ready: bool,
-    /// the window, and **never the token that goes with it** (#550).
-    ///
-    /// Two moments cross the boundary and the credential does not. They are facts *about* a
-    /// credential rather than one, exactly as `RemoteSyncAccount::token_expires_at` already is,
-    /// and the side that decides whether to keep replicating cannot do so without them.
-    pub session: Option<SessionWindow>,
     pub device_id: String,
+    /// a replication Turso refused for the organization's account, standing until one goes
+    /// through. Distinct from every other reason a machine is not syncing, because a person over
+    /// quota and a person offline need different things.
+    pub account_refusal: Option<AccountRefusalFacts>,
+    /// a replication Turso refused for this member's credential that a reconnect did not settle,
+    /// standing until one goes through. Distinct from the account's refusal, which is the owner's
+    /// to see to, and from a fault: this is a credential that stopped being accepted.
+    pub credential_refusal: Option<CredentialRefusalFacts>,
 }
 
 impl Default for RemoteSyncStore {
     fn default() -> Self {
         Self {
-            accounts: Vec::new(),
             workspace: RemoteSyncWorkspace::default(),
             startup_prompt_enabled: true,
             device_id: String::new(),
-            control_plane_session: None,
             replicas: Vec::new(),
+            turso_organization: None,
+            organizations: Vec::new(),
         }
     }
 }
 
 impl Persistable for RemoteSyncStore {
     fn sanitize(&mut self) {
-        for account in self.accounts.iter_mut() {
-            account.id = sanitize_string(&account.id);
-            account.email = sanitize_string(&account.email);
-            account.display_name = sanitize_string(&account.display_name);
-            account.avatar_url = sanitize_optional_string(account.avatar_url.clone());
-            account.provider_user_id = sanitize_optional_string(account.provider_user_id.clone());
-            account.last_error = sanitize_optional_string(account.last_error.clone());
-
-            if account.created_at <= 0 {
-                account.created_at = timestamp::now();
-            }
-
-            if account.updated_at <= 0 {
-                account.updated_at = account.created_at;
-            }
-        }
-
         self.workspace.id = sanitize_string(&self.workspace.id);
         self.workspace.name = sanitize_string(&self.workspace.name);
         self.workspace.last_error = sanitize_optional_string(self.workspace.last_error.clone());
@@ -283,17 +248,23 @@ impl Persistable for RemoteSyncStore {
             self.device_id = format!("device-{}", timestamp::now());
         }
 
-        self.accounts.retain(|account| !account.id.is_empty());
+        // a replica held for nobody is one nothing can check.
+        self.replicas
+            .retain(|replica| !replica.workspace_id.trim().is_empty());
 
-        // A window naming no account cannot be signed out of and cannot be renewed, so it is
-        // not a window — it is a row nothing can act on, and keeping it would leave a hosted
-        // workspace asking for a sign-in it had no way to complete.
-        if let Some(session) = self.control_plane_session.as_mut() {
-            session.account_id = sanitize_string(&session.account_id);
-        }
+        // a remembered organization with no slug is not one, and every Platform API path this
+        // application builds would carry the hole into a URL.
+        self.turso_organization
+            .take_if(|organization| organization.slug.trim().is_empty());
 
-        self.control_plane_session
-            .take_if(|session| session.account_id.is_empty() || session.expires_at <= 0);
+        // an organization with no id, no key or no remote cannot be signed in to, and a row
+        // saying otherwise would be listed on the sign-in screen as a place nobody can go.
+        self.organizations.retain(|organization| {
+            !organization.id.trim().is_empty()
+                && !organization.verifying_key.trim().is_empty()
+                && !organization.remote_url.trim().is_empty()
+                && !organization.member_id.trim().is_empty()
+        });
     }
 }
 
@@ -308,8 +279,9 @@ impl RemoteSync {
         let mut this = Self {
             settings,
             store,
-            auth_sessions: Arc::new(Mutex::new(HashMap::new())),
             workspace_token: None,
+            account_refusal: None,
+            credential_refusal: None,
         };
         this.reconcile().await?;
         Ok(this)
@@ -324,24 +296,51 @@ impl RemoteSync {
         self.store.workspace.clone()
     }
 
-    /// who this machine is signed in as, or nobody.
+    /// The machine's own record, for the organization work that reads and writes what this
+    /// machine has joined and which Turso organization its consent is over.
+    pub fn store_mut(&mut self) -> &mut Persisted<RemoteSyncStore> {
+        &mut self.store
+    }
+
+    /// Hold the credential a member's vault unsealed for the current workspace, for the replica.
+    pub(crate) fn hold_organization_workspace_token(&mut self, token: &str) {
+        self.hold_workspace_token(token);
+    }
+
+    /// The workspace a member opened from their organization: recorded as this machine's current
+    /// workspace, with the credential their vault unsealed held for the replica to sync with.
     ///
-    /// **A row is not a sign-in**, which is why the status is what decides rather than the row
-    /// existing: the account outlives its credentials on purpose, so that whatever was recorded
-    /// under it can still say what it is waiting for. `NeedsReconnect` is written in exactly the
-    /// places that have just deleted those credentials, and it is the one status that means this
-    /// machine no longer holds this identity.
-    ///
-    /// At most one identity is held at a time, because a sign-in signs out of every other account
-    /// on its way through. So the first match is the only match rather than the one iteration
-    /// order happened to reach, and `$lib/sync/account` answers the same question the same way on
-    /// the other side of the boundary.
-    pub(crate) fn signed_in_account_id(&self) -> Option<String> {
-        self.store
-            .accounts
-            .iter()
-            .find(|account| account.status != RemoteSyncAccountStatus::NeedsReconnect)
-            .map(|account| account.id.clone())
+    /// What the retired control plane's mint learned in two calls arrives here in one, because the
+    /// organization replica already holds the name, the remote and what the member may do, and
+    /// the credential was sealed to them rather than minted for the occasion.
+    pub(crate) fn open_organization_workspace(
+        &mut self,
+        remote_id: &str,
+        name: &str,
+        url: &str,
+        permissions: i64,
+        token: &str,
+    ) -> Result<(), Error> {
+        self.hold_workspace_token(token);
+        self.record_remote_workspace(LearnedWorkspace {
+            remote_id,
+            name: Some(name),
+            url: Some(url),
+            permissions: Some(permissions),
+        })
+    }
+
+    /// The name the organization now gives the current workspace, on this machine's own record,
+    /// so the rail reads it before the next pull.
+    pub(crate) fn rename_held_workspace(&mut self, name: &str) -> Result<(), Error> {
+        if self.store.workspace.name == name {
+            return Ok(());
+        }
+
+        self.store.workspace.name = name.to_string();
+        self.store.workspace.updated_at = timestamp::now();
+
+        self.store.commit()
     }
 
     /// Stop naming a workspace this machine may no longer open.
@@ -361,7 +360,7 @@ impl RemoteSync {
         self.store.commit()
     }
 
-    /// Note that this machine holds a replica of `workspace_id` for `account_id`.
+    /// Note that this machine holds a replica of `workspace_id` for `member_id`.
     ///
     /// Idempotent, and it does **not** move `created_at` on a workspace already held: the record
     /// is of when this machine started keeping it, and re-recording it on every launch would make
@@ -369,7 +368,7 @@ impl RemoteSync {
     pub(crate) fn remember_replica(
         &mut self,
         workspace_id: &str,
-        account_id: &str,
+        member_id: &str,
         now: i64,
     ) -> Result<(), Error> {
         if self
@@ -383,7 +382,7 @@ impl RemoteSync {
 
         self.store.replicas.push(LocalReplica {
             workspace_id: workspace_id.to_string(),
-            account_id: account_id.to_string(),
+            member_id: member_id.to_string(),
             created_at: now,
         });
 
@@ -423,7 +422,7 @@ impl RemoteSync {
         self.workspace_token = Some(token.to_string());
     }
 
-    /// what a call to the control plane learned about the workspace this machine belongs to.
+    /// what an opening of the organization learned about the workspace this machine belongs to.
     ///
     /// **A struct rather than three arguments**, because two of them are `Option<&str>` of the
     /// same type standing next to each other, and every caller fills exactly one of them: an
@@ -450,8 +449,8 @@ impl RemoteSync {
         });
 
         // **A name that arrived wins over anything held locally**, which is the whole of
-        // requirement 4a: `DEFAULT_WORKSPACE_NAME` is what a machine that has never reached a
-        // control plane is left with, not a name to be defended against the one the workspace
+        // requirement 4a: `DEFAULT_WORKSPACE_NAME` is what a machine that has never opened an
+        // organization is left with, not a name to be defended against the one the workspace
         // actually has. Whitespace is not a name — `sanitize` would put the default back on the
         // next load, so taking one here would only make the store disagree with itself in between.
         let name = learned
@@ -523,30 +522,6 @@ impl RemoteSync {
             changed = true;
         }
 
-        // an account nothing links is an identity, not litter.
-        //
-        // Until 2026-08-18 this reconcile deleted every Google account the workspace was not
-        // linked to, along with its credentials — which was consistent while signing in *was*
-        // linking, because an account with no link had been reached by no route. Signing in is
-        // its own act now, and with Drive retired there is no link for one to be missing from:
-        // an account row is somebody who signed in, and pruning it would undo the act on the
-        // next state read.
-        let mut refresh_token_account_ids = HashSet::new();
-
-        for account_id in self.store.accounts.iter().map(|account| account.id.clone()) {
-            if self
-                .load_google_credentials(&account_id)?
-                .map(|credentials| !credentials.refresh_token.trim().is_empty())
-                .unwrap_or(false)
-            {
-                refresh_token_account_ids.insert(account_id);
-            }
-        }
-
-        for account in self.store.accounts.iter_mut() {
-            account.refresh_token_available = refresh_token_account_ids.contains(&account.id);
-        }
-
         if changed {
             self.store.commit()?;
         }
@@ -562,14 +537,57 @@ impl RemoteSync {
 
     fn snapshot_state(&self) -> RemoteSyncState {
         RemoteSyncState {
-            accounts: self.store.accounts.clone(),
             workspace: self.store.workspace.clone(),
             startup_prompt_enabled: self.store.startup_prompt_enabled,
-            google_sign_in_ready: google_oauth_client_id().is_some(),
-            control_plane_ready: control_plane_url().is_some(),
-            session: self.store.control_plane_session.clone(),
             device_id: self.store.device_id.clone(),
+            account_refusal: self
+                .account_refusal
+                .as_ref()
+                .map(|refusal| AccountRefusalFacts {
+                    since: refusal.since,
+                }),
+            credential_refusal: self
+                .credential_refusal
+                .map(|since| CredentialRefusalFacts { since }),
         }
+    }
+
+    /// Turso refused a replication for the account. The first refusal's moment stands until one
+    /// goes through; the sentence is the latest.
+    pub(crate) fn note_account_refusal(&mut self, detail: &str, now: i64) {
+        let since = self
+            .account_refusal
+            .as_ref()
+            .map_or(now, |refusal| refusal.since);
+
+        self.account_refusal = Some(AccountRefusal {
+            since,
+            detail: detail.to_string(),
+        });
+    }
+
+    /// A replication went through, so whatever the account was refused for is over.
+    pub(crate) fn clear_account_refusal(&mut self) {
+        self.account_refusal = None;
+    }
+
+    /// Turso refused a replication for this member's credential and a reconnect did not settle it.
+    /// The first refusal's moment stands until one goes through.
+    pub(crate) fn note_credential_refusal(&mut self, now: i64) {
+        self.credential_refusal.get_or_insert(now);
+    }
+
+    /// A replication went through, so whatever the credential was refused for is over.
+    pub(crate) fn clear_credential_refusal(&mut self) {
+        self.credential_refusal = None;
+    }
+
+    /// Turso's own sentence about the standing refusal, for the owner and nobody else; the
+    /// caller decides who is asking.
+    pub(crate) fn account_refusal_detail(&self) -> Option<String> {
+        self.account_refusal
+            .as_ref()
+            .map(|refusal| refusal.detail.clone())
     }
 
     pub(super) fn default_workspace(path: PathBuf, now: i64) -> RemoteSyncWorkspace {
@@ -577,12 +595,12 @@ impl RemoteSync {
             id: format!("workspace-{}", now),
             name: DEFAULT_WORKSPACE_NAME.to_string(),
             local_database_path: path,
-            // A machine that has never reached a control plane belongs to no workspace it can
+            // A machine that has never opened an organization belongs to no workspace it can
             // name. Both arrive at the first sign-in.
             remote_id: None,
             remote_url: None,
             // and administers nothing in it until an answer says otherwise, which is the same
-            // value an older control plane and an older store both land on.
+            // value an older store lands on.
             permissions: 0,
             last_error: None,
             created_at: now,
@@ -601,34 +619,6 @@ pub(super) fn sanitize_optional_string(value: Option<String>) -> Option<String> 
         .filter(|value| !value.is_empty())
 }
 
-pub(super) fn slugify(value: &str) -> String {
-    let mut slug = String::new();
-
-    for character in value.chars() {
-        if character.is_ascii_alphanumeric() {
-            slug.push(character.to_ascii_lowercase());
-        } else if !slug.ends_with('-') {
-            slug.push('-');
-        }
-    }
-
-    slug.trim_matches('-').to_string().if_empty_then("profile")
-}
-
-trait StringExt {
-    fn if_empty_then(self, fallback: &str) -> String;
-}
-
-impl StringExt for String {
-    fn if_empty_then(self, fallback: &str) -> String {
-        if self.trim().is_empty() {
-            fallback.to_string()
-        } else {
-            self
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{path::PathBuf, sync::Arc};
@@ -637,7 +627,6 @@ mod tests {
 
     use super::{
         DEFAULT_WORKSPACE_NAME, LearnedWorkspace, RemoteSync, RemoteSyncStore, RemoteSyncWorkspace,
-        slugify,
     };
     use crate::{persisted::Persisted, settings::Settings};
 
@@ -657,7 +646,7 @@ mod tests {
     /// The `created_at` is when this machine started holding the workspace. Re-recording on every
     /// launch would make it the launch time, which tells nobody anything.
     #[test]
-    fn a_replica_is_tracked_once_with_the_account_that_keeps_it() {
+    fn a_replica_is_tracked_once_with_the_member_that_keeps_it() {
         let mut remote_sync = a_remote_sync("track");
 
         remote_sync
@@ -672,7 +661,7 @@ mod tests {
         assert_eq!(held.len(), 1, "one workspace was tracked twice");
         assert_eq!(held[0].workspace_id, "ws-1");
         assert_eq!(
-            held[0].account_id, "account-1",
+            held[0].member_id, "account-1",
             "a replica does not record whose membership keeps it"
         );
         assert_eq!(
@@ -727,21 +716,18 @@ mod tests {
             )),
             store: Persisted::<RemoteSyncStore>::load(unique_dir(name).join("store.json"))
                 .expect("store"),
-            auth_sessions: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             workspace_token: None,
+            account_refusal: None,
+            credential_refusal: None,
         }
     }
 
-    #[test]
-    fn slugify_is_stable() {
-        assert_eq!(slugify("Person Example+1"), "person-example-1");
-    }
-
-    /// A store written while the mode existed still reads, and that is the whole of the
-    /// migration: `provider` is **dropped rather than migrated**, because `RemoteSyncStore` and
-    /// every struct under it derive `Deserialize` without `deny_unknown_fields`, so serde
-    /// ignores a field no type claims. An install holding `"local"` or `"googleDrive"` loads
-    /// unchanged and writes the field away on its next commit.
+    /// A store written while the mode existed, or while Google accounts were rows in it, still
+    /// reads, and that is the whole of the migration: `provider`, `accounts` and the control
+    /// plane's session are **dropped rather than migrated**, because `RemoteSyncStore` and every
+    /// struct under it derive `Deserialize` without `deny_unknown_fields`, so serde ignores a
+    /// field no type claims. An install holding any of them loads unchanged and writes them away
+    /// on its next commit; a replica tracked under an account id reads under the member's name.
     ///
     /// Asserted rather than reasoned about: adding `deny_unknown_fields` anywhere on this path
     /// would make every store on a developer machine unreadable, and nothing else in this file
@@ -750,7 +736,7 @@ mod tests {
     fn a_store_written_while_the_mode_existed_still_reads() {
         for written in ["\"local\"", "\"googleDrive\"", "\"hosted\""] {
             let store: RemoteSyncStore = serde_json::from_str(&format!(
-                "{{\"workspace\":{{\"id\":\"workspace-1\",\"provider\":{written},\"name\":\"Primary workspace\"}},\"accounts\":[{{\"id\":\"account-1\",\"provider\":{written},\"email\":\"person@example.com\"}}]}}"
+                "{{\"workspace\":{{\"id\":\"workspace-1\",\"provider\":{written},\"name\":\"Primary workspace\"}},\"accounts\":[{{\"id\":\"account-1\",\"provider\":{written},\"email\":\"person@example.com\"}}],\"controlPlaneSession\":{{\"accountId\":\"account-1\",\"expiresAt\":1}},\"replicas\":[{{\"workspaceId\":\"ws-1\",\"accountId\":\"account-1\",\"createdAt\":1}}]}}"
             ))
             .expect("a store written with a provider should still read");
 
@@ -758,11 +744,10 @@ mod tests {
                 store.workspace.id, "workspace-1",
                 "{written} lost the workspace"
             );
-            assert_eq!(store.accounts.len(), 1, "{written} lost the account");
+            assert_eq!(store.replicas.len(), 1, "{written} lost the replica");
             assert_eq!(
-                store.accounts[0].avatar_image, None,
-                "{written} is a store written before there was a picture to keep, and it has to \
-                 read as one that holds none rather than refusing to load"
+                store.replicas[0].member_id, "account-1",
+                "{written} lost who the replica was held for"
             );
         }
     }
@@ -826,14 +811,14 @@ mod tests {
             });
     }
 
-    /// **The name a workspace is shown by is the control plane's**, which is requirement 4a.
+    /// **The name a workspace is shown by is the organization's**, which is requirement 4a.
     ///
     /// It was sent on every identifying answer and parsed away on this side, so what every install
     /// actually showed was `DEFAULT_WORKSPACE_NAME` — one English literal, identically, for every
     /// person, on an application that ships in Arabic.
     #[test]
-    fn a_workspace_is_called_what_the_control_plane_calls_it() {
-        let mut remote_sync = a_remote_sync("workspace-name-from-control-plane");
+    fn a_workspace_is_called_what_the_organization_calls_it() {
+        let mut remote_sync = a_remote_sync("workspace-name-from-the-organization");
 
         remote_sync
             .record_remote_workspace(LearnedWorkspace {
@@ -851,7 +836,7 @@ mod tests {
     }
 
     /// **A machine that has heard no name keeps the fallback**, which is what the default exists
-    /// for. It is the answer for an install with no control plane behind it, not a name to be
+    /// for. It is the answer for an install with no organization behind it, not a name to be
     /// defended against the one the workspace has.
     #[test]
     fn a_workspace_nobody_has_named_keeps_the_default() {
@@ -887,8 +872,8 @@ mod tests {
         assert_eq!(remote_sync.workspace().name, DEFAULT_WORKSPACE_NAME);
     }
 
-    /// **What the control plane says last is what the workspace is called**, which is how a rename
-    /// made on another machine arrives here: the next identifying answer carries it, and nothing
+    /// **What the organization says last is what the workspace is called**, which is how a rename
+    /// made on another machine arrives here: the next opening carries it, and nothing
     /// on this machine defends the name it was holding.
     #[test]
     fn a_later_answer_renames_the_workspace_this_machine_holds() {
@@ -924,7 +909,7 @@ mod tests {
         remote_sync
             .record_remote_workspace(LearnedWorkspace {
                 remote_id: "workspace-7",
-                name: Some("named by the control plane"),
+                name: Some("named by the organization"),
                 url: None,
                 permissions: None,
             })
@@ -940,7 +925,7 @@ mod tests {
 
         let workspace = remote_sync.workspace();
 
-        assert_eq!(workspace.name, "named by the control plane");
+        assert_eq!(workspace.name, "named by the organization");
         assert_eq!(
             workspace.remote_url.as_deref(),
             Some("libsql://workspace-7.turso.io")
@@ -982,7 +967,7 @@ mod tests {
     /// carries the number without opening it. `@rentable/workspace-permission` is where the bits
     /// are named, and it is TypeScript.
     #[test]
-    fn a_workspace_carries_what_the_control_plane_said_this_account_may_do() {
+    fn a_workspace_carries_what_the_organization_said_this_member_may_do() {
         let mut remote_sync = a_remote_sync("workspace-permissions-recorded");
 
         remote_sync
@@ -998,9 +983,9 @@ mod tests {
     }
 
     /// **An answer that said nothing lands on zero**, which is a member who administers nothing.
-    /// It is what a control plane older than this field answers with, and it is the safe
+    /// It is what a store older than this field answers with, and it is the safe
     /// direction: every gated control is drawn as absent rather than offered to somebody the
-    /// service would then refuse.
+    /// signed row would then refuse.
     #[test]
     fn an_answer_that_carried_no_permissions_administers_nothing() {
         let mut remote_sync = a_remote_sync("workspace-permissions-absent");
@@ -1027,7 +1012,7 @@ mod tests {
         remote_sync
             .record_remote_workspace(LearnedWorkspace {
                 remote_id: "workspace-7",
-                name: Some("named by the control plane"),
+                name: Some("named by the organization"),
                 url: None,
                 permissions: Some(8),
             })

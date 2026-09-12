@@ -1,10 +1,8 @@
 use crate::{error::Error, state::AppState};
 
-use super::control::establish_held_session as establish_control_plane_session;
-use super::control::rename_workspace as rename_control_plane_workspace;
-use super::control::renew_session as renew_control_plane_session;
-use super::sign_in::{sign_in_with_google, sign_out_of_google};
 use super::store::RemoteSyncState;
+use super::turso::consent::{TursoConsentResult, TursoConsentStart, TursoEndpoints};
+use super::turso::platform::SyncRefusal;
 
 #[tauri::command]
 pub async fn remote_sync_state_get(
@@ -14,66 +12,23 @@ pub async fn remote_sync_state_get(
 
     remote_sync.get_state().await
 }
-/// Reach the control plane and restart the window, where there is one to restart.
+/// Rename the current workspace, on every machine signed in to it.
 ///
-/// **This is *reaching the API inside the window*, as a call the application actually makes.**
-/// The sync dispatcher runs it on the hosted path before it decides whether to replicate, and
-/// the autosync manager already schedules that on a timer and on the machine coming back online
-/// — so a client that is doing anything at all renews without anybody thinking about it.
+/// **One command for the whole act, and the interface observes it.** The name lives on the
+/// organization database's workspace row, sealed under the content key and outside the
+/// signature, as the plan puts it, so whoever carries `renameWorkspace` writes it and every
+/// replica reads it on its next pull. Answers with the state, so the caller reads the name it
+/// just set rather than the one it had.
 ///
-/// Answers with the state, so the caller reads the window it just moved rather than the one it
-/// had. Being offline is not a failure: the window stays where it was and the client goes on
-/// replicating until it closes on its own.
-#[tauri::command]
-pub async fn remote_sync_renew_session(
-    app_state: tauri::State<'_, AppState>,
-) -> Result<RemoteSyncState, Error> {
-    renew_control_plane_session(app_state.inner()).await?;
-
-    let mut remote_sync = app_state.remote_sync.write().await;
-    remote_sync.get_state().await
-}
-
-/// Reach the control plane with the identity this machine already holds, and say where that left it.
-///
-/// **The retry for a sign-in that got half way**, and the reason it is a command of its own rather
-/// than another `google_sign_in` is that the consent screen is not what failed. This machine has
-/// Google credentials and no session; opening a browser to be told again who the user is would
-/// arrive back at the same missing session.
-///
-/// Answers with the state, so the screen that called it reads what it now stands on rather than
-/// what it stood on before. A control plane that is still unreachable is not an error here: the
-/// state comes back carrying no window, and the screen says so.
-#[tauri::command]
-pub async fn remote_sync_establish_session(
-    app_state: tauri::State<'_, AppState>,
-) -> Result<RemoteSyncState, Error> {
-    establish_control_plane_session(app_state.inner()).await?;
-
-    let mut remote_sync = app_state.remote_sync.write().await;
-    remote_sync.get_state().await
-}
-
-/// Call this workspace something else.
-///
-/// **One command for the whole act, and the interface observes it.** The caller asks for the
-/// outcome rather than for a step: this reaches the control plane, which is where the name lives,
-/// writes what came back, and answers with the state. A caller that had to mint, then rename, then
-/// re-read would be sequencing a protocol it has no business knowing.
-///
-/// **Answers with the state for the same reason the two session commands do** — the caller reads
-/// the name it just set rather than the one it had, and the three surfaces that draw a workspace
-/// name all read that one query.
-///
-/// The name is validated by the form before it gets here and again by the control plane, which is
-/// the one that has to store it. Nothing is validated in between: a third opinion in the middle
-/// would be the one that goes stale.
+/// The name is validated by the form before it gets here and again by the shell, which is what
+/// stores it. Nothing is validated in between: a third opinion in the middle would be the one
+/// that goes stale.
 #[tauri::command]
 pub async fn remote_sync_rename_workspace(
     app_state: tauri::State<'_, AppState>,
     name: String,
 ) -> Result<RemoteSyncState, Error> {
-    rename_control_plane_workspace(app_state.inner(), &name).await?;
+    crate::organization::rename_current_workspace(app_state.inner(), &name).await?;
 
     let mut remote_sync = app_state.remote_sync.write().await;
     remote_sync.get_state().await
@@ -108,12 +63,71 @@ pub async fn remote_sync_push(app_state: tauri::State<'_, AppState>) -> Result<b
 pub async fn remote_sync_replicate(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Replication, Error> {
-    let db = app_state.db.read().await;
+    let replicated = {
+        let db = app_state.db.read().await;
 
-    Ok(Replication {
-        pushed: db.push_replica().await,
-        received: db.pull_replica().await,
-    })
+        db.replicate().await
+    };
+
+    match &replicated.refusal {
+        // the remote was reached, or could not be: the offline case, which needs nothing.
+        SyncRefusal::None => {
+            if replicated.pushed || replicated.received {
+                let mut remote_sync = app_state.remote_sync.write().await;
+                remote_sync.clear_account_refusal();
+                remote_sync.clear_credential_refusal();
+            }
+
+            Ok(Replication::from(replicated))
+        }
+        // requirement 25: the account's, said as the account's. The local replica goes on
+        // serving every read and every write; what stops is replication, until the owner has
+        // seen to the account and the next one goes through.
+        SyncRefusal::Account { detail } => {
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .note_account_refusal(detail, crate::timestamp::now());
+
+            Ok(Replication::from(replicated))
+        }
+        // a credential that stopped being accepted: a lock-out rotated it and the owner
+        // re-sealed a fresh one to this member. The organization database says so, and reading
+        // it costs one pull; where a credential moved, the same replication is tried once more
+        // under it, and nobody has to do anything.
+        SyncRefusal::Credential => {
+            if !crate::organization::reconnect(&app_state).await {
+                app_state
+                    .remote_sync
+                    .write()
+                    .await
+                    .note_credential_refusal(crate::timestamp::now());
+                return Ok(Replication::from(replicated));
+            }
+
+            let db = app_state.db.read().await;
+            let again = db.replicate().await;
+
+            // the reconnect collected a fresh credential and the retry went through, or it did
+            // not and the member is told their credential needs attention rather than shown
+            // nothing wrong (requirement 25's shape, for the credential rather than the account).
+            {
+                let mut remote_sync = app_state.remote_sync.write().await;
+                if matches!(again.refusal, SyncRefusal::None) && (again.pushed || again.received) {
+                    remote_sync.clear_credential_refusal();
+                } else if matches!(again.refusal, SyncRefusal::Credential) {
+                    remote_sync.note_credential_refusal(crate::timestamp::now());
+                }
+            }
+
+            Ok(Replication {
+                pushed: replicated.pushed || again.pushed,
+                received: replicated.received || again.received,
+                refusal: again.refusal.into(),
+            })
+        }
+    }
 }
 
 /// what one replication did.
@@ -128,32 +142,87 @@ pub async fn remote_sync_replicate(
 pub struct Replication {
     pub pushed: bool,
     pub received: bool,
+    /// why a half did not go, where Turso said: the account's, or the credential's. `none` is
+    /// offline or nothing to say, and the two halves say which.
+    pub refusal: ReplicationRefusal,
 }
 
-/// Sign in with Google, and nothing else.
-///
-/// The workspace is untouched — this establishes who somebody is, which is a
-/// thing this application holds on its own.
-///
-/// Outstanding for as long as the user takes over the consent screen; progress
-/// arrives on [`GOOGLE_SIGN_IN_PHASE_EVENT`].
-///
-/// [`GOOGLE_SIGN_IN_PHASE_EVENT`]: super::sign_in::GOOGLE_SIGN_IN_PHASE_EVENT
-#[tauri::command]
-pub async fn google_sign_in(
-    app: tauri::AppHandle,
-    app_state: tauri::State<'_, AppState>,
-) -> Result<RemoteSyncState, Error> {
-    sign_in_with_google(&app, app_state.inner()).await
+/// The refusal as the web layer reads it: which kind, and never Turso's sentence, which is the
+/// owner's alone and read through `organization_account_refusal_detail`.
+#[derive(serde::Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ReplicationRefusal {
+    None,
+    Account,
+    Credential,
 }
 
-/// Give up the identity this machine holds.
+impl From<SyncRefusal> for ReplicationRefusal {
+    fn from(refusal: SyncRefusal) -> Self {
+        match refusal {
+            SyncRefusal::None => Self::None,
+            SyncRefusal::Account { .. } => Self::Account,
+            SyncRefusal::Credential => Self::Credential,
+        }
+    }
+}
+
+impl From<crate::database::Replicated> for Replication {
+    fn from(replicated: crate::database::Replicated) -> Self {
+        Self {
+            pushed: replicated.pushed,
+            received: replicated.received,
+            refusal: replicated.refusal.into(),
+        }
+    }
+}
+
+/// Ask Turso for the authority this application needs, and answer with the page to open.
 ///
-/// Whatever is linked under it stays linked and says what it is waiting for.
-/// Signing out of a machine that holds no identity is refused.
+/// **The browser is opened by the caller**: the consent screen is the person's and the
+/// application's part of it ends at composing the URL. What is held here is the PKCE verifier and the state, neither of which the web layer
+/// is given, so a caller cannot redeem the code that comes back on its own.
+///
+/// Nothing is granted by this call. It claims a loopback port, registers this application as a
+/// public client on it, and returns; what the person does next arrives on that port and is read
+/// by [`organization_consent_result`].
 #[tauri::command]
-pub async fn google_sign_out(
+pub async fn organization_consent_begin(
     app_state: tauri::State<'_, AppState>,
-) -> Result<RemoteSyncState, Error> {
-    sign_out_of_google(app_state.inner()).await
+) -> Result<TursoConsentStart, Error> {
+    app_state.consent.begin(TursoEndpoints::production()).await
+}
+
+/// How far one consent has got.
+///
+/// **It returns no token**, which is [[rules/credentials]]'s *Client boundary* at the one place
+/// this application obtains a Platform API token: the token is filed in the operating system's
+/// credential store by the call that redeems it and never crosses to TypeScript.
+///
+/// Polled while the status is `pending`. A consent that failed says so and says why; one the
+/// person abandoned says that instead, because closing the browser tab is the ordinary way a
+/// consent ends and there is nothing to report about it.
+#[tauri::command]
+pub async fn organization_consent_result(
+    app_state: tauri::State<'_, AppState>,
+    session_id: String,
+) -> Result<TursoConsentResult, Error> {
+    app_state.consent.result(&session_id).await
+}
+
+/// Hand the Turso authority back.
+///
+/// The token is removed from this machine's credential store and the consents this process
+/// started are dropped with it, so nothing is left that a later run could read as a grant.
+///
+/// **Nothing is revoked at Turso by this**, and the surface offering it has to say so. There
+/// is no revocation endpoint in the authorization server's metadata and the token carries no
+/// expiry, so what the account granted stays granted until the person ends it in Turso's own
+/// dashboard.
+///
+/// It answers nothing, and disconnecting a machine that holds no token is not an error: the
+/// caller asked for there to be no token, and afterwards there is none.
+#[tauri::command]
+pub async fn organization_disconnect(app_state: tauri::State<'_, AppState>) -> Result<(), Error> {
+    app_state.consent.disconnect()
 }

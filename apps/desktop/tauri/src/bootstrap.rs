@@ -77,40 +77,43 @@ pub async fn bootstrap(app_state: tauri::State<'_, AppState>) -> Result<Recovery
     Ok(update.recovery().inner().clone())
 }
 
+/// Where the current workspace stands for the member who is in.
+enum WorkspaceStanding {
+    /// a credential is in hand, from the member's vault, at the remote the signed row names.
+    Held(String),
+    /// the member's vault holds no grant on the workspace this machine has open: their grant
+    /// was removed, or the workspace was, and the replica is a copy of a ledger this machine has
+    /// no right to any more.
+    GrantEnded,
+    /// nobody is signed in, or nothing is open yet.
+    Nothing,
+}
+
 /// Open this machine's database as whatever it should be right now.
 ///
-/// **Called at startup and again the moment somebody signs in**, because those are the two points
-/// at which the answer changes. A machine nobody has signed in on has no workspace to mint against,
-/// so the first call opens a plain file; signing in is what gives it one, and without a second call
-/// the replica would not arrive until the next launch. Acceptance criterion 4 is *signing in
-/// reaches that user's workspace*, and *on the next launch* is not that.
+/// **Called at startup and again the moment a workspace is opened**, because those are the two
+/// points at which the answer changes. A machine nobody is signed in on has no workspace, so the
+/// first call opens a plain file; opening one from the organization is what gives it a replica,
+/// and without a second call the replica would not arrive until the next launch.
+///
+/// **The credential is what the member's vault unsealed**, held for the replica by
+/// `workspace_open`, and the remote is on the signed row; nothing is minted and nothing is asked
+/// of anybody. A grant that is gone is the organization's answer that this machine should not be
+/// holding that replica any more, and the replica goes with it. *The control plane's mint stood
+/// here until the retirement; a machine reached it on every launch to be told the same thing.*
 ///
 /// **Whatever is held is let go of first, and that is the one-file rule rather than tidiness.**
 /// `sqlx` and `turso` are in disjoint locking domains — `database/mod.rs` has the detail — so a
 /// pool left open on the file the replica is about to take would be a second writer nothing
 /// reports. Taking the engine out before building the next one is what makes the swap safe.
 pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
-    // **Minted before the database lock is taken**, because it reaches the network, and holding the
-    // one lock every query needs while waiting on a control plane would stall the application for
-    // as long as the request takes.
-    //
-    // **A mint that failed falls back to the URL this machine already recorded, and that is the
-    // offline case rather than a fallback for tidiness.** Opening the plain-file arm instead would
-    // put `sqlx` on the file the replica owns — two engines over one file, which `database/mod.rs`
-    // says nothing reports until the corruption does. `bootstrap_if_empty(false)` is what makes the
-    // replica open anyway; the token function fails per request until a mint succeeds, and reads
-    // and writes go on reaching the local file throughout, which is requirement 7.
     // **What this machine is holding, reconciled against what is on disk.** The tracked list is how
     // a later launch knows a replica exists at all; an entry whose file somebody deleted by hand
     // would otherwise sit there forever, and a machine that could not say what it holds cannot be
     // asked to stop holding it.
     forget_replicas_no_longer_on_disk(app_state).await;
 
-    // **The membership check is the mint**, which is the whole reason this is not a separate call:
-    // the control plane consults membership on every mint, so a refusal naming it is the service
-    // saying this machine should not be holding that replica any more. Every other outcome leaves
-    // the replica where it is.
-    let standing = crate::sync::mint_workspace(app_state).await;
+    let standing = organization_standing(app_state).await;
 
     let workspace = {
         let remote_sync = app_state.remote_sync.read().await;
@@ -122,7 +125,7 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
             .map(|id| (id, workspace.remote_url))
     };
 
-    if matches!(standing, crate::sync::WorkspaceStanding::MembershipEnded)
+    if matches!(standing, WorkspaceStanding::GrantEnded)
         && let Some((workspace_id, _)) = workspace.as_ref()
     {
         release_replica(app_state, workspace_id).await;
@@ -130,19 +133,13 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
         // **The machine has to end up somewhere a person can act from**, and an empty database is
         // not it: `connect()` opens a file with no schema, the first reconcile throws, and every
         // later launch repeats the whole thing because nothing cleared the workspace it was refused
-        // from. So the workspace and the session both go, which drops this machine to the sign-in
-        // wall — and signing in gives it a workspace again.
+        // from. So the workspace goes, which leaves the member with the workspaces they still hold,
+        // or with nowhere to go, which is a state the shell draws.
         {
             let mut remote_sync = app_state.remote_sync.write().await;
 
             if let Err(error) = remote_sync.forget_remote_workspace() {
                 diagnostics::error("startup.replica.notForgotten")
-                    .with("error", error.to_string())
-                    .write();
-            }
-
-            if let Err(error) = remote_sync.forget_control_plane_session() {
-                diagnostics::error("sync.session.notForgotten")
                     .with("error", error.to_string())
                     .write();
             }
@@ -156,10 +153,11 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
     }
 
     let remote_url = match standing {
-        crate::sync::WorkspaceStanding::Minted(url) => Some(url),
-        // **Offline falls back to the url this machine already recorded**, rather than to the
-        // plain-file arm. Opening `sqlx` on the file the replica owns is two engines over one file,
-        // which `database/mod.rs` says nothing reports until the corruption does.
+        WorkspaceStanding::Held(url) => Some(url),
+        // **Nobody in, or nothing open, falls back to the url this machine already recorded**,
+        // rather than to the plain-file arm where one is recorded. Opening `sqlx` on the file the
+        // replica owns is two engines over one file, which `database/mod.rs` says nothing reports
+        // until the corruption does.
         _ => workspace.as_ref().and_then(|(_, url)| url.clone()),
     };
 
@@ -171,9 +169,6 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
     db.disconnect().await;
 
     let Some((workspace_id, _)) = workspace else {
-        // **No workspace to open, and that is the ordinary state of a machine nobody has signed in
-        // on.** The sign-in wall is what the web layer shows; the plain file behind this arm is
-        // nobody's workspace, and it is what the seeded and test paths use.
         return db.connect().await.err();
     };
 
@@ -183,8 +178,8 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
         .connect_workspace(&workspace_id, remote_url, move || {
             let remote_sync = remote_sync.clone();
 
-            // Resolved before every request rather than captured once, so a re-mint reaches the
-            // next request without the replica being rebuilt.
+            // Resolved before every request rather than captured once, so a credential collected
+            // again after a lock-out reaches the next request without the replica being rebuilt.
             async move {
                 remote_sync.read().await.workspace_token().ok_or_else(|| {
                     turso::Error::Error("this machine holds no workspace credential".to_string())
@@ -197,20 +192,25 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
     }
 
     // Every *other* replica this machine holds, asked the same question. The current one was just
-    // answered by the mint above.
-    release_replicas_membership_ended(app_state, Some(&workspace_id)).await;
+    // answered above.
+    release_replicas_grant_ended(app_state, Some(&workspace_id)).await;
 
     // **Tracked from the moment it exists**, so that a later launch knows this machine is holding a
-    // workspace for an account and whose it is. Nothing else records it: the workspace record says
-    // which workspace is *current*, and a machine can hold replicas for accounts nobody is signed
+    // workspace for a member and whose it is. Nothing else records it: the workspace record says
+    // which workspace is *current*, and a machine can hold replicas for members nobody is signed
     // in as.
     {
+        let member_id = app_state
+            .member
+            .read()
+            .await
+            .as_ref()
+            .map(|member| member.member_id.clone());
         let mut remote_sync = app_state.remote_sync.write().await;
-        let account_id = remote_sync.session_window().map(|window| window.account_id);
 
-        if let Some(account_id) = account_id
+        if let Some(member_id) = member_id
             && let Err(error) =
-                remote_sync.remember_replica(&workspace_id, &account_id, crate::timestamp::now())
+                remote_sync.remember_replica(&workspace_id, &member_id, crate::timestamp::now())
         {
             diagnostics::error("startup.replica.notTracked")
                 .with("error", error.to_string())
@@ -231,7 +231,8 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
 
     if !db.is_ready().await {
         return Some(Error::Network {
-            message: "this workspace has not reached this machine yet. connect to the network and                       try again"
+            message: "this workspace has not reached this machine yet. connect to the network and \
+                      try again"
                 .to_string(),
         });
     }
@@ -273,26 +274,37 @@ async fn release_replica(app_state: &AppState, workspace_id: &str) {
 /// Ask, for every replica this machine holds, whether it is still allowed to hold it.
 ///
 /// **This is the check over the tracked list**, and it is separate from the current workspace's
-/// because that one is answered by the mint the startup path makes anyway. What this covers is the
-/// rest: a machine that has held workspaces for more than one account, or one whose current
-/// workspace is not the only replica on disk.
+/// because that one is answered on the way in. What this covers is the rest: a machine that has
+/// held workspaces for more than one member, or one whose current workspace is not the only
+/// replica on disk.
 ///
-/// **A replica whose account cannot be authenticated as is left alone**, which is most of them
-/// after a sign-out: the credentials went with it, so there is nobody to ask. Membership is what
-/// keeps a replica, and a question that cannot be put is not an answer that membership ended.
-async fn release_replicas_membership_ended(app_state: &AppState, current: Option<&str>) {
+/// **A replica held for somebody else is left alone**, which is most of them after a sign-out:
+/// only the member whose vault is open can be asked what they hold, and a question that cannot be
+/// put is not an answer that the grant ended. A replica this member held and holds no grant on
+/// any more goes.
+async fn release_replicas_grant_ended(app_state: &AppState, current: Option<&str>) {
     let held = { app_state.remote_sync.read().await.local_replicas() };
+    let (member_id, granted): (Option<String>, Vec<String>) = {
+        let member = app_state.member.read().await;
+
+        match member.as_ref() {
+            Some(member) => (
+                Some(member.member_id.clone()),
+                member.workspace_credentials.keys().cloned().collect(),
+            ),
+            None => (None, Vec::new()),
+        }
+    };
+    let Some(member_id) = member_id else {
+        return;
+    };
 
     for replica in held {
-        if current == Some(replica.workspace_id.as_str()) {
+        if current == Some(replica.workspace_id.as_str()) || replica.member_id != member_id {
             continue;
         }
 
-        if matches!(
-            crate::sync::check_membership(app_state, &replica.workspace_id, &replica.account_id)
-                .await,
-            crate::sync::WorkspaceStanding::MembershipEnded
-        ) {
+        if !granted.contains(&replica.workspace_id) {
             release_replica(app_state, &replica.workspace_id).await;
         }
     }
@@ -334,4 +346,29 @@ async fn forget_replicas_no_longer_on_disk(app_state: &AppState) {
                 .write();
         }
     }
+}
+
+/// Where the current workspace stands for the member who is in: held, with the credential their
+/// vault unsealed handed to the replica; ended, where they hold no grant on it any more; or
+/// nothing, where nobody is in or nothing is open.
+async fn organization_standing(app_state: &AppState) -> WorkspaceStanding {
+    let member = app_state.member.read().await;
+    let Some(member) = member.as_ref() else {
+        return WorkspaceStanding::Nothing;
+    };
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let workspace = remote_sync.workspace();
+    let Some(remote_id) = workspace.remote_id.as_deref() else {
+        return WorkspaceStanding::Nothing;
+    };
+    let Some(held) = member.workspace_credentials.get(remote_id) else {
+        return WorkspaceStanding::GrantEnded;
+    };
+    let Some(url) = workspace.remote_url.clone() else {
+        return WorkspaceStanding::Nothing;
+    };
+
+    remote_sync.hold_organization_workspace_token(&held.token);
+
+    WorkspaceStanding::Held(url)
 }

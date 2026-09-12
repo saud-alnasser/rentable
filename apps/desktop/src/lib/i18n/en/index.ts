@@ -3,6 +3,17 @@ import type { BaseTranslation } from '../i18n-types';
 const en = {
 	account: {
 		groupIdentity: 'signed in as',
+		password: {
+			title: 'password',
+			description:
+				'the password that unlocks your place in the organization, on every machine you sign in from.',
+			currentLabel: 'current password',
+			nextLabel: 'new password',
+			confirmLabel: 'new password, again',
+			mismatch: 'the two do not match.',
+			change: 'change password',
+			changed: 'your password was changed.'
+		},
 		title: 'account'
 	},
 
@@ -213,6 +224,7 @@ const en = {
 			complexes: 'complexes',
 			contracts: 'contracts',
 			dashboard: 'dashboard',
+			organization: 'organization',
 			payments: 'payments',
 			primary: 'primary',
 			settings: 'settings',
@@ -369,23 +381,39 @@ const en = {
 			members: '{count|number} member(s)'
 		},
 
-		signIn: {
-			authorizing: 'finish signing in with Google in the browser window that just opened.',
-			signInWithGoogle: 'sign in with Google',
+		changePassword: {
+			title: 'choose your password',
 			description:
-				'your workspace lives in your account, so it follows you to whichever machine you sign in on. the first sign-in is what creates it.',
-			finalizing: 'signing you in...',
-			incomplete:
-				'you are signed in with Google, but this machine could not reach rentable to open your workspace. check your connection and try again.',
-			incompleteDescription:
-				'this machine is signed in. what it has not done yet is reach rentable, and that is the only step left.',
-			incompleteTitle: 'almost in',
-			reaching: 'reaching rentable...',
-			tryAgain: 'try again',
-			useDifferentAccount: 'sign in with a different account',
-			lockedDescription:
-				'this machine has been out of contact for too long to keep working offline. sign in again to unlock it — your workspace and everything in it are untouched.',
-			lockedTitle: 'sign in again to continue',
+				'the password you were handed was drawn by somebody else. choose your own before going on; nothing else opens until you do.',
+			handedLabel: 'the password you were handed'
+		},
+		noWorkspace: {
+			nameLabel: 'workspace name',
+			create: 'create workspace',
+			creating:
+				'creating the workspace on your turso account, and giving it its shape. this takes a moment.',
+			created: 'the workspace was created.',
+			ownerOnly:
+				'an owner creates the first workspace, from the machine that connected the turso account. ask the owner.',
+			title: 'no workspace yet',
+			description: 'this organization holds no workspace. an owner creates the first one.'
+		},
+
+		signIn: {
+			noOrganizationTitle: 'no organization on this machine yet',
+			noOrganizationDescription:
+				'set one up on your own turso account. everything in it stays there.',
+			organizationDescription:
+				'your password unlocks your place in the organization, on this machine, with or without a connection.',
+			organization: 'organization',
+			password: 'password',
+			unlock: 'unlock',
+			unlocking: 'unlocking your place in the organization. this takes a moment on purpose.',
+			roleOwner: 'owner',
+			roleAdministrator: 'administrator',
+			roleMember: 'member',
+			setUpOrganization: 'set up an organization instead',
+			openInvitation: 'open an invitation link',
 			title: 'Login'
 		},
 
@@ -403,6 +431,10 @@ const en = {
 			stageAccount: 'checking your account',
 			stageChanges: 'checking for changes',
 			stageRecords: 'bringing records up to date',
+			migrationApplying:
+				'bringing the workspace up to this version of rentable. this reaches turso and takes a moment; nothing here is stuck.',
+			migrationWaiting:
+				'another member is bringing the workspace up to this version of rentable. waiting on them, until {until} at the latest.',
 			stageSettings: 'reading your settings',
 			stageWorkspace: 'opening your workspace'
 		}
@@ -701,10 +733,136 @@ const en = {
 		endingSoonUpdated: 'ending soon notice window updated successfully!',
 		profileSwitched: 'workspace switched successfully!',
 		workspaceUpToDate: 'this workspace is up to date!',
-		startupRecoveryCleared:
-			'startup recovery cleared. retrying the current version is now allowed.',
-		sessionExpired:
-			'this workspace has been offline for three days. sign in with Google again to keep it in sync — nothing you recorded has been lost.'
+		startupRecoveryCleared: 'startup recovery cleared. retrying the current version is now allowed.'
+	},
+
+	organization: {
+		setup: {
+			setupTitle: 'set up an organization',
+			setupDescription:
+				'rentable runs on a turso account you own. your records live there, and nowhere of ours.',
+			connectTitle: 'connect your turso account',
+			connectDescription: 'one consent in the browser, and nothing is pasted or typed here.',
+			groupPreparation:
+				"first, in turso's own dashboard, create an empty group for rentable and pick it on the consent screen. the consent grants rentable authority over that one group, so an empty one keeps that authority to the databases rentable creates.",
+			accountCreation: 'no turso account yet? the consent screen is where you make one.',
+			succession:
+				'the organization will live in whichever turso organization holds the group you pick. if that is a personal account, only you can grant rentable authority over it again. a second administrator on a turso organization can do the same, and turso can move a group to another organization from its own dashboard. rentable does neither for you.',
+			openDashboard: 'open turso dashboard',
+			connect: 'connect turso account',
+			connecting: 'finish the consent in the browser window that just opened.',
+			connected: 'turso account connected.',
+			consentAbandoned: 'the consent was not granted. nothing was created.',
+			consentFailed: 'turso refused the consent.',
+			nameTitle: 'name it',
+			nameDescription:
+				"the organization's name, and the password that unlocks your place in it. nothing else is typed here.",
+			nameLabel: 'organization name',
+			nameRequired: 'give the organization a name.',
+			nameTooLong: 'that name is too long.',
+			passwordLabel: 'your password',
+			passwordFloor:
+				'use at least 12 characters. there is no server to slow a guess down, so the password is the only thing between anybody holding the records and reading them.',
+			passwordTooShort: 'use at least 12 characters.',
+			create: 'create organization',
+			creating: 'creating the organization on your turso account...',
+			doneTitle: 'your organization is ready',
+			doneDescription:
+				'hand this link to the people you invite. it finds the organization and nothing more; each invitation and password are separate.',
+			linkLabel: 'join link',
+			copyLink: 'copy link',
+			linkCopied: 'link copied.',
+			notYetSent:
+				'the organization is on this machine and will reach turso when the connection returns. the link works once it has.',
+			continue: 'continue',
+			back: 'back'
+		},
+		join: {
+			title: 'join an organization',
+			description:
+				'open the invitation you were handed: a link, and the password that came with it.',
+			linkLabel: 'invitation link',
+			open: 'open link',
+			reading: 'reading the invitation...',
+			unreadable:
+				'this is not a rentable invitation link. paste the whole link, exactly as it was handed to you.',
+			unreachable:
+				'the organization could not be reached. the link is right; try again once the connection is back.',
+			tryAgain: 'try again',
+			pasteAnother: 'paste another link',
+			found: 'this link finds {name}.',
+			refusedLapsed:
+				'the invitation has lapsed. ask whoever invited you for a new one; the link itself does not expire.',
+			refusedConsumed: 'the invitation was already used. sign in with your password instead.',
+			refusedRevoked: 'the invitation was revoked. ask whoever invited you for a new one.',
+			restoreDescription:
+				"this is the organization's own link. if you already have a place in it, your password opens it on this machine too.",
+			emailLabel: 'your email',
+			emailOptional:
+				'the address you were invited with. the owner was invited with none and leaves this empty.',
+			restore: 'restore my place',
+			passwordLabel: 'the password you were handed',
+			join: 'join',
+			signInInstead: 'sign in instead'
+		},
+		dashboard: {
+			members: 'members',
+			invitations: 'invitations',
+			workspaces: 'workspaces',
+			inviteTitle: 'invite somebody',
+			inviteDescription:
+				'an invitation makes their place in the organization. you hand them the link and the password yourself.',
+			email: 'email',
+			role: 'role',
+			administratorsAreTheOwners: 'only the owner can invite an administrator.',
+			noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
+			invite: 'invite',
+			cannotSend:
+				'rentable sends nothing. copy the link and the password below and hand them to the person yourself; the password is shown once.',
+			generatedPassword: 'generated password',
+			passwordOnce:
+				'this is the only time the password is shown. they change it on their first sign-in.',
+			copyPassword: 'copy password',
+			passwordCopied: 'password copied.',
+			done: 'done',
+			notYetSignedIn: 'not yet signed in',
+			resetPassword: 'reset password',
+			linkTitle: 'organization link',
+			linkDescription:
+				'the link that adds this organization on another machine, and the one you restore it from if this machine is lost. it carries a read-only view of the directory, so share it the way you would a password.',
+			authorityTitle: 'turso account',
+			authorityDescription:
+				"this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.",
+			authorityReconnected: 'the turso account is connected on this machine.',
+			remove: 'remove',
+			removeDescription:
+				'they stop being renewed, so their access ends when their credential runs out, within four weeks, and nobody else is affected. what is already on their machine stays there; nothing reaches into it.',
+			removeAndLockOut: 'remove and lock out',
+			lockOutReading: 'reading which workspaces this touches...',
+			lockOutDescription:
+				'their access to {workspaces} ends at once. turso revokes per workspace and totally, so {count|number} other member(s) of those workspaces stop syncing until their application reconnects, which it does on its own. what is already on their machine stays there.',
+			removed: 'the member was removed. their access ends when their credential runs out.',
+			lockedOut:
+				'the member was locked out. {count|number} other member(s) reconnect on their own.',
+			unreachableWorkspaces:
+				'you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.',
+			standingOpen: 'open',
+			standingLapsed: 'lapsed',
+			standingConsumed: 'used',
+			noInvitations: 'no invitations.',
+			revoke: 'revoke',
+			revoked: 'the invitation was revoked.',
+			noWorkspaces: 'no workspace yet.',
+			accessFull: 'full access',
+			accessReadOnly: 'read only'
+		},
+		disconnectAction: 'disconnect turso account',
+		disconnectDescription:
+			'this machine holds a token for the turso account your organization lives on. disconnecting forgets it here, and nothing on this machine can reach that account afterwards.',
+		disconnectRevokes:
+			"forgetting the token does not revoke it. what you granted stays granted until you end it yourself, on turso's own dashboard at app.turso.tech.",
+		disconnectRevokesAt: 'app.turso.tech',
+		disconnected: 'this machine no longer holds a token for your turso account.'
 	},
 
 	workspace: {
@@ -713,7 +871,6 @@ const en = {
 		groupSync: 'sync',
 		groupTransfer: 'export / import',
 		identityDescription: 'the picture is a placeholder, and not something that can be changed yet.',
-		inviteLocked: 'invite',
 		membersDescription:
 			'one person, and only one is possible today. inviting anybody else arrives with organizations.',
 		nameTooLong: 'that name is too long.',
@@ -724,12 +881,18 @@ const en = {
 		roleOwner: 'owner',
 		syncDescription:
 			'this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.',
-		syncStatusCannotSignIn: 'cannot sign in',
 		syncStatusNeedsReconnect: 'needs reconnect',
-		syncStatusNoControlPlane: 'syncs nowhere',
-		syncStatusNotSignedIn: 'not signed in',
-		syncStatusPending: 'awaiting authorization',
 		syncStatusSynced: 'synced',
+		syncStatusAccountRefused: 'account needs attention',
+		syncStatusCredentialRefused: 'access needs attention',
+		credentialRefused:
+			"your access to this workspace was refreshed, and this machine is collecting the new credential. if it does not clear on its own, ask the organization's owner. everything here keeps working meanwhile.",
+		accountRefusedMember:
+			"the organization's turso account needs attention, so nothing is reaching turso for now. tell {owner}. everything here keeps working on this machine, and what you write goes out once it is seen to.",
+		accountRefusedOwner:
+			"turso is refusing the organization's account: {detail}. everything keeps working on this machine, and what is written goes out once the account is seen to. the place to see to it is turso's own dashboard at app.turso.tech, under the organization that holds your group.",
+		accountRefusedOwnerNoDetail:
+			"turso is refusing the organization's account. everything keeps working on this machine, and what is written goes out once the account is seen to. the place to see to it is turso's own dashboard at app.turso.tech, under the organization that holds your group.",
 		transferDescription:
 			'write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.',
 		title: 'workspace'

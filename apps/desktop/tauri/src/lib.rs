@@ -5,6 +5,7 @@ pub mod error;
 pub mod export;
 pub mod http;
 mod import;
+pub mod organization;
 pub mod persisted;
 pub mod settings;
 pub mod state;
@@ -17,8 +18,9 @@ use database::Database;
 use state::AppState;
 use std::env;
 use std::path::PathBuf;
-use std::sync::Arc;
-use tauri::{Manager, async_runtime};
+use std::sync::{Arc, Mutex};
+use tauri::{Emitter, Manager, async_runtime};
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_fs::FsExt;
 use tokio::sync::RwLock;
 
@@ -26,7 +28,33 @@ use crate::diagnostics::{DiagnosticLog, RotationLimits};
 use crate::persisted::Persisted;
 use crate::settings::Settings;
 use crate::sync::RemoteSync;
+use crate::sync::turso::consent::TursoConsent;
 use crate::update::Update;
+
+/// The event the shell listens to for a link that arrives while it is running.
+pub const LINK_ARRIVED_EVENT: &str = "organization:link";
+
+/// A `rentable://` link reached this process: hold it for the shell to take, and tell the shell.
+/// Held as well as announced because the two races both happen: a launch hands the link over
+/// before the webview exists, and an arrival while running finds the webview listening.
+fn arrive(handle: &tauri::AppHandle, link: String) {
+    if let Some(state) = handle.try_state::<AppState>()
+        && let Ok(mut arriving) = state.arriving_link.lock()
+    {
+        *arriving = Some(link.clone());
+    }
+
+    if let Err(error) = handle.emit(LINK_ARRIVED_EVENT, link) {
+        diagnostics::warn("organization.link.notAnnounced")
+            .with("error", error.to_string().as_str())
+            .write();
+    }
+
+    if let Some(window) = handle.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -42,6 +70,19 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        // first, so that a second launch with a link on its command line reaches the instance
+        // already running rather than starting another: the `deep-link` feature hands the
+        // arguments to the deep-link plugin below, whose handler is the one place a link lands.
+        .plugin(tauri_plugin_single_instance::init(
+            |app, _arguments, _cwd| {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
+                }
+            },
+        ))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -129,8 +170,44 @@ pub fn run() {
                     settings,
                     remote_sync,
                     update,
+                    consent: Arc::new(TursoConsent::new()),
+                    organization: Arc::new(RwLock::new(None)),
+                    member: Arc::new(RwLock::new(None)),
+                    arriving_link: Arc::new(Mutex::new(None)),
                 });
             });
+
+            // **How a join link reaches the application** (`organization/join.rs` records the
+            // decision). The `rentable` scheme is registered with the operating system by the
+            // installer on Windows and Linux and by `Info.plist` on macOS, from the plugin's
+            // configuration; a development build has no installer, so it registers the scheme for
+            // its own executable here, and a failure to is logged rather than fatal, because the
+            // join screen also takes a pasted link.
+            #[cfg(any(windows, target_os = "linux"))]
+            if let Err(error) = app.deep_link().register_all() {
+                diagnostics::warn("organization.link.schemeNotRegistered")
+                    .with("error", error.to_string().as_str())
+                    .write();
+            }
+
+            // a link opened while the application runs, or forwarded by the second launch the
+            // single-instance plugin turned away: held for the shell to take, and announced to it.
+            let handle = app.handle().clone();
+
+            app.deep_link().on_open_url(move |event| {
+                let Some(link) = event.urls().first().map(|url| url.to_string()) else {
+                    return;
+                };
+
+                arrive(&handle, link);
+            });
+
+            // the link this process was launched with, if any.
+            if let Ok(Some(urls)) = app.deep_link().get_current()
+                && let Some(link) = urls.first().map(|url| url.to_string())
+            {
+                arrive(app.handle(), link);
+            }
 
             Ok(())
         })
@@ -148,13 +225,37 @@ pub fn run() {
             settings::settings_set,
             diagnostics::diagnostics_write,
             sync::remote_sync_state_get,
-            sync::remote_sync_renew_session,
             sync::remote_sync_rename_workspace,
-            sync::remote_sync_establish_session,
             sync::remote_sync_replicate,
             sync::remote_sync_push,
-            sync::google_sign_in,
-            sync::google_sign_out,
+            sync::organization_consent_begin,
+            sync::organization_consent_result,
+            sync::organization_disconnect,
+            organization::organization_create,
+            organization::organization_state_get,
+            organization::organization_sign_in,
+            organization::organization_sign_out,
+            organization::workspace_create,
+            organization::workspace_grant,
+            organization::workspace_delete,
+            organization::workspace_open,
+            organization::organization_renew_credentials,
+            organization::organization_renew_due,
+            organization::organization_own_link,
+            organization::member_invite,
+            organization::member_reset,
+            organization::member_remove,
+            organization::member_lock_out_cost,
+            organization::organization_change_password,
+            organization::organization_account_refusal_detail,
+            organization::invitation_revoke,
+            organization::organization_members,
+            organization::organization_invitations,
+            organization::organization_link_take,
+            organization::organization_link_inspect,
+            organization::organization_join,
+            organization::organization_restore,
+            organization::organization_reconnect_authority,
             export::export_write,
             export::export_write_workbook,
             import::import_read,

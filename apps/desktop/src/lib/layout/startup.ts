@@ -1,5 +1,5 @@
-import type { GoogleSignInPhase, Recovery, RemoteSyncState } from '$lib/platform/host';
-import { workspaceAdmission } from '$lib/sync/admission';
+import type { OrganizationState, Recovery, RemoteSyncState } from '$lib/platform/host';
+import { organizationAdmission } from '$lib/sync/admission';
 import { toUtcDay } from '$lib/api/date';
 import type { StartupStage } from './startup-stage';
 
@@ -30,11 +30,21 @@ import type { StartupStage } from './startup-stage';
  * *`choose-workspace` went with Google Drive sync (decision 07). It offered two things, open the
  * workspace kept on this machine or link a Drive folder, and there is one workspace, created at
  * sign-up, with nothing to choose between.*
+ *
+ * **`no-workspace` arrived with organizations.** A member is admitted by their password, and what
+ * they are admitted to is whichever workspaces they hold a grant on; an organization whose owner
+ * has not created one yet admits its members to nothing, which is a state of its own rather than a
+ * failure to start. Creating one is the workspace ticket's; this state is where that surface goes.
  */
-export type StartupState = 'loading' | 'sign-in' | 'ready' | 'error' | 'recovery';
+export type StartupState =
+	'loading' | 'sign-in' | 'change-password' | 'no-workspace' | 'ready' | 'error' | 'recovery';
 
-/** why the wall is up, which is only read while it is. */
-export type SignInReason = 'noAccount' | 'windowClosed' | 'noSession';
+/**
+ * why the wall is up, which is only read while it is. The organization's two reasons, from
+ * `sync/admission.ts`; the three that named an account and a session window went with the service
+ * that issued them.
+ */
+export type SignInReason = 'noOrganization' | 'locked';
 
 /** everything the shell draws itself from. Read-only to it; only this unit writes. */
 export type StartupSnapshot = {
@@ -43,6 +53,8 @@ export type StartupSnapshot = {
 	error: string | null;
 	recovery: Recovery | null;
 	remoteSync: RemoteSyncState | null;
+	/** where this machine stands with organizations, which is what the wall admits on. */
+	organization: OrganizationState | null;
 	signInReason: SignInReason;
 	/**
 	 * whether the rail has been on screen yet in this run.
@@ -63,9 +75,8 @@ export type StartupSnapshot = {
 	 * clears the error, and nothing on this side of the gate has anything left to draw.
 	 */
 	hasFailedUnreadable: boolean;
+	/** a password is being tried, which is a key derivation a person is waiting on. */
 	isSigningIn: boolean;
-	isRetryingSession: boolean;
-	signInPhase: GoogleSignInPhase | null;
 };
 
 /** what a sync manager reported, as this unit needs to read it. */
@@ -74,8 +85,8 @@ export type SyncOutcome = { action: string; received: boolean };
 /**
  * What startup reaches for outside itself.
  *
- * Grouped by the thing being reached rather than by the call, so a fake supplies a window or a
- * control plane rather than eleven unrelated functions.
+ * Grouped by the thing being reached rather than by the call, so a fake supplies a window or an
+ * organization rather than eleven unrelated functions.
  */
 export type StartupPorts = {
 	window: {
@@ -87,10 +98,23 @@ export type StartupPorts = {
 	settings: { get(): Promise<{ locale?: string | null }> };
 	remoteSync: {
 		getState(): Promise<RemoteSyncState>;
-		establishSession(): Promise<RemoteSyncState>;
 	};
-	/** the consent screen's progress, so the wall can say which step it is on. */
-	auth: { onPhase(listen: (phase: GoogleSignInPhase) => void): Promise<() => void> };
+	/** the organizations this machine has joined, and the vault a password opens. */
+	organization: {
+		getState(): Promise<OrganizationState>;
+		signIn(organizationId: string, password: string): Promise<OrganizationState>;
+		/** join the organization a link names with the generated password, and sign in to it. */
+		join(link: string, password: string): Promise<OrganizationState>;
+		/** restore a place in the organization its own link names, by email and password. */
+		restore(link: string, email: string, password: string): Promise<OrganizationState>;
+		/** change the signed-in member's own password, and clear the requirement to. */
+		changePassword(current: string, next: string): Promise<OrganizationState>;
+		signOut(): Promise<OrganizationState>;
+		/** open one of the workspaces the session holds a grant on, before the bootstrap. */
+		openWorkspace(workspaceId: string): Promise<unknown>;
+		/** renew credentials close to lapsing, on the owner's machine, best effort. */
+		renewDue(): Promise<boolean>;
+	};
 	workspace: {
 		bootstrap(): Promise<Recovery>;
 		reconcile(): Promise<{ reconciledAt: number }>;
@@ -98,11 +122,6 @@ export type StartupPorts = {
 		syncBeforeExit(state: RemoteSyncState | null): Promise<{ state: RemoteSyncState }>;
 		/** a pull landed rows; announce them and say the day they were reconciled on. */
 		announceReceived(): Promise<number>;
-	};
-	signIn: {
-		withGoogle(): Promise<RemoteSyncState>;
-		/** abandoning the consent screen is an answer rather than a failure. */
-		isCancellation(error: unknown): boolean;
 	};
 	locale: {
 		load(locale: string): Promise<void>;
@@ -122,8 +141,6 @@ export type StartupPorts = {
 	};
 	/** a thrown value as a reader should see it. The route's translations, from outside. */
 	describeError(error: unknown): string;
-	/** the window closed with no contact, so replication stopped. The one outcome to act on. */
-	onSessionExpired(): void;
 	recordFailure(message: string): void;
 	reportStage(stage: StartupStage): void;
 	reportComplete(): void;
@@ -135,13 +152,12 @@ const INITIAL: StartupSnapshot = {
 	error: null,
 	recovery: null,
 	remoteSync: null,
-	signInReason: 'noAccount',
+	organization: null,
+	signInReason: 'noOrganization',
 	railIsUp: false,
 	isI18nReady: false,
 	hasFailedUnreadable: false,
-	isSigningIn: false,
-	isRetryingSession: false,
-	signInPhase: null
+	isSigningIn: false
 };
 
 /**
@@ -251,7 +267,16 @@ export class Startup {
 	 * to: what follows an unadmitted machine is the wall, and it is already up by then.
 	 */
 	async #admit() {
-		const admission = workspaceAdmission(this.#snapshot.remoteSync, this.#ports.now());
+		const admission = organizationAdmission(this.#snapshot.organization);
+
+		// a person is in, on a password somebody else drew: the rail is up and the one thing on
+		// offer is choosing their own. The shell refuses everything else for them regardless.
+		if (admission.kind === 'passwordChangeRequired') {
+			this.#set({ error: null, recovery: null, state: 'change-password', railIsUp: true });
+			await this.#ports.window.show();
+
+			return false;
+		}
 
 		if (admission.kind !== 'signInRequired') {
 			return true;
@@ -260,6 +285,46 @@ export class Startup {
 		await this.#raiseSignInWall(admission.reason);
 
 		return false;
+	}
+
+	/**
+	 * Whether the admitted member has a workspace to open, opening one where they do and drawing
+	 * the state where they do not.
+	 *
+	 * **Admitted and going nowhere is a state rather than a failure.** An organization whose owner
+	 * has created no workspace yet admits its members to nothing behind the wall, and the bootstrap
+	 * that opens a workspace has nothing to open. The rail is up, because a person is in.
+	 *
+	 * **Where there is one, the one this machine had open last is opened again, and otherwise the
+	 * first.** The choice is made here and handed to the shell, which holds the credential the
+	 * vault unsealed for it; the bootstrap that follows finds the replica already named. A
+	 * workspace the session no longer holds a grant on is not reopened, because the grant is what
+	 * says it may be.
+	 */
+	async #hasWorkspace() {
+		const admission = organizationAdmission(this.#snapshot.organization);
+
+		if (admission.kind !== 'admitted') {
+			return true;
+		}
+
+		const { workspaces } = admission.session;
+
+		if (workspaces.length === 0) {
+			this.#set({ error: null, recovery: null, state: 'no-workspace', railIsUp: true });
+			await this.#ports.window.show();
+
+			return false;
+		}
+
+		const last = this.#snapshot.remoteSync?.workspace.remoteId ?? null;
+		const chosen = workspaces.find((workspace) => workspace.id === last) ?? workspaces[0];
+
+		if (chosen) {
+			await this.#ports.organization.openWorkspace(chosen.id);
+		}
+
+		return true;
 	}
 
 	#applyRecovery(recovery: Recovery) {
@@ -298,12 +363,14 @@ export class Startup {
 			return;
 		}
 
-		// **The wall is decided again here, because the bootstrap can change the answer.** It is
-		// what mints, and the mint is what learns this account is no longer a member of the
-		// workspace this machine held, which gives up the workspace and the session. Admitting only
-		// before it would carry on into a database that is no longer anybody's and fail on the
-		// first read, with the same thing happening on every launch after.
-		this.#set({ remoteSync: await this.#ports.remoteSync.getState() });
+		// **The wall is decided again here, because the bootstrap can change the answer.** What it
+		// opens is read back afterwards, and a member whose place changed under them while it ran
+		// meets the wall rather than a database that is no longer theirs. The sync state is read
+		// beside it because the changes stage is what spends it.
+		this.#set({
+			remoteSync: await this.#ports.remoteSync.getState(),
+			organization: await this.#ports.organization.getState()
+		});
 
 		if (!(await this.#admit())) {
 			return;
@@ -364,14 +431,21 @@ export class Startup {
 			}
 
 			this.#ports.reportStage('account');
-			this.#set({ remoteSync: await this.#ports.remoteSync.getState() });
+			this.#set({
+				remoteSync: await this.#ports.remoteSync.getState(),
+				organization: await this.#ports.organization.getState()
+			});
 
 			// **The wall, and everything below this line is behind it.** The bootstrap opens the
 			// database and the reconcile writes to it, so requirement 3 is this ordering rather than
-			// a screen: none of it runs before there is an account. The locale is loaded above it
+			// a screen: none of it runs before somebody is admitted. The locale is loaded above it
 			// just as deliberately, because the wall itself has to be readable in the language its
 			// reader chose.
 			if (!(await this.#admit())) {
+				return;
+			}
+
+			if (!(await this.#hasWorkspace())) {
 				return;
 			}
 
@@ -385,48 +459,37 @@ export class Startup {
 	/**
 	 * Sign in at the wall, and go straight on into the application on the far side of it.
 	 *
-	 * The two failures are kept apart deliberately. A sign-in that fails leaves the wall up and
-	 * says why on it: the person is still standing at it, and an error screen would take away the
-	 * control they need. A startup that fails after a sign-in has succeeded is the ordinary failure
-	 * every other path here reports, and reads as one.
+	 * **One call, and it is a key derivation a person is waiting on.** The password is handed to
+	 * the shell and never held here; what comes back is where the machine stands, and the wall
+	 * reads that. A wrong password is a failure the wall says, with the one sentence the shell
+	 * allows it: the value did not open. The person is still standing at the wall, so an error
+	 * screen would take away the control they need. A startup that fails after the sign-in has
+	 * succeeded is the ordinary failure every other path here reports, and reads as one.
 	 */
-	async signIn() {
+	async signIn(organizationId: string, password: string) {
 		if (this.#snapshot.isSigningIn) {
 			return;
 		}
 
-		this.#set({ isSigningIn: true, signInPhase: 'authorizing', error: null });
-
-		// opened before the call and closed after it: an event that arrives with nobody listening
-		// is the only way this screen can miss the moment the consent screen was answered.
-		const unlistenPhase = await this.#ports.auth.onPhase((phase) => {
-			this.#set({ signInPhase: phase });
-		});
+		this.#set({ isSigningIn: true, error: null });
 
 		try {
-			this.#set({ remoteSync: await this.#ports.signIn.withGoogle() });
+			this.#set({ organization: await this.#ports.organization.signIn(organizationId, password) });
 		} catch (error) {
-			// abandoning the consent screen is an answer rather than a failure, and says nothing:
-			// the person closed that window themselves and is looking at this one.
-			if (!this.#ports.signIn.isCancellation(error)) {
-				this.#set({ error: this.#ports.describeError(error) });
-			}
+			this.#set({ error: this.#ports.describeError(error) });
 
 			return;
 		} finally {
-			unlistenPhase();
-			this.#set({ isSigningIn: false, signInPhase: null });
+			this.#set({ isSigningIn: false });
 		}
 
 		this.#rememberSession();
 
 		if (!(await this.#admit())) {
-			// signed in with Google, and still not through: the consent screen was answered and the
-			// control plane was not reached, so this machine holds an identity and no session.
-			// `workspaceAdmission` has already named that situation `noSession`, and the wall says so
-			// and offers the call that failed. Answering the consent screen again lands in exactly
-			// the same place. Nothing is set here, which is the point: what the screen says comes
-			// from the state rather than from a sentence written at one of the places that reach it.
+			return;
+		}
+
+		if (!(await this.#hasWorkspace())) {
 			return;
 		}
 
@@ -434,36 +497,124 @@ export class Startup {
 	}
 
 	/**
-	 * Reach the control plane with the identity this machine already holds, and go on if that works.
+	 * Join at the wall, by a link and the generated password, and go straight on in.
 	 *
-	 * **The retry for the `noSession` wall, and it opens no browser.** What failed was one call
-	 * after the sign-in, so this repeats that call and nothing else. Being unreachable again is not
-	 * an error and says nothing new: admission returns the same situation, the wall stays where it
-	 * is, and the notice on it already reads *check your connection and try again*.
+	 * **The same shape as `signIn`, because joining is a sign-in with one step before it and one
+	 * after**: the shell opens the invitation with the link's half and the password, signs the
+	 * person in to the row it names, spends the invitation, and records the organization on this
+	 * machine. What comes back is where the machine stands, and the wall reads that. A refusal
+	 * stays on the join screen with its sentence, for the reason a wrong password stays on the
+	 * sign-in card: the person is still standing at the wall and needs the control.
 	 */
-	async retrySession() {
-		if (this.#snapshot.isRetryingSession || this.#snapshot.isSigningIn) {
-			return;
+	async joinByLink(link: string, password: string) {
+		if (this.#snapshot.isSigningIn) {
+			return false;
 		}
 
-		this.#set({ isRetryingSession: true, error: null });
+		this.#set({ isSigningIn: true, error: null });
 
 		try {
-			this.#set({ remoteSync: await this.#ports.remoteSync.establishSession() });
-			this.#rememberSession();
-
-			if (!(await this.#admit())) {
-				return;
-			}
+			this.#set({ organization: await this.#ports.organization.join(link, password) });
 		} catch (error) {
 			this.#set({ error: this.#ports.describeError(error) });
 
-			return;
+			return false;
 		} finally {
-			this.#set({ isRetryingSession: false });
+			this.#set({ isSigningIn: false });
+		}
+
+		this.#rememberSession();
+
+		if (!(await this.#admit())) {
+			return true;
+		}
+
+		if (!(await this.#hasWorkspace())) {
+			return true;
 		}
 
 		await this.#enterApplication();
+
+		return true;
+	}
+
+	/**
+	 * Restore a place in an organization from its own link, at the wall, and go on in.
+	 *
+	 * The shape `joinByLink` has, because it is the same act from the other side of an
+	 * invitation: the link finds the organization, the password opens the person's vault, and
+	 * where the machine stands is what comes back. An owner arrives with no Turso authority and
+	 * repeats the consent from the dashboard; a member is done.
+	 */
+	async restoreByLink(link: string, email: string, password: string) {
+		if (this.#snapshot.isSigningIn) {
+			return false;
+		}
+
+		this.#set({ isSigningIn: true, error: null });
+
+		try {
+			this.#set({ organization: await this.#ports.organization.restore(link, email, password) });
+		} catch (error) {
+			this.#set({ error: this.#ports.describeError(error) });
+
+			return false;
+		} finally {
+			this.#set({ isSigningIn: false });
+		}
+
+		this.#rememberSession();
+
+		if (!(await this.#admit())) {
+			return true;
+		}
+
+		if (!(await this.#hasWorkspace())) {
+			return true;
+		}
+
+		await this.#enterApplication();
+
+		return true;
+	}
+
+	/**
+	 * Choose a password of one's own, on the screen that requires it, and go on in.
+	 *
+	 * The same shape as `signIn`: two passwords handed to the shell and never held, a refusal
+	 * shown on the screen the person is standing at, and the ordinary path past the wall once the
+	 * requirement is cleared. Two derivations rather than one, which is why it says it is working.
+	 */
+	async changePassword(current: string, next: string) {
+		if (this.#snapshot.isSigningIn) {
+			return false;
+		}
+
+		this.#set({ isSigningIn: true, error: null });
+
+		try {
+			this.#set({ organization: await this.#ports.organization.changePassword(current, next) });
+		} catch (error) {
+			this.#set({ error: this.#ports.describeError(error) });
+
+			return false;
+		} finally {
+			this.#set({ isSigningIn: false });
+		}
+
+		this.#rememberSession();
+
+		if (!(await this.#admit())) {
+			return true;
+		}
+
+		if (!(await this.#hasWorkspace())) {
+			return true;
+		}
+
+		await this.#enterApplication();
+
+		return true;
 	}
 
 	/**
@@ -489,7 +640,15 @@ export class Startup {
 			await this.#continue();
 		} catch (error) {
 			await this.#fail(error);
+
+			return;
 		}
+
+		// the owner's machine keeps the organization's credentials from lapsing. It is best effort
+		// and fired here rather than awaited: it reaches Turso, and entering the application must not
+		// wait on a network or fail with it, which is what lets sign-in work offline (requirement 18).
+		// A machine that is not the owner's, or has nothing due, does nothing.
+		void this.#ports.organization.renewDue().catch(() => {});
 	}
 
 	/** Try the whole startup again. What the failure and recovery screens offer. */
@@ -498,15 +657,62 @@ export class Startup {
 	}
 
 	/**
+	 * Where the machine stands changed under the shell: read it again, admit on it, open a
+	 * workspace where there is one, and go on into the application. The same path a sign-in takes
+	 * past the wall, for the two things that happen beside the wall rather than at it: the
+	 * no-workspace surface created a workspace for the member who is in, and the first run
+	 * created an organization and signed its owner in on a route the wall had let through.
+	 */
+	async standingChanged() {
+		try {
+			this.#set({ organization: await this.#ports.organization.getState() });
+		} catch (error) {
+			this.#set({ error: this.#ports.describeError(error) });
+
+			return;
+		}
+
+		this.#rememberSession();
+
+		if (!(await this.#admit())) {
+			return;
+		}
+
+		if (!(await this.#hasWorkspace())) {
+			return;
+		}
+
+		await this.#enterApplication();
+	}
+
+	/**
 	 * Somebody signed out, here or on another window.
 	 *
-	 * The held context names an account this machine no longer has credentials for, and nothing
-	 * else in the process would ever notice.
+	 * The keys this process held are dropped by the shell, and the held context names a member
+	 * whose vault is no longer open, which nothing else in the process would ever notice. The wall
+	 * goes up in whichever of its two states the machine is now in, which after a sign-out is
+	 * locked: the organization is still joined, and a password opens it again.
 	 */
 	async signOut() {
 		this.#ports.cache.forgetContext();
-		this.#set({ remoteSync: await this.#ports.remoteSync.getState().catch(() => null) });
-		await this.#raiseSignInWall('noAccount');
+
+		const organization = await this.#ports.organization.signOut().catch(() => null);
+
+		this.#set({
+			remoteSync: await this.#ports.remoteSync.getState().catch(() => null),
+			organization: organization ?? {
+				organizations: [],
+				session: null,
+				holdsTursoAuthority: false
+			}
+		});
+
+		if (!(await this.#admit())) {
+			return;
+		}
+
+		// the shell said nobody signed out. The wall goes up regardless: this was asked for.
+		await this.#raiseSignInWall('locked');
 	}
 
 	/**
@@ -523,13 +729,6 @@ export class Startup {
 		if (state) {
 			this.#set({ remoteSync: state });
 			this.#ports.cache.rememberRemoteSync(state);
-		}
-
-		// the window closed with no contact, so replication has stopped and the workspace is
-		// otherwise untouched. It is raised here rather than left to the invalidation below because
-		// it is the one outcome the user has to act on.
-		if (outcome.action === 'signInRequired') {
-			this.#ports.onSessionExpired();
 		}
 
 		await this.#ports.cache.invalidateRemoteSync();

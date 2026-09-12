@@ -18,13 +18,16 @@ sync retired (#554) and the record of truth moved.*
 `apps/desktop/`.** The root holds only what governs every package — the lockfile,
 `.changeset/`, the linting and formatting configuration, `turbo.json`, and `.aep/`.
 
-**There is a second package, and it is not part of the application.** `apps/control-plane/`
-is `@rentable/control-plane`, the always-online tier holding accounts, workspaces and
-membership — built 2026-08-18 by #549 and **deployed nowhere**, though the desktop client now
-reaches one where it is told of one (`tauri/src/sync/control.rs`). It has its own database and
-its own schema, and **it holds no domain table**: it is in the credential path and never in the
-data path. Everything below in this file describes the desktop application; where the control
-plane differs, its own README says so.
+**There is one application, and four packages beside it.** `packages/workspace-migrations` is
+the SQL a workspace database is built from, `packages/workspace-permission` names what a member
+may do, `packages/design` is the design system, and `packages/turso-platform` is Turso's
+Platform API and the migration runner in TypeScript, imported by nothing. *`apps/control-plane/`
+stood beside the desktop from 2026-08-18 (#549) to 2026-09-12: the always-online tier holding
+accounts, workspaces and membership, deployed nowhere. It retired with
+[[efforts/819-an-organization-hosts-its-own-workspaces/spec]], requirement 19, when an
+organization on the customer's own Turso account took over everything it answered for, and its
+two Turso modules became the fourth package.* Everything below in this file describes the
+desktop application.
 
 **Every `src/…` and `tauri/…` path in the rest of this file, and in the rules and contexts
 beside it, is relative to `apps/desktop/`** unless it is written out in full. That is the one
@@ -40,8 +43,10 @@ Which tool runs which script, and why `check` and `lint` sit outside the task gr
 ## Vocabulary
 
 **Workspace**:
-The unit of syncable state, and there is exactly one per installation — a database of record in
-Turso, with a local replica meant to serve every read and take every write.
+The unit of syncable state — a database of record on the organization's Turso account, with a
+local replica meant to serve every read and take every write. An organization holds one or more,
+a member reaches the ones their grants name, and a machine holds one open at a time. *It read
+"exactly one per installation" until the organization effort landed on 2026-09-12.*
 _Avoid_: treating the replica as the workspace. The file on this machine is a copy of the
 record, never the record
 
@@ -87,8 +92,8 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   [[efforts/a-workspace-follows-its-user/spec]], decision 09, is where that was decided.* **There
   is a server, it holds the record, and it is still not in the data path.** The API layer is a
   direct caller executing in the webview, and that part is unchanged: a read or a write reaches a
-  local file over Tauri's IPC into Rust, never over HTTP. The replica syncs on its own and the
-  control-plane API is in the credential path only. `platform/database/hosted.ts` is the one
+  local file over Tauri's IPC into Rust, never over HTTP. The replica syncs on its own, and the
+  one service it reaches is the customer's own Turso account. `platform/database/hosted.ts` is the one
   transport in the tree that would read over the wire from the webview, and nothing imports it —
   [[rules/api-layer]], under *One database client type*, is where that is recorded.
 
@@ -100,17 +105,18 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   server at all" against "a hosted workspace has a remote of record". One record of truth left
   only the second half, and a boundary that still offers the reader a choice of two is one they
   can satisfy by picking the easier.*
-- **Credentials never cross the IPC boundary.** Every network call that spends one is Rust's —
-  Google's OAuth and profile read, and the control plane's — and no command hands the web layer a
-  client secret, a refresh token or a session token. The surface is coarse operations the web
-  layer observes rather than sequences: signing in, signing out, and reaching the control plane.
-  What binds a change is [[rules/credentials]], under *Client boundary*.
+- **Credentials never cross the IPC boundary.** Every network call that spends one is Rust's:
+  the Turso consent, the Platform API, and the replicas' own sync. No command hands the web layer
+  a token, a key or a password back. The surface is coarse operations the web layer observes
+  rather than sequences: signing in, joining, inviting, opening a workspace. What binds a change
+  is [[rules/credentials]], under *Client boundary*.
 
   *It read "Google Drive HTTP and OAuth" over six operations — link, cancel a link, unlink, sync,
-  inspect, resolve a conflict — until Drive sync retired (#554, 2026-08-19).*
+  inspect, resolve a conflict — until Drive sync retired (#554, 2026-08-19), and "Google's OAuth
+  and profile read, and the control plane's" until both retired (2026-09-12).*
 - **Diagnostics are written locally, bounded, and stripped of recognised credentials.**
-  Nothing collects diagnostics anywhere — the control-plane API is in the credential path and
-  nothing else — so events go to a rotating file the user can open from settings. Redaction
+  Nothing collects diagnostics anywhere, and there is no service of ours to send them to, so
+  events go to a rotating file the user can open from settings. Redaction
   happens in the sink, on the way to disk — never at the call site. It works by **recognising**
   the credential shapes this application handles, so it bounds the damage rather than
   guaranteeing none: a value known to be secret still must not be put in an event.
@@ -161,20 +167,22 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   dependency of ordinary use."* Both halves of that stopped being true when the record of truth
   moved: replication is how the workspace exists rather than an addition to it, and **the
   sign-in wall is built** — `sync/admission.ts` refuses a workspace to a machine with no
-  account, and `+layout.svelte` raises it before anything renders.
+  organization or with a locked vault, and `+layout.svelte` raises it before anything renders.
 
-  **What is not built is the half that would make a first run need a network.** Nothing creates
-  a workspace at sign-up, no control plane is deployed, and `admission.ts` still admits a build
-  that was never told of one. So a first run needs a network and an account **once a control
-  plane is deployed**, and does not today. Written this way rather than as the end state,
-  because a constraint that describes an unbuilt application is one a reader satisfies by
-  imagining it.
+  **A first run needs a network and an account, and every launch after it needs neither.** The
+  first run grants the application authority over the owner's Turso account in the browser and
+  creates the organization there; a member's first launch opens an invitation link against the
+  same account. From then on a password opens the vault on this machine, with or without a
+  network, and the wall admits on that. *It read "what is not built is the half that would make
+  a first run need a network" while no control plane was deployed; the organization effort built
+  that half on the customer's own account instead (2026-09-12).*
 
   What survives either way, and is the part worth holding, is everything after the first run:
   every read and every write is served locally with no network at all, for as long as the
-  session's refresh window is open. Requirement 15 of
-  [[efforts/a-workspace-follows-its-user/spec]] closes that window at three days and is where
-  the boundary is argued.
+  credential the vault unsealed lives, which is four weeks from its mint and renewed by the
+  owner's machine. *Requirement 15 of [[efforts/a-workspace-follows-its-user/spec]] closed a
+  control plane's window at three days; requirement 18 of the organization effort is where the
+  boundary is argued now.*
 - **Arabic and English, RTL and LTR.** Both locales are first-class; a layout that only
   works in one direction is broken.
 - **Saudi identity documents.** A tenant is identified by a government document whose two
@@ -187,5 +195,6 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 | contracts, payments, unit assignments, derived status | [[contexts/desktop/contract]] |
 | schema, migrations, how queries reach SQLite | [[contexts/desktop/persistence]] |
 | complexes and units | [[contexts/desktop/property]] |
-| signing in, the session a workspace replicates under | [[contexts/desktop/remote-sync]] |
+| an organization, its members, their vaults, and the account it lives on | [[contexts/desktop/organization]] |
+| the replica a workspace is held as, and the credential it replicates under | [[contexts/desktop/remote-sync]] |
 | tenants, identity, phone numbers | [[contexts/desktop/tenant]] |

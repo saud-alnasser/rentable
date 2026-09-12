@@ -32,7 +32,7 @@ export type PermittedBranch = 'children' | 'unavailable' | 'nothing';
  * function keeps a plain array, because it is arithmetic over a list and a list can be empty.
  *
  * The acts are named. Nothing here reads a bit index, a mask or a role: `permits` is
- * `@rentable/workspace-permission`'s and it is the same function the control plane consults.
+ * `@rentable/workspace-permission`'s and `permission::require` in Rust answers from the same bits.
  */
 export const holdsEvery = (permissions: number, acts: readonly Administration[]): boolean =>
 	acts.every((act) => permits(permissions, act));

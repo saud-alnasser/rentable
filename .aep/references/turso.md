@@ -1,12 +1,13 @@
 ---
-use-when: 'provisioning a workspace database, minting a token to sync with one, or reading what the control plane does to Turso'
+use-when: 'provisioning a workspace database, minting a token to sync with one, or reading what the desktop does to Turso'
 ---
 
 # Turso — the Platform API
 
 **This file is yours.** It records how Turso is actually reached from
-`apps/control-plane/`; correct it where the repository differs rather than deferring to what
-the documentation says.
+`apps/desktop/tauri/src/sync/turso/` and `packages/turso-platform/`; correct it where the
+repository differs rather than deferring to what the documentation says. *It recorded the
+control plane's use until that retired on 2026-09-12.*
 
 Docs: <https://docs.turso.tech/api-reference>
 Fetch the docs when a call you need is not listed below. **Never guess an endpoint or a
@@ -20,41 +21,49 @@ in**, and **minting the short-lived token a client syncs with**. Reads and write
 between a client's replica and its database directly; this API never sees a row of anybody's
 ledger.
 
-**Since 2026-08-23 the control plane's own records are on Turso as well, and they do not come
-through this API.** `control-plane` is an ordinary libSQL database that `@libsql/client` reaches
-over the wire, the same way a client reaches its workspace's. All this API did for it was create it
-once and mint one token; everything after that is SQL. Its URL and token are
-`CONTROL_PLANE_DATABASE_URL` and `CONTROL_PLANE_DATABASE_TOKEN`, and
-`apps/control-plane/.env.example` is where they are documented.
+**The organization's own directory is on Turso as well, and it does not come through this API
+either.** `org-<id>` is an ordinary database every member's machine keeps a replica of; all this
+API did for it was create it once, and everything after that is the sync engine's. *The control
+plane's own records, `control-plane` and `control-plane-live-test`, are still on the human's
+account and are theirs; the application that read them retired on 2026-09-12.*
 
 ## Prerequisites
 
-Three values, and `apps/control-plane/` **exits at startup** without them rather than failing
-the first time somebody creates a workspace:
+In the shipping application, one thing: **a consent**. The owner grants the application authority
+over a group of their own account in the browser, the token is filed in the keyring, and the
+organization slug is discovered once through the MCP server (`sync/turso/discovery.rs`). Nothing
+is typed and no environment variable is read.
+
+The live tests read three values from the environment instead, because they have no browser:
 
 | | |
 | --- | --- |
-| `TURSO_API_TOKEN` | a **Platform API** token, not a database token — `turso auth api-tokens create`, or the dashboard |
+| `TURSO_CONSENT_TOKEN` | the Platform API token a consent produced, read out of the keyring for the run |
 | `TURSO_ORG` | the organization slug the paths are built from |
-| `TURSO_GROUP` | an existing group the workspace databases are created in |
+| `TURSO_GROUP` | an existing group the databases are created in |
 
-**`apps/desktop/.env` already holds a Platform API token and an org slug**, put there for the
-decision 11 prototype. **It does not hold `TURSO_GROUP`**, which is the one a reader trips on:
-`apps/control-plane/.env.example` is where all three are named, and a run that exports the two
-that are to hand gets a client that cannot create anything. It is gitignored and it stays there. **It is the human's to rotate: do
-not print it, do not commit it, and do not assume it is the one production uses.**
+`apps/desktop/.env.example` is where they are named, beside `RENTABLE_LIVE_TURSO=1`, which arms
+the run. The older `losing_writer` tests read `TURSO_API_TOKEN` under that name. **The token is the
+human's to rotate: do not print it, do not commit it, and do not assume it is the one production
+uses.**
 
 ## Commands
 
 There is no CLI in this repository's path. Everything is HTTP, against `https://api.turso.tech`,
 with `Authorization: Bearer <TURSO_API_TOKEN>`.
 
-**Two callers now, and only one of them ships.** `apps/control-plane/src/workspace/turso.ts` is the
-service, and it is the one the endpoints below are documented for.
-`apps/desktop/tauri/src/database/test/workspace.rs` is the other, added 2026-08-20 by #552: it
+**Three callers, and one of them ships.** **`apps/desktop/tauri/src/sync/turso/platform.rs` is the
+one that ships, since 2026-09-11 and effort 819**: the control plane's client ported into the
+desktop with its port shape intact, spending a token a browser consent filed in the keyring, and
+reaching the customer's own account rather than ours. `packages/turso-platform/index.ts` is that
+client in TypeScript, kept for a hosted tier and imported by nothing; the endpoints below were
+first documented for it while it was `apps/control-plane/src/workspace/turso.ts`.
+`apps/desktop/tauri/src/database/test/workspace.rs` is the third, added 2026-08-20 by #552: it
 provisions and destroys a database per test so that two replicas have something to diverge against,
-and it is `#[cfg(test)]` and `#[ignore]`d — [[rules/testing]], under *Tests that reach a live
-remote*, is what bounds it. Nothing in the shipping desktop binary reaches this API.
+and it is `#[cfg(test)]` and `#[ignore]`d ([[rules/testing]], under *Tests that reach a live
+remote*, is what bounds it). The Rust port is the first thing in the shipping desktop binary to
+reach this API. It adds the configuration call below to the three `turso.ts` makes, and its
+deletion is behind a caller-stated intent rather than a method that merely exists.
 
 ```
 POST   /v1/organizations/{org}/databases
@@ -63,6 +72,10 @@ POST   /v1/organizations/{org}/databases
 POST   /v1/organizations/{org}/databases/{database}/auth/tokens?expiration=3d&authorization=full-access
 
 DELETE /v1/organizations/{org}/databases/{database}
+
+PATCH  /v1/organizations/{org}/databases/{database}/configuration
+       {"delete_protection": true}          desktop only; on at create, lifted before a delete
+GET    /v1/organizations/{org}/databases/{database}/configuration
 ```
 
 `expiration` takes Turso's own duration spelling — `2w1d30m` — and defaults to `never`, which
@@ -78,17 +91,18 @@ endpoint.
 { "database": "ws-…" }
 ```
 
-**`Hostname` has a capital H**, and so do the other two. `turso.ts` reads either spelling,
-because a change to it would be a silent total failure of the one route the control plane
-exists for.
+**`Hostname` has a capital H**, and so do the other two. Both clients read either spelling,
+because a change to it would be a silent total failure of the one route that creates a
+workspace.
 
 The hostname carries no scheme. `libsql://` is prepended where it is used — that URL and the
 `libsql://` the sync client takes are the same string, confirmed by the decision 11 prototype.
 
 ## Verification
 
-`apps/control-plane/src/workspace/tests/turso.test.ts` runs the real client against a fake `fetch` and pins the
-path, the credential, the query parameters and the shape read back.
+`packages/turso-platform/tests/platform.test.ts` runs the TypeScript client against a fake `fetch`
+and pins the path, the credential, the query parameters and the shape read back; the Rust port's
+tests in `sync/turso/platform.rs` do the same against a scripted server.
 
 **Run live against this account 2026-08-18, at the human's request**, creating one database,
 minting a token for it, and attempting to delete it. What it settled:
@@ -106,8 +120,9 @@ minting a token for it, and attempting to delete it. What it settled:
 whole shipped migration set — `0000` through `0003_serious_synch.sql`, identity rewrite included —
 applies to a Turso database through `migration.ts`'s own runner, and the schema it leaves has `TEXT`
 keys throughout and no `idmap`. #557's criterion 5 was recorded as *documented, not exercised end to
-end* for want of exactly this, and `apps/control-plane/src/workspace/tests/provisioning.test.ts` is
-what exercises it.
+end* for want of exactly this, and the control plane's `provisioning.test.ts` was what exercised
+it until the retirement; the desktop's `workspace_live` test applies the same set over the wire
+now.
 
 **Run live a third time 2026-08-23, at the human's request, and this one was not about a
 workspace.** It created the two databases the control plane's own records live in, minted a token
@@ -150,7 +165,8 @@ database hosted libsql://control-plane-saud-alnasser.aws-eu-west-1.turso.io, tok
 ```
 
 The token is not verified and nothing refuses on it, because the claim is unsigned and the clock is
-the process's own. `apps/control-plane/src/database/database.ts` is where it is read.
+the process's own. *The control plane read it in `database/database.ts`; nothing reads it now, and
+the two databases stay on the account untouched.*
 
 The live test cleans up after itself, and it did: both databases held zero rows in all four tables
 afterwards. Nothing it does creates or deletes a database, so the account went from one to three
@@ -159,10 +175,9 @@ and stays there.
 **A separate finding, from #552's Rust work rather than from this run**: those migrations cannot be
 applied through a *sync* connection. `0003` drops and renames its tables, and the push that follows
 fails with `no such table: main.complex`, measured 2026-08-20 against a live account. That is not a
-defect — requirement 11 puts migrations on the control plane and a replica receives the schema as
-pages — but it does mean a replica is not a way to install a schema, and #552's tests apply theirs
-over the pipeline endpoint for that reason. Nothing in `apps/control-plane/` opens a sync connection,
-so nothing here would have found it.
+defect, a replica receives the schema as pages, but it does mean a replica is not a way to install
+a schema, and every runner here applies over the pipeline endpoint for that reason: #552's tests,
+the desktop's `organization/migrate.rs`, and the package's `migration.ts`.
 
 A live run creates a real database and is billed and quota-counted — the free tier permits 100.
 **It is the human's call**, the same standing rule as pushing.
@@ -202,6 +217,16 @@ them, and a script holding it did.
 for a group, `PATCH /v1/organizations/{org}/databases/{name}/configuration` for a single database.
 `PATCH .../groups/{group}` is not a route.
 
+**The database-level path was run live on 2026-09-11, at the human's request, and it holds.**
+Effort 819's `platform.rs` created `t819-05-18d450c2cbb1d764` in group `rentable` with a
+consent-issued group-scoped token, set `delete_protection` to `true` through that path, read it
+back as `true` from the matching `GET`, minted a `1h` token, set the protection to `false`, and
+deleted the database, in one run. So the documented path applies and reports the change, and a
+database-level protection is lifted by the same grant that set it, which is why the desktop treats
+it as a barrier against a stray delete and not as a guarantee. **The group-level path and the
+question of why thirty deletes succeeded on 2026-08-20 are still untested.** Turso's create takes
+no protection field, so on the desktop the protection is a second request made inside the create.
+
 **What the run did not settle is why thirty deletes succeeded at all**, two days after
 *Failure handling* measured a 403 refusing exactly that. Three readings of the group's own state
 bracket the wipe and do not agree: `true` at 05:48, `false` at 05:53, `true` again on 2026-08-23.
@@ -221,9 +246,15 @@ on purpose and no number of attempts changes that.
 - **A name already taken** fails the create. Names are `ws-<workspace id>`, so this means the id
   was reused, which is a defect here rather than a Turso problem.
 - **A quota exceeded blocks the databases outright** unless overages are enabled (decision 01).
-- **Revocation is bulk-only** and rotates every token in the group, with no published
-  propagation time. It cannot remove one person, which is why the control plane removes somebody
-  by declining to renew instead.
+- **Revocation is per database and total.** `POST /v1/organizations/<org>/databases/<name>/auth/rotate`
+  invalidates every token ever minted for that one database; the group-level rotate does the
+  same for every database in the group. Seen live on 2026-09-12: a token minted before the
+  rotation is refused on its next request with `401 {"error":"Unauthorized: \`unauthorized
+  access attempt on database: invalid JWT token: role was invalidated after token was
+  issued\`"}`, and a token minted after it lands. There is no per-token revocation, so
+  rotation cannot remove one person without cutting off everybody on that database, which is
+  why the desktop removes somebody by declining to renew and rotates only on a lock-out
+  (`apps/desktop/tauri/src/organization/removal.rs`).
 - **A delete-protected group refuses to delete the databases inside it**, and the message is
   about the group rather than about what was asked for:
   `403 {"error":"group rentable is delete-protected and cannot be deleted"}` — returned for a
@@ -238,16 +269,17 @@ on purpose and no number of attempts changes that.
 
 ## Never run
 
-- **Do not delete a database the control plane did not just create.** `deleteDatabase` has two
-  callers and both created what they remove: the service's own path, where a database was made for a
-  workspace whose record could not be written, and the teardown in
-  `workspace/tests/provisioning.test.ts`, which removes what its live run provisioned. A workspace's
-  database is somebody's ledger, and nothing else is a reason to call it.
-- **Do not delete `control-plane` or `control-plane-live-test`.** One holds every account,
-  workspace, membership and session the control plane decides on; the other is what the live test
-  writes into, and it is reused rather than recreated for exactly this reason. No code path in this
-  repository may delete either, and `deleteDatabase` cannot reach them anyway: both its callers
-  remove something they just created. **The group's delete protection is not the guarantee here.**
+- **Do not delete a database this process did not just create, unless a human deleted the
+  workspace in the interface.** A workspace's database is somebody's ledger, and nothing else is a
+  reason to call it. **On the desktop the rule is a type**: `platform.rs`'s `delete_database` takes
+  a `DeletionIntent`, and its two variants are exactly these two reasons, an owner deleting the
+  workspace in the interface now, and a database this process just created and could not finish
+  making into a workspace. Every live test removes what it provisioned by the second intent.
+- **Do not delete `control-plane` or `control-plane-live-test`.** They are the retired control
+  plane's, one holding every account, workspace, membership and session it decided on and the other
+  what its live test wrote into; the application is gone and the databases are the human's. No
+  code path in this repository may delete either, and `delete_database` cannot reach them anyway:
+  every caller removes something it just created or a workspace a human deleted. **The group's delete protection is not the guarantee here.**
   A script holding the Platform API token cleared all thirty databases out of this group on
   2026-08-20, and these two would have gone with them.
 - **Do not rotate or revoke the Platform API token.** It is the human's, and revoking it stops

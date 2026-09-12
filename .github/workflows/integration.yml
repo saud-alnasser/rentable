@@ -254,14 +254,6 @@ jobs:
         if: steps.memo.outputs.cache-hit != 'true'
         run: pnpm build:web
 
-      # The control plane emits JavaScript nothing consumes yet, and compiling it is how
-      # the gate proves it would run rather than only that it typechecks. It came free
-      # while `pnpm build` was `turbo run build` across every package; now that root
-      # `build` bundles the desktop, it is named.
-      - name: '🏗️ build the control plane'
-        if: steps.memo.outputs.cache-hit != 'true'
-        run: pnpm build:control-plane
-
       # The shell's breakpoint is declared once, in the stylesheet, and read from script at
       # runtime to decide which navigation presents. Unused-value elimination drops theme
       # entries nothing references, and this one is referenced from script rather than from a

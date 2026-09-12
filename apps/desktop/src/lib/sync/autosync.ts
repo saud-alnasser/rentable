@@ -32,9 +32,9 @@ const HEARTBEAT_MS = 5 * 60_000;
  *
  * *It named four Drive failures — the account needing to be linked again, a file this
  * application may not write, bytes disagreeing with the index, and another machine holding the
- * workspace. What reaches here now is the control-plane reach, and a refusal from it is
- * `preconditionFailed`: the session was declined rather than missed, and retrying against a
- * decision is how a client asks the same question forever.*
+ * workspace. What reaches here now is the replica's push and pull, and a refusal from the
+ * remote is `preconditionFailed`: the credential was declined rather than missed, and retrying
+ * against a decision is how a client asks the same question forever.*
  */
 const SETTLED_WITHOUT_RETRY = new Set(['preconditionFailed', 'forbidden', 'busy']);
 
@@ -49,8 +49,7 @@ function shouldRetryAfter(error: unknown) {
  * **This was the Drive autosync manager and it schedules the same way**, because what it
  * schedules is the same shape: work that must be coalesced, must not overlap itself, and must
  * be retried on a widening delay while the reason for failing is one that time can settle.
- * **What it dispatches is the reach at the control plane that renews the session, and since #617
- * the replica's push and pull as well.** It read "no longer a push — a replica pushes its own
+ * **What it dispatches is the replica's push and pull, since #617.** It read "no longer a push, a replica pushes its own
  * writes", which described a library that does not exist: `turso::sync` holds every write until
  * something calls `push`. This manager is where that call belongs, because the middleware feeding
  * it already declares which procedures are mutations and this already coalesces them, retries on a

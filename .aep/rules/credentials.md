@@ -1,7 +1,9 @@
 ---
 paths:
   - apps/desktop/tauri/src/sync/**
+  - apps/desktop/tauri/src/organization/**
   - apps/desktop/src/lib/sync/**
+  - apps/desktop/src/lib/organization/**
 use-when: "a credential this application holds is being stored, refreshed, or handed to somebody"
 ---
 
@@ -27,17 +29,20 @@ had.*
 >
 > **One section of it is still a rule.** *Client
 > boundary* was never Drive's alone — decision 09 widened it to every credential this application
-> holds — and `sync/google/` still holds the OAuth half, because signing in is Google rather than
-> Drive. The other two sections describe code that no longer exists and are marked as retired
-> where they stand.
+> holds — and `sync/oauth/` still holds the protocol half, which the Turso consent drives.
+> *`sync/google/` held Google's until Google sign-in retired with the control plane on 2026-09-12.*
+> The other two sections describe code that no longer exists and are marked as retired where they
+> stand.
 
 ## Client boundary
 
 **Every network call that spends a credential, and every credential, stays in Rust.**
 
-The OAuth client secret, the refresh token, token refresh, the profile read, the control plane's
-session token, and a workspace's sync token all live behind the Tauri boundary. No credential
-crosses to TypeScript, and no command hands one over.
+The Turso consent's PKCE verifier and code exchange, the Platform API token it produces, a
+member's vault and the keys it unseals, and a workspace's sync token all live behind the Tauri
+boundary. No credential crosses to TypeScript, and no command hands one over. *It named the
+Google OAuth client secret, the refresh token, the profile read and the control plane's session
+token until both retired on 2026-09-12.*
 
 *Why: the credential boundary and the network boundary have to be the same boundary — where they
 differ, the gap is exactly what an incident occupies.*
@@ -50,9 +55,19 @@ and lives on the same side of the same boundary, for the same reason.
 workspace, so a qualifier that once picked one of two now reads as though some other kind of
 workspace had a sync token this rule does not cover.*
 
-**What crosses is facts *about* a credential, never one.** `RemoteSyncState` carries
-`tokenExpiresAt` and the session's three moments; the side that decides whether to keep
-replicating needs those numbers and needs nothing else.
+**What crosses is facts *about* a credential, never one.** `OrganizationState` carries whether
+this machine holds the Turso authority and `OrganizationSession` carries a member's role, permissions and
+the workspaces their grants reach; the side that draws a screen needs those facts and needs nothing
+else. *It named `RemoteSyncState`'s `tokenExpiresAt` and the session's three moments until the
+session window retired with the control plane on 2026-09-12.*
+
+**Two things cross that look like credentials and are sanctioned by the spec that made them.** The
+join link crosses both ways as a string: it carries a read-only credential over sealed rows, which
+is requirement 8's "nothing that is useful on its own", and it is handed to a person to send. The
+generated password crosses once, out of `member_invite` and `member_reset`, because the person who
+must hand it on is on the other side of the boundary; it is never stored on this side. Neither is
+a key, a token that reaches a ledger, or the Turso authority, and a third thing that looks like
+these two is a finding rather than a third exception.
 
 Recorded originally as ADR 0003, *The Google Drive client relocates wholly to Rust*.
 
@@ -79,9 +94,10 @@ from a test.
 
 **The reasoning outlived the transport and is being applied**: a mocked trait tests the mock's
 idea of HTTP, so the serialisation and status handling that actually break are never exercised.
-The loopback server survives as `sync/google/test/server.rs` and is what the profile read at
-sign-in — the one Google request this application still issues — is tested against, along with
-every control-plane call.
+The loopback server survives as `sync/test/server.rs` and is what every request to Turso, the
+consent, the Platform API, the MCP lookup, a workspace's pipeline and the sync engine's own, is
+tested against. *It was `sync/google/test/server.rs` and tested the Google profile read and every
+control-plane call until both retired on 2026-09-12.*
 
 **The *never contact the live API from a test* clause has declared exceptions since
 2026-08-20**, and they are [[rules/testing]]'s to state and to count, under *Tests that reach a live

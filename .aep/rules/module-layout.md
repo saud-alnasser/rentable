@@ -2,7 +2,7 @@
 paths:
   - apps/desktop/src/**
   - apps/desktop/tauri/src/**
-  - apps/control-plane/src/**
+  - packages/turso-platform/**
   - packages/design/src/**
 use-when: "adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code"
 ---
@@ -24,13 +24,10 @@ use-when: "adding a module, a file, or a directory under src/ or tauri/src/, inc
 One concept per file. Prefer a directory over a verbose filename. Prefer concise,
 descriptive names over abbreviations.
 
-**`apps/control-plane/src/` joined the paths above on 2026-08-18 with #549**, and the sections
-on Rust and on prototype code cover nothing in it. Everything else does.
-It was flat for two
-tickets and is grouped by concept since #560 — `account/`, `database/`, `server/`, `session/`,
-`workspace/`, with the entrypoint and the refusal vocabulary left at the root because they belong
-to no one concept. *`session/` arrived with #550, which is what made the three-day window a
-credential the control plane issues rather than a flag a client sets.*
+**`apps/control-plane/src/` was on the paths above from 2026-08-18 (#549) until it retired on
+2026-09-12** with [[efforts/819-an-organization-hosts-its-own-workspaces/spec]]; what it knew about
+Turso is `packages/turso-platform/`, three files and their tests, and the sections on Rust and on
+prototype code cover nothing in it.
 
 **`packages/design/src/` joined on 2026-08-23 with #777**, with the same carve-out: it is a
 Svelte library, so the Rust sections have no subject there either. It is `src/lib/` plus
@@ -67,7 +64,7 @@ and Rust already spends `test/` on shared scaffolding, so the two would collide.
 ## A Rust directory is rooted by `mod.rs`
 
 A module with children is a `<concept>/` directory whose root is `mod.rs` — `sync/mod.rs`,
-`sync/google/mod.rs`, `database/mod.rs`. Never `<concept>.rs` beside `<concept>/`.
+`sync/turso/mod.rs`, `database/mod.rs`. Never `<concept>.rs` beside `<concept>/`.
 
 The crate is on edition 2024, where both spellings compile, so this is a choice rather than a
 constraint. It is made this way because the alternative writes the concept's name twice and
@@ -78,7 +75,7 @@ name appears once — on the directory that holds everything the module is.
 ## A Rust name is one word
 
 Files and directories under `tauri/src/` are named with a single word; where a qualifier is
-needed, a directory carries it. `google/test/server.rs`, not `google/test_server.rs`.
+needed, a directory carries it. `sync/test/server.rs`, not `sync/test_server.rs`.
 
 This is the same rule as the table above, applied to the shape Rust makes easy: an
 underscore is available in a filename, so a module that grows a second concern grows a

@@ -14,10 +14,8 @@ import {
 	syncWorkspaceBeforeExit,
 	syncWorkspaceNow
 } from '$lib/sync/workspace';
-import { isGoogleSignInCancellation, signInWithGoogle } from '$lib/sync/sign-in';
 import type { QueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
-import { toast } from 'svelte-sonner';
 
 import { reportStartupComplete, reportStartupStage } from './startup-stage.svelte';
 import type { StartupPorts } from './startup';
@@ -41,20 +39,24 @@ export function browserStartupPorts(queryClient: QueryClient): StartupPorts {
 		},
 		settings: { get: () => tauri.settings.get() },
 		remoteSync: {
-			getState: () => tauri.remoteSync.getState(),
-			establishSession: () => tauri.remoteSync.establishSession()
+			getState: () => tauri.remoteSync.getState()
 		},
-		auth: { onPhase: (listen) => tauri.auth.google.onPhase(listen) },
+		organization: {
+			getState: () => tauri.organization.getState(),
+			signIn: (organizationId, password) => tauri.organization.signIn(organizationId, password),
+			join: (link, password) => tauri.organization.join(link, password),
+			restore: (link, email, password) => tauri.organization.restore(link, email, password),
+			changePassword: (current, next) => tauri.organization.changePassword(current, next),
+			signOut: () => tauri.organization.signOut(),
+			openWorkspace: (workspaceId) => tauri.organization.workspace.open(workspaceId),
+			renewDue: () => tauri.organization.renewDue()
+		},
 		workspace: {
 			bootstrap: () => api.app.bootstrap(),
 			reconcile: () => api.app.state.reconcile(),
 			syncNow: (state) => syncWorkspaceNow(state),
 			syncBeforeExit: (state) => syncWorkspaceBeforeExit(state),
 			announceReceived: () => announceReceivedRows(queryClient)
-		},
-		signIn: {
-			withGoogle: () => signInWithGoogle(),
-			isCancellation: (error) => isGoogleSignInCancellation(error)
 		},
 		locale: {
 			load: (locale) => loadLocaleAsync(locale as Locales),
@@ -74,7 +76,6 @@ export function browserStartupPorts(queryClient: QueryClient): StartupPorts {
 		// language the reader had by then.
 		describeError: (error) =>
 			toErrorText(error, get(LL), get(LL).layout.startup.failedToStartFallback()),
-		onSessionExpired: () => toast.error(get(LL).settingsHooks.sessionExpired()),
 		recordFailure: (message) => recordDiagnosticError('startup.failed', { error: message }),
 		reportStage: reportStartupStage,
 		reportComplete: reportStartupComplete,

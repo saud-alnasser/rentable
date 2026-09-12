@@ -1,11 +1,15 @@
 <script lang="ts">
-	import type { RemoteSyncState } from '$lib/platform/host';
+	import type { OrganizationSession, RemoteSyncState } from '$lib/platform/host';
+	import { tauri } from '$lib/platform/tauri';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { useAccountRefusalDetail } from '$lib/organization/query';
+	import { TURSO_DASHBOARD_URL } from '$lib/organization/setup';
 	import { useSyncWorkspace } from '$lib/settings/query';
+	import { accountRefusalSentence } from '$lib/sync/refusal';
 	import {
 		syncFaultOf,
 		syncStatusLabel,
@@ -37,13 +41,37 @@
 	 * The status is `sync-status.ts`'s, because the order of its answers is a decision and a runes
 	 * file cannot be imported by the test harness.
 	 */
-	let { syncState }: { syncState: RemoteSyncState } = $props();
+	let {
+		syncState,
+		session = null
+	}: {
+		syncState: RemoteSyncState;
+		/** who is reading, for the one sentence that differs by reader (requirement 25). */
+		session?: OrganizationSession | null;
+	} = $props();
 
 	const syncWorkspaceMutation = useSyncWorkspace();
 
 	const isSyncing = $derived(syncWorkspaceMutation.isPending);
 	const status = $derived(syncStatusOf(syncState));
 	const fault = $derived(syncFaultOf(syncState));
+	const isOwner = $derived(session?.role === 'owner');
+
+	// Turso's sentence, read by the owner's machine alone and only while a refusal stands.
+	const refusalDetail = useAccountRefusalDetail(() => status === 'accountRefused' && isOwner);
+
+	const accountRefusal = $derived(
+		status === 'accountRefused'
+			? accountRefusalSentence(
+					{
+						isOwner,
+						ownerDisplayName: session?.ownerDisplayName ?? '',
+						detail: isOwner ? (refusalDetail.data ?? null) : null
+					},
+					$LL
+				)
+			: null
+	);
 
 	async function syncNow() {
 		try {
@@ -69,11 +97,33 @@
 		</div>
 	</Field.Field>
 
-	<!-- the fault itself, and only where there is one. The badge says *that* something is wrong in
-	     a word; this is the sentence the service or the replica gave, which is the half a person
-	     can act on. It stays a callout rather than joining the row because it is somebody else's
-	     text and can be any length. -->
-	{#if fault}
+	<!-- the account, refused by turso: said as the account's and never as a sync error, in the
+	     reader's own terms. A member is told whom to tell; the owner is told which limit and where
+	     on turso to go, and offered the dashboard, which is turso's own and spends nothing.
+	     Every read and write goes on being served from this machine meanwhile. -->
+	{#if accountRefusal}
+		<Callout tone="warning" data-account-refusal={isOwner ? 'owner' : 'member'}>
+			{accountRefusal}
+		</Callout>
+		{#if isOwner}
+			<Button
+				variant="outline"
+				size="sm"
+				onclick={() => void tauri.opener.openUrl(TURSO_DASHBOARD_URL)}
+			>
+				{$LL.organization.setup.openDashboard()}
+			</Button>
+		{/if}
+	{:else if status === 'credentialRefused'}
+		<!-- this member's credential, rotated by a lock-out and not yet replaced on this machine.
+		     The application collects the re-sealed one on its own when the organization database is
+		     reachable; if it does not clear, there is none to collect and the owner is who to ask. -->
+		<Callout tone="warning" data-credential-refusal>{$LL.workspace.credentialRefused()}</Callout>
+	{:else if fault}
+		<!-- the fault itself, and only where there is one. The badge says *that* something is wrong
+		     in a word; this is the sentence the service or the replica gave, which is the half a
+		     person can act on. It stays a callout rather than joining the row because it is
+		     somebody else's text and can be any length. -->
 		<Callout tone="error">{fault}</Callout>
 	{/if}
 </div>

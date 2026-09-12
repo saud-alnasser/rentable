@@ -125,9 +125,9 @@ export const payment = sqliteTable(
 	 * costing anything, and an index is a write cost and a page cost charged on a workspace
 	 * that replicates.
 	 *
-	 * Adding it here is only half of it: a workspace's schema is the control plane's to apply
-	 * ([[contexts/desktop/persistence]], under *Boundaries*), so the migration this generates
-	 * reaches a workspace at the token mint and never from a client.
+	 * Adding it here is only half of it: a workspace's schema is applied over the wire by the
+	 * Rust side ([[contexts/desktop/persistence]], under *Boundaries*), so the migration this
+	 * generates reaches a workspace at its creation or under a lease and never through a replica.
 	 */
 	(table) => [index('payment_contract_id_idx').on(table.contractId)]
 );
