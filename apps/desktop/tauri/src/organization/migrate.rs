@@ -38,9 +38,16 @@ pub fn shipped_version() -> i64 {
 
 /// The statements of the first `up_to` shipped migrations, in order.
 pub fn statements(up_to: usize) -> Vec<String> {
+    statements_between(0, up_to)
+}
+
+/// The statements of the shipped migrations after the first `from` and up to `up_to`, in
+/// order: what a workspace recorded at `from` needs to reach `up_to`.
+pub fn statements_between(from: usize, up_to: usize) -> Vec<String> {
     WORKSPACE_MIGRATIONS
         .iter()
         .take(up_to)
+        .skip(from)
         .flat_map(|(_, sql)| {
             sql.split(STATEMENT_BREAKPOINT)
                 .map(|statement| statement.trim().to_string())
@@ -65,6 +72,11 @@ impl Pipeline {
         }
     }
 
+    /// The endpoint, for the lease that posts to the organization database's own.
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+
     #[cfg(test)]
     pub(crate) fn at(base: &str) -> Self {
         Self {
@@ -78,9 +90,22 @@ impl Pipeline {
 /// One request carrying every statement and a close, in order. The token is the short-lived
 /// credential minted for the migration and nothing else, and it is spent here and dropped.
 pub async fn apply(pipeline: &Pipeline, token: &str, up_to: usize) -> Result<(), Error> {
+    apply_between(pipeline, token, 0, up_to).await
+}
+
+/// Apply the shipped migrations after the first `from` and up to `up_to`: what a workspace
+/// already at `from` needs. `token` is whatever credential the caller holds on the database; a
+/// pending migration is applied under the member's own full-access credential, because any member
+/// may hold the lease (`organization/migration.rs`).
+pub async fn apply_between(
+    pipeline: &Pipeline,
+    token: &str,
+    from: usize,
+    up_to: usize,
+) -> Result<(), Error> {
     let client = build_client(MIGRATION_TIMEOUT)?;
 
-    let mut requests: Vec<Value> = statements(up_to)
+    let mut requests: Vec<Value> = statements_between(from, up_to)
         .into_iter()
         .map(|sql| json!({ "type": "execute", "stmt": { "sql": sql } }))
         .collect();
@@ -138,7 +163,25 @@ mod tests {
 
     use crate::sync::google::test::server::{ScriptedResponse, ScriptedServer};
 
-    use super::{Pipeline, WORKSPACE_MIGRATIONS, apply, shipped_version, statements};
+    use super::{
+        Pipeline, WORKSPACE_MIGRATIONS, apply, shipped_version, statements, statements_between,
+    };
+
+    /// A workspace at version `from` needs exactly the migrations after it, and none of the ones
+    /// it already has; the whole set is the same as starting from nothing.
+    #[test]
+    fn the_statements_between_two_versions_are_the_tail_and_nothing_before_it() {
+        let all = statements(WORKSPACE_MIGRATIONS.len());
+        let first = statements(1);
+        let rest = statements_between(1, WORKSPACE_MIGRATIONS.len());
+
+        assert_eq!(first.len() + rest.len(), all.len());
+        assert_eq!([first.clone(), rest.clone()].concat(), all);
+        assert_eq!(statements_between(0, WORKSPACE_MIGRATIONS.len()), all);
+        assert!(
+            statements_between(WORKSPACE_MIGRATIONS.len(), WORKSPACE_MIGRATIONS.len()).is_empty()
+        );
+    }
 
     /// The embedded set against the directory it was mirrored from: the same guard
     /// `database/version.rs` keeps over the count, over the contents.

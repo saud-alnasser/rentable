@@ -436,6 +436,10 @@ const ar = {
 			stageAccount: 'التحقق من حسابك',
 			stageChanges: 'البحث عن التغييرات',
 			stageRecords: 'تحديث السجلات',
+			migrationApplying:
+				'يجري رفع مساحة العمل إلى هذا الإصدار من rentable. يصل هذا إلى Turso ويستغرق لحظة؛ لا شيء هنا عالق.',
+			migrationWaiting:
+				'عضو آخر يرفع مساحة العمل إلى هذا الإصدار من rentable. ننتظره، حتى {until} على أبعد تقدير.',
 			stageSettings: 'قراءة إعداداتك',
 			stageWorkspace: 'فتح مساحة عملك'
 		}

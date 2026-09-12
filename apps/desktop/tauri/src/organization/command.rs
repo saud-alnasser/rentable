@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
+use tauri::Emitter;
 
 use crate::{error::Error, state::AppState, timestamp};
 
@@ -10,6 +11,7 @@ use super::{
     join::{self, LinkFacts},
     link::JoinLink,
     migrate::Pipeline,
+    migration::{self, MigrationPhase, PipelineLease},
     password,
     removal::{self, LockOutCost, Removed},
     session::{self, CredentialSlot, SessionFacts, WorkspaceFacts},
@@ -348,6 +350,19 @@ pub async fn workspace_delete(
     workspace::delete_workspace(store, member, &platform, &workspace_id).await
 }
 
+/// The event the shell listens to while a workspace is being upgraded: which workspace, and where
+/// the upgrade is, so a member watching sees it running rather than the application stuck.
+pub const MIGRATION_EVENT: &str = "organization:migration";
+
+/// What the event carries.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MigrationNotice {
+    workspace_id: String,
+    #[serde(flatten)]
+    phase: MigrationPhase,
+}
+
 /// Open a workspace this member holds a grant on: record it as this machine's current workspace,
 /// hold the credential the vault unsealed for the replica, and open the replica.
 ///
@@ -355,10 +370,11 @@ pub async fn workspace_delete(
 /// in the sync state's own hands and the replica asks it per request.
 #[tauri::command]
 pub async fn workspace_open(
+    app: tauri::AppHandle,
     app_state: tauri::State<'_, AppState>,
     workspace_id: String,
 ) -> Result<WorkspaceFacts, Error> {
-    let opened = {
+    let (facts, credential) = {
         let mut member = app_state.member.write().await;
         let store = app_state.organization.read().await;
         let (member, store) = signed_in(&mut member, &store)?;
@@ -366,14 +382,75 @@ pub async fn workspace_open(
         member.settled()?;
 
         let workspaces = store.workspaces(&member.verifying_key).await?;
-
-        workspace::openable(member, &workspaces, &workspace_id)?.ok_or_else(|| {
-            Error::Forbidden {
+        let (mut facts, credential) = workspace::openable(member, &workspaces, &workspace_id)?
+            .ok_or_else(|| Error::Forbidden {
                 message: "you hold no grant on that workspace".to_string(),
-            }
-        })?
+            })?;
+
+        // requirement 24: a workspace this build was not written against is refused here, before
+        // the replica is named, and nothing of it is read.
+        migration::refuse_newer(&facts)?;
+
+        // requirement 20: a workspace behind what this build ships is brought up to it, under a
+        // lease taken at the organization database's primary, by whichever member opened it.
+        // The organization credential in the session's slot is what the lease is taken under,
+        // and the member's own workspace credential is what the migrations go over.
+        if migration::is_pending(&facts) {
+            let organization_credential = member
+                .organization_credential
+                .lock()
+                .ok()
+                .and_then(|slot| slot.clone())
+                .ok_or_else(|| Error::PreconditionFailed {
+                    message: "this machine holds no credential to the organization database, so                               it cannot take the lease to upgrade the workspace"
+                        .to_string(),
+                })?;
+            let organization_host = {
+                let mut remote_sync = app_state.remote_sync.write().await;
+
+                remote_sync
+                    .store_mut()
+                    .organizations
+                    .iter()
+                    .find(|joined| joined.id == member.organization_id)
+                    .map(|joined| {
+                        joined
+                            .remote_url
+                            .trim_start_matches("libsql://")
+                            .to_string()
+                    })
+                    .unwrap_or_default()
+            };
+            let lease =
+                PipelineLease::new(Pipeline::of(&organization_host), &organization_credential);
+            let notice = |phase: MigrationPhase| {
+                let _ = app.emit(
+                    MIGRATION_EVENT,
+                    MigrationNotice {
+                        workspace_id: workspace_id.clone(),
+                        phase,
+                    },
+                );
+            };
+
+            facts.schema_version = migration::upgrade(
+                migration::Pending {
+                    store,
+                    session: member,
+                    facts: &facts,
+                    held: &credential,
+                    pipeline: &Pipeline::of(&facts.database_hostname),
+                },
+                &lease,
+                || tokio::time::sleep(migration::LEASE_POLL_INTERVAL),
+                notice,
+                timestamp::now,
+            )
+            .await?;
+        }
+
+        (facts, credential)
     };
-    let (facts, credential) = opened;
 
     {
         let permissions = app_state

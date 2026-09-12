@@ -180,6 +180,15 @@ pub struct WorkspaceRecord {
     pub updated_at: i64,
 }
 
+/// A `migration_lease` row: which member is upgrading a workspace, and the moment after which
+/// nobody is, whatever became of them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MigrationLeaseRecord {
+    pub workspace_id: String,
+    pub holder_member_id: String,
+    pub expires_at: i64,
+}
+
 /// A `grant` row, the whole of which is under signature.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantRecord {
@@ -893,6 +902,61 @@ impl OrganizationStore {
             .await?;
 
         Ok(())
+    }
+
+    /// Record that a workspace's database is at `version`. Unsigned, deliberately: the plan puts
+    /// the schema version outside the signature so that whichever member applied the migration
+    /// can say so, and a member has no signing key.
+    pub async fn record_schema_version(
+        &self,
+        workspace_id: &str,
+        version: i64,
+        now: i64,
+    ) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "UPDATE \"workspace\" SET \"schema_version\" = ?, \"updated_at\" = ? \
+                 WHERE \"id\" = ?",
+                vec![
+                    turso::Value::Integer(version),
+                    turso::Value::Integer(now),
+                    turso::Value::Text(workspace_id.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// The migration lease on a workspace, or nothing: who holds it and until when, as a value
+    /// a human can read out of the row.
+    pub async fn migration_lease(
+        &self,
+        workspace_id: &str,
+    ) -> Result<Option<MigrationLeaseRecord>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"holder_member_id\", \"expires_at\" FROM \"migration_lease\" \
+                 WHERE \"workspace_id\" = ?",
+                vec![turso::Value::Text(workspace_id.to_string())],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => Ok(Some(MigrationLeaseRecord {
+                workspace_id: workspace_id.to_string(),
+                holder_member_id: text(&row, 0)?,
+                expires_at: integer(&row, 1)?,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    /// The connection, for the lease authority that runs the lease statements against a local
+    /// primary (`organization/migration.rs::StoreLease`).
+    pub(crate) fn lease_connection(&self) -> &turso::Connection {
+        &self.connection
     }
 
     /// Remove one grant: what a reset does with a grant it cannot re-seal, because the vault it

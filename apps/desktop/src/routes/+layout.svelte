@@ -18,6 +18,7 @@
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
 	import { THE_FIRST_RUN, THE_JOIN, shellSurface, wayInFrom } from '$lib/layout/shell-surface';
 	import { linkArrived } from '$lib/organization/join';
+	import { noteMigration } from '$lib/layout/migration-notice.svelte';
 	import { startupSurfaceBeforeLocale } from '$lib/layout/startup-surface';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
@@ -154,6 +155,7 @@
 		// takes it, and the screen put on. The one it was launched with is taken once the shell is
 		// up, because it arrived before anything was listening; every later one is an event.
 		let unlistenLink: (() => void) | undefined;
+		let unlistenMigration: (() => void) | undefined;
 		const openJoinScreen = (link: string) => {
 			linkArrived(link);
 			void goto(resolve(THE_JOIN));
@@ -177,6 +179,7 @@
 			});
 
 			unlistenLink = await tauri.organization.onLink(openJoinScreen);
+			unlistenMigration = await tauri.organization.onMigration(noteMigration);
 
 			await startup.start();
 
@@ -195,6 +198,7 @@
 			unlistenCloseRequested?.();
 			stopListeningForCloseRequests?.();
 			unlistenLink?.();
+			unlistenMigration?.();
 		};
 	});
 

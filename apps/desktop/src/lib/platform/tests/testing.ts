@@ -155,6 +155,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			signOut: refuse('organization.signOut'),
 			linkTake: refuse('organization.linkTake'),
 			onLink: refuse('organization.onLink'),
+			onMigration: refuse('organization.onMigration'),
 			linkInspect: refuse('organization.linkInspect'),
 			join: refuse('organization.join'),
 			workspace: {

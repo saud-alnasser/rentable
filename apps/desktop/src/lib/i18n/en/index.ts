@@ -447,6 +447,10 @@ const en = {
 			stageAccount: 'checking your account',
 			stageChanges: 'checking for changes',
 			stageRecords: 'bringing records up to date',
+			migrationApplying:
+				'bringing the workspace up to this version of rentable. this reaches turso and takes a moment; nothing here is stuck.',
+			migrationWaiting:
+				'another member is bringing the workspace up to this version of rentable. waiting on them, until {until} at the latest.',
 			stageSettings: 'reading your settings',
 			stageWorkspace: 'opening your workspace'
 		}

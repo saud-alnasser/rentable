@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Progress } from '@rentable/design/primitive/progress/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { migrationNotice } from '$lib/layout/migration-notice.svelte';
 	import {
 		STARTUP_STAGES,
 		startupProgressWithin,
@@ -68,6 +69,24 @@
 	});
 
 	const progress = $derived(startupProgressWithin(startupStage.current, now - startupStage.since));
+
+	/**
+	 * the one moment the bar is not the whole story: a workspace being brought up to this build's
+	 * schema on open, by this client or by another member whose lease this one waits on. Said
+	 * under the stage, because a migration over the wire takes longer than the stage it runs in
+	 * and a bar that stops moving reads as a hang.
+	 */
+	const upgrading = $derived.by(() => {
+		const notice = migrationNotice.current;
+
+		if (!notice || notice.phase === 'done') return null;
+
+		return notice.phase === 'applying'
+			? $LL.layout.startup.migrationApplying()
+			: $LL.layout.startup.migrationWaiting({
+					until: new Date(notice.until).toLocaleTimeString()
+				});
+	});
 </script>
 
 <div class="flex min-h-full flex-1 flex-col items-center justify-center gap-6 p-4">
@@ -89,5 +108,9 @@
 				{position}/{STARTUP_STAGES.length}
 			</span>
 		</div>
+
+		{#if upgrading}
+			<p class="text-xs text-muted-foreground" data-startup-migration>{upgrading}</p>
+		{/if}
 	</div>
 </div>

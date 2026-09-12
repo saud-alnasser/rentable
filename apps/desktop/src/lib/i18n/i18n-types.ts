@@ -1460,6 +1460,15 @@ type RootTranslation = {
 			 */
 			stageRecords: string
 			/**
+			 * b​r​i​n​g​i​n​g​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​u​p​ ​t​o​ ​t​h​i​s​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​.​ ​t​h​i​s​ ​r​e​a​c​h​e​s​ ​t​u​r​s​o​ ​a​n​d​ ​t​a​k​e​s​ ​a​ ​m​o​m​e​n​t​;​ ​n​o​t​h​i​n​g​ ​h​e​r​e​ ​i​s​ ​s​t​u​c​k​.
+			 */
+			migrationApplying: string
+			/**
+			 * a​n​o​t​h​e​r​ ​m​e​m​b​e​r​ ​i​s​ ​b​r​i​n​g​i​n​g​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​u​p​ ​t​o​ ​t​h​i​s​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​.​ ​w​a​i​t​i​n​g​ ​o​n​ ​t​h​e​m​,​ ​u​n​t​i​l​ ​{​u​n​t​i​l​}​ ​a​t​ ​t​h​e​ ​l​a​t​e​s​t​.
+			 * @param {string} until
+			 */
+			migrationWaiting: RequiredParams<'until'>
+			/**
 			 * r​e​a​d​i​n​g​ ​y​o​u​r​ ​s​e​t​t​i​n​g​s
 			 */
 			stageSettings: string
@@ -4183,6 +4192,14 @@ export type TranslationFunctions = {
 			 * bringing records up to date
 			 */
 			stageRecords: () => LocalizedString
+			/**
+			 * bringing the workspace up to this version of rentable. this reaches turso and takes a moment; nothing here is stuck.
+			 */
+			migrationApplying: () => LocalizedString
+			/**
+			 * another member is bringing the workspace up to this version of rentable. waiting on them, until {until} at the latest.
+			 */
+			migrationWaiting: (arg: { until: string }) => LocalizedString
 			/**
 			 * reading your settings
 			 */

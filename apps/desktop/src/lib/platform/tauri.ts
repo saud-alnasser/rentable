@@ -18,6 +18,7 @@ import type {
 	LinkFacts,
 	LockOutCost,
 	MemberRemoved,
+	MigrationNotice,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
@@ -55,6 +56,7 @@ export type {
 	LinkStanding,
 	LockOutCost,
 	MemberRemoved,
+	MigrationNotice,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
@@ -78,6 +80,8 @@ export type {
 const GOOGLE_SIGN_IN_PHASE_EVENT = 'rentable:google-sign-in-phase';
 /** the Rust side is `LINK_ARRIVED_EVENT` in `tauri/src/lib.rs`, and the two are one name. */
 const LINK_ARRIVED_EVENT = 'organization:link';
+/** the Rust side is `MIGRATION_EVENT` in `tauri/src/organization/command.rs`, one name. */
+const MIGRATION_EVENT = 'organization:migration';
 
 function mapUpdate(update: TauriUpdate): AvailableUpdate {
 	return {
@@ -239,6 +243,8 @@ export const tauri = {
 		linkTake: () => invoke<string | null>('organization_link_take'),
 		onLink: (listener: (link: string) => void) =>
 			listen<string>(LINK_ARRIVED_EVENT, (event) => listener(event.payload)),
+		onMigration: (listener: (notice: MigrationNotice) => void) =>
+			listen<MigrationNotice>(MIGRATION_EVENT, (event) => listener(event.payload)),
 		linkInspect: (link: string) => invoke<LinkFacts>('organization_link_inspect', { link }),
 		join: (link: string, password: string) =>
 			invoke<OrganizationState>('organization_join', { link, password }),

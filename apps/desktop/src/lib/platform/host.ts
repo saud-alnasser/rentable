@@ -189,6 +189,17 @@ export type RemoteSyncState = {
 export type ReplicationRefusal = 'none' | 'account' | 'credential';
 
 /**
+ * where an upgrade of a workspace's schema is, as the shell tells whoever is watching: this
+ * client applying it under the lease, waiting on another member's lease until its deadline, or
+ * done. The one moment the local replica is not enough, said rather than left to look like a hang.
+ */
+export type MigrationNotice = { workspaceId: string } & (
+	| { phase: 'applying'; from: number; to: number }
+	| { phase: 'waiting'; holderMemberId: string; until: number }
+	| { phase: 'done' }
+);
+
+/**
  * how far a sign-in has got. signing in is one call, so progress arrives on an event instead of
  * a return.
  */
@@ -513,6 +524,8 @@ export type Host = {
 		linkTake: () => Promise<string | null>;
 		/** a link that arrives while the shell is running. Resolves to its own removal. */
 		onLink: (listener: (link: string) => void) => Promise<Unlisten>;
+		/** where a workspace upgrade is, while one runs on open. Resolves to its own removal. */
+		onMigration: (listener: (notice: MigrationNotice) => void) => Promise<Unlisten>;
 		/**
 		 * read a link: which organization it names and where its invitation stands. Rejects as
 		 * `invalidInput` where the text is not a link, and as `network` where the organization
