@@ -1,5 +1,5 @@
 ---
-status: draft
+status: accepted
 ---
 
 # Problem
@@ -151,8 +151,10 @@ already holds a consent is not asked for it again.
     The invite dialog still shows what it made, the link and the generated password with
     their copy controls, until dismissed, and still says it cannot send them. *Chosen
     2026-09-12 over inline forms restyled.*
-13. **The new-workspace dialog and the walk's third step are the same form**, one component
-    drawn on two surfaces, so a name limit or a refusal reads the same in both places.
+13. **The new-workspace dialog and the walk's third step are the same form**, one definition
+    (the schema and the fields) drawn on two surfaces, so a name limit or a refusal reads the
+    same in both places. *One Svelte component is not possible: the form surface owns its
+    `<form>` and the walk sits on the standalone surface; `plan.md` says what is shared.*
 
 *Everywhere in scope*
 
@@ -202,10 +204,11 @@ already holds a consent is not asked for it again.
     workspace dialog; each is otherwise drawn refused with its sentence and no padlock glyph.
     `grep` finds no `LockIcon` in `workspace-menu.svelte`.
 11. After a switch, `workspace-menu.svelte` is the same component instance with new props;
-    no second row is mounted. Asserted by the sidebar test that counts rows.
+    no second row is mounted. Asserted by the menu's own test rerendering with a new open id.
 12. `invite-form.svelte` and the workspace form render inside `FormSurface`; the organization
-    page renders no `<form>` of its own; both dialogs open from the page and from the menu.
-    Asserted in the organization page test and the menu test.
+    page renders no `<form>` of its own (`grep -c "<form" routes/organization/+page.svelte` is
+    zero, since routes are not rendered under vitest here); both dialogs open from the page and
+    from the menu, asserted in the invite form's test and the menu test.
 13. One workspace form component is imported by the walk and by the dialog; a name over the
     limit is refused with the same message in both.
 14. Each primary button named in requirement 14 renders an `svg` before its label; the
