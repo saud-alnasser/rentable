@@ -513,6 +513,40 @@ pub async fn organization_renew_credentials(
     workspace::renew_credentials(store, member, &platform, &organization_database).await
 }
 
+/// Renew credentials if any is close to lapsing, on the owner's machine, best effort. Answers
+/// whether it renewed. This is what keeps an organization syncing past the four-week credential
+/// lifetime: the owner's machine, which is the only one holding the platform authority, calls it
+/// after sign-in, and it mints only when something is within the renewal window rather than on
+/// every launch. A machine that is not the owner's, or holds no authority, or is not signed in,
+/// answers `false` and does nothing, so the caller can fire it and forget it. It never blocks
+/// sign-in, which works offline (requirement 18).
+#[tauri::command]
+pub async fn organization_renew_due(app_state: tauri::State<'_, AppState>) -> Result<bool, Error> {
+    let Some(platform) = owner_platform(&app_state).await else {
+        return Ok(false);
+    };
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let Ok((member, store)) = signed_in(&mut member, &store) else {
+        return Ok(false);
+    };
+    if member.settled().is_err() {
+        return Ok(false);
+    }
+
+    let now = crate::timestamp::now();
+    if !workspace::credentials_due(store, member, workspace::CREDENTIAL_RENEWAL_WINDOW_MS, now)
+        .await?
+    {
+        return Ok(false);
+    }
+
+    let organization_database = format!("org-{}", member.organization_id);
+    workspace::renew_credentials(store, member, &platform, &organization_database).await?;
+
+    Ok(true)
+}
+
 /// Invite a member: a row, a link and a generated password, shown once. The application sends
 /// nothing; the administrator hands both over themselves.
 ///

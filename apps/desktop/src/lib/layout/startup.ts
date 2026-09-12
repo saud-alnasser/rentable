@@ -112,6 +112,8 @@ export type StartupPorts = {
 		signOut(): Promise<OrganizationState>;
 		/** open one of the workspaces the session holds a grant on, before the bootstrap. */
 		openWorkspace(workspaceId: string): Promise<unknown>;
+		/** renew credentials close to lapsing, on the owner's machine, best effort. */
+		renewDue(): Promise<boolean>;
 	};
 	workspace: {
 		bootstrap(): Promise<Recovery>;
@@ -638,7 +640,15 @@ export class Startup {
 			await this.#continue();
 		} catch (error) {
 			await this.#fail(error);
+
+			return;
 		}
+
+		// the owner's machine keeps the organization's credentials from lapsing. It is best effort
+		// and fired here rather than awaited: it reaches Turso, and entering the application must not
+		// wait on a network or fail with it, which is what lets sign-in work offline (requirement 18).
+		// A machine that is not the owner's, or has nothing due, does nothing.
+		void this.#ports.organization.renewDue().catch(() => {});
 	}
 
 	/** Try the whole startup again. What the failure and recovery screens offer. */

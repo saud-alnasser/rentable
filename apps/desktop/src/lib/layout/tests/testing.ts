@@ -203,6 +203,7 @@ export function harness(
 
 				return organization;
 			},
+			renewDue: async () => false,
 			openWorkspace: async (workspaceId) => {
 				journal.workspacesOpened.push(workspaceId);
 			}

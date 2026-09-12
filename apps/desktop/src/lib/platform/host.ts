@@ -468,6 +468,13 @@ export type Host = {
 		 * so the machine can act as the owner's again. Rejects where no consent stands.
 		 */
 		reconnectAuthority: () => Promise<OrganizationState>;
+		/**
+		 * renew this organization's credentials if any is close to lapsing, on the owner's machine,
+		 * best effort. Answers whether it renewed. A machine that is not the owner's, holds no
+		 * authority, or has nothing due answers `false` and does nothing, so a caller fires it and
+		 * forgets it; it never blocks sign-in, which works offline.
+		 */
+		renewDue: () => Promise<boolean>;
 		workspace: {
 			/**
 			 * create a workspace on the account: a database, migrated, recorded, and granted to the

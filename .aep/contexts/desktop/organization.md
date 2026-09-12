@@ -73,6 +73,14 @@ repeats the consent for it, because no row holds it.
   creating and deleting workspaces, minting read-only grants, renewing and rotating credentials,
   locking out, are refused for everybody else at the command with a sentence saying to ask the
   owner. There is no request queue.
+- **Credentials renew on the owner's machine before they lapse, and only there.** A grant is
+  minted for four weeks, and the owner's machine, the only one holding the Turso authority, renews
+  every grant within a week of its expiry, best effort, after it signs in. It never blocks a
+  sign-in, which works offline. An organization whose owner does not launch the application for a
+  month lets its credentials lapse and stops syncing until the owner returns and reconnects, which
+  is the inherent cost of having no server and is stated here rather than hidden. A renewal seals
+  nothing to a removed member, so a grant row replayed by someone who kept the credential earns
+  them nothing.
 - **Removal ends synchronisation and reaches into nothing.** An ordinary removal stops renewing
   and disturbs nobody; a lock-out rotates the workspaces the member held and says beforehand how
   many others stop syncing until their application collects a fresh credential, which it does

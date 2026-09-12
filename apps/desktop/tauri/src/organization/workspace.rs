@@ -43,6 +43,12 @@ use super::{
 /// on the owner's machine; what happens when it lapses is the removal ticket's ordinary path.
 pub const WORKSPACE_CREDENTIAL_LIFETIME: &str = "4w";
 
+/// How long before a credential expires the owner's machine renews it. Credentials are minted at
+/// four weeks; renewing within a week of expiry means an owner who launches the application at
+/// least weekly never lets one lapse. An owner who launches less often than that lets it lapse,
+/// which is the inherent limit of having no server ([[contexts/desktop/organization]]).
+pub const CREDENTIAL_RENEWAL_WINDOW_MS: i64 = 7 * 24 * 60 * 60 * 1000;
+
 /// The credential the migration itself spends, and nothing else: minted, spent, dropped.
 pub const MIGRATION_CREDENTIAL_LIFETIME: &str = "30m";
 
@@ -418,6 +424,29 @@ pub async fn rename_workspace(
 ///
 /// A member with no grant row gets nothing, which is what an ordinary removal is: their existing
 /// credential dies at its expiry and nobody else is disturbed.
+/// Whether any grant's credential expires within `window_ms` of `now`, so the owner's machine
+/// should renew before it lapses. A grant whose token never expires has no recorded expiry and is
+/// never due. This is the cheap check the owner's machine runs so it does not mint on every launch,
+/// only when something is close.
+pub async fn credentials_due(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    window_ms: i64,
+    now: i64,
+) -> Result<bool, Error> {
+    session.settled()?;
+
+    let grants = store.grants(&session.verifying_key).await?;
+
+    Ok(grants.iter().any(|grant| {
+        grant
+            .credential_expires_at
+            .as_deref()
+            .and_then(|at| at.parse::<i64>().ok())
+            .is_some_and(|expiry| expiry - now <= window_ms)
+    }))
+}
+
 pub async fn renew_credentials<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &mut MemberSession,
@@ -432,10 +461,16 @@ pub async fn renew_credentials<P: TursoPlatform>(
         key: &key,
         certificate: &certificate,
     };
+    // a removed member is not renewed: their row stands as `removed` and their grant was deleted,
+    // but a grant row replayed onto the database by a member who still holds the organization
+    // credential would otherwise be re-sealed a fresh credential here. Skipping them by role is
+    // what closes that half of F2; ticket 23 revokes a removed administrator's certificate for the
+    // other half.
     let members: HashMap<String, [u8; 32]> = store
         .members(&session.verifying_key)
         .await?
         .into_iter()
+        .filter(|member| member.role != permission::REMOVED)
         .map(|member| (member.id, member.vault.public_key))
         .collect();
     let workspaces = store.workspaces(&session.verifying_key).await?;
@@ -584,7 +619,7 @@ mod tests {
 
     use super::{
         MIGRATION_CREDENTIAL_LIFETIME, WORKSPACE_CREDENTIAL_LIFETIME, create_workspace,
-        delete_workspace, grant_workspace, openable, renew_credentials,
+        credentials_due, delete_workspace, grant_workspace, openable, renew_credentials,
     };
     use crate::{
         organization::{
@@ -593,7 +628,7 @@ mod tests {
             permission,
             session::{CredentialSlot, MemberSession, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
-            store::{MemberRecord, OrganizationStore, Signer},
+            store::{GrantRecord, MemberRecord, OrganizationStore, Signer},
             vault::{KdfParams, create_vault, seal_content, seal_to_public_key},
         },
         persisted::Persisted,
@@ -1225,6 +1260,121 @@ mod tests {
                 .all(|grant| grant.workspace_id != facts.id)
         );
         assert!(!owner.workspace_credentials.contains_key(&facts.id));
+    }
+
+    /// Ticket 24, F2's renewal half: a renewal seals nothing to a removed member, so a grant row
+    /// replayed onto the database by a member who still holds the organization credential earns
+    /// them no fresh credential. The member row stands as `removed` and the grant is kept, which is
+    /// exactly what a replay leaves; the renewal skips it.
+    #[tokio::test]
+    async fn renew_credentials_seals_nothing_to_a_removed_member() {
+        let directory = scratch("renew-removed");
+        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        second_member(&store, &owner).await;
+        let pipeline = applying_pipeline().await;
+        let facts = create_workspace(
+            &store,
+            &mut owner,
+            &platform,
+            |_| Pipeline::at(&pipeline.url("")),
+            "W",
+            1,
+        )
+        .await
+        .expect("the create failed");
+
+        grant_workspace(
+            &store,
+            &owner,
+            Some(&platform),
+            &facts.id,
+            "member-b",
+            AccessLevel::FullAccess,
+        )
+        .await
+        .expect("the grant failed");
+
+        // member-b is removed, and their grant is left in place as a replay would leave it: the
+        // row read as `removed`, the grant still present.
+        let (key, certificate) = super::signer_of(&store, &owner).await.expect("the signer");
+        let signer = Signer {
+            key: &key,
+            certificate: &certificate,
+        };
+        let mut member_b = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("members")
+            .into_iter()
+            .find(|member| member.id == "member-b")
+            .expect("member-b");
+        member_b.role = permission::REMOVED.to_string();
+        store
+            .write_member(&signer, &member_b)
+            .await
+            .expect("removed");
+
+        let organization_database = format!("org-{}", owner.organization_id);
+        let renewed = renew_credentials(&store, &mut owner, &platform, &organization_database)
+            .await
+            .expect("the renewal failed");
+
+        // the owner's two grants renew, the removed member's does not: three grants stand and one
+        // is skipped.
+        assert_eq!(renewed, 2);
+    }
+
+    /// Ticket 24, F4's cheap check: a credential within the window is due and one comfortably live
+    /// is not, so the owner's machine mints when something is close rather than on every launch. A
+    /// grant with no recorded expiry, which is a token that never expires, is never due.
+    #[tokio::test]
+    async fn credentials_due_answers_on_the_soonest_expiry() {
+        let directory = scratch("due");
+        let (_, store, _, owner, _) = owned(&directory).await;
+        let now = 1_757_000_000_000_i64;
+        let day = 24 * 60 * 60 * 1000_i64;
+
+        // whatever the owner's organization grant records for its expiry, nothing is within a
+        // second of now, so nothing is due.
+        assert!(
+            !credentials_due(&store, &owner, 1000, now)
+                .await
+                .expect("due read")
+        );
+
+        // a grant three days out is due within a week and not within a day.
+        let (key, certificate) = super::signer_of(&store, &owner).await.expect("the signer");
+        store
+            .write_grant(
+                &Signer {
+                    key: &key,
+                    certificate: &certificate,
+                },
+                &GrantRecord {
+                    member_id: owner.member_id.clone(),
+                    workspace_id: "ws-soon".to_string(),
+                    sealed_credential: seal_to_public_key(
+                        &owner.secret.public_key(),
+                        b"a-credential",
+                    )
+                    .expect("sealed"),
+                    access_level: AccessLevel::FullAccess.as_str().to_string(),
+                    credential_expires_at: Some((now + 3 * day).to_string()),
+                },
+            )
+            .await
+            .expect("the grant");
+
+        assert!(
+            credentials_due(&store, &owner, 7 * day, now)
+                .await
+                .expect("due read")
+        );
+        assert!(
+            !credentials_due(&store, &owner, day, now)
+                .await
+                .expect("due read")
+        );
     }
 
     /// Renewal mints fresh credentials and re-seals them to every member who still holds a grant,

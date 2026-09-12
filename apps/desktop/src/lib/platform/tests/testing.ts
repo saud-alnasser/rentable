@@ -131,6 +131,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			join: refuse('organization.join'),
 			restore: refuse('organization.restore'),
 			reconnectAuthority: refuse('organization.reconnectAuthority'),
+			renewDue: refuse('organization.renewDue'),
 			workspace: {
 				create: refuse('organization.workspace.create'),
 				open: refuse('organization.workspace.open'),
