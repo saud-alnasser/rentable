@@ -2405,10 +2405,6 @@ type RootTranslation = {
 			 */
 			workspaceDescription: string
 			/**
-			 * j​o​i​n​ ​l​i​n​k
-			 */
-			linkLabel: string
-			/**
 			 * c​o​p​y​ ​l​i​n​k
 			 */
 			copyLink: string
@@ -2561,6 +2557,10 @@ type RootTranslation = {
 			 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​.​ ​c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​b​e​l​o​w​ ​a​n​d​ ​h​a​n​d​ ​t​h​e​m​ ​t​o​ ​t​h​e​ ​p​e​r​s​o​n​ ​y​o​u​r​s​e​l​f​;​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​s​h​o​w​n​ ​o​n​c​e​.
 			 */
 			cannotSend: string
+			/**
+			 * j​o​i​n​ ​l​i​n​k
+			 */
+			linkLabel: string
 			/**
 			 * g​e​n​e​r​a​t​e​d​ ​p​a​s​s​w​o​r​d
 			 */
@@ -5089,10 +5089,6 @@ export type TranslationFunctions = {
 			 */
 			workspaceDescription: () => LocalizedString
 			/**
-			 * join link
-			 */
-			linkLabel: () => LocalizedString
-			/**
 			 * copy link
 			 */
 			copyLink: () => LocalizedString
@@ -5244,6 +5240,10 @@ export type TranslationFunctions = {
 			 * rentable sends nothing. copy the link and the password below and hand them to the person yourself; the password is shown once.
 			 */
 			cannotSend: () => LocalizedString
+			/**
+			 * join link
+			 */
+			linkLabel: () => LocalizedString
 			/**
 			 * generated password
 			 */

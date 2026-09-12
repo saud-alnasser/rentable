@@ -186,8 +186,8 @@
 				<Field.Field>
 					<Field.Label for="sign-in-password">{$LL.layout.signIn.password()}</Field.Label>
 					<!-- the field's subject, as a leading glyph. The addon draws it in the muted
-					     foreground so it does not outweigh the label beside it (Balance weight and
-					     contrast, Refactoring UI p.56). It is the subject and never the error: a
+					     foreground so it does not outweigh the label beside it (*Balance weight and
+					     contrast*, Refactoring UI p.56). It is the subject and never the error: a
 					     validation error marks the label line, as the interface rule says. -->
 					<InputGroup.Root data-disabled={isSigningIn ? 'true' : undefined}>
 						<InputGroup.Addon>

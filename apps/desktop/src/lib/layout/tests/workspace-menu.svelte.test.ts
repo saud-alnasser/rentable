@@ -1,4 +1,3 @@
-import type { DesignStrings } from '@rentable/design/strings.js';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
 
@@ -8,6 +7,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import WorkspaceMenu from '$lib/layout/component/workspace-menu.svelte';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { fakeOrganizationWorkspace, fakeWorkspace } from '$lib/platform/tests/testing.ts';
+import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 import RailProviders from './rail-providers.svelte';
 
@@ -30,14 +30,6 @@ import RailProviders from './rail-providers.svelte';
  */
 
 const noop = () => {};
-
-/**
- * the design primitives read the provider; every string they could ask for comes back as its
- * own name in braces, which no assertion below looks for.
- */
-const strings = new Proxy({} as DesignStrings, {
-	get: (_, key) => (key === 'moreRecords' ? (count: number) => `{${count}}` : `{${String(key)}}`)
-});
 
 /**
  * Two browser facts the sidebar's state and the menu's floating content reach for, neither of

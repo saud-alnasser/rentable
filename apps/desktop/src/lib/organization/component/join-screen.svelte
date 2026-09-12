@@ -8,8 +8,8 @@
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import BackGlyph from './back-glyph.svelte';
+	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import LinkIcon from '@lucide/svelte/icons/link';
-	import LockIcon from '@lucide/svelte/icons/lock';
 	import LockOpenIcon from '@lucide/svelte/icons/lock-open';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
@@ -179,7 +179,7 @@
 					<Field.Label for="join-password">{$LL.organization.join.passwordLabel()}</Field.Label>
 					<InputGroup.Root data-disabled={busy ? 'true' : undefined}>
 						<InputGroup.Addon>
-							<LockIcon />
+							<KeyRoundIcon />
 						</InputGroup.Addon>
 						<InputGroup.Input
 							id="join-password"
@@ -242,7 +242,7 @@
 					<Field.Label for="restore-password">{$LL.layout.signIn.password()}</Field.Label>
 					<InputGroup.Root data-disabled={busy ? 'true' : undefined}>
 						<InputGroup.Addon>
-							<LockIcon />
+							<KeyRoundIcon />
 						</InputGroup.Addon>
 						<InputGroup.Input
 							id="restore-password"

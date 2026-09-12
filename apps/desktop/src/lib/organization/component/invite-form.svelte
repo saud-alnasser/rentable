@@ -155,7 +155,7 @@
 			<Callout tone="warning">{$LL.organization.dashboard.cannotSend()}</Callout>
 
 			<div class="space-y-2">
-				<p class="text-sm font-medium">{$LL.organization.setup.linkLabel()}</p>
+				<p class="text-sm font-medium">{$LL.organization.dashboard.linkLabel()}</p>
 				<!-- machine strings, read left to right in both locales ([[rules/frontend]], *i18n*). -->
 				<code
 					dir="ltr"
@@ -215,7 +215,7 @@
 					<Form.Label>{$LL.organization.dashboard.email()}</Form.Label>
 					<InputGroup.Root class={insetControl} data-disabled={isInviting || undefined}>
 						<InputGroup.Addon>
-							<MailIcon aria-hidden="true" />
+							<MailIcon />
 						</InputGroup.Addon>
 						<InputGroup.Input
 							name="email"
@@ -237,7 +237,7 @@
 					<Form.Label>{$LL.common.labels.name()}</Form.Label>
 					<InputGroup.Root class={insetControl} data-disabled={isInviting || undefined}>
 						<InputGroup.Addon>
-							<UserIcon aria-hidden="true" />
+							<UserIcon />
 						</InputGroup.Addon>
 						<InputGroup.Input
 							name="displayName"

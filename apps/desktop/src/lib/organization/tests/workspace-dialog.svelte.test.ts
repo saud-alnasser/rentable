@@ -1,4 +1,4 @@
-import { DesignProvider, type DesignStrings } from '@rentable/design/strings.js';
+import { DesignProvider } from '@rentable/design/strings.js';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
 
@@ -8,6 +8,7 @@ import WorkspaceDialog from '$lib/organization/component/workspace-dialog.svelte
 import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
+import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 /**
  * THE NEW-WORKSPACE DIALOG, RENDERED
@@ -24,9 +25,6 @@ import ar from '$lib/i18n/ar';
 
 const noop = () => {};
 
-const strings = new Proxy({} as DesignStrings, {
-	get: (_, key) => (key === 'moreRecords' ? (count: number) => `{${count}}` : `{${String(key)}}`)
-});
 const inProvider = (direction: 'ltr' | 'rtl') => ({
 	wrapper: DesignProvider,
 	wrapperProps: { strings, direction }

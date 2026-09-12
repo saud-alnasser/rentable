@@ -776,7 +776,6 @@ const en = {
 			workspaceTitle: 'name your first workspace',
 			workspaceDescription:
 				'a workspace holds one set of records. more can be added later, from inside the application.',
-			linkLabel: 'join link',
 			copyLink: 'copy link',
 			linkCopied: 'link copied.',
 			continue: 'continue',
@@ -826,6 +825,7 @@ const en = {
 			invite: 'invite',
 			cannotSend:
 				'rentable sends nothing. copy the link and the password below and hand them to the person yourself; the password is shown once.',
+			linkLabel: 'join link',
 			generatedPassword: 'generated password',
 			passwordOnce:
 				'this is the only time the password is shown. they change it on their first sign-in.',

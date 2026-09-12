@@ -288,7 +288,11 @@
 				{#each statements as statement (statement)}
 					{@const Glyph = statementGlyph[statement]}
 					<li class="flex gap-3" data-setup-statement={statement}>
-						<Glyph class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+						<!-- centred on the sentence's first line, which is `text-sm`'s 20px, rather than
+						     nudged down by a margin off the spacing ladder. -->
+						<span class="flex h-5 shrink-0 items-center">
+							<Glyph class="size-4" />
+						</span>
 						<span class="min-w-0 flex-1">
 							{statementText(statement)}
 							{#if statement === 'groupPreparation'}
@@ -339,7 +343,7 @@
 							<Form.Label>{$LL.organization.setup.nameLabel()}</Form.Label>
 							<InputGroup.Root data-disabled={isCreating || undefined}>
 								<InputGroup.Addon>
-									<BuildingIcon aria-hidden="true" />
+									<BuildingIcon />
 								</InputGroup.Addon>
 								<InputGroup.Input
 									name="name"
@@ -362,7 +366,7 @@
 							<Form.Label>{$LL.organization.setup.passwordLabel()}</Form.Label>
 							<InputGroup.Root data-disabled={isCreating || undefined}>
 								<InputGroup.Addon>
-									<KeyRoundIcon aria-hidden="true" />
+									<KeyRoundIcon />
 								</InputGroup.Addon>
 								<InputGroup.Input
 									name="password"

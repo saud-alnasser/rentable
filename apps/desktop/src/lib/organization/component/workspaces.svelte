@@ -12,18 +12,25 @@
 	 *
 	 * **The list, and an opener.** The form that names a new workspace is the shared form surface,
 	 * mounted once in the shell (`organization/dialogs.svelte.ts` says why once); what this
-	 * section holds is the control that opens it, drawn for the owner and a sentence for everybody
-	 * else, for the reason the no-workspace surface gives: creating a workspace needs the Turso
-	 * authority only the owner's machine holds, and the shell refuses anybody else at the command
-	 * regardless. An administrator sees the same list and the sentence, so they know whom to ask.
+	 * section holds is the control that opens it, drawn for whoever may create, and for everybody
+	 * else the sentence the page composes, the same one the rail's row says for the same person:
+	 * creating a workspace needs the Turso authority only the owner's machine holds, and the shell
+	 * refuses anybody else at the command regardless. An administrator reads that the owner
+	 * creates; an owner restored on a machine without the authority reads that the account must be
+	 * reconnected. The list draws and never decides. *The no-workspace surface's sentence stood
+	 * here first; it speaks of the first workspace, and under a list that already holds some it
+	 * read as a contradiction.*
 	 */
 	let {
 		workspaces,
-		canCreate
+		canCreate,
+		refusal
 	}: {
 		workspaces: OrganizationWorkspace[];
-		/** whether the person is the owner, which is who a create is for. */
+		/** whether this person, on this machine, may create: the owner holding the authority. */
 		canCreate: boolean;
+		/** why not, composed by the page from the locale; `null` where `canCreate`. */
+		refusal: string | null;
 	} = $props();
 
 	const accessLabel = (level: string) =>
@@ -66,8 +73,6 @@
 			</Button>
 		</div>
 	{:else}
-		<p class="text-sm text-muted-foreground" data-workspace-owner-only>
-			{$LL.layout.noWorkspace.ownerOnly()}
-		</p>
+		<p class="text-sm text-muted-foreground" data-workspace-owner-only>{refusal}</p>
 	{/if}
 </div>

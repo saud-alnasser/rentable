@@ -1,4 +1,3 @@
-import type { DesignStrings } from '@rentable/design/strings.js';
 import { render, screen } from '@testing-library/svelte';
 import { expect, test, vi } from 'vitest';
 
@@ -9,6 +8,7 @@ import type { JoinStep } from '$lib/organization/join';
 import type { LinkFacts } from '$lib/platform/host';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
+import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import Providers from './providers.svelte';
 
 /**
@@ -34,14 +34,6 @@ const facts = (standing: LinkFacts['standing']): LinkFacts => ({
 	organizationName: 'Acme Rentals',
 	remoteUrl: 'libsql://org-1.turso.io',
 	standing
-});
-
-/**
- * the packaged blocks read the provider; every string one could ask for comes back as its own
- * name in braces, which no assertion below looks for.
- */
-const strings = new Proxy({} as DesignStrings, {
-	get: (_, key) => (key === 'moreRecords' ? (count: number) => `{${count}}` : `{${String(key)}}`)
 });
 
 /** the sentence naming the organization, as a locale's dictionary spells it with the name in. */

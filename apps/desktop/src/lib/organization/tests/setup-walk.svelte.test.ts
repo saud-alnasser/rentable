@@ -1,4 +1,3 @@
-import type { DesignStrings } from '@rentable/design/strings.js';
 import { render, screen } from '@testing-library/svelte';
 import { expect, test, vi } from 'vitest';
 
@@ -9,6 +8,7 @@ import SetupWalk from '$lib/organization/component/setup-walk.svelte';
 import { SETUP_STEPS, type SetupStep } from '$lib/organization/setup';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
+import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import Providers from './providers.svelte';
 
 /**
@@ -35,14 +35,6 @@ import Providers from './providers.svelte';
  */
 
 const noop = () => {};
-
-/**
- * the packaged blocks read the provider; every string one could ask for comes back as its own
- * name in braces, which no assertion below looks for.
- */
-const strings = new Proxy({} as DesignStrings, {
-	get: (_, key) => (key === 'moreRecords' ? (count: number) => `{${count}}` : `{${String(key)}}`)
-});
 
 type WalkProps = Parameters<typeof render<typeof SetupWalk>>[1];
 

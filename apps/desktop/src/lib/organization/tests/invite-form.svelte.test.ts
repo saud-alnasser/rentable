@@ -1,4 +1,4 @@
-import { DesignProvider, type DesignStrings } from '@rentable/design/strings.js';
+import { DesignProvider } from '@rentable/design/strings.js';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
 
@@ -9,6 +9,7 @@ import Workspaces from '$lib/organization/component/workspaces.svelte';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
+import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 /**
  * THE INVITATION, RENDERED
@@ -26,13 +27,6 @@ import ar from '$lib/i18n/ar';
 
 const noop = () => {};
 
-/**
- * the surface and the role select are design primitives and read the provider; every string they
- * could ask for comes back as its own name in braces, which no assertion below looks for.
- */
-const strings = new Proxy({} as DesignStrings, {
-	get: (_, key) => (key === 'moreRecords' ? (count: number) => `{${count}}` : `{${String(key)}}`)
-});
 const inProvider = (direction: 'ltr' | 'rtl') => ({
 	wrapper: DesignProvider,
 	wrapperProps: { strings, direction }
@@ -248,11 +242,11 @@ test('a closed dialog puts nothing in the document', () => {
 test('the workspace section draws the list and an opener for the owner, and the opener opens the dialog', async () => {
 	loadLocale('en');
 	setLocale('en');
-	render(Workspaces, { workspaces, canCreate: true });
+	render(Workspaces, { workspaces, canCreate: true, refusal: null });
 
 	expect(document.querySelector('form')).toBeNull();
 	expect(inputsOnScreen()).toEqual([]);
-	expect(screen.queryByText(en.layout.noWorkspace.ownerOnly)).toBeNull();
+	expect(screen.queryByText(en.layout.workspaceMenu.workspaceRefusedOwner)).toBeNull();
 	expect(screen.getByText('Riyadh')).toBeDefined();
 
 	const opener = screen.getByRole('button', { name: en.layout.workspaceMenu.create });
@@ -269,10 +263,14 @@ test('the workspace section draws the list and an opener for the owner, and the 
 test('the workspace section tells everybody else to ask the owner, and offers no opener', () => {
 	loadLocale('en');
 	setLocale('en');
-	render(Workspaces, { workspaces, canCreate: false });
+	render(Workspaces, {
+		workspaces,
+		canCreate: false,
+		refusal: en.layout.workspaceMenu.workspaceRefusedOwner
+	});
 
 	expect(document.querySelector('[data-workspace-create]')).toBeNull();
 	expect(inputsOnScreen()).toEqual([]);
-	expect(screen.getByText(en.layout.noWorkspace.ownerOnly)).toBeDefined();
+	expect(screen.getByText(en.layout.workspaceMenu.workspaceRefusedOwner)).toBeDefined();
 	expect(screen.getByText('Riyadh')).toBeDefined();
 });

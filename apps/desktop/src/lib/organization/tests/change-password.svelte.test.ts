@@ -108,3 +108,30 @@ test('and in arabic, with the same three fields', () => {
 	expect(screen.getByText(ar.organization.setup.passwordFloor)).toBeDefined();
 	expect(inputsOnScreen()).toHaveLength(3);
 });
+
+// criteria 14 and 15 of the way in and the workspace control: the button carries its verb and
+// every password field leads with its subject, muted, so the three fields read as the same
+// control the wall's and the walk's password fields are.
+test('the change button carries its verb, and each password field leads with a muted glyph', () => {
+	loadLocale('en');
+	setLocale('en');
+	render(ChangePasswordForm, {
+		currentLabel: 'current password',
+		isChanging: false,
+		errorMessage: null,
+		onChange: noop
+	});
+
+	const change = screen.getByRole('button', { name: en.account.password.change });
+
+	expect(change.querySelector('svg')).not.toBeNull();
+
+	for (const name of ['current', 'next', 'confirmation']) {
+		const input = document.querySelector<HTMLInputElement>(`input[name="${name}"]`);
+		const addon = input?.previousElementSibling;
+
+		expect(addon?.getAttribute('data-slot')).toBe('input-group-addon');
+		expect(addon?.querySelector('svg')).not.toBeNull();
+		expect(addon?.className).toContain('text-muted-foreground');
+	}
+});

@@ -50,7 +50,7 @@
 		<Form.Label>{$LL.layout.noWorkspace.nameLabel()}</Form.Label>
 		<InputGroup.Root class={className} data-disabled={disabled || undefined}>
 			<InputGroup.Addon>
-				<BriefcaseIcon aria-hidden="true" />
+				<BriefcaseIcon />
 			</InputGroup.Addon>
 			<InputGroup.Input
 				name="name"

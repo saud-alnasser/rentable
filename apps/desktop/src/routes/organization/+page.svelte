@@ -55,6 +55,7 @@
 	const isOwner = $derived(session?.role === 'owner');
 	// an owner restored on this machine holds no Turso authority until they repeat the consent.
 	const needsAuthority = $derived(isOwner && stateQuery.data?.holdsTursoAuthority === false);
+	const canCreateWorkspace = $derived(isOwner && stateQuery.data?.holdsTursoAuthority === true);
 	const canInvite = $derived(permits(session?.permissions ?? 0, 'inviteMember'));
 	const canRemove = $derived(permits(session?.permissions ?? 0, 'removeMember'));
 
@@ -209,11 +210,17 @@
 
 			<Field.Set>
 				<Field.Legend>{$LL.organization.dashboard.workspaces()}</Field.Legend>
-				<!-- gated as the rail's row is: an owner whose machine lost the authority sees the reconnect
-				     notice above and no create, rather than a create the shell refuses. -->
+				<!-- gated as the rail's row is, with the rail's sentences: an owner whose machine lost
+				     the authority sees the reconnect notice above and no create, rather than a create
+				     the shell refuses, and reads why. -->
 				<OrganizationWorkspaces
 					workspaces={session.workspaces}
-					canCreate={isOwner && stateQuery.data?.holdsTursoAuthority === true}
+					canCreate={canCreateWorkspace}
+					refusal={canCreateWorkspace
+						? null
+						: isOwner
+							? $LL.layout.workspaceMenu.workspaceRefusedAuthority()
+							: $LL.layout.workspaceMenu.workspaceRefusedOwner()}
 				/>
 			</Field.Set>
 		</Field.Group>
