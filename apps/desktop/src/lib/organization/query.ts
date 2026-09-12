@@ -164,6 +164,40 @@ export function useInviteMember(
 	}));
 }
 
+/**
+ * remove a member, at the speed the caller chose. The ordinary removal says so; a lock-out says
+ * how many others have to reconnect, which the dialog said before it ran.
+ */
+export function useRemoveMember(
+	opts: MutationOptions = {
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ memberId, lockOut }: { memberId: string; lockOut: boolean }) =>
+			api.app.organization.member.remove({ memberId, lockOut }),
+		onSuccess: async () => {
+			await Promise.all([
+				client.invalidateQueries({ queryKey: keys.members }),
+				client.invalidateQueries({ queryKey: keys.invitations })
+			]);
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** what locking a member out would cost, read for the dialog that asks before it is done. */
+export function useLockOutCost(memberId: () => string | null) {
+	return createQuery(() => ({
+		queryKey: [...keys.members, 'lockOutCost', memberId()],
+		queryFn: () => api.app.organization.member.lockOutCost({ memberId: memberId() ?? '' }),
+		enabled: memberId() !== null
+	}));
+}
+
 export function useRevokeInvitation(
 	opts: MutationOptions = {
 		toast: {

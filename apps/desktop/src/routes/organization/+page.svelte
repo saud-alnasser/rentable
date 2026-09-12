@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { Invited } from '$lib/platform/tauri';
+	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
+	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import PageFrame from '@rentable/design/block/page-frame.svelte';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
@@ -14,9 +16,12 @@
 		useFetchMembers,
 		useFetchOrganizationState,
 		useInviteMember,
+		useLockOutCost,
 		useReissueInvitation,
+		useRemoveMember,
 		useRevokeInvitation
 	} from '$lib/organization/query';
+	import { toast } from 'svelte-sonner';
 	import { permits } from '@rentable/workspace-permission';
 
 	/**
@@ -38,10 +43,57 @@
 	const reissueInvitation = useReissueInvitation();
 	const revokeInvitation = useRevokeInvitation();
 	const createWorkspace = useCreateWorkspace();
+	const removeMember = useRemoveMember();
 
 	const session = $derived(stateQuery.data?.session ?? null);
 	const isOwner = $derived(session?.role === 'owner');
 	const canInvite = $derived(permits(session?.permissions ?? 0, 'inviteMember'));
+	const canRemove = $derived(permits(session?.permissions ?? 0, 'removeMember'));
+
+	/**
+	 * the removal being asked about: which member, and at which speed. The lock-out's dialog
+	 * waits for the cost to be read, because the number it states is the number the act uses.
+	 */
+	let removing = $state<{ memberId: string; lockOut: boolean } | null>(null);
+
+	const lockOutCost = useLockOutCost(() => (removing?.lockOut ? removing.memberId : null));
+
+	const removingName = $derived.by(() => {
+		if (!removing) return '';
+
+		const member = (membersQuery.data ?? []).find(
+			(candidate) => candidate.id === removing?.memberId
+		);
+
+		return member ? member.displayName || member.email : removing.memberId;
+	});
+
+	const lockOutDescription = $derived.by(() => {
+		const cost = lockOutCost.data;
+
+		if (!removing?.lockOut || !cost) return $LL.organization.dashboard.lockOutReading();
+
+		return $LL.organization.dashboard.lockOutDescription({
+			count: cost.membersAffected,
+			workspaces:
+				cost.workspaces.map((workspace) => workspace.name).join(', ') ||
+				$LL.organization.dashboard.noWorkspaces()
+		});
+	});
+
+	const confirmRemoval = async () => {
+		if (!removing) return;
+
+		const { memberId, lockOut } = removing;
+		const removed = await removeMember.mutateAsync({ memberId, lockOut });
+
+		toast.success(
+			removed.lockedOut
+				? $LL.organization.dashboard.lockedOut({ count: removed.othersMustReconnect })
+				: $LL.organization.dashboard.removed()
+		);
+		await stateQuery.refetch();
+	};
 
 	let invited = $state<Invited | null>(null);
 	let copied = $state<'link' | 'password' | null>(null);
@@ -119,8 +171,17 @@
 					members={membersQuery.data ?? []}
 					workspaces={session.workspaces}
 					{canInvite}
+					{canRemove}
+					canLockOut={isOwner}
+					selfId={session.memberId}
 					{reissuing}
 					onReissue={(memberId) => void reissue(memberId)}
+					onRemove={(memberId) => {
+						removing = { memberId, lockOut: false };
+					}}
+					onLockOut={(memberId) => {
+						removing = { memberId, lockOut: true };
+					}}
 				/>
 			</Field.Set>
 
@@ -173,4 +234,27 @@
 			</Field.Set>
 		</Field.Group>
 	</PageFrame>
+
+	<!-- the ordinary removal asks once and says what it does not do: nothing on the member's
+	     machine is taken back. The lock-out asks with the cost read first, and names how many
+	     others stop syncing, because turso revokes per database and totally. -->
+	<DeleteDialog
+		open={removing !== null}
+		onOpenChange={(open) => {
+			if (!open) removing = null;
+		}}
+		onSubmit={confirmRemoval}
+		record={removingName}
+		title={removing?.lockOut
+			? $LL.organization.dashboard.removeAndLockOut()
+			: $LL.organization.dashboard.remove()}
+		description={removing?.lockOut
+			? lockOutDescription
+			: $LL.organization.dashboard.removeDescription()}
+		confirmLabel={removing?.lockOut
+			? $LL.organization.dashboard.removeAndLockOut()
+			: $LL.organization.dashboard.remove()}
+		confirmLoadingLabel={$LL.common.actions.working()}
+		blockers={removing?.lockOut && !lockOutCost.data ? AWAITING_BLOCKERS : undefined}
+	/>
 {/if}

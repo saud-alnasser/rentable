@@ -56,6 +56,10 @@ impl Administration {
 pub const OWNER: &str = "owner";
 pub const ADMINISTRATOR: &str = "administrator";
 pub const MEMBER: &str = "member";
+/// A member who was removed. The row stays, signed by whoever removed them, so a machine holding
+/// a stale replica sees a verified removal rather than an unexplained absence; it administers
+/// nothing, signs in to nothing, and the dashboard does not list it.
+pub const REMOVED: &str = "removed";
 
 /// The mask a role is created with, as `ADMINISTRATION_BY_ROLE` gives it. The role is what a
 /// member is called; the column is what they may do, and a row may carry more or less.

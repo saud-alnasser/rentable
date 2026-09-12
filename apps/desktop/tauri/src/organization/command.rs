@@ -11,6 +11,7 @@ use super::{
     link::JoinLink,
     migrate::Pipeline,
     password,
+    removal::{self, LockOutCost, Removed},
     session::{self, CredentialSlot, SessionFacts, WorkspaceFacts},
     setup::{self, CreateOrganization, OrganizationCreated, Remote},
     store::OrganizationStore,
@@ -478,6 +479,95 @@ pub async fn member_reset(
         timestamp::now(),
     )
     .await
+}
+
+/// What locking a member out would cost, said before it is done: which workspaces rotate and how
+/// many other members stop syncing until their application reconnects.
+#[tauri::command]
+pub async fn member_lock_out_cost(
+    app_state: tauri::State<'_, AppState>,
+    member_id: String,
+) -> Result<LockOutCost, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    removal::lock_out_cost(store, member, &member_id).await
+}
+
+/// Remove a member. `lock_out` is `false` unless the interface says otherwise, which is the
+/// ordinary removal: their grants go, their row is signed as removed, and nobody else is
+/// disturbed. `true` rotates every workspace they held, which cuts them off at once and stops
+/// every remaining member of those workspaces syncing until their application collects a fresh
+/// credential; it is the owner's, because rotating needs the turso authority.
+#[tauri::command]
+pub async fn member_remove(
+    app_state: tauri::State<'_, AppState>,
+    member_id: String,
+    lock_out: Option<bool>,
+) -> Result<Removed, Error> {
+    let platform = owner_platform(&app_state).await;
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    let organization_database = format!("org-{}", member.organization_id);
+
+    removal::remove_member(
+        store,
+        member,
+        platform.as_ref(),
+        &organization_database,
+        &member_id,
+        lock_out.unwrap_or(false),
+        timestamp::now(),
+    )
+    .await
+}
+
+/// Collect whatever the organization database holds for this member that this process does
+/// not: the credential a lock-out rotated and the owner re-sealed, or a workspace granted since
+/// sign-in. Pulls the replica, reads the grants again, and where the credential for the current
+/// workspace moved, hands the sync engine the new one. Answers whether anything moved.
+///
+/// **This is a remaining member's recovery after a lock-out, and it is automatic**: the sync
+/// dispatcher runs it when a replication is refused, and the next request goes out under the
+/// fresh credential. Nobody is signed out, and nobody is told to do anything.
+pub(crate) async fn reconnect(app_state: &AppState) -> bool {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let Ok((member, store)) = signed_in(&mut member, &store) else {
+        return false;
+    };
+
+    store.pull().await;
+
+    let moved = match session::refresh_credentials(store, member).await {
+        Ok(moved) => moved,
+        Err(error) => {
+            crate::diagnostics::warn("organization.credentials.refreshFailed")
+                .with("error", error.to_string().as_str())
+                .write();
+
+            return false;
+        }
+    };
+
+    if !moved {
+        return false;
+    }
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let current = remote_sync.workspace();
+
+    if let Some(remote_id) = current.remote_id.as_deref()
+        && let Some(held) = member.workspace_credentials.get(remote_id)
+    {
+        remote_sync.hold_organization_workspace_token(&held.token);
+    }
+
+    crate::diagnostics::info("organization.credentials.refreshed").write();
+
+    true
 }
 
 /// Change the signed-in member's own password. The current one opens the vault, the new one has

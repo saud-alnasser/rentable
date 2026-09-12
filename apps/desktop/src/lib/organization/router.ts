@@ -1,5 +1,7 @@
 import type {
 	Invited,
+	LockOutCost,
+	MemberRemoved,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
@@ -135,6 +137,22 @@ export const organization = router({
 					input.role,
 					input.workspaceIds
 				);
+			}),
+		/**
+		 * Removal, at one of two speeds. **`lockOut` defaults to false here as well as in Rust**,
+		 * so the destructive path is chosen rather than fallen into by any caller.
+		 */
+		remove: procedure
+			.permitted('removeMember')
+			.input(z.object({ memberId: z.string().trim().min(1), lockOut: z.boolean().default(false) }))
+			.mutation(async ({ input, ctx }): Promise<MemberRemoved> => {
+				return ctx.host.organization.member.remove(input.memberId, input.lockOut);
+			}),
+		lockOutCost: procedure
+			.permitted('removeMember')
+			.input(z.object({ memberId: z.string().trim().min(1) }))
+			.query(async ({ input, ctx }): Promise<LockOutCost> => {
+				return ctx.host.organization.member.lockOutCost(input.memberId);
 			})
 	},
 	invitation: {

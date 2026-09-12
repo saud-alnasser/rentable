@@ -25,6 +25,7 @@ pub mod link;
 pub mod migrate;
 pub mod password;
 pub mod permission;
+pub mod removal;
 pub mod session;
 pub mod setup;
 pub mod store;

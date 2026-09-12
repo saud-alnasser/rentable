@@ -240,9 +240,15 @@ on purpose and no number of attempts changes that.
 - **A name already taken** fails the create. Names are `ws-<workspace id>`, so this means the id
   was reused, which is a defect here rather than a Turso problem.
 - **A quota exceeded blocks the databases outright** unless overages are enabled (decision 01).
-- **Revocation is bulk-only** and rotates every token in the group, with no published
-  propagation time. It cannot remove one person, which is why the control plane removes somebody
-  by declining to renew instead.
+- **Revocation is per database and total.** `POST /v1/organizations/<org>/databases/<name>/auth/rotate`
+  invalidates every token ever minted for that one database; the group-level rotate does the
+  same for every database in the group. Seen live on 2026-09-12: a token minted before the
+  rotation is refused on its next request with `401 {"error":"Unauthorized: \`unauthorized
+  access attempt on database: invalid JWT token: role was invalidated after token was
+  issued\`"}`, and a token minted after it lands. There is no per-token revocation, so
+  rotation cannot remove one person without cutting off everybody on that database, which is
+  why the desktop removes somebody by declining to renew and rotates only on a lock-out
+  (`apps/desktop/tauri/src/organization/removal.rs`).
 - **A delete-protected group refuses to delete the databases inside it**, and the message is
   about the group rather than about what was asked for:
   `403 {"error":"group rentable is delete-protected and cannot be deleted"}` — returned for a

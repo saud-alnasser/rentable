@@ -837,6 +837,16 @@ const en = {
 			done: 'done',
 			notYetSignedIn: 'not yet signed in',
 			resetPassword: 'reset password',
+			remove: 'remove',
+			removeDescription:
+				'they stop being renewed, so their access ends when their credential runs out, within four weeks, and nobody else is affected. what is already on their machine stays there; nothing reaches into it.',
+			removeAndLockOut: 'remove and lock out',
+			lockOutReading: 'reading which workspaces this touches...',
+			lockOutDescription:
+				'their access to {workspaces} ends at once. turso revokes per workspace and totally, so {count|number} other member(s) of those workspaces stop syncing until their application reconnects, which it does on its own. what is already on their machine stays there.',
+			removed: 'the member was removed. their access ends when their credential runs out.',
+			lockedOut:
+				'the member was locked out. {count|number} other member(s) reconnect on their own.',
 			unreachableWorkspaces:
 				'you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.',
 			standingOpen: 'open',

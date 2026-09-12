@@ -293,6 +293,21 @@ export type OrganizationSession = {
 /** where a link's invitation stands, as the join screen is told before it asks for anything. */
 export type LinkStanding = 'open' | 'lapsed' | 'consumed' | 'revoked' | 'none';
 
+/** what a lock-out costs, said before it runs: which workspaces rotate, and how many members stop syncing. */
+export type LockOutCost = {
+	workspaces: { id: string; name: string; members: number }[];
+	/** distinct members across every workspace above, other than the removed and the remover. */
+	membersAffected: number;
+};
+
+/** what a removal did. */
+export type MemberRemoved = {
+	memberId: string;
+	lockedOut: boolean;
+	rotatedWorkspaceIds: string[];
+	othersMustReconnect: number;
+};
+
 /**
  * what a join link says once the organization it names has been reached: its name, where it is,
  * and where the invitation stands. No credential, no key, no secret; the link was parsed in Rust.
@@ -534,6 +549,16 @@ export type Host = {
 				role: 'administrator' | 'member',
 				workspaceIds: string[]
 			) => Promise<Invited>;
+			/**
+			 * remove a member. `lockOut` false is the ordinary removal: their grants go, their row
+			 * is signed as removed, and nobody else is disturbed; their credential works until it
+			 * expires. `lockOut` true rotates every workspace they held, cutting them off at once
+			 * and stopping every remaining member of those workspaces until their application
+			 * collects a fresh credential. Neither reaches into what their machine already holds.
+			 */
+			remove: (memberId: string, lockOut: boolean) => Promise<MemberRemoved>;
+			/** what locking a member out would cost, before it is done. */
+			lockOutCost: (memberId: string) => Promise<LockOutCost>;
 		};
 		invitation: {
 			list: () => Promise<OrganizationInvitation[]>;

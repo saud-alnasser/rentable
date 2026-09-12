@@ -109,11 +109,29 @@ pub async fn remote_sync_push(app_state: tauri::State<'_, AppState>) -> Result<b
 pub async fn remote_sync_replicate(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Replication, Error> {
+    let (pushed, received) = {
+        let db = app_state.db.read().await;
+
+        (db.push_replica().await, db.pull_replica().await)
+    };
+
+    if pushed && received {
+        return Ok(Replication { pushed, received });
+    }
+
+    // a half that failed is the offline case, or a credential that stopped being accepted: a
+    // lock-out rotated it and the owner re-sealed a fresh one to this member. The organization
+    // database says which, and reading it costs one pull; where a credential moved, the same
+    // replication is tried once more under it, and nobody has to do anything.
+    if !crate::organization::reconnect(&app_state).await {
+        return Ok(Replication { pushed, received });
+    }
+
     let db = app_state.db.read().await;
 
     Ok(Replication {
-        pushed: db.push_replica().await,
-        received: db.pull_replica().await,
+        pushed: pushed || db.push_replica().await,
+        received: received || db.pull_replica().await,
     })
 }
 

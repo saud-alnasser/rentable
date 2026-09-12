@@ -16,6 +16,8 @@ import type {
 	ImportTable,
 	Invited,
 	LinkFacts,
+	LockOutCost,
+	MemberRemoved,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
@@ -50,6 +52,8 @@ export type {
 	JoinedOrganization,
 	LinkFacts,
 	LinkStanding,
+	LockOutCost,
+	MemberRemoved,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
@@ -252,7 +256,10 @@ export const tauri = {
 				displayName: string,
 				role: 'administrator' | 'member',
 				workspaceIds: string[]
-			) => invoke<Invited>('member_invite', { email, displayName, role, workspaceIds })
+			) => invoke<Invited>('member_invite', { email, displayName, role, workspaceIds }),
+			remove: (memberId: string, lockOut: boolean) =>
+				invoke<MemberRemoved>('member_remove', { memberId, lockOut }),
+			lockOutCost: (memberId: string) => invoke<LockOutCost>('member_lock_out_cost', { memberId })
 		},
 		invitation: {
 			list: () => invoke<OrganizationInvitation[]>('organization_invitations'),

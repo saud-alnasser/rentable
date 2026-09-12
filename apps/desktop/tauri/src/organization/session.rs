@@ -164,6 +164,14 @@ pub async fn sign_in(
             message: "this machine's member row is not in the organization any more".to_string(),
         })?;
 
+    // a removal is a signed row rather than an absence, and it is read before the password is
+    // tried: the vault would still open, and what it opens grants nothing any more.
+    if member.role == super::permission::REMOVED {
+        return Err(Error::Forbidden {
+            message: format!("you were removed from {}", joined.name),
+        });
+    }
+
     // the one place a password can fail, and it says only that the value did not open.
     let secret = open_vault(password, &member.vault)?;
     let content_key = {
@@ -214,6 +222,61 @@ pub async fn sign_in(
         organization_credential: Arc::clone(credential),
         workspace_credentials,
     })
+}
+
+/// Read the session's grants again and unseal whatever changed: the credential a lock-out
+/// rotated and the owner re-sealed, or a workspace granted since sign-in. Answers whether any
+/// credential moved, which is what a caller retries a refused sync on.
+///
+/// **This is the whole of a remaining member's recovery after a lock-out**, and it needs no human
+/// step: their organization credential was not rotated, so the replica pulls the re-sealed grant,
+/// and the next request to the workspace goes out under it. A grant that is gone leaves the
+/// credential in hand until its expiry, which is what an ordinary removal is.
+pub async fn refresh_credentials(
+    store: &OrganizationStore,
+    session: &mut MemberSession,
+) -> Result<bool, Error> {
+    let grants = store.grants(&session.verifying_key).await?;
+    let mut moved = false;
+
+    for grant in grants
+        .iter()
+        .filter(|grant| grant.member_id == session.member_id)
+    {
+        let token = String::from_utf8(unseal_with_secret_key(
+            &session.secret,
+            &grant.sealed_credential,
+        )?)
+        .map_err(|_| Error::Integrity {
+            message: "a sealed credential is not text".to_string(),
+        })?;
+
+        if grant.workspace_id == session.organization_id {
+            let mut slot = session
+                .organization_credential
+                .lock()
+                .map_err(|_| Error::Internal {
+                    message: "the credential slot was poisoned".to_string(),
+                })?;
+
+            if slot.as_deref() != Some(token.as_str()) {
+                *slot = Some(token);
+                moved = true;
+            }
+        } else if let Some(access) = AccessLevel::parse(&grant.access_level) {
+            let held = session.workspace_credentials.get(&grant.workspace_id);
+
+            if held.is_none_or(|held| held.token != token || held.access != access) {
+                session.workspace_credentials.insert(
+                    grant.workspace_id.clone(),
+                    WorkspaceCredential { token, access },
+                );
+                moved = true;
+            }
+        }
+    }
+
+    Ok(moved)
 }
 
 /// What the web layer is told about `session`, read off the replica now rather than remembered

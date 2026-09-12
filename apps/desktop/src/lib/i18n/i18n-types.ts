@@ -2591,6 +2591,37 @@ type RootTranslation = {
 			 */
 			resetPassword: string
 			/**
+			 * r​e​m​o​v​e
+			 */
+			remove: string
+			/**
+			 * t​h​e​y​ ​s​t​o​p​ ​b​e​i​n​g​ ​r​e​n​e​w​e​d​,​ ​s​o​ ​t​h​e​i​r​ ​a​c​c​e​s​s​ ​e​n​d​s​ ​w​h​e​n​ ​t​h​e​i​r​ ​c​r​e​d​e​n​t​i​a​l​ ​r​u​n​s​ ​o​u​t​,​ ​w​i​t​h​i​n​ ​f​o​u​r​ ​w​e​e​k​s​,​ ​a​n​d​ ​n​o​b​o​d​y​ ​e​l​s​e​ ​i​s​ ​a​f​f​e​c​t​e​d​.​ ​w​h​a​t​ ​i​s​ ​a​l​r​e​a​d​y​ ​o​n​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​ ​s​t​a​y​s​ ​t​h​e​r​e​;​ ​n​o​t​h​i​n​g​ ​r​e​a​c​h​e​s​ ​i​n​t​o​ ​i​t​.
+			 */
+			removeDescription: string
+			/**
+			 * r​e​m​o​v​e​ ​a​n​d​ ​l​o​c​k​ ​o​u​t
+			 */
+			removeAndLockOut: string
+			/**
+			 * r​e​a​d​i​n​g​ ​w​h​i​c​h​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​i​s​ ​t​o​u​c​h​e​s​.​.​.
+			 */
+			lockOutReading: string
+			/**
+			 * t​h​e​i​r​ ​a​c​c​e​s​s​ ​t​o​ ​{​w​o​r​k​s​p​a​c​e​s​}​ ​e​n​d​s​ ​a​t​ ​o​n​c​e​.​ ​t​u​r​s​o​ ​r​e​v​o​k​e​s​ ​p​e​r​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​t​o​t​a​l​l​y​,​ ​s​o​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​t​h​e​r​ ​m​e​m​b​e​r​(​s​)​ ​o​f​ ​t​h​o​s​e​ ​w​o​r​k​s​p​a​c​e​s​ ​s​t​o​p​ ​s​y​n​c​i​n​g​ ​u​n​t​i​l​ ​t​h​e​i​r​ ​a​p​p​l​i​c​a​t​i​o​n​ ​r​e​c​o​n​n​e​c​t​s​,​ ​w​h​i​c​h​ ​i​t​ ​d​o​e​s​ ​o​n​ ​i​t​s​ ​o​w​n​.​ ​w​h​a​t​ ​i​s​ ​a​l​r​e​a​d​y​ ​o​n​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​ ​s​t​a​y​s​ ​t​h​e​r​e​.
+			 * @param {string} workspaces
+			 * @param {unknown} count
+			 */
+			lockOutDescription: RequiredParams<'workspaces' | 'count|number'>
+			/**
+			 * t​h​e​ ​m​e​m​b​e​r​ ​w​a​s​ ​r​e​m​o​v​e​d​.​ ​t​h​e​i​r​ ​a​c​c​e​s​s​ ​e​n​d​s​ ​w​h​e​n​ ​t​h​e​i​r​ ​c​r​e​d​e​n​t​i​a​l​ ​r​u​n​s​ ​o​u​t​.
+			 */
+			removed: string
+			/**
+			 * t​h​e​ ​m​e​m​b​e​r​ ​w​a​s​ ​l​o​c​k​e​d​ ​o​u​t​.​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​t​h​e​r​ ​m​e​m​b​e​r​(​s​)​ ​r​e​c​o​n​n​e​c​t​ ​o​n​ ​t​h​e​i​r​ ​o​w​n​.
+			 * @param {unknown} count
+			 */
+			lockedOut: RequiredParams<'count|number'>
+			/**
 			 * y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​{​w​o​r​k​s​p​a​c​e​s​}​,​ ​s​o​ ​t​h​e​ ​r​e​s​e​t​ ​c​o​u​l​d​ ​n​o​t​ ​r​e​s​t​o​r​e​ ​i​t​.​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​w​h​o​ ​d​o​e​s​ ​c​a​n​ ​g​r​a​n​t​ ​i​t​ ​a​g​a​i​n​.
 			 * @param {string} workspaces
 			 */
@@ -5220,6 +5251,34 @@ export type TranslationFunctions = {
 			 * reset password
 			 */
 			resetPassword: () => LocalizedString
+			/**
+			 * remove
+			 */
+			remove: () => LocalizedString
+			/**
+			 * they stop being renewed, so their access ends when their credential runs out, within four weeks, and nobody else is affected. what is already on their machine stays there; nothing reaches into it.
+			 */
+			removeDescription: () => LocalizedString
+			/**
+			 * remove and lock out
+			 */
+			removeAndLockOut: () => LocalizedString
+			/**
+			 * reading which workspaces this touches...
+			 */
+			lockOutReading: () => LocalizedString
+			/**
+			 * their access to {workspaces} ends at once. turso revokes per workspace and totally, so {count|number} other member(s) of those workspaces stop syncing until their application reconnects, which it does on its own. what is already on their machine stays there.
+			 */
+			lockOutDescription: (arg: { workspaces: string, count: unknown }) => LocalizedString
+			/**
+			 * the member was removed. their access ends when their credential runs out.
+			 */
+			removed: () => LocalizedString
+			/**
+			 * the member was locked out. {count|number} other member(s) reconnect on their own.
+			 */
+			lockedOut: (arg: { count: unknown }) => LocalizedString
 			/**
 			 * you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.
 			 */

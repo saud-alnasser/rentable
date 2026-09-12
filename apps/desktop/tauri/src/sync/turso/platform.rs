@@ -224,6 +224,15 @@ pub trait TursoPlatform {
         &self,
         name: &str,
     ) -> impl Future<Output = Result<(), PlatformError>> + Send;
+
+    /// Invalidate every credential ever minted for `database_name`, at once. Turso revokes per
+    /// database and totally; nothing finer exists, which is why an ordinary removal never calls
+    /// this and a lock-out does, knowing that every remaining member of that workspace stops
+    /// syncing until they collect a fresh credential (`organization/removal.rs`).
+    fn rotate_credentials(
+        &self,
+        database_name: &str,
+    ) -> impl Future<Output = Result<(), PlatformError>> + Send;
 }
 
 /// A shared port is a port: a caller that is handed the platform by a factory can keep a handle on
@@ -252,6 +261,10 @@ impl<T: TursoPlatform + Sync + Send> TursoPlatform for std::sync::Arc<T> {
 
     async fn protect_database(&self, name: &str) -> Result<(), PlatformError> {
         (**self).protect_database(name).await
+    }
+
+    async fn rotate_credentials(&self, database_name: &str) -> Result<(), PlatformError> {
+        (**self).rotate_credentials(database_name).await
     }
 }
 
@@ -462,6 +475,21 @@ impl TursoPlatform for PlatformApi {
         .await
     }
 
+    async fn rotate_credentials(&self, database_name: &str) -> Result<(), PlatformError> {
+        let what = "lock the removed member out of this workspace";
+        let client = client()?;
+        let platform_token = authority()?;
+
+        call(
+            what,
+            client
+                .post(format!("{}/auth/rotate", self.database_url(database_name)))
+                .bearer_auth(&platform_token),
+        )
+        .await
+        .map(|_| ())
+    }
+
     async fn delete_database(
         &self,
         name: &str,
@@ -600,6 +628,8 @@ struct InMemoryState {
     databases: Vec<InMemoryDatabase>,
     minted: Vec<(String, String, AccessLevel)>,
     deleted: Vec<(String, DeletionIntent)>,
+    /// every rotation, by database, in order.
+    rotated: Vec<String>,
     refuse_next: Option<PlatformError>,
     /// how many operations have been asked, so a refusal can be placed on the nth.
     asked: usize,
@@ -611,6 +641,10 @@ struct InMemoryState {
 pub(crate) struct InMemoryDatabase {
     pub(crate) name: String,
     pub(crate) delete_protection: bool,
+    /// how many times this database's credentials have been rotated. A token minted after a
+    /// rotation spells the count, so a test can tell a fresh credential from the one it replaced;
+    /// before any rotation the spelling is the one every earlier test reads.
+    pub(crate) rotations: usize,
 }
 
 #[cfg(test)]
@@ -628,6 +662,7 @@ impl InMemoryPlatform {
         self.locked().databases.push(InMemoryDatabase {
             name: name.to_string(),
             delete_protection: false,
+            rotations: 0,
         });
     }
 
@@ -654,6 +689,11 @@ impl InMemoryPlatform {
 
     pub(crate) fn deleted(&self) -> Vec<(String, DeletionIntent)> {
         self.locked().deleted.clone()
+    }
+
+    /// every rotation, by database, in order.
+    pub(crate) fn rotated(&self) -> Vec<String> {
+        self.locked().rotated.clone()
     }
 
     fn locked(&self) -> std::sync::MutexGuard<'_, InMemoryState> {
@@ -694,6 +734,7 @@ impl TursoPlatform for InMemoryPlatform {
         state.databases.push(InMemoryDatabase {
             name: name.to_string(),
             delete_protection: true,
+            rotations: 0,
         });
 
         Ok(WorkspaceDatabase {
@@ -711,24 +752,29 @@ impl TursoPlatform for InMemoryPlatform {
         let mut state = self.locked();
         Self::take_refusal(&mut state)?;
 
-        if !state
+        let Some(database) = state
             .databases
             .iter()
-            .any(|database| database.name == database_name)
-        {
+            .find(|database| database.name == database_name)
+        else {
             return Err(PlatformError::Refused {
                 what: "mint a token for this workspace",
             });
-        }
+        };
+        let rotations = database.rotations;
 
         state
             .minted
             .push((database_name.to_string(), expiration.to_string(), access));
 
-        Ok(format!(
-            "token-for-{database_name}-{expiration}-{}",
-            access.as_str()
-        ))
+        Ok(if rotations == 0 {
+            format!("token-for-{database_name}-{expiration}-{}", access.as_str())
+        } else {
+            format!(
+                "token-for-{database_name}-{expiration}-{}-r{rotations}",
+                access.as_str()
+            )
+        })
     }
 
     /// **A name this fake has never seen is taken as a database the MCP server created**, which
@@ -749,8 +795,29 @@ impl TursoPlatform for InMemoryPlatform {
             None => state.databases.push(InMemoryDatabase {
                 name: name.to_string(),
                 delete_protection: true,
+                rotations: 0,
             }),
         }
+
+        Ok(())
+    }
+
+    async fn rotate_credentials(&self, database_name: &str) -> Result<(), PlatformError> {
+        let mut state = self.locked();
+        Self::take_refusal(&mut state)?;
+
+        let Some(database) = state
+            .databases
+            .iter_mut()
+            .find(|database| database.name == database_name)
+        else {
+            return Err(PlatformError::Refused {
+                what: "lock the removed member out of this workspace",
+            });
+        };
+
+        database.rotations += 1;
+        state.rotated.push(database_name.to_string());
 
         Ok(())
     }

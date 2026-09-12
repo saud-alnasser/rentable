@@ -118,6 +118,8 @@ test('nothing here asks the host to list organizations', () => {
 		'invitation.revoke',
 		'member.invite',
 		'member.list',
+		'member.lockOutCost',
+		'member.remove',
 		'password.change',
 		'workspace.create',
 		'workspace.grant',

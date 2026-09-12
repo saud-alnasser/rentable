@@ -216,6 +216,13 @@ pub async fn reissue_invitation(
         });
     }
 
+    if member.role == permission::REMOVED {
+        return Err(Error::Forbidden {
+            message: "that member was removed. invite them again if they are to come back"
+                .to_string(),
+        });
+    }
+
     let email = opened(session, "member.email_sealed", &member.email_sealed)?;
     let display_name = opened(
         session,
@@ -353,6 +360,9 @@ pub async fn members(
         .members(&session.verifying_key)
         .await?
         .into_iter()
+        // a removed member's row stays for the replicas that still hold it; the dashboard lists
+        // who is in.
+        .filter(|member| member.role != permission::REMOVED)
         .map(|member| {
             Ok(MemberFacts {
                 email: opened(session, "member.email_sealed", &member.email_sealed)?,
