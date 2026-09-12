@@ -125,7 +125,7 @@ Start at [[protocol]].
 | 811-the-gates-and-the-contract-follow-the-code-into-the-package | implemented | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]] | 0 | 0 | 6 |
 | 812-the-desktop-declares-what-it-uses | implemented | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
 | 819-an-organization-hosts-its-own-workspaces | implemented | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 28 |
-| 824-the-way-in-and-the-workspace-control-are-redesigned | accepted | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 7 |
+| 824-the-way-in-and-the-workspace-control-are-redesigned | accepted | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 8 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -209,3 +209,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/05-the-rail-switches-workspaces]] feat(layout): the rail switches workspaces | 824-the-way-in-and-the-workspace-control-are-redesigned | open | — |
 | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/06-invite-and-new-workspace-are-dialogs]] feat(organization): invite and new workspace are dialogs | 824-the-way-in-and-the-workspace-control-are-redesigned | open | 01, 05 |
 | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/07-the-vocabulary-is-swept]] refactor(organization): the vocabulary is swept | 824-the-way-in-and-the-workspace-control-are-redesigned | open | 02, 03, 04, 05, 06 |
+| [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/08-the-input-group-matches-the-owned-input]] refactor(design): the input group matches the owned input | 824-the-way-in-and-the-workspace-control-are-redesigned | open | — |

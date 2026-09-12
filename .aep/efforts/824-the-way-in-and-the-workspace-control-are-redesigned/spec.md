@@ -243,6 +243,12 @@ already holds a consent is not asked for it again.
   `corner` slot, `form-surface` and the sidebar primitives already do what these screens
   need, and a change to a shared block for one consumer is how blocks grow slots nobody
   argued for; `standalone-surface.svelte` records one such slot coming and going in a day.*
+  **One exception, decided 2026-09-12 on the first screen drawn:** `primitive/input-group`
+  still carried the registry's stock geometry (h-9, rounded-md, bordered, shadowed) while the
+  owned `primitive/input` is h-8, rounded-2xl and borderless, so every field this effort draws
+  through it matched nothing beside it. The group takes the input's geometry, in the package,
+  because the alternative was the same class string repeated on every field here and on every
+  field after. No slot, no prop, no new behaviour: the primitive draws what the input draws.
 - **The Rust side is untouched unless switching mid-session needs it.** `workspace_open`
   records the workspace and opens its database; whether it releases the replica it replaces
   is a question `/plan` answers by reading `bootstrap::open_database`, and only a found
