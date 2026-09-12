@@ -246,10 +246,10 @@ other otherwise. See [[references/cargo]].
 
 ## Tests that reach a live remote
 
-**Six sets are admitted, in five properties, and they are the exception rather than a second way
-of testing.** All six exist, and every one is Rust. The four `losing_writer` tests at the foot of
+**Seven sets are admitted, in five properties, and they are the exception rather than a second way
+of testing.** All seven exist, and every one is Rust. The four `losing_writer` tests at the foot of
 `tauri/src/database/mod.rs` open two replicas of one workspace against a database they provision on
-Turso; the four admitted for the organization effort below each create and remove their own.
+Turso; the six admitted for the organization effort below each create and remove their own.
 Everything else in this repository is tested against a local file, a loopback HTTP server, or an
 in-memory engine, and that is not changing.
 
@@ -319,8 +319,13 @@ authority is the account's rather than the application's, so the account is the 
 answer means anything.
 
 **A sixth property: whether the organization lives on the remote rather than on the machine that
-made it.** Ticket 18, for criterion 6: machine A provisions, machine A goes offline, and machine B
-restores the organization from the link, the email, the password and one consent. A `file:` database
+made it. Two instances.** The first is ticket 08's, `organization_live_a_second_machine_reads_what_the_first_wrote`
+in `tauri/src/organization/store.rs`: machine A writes the organization's rows through a replica,
+machine B opens a second replica of the same database and reads them back verified. The second is
+ticket 18's, for criterion 6: machine A provisions, machine A goes offline, and machine B
+restores the organization from the link, the email, the password and one consent. *The first
+instance was written under this property's sentence and not named here until the effort's review
+on 2026-09-12, which is the omission the closing paragraph below warns against.* A `file:` database
 sits on one machine by definition, so two processes over one path would prove that a path was
 shared and not that anything outlived its first machine. A loopback server and an in-memory engine
 are worse, because both die with the process that started them, and that process going away is the

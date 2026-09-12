@@ -43,8 +43,10 @@ Which tool runs which script, and why `check` and `lint` sit outside the task gr
 ## Vocabulary
 
 **Workspace**:
-The unit of syncable state, and there is exactly one per installation — a database of record in
-Turso, with a local replica meant to serve every read and take every write.
+The unit of syncable state — a database of record on the organization's Turso account, with a
+local replica meant to serve every read and take every write. An organization holds one or more,
+a member reaches the ones their grants name, and a machine holds one open at a time. *It read
+"exactly one per installation" until the organization effort landed on 2026-09-12.*
 _Avoid_: treating the replica as the workspace. The file on this machine is a copy of the
 record, never the record
 
@@ -165,7 +167,7 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   dependency of ordinary use."* Both halves of that stopped being true when the record of truth
   moved: replication is how the workspace exists rather than an addition to it, and **the
   sign-in wall is built** — `sync/admission.ts` refuses a workspace to a machine with no
-  account, and `+layout.svelte` raises it before anything renders.
+  organization or with a locked vault, and `+layout.svelte` raises it before anything renders.
 
   **A first run needs a network and an account, and every launch after it needs neither.** The
   first run grants the application authority over the owner's Turso account in the browser and
@@ -193,5 +195,6 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 | contracts, payments, unit assignments, derived status | [[contexts/desktop/contract]] |
 | schema, migrations, how queries reach SQLite | [[contexts/desktop/persistence]] |
 | complexes and units | [[contexts/desktop/property]] |
-| signing in, the session a workspace replicates under | [[contexts/desktop/remote-sync]] |
+| an organization, its members, their vaults, and the account it lives on | [[contexts/desktop/organization]] |
+| the replica a workspace is held as, and the credential it replicates under | [[contexts/desktop/remote-sync]] |
 | tenants, identity, phone numbers | [[contexts/desktop/tenant]] |

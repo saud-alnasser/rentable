@@ -1,7 +1,9 @@
 ---
 paths:
   - apps/desktop/tauri/src/sync/**
+  - apps/desktop/tauri/src/organization/**
   - apps/desktop/src/lib/sync/**
+  - apps/desktop/src/lib/organization/**
 use-when: "a credential this application holds is being stored, refreshed, or handed to somebody"
 ---
 
@@ -53,9 +55,19 @@ and lives on the same side of the same boundary, for the same reason.
 workspace, so a qualifier that once picked one of two now reads as though some other kind of
 workspace had a sync token this rule does not cover.*
 
-**What crosses is facts *about* a credential, never one.** `RemoteSyncState` carries
-`tokenExpiresAt` and the session's three moments; the side that decides whether to keep
-replicating needs those numbers and needs nothing else.
+**What crosses is facts *about* a credential, never one.** `OrganizationState` carries whether
+this machine holds the Turso authority and `OrganizationSession` carries a member's role, permissions and
+the workspaces their grants reach; the side that draws a screen needs those facts and needs nothing
+else. *It named `RemoteSyncState`'s `tokenExpiresAt` and the session's three moments until the
+session window retired with the control plane on 2026-09-12.*
+
+**Two things cross that look like credentials and are sanctioned by the spec that made them.** The
+join link crosses both ways as a string: it carries a read-only credential over sealed rows, which
+is requirement 8's "nothing that is useful on its own", and it is handed to a person to send. The
+generated password crosses once, out of `member_invite` and `member_reset`, because the person who
+must hand it on is on the other side of the boundary; it is never stored on this side. Neither is
+a key, a token that reaches a ledger, or the Turso authority, and a third thing that looks like
+these two is a finding rather than a third exception.
 
 Recorded originally as ADR 0003, *The Google Drive client relocates wholly to Rust*.
 

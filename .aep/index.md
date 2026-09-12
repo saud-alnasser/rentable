@@ -22,7 +22,7 @@ Start at [[protocol]].
 | Artifact | Load when | Paths | Owner |
 | --- | --- | --- | --- |
 | [[rules/api-layer]] | adding or changing a router, a domain module, a database client or transport, or anything crossing the Tauri IPC boundary | apps/desktop/src/lib/api/**, apps/desktop/src/lib/*/router.ts, apps/desktop/src/lib/*/reconcile.ts, apps/desktop/src/lib/platform/host.ts, apps/desktop/src/lib/platform/tauri.ts, apps/desktop/src/lib/platform/database/** | — |
-| [[rules/credentials]] | a credential this application holds is being stored, refreshed, or handed to somebody | apps/desktop/tauri/src/sync/**, apps/desktop/src/lib/sync/** | — |
+| [[rules/credentials]] | a credential this application holds is being stored, refreshed, or handed to somebody | apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/organization/**, apps/desktop/src/lib/sync/**, apps/desktop/src/lib/organization/** | — |
 | [[rules/data]] | a read, a write, a cached query, derived state, or undo is in question | apps/desktop/src/lib/design/**, apps/desktop/src/lib/api/**, apps/desktop/src/lib/platform/database/**, apps/desktop/src/lib/payment/**, apps/desktop/src/lib/contract/reconcile.ts, apps/desktop/tauri/src/database/** | — |
 | [[rules/frontend]] | writing or changing Svelte components, routes, styles, or client state | apps/desktop/src/lib/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/**, packages/design/components.json | — |
 | [[rules/interface]] | a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell | apps/desktop/src/lib/**/component/**, apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/design/cell/**, apps/desktop/src/lib/dashboard/**, apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/component/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/lib/block/**, packages/design/src/lib/primitive/**, packages/design/src/lib/tokens.css | — |
@@ -124,7 +124,7 @@ Start at [[protocol]].
 | 810-the-contract-record-reads-as-one-in-arabic | implemented | [[efforts/810-the-contract-record-reads-as-one-in-arabic/spec]] | 0 | 0 | 3 |
 | 811-the-gates-and-the-contract-follow-the-code-into-the-package | implemented | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]] | 0 | 0 | 6 |
 | 812-the-desktop-declares-what-it-uses | implemented | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
-| 819-an-organization-hosts-its-own-workspaces | accepted | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 22 |
+| 819-an-organization-hosts-its-own-workspaces | accepted | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 27 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -195,3 +195,8 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/20-the-consent-carries-its-resource-and-can-be-given-up]] fix(sync): the consent carries its resource and can be given up | 819-an-organization-hosts-its-own-workspaces | resolved | — |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/21-the-organization-slug-is-discovered-once]] feat(sync): the organization slug is discovered once | 819-an-organization-hosts-its-own-workspaces | resolved | 20, 22 |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/22-the-live-remote-rule-catches-up-with-the-amended-plan]] docs(aep): the live remote rule catches up with the amended plan | 819-an-organization-hosts-its-own-workspaces | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/23-authority-survives-a-reset-and-ends-at-a-removal]] fix(organization): authority survives a reset and ends at a removal | 819-an-organization-hosts-its-own-workspaces | open | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/24-credentials-renew-and-never-for-a-removed-member]] fix(organization): credentials renew before they lapse, and never for a removed member | 819-an-organization-hosts-its-own-workspaces | open | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/25-a-credential-refusal-is-shown]] fix(desktop): a credential refusal is shown rather than read as synced | 819-an-organization-hosts-its-own-workspaces | open | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/26-the-schema-guard-reads-a-pulled-row]] fix(organization): the schema guard reads a pulled row, and the loopback closes cleanly | 819-an-organization-hosts-its-own-workspaces | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/27-the-organizations-own-link-can-be-read-again]] fix(organization): the organization's own link can be read again | 819-an-organization-hosts-its-own-workspaces | open | — |
