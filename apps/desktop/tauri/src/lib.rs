@@ -241,6 +241,7 @@ pub fn run() {
             organization::workspace_open,
             organization::organization_renew_credentials,
             organization::organization_renew_due,
+            organization::organization_own_link,
             organization::member_invite,
             organization::member_reset,
             organization::member_remove,

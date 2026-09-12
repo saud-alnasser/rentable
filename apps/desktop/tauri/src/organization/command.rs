@@ -513,6 +513,23 @@ pub async fn organization_renew_credentials(
     workspace::renew_credentials(store, member, &platform, &organization_database).await
 }
 
+/// The organization's own join link, rebuilt for the owner to share or to keep.
+///
+/// **The owner's, and readable any time rather than only in the moment setup shows it.** An owner
+/// whose first machine is gone restores from this link (requirement 6), so a link shown once and
+/// never again is a way to lose the organization. It carries a read-only credential over the sealed
+/// rows, the same the setup walk produced; that credential is stored sealed under the content key,
+/// so rebuilding the link needs the owner's open vault and not the Turso authority, which a restored
+/// owner does not yet hold. It is refused to anyone but the owner, whose link it is to share.
+#[tauri::command]
+pub async fn organization_own_link(app_state: tauri::State<'_, AppState>) -> Result<String, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    invite::own_link(member, store).await
+}
+
 /// Renew credentials if any is close to lapsing, on the owner's machine, best effort. Answers
 /// whether it renewed. This is what keeps an organization syncing past the four-week credential
 /// lifetime: the owner's machine, which is the only one holding the platform authority, calls it

@@ -475,6 +475,12 @@ export type Host = {
 		 * forgets it; it never blocks sign-in, which works offline.
 		 */
 		renewDue: () => Promise<boolean>;
+		/**
+		 * the organization's own join link, rebuilt for the owner to share or keep. The owner's,
+		 * refused to a member; needs the open vault and not the Turso authority, so a restored owner
+		 * can read it before repeating the consent (requirement 6).
+		 */
+		ownLink: () => Promise<string>;
 		workspace: {
 			/**
 			 * create a workspace on the account: a database, migrated, recorded, and granted to the

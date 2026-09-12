@@ -704,6 +704,48 @@ pub async fn organization_link(
     ))
 }
 
+/// The organization's own join link, rebuilt from the stored rows for the owner to share or keep.
+///
+/// The read-only credential it carries is stored sealed under the content key at setup, so this
+/// needs the owner's open vault and not the Turso authority, which a restored owner does not hold
+/// (requirement 6). It is the owner's: a member is refused, because the link opens a read-only view
+/// of the directory to whoever holds it and handing that out is the owner's to do.
+pub(crate) async fn own_link(
+    member: &MemberSession,
+    store: &OrganizationStore,
+) -> Result<String, Error> {
+    member.settled()?;
+
+    if member.role != permission::OWNER {
+        return Err(Error::Forbidden {
+            message: "the organization's own link is the owner's to share".to_string(),
+        });
+    }
+
+    let organization = store.organization().await?.ok_or_else(|| Error::NotFound {
+        message: "this machine holds no organization".to_string(),
+    })?;
+    let name = opened(
+        member,
+        "organization.name_sealed",
+        &organization.name_sealed,
+    )?;
+    let credential = opened(
+        member,
+        "organization.link_credential_sealed",
+        &organization.link_credential_sealed,
+    )?;
+
+    JoinLink::new(
+        &member.organization_id,
+        &name,
+        &member.verifying_key,
+        &organization.remote_url,
+        &credential,
+    )
+    .encode()
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
@@ -723,7 +765,7 @@ mod tests {
             permission,
             session::{CredentialSlot, MemberSession, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
-            store::OrganizationStore,
+            store::{OrganizationStore, Signer},
             vault::{KdfParams, open_invitation},
             workspace::create_workspace,
         },
@@ -1410,5 +1452,73 @@ mod tests {
         .expect_err("an invitation granted a workspace the inviter does not hold");
 
         assert!(refusal.to_string().contains("full access"), "{refusal}");
+    }
+
+    /// Ticket 27, F7: the organization's own link is the owner's to read again, not only in the
+    /// moment setup shows it, because an owner restores from it (requirement 6). A member is
+    /// refused, because the link opens a read-only view of the directory to whoever holds it.
+    #[tokio::test]
+    async fn the_organizations_own_link_is_the_owners_to_read_again() {
+        let directory = scratch("own-link");
+        let (store, owner, original, _) = owned(&directory).await;
+
+        let again = super::own_link(&owner, &store)
+            .await
+            .expect("the owner reads the link");
+        let decoded = JoinLink::decode(&again).expect("the re-read link decodes");
+
+        assert_eq!(decoded.organization_id, original.organization_id);
+        assert_eq!(decoded.verifying_key, original.verifying_key);
+        assert!(decoded.invitation.is_none());
+        assert!(!decoded.read_only_credential.trim().is_empty());
+
+        let invited = invite_member(
+            &store,
+            &owner,
+            &original,
+            Invitation {
+                email: "m@acme.example",
+                display_name: "M",
+                role: permission::MEMBER,
+                workspace_ids: &[],
+            },
+            test_cost(),
+            1_757_000_000_100,
+        )
+        .await
+        .expect("the invitation failed");
+        // the member, settled so the refusal is by role and not the first-password requirement.
+        let (key, certificate) = super::signer_of(&store, &owner).await.expect("the signer");
+        let mut member_row = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("members")
+            .into_iter()
+            .find(|member| member.id == invited.member_id)
+            .expect("the member row");
+        member_row.must_change_password = false;
+        store
+            .write_member(
+                &Signer {
+                    key: &key,
+                    certificate: &certificate,
+                },
+                &member_row,
+            )
+            .await
+            .expect("settled");
+
+        let joined = joined_as(&owner, &invited.member_id, permission::MEMBER);
+        let member = sign_in(&store, &joined, &invited.generated_password, &slot())
+            .await
+            .expect("the member did not sign in");
+
+        assert!(
+            matches!(
+                super::own_link(&member, &store).await,
+                Err(crate::error::Error::Forbidden { .. })
+            ),
+            "a member was handed the organization's own link"
+        );
     }
 }

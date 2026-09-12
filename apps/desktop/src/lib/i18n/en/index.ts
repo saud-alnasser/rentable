@@ -827,6 +827,9 @@ const en = {
 			done: 'done',
 			notYetSignedIn: 'not yet signed in',
 			resetPassword: 'reset password',
+			linkTitle: 'organization link',
+			linkDescription:
+				'the link that adds this organization on another machine, and the one you restore it from if this machine is lost. it carries a read-only view of the directory, so share it the way you would a password.',
 			authorityTitle: 'turso account',
 			authorityDescription:
 				"this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.",

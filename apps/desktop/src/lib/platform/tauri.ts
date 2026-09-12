@@ -228,6 +228,7 @@ export const tauri = {
 			invoke<OrganizationState>('organization_restore', { link, email, password }),
 		reconnectAuthority: () => invoke<OrganizationState>('organization_reconnect_authority'),
 		renewDue: () => invoke<boolean>('organization_renew_due'),
+		ownLink: () => invoke<string>('organization_own_link'),
 		workspace: {
 			create: (name: string) => invoke<OrganizationWorkspace>('workspace_create', { name }),
 			open: (workspaceId: string) =>

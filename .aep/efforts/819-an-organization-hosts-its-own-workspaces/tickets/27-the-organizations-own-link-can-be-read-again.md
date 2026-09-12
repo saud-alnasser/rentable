@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -21,10 +21,22 @@ never recoverable is a way to lose the organization.
 Traces requirement 6 of [[efforts/819-an-organization-hosts-its-own-workspaces/spec]], and its
 criterion 6.
 
-- [ ] **The owner can read the organization's own link from inside the application at any time**, on
+- [x] **The owner can read the organization's own link from inside the application at any time**, on
       a surface an owner reaches, in both locales. A command returns it and a test covers the
       command refusing a non-owner and returning the link to the owner.
-- [ ] `pnpm check`, `pnpm lint`, `pnpm test`, `cargo test` and `cargo clippy` pass.
+      *Verified: `invite::own_link` rebuilds the link from the stored rows, opening the sealed name
+      and the sealed link credential with the content key, so it needs the open vault and not the
+      Turso authority a restored owner lacks. `organization_own_link` delegates to it, refusing
+      anyone but the owner. `the_organizations_own_link_is_the_owners_to_read_again` reads the link
+      as the owner and decodes it to the same organization and verifying key the setup link named,
+      no invitation half, a credential present, then invites a settled member and asserts they are
+      refused with `Forbidden`. The owner's dashboard draws an `organization link` section
+      (`organization-link.svelte`, `useOrganizationLink`) with the link and a copy button, in en
+      and ar.*
+- [x] `pnpm check`, `pnpm lint`, `pnpm test`, `cargo test` and `cargo clippy` pass.
+      *Verified: `svelte-check` 0 errors, `eslint` clean, node 894, vitest 45, `cargo test --
+      --test-threads=1` 280 / 10 ignored, `cargo clippy --all-targets` at the five pre-existing
+      warnings, `cargo fmt` clean.*
 
 ## Constraints
 

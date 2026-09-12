@@ -2562,6 +2562,14 @@ type RootTranslation = {
 			/**
 			 * t​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
+			/**
+			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k
+			 */
+			linkTitle: string
+			/**
+			 * t​h​e​ ​l​i​n​k​ ​t​h​a​t​ ​a​d​d​s​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​t​h​e​ ​o​n​e​ ​y​o​u​ ​r​e​s​t​o​r​e​ ​i​t​ ​f​r​o​m​ ​i​f​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​l​o​s​t​.​ ​i​t​ ​c​a​r​r​i​e​s​ ​a​ ​r​e​a​d​-​o​n​l​y​ ​v​i​e​w​ ​o​f​ ​t​h​e​ ​d​i​r​e​c​t​o​r​y​,​ ​s​o​ ​s​h​a​r​e​ ​i​t​ ​t​h​e​ ​w​a​y​ ​y​o​u​ ​w​o​u​l​d​ ​a​ ​p​a​s​s​w​o​r​d​.
+			 */
+			linkDescription: string
 			authorityTitle: string
 			/**
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​n​o​ ​a​u​t​h​o​r​i​t​y​ ​o​v​e​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​s​o​ ​i​t​ ​c​a​n​n​o​t​ ​c​r​e​a​t​e​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​ ​a​n​y​b​o​d​y​ ​o​u​t​ ​o​r​ ​r​e​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​s​.​ ​t​h​e​ ​a​u​t​h​o​r​i​t​y​ ​i​s​ ​n​o​w​h​e​r​e​ ​t​o​ ​r​e​s​t​o​r​e​ ​i​t​ ​f​r​o​m​;​ ​g​r​a​n​t​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​a​g​a​i​n​ ​h​e​r​e​,​ ​a​s​ ​y​o​u​ ​d​i​d​ ​o​n​ ​t​h​e​ ​f​i​r​s​t​ ​r​u​n​.
@@ -5209,6 +5217,14 @@ export type TranslationFunctions = {
 			/**
 			 * turso account
 			 */
+			/**
+			 * organization link
+			 */
+			linkTitle: () => LocalizedString
+			/**
+			 * the link that adds this organization on another machine, and the one you restore it from if this machine is lost. it carries a read-only view of the directory, so share it the way you would a password.
+			 */
+			linkDescription: () => LocalizedString
 			authorityTitle: () => LocalizedString
 			/**
 			 * this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.

@@ -10,7 +10,8 @@ export const keys = {
 	consent: (sessionId: string) => ['organization', 'consent', sessionId],
 	members: ['organization', 'members'],
 	invitations: ['organization', 'invitations'],
-	state: ['organization', 'state']
+	state: ['organization', 'state'],
+	ownLink: ['organization', 'own-link']
 } as const;
 
 /** how often a pending consent is asked about, while the browser tab is open somewhere else. */
@@ -148,6 +149,18 @@ export function useFetchInvitations() {
 }
 
 /** where this machine stands: the organizations it joined and who is in. */
+/**
+ * the organization's own link, for the owner to share or keep. Fetched on demand where the owner's
+ * dashboard draws it; the credential it carries is the owner's own and already in their vault.
+ */
+export function useOrganizationLink(enabled: () => boolean) {
+	return createQuery(() => ({
+		queryKey: keys.ownLink,
+		queryFn: () => tauri.organization.ownLink(),
+		enabled: enabled()
+	}));
+}
+
 export function useFetchOrganizationState() {
 	return createQuery(() => ({
 		queryKey: keys.state,
