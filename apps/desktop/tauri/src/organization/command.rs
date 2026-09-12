@@ -387,14 +387,22 @@ pub async fn workspace_open(
 
         member.settled()?;
 
+        // requirement 24: the guard below turns on `schema_version`, and a version another machine
+        // raised reaches this one as a replicated row rather than a push. Pull the organization
+        // replica first, so the guard reads what the account holds now and not what this machine
+        // last saw: without it an older build reads a stale row, passes the guard, and then the
+        // workspace replica pulls the migrated pages it cannot understand. The lease serialises the
+        // writers; this is what keeps a reader from opening across one.
+        store.pull().await;
+
         let workspaces = store.workspaces(&member.verifying_key).await?;
         let (mut facts, credential) = workspace::openable(member, &workspaces, &workspace_id)?
             .ok_or_else(|| Error::Forbidden {
                 message: "you hold no grant on that workspace".to_string(),
             })?;
 
-        // requirement 24: a workspace this build was not written against is refused here, before
-        // the replica is named, and nothing of it is read.
+        // a workspace this build was not written against is refused here, before the replica is
+        // named, and nothing of it is read.
         migration::refuse_newer(&facts)?;
 
         // requirement 20: a workspace behind what this build ships is brought up to it, under a

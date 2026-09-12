@@ -126,6 +126,16 @@ impl LoopbackRequest {
         );
 
         self.stream.write_all(response.as_bytes())?;
+        self.stream.flush()?;
+
+        // Close cleanly rather than by dropping the socket. On Windows a socket dropped with bytes
+        // still unread in its receive buffer is closed abortively with an RST, and the browser tab,
+        // or a test's client, then sees a reset connection instead of the page it was sent. A
+        // write-half shutdown sends a FIN, and draining what the peer sends before the drop lets the
+        // close be an ordinary one. The read timeout set on the stream bounds the drain.
+        let _ = self.stream.shutdown(std::net::Shutdown::Write);
+        let mut sink = [0_u8; 512];
+        while matches!(self.stream.read(&mut sink), Ok(count) if count > 0) {}
 
         Ok(())
     }
