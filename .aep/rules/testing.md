@@ -62,10 +62,11 @@ cleared them and took the exclusion back out of `apps/desktop/tsconfig.json` (20
 **So write a new test as though the compiler reads it, because it does** — annotations rather
 than `any`, and a fixture in the shape production actually produces.
 
-**A fixture for a declared interface is shared, not written out per file.** Four scaffolding
+**A fixture for a declared interface is shared, not written out per file.** Five scaffolding
 modules hold them: `platform/tests/testing.ts` builds a whole `Host` and the remote-sync
 payloads it speaks in, `api/tests/testing.ts` the router caller, `design/tests/testing.ts` the
-binding a declared mutation hands the query library, and `workspace/tests/file.ts` the file a
+binding a declared mutation hands the query library, `design/tests/strings.ts` the string
+contract a packaged block reads from its provider, and `workspace/tests/file.ts` the file a
 workspace transfer crosses as. **A hand-written partial of any of them is a shape nothing
 produces** — a two-key `Settings`, a `TranslationFunctions` with three of its hundreds, a
 `RemoteSyncState` with a field the type does not have — and correcting those was most of what
@@ -139,12 +140,17 @@ Three things bind a component test, and each of them is a way of passing while m
   component that reads its strings from context is rendered under test at all. A test file still
   imports `test` and `expect` explicitly; nothing here relies on a global being in scope.
 - **A fixture is scaffolding**, and carries no `.test` in its name for the same reason
-  `api/tests/testing.ts` does not. **Every one of them lives in `packages/design/src/tests/`**,
-  whatever it covers and wherever the test that uses it sits: `probe.svelte` is the runner's,
+  `api/tests/testing.ts` does not. **The package's own live in `packages/design/src/tests/`**,
+  whatever they cover and wherever the test that uses them sits: `probe.svelte` is the runner's,
   `contract.svelte` and `contract-harness.svelte` are the string contract's, and each
-  `<family>-harness.svelte` is a subject that cannot be rendered on its own.
+  `<family>-harness.svelte` is a subject that cannot be rendered on its own. **An application's
+  fixture lives in the `tests/` directory of the module it serves**, as the TypeScript
+  scaffolding above does: `organization/tests/providers.svelte` wraps a surface that needs the
+  design and tooltip providers, `layout/tests/rail-providers.svelte` the rail's. *This said every
+  fixture lives in the package; that was true while the package held the only rendered tests,
+  and effort 824 wrote the desktop's first.*
 
-  That directory is outside `src/lib/`, which is what keeps them out of the package: the
+  The package's directory is outside `src/lib/`, which is what keeps its fixtures out of the package: the
   `exports` map sends `./*` to `./src/lib/*`, so a fixture under the library directory is a
   component every consumer can import, and one of these throws unless something above it renders
   the provider.

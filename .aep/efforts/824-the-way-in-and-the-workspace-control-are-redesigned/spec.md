@@ -100,8 +100,14 @@ already holds a consent is not asked for it again.
 *Before sign-in*
 
 1. **A back control in the surface's corner, on every step that has somewhere to go.** The
-   walk's `connect` returns to the wall; `name` returns to `connect`; `workspace` returns to
-   `name`. The join screen's `paste` and `unreadable` return to the wall; `password`,
+   walk's `connect` returns to the wall; `name` returns to `connect`; `workspace` has no back.
+   *This said `workspace` returns to `name`. The correctness review of 2026-09-12 traced that
+   path: `name` is the step that creates the organization on the Turso account and signs the
+   owner in, so a return to it with the form still filled and a second press of create makes
+   a second organization of the same name and leaves the first without a workspace. A step
+   that already ran is not somewhere to go. Decided by the human on 2026-09-13: the third step
+   keeps an empty corner, as the no-workspace surface it twins does.* The join screen's
+   `paste` and `unreadable` return to the wall; `password`,
    `restore`, `refused` and `inspecting` return to `paste`. The corner control is the one way
    back: the outline "back" button and the "paste another link" links go.
 2. **Back is available while a consent is pending.** Leaving the walk with the browser still
@@ -160,7 +166,9 @@ already holds a consent is not asked for it again.
 
 14. **Primary buttons carry their verb's glyph**: connect, create, unlock, continue, copy,
     change, invite, and switch where a row acts. Arrows mirror in RTL, as `back-control`
-    already does.
+    already does. *Accepted 2026-09-13, on the review's finding: the rail's workspace rows are
+    radio items, not buttons, and the marker the primitive draws on the open one is what a row
+    carries; an unselected row carries nothing.*
 15. **Fields carry a leading glyph** through `input-group`: organization, workspace,
     password, link, email, and name. The glyph is muted, never as dark as the label, so it
     does not outweigh the text beside it (*Balance weight and contrast*, Refactoring UI p.56).
@@ -173,7 +181,8 @@ already holds a consent is not asked for it again.
 # Acceptance Criteria
 
 1. On each named step, one control with the accessible name for back sits in the card's
-   corner and pressing it lands where requirement 1 says; `grep` finds no outline "back"
+   corner and pressing it lands where requirement 1 says, and the walk's `workspace` step
+   renders none; `grep` finds no outline "back"
    button in `setup-walk.svelte` and no "paste another link" in `join-screen.svelte`.
    Asserted per step in the component tests.
 2. With a consent pending, the corner control is enabled, pressing it reaches the wall, and

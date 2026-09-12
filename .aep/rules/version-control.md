@@ -98,9 +98,19 @@ landed subject is the **pull request**, appended by GitHub — see **Commit disc
 Never derive one from the other.
 
 `<type>` is the conventional-commit type the branch lands as, from the list under **Commit
-discipline** below. `<ticket-id>` is the bare issue number, no `#`. `<slug>` is the commit
+discipline** below. `<ticket-id>` is the bare issue number, no `#`, and it is the number a
+branch carrying a whole effort takes (`graphite/docs/824-the-way-in-...`). `<slug>` is the commit
 summary in kebab-case, trimmed to the words that identify the change — it is a handle, not
 the subject line, so it does not have to reproduce it exactly.
+
+**A ticket under an effort carries the effort's issue number and its own id**, joined:
+`graphite/<type>/<issue>-<NN>-<slug>`, so `graphite/feat/824-05-the-rail-switches-workspaces`
+is ticket 05 of effort 824. Ticket ids restart per effort, so the id alone would name one
+branch for two claims ([[policies/execution]], *Claiming, before dispatching*, leaves how
+uniqueness is reached to this rule); the issue number is what an effort has one of. *Added
+2026-09-13 by effort 824, the first to cut a branch per ticket since tickets became files at
+3.5: 773, 810, 811, 812 and 819 each landed as one branch under the issue number alone. The
+sentence above it was written when every ticket had an issue number of its own.*
 
 **The ticket id is what makes the name reproducible from the ticket alone**, and that is the
 one property the convention has to have: the branch is how a ticket is claimed, so two

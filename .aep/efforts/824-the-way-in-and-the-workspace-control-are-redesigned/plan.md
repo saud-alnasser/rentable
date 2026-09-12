@@ -37,8 +37,11 @@ the new workspace without waiting for a refetch.
 ## The two dialogs mount once, in the shell
 
 `organization/dialogs.svelte.ts` holds `export const organizationDialog = $state<{ open: 'invite'
-| 'workspace' | null }>({ open: null })` and two functions, `openOrganizationDialog(kind)` and
-`closeOrganizationDialog()`. The precedent is `layout/startup-stage.svelte.ts`, module-level rune
+| 'workspace' | null; invited: Invited | null }>(...)` with `openOrganizationDialog(kind)`,
+`closeOrganizationDialog()`, `showInvited(invited)`, `dismissInvited()` and
+`resetOrganizationDialogs()`. *This said `{ open }` and two functions. The members list's reissue
+also produces a link and a password, and with the inline form gone that result needed the one
+panel too, so ticket 06 put the panel's state in the store beside `open`.* The precedent is `layout/startup-stage.svelte.ts`, module-level rune
 state read by the shell, and `sync/sign-out.ts`, a request one component raises and another
 answers. `layout/component/organization-dialogs.svelte` mounts both `FormSurface`s, reads the
 organization state query for `session.workspaces`, the role and the permissions, and is rendered
@@ -80,11 +83,14 @@ citation the component carries.
 
 ## Back is `SurfaceAction` in the `corner` slot
 
-Every step passes a `corner` snippet holding `SurfaceAction` with `ArrowLeftIcon` and
-`rtl:rotate-180`, `label` the locale's "back", `onclick` the step's destination. The walk's
-`onBack` prop becomes the one route-level handler that decides between `goto(THE_WAY_IN)` on
-`connect` and `step = previous` elsewhere; the join screen's `onPasteAnother` is renamed `onBack`
-and the route gives it the same shape. `startup-error.svelte` is the model.
+Every step with somewhere to go passes a `corner` snippet holding `SurfaceAction` with
+`ArrowLeftIcon` and `rtl:rotate-180`, `label` the locale's "back", `onclick` the step's
+destination. The walk's `onBack` prop becomes the one route-level handler that decides between
+`goto(THE_WAY_IN)` on `connect` and `step = previous` on `name`, and the walk's third step draws
+no corner (spec requirement 1, amended 2026-09-13); the join screen's `onPasteAnother` is renamed
+`onBack` and the route gives it the same shape. `startup-error.svelte` is the model. *This said
+every step, and `step = previous` elsewhere; the third step's back re-entered the step that
+created the organization.*
 
 # Components
 
@@ -200,9 +206,10 @@ Each number is the spec's acceptance criterion.
 8. `startup-no-workspace` cases already in `startup-sign-in.svelte.test.ts`: the addon and the
    button glyph.
 9. A new `workspace-menu.svelte.test.ts`: rows equal to `workspaces`, the marker on `openId`,
-   selecting another calls `onSwitch` with its id. `startup.test.ts`: `switchWorkspace` clears
-   the cache, calls `openWorkspace` with the id, runs the stages, sets `ready`, and a throwing
-   open sets `error`. Once by hand between the human's two workspaces.
+   selecting another calls `onSwitch` with its id. `startup.test.ts`: `switchWorkspace` drops
+   the undrawn queries and invalidates the rest, calls `openWorkspace` with the id, runs the
+   stages, sets `ready`, and a throwing open sets `error`. Once by hand between the human's two
+   workspaces.
 10. `workspace-menu.svelte.test.ts`: with `canInvite` false the row is `aria-disabled` and
     carries the refusal sentence; `grep -c LockIcon` is zero.
 11. `workspace-menu.svelte.test.ts`: rerendering with a new `openId` keeps one
@@ -227,10 +234,11 @@ Each number is the spec's acceptance criterion.
   old workspace after the cache is cleared. `applySyncOutcome` re-reads the remote-sync state,
   which by then names the new workspace, and a `received` outcome runs `announceReceived`, a
   reconcile over whatever is open; harmless, but it is a reconcile the new workspace did not
-  need. `switchWorkspace` therefore sets a flag the outcome handler reads and drops a result
-  that arrived for a workspace other than the one now open, and the startup test covers a late
-  outcome arriving after `ready`. First sign without it: a "received rows" toast right after a
-  switch.
+  need. The outcome therefore carries the workspace the dispatch ran for, read before it ran,
+  and the handler drops a result whose workspace is not the one now open; the startup test
+  covers a late outcome arriving after `ready`. First sign without it: a "received rows" toast
+  right after a switch. *This said a flag the handler reads. A flag cannot tell a late report
+  from a fresh one once `ready` is set again, so ticket 05 put the workspace on the report.*
 - **The radio group inside the wall's `form`.** The wall's `unlock()` reads `chosen`; the picker
   must bind to `organizationId` the way the select does, or the password unlocks the first
   organization regardless of the row. Criterion 7's test presses the second row and asserts
