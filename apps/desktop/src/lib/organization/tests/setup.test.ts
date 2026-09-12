@@ -19,17 +19,21 @@ import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
 /**
  * THE WALK, ASSERTED OVER
  *
- * Criterion 3 of the effort: **the only text entered into this application is the
- * organization's name and a password**. The screen draws its fields from `SETUP_WALK`, so this
- * is an assertion over what the screen presents and not over a list kept beside it, and a field
- * added later that asks for a slug, a group name, a token or a URL fails here before it reaches
- * review. `setup-walk.svelte.test.ts` asserts the same thing over the rendered DOM.
+ * Criterion 3 of effort 819: **the only text entered into this application is the
+ * organization's name and a password**, and since effort 824 the first workspace's name, which
+ * is a person's own word for their records exactly as the organization's name is, and not a
+ * Turso detail. The screen draws its fields from `SETUP_WALK`, so this is an assertion over
+ * what the screen presents and not over a list kept beside it, and a field added later that
+ * asks for a slug, a group name, a token or a URL fails here before it reaches review.
+ * `setup-walk.svelte.test.ts` asserts the same thing over the rendered DOM.
  */
 
-test('the only fields the walk presents are the name and a password', () => {
-	assert.deepEqual(fieldsPresented(), ['name', 'password']);
+test('the only fields the walk presents are the name, a password and the workspace', () => {
+	assert.deepEqual(fieldsPresented(), ['name', 'password', 'workspace']);
 });
 
+// a workspace's name is the person's word, like the organization's, so it passes here the way
+// the name does; what this refuses is a word Turso would want.
 test('nothing in the walk asks for a slug, a group, a token or a URL', () => {
 	const forbidden = /slug|group|token|url|host|secret/i;
 
@@ -56,11 +60,48 @@ test('the group preparation and what succession costs are said before the organi
 	assert.deepEqual(explaining?.fields, []);
 });
 
-test('the walk ends where it began: three steps, and the link is the last', () => {
+// effort 824, requirement 3: the walk ends inside the workspace. The last step names it, asks
+// for nothing else, and there is no step after it showing the link.
+test('the walk is three steps, and the workspace is the last', () => {
 	assert.deepEqual(
 		SETUP_WALK.map((step) => step.step),
-		['connect', 'name', 'done']
+		['connect', 'name', 'workspace']
 	);
+	assert.deepEqual(SETUP_WALK.at(-1)?.fields, ['workspace']);
+	assert.deepEqual(SETUP_WALK.at(-1)?.statements, []);
+});
+
+/**
+ * Effort 824, requirement 5: the connect step's three facts became a list of shorter sentences.
+ * The paragraphs they replaced are kept here as a literal rather than in the locale, so that
+ * the sentences stay shorter than what they replaced and not merely shorter than each other.
+ */
+const PARAGRAPHS_REPLACED = [
+	"first, in turso's own dashboard, create an empty group for rentable and pick it on the consent screen. the consent grants rentable authority over that one group, so an empty one keeps that authority to the databases rentable creates.",
+	'no turso account yet? the consent screen is where you make one.',
+	'the organization will live in whichever turso organization holds the group you pick. if that is a personal account, only you can grant rentable authority over it again. a second administrator on a turso organization can do the same, and turso can move a group to another organization from its own dashboard. rentable does neither for you.'
+];
+
+const words = (sentences: readonly string[]) =>
+	sentences.reduce((count, sentence) => count + sentence.trim().split(/\s+/).length, 0);
+
+test('the three connect items together are shorter than the three paragraphs they replaced', () => {
+	const items = [
+		en.organization.setup.connectGroup,
+		en.organization.setup.connectAccount,
+		en.organization.setup.connectSuccession
+	];
+
+	assert.ok(
+		words(items) < words(PARAGRAPHS_REPLACED),
+		`${words(items)} words against ${words(PARAGRAPHS_REPLACED)}`
+	);
+	// and each still says something, in both locales, written rather than copied.
+	for (const key of ['connectGroup', 'connectAccount', 'connectSuccession'] as const) {
+		assert.ok(en.organization.setup[key].length > 0, key);
+		assert.ok(ar.organization.setup[key].length > 0, key);
+		assert.notEqual(ar.organization.setup[key], en.organization.setup[key], key);
+	}
 });
 
 /**
@@ -82,14 +123,14 @@ test('the password floor is the same number in Rust, on the form, and in both lo
 	assert.match(ar.organization.setup.passwordTooShort, new RegExp(`${PASSWORD_FLOOR}`));
 });
 
-// requirement 22: the statement names group transfer as the customer's, performed in Turso, and
-// offers it nowhere here.
-test('the succession statement names turso as where a group moves, in both locales', () => {
-	assert.match(en.organization.setup.succession, /turso/i);
-	assert.match(en.organization.setup.succession, /move a group|transfer/i);
-	assert.match(en.organization.setup.succession, /rentable does neither/i);
-	assert.match(ar.organization.setup.succession, /Turso/);
-	assert.match(ar.organization.setup.succession, /نقل/);
+// requirement 22 of effort 819: the statement names group transfer as the customer's, performed
+// in Turso, and offers it nowhere here. Shorter since effort 824, and it still says so.
+test('the succession item names turso as where a group moves, in both locales', () => {
+	assert.match(en.organization.setup.connectSuccession, /turso/i);
+	assert.match(en.organization.setup.connectSuccession, /move a group|transfer/i);
+	assert.match(en.organization.setup.connectSuccession, /rentable does neither/i);
+	assert.match(ar.organization.setup.connectSuccession, /Turso/);
+	assert.match(ar.organization.setup.connectSuccession, /نقل/);
 });
 
 /**

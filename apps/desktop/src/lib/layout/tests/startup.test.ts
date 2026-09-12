@@ -53,6 +53,39 @@ test('a first launch with no organization stops at the wall, and opens nothing b
 	assert.deepEqual(journal.stages, ['settings', 'account']);
 });
 
+// effort 824, requirement 3: the first run creates the organization and its first workspace on
+// a route the wall let through, then tells the unit where the machine stands changed. The same
+// read, admit, open and enter a sign-in runs past the wall, and it ends inside that workspace.
+test('and the first run, once it has created the organization and a workspace, goes on in from where the machine now stands', async () => {
+	const founded = fakeOrganizationState({
+		session: fakeOrganizationSession({
+			workspaces: [fakeOrganizationWorkspace({ id: 'first', name: 'First' })]
+		}),
+		holdsTursoAuthority: true
+	});
+	const { startup, journal, seen } = harness({
+		organization: nowhereToGo(),
+		afterBootstrap: founded
+	});
+
+	await startup.start();
+	assert.equal(startup.snapshot.state, 'sign-in');
+
+	const seenBefore = seen.length;
+	await startup.standingChanged();
+
+	// the loading surface went up, the one workspace was opened, and the stages ran to ready.
+	assert.ok(seen.slice(seenBefore).some((snapshot) => snapshot.state === 'loading'));
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(startup.snapshot.error, null);
+	assert.equal(startup.snapshot.railIsUp, true);
+	assert.deepEqual(journal.workspacesOpened, ['first']);
+	assert.deepEqual(journal.stages.slice(-3), ['workspace', 'changes', 'records']);
+	assert.equal(journal.bootstrapped, 1);
+	assert.equal(journal.reconciled, 1);
+	assert.equal(startup.snapshot.remoteSync?.workspace.remoteId, 'first');
+});
+
 test('and the locale is loaded before the wall, so the wall is readable', async () => {
 	const { startup, journal } = harness({
 		organization: nowhereToGo(),

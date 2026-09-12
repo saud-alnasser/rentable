@@ -2303,17 +2303,23 @@ type RootTranslation = {
 			 */
 			connectDescription: string
 			/**
-			 * f​i​r​s​t​,​ ​i​n​ ​t​u​r​s​o​'​s​ ​o​w​n​ ​d​a​s​h​b​o​a​r​d​,​ ​c​r​e​a​t​e​ ​a​n​ ​e​m​p​t​y​ ​g​r​o​u​p​ ​f​o​r​ ​r​e​n​t​a​b​l​e​ ​a​n​d​ ​p​i​c​k​ ​i​t​ ​o​n​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​g​r​a​n​t​s​ ​r​e​n​t​a​b​l​e​ ​a​u​t​h​o​r​i​t​y​ ​o​v​e​r​ ​t​h​a​t​ ​o​n​e​ ​g​r​o​u​p​,​ ​s​o​ ​a​n​ ​e​m​p​t​y​ ​o​n​e​ ​k​e​e​p​s​ ​t​h​a​t​ ​a​u​t​h​o​r​i​t​y​ ​t​o​ ​t​h​e​ ​d​a​t​a​b​a​s​e​s​ ​r​e​n​t​a​b​l​e​ ​c​r​e​a​t​e​s​.
+			 * s​t​e​p​ ​{​s​t​e​p​|​n​u​m​b​e​r​}​ ​o​f​ ​{​t​o​t​a​l​|​n​u​m​b​e​r​}
+			 * @param {unknown} step
+			 * @param {unknown} total
 			 */
-			groupPreparation: string
+			position: RequiredParams<'step|number' | 'total|number'>
 			/**
-			 * n​o​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​y​e​t​?​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​ ​i​s​ ​w​h​e​r​e​ ​y​o​u​ ​m​a​k​e​ ​o​n​e​.
+			 * f​i​r​s​t​,​ ​c​r​e​a​t​e​ ​a​n​ ​e​m​p​t​y​ ​g​r​o​u​p​ ​f​o​r​ ​r​e​n​t​a​b​l​e​ ​i​n​ ​t​u​r​s​o​'​s​ ​d​a​s​h​b​o​a​r​d​ ​a​n​d​ ​p​i​c​k​ ​i​t​ ​o​n​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​c​o​v​e​r​s​ ​t​h​a​t​ ​o​n​e​ ​g​r​o​u​p​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​e​l​s​e​.
 			 */
-			accountCreation: string
+			connectGroup: string
 			/**
-			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​i​l​l​ ​l​i​v​e​ ​i​n​ ​w​h​i​c​h​e​v​e​r​ ​t​u​r​s​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​h​o​l​d​s​ ​t​h​e​ ​g​r​o​u​p​ ​y​o​u​ ​p​i​c​k​.​ ​i​f​ ​t​h​a​t​ ​i​s​ ​a​ ​p​e​r​s​o​n​a​l​ ​a​c​c​o​u​n​t​,​ ​o​n​l​y​ ​y​o​u​ ​c​a​n​ ​g​r​a​n​t​ ​r​e​n​t​a​b​l​e​ ​a​u​t​h​o​r​i​t​y​ ​o​v​e​r​ ​i​t​ ​a​g​a​i​n​.​ ​a​ ​s​e​c​o​n​d​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​o​n​ ​a​ ​t​u​r​s​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​c​a​n​ ​d​o​ ​t​h​e​ ​s​a​m​e​,​ ​a​n​d​ ​t​u​r​s​o​ ​c​a​n​ ​m​o​v​e​ ​a​ ​g​r​o​u​p​ ​t​o​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​f​r​o​m​ ​i​t​s​ ​o​w​n​ ​d​a​s​h​b​o​a​r​d​.​ ​r​e​n​t​a​b​l​e​ ​d​o​e​s​ ​n​e​i​t​h​e​r​ ​f​o​r​ ​y​o​u​.
+			 * n​o​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​y​e​t​?​ ​m​a​k​e​ ​o​n​e​ ​o​n​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.
 			 */
-			succession: string
+			connectAccount: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​v​e​s​ ​w​h​e​r​e​v​e​r​ ​t​h​a​t​ ​g​r​o​u​p​ ​d​o​e​s​.​ ​o​n​ ​a​ ​p​e​r​s​o​n​a​l​ ​a​c​c​o​u​n​t​ ​o​n​l​y​ ​y​o​u​ ​c​a​n​ ​g​r​a​n​t​ ​r​e​n​t​a​b​l​e​ ​a​u​t​h​o​r​i​t​y​ ​a​g​a​i​n​;​ ​o​n​ ​a​ ​t​u​r​s​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​y​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​c​a​n​,​ ​a​n​d​ ​t​u​r​s​o​ ​c​a​n​ ​m​o​v​e​ ​a​ ​g​r​o​u​p​ ​t​h​e​r​e​ ​f​r​o​m​ ​i​t​s​ ​d​a​s​h​b​o​a​r​d​.​ ​r​e​n​t​a​b​l​e​ ​d​o​e​s​ ​n​e​i​t​h​e​r​ ​f​o​r​ ​y​o​u​.
+			 */
+			connectSuccession: string
 			/**
 			 * o​p​e​n​ ​t​u​r​s​o​ ​d​a​s​h​b​o​a​r​d
 			 */
@@ -2379,13 +2385,13 @@ type RootTranslation = {
 			 */
 			creating: string
 			/**
-			 * y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​r​e​a​d​y
+			 * n​a​m​e​ ​y​o​u​r​ ​f​i​r​s​t​ ​w​o​r​k​s​p​a​c​e
 			 */
-			doneTitle: string
+			workspaceTitle: string
 			/**
-			 * h​a​n​d​ ​t​h​i​s​ ​l​i​n​k​ ​t​o​ ​t​h​e​ ​p​e​o​p​l​e​ ​y​o​u​ ​i​n​v​i​t​e​.​ ​i​t​ ​f​i​n​d​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​m​o​r​e​;​ ​e​a​c​h​ ​i​n​v​i​t​a​t​i​o​n​ ​a​n​d​ ​p​a​s​s​w​o​r​d​ ​a​r​e​ ​s​e​p​a​r​a​t​e​.
+			 * a​ ​w​o​r​k​s​p​a​c​e​ ​h​o​l​d​s​ ​o​n​e​ ​s​e​t​ ​o​f​ ​r​e​c​o​r​d​s​.​ ​m​o​r​e​ ​c​a​n​ ​b​e​ ​a​d​d​e​d​ ​l​a​t​e​r​,​ ​f​r​o​m​ ​i​n​s​i​d​e​ ​t​h​e​ ​a​p​p​l​i​c​a​t​i​o​n​.
 			 */
-			doneDescription: string
+			workspaceDescription: string
 			/**
 			 * j​o​i​n​ ​l​i​n​k
 			 */
@@ -2398,10 +2404,6 @@ type RootTranslation = {
 			 * l​i​n​k​ ​c​o​p​i​e​d​.
 			 */
 			linkCopied: string
-			/**
-			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​w​i​l​l​ ​r​e​a​c​h​ ​t​u​r​s​o​ ​w​h​e​n​ ​t​h​e​ ​c​o​n​n​e​c​t​i​o​n​ ​r​e​t​u​r​n​s​.​ ​t​h​e​ ​l​i​n​k​ ​w​o​r​k​s​ ​o​n​c​e​ ​i​t​ ​h​a​s​.
-			 */
-			notYetSent: string
 			/**
 			 * c​o​n​t​i​n​u​e
 			 */
@@ -4967,17 +4969,21 @@ export type TranslationFunctions = {
 			 */
 			connectDescription: () => LocalizedString
 			/**
-			 * first, in turso's own dashboard, create an empty group for rentable and pick it on the consent screen. the consent grants rentable authority over that one group, so an empty one keeps that authority to the databases rentable creates.
+			 * step {step|number} of {total|number}
 			 */
-			groupPreparation: () => LocalizedString
+			position: (arg: { step: unknown, total: unknown }) => LocalizedString
 			/**
-			 * no turso account yet? the consent screen is where you make one.
+			 * first, create an empty group for rentable in turso's dashboard and pick it on the consent screen. the consent covers that one group and nothing else.
 			 */
-			accountCreation: () => LocalizedString
+			connectGroup: () => LocalizedString
 			/**
-			 * the organization will live in whichever turso organization holds the group you pick. if that is a personal account, only you can grant rentable authority over it again. a second administrator on a turso organization can do the same, and turso can move a group to another organization from its own dashboard. rentable does neither for you.
+			 * no turso account yet? make one on the consent screen.
 			 */
-			succession: () => LocalizedString
+			connectAccount: () => LocalizedString
+			/**
+			 * the organization lives wherever that group does. on a personal account only you can grant rentable authority again; on a turso organization any administrator can, and turso can move a group there from its dashboard. rentable does neither for you.
+			 */
+			connectSuccession: () => LocalizedString
 			/**
 			 * open turso dashboard
 			 */
@@ -5043,13 +5049,13 @@ export type TranslationFunctions = {
 			 */
 			creating: () => LocalizedString
 			/**
-			 * your organization is ready
+			 * name your first workspace
 			 */
-			doneTitle: () => LocalizedString
+			workspaceTitle: () => LocalizedString
 			/**
-			 * hand this link to the people you invite. it finds the organization and nothing more; each invitation and password are separate.
+			 * a workspace holds one set of records. more can be added later, from inside the application.
 			 */
-			doneDescription: () => LocalizedString
+			workspaceDescription: () => LocalizedString
 			/**
 			 * join link
 			 */
@@ -5062,10 +5068,6 @@ export type TranslationFunctions = {
 			 * link copied.
 			 */
 			linkCopied: () => LocalizedString
-			/**
-			 * the organization is on this machine and will reach turso when the connection returns. the link works once it has.
-			 */
-			notYetSent: () => LocalizedString
 			/**
 			 * continue
 			 */

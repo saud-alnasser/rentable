@@ -745,11 +745,12 @@ const en = {
 				'rentable runs on a turso account you own. your records live there, and nowhere of ours.',
 			connectTitle: 'connect your turso account',
 			connectDescription: 'one consent in the browser, and nothing is pasted or typed here.',
-			groupPreparation:
-				"first, in turso's own dashboard, create an empty group for rentable and pick it on the consent screen. the consent grants rentable authority over that one group, so an empty one keeps that authority to the databases rentable creates.",
-			accountCreation: 'no turso account yet? the consent screen is where you make one.',
-			succession:
-				'the organization will live in whichever turso organization holds the group you pick. if that is a personal account, only you can grant rentable authority over it again. a second administrator on a turso organization can do the same, and turso can move a group to another organization from its own dashboard. rentable does neither for you.',
+			position: 'step {step|number} of {total|number}',
+			connectGroup:
+				"first, create an empty group for rentable in turso's dashboard and pick it on the consent screen. the consent covers that one group and nothing else.",
+			connectAccount: 'no turso account yet? make one on the consent screen.',
+			connectSuccession:
+				'the organization lives wherever that group does. on a personal account only you can grant rentable authority again; on a turso organization any administrator can, and turso can move a group there from its dashboard. rentable does neither for you.',
 			openDashboard: 'open turso dashboard',
 			connect: 'connect turso account',
 			connecting: 'finish the consent in the browser window that just opened.',
@@ -768,14 +769,12 @@ const en = {
 			passwordTooShort: 'use at least 12 characters.',
 			create: 'create organization',
 			creating: 'creating the organization on your turso account...',
-			doneTitle: 'your organization is ready',
-			doneDescription:
-				'hand this link to the people you invite. it finds the organization and nothing more; each invitation and password are separate.',
+			workspaceTitle: 'name your first workspace',
+			workspaceDescription:
+				'a workspace holds one set of records. more can be added later, from inside the application.',
 			linkLabel: 'join link',
 			copyLink: 'copy link',
 			linkCopied: 'link copied.',
-			notYetSent:
-				'the organization is on this machine and will reach turso when the connection returns. the link works once it has.',
 			continue: 'continue',
 			back: 'back'
 		},

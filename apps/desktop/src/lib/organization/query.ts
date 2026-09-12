@@ -47,9 +47,23 @@ export function useBeginConsent(
  * spent on nothing.
  */
 export function useConsentResult(sessionId: () => string | null) {
+	const client = useQueryClient();
+
 	return createQuery(() => ({
 		queryKey: keys.consent(sessionId() ?? ''),
-		queryFn: () => api.app.organization.consent.result({ sessionId: sessionId() ?? '' }),
+		queryFn: async () => {
+			const result = await api.app.organization.consent.result({ sessionId: sessionId() ?? '' });
+
+			// a consent seen granted changes where the machine stands, and the state key is what the
+			// walk reads for it: refreshed here, a person who connects, returns to the wall and comes
+			// back opens the walk granted at once rather than after that query's own refetch. The
+			// poll stops on the same answer, so this runs once per grant.
+			if (result.status === 'granted') {
+				await client.invalidateQueries({ queryKey: keys.state });
+			}
+
+			return result;
+		},
 		enabled: sessionId() !== null,
 		refetchInterval: (query) => {
 			const result = query.state.data as OrganizationConsentResult | undefined;
@@ -84,7 +98,11 @@ export function useReconnectAuthority(
 	}));
 }
 
-/** forget the Turso authority this machine holds. */
+/**
+ * forget the Turso authority this machine holds, and refresh where the machine stands, which
+ * the first run reads to open its connect step as granted: a walk that read the authority as
+ * held would otherwise go on reading it that way after it was given back.
+ */
 export function useDisconnect(
 	opts: MutationOptions = {
 		toast: {
@@ -94,9 +112,14 @@ export function useDisconnect(
 		}
 	}
 ) {
+	const client = useQueryClient();
+
 	return createMutation(() => ({
 		mutationFn: () => api.app.organization.consent.disconnect(),
-		onSuccess: () => onMutationSuccess(opts),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.state });
+			onMutationSuccess(opts);
+		},
 		onError: (e) => onMutationError(opts, e)
 	}));
 }
