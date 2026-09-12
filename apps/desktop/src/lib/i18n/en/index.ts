@@ -789,7 +789,7 @@ const en = {
 			unreachable:
 				'the organization could not be reached. the link is right; try again once the connection is back.',
 			tryAgain: 'try again',
-			pasteAnother: 'paste another link',
+			back: 'back',
 			found: 'this link finds {name}.',
 			refusedLapsed:
 				'the invitation has lapsed. ask whoever invited you for a new one; the link itself does not expire.',

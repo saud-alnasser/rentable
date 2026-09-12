@@ -1417,7 +1417,7 @@ type RootTranslation = {
 			migrationApplying: string
 			/**
 			 * a​n​o​t​h​e​r​ ​m​e​m​b​e​r​ ​i​s​ ​b​r​i​n​g​i​n​g​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​u​p​ ​t​o​ ​t​h​i​s​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​.​ ​w​a​i​t​i​n​g​ ​o​n​ ​t​h​e​m​,​ ​u​n​t​i​l​ ​{​u​n​t​i​l​}​ ​a​t​ ​t​h​e​ ​l​a​t​e​s​t​.
-			 * @param {string} until
+			 * @param {unknown} until
 			 */
 			migrationWaiting: RequiredParams<'until'>
 			/**
@@ -2397,7 +2397,7 @@ type RootTranslation = {
 			/**
 			 * c​o​n​t​i​n​u​e
 			 */
-			continue: string
+			'continue': string
 			/**
 			 * b​a​c​k
 			 */
@@ -2437,12 +2437,12 @@ type RootTranslation = {
 			 */
 			tryAgain: string
 			/**
-			 * p​a​s​t​e​ ​a​n​o​t​h​e​r​ ​l​i​n​k
+			 * b​a​c​k
 			 */
-			pasteAnother: string
+			back: string
 			/**
 			 * t​h​i​s​ ​l​i​n​k​ ​f​i​n​d​s​ ​{​n​a​m​e​}​.
-			 * @param {string} name
+			 * @param {unknown} name
 			 */
 			found: RequiredParams<'name'>
 			/**
@@ -2597,10 +2597,10 @@ type RootTranslation = {
 			lockOutReading: string
 			/**
 			 * t​h​e​i​r​ ​a​c​c​e​s​s​ ​t​o​ ​{​w​o​r​k​s​p​a​c​e​s​}​ ​e​n​d​s​ ​a​t​ ​o​n​c​e​.​ ​t​u​r​s​o​ ​r​e​v​o​k​e​s​ ​p​e​r​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​t​o​t​a​l​l​y​,​ ​s​o​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​t​h​e​r​ ​m​e​m​b​e​r​(​s​)​ ​o​f​ ​t​h​o​s​e​ ​w​o​r​k​s​p​a​c​e​s​ ​s​t​o​p​ ​s​y​n​c​i​n​g​ ​u​n​t​i​l​ ​t​h​e​i​r​ ​a​p​p​l​i​c​a​t​i​o​n​ ​r​e​c​o​n​n​e​c​t​s​,​ ​w​h​i​c​h​ ​i​t​ ​d​o​e​s​ ​o​n​ ​i​t​s​ ​o​w​n​.​ ​w​h​a​t​ ​i​s​ ​a​l​r​e​a​d​y​ ​o​n​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​ ​s​t​a​y​s​ ​t​h​e​r​e​.
-			 * @param {string} workspaces
 			 * @param {unknown} count
+			 * @param {unknown} workspaces
 			 */
-			lockOutDescription: RequiredParams<'workspaces' | 'count|number'>
+			lockOutDescription: RequiredParams<'count|number' | 'workspaces'>
 			/**
 			 * t​h​e​ ​m​e​m​b​e​r​ ​w​a​s​ ​r​e​m​o​v​e​d​.​ ​t​h​e​i​r​ ​a​c​c​e​s​s​ ​e​n​d​s​ ​w​h​e​n​ ​t​h​e​i​r​ ​c​r​e​d​e​n​t​i​a​l​ ​r​u​n​s​ ​o​u​t​.
 			 */
@@ -2612,7 +2612,7 @@ type RootTranslation = {
 			lockedOut: RequiredParams<'count|number'>
 			/**
 			 * y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​{​w​o​r​k​s​p​a​c​e​s​}​,​ ​s​o​ ​t​h​e​ ​r​e​s​e​t​ ​c​o​u​l​d​ ​n​o​t​ ​r​e​s​t​o​r​e​ ​i​t​.​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​w​h​o​ ​d​o​e​s​ ​c​a​n​ ​g​r​a​n​t​ ​i​t​ ​a​g​a​i​n​.
-			 * @param {string} workspaces
+			 * @param {unknown} workspaces
 			 */
 			unreachableWorkspaces: RequiredParams<'workspaces'>
 			/**
@@ -2748,12 +2748,12 @@ type RootTranslation = {
 		credentialRefused: string
 		/**
 		 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​i​s​ ​r​e​a​c​h​i​n​g​ ​t​u​r​s​o​ ​f​o​r​ ​n​o​w​.​ ​t​e​l​l​ ​{​o​w​n​e​r​}​.​ ​e​v​e​r​y​t​h​i​n​g​ ​h​e​r​e​ ​k​e​e​p​s​ ​w​o​r​k​i​n​g​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​w​h​a​t​ ​y​o​u​ ​w​r​i​t​e​ ​g​o​e​s​ ​o​u​t​ ​o​n​c​e​ ​i​t​ ​i​s​ ​s​e​e​n​ ​t​o​.
-		 * @param {string} owner
+		 * @param {unknown} owner
 		 */
 		accountRefusedMember: RequiredParams<'owner'>
 		/**
 		 * t​u​r​s​o​ ​i​s​ ​r​e​f​u​s​i​n​g​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​a​c​c​o​u​n​t​:​ ​{​d​e​t​a​i​l​}​.​ ​e​v​e​r​y​t​h​i​n​g​ ​k​e​e​p​s​ ​w​o​r​k​i​n​g​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​w​h​a​t​ ​i​s​ ​w​r​i​t​t​e​n​ ​g​o​e​s​ ​o​u​t​ ​o​n​c​e​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​i​s​ ​s​e​e​n​ ​t​o​.​ ​t​h​e​ ​p​l​a​c​e​ ​t​o​ ​s​e​e​ ​t​o​ ​i​t​ ​i​s​ ​t​u​r​s​o​'​s​ ​o​w​n​ ​d​a​s​h​b​o​a​r​d​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​,​ ​u​n​d​e​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​t​h​a​t​ ​h​o​l​d​s​ ​y​o​u​r​ ​g​r​o​u​p​.
-		 * @param {string} detail
+		 * @param {unknown} detail
 		 */
 		accountRefusedOwner: RequiredParams<'detail'>
 		/**
@@ -4119,7 +4119,7 @@ export type TranslationFunctions = {
 			/**
 			 * another member is bringing the workspace up to this version of rentable. waiting on them, until {until} at the latest.
 			 */
-			migrationWaiting: (arg: { until: string }) => LocalizedString
+			migrationWaiting: (arg: { until: unknown }) => LocalizedString
 			/**
 			 * reading your settings
 			 */
@@ -5053,7 +5053,7 @@ export type TranslationFunctions = {
 			/**
 			 * continue
 			 */
-			continue: () => LocalizedString
+			'continue': () => LocalizedString
 			/**
 			 * back
 			 */
@@ -5093,13 +5093,13 @@ export type TranslationFunctions = {
 			 */
 			tryAgain: () => LocalizedString
 			/**
-			 * paste another link
+			 * back
 			 */
-			pasteAnother: () => LocalizedString
+			back: () => LocalizedString
 			/**
 			 * this link finds {name}.
 			 */
-			found: (arg: { name: string }) => LocalizedString
+			found: (arg: { name: unknown }) => LocalizedString
 			/**
 			 * the invitation has lapsed. ask whoever invited you for a new one; the link itself does not expire.
 			 */
@@ -5253,7 +5253,7 @@ export type TranslationFunctions = {
 			/**
 			 * their access to {workspaces} ends at once. turso revokes per workspace and totally, so {count|number} other member(s) of those workspaces stop syncing until their application reconnects, which it does on its own. what is already on their machine stays there.
 			 */
-			lockOutDescription: (arg: { workspaces: string, count: unknown }) => LocalizedString
+			lockOutDescription: (arg: { count: unknown, workspaces: unknown }) => LocalizedString
 			/**
 			 * the member was removed. their access ends when their credential runs out.
 			 */
@@ -5265,7 +5265,7 @@ export type TranslationFunctions = {
 			/**
 			 * you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.
 			 */
-			unreachableWorkspaces: (arg: { workspaces: string }) => LocalizedString
+			unreachableWorkspaces: (arg: { workspaces: unknown }) => LocalizedString
 			/**
 			 * open
 			 */
@@ -5400,11 +5400,11 @@ export type TranslationFunctions = {
 		/**
 		 * the organization's turso account needs attention, so nothing is reaching turso for now. tell {owner}. everything here keeps working on this machine, and what you write goes out once it is seen to.
 		 */
-		accountRefusedMember: (arg: { owner: string }) => LocalizedString
+		accountRefusedMember: (arg: { owner: unknown }) => LocalizedString
 		/**
 		 * turso is refusing the organization's account: {detail}. everything keeps working on this machine, and what is written goes out once the account is seen to. the place to see to it is turso's own dashboard at app.turso.tech, under the organization that holds your group.
 		 */
-		accountRefusedOwner: (arg: { detail: string }) => LocalizedString
+		accountRefusedOwner: (arg: { detail: unknown }) => LocalizedString
 		/**
 		 * turso is refusing the organization's account. everything keeps working on this machine, and what is written goes out once the account is seen to. the place to see to it is turso's own dashboard at app.turso.tech, under the organization that holds your group.
 		 */

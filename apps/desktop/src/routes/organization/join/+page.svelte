@@ -37,15 +37,32 @@
 	// wrong password typed on the sign-in card before the person came this way.
 	let refusal = $state<string | null>(null);
 
+	// which inspection is the one whose answer counts: the latest begun. A person can paste the
+	// same link again while its first inspection is still out, and the first answer must not land
+	// over the second wait.
+	let inspection = 0;
+
 	const inspect = async (link: string) => {
+		const mine = ++inspection;
+
 		step = { kind: 'inspecting', link };
 
+		let next: JoinStep;
+
 		try {
-			step = inspected(link, await tauri.organization.linkInspect(link));
+			next = inspected(link, await tauri.organization.linkInspect(link));
 		} catch (error) {
-			step = inspectionFailed(link, error, (failure) =>
+			next = inspectionFailed(link, error, (failure) =>
 				toErrorText(failure, $LL, $LL.common.messages.unexpectedError())
 			);
+		}
+
+		// the inspection opens the organization over the network and takes seconds, and the corner
+		// back is live while it does. A person who left for the field in the meantime is not moved
+		// forward again when the answer lands: it is written only over the wait it was asked for,
+		// and only by the latest inspection begun.
+		if (mine === inspection && step.kind === 'inspecting' && step.link === link) {
+			step = next;
 		}
 	};
 
@@ -104,7 +121,16 @@
 	onOpenLink={open}
 	onJoin={(link, password) => void join(link, password)}
 	onRestore={(link, email, password) => void restoreFrom(link, email, password)}
-	onPasteAnother={() => {
+	onBack={() => {
+		// the field is the screen's first step, so from it, or from text that was not a link, back
+		// is the wall the person came from. Every later step came from the field and returns to it,
+		// with nothing the last join said carried along.
+		if (step.kind === 'paste' || step.kind === 'unreadable') {
+			void goto(resolve(THE_WAY_IN));
+
+			return;
+		}
+
 		refusal = null;
 		step = { kind: 'paste' };
 	}}
