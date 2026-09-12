@@ -27,6 +27,7 @@ import type {
 	OrganizationWorkspace,
 	Recovery,
 	RemoteSyncState,
+	ReplicationRefusal,
 	Settings,
 	SettingsChangeset
 } from '$lib/platform/host';
@@ -67,6 +68,7 @@ export type {
 	RemoteSyncAccountStatus,
 	RemoteSyncState,
 	RemoteSyncWorkspace,
+	ReplicationRefusal,
 	Settings,
 	SettingsChangeset,
 	UpdaterDownloadEvent
@@ -267,13 +269,17 @@ export const tauri = {
 		},
 		resetMember: (memberId: string) => invoke<Invited>('member_reset', { memberId }),
 		changePassword: (current: string, next: string) =>
-			invoke<OrganizationState>('organization_change_password', { current, new: next })
+			invoke<OrganizationState>('organization_change_password', { current, new: next }),
+		accountRefusalDetail: () => invoke<string | null>('organization_account_refusal_detail')
 	},
 	remoteSync: {
 		getState: () => invoke<RemoteSyncState>('remote_sync_state_get'),
 		renewSession: () => invoke<RemoteSyncState>('remote_sync_renew_session'),
 		establishSession: () => invoke<RemoteSyncState>('remote_sync_establish_session'),
-		replicate: () => invoke<{ pushed: boolean; received: boolean }>('remote_sync_replicate'),
+		replicate: () =>
+			invoke<{ pushed: boolean; received: boolean; refusal: ReplicationRefusal }>(
+				'remote_sync_replicate'
+			),
 		push: () => invoke<boolean>('remote_sync_push'),
 		renameWorkspace: (name: string) =>
 			invoke<RemoteSyncState>('remote_sync_rename_workspace', { name })

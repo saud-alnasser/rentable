@@ -115,6 +115,10 @@ pub async fn lock_out_cost(
         });
     }
 
+    // by name, which is the order the dialog lists them in and the order the rotation runs in;
+    // the rows come back in whatever order the replica holds them.
+    affected.sort_by(|a, b| a.name.cmp(&b.name));
+
     Ok(LockOutCost {
         workspaces: affected,
         members_affected: everybody.len(),

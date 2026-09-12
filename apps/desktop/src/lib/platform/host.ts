@@ -176,7 +176,17 @@ export type RemoteSyncState = {
 	/** the window this machine holds, or nothing where it holds no session. */
 	session: SessionWindow | null;
 	deviceId: string;
+	/**
+	 * a replication Turso refused for the organization's account, standing until one goes
+	 * through. Distinct from every other reason a machine is not syncing: a person over quota and
+	 * a person offline need different things. What Turso said is the owner's alone, read through
+	 * `organization.accountRefusalDetail`.
+	 */
+	accountRefusal: { since: number } | null;
 };
+
+/** why a replication did not go, where Turso said: the account's, the credential's, or neither. */
+export type ReplicationRefusal = 'none' | 'account' | 'credential';
 
 /**
  * how far a sign-in has got. signing in is one call, so progress arrives on an event instead of
@@ -288,6 +298,8 @@ export type OrganizationSession = {
 	permissions: number;
 	mustChangePassword: boolean;
 	workspaces: OrganizationWorkspace[];
+	/** the owner's name: whom a member is told to tell when the account needs attention. */
+	ownerDisplayName: string;
 };
 
 /** where a link's invitation stands, as the join screen is told before it asks for anything. */
@@ -578,6 +590,11 @@ export type Host = {
 		 * back is where the machine stands, with the requirement to change cleared.
 		 */
 		changePassword: (current: string, next: string) => Promise<OrganizationState>;
+		/**
+		 * Turso's own sentence about the standing account refusal, for the owner and nobody else:
+		 * `null` for everybody else, and where nothing is refused.
+		 */
+		accountRefusalDetail: () => Promise<string | null>;
 	};
 	remoteSync: {
 		getState: () => Promise<RemoteSyncState>;
@@ -611,7 +628,11 @@ export type Host = {
 		 * state, so they have to be reconciled and the query cache told; a push that did not go has
 		 * to be tried again, and a caller that could not tell would have nothing to arm a retry on.
 		 */
-		replicate: () => Promise<{ pushed: boolean; received: boolean }>;
+		replicate: () => Promise<{
+			pushed: boolean;
+			received: boolean;
+			refusal: ReplicationRefusal;
+		}>;
 		/** send what this machine wrote and nothing else, for the last call of a session. */
 		push: () => Promise<boolean>;
 		/**

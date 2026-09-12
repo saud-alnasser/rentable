@@ -44,7 +44,7 @@ async function signedOutApi() {
 				getState: async () => fakeSyncState({ accounts: [] }),
 				renewSession: async () => fakeSyncState({ accounts: [] }),
 				establishSession: async () => fakeSyncState({ accounts: [] }),
-				replicate: async () => ({ pushed: false, received: false }),
+				replicate: async () => ({ pushed: false, received: false, refusal: 'none' as const }),
 				push: async () => false,
 				renameWorkspace: async () => fakeSyncState({ accounts: [] })
 			}

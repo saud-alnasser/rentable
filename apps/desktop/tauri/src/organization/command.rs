@@ -570,6 +570,25 @@ pub(crate) async fn reconnect(app_state: &AppState) -> bool {
     true
 }
 
+/// Turso's own sentence about the standing account refusal, for the owner and nobody else.
+/// A member who is not the owner is answered with nothing rather than refused, because the
+/// screen they see says the account needs attention and whom to tell, and that is the whole of
+/// what requirement 25 lets them see.
+#[tauri::command]
+pub async fn organization_account_refusal_detail(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<Option<String>, Error> {
+    let member = app_state.member.read().await;
+
+    if member.as_ref().map(|member| member.role.as_str()) != Some(super::permission::OWNER) {
+        return Ok(None);
+    }
+
+    let remote_sync = app_state.remote_sync.read().await;
+
+    Ok(remote_sync.account_refusal_detail())
+}
+
 /// Change the signed-in member's own password. The current one opens the vault, the new one has
 /// to reach the floor, and nothing else on the database moves. Neither password crosses back.
 #[tauri::command]

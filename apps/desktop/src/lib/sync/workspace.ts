@@ -128,7 +128,7 @@ export async function syncWorkspaceNow(
 	// it is arm a retry, which is why the two halves are answered separately.
 	const replication = await tauri.remoteSync
 		.replicate()
-		.catch(() => ({ pushed: false, received: false }));
+		.catch(() => ({ pushed: false, received: false, refusal: 'none' as const }));
 
 	return { state: renewed, action: 'none', ...replication };
 }

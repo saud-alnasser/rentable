@@ -74,6 +74,7 @@ export function fakeSyncState(overrides: Partial<RemoteSyncState> = {}): RemoteS
 		controlPlaneReady: false,
 		session: null,
 		deviceId: 'device',
+		accountRefusal: null,
 		...overrides
 	};
 }
@@ -174,7 +175,8 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 				revoke: refuse('organization.invitation.revoke')
 			},
 			resetMember: refuse('organization.resetMember'),
-			changePassword: refuse('organization.changePassword')
+			changePassword: refuse('organization.changePassword'),
+			accountRefusalDetail: refuse('organization.accountRefusalDetail')
 		},
 		remoteSync: {
 			getState: refuse('remoteSync.getState'),
@@ -231,6 +233,7 @@ export function fakeOrganizationSession(
 		permissions: 0,
 		mustChangePassword: false,
 		workspaces: [fakeOrganizationWorkspace()],
+		ownerDisplayName: 'Olivia Owner',
 		...overrides
 	};
 }

@@ -3,6 +3,7 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { useFetchOrganizationState } from '$lib/organization/query';
 	import { useFetchRemoteSyncState } from '$lib/settings/query';
 	import { signedInAccount } from '$lib/sync/account';
 	import WorkspaceIdentity from '$lib/workspace/component/identity.svelte';
@@ -24,6 +25,8 @@
 	 * inside the shell cannot be reached before either has happened.
 	 */
 	const remoteSyncQuery = useFetchRemoteSyncState();
+	// who is reading, for the one sentence on this page that differs by reader (requirement 25).
+	const organizationQuery = useFetchOrganizationState();
 
 	const syncState = $derived(remoteSyncQuery.data);
 	const account = $derived(signedInAccount(remoteSyncQuery.data));
@@ -52,7 +55,7 @@
 
 			<Field.Set>
 				<Field.Legend>{$LL.workspace.groupSync()}</Field.Legend>
-				<WorkspaceSync {syncState} />
+				<WorkspaceSync {syncState} session={organizationQuery.data?.session ?? null} />
 			</Field.Set>
 
 			<Separator />

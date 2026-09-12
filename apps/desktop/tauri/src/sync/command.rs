@@ -6,6 +6,7 @@ use super::control::renew_session as renew_control_plane_session;
 use super::sign_in::{sign_in_with_google, sign_out_of_google};
 use super::store::RemoteSyncState;
 use super::turso::consent::{TursoConsentResult, TursoConsentStart, TursoEndpoints};
+use super::turso::platform::SyncRefusal;
 
 #[tauri::command]
 pub async fn remote_sync_state_get(
@@ -109,30 +110,52 @@ pub async fn remote_sync_push(app_state: tauri::State<'_, AppState>) -> Result<b
 pub async fn remote_sync_replicate(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Replication, Error> {
-    let (pushed, received) = {
+    let replicated = {
         let db = app_state.db.read().await;
 
-        (db.push_replica().await, db.pull_replica().await)
+        db.replicate().await
     };
 
-    if pushed && received {
-        return Ok(Replication { pushed, received });
+    match &replicated.refusal {
+        // the remote was reached, or could not be: the offline case, which needs nothing.
+        SyncRefusal::None => {
+            if replicated.pushed || replicated.received {
+                app_state.remote_sync.write().await.clear_account_refusal();
+            }
+
+            Ok(Replication::from(replicated))
+        }
+        // requirement 25: the account's, said as the account's. The local replica goes on
+        // serving every read and every write; what stops is replication, until the owner has
+        // seen to the account and the next one goes through.
+        SyncRefusal::Account { detail } => {
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .note_account_refusal(detail, crate::timestamp::now());
+
+            Ok(Replication::from(replicated))
+        }
+        // a credential that stopped being accepted: a lock-out rotated it and the owner
+        // re-sealed a fresh one to this member. The organization database says so, and reading
+        // it costs one pull; where a credential moved, the same replication is tried once more
+        // under it, and nobody has to do anything.
+        SyncRefusal::Credential => {
+            if !crate::organization::reconnect(&app_state).await {
+                return Ok(Replication::from(replicated));
+            }
+
+            let db = app_state.db.read().await;
+            let again = db.replicate().await;
+
+            Ok(Replication {
+                pushed: replicated.pushed || again.pushed,
+                received: replicated.received || again.received,
+                refusal: again.refusal.into(),
+            })
+        }
     }
-
-    // a half that failed is the offline case, or a credential that stopped being accepted: a
-    // lock-out rotated it and the owner re-sealed a fresh one to this member. The organization
-    // database says which, and reading it costs one pull; where a credential moved, the same
-    // replication is tried once more under it, and nobody has to do anything.
-    if !crate::organization::reconnect(&app_state).await {
-        return Ok(Replication { pushed, received });
-    }
-
-    let db = app_state.db.read().await;
-
-    Ok(Replication {
-        pushed: pushed || db.push_replica().await,
-        received: received || db.pull_replica().await,
-    })
 }
 
 /// what one replication did.
@@ -147,6 +170,39 @@ pub async fn remote_sync_replicate(
 pub struct Replication {
     pub pushed: bool,
     pub received: bool,
+    /// why a half did not go, where Turso said: the account's, or the credential's. `none` is
+    /// offline or nothing to say, and the two halves say which.
+    pub refusal: ReplicationRefusal,
+}
+
+/// The refusal as the web layer reads it: which kind, and never Turso's sentence, which is the
+/// owner's alone and read through `organization_account_refusal_detail`.
+#[derive(serde::Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ReplicationRefusal {
+    None,
+    Account,
+    Credential,
+}
+
+impl From<SyncRefusal> for ReplicationRefusal {
+    fn from(refusal: SyncRefusal) -> Self {
+        match refusal {
+            SyncRefusal::None => Self::None,
+            SyncRefusal::Account { .. } => Self::Account,
+            SyncRefusal::Credential => Self::Credential,
+        }
+    }
+}
+
+impl From<crate::database::Replicated> for Replication {
+    fn from(replicated: crate::database::Replicated) -> Self {
+        Self {
+            pushed: replicated.pushed,
+            received: replicated.received,
+            refusal: replicated.refusal.into(),
+        }
+    }
 }
 
 /// Sign in with Google, and nothing else.

@@ -590,24 +590,104 @@ async fn call(
 /// condition in the body it sends, as the signal, at the response and nowhere further up. The first
 /// real account refusal anybody sees is what corrects this; until then it is the best reading of
 /// what is published.
+///
+/// **A permission refusal is not the account's, and Turso spells it `BLOCKED` too.** Seen live
+/// on 2026-09-11: a read-only credential's write is refused as `BLOCKED: SQL write operations are
+/// forbidden (current session doesn't have write permission)`. A body that names a permission is
+/// read as the credential's before the word `blocked` is looked at, so a member on a read-only
+/// grant is not told the account needs attention.
 fn belongs_to_the_account(status: u16, body: &str) -> bool {
     if status == 402 {
         return true;
     }
 
-    let message = serde_json::from_str::<Value>(body)
+    let message = error_text(body).to_lowercase();
+
+    if [
+        "permission",
+        "forbidden",
+        "unauthorized",
+        "not allowed",
+        "invalid jwt",
+    ]
+    .iter()
+    .any(|word| message.contains(word))
+    {
+        return false;
+    }
+
+    ["quota", "blocked", "billing", "exceeded", "payment"]
+        .iter()
+        .any(|word| message.contains(word))
+}
+
+/// The prose in a Turso error body, or the body itself where it is not the JSON shape Turso
+/// sends.
+fn error_text(body: &str) -> String {
+    serde_json::from_str::<Value>(body)
         .ok()
         .and_then(|value| {
             value
                 .get("error")
                 .and_then(Value::as_str)
-                .map(str::to_lowercase)
+                .map(str::to_string)
         })
-        .unwrap_or_default();
+        .unwrap_or_else(|| body.trim().to_string())
+}
 
-    ["quota", "blocked", "billing", "exceeded"]
-        .iter()
-        .any(|word| message.contains(word))
+/// Why a replication did not go, read off the sync engine's error at the response.
+///
+/// **The same reading the Platform API gets, applied to the other place Turso answers.** The
+/// engine reports an HTTP refusal as `status=NNN, body=...` inside its message, and that is the
+/// response; what is read is the status and the body Turso sent, never a word three layers up.
+/// A refusal that names the account is the account's (requirement 25); a `401` or `403`, which
+/// a rotated or expired credential answers with, is the credential's and what
+/// `organization::reconnect` acts on; anything else is a machine that could not reach the
+/// remote, which is the offline case and needs a different sentence from either.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum SyncRefusal {
+    /// nothing was refused: the remote was reached, or could not be, and neither is a refusal.
+    None,
+    /// the organization's Turso account needs attention. `detail` is Turso's own sentence, for
+    /// the owner and nobody else.
+    Account { detail: String },
+    /// the credential this machine holds is not accepted any more.
+    Credential,
+}
+
+pub fn read_sync_refusal(error: &turso::Error) -> SyncRefusal {
+    let text = error.to_string();
+    let Some((status, body)) = status_and_body(&text) else {
+        return SyncRefusal::None;
+    };
+
+    if belongs_to_the_account(status, body) {
+        return SyncRefusal::Account {
+            detail: error_text(body),
+        };
+    }
+
+    if status == 401 || status == 403 {
+        return SyncRefusal::Credential;
+    }
+
+    SyncRefusal::None
+}
+
+/// `status=NNN, body=...` as the sync engine spells a refused request, and nothing where the
+/// message is not that shape.
+fn status_and_body(text: &str) -> Option<(u16, &str)> {
+    let start = text.find("status=")?;
+    let rest = &text[start + "status=".len()..];
+    let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+    let status = digits.parse::<u16>().ok()?;
+    let body = rest
+        .find("body=")
+        .map(|index| rest[index + "body=".len()..].trim())
+        .unwrap_or("");
+
+    Some((status, body))
 }
 
 /// A Turso that answers in memory, for every caller above this port.
@@ -857,7 +937,8 @@ mod tests {
 
     use super::{
         AccessLevel, DeletionIntent, InMemoryPlatform, PlatformApi, PlatformEndpoint,
-        PlatformError, TursoPlatform, WorkspaceDatabase, belongs_to_the_account,
+        PlatformError, SyncRefusal, TursoPlatform, WorkspaceDatabase, belongs_to_the_account,
+        read_sync_refusal,
     };
 
     const TOKEN: &str = "a-platform-token";
@@ -1250,6 +1331,66 @@ mod tests {
             &json!({ "error": "group not found" }).to_string()
         ));
         assert!(!belongs_to_the_account(409, "not json at all"));
+        // seen live on 2026-09-11: a permission refusal spelled with the same word.
+        assert!(!belongs_to_the_account(
+            403,
+            &json!({ "error": "BLOCKED: SQL write operations are forbidden (current session doesn't have write permission)" }).to_string()
+        ));
+    }
+
+    /// Requirement 25's reading at the other place Turso answers: the sync engine's error, with
+    /// the status and the body it carries. The account's, the credential's, and neither.
+    #[test]
+    fn a_replication_refusal_is_read_off_the_status_and_the_body_the_engine_carries() {
+        let engine = |status: u16, body: &str| {
+            turso::Error::Error(format!(
+                "sync engine operation failed: database sync engine error: sql_execute_http:                  unexpected http response: status={status}, body={body}"
+            ))
+        };
+
+        assert_eq!(
+            read_sync_refusal(&engine(402, r#"{"error":"quota exceeded"}"#)),
+            SyncRefusal::Account {
+                detail: "quota exceeded".to_string()
+            }
+        );
+        assert_eq!(
+            read_sync_refusal(&engine(
+                403,
+                r#"{"error":"databases BLOCKED: exceeded the plan's storage"}"#
+            )),
+            SyncRefusal::Account {
+                detail: "databases BLOCKED: exceeded the plan's storage".to_string()
+            }
+        );
+        // seen live on 2026-09-12, after a rotation: the credential's, and what the shell
+        // collects a fresh one on.
+        assert_eq!(
+            read_sync_refusal(&engine(
+                401,
+                r#"{"error":"Unauthorized: `unauthorized access attempt on database: invalid JWT token: role was invalidated after token was issued`"}"#
+            )),
+            SyncRefusal::Credential
+        );
+        // seen live on 2026-09-11: a read-only credential's write, the credential's and not the
+        // account's for all that it says BLOCKED.
+        assert_eq!(
+            read_sync_refusal(&engine(
+                403,
+                r#"{"error":"BLOCKED: SQL write operations are forbidden (current session doesn't have write permission)"}"#
+            )),
+            SyncRefusal::Credential
+        );
+        assert_eq!(
+            read_sync_refusal(&engine(500, r#"{"error":"internal"}"#)),
+            SyncRefusal::None
+        );
+        assert_eq!(
+            read_sync_refusal(&turso::Error::Error(
+                "sync engine operation failed: connection refused".to_string()
+            )),
+            SyncRefusal::None
+        );
     }
 
     #[tokio::test]

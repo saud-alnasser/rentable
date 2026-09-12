@@ -19,7 +19,44 @@ use crate::{
     error::Error,
     persisted::Persisted,
     settings::Settings,
+    sync::turso::platform::{SyncRefusal, read_sync_refusal},
 };
+
+/// what one replication did, and why it did not where it did not.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Replicated {
+    pub pushed: bool,
+    pub received: bool,
+    pub refusal: SyncRefusal,
+}
+
+/// [`Database::replicate`] over the engine alone, so a test can hold a replica against a
+/// scripted remote without a `Database` around it.
+pub(crate) async fn replicate_engine(database: &turso::sync::Database) -> Replicated {
+    let mut refusal = SyncRefusal::None;
+    let pushed = match database.push().await {
+        Ok(()) => true,
+        Err(error) => {
+            refusal = read_sync_refusal(&error);
+            false
+        }
+    };
+    let received = match database.pull().await {
+        Ok(brought) => brought,
+        Err(error) => {
+            if refusal == SyncRefusal::None {
+                refusal = read_sync_refusal(&error);
+            }
+            false
+        }
+    };
+
+    Replicated {
+        pushed,
+        received,
+        refusal,
+    }
+}
 
 /// which engine holds this database's file.
 ///
@@ -262,6 +299,25 @@ impl Database {
             // behind every mutation, forever, with nothing having arrived.
             Some(Engine::Workspace(database)) => matches!(database.pull().await, Ok(true)),
             Some(Engine::Local(_)) | None => false,
+        }
+    }
+
+    /// Push and pull, and say why either half did not go where Turso refused it.
+    ///
+    /// The two calls above answer a bool because offline is the ordinary case and not an error;
+    /// what they cannot say is that the remote was reached and said no, which is a different
+    /// sentence for the person reading it (requirement 25) and a different act for the shell (a
+    /// refused credential is collected again). The refusal is read at the response by
+    /// `sync::turso::platform::read_sync_refusal`, and the first refusal of the two halves is
+    /// the one reported, because both are about the same database and the same credential.
+    pub async fn replicate(&self) -> Replicated {
+        match self.engine.as_ref() {
+            Some(Engine::Workspace(database)) => replicate_engine(database).await,
+            Some(Engine::Local(_)) | None => Replicated {
+                pushed: false,
+                received: false,
+                refusal: SyncRefusal::None,
+            },
         }
     }
 
@@ -516,6 +572,104 @@ mod tests {
         );
 
         drop(database);
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+
+    /// Requirement 25 and requirement 18 together, driven exactly: the remote refuses for the
+    /// account, the replication says so as the account's rather than as a network failure, and
+    /// every read and write goes on being served from the local replica while the refusal stands.
+    /// A machine that cannot reach the remote at all is told nothing of the kind, which is the
+    /// distinction the requirement exists to keep.
+    #[tokio::test]
+    async fn a_refusal_for_the_account_is_read_as_the_accounts_and_the_replica_goes_on_serving() {
+        use crate::sync::{
+            google::test::server::{ScriptedResponse, ScriptedServer},
+            turso::platform::SyncRefusal,
+        };
+
+        // every request Turso would get is answered as a blocked account.
+        let refusing = ScriptedServer::start(
+            (0..8)
+                .map(|_| {
+                    ScriptedResponse::new(
+                        402,
+                        r#"{"error":"BLOCKED: quota exceeded, upgrade the plan or enable overages"}"#,
+                    )
+                })
+                .collect(),
+        )
+        .await;
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or_default();
+        let directory = std::env::temp_dir().join(format!("rentable-refused-{nanos}"));
+        std::fs::create_dir_all(&directory).expect("scratch directory");
+        let database = Database::open_replica(
+            &directory.join("app.db"),
+            Some(refusing.url("")),
+            || async { Ok::<String, turso::Error>("a-credential".to_string()) },
+        )
+        .await
+        .expect("replica engine");
+
+        let replicated = super::replicate_engine(&database).await;
+
+        assert!(!replicated.pushed);
+        assert!(!replicated.received);
+        assert_eq!(
+            replicated.refusal,
+            SyncRefusal::Account {
+                detail: "BLOCKED: quota exceeded, upgrade the plan or enable overages".to_string()
+            }
+        );
+
+        // and the replica serves a write and a read while it stands.
+        let connection = database.connect().await.expect("replica connection");
+
+        connection
+            .execute("create table tenant (id text primary key, name text)", ())
+            .await
+            .expect("the local schema");
+        connection
+            .execute(
+                "insert into tenant (id, name) values ('t-1', 'served locally')",
+                (),
+            )
+            .await
+            .expect("the local write was refused");
+
+        let mut rows = connection
+            .query("select name from tenant where id = 't-1'", ())
+            .await
+            .expect("the local read");
+        let row = rows.next().await.expect("a row").expect("the row");
+
+        assert_eq!(
+            row.get_value(0).expect("a value"),
+            turso::Value::Text("served locally".to_string())
+        );
+
+        // a machine that reaches nothing is not told the account needs attention.
+        let unreachable =
+            ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
+        let offline = Database::open_replica(
+            &directory.join("offline.db"),
+            Some(unreachable.url("")),
+            || async { Ok::<String, turso::Error>("a-credential".to_string()) },
+        )
+        .await
+        .expect("replica engine");
+
+        assert_eq!(
+            super::replicate_engine(&offline).await.refusal,
+            SyncRefusal::None
+        );
+
+        drop(rows);
+        drop(connection);
+        drop(database);
+        drop(offline);
         let _ = std::fs::remove_dir_all(&directory);
     }
 

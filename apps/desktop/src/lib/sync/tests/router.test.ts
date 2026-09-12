@@ -35,7 +35,7 @@ function hostRecordingRenames(asked: string[]) {
 			getState: async () => state,
 			renewSession: async () => state,
 			establishSession: async () => state,
-			replicate: async () => ({ pushed: false, received: false }),
+			replicate: async () => ({ pushed: false, received: false, refusal: 'none' as const }),
 			push: async () => false,
 			renameWorkspace: async (name: string) => {
 				asked.push(name);

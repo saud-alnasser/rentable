@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: ['14']
 ---
 
@@ -18,21 +18,63 @@ Traces requirement 21 and requirement 25 of
 [[efforts/819-an-organization-hosts-its-own-workspaces/spec]], and its criterion 21 and
 criterion 25.
 
-- [ ] A quota or billing refusal produces a message naming the account rather than the sync, and it
+- [x] A quota or billing refusal produces a message naming the account rather than the sync, and it
       is driven by the distinguishable error ticket 05 makes at the response rather than by
       pattern-matching a string three layers up.
-- [ ] **Reads and writes continue against the local replica while the refusal stands**, and a test
+      *Verified: `platform::read_sync_refusal` reads the sync engine's error at the response, the
+      `status=NNN, body=...` the engine carries from Turso's answer, through the same
+      `belongs_to_the_account` ticket 05 made, and answers `SyncRefusal::Account { detail }`,
+      `Credential`, or `None`; `Database::replicate` reads it on each half and
+      `remote_sync_replicate` notes an account refusal on the sync state and clears it when a
+      replication goes through. The Platform API path answers `PlatformError::AccountRefused` as
+      before. `a_replication_refusal_is_read_off_the_status_and_the_body_the_engine_carries`
+      pins a `402`, a `BLOCKED ... exceeded` body, the `401` seen live on 2026-09-12 as the
+      credential's, the permission `BLOCKED` seen live on 2026-09-11 as the credential's and not
+      the account's, and a `500` and a transport error as neither. The web side reads
+      `state.accountRefusal` and never the fault text.*
+- [x] **Reads and writes continue against the local replica while the refusal stands**, and a test
       drives exactly that: refuse at the remote, then read and write locally and succeed.
-- [ ] A member who is not the owner sees no account detail. They are told the organization's
+      *Verified: `a_refusal_for_the_account_is_read_as_the_accounts_and_the_replica_goes_on_serving`
+      opens a replica against a loopback server answering every request `402 {"error":"BLOCKED:
+      quota exceeded, ..."}`, replicates and reads `Account` with Turso's sentence as the detail,
+      then creates a table, inserts a row and reads it back through the same replica; and opens a
+      second replica against a server that hangs up, which reads as `None`. Nothing in
+      `remote_sync_replicate` or the shell blocks a write on a refusal; the sync state records it
+      and the local engine is untouched.*
+- [x] A member who is not the owner sees no account detail. They are told the organization's
       account needs attention and who to tell, and nothing about quotas, plans, or usage.
-- [ ] The owner sees enough to act: which limit, and where on Turso to go. This is the one place
+      *Verified: Turso's sentence is held on the shell's `RemoteSync` and crosses only through
+      `organization_account_refusal_detail`, which answers `None` for anybody but the owner;
+      `RemoteSyncState.accountRefusal` carries `since` alone. `SessionFacts.owner_display_name`
+      names whom to tell, and `sync/refusal.ts::accountRefusalSentence` builds the member's
+      sentence from that and nothing else; `sync/tests/refusal.test.ts` hands it a detail naming a
+      quota, a size, a plan and `BLOCKED`, and asserts none of the words appear in the member's
+      sentence, in both locales.*
+- [x] The owner sees enough to act: which limit, and where on Turso to go. This is the one place
       the application talks about a Turso account to a person, and it should not require them to
       already know what a group is.
-- [ ] The message is distinguishable from an ordinary offline state. A person whose network is down
+      *Verified: the owner's sentence carries Turso's own detail, which is where the limit is
+      named, says the place is Turso's own dashboard at `app.turso.tech` under the organization that
+      holds their group, and the sync section offers the dashboard through the opener, which is
+      Turso's page and spends nothing; there is no billing surface or upgrade control here. The
+      test asserts the detail and `app.turso.tech` are in the owner's sentence in both locales.*
+- [x] The message is distinguishable from an ordinary offline state. A person whose network is down
       and a person whose account is over quota need different things, and telling them the same
       thing is the failure this requirement exists to prevent.
-- [ ] Both locales, both directions.
-- [ ] `pnpm check`, `pnpm lint`, `pnpm test`, `cargo test` and `cargo clippy` pass.
+      *Verified: `sync-status.ts` answers `accountRefused` before every other reading, with its own
+      badge label and a warning callout rather than the fault's error callout; the refusal test
+      asserts the status and its label differ from the offline and no-control-plane readings in
+      both locales, and that a machine whose remote hangs up reads as no refusal at all.*
+- [x] Both locales, both directions.
+      *Verified: `workspace.{syncStatusAccountRefused, accountRefusedMember, accountRefusedOwner,
+      accountRefusedOwnerNoDetail}` in `en/index.ts`, `ar/index.ts` and the generated
+      `i18n-types.ts`; `pnpm check` 0 errors; the refusal test runs every assertion under both
+      locales.*
+- [x] `pnpm check`, `pnpm lint`, `pnpm test`, `cargo test` and `cargo clippy` pass.
+      *Verified: 2026-09-12. `pnpm check` 0 errors, 0 warnings; root `pnpm lint` clean; `pnpm test`
+      911 node tests and 40 component tests pass; `vite build` builds. `cargo test
+      --test-threads=1` 331 passed, 0 failed, 9 ignored; `cargo clippy --all-targets` the same five
+      warnings that stand at the branch point; `cargo fmt --check` clean.*
 
 ## Relevant areas
 

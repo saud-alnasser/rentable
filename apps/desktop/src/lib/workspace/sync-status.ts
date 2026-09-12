@@ -24,12 +24,18 @@ import { signedInAccount } from '$lib/sync/account';
  * nothing can drive.
  */
 export type SyncStatus =
-	'noControlPlane' | 'needsReconnect' | 'cannotSignIn' | 'notSignedIn' | 'pending' | 'synced';
+	| 'noControlPlane'
+	| 'accountRefused'
+	| 'needsReconnect'
+	| 'cannotSignIn'
+	| 'notSignedIn'
+	| 'pending'
+	| 'synced';
 
 /**
  * What the badge draws for each answer.
  *
- * **Only one of the six is `default` and only one is `error`**, and the four in between are
+ * **Only one of the seven is `default` and only two are `error`**, and the four in between are
  * `secondary` on purpose: a build that cannot sign in and a machine awaiting authorization are
  * both *not yet*, which is a different thing from a fault. The tone vocabulary
  * ([[rules/interface]], under *Tone*) has `warning` and this badge does not, so nothing here
@@ -38,6 +44,7 @@ export type SyncStatus =
  */
 const VARIANT: Record<SyncStatus, BadgeVariant> = {
 	noControlPlane: 'secondary',
+	accountRefused: 'error',
 	needsReconnect: 'error',
 	cannotSignIn: 'secondary',
 	notSignedIn: 'secondary',
@@ -47,6 +54,13 @@ const VARIANT: Record<SyncStatus, BadgeVariant> = {
 
 export const syncStatusOf = (state: RemoteSyncState): SyncStatus => {
 	const account = signedInAccount(state);
+
+	// the organization's account, refused by Turso: a fact from a replication that reached Turso
+	// and was turned away, so it is read before every other answer, the control plane's included,
+	// because a person over quota and a person offline need different things (requirement 25).
+	if (state.accountRefusal) {
+		return 'accountRefused';
+	}
 
 	// nowhere to reach. Every answer below this one describes a machine that has somewhere to
 	// reach and has not got there, which is a different sentence.
@@ -112,6 +126,7 @@ export const syncFaultOf = (state: RemoteSyncState): string | null =>
 export const syncStatusLabel = (status: SyncStatus, LL: TranslationFunctions): string =>
 	({
 		noControlPlane: LL.workspace.syncStatusNoControlPlane(),
+		accountRefused: LL.workspace.syncStatusAccountRefused(),
 		needsReconnect: LL.workspace.syncStatusNeedsReconnect(),
 		cannotSignIn: LL.workspace.syncStatusCannotSignIn(),
 		notSignedIn: LL.workspace.syncStatusNotSignedIn(),

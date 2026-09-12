@@ -2766,6 +2766,24 @@ type RootTranslation = {
 		 */
 		syncStatusSynced: string
 		/**
+		 * a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
+		 */
+		syncStatusAccountRefused: string
+		/**
+		 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​i​s​ ​r​e​a​c​h​i​n​g​ ​t​u​r​s​o​ ​f​o​r​ ​n​o​w​.​ ​t​e​l​l​ ​{​o​w​n​e​r​}​.​ ​e​v​e​r​y​t​h​i​n​g​ ​h​e​r​e​ ​k​e​e​p​s​ ​w​o​r​k​i​n​g​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​w​h​a​t​ ​y​o​u​ ​w​r​i​t​e​ ​g​o​e​s​ ​o​u​t​ ​o​n​c​e​ ​i​t​ ​i​s​ ​s​e​e​n​ ​t​o​.
+		 * @param {string} owner
+		 */
+		accountRefusedMember: RequiredParams<'owner'>
+		/**
+		 * t​u​r​s​o​ ​i​s​ ​r​e​f​u​s​i​n​g​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​a​c​c​o​u​n​t​:​ ​{​d​e​t​a​i​l​}​.​ ​e​v​e​r​y​t​h​i​n​g​ ​k​e​e​p​s​ ​w​o​r​k​i​n​g​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​w​h​a​t​ ​i​s​ ​w​r​i​t​t​e​n​ ​g​o​e​s​ ​o​u​t​ ​o​n​c​e​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​i​s​ ​s​e​e​n​ ​t​o​.​ ​t​h​e​ ​p​l​a​c​e​ ​t​o​ ​s​e​e​ ​t​o​ ​i​t​ ​i​s​ ​t​u​r​s​o​'​s​ ​o​w​n​ ​d​a​s​h​b​o​a​r​d​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​,​ ​u​n​d​e​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​t​h​a​t​ ​h​o​l​d​s​ ​y​o​u​r​ ​g​r​o​u​p​.
+		 * @param {string} detail
+		 */
+		accountRefusedOwner: RequiredParams<'detail'>
+		/**
+		 * t​u​r​s​o​ ​i​s​ ​r​e​f​u​s​i​n​g​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​a​c​c​o​u​n​t​.​ ​e​v​e​r​y​t​h​i​n​g​ ​k​e​e​p​s​ ​w​o​r​k​i​n​g​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​w​h​a​t​ ​i​s​ ​w​r​i​t​t​e​n​ ​g​o​e​s​ ​o​u​t​ ​o​n​c​e​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​i​s​ ​s​e​e​n​ ​t​o​.​ ​t​h​e​ ​p​l​a​c​e​ ​t​o​ ​s​e​e​ ​t​o​ ​i​t​ ​i​s​ ​t​u​r​s​o​'​s​ ​o​w​n​ ​d​a​s​h​b​o​a​r​d​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​,​ ​u​n​d​e​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​t​h​a​t​ ​h​o​l​d​s​ ​y​o​u​r​ ​g​r​o​u​p​.
+		 */
+		accountRefusedOwnerNoDetail: string
+		/**
 		 * w​r​i​t​e​ ​e​v​e​r​y​t​h​i​n​g​ ​—​ ​t​e​n​a​n​t​s​,​ ​c​o​m​p​l​e​x​e​s​,​ ​u​n​i​t​s​,​ ​c​o​n​t​r​a​c​t​s​ ​a​n​d​ ​p​a​y​m​e​n​t​s​ ​—​ ​t​o​ ​o​n​e​ ​w​o​r​k​b​o​o​k​,​ ​o​r​ ​r​e​a​d​ ​o​n​e​ ​b​a​c​k​ ​i​n​.​ ​r​e​c​o​r​d​s​ ​n​a​m​e​ ​e​a​c​h​ ​o​t​h​e​r​ ​b​y​ ​n​a​m​e​ ​r​a​t​h​e​r​ ​t​h​a​n​ ​b​y​ ​n​u​m​b​e​r​,​ ​s​o​ ​a​ ​f​i​l​e​ ​o​p​e​n​s​ ​o​n​ ​a​n​y​ ​m​a​c​h​i​n​e​.
 		 */
 		transferDescription: string
@@ -5422,6 +5440,22 @@ export type TranslationFunctions = {
 		 * synced
 		 */
 		syncStatusSynced: () => LocalizedString
+		/**
+		 * account needs attention
+		 */
+		syncStatusAccountRefused: () => LocalizedString
+		/**
+		 * the organization's turso account needs attention, so nothing is reaching turso for now. tell {owner}. everything here keeps working on this machine, and what you write goes out once it is seen to.
+		 */
+		accountRefusedMember: (arg: { owner: string }) => LocalizedString
+		/**
+		 * turso is refusing the organization's account: {detail}. everything keeps working on this machine, and what is written goes out once the account is seen to. the place to see to it is turso's own dashboard at app.turso.tech, under the organization that holds your group.
+		 */
+		accountRefusedOwner: (arg: { detail: string }) => LocalizedString
+		/**
+		 * turso is refusing the organization's account. everything keeps working on this machine, and what is written goes out once the account is seen to. the place to see to it is turso's own dashboard at app.turso.tech, under the organization that holds your group.
+		 */
+		accountRefusedOwnerNoDetail: () => LocalizedString
 		/**
 		 * write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.
 		 */

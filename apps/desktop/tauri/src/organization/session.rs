@@ -140,6 +140,9 @@ pub struct SessionFacts {
     pub must_change_password: bool,
     /// the workspaces this member holds a grant on, and only those.
     pub workspaces: Vec<WorkspaceFacts>,
+    /// the owner's name, opened with the content key: whom a member is told to tell when the
+    /// organization's account needs attention (requirement 25), and nothing else about them.
+    pub owner_display_name: String,
 }
 
 /// Open `joined`'s member row in `store` with `password`.
@@ -335,9 +338,22 @@ pub async fn facts_of(
         None => String::new(),
     };
 
+    let owner_display_name = match members
+        .iter()
+        .find(|candidate| candidate.role == super::permission::OWNER)
+    {
+        Some(owner) => opened(
+            &session.content_key,
+            "member.display_name_sealed",
+            &owner.display_name_sealed,
+        )?,
+        None => String::new(),
+    };
+
     Ok(SessionFacts {
         organization_id: session.organization_id.clone(),
         organization_name,
+        owner_display_name,
         member_id: member.id.clone(),
         email: opened(
             &session.content_key,

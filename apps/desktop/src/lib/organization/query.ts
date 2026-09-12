@@ -241,6 +241,18 @@ export function useChangePassword(
 	}));
 }
 
+/**
+ * Turso's own sentence about a standing account refusal: the owner's alone, `null` for
+ * everybody else, and read only while a refusal stands.
+ */
+export function useAccountRefusalDetail(refused: () => boolean) {
+	return createQuery(() => ({
+		queryKey: [...keys.state, 'accountRefusal'],
+		queryFn: () => tauri.organization.accountRefusalDetail(),
+		enabled: refused()
+	}));
+}
+
 /** reset a member's password: a reissue from what the resetting administrator holds. */
 export function useReissueInvitation(
 	opts: MutationOptions = {

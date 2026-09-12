@@ -891,6 +891,13 @@ const en = {
 		syncStatusNotSignedIn: 'not signed in',
 		syncStatusPending: 'awaiting authorization',
 		syncStatusSynced: 'synced',
+		syncStatusAccountRefused: 'account needs attention',
+		accountRefusedMember:
+			"the organization's turso account needs attention, so nothing is reaching turso for now. tell {owner}. everything here keeps working on this machine, and what you write goes out once it is seen to.",
+		accountRefusedOwner:
+			"turso is refusing the organization's account: {detail}. everything keeps working on this machine, and what is written goes out once the account is seen to. the place to see to it is turso's own dashboard at app.turso.tech, under the organization that holds your group.",
+		accountRefusedOwnerNoDetail:
+			"turso is refusing the organization's account. everything keeps working on this machine, and what is written goes out once the account is seen to. the place to see to it is turso's own dashboard at app.turso.tech, under the organization that holds your group.",
 		transferDescription:
 			'write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.',
 		title: 'workspace'

@@ -36,6 +36,26 @@ pub struct RemoteSync {
     /// session for that rather than this. The store is serialised to a plain file, so a field here
     /// is exactly the field that must not be in it.
     pub(super) workspace_token: Option<String>,
+    /// the last replication Turso refused for the organization's account, until one goes
+    /// through. In memory, like the credential above: it is a fact about the last request and
+    /// the next one is what settles it. The detail is Turso's own sentence and crosses to the
+    /// owner alone (`organization::account_refusal_detail`).
+    pub(super) account_refusal: Option<AccountRefusal>,
+}
+
+/// A replication Turso refused for the account: when, and what it said.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AccountRefusal {
+    pub since: i64,
+    pub detail: String,
+}
+
+/// What every member is told about a standing account refusal: that there is one, and since
+/// when. Turso's sentence is not in it (requirement 25).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountRefusalFacts {
+    pub since: i64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -255,6 +275,10 @@ pub struct RemoteSyncState {
     /// and the side that decides whether to keep replicating cannot do so without them.
     pub session: Option<SessionWindow>,
     pub device_id: String,
+    /// a replication Turso refused for the organization's account, standing until one goes
+    /// through. Distinct from every other reason a machine is not syncing, because a person over
+    /// quota and a person offline need different things.
+    pub account_refusal: Option<AccountRefusalFacts>,
 }
 
 impl Default for RemoteSyncStore {
@@ -354,6 +378,7 @@ impl RemoteSync {
             store,
             auth_sessions: Arc::new(Mutex::new(HashMap::new())),
             workspace_token: None,
+            account_refusal: None,
         };
         this.reconcile().await?;
         Ok(this)
@@ -647,7 +672,40 @@ impl RemoteSync {
             control_plane_ready: control_plane_url().is_some(),
             session: self.store.control_plane_session.clone(),
             device_id: self.store.device_id.clone(),
+            account_refusal: self
+                .account_refusal
+                .as_ref()
+                .map(|refusal| AccountRefusalFacts {
+                    since: refusal.since,
+                }),
         }
+    }
+
+    /// Turso refused a replication for the account. The first refusal's moment stands until one
+    /// goes through; the sentence is the latest.
+    pub(crate) fn note_account_refusal(&mut self, detail: &str, now: i64) {
+        let since = self
+            .account_refusal
+            .as_ref()
+            .map_or(now, |refusal| refusal.since);
+
+        self.account_refusal = Some(AccountRefusal {
+            since,
+            detail: detail.to_string(),
+        });
+    }
+
+    /// A replication went through, so whatever the account was refused for is over.
+    pub(crate) fn clear_account_refusal(&mut self) {
+        self.account_refusal = None;
+    }
+
+    /// Turso's own sentence about the standing refusal, for the owner and nobody else; the
+    /// caller decides who is asking.
+    pub(crate) fn account_refusal_detail(&self) -> Option<String> {
+        self.account_refusal
+            .as_ref()
+            .map(|refusal| refusal.detail.clone())
     }
 
     pub(super) fn default_workspace(path: PathBuf, now: i64) -> RemoteSyncWorkspace {
@@ -807,6 +865,7 @@ mod tests {
                 .expect("store"),
             auth_sessions: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             workspace_token: None,
+            account_refusal: None,
         }
     }
 
