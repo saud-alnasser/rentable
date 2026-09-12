@@ -124,7 +124,7 @@ Start at [[protocol]].
 | 810-the-contract-record-reads-as-one-in-arabic | implemented | [[efforts/810-the-contract-record-reads-as-one-in-arabic/spec]] | 0 | 0 | 3 |
 | 811-the-gates-and-the-contract-follow-the-code-into-the-package | implemented | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]] | 0 | 0 | 6 |
 | 812-the-desktop-declares-what-it-uses | implemented | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
-| 819-an-organization-hosts-its-own-workspaces | accepted | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 27 |
+| 819-an-organization-hosts-its-own-workspaces | accepted | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 28 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -200,3 +200,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/25-a-credential-refusal-is-shown]] fix(desktop): a credential refusal is shown rather than read as synced | 819-an-organization-hosts-its-own-workspaces | resolved | — |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/26-the-schema-guard-reads-a-pulled-row]] fix(organization): the schema guard reads a pulled row, and the loopback closes cleanly | 819-an-organization-hosts-its-own-workspaces | resolved | — |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/27-the-organizations-own-link-can-be-read-again]] fix(organization): the organization's own link can be read again | 819-an-organization-hosts-its-own-workspaces | resolved | — |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/28-removal-survives-a-replayed-row]] fix(organization): removal durably ends access, against a replayed row | 819-an-organization-hosts-its-own-workspaces | open | — |
