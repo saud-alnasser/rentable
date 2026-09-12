@@ -1,11 +1,12 @@
 import type { DesignStrings } from '@rentable/design/strings.js';
 import { fireEvent, render, screen } from '@testing-library/svelte';
-import { expect, test } from 'vitest';
+import { beforeEach, expect, test } from 'vitest';
 
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import WorkspaceMenu from '$lib/layout/component/workspace-menu.svelte';
+import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { fakeOrganizationWorkspace, fakeWorkspace } from '$lib/platform/tests/testing.ts';
 
 import RailProviders from './rail-providers.svelte';
@@ -18,8 +19,14 @@ import RailProviders from './rail-providers.svelte';
  * workspace's id. And that a switch redraws the menu rather than replacing it, which is the
  * spec's criterion 11 read at the menu, since the sidebar has no test of its own.
  *
+ * And its two actions (criterion 10 and criterion 12): each opens its dialog for whoever the
+ * row's permission admits, and for everybody else is drawn refused with the sentence the sidebar
+ * composed, never with a padlock. The menu draws and never decides, so the sentences here are
+ * whatever a caller hands in; the locale's are used so the test reads as the screen does.
+ *
  * The menu is dumb on purpose: props and a callback, no query and no client, so nothing here
- * provides one.
+ * provides one. The one thing it reaches past its props is the dialog request in
+ * `organization/dialogs.svelte.ts`, which is what the opener tests read.
  */
 
 const noop = () => {};
@@ -70,6 +77,9 @@ const menu = (overrides: Partial<Parameters<typeof render<typeof WorkspaceMenu>>
 			workspaces: [north, south],
 			openId: 'north',
 			memberCount: 3,
+			canInvite: true,
+			canCreateWorkspace: true,
+			refusal: { invite: null, workspace: null },
 			onSwitch: noop,
 			...overrides
 		},
@@ -83,6 +93,13 @@ const open = async () => {
 
 	return screen.getAllByRole('menuitemradio');
 };
+
+const inviteRow = () => document.querySelector<HTMLElement>('[data-workspace-menu-invite]');
+const createRow = () => document.querySelector<HTMLElement>('[data-workspace-menu-create]');
+
+beforeEach(() => {
+	resetOrganizationDialogs();
+});
 
 test('the menu lists every workspace the member holds, with the open one marked', async () => {
 	menu();
@@ -140,4 +157,89 @@ test('a new open id redraws the menu rather than replacing it', async () => {
 	).toEqual(['false', 'true']);
 	// the header names the new workspace off the same record the marker reads.
 	expect(screen.getByRole('button', { expanded: true }).textContent).toContain('South Properties');
+});
+
+// criterion 10 and criterion 12: the invite row opens the invite dialog for whoever the session
+// admits.
+test('the invite row opens the invite dialog for whoever may invite', async () => {
+	menu({ canInvite: true });
+	await open();
+
+	const row = inviteRow();
+
+	expect(row?.getAttribute('aria-disabled')).not.toBe('true');
+	expect(document.querySelector('[data-workspace-menu-invite-refusal]')).toBeNull();
+	expect(organizationDialog.open).toBeNull();
+
+	await fireEvent.click(row as HTMLElement);
+
+	expect(organizationDialog.open).toBe('invite');
+});
+
+test('for everybody else the invite row is refused with the sentence it was handed, and no padlock', async () => {
+	menu({
+		canInvite: false,
+		refusal: { invite: en.layout.workspaceMenu.inviteRefused, workspace: null }
+	});
+	await open();
+
+	const row = inviteRow();
+
+	expect(row?.getAttribute('aria-disabled')).toBe('true');
+	// the sentence is on screen, and the row names it for a reader who cannot see the layout.
+	expect(screen.getByText(en.layout.workspaceMenu.inviteRefused)).toBeDefined();
+	expect(
+		document.getElementById(row?.getAttribute('aria-describedby') ?? '')?.textContent?.trim()
+	).toBe(en.layout.workspaceMenu.inviteRefused);
+	expect(document.querySelector('svg.lucide-lock')).toBeNull();
+
+	await fireEvent.click(row as HTMLElement);
+
+	expect(organizationDialog.open).toBeNull();
+});
+
+test('the new-workspace row opens the workspace dialog for an owner holding the authority', async () => {
+	menu({ canCreateWorkspace: true });
+	await open();
+
+	const row = createRow();
+
+	expect(row?.getAttribute('aria-disabled')).not.toBe('true');
+	expect(document.querySelector('[data-workspace-menu-create-refusal]')).toBeNull();
+
+	await fireEvent.click(row as HTMLElement);
+
+	expect(organizationDialog.open).toBe('workspace');
+});
+
+test('for a member who is not the owner the new-workspace row says whose act it is', async () => {
+	menu({
+		canCreateWorkspace: false,
+		refusal: { invite: null, workspace: en.layout.workspaceMenu.workspaceRefusedOwner }
+	});
+	await open();
+
+	const row = createRow();
+
+	expect(row?.getAttribute('aria-disabled')).toBe('true');
+	expect(row?.textContent).toContain(en.layout.workspaceMenu.workspaceRefusedOwner);
+	expect(document.querySelector('svg.lucide-lock')).toBeNull();
+
+	await fireEvent.click(row as HTMLElement);
+
+	expect(organizationDialog.open).toBeNull();
+});
+
+test('for an owner whose machine holds no authority the new-workspace row says what to do first', async () => {
+	menu({
+		canCreateWorkspace: false,
+		refusal: { invite: null, workspace: en.layout.workspaceMenu.workspaceRefusedAuthority }
+	});
+	await open();
+
+	const row = createRow();
+
+	expect(row?.getAttribute('aria-disabled')).toBe('true');
+	expect(row?.textContent).toContain(en.layout.workspaceMenu.workspaceRefusedAuthority);
+	expect(row?.textContent).not.toContain(en.layout.workspaceMenu.workspaceRefusedOwner);
 });

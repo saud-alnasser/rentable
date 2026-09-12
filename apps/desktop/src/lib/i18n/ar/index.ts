@@ -371,7 +371,11 @@ const ar = {
 			settings: 'الإعدادات',
 			members: '{count|number} عضو',
 			switchTo: 'التبديل إلى',
-			open: 'مفتوحة'
+			open: 'مفتوحة',
+			inviteRefused: 'المالك أو أحد المديرين هو من يدعو. اسأل أحدهم.',
+			workspaceRefusedOwner: 'المالك هو من ينشئ مساحة العمل. اسأل المالك.',
+			workspaceRefusedAuthority:
+				'إنشاء مساحة عمل يحتاج إلى حساب Turso، وهذا الجهاز غير متصل به. أعد ربطه من صفحة المؤسسة.'
 		},
 
 		changePassword: {
@@ -787,6 +791,8 @@ const ar = {
 			inviteTitle: 'ادعُ شخصًا',
 			inviteDescription: 'الدعوة تصنع مكانهم في المؤسسة. أنت من يسلمهم الرابط وكلمة المرور بنفسك.',
 			email: 'البريد الإلكتروني',
+			emailInvalid: 'أدخل بريدًا إلكترونيًا.',
+			nameRequired: 'أعطِهم اسمًا.',
 			role: 'الدور',
 			administratorsAreTheOwners: 'المالك وحده يستطيع دعوة مدير.',
 			noWorkspaceToGrant: 'لا مساحة عمل لمنحها بعد. يمكن منحهم واحدة لاحقًا.',

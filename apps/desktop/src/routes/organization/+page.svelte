@@ -1,23 +1,21 @@
 <script lang="ts">
-	import type { Invited } from '$lib/platform/tauri';
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import PageFrame from '@rentable/design/block/page-frame.svelte';
 	import * as Field from '@rentable/design/primitive/field/index.js';
+	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import OrganizationInviteForm from '$lib/organization/component/invite-form.svelte';
 	import OrganizationInvitations from '$lib/organization/component/invitations.svelte';
 	import OrganizationMembers from '$lib/organization/component/members.svelte';
 	import OrganizationLink from '$lib/organization/component/organization-link.svelte';
 	import OrganizationReconnectAuthority from '$lib/organization/component/reconnect-authority.svelte';
 	import OrganizationWorkspaces from '$lib/organization/component/workspaces.svelte';
+	import { openOrganizationDialog, showInvited } from '$lib/organization/dialogs.svelte';
 	import {
-		useCreateWorkspace,
 		useFetchInvitations,
 		useFetchMembers,
 		useFetchOrganizationState,
-		useInviteMember,
 		useLockOutCost,
 		useReissueInvitation,
 		useRemoveMember,
@@ -25,6 +23,7 @@
 	} from '$lib/organization/query';
 	import { toast } from 'svelte-sonner';
 	import { permits } from '@rentable/workspace-permission';
+	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 
 	/**
 	 * The administration dashboard: who is in, who is invited, and the workspaces.
@@ -35,16 +34,21 @@
 	 * to everybody else, because it needs the Turso authority only the owner's machine holds and
 	 * the spec puts no request queue behind it.
 	 *
+	 * **Lists and openers, and no form.** The invite and the new workspace are each one form on the
+	 * shared form surface, mounted once in the shell and opened from here and from the rail's
+	 * workspace menu alike (`organization/dialogs.svelte.ts`); what this page holds is the control
+	 * that opens each, so a form a person may never use no longer sits in the middle of what they
+	 * came to read. A reset made from the members list shows its link and password in the same
+	 * panel an invitation does.
+	 *
 	 * **No loading branch and no empty branch, for the reason the workspace page gives**: a page
 	 * inside the shell is drawn past admission, so the session is there before this is.
 	 */
 	const stateQuery = useFetchOrganizationState();
 	const membersQuery = useFetchMembers();
 	const invitationsQuery = useFetchInvitations();
-	const inviteMember = useInviteMember();
 	const reissueInvitation = useReissueInvitation();
 	const revokeInvitation = useRevokeInvitation();
-	const createWorkspace = useCreateWorkspace();
 	const removeMember = useRemoveMember();
 
 	const session = $derived(stateQuery.data?.session ?? null);
@@ -99,31 +103,14 @@
 		await stateQuery.refetch();
 	};
 
-	let invited = $state<Invited | null>(null);
-	let copied = $state<'link' | 'password' | null>(null);
 	let reissuing = $state<string | null>(null);
 	let revoking = $state<string | null>(null);
-
-	const invite = async (
-		email: string,
-		displayName: string,
-		role: 'administrator' | 'member',
-		workspaceIds: string[]
-	) => {
-		try {
-			invited = await inviteMember.mutateAsync({ email, displayName, role, workspaceIds });
-			copied = null;
-		} catch {
-			// said by the shared handler; the form keeps what was typed.
-		}
-	};
 
 	const reissue = async (memberId: string) => {
 		reissuing = memberId;
 
 		try {
-			invited = await reissueInvitation.mutateAsync({ memberId });
-			copied = null;
+			showInvited(await reissueInvitation.mutateAsync({ memberId }));
 		} catch {
 			// said by the shared handler.
 		} finally {
@@ -140,24 +127,6 @@
 			// said by the shared handler.
 		} finally {
 			revoking = null;
-		}
-	};
-
-	const copy = async (what: 'link' | 'password', value: string) => {
-		try {
-			await navigator.clipboard.writeText(value);
-			copied = what;
-		} catch {
-			copied = null;
-		}
-	};
-
-	const create = async (name: string) => {
-		try {
-			await createWorkspace.mutateAsync({ name });
-			await stateQuery.refetch();
-		} catch {
-			// said by the shared handler.
 		}
 	};
 </script>
@@ -195,20 +164,13 @@
 				<Field.Set>
 					<Field.Legend>{$LL.organization.dashboard.inviteTitle()}</Field.Legend>
 					<Field.Description>{$LL.organization.dashboard.inviteDescription()}</Field.Description>
-					<OrganizationInviteForm
-						workspaces={session.workspaces}
-						canInviteAdministrators={isOwner}
-						isInviting={inviteMember.isPending}
-						{invited}
-						{copied}
-						onInvite={(email, displayName, role, workspaceIds) =>
-							void invite(email, displayName, role, workspaceIds)}
-						onCopy={(what, value) => void copy(what, value)}
-						onDismiss={() => {
-							invited = null;
-							copied = null;
-						}}
-					/>
+					<div>
+						<!-- the verb's glyph before its label, as every primary here carries one. -->
+						<Button type="button" data-invite-open onclick={() => openOrganizationDialog('invite')}>
+							<UserPlusIcon class="size-4" />
+							{$LL.organization.dashboard.invite()}
+						</Button>
+					</div>
 				</Field.Set>
 
 				<Separator />
@@ -247,11 +209,11 @@
 
 			<Field.Set>
 				<Field.Legend>{$LL.organization.dashboard.workspaces()}</Field.Legend>
+				<!-- gated as the rail's row is: an owner whose machine lost the authority sees the reconnect
+				     notice above and no create, rather than a create the shell refuses. -->
 				<OrganizationWorkspaces
 					workspaces={session.workspaces}
-					canCreate={isOwner}
-					isCreating={createWorkspace.isPending}
-					onCreate={(name) => void create(name)}
+					canCreate={isOwner && stateQuery.data?.holdsTursoAuthority === true}
 				/>
 			</Field.Set>
 		</Field.Group>

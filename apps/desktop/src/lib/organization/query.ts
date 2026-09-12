@@ -163,13 +163,20 @@ export function useCreateWorkspace(
 		}
 	}
 ) {
+	// the client the caller handed in, or the one in context: either way it is the one whose
+	// state key the rail's switcher, the page's list and the invite's checkboxes read.
+	const client = queryClient ?? useQueryClient();
+
 	return createMutation(
 		() => ({
 			mutationFn: ({ name }: { name: string }) => api.app.organization.workspace.create({ name }),
-			onSuccess: () => onMutationSuccess(opts),
+			onSuccess: async () => {
+				await client.invalidateQueries({ queryKey: keys.state });
+				onMutationSuccess(opts);
+			},
 			onError: (e) => onMutationError(opts, e)
 		}),
-		queryClient ? () => queryClient : undefined
+		() => client
 	);
 }
 

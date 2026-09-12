@@ -380,7 +380,11 @@ const en = {
 			settings: 'settings',
 			members: '{count|number} member(s)',
 			switchTo: 'switch to',
-			open: 'open'
+			open: 'open',
+			inviteRefused: 'the owner or an administrator invites. ask one of them.',
+			workspaceRefusedOwner: 'the owner creates a workspace. ask the owner.',
+			workspaceRefusedAuthority:
+				'creating a workspace needs the turso account, and this machine is not connected to it. reconnect it on the organization page.'
 		},
 
 		changePassword: {
@@ -814,6 +818,8 @@ const en = {
 			inviteDescription:
 				'an invitation makes their place in the organization. you hand them the link and the password yourself.',
 			email: 'email',
+			emailInvalid: 'enter an email address.',
+			nameRequired: 'give them a name.',
 			role: 'role',
 			administratorsAreTheOwners: 'only the owner can invite an administrator.',
 			noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',

@@ -1275,6 +1275,18 @@ type RootTranslation = {
 			 * o​p​e​n
 			 */
 			open: string
+			/**
+			 * t​h​e​ ​o​w​n​e​r​ ​o​r​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​i​n​v​i​t​e​s​.​ ​a​s​k​ ​o​n​e​ ​o​f​ ​t​h​e​m​.
+			 */
+			inviteRefused: string
+			/**
+			 * t​h​e​ ​o​w​n​e​r​ ​c​r​e​a​t​e​s​ ​a​ ​w​o​r​k​s​p​a​c​e​.​ ​a​s​k​ ​t​h​e​ ​o​w​n​e​r​.
+			 */
+			workspaceRefusedOwner: string
+			/**
+			 * c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​i​t​.​ ​r​e​c​o​n​n​e​c​t​ ​i​t​ ​o​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​p​a​g​e​.
+			 */
+			workspaceRefusedAuthority: string
 		}
 		changePassword: {
 			/**
@@ -2521,6 +2533,14 @@ type RootTranslation = {
 			 * e​m​a​i​l
 			 */
 			email: string
+			/**
+			 * e​n​t​e​r​ ​a​n​ ​e​m​a​i​l​ ​a​d​d​r​e​s​s​.
+			 */
+			emailInvalid: string
+			/**
+			 * g​i​v​e​ ​t​h​e​m​ ​a​ ​n​a​m​e​.
+			 */
+			nameRequired: string
 			/**
 			 * r​o​l​e
 			 */
@@ -3986,6 +4006,18 @@ export type TranslationFunctions = {
 			 * open
 			 */
 			open: () => LocalizedString
+			/**
+			 * the owner or an administrator invites. ask one of them.
+			 */
+			inviteRefused: () => LocalizedString
+			/**
+			 * the owner creates a workspace. ask the owner.
+			 */
+			workspaceRefusedOwner: () => LocalizedString
+			/**
+			 * creating a workspace needs the turso account, and this machine is not connected to it. reconnect it on the organization page.
+			 */
+			workspaceRefusedAuthority: () => LocalizedString
 		}
 		changePassword: {
 			/**
@@ -5184,6 +5216,14 @@ export type TranslationFunctions = {
 			 * email
 			 */
 			email: () => LocalizedString
+			/**
+			 * enter an email address.
+			 */
+			emailInvalid: () => LocalizedString
+			/**
+			 * give them a name.
+			 */
+			nameRequired: () => LocalizedString
 			/**
 			 * role
 			 */

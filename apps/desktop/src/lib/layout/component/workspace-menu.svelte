@@ -6,10 +6,10 @@
 	import { useSidebar } from '@rentable/design/primitive/sidebar/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
+	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
 	import SettingsIcon from '@tabler/icons-svelte/icons/settings';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
-	import LockIcon from '@lucide/svelte/icons/lock';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 
@@ -36,14 +36,26 @@
 	 * remote-sync query** the rail reads, so the marker and the name cannot disagree. The menu
 	 * draws and never decides: it is handed the rows and a callback, and reads no query itself.
 	 *
+	 * **The two actions are live for whoever their permission admits, and say whose act it is for
+	 * everybody else.** Inviting is an administrator's or the owner's; a new workspace is the owner's,
+	 * from the machine that holds the Turso authority. Each row opens its form, the one mounted in
+	 * the shell (`organization/dialogs.svelte.ts`), or is drawn refused with a sentence, never a
+	 * padlock: nothing here is locked, and a padlock said it was. **Who may do what is the session's**
+	 * ([[rules/credentials]]), and Rust refuses again regardless; the sidebar composes the sentences
+	 * from the locale, and this menu draws them.
+	 *
 	 * *This said an account owns exactly one workspace, from before organizations, and that a
-	 * list showing the one you are looking at is a switcher that cannot switch. It can now.*
+	 * list showing the one you are looking at is a switcher that cannot switch. It can now. Its two
+	 * actions were inert rows with a padlock until effort 824; the organization page did both.*
 	 */
 	let {
 		workspace,
 		workspaces,
 		openId,
 		memberCount,
+		canInvite,
+		canCreateWorkspace,
+		refusal,
 		onSwitch
 	}: {
 		/** the workspace this machine has open, as the sync record names it: the header. */
@@ -53,9 +65,17 @@
 		/** which of `workspaces` is open, marked in the list; `null` where none is named yet. */
 		openId: string | null;
 		memberCount: number;
+		/** whether the session permits inviting; the row opens the invite dialog when it does. */
+		canInvite: boolean;
+		/** whether the session is the owner's, holding the Turso authority; the row opens the workspace dialog when it is. */
+		canCreateWorkspace: boolean;
+		/** the sentence each refused row carries, saying whose act it is; `null` where the row is live. */
+		refusal: { invite: string | null; workspace: string | null };
 		/** a row other than the open one was chosen: open that workspace. */
 		onSwitch: (id: string) => void;
 	} = $props();
+
+	const inviteRefusalId = 'workspace-menu-invite-refusal';
 
 	const sidebar = useSidebar();
 
@@ -132,30 +152,64 @@
 				     a reason that is invisible until somebody uses a keyboard: this menu holds focus
 				     and closes on tab, so a plain button laid inside it looks reachable and is not.
 				     Items keep the arrow-key order, which does not care that they are drawn in a row. -->
-				<div class="flex gap-1 px-1 pt-1 pb-2">
-					<DropdownMenu.Item class="flex-1 justify-center border">
-						{#snippet child({ props })}
-							<a href={resolve('/workspace')} {...props}>
-								<SettingsIcon class="size-4 shrink-0" />
-								<span class="capitalize">{$LL.layout.workspaceMenu.settings()}</span>
-							</a>
-						{/snippet}
-					</DropdownMenu.Item>
+				<div class="px-1 pt-1 pb-2">
+					<div class="flex gap-1">
+						<DropdownMenu.Item class="flex-1 justify-center border">
+							{#snippet child({ props })}
+								<a href={resolve('/workspace')} {...props}>
+									<SettingsIcon class="size-4 shrink-0" />
+									<span class="capitalize">{$LL.layout.workspaceMenu.settings()}</span>
+								</a>
+							{/snippet}
+						</DropdownMenu.Item>
 
-					<!-- inviting is the workspace's other action, so it sits beside its settings. It is
-					     inert for the same reason the new-workspace row is, and it keeps its place in
-					     the keyboard order: `disabled` would take it out, which is exactly where a
-					     control that has to explain itself must stay. -->
-					<DropdownMenu.Item
-						class="flex-1 justify-center border text-muted-foreground"
-						aria-disabled="true"
-						closeOnSelect={false}
-						onSelect={(event) => event.preventDefault()}
-					>
-						<UserPlusIcon class="size-4 shrink-0" />
-						<span class="capitalize">{$LL.layout.workspaceMenu.invite()}</span>
-						<LockIcon class="size-3 shrink-0" />
-					</DropdownMenu.Item>
+						<!-- inviting is the workspace's other action, so it sits beside its settings. Live
+						     for whoever the session admits; otherwise refused, and it keeps its place in
+						     the keyboard order: `disabled` would take it out, which is exactly where a
+						     control that has to explain itself must stay. The sentence sits under the
+						     pair, where a row this narrow has no room for it, and the row names it.
+						     **The refused row is drawn through `child`**, because the primitive writes
+						     `aria-disabled` from its own `disabled` and would overwrite the attribute
+						     set on it; the element here spreads the primitive's props and then says so. -->
+						{#if canInvite}
+							<DropdownMenu.Item
+								class="flex-1 justify-center border"
+								data-workspace-menu-invite
+								onSelect={() => openOrganizationDialog('invite')}
+							>
+								<UserPlusIcon class="size-4 shrink-0" />
+								<span class="capitalize">{$LL.layout.workspaceMenu.invite()}</span>
+							</DropdownMenu.Item>
+						{:else}
+							<DropdownMenu.Item
+								class="flex-1 justify-center border text-muted-foreground"
+								closeOnSelect={false}
+								onSelect={(event) => event.preventDefault()}
+							>
+								{#snippet child({ props })}
+									<div
+										{...props}
+										aria-disabled="true"
+										aria-describedby={inviteRefusalId}
+										data-workspace-menu-invite
+									>
+										<UserPlusIcon class="size-4 shrink-0" />
+										<span class="capitalize">{$LL.layout.workspaceMenu.invite()}</span>
+									</div>
+								{/snippet}
+							</DropdownMenu.Item>
+						{/if}
+					</div>
+
+					{#if !canInvite && refusal.invite}
+						<p
+							id={inviteRefusalId}
+							class="px-1 pt-1.5 text-xs leading-tight text-muted-foreground"
+							data-workspace-menu-invite-refusal
+						>
+							{refusal.invite}
+						</p>
+					{/if}
 				</div>
 
 				<DropdownMenu.Separator />
@@ -189,24 +243,43 @@
 
 				<DropdownMenu.Separator />
 
-				<!-- at the foot, where the reference puts it, and inert for now. -->
-				<DropdownMenu.Item
-					class="gap-2"
-					aria-disabled="true"
-					closeOnSelect={false}
-					onSelect={(event) => event.preventDefault()}
-				>
-					<PlusIcon class="size-4 shrink-0" />
-					<div class="grid min-w-0 flex-1 leading-tight">
-						<span class="truncate font-medium text-muted-foreground">
-							{$LL.layout.workspaceMenu.create()}
-						</span>
-						<span class="truncate text-xs text-muted-foreground">
-							{$LL.layout.workspaceMenu.locked()}
-						</span>
-					</div>
-					<LockIcon class="ms-auto size-3.5 shrink-0" />
-				</DropdownMenu.Item>
+				<!-- at the foot, where the reference puts it. Live for the owner holding the authority;
+				     for everybody else the second line says whose act it is, or what the owner has to
+				     do first. -->
+				{#if canCreateWorkspace}
+					<DropdownMenu.Item
+						class="gap-2"
+						data-workspace-menu-create
+						onSelect={() => openOrganizationDialog('workspace')}
+					>
+						<PlusIcon class="size-4 shrink-0" />
+						<span class="truncate font-medium">{$LL.layout.workspaceMenu.create()}</span>
+					</DropdownMenu.Item>
+				{:else}
+					<!-- through `child`, for the reason the invite row gives. -->
+					<DropdownMenu.Item
+						class="gap-2"
+						closeOnSelect={false}
+						onSelect={(event) => event.preventDefault()}
+					>
+						{#snippet child({ props })}
+							<div {...props} aria-disabled="true" data-workspace-menu-create>
+								<PlusIcon class="size-4 shrink-0" />
+								<div class="grid min-w-0 flex-1 leading-tight">
+									<span class="truncate font-medium text-muted-foreground">
+										{$LL.layout.workspaceMenu.create()}
+									</span>
+									<span
+										class="text-xs whitespace-normal text-muted-foreground"
+										data-workspace-menu-create-refusal
+									>
+										{refusal.workspace}
+									</span>
+								</div>
+							</div>
+						{/snippet}
+					</DropdownMenu.Item>
+				{/if}
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
 	</Sidebar.MenuItem>
