@@ -124,8 +124,12 @@
 	 * the first workspace, created from the no-workspace surface. The mutation is the owner's and
 	 * the shell refuses anybody else; once it answers, startup reads where the machine stands and
 	 * goes on in, which is the same path a sign-in takes past the wall.
+	 *
+	 * The client is handed in rather than read from context: this script runs above the
+	 * `QueryClientProvider` drawn below, so there is no context here to read, and reading it is
+	 * what failed startup before the window was shown.
 	 */
-	const createWorkspace = useCreateWorkspace();
+	const createWorkspace = useCreateWorkspace(queryClient);
 
 	const createFirstWorkspace = async (name: string) => {
 		try {

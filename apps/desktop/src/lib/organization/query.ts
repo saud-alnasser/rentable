@@ -2,7 +2,12 @@ import api from '$lib/api/caller';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { tauri, type OrganizationConsentResult } from '$lib/platform/tauri';
-import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import {
+	createMutation,
+	createQuery,
+	useQueryClient,
+	type QueryClient
+} from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 export const keys = {
@@ -117,8 +122,16 @@ export function useCreateOrganization(
 /**
  * create the first workspace, or another. The refusal a person can act on, an owner elsewhere,
  * arrives as `BAD_REQUEST` or a forbidden and is shown; everything else reads as unexpected.
+ *
+ * **The client is a parameter, because the root layout is a caller.** Every other hook reads the
+ * client from context, which is right for anything drawn inside the provider. The layout is what
+ * draws the provider, so its own script sits above the context it would read, and a hook held
+ * there without the client found none and failed the whole application before its window was
+ * shown. Handing the client in is the same override `createMutation` offers, made explicit here
+ * so the next caller above the provider does not rediscover it.
  */
 export function useCreateWorkspace(
+	queryClient?: QueryClient,
 	opts: MutationOptions = {
 		toast: {
 			success: () => get(LL).layout.noWorkspace.created(),
@@ -127,11 +140,14 @@ export function useCreateWorkspace(
 		}
 	}
 ) {
-	return createMutation(() => ({
-		mutationFn: ({ name }: { name: string }) => api.app.organization.workspace.create({ name }),
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e) => onMutationError(opts, e)
-	}));
+	return createMutation(
+		() => ({
+			mutationFn: ({ name }: { name: string }) => api.app.organization.workspace.create({ name }),
+			onSuccess: () => onMutationSuccess(opts),
+			onError: (e) => onMutationError(opts, e)
+		}),
+		queryClient ? () => queryClient : undefined
+	);
 }
 
 export function useFetchMembers() {
