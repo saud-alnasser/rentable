@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { RemoteSyncWorkspace } from '$lib/platform/host';
+	import type { OrganizationWorkspace, RemoteSyncWorkspace } from '$lib/platform/host';
 	import { resolve } from '$app/paths';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
@@ -25,17 +25,37 @@
 	 * ClickUp's on 2026-08-20: the workspace at the top with its members under its name, its two
 	 * actions side by side under that, and the way to make another at the foot.
 	 *
-	 * **There is no list of workspaces to choose from, and that is not a section left out.** An
-	 * account owns exactly one workspace ([[efforts/a-workspace-follows-its-user]], requirement 6),
-	 * so there is nothing that is not already open, and a list showing the one you are looking at
-	 * is a switcher that cannot switch. The section arrives when a second workspace does, which is
-	 * requirement 14's organization work. Until then that effort's acceptance criterion 2 holds by
-	 * construction rather than by care: nothing here selects anything.
+	 * **The workspaces the member holds are listed between the actions and the foot, and the open
+	 * one is marked.** An organization holds several and a member holds a grant on some of them
+	 * ([[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]], requirement 9),
+	 * so the list is `workspaces` as the session reads it, and choosing another row opens that
+	 * workspace by the path a sign-in takes past the wall. A member holding one sees the one row,
+	 * marked: the list says where they are even when there is nowhere else to go.
 	 *
-	 * *An earlier build did draw the one-row list, with a check on it. It was removed on sight.*
+	 * **The open row is named by `openId` and the header by `workspace`, and both come off the one
+	 * remote-sync query** the rail reads, so the marker and the name cannot disagree. The menu
+	 * draws and never decides: it is handed the rows and a callback, and reads no query itself.
+	 *
+	 * *This said an account owns exactly one workspace, from before organizations, and that a
+	 * list showing the one you are looking at is a switcher that cannot switch. It can now.*
 	 */
-	let { workspace, memberCount }: { workspace: RemoteSyncWorkspace; memberCount: number } =
-		$props();
+	let {
+		workspace,
+		workspaces,
+		openId,
+		memberCount,
+		onSwitch
+	}: {
+		/** the workspace this machine has open, as the sync record names it: the header. */
+		workspace: RemoteSyncWorkspace;
+		/** every workspace the signed-in member holds a grant on, as the session lists them. */
+		workspaces: OrganizationWorkspace[];
+		/** which of `workspaces` is open, marked in the list; `null` where none is named yet. */
+		openId: string | null;
+		memberCount: number;
+		/** a row other than the open one was chosen: open that workspace. */
+		onSwitch: (id: string) => void;
+	} = $props();
 
 	const sidebar = useSidebar();
 
@@ -56,7 +76,7 @@
 	);
 </script>
 
-<Sidebar.Menu>
+<Sidebar.Menu data-workspace-menu>
 	<Sidebar.MenuItem>
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger>
@@ -137,6 +157,35 @@
 						<LockIcon class="size-3 shrink-0" />
 					</DropdownMenu.Item>
 				</div>
+
+				<DropdownMenu.Separator />
+
+				<!-- the workspaces the member holds, one row each, with the open one marked. Radio
+				     items rather than plain ones, because that is what the rows are: exactly one is
+				     open, and the primitive draws the marker and answers arrow keys for it. The row
+				     already open selects nothing, since there is nothing to switch to. -->
+				<DropdownMenu.RadioGroup
+					value={openId ?? undefined}
+					onValueChange={(id) => {
+						if (id !== openId) {
+							onSwitch(id);
+						}
+					}}
+				>
+					<DropdownMenu.GroupHeading class="text-xs font-normal text-muted-foreground">
+						{$LL.layout.workspaceMenu.switchTo()}
+					</DropdownMenu.GroupHeading>
+					{#each workspaces as held (held.id)}
+						<DropdownMenu.RadioItem value={held.id}>
+							{#snippet children({ checked })}
+								<span class="truncate">{held.name}</span>
+								{#if checked}
+									<span class="sr-only">{$LL.layout.workspaceMenu.open()}</span>
+								{/if}
+							{/snippet}
+						</DropdownMenu.RadioItem>
+					{/each}
+				</DropdownMenu.RadioGroup>
 
 				<DropdownMenu.Separator />
 

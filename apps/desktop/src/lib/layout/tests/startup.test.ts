@@ -520,9 +520,135 @@ test('and a pull that landed rows announces them, while one that landed none doe
 
 	await startup.start();
 
-	await startup.applySyncOutcome({ action: 'none', received: false });
+	await startup.applySyncOutcome({ action: 'none', received: false, workspaceId: 'north' });
 	assert.equal(journal.announced, 0, 'nothing arrived, so nothing to announce');
 
-	await startup.applySyncOutcome({ action: 'none', received: true });
+	await startup.applySyncOutcome({ action: 'none', received: true, workspaceId: 'north' });
 	assert.equal(journal.announced, 1, 'rows arrived, and derived state has to be told');
+});
+
+// --- A switch between workspaces, from inside the application -----------------------------
+
+/** a member holding two workspaces, with the first one open. */
+const holdingTwo = () =>
+	harness({
+		organization: fakeOrganizationState({
+			session: fakeOrganizationSession({
+				workspaces: [
+					fakeOrganizationWorkspace({ id: 'north' }),
+					fakeOrganizationWorkspace({ id: 'south', name: 'South' })
+				]
+			})
+		})
+	});
+
+test('switching workspaces drops what was drawn, opens the chosen one, and runs the stages to ready', async () => {
+	const { startup, journal, seen } = holdingTwo();
+
+	await startup.start();
+	assert.deepEqual(journal.workspacesOpened, ['north']);
+
+	const seenBefore = seen.length;
+	const forgottenBefore = journal.contextsForgotten;
+	await startup.switchWorkspace('south');
+
+	// the loading surface went up first, and the application came back on the chosen workspace by
+	// the three stages a sign-in runs past the wall.
+	assert.equal(seen[seenBefore]?.state, 'loading');
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(startup.snapshot.error, null);
+	assert.deepEqual(journal.workspacesOpened, ['north', 'south']);
+	assert.deepEqual(journal.stages.slice(-3), ['workspace', 'changes', 'records']);
+	assert.equal(journal.bootstrapped, 2);
+	assert.equal(journal.reconciled, 2);
+	// nothing drawn from the workspace that was open survives: what the page drew is dropped, and
+	// what the rail draws is refetched rather than removed from under it.
+	assert.equal(journal.undrawnDropped, 1);
+	assert.equal(journal.invalidatedAll, 1);
+	// the rail reads the new workspace off its own query without waiting for a refetch.
+	assert.equal(journal.remembered.at(-1)?.workspace.remoteId, 'south');
+	assert.equal(startup.snapshot.remoteSync?.workspace.remoteId, 'south');
+	// the member and the database proxy are what they were, so the session is not remembered again.
+	assert.equal(journal.contextsForgotten, forgottenBefore);
+});
+
+test('and a workspace the shell would not open is the ordinary failure, with nothing dropped', async () => {
+	const { startup, journal } = harness({
+		organization: fakeOrganizationState({
+			session: fakeOrganizationSession({
+				workspaces: [
+					fakeOrganizationWorkspace({ id: 'north' }),
+					fakeOrganizationWorkspace({ id: 'south', name: 'South' })
+				]
+			})
+		}),
+		openWorkspace: async (workspaceId) => {
+			if (workspaceId === 'south') {
+				throw new Error('the replica would not open');
+			}
+		}
+	});
+
+	await startup.start();
+	await startup.switchWorkspace('south');
+
+	assert.equal(startup.snapshot.state, 'error');
+	assert.equal(startup.snapshot.error, 'the replica would not open');
+	assert.deepEqual(journal.failures, ['the replica would not open']);
+	assert.equal(journal.undrawnDropped, 0, 'what was drawn is still what is open');
+	assert.equal(journal.bootstrapped, 1, 'nothing behind the open ran');
+});
+
+test('and a switch asked for while one is loading, or while a password is being tried, does nothing', async () => {
+	const loading = holdingTwo();
+
+	await loading.startup.start();
+
+	// the second request lands while the first is still under the loading surface.
+	const first = loading.startup.switchWorkspace('south');
+	await loading.startup.switchWorkspace('north');
+	await first;
+
+	assert.deepEqual(loading.journal.workspacesOpened, ['north', 'south']);
+	assert.equal(loading.startup.snapshot.state, 'ready');
+
+	// and one that lands while a password is being derived is refused the same way.
+	const signingIn: { harness: ReturnType<typeof harness> | null } = { harness: null };
+	signingIn.harness = harness({
+		organization: locked(),
+		signInWith: async () => {
+			await signingIn.harness?.startup.switchWorkspace('south');
+
+			return unlocked();
+		}
+	});
+
+	await signingIn.harness.startup.start();
+	await signingIn.harness.startup.signIn('acme', 'a long enough password');
+
+	assert.deepEqual(signingIn.harness.journal.workspacesOpened, ['north']);
+	assert.equal(signingIn.harness.startup.snapshot.state, 'ready');
+});
+
+// the plan's first technical risk: a dispatch in flight during the switch reports for the
+// workspace it started on, after the application is up on the new one.
+test('and a dispatch that reported for the workspace open before the switch is dropped whole', async () => {
+	const { startup, journal } = holdingTwo();
+
+	await startup.start();
+	await startup.switchWorkspace('south');
+	assert.equal(startup.snapshot.state, 'ready');
+
+	const before = { snapshot: startup.snapshot, journal: { ...journal } };
+	await startup.applySyncOutcome({ action: 'none', received: true, workspaceId: 'north' });
+
+	assert.equal(journal.announced, before.journal.announced, 'no rows were announced');
+	assert.equal(journal.remoteSyncInvalidated, before.journal.remoteSyncInvalidated);
+	assert.equal(journal.remembered.length, before.journal.remembered.length);
+	assert.deepEqual(startup.snapshot, before.snapshot, 'and the reader saw nothing change');
+
+	// while one for the workspace that is open now is applied as every outcome is.
+	await startup.applySyncOutcome({ action: 'none', received: true, workspaceId: 'south' });
+
+	assert.equal(journal.announced, before.journal.announced + 1);
 });

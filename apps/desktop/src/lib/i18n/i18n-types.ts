@@ -1267,6 +1267,14 @@ type RootTranslation = {
 			 * @param {unknown} count
 			 */
 			members: RequiredParams<'count|number'>
+			/**
+			 * s​w​i​t​c​h​ ​t​o
+			 */
+			switchTo: string
+			/**
+			 * o​p​e​n
+			 */
+			open: string
 		}
 		changePassword: {
 			/**
@@ -3968,6 +3976,14 @@ export type TranslationFunctions = {
 			 * {count|number} member(s)
 			 */
 			members: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * switch to
+			 */
+			switchTo: () => LocalizedString
+			/**
+			 * open
+			 */
+			open: () => LocalizedString
 		}
 		changePassword: {
 			/**

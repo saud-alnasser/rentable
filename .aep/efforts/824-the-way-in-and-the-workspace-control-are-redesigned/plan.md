@@ -10,8 +10,8 @@ else follows the seams the code already has.
 ## A switch runs the sign-in path, under the loading surface
 
 `startup.ts` gains one method, `switchWorkspace(workspaceId)`. It refuses while a switch or a
-sign-in is in flight, sets `state: 'loading'`, clears the query cache, calls
-`ports.organization.openWorkspace(id)`, then `#enterApplication()`, which is what every way
+sign-in is in flight, sets `state: 'loading'`, calls `ports.organization.openWorkspace(id)`,
+drops every query nothing is drawing any more and invalidates the rest, then `#enterApplication()`, which is what every way
 through the wall already calls: `#continue()` runs the open, changes and records stages, admits
 again, and lands on `ready`. A failure goes through `#fail` to the existing error surface, whose
 retry is `start()`, which reopens whatever `remote-sync.json` records as current.
@@ -30,9 +30,17 @@ assumption the spec names is confirmed by reading `bootstrap.rs` lines 109 to 20
 
 **The API context is not forgotten on a switch.** `context()` derives `db`, `host`, `clock` and
 `identity`; a switch changes none of them, since `db` is the proxy client and the identity is the
-member. `#rememberSession()` is not called; the cache is cleared and `#continue()` refills the
+member. `#rememberSession()` is not called; `#continue()` refills the
 remote-sync snapshot, and `cache.rememberRemoteSync` is called after it so the rail's query reads
 the new workspace without waiting for a refetch.
+
+*This said the cache is cleared. It is not, and ticket 05 found why on 2026-09-12: on the installed
+query-core, `client.clear()` under a live observer leaves that observer holding its last data for
+good, since an observer rebinds only when its options change, and the rail's props do not change
+on a switch; the rail would have kept naming the old workspace. So the page's queries, which have
+no observer once the loading surface replaced it, are removed (`cache.dropUndrawn`, one new port
+over `removeQueries({ type: 'inactive' })`), and the rail's are refetched through the existing
+`invalidateAll`. The spec's "invalidates every query" holds either way.*
 
 ## The two dialogs mount once, in the shell
 
@@ -97,7 +105,7 @@ created the organization.*
 | Part | Becomes responsible for |
 | --- | --- |
 | `layout/startup.ts` | `switchWorkspace(id)`; nothing else changes |
-| `layout/startup-ports.ts` | no new port: `organization.openWorkspace` and `cache.clear` exist |
+| `layout/startup-ports.ts` | one new port, `cache.dropUndrawn`; `organization.openWorkspace` and `cache.invalidateAll` exist |
 | `layout/component/workspace-menu.svelte` | the list of `session.workspaces` with the open one marked, `onSwitch(id)`; the invite and workspace rows call `openOrganizationDialog`, or draw refused with a sentence; no `LockIcon` |
 | `layout/component/sidebar.svelte` | passes `session.workspaces`, the open `workspace.remoteId`, `canInvite`, `canCreateWorkspace` and `onSwitch` into the menu |
 | `layout/component/organization-dialogs.svelte` | new: mounts the two `FormSurface`s, owns their mutations, reads `organizationDialog` |

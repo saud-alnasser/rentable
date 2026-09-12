@@ -68,6 +68,14 @@ export type Journal = {
 	synced: number;
 	syncedBeforeExit: number;
 	cacheCleared: number;
+	/** how many times the queries nothing was drawing were dropped, which a switch does once. */
+	undrawnDropped: number;
+	/** how many times every query was invalidated, which a switch does once. */
+	invalidatedAll: number;
+	/** how many times the rail was told its sync record is stale, which a sync outcome does. */
+	remoteSyncInvalidated: number;
+	/** every state the rail's query was seeded with, in order. */
+	remembered: RemoteSyncState[];
 	contextsForgotten: number;
 	failures: string[];
 	localesLoaded: string[];
@@ -108,6 +116,8 @@ export function harness(
 		changePasswordWith?: (current: string, next: string) => Promise<OrganizationState>;
 		/** what restoring does: the state it leaves the machine in, or the refusal. */
 		restoreWith?: (link: string, email: string, password: string) => Promise<OrganizationState>;
+		/** what opening a workspace meets, for the path where the shell refuses to. */
+		openWorkspace?: (workspaceId: string) => Promise<void>;
 	} = {}
 ): Harness {
 	const journal: Journal = {
@@ -123,6 +133,10 @@ export function harness(
 		synced: 0,
 		syncedBeforeExit: 0,
 		cacheCleared: 0,
+		undrawnDropped: 0,
+		invalidatedAll: 0,
+		remoteSyncInvalidated: 0,
+		remembered: [],
 		contextsForgotten: 0,
 		failures: [],
 		localesLoaded: [],
@@ -133,8 +147,9 @@ export function harness(
 	const now = { value: AT };
 
 	// what `remoteSync.getState` answers with, which the unit reads at the account stage, again
-	// after the bootstrap, and after a sync manager reports.
-	const state = overrides.remoteSync ?? syncing();
+	// after the bootstrap, and after a sync manager reports. Opening a workspace records it as the
+	// current one, because that is what the shell does before it opens the replica.
+	let state = overrides.remoteSync ?? syncing();
 	// what `organization.getState` answers with, which is what the wall admits on. The second read
 	// is the one after the bootstrap, which is allowed to answer differently.
 	let organization = overrides.organization ?? unlocked();
@@ -206,6 +221,8 @@ export function harness(
 			renewDue: async () => false,
 			openWorkspace: async (workspaceId) => {
 				journal.workspacesOpened.push(workspaceId);
+				await overrides.openWorkspace?.(workspaceId);
+				state = { ...state, workspace: { ...state.workspace, remoteId: workspaceId } };
 			}
 		},
 		workspace: {
@@ -250,9 +267,10 @@ export function harness(
 		},
 		cache: {
 			clear: () => void journal.cacheCleared++,
-			rememberRemoteSync: () => {},
-			invalidateRemoteSync: async () => {},
-			invalidateAll: async () => {},
+			dropUndrawn: () => void journal.undrawnDropped++,
+			rememberRemoteSync: (remembered) => void journal.remembered.push(remembered),
+			invalidateRemoteSync: async () => void journal.remoteSyncInvalidated++,
+			invalidateAll: async () => void journal.invalidatedAll++,
 			forgetContext: () => void journal.contextsForgotten++
 		},
 		describeError: (error) => (error instanceof Error ? error.message : String(error)),

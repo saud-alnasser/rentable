@@ -27,6 +27,15 @@ export type WorkspaceSyncEventResult = {
 	 * bug — [[rules/data]], under *Query cache*, is where the enumeration is kept.
 	 */
 	received: boolean;
+	/**
+	 * the workspace the dispatch ran for, as this machine recorded it when the dispatch began;
+	 * `null` where none was open.
+	 *
+	 * A dispatch outlives a switch between workspaces, and what it reports is about the one it
+	 * started on. Startup reads this to drop a report for a workspace that is no longer open
+	 * rather than reconcile the new one for rows that landed in the old.
+	 */
+	workspaceId: string | null;
 };
 
 const REQUEST_EVENT = 'rentable:workspace-sync-request';

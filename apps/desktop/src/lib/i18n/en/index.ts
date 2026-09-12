@@ -378,7 +378,9 @@ const en = {
 			invite: 'invite',
 			locked: 'not available',
 			settings: 'settings',
-			members: '{count|number} member(s)'
+			members: '{count|number} member(s)',
+			switchTo: 'switch to',
+			open: 'open'
 		},
 
 		changePassword: {

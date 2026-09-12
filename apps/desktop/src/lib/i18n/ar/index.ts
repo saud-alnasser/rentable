@@ -369,7 +369,9 @@ const ar = {
 			invite: 'دعوة',
 			locked: 'غير متاح',
 			settings: 'الإعدادات',
-			members: '{count|number} عضو'
+			members: '{count|number} عضو',
+			switchTo: 'التبديل إلى',
+			open: 'مفتوحة'
 		},
 
 		changePassword: {

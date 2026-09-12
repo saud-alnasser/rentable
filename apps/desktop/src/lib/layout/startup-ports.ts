@@ -66,6 +66,7 @@ export function browserStartupPorts(queryClient: QueryClient): StartupPorts {
 		},
 		cache: {
 			clear: () => queryClient.clear(),
+			dropUndrawn: () => queryClient.removeQueries({ type: 'inactive' }),
 			rememberRemoteSync: (state) => queryClient.setQueryData(settingsKeys.remoteSync, state),
 			invalidateRemoteSync: () =>
 				queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync }),

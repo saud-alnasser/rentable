@@ -80,7 +80,19 @@ export type StartupSnapshot = {
 };
 
 /** what a sync manager reported, as this unit needs to read it. */
-export type SyncOutcome = { action: string; received: boolean };
+export type SyncOutcome = {
+	action: string;
+	received: boolean;
+	/**
+	 * the workspace the dispatch ran for, read before it ran; `null` where none was open.
+	 *
+	 * A dispatch in flight while a switch happens reports for the workspace that was open when it
+	 * started, after the cache has been cleared for the one open now. Without this the report
+	 * cannot be told from one about the new workspace, and a `received` outcome would run a
+	 * reconcile the new workspace did not need and say rows arrived that a person never saw.
+	 */
+	workspaceId: string | null;
+};
 
 /**
  * What startup reaches for outside itself.
@@ -133,6 +145,15 @@ export type StartupPorts = {
 	cache: {
 		/** everything drawn for whoever was here before. */
 		clear(): void;
+		/**
+		 * every query nothing is drawing any more, and none that something is.
+		 *
+		 * What a switch between workspaces asks for, and `clear` is not it: a query removed from
+		 * the cache is never heard from again by whatever was drawing it, and the rail stays on
+		 * screen through a switch. The page's queries have no observer once the loading surface
+		 * replaced it, so they go; the rail's are refetched through `invalidateAll` instead.
+		 */
+		dropUndrawn(): void;
 		rememberRemoteSync(state: RemoteSyncState): void;
 		invalidateRemoteSync(): Promise<unknown>;
 		invalidateAll(): Promise<unknown>;
@@ -686,6 +707,54 @@ export class Startup {
 	}
 
 	/**
+	 * Open another of the workspaces the member holds, from inside the application.
+	 *
+	 * **The sign-in path past the wall, under the loading surface, and not a switch in place.**
+	 * The shell records the chosen workspace as current and opens its replica, and then the same
+	 * open, changes and records stages a sign-in runs bring the application up on it. An in-place
+	 * switch would redraw every list under the new name while the old rows were still on screen,
+	 * which is the failure [[rules/data]] on cached queries is written against; the loading
+	 * surface for a second is the cost, and it is the second a sign-in costs.
+	 *
+	 * **What was drawn is dropped after the shell has opened the workspace, not before.** The
+	 * loading surface replaces the page as soon as this sets `loading`, so by the time the open
+	 * has come back nothing is drawing the page's queries and they can go. The rail is still
+	 * drawing its own, and those are refetched rather than removed, since a query removed from
+	 * under a live observer is never heard from again; the remote-sync query is then seeded with
+	 * what the changes stage read, so the rail names the new workspace without waiting on it.
+	 *
+	 * The session is not remembered again: the member and the database proxy are what they were,
+	 * and only the workspace behind the proxy changed. A failure is the ordinary startup failure,
+	 * whose retry reopens whatever the shell recorded as current.
+	 */
+	async switchWorkspace(workspaceId: string) {
+		if (this.#snapshot.isSigningIn || this.#snapshot.state === 'loading') {
+			return;
+		}
+
+		this.#set({ state: 'loading', error: null, recovery: null });
+
+		try {
+			await this.#ports.organization.openWorkspace(workspaceId);
+		} catch (error) {
+			await this.#fail(error);
+
+			return;
+		}
+
+		this.#ports.cache.dropUndrawn();
+		await this.#ports.cache.invalidateAll();
+
+		await this.#enterApplication();
+
+		const { state, remoteSync } = this.#snapshot;
+
+		if (state === 'ready' && remoteSync) {
+			this.#ports.cache.rememberRemoteSync(remoteSync);
+		}
+	}
+
+	/**
 	 * Somebody signed out, here or on another window.
 	 *
 	 * The keys this process held are dropped by the shell, and the held context names a member
@@ -722,9 +791,19 @@ export class Startup {
 	 * after it, so a pull that landed rows reconciles. The guard is the day-crossing pass's, shared
 	 * rather than duplicated: both run a whole-table reconcile and two at once is one of them
 	 * wasted.
+	 *
+	 * **A report for a workspace other than the one open is dropped whole.** A dispatch in flight
+	 * while `switchWorkspace` ran reports for the workspace it started on, after the cache has
+	 * been cleared for the new one; applied, it would reconcile the new workspace for rows that
+	 * landed in the old one and announce them to a person who never saw them.
 	 */
 	async applySyncOutcome(outcome: SyncOutcome) {
 		const state = await this.#ports.remoteSync.getState().catch(() => null);
+		const open = (state ?? this.#snapshot.remoteSync)?.workspace.remoteId ?? null;
+
+		if (outcome.workspaceId !== open) {
+			return;
+		}
 
 		if (state) {
 			this.#set({ remoteSync: state });

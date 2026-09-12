@@ -11,6 +11,7 @@
 	import LayoutWorkspaceMenu from '$lib/layout/component/workspace-menu.svelte';
 	import { primaryDestinations, type Destination } from '$lib/layout/destination';
 	import { isActiveRoute } from '$lib/layout/navigation';
+	import { useStartup } from '$lib/layout/startup-context';
 	import { useFetchRemoteSyncState } from '$lib/settings/query';
 	import { useFetchMembers, useFetchOrganizationState } from '$lib/organization/query';
 	import type { ComponentProps } from 'svelte';
@@ -61,6 +62,16 @@
 
 	const workspace = $derived(remoteSyncQuery.data?.workspace);
 	const session = $derived(organizationQuery.data?.session ?? null);
+	// the workspaces the member holds a grant on, which is what the workspace menu lists; the one
+	// that is open is named by the same sync record the header takes its name from.
+	const workspaces = $derived(session?.workspaces ?? []);
+
+	/**
+	 * the startup unit, for switching workspaces. A switch is the sign-in path run again past
+	 * the wall, under the loading surface, and that path is the unit's; the rail asks for it and
+	 * draws whatever the unit reports, the way every other surface beside the wall does.
+	 */
+	const startup = useStartup();
 	// how many members hold a grant on the workspace that is open, for the workspace menu.
 	const memberCount = $derived(
 		(membersQuery.data ?? []).filter((member) =>
@@ -134,7 +145,13 @@
 		{:else if workspace}
 			<!-- the members who hold a grant on this workspace, counted from the same list the
 			     organization page draws. -->
-			<LayoutWorkspaceMenu {workspace} {memberCount} />
+			<LayoutWorkspaceMenu
+				{workspace}
+				{workspaces}
+				openId={workspace.remoteId}
+				{memberCount}
+				onSwitch={(id) => void startup.switchWorkspace(id)}
+			/>
 		{/if}
 	</Sidebar.Header>
 
