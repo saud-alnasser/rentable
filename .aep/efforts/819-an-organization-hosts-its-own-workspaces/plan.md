@@ -38,7 +38,7 @@ read from the database it protects.
 
 | | Advantages | Disadvantages | Risks | Maintenance |
 | --- | --- | --- | --- | --- |
-| **Two-level chain** (taken) | a compromised administrator is revoked by deleting one certificate; nothing is resealed and no join link changes | two key kinds and a verification order to get right | a client that verifies the row and forgets the certificate accepts a revoked administrator | revocation is a row, which is the cheapest kind of maintenance there is |
+| **Two-level chain** (taken) | a compromised administrator is revoked by one row; no vault or credential is resealed and no join link changes | two key kinds and a verification order to get right, and a revocation that must re-sign the revoked certificate's rows first or it bricks every one of them (ticket 23) | a client that verifies the row and forgets the certificate accepts a revoked administrator | revoking is a row written back with `revoked_at` set, preceded by re-signing under the actor the rows the certificate signed, so `verify` refusing every one of a revoked certificate's rows ends its authority rather than orphaning what it legitimately signed; reset and removal share that one routine so they cannot drift |
 | One shared org key | one key, one verification step | compromise means replacing the key, resigning every row, and reissuing every join link, because the pinned verifying key changed | the recovery is so expensive it will be deferred, which means running compromised | cheap until the day it is not |
 | Owner key only | smallest blast radius available | an administrator cannot create a member row without the owner present | requirement 12's delegated administration becomes decorative | least to build, most to operate |
 

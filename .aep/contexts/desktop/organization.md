@@ -39,7 +39,15 @@ are not.
 **Chain**:
 The organization key, derived from the owner's secret and stored nowhere, certifies the owner and
 each administrator; their keys sign the rows. A row is verified against the key the link pinned,
-never against one read out of the database it judges.
+never against one read out of the database it judges. **A certificate is retired two ways, and both
+re-sign its rows first.** A reset draws a fresh vault secret, so the administrator's derived signing
+key changes and their reissued certificate carries a new key; a removal writes the certificate back
+with `revoked_at` set. Either way `verify` would then refuse every row the certificate ever signed,
+so before it is retired the rows it signed are re-signed under the acting administrator, who already
+holds authority over them: the resetting owner, or the removing owner or administrator. Reset,
+removal and any future revocation share one routine for this (`store::re_sign_rows_of_certificate`)
+so they cannot drift, and its limit is that a revocation re-signs the revoked certificate's rows
+before it revokes. Nothing seals one member's key to another; the actor re-signs with their own.
 
 **Link**:
 `rentable://join/...`, the organization's locator: its id, name, remote, verifying key and a
@@ -69,6 +77,11 @@ repeats the consent for it, because no row holds it.
   and disturbs nobody; a lock-out rotates the workspaces the member held and says beforehand how
   many others stop syncing until their application collects a fresh credential, which it does
   on its own. The replica on the removed member's disk stays readable, and a test pins it.
+  **A removed administrator's certificate is revoked**, so a row they newly sign under it is refused
+  by every other client on read; the rows they legitimately signed are re-signed under the remover
+  first (see *Chain*), so the revocation bricks nothing. Revoking is half of what closes a removed
+  member's replay; the other half, a re-inserted grant earning no fresh credential, is the renewal
+  filter ticket 24 adds to `workspace::renew_credentials`.
 - **A migration reaches a workspace under a lease taken at the primary**, by whichever member
   opens it, and an older build refuses a newer workspace before reading anything.
 - **Live tests reach the human's account only when asked**, each creating and removing its own

@@ -471,6 +471,20 @@ async fn issue(
         let administrator_key =
             AdministratorKey::from_bytes(&secret.derive_seed(ADMINISTRATOR_KEY_PURPOSE)?);
 
+        // a reset draws a fresh vault secret, so `administrator_key` differs from the one this
+        // member's old certificate names, and the certificate about to replace it carries the new
+        // key. Every row the old certificate signed would then fail verification. Re-sign them
+        // first, under the resetter (an owner, who holds authority over all of them), so the
+        // replacement bricks nothing (`store::re_sign_rows_of_certificate`). A fresh invitation of
+        // a new administrator has no rows under this id and this moves nothing.
+        store
+            .re_sign_rows_of_certificate(
+                &session.verifying_key,
+                &format!("cert-{member_id}"),
+                &signer,
+            )
+            .await?;
+
         store
             .write_certificate(&issue_certificate(
                 &organization_key,
@@ -1095,6 +1109,136 @@ mod tests {
         assert_eq!(
             standing(issued_at + 11).await,
             vec![InvitationStanding::Open]
+        );
+    }
+
+    /// Criterion 1: **resetting an administrator leaves every row they signed still verifiable,
+    /// and everyone can still sign in.** The owner resets an administrator who has invited a member
+    /// and holds a workspace; the reset draws a fresh vault secret and replaces the certificate,
+    /// and without the re-signing that precedes it every row the old certificate signed would fail
+    /// verification and refuse the whole read (F1). Afterwards the owner, the reset administrator
+    /// under the new password, and the member all sign in, and members, grants and invitations all
+    /// read without a refusal.
+    #[tokio::test]
+    async fn resetting_an_administrator_leaves_every_row_verifiable_and_everyone_signs_in() {
+        let directory = scratch("admin-reset");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+
+        let admin = invite_member(
+            &store,
+            &owner,
+            &link,
+            Invitation {
+                email: "ada@acme.example",
+                display_name: "Ada Admin",
+                role: permission::ADMINISTRATOR,
+                workspace_ids: std::slice::from_ref(&workspace_id),
+            },
+            test_cost(),
+            1,
+        )
+        .await
+        .expect("the administrator");
+
+        // the administrator signs in, settles, and invites a member into the workspace: their
+        // certificate now signs a member row, grants and an invitation.
+        let mut ada = sign_in(
+            &store,
+            &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
+            &admin.generated_password,
+            &slot(),
+        )
+        .await
+        .expect("the administrator did not sign in");
+        ada.must_change_password = false;
+
+        let bob = invite_member(
+            &store,
+            &ada,
+            &link,
+            Invitation {
+                email: "bob@acme.example",
+                display_name: "Bob",
+                role: permission::MEMBER,
+                workspace_ids: std::slice::from_ref(&workspace_id),
+            },
+            test_cost(),
+            2,
+        )
+        .await
+        .expect("bob");
+
+        // the owner resets the administrator: their certificate is replaced with one over a key
+        // derived from a fresh vault secret.
+        let reset = reissue_invitation(&store, &owner, &link, &admin.member_id, test_cost(), 3)
+            .await
+            .expect("the reset failed");
+
+        assert_ne!(reset.generated_password, admin.generated_password);
+
+        // F1: every read stands.
+        assert!(
+            store.members(&owner.verifying_key).await.is_ok(),
+            "resetting an administrator bricked the members read"
+        );
+        assert!(
+            store.grants(&owner.verifying_key).await.is_ok(),
+            "resetting an administrator bricked the grants read"
+        );
+        assert!(
+            store.invitations(&owner.verifying_key).await.is_ok(),
+            "resetting an administrator bricked the invitations read"
+        );
+
+        // everyone signs in: the owner, the reset administrator under the new password, the member.
+        let owner_again = sign_in(
+            &store,
+            &joined_as(&owner, &owner.member_id, permission::OWNER),
+            PASSWORD,
+            &slot(),
+        )
+        .await
+        .expect("the owner can no longer sign in");
+
+        assert_eq!(owner_again.role, permission::OWNER);
+
+        let ada_again = sign_in(
+            &store,
+            &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
+            &reset.generated_password,
+            &slot(),
+        )
+        .await
+        .expect("the reset administrator did not sign in under the new password");
+
+        assert!(ada_again.must_change_password);
+        assert!(
+            ada_again.workspace_credentials.contains_key(&workspace_id),
+            "the reset administrator lost the workspace they held"
+        );
+
+        let bob_again = sign_in(
+            &store,
+            &joined_as(&owner, &bob.member_id, permission::MEMBER),
+            &bob.generated_password,
+            &slot(),
+        )
+        .await
+        .expect("the member the administrator invited can no longer sign in");
+
+        assert!(bob_again.workspace_credentials.contains_key(&workspace_id));
+
+        // and the old password no longer opens the reset administrator's vault.
+        assert!(
+            sign_in(
+                &store,
+                &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
+                &admin.generated_password,
+                &slot(),
+            )
+            .await
+            .is_err(),
+            "the old password still opens the reset administrator's vault"
         );
     }
 

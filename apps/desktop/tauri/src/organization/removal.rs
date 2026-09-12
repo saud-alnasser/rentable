@@ -220,6 +220,24 @@ pub async fn remove_member<P: TursoPlatform>(
         )
         .await?;
 
+    // end a removed administrator's authority. A member has no certificate and this does nothing;
+    // an administrator's certificate is written back revoked, so a row they newly sign under it is
+    // refused on read (F2, the half this ticket closes). But first the rows it legitimately signed
+    // are re-signed under the remover, who holds authority over them, so revoking it bricks nothing
+    // (`store::re_sign_rows_of_certificate`, the routine reset shares).
+    if let Some(their_certificate) =
+        store.certificates().await?.into_iter().find(|certificate| {
+            certificate.member_id == member_id && certificate.revoked_at.is_none()
+        })
+    {
+        store
+            .re_sign_rows_of_certificate(&session.verifying_key, &their_certificate.id, &signer)
+            .await?;
+        store
+            .write_certificate(&their_certificate.revoked(&now.to_string()))
+            .await?;
+    }
+
     let mut removed = Removed {
         member_id: member_id.to_string(),
         locked_out: false,
@@ -945,6 +963,156 @@ mod tests {
             "a refusal wrote something"
         );
         assert!(org.platform.rotated().is_empty());
+    }
+
+    /// Criterion 2, and the ticket's own: **removing an administrator ends their authority.** The
+    /// administrator has signed real rows; after an ordinary removal their certificate is revoked,
+    /// the rows it signed are re-signed under the remover so nothing legitimate is bricked, and a
+    /// row the removed administrator newly signs under their revoked certificate is refused by
+    /// every other client on read.
+    #[tokio::test]
+    async fn removing_an_administrator_revokes_their_certificate_and_re_signs_what_they_signed() {
+        use crate::organization::{
+            authority::AdministratorKey,
+            setup::ADMINISTRATOR_KEY_PURPOSE,
+            store::{MemberRecord, Signer},
+        };
+
+        let directory = scratch("admin-removal");
+        let org = organization(&directory).await;
+        let mut owner = org.owner;
+        let (admin_id, admin_password) = org.administrator.clone();
+
+        // the administrator settles and signs real rows: they invite a member into North, which
+        // they hold, so their certificate signs a member row, grants and an invitation.
+        let mut ada = sign_in(
+            &org.store,
+            &joined_as(&owner, &admin_id, permission::ADMINISTRATOR),
+            &admin_password,
+            &slot(),
+        )
+        .await
+        .expect("the administrator did not sign in");
+        ada.must_change_password = false;
+
+        let link = organization_link(&org.store, &ada).await.expect("the link");
+        let bob = invite_member(
+            &org.store,
+            &ada,
+            &link,
+            Invitation {
+                email: "bob@acme.example",
+                display_name: "Bob",
+                role: permission::MEMBER,
+                workspace_ids: std::slice::from_ref(&org.north),
+            },
+            test_cost(),
+            AT,
+        )
+        .await
+        .expect("bob");
+
+        let ada_cert_id = org
+            .store
+            .certificates()
+            .await
+            .expect("the certificates")
+            .into_iter()
+            .find(|certificate| certificate.member_id == admin_id)
+            .expect("the administrator's certificate")
+            .id;
+
+        // everything reads while the certificate stands.
+        assert!(org.store.members(&owner.verifying_key).await.is_ok());
+        assert!(org.store.grants(&owner.verifying_key).await.is_ok());
+        assert!(org.store.invitations(&owner.verifying_key).await.is_ok());
+
+        remove_member::<InMemoryPlatform>(
+            &org.store,
+            &mut owner,
+            None,
+            &org.database,
+            &admin_id,
+            false,
+            AT + 1,
+        )
+        .await
+        .expect("the removal failed");
+
+        // their certificate is revoked (F2).
+        let ada_cert = org
+            .store
+            .certificates()
+            .await
+            .expect("the certificates")
+            .into_iter()
+            .find(|certificate| certificate.id == ada_cert_id)
+            .expect("the certificate is gone rather than revoked");
+
+        assert!(
+            ada_cert.revoked_at.is_some(),
+            "the removed administrator's certificate was not revoked"
+        );
+
+        // nothing they legitimately signed is bricked (F3): every read stands, and the member they
+        // invited still signs in and holds North.
+        assert!(
+            org.store.members(&owner.verifying_key).await.is_ok(),
+            "removing an administrator bricked the members read"
+        );
+        assert!(org.store.grants(&owner.verifying_key).await.is_ok());
+        assert!(org.store.invitations(&owner.verifying_key).await.is_ok());
+
+        let bob_session = sign_in(
+            &org.store,
+            &joined_as(&owner, &bob.member_id, permission::MEMBER),
+            &bob.generated_password,
+            &slot(),
+        )
+        .await
+        .expect("bob no longer signs in after the administrator who invited him was removed");
+
+        assert!(bob_session.workspace_credentials.contains_key(&org.north));
+
+        // a row the removed administrator newly signs under their revoked certificate is refused:
+        // they re-promote themselves to owner, and every other client refuses the read by name.
+        let ada_key = AdministratorKey::from_bytes(
+            &ada.secret
+                .derive_seed(ADMINISTRATOR_KEY_PURPOSE)
+                .expect("a seed"),
+        );
+        let ada_row = org
+            .store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the members")
+            .into_iter()
+            .find(|member| member.id == admin_id)
+            .expect("the administrator's row");
+
+        org.store
+            .write_member(
+                &Signer {
+                    key: &ada_key,
+                    certificate: &ada_cert,
+                },
+                &MemberRecord {
+                    role: permission::OWNER.to_string(),
+                    permissions: 63,
+                    ..ada_row
+                },
+            )
+            .await
+            .expect("the hostile write");
+
+        let refusal = org
+            .store
+            .members(&owner.verifying_key)
+            .await
+            .expect_err("a self-promotion under a revoked certificate was accepted");
+
+        assert!(refusal.to_string().contains("revoked"), "{refusal}");
+        assert!(refusal.to_string().contains(&admin_id), "{refusal}");
     }
 
     /// Live, at the human's request, and admitted in [[rules/testing]] under *Tests that reach a

@@ -536,6 +536,21 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<MemberRecord>, Error> {
+        Ok(self
+            .signed_members(organization_verifying_key)
+            .await?
+            .into_iter()
+            .map(|(_, member)| member)
+            .collect())
+    }
+
+    /// Every member, each verified, paired with the id of the certificate that signed it. The
+    /// public [`OrganizationStore::members`] drops the id; [`OrganizationStore::re_sign_rows_of_certificate`]
+    /// is what needs it, because a record alone does not say which certificate stands behind it.
+    async fn signed_members(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Vec<(String, MemberRecord)>, Error> {
         let certificates = self.certificates().await?;
         let mut rows = self
             .connection
@@ -572,23 +587,26 @@ impl OrganizationStore {
                 &signature,
             )?;
 
-            members.push(MemberRecord {
-                id,
-                email_sealed: blob(&row, 1)?,
-                display_name_sealed: blob(&row, 2)?,
-                vault: Vault {
-                    public_key,
-                    sealed_secret_key: blob(&row, 4)?,
-                    kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 6, "kdf_salt")?,
-                    kdf_params: KdfParams::parse(&text(&row, 7)?)?,
+            members.push((
+                certificate_id,
+                MemberRecord {
+                    id,
+                    email_sealed: blob(&row, 1)?,
+                    display_name_sealed: blob(&row, 2)?,
+                    vault: Vault {
+                        public_key,
+                        sealed_secret_key: blob(&row, 4)?,
+                        kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 6, "kdf_salt")?,
+                        kdf_params: KdfParams::parse(&text(&row, 7)?)?,
+                    },
+                    sealed_content_key: blob(&row, 5)?,
+                    role,
+                    permissions,
+                    must_change_password: integer(&row, 10)? != 0,
+                    created_at: integer(&row, 13)?,
+                    updated_at: integer(&row, 14)?,
                 },
-                sealed_content_key: blob(&row, 5)?,
-                role,
-                permissions,
-                must_change_password: integer(&row, 10)? != 0,
-                created_at: integer(&row, 13)?,
-                updated_at: integer(&row, 14)?,
-            });
+            ));
         }
 
         Ok(members)
@@ -639,6 +657,19 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<WorkspaceRecord>, Error> {
+        Ok(self
+            .signed_workspaces(organization_verifying_key)
+            .await?
+            .into_iter()
+            .map(|(_, workspace)| workspace)
+            .collect())
+    }
+
+    /// Every workspace, each verified, paired with the id of the certificate that signed it.
+    async fn signed_workspaces(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Vec<(String, WorkspaceRecord)>, Error> {
         let certificates = self.certificates().await?;
         let mut rows = self
             .connection
@@ -672,15 +703,18 @@ impl OrganizationStore {
                 &signature,
             )?;
 
-            workspaces.push(WorkspaceRecord {
-                id,
-                name_sealed: blob(&row, 1)?,
-                database_name,
-                database_hostname,
-                schema_version: integer(&row, 4)?,
-                created_at: integer(&row, 7)?,
-                updated_at: integer(&row, 8)?,
-            });
+            workspaces.push((
+                certificate_id,
+                WorkspaceRecord {
+                    id,
+                    name_sealed: blob(&row, 1)?,
+                    database_name,
+                    database_hostname,
+                    schema_version: integer(&row, 4)?,
+                    created_at: integer(&row, 7)?,
+                    updated_at: integer(&row, 8)?,
+                },
+            ));
         }
 
         Ok(workspaces)
@@ -727,6 +761,19 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<GrantRecord>, Error> {
+        Ok(self
+            .signed_grants(organization_verifying_key)
+            .await?
+            .into_iter()
+            .map(|(_, grant)| grant)
+            .collect())
+    }
+
+    /// Every grant, each verified, paired with the id of the certificate that signed it.
+    async fn signed_grants(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Vec<(String, GrantRecord)>, Error> {
         let certificates = self.certificates().await?;
         let mut rows = self
             .connection
@@ -766,7 +813,7 @@ impl OrganizationStore {
                 &signature,
             )?;
 
-            grants.push(grant);
+            grants.push((certificate_id, grant));
         }
 
         Ok(grants)
@@ -821,6 +868,19 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<InvitationRecord>, Error> {
+        Ok(self
+            .signed_invitations(organization_verifying_key)
+            .await?
+            .into_iter()
+            .map(|(_, invitation)| invitation)
+            .collect())
+    }
+
+    /// Every invitation, each verified, paired with the id of the certificate that signed it.
+    async fn signed_invitations(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Vec<(String, InvitationRecord)>, Error> {
         let certificates = self.certificates().await?;
         let mut rows = self
             .connection
@@ -855,21 +915,24 @@ impl OrganizationStore {
                 &signature,
             )?;
 
-            invitations.push(InvitationRecord {
-                id,
-                member_id: text(&row, 1)?,
-                sealed: SealedInvitation {
-                    sealed_payload,
-                    kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 3, "kdf_salt")?,
-                    kdf_params: KdfParams::parse(&text(&row, 4)?)?,
+            invitations.push((
+                certificate_id,
+                InvitationRecord {
+                    id,
+                    member_id: text(&row, 1)?,
+                    sealed: SealedInvitation {
+                        sealed_payload,
+                        kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 3, "kdf_salt")?,
+                        kdf_params: KdfParams::parse(&text(&row, 4)?)?,
+                    },
+                    expires_at,
+                    consumed_at: match row.get_value(6)? {
+                        turso::Value::Integer(value) => Some(value),
+                        _ => None,
+                    },
+                    created_at: integer(&row, 9)?,
                 },
-                expires_at,
-                consumed_at: match row.get_value(6)? {
-                    turso::Value::Integer(value) => Some(value),
-                    _ => None,
-                },
-                created_at: integer(&row, 9)?,
-            });
+            ));
         }
 
         Ok(invitations)
@@ -1015,6 +1078,70 @@ impl OrganizationStore {
             .await?;
 
         Ok(())
+    }
+
+    /// Re-sign every row a certificate signed, under `signer`, and say how many rows moved.
+    ///
+    /// **The one routine reset, removal and any future revocation share, so the three cannot
+    /// drift.** An administrator's certificate is retired two ways: a reset replaces it with a key
+    /// derived from a fresh vault secret (`invite::issue`), and a removal writes it back revoked
+    /// (`removal::remove_member`). Either way, `authority::verify` then refuses every row the old
+    /// certificate signed, because the row's signature no longer matches the key the certificate
+    /// carries (reset) or the certificate is revoked (removal), and `members`/`grants`/
+    /// `invitations`/`workspaces` refuse the whole read on the first such row. So before the
+    /// certificate is retired, the rows it signed are re-signed under the acting administrator, who
+    /// already holds authority over them: the resetting owner, or the removing owner or
+    /// administrator. After it, those rows name the actor's certificate and verify under it, and
+    /// retiring the old certificate bricks nothing.
+    ///
+    /// The rows are read through the verified readers, so a row that does not verify under the
+    /// still-live old certificate refuses the whole operation rather than being re-signed blind;
+    /// the actor never launders a forgery into their own signature. Each row is written back
+    /// through the ordinary `write_*` path, which stamps `signer`'s certificate id and a fresh
+    /// signature and leaves every other column as it stood.
+    pub async fn re_sign_rows_of_certificate(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        certificate_id: &str,
+        signer: &Signer<'_>,
+    ) -> Result<usize, Error> {
+        if signer.certificate.id == certificate_id {
+            return Err(Error::Integrity {
+                message: "a certificate cannot re-sign its own rows onto itself".to_string(),
+            });
+        }
+
+        let mut re_signed = 0;
+
+        for (signed_by, member) in self.signed_members(organization_verifying_key).await? {
+            if signed_by == certificate_id {
+                self.write_member(signer, &member).await?;
+                re_signed += 1;
+            }
+        }
+
+        for (signed_by, workspace) in self.signed_workspaces(organization_verifying_key).await? {
+            if signed_by == certificate_id {
+                self.write_workspace(signer, &workspace).await?;
+                re_signed += 1;
+            }
+        }
+
+        for (signed_by, grant) in self.signed_grants(organization_verifying_key).await? {
+            if signed_by == certificate_id {
+                self.write_grant(signer, &grant).await?;
+                re_signed += 1;
+            }
+        }
+
+        for (signed_by, invitation) in self.signed_invitations(organization_verifying_key).await? {
+            if signed_by == certificate_id {
+                self.write_invitation(signer, &invitation).await?;
+                re_signed += 1;
+            }
+        }
+
+        Ok(re_signed)
     }
 
     /// The connection, for a test that has to write a row the store would never write.
@@ -1646,6 +1773,203 @@ mod tests {
             .expect_err("rows signed under another organization key were read");
 
         assert!(refusal.to_string().contains("member-owner"), "{refusal}");
+    }
+
+    /// **The re-signing routine, and what it buys: a certificate that signed rows can be retired
+    /// without bricking them.** An administrator's certificate signs one of every kind of row.
+    /// While it stands every read verifies; revoked, every read that finds one of its rows is
+    /// refused (F3). Re-signed under the owner first, the same revocation refuses nothing, and a
+    /// fresh row still signed under the retired certificate is refused, which is what a removed
+    /// administrator's forgery is.
+    #[tokio::test]
+    async fn re_signing_a_certificates_rows_lets_it_be_retired_without_bricking_them() {
+        use super::InvitationRecord;
+        use crate::organization::vault::{INVITATION_SECRET_BYTES, seal_invitation};
+
+        let directory = scratch("resign");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+
+        store
+            .write_organization(&OrganizationRecord {
+                id: "acme".to_string(),
+                name_sealed: chain.sealed("organization.name_sealed", "Acme"),
+                verifying_key: chain.verifying_key(),
+                remote_url: "libsql://org-acme.turso.io".to_string(),
+                link_credential_sealed: chain.sealed("organization.link_credential_sealed", "ro"),
+                created_at: 1_757_000_000_000,
+            })
+            .await
+            .expect("the organization row");
+        store
+            .write_certificate(&chain.certificate)
+            .await
+            .expect("the owner certificate");
+        store
+            .write_member(
+                &chain.signer(),
+                &chain.member("member-owner", "o@acme", "O", "owner"),
+            )
+            .await
+            .expect("the owner member");
+
+        // an administrator certified under the same organization key, who signs one of every kind
+        // of row: a member, a workspace, a grant and an invitation.
+        let admin_key = AdministratorKey::generate().expect("an administrator key");
+        let admin_certificate = issue_certificate(
+            &chain.organization_key,
+            "cert-admin",
+            "member-admin",
+            &admin_key.verifying_key(),
+            "1757000000000",
+        );
+
+        store
+            .write_certificate(&admin_certificate)
+            .await
+            .expect("the administrator certificate");
+
+        let admin_signer = Signer {
+            key: &admin_key,
+            certificate: &admin_certificate,
+        };
+
+        store
+            .write_member(
+                &admin_signer,
+                &chain.member("member-x", "x@acme", "X", "member"),
+            )
+            .await
+            .expect("member-x");
+        store
+            .write_workspace(&admin_signer, &chain.workspace("w", "W"))
+            .await
+            .expect("the workspace");
+        store
+            .write_grant(
+                &admin_signer,
+                &GrantRecord {
+                    member_id: "member-x".to_string(),
+                    workspace_id: "w".to_string(),
+                    sealed_credential: b"a sealed credential".to_vec(),
+                    access_level: "full-access".to_string(),
+                    credential_expires_at: None,
+                },
+            )
+            .await
+            .expect("the grant");
+
+        let sealed = seal_invitation(
+            &[7_u8; INVITATION_SECRET_BYTES],
+            "a-generated-password",
+            test_cost(),
+            b"a payload",
+        )
+        .expect("a sealed invitation");
+
+        store
+            .write_invitation(
+                &admin_signer,
+                &InvitationRecord {
+                    id: "inv-1".to_string(),
+                    member_id: "member-x".to_string(),
+                    sealed,
+                    expires_at: 1_757_600_000_000,
+                    consumed_at: None,
+                    created_at: 1_757_000_000_000,
+                },
+            )
+            .await
+            .expect("the invitation");
+
+        let key = chain.verifying_key();
+
+        // everything verifies while the certificate stands.
+        assert_eq!(store.members(&key).await.expect("members").len(), 2);
+        assert_eq!(store.workspaces(&key).await.expect("workspaces").len(), 1);
+        assert_eq!(store.grants(&key).await.expect("grants").len(), 1);
+        assert_eq!(store.invitations(&key).await.expect("invitations").len(), 1);
+
+        // F3: revoked without re-signing first, every read that finds one of its rows is refused.
+        store
+            .write_certificate(&admin_certificate.revoked("1757100000000"))
+            .await
+            .expect("the revocation");
+
+        let refusal = store
+            .members(&key)
+            .await
+            .expect_err("a row under a revoked certificate was read");
+
+        assert!(refusal.to_string().contains("revoked"), "{refusal}");
+        assert!(refusal.to_string().contains("member-x"), "{refusal}");
+
+        // restore the certificate, re-sign its rows under the owner, then revoke: nothing bricks,
+        // and one of every kind of row moved.
+        store
+            .write_certificate(&admin_certificate)
+            .await
+            .expect("un-revoke");
+
+        let moved = store
+            .re_sign_rows_of_certificate(&key, "cert-admin", &chain.signer())
+            .await
+            .expect("the re-sign");
+
+        assert_eq!(moved, 4, "one of every kind of row was re-signed");
+
+        store
+            .write_certificate(&admin_certificate.revoked("1757100000000"))
+            .await
+            .expect("the revocation, again");
+
+        assert_eq!(store.members(&key).await.expect("members after").len(), 2);
+        assert_eq!(
+            store
+                .workspaces(&key)
+                .await
+                .expect("workspaces after")
+                .len(),
+            1
+        );
+        assert_eq!(store.grants(&key).await.expect("grants after").len(), 1);
+        assert_eq!(
+            store
+                .invitations(&key)
+                .await
+                .expect("invitations after")
+                .len(),
+            1
+        );
+
+        // a fresh row still signed under the retired certificate is refused: re-signing moved the
+        // old rows, it did not resurrect the certificate.
+        store
+            .write_member(
+                &Signer {
+                    key: &admin_key,
+                    certificate: &admin_certificate.revoked("1757100000000"),
+                },
+                &chain.member("member-y", "y@acme", "Y", "member"),
+            )
+            .await
+            .expect("the hostile write");
+
+        let refusal = store
+            .members(&key)
+            .await
+            .expect_err("a fresh row under the revoked certificate was read");
+
+        assert!(refusal.to_string().contains("revoked"), "{refusal}");
+
+        // and the routine refuses to re-sign a certificate's rows onto itself.
+        assert!(
+            store
+                .re_sign_rows_of_certificate(&key, &chain.certificate.id, &chain.signer())
+                .await
+                .is_err(),
+            "a certificate re-signed its own rows onto itself"
+        );
     }
 
     #[test]
