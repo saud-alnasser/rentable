@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/svelte';
-import { expect, test } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/svelte';
+import { expect, test, vi } from 'vitest';
 
 import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
@@ -83,6 +83,95 @@ test('the wall renders in arabic with the same one field', () => {
 	expect(screen.getByRole('button', { name: ar.layout.signIn.unlock })).toBeDefined();
 
 	setLocale('en');
+});
+
+// effort 824, requirement 7: several organizations are rows a person picks from, not a select.
+test('a machine that has joined two organizations shows them as rows, the password under them', () => {
+	loadLocale('en');
+	setLocale('en');
+	card('locked', {
+		organizations: [
+			fakeJoinedOrganization(),
+			fakeJoinedOrganization({ id: 'beta', name: 'Beta Holdings', role: 'member' })
+		]
+	});
+
+	const rows = screen.getAllByRole('radio');
+	expect(rows).toHaveLength(2);
+	// each row carries the name and the role, and the row is the radio's own label.
+	expect(rows[0]?.closest('label')?.textContent).toContain('Acme Rentals');
+	expect(rows[0]?.closest('label')?.textContent).toContain(en.layout.signIn.roleOwner);
+	expect(rows[1]?.closest('label')?.textContent).toContain('Beta Holdings');
+	expect(rows[1]?.closest('label')?.textContent).toContain(en.layout.signIn.roleMember);
+	// the first is chosen until somebody picks another; one is always chosen.
+	expect(rows[0]?.getAttribute('aria-checked')).toBe('true');
+	expect(rows[1]?.getAttribute('aria-checked')).toBe('false');
+
+	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual(['password']);
+	expect(document.querySelector('select')).toBeNull();
+	// the password field sits under the group, not above it.
+	const group = document.querySelector('[role=radiogroup]');
+	const password = document.querySelector('input[name=password]');
+	expect(group).not.toBeNull();
+	expect(password).not.toBeNull();
+	expect(group!.compareDocumentPosition(password!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+// the technical risk the plan names: the group must bind to what `unlock()` reads, or the
+// password unlocks the first organization whatever row was pressed.
+test('pressing the second row and unlocking signs in to the second organization', async () => {
+	loadLocale('en');
+	setLocale('en');
+	const onSignIn = vi.fn();
+	card('locked', {
+		organizations: [
+			fakeJoinedOrganization(),
+			fakeJoinedOrganization({ id: 'beta', name: 'Beta Holdings', role: 'member' })
+		],
+		onSignIn
+	});
+
+	const rows = screen.getAllByRole('radio');
+	await fireEvent.click(rows[1]!);
+	expect(rows[1]?.getAttribute('aria-checked')).toBe('true');
+
+	await fireEvent.input(screen.getByLabelText(en.layout.signIn.password), {
+		target: { value: 'correct horse' }
+	});
+	await fireEvent.click(screen.getByRole('button', { name: en.layout.signIn.unlock }));
+
+	expect(onSignIn).toHaveBeenCalledTimes(1);
+	expect(onSignIn).toHaveBeenCalledWith('beta', 'correct horse');
+});
+
+test('one organization is named as a line of text, not offered as a row', () => {
+	loadLocale('en');
+	setLocale('en');
+	card('locked');
+
+	expect(screen.queryAllByRole('radio')).toEqual([]);
+	expect(document.querySelector('select')).toBeNull();
+	const line = document.querySelector('[data-sign-in-organization="acme"]');
+	expect(line?.tagName).toBe('P');
+	expect(line?.textContent).toContain('Acme Rentals');
+	expect(line?.textContent).toContain(en.layout.signIn.roleOwner);
+});
+
+// requirements 14 and 15: the unlock carries its verb, the password field its subject, muted.
+test('the unlock button carries a glyph and the password field a muted leading one', () => {
+	loadLocale('en');
+	setLocale('en');
+	card('locked');
+
+	expect(
+		screen.getByRole('button', { name: en.layout.signIn.unlock }).querySelector('svg')
+	).not.toBeNull();
+
+	const addon = document.querySelector('[data-slot=input-group-addon]');
+	const password = document.querySelector('input[name=password]');
+	expect(addon?.querySelector('svg')).not.toBeNull();
+	expect(addon!.compareDocumentPosition(password!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	expect(addon?.className).toContain('text-muted-foreground');
 });
 
 test('a member with no workspace is told so, by organization name', () => {

@@ -4,9 +4,10 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { Input } from '@rentable/design/primitive/input/index.js';
-	import * as Select from '@rentable/design/primitive/select/index.js';
+	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
+	import * as RadioGroup from '@rentable/design/primitive/radio-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import LockOpenIcon from '@lucide/svelte/icons/lock-open';
 
 	/**
@@ -28,6 +29,13 @@
 	 * stood here until organizations: no account, a window closed after three days, and an identity
 	 * with no session. Every one was about a control plane, and the control plane is what the
 	 * organization replaces.*
+	 *
+	 * **Several organizations are rows a person picks from, drawn inside that shape.** A machine
+	 * that has joined more than one shows each as a row carrying its name and the person's role
+	 * there, one always chosen, the password field under the group. *A select stood here until
+	 * effort 824: the one thing a person was choosing between was hidden behind a control, and the
+	 * name and role of each were read only once the list was open. Chosen 2026-09-12 over the
+	 * select and over remembering the last one.* One organization is named, not chosen.
 	 *
 	 * **The password field is the only field.** This machine already knows which member it is in
 	 * each organization it joined, so an email typed here would be compared against a local string,
@@ -130,30 +138,42 @@
 				}}
 			>
 				<Field.Field>
-					<Field.Label for="sign-in-organization">{$LL.layout.signIn.organization()}</Field.Label>
 					{#if organizations.length > 1}
-						<Select.Root
-							type="single"
-							value={chosen?.id ?? ''}
-							onValueChange={(value) => {
-								if (value) organizationId = value;
-							}}
+						<Field.Label id="sign-in-organization-label">
+							{$LL.layout.signIn.organization()}
+						</Field.Label>
+						<!-- one row per organization, and the row is the radio's own label, so pressing
+						     anywhere on it chooses. The group reads `chosen` and writes `organizationId`,
+						     which is what `unlock()` reads through `chosen`, so the row pressed is the
+						     organization unlocked. The composition is the field family's choice card:
+						     a label around a horizontal field, which the label primitive already draws as
+						     a bordered card and marks when the radio inside it is checked. Arrow keys move
+						     the choice and one is always chosen; both come from the primitive. -->
+						<RadioGroup.Root
+							bind:value={() => chosen?.id ?? '', (value) => (organizationId = value)}
+							aria-labelledby="sign-in-organization-label"
+							disabled={isSigningIn}
+							data-sign-in-organizations
 						>
-							<Select.Trigger id="sign-in-organization" class="w-full">
-								{chosen?.name ?? ''}
-							</Select.Trigger>
-							<Select.Content>
-								{#each organizations as organization (organization.id)}
-									<Select.Item value={organization.id} label={organization.name}>
-										{organization.name}
-										<span class="text-muted-foreground">
-											{roleLabel(organization.role)}
-										</span>
-									</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
+							{#each organizations as organization (organization.id)}
+								<Field.Label for={`sign-in-organization-${organization.id}`}>
+									<Field.Field orientation="horizontal">
+										<RadioGroup.Item
+											id={`sign-in-organization-${organization.id}`}
+											value={organization.id}
+										/>
+										<Field.Content>
+											<Field.Title>{organization.name}</Field.Title>
+											<!-- the role this machine last saw for the person: a fact to recognise
+											     oneself by, never authority. -->
+											<Field.Description>{roleLabel(organization.role)}</Field.Description>
+										</Field.Content>
+									</Field.Field>
+								</Field.Label>
+							{/each}
+						</RadioGroup.Root>
 					{:else if chosen}
+						<Field.Label for="sign-in-organization">{$LL.layout.signIn.organization()}</Field.Label>
 						<!-- one organization, named rather than chosen, with the role this machine
 						     last saw for the person: a fact to recognise oneself by, never authority. -->
 						<p id="sign-in-organization" class="text-sm" data-sign-in-organization={chosen.id}>
@@ -165,14 +185,23 @@
 
 				<Field.Field>
 					<Field.Label for="sign-in-password">{$LL.layout.signIn.password()}</Field.Label>
-					<Input
-						id="sign-in-password"
-						name="password"
-						type="password"
-						autocomplete="current-password"
-						bind:value={password}
-						disabled={isSigningIn}
-					/>
+					<!-- the field's subject, as a leading glyph. The addon draws it in the muted
+					     foreground so it does not outweigh the label beside it (Balance weight and
+					     contrast, Refactoring UI p.56). It is the subject and never the error: a
+					     validation error marks the label line, as the interface rule says. -->
+					<InputGroup.Root data-disabled={isSigningIn ? 'true' : undefined}>
+						<InputGroup.Addon>
+							<KeyRoundIcon />
+						</InputGroup.Addon>
+						<InputGroup.Input
+							id="sign-in-password"
+							name="password"
+							type="password"
+							autocomplete="current-password"
+							bind:value={password}
+							disabled={isSigningIn}
+						/>
+					</InputGroup.Root>
 				</Field.Field>
 
 				<Button type="submit" class="w-full justify-center" disabled={!canUnlock}>
