@@ -293,7 +293,7 @@ Steps 3 and 4 are independent of 1 and 2 and can proceed while the consent quest
 | 11 | live: a `read-only` grant's write is refused by Turso; an administrator's delete is refused for want of authority |
 | 12 | a table test over every act in `ADMINISTRATION` against every role |
 | 13 | a password change leaves other members' rows byte-identical; a reset restores access; **a test asserts no administrator-held key opens a vault that administrator did not build**, which is what stops an escrow copy arriving later |
-| 14 | live, both paths: ordinary removal leaves others syncing; lock-out refuses the removed credential and others recover after one reach. A test pins that the removed member's local replica still reads |
+| 14 | live, both paths: ordinary removal leaves others syncing; lock-out refuses the removed credential and others recover after one reach. A test pins that the removed member's local replica still reads, and one pins the documented limitation that an ordinary removal is defeatable by a member replaying their own signed row (F-A, ticket 28), for which lock-out is the answer |
 | 15 | given only the link's contents and a read-only credential, no email, display name or workspace name is readable from a populated database |
 | 16 | a member writes another member's row with an altered role, and every other client rejects it on read |
 | 17 | two organizations joined on one machine, both listed, switching without reinstall |

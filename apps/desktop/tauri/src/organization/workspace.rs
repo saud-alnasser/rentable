@@ -1324,6 +1324,112 @@ mod tests {
         assert_eq!(renewed, 2);
     }
 
+    /// The documented limitation of an ordinary removal. A removed member who keeps a modified
+    /// client and the organization-database credential can replay their own old, still-validly
+    /// signed `role=member` row and grant: the authority a member row carries has no id, nonce, or
+    /// monotonic field, and an ordinary removal deliberately does not rotate the credential so an
+    /// offline colleague is not broken. The owner's next renewal cannot tell the replayed row from
+    /// a legitimate one and re-seals them a fresh credential. This pins that as behaviour rather
+    /// than leaving it to be found as a bug; the answer to a hostile departure is
+    /// "remove and lock out now", which rotates the credential the replay rides on.
+    #[tokio::test]
+    async fn an_ordinary_removal_does_not_defeat_a_members_replay_of_their_own_row() {
+        let directory = scratch("replay");
+        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        second_member(&store, &owner).await;
+        let pipeline = applying_pipeline().await;
+        let facts = create_workspace(
+            &store,
+            &mut owner,
+            &platform,
+            |_| Pipeline::at(&pipeline.url("")),
+            "W",
+            1,
+        )
+        .await
+        .expect("the create failed");
+
+        grant_workspace(
+            &store,
+            &owner,
+            Some(&platform),
+            &facts.id,
+            "member-b",
+            AccessLevel::FullAccess,
+        )
+        .await
+        .expect("the grant failed");
+
+        let (key, certificate) = super::signer_of(&store, &owner).await.expect("the signer");
+        let signer = Signer {
+            key: &key,
+            certificate: &certificate,
+        };
+
+        // what member-b holds from when they were a member: their own signed `role=member` row and
+        // their grant. The owner's signature over them is deterministic, so writing them back under
+        // the owner's signer reproduces the exact on-disk rows a replay puts back. That the store
+        // cannot tell those from legitimately signed rows is the finding itself.
+        let member_row = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("members")
+            .into_iter()
+            .find(|member| member.id == "member-b")
+            .expect("member-b");
+        let grant_row = store
+            .grants(&owner.verifying_key)
+            .await
+            .expect("grants")
+            .into_iter()
+            .find(|grant| grant.member_id == "member-b")
+            .expect("member-b grant");
+
+        // an ordinary removal: the member row is re-signed `removed` and the grant is deleted.
+        let mut removed = member_row.clone();
+        removed.role = permission::REMOVED.to_string();
+        store
+            .write_member(&signer, &removed)
+            .await
+            .expect("removed");
+        store
+            .delete_grant("member-b", &facts.id)
+            .await
+            .expect("grant deleted");
+
+        // renewal skips the removed member: the owner's two grants renew, member-b's does not.
+        let organization_database = format!("org-{}", owner.organization_id);
+        let after_removal =
+            renew_credentials(&store, &mut owner, &platform, &organization_database)
+                .await
+                .expect("the renewal failed");
+        assert_eq!(
+            after_removal, 2,
+            "an ordinary removal stops renewing the removed member"
+        );
+
+        // the replay: member-b puts their own historical rows back, flipping `removed` to `member`.
+        store
+            .write_member(&signer, &member_row)
+            .await
+            .expect("replayed member");
+        store
+            .write_grant(&signer, &grant_row)
+            .await
+            .expect("replayed grant");
+
+        // and the owner's next renewal re-credentials them. This is the limitation requirement 14
+        // now records: ordinary removal ends renewal, not a determined replay; lock-out is what
+        // does, because it rotates the credential the replay rides on.
+        let after_replay = renew_credentials(&store, &mut owner, &platform, &organization_database)
+            .await
+            .expect("the second renewal failed");
+        assert_eq!(
+            after_replay, 3,
+            "the replay earns the removed member a fresh credential"
+        );
+    }
+
     /// Ticket 24, F4's cheap check: a credential within the window is due and one comfortably live
     /// is not, so the owner's machine mints when something is close rather than on every launch. A
     /// grant with no recorded expiry, which is a token that never expires, is never due.

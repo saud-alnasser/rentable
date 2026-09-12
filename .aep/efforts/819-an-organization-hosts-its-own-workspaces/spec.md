@@ -201,9 +201,26 @@ chooses to show them.
     synchronisation and nothing else, and saying otherwise would be a promise the architecture
     cannot keep.
 
+    **Ordinary Remove ends renewal, not a determined replay.** A member row signs a public key, a
+    role and permissions, and nothing that makes one signing of it newer than another; the
+    organization-database credential is deliberately not rotated on an ordinary Remove, by the
+    settlement below. So a removed member who keeps a modified client and that credential can
+    replay their own old, still-validly-signed `role=member` row, and the owner's next renewal,
+    unable to tell it from a legitimate one, re-seals them a credential. **Remove and lock out now
+    is the answer to a departure that turns hostile**, because it rotates the credential the replay
+    rides on; ordinary Remove is for the ordinary departure, where the person is not fighting to
+    stay in.
+
     *Settled 2026-08-30. Rotating always was rejected because an ordinary departure would break
     every colleague's sync, including anybody offline at the time. Never rotating was rejected
     because it leaves no answer at all for the departure that is not ordinary.*
+
+    *Settled 2026-09-12. That an ordinary Remove is defeatable by a member replaying their own row
+    was surfaced by the effort's second correctness review (finding F-A). Closing it inside the
+    ordinary path needs either a monotonic version on every signed row, whose high-water mark no
+    fresh or restored machine holds to judge a replay against, or rotation on every removal, which
+    is the offline breakage rejected above. Both were rejected again; the limitation is recorded
+    here as behaviour, and lock-out is its answer.*
 
 15. **The holder of an invite link alone learns nothing about who is in the organization.**
     Names, email addresses and workspace names are not legible to somebody holding only what
@@ -313,12 +330,13 @@ chooses to show them.
     administrator holds opens a vault the administrator did not build, so an escrow copy
     cannot be added later without failing it. A password below the strength floor is refused
     at first change.
-14. After an ordinary removal no new credential is issued to the removed member and every
-    remaining member's sync is unbroken, demonstrated against a live database. After a lock
-    out, the removed member's existing credential is refused by Turso and a remaining member
-    recovers by reaching the organization database once. A test pins that removal leaves the
-    removed member's local replica readable, so the limit is recorded as behaviour rather
-    than discovered later as a bug.
+14. After an ordinary removal a member who does not tamper is issued no new credential and every
+    remaining member's sync is unbroken, demonstrated against a live database; a member who
+    replays their own old signed row is re-credentialed, and a test pins that replay as the
+    documented limitation of the ordinary path. After a lock out, the removed member's existing
+    credential is refused by Turso and a remaining member recovers by reaching the organization
+    database once. A test pins that removal leaves the removed member's local replica readable,
+    so the limit is recorded as behaviour rather than discovered later as a bug.
 15. Given only what the invite link carries, no email address, display name, or workspace
     name is readable. A test asserts this against a populated organization database.
 16. A member who writes another member's row with an altered role or key is rejected by

@@ -79,17 +79,23 @@ repeats the consent for it, because no row holds it.
   sign-in, which works offline. An organization whose owner does not launch the application for a
   month lets its credentials lapse and stops syncing until the owner returns and reconnects, which
   is the inherent cost of having no server and is stated here rather than hidden. A renewal seals
-  nothing to a removed member, so a grant row replayed by someone who kept the credential earns
-  them nothing.
+  nothing to a member whose row reads `removed`, so a grant row replayed on its own earns nothing.
+  A member who also replays their own `role=member` row flips the filter and is re-credentialed;
+  that this is not closed inside the ordinary path is requirement 14's documented limitation, for
+  which lock-out is the answer (F-A, ticket 28).
 - **Removal ends synchronisation and reaches into nothing.** An ordinary removal stops renewing
   and disturbs nobody; a lock-out rotates the workspaces the member held and says beforehand how
   many others stop syncing until their application collects a fresh credential, which it does
   on its own. The replica on the removed member's disk stays readable, and a test pins it.
   **A removed administrator's certificate is revoked**, so a row they newly sign under it is refused
   by every other client on read; the rows they legitimately signed are re-signed under the remover
-  first (see *Chain*), so the revocation bricks nothing. Revoking is half of what closes a removed
-  member's replay; the other half, a re-inserted grant earning no fresh credential, is the renewal
-  filter ticket 24 adds to `workspace::renew_credentials`.
+  first (see *Chain*), so the revocation bricks nothing. Revocation ends a removed administrator's
+  authority to sign anything new, and the renewal filter ticket 24 adds to
+  `workspace::renew_credentials` skips a member whose row reads `removed`. Neither stops a removed
+  member replaying their own old, still-validly-signed member and grant rows: an ordinary removal
+  deliberately does not rotate the credential, so a determined member who kept it can flip
+  themselves back, which requirement 14 records as the limit of the ordinary path and answers with
+  lock-out (F-A, ticket 28).
 - **A migration reaches a workspace under a lease taken at the primary**, by whichever member
   opens it, and an older build refuses a newer workspace before reading anything.
 - **Live tests reach the human's account only when asked**, each creating and removing its own
