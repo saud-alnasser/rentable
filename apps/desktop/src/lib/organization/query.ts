@@ -148,7 +148,6 @@ export function useFetchInvitations() {
 	}));
 }
 
-/** where this machine stands: the organizations it joined and who is in. */
 /**
  * the organization's own link, for the owner to share or keep. Fetched on demand where the owner's
  * dashboard draws it; the credential it carries is the owner's own and already in their vault.
@@ -161,6 +160,7 @@ export function useOrganizationLink(enabled: () => boolean) {
 	}));
 }
 
+/** where this machine stands: the organizations it joined and who is in. */
 export function useFetchOrganizationState() {
 	return createQuery(() => ({
 		queryKey: keys.state,

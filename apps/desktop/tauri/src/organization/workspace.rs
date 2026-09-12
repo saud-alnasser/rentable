@@ -419,11 +419,6 @@ pub async fn rename_workspace(
     Ok(())
 }
 
-/// Mint fresh credentials for every workspace and the organization database, and re-seal each to
-/// every member who still holds a grant. The owner's machine, with the platform authority.
-///
-/// A member with no grant row gets nothing, which is what an ordinary removal is: their existing
-/// credential dies at its expiry and nobody else is disturbed.
 /// Whether any grant's credential expires within `window_ms` of `now`, so the owner's machine
 /// should renew before it lapses. A grant whose token never expires has no recorded expiry and is
 /// never due. This is the cheap check the owner's machine runs so it does not mint on every launch,
@@ -447,6 +442,11 @@ pub async fn credentials_due(
     }))
 }
 
+/// Mint fresh credentials for every workspace and the organization database, and re-seal each to
+/// every member who still holds a grant. The owner's machine, with the platform authority.
+///
+/// A member with no grant row gets nothing, which is what an ordinary removal is: their existing
+/// credential dies at its expiry and nobody else is disturbed.
 pub async fn renew_credentials<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &mut MemberSession,
