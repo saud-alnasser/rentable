@@ -1,21 +1,19 @@
 <script lang="ts">
-	import type { RemoteSyncAccount } from '$lib/platform/host';
+	import type { OrganizationSession } from '$lib/platform/host';
 	import { resolve } from '$app/paths';
 	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
 	import { useSidebar } from '@rentable/design/primitive/sidebar/index.js';
-	import { toErrorText } from '$lib/error/message';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { accountInitials } from '$lib/sync/account';
-	import { signOutOfGoogle } from '$lib/sync/sign-in';
+	import { requestSignOut } from '$lib/sync/sign-out';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import SettingsIcon from '@tabler/icons-svelte/icons/settings';
 	import UserCircleIcon from '@tabler/icons-svelte/icons/user-circle';
 	import UsersGroupIcon from '@tabler/icons-svelte/icons/users-group';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
-	import { toast } from 'svelte-sonner';
 
 	/**
 	 * Who this machine is signed in as, at the foot of the rail.
@@ -34,7 +32,12 @@
 	 * **The picture is drawn from bytes this machine holds** (#630), never from Google's URL, so
 	 * this row looks the same offline as online. Initials stand in where an account has none.
 	 */
-	let { account }: { account: RemoteSyncAccount } = $props();
+	/**
+	 * who is in: the member whose vault opened, as the shell holds them. *It was a Google account
+	 * row until the control plane retired; the name and the address are the organization's now,
+	 * opened with the content key, and there is no picture.*
+	 */
+	let { session }: { session: OrganizationSession } = $props();
 
 	const sidebar = useSidebar();
 
@@ -47,39 +50,23 @@
 				: 'right'
 	);
 
-	const initials = $derived(accountInitials(account.displayName || account.email));
+	const initials = $derived(
+		accountInitials(session.displayName || session.email || session.organizationName)
+	);
 
-	let isSigningOut = $state(false);
-
-	async function signOut() {
-		if (isSigningOut) {
-			return;
-		}
-
-		isSigningOut = true;
-
-		try {
-			await signOutOfGoogle();
-		} catch (error) {
-			toast.error(toErrorText(error, $LL, $LL.common.errors.internal()));
-		} finally {
-			isSigningOut = false;
-		}
-	}
+	// the shell owns the wall, so the menu asks and the shell signs out; nothing is awaited here.
+	const signOut = () => requestSignOut();
 </script>
 
 {#snippet identity()}
 	<Avatar.Root class="size-8 shrink-0 rounded-lg">
-		{#if account.avatarImage}
-			<Avatar.Image src={account.avatarImage} alt={account.displayName} />
-		{/if}
 		<Avatar.Fallback class="rounded-lg text-xs">{initials}</Avatar.Fallback>
 	</Avatar.Root>
 	<div class="grid flex-1 text-start text-sm leading-tight">
-		<span class="truncate font-medium">{account.displayName}</span>
+		<span class="truncate font-medium">{session.displayName || session.organizationName}</span>
 		<!-- the address is the account's, not the reader's language: isolating it keeps an ltr
 		     address from reordering the arabic around it. -->
-		<span class="truncate text-xs text-muted-foreground" dir="ltr">{account.email}</span>
+		<span class="truncate text-xs text-muted-foreground" dir="ltr">{session.email}</span>
 	</div>
 {/snippet}
 
@@ -145,10 +132,10 @@
 
 				<DropdownMenu.Separator />
 
-				<DropdownMenu.Item disabled={isSigningOut} onSelect={() => void signOut()}>
+				<DropdownMenu.Item onSelect={signOut}>
 					<LogOutIcon class="size-4 shrink-0" />
 					<span>
-						{isSigningOut ? $LL.common.actions.working() : $LL.common.actions.signOut()}
+						{$LL.common.actions.signOut()}
 					</span>
 				</DropdownMenu.Item>
 			</DropdownMenu.Content>

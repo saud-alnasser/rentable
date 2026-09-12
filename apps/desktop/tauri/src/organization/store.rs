@@ -7,8 +7,8 @@
 //! workspace. Two engines over two files is what that module permits; two over one file is what it
 //! forbids, and the organization replica is `org-<id>.db` beside `ws-<id>.db`, never the same file.
 //!
-//! **What the control plane's four tables knew lives here, sealed and signed, and one of the four
-//! has no successor.** `account` and `membership` become `member` and `grant`; `workspace` keeps
+//! **What the retired control plane's four tables knew lives here, sealed and signed, and one of
+//! the four has no successor.** `account` and `membership` become `member` and `grant`; `workspace` keeps
 //! its name and loses the `.unique()` owner that held every account to one workspace; `session`
 //! is gone, because requirement 18 removes the window it existed for, and a faithful port would
 //! re-add it. Every name and address is a `_sealed` column under the organization content key,
@@ -904,6 +904,29 @@ impl OrganizationStore {
         Ok(())
     }
 
+    /// Rename a workspace. Unsigned, as the plan keeps the name: the database identity is what
+    /// the chain signs, and the name is content, sealed under the content key by the caller.
+    pub async fn rename_workspace(
+        &self,
+        workspace_id: &str,
+        name_sealed: &[u8],
+        now: i64,
+    ) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "UPDATE \"workspace\" SET \"name_sealed\" = ?, \"updated_at\" = ? \
+                 WHERE \"id\" = ?",
+                vec![
+                    turso::Value::Blob(name_sealed.to_vec()),
+                    turso::Value::Integer(now),
+                    turso::Value::Text(workspace_id.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
     /// Record that a workspace's database is at `version`. Unsigned, deliberately: the plan puts
     /// the schema version outside the signature so that whichever member applied the migration
     /// can say so, and a member has no signing key.
@@ -1343,8 +1366,8 @@ mod tests {
 
     // criterion 2: the boundary
 
-    /// **No rents domain table appears in the organization database**, in the shape
-    /// `control-plane/src/tests/boundary.test.ts` has for the control plane. The domain tables are
+    /// **No rents domain table appears in the organization database**, in the shape the
+    /// control plane's `boundary.test.ts` had before it retired. The domain tables are
     /// read from the shipped workspace migrations rather than listed here, so an eighth concept
     /// added to the workspace arrives in this test without anybody remembering to add it.
     #[tokio::test]

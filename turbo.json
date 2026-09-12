@@ -13,13 +13,14 @@
 		"test": {
 			// **The workspace packages are hashed in, and leaving them out was a defect.** A task
 			// with no `inputs` hashes only its own package's files, so a commit that changed the
-			// SQL a workspace database is built from moved nothing under `apps/control-plane/`,
-			// turbo restored the cached result, and the tests that read those migrations never
+			// SQL a workspace database is built from moved nothing under the application that read
+			// it, turbo restored the cached result, and the tests that read those migrations never
 			// ran. `$TURBO_DEFAULT$` keeps the package's own files; the entries after it add the
 			// packages whose contents decide what those tests assert.
 			//
 			// `workspace-permission` joined them when the flag table moved out of the control
-			// plane: both applications' tests now assert against a table neither of them holds.
+			// plane, which has since retired: the desktop's tests assert against a table it does
+			// not hold.
 			//
 			// `design` is listed before the interface moves into it. That happens over the tickets
 			// that follow, and from the first component onwards a desktop test renders markup this

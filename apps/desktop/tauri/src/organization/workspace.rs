@@ -359,6 +359,60 @@ pub async fn delete_workspace<P: TursoPlatform>(
     Ok(())
 }
 
+/// Rename a workspace, for whoever carries `renameWorkspace` on their row: the owner, by the
+/// package's default masks, and anybody a row was widened for. The name is sealed under the
+/// content key and written outside the signature, as the plan keeps it, so every replica reads
+/// it on its next pull and nothing has to be re-signed.
+pub async fn rename_workspace(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    workspace_id: &str,
+    name: &str,
+    now: i64,
+) -> Result<(), Error> {
+    session.settled()?;
+    permission::require(session.permissions, Administration::RenameWorkspace)?;
+
+    let name = name.trim();
+
+    if name.is_empty() {
+        return Err(Error::InvalidInput {
+            message: "the workspace needs a name".to_string(),
+        });
+    }
+
+    if !store
+        .workspaces(&session.verifying_key)
+        .await?
+        .iter()
+        .any(|workspace| workspace.id == workspace_id)
+    {
+        return Err(Error::NotFound {
+            message: "that workspace is not in this organization".to_string(),
+        });
+    }
+
+    store
+        .rename_workspace(
+            workspace_id,
+            &seal_content(
+                &session.content_key,
+                "workspace.name_sealed",
+                name.as_bytes(),
+            )?,
+            now,
+        )
+        .await?;
+
+    if !store.push().await {
+        diagnostics::warn("organization.workspace.renameNotYetSent")
+            .with("workspace", workspace_id)
+            .write();
+    }
+
+    Ok(())
+}
+
 /// Mint fresh credentials for every workspace and the organization database, and re-seal each to
 /// every member who still holds a grant. The owner's machine, with the platform authority.
 ///
@@ -545,7 +599,7 @@ mod tests {
         persisted::Persisted,
         sync::{
             RemoteSyncStore,
-            google::test::server::{ScriptedResponse, ScriptedServer},
+            test::server::{ScriptedResponse, ScriptedServer},
             turso::{
                 discovery::McpEndpoint,
                 platform::{AccessLevel, DeletionIntent, InMemoryPlatform},

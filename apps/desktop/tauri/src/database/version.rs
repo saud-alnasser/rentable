@@ -7,9 +7,9 @@
 //! migrate a hosted workspace database, to mint a token, or to refuse.
 //!
 //! **Nothing on this side applies a migration any more**, so this number is the only thing the
-//! directory is still counted for. A workspace's schema is the control-plane API's to own — it is
-//! applied at the token mint and arrives here as replicated pages — and the client's part of that
-//! bargain is saying which schema it was built against when it asks for a token.
+//! directory is still counted for, and for what `organization/migrate.rs` embeds. A workspace's
+//! schema is applied to its database over the wire and arrives at a replica as replicated pages,
+//! and this number is what the version a workspace is recorded at is compared with on every open.
 //!
 //! Where it is sent is the request for a workspace token, which is a later ticket's — this is the
 //! number that request carries, and it is derived here because the derivation is what had to be
@@ -47,8 +47,8 @@ mod tests {
     }
 
     /// Zero would mean *no migrations*, which is what a build that could not read the directory
-    /// would also produce — and a client claiming zero is a client the control plane would try to
-    /// serve an empty schema.
+    /// would also produce, and a build claiming zero would refuse every workspace as newer than
+    /// itself.
     #[test]
     fn the_version_is_not_zero() {
         assert!(WORKSPACE_SCHEMA_VERSION > 0);

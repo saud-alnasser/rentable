@@ -41,12 +41,10 @@ async function signedOutApi() {
 				check: async () => null
 			},
 			remoteSync: {
-				getState: async () => fakeSyncState({ accounts: [] }),
-				renewSession: async () => fakeSyncState({ accounts: [] }),
-				establishSession: async () => fakeSyncState({ accounts: [] }),
+				getState: async () => fakeSyncState(),
 				replicate: async () => ({ pushed: false, received: false, refusal: 'none' as const }),
 				push: async () => false,
-				renameWorkspace: async () => fakeSyncState({ accounts: [] })
+				renameWorkspace: async () => fakeSyncState()
 			}
 		}),
 		identity: null
@@ -126,7 +124,7 @@ test('what the shell knows about syncing is readable either way', async () => {
 });
 
 // **And the one beside it that is not.** Reading what this machine has synced is a fact about the
-// machine; renaming the workspace is a write against a row the control plane guards with a
+// machine; renaming the workspace is a write against a row the organization guards with a
 // permission, so it needs an acting user however small the change looks. The fake host refuses
 // `remoteSync.renameWorkspace` by name, so a procedure that let this through would fail with that
 // refusal rather than this one, which is what makes the assertion say something.

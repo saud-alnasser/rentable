@@ -9,7 +9,6 @@ import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/d
 import { keys as dashboardKeys } from '$lib/dashboard/query';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
-import { toast } from 'svelte-sonner';
 import { get } from 'svelte/store';
 
 export const keys = {
@@ -151,7 +150,7 @@ export function useRestartApp(opts: MutationOptions = {}) {
  * when the workspace is not on a remote that can diverge.
  */
 /**
- * reach the control plane and keep this machine replicating.
+ * reach the workspace's remote and keep this machine replicating.
  *
  * **What a person pressing Sync asks for is both halves**: the window renewed, and this machine's
  * writes offered and the others' taken.
@@ -183,14 +182,6 @@ export function useSyncWorkspace(
 			// shape of an unannounced writer.
 			if (result.received) {
 				await announceReceivedRows(client);
-			}
-
-			// The window has closed. It is not a success and it is not a failure — nothing went
-			// wrong and nothing was lost — so it is neither of the two toasts but the sentence
-			// naming the one thing they can do about it.
-			if (result.action === 'signInRequired') {
-				toast.error(get(LL).settingsHooks.sessionExpired());
-				return;
 			}
 
 			onMutationSuccess(opts);

@@ -97,9 +97,9 @@ impl Database {
 
     /// Open this machine's database as a plain file.
     ///
-    /// **It applies no migrations, and that is requirement 11 rather than an omission.** The
-    /// control plane owns a workspace's schema and applies it at the token mint; the replica
-    /// receives it as replicated pages. A client that applied DDL of its own would not merely
+    /// **It applies no migrations, and that is requirement 11 rather than an omission.** A
+    /// workspace's schema is applied to its database over the wire, at creation and under a
+    /// lease (`organization/migrate.rs`); the replica receives it as replicated pages. A client that applied DDL of its own would not merely
     /// duplicate that work — DDL issued through the sync connection is captured as CDC and
     /// replicates, so one client's migration would reach every other replica.
     ///
@@ -190,8 +190,8 @@ impl Database {
     /// `app.db` stays what the seeded and test paths use, and every replica is `ws-<id>.db` next
     /// to it. Two workspaces on one machine therefore never meet, and neither meets `app.db`.
     ///
-    /// **`ws-` is the control plane's own name for the database, not a local abbreviation.**
-    /// `databaseNameFor` in `apps/control-plane/src/workspace/workspace.ts` builds `ws-<id>`, and
+    /// **`ws-` is the organization's own name for the database, not a local abbreviation.**
+    /// `create_workspace` in `organization/workspace.rs` builds `ws-<id>`, and
     /// that is what Turso holds and what the remote URL says. A local file named anything else
     /// makes a person reading a directory listing translate before they can match it against the
     /// dashboard, for no gain. *It was `workspace-<id>.db` until 2026-08-20.*
@@ -583,7 +583,7 @@ mod tests {
     #[tokio::test]
     async fn a_refusal_for_the_account_is_read_as_the_accounts_and_the_replica_goes_on_serving() {
         use crate::sync::{
-            google::test::server::{ScriptedResponse, ScriptedServer},
+            test::server::{ScriptedResponse, ScriptedServer},
             turso::platform::SyncRefusal,
         };
 

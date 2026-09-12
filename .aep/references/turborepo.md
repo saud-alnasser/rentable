@@ -24,13 +24,14 @@ and outputs the task's `outputs` do not describe. So no package's installer buil
 reachable from turbo at all.
 
 **Building is therefore a pnpm script here, never a turbo task.** Root `build` is
-`pnpm --filter "./apps/*" build` and includes those installers; `build:control-plane` and
-`build:desktop` reach one application each. The `integration` workflow runs `pnpm build:web`
-and `pnpm build:control-plane`, and nothing anywhere runs `turbo run build`.
+`pnpm --filter "./apps/*" build` and includes those installers; `build:desktop` reaches the
+one application. The `integration` workflow runs `pnpm build:web`, and nothing anywhere runs
+`turbo run build`.
 
 *This section said `turbo run build` was this repository's build command until 2026-08-22.
-It never was under this `turbo.json`, and the same stale claim was sitting in
-`apps/control-plane/README.md`, where it was read as evidence during a plan.*
+It never was under this `turbo.json`, and the same stale claim was sitting in the control
+plane's README, where it was read as evidence during a plan. `build:control-plane` went with
+the control plane on 2026-09-12.*
 
 ## Commands
 

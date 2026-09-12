@@ -85,8 +85,8 @@ export type SyncOutcome = { action: string; received: boolean };
 /**
  * What startup reaches for outside itself.
  *
- * Grouped by the thing being reached rather than by the call, so a fake supplies a window or a
- * control plane rather than eleven unrelated functions.
+ * Grouped by the thing being reached rather than by the call, so a fake supplies a window or an
+ * organization rather than eleven unrelated functions.
  */
 export type StartupPorts = {
 	window: {
@@ -139,8 +139,6 @@ export type StartupPorts = {
 	};
 	/** a thrown value as a reader should see it. The route's translations, from outside. */
 	describeError(error: unknown): string;
-	/** the window closed with no contact, so replication stopped. The one outcome to act on. */
-	onSessionExpired(): void;
 	recordFailure(message: string): void;
 	reportStage(stage: StartupStage): void;
 	reportComplete(): void;
@@ -721,13 +719,6 @@ export class Startup {
 		if (state) {
 			this.#set({ remoteSync: state });
 			this.#ports.cache.rememberRemoteSync(state);
-		}
-
-		// the window closed with no contact, so replication has stopped and the workspace is
-		// otherwise untouched. It is raised here rather than left to the invalidation below because
-		// it is the one outcome the user has to act on.
-		if (outcome.action === 'signInRequired') {
-			this.#ports.onSessionExpired();
 		}
 
 		await this.#ports.cache.invalidateRemoteSync();

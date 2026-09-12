@@ -16,7 +16,7 @@ import { identity as nationalIdPattern, phone as phonePattern } from '$lib/tenan
 /**
  * How long a workspace's name may be.
  *
- * **The control plane is the authority and this is a copy of its number**, which is worth stating
+ * **The organization store is the authority and this is a copy of its number**, which is worth stating
  * because a copy across a boundary is a thing that drifts. It is here so a name too long to store
  * is refused before a round trip rather than after one, and so the form can say so beside the
  * field the reader typed in. The service still decides what it stores; nothing here can make it

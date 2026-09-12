@@ -13,7 +13,6 @@ import type {
 	OrganizationState,
 	OrganizationWorkspace,
 	Host,
-	RemoteSyncAccount,
 	RemoteSyncState,
 	RemoteSyncWorkspace,
 	Settings
@@ -27,24 +26,6 @@ export function fakeSettings(overrides: Partial<Settings> = {}): Settings {
 		diagnosticsDir: 'C:/rentable/diagnostics',
 		locale: 'en',
 		version: '0.0.0-test',
-		...overrides
-	};
-}
-
-/** An account as the store holds one: signed in and in good standing. */
-export function fakeAccount(overrides: Partial<RemoteSyncAccount> = {}): RemoteSyncAccount {
-	return {
-		id: 'account',
-		status: 'ready',
-		email: 'person@example.com',
-		displayName: 'Person Example',
-		avatarImage: null,
-		providerUserId: null,
-		tokenExpiresAt: null,
-		refreshTokenAvailable: true,
-		lastError: null,
-		createdAt: 0,
-		updatedAt: 0,
 		...overrides
 	};
 }
@@ -67,12 +48,8 @@ export function fakeWorkspace(overrides: Partial<RemoteSyncWorkspace> = {}): Rem
 /** What `remoteSync.getState` answers with. */
 export function fakeSyncState(overrides: Partial<RemoteSyncState> = {}): RemoteSyncState {
 	return {
-		accounts: [],
 		workspace: fakeWorkspace(),
 		startupPromptEnabled: false,
-		googleSignInReady: false,
-		controlPlaneReady: false,
-		session: null,
 		deviceId: 'device',
 		accountRefusal: null,
 		...overrides
@@ -102,13 +79,6 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 
 	return {
 		bootstrap: refuse('bootstrap'),
-		auth: {
-			google: {
-				signIn: refuse('auth.google.signIn'),
-				signOut: refuse('auth.google.signOut'),
-				onPhase: refuse('auth.google.onPhase')
-			}
-		},
 		window: {
 			show: refuse('window.show'),
 			hide: refuse('window.hide'),
@@ -183,8 +153,6 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 		},
 		remoteSync: {
 			getState: refuse('remoteSync.getState'),
-			renewSession: refuse('remoteSync.renewSession'),
-			establishSession: refuse('remoteSync.establishSession'),
 			replicate: refuse('remoteSync.replicate'),
 			push: refuse('remoteSync.push'),
 			renameWorkspace: refuse('remoteSync.renameWorkspace')

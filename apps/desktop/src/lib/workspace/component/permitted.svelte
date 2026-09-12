@@ -46,10 +46,10 @@
 	 *
 	 * **A state that has not arrived administers nothing.** Before the query resolves there is no
 	 * answer, and drawing a control on the strength of not knowing is the one outcome to avoid;
-	 * zero is what a machine with no control plane, an older service and a member who administers
+	 * zero is what a machine with no organization, an older store and a member who administers
 	 * nothing all come to, and they mean the same thing to a reader.
 	 *
-	 * **This is a courtesy and never the authority.** The control plane refuses the request whatever
+	 * **This is a courtesy and never the authority.** The Rust side refuses the request whatever
 	 * this draws, and `procedure.permitted` refuses it one layer earlier — a client is a thing a
 	 * person can edit ([[rules/credentials]] is about credentials; this is the same instinct about
 	 * trust).

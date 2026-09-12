@@ -2,8 +2,8 @@
 paths:
   - apps/desktop/src/**
   - apps/desktop/tauri/src/**
-  - apps/control-plane/src/**
   - packages/design/src/**
+  - packages/turso-platform/**
 use-when: "writing or changing a test, or deciding what a change must be tested at"
 ---
 
@@ -12,11 +12,10 @@ use-when: "writing or changing a test, or deciding what a change must be tested 
   enforces it — this rule loads when source under any of the four paths listed
   there is read, and costs nothing otherwise.
 
-  The control plane was added to that list on 2026-08-18 with #549. **The
-  TypeScript section applies to it word for word.** The Rust section has no
-  subject there and the router level has none yet; when the control plane grows
-  routes, they are covered end to end against a real database for the same
-  reason the desktop's are.
+  The control plane was on that list from 2026-08-18 (#549) until it retired on
+  2026-09-12 with [[efforts/819-an-organization-hosts-its-own-workspaces/spec]];
+  what it knew about Turso survives as `packages/turso-platform`, and **the
+  TypeScript section applies to that package word for word.**
 
   `packages/design/src/**` was added on 2026-08-23 with #775, and it is the one
   path here the TypeScript section does **not** describe word for word. Read
@@ -232,7 +231,7 @@ of them rather than shared, and a fixture is cheap to duplicate where a subject 
 second copy of a builder is worth the file that names its own coverage.
 
 A helper that is genuinely shared scaffolding rather than a fixture — the loopback HTTP server
-`sync/google/test/server.rs`, say — is a module of its own under a `test/` directory, not a test
+`sync/test/server.rs`, say — is a module of its own under a `test/` directory, not a test
 module.
 
 **The asymmetry with TypeScript above is deliberate**, and was settled on 2026-08-18 when the
@@ -247,44 +246,40 @@ other otherwise. See [[references/cargo]].
 
 ## Tests that reach a live remote
 
-**Eight sets are admitted, in seven properties, and they are the exception rather than a second way
-of testing.** Three of the eight exist. The other five are admitted below before they are written,
-which is what this section is for. The four `losing_writer` tests at the foot of
+**Six sets are admitted, in five properties, and they are the exception rather than a second way
+of testing.** All six exist, and every one is Rust. The four `losing_writer` tests at the foot of
 `tauri/src/database/mod.rs` open two replicas of one workspace against a database they provision on
-Turso; `control-plane/src/workspace/tests/provisioning.test.ts` signs up against a live account and
-reads the schema back off the database that sign-up produced;
-`control-plane/src/database/tests/hosted.test.ts` migrates the control plane's *own* database over
-the wire, serves a sign-in from it, and asserts that a transaction which throws leaves nothing.
+Turso; the four admitted for the organization effort below each create and remove their own.
 Everything else in this repository is tested against a local file, a loopback HTTP server, or an
 in-memory engine, and that is not changing.
 
-*Why these could not be: the first measures what the sync engine does when two replicas diverge,
-and the engine reaches its remote over HTTP. There is no local stand-in. The loopback
-server [[rules/credentials]] endorses under *Transport testing* is the right shape and cannot be
-built here, because standing up the replication protocol would mean implementing the behaviour
-under test — a bug in the stand-in would read as a finding about Turso. The second is there for a
-different reason: what it checks is whether **Turso's own SQL dialect** accepts this schema, and a
-`file:` database cannot answer a question about a remote's dialect however faithfully it runs the
-same code.*
+*Why the first could not be: it measures what the sync engine does when two replicas diverge, and
+the engine reaches its remote over HTTP. There is no local stand-in. The loopback server
+[[rules/credentials]] endorses under *Transport testing* is the right shape and cannot be built
+here, because standing up the replication protocol would mean implementing the behaviour under
+test, and a bug in the stand-in would read as a finding about Turso.*
 
-**The third arrived on 2026-08-22 with #757, and it is a third property rather than a third
-instance of the first two.** The schema of the control plane's own database was already exercised,
-by every test in that package, against a file. What had never happened is the wire: the client, the
-token, and an interactive transaction crossing a network to a hosted database. A `file:` database
-cannot answer whether a remote honours `BEGIN`, and the effort that moved those records onto Turso
-rested on the assumption that it does. So the property is **whether a remote honours what the
-client asks of it**, and it is admitted here rather than absorbed silently into one of the two
-above.
+*Two admissions retired with the control plane on 2026-09-12
+([[efforts/819-an-organization-hosts-its-own-workspaces/spec]], requirement 19):
+`control-plane/src/workspace/tests/provisioning.test.ts`, which signed up against a live account
+and read the schema back off the database that sign-up produced, and
+`control-plane/src/database/tests/hosted.test.ts`, which migrated the control plane's own database
+over the wire and asserted that a transaction which throws leaves nothing. The first's property,
+whether Turso's own SQL dialect accepts this schema, is held now by the organization effort's
+workspace test, which applies the shipped schema over the wire on the account; the second's
+property, whether a remote honours what the client asks of it, went with the client that asked.
+The heading's count moved from eight sets in seven properties to six in five, and the numbering
+of the properties below is kept as they were admitted, so a reader of the tickets finds them.*
 
-**Four more were admitted on 2026-08-30, before any of them was written.**
+**Four more were admitted on 2026-08-30, before any of them was written, and all four exist now.**
 [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] puts the customer's own Turso account
 at the centre of the product, and four of its criteria cannot be answered anywhere but on one. They
-are **three properties, not four**, and the ticket that builds each is named so a reader can find
-the file once it exists. All four are Rust.
+are **three properties, not four**, and the ticket that built each is named so a reader can find
+the file. All four are Rust.
 
-**A fourth property: whether the Platform API takes what a Rust port sends.** Ticket 05 moves the
-client in `control-plane/src/workspace/turso.ts` into `tauri/src/sync/turso/platform.rs`, and its
-live half creates a database in a group the consent named, mints a credential against that
+**A fourth property: whether the Platform API takes what a Rust port sends.** Ticket 05 moved the
+client that was `control-plane/src/workspace/turso.ts` (kept as `packages/turso-platform`) into
+`tauri/src/sync/turso/platform.rs`, and its live half creates a database in a group the consent named, mints a credential against that
 database, asserts delete protection is on, and deletes the database it just made once that
 protection has been lifted. **No group is created.** Nothing available to the application can make
 one: the consent screen selects a group and offers no way to create one, and the token cannot
@@ -356,14 +351,10 @@ than for clients, which is what makes its shape a question rather than an assump
 somebody takes here, in this section, naming its property and saying whether it is a new property or
 another instance of one already listed, and not a file that quietly appears.*
 
-**One flag arms the TypeScript ones.** `RENTABLE_LIVE_TURSO=1` is read by both control-plane files
-and the suite glob collects both, so setting it for a whole run provisions workspace databases
-whether or not that is what was wanted. Ask for a live file by name ([[references/node-test]], *Run
-one file*) rather than setting the opt-in in a `.env`.
-
-**The five Rust tests admitted above join that flag rather than taking one of their own** *(decided
-2026-08-30, in the ticket that admitted the first four; the fifth joins them for the same reason)*. They carry `#[ignore]` and they read
-`RENTABLE_LIVE_TURSO`, and both are required. The reason is that `#[ignore]` alone stops being much
+**One flag arms them.** `RENTABLE_LIVE_TURSO=1` was read by the two control-plane files while they
+stood, and the Rust tests admitted on 2026-08-30 joined that flag rather than taking one of their
+own *(decided in the ticket that admitted the first four; the fifth joined them for the same
+reason)*. They carry `#[ignore]` and they read `RENTABLE_LIVE_TURSO`, and both are required. The reason is that `#[ignore]` alone stops being much
 of a gate at this size: `cargo test -- --ignored` asks for every ignored test in a crate rather than
 for one by name, this effort at least doubles what that sweep reaches, and every test it reaches
 provisions on somebody's account. **A Rust live test that runs with the flag unset fails rather

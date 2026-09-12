@@ -16,7 +16,6 @@ import {
 } from '$lib/sync/workspace';
 import type { QueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
-import { toast } from 'svelte-sonner';
 
 import { reportStartupComplete, reportStartupStage } from './startup-stage.svelte';
 import type { StartupPorts } from './startup';
@@ -76,7 +75,6 @@ export function browserStartupPorts(queryClient: QueryClient): StartupPorts {
 		// language the reader had by then.
 		describeError: (error) =>
 			toErrorText(error, get(LL), get(LL).layout.startup.failedToStartFallback()),
-		onSessionExpired: () => toast.error(get(LL).settingsHooks.sessionExpired()),
 		recordFailure: (message) => recordDiagnosticError('startup.failed', { error: message }),
 		reportStage: reportStartupStage,
 		reportComplete: reportStartupComplete,

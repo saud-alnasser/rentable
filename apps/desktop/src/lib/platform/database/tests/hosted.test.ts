@@ -75,8 +75,8 @@ type Api = Workspace['api'];
  * **The schema is applied through the client**, statement by statement, which is both how a
  * test gets to a populated starting state with no remote to pull one from and a demonstration
  * that the transport carries whatever it is given. A real hosted workspace never does this: its
- * migrations are the control plane's, applied to the remote at the token mint (decision 06), so
- * a replica of one arrives with them already in it.
+ * migrations are applied to the remote over the wire (decision 06, and the organization
+ * effort's lease), so a replica of one arrives with them already in it.
  */
 async function openWorkspace(options: { url?: () => string | null; fetch?: typeof fetch } = {}) {
 	const directory = await mkdtemp(path.join(tmpdir(), 'rentable-hosted-'));

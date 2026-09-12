@@ -31,7 +31,8 @@ fn main() {
 /// Where the workspace migrations actually live: `packages/workspace-migrations`.
 ///
 /// **One copy, and this crate is not where it is.** The same SQL builds a local workspace here
-/// and a hosted one in `apps/control-plane`, so it is a package both depend on rather than a
+/// and a hosted one over the wire, through `organization/migrate.rs` here and
+/// `packages/turso-platform` in TypeScript, so it is a package both depend on rather than a
 /// directory inside one of them. Reached by a path relative to this crate rather than through
 /// `node_modules`, because a build script that needs `pnpm install` to have run is a build script
 /// that fails on a fresh clone.
@@ -105,18 +106,18 @@ fn sql_files(folder: &Path) -> Vec<PathBuf> {
 
 /// The workspace schema version this build ships, counted from the migrations it ships.
 ///
-/// **A build produces it, and that is the requirement rather than a convenience.** The number goes
-/// to the control plane with every request for a workspace token, and the control plane decides
-/// from it whether to migrate a hosted workspace, to mint, or to refuse — so a number somebody
-/// remembers to bump is a number that is wrong on the release where somebody forgot. Adding a
-/// migration moves it, and nothing else can.
+/// **A build produces it, and that is the requirement rather than a convenience.** The number is
+/// compared with the version a workspace is recorded at on every open, and the comparison decides
+/// whether to upgrade the workspace under a lease, to open it, or to refuse it as newer than this
+/// build, so a number somebody remembers to bump is a number that is wrong on the release where
+/// somebody forgot. Adding a migration moves it, and nothing else can.
 ///
 /// It is emitted as a Rust source file rather than an environment variable so the constant is a
 /// literal the compiler sees: `env!` hands back a `&str`, and parsing one in a `const` context is
 /// a hand-written parser to avoid a build step that is three lines.
 ///
 /// **Counted, not parsed out of the highest filename.** The count is what
-/// `apps/control-plane/src/workspace/migration.ts` derives its own version from, over the same
+/// `packages/turso-platform/migration.ts` derives its own version from, over the same
 /// package, and the two numbers only mean the same thing if they are derived the same way.
 fn write_workspace_schema_version(migrations: &Path) {
     let version = sql_files(migrations).len();

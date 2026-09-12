@@ -21,15 +21,17 @@ subcommand beyond the two below.
 ## Run the desktop app
 
 ```bash
-pnpm dev              # the control plane and the desktop app together
-pnpm dev:desktop      # the desktop app alone
+pnpm dev              # every application under apps/, which is the desktop app
+pnpm dev:desktop      # the desktop app by name
 pnpm tauri dev        # the same thing, unaliased
 ```
 
 The full app — Rust side, webview, database. `pnpm dev:desktop` is `pnpm tauri dev` under
-another name, and the root's `dev` runs it alongside the control plane, which the application
-now needs: since the sign-in wall (#571) there is no route into a workspace that does not go
-through a control plane, so the desktop alone is a sign-in screen that cannot be got past.
+another name. There is no service to start beside it: an organization lives on its owner's own
+Turso account, and a machine with no organization set up is walked through creating or joining
+one. *The root's `dev` ran the control plane alongside it from #627 until the control plane
+retired on 2026-09-12, because the sign-in wall (#571) had left no route into a workspace that
+did not go through one.*
 
 **`pnpm dev:web` is the vite-only script**, which is what plain `pnpm dev` used to be — renamed
 2026-08-20 so that `dev` could mean the application. Inside `apps/desktop` it is the package's
@@ -83,7 +85,7 @@ never run the application, is pasted into the same screen. The scheme's spelling
 ## Build a release bundle
 
 ```bash
-pnpm build             # both applications: this, and the control plane's tsc
+pnpm build             # every application under apps/, which is this one
 pnpm build:desktop     # the desktop bundle alone
 pnpm tauri build       # the same thing, unaliased
 ```
@@ -104,10 +106,11 @@ cargo commands in `cargo.md` are minutes faster.
 
 ## Why the wrapper exists
 
-`TAURI_UPDATER_PUBLIC_KEY` and the Google OAuth values are read **at build time** from
-`.env`. Calling `tauri` directly, without the wrapper, produces a binary built with those
-values missing — it compiles and it runs, and updates and signing in are quietly broken. That is
+`TAURI_UPDATER_PUBLIC_KEY` is read **at build time** from
+`.env`. Calling `tauri` directly, without the wrapper, produces a binary built with the
+value missing — it compiles and it runs, and updates are quietly broken. That is
 why the desktop's `dev` and `build` both go through `scripts/tauri-with-env.mjs` rather than
-through the CLI.
+through the CLI. *The Google OAuth values were read the same way until Google sign-in retired
+on 2026-09-12; the Turso consent needs nothing baked in.*
 
 Signing keys are CI-only secrets and are never in `.env`. Start from `apps/desktop/.env.example`.

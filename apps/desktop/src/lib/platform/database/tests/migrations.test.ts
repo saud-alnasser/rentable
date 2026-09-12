@@ -10,8 +10,9 @@ import { workspaceMigrationsFolder } from '@rentable/workspace-migrations';
  * That the workspace migrations have one home, and that everything writes to and reads from it.
  *
  * **The SQL a workspace database is built from lives in `packages/workspace-migrations`**, because
- * the same set builds a local workspace here and a hosted one in `apps/control-plane` — decision
- * 06 on `a-workspace-follows-its-user`. A second copy is what this file exists to prevent, and it
+ * the same set builds a local workspace here and a hosted one over the wire, in
+ * `tauri/src/organization/migrate.rs` and in `packages/turso-platform`, decision 06 on
+ * `a-workspace-follows-its-user`. A second copy is what this file exists to prevent, and it
  * lives in this package because that is where the commits that would break it land.
  */
 const desktop = fileURLToPath(new URL('../../../../../', import.meta.url));

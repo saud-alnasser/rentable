@@ -293,7 +293,7 @@ mod tests {
         persisted::Persisted,
         sync::{
             RemoteSyncStore,
-            google::test::server::{ScriptedResponse, ScriptedServer},
+            test::server::{ScriptedResponse, ScriptedServer},
             turso::{discovery::McpEndpoint, platform::InMemoryPlatform},
         },
     };

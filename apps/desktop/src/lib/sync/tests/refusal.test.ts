@@ -57,7 +57,7 @@ for (const locale of ['en', 'ar'] as const) {
 		assert.equal(refused, 'accountRefused');
 		assert.notEqual(refused, offline);
 		assert.notEqual(syncStatusLabel(refused, LL), syncStatusLabel(offline, LL));
-		assert.notEqual(syncStatusLabel(refused, LL), syncStatusLabel('noControlPlane', LL));
+		assert.notEqual(syncStatusLabel(refused, LL), syncStatusLabel('synced', LL));
 	});
 }
 

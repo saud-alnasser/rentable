@@ -45,8 +45,8 @@ use super::{
 };
 
 /// How long a lease stands after it is taken: a migration that has not finished in this long
-/// has died, and the workspace is somebody else's to upgrade from then on. The control plane's
-/// migration credential lifetime, for the same reason.
+/// has died, and the workspace is somebody else's to upgrade from then on. The retired control
+/// plane's migration credential lifetime, for the same reason.
 pub const MIGRATION_LEASE_LIFETIME_MS: i64 = 30 * 60 * 1_000;
 
 /// How long a client waiting on another's lease sleeps between looks.
@@ -526,7 +526,7 @@ mod tests {
         persisted::Persisted,
         sync::{
             RemoteSyncStore,
-            google::test::server::{ScriptedResponse, ScriptedServer},
+            test::server::{ScriptedResponse, ScriptedServer},
             turso::{discovery::McpEndpoint, platform::InMemoryPlatform},
         },
     };

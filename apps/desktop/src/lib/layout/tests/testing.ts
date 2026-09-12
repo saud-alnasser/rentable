@@ -1,12 +1,12 @@
 import { createStartup, type StartupPorts, type StartupSnapshot } from '$lib/layout/startup.ts';
 import type { StartupStage } from '$lib/layout/startup-stage.ts';
-import { fakeAccount, fakeOrganizationState, fakeSyncState } from '$lib/platform/tests/testing.ts';
+import { fakeOrganizationState, fakeSyncState } from '$lib/platform/tests/testing.ts';
 import type { OrganizationState, Recovery, RemoteSyncState } from '$lib/platform/host.ts';
 
 /**
  * Shared harness for driving startup with no window.
  *
- * A startup with a window that opens, a control plane that answers and a workspace that works;
+ * A startup with a window that opens, an organization that answers and a workspace that works;
  * every override is a way for one of those to be otherwise, which is what each path is. Not a
  * `*.test.ts` file, so the runner does not pick it up directly.
  *
@@ -17,8 +17,8 @@ import type { OrganizationState, Recovery, RemoteSyncState } from '$lib/platform
 export const AT = Date.UTC(2026, 7, 20, 12);
 export const A_DAY = 24 * 60 * 60 * 1000;
 
-export const signedIn = () => fakeSyncState({ accounts: [fakeAccount()] });
-export const signedOut = () => fakeSyncState();
+/** the machine's own sync record: which workspace is open, and nothing about who is in. */
+export const syncing = () => fakeSyncState();
 
 /** a machine that has joined an organization and whose person's vault is open, with a workspace. */
 export const unlocked = () => fakeOrganizationState();
@@ -63,12 +63,13 @@ export type Journal = {
 	closed: number;
 	bootstrapped: number;
 	reconciled: number;
+	/** how many pulls that brought rows were announced. */
+	announced: number;
 	synced: number;
 	syncedBeforeExit: number;
 	cacheCleared: number;
 	contextsForgotten: number;
 	failures: string[];
-	sessionsExpired: number;
 	localesLoaded: string[];
 	localeSet: string | null;
 	/** the workspaces the unit asked the shell to open, in order. */
@@ -84,7 +85,7 @@ export type Harness = {
 };
 
 /**
- * A startup with a window that opens, a control plane that answers, and a workspace that works.
+ * A startup with a window that opens, an organization that answers, and a workspace that works.
  *
  * Every override is a way for one of those to be otherwise, which is what each path below is.
  */
@@ -118,12 +119,12 @@ export function harness(
 		closed: 0,
 		bootstrapped: 0,
 		reconciled: 0,
+		announced: 0,
 		synced: 0,
 		syncedBeforeExit: 0,
 		cacheCleared: 0,
 		contextsForgotten: 0,
 		failures: [],
-		sessionsExpired: 0,
 		localesLoaded: [],
 		localeSet: null,
 		workspacesOpened: []
@@ -133,7 +134,7 @@ export function harness(
 
 	// what `remoteSync.getState` answers with, which the unit reads at the account stage, again
 	// after the bootstrap, and after a sync manager reports.
-	const state = overrides.remoteSync ?? signedIn();
+	const state = overrides.remoteSync ?? syncing();
 	// what `organization.getState` answers with, which is what the wall admits on. The second read
 	// is the one after the bootstrap, which is allowed to answer differently.
 	let organization = overrides.organization ?? unlocked();
@@ -230,7 +231,11 @@ export function harness(
 
 				return { state: given ?? state };
 			},
-			announceReceived: async () => now.value
+			announceReceived: async () => {
+				journal.announced += 1;
+
+				return now.value;
+			}
 		},
 		locale: {
 			load: async (locale) => {
@@ -250,7 +255,6 @@ export function harness(
 			forgetContext: () => void journal.contextsForgotten++
 		},
 		describeError: (error) => (error instanceof Error ? error.message : String(error)),
-		onSessionExpired: () => void journal.sessionsExpired++,
 		recordFailure: (message) => void journal.failures.push(message),
 		reportStage: (stage) => void journal.stages.push(stage),
 		reportComplete: () => void journal.completed++,

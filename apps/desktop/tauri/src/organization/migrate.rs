@@ -1,9 +1,9 @@
 //! applying the workspace schema to a database on the customer's account, over the wire.
 //!
-//! **A client applies migrations again, and it applies them the way the control plane did.** The
+//! **A client applies migrations again, and it applies them the way the retired control plane did.** The
 //! shipped `.sql` files are embedded by `build.rs` in the order `drizzle-kit` numbers them, split at
 //! its statement breakpoints, and posted as one pipeline to the database's own HTTP endpoint,
-//! which is `apps/control-plane/src/workspace/migration.ts` in one function. A sync connection
+//! which is `packages/turso-platform/migration.ts` in one function. A sync connection
 //! cannot carry them: `0003` drops and renames tables, and the push that follows fails with *no
 //! such table*, measured on 2026-08-20 (#552). So they go over `/v2/pipeline`, which
 //! `database/test/workspace.rs` had already proved for its own tests, and which is promoted here
@@ -161,7 +161,7 @@ pub async fn apply_between(
 mod tests {
     use serde_json::json;
 
-    use crate::sync::google::test::server::{ScriptedResponse, ScriptedServer};
+    use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
 
     use super::{
         Pipeline, WORKSPACE_MIGRATIONS, apply, shipped_version, statements, statements_between,

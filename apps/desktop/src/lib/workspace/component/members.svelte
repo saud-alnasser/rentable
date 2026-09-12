@@ -1,69 +1,74 @@
 <script lang="ts">
-	import type { RemoteSyncAccount } from '$lib/platform/host';
+	import type { OrganizationMember } from '$lib/platform/host';
+	import { resolve } from '$app/paths';
 	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { accountInitials } from '$lib/sync/account';
-	import LockIcon from '@lucide/svelte/icons/lock';
-	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
+	import UsersGroupIcon from '@tabler/icons-svelte/icons/users-group';
 
 	/**
-	 * Who is in this workspace.
+	 * Who holds a grant on this workspace, read off the organization.
 	 *
-	 * **One person, and the page says so rather than implying it.** The control plane has a
-	 * `membership` table with roles and administration permission flags, and no route that reads
-	 * it, so what this can name is the account this machine is signed in as. That account is the
-	 * workspace's owner, because an account owns exactly one workspace and is created with it
-	 * ([[efforts/a-workspace-follows-its-user]], requirement 6).
-	 *
-	 * **So this is not a list that happens to have one row: it is the only row this machine can
-	 * know about.** The line under it says that, because a members list that quietly shows one
-	 * person is indistinguishable from a workspace somebody was removed from.
-	 *
-	 * Inviting is offered and inert, following the create-workspace row: reachable, announced, and
-	 * saying why in text rather than in a tooltip.
+	 * *It drew the one Google account and a locked invite control until the control plane
+	 * retired, with a sentence promising that inviting anybody else would arrive with
+	 * organizations. It arrived: the members are the organization's, the grants are what says
+	 * who is in this workspace, and inviting and granting are the organization page's.*
 	 */
-	let { account }: { account: RemoteSyncAccount } = $props();
+	let {
+		members,
+		workspaceId
+	}: {
+		members: OrganizationMember[];
+		/** the workspace that is open, by the id the organization knows it under. */
+		workspaceId: string | null;
+	} = $props();
 
-	const initials = $derived(accountInitials(account.displayName || account.email));
+	const holding = $derived(
+		workspaceId ? members.filter((member) => member.workspaceIds.includes(workspaceId)) : []
+	);
+
+	const roleLabel = (role: string) =>
+		({
+			owner: $LL.layout.signIn.roleOwner(),
+			administrator: $LL.layout.signIn.roleAdministrator(),
+			member: $LL.layout.signIn.roleMember()
+		})[role] ?? role;
 </script>
 
-<div class="space-y-4">
+<div class="space-y-4" data-workspace-members>
+	{#each holding as member (member.id)}
+		<Field.Field orientation="responsive">
+			<Field.Content>
+				<div class="flex min-w-0 items-center gap-3">
+					<Avatar.Root class="size-10 shrink-0 rounded-full">
+						<Avatar.Fallback class="rounded-full text-xs">
+							{accountInitials(member.displayName || member.email)}
+						</Avatar.Fallback>
+					</Avatar.Root>
+					<div class="grid min-w-0 gap-1">
+						<div class="flex min-w-0 flex-wrap items-center gap-2">
+							<p class="truncate text-sm font-medium">{member.displayName}</p>
+							<Badge variant="secondary">{roleLabel(member.role)}</Badge>
+						</div>
+						{#if member.email}
+							<p class="truncate text-sm text-muted-foreground" dir="ltr">{member.email}</p>
+						{/if}
+					</div>
+				</div>
+			</Field.Content>
+		</Field.Field>
+	{/each}
+
 	<Field.Field orientation="responsive">
 		<Field.Content>
-			<div class="flex min-w-0 items-center gap-3">
-				<Avatar.Root class="size-10 shrink-0 rounded-full">
-					{#if account.avatarImage}
-						<Avatar.Image src={account.avatarImage} alt={account.displayName} />
-					{/if}
-					<Avatar.Fallback class="rounded-full text-xs">{initials}</Avatar.Fallback>
-				</Avatar.Root>
-				<div class="grid min-w-0 gap-1">
-					<div class="flex min-w-0 flex-wrap items-center gap-2">
-						<p class="truncate text-sm font-medium">{account.displayName}</p>
-						<Badge variant="secondary">{$LL.workspace.roleOwner()}</Badge>
-					</div>
-					<p class="truncate text-sm text-muted-foreground" dir="ltr">{account.email}</p>
-				</div>
-			</div>
+			<Field.Description>{$LL.workspace.membersDescription()}</Field.Description>
 		</Field.Content>
-
-		<!-- a button, and not `disabled`: see `identity.svelte` for why the one attribute that would
-		     make this simplest is the one it must not have. -->
-		<Button
-			variant="outline"
-			size="sm"
-			class="shrink-0"
-			aria-disabled="true"
-			onclick={(event) => event.preventDefault()}
-		>
-			<UserPlusIcon class="size-4 shrink-0" />
-			{$LL.workspace.inviteLocked()}
-			<LockIcon class="size-3.5 shrink-0" />
+		<Button variant="outline" size="sm" class="shrink-0" href={resolve('/organization')}>
+			<UsersGroupIcon class="size-4 shrink-0" />
+			{$LL.common.nav.organization()}
 		</Button>
 	</Field.Field>
-
-	<Field.Description>{$LL.workspace.membersDescription()}</Field.Description>
 </div>

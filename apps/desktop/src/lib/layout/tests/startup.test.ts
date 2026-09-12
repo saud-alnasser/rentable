@@ -30,7 +30,7 @@ import {
  * state, and two of them needed a failing network or a half-finished update.
  *
  * Every port is a thing that is absent in this process. Nothing here mocks a module; the unit is
- * handed a window, a control plane and a workspace, and a test says what each of them does.
+ * handed a window, an organization and a workspace, and a test says what each of them does.
  */
 
 // --- 1. First launch, with no organization --------------------------------------------
@@ -520,9 +520,9 @@ test('and a pull that landed rows announces them, while one that landed none doe
 
 	await startup.start();
 
-	await startup.applySyncOutcome({ action: 'pulled', received: false });
-	assert.equal(journal.sessionsExpired, 0);
+	await startup.applySyncOutcome({ action: 'none', received: false });
+	assert.equal(journal.announced, 0, 'nothing arrived, so nothing to announce');
 
-	await startup.applySyncOutcome({ action: 'signInRequired', received: false });
-	assert.equal(journal.sessionsExpired, 1, 'the one outcome the reader has to act on');
+	await startup.applySyncOutcome({ action: 'none', received: true });
+	assert.equal(journal.announced, 1, 'rows arrived, and derived state has to be told');
 });

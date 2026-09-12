@@ -403,22 +403,6 @@ const ar = {
 			roleMember: 'عضو',
 			setUpOrganization: 'أنشئ مؤسسة بدلاً من ذلك',
 			openInvitation: 'افتح رابط دعوة',
-			authorizing: 'أكمل تسجيل الدخول عبر Google في نافذة المتصفح التي فتحت للتو.',
-			signInWithGoogle: 'تسجيل الدخول باستخدام Google',
-			description:
-				'مساحة عملك محفوظة في حسابك، فهي ترافقك إلى أي جهاز تسجل الدخول منه. أول تسجيل دخول هو ما ينشئها.',
-			finalizing: 'جارٍ تسجيل دخولك...',
-			incomplete:
-				'تم تسجيل دخولك عبر Google، لكن هذا الجهاز لم يتمكن من الوصول إلى rentable لفتح مساحة عملك. تحقق من اتصالك وحاول مرة أخرى.',
-			incompleteDescription:
-				'هذا الجهاز مسجل دخوله. ما لم يتم بعد هو الوصول إلى rentable، وهي الخطوة الوحيدة المتبقية.',
-			incompleteTitle: 'بقيت خطوة واحدة',
-			reaching: 'جارٍ الوصول إلى rentable...',
-			tryAgain: 'حاول مرة أخرى',
-			useDifferentAccount: 'تسجيل الدخول بحساب آخر',
-			lockedDescription:
-				'انقطع اتصال هذا الجهاز مدة أطول من أن يواصل العمل دون إنترنت. سجل الدخول مرة أخرى لفتحه — مساحة عملك وكل ما فيها كما هي.',
-			lockedTitle: 'سجل الدخول مرة أخرى للمتابعة',
 			title: 'تسجيل الدخول'
 		},
 
@@ -728,9 +712,7 @@ const ar = {
 		endingSoonUpdated: 'تم تحديث فترة الإشعار!',
 		profileSwitched: 'تم تبديل مساحة العمل بنجاح!',
 		workspaceUpToDate: 'مساحة العمل محدّثة!',
-		startupRecoveryCleared: 'تم مسح الاسترداد ويمكن المحاولة مجدداً.',
-		sessionExpired:
-			'مساحة العمل هذه غير متصلة منذ ثلاثة أيام. سجّل الدخول بحساب Google مجدداً لمتابعة المزامنة — لم يُفقد أي شيء سجّلته.'
+		startupRecoveryCleared: 'تم مسح الاسترداد ويمكن المحاولة مجدداً.'
 	},
 
 	organization: {
@@ -857,7 +839,6 @@ const ar = {
 		groupSync: 'المزامنة',
 		groupTransfer: 'تصدير / استيراد',
 		identityDescription: 'الصورة عنصر نائب، ولا يمكن تغييرها بعد.',
-		inviteLocked: 'دعوة',
 		membersDescription: 'شخص واحد، وهو الوحيد الممكن اليوم. دعوة غيره تأتي مع المؤسسات.',
 		nameTooLong: 'هذا الاسم طويل جداً.',
 		nameRequired: 'أعطِ مساحة العمل اسماً.',
@@ -867,11 +848,7 @@ const ar = {
 		roleOwner: 'المالك',
 		syncDescription:
 			'تُحفظ هذه المساحة نيابةً عنك وتصل إلى هذا الجهاز تلقائياً. والتحقق الآن يبقيها تعمل دون اتصال لثلاثة أيام قادمة.',
-		syncStatusCannotSignIn: 'تعذر تسجيل الدخول',
 		syncStatusNeedsReconnect: 'يحتاج إلى إعادة ربط',
-		syncStatusNoControlPlane: 'لا يزامن مع أي خدمة',
-		syncStatusNotSignedIn: 'غير مسجل الدخول',
-		syncStatusPending: 'بانتظار التفويض',
 		syncStatusSynced: 'تمت مزامنته',
 		syncStatusAccountRefused: 'الحساب يحتاج إلى اهتمام',
 		accountRefusedMember:

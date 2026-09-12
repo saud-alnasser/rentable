@@ -55,9 +55,9 @@ export type { Host };
  * does not type-check where a person is wanted, and the middleware that refuses it is the only
  * thing between it and a procedure.
  *
- * What a *user record* holds is not settled here — it is the control plane's, and it arrives
- * with the accounts it describes. The first three fields are what this application can already
- * say about a person today, and all three survive whatever the control plane adds. The fourth is
+ * What a *user record* holds is not settled here: it is the organization's member row, and it
+ * arrives with the session that unsealed it. The first three fields are what this application can
+ * already say about a person today, and all three survive whatever the row grows. The fourth is
  * not about the person at all: it is about this account *in this workspace*, which is why it
  * arrives with the workspace rather than with the account.
  */
@@ -75,9 +75,9 @@ export type Identity = {
 	 *
 	 * **Never read as a number.** `permits` from `@rentable/workspace-permission` answers a
 	 * question about it by the name of an act, and that package is the only place the bits are
-	 * named — on this side or the control plane's.
+	 * named, on this side or the Rust side.
 	 *
-	 * `0` where the shell could not be reached, where the control plane has said nothing, and on
+	 * `0` where the shell could not be reached, where no session has been opened, and on
 	 * a machine nobody is signed in on. All three mean the same thing to a procedure: this caller
 	 * administers nothing.
 	 */

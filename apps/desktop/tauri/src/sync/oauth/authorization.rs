@@ -62,8 +62,8 @@ mod tests {
         OAuthConfig {
             client_id: Some("client-id".to_string()),
             client_secret: Some("client-secret".to_string()),
-            authorize_endpoint: "https://accounts.google.com/o/oauth2/v2/auth".to_string(),
-            token_endpoint: "https://oauth2.googleapis.com/token".to_string(),
+            authorize_endpoint: "https://auth.example/oauth2/authorize".to_string(),
+            token_endpoint: "https://auth.example/oauth2/token".to_string(),
             scopes: vec!["openid".to_string(), "email".to_string()],
         }
     }
@@ -86,8 +86,8 @@ mod tests {
             .map(|(key, value)| (key.into_owned(), value.into_owned()))
             .collect::<HashMap<_, _>>();
 
-        assert_eq!(parsed.host_str(), Some("accounts.google.com"));
-        assert_eq!(parsed.path(), "/o/oauth2/v2/auth");
+        assert_eq!(parsed.host_str(), Some("auth.example"));
+        assert_eq!(parsed.path(), "/oauth2/authorize");
         assert_eq!(
             parameters.get("client_id").map(String::as_str),
             Some("client-id")

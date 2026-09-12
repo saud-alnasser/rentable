@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { startWorkspaceSyncManager } from '$lib/sync/autosync';
-	import { listenForSignOut } from '$lib/sync/sign-in';
+	import { listenForSignOut } from '$lib/sync/sign-out';
 	import { trustWorkspaceData } from '$lib/design/query';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
 	import SonnerProvider from '$lib/design/provider/sonner.svelte';

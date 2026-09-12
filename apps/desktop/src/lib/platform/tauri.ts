@@ -11,7 +11,6 @@ import type {
 	AvailableUpdate,
 	DiagnosticRecord,
 	ExportSheet,
-	GoogleSignInPhase,
 	Host,
 	ImportTable,
 	Invited,
@@ -48,7 +47,6 @@ export type {
 	DiagnosticRecord,
 	ExportCell,
 	ExportSheet,
-	GoogleSignInPhase,
 	ImportTable,
 	Invited,
 	JoinedOrganization,
@@ -66,8 +64,6 @@ export type {
 	OrganizationState,
 	OrganizationWorkspace,
 	Recovery,
-	RemoteSyncAccount,
-	RemoteSyncAccountStatus,
 	RemoteSyncState,
 	RemoteSyncWorkspace,
 	ReplicationRefusal,
@@ -76,8 +72,6 @@ export type {
 	UpdaterDownloadEvent
 } from '$lib/platform/host';
 
-/** the Rust side is `GOOGLE_SIGN_IN_PHASE_EVENT` in `tauri/src/sync/sign_in.rs`, and the two are one name. */
-const GOOGLE_SIGN_IN_PHASE_EVENT = 'rentable:google-sign-in-phase';
 /** the Rust side is `LINK_ARRIVED_EVENT` in `tauri/src/lib.rs`, and the two are one name. */
 const LINK_ARRIVED_EVENT = 'organization:link';
 /** the Rust side is `MIGRATION_EVENT` in `tauri/src/organization/command.rs`, one name. */
@@ -211,24 +205,6 @@ export const tauri = {
 		get: () => invoke<Settings>('settings_get'),
 		set: (changeset: SettingsChangeset) => invoke<Settings>('settings_set', { changeset })
 	},
-	auth: {
-		google: {
-			/**
-			 * sign in with google, end to end. outstanding for as long as the user takes
-			 * over the consent screen; rejects with a `cancelled` error where they
-			 * abandon it.
-			 */
-			signIn: () => invoke<RemoteSyncState>('google_sign_in'),
-			/**
-			 * give up the identity this machine holds. the account row stays, saying what it
-			 * is waiting for. rejects where nobody is signed in.
-			 */
-			signOut: () => invoke<RemoteSyncState>('google_sign_out'),
-			/** watch how far a sign-in has got. resolves to its own removal. */
-			onPhase: (listener: (phase: GoogleSignInPhase) => void) =>
-				listen<GoogleSignInPhase>(GOOGLE_SIGN_IN_PHASE_EVENT, (event) => listener(event.payload))
-		}
-	},
 	organization: {
 		consentBegin: () => invoke<OrganizationConsentStart>('organization_consent_begin'),
 		consentResult: (sessionId: string) =>
@@ -283,8 +259,6 @@ export const tauri = {
 	},
 	remoteSync: {
 		getState: () => invoke<RemoteSyncState>('remote_sync_state_get'),
-		renewSession: () => invoke<RemoteSyncState>('remote_sync_renew_session'),
-		establishSession: () => invoke<RemoteSyncState>('remote_sync_establish_session'),
 		replicate: () =>
 			invoke<{ pushed: boolean; received: boolean; refusal: ReplicationRefusal }>(
 				'remote_sync_replicate'

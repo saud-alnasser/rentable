@@ -1,6 +1,6 @@
 //! Turning a consented token into the organization slug every Platform API path is built from.
 //!
-//! Every path `apps/control-plane/src/workspace/turso.ts` uses is `/v1/organizations/{slug}/...`,
+//! Every path `platform.rs` uses is `/v1/organizations/{slug}/...`,
 //! and a consent hands back neither the slug nor anything that maps to one. The token's `org_id`
 //! claim is a number, and `GET /v1/organizations/26543` answers *organization 26543 not found*:
 //! the server reading the parameter as a name it does not recognise rather than refusing the
@@ -473,7 +473,7 @@ fn unreadable_listing() -> Error {
 mod tests {
     use serde_json::json;
 
-    use crate::sync::google::test::server::{ScriptedResponse, ScriptedServer};
+    use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
 
     use crate::{persisted::Persisted, sync::store::RemoteSyncStore};
 

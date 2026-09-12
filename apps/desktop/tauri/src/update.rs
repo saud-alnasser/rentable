@@ -239,7 +239,7 @@ mod tests {
             .expect("failed to connect test database");
 
         // The schema is put here by hand because nothing else puts it anywhere: a workspace's
-        // schema is the control plane's and arrives as replicated pages, and `connect()` applies
+        // schema is applied over the wire and arrives as replicated pages, and `connect()` applies
         // no migrations.
         db.write()
             .await

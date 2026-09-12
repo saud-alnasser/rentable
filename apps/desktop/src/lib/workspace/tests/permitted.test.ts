@@ -57,8 +57,8 @@ test('an unrelated act does not open a gate', () => {
 });
 
 /**
- * **A machine that has heard nothing administers nothing.** Zero is where an older control plane,
- * a store written before permissions existed, a query that has not resolved and a member who
+ * **A machine that has heard nothing administers nothing.** Zero is where a store written
+ * before permissions existed, a query that has not resolved and a member who
  * genuinely administers nothing all arrive, and a gate treats them alike — which is the safe
  * direction, and the honest one: a client that has not been told what a member may do should not
  * be drawing the controls.

@@ -2,25 +2,24 @@ import type { QueryClient } from '@tanstack/svelte-query';
 
 import api from '$lib/api/caller';
 import { invalidateRoot } from '$lib/design/query';
-import { tauri, type RemoteSyncState, type RemoteSyncWorkspace } from '$lib/platform/tauri';
-import { workspaceReplicationStanding } from '$lib/sync/session';
+import {
+	tauri,
+	type RemoteSyncState,
+	type RemoteSyncWorkspace,
+	type ReplicationRefusal
+} from '$lib/platform/tauri';
 
 /**
  * what a dispatch did, or declined to do.
  *
- * **Two answers, where there were five.** `pushed`, `pulled` and the conflict that came back
- * beside them were Google Drive's — a whole snapshot moving one way or the other, and a question
- * for the user where neither direction was safe. Drive sync retired (decision 07) and a replica
- * resolves divergence per column as it arrives, so there is no direction to choose and nothing to
- * ask about.
- *
- * `signInRequired` is neither a success nor a failure: the workspace is of record somewhere else,
- * the three-day window closed with no contact, and replication is off until somebody signs in
- * again. It is an *answer* rather than a thrown error because nothing went wrong — waiting does
- * not settle it and retrying does not either, so a caller that treated it as a failure would
- * retry forever and say nothing useful.
+ * **One answer, where there were five and then two.** `pushed`, `pulled` and the conflict that
+ * came back beside them were Google Drive's, a whole snapshot moving one way or the other, and
+ * a question for the user where neither direction was safe; Drive sync retired (decision 07) and
+ * a replica resolves divergence per column as it arrives. `signInRequired` stood after that
+ * while a control plane's window could close under a machine; the control plane retired, the
+ * credential is the vault's, and a replication that is refused says why on `refusal` instead.
  */
-export type WorkspaceSyncAction = 'none' | 'signInRequired';
+export type WorkspaceSyncAction = 'none';
 
 export type WorkspaceSyncResult = {
 	state: RemoteSyncState;
@@ -44,6 +43,8 @@ export type WorkspaceSyncResult = {
 	 * else.
 	 */
 	pushed: boolean;
+	/** why a half did not go, where Turso said: the account's, the credential's, or neither. */
+	refusal: ReplicationRefusal;
 };
 
 /**
@@ -76,16 +77,9 @@ export function getWorkspaceFromSyncState(
 }
 
 /**
- * reach the control plane, and answer with what this machine may still do.
+ * push and pull the replica, and say what each half did.
  *
- * **Renewing first is what makes *any connection inside the window renews it* a thing the
- * application does** rather than a thing the control plane would do if anybody called it. This
- * runs on every dispatch, and the sync manager schedules those on a timer and on the machine
- * coming back online — so a client that is doing anything at all stays signed in without anybody
- * thinking about it. Being offline is not a failure: the window stays where it was and this goes
- * on to read it.
- *
- * **This is also where the replica pushes and pulls, since #617.** It read *nothing is sent from
+ * **This is where the replica pushes and pulls, since #617.** It read *nothing is sent from
  * here — a replica pushes its own writes*, which described a library that does not exist:
  * `turso::sync` captures every write and holds it until something calls `push`, so while nothing
  * called it, nothing ever left the machine. The dispatch is where it belongs rather than where it
@@ -93,77 +87,41 @@ export function getWorkspaceFromSyncState(
  * manager already coalesces them, retries on a widening delay and fires when the network returns.
  * Inferring a write from SQL in Rust would be guessing at something this layer declares.
  *
- * **Nothing is snapshotted and nothing is cleared on either side of the branch.** An expiry that
- * cost somebody an unsynced write is the failure acceptance criterion 16 exists to catch, and a
- * push that could not reach the remote leaves the write captured for the next one.
+ * **Nothing stands in front of the replication any more.** A control plane's window was renewed
+ * on every dispatch until the retirement; the credential the replica syncs with is the one the
+ * member's vault unsealed, and what refuses it is Turso, which the shell reads at the response
+ * and collects a fresh one on (`organization/removal.rs`). Offline is the ordinary case, so a
+ * replication that could not happen is reported rather than thrown, and what the caller does
+ * with it is arm a retry, which is why the two halves are answered separately.
+ *
+ * **Nothing is snapshotted and nothing is cleared on either side.** A push that could not reach
+ * the remote leaves the write captured for the next one.
  */
 export async function syncWorkspaceNow(
 	providedState?: RemoteSyncState | null
 ): Promise<WorkspaceSyncResult> {
-	const syncState = providedState ?? (await tauri.remoteSync.getState());
-
-	// A build that was never told where a control plane is has nowhere to sign in to, and
-	// `controlPlaneReady` is on the state so a caller can see that rather than discover it by a
-	// call failing. Asking for a sign-in it cannot offer is an instruction nobody can follow —
-	// and every dispatch runs through here, so it would be raised on every write.
-	if (!syncState.controlPlaneReady) {
-		return { state: syncState, action: 'none', received: false, pushed: true };
-	}
-
-	// A renewal that could not happen leaves the state exactly as it was, so the fallback is the
-	// state this dispatch was given rather than an error path.
-	const renewed = await tauri.remoteSync.renewSession().catch(() => syncState);
-	const standing = workspaceReplicationStanding(renewed);
-
-	if (standing.kind === 'signInRequired') {
-		// **Nothing is replicated on a closed window, and nothing is discarded either.** What this
-		// machine wrote stays captured; when somebody signs in again the next push carries it.
-		// `pushed` is `true` because there is nothing to retry against a window that has closed —
-		// a retry ladder here would be asking a question only a sign-in answers.
-		return { state: renewed, action: 'signInRequired', received: false, pushed: true };
-	}
-
-	// Offline is the ordinary case, so a replication that could not happen is reported rather than
-	// thrown: the window is unchanged and the writes are still captured. What the caller does with
-	// it is arm a retry, which is why the two halves are answered separately.
+	const state = providedState ?? (await tauri.remoteSync.getState());
 	const replication = await tauri.remoteSync
 		.replicate()
 		.catch(() => ({ pushed: false, received: false, refusal: 'none' as const }));
 
-	return { state: renewed, action: 'none', ...replication };
+	return { state, action: 'none', ...replication };
 }
 
 /**
  * the last dispatch of a session.
  *
- * **It replicates like any other dispatch, and being the last one is why that matters.** A machine
- * closing with writes it has not sent should offer them before the window goes; what cannot be sent
- * stays captured in the replica and goes with the first push after the next sign-in.
- *
- * *It read "nothing leaves on this call any more — the replica has been pushing all along", which
- * described a library that does not exist: `turso::sync` holds every write until something calls
- * `push`.*
+ * **It pushes and does not pull.** A pull on the way out fetches rows into a window that is
+ * closing, with nothing left to render them and a round trip standing between the person and
+ * the application shutting. What must not be skipped is the offer of what they wrote; what
+ * cannot be sent stays captured in the replica and goes with the first push after the next
+ * sign-in.
  */
 export async function syncWorkspaceBeforeExit(
 	providedState?: RemoteSyncState | null
 ): Promise<WorkspaceSyncResult> {
-	const syncState = providedState ?? (await tauri.remoteSync.getState());
-
-	if (!syncState.controlPlaneReady) {
-		return { state: syncState, action: 'none', received: false, pushed: true };
-	}
-
-	const renewed = await tauri.remoteSync.renewSession().catch(() => syncState);
-	const standing = workspaceReplicationStanding(renewed);
-
-	if (standing.kind === 'signInRequired') {
-		return { state: renewed, action: 'signInRequired', received: false, pushed: true };
-	}
-
-	// **It pushes and does not pull.** A pull on the way out fetches rows into a window that is
-	// closing, with nothing left to render them and a round trip standing between the person and
-	// the application shutting. What must not be skipped is the offer of what they wrote.
+	const state = providedState ?? (await tauri.remoteSync.getState());
 	const pushed = await tauri.remoteSync.push().catch(() => false);
 
-	return { state: renewed, action: 'none', received: false, pushed };
+	return { state, action: 'none', received: false, pushed, refusal: 'none' };
 }

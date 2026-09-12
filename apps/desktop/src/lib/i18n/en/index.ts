@@ -414,22 +414,6 @@ const en = {
 			roleMember: 'member',
 			setUpOrganization: 'set up an organization instead',
 			openInvitation: 'open an invitation link',
-			authorizing: 'finish signing in with Google in the browser window that just opened.',
-			signInWithGoogle: 'sign in with Google',
-			description:
-				'your workspace lives in your account, so it follows you to whichever machine you sign in on. the first sign-in is what creates it.',
-			finalizing: 'signing you in...',
-			incomplete:
-				'you are signed in with Google, but this machine could not reach rentable to open your workspace. check your connection and try again.',
-			incompleteDescription:
-				'this machine is signed in. what it has not done yet is reach rentable, and that is the only step left.',
-			incompleteTitle: 'almost in',
-			reaching: 'reaching rentable...',
-			tryAgain: 'try again',
-			useDifferentAccount: 'sign in with a different account',
-			lockedDescription:
-				'this machine has been out of contact for too long to keep working offline. sign in again to unlock it — your workspace and everything in it are untouched.',
-			lockedTitle: 'sign in again to continue',
 			title: 'Login'
 		},
 
@@ -749,10 +733,7 @@ const en = {
 		endingSoonUpdated: 'ending soon notice window updated successfully!',
 		profileSwitched: 'workspace switched successfully!',
 		workspaceUpToDate: 'this workspace is up to date!',
-		startupRecoveryCleared:
-			'startup recovery cleared. retrying the current version is now allowed.',
-		sessionExpired:
-			'this workspace has been offline for three days. sign in with Google again to keep it in sync — nothing you recorded has been lost.'
+		startupRecoveryCleared: 'startup recovery cleared. retrying the current version is now allowed.'
 	},
 
 	organization: {
@@ -887,7 +868,6 @@ const en = {
 		groupSync: 'sync',
 		groupTransfer: 'export / import',
 		identityDescription: 'the picture is a placeholder, and not something that can be changed yet.',
-		inviteLocked: 'invite',
 		membersDescription:
 			'one person, and only one is possible today. inviting anybody else arrives with organizations.',
 		nameTooLong: 'that name is too long.',
@@ -898,11 +878,7 @@ const en = {
 		roleOwner: 'owner',
 		syncDescription:
 			'this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.',
-		syncStatusCannotSignIn: 'cannot sign in',
 		syncStatusNeedsReconnect: 'needs reconnect',
-		syncStatusNoControlPlane: 'syncs nowhere',
-		syncStatusNotSignedIn: 'not signed in',
-		syncStatusPending: 'awaiting authorization',
 		syncStatusSynced: 'synced',
 		syncStatusAccountRefused: 'account needs attention',
 		accountRefusedMember:

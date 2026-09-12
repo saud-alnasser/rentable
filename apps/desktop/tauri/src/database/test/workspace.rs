@@ -3,7 +3,7 @@
 //! What the tests over this scaffolding measure is what a losing writer loses when two replicas
 //! of one workspace diverge (#552, acceptance criteria 9 and 17). They live at the foot of
 //! `database/mod.rs`, beside the `open_replica` they go through; this is the part that provisions
-//! a database to diverge against, which is the Turso-side counterpart of `sync/google/test/server.rs`.
+//! a database to diverge against, which is the Turso-side counterpart of `sync/test/server.rs`.
 //!
 //! **A live account is reached, and there is no local stand-in.** The sync engine speaks HTTP to
 //! a remote; the crate's own harness wants a separate server binary, and writing one would mean
@@ -19,7 +19,7 @@
 //! meant to be live and silently was not is the one outcome worth refusing.
 //!
 //! Three variables are needed and **`apps/desktop/.env` carries only two of them**,
-//! `TURSO_API_TOKEN` and `TURSO_ORG`. `TURSO_GROUP` is `apps/control-plane/.env.example`'s and
+//! `TURSO_API_TOKEN` and `TURSO_ORG`. `TURSO_GROUP` is named in `apps/desktop/.env.example` and
 //! has to be supplied; the group has to exist already, and it must not be delete-protected or the
 //! teardown below cannot remove what it created.
 //!
@@ -48,7 +48,7 @@ pub(in crate::database) struct LiveWorkspace {
 }
 
 impl LiveWorkspace {
-    /// Provision one, the way the control plane does: create the database, then mint a
+    /// Provision one, the way the owner's machine does: create the database, then mint a
     /// full-access token scoped to it.
     ///
     /// **Missing credentials panic.** These tests are `#[ignore]`d, so reaching this function
@@ -159,11 +159,11 @@ impl LiveWorkspace {
     /// It is known to fail on some accounts, and this repository already measured why: Turso
     /// will not delete any database inside a delete-protected group, and answers `403 group
     /// <name> is delete-protected and cannot be deleted` even though the database itself is
-    /// not protected. `workspace/turso.ts` records the same finding for the control plane.
+    /// not protected. `packages/turso-platform/index.ts` records the same finding.
     ///
     /// **The first draft of this checked only whether the request was sent**, so a 403 read as
     /// a successful cleanup and four databases were left in the account with nothing said.
-    /// Apply the first `up_to` migrations to the **remote** database, as the control plane does.
+    /// Apply the first `up_to` migrations to the **remote** database, as `organization/migrate.rs` does.
     ///
     /// **Promoted, not duplicated.** This posted the statements to `/v2/pipeline` itself until
     /// the migration ticket of [[efforts/819-an-organization-hosts-its-own-workspaces/spec]], and
@@ -288,7 +288,7 @@ pub(in crate::database) fn shipped_migration_count() -> usize {
 /// Measured against a live account 2026-08-20.
 ///
 /// So the shipped schema goes on through [`LiveWorkspace::apply_schema_remotely`] instead, which
-/// is the faithful path anyway: requirement 11 puts migrations on the control plane, and a
+/// is the faithful path anyway: requirement 11 puts migrations over the wire, and a
 /// replica receives the schema as replicated pages rather than applying it.
 pub(in crate::database) async fn apply_schema(connection: &turso::Connection, up_to: usize) {
     for statement in migration_statements(up_to) {

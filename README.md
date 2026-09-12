@@ -1,42 +1,42 @@
 # rentable
 
 A desktop tracker for rent payments. It works offline, holds its workspace as a local replica of
-a database on Turso, and syncs whenever there is a network.
+a database on the customer's own Turso account, and syncs whenever there is a network.
 
 ## What is in here
 
-| Path                            | What it is                                                                                |
-| ------------------------------- | ----------------------------------------------------------------------------------------- |
-| `apps/desktop`                  | the application. A Tauri 2 shell in Rust around a SvelteKit 2 and Svelte 5 frontend       |
-| `apps/control-plane`            | accounts, workspaces, membership, and the token a client syncs with. Plain JSON over HTTP |
-| `packages/workspace-migrations` | the SQL a workspace database is built from, local or hosted                               |
-| `.aep/`                         | how work is done here. `.aep/protocol.md` is the way in                                   |
+| Path                            | What it is                                                                                                  |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `apps/desktop`                  | the application. A Tauri 2 shell in Rust around a SvelteKit 2 and Svelte 5 frontend                         |
+| `packages/workspace-migrations` | the SQL a workspace database is built from                                                                  |
+| `packages/workspace-permission` | what a member may do to a workspace, named the same way on both sides                                       |
+| `packages/design`               | the design system the frontend is drawn from                                                                |
+| `packages/turso-platform`       | Turso's Platform API and the migration runner in TypeScript, kept for a hosted tier and imported by nothing |
+| `.aep/`                         | how work is done here. `.aep/protocol.md` is the way in                                                     |
 
-A workspace is one database per account on Turso. The desktop keeps a replica and syncs with it
-directly, so the control plane sits in the credential path continuously and in the data path
-never: it mints tokens and reads nobody's ledger.
+An organization lives on a Turso account its owner holds: one database for the organization's
+own directory, sealed and signed, and one per workspace. Every member's machine keeps a replica
+of the workspaces they were granted and syncs with them directly. There is no service of ours in
+between: the owner grants the application authority over their account once, in the browser,
+and everything after that is between the members' machines and their own account.
 
 ## Before the first run
 
 - Node 24 and pnpm 11. `engine-strict` is on, so npm and yarn will refuse.
 - The Rust toolchain, plus Tauri 2's platform prerequisites: <https://tauri.app/start/prerequisites/>.
-- A Turso account with a Platform API token, an organization, and a group. The control plane
-  creates one database per workspace and refuses to start without all three.
-- A Google OAuth desktop client. Signing in is the only way into the application.
+- A Turso account, to set an organization up on. The application asks for the consent on its
+  first run and creates what it needs; nothing is pasted or typed.
 
 ## Setup
 
 ```sh
 pnpm install
 cp apps/desktop/.env.example apps/desktop/.env
-cp apps/control-plane/.env.example apps/control-plane/.env
-pnpm db:migrate:control-plane
 ```
 
-Fill both `.env` files in before that last command. Each variable carries a comment saying what
-it is for; the one that catches people is `RENTABLE_CONTROL_PLANE_URL` in the desktop's, because
-the application is a sign-in wall before it is anything else and a build told no control plane
-reaches no account.
+Each variable in the `.env` carries a comment saying what it is for. Nothing in it is needed
+to sign in: a person's password opens their place in an organization on this machine, with or
+without a network.
 
 ## Running it
 
@@ -44,14 +44,10 @@ reaches no account.
 pnpm dev
 ```
 
-One command, one terminal, both halves: the control plane on its port, and the desktop app in
-its window. Either half also starts on its own.
-
 | Command                            | What it runs                                           |
 | ---------------------------------- | ------------------------------------------------------ |
-| `pnpm dev`                         | both                                                   |
-| `pnpm dev:desktop`                 | the desktop app, Rust side included                    |
-| `pnpm dev:control-plane`           | the control plane, restarting when a file changes      |
+| `pnpm dev`                         | the desktop app, Rust side included                    |
+| `pnpm dev:desktop`                 | the same                                               |
 | `pnpm dev:web`                     | the frontend alone on port 1420, with no Rust under it |
 | `pnpm prototype /contracts?create` | the desktop app, opened on one route                   |
 
@@ -61,9 +57,8 @@ database or a Tauri command fails, and the sign-in wall never clears.
 ## Building it
 
 ```sh
-pnpm build                 # both applications
-pnpm build:desktop         # the installers alone
-pnpm build:control-plane   # the control plane's JavaScript, into apps/control-plane/build
+pnpm build                 # the installers
+pnpm build:desktop         # the same
 pnpm build:web             # the frontend bundle only
 ```
 
@@ -79,29 +74,13 @@ pnpm test       # the TypeScript tests, through turbo
 pnpm test:rust  # the Rust tests
 ```
 
-CI runs all of it as one required check called `integration`, which also runs `pnpm build:web`,
-compiles the control plane, and compiles the Rust binary in release profile. It never packages
-installers: that happens on `main`, in the release workflow.
+CI runs all of it as one required check called `integration`, which also runs `pnpm build:web`
+and compiles the Rust binary in release profile. It never packages installers: that happens on
+`main`, in the release workflow.
 
-## Operating the control plane
-
-Its database is drizzle-kit's, so it is named like every other database here, from the root:
-
-```sh
-pnpm db:migrate:control-plane   # create its database, or bring it up to date
-pnpm db:studio:control-plane    # browse it
-```
-
-Its operations are its own, and they run in the package that owns them:
-
-```sh
-pnpm --filter ./apps/control-plane sweep            # migrate every workspace database it knows about
-pnpm --filter ./apps/control-plane decline foo@example.com   # end one account's sessions
-pnpm --filter ./apps/control-plane prune-sessions   # remove session rows that can never be presented again
-```
-
-What each one is for, and what the routes and refusals are, is in
-[`apps/control-plane/README.md`](apps/control-plane/README.md).
+Some Rust tests reach a live Turso account. They are ignored by default, armed by
+`RENTABLE_LIVE_TURSO=1` as well as by `--ignored`, and each one creates and removes its own
+database; `apps/desktop/.env.example` names what they read.
 
 ## Working in this repository
 

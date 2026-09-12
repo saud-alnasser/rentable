@@ -16,7 +16,12 @@ use super::super::store::sanitize_optional_string;
 #[derive(Clone, Debug)]
 pub(crate) struct OAuthTokens {
     pub(crate) access_token: String,
+    /// read by no caller today: the one authorization server this application asks, Turso's,
+    /// issues a token with no expiry and no refresh. Kept because they are the protocol's, and a
+    /// second server that issues them would read them here rather than parse the answer again.
+    #[allow(dead_code)]
     pub(crate) refresh_token: Option<String>,
+    #[allow(dead_code)]
     pub(crate) expires_at: Option<i64>,
 }
 
@@ -82,7 +87,9 @@ pub(crate) fn authorization_code_form(
 /// The form fields trading a refresh token for a fresh access token.
 ///
 /// It sits beside the grant above rather than with its caller: the two share
-/// [`append_client_secret`], and one test covers both.
+/// [`append_client_secret`], and one test covers both. No caller today, for the reason
+/// [`OAuthTokens`] gives; the protocol is kept whole.
+#[allow(dead_code)]
 pub(crate) fn refresh_token_form(
     client_id: &str,
     client_secret: Option<&str>,
@@ -378,7 +385,7 @@ mod tests {
     }
 
     #[test]
-    fn any_other_refusal_keeps_googles_reported_detail() {
+    fn any_other_refusal_keeps_the_servers_reported_detail() {
         let error = parse_token_response(
             401,
             token_payload(json!({

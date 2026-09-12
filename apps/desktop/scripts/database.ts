@@ -51,8 +51,8 @@ dotenv.config();
  * next synced, and disappeared — the same failure as writing the wrong file, wearing a longer fuse.
  *
  * **So a seed pulls first, writes, and pushes, and a run that cannot reach the remote fails instead
- * of writing.** The token is minted here the way the control plane mints one, from the Platform API
- * credential already in `apps/desktop/.env`, because these scripts have no user session to ask with.
+ * of writing.** The token is minted here the way the application mints one, from a Platform API
+ * credential in `apps/desktop/.env`, because these scripts have no vault to unseal one from.
  * That is a development convenience and is not a path the application has or should have.
  */
 
@@ -60,8 +60,8 @@ dotenv.config();
 const FALLBACK_URL = process.env.DATABASE_URL?.replace('file:', '') ?? './tauri/app.db';
 
 /**
- * **`ws-<id>.db`, which is the control plane's own name for the database.** `databaseNameFor` in
- * `apps/control-plane/src/workspace/workspace.ts` builds `ws-<id>`, that is what Turso holds, and
+ * **`ws-<id>.db`, which is the organization's own name for the database.** `create_workspace` in
+ * `tauri/src/organization/workspace.rs` builds `ws-<id>`, that is what Turso holds, and
  * it is what the remote URL says — so a directory listing matches the dashboard without anybody
  * translating. `replica_path` in `database/mod.rs` is the other half of this and must agree.
  */
@@ -160,7 +160,7 @@ function candidateDirectories() {
 /**
  * which workspace this machine currently holds, as the shell states it.
  *
- * **`remoteId` and not `id`.** The replica file is named for the workspace on the control plane,
+ * **`remoteId` and not `id`.** The replica file is named for the workspace in the organization,
  * which is what `replica_path` builds its name from; `workspace.id` is this machine's own record.
  * A machine that has held more than one workspace keeps the older replicas on disk, so asking
  * which is current is the difference between seeding the workspace and seeding a leftover.
@@ -219,21 +219,21 @@ function remoteUrlFor(replicaPath: string) {
 	return state?.workspace?.remoteUrl ?? null;
 }
 
-/** the lifetime the control plane mints with, in Turso's own duration spelling. */
+/** a short lifetime for a script's token, in Turso's own duration spelling. */
 const TOKEN_LIFETIME = '3d';
 
 /**
- * Mint a token for one workspace database, the way the control plane mints one.
+ * Mint a token for one workspace database, the way the owner's machine mints one.
  *
  * **This is the Platform API credential, not a member's token, and the difference matters.** The
- * application asks the control plane, which checks membership and mints a scoped token; a script has
- * no session to ask with, so it uses the same credential the control plane itself holds. That is
- * full access to every database in the organisation, which is why it lives in `.env` and why nothing
- * shipped goes anywhere near this function.
+ * application unseals a member's credential from their vault; a script has no vault, so it uses
+ * the authority the owner's keyring holds. That is full access to every database in the
+ * organisation, which is why it lives in `.env` and why nothing shipped goes anywhere near this
+ * function.
  *
- * The call is `apps/control-plane/src/workspace/turso.ts`'s `mintToken`, deliberately not imported:
- * that module builds a client around service configuration this script does not have, and copying
- * one URL is smaller than reaching across an app boundary for it.
+ * The call is `packages/turso-platform`'s `mintToken`, deliberately not imported: that module
+ * builds a client around configuration this script does not have, and copying one URL is smaller
+ * than reaching across a package boundary for it.
  */
 async function mintWorkspaceToken(workspaceId: string) {
 	const token = process.env.TURSO_API_TOKEN;

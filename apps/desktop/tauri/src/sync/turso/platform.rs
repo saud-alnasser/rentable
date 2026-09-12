@@ -1,7 +1,7 @@
 //! Turso's Platform API, as this application uses it.
 //!
-//! **A port, not a client**, which is `apps/control-plane/src/workspace/turso.ts` carried into
-//! Rust with its shape intact. Everything above this module reaches Turso through
+//! **A port, not a client**, which is the retired control plane's `turso.ts` (now
+//! `packages/turso-platform/index.ts`) carried into Rust with its shape intact. Everything above this module reaches Turso through
 //! [`TursoPlatform`], so a caller is tested against [`InMemoryPlatform`] answering in memory and
 //! the one place a live account is touched is where [`PlatformApi`] is constructed. What the
 //! in-memory stand-in cannot confirm is the contract itself, the paths, the credential, the query
@@ -931,8 +931,10 @@ impl TursoPlatform for InMemoryPlatform {
 mod tests {
     use serde_json::json;
 
-    use crate::sync::google::test::server::{RecordedRequest, ScriptedResponse, ScriptedServer};
-    use crate::sync::turso::consent::store_platform_token;
+    use crate::sync::test::server::{RecordedRequest, ScriptedResponse, ScriptedServer};
+    use crate::sync::turso::consent::{
+        CredentialStoreTurn, store_platform_token, take_the_credential_store,
+    };
     use crate::sync::turso::discovery::TursoOrganization;
 
     use super::{
@@ -950,13 +952,18 @@ mod tests {
         }
     }
 
-    async fn platform_answering(script: Vec<ScriptedResponse>) -> (PlatformApi, ScriptedServer) {
+    /// a platform with the test token filed, and the turn on the credential store that keeps
+    /// it filed until the test is over.
+    async fn platform_answering(
+        script: Vec<ScriptedResponse>,
+    ) -> (PlatformApi, ScriptedServer, CredentialStoreTurn) {
+        let turn = take_the_credential_store().await;
         store_platform_token(TOKEN).expect("failed to file the test token");
 
         let server = ScriptedServer::start(script).await;
         let platform = PlatformApi::new(PlatformEndpoint::at(&server.url("")), organization());
 
-        (platform, server)
+        (platform, server, turn)
     }
 
     fn created(hostname: &str) -> ScriptedResponse {
@@ -989,7 +996,7 @@ mod tests {
 
     #[tokio::test]
     async fn creating_a_database_names_it_groups_it_protects_it_and_reads_the_hostname_back() {
-        let (platform, server) =
+        let (platform, server, _turn) =
             platform_answering(vec![created("ws-1-an-org.turso.io"), configured(true)]).await;
 
         let database = platform
@@ -1043,7 +1050,7 @@ mod tests {
     // would be a silent total failure of the one route this port exists for, so both are read.
     #[tokio::test]
     async fn either_spelling_of_the_hostname_is_read() {
-        let (platform, _server) = platform_answering(vec![
+        let (platform, _server, _turn) = platform_answering(vec![
             ScriptedResponse::new(
                 200,
                 json!({ "database": { "hostname": "ws-2-an-org.turso.io" } }).to_string(),
@@ -1064,7 +1071,7 @@ mod tests {
     /// again, and the caller sees the create fail. Nothing unprotected ever leaves this port.
     #[tokio::test]
     async fn a_database_that_cannot_be_protected_is_removed_and_the_create_fails() {
-        let (platform, server) = platform_answering(vec![
+        let (platform, server, _turn) = platform_answering(vec![
             created("ws-3-an-org.turso.io"),
             refusal(400, "configuration is not available"),
             ScriptedResponse::new(200, json!({ "database": "ws-3" }).to_string()),
@@ -1091,7 +1098,7 @@ mod tests {
 
     #[tokio::test]
     async fn minting_asks_for_one_database_full_access_and_the_lifetime_it_was_given() {
-        let (platform, server) = platform_answering(vec![ScriptedResponse::new(
+        let (platform, server, _turn) = platform_answering(vec![ScriptedResponse::new(
             200,
             json!({ "jwt": "a-database-token" }).to_string(),
         )])
@@ -1131,7 +1138,7 @@ mod tests {
     /// can get past it. The intent is on the call, so a reader of any call site knows why.
     #[tokio::test]
     async fn deleting_lifts_the_protection_then_names_the_database_in_the_path() {
-        let (platform, server) = platform_answering(vec![
+        let (platform, server, _turn) = platform_answering(vec![
             configured(false),
             ScriptedResponse::new(200, json!({ "database": "ws-1" }).to_string()),
         ])
@@ -1166,7 +1173,7 @@ mod tests {
     /// through the MCP server on a first run into an empty group.
     #[tokio::test]
     async fn protecting_a_database_this_port_did_not_create_is_the_same_patch() {
-        let (platform, server) = platform_answering(vec![configured(true)]).await;
+        let (platform, server, _turn) = platform_answering(vec![configured(true)]).await;
 
         platform
             .protect_database("org-7f3a")
@@ -1191,7 +1198,7 @@ mod tests {
     // about a workspace, not about the infrastructure under it.
     #[tokio::test]
     async fn a_turso_that_refuses_on_purpose_does_not_tell_anybody_to_try_again() {
-        let (platform, _server) = platform_answering(vec![refusal(
+        let (platform, _server, _turn) = platform_answering(vec![refusal(
             409,
             "database ws-1 already exists in organization an-org",
         )])
@@ -1219,7 +1226,7 @@ mod tests {
     // moment that will pass.
     #[tokio::test]
     async fn a_delete_turso_refuses_is_a_refusal_not_a_moment_that_will_pass() {
-        let (platform, _server) = platform_answering(vec![
+        let (platform, _server, _turn) = platform_answering(vec![
             configured(false),
             refusal(
                 403,
@@ -1247,7 +1254,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_turso_having_a_bad_minute_is_a_moment_that_will_pass() {
-        let (platform, _server) = platform_answering(vec![ScriptedResponse::new(502, "")]).await;
+        let (platform, _server, _turn) =
+            platform_answering(vec![ScriptedResponse::new(502, "")]).await;
 
         let error = platform
             .create_database("ws-1")
@@ -1265,7 +1273,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_turso_that_never_answers_is_a_moment_that_will_pass() {
-        let (platform, _server) = platform_answering(vec![ScriptedResponse::hangup()]).await;
+        let (platform, _server, _turn) = platform_answering(vec![ScriptedResponse::hangup()]).await;
 
         let error = platform
             .mint_token("ws-1", "3d", AccessLevel::FullAccess)
@@ -1283,7 +1291,7 @@ mod tests {
     /// Requirement 25's distinction is made here, at the response.
     #[tokio::test]
     async fn a_refusal_that_belongs_to_the_account_is_told_apart_from_one_about_the_request() {
-        let (platform, _server) = platform_answering(vec![
+        let (platform, _server, _turn) = platform_answering(vec![
             refusal(402, "payment required"),
             refusal(400, "plan quota exceeded: databases"),
             refusal(400, "group not found"),
@@ -1395,7 +1403,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_answer_with_no_hostname_is_a_failure_rather_than_a_workspace_with_no_database() {
-        let (platform, server) = platform_answering(vec![ScriptedResponse::new(
+        let (platform, server, _turn) = platform_answering(vec![ScriptedResponse::new(
             200,
             json!({ "database": {} }).to_string(),
         )])
@@ -1419,7 +1427,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_answer_with_no_jwt_is_a_failure_rather_than_an_empty_token() {
-        let (platform, _server) =
+        let (platform, _server, _turn) =
             platform_answering(vec![ScriptedResponse::new(200, json!({}).to_string())]).await;
 
         let error = platform
@@ -1437,7 +1445,7 @@ mod tests {
     /// request leaves it.
     #[tokio::test]
     async fn no_authority_is_a_refusal_before_any_request_is_made() {
-        let (platform, server) = platform_answering(vec![]).await;
+        let (platform, server, _turn) = platform_answering(vec![]).await;
 
         crate::sync::turso::consent::TursoConsent::new()
             .disconnect()

@@ -95,11 +95,11 @@ const TURSO_CONSENT_SCOPES: [&str; 3] = ["read", "db:create", "db:mint-token"];
 
 /// Where the Platform API token is filed in the platform's credential store.
 ///
-/// A third service beside `rentable.google-drive` and `rentable.control-plane`, for the
-/// reason the first of those carries in its own note: a keyring service name is data on
-/// installed machines. This is a different credential from a different issuer with a
-/// different lifetime, and filing it with either of the others would mean giving one up
-/// could not be told from giving up the other.
+/// Its own service, and the only one this application files now: the services Google sign-in
+/// and the control plane filed under were beside it until both retired, and a keyring service
+/// name is data on installed machines, so those two are left to age out rather than renamed
+/// over. This is a different credential from a different issuer with a different lifetime, and
+/// it has never shared a name with either.
 ///
 /// **It is the reason the token is never a column.** Requirement 5 keeps this authority on
 /// the owner's machine and out of every database, and a credential store is the only place
@@ -359,8 +359,8 @@ impl TursoConsent {
     /// **The port is claimed before the client is registered**, because the registration
     /// carries the redirect and only a bound listener knows which port that is.
     ///
-    /// The browser is not opened here. The caller opens what this returns, which is how
-    /// signing in with Google already works and is what keeps this callable from a test.
+    /// The browser is not opened here. The caller opens what this returns, which is what keeps
+    /// this callable from a test.
     pub async fn begin(&self, endpoints: TursoEndpoints) -> Result<TursoConsentStart, Error> {
         let callback = LoopbackCallback::bind(TURSO_CONSENT_CALLBACK_PATH)?;
         let redirect_uri = callback.redirect_uri().to_string();
@@ -639,8 +639,8 @@ async fn redeem_consent(
 
 /// Send a prepared grant to Turso's token endpoint and read what came back.
 ///
-/// Deliberately thin, for the reason the Google exchange next door is: everything decidable
-/// is decided in `parse_token_response`, which both providers share.
+/// Deliberately thin: everything decidable is decided in `parse_token_response`, which is the
+/// protocol's and not this server's.
 async fn request_platform_token(
     token_endpoint: &str,
     form: &[(String, String)],
@@ -776,8 +776,7 @@ pub(crate) fn platform_token() -> Result<String, Error> {
 /// Forget the token, and leave nothing a later run could read as a grant.
 ///
 /// A store that holds no entry is already in the state this asks for, so `NoEntry` is the
-/// outcome rather than a failure. It is the same reading `delete_google_credentials` takes
-/// next door, for the same reason: the caller asked for the entry to be gone.
+/// outcome rather than a failure: the caller asked for the entry to be gone.
 #[cfg(not(test))]
 fn forget_platform_token() -> Result<(), Error> {
     match platform_keyring_entry()?.delete_credential() {
@@ -844,6 +843,24 @@ fn test_platform_token() -> &'static Mutex<Option<String>> {
     STORE.get_or_init(|| Mutex::new(None))
 }
 
+/// a test's turn on the credential store above, which is one static every test in the
+/// process shares: a token one test filed is what another's assertion reads, and a test
+/// that emptied it leaves a request from a third with nothing to spend, unless they take
+/// turns. Held for the whole test, across its awaits, which is why the lock is tokio's.
+#[cfg(test)]
+pub(crate) type CredentialStoreTurn = tokio::sync::MutexGuard<'static, ()>;
+
+#[cfg(test)]
+pub(crate) async fn take_the_credential_store() -> CredentialStoreTurn {
+    use std::sync::OnceLock;
+
+    static TURN: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+
+    TURN.get_or_init(|| tokio::sync::Mutex::new(()))
+        .lock()
+        .await
+}
+
 /// the consents map is only ever held for a field read or write, so a poisoned lock means a
 /// panic elsewhere rather than anything the caller did.
 fn consents_poisoned() -> Error {
@@ -877,13 +894,13 @@ mod tests {
 
     use crate::{
         error::Error,
-        sync::google::test::server::{ScriptedResponse, ScriptedServer},
+        sync::test::server::{ScriptedResponse, ScriptedServer},
     };
 
     use super::{
-        TURSO_CONSENT_SCOPES, TURSO_PLATFORM_KEYRING_ACCOUNT, TURSO_PLATFORM_KEYRING_SERVICE,
-        TURSO_RESOURCE_INDICATOR, TursoConsent, TursoConsentStatus, TursoEndpoints, platform_token,
-        test_platform_token,
+        CredentialStoreTurn, TURSO_CONSENT_SCOPES, TURSO_PLATFORM_KEYRING_ACCOUNT,
+        TURSO_PLATFORM_KEYRING_SERVICE, TURSO_RESOURCE_INDICATOR, TursoConsent, TursoConsentStatus,
+        TursoEndpoints, platform_token, take_the_credential_store, test_platform_token,
     };
 
     const ACCESS_TOKEN: &str = "the-platform-api-token";
@@ -905,10 +922,13 @@ mod tests {
         "read",
     ];
 
-    fn forget_the_stored_token() {
+    /// an empty credential store, held for the whole test.
+    async fn forget_the_stored_token() -> CredentialStoreTurn {
+        let turn = take_the_credential_store().await;
         *test_platform_token()
             .lock()
             .expect("the test credential store was poisoned") = None;
+        turn
     }
 
     fn stored_token() -> Option<String> {
@@ -1204,7 +1224,7 @@ mod tests {
     /// asserted so that a listing cannot come back without this test noticing.
     #[tokio::test]
     async fn a_granted_consent_exchanges_the_code_and_asks_turso_nothing_else() {
-        forget_the_stored_token();
+        let _turn = forget_the_stored_token().await;
 
         let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
         let consent = TursoConsent::new();
@@ -1274,7 +1294,7 @@ mod tests {
     /// **the whole of the client boundary, at the one place the token exists.**
     #[tokio::test]
     async fn the_platform_token_reaches_the_keyring_and_nothing_the_caller_can_read() {
-        forget_the_stored_token();
+        let _turn = forget_the_stored_token().await;
 
         let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
         let consent = TursoConsent::new();
@@ -1362,7 +1382,7 @@ mod tests {
     /// criterion 5 asks the consent to tell apart.
     #[tokio::test]
     async fn a_declined_consent_is_abandoned_and_leaves_the_keyring_empty() {
-        forget_the_stored_token();
+        let _turn = forget_the_stored_token().await;
 
         let server = ScriptedServer::start(vec![registration_answer()]).await;
         let consent = TursoConsent::new();
@@ -1384,7 +1404,7 @@ mod tests {
     /// before it asks anything of Turso: no database, no replica, no organization on this machine.
     #[tokio::test]
     async fn an_abandoned_consent_leaves_a_first_run_nothing_to_spend_and_nothing_is_created() {
-        forget_the_stored_token();
+        let _turn = forget_the_stored_token().await;
 
         let server = ScriptedServer::start(vec![registration_answer()]).await;
         let consent = TursoConsent::new();
@@ -1420,7 +1440,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_refused_consent_fails_and_leaves_the_keyring_empty() {
-        forget_the_stored_token();
+        let _turn = forget_the_stored_token().await;
 
         let server = ScriptedServer::start(vec![registration_answer()]).await;
         let consent = TursoConsent::new();
@@ -1443,7 +1463,7 @@ mod tests {
     /// minute wait.
     #[tokio::test]
     async fn a_consent_nobody_answers_is_abandoned_when_the_patience_runs_out() {
-        forget_the_stored_token();
+        let _turn = forget_the_stored_token().await;
 
         let server = ScriptedServer::start(vec![registration_answer()]).await;
         let consent = TursoConsent::with_patience(Duration::from_millis(150));
@@ -1462,7 +1482,7 @@ mod tests {
     /// off one would be a code this application did not ask for.
     #[tokio::test]
     async fn a_callback_whose_state_does_not_match_fails_without_redeeming_anything() {
-        forget_the_stored_token();
+        let _turn = forget_the_stored_token().await;
 
         let server = ScriptedServer::start(vec![registration_answer()]).await;
         let consent = TursoConsent::new();
@@ -1488,7 +1508,7 @@ mod tests {
     /// already answered, and it must leave the credential store exactly as it found it.
     #[tokio::test]
     async fn a_refused_exchange_leaves_nothing_in_the_keyring() {
-        forget_the_stored_token();
+        let _turn = forget_the_stored_token().await;
 
         let server = ScriptedServer::start(vec![
             registration_answer(),
@@ -1536,7 +1556,7 @@ mod tests {
     /// sending an empty bearer token to Turso and reporting whatever Turso said about it.
     #[tokio::test]
     async fn a_disconnect_forgets_the_token_and_leaves_no_authority_to_find() {
-        forget_the_stored_token();
+        let _turn = forget_the_stored_token().await;
 
         let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
         let consent = TursoConsent::new();
@@ -1590,7 +1610,7 @@ mod tests {
     /// goes with the token rather than outliving it.
     #[tokio::test]
     async fn a_disconnect_leaves_no_consent_a_later_read_could_take_for_a_grant() {
-        forget_the_stored_token();
+        let _turn = forget_the_stored_token().await;
 
         let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
         let consent = TursoConsent::new();
@@ -1618,9 +1638,9 @@ mod tests {
 
     /// pressing it twice means the same thing both times, and a machine that never connected
     /// is already in the state it asks for.
-    #[test]
-    fn disconnecting_what_was_never_connected_is_not_an_error() {
-        forget_the_stored_token();
+    #[tokio::test]
+    async fn disconnecting_what_was_never_connected_is_not_an_error() {
+        let _turn = forget_the_stored_token().await;
 
         let consent = TursoConsent::new();
 

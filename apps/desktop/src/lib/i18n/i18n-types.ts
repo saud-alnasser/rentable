@@ -1362,54 +1362,6 @@ type RootTranslation = {
 			 */
 			openInvitation: string
 			/**
-			 * f​i​n​i​s​h​ ​s​i​g​n​i​n​g​ ​i​n​ ​w​i​t​h​ ​G​o​o​g​l​e​ ​i​n​ ​t​h​e​ ​b​r​o​w​s​e​r​ ​w​i​n​d​o​w​ ​t​h​a​t​ ​j​u​s​t​ ​o​p​e​n​e​d​.
-			 */
-			authorizing: string
-			/**
-			 * s​i​g​n​ ​i​n​ ​w​i​t​h​ ​G​o​o​g​l​e
-			 */
-			signInWithGoogle: string
-			/**
-			 * y​o​u​r​ ​w​o​r​k​s​p​a​c​e​ ​l​i​v​e​s​ ​i​n​ ​y​o​u​r​ ​a​c​c​o​u​n​t​,​ ​s​o​ ​i​t​ ​f​o​l​l​o​w​s​ ​y​o​u​ ​t​o​ ​w​h​i​c​h​e​v​e​r​ ​m​a​c​h​i​n​e​ ​y​o​u​ ​s​i​g​n​ ​i​n​ ​o​n​.​ ​t​h​e​ ​f​i​r​s​t​ ​s​i​g​n​-​i​n​ ​i​s​ ​w​h​a​t​ ​c​r​e​a​t​e​s​ ​i​t​.
-			 */
-			description: string
-			/**
-			 * s​i​g​n​i​n​g​ ​y​o​u​ ​i​n​.​.​.
-			 */
-			finalizing: string
-			/**
-			 * y​o​u​ ​a​r​e​ ​s​i​g​n​e​d​ ​i​n​ ​w​i​t​h​ ​G​o​o​g​l​e​,​ ​b​u​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​c​o​u​l​d​ ​n​o​t​ ​r​e​a​c​h​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​o​p​e​n​ ​y​o​u​r​ ​w​o​r​k​s​p​a​c​e​.​ ​c​h​e​c​k​ ​y​o​u​r​ ​c​o​n​n​e​c​t​i​o​n​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
-			 */
-			incomplete: string
-			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​s​i​g​n​e​d​ ​i​n​.​ ​w​h​a​t​ ​i​t​ ​h​a​s​ ​n​o​t​ ​d​o​n​e​ ​y​e​t​ ​i​s​ ​r​e​a​c​h​ ​r​e​n​t​a​b​l​e​,​ ​a​n​d​ ​t​h​a​t​ ​i​s​ ​t​h​e​ ​o​n​l​y​ ​s​t​e​p​ ​l​e​f​t​.
-			 */
-			incompleteDescription: string
-			/**
-			 * a​l​m​o​s​t​ ​i​n
-			 */
-			incompleteTitle: string
-			/**
-			 * r​e​a​c​h​i​n​g​ ​r​e​n​t​a​b​l​e​.​.​.
-			 */
-			reaching: string
-			/**
-			 * t​r​y​ ​a​g​a​i​n
-			 */
-			tryAgain: string
-			/**
-			 * s​i​g​n​ ​i​n​ ​w​i​t​h​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​a​c​c​o​u​n​t
-			 */
-			useDifferentAccount: string
-			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​a​s​ ​b​e​e​n​ ​o​u​t​ ​o​f​ ​c​o​n​t​a​c​t​ ​f​o​r​ ​t​o​o​ ​l​o​n​g​ ​t​o​ ​k​e​e​p​ ​w​o​r​k​i​n​g​ ​o​f​f​l​i​n​e​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​t​o​ ​u​n​l​o​c​k​ ​i​t​ ​—​ ​y​o​u​r​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​e​v​e​r​y​t​h​i​n​g​ ​i​n​ ​i​t​ ​a​r​e​ ​u​n​t​o​u​c​h​e​d​.
-			 */
-			lockedDescription: string
-			/**
-			 * s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​t​o​ ​c​o​n​t​i​n​u​e
-			 */
-			lockedTitle: string
-			/**
 			 * L​o​g​i​n
 			 */
 			title: string
@@ -2323,10 +2275,6 @@ type RootTranslation = {
 		 * s​t​a​r​t​u​p​ ​r​e​c​o​v​e​r​y​ ​c​l​e​a​r​e​d​.​ ​r​e​t​r​y​i​n​g​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​v​e​r​s​i​o​n​ ​i​s​ ​n​o​w​ ​a​l​l​o​w​e​d​.
 		 */
 		startupRecoveryCleared: string
-		/**
-		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​h​a​s​ ​b​e​e​n​ ​o​f​f​l​i​n​e​ ​f​o​r​ ​t​h​r​e​e​ ​d​a​y​s​.​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​ ​G​o​o​g​l​e​ ​a​g​a​i​n​ ​t​o​ ​k​e​e​p​ ​i​t​ ​i​n​ ​s​y​n​c​ ​—​ ​n​o​t​h​i​n​g​ ​y​o​u​ ​r​e​c​o​r​d​e​d​ ​h​a​s​ ​b​e​e​n​ ​l​o​s​t​.
-		 */
-		sessionExpired: string
 	}
 	organization: {
 		setup: {
@@ -2739,10 +2687,6 @@ type RootTranslation = {
 		 */
 		identityDescription: string
 		/**
-		 * i​n​v​i​t​e
-		 */
-		inviteLocked: string
-		/**
 		 * o​n​e​ ​p​e​r​s​o​n​,​ ​a​n​d​ ​o​n​l​y​ ​o​n​e​ ​i​s​ ​p​o​s​s​i​b​l​e​ ​t​o​d​a​y​.​ ​i​n​v​i​t​i​n​g​ ​a​n​y​b​o​d​y​ ​e​l​s​e​ ​a​r​r​i​v​e​s​ ​w​i​t​h​ ​o​r​g​a​n​i​z​a​t​i​o​n​s​.
 		 */
 		membersDescription: string
@@ -2775,25 +2719,9 @@ type RootTranslation = {
 		 */
 		syncDescription: string
 		/**
-		 * c​a​n​n​o​t​ ​s​i​g​n​ ​i​n
-		 */
-		syncStatusCannotSignIn: string
-		/**
 		 * n​e​e​d​s​ ​r​e​c​o​n​n​e​c​t
 		 */
 		syncStatusNeedsReconnect: string
-		/**
-		 * s​y​n​c​s​ ​n​o​w​h​e​r​e
-		 */
-		syncStatusNoControlPlane: string
-		/**
-		 * n​o​t​ ​s​i​g​n​e​d​ ​i​n
-		 */
-		syncStatusNotSignedIn: string
-		/**
-		 * a​w​a​i​t​i​n​g​ ​a​u​t​h​o​r​i​z​a​t​i​o​n
-		 */
-		syncStatusPending: string
 		/**
 		 * s​y​n​c​e​d
 		 */
@@ -4119,54 +4047,6 @@ export type TranslationFunctions = {
 			 */
 			openInvitation: () => LocalizedString
 			/**
-			 * finish signing in with Google in the browser window that just opened.
-			 */
-			authorizing: () => LocalizedString
-			/**
-			 * sign in with Google
-			 */
-			signInWithGoogle: () => LocalizedString
-			/**
-			 * your workspace lives in your account, so it follows you to whichever machine you sign in on. the first sign-in is what creates it.
-			 */
-			description: () => LocalizedString
-			/**
-			 * signing you in...
-			 */
-			finalizing: () => LocalizedString
-			/**
-			 * you are signed in with Google, but this machine could not reach rentable to open your workspace. check your connection and try again.
-			 */
-			incomplete: () => LocalizedString
-			/**
-			 * this machine is signed in. what it has not done yet is reach rentable, and that is the only step left.
-			 */
-			incompleteDescription: () => LocalizedString
-			/**
-			 * almost in
-			 */
-			incompleteTitle: () => LocalizedString
-			/**
-			 * reaching rentable...
-			 */
-			reaching: () => LocalizedString
-			/**
-			 * try again
-			 */
-			tryAgain: () => LocalizedString
-			/**
-			 * sign in with a different account
-			 */
-			useDifferentAccount: () => LocalizedString
-			/**
-			 * this machine has been out of contact for too long to keep working offline. sign in again to unlock it — your workspace and everything in it are untouched.
-			 */
-			lockedDescription: () => LocalizedString
-			/**
-			 * sign in again to continue
-			 */
-			lockedTitle: () => LocalizedString
-			/**
 			 * Login
 			 */
 			title: () => LocalizedString
@@ -5035,10 +4915,6 @@ export type TranslationFunctions = {
 		 * startup recovery cleared. retrying the current version is now allowed.
 		 */
 		startupRecoveryCleared: () => LocalizedString
-		/**
-		 * this workspace has been offline for three days. sign in with Google again to keep it in sync — nothing you recorded has been lost.
-		 */
-		sessionExpired: () => LocalizedString
 	}
 	organization: {
 		setup: {
@@ -5446,10 +5322,6 @@ export type TranslationFunctions = {
 		 */
 		identityDescription: () => LocalizedString
 		/**
-		 * invite
-		 */
-		inviteLocked: () => LocalizedString
-		/**
 		 * one person, and only one is possible today. inviting anybody else arrives with organizations.
 		 */
 		membersDescription: () => LocalizedString
@@ -5482,25 +5354,9 @@ export type TranslationFunctions = {
 		 */
 		syncDescription: () => LocalizedString
 		/**
-		 * cannot sign in
-		 */
-		syncStatusCannotSignIn: () => LocalizedString
-		/**
 		 * needs reconnect
 		 */
 		syncStatusNeedsReconnect: () => LocalizedString
-		/**
-		 * syncs nowhere
-		 */
-		syncStatusNoControlPlane: () => LocalizedString
-		/**
-		 * not signed in
-		 */
-		syncStatusNotSignedIn: () => LocalizedString
-		/**
-		 * awaiting authorization
-		 */
-		syncStatusPending: () => LocalizedString
 		/**
 		 * synced
 		 */

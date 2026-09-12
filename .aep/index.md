@@ -26,8 +26,8 @@ Start at [[protocol]].
 | [[rules/data]] | a read, a write, a cached query, derived state, or undo is in question | apps/desktop/src/lib/design/**, apps/desktop/src/lib/api/**, apps/desktop/src/lib/platform/database/**, apps/desktop/src/lib/payment/**, apps/desktop/src/lib/contract/reconcile.ts, apps/desktop/tauri/src/database/** | — |
 | [[rules/frontend]] | writing or changing Svelte components, routes, styles, or client state | apps/desktop/src/lib/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/**, packages/design/components.json | — |
 | [[rules/interface]] | a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell | apps/desktop/src/lib/**/component/**, apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/design/cell/**, apps/desktop/src/lib/dashboard/**, apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/component/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/lib/block/**, packages/design/src/lib/primitive/**, packages/design/src/lib/tokens.css | — |
-| [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | apps/desktop/src/**, apps/desktop/tauri/src/**, apps/control-plane/src/**, packages/design/src/** | — |
-| [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | apps/desktop/src/**, apps/desktop/tauri/src/**, apps/control-plane/src/**, packages/design/src/** | — |
+| [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/turso-platform/**, packages/design/src/** | — |
+| [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/**, packages/turso-platform/** | — |
 | [[rules/tracker]] | creating, reading, claiming, or labelling a ticket, or deciding whether work is a ticket at all | — | — |
 | [[rules/version-control]] | branching, committing, opening a pull request, or landing work here | — | — |
 
@@ -36,9 +36,10 @@ Start at [[protocol]].
 | Artifact | Load when | Paths | Owner |
 | --- | --- | --- | --- |
 | [[contexts/desktop/contract]] | the request touches contracts, payments, unit assignments, or any derived status | apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/** | — |
+| [[contexts/desktop/organization]] | the request touches an organization, its members, their vaults, or the account it lives on | apps/desktop/tauri/src/organization/**, apps/desktop/src/lib/organization/**, apps/desktop/src/lib/layout/startup.ts | — |
 | [[contexts/desktop/persistence]] | the request touches the schema, migrations, or how queries reach SQLite | apps/desktop/src/lib/platform/database/**, apps/desktop/tauri/src/database/**, apps/desktop/tauri/migrations/** | — |
 | [[contexts/desktop/property]] | the request touches complexes or units | apps/desktop/src/lib/complex/** | — |
-| [[contexts/desktop/remote-sync]] | the request touches signing in, or the session a workspace replicates under | apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/http.rs, apps/desktop/src/lib/sync/** | — |
+| [[contexts/desktop/remote-sync]] | the request touches signing in, or the credential a workspace replicates under | apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/http.rs, apps/desktop/src/lib/sync/** | — |
 | [[contexts/desktop/tenant]] | the request touches tenants, identity, or phone numbers | apps/desktop/src/lib/tenant/** | — |
 | [[contexts/repository]] | a term, boundary, or constraint about this repository is in question, before reaching for a narrower context | — | — |
 
@@ -50,7 +51,6 @@ Start at [[protocol]].
 | [[references/changesets]] | a user-visible change needs a changelog entry before it lands | — |
 | [[references/drizzle-kit]] | the database schema changed and a migration has to be generated | — |
 | [[references/eslint]] | linting, or a CI lint failure has to be reproduced locally | — |
-| [[references/fastify]] | adding or changing a control plane route, its validation, its response body, or its logging | — |
 | [[references/git]] | inspecting history, diffing, or recovering where a concept moved | — |
 | [[references/github]] | working with issues, pull requests, or CI runs on GitHub | — |
 | [[references/graphite]] | branching, committing, or restacking — gt replaces git commit here | — |
@@ -62,7 +62,7 @@ Start at [[protocol]].
 | [[references/svelte]] | building or running this Svelte or SvelteKit application | — |
 | [[references/tauri]] | building, running, or configuring the desktop shell | — |
 | [[references/turborepo]] | running a task across this monorepo's packages, or explaining why one was skipped | — |
-| [[references/turso]] | provisioning a workspace database, minting a token to sync with one, or reading what the control plane does to Turso | — |
+| [[references/turso]] | provisioning a workspace database, minting a token to sync with one, or reading what the desktop does to Turso | — |
 | [[references/typescript]] | type-checking this repository, or reading what its compiler is actually configured to enforce | — |
 | [[references/vite]] | building or serving this repository with Vite | — |
 | [[references/vitest]] | running or writing a component test | — |
@@ -191,7 +191,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/16-a-migration-reaches-a-workspace-under-a-lease]] feat(organization): a migration reaches a workspace under a lease | 819-an-organization-hosts-its-own-workspaces | resolved | 14 |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/17-a-refusal-from-the-account-is-explained-as-the-accounts]] feat(organization): a refusal from the account is explained as the account's | 819-an-organization-hosts-its-own-workspaces | resolved | 14 |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/18-a-second-machine-restores-the-organization]] test(organization): a second machine restores the organization | 819-an-organization-hosts-its-own-workspaces | resolved | 12 |
-| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/19-the-control-plane-and-google-sign-in-are-retired]] chore(desktop): the control plane and Google sign-in are retired | 819-an-organization-hosts-its-own-workspaces | open | 13, 15, 16, 17, 18 |
+| [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/19-the-control-plane-and-google-sign-in-are-retired]] chore(desktop): the control plane and Google sign-in are retired | 819-an-organization-hosts-its-own-workspaces | resolved | 13, 15, 16, 17, 18 |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/20-the-consent-carries-its-resource-and-can-be-given-up]] fix(sync): the consent carries its resource and can be given up | 819-an-organization-hosts-its-own-workspaces | resolved | — |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/21-the-organization-slug-is-discovered-once]] feat(sync): the organization slug is discovered once | 819-an-organization-hosts-its-own-workspaces | resolved | 20, 22 |
 | [[efforts/819-an-organization-hosts-its-own-workspaces/tickets/22-the-live-remote-rule-catches-up-with-the-amended-plan]] docs(aep): the live remote rule catches up with the amended plan | 819-an-organization-hosts-its-own-workspaces | resolved | — |

@@ -12,7 +12,7 @@
 	import { primaryDestinations, type Destination } from '$lib/layout/destination';
 	import { isActiveRoute } from '$lib/layout/navigation';
 	import { useFetchRemoteSyncState } from '$lib/settings/query';
-	import { signedInAccount } from '$lib/sync/account';
+	import { useFetchMembers, useFetchOrganizationState } from '$lib/organization/query';
 	import type { ComponentProps } from 'svelte';
 
 	/**
@@ -56,9 +56,17 @@
 	// asking who is signed in on a machine where nobody is would be refused by design and
 	// reported as a failure, so the rail that already knows the answer does not ask.
 	const remoteSyncQuery = useFetchRemoteSyncState(() => !signedOut);
+	const organizationQuery = useFetchOrganizationState();
+	const membersQuery = useFetchMembers();
 
 	const workspace = $derived(remoteSyncQuery.data?.workspace);
-	const account = $derived(signedInAccount(remoteSyncQuery.data));
+	const session = $derived(organizationQuery.data?.session ?? null);
+	// how many members hold a grant on the workspace that is open, for the workspace menu.
+	const memberCount = $derived(
+		(membersQuery.data ?? []).filter((member) =>
+			workspace?.remoteId ? member.workspaceIds.includes(workspace.remoteId) : false
+		).length
+	);
 
 	const sidebar = Sidebar.useSidebar();
 
@@ -124,10 +132,9 @@
 		{#if signedOut}
 			<LayoutWorkspaceLocked />
 		{:else if workspace}
-			<!-- one member, because an account owns exactly one workspace and is created with it.
-			     It is passed rather than assumed inside the control, so the day a route lists
-			     members the number arrives from the same place the list does. -->
-			<LayoutWorkspaceMenu {workspace} memberCount={account ? 1 : 0} />
+			<!-- the members who hold a grant on this workspace, counted from the same list the
+			     organization page draws. -->
+			<LayoutWorkspaceMenu {workspace} {memberCount} />
 		{/if}
 	</Sidebar.Header>
 
@@ -140,8 +147,8 @@
 	<Sidebar.Footer>
 		{#if signedOut}
 			<LayoutAccountSignedOut {onWayIn} />
-		{:else if account}
-			<LayoutAccountMenu {account} />
+		{:else if session}
+			<LayoutAccountMenu {session} />
 		{/if}
 	</Sidebar.Footer>
 </Sidebar.Root>

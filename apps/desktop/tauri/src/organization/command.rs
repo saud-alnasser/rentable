@@ -653,6 +653,37 @@ pub(crate) async fn reconnect(app_state: &AppState) -> bool {
     true
 }
 
+/// Rename the workspace this machine has open, on the organization database, and on this
+/// machine's own record of it so the rail reads the new name before the next pull. What
+/// `remote_sync_rename_workspace` calls; it lives here because the name is the organization's.
+pub(crate) async fn rename_current_workspace(
+    app_state: &AppState,
+    name: &str,
+) -> Result<(), Error> {
+    let workspace_id = {
+        let remote_sync = app_state.remote_sync.read().await;
+
+        remote_sync
+            .workspace()
+            .remote_id
+            .ok_or_else(|| Error::PreconditionFailed {
+                message: "no workspace is open on this machine".to_string(),
+            })?
+    };
+
+    {
+        let mut member = app_state.member.write().await;
+        let store = app_state.organization.read().await;
+        let (member, store) = signed_in(&mut member, &store)?;
+
+        workspace::rename_workspace(store, member, &workspace_id, name, timestamp::now()).await?;
+    }
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+
+    remote_sync.rename_held_workspace(name.trim())
+}
+
 /// Turso's own sentence about the standing account refusal, for the owner and nobody else.
 /// A member who is not the owner is answered with nothing rather than refused, because the
 /// screen they see says the account needs attention and whom to tell, and that is the whole of

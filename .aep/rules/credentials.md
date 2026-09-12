@@ -27,17 +27,20 @@ had.*
 >
 > **One section of it is still a rule.** *Client
 > boundary* was never Drive's alone — decision 09 widened it to every credential this application
-> holds — and `sync/google/` still holds the OAuth half, because signing in is Google rather than
-> Drive. The other two sections describe code that no longer exists and are marked as retired
-> where they stand.
+> holds — and `sync/oauth/` still holds the protocol half, which the Turso consent drives.
+> *`sync/google/` held Google's until Google sign-in retired with the control plane on 2026-09-12.*
+> The other two sections describe code that no longer exists and are marked as retired where they
+> stand.
 
 ## Client boundary
 
 **Every network call that spends a credential, and every credential, stays in Rust.**
 
-The OAuth client secret, the refresh token, token refresh, the profile read, the control plane's
-session token, and a workspace's sync token all live behind the Tauri boundary. No credential
-crosses to TypeScript, and no command hands one over.
+The Turso consent's PKCE verifier and code exchange, the Platform API token it produces, a
+member's vault and the keys it unseals, and a workspace's sync token all live behind the Tauri
+boundary. No credential crosses to TypeScript, and no command hands one over. *It named the
+Google OAuth client secret, the refresh token, the profile read and the control plane's session
+token until both retired on 2026-09-12.*
 
 *Why: the credential boundary and the network boundary have to be the same boundary — where they
 differ, the gap is exactly what an incident occupies.*
@@ -79,9 +82,10 @@ from a test.
 
 **The reasoning outlived the transport and is being applied**: a mocked trait tests the mock's
 idea of HTTP, so the serialisation and status handling that actually break are never exercised.
-The loopback server survives as `sync/google/test/server.rs` and is what the profile read at
-sign-in — the one Google request this application still issues — is tested against, along with
-every control-plane call.
+The loopback server survives as `sync/test/server.rs` and is what every request to Turso, the
+consent, the Platform API, the MCP lookup, a workspace's pipeline and the sync engine's own, is
+tested against. *It was `sync/google/test/server.rs` and tested the Google profile read and every
+control-plane call until both retired on 2026-09-12.*
 
 **The *never contact the live API from a test* clause has declared exceptions since
 2026-08-20**, and they are [[rules/testing]]'s to state and to count, under *Tests that reach a live

@@ -11,10 +11,13 @@ The repository is a pnpm workspace and **`@rentable/desktop` — the desktop app
 `apps/desktop/` — is the package a changeset is written against.** The root is named `rentable`,
 private, unversioned, and not something changesets versions.
 
-**`@rentable/control-plane` is the second package and has never had a changeset written for it**
-*(added 2026-08-18 by #549)*. Nothing about it reaches a user: it ships in no artifact, the
-updater never sees it, and it is deployed nowhere — so by *When one is not needed* below, its
-changes do not get one. If it is ever released, `privatePackages` versions it under its own name,
+**`@rentable/control-plane` was the second package and never had a changeset written for it**
+*(added 2026-08-18 by #549, retired 2026-09-12 with
+[[efforts/819-an-organization-hosts-its-own-workspaces/spec]])*. Nothing about it reached a user:
+it shipped in no artifact, the updater never saw it, and it was deployed nowhere — so by *When one
+is not needed* below, its changes did not get one. `@rentable/turso-platform` is in the same
+position now, imported by nothing and shipped nowhere. If either is ever released,
+`privatePackages` versions it under its own name,
 but nothing tags it yet — see the tag paragraph below — and `release.yml`'s tag glob is already
 written to keep the two apart once something does.
 
@@ -95,8 +98,9 @@ is due and the version is right where it is.
 ## When one is not needed
 
 Dependency bumps and internal refactors that no user can observe do not get a changeset.
-**Nor does anything in `apps/control-plane/`, for the same reason and not as an exception to
-it**: a user cannot observe a package that ships in no artifact.
+**Nor does anything in `packages/turso-platform/`, for the same reason and not as an exception
+to it**: a user cannot observe a package that ships in no artifact. *`apps/control-plane/` was
+the package this paragraph named until it retired on 2026-09-12.*
 
 `packages/design/` is the case that looks like this one and is not. A change there often *is*
 user-visible, and it still gets no changeset naming the package — the entry goes against the

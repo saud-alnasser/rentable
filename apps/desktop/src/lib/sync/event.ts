@@ -2,9 +2,8 @@
  * asking for a dispatch, and hearing what one did.
  *
  * *Every name here said `googleDriveAutosync` until Drive sync retired (decision 07). What is
- * dispatched now is the reach at the control plane that renews this machine's window — nothing
- * is pushed and nothing is pulled — so the events are named for the workspace rather than for a
- * provider that is not there.*
+ * dispatched now is the replica's push and pull, so the events are named for the workspace
+ * rather than for a provider that is not there.*
  */
 
 export type WorkspaceSyncRequest = {
@@ -14,11 +13,10 @@ export type WorkspaceSyncRequest = {
 
 export type WorkspaceSyncEventResult = {
 	/**
-	 * `signInRequired` is a workspace's three-day window having closed with no contact (#550).
-	 * It is listed beside `error` and is not one: nothing failed, and a retry settles it only in
-	 * the sense that reaching the control plane is exactly what renews the session.
+	 * `error` is a dispatch that threw. *`signInRequired` stood beside it while a control plane's
+	 * window could close under a machine (#550); the retirement took the window with it.*
 	 */
-	action: 'none' | 'signInRequired' | 'error';
+	action: 'none' | 'error';
 	errorMessage: string | null;
 	/**
 	 * whether the pull that just ran brought another device's writes.

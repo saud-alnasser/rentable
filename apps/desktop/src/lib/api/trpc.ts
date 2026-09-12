@@ -115,8 +115,9 @@ export const middleware = {
 	 * so cannot see the narrowing `requireIdentity` did. The check is cheap and the alternative is
 	 * a non-null assertion standing where the whole point is that nobody is asserted to be here.
 	 *
-	 * **This is the second opinion and never the one that decides.** The control plane refuses the
-	 * same request whatever this says, and a client is a thing a person can edit — requirement 6.
+	 * **This is the second opinion and never the one that decides.** The Rust side refuses the
+	 * same request against the member's signed row whatever this says, and a client is a thing a
+	 * person can edit (requirement 6).
 	 */
 	requirePermission: (...acts: NamedActs) =>
 		t.middleware(async ({ ctx, next }) => {
@@ -204,11 +205,11 @@ export const procedure = {
 	 *
 	 * **A surface that hides a control is a courtesy; this is what makes hiding it honest.** The
 	 * gate on the interface and this refusal answer the same question from the same number, and
-	 * neither is the authority — the control plane is, and it checks again.
+	 * neither is the authority; the signed row in Rust is, and it checks again.
 	 *
 	 * **The acts are named, never a number, a bit index or a role.**
-	 * `@rentable/workspace-permission` is where the names live and it is the same module the
-	 * control plane reads them from, so there is no second mapping to drift.
+	 * `@rentable/workspace-permission` is where the names live and `permission.rs` carries the
+	 * same bits under the same names, and a test on each side keeps the two from drifting.
 	 *
 	 * middlewares: [log, requireIdentity, requirePermission(...acts)]
 	 */
