@@ -51,12 +51,22 @@ test('an open invitation asks for the password, and every other standing is refu
 		facts: facts('open')
 	});
 
-	for (const standing of ['lapsed', 'consumed', 'revoked', 'none'] as const) {
+	for (const standing of ['lapsed', 'consumed', 'revoked'] as const) {
 		const step = inspected('rentable://join/abc', facts(standing));
 
 		assert.equal(step.kind, 'refused', standing);
 		assert.equal(step.kind === 'refused' && step.facts.organizationName, 'Acme', standing);
 	}
+});
+
+// requirement 6: the organization's own link is not a refusal but the way a place already held
+// comes back on a machine, by the email and the password.
+test("the organization's own link restores a place rather than refusing", () => {
+	assert.deepEqual(inspected('rentable://join/abc', facts('none')), {
+		kind: 'restore',
+		link: 'rentable://join/abc',
+		facts: facts('none')
+	});
 });
 
 test('text that is not a link is unreadable, and an organization that cannot be reached says so', () => {

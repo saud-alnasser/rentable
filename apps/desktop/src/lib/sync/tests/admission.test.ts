@@ -27,10 +27,13 @@ test('a state still loading is starting, and not a refusal', () => {
 // requirement 17's other half: a machine that has joined nothing has nothing to list and nothing
 // to unlock, so the way past this is the first run rather than a password.
 test('a machine that has joined no organization is stopped at the door, and told why', () => {
-	assert.deepEqual(organizationAdmission({ organizations: [], session: null }), {
-		kind: 'signInRequired',
-		reason: 'noOrganization'
-	});
+	assert.deepEqual(
+		organizationAdmission({ organizations: [], session: null, holdsTursoAuthority: false }),
+		{
+			kind: 'signInRequired',
+			reason: 'noOrganization'
+		}
+	);
 });
 
 // every launch after the first, and every sign-out: something to list, and a password to type.

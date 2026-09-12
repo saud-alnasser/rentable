@@ -21,6 +21,12 @@
 	 * to ask. The reasons are sentences of this locale and never the shell's prose, because the
 	 * standing crosses as a word the screen can translate.
 	 *
+	 * **The organization's own link restores a place** (requirement 6). A link with no invitation
+	 * in it is what the first run produced; on a machine that has joined nothing it asks for the
+	 * email, where the person was invited with one, and the password, and the vault opens as it
+	 * would on the machine that made it. An owner typed no address at the first run and leaves
+	 * it empty.
+	 *
 	 * On the application surface rather than in the frame, because it is drawn with nobody signed
 	 * in, which `layout/shell-surface.ts` allows for this one address and the first run's.
 	 */
@@ -30,6 +36,7 @@
 		errorMessage,
 		onOpenLink,
 		onJoin,
+		onRestore,
 		onPasteAnother,
 		onSignInInstead
 	}: {
@@ -40,16 +47,19 @@
 		errorMessage: string | null;
 		onOpenLink: (link: string) => void;
 		onJoin: (link: string, password: string) => void;
+		onRestore: (link: string, email: string, password: string) => void;
 		onPasteAnother: () => void;
 		onSignInInstead: () => void;
 	} = $props();
 
 	let pasted = $state('');
 	let password = $state('');
+	let email = $state('');
 
 	const busy = $derived(step.kind === 'inspecting' || isJoining);
 	const canOpen = $derived(pasted.trim().length > 0 && !busy);
 	const canJoin = $derived(step.kind === 'password' && password.length > 0 && !busy);
+	const canRestore = $derived(step.kind === 'restore' && password.length > 0 && !busy);
 
 	const refusal = $derived.by(() => {
 		if (step.kind !== 'refused') return null;
@@ -58,7 +68,7 @@
 			lapsed: $LL.organization.join.refusedLapsed(),
 			consumed: $LL.organization.join.refusedConsumed(),
 			revoked: $LL.organization.join.refusedRevoked(),
-			none: $LL.organization.join.refusedNone(),
+			none: null,
 			open: null
 		}[step.facts.standing];
 	});
@@ -158,6 +168,63 @@
 				<Button type="submit" class="w-full justify-center" disabled={!canJoin}>
 					<LockOpenIcon class="size-4" />
 					{isJoining ? $LL.common.actions.working() : $LL.organization.join.join()}
+				</Button>
+			</form>
+
+			{#if isJoining}
+				<p class="text-center text-sm text-muted-foreground">{$LL.layout.signIn.unlocking()}</p>
+			{/if}
+
+			<Button variant="link" class="w-full justify-center" onclick={onPasteAnother} disabled={busy}>
+				{$LL.organization.join.pasteAnother()}
+			</Button>
+		{:else if step.kind === 'restore'}
+			<form
+				class="space-y-4"
+				data-join-restore
+				onsubmit={(event) => {
+					event.preventDefault();
+
+					if (canRestore) onRestore(step.link, email, password);
+				}}
+			>
+				<p class="text-sm" data-join-organization={step.facts.organizationId}>
+					{$LL.organization.join.found({ name: step.facts.organizationName })}
+				</p>
+				<p class="text-sm text-muted-foreground">{$LL.organization.join.restoreDescription()}</p>
+
+				{#if errorMessage}
+					<Callout tone="error">{errorMessage}</Callout>
+				{/if}
+
+				<Field.Field>
+					<Field.Label for="restore-email">{$LL.organization.join.emailLabel()}</Field.Label>
+					<Input
+						id="restore-email"
+						name="email"
+						type="email"
+						autocomplete="off"
+						bind:value={email}
+						disabled={busy}
+					/>
+					<Field.Description>{$LL.organization.join.emailOptional()}</Field.Description>
+				</Field.Field>
+
+				<Field.Field>
+					<Field.Label for="restore-password">{$LL.layout.signIn.password()}</Field.Label>
+					<Input
+						id="restore-password"
+						name="password"
+						type="password"
+						autocomplete="current-password"
+						bind:value={password}
+						disabled={busy}
+					/>
+				</Field.Field>
+
+				<Button type="submit" class="w-full justify-center" disabled={!canRestore}>
+					<LockOpenIcon class="size-4" />
+					{isJoining ? $LL.common.actions.working() : $LL.organization.join.restore()}
 				</Button>
 			</form>
 

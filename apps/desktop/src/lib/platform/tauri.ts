@@ -248,6 +248,9 @@ export const tauri = {
 		linkInspect: (link: string) => invoke<LinkFacts>('organization_link_inspect', { link }),
 		join: (link: string, password: string) =>
 			invoke<OrganizationState>('organization_join', { link, password }),
+		restore: (link: string, email: string, password: string) =>
+			invoke<OrganizationState>('organization_restore', { link, email, password }),
+		reconnectAuthority: () => invoke<OrganizationState>('organization_reconnect_authority'),
 		workspace: {
 			create: (name: string) => invoke<OrganizationWorkspace>('workspace_create', { name }),
 			open: (workspaceId: string) =>

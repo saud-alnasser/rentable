@@ -105,6 +105,8 @@ export type StartupPorts = {
 		signIn(organizationId: string, password: string): Promise<OrganizationState>;
 		/** join the organization a link names with the generated password, and sign in to it. */
 		join(link: string, password: string): Promise<OrganizationState>;
+		/** restore a place in the organization its own link names, by email and password. */
+		restore(link: string, email: string, password: string): Promise<OrganizationState>;
 		/** change the signed-in member's own password, and clear the requirement to. */
 		changePassword(current: string, next: string): Promise<OrganizationState>;
 		signOut(): Promise<OrganizationState>;
@@ -537,6 +539,46 @@ export class Startup {
 	}
 
 	/**
+	 * Restore a place in an organization from its own link, at the wall, and go on in.
+	 *
+	 * The shape `joinByLink` has, because it is the same act from the other side of an
+	 * invitation: the link finds the organization, the password opens the person's vault, and
+	 * where the machine stands is what comes back. An owner arrives with no Turso authority and
+	 * repeats the consent from the dashboard; a member is done.
+	 */
+	async restoreByLink(link: string, email: string, password: string) {
+		if (this.#snapshot.isSigningIn) {
+			return false;
+		}
+
+		this.#set({ isSigningIn: true, error: null });
+
+		try {
+			this.#set({ organization: await this.#ports.organization.restore(link, email, password) });
+		} catch (error) {
+			this.#set({ error: this.#ports.describeError(error) });
+
+			return false;
+		} finally {
+			this.#set({ isSigningIn: false });
+		}
+
+		this.#rememberSession();
+
+		if (!(await this.#admit())) {
+			return true;
+		}
+
+		if (!(await this.#hasWorkspace())) {
+			return true;
+		}
+
+		await this.#enterApplication();
+
+		return true;
+	}
+
+	/**
 	 * Choose a password of one's own, on the screen that requires it, and go on in.
 	 *
 	 * The same shape as `signIn`: two passwords handed to the shell and never held, a refusal
@@ -650,7 +692,11 @@ export class Startup {
 
 		this.#set({
 			remoteSync: await this.#ports.remoteSync.getState().catch(() => null),
-			organization: organization ?? { organizations: [], session: null }
+			organization: organization ?? {
+				organizations: [],
+				session: null,
+				holdsTursoAuthority: false
+			}
 		});
 
 		if (!(await this.#admit())) {

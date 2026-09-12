@@ -349,6 +349,12 @@ export type LinkFacts = {
 export type OrganizationState = {
 	organizations: JoinedOrganization[];
 	session: OrganizationSession | null;
+	/**
+	 * whether this machine holds the Turso authority and knows which account it is over: the
+	 * owner's machine after a consent. An owner restored on a new machine holds none until they
+	 * repeat the consent, which is the one thing a restore cannot bring with it.
+	 */
+	holdsTursoAuthority: boolean;
 };
 
 /** one member as the dashboard lists them. Names opened on the other side; no key, no credential. */
@@ -538,6 +544,17 @@ export type Host = {
 		 * a wrong password rejects saying only that the value did not open.
 		 */
 		join: (link: string, password: string) => Promise<OrganizationState>;
+		/**
+		 * restore a place in the organization its own link names, by email and password, on a
+		 * machine that has joined it before or never. The email is what a person offers where
+		 * they were invited with one; an owner typed none at the first run and offers none.
+		 */
+		restore: (link: string, email: string, password: string) => Promise<OrganizationState>;
+		/**
+		 * after an owner repeats the consent on a new machine: record which account it is over,
+		 * so the machine can act as the owner's again. Rejects where no consent stands.
+		 */
+		reconnectAuthority: () => Promise<OrganizationState>;
 		workspace: {
 			/**
 			 * create a workspace on the account: a database, migrated, recorded, and granted to the

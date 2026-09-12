@@ -9,6 +9,7 @@
 	import OrganizationInviteForm from '$lib/organization/component/invite-form.svelte';
 	import OrganizationInvitations from '$lib/organization/component/invitations.svelte';
 	import OrganizationMembers from '$lib/organization/component/members.svelte';
+	import OrganizationReconnectAuthority from '$lib/organization/component/reconnect-authority.svelte';
 	import OrganizationWorkspaces from '$lib/organization/component/workspaces.svelte';
 	import {
 		useCreateWorkspace,
@@ -47,6 +48,8 @@
 
 	const session = $derived(stateQuery.data?.session ?? null);
 	const isOwner = $derived(session?.role === 'owner');
+	// an owner restored on this machine holds no Turso authority until they repeat the consent.
+	const needsAuthority = $derived(isOwner && stateQuery.data?.holdsTursoAuthority === false);
 	const canInvite = $derived(permits(session?.permissions ?? 0, 'inviteMember'));
 	const canRemove = $derived(permits(session?.permissions ?? 0, 'removeMember'));
 
@@ -218,6 +221,15 @@
 						{revoking}
 						onRevoke={(invitationId) => void revoke(invitationId)}
 					/>
+				</Field.Set>
+			{/if}
+
+			{#if needsAuthority}
+				<Separator />
+
+				<Field.Set>
+					<Field.Legend>{$LL.organization.dashboard.authorityTitle()}</Field.Legend>
+					<OrganizationReconnectAuthority onReconnected={() => void stateQuery.refetch()} />
 				</Field.Set>
 			{/if}
 

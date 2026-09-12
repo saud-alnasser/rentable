@@ -53,6 +53,31 @@ export function useConsentResult(sessionId: () => string | null) {
 	}));
 }
 
+/**
+ * after an owner repeats the consent on a new machine: record which account it is over, and
+ * refresh where the machine stands, which now says it holds the authority.
+ */
+export function useReconnectAuthority(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.authorityReconnected(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: () => tauri.organization.reconnectAuthority(),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.state });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
 /** forget the Turso authority this machine holds. */
 export function useDisconnect(
 	opts: MutationOptions = {

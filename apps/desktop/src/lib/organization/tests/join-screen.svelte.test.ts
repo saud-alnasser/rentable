@@ -37,6 +37,7 @@ const joinScreen = (step: JoinStep, errorMessage: string | null = null) =>
 		errorMessage,
 		onOpenLink: noop,
 		onJoin: noop,
+		onRestore: noop,
 		onPasteAnother: noop,
 		onSignInInstead: noop
 	});
@@ -100,8 +101,7 @@ test('a lapsed, used or revoked invitation names the organization and says which
 	const reasons = {
 		lapsed: en.organization.join.refusedLapsed,
 		consumed: en.organization.join.refusedConsumed,
-		revoked: en.organization.join.refusedRevoked,
-		none: en.organization.join.refusedNone
+		revoked: en.organization.join.refusedRevoked
 	} as const;
 
 	for (const [standing, reason] of Object.entries(reasons) as [keyof typeof reasons, string][]) {
@@ -116,6 +116,23 @@ test('a lapsed, used or revoked invitation names the organization and says which
 		expect(screen.getByText(reason)).toBeDefined();
 		rendered.unmount();
 	}
+});
+
+// requirement 6: the organization's own link asks for the email and the password, and the email
+// is optional, because an owner typed none at the first run.
+test("the organization's own link asks for the email and the password to restore a place", () => {
+	loadLocale('en');
+	setLocale('en');
+	joinScreen({ kind: 'restore', link: 'rentable://join/abc', facts: facts('none') });
+
+	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
+		'email',
+		'password'
+	]);
+	expect(screen.getByText(found(en))).toBeDefined();
+	expect(screen.getByText(en.organization.join.restoreDescription)).toBeDefined();
+	expect(screen.getByText(en.organization.join.emailOptional)).toBeDefined();
+	expect(screen.getByRole('button', { name: en.organization.join.restore })).toBeDefined();
 });
 
 test('a used invitation offers the sign-in instead, and a lapsed one does not', () => {

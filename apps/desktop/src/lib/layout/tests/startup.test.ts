@@ -226,7 +226,8 @@ test('a link and the generated password join, on a machine that had joined nothi
 				session: fakeOrganizationSession({
 					mustChangePassword: true,
 					workspaces: [fakeOrganizationWorkspace({ id: 'north' })]
-				})
+				}),
+				holdsTursoAuthority: false
 			};
 		},
 		changePasswordWith: async () => ({
@@ -234,7 +235,8 @@ test('a link and the generated password join, on a machine that had joined nothi
 			session: fakeOrganizationSession({
 				mustChangePassword: false,
 				workspaces: [fakeOrganizationWorkspace({ id: 'north' })]
-			})
+			}),
+			holdsTursoAuthority: false
 		})
 	});
 
@@ -280,6 +282,40 @@ test('and a refused invitation leaves the person at the join screen with the sen
 	);
 	assert.equal(startup.snapshot.isSigningIn, false);
 	assert.equal(journal.bootstrapped, 0);
+});
+
+// requirement 6: the organization's own link and the password restore a place on a machine
+// that had joined nothing, and the owner arrives holding no Turso authority.
+test("the organization's own link and the password restore an owner, who then holds no authority", async () => {
+	const asked: [string, string, string][] = [];
+	const { startup, journal } = harness({
+		organization: nowhereToGo(),
+		restoreWith: async (link, email, password) => {
+			asked.push([link, email, password]);
+
+			return {
+				organizations: [
+					{ id: 'acme', name: 'Acme', memberId: 'olivia', role: 'owner', joinedAt: 1 }
+				],
+				session: fakeOrganizationSession({
+					role: 'owner',
+					workspaces: [fakeOrganizationWorkspace({ id: 'north' })]
+				}),
+				holdsTursoAuthority: false
+			};
+		}
+	});
+
+	await startup.start();
+
+	const restored = await startup.restoreByLink('rentable://join/abc', '', 'the owners password');
+
+	assert.equal(restored, true);
+	assert.deepEqual(asked, [['rentable://join/abc', '', 'the owners password']]);
+	assert.ok(!JSON.stringify(startup.snapshot).includes('the owners password'));
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(startup.snapshot.organization?.holdsTursoAuthority, false);
+	assert.deepEqual(journal.workspacesOpened, ['north']);
 });
 
 // --- 4c. A password somebody else drew ----------------------------------------------------

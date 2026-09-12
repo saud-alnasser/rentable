@@ -56,6 +56,10 @@ impl From<&JoinedOrganization> for JoinedOrganizationFacts {
 pub struct OrganizationState {
     pub organizations: Vec<JoinedOrganizationFacts>,
     pub session: Option<SessionFacts>,
+    /// whether this machine holds the Turso authority and knows which account it is over: the
+    /// owner's machine after a consent. An owner restored on a new machine holds none until they
+    /// repeat the consent, which is the one thing a restore cannot bring with it (requirement 5).
+    pub holds_turso_authority: bool,
 }
 
 /// Create an organization on the consented Turso account, with this machine's person as its
@@ -146,10 +150,12 @@ pub async fn organization_state_get(
             .collect()
     };
     let session = current_facts(&app_state).await?;
+    let holds_turso_authority = owner_platform(&app_state).await.is_some();
 
     Ok(OrganizationState {
         organizations,
         session,
+        holds_turso_authority,
     })
 }
 
@@ -795,6 +801,76 @@ pub async fn organization_join(
 
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
+
+    organization_state_get(app_state).await
+}
+
+/// Restore a place in the organization its own link names, by the person's email and password,
+/// and sign them in. An owner on a new machine walks this and then repeats the consent; a member
+/// walks it and is done. Refused while somebody is signed in here, as joining is.
+#[tauri::command]
+pub async fn organization_restore(
+    app_state: tauri::State<'_, AppState>,
+    link: String,
+    email: String,
+    password: String,
+) -> Result<OrganizationState, Error> {
+    if app_state.member.read().await.is_some() {
+        return Err(Error::PreconditionFailed {
+            message: "sign out before restoring an organization on this machine".to_string(),
+        });
+    }
+
+    let link = JoinLink::decode(&link)?;
+    let (store, credential) = reached(&app_state, &link).await?;
+    let member = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        join::restore(
+            &store,
+            remote_sync.store_mut(),
+            &link,
+            &email,
+            &password,
+            &credential,
+            timestamp::now(),
+        )
+        .await?
+    };
+
+    *app_state.organization.write().await = Some(store);
+    *app_state.member.write().await = Some(member);
+
+    organization_state_get(app_state).await
+}
+
+/// Record which Turso account the consent this machine now holds is over, so the owner's
+/// machine can build the Platform API client again: what an owner restored on a new machine
+/// does after repeating the consent. The account is discovered the way the first run
+/// discovered it, and nothing about it was restored from anywhere.
+#[tauri::command]
+pub async fn organization_reconnect_authority(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<OrganizationState, Error> {
+    let platform_token = setup::authority()?;
+
+    {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        if crate::sync::turso::discovery::organization(
+            remote_sync.store_mut(),
+            &platform_token,
+            &McpEndpoint::production(),
+        )
+        .await?
+        .is_none()
+        {
+            return Err(Error::PreconditionFailed {
+                message: "the consent was granted over a group with no database in it, and the                           organization is not there. grant it over the group that holds the                           organization"
+                    .to_string(),
+            });
+        }
+    }
 
     organization_state_get(app_state).await
 }

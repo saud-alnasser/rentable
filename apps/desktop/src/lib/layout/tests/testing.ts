@@ -25,7 +25,11 @@ export const unlocked = () => fakeOrganizationState();
 /** a machine that has joined an organization and holds no open vault. */
 export const locked = () => fakeOrganizationState({ session: null });
 /** a machine that has joined nothing. */
-export const nowhereToGo = (): OrganizationState => ({ organizations: [], session: null });
+export const nowhereToGo = (): OrganizationState => ({
+	organizations: [],
+	session: null,
+	holdsTursoAuthority: false
+});
 /** a machine whose person is in on a password somebody else drew, and has to choose their own. */
 export const mustChangePassword = () =>
 	fakeOrganizationState({
@@ -101,6 +105,8 @@ export function harness(
 		joinWith?: (link: string, password: string) => Promise<OrganizationState>;
 		/** what changing the password does: the state it leaves the machine in, or the refusal. */
 		changePasswordWith?: (current: string, next: string) => Promise<OrganizationState>;
+		/** what restoring does: the state it leaves the machine in, or the refusal. */
+		restoreWith?: (link: string, email: string, password: string) => Promise<OrganizationState>;
 	} = {}
 ): Harness {
 	const journal: Journal = {
@@ -171,6 +177,15 @@ export function harness(
 			},
 			join: async (link, password) => {
 				organization = await (overrides.joinWith ?? (async () => unlocked()))(link, password);
+
+				return organization;
+			},
+			restore: async (link, email, password) => {
+				organization = await (overrides.restoreWith ?? (async () => unlocked()))(
+					link,
+					email,
+					password
+				);
 
 				return organization;
 			},

@@ -2510,9 +2510,21 @@ type RootTranslation = {
 			 */
 			refusedRevoked: string
 			/**
-			 * t​h​i​s​ ​l​i​n​k​ ​c​a​r​r​i​e​s​ ​n​o​ ​i​n​v​i​t​a​t​i​o​n​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​o​n​e​ ​m​a​d​e​ ​f​o​r​ ​y​o​u​.
+			 * t​h​i​s​ ​i​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​o​w​n​ ​l​i​n​k​.​ ​i​f​ ​y​o​u​ ​a​l​r​e​a​d​y​ ​h​a​v​e​ ​a​ ​p​l​a​c​e​ ​i​n​ ​i​t​,​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​o​p​e​n​s​ ​i​t​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​t​o​o​.
 			 */
-			refusedNone: string
+			restoreDescription: string
+			/**
+			 * y​o​u​r​ ​e​m​a​i​l
+			 */
+			emailLabel: string
+			/**
+			 * t​h​e​ ​a​d​d​r​e​s​s​ ​y​o​u​ ​w​e​r​e​ ​i​n​v​i​t​e​d​ ​w​i​t​h​.​ ​t​h​e​ ​o​w​n​e​r​ ​w​a​s​ ​i​n​v​i​t​e​d​ ​w​i​t​h​ ​n​o​n​e​ ​a​n​d​ ​l​e​a​v​e​s​ ​t​h​i​s​ ​e​m​p​t​y​.
+			 */
+			emailOptional: string
+			/**
+			 * r​e​s​t​o​r​e​ ​m​y​ ​p​l​a​c​e
+			 */
+			restore: string
 			/**
 			 * t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​w​e​r​e​ ​h​a​n​d​e​d
 			 */
@@ -2599,6 +2611,18 @@ type RootTranslation = {
 			 * r​e​s​e​t​ ​p​a​s​s​w​o​r​d
 			 */
 			resetPassword: string
+			/**
+			 * t​u​r​s​o​ ​a​c​c​o​u​n​t
+			 */
+			authorityTitle: string
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​n​o​ ​a​u​t​h​o​r​i​t​y​ ​o​v​e​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​s​o​ ​i​t​ ​c​a​n​n​o​t​ ​c​r​e​a​t​e​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​ ​a​n​y​b​o​d​y​ ​o​u​t​ ​o​r​ ​r​e​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​s​.​ ​t​h​e​ ​a​u​t​h​o​r​i​t​y​ ​i​s​ ​n​o​w​h​e​r​e​ ​t​o​ ​r​e​s​t​o​r​e​ ​i​t​ ​f​r​o​m​;​ ​g​r​a​n​t​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​a​g​a​i​n​ ​h​e​r​e​,​ ​a​s​ ​y​o​u​ ​d​i​d​ ​o​n​ ​t​h​e​ ​f​i​r​s​t​ ​r​u​n​.
+			 */
+			authorityDescription: string
+			/**
+			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​c​o​n​n​e​c​t​e​d​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.
+			 */
+			authorityReconnected: string
 			/**
 			 * r​e​m​o​v​e
 			 */
@@ -5197,9 +5221,21 @@ export type TranslationFunctions = {
 			 */
 			refusedRevoked: () => LocalizedString
 			/**
-			 * this link carries no invitation. ask whoever invited you for one made for you.
+			 * this is the organization's own link. if you already have a place in it, your password opens it on this machine too.
 			 */
-			refusedNone: () => LocalizedString
+			restoreDescription: () => LocalizedString
+			/**
+			 * your email
+			 */
+			emailLabel: () => LocalizedString
+			/**
+			 * the address you were invited with. the owner was invited with none and leaves this empty.
+			 */
+			emailOptional: () => LocalizedString
+			/**
+			 * restore my place
+			 */
+			restore: () => LocalizedString
 			/**
 			 * the password you were handed
 			 */
@@ -5286,6 +5322,18 @@ export type TranslationFunctions = {
 			 * reset password
 			 */
 			resetPassword: () => LocalizedString
+			/**
+			 * turso account
+			 */
+			authorityTitle: () => LocalizedString
+			/**
+			 * this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.
+			 */
+			authorityDescription: () => LocalizedString
+			/**
+			 * the turso account is connected on this machine.
+			 */
+			authorityReconnected: () => LocalizedString
 			/**
 			 * remove
 			 */

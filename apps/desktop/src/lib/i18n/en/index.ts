@@ -814,7 +814,12 @@ const en = {
 				'the invitation has lapsed. ask whoever invited you for a new one; the link itself does not expire.',
 			refusedConsumed: 'the invitation was already used. sign in with your password instead.',
 			refusedRevoked: 'the invitation was revoked. ask whoever invited you for a new one.',
-			refusedNone: 'this link carries no invitation. ask whoever invited you for one made for you.',
+			restoreDescription:
+				"this is the organization's own link. if you already have a place in it, your password opens it on this machine too.",
+			emailLabel: 'your email',
+			emailOptional:
+				'the address you were invited with. the owner was invited with none and leaves this empty.',
+			restore: 'restore my place',
 			passwordLabel: 'the password you were handed',
 			join: 'join',
 			signInInstead: 'sign in instead'
@@ -841,6 +846,10 @@ const en = {
 			done: 'done',
 			notYetSignedIn: 'not yet signed in',
 			resetPassword: 'reset password',
+			authorityTitle: 'turso account',
+			authorityDescription:
+				"this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.",
+			authorityReconnected: 'the turso account is connected on this machine.',
 			remove: 'remove',
 			removeDescription:
 				'they stop being renewed, so their access ends when their credential runs out, within four weeks, and nobody else is affected. what is already on their machine stays there; nothing reaches into it.',

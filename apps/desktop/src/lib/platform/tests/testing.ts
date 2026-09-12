@@ -158,6 +158,8 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			onMigration: refuse('organization.onMigration'),
 			linkInspect: refuse('organization.linkInspect'),
 			join: refuse('organization.join'),
+			restore: refuse('organization.restore'),
+			reconnectAuthority: refuse('organization.reconnectAuthority'),
 			workspace: {
 				create: refuse('organization.workspace.create'),
 				open: refuse('organization.workspace.open'),
@@ -250,6 +252,7 @@ export function fakeOrganizationState(
 	return {
 		organizations: [fakeJoinedOrganization()],
 		session: fakeOrganizationSession(),
+		holdsTursoAuthority: true,
 		...overrides
 	};
 }

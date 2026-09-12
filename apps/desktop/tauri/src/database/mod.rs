@@ -440,7 +440,7 @@ impl Database {
     /// **A readiness probe that is permanently false is worse than none**: the two callers respond
     /// to a false by reconnecting, and on a replica that is refused. A replica that has never
     /// pulled holds `turso_cdc` and its kin and nothing else, and is not ready.
-    async fn is_replica_ready(database: &turso::sync::Database) -> bool {
+    pub(crate) async fn is_replica_ready(database: &turso::sync::Database) -> bool {
         let Ok(connection) = database.connect().await else {
             return false;
         };

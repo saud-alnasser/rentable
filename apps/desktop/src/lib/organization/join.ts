@@ -33,7 +33,12 @@ export type JoinStep =
 	/** the link found the organization, and the invitation is not one a password opens. */
 	| { kind: 'refused'; link: string; facts: LinkFacts }
 	/** the invitation is open: the password. */
-	| { kind: 'password'; link: string; facts: LinkFacts };
+	| { kind: 'password'; link: string; facts: LinkFacts }
+	/**
+	 * the organization's own link, with no invitation in it: a place already held is restored
+	 * on this machine by the email and the password (requirement 6).
+	 */
+	| { kind: 'restore'; link: string; facts: LinkFacts };
 
 /**
  * a pasted link, as a person pastes one: with the whitespace, quotes and angle brackets a chat
@@ -56,9 +61,10 @@ export function beginWith(link: string | null): JoinStep {
 
 /** the link was read: an open invitation asks for the password; anything else is refused by name. */
 export function inspected(link: string, facts: LinkFacts): JoinStep {
-	return facts.standing === 'open'
-		? { kind: 'password', link, facts }
-		: { kind: 'refused', link, facts };
+	if (facts.standing === 'open') return { kind: 'password', link, facts };
+	if (facts.standing === 'none') return { kind: 'restore', link, facts };
+
+	return { kind: 'refused', link, facts };
 }
 
 /**

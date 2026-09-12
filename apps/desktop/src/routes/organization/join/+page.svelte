@@ -74,6 +74,18 @@
 		refusal = startup.snapshot.error;
 	};
 
+	const restoreFrom = async (link: string, email: string, password: string) => {
+		refusal = null;
+
+		if (await startup.restoreByLink(link, email, password)) {
+			void goto(resolve(THE_WAY_IN));
+
+			return;
+		}
+
+		refusal = startup.snapshot.error;
+	};
+
 	onMount(() => {
 		const stopObserving = startup.observe((snapshot) => {
 			shell = snapshot;
@@ -91,6 +103,7 @@
 	errorMessage={refusal}
 	onOpenLink={open}
 	onJoin={(link, password) => void join(link, password)}
+	onRestore={(link, email, password) => void restoreFrom(link, email, password)}
 	onPasteAnother={() => {
 		refusal = null;
 		step = { kind: 'paste' };
