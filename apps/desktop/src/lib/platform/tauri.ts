@@ -49,7 +49,7 @@ export type {
 	ExportSheet,
 	ImportTable,
 	Invited,
-	JoinedOrganization,
+	HeldOrganization,
 	LinkFacts,
 	LinkStanding,
 	LockOutCost,
@@ -209,10 +209,12 @@ export const tauri = {
 		consentBegin: () => invoke<OrganizationConsentStart>('organization_consent_begin'),
 		consentResult: (sessionId: string) =>
 			invoke<OrganizationConsentResult>('organization_consent_result', { sessionId }),
-		disconnect: () => invoke<void>('organization_disconnect'),
+		consentDisconnect: () => invoke<void>('organization_consent_disconnect'),
 		create: (name: string, username: string, password: string) =>
 			invoke<OrganizationCreated>('organization_create', { name, username, password }),
 		getState: () => invoke<OrganizationState>('organization_state_get'),
+		connect: (link: string) => invoke<OrganizationState>('organization_connect', { link }),
+		disconnect: () => invoke<OrganizationState>('organization_disconnect'),
 		signIn: (organizationId: string, password: string) =>
 			invoke<OrganizationState>('organization_sign_in', { organizationId, password }),
 		signOut: () => invoke<OrganizationState>('organization_sign_out'),

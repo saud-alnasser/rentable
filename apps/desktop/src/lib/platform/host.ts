@@ -212,13 +212,20 @@ export type OrganizationCreated = {
 	synced: boolean;
 };
 
-/** one organization this machine has joined, as the sign-in screen lists it. No key. */
-export type JoinedOrganization = {
+/**
+ * the one organization this machine holds, as the wall names it. No key.
+ *
+ * A machine that connected by the organization's link holds it and no member yet; a sign-in
+ * fills `memberId` and `role`, and a sign-out keeps them. *`JoinedOrganization`, one of a list,
+ * until 2026-09-13.*
+ */
+export type HeldOrganization = {
 	id: string;
 	name: string;
-	memberId: string;
+	/** this person's member row, once a sign-in has found it; `null` until then. */
+	memberId: string | null;
 	/** their role there, as last read. A display fact: what a member may do is what their vault holds. */
-	role: string;
+	role: string | null;
 	joinedAt: number;
 };
 
@@ -281,11 +288,12 @@ export type LinkFacts = {
 };
 
 /**
- * where this machine stands with organizations: which it has joined, and who is signed in.
+ * where this machine stands: the one organization it holds, or none, and who is signed in.
  * What the sign-in wall admits on.
  */
 export type OrganizationState = {
-	organizations: JoinedOrganization[];
+	/** the organization this machine holds; `null` on a machine that holds nothing. */
+	organization: HeldOrganization | null;
 	session: OrganizationSession | null;
 	/**
 	 * whether this machine holds the Turso authority and knows which account it is over: the
@@ -417,16 +425,29 @@ export type Host = {
 		consentBegin: () => Promise<OrganizationConsentStart>;
 		/** how far the consent has got. Polled while `pending`. */
 		consentResult: (sessionId: string) => Promise<OrganizationConsentResult>;
-		/** forget the Turso authority this machine holds. Nothing is revoked at Turso. */
-		disconnect: () => Promise<void>;
+		/** forget the Turso authority this machine holds, and nothing else. Nothing is revoked at Turso. */
+		consentDisconnect: () => Promise<void>;
 		/**
 		 * create an organization on the consented account from the two things a first run
 		 * collects. Refuses, creating nothing, where no consent has been granted, and signs the
 		 * owner in where it succeeds.
 		 */
 		create: (name: string, username: string, password: string) => Promise<OrganizationCreated>;
-		/** which organizations this machine has joined, and who is signed in. */
+		/** the organization this machine holds, and who is signed in. */
 		getState: () => Promise<OrganizationState>;
+		/**
+		 * connect this machine to the organization a link names: its id, name, remote and key are
+		 * recorded, no vault opens and no member is recorded; the person signs in at the wall.
+		 * Rejects as `preconditionFailed` while an organization is held, as `invalidInput` where
+		 * the text is not a link, and as `network` where the organization could not be reached.
+		 */
+		connect: (link: string) => Promise<OrganizationState>;
+		/**
+		 * forget the organization this machine holds: sign out where somebody is in, delete every
+		 * replica on this machine, empty the record, and clear the Turso authority. The
+		 * organization on Turso is untouched. The one confirm before it is the screen's.
+		 */
+		disconnect: () => Promise<OrganizationState>;
 		/**
 		 * open a vault with a password, with or without a network. A wrong password rejects
 		 * saying only that the value did not open; nothing distinguishes which half was wrong.

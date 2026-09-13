@@ -8,7 +8,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import StartupNoWorkspace from '$lib/layout/component/startup-no-workspace.svelte';
 import StartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
-import { fakeJoinedOrganization } from '$lib/platform/tests/testing.ts';
+import { fakeHeldOrganization } from '$lib/platform/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 /**
@@ -28,7 +28,7 @@ const card = (
 ) =>
 	render(StartupSignIn, {
 		situation,
-		organizations: [fakeJoinedOrganization()],
+		organizations: [fakeHeldOrganization()],
 		isSigningIn: false,
 		errorMessage: null,
 		onSignIn: noop,
@@ -98,8 +98,8 @@ test('a machine that has joined two organizations shows them in the select, the 
 		{
 			situation: 'locked',
 			organizations: [
-				fakeJoinedOrganization(),
-				fakeJoinedOrganization({ id: 'beta', name: 'Beta Holdings', role: 'member' })
+				fakeHeldOrganization(),
+				fakeHeldOrganization({ id: 'beta', name: 'Beta Holdings', role: 'member' })
 			],
 			isSigningIn: false,
 			errorMessage: null,

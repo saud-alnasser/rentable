@@ -892,7 +892,7 @@ mod tests {
     use crate::{
         error::Error,
         organization::{
-            JoinedOrganization,
+            HeldOrganization,
             link::JoinLink,
             migrate::Pipeline,
             permission,
@@ -936,8 +936,8 @@ mod tests {
     }
 
     /// The machine's record of a member who joined, as the join ticket will write one.
-    fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> JoinedOrganization {
-        JoinedOrganization {
+    fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
+        HeldOrganization {
             id: owner.organization_id.clone(),
             name: "Acme".to_string(),
             verifying_key: base64::Engine::encode(
@@ -945,8 +945,8 @@ mod tests {
                 owner.verifying_key,
             ),
             remote_url: String::new(),
-            member_id: member_id.to_string(),
-            role: role.to_string(),
+            member_id: Some(member_id.to_string()),
+            role: Some(role.to_string()),
             joined_at: 0,
         }
     }
@@ -996,7 +996,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organizations[0].clone();
+        let joined = store.organization.clone().expect("the record");
         let mut owner = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");

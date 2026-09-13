@@ -174,6 +174,7 @@ pub fn run() {
                     organization: Arc::new(RwLock::new(None)),
                     member: Arc::new(RwLock::new(None)),
                     arriving_link: Arc::new(Mutex::new(None)),
+                    old_shape_check: tokio::sync::OnceCell::new(),
                 });
             });
 
@@ -230,8 +231,10 @@ pub fn run() {
             sync::remote_sync_push,
             sync::organization_consent_begin,
             sync::organization_consent_result,
-            sync::organization_disconnect,
+            sync::organization_consent_disconnect,
             organization::organization_create,
+            organization::organization_connect,
+            organization::organization_disconnect,
             organization::organization_state_get,
             organization::organization_sign_in,
             organization::organization_sign_out,

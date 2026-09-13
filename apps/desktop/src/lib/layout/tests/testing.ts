@@ -24,9 +24,9 @@ export const syncing = () => fakeSyncState();
 export const unlocked = () => fakeOrganizationState();
 /** a machine that has joined an organization and holds no open vault. */
 export const locked = () => fakeOrganizationState({ session: null });
-/** a machine that has joined nothing. */
+/** a machine that holds nothing. */
 export const nowhereToGo = (): OrganizationState => ({
-	organizations: [],
+	organization: null,
 	session: null,
 	holdsTursoAuthority: false
 });

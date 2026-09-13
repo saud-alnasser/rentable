@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { JoinedOrganization } from '$lib/platform/host';
+	import type { HeldOrganization } from '$lib/platform/host';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
@@ -59,8 +59,12 @@
 	}: {
 		/** which of the two situations this is, from `organizationAdmission`. */
 		situation: 'noOrganization' | 'locked';
-		/** what this machine has joined, which is what it can unlock. */
-		organizations: JoinedOrganization[];
+		/**
+		 * what this machine holds, which is what it can unlock. A list of at most one since the
+		 * machine holds one organization; the select below draws several until ticket 14 redraws
+		 * the wall around the one.
+		 */
+		organizations: HeldOrganization[];
 		/** a password is being tried, which is a key derivation the person is waiting on. */
 		isSigningIn: boolean;
 		errorMessage: string | null;
@@ -104,14 +108,17 @@
 	/**
 	 * what the role reads as, in the reader's words. The vocabulary is
 	 * `packages/workspace-permission`'s and a role this build has never heard of is shown as it
-	 * is spelled rather than hidden.
+	 * is spelled rather than hidden. A machine that connected by link and has not signed in yet
+	 * holds no role to name, and reads as nothing.
 	 */
-	const roleLabel = (role: string) =>
+	const roleLabel = (role: string | null) =>
 		({
 			owner: $LL.layout.signIn.roleOwner(),
 			administrator: $LL.layout.signIn.roleAdministrator(),
 			member: $LL.layout.signIn.roleMember()
-		})[role] ?? role;
+		})[role ?? ''] ??
+		role ??
+		'';
 </script>
 
 <StandaloneSurface tone="neutral" {title} {description} busy={isSigningIn}>

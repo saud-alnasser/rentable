@@ -6,7 +6,7 @@ use tauri::Emitter;
 use crate::{error::Error, state::AppState, timestamp};
 
 use super::{
-    JoinedOrganization,
+    HeldOrganization, connect, forget,
     invite::{self, Invitation, InvitationFacts, Invited, MemberFacts},
     join::{self, LinkFacts},
     link::JoinLink,
@@ -24,37 +24,43 @@ use crate::sync::turso::{
     platform::{AccessLevel, PlatformApi, PlatformEndpoint},
 };
 
-/// One organization this machine has joined, as the sign-in screen lists it. No key.
+/// The organization this machine holds, as the wall names it. No key.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct JoinedOrganizationFacts {
+pub struct HeldOrganizationFacts {
     pub id: String,
     pub name: String,
-    pub member_id: String,
-    pub role: String,
+    /// this person's member row, once a sign-in has found it; `None` on a machine that connected
+    /// by link and has not signed in yet.
+    pub member_id: Option<String>,
+    /// their role, as last read. A display fact; `None` with `member_id`.
+    pub role: Option<String>,
     pub joined_at: i64,
 }
 
-impl From<&JoinedOrganization> for JoinedOrganizationFacts {
-    fn from(joined: &JoinedOrganization) -> Self {
+impl From<&HeldOrganization> for HeldOrganizationFacts {
+    fn from(held: &HeldOrganization) -> Self {
         Self {
-            id: joined.id.clone(),
-            name: joined.name.clone(),
-            member_id: joined.member_id.clone(),
-            role: joined.role.clone(),
-            joined_at: joined.joined_at,
+            id: held.id.clone(),
+            name: held.name.clone(),
+            member_id: held.member_id.clone(),
+            role: held.role.clone(),
+            joined_at: held.joined_at,
         }
     }
 }
 
-/// Where this machine stands with organizations: which it has joined, and who is signed in.
+/// Where this machine stands: the one organization it holds, if any, and who is signed in.
 ///
 /// What the sign-in wall admits on. `session` is `None` until a password has opened a vault in
 /// this process, and it carries facts and no credential.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OrganizationState {
-    pub organizations: Vec<JoinedOrganizationFacts>,
+    /// the organization this machine holds, or `None` on a machine that holds nothing, which is
+    /// what the screen offering the two ways to connect is drawn on (requirement 18). *A list
+    /// until 2026-09-13.*
+    pub organization: Option<HeldOrganizationFacts>,
     pub session: Option<SessionFacts>,
     /// whether this machine holds the Turso authority and knows which account it is over: the
     /// owner's machine after a consent. An owner restored on a new machine holds none until they
@@ -116,10 +122,9 @@ pub async fn organization_create(
     // would. One more derivation, and no second way of becoming signed in.
     let joined = remote_sync
         .store_mut()
-        .organizations
-        .iter()
-        .find(|joined| joined.id == created.organization_id)
-        .cloned()
+        .organization
+        .clone()
+        .filter(|held| held.id == created.organization_id)
         .ok_or_else(|| Error::Internal {
             message: "the organization was created and not recorded".to_string(),
         })?;
@@ -132,33 +137,97 @@ pub async fn organization_create(
     Ok(created)
 }
 
-/// Where this machine stands: the organizations it has joined and who is signed in.
+/// Where this machine stands: the organization it holds and who is signed in.
 ///
 /// **`public` on the other side for the same reason the sync state is**: it is what the wall
 /// admits on, so requiring a signed-in caller would make it answerable only to machines whose
 /// answer is already known.
+///
+/// **The first read of a launch checks the shape of what the machine holds** and forgets it
+/// where it was built before this build (requirement 17, `forget.rs`), before anything opens the
+/// replica. Every later read, and every command that answers with the state, finds the check
+/// already made.
 #[tauri::command]
 pub async fn organization_state_get(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<OrganizationState, Error> {
-    let organizations = {
+    state_of(&app_state).await
+}
+
+/// The state, with the once-per-launch check made first.
+pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, Error> {
+    app_state
+        .old_shape_check
+        .get_or_try_init(|| async {
+            forget::forget_old_shape(app_state).await?;
+
+            Ok::<(), Error>(())
+        })
+        .await?;
+
+    let organization = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
         remote_sync
             .store_mut()
-            .organizations
-            .iter()
-            .map(JoinedOrganizationFacts::from)
-            .collect()
+            .organization
+            .as_ref()
+            .map(HeldOrganizationFacts::from)
     };
-    let session = current_facts(&app_state).await?;
-    let holds_turso_authority = owner_platform(&app_state).await.is_some();
+    let session = current_facts(app_state).await?;
+    let holds_turso_authority = owner_platform(app_state).await.is_some();
 
     Ok(OrganizationState {
-        organizations,
+        organization,
         session,
         holds_turso_authority,
     })
+}
+
+/// Connect this machine to the organization a link names: reach its replica as
+/// `organization_link_inspect` does, check the rows against the key the link pins, and record
+/// the organization with no member. No vault opens; the person signs in at the wall.
+///
+/// Refused while this machine holds an organization, before the link is decoded: a machine holds
+/// one (requirement 17), and the way to another is a disconnect first.
+#[tauri::command]
+pub async fn organization_connect(
+    app_state: tauri::State<'_, AppState>,
+    link: String,
+) -> Result<OrganizationState, Error> {
+    {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        connect::refuse_while_held(remote_sync.store_mut())?;
+    }
+
+    let link = JoinLink::decode(&link)?;
+    let (store, _) = reached(&app_state, &link).await?;
+
+    {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        connect::connect(&store, remote_sync.store_mut(), &link, timestamp::now()).await?;
+    }
+
+    // the replica is let go of rather than held: nobody is signed in, and the sign-in opens it
+    // again with the credential the vault unseals.
+    drop(store);
+
+    state_of(&app_state).await
+}
+
+/// Forget the organization this machine holds (requirement 20): sign out where somebody is in,
+/// delete every replica under the data directory, empty the record, and clear the Turso
+/// authority. The organization on Turso is untouched, and the person can connect again by the
+/// link. The one confirm before it is the screen's; this asks nothing.
+#[tauri::command]
+pub async fn organization_disconnect(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<OrganizationState, Error> {
+    forget::forget(&app_state).await?;
+
+    state_of(&app_state).await
 }
 
 /// Sign in to one of the organizations this machine has joined, with a password.
@@ -182,12 +251,11 @@ pub async fn organization_sign_in(
 
         remote_sync
             .store_mut()
-            .organizations
-            .iter()
-            .find(|joined| joined.id == organization_id)
-            .cloned()
+            .organization
+            .clone()
+            .filter(|held| held.id == organization_id)
             .ok_or_else(|| Error::NotFound {
-                message: "this machine has not joined that organization".to_string(),
+                message: "this machine does not hold that organization".to_string(),
             })?
     };
     let database_path = {
@@ -226,7 +294,7 @@ pub async fn organization_sign_in(
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
 
-    organization_state_get(app_state).await
+    state_of(&app_state).await
 }
 
 /// Put the wall back up: drop the keys this process held, and let go of the replica.
@@ -237,7 +305,7 @@ pub async fn organization_sign_out(
     *app_state.member.write().await = None;
     *app_state.organization.write().await = None;
 
-    organization_state_get(app_state).await
+    state_of(&app_state).await
 }
 
 /// The signed-in member's facts, re-read from the replica so a row that changed under them since
@@ -426,15 +494,10 @@ pub async fn workspace_open(
 
                 remote_sync
                     .store_mut()
-                    .organizations
-                    .iter()
-                    .find(|joined| joined.id == member.organization_id)
-                    .map(|joined| {
-                        joined
-                            .remote_url
-                            .trim_start_matches("libsql://")
-                            .to_string()
-                    })
+                    .organization
+                    .as_ref()
+                    .filter(|held| held.id == member.organization_id)
+                    .map(|held| held.remote_url.trim_start_matches("libsql://").to_string())
                     .unwrap_or_default()
             };
             let lease =
@@ -803,7 +866,7 @@ pub async fn organization_change_password(
         .await?;
     }
 
-    organization_state_get(app_state).await
+    state_of(&app_state).await
 }
 
 /// Revoke an unused invitation. The link that named it opens nothing afterwards.
@@ -909,7 +972,7 @@ pub async fn organization_join(
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
 
-    organization_state_get(app_state).await
+    state_of(&app_state).await
 }
 
 /// Restore a place in the organization its own link names, by the person's username and password,
@@ -948,7 +1011,7 @@ pub async fn organization_restore(
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
 
-    organization_state_get(app_state).await
+    state_of(&app_state).await
 }
 
 /// Record which Turso account the consent this machine now holds is over, so the owner's
@@ -979,7 +1042,7 @@ pub async fn organization_reconnect_authority(
         }
     }
 
-    organization_state_get(app_state).await
+    state_of(&app_state).await
 }
 
 /// The organization a link names, reached: its replica on this machine, opened against the

@@ -35,7 +35,7 @@ use crate::error::Error;
 use crate::sync::turso::platform::AccessLevel;
 
 use super::{
-    JoinedOrganization,
+    HeldOrganization,
     authority::VERIFYING_KEY_BYTES,
     store::OrganizationStore,
     vault::{
@@ -154,15 +154,23 @@ pub struct SessionFacts {
 /// what lets the replica reach the remote from now on.
 pub async fn sign_in(
     store: &OrganizationStore,
-    joined: &JoinedOrganization,
+    joined: &HeldOrganization,
     password: &str,
     credential: &CredentialSlot,
 ) -> Result<MemberSession, Error> {
     let verifying_key = verifying_key_of(joined)?;
+    // a machine that connected by link holds the organization and no member yet; finding the
+    // member by username is the sign-in effort 824 puts in this function's place.
+    let member_id = joined
+        .member_id
+        .as_deref()
+        .ok_or_else(|| Error::PreconditionFailed {
+            message: format!("this machine holds {} and no member in it yet", joined.name),
+        })?;
     let members = store.members(&verifying_key).await?;
     let member = members
         .iter()
-        .find(|member| member.id == joined.member_id)
+        .find(|member| member.id == member_id)
         .ok_or_else(|| Error::NotFound {
             message: "this machine's member row is not in the organization any more".to_string(),
         })?;
@@ -368,7 +376,7 @@ pub async fn facts_of(
 }
 
 /// The key this machine pinned when it joined, as the chain takes it.
-pub fn verifying_key_of(joined: &JoinedOrganization) -> Result<[u8; VERIFYING_KEY_BYTES], Error> {
+pub fn verifying_key_of(joined: &HeldOrganization) -> Result<[u8; VERIFYING_KEY_BYTES], Error> {
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 
     let bytes = BASE64URL
@@ -400,7 +408,7 @@ mod tests {
     use super::{CredentialSlot, facts_of, sign_in};
     use crate::{
         organization::{
-            JoinedOrganization,
+            HeldOrganization,
             authority::{AdministratorKey, OrganizationKey, issue_certificate},
             setup::{CreateOrganization, Remote, create_organization},
             store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
@@ -449,7 +457,7 @@ mod tests {
     ) -> (
         Persisted<RemoteSyncStore>,
         OrganizationStore,
-        JoinedOrganization,
+        HeldOrganization,
     ) {
         let mut store = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
             .expect("the store");
@@ -492,7 +500,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organizations[0].clone();
+        let joined = store.organization.clone().expect("the record");
 
         (store, organization, joined)
     }
@@ -509,7 +517,10 @@ mod tests {
         let facts = facts_of(&store, &session).await.expect("the facts");
 
         assert_eq!(session.role, "owner");
-        assert_eq!(session.member_id, joined.member_id);
+        assert_eq!(
+            Some(session.member_id.as_str()),
+            joined.member_id.as_deref()
+        );
         assert!(!session.must_change_password);
         assert_eq!(facts.organization_name, "Acme");
         assert_eq!(facts.role, "owner");
@@ -529,7 +540,7 @@ mod tests {
         );
         assert_eq!(
             format!("{session:?}"),
-            format!("MemberSession({} in {})", joined.member_id, joined.id)
+            format!("MemberSession({} in {})", session.member_id, joined.id)
         );
     }
 
@@ -631,13 +642,39 @@ mod tests {
         );
     }
 
-    /// Requirement 17: two organizations on one machine, and one person with a different role in
-    /// each. The second is one somebody else administers, in which this machine's person is a
-    /// member who must still change their password.
+    /// **A machine that holds the organization and no member yet cannot sign in this way.** A
+    /// connect by link records no member; effort 824's sign-in finds the row by username, and
+    /// until then a record with no member is refused before any row is read.
     #[tokio::test]
-    async fn two_organizations_on_one_machine_open_with_their_own_passwords_and_roles() {
+    async fn a_record_with_no_member_is_refused_before_any_row_is_read() {
+        let directory = scratch("no-member");
+        let (_, store, joined) = created(&directory).await;
+        let connected = HeldOrganization {
+            member_id: None,
+            role: None,
+            ..joined
+        };
+
+        let refusal = sign_in(&store, &connected, PASSWORD, &slot())
+            .await
+            .expect_err("a record naming no member signed in");
+
+        assert!(
+            matches!(refusal, crate::error::Error::PreconditionFailed { .. }),
+            "{refusal:?}"
+        );
+        assert!(refusal.to_string().contains("no member"), "{refusal}");
+    }
+
+    /// Two organizations, and one person with a different role in each: the second is one
+    /// somebody else administers, in which this machine's person is a member who must still
+    /// change their password. Each opens with its own password and its own role, and one
+    /// password does not open the other. *819's requirement 17 had a machine hold both at once;
+    /// effort 824's requirement 17 has it hold one, so the two records here are two machines'.*
+    #[tokio::test]
+    async fn two_organizations_open_with_their_own_passwords_and_roles() {
         let directory = scratch("two");
-        let (mut machine, store_a, joined_a) = created(&directory).await;
+        let (_, store_a, joined_a) = created(&directory).await;
 
         // the second organization, made elsewhere: its owner's chain, and this person as a member.
         let organization_key = OrganizationKey::generate().expect("a key");
@@ -727,7 +764,7 @@ mod tests {
             .await
             .expect("the grant");
 
-        let joined_b = JoinedOrganization {
+        let joined_b = HeldOrganization {
             id: "b".to_string(),
             name: "Beta".to_string(),
             verifying_key: base64::Engine::encode(
@@ -735,17 +772,12 @@ mod tests {
                 organization_key.verifying_key(),
             ),
             remote_url: "libsql://org-b-other.aws-eu-west-1.turso.io".to_string(),
-            member_id: "me-there".to_string(),
-            role: "member".to_string(),
+            member_id: Some("me-there".to_string()),
+            role: Some("member".to_string()),
             joined_at: 1_757_000_000_001,
         };
 
-        machine.organizations.push(joined_b.clone());
-        machine.commit().expect("the record");
-
-        // both are listed, and each opens with its own password and its own role.
-        assert_eq!(machine.organizations.len(), 2);
-
+        // each opens with its own password and its own role.
         let a = sign_in(&store_a, &joined_a, PASSWORD, &slot())
             .await
             .expect("the first organization did not open");

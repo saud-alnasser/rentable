@@ -1142,6 +1142,23 @@ impl OrganizationStore {
         Ok(re_signed)
     }
 
+    /// The columns one table carries, as the database reports them: what the startup check reads
+    /// to tell a replica built under an earlier schema from one this build wrote
+    /// (`organization/forget.rs`). A table that is not there has no columns.
+    pub async fn columns_of(&self, table: &str) -> Result<Vec<String>, Error> {
+        let mut rows = self
+            .connection
+            .query(&format!("PRAGMA table_info(\"{table}\")"), ())
+            .await?;
+        let mut names = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            names.push(text(&row, 1)?);
+        }
+
+        Ok(names)
+    }
+
     /// The connection, for a test that has to write a row the store would never write.
     #[cfg(test)]
     pub(crate) fn connection(&self) -> &turso::Connection {

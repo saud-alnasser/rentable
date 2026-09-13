@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-	fakeJoinedOrganization,
+	fakeHeldOrganization,
 	fakeOrganizationSession,
 	fakeOrganizationState
 } from '$lib/platform/tests/testing.ts';
@@ -24,11 +24,11 @@ test('a state still loading is starting, and not a refusal', () => {
 	assert.deepEqual(organizationAdmission(undefined), { kind: 'starting' });
 });
 
-// requirement 17's other half: a machine that has joined nothing has nothing to list and nothing
-// to unlock, so the way past this is the first run rather than a password.
-test('a machine that has joined no organization is stopped at the door, and told why', () => {
+// requirement 17's other half: a machine that holds nothing has nothing to name and nothing to
+// unlock, so the way past this is connecting rather than a password.
+test('a machine that holds no organization is stopped at the door, and told why', () => {
 	assert.deepEqual(
-		organizationAdmission({ organizations: [], session: null, holdsTursoAuthority: false }),
+		organizationAdmission({ organization: null, session: null, holdsTursoAuthority: false }),
 		{
 			kind: 'signInRequired',
 			reason: 'noOrganization'
@@ -36,16 +36,19 @@ test('a machine that has joined no organization is stopped at the door, and told
 	);
 });
 
-// every launch after the first, and every sign-out: something to list, and a password to type.
-test('a machine that has joined one and holds no open vault is locked', () => {
+// every launch after the first, and every sign-out: something to name, and a password to type.
+test('a machine that holds one and no open vault is locked', () => {
 	const state = fakeOrganizationState({ session: null });
 
 	assert.deepEqual(organizationAdmission(state), { kind: 'signInRequired', reason: 'locked' });
 });
 
-test('two joined organizations are still one locked door, because either password opens it', () => {
+// effort 824, requirement 18: a machine that connected by the link holds the organization and no
+// member yet, and that is the locked door rather than the empty one; the wall is where the
+// member is found.
+test('a machine that connected by link and has not signed in yet is locked, not empty', () => {
 	const state = fakeOrganizationState({
-		organizations: [fakeJoinedOrganization(), fakeJoinedOrganization({ id: 'beta', name: 'Beta' })],
+		organization: fakeHeldOrganization({ memberId: null, role: null }),
 		session: null
 	});
 

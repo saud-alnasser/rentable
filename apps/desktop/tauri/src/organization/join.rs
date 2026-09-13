@@ -56,7 +56,7 @@ use serde::{Deserialize, Serialize};
 use crate::{diagnostics, error::Error, persisted::Persisted, sync::RemoteSyncStore};
 
 use super::{
-    JoinedOrganization,
+    HeldOrganization,
     invite::{InvitationPayload, InvitationStanding},
     link::JoinLink,
     session::{CredentialSlot, MemberSession, sign_in},
@@ -231,13 +231,13 @@ pub async fn join(
                 facts.organization_name
             ),
         })?;
-    let joined = JoinedOrganization {
+    let joined = HeldOrganization {
         id: link.organization_id.clone(),
         name: link.organization_name.clone(),
         verifying_key: link.verifying_key.clone(),
         remote_url: link.remote_url.clone(),
-        member_id: member.id.clone(),
-        role: member.role.clone(),
+        member_id: Some(member.id.clone()),
+        role: Some(member.role.clone()),
         joined_at: now,
     };
 
@@ -252,18 +252,14 @@ pub async fn join(
             .write();
     }
 
-    // one record per organization on this machine: a member invited again to one they had
-    // already joined here, which is what a reset produces, replaces their record rather than
-    // listing the organization twice.
-    machine
-        .organizations
-        .retain(|recorded| recorded.id != joined.id);
-    machine.organizations.push(joined.clone());
+    // the one organization this machine holds: a member invited again to one they had already
+    // joined here, which is what a reset produces, replaces the record rather than adding one.
+    machine.organization = Some(joined.clone());
     machine.commit()?;
 
     diagnostics::info("organization.joined")
         .with("organization", joined.id.as_str())
-        .with("role", joined.role.as_str())
+        .with("role", member.role.as_str())
         .write();
 
     Ok(session)
@@ -344,28 +340,25 @@ pub async fn restore(
         });
     }
 
-    let joined = JoinedOrganization {
+    let joined = HeldOrganization {
         id: link.organization_id.clone(),
         name: link.organization_name.clone(),
         verifying_key: link.verifying_key.clone(),
         remote_url: link.remote_url.clone(),
-        member_id: member.id.clone(),
-        role: member.role.clone(),
+        member_id: Some(member.id.clone()),
+        role: Some(member.role.clone()),
         joined_at: now,
     };
 
     // the sign-in every launch performs, which verifies the rows again and unseals every grant.
     let session = sign_in(store, &joined, password, credential).await?;
 
-    machine
-        .organizations
-        .retain(|recorded| recorded.id != joined.id);
-    machine.organizations.push(joined.clone());
+    machine.organization = Some(joined.clone());
     machine.commit()?;
 
     diagnostics::info("organization.restored")
         .with("organization", joined.id.as_str())
-        .with("role", joined.role.as_str())
+        .with("role", member.role.as_str())
         .write();
 
     Ok(session)
@@ -431,7 +424,7 @@ mod tests {
             .expect("the store");
 
         assert!(
-            machine.organizations.is_empty(),
+            machine.organization.is_none(),
             "the second machine has prior state"
         );
 
@@ -484,7 +477,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organizations[0].clone();
+        let joined = store.organization.clone().expect("the record");
         let mut owner = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -561,17 +554,18 @@ mod tests {
         .await
         .expect("the join failed");
 
-        // recorded from the link, pinned, and once.
-        assert_eq!(machine.organizations.len(), 1);
-
-        let recorded = &machine.organizations[0];
+        // recorded from the link, pinned, as the one organization this machine holds.
+        let recorded = machine.organization.as_ref().expect("the record");
 
         assert_eq!(recorded.id, link.organization_id);
         assert_eq!(recorded.name, "Acme");
         assert_eq!(recorded.remote_url, link.remote_url);
         assert_eq!(recorded.verifying_key, link.verifying_key);
-        assert_eq!(recorded.member_id, session.member_id);
-        assert_eq!(recorded.role, permission::MEMBER);
+        assert_eq!(
+            recorded.member_id.as_deref(),
+            Some(session.member_id.as_str())
+        );
+        assert_eq!(recorded.role.as_deref(), Some(permission::MEMBER));
         assert_eq!(recorded.joined_at, ISSUED_AT + 2);
 
         // signed in as the member, with what the inviter granted, and made to change the password.
@@ -618,7 +612,7 @@ mod tests {
 
         assert!(wrong.is_err(), "a wrong password joined");
         assert!(
-            machine.organizations.is_empty(),
+            machine.organization.is_none(),
             "a wrong password was recorded"
         );
         assert_eq!(
@@ -658,7 +652,7 @@ mod tests {
             matches!(refused, Err(Error::InvalidInput { ref message }) if message.contains("Acme")),
             "{refused:?}"
         );
-        assert!(machine.organizations.is_empty());
+        assert!(machine.organization.is_none());
     }
 
     /// The verifying key is pinned from the link and not read from the database: a link that
@@ -695,7 +689,7 @@ mod tests {
             .await
             .is_err()
         );
-        assert!(machine.organizations.is_empty());
+        assert!(machine.organization.is_none());
     }
 
     /// A consumed invitation is not consumed twice, and a lapsed or revoked one is refused with
@@ -733,10 +727,9 @@ mod tests {
             matches!(second, Err(Error::Forbidden { ref message }) if message.contains("Acme") && message.contains("already used")),
             "{second:?}"
         );
-        assert_eq!(
-            machine.organizations.len(),
-            1,
-            "the second attempt recorded again"
+        assert!(
+            machine.organization.is_some(),
+            "the second attempt forgot the record"
         );
 
         // a second member, whose invitation lapses before they open it.
@@ -827,7 +820,7 @@ mod tests {
             matches!(revoked, Err(Error::Forbidden { ref message }) if message.contains("Acme") && message.contains("revoked")),
             "{revoked:?}"
         );
-        assert_eq!(machine.organizations.len(), 1);
+        assert!(machine.organization.is_some());
     }
 
     /// Requirement 6, offline: the organization's own link and the owner's username and password
@@ -877,9 +870,10 @@ mod tests {
                 .expect("the slot")
                 .as_deref()
         );
-        assert_eq!(machine.organizations.len(), 1);
-        assert_eq!(machine.organizations[0].role, permission::OWNER);
-        assert_eq!(machine.organizations[0].verifying_key, link.verifying_key);
+        let recorded = machine.organization.as_ref().expect("the record");
+
+        assert_eq!(recorded.role.as_deref(), Some(permission::OWNER));
+        assert_eq!(recorded.verifying_key, link.verifying_key);
 
         // the member, by their username and the password they were handed, on another machine.
         let theirs = scratch("restore-member");
@@ -924,7 +918,7 @@ mod tests {
             .await;
 
             assert!(refused.is_err(), "{username:?} restored with {password:?}");
-            assert!(nobody.organizations.is_empty());
+            assert!(nobody.organization.is_none());
         }
 
         // and the authority: the platform token that created the organization is in no cell of
@@ -1125,7 +1119,7 @@ mod tests {
             "the first run's rows did not reach the account"
         );
 
-        let joined_a = store_a.organizations[0].clone();
+        let joined_a = store_a.organization.clone().expect("the record on A");
         let mut owner_a = sign_in(&organization_a, &joined_a, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in on A");
@@ -1219,7 +1213,10 @@ mod tests {
 
         eprintln!("restored the owner on B as {}", restored.role);
         assert_eq!(restored.role, permission::OWNER);
-        assert_eq!(restored.member_id, joined_a.member_id);
+        assert_eq!(
+            Some(restored.member_id.as_str()),
+            joined_a.member_id.as_deref()
+        );
         assert!(
             restored.workspace_credentials.contains_key(&workspace.id),
             "the restored owner does not hold the workspace"

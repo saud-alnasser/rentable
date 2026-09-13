@@ -6,7 +6,11 @@ import { caller, context } from '$lib/api/trpc.ts';
 import { organization } from '$lib/organization/router.ts';
 import { PASSWORD_FLOOR } from '$lib/organization/setup.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
-import { fakeHost } from '$lib/platform/tests/testing.ts';
+import {
+	fakeHeldOrganization,
+	fakeHost,
+	fakeOrganizationState
+} from '$lib/platform/tests/testing.ts';
 import { fakeIdentity } from '$lib/api/tests/testing.ts';
 import { maskOf, type Administration } from '@rentable/workspace-permission';
 import type { Host } from '$lib/platform/host.ts';
@@ -51,8 +55,21 @@ function hostRecording(asked: string[]): Host {
 
 				return { sessionId, status: 'granted', error: null };
 			},
+			consentDisconnect: async () => {
+				asked.push('consentDisconnect');
+			},
+			connect: async (link) => {
+				asked.push(`connect:${link}`);
+
+				return fakeOrganizationState({
+					organization: fakeHeldOrganization({ memberId: null, role: null }),
+					session: null
+				});
+			},
 			disconnect: async () => {
 				asked.push('disconnect');
+
+				return fakeOrganizationState({ organization: null, session: null });
 			},
 			create: async (name, username, password) => {
 				asked.push(`create:${name}:${username}:${password.length}`);
@@ -73,7 +90,22 @@ test('the consent is opened, polled and given up through the host, and nobody ha
 
 	assert.equal(started.authorizationUrl, 'https://app.turso.tech/oauth');
 	assert.equal(result.status, 'granted');
-	assert.deepEqual(asked, ['consentBegin', 'consentResult:consent-1', 'disconnect']);
+	assert.deepEqual(asked, ['consentBegin', 'consentResult:consent-1', 'consentDisconnect']);
+});
+
+// effort 824, requirements 18 and 20: connecting by the link and forgetting the organization both
+// happen at the wall, so both are public, and each hands back the state the machine is left in.
+test('connecting by link and disconnecting reach the host signed out, and answer with the state', async () => {
+	const asked: string[] = [];
+	const api = await signedOutApi(hostRecording(asked));
+
+	const connected = await api.app.organization.connect({ link: ' rentable://join/abc ' });
+	const forgotten = await api.app.organization.disconnect();
+
+	assert.deepEqual(asked, ['connect:rentable://join/abc', 'disconnect']);
+	assert.equal(connected.organization?.memberId, null, 'a connect recorded a member');
+	assert.equal(connected.session, null, 'a connect opened a vault');
+	assert.equal(forgotten.organization, null);
 });
 
 test('creating hands the trimmed name, the trimmed username and the password to the host as given', async () => {
@@ -123,10 +155,12 @@ test('nothing here asks the host to list organizations', () => {
 	const procedures = Object.keys(organization._def.procedures).sort();
 
 	assert.deepEqual(procedures, [
+		'connect',
 		'consent.begin',
 		'consent.disconnect',
 		'consent.result',
 		'create',
+		'disconnect',
 		'invitation.list',
 		'invitation.reissue',
 		'invitation.revoke',

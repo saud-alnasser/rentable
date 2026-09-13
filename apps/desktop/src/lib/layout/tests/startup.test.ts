@@ -253,9 +253,7 @@ test('a link and the generated password join, on a machine that had joined nothi
 			// what joining leaves the machine in: the organization recorded, and the member in,
 			// holding the workspace they were invited into.
 			return {
-				organizations: [
-					{ id: 'acme', name: 'Acme', memberId: 'sami', role: 'member', joinedAt: 1 }
-				],
+				organization: { id: 'acme', name: 'Acme', memberId: 'sami', role: 'member', joinedAt: 1 },
 				session: fakeOrganizationSession({
 					mustChangePassword: true,
 					workspaces: [fakeOrganizationWorkspace({ id: 'north' })]
@@ -264,7 +262,7 @@ test('a link and the generated password join, on a machine that had joined nothi
 			};
 		},
 		changePasswordWith: async () => ({
-			organizations: [{ id: 'acme', name: 'Acme', memberId: 'sami', role: 'member', joinedAt: 1 }],
+			organization: { id: 'acme', name: 'Acme', memberId: 'sami', role: 'member', joinedAt: 1 },
 			session: fakeOrganizationSession({
 				mustChangePassword: false,
 				workspaces: [fakeOrganizationWorkspace({ id: 'north' })]
@@ -285,7 +283,7 @@ test('a link and the generated password join, on a machine that had joined nothi
 	// in, on the password somebody else drew: the next screen is choosing their own, and the
 	// workspace they were granted opens after that and not before.
 	assert.equal(startup.snapshot.state, 'change-password');
-	assert.equal(startup.snapshot.organization?.organizations[0]?.name, 'Acme');
+	assert.equal(startup.snapshot.organization?.organization?.name, 'Acme');
 	assert.deepEqual(journal.workspacesOpened, []);
 	assert.equal(journal.contextsForgotten, 1);
 
@@ -327,9 +325,7 @@ test("the organization's own link and the password restore an owner, who then ho
 			asked.push([link, email, password]);
 
 			return {
-				organizations: [
-					{ id: 'acme', name: 'Acme', memberId: 'olivia', role: 'owner', joinedAt: 1 }
-				],
+				organization: { id: 'acme', name: 'Acme', memberId: 'olivia', role: 'owner', joinedAt: 1 },
 				session: fakeOrganizationSession({
 					role: 'owner',
 					workspaces: [fakeOrganizationWorkspace({ id: 'north' })]

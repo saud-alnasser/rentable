@@ -357,7 +357,9 @@
 							{:else if surface === 'sign-in'}
 								<LayoutStartupSignIn
 									situation={shellState.signInReason}
-									organizations={shellState.organization?.organizations ?? []}
+									organizations={shellState.organization?.organization
+										? [shellState.organization.organization]
+										: []}
 									isSigningIn={shellState.isSigningIn}
 									errorMessage={shellState.error}
 									onSignIn={(organizationId, password) =>

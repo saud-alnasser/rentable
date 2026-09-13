@@ -111,7 +111,7 @@ export type StartupPorts = {
 	remoteSync: {
 		getState(): Promise<RemoteSyncState>;
 	};
-	/** the organizations this machine has joined, and the vault a password opens. */
+	/** the organization this machine holds, and the vault a password opens. */
 	organization: {
 		getState(): Promise<OrganizationState>;
 		signIn(organizationId: string, password: string): Promise<OrganizationState>;
@@ -770,7 +770,7 @@ export class Startup {
 		this.#set({
 			remoteSync: await this.#ports.remoteSync.getState().catch(() => null),
 			organization: organization ?? {
-				organizations: [],
+				organization: null,
 				session: null,
 				holdsTursoAuthority: false
 			}

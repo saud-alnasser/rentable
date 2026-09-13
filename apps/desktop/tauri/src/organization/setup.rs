@@ -52,7 +52,7 @@ use crate::{
 };
 
 use super::{
-    JoinedOrganization,
+    HeldOrganization,
     authority::{AdministratorKey, OrganizationKey, issue_certificate},
     invite::validate_username,
     link::JoinLink,
@@ -384,13 +384,15 @@ async fn finish<P: TursoPlatform>(
             .write();
     }
 
-    store.organizations.push(JoinedOrganization {
+    // the one organization this machine holds, from now: the owner's, with their member row
+    // recorded from the outset.
+    store.organization = Some(HeldOrganization {
         id: organization_id.to_string(),
         name: name.to_string(),
         verifying_key: BASE64URL.encode(verifying_key),
         remote_url: remote_url.clone(),
-        member_id,
-        role: OWNER_ROLE.to_string(),
+        member_id: Some(member_id),
+        role: Some(OWNER_ROLE.to_string()),
         joined_at: now,
     });
     store.commit()?;
@@ -735,15 +737,14 @@ mod tests {
             "the username is legible in the sealed column"
         );
 
-        // this machine knows it joined, with the name as typed.
-        let joined = store.organizations.clone();
+        // this machine holds it, with the name as typed and the owner as its member.
+        let joined = store.organization.clone().expect("the record");
 
-        assert_eq!(joined.len(), 1);
-        assert_eq!(joined[0].id, outcome.organization_id);
-        assert_eq!(joined[0].name, "Acme Rentals");
-        assert_eq!(joined[0].member_id, members[0].id);
-        assert_eq!(joined[0].role, OWNER_ROLE);
-        assert_eq!(joined[0].verifying_key, link.verifying_key);
+        assert_eq!(joined.id, outcome.organization_id);
+        assert_eq!(joined.name, "Acme Rentals");
+        assert_eq!(joined.member_id.as_deref(), Some(members[0].id.as_str()));
+        assert_eq!(joined.role.as_deref(), Some(OWNER_ROLE));
+        assert_eq!(joined.verifying_key, link.verifying_key);
 
         // and the slug was asked for once and remembered.
         assert_eq!(
@@ -888,7 +889,7 @@ mod tests {
             platform.databases().is_empty(),
             "the database was left behind"
         );
-        assert!(store.organizations.is_empty());
+        assert!(store.organization.is_none());
         assert!(
             !std::fs::read_dir(&directory)
                 .expect("the directory")

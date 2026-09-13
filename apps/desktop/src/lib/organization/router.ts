@@ -7,6 +7,7 @@ import type {
 	OrganizationCreated,
 	OrganizationInvitation,
 	OrganizationMember,
+	OrganizationState,
 	OrganizationWorkspace
 } from '$lib/platform/tauri';
 import { procedure, router } from '$lib/api/trpc';
@@ -55,9 +56,25 @@ export const organization = router({
 				return ctx.host.organization.consentResult(input.sessionId);
 			}),
 		disconnect: procedure.public.mutation(async ({ ctx }): Promise<void> => {
-			return ctx.host.organization.disconnect();
+			return ctx.host.organization.consentDisconnect();
 		})
 	},
+	/**
+	 * Connect this machine to the organization a link names, and forget the one it holds.
+	 *
+	 * **`public`, both, because both happen at the wall.** A connect is offered to a machine that
+	 * holds nothing, before there is anybody to act as; a disconnect is offered on the wall while
+	 * signed out as well as on the organization page, and the host signs out first where somebody
+	 * is in. Neither reaches `ctx.db`. The one confirm before a disconnect is the screen's.
+	 */
+	connect: procedure.public
+		.input(z.object({ link: z.string().trim().min(1) }))
+		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+			return ctx.host.organization.connect(input.link);
+		}),
+	disconnect: procedure.public.mutation(async ({ ctx }): Promise<OrganizationState> => {
+		return ctx.host.organization.disconnect();
+	}),
 	/**
 	 * Create the organization from the three things the setup walk collects.
 	 *

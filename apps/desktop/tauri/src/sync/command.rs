@@ -222,7 +222,13 @@ pub async fn organization_consent_result(
 ///
 /// It answers nothing, and disconnecting a machine that holds no token is not an error: the
 /// caller asked for there to be no token, and afterwards there is none.
+///
+/// *This was `organization_disconnect` until effort 824 gave that name to forgetting the
+/// organization itself (`organization::organization_disconnect`), which clears the authority as
+/// one of its steps; what the setup walk offers is this narrower act, the consent alone.*
 #[tauri::command]
-pub async fn organization_disconnect(app_state: tauri::State<'_, AppState>) -> Result<(), Error> {
+pub async fn organization_consent_disconnect(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<(), Error> {
     app_state.consent.disconnect()
 }
