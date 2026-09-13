@@ -1,5 +1,5 @@
 ---
-status: draft
+status: accepted
 ---
 
 # Problem
@@ -112,9 +112,14 @@ rail's two menus open. Every concept has one name.
    `administrator` (every grantable act), `member` (none). A role is what a person is
    invited as and what the members list calls them; the stored permissions are the truth,
    and a holder of `changeRole` can add or remove single acts on another member's row. Nobody
-   changes their own permissions and nobody changes the owner's. *Chosen over owner-defined
-   roles, which need a role editor, and over permissions with no role name, which leave the
-   members list with no one-word summary.*
+   changes their own permissions and nobody changes the owner's. **Giving somebody an act
+   that signs rows is the owner's alone**: only the owner's vault derives the key that
+   certifies a signer, so a holder of `changeRole` who is not the owner narrows anybody and
+   widens only with `renameWorkspace`, the one act that signs nothing, and inviting into a
+   signing role is likewise the owner's. *Chosen over owner-defined roles, which need a role
+   editor, and over permissions with no role name, which leave the members list with no
+   one-word summary. The owner-only sentence was chosen on 2026-09-13 in the plan over sealing
+   the organization key into administrators' vaults.*
 7. **A member who is given an act that writes another member's row can sign it.** The chain
    819 built stays: what a member may do is what their signed row carries, every command
    refuses again on the row, and a row is verified against the key the link pinned. How a
@@ -128,8 +133,10 @@ rail's two menus open. Every concept has one name.
    connects the machine, names the organization and the username, and asks the person to
    choose a password; on choosing it they are signed in and inside their first workspace.
    The link admits whoever opens it first, once, and lapses after seven days; the pending row
-   offers it to copy again until then. No generated password exists. *Chosen over the
-   organization link plus a username and a handed password.*
+   offers it to copy again until then, to the person who issued it, and a new link to anybody
+   else with the act. No password is handed over or shown: the secret that opens the vault
+   the first time is inside the link. *Chosen over the organization link plus a username and
+   a handed password.*
 9. **A reset is a fresh link.** A holder of `resetPassword` issues a member a new link; the
    member opens it and chooses a new password. The member's grants are re-sealed as reissue
    does today, only over the workspaces the issuer holds full access on, and the rest are
@@ -140,8 +147,10 @@ rail's two menus open. Every concept has one name.
     824 built. The connect screen takes either kind of link in one field and reads which it
     is. The owner restored on a second machine repeats the consent from the settings area.
 11. **The wall is the login page of the held organization**: its name, a username, a
-    password, unlock, and disconnect at the foot. Unchanged from 824's requirement 7. It is
-    reached after a sign-out or on a machine connected by the organization link.
+    password, unlock, and at the foot disconnect and a way to the connect screen for a
+    person holding a link, since a reset link is opened by somebody whose machine already
+    holds the organization. Otherwise unchanged from 824's requirement 7. It is reached after
+    a sign-out or on a machine connected by the organization link.
 12. **A signed-in machine stays signed in.** After a sign-in the machine keeps what it needs
     to open the member's vault, and the next launch opens straight into the last workspace
     under the loading surface. Signing out forgets it and shows the wall. The password is
@@ -174,7 +183,8 @@ rail's two menus open. Every concept has one name.
     a pending mark with the expiry. Row actions, each behind its act: change role and
     permissions, workspaces and access, rename, new link, remove. Remove asks once and
     offers lock out in the same dialog, for the owner, with its cost; a pending row offers
-    copy link, new link and revoke. The invite button opens the invite dialog. *Pending
+    copy link to its issuer, new link, and revoke, and revoking a person who never signed in
+    removes them. The invite button opens the invite dialog. *Pending
     invitations as rows in the list was chosen over a section of their own.*
 16. **The workspaces section is one list.** A row is the name, the member count and whether
     it is the open one; row actions are rename (`renameWorkspace`), members (who holds it
@@ -201,10 +211,10 @@ rail's two menus open. Every concept has one name.
 *Everything in scope*
 
 19. **A machine holding the previous shape forgets it at startup**, as 824's requirement 17
-    did: a member table without the new permission set, or an invitation table of the old
-    shape, is the signal; every replica is deleted, the record emptied, the Turso authority
-    cleared, and the application opens on the first screen. Nothing is published, so there
-    is no migration.
+    did: an invitation table without the column this effort adds is the signal; every
+    replica is deleted, the record emptied, the Turso authority cleared, the remembered
+    session forgotten, and the application opens on the first screen. Nothing is published,
+    so there is no migration.
 20. **Both locales, and the tests that hold the shape.** Every screen and section this
     effort adds or moves has a component test asserting what it renders and what each act
     is gated on; the Rust model tests cover every permission against every role, the
