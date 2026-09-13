@@ -230,12 +230,12 @@ below was theirs, made the same day*)
     screen keeps `paste`, `inspecting`, `unreadable` and `unreachable`, and loses `password`,
     `restore` and `refused`: a link carries no invitation half any more, and a person is
     admitted at the wall, not at the link. *This retires 819's join and restore as ways
-    through the wall.* The screen itself is a word of title, no line, and the two ways as
-    controls carrying their verb's glyph and one word each, create and connect, and nothing
-    else; the
+    through the wall.* The screen itself is a word of title, a friendly line saying what the
+    two are for, and the two ways as controls carrying their verb's glyph and three words at
+    most, create organization and connect with link, and nothing else; the
     locked wall offers neither, since a machine holds one organization, and its foot carries
     disconnect alone. *Chosen by the human on 2026-09-13 on seeing the first screen: simpler,
-    with icons, a single word at most.*
+    with icons, and settled over three looks at it.*
 19. **Signing in is username and password against the held organization.** The account is
     found by trying the password against each vault and checking the username on the row that
     opens, as 819's restore did by email; a pair that opens nothing is refused with the one

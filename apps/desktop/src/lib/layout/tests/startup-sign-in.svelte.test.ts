@@ -106,6 +106,7 @@ test('a machine that has joined nothing asks for nothing and offers the first ru
 
 	expect(inputsOnScreen()).toEqual([]);
 	expect(screen.getByText(en.layout.signIn.noOrganizationTitle)).toBeDefined();
+	expect(screen.getByText(en.layout.signIn.noOrganizationDescription)).toBeDefined();
 	// two ways in, each carrying its verb's glyph, and nothing else to read.
 	const setUp = screen.getByRole('button', { name: en.layout.signIn.setUp });
 	const connect = screen.getByRole('button', { name: en.layout.signIn.connectByLink });

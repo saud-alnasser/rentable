@@ -49,11 +49,12 @@
 	 * Each field leads with its subject's glyph inside the input group, muted so it does not
 	 * outweigh the label (requirement 15), and the unlock carries its verb's (requirement 14).
 	 *
-	 * **A machine with nothing is offered two ways in, and nothing to read.** One word of title,
-	 * no line, and two controls carrying their verb's glyph and one word each: create, which is
-	 * the first run on the person's own Turso account, and connect, which is the connect screen.
-	 * *Asked for by the human on 2026-09-13, on seeing the first screen of the build that forgets
-	 * the old shape: simpler, with icons, a single word at most.*
+	 * **A machine with nothing is offered two ways in.** One word of title, a line that says what
+	 * the two are for, and two controls carrying their verb's glyph and a short label: create an
+	 * organization, which is the first run on the person's own Turso account, and connect with a
+	 * link, which is the connect screen. *Settled with the human on 2026-09-13 over three looks
+	 * at the first screen of the build that forgets the old shape: one word in the title, a
+	 * friendly line under it, three words at most on a control.*
 	 *
 	 * **One link at the foot while locked.** Disconnect forgets the organization on this machine
 	 * (requirement 20), after the one confirm the dialog asks, and the wall comes back as a machine
@@ -98,10 +99,10 @@
 			: $LL.layout.signIn.title()
 	);
 
-	// a machine with nothing reads one word and two verbs; the line under the title is the
-	// locked wall's alone.
 	const description = $derived(
-		situation === 'noOrganization' ? undefined : $LL.layout.signIn.organizationDescription()
+		situation === 'noOrganization'
+			? $LL.layout.signIn.noOrganizationDescription()
+			: $LL.layout.signIn.organizationDescription()
 	);
 
 	const canUnlock = $derived(

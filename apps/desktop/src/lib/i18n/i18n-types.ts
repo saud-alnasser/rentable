@@ -1338,6 +1338,10 @@ type RootTranslation = {
 			 */
 			noOrganizationTitle: string
 			/**
+			 * c​r​e​a​t​e​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​y​o​u​r​ ​o​w​n​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​o​r​ ​c​o​n​n​e​c​t​ ​t​o​ ​o​n​e​ ​w​i​t​h​ ​t​h​e​ ​l​i​n​k​ ​y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​.
+			 */
+			noOrganizationDescription: string
+			/**
 			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​w​i​t​h​ ​o​r​ ​w​i​t​h​o​u​t​ ​a​ ​c​o​n​n​e​c​t​i​o​n​.
 			 */
 			organizationDescription: string
@@ -1374,11 +1378,11 @@ type RootTranslation = {
 			 */
 			roleMember: string
 			/**
-			 * c​r​e​a​t​e
+			 * c​r​e​a​t​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
 			 */
 			setUp: string
 			/**
-			 * c​o​n​n​e​c​t
+			 * c​o​n​n​e​c​t​ ​w​i​t​h​ ​l​i​n​k
 			 */
 			connectByLink: string
 			/**
@@ -4056,6 +4060,10 @@ export type TranslationFunctions = {
 			 */
 			noOrganizationTitle: () => LocalizedString
 			/**
+			 * create an organization on your own turso account, or connect to one with the link you were given.
+			 */
+			noOrganizationDescription: () => LocalizedString
+			/**
 			 * your password unlocks your place in the organization, on this machine, with or without a connection.
 			 */
 			organizationDescription: () => LocalizedString
@@ -4092,11 +4100,11 @@ export type TranslationFunctions = {
 			 */
 			roleMember: () => LocalizedString
 			/**
-			 * create
+			 * create organization
 			 */
 			setUp: () => LocalizedString
 			/**
-			 * connect
+			 * connect with link
 			 */
 			connectByLink: () => LocalizedString
 			/**

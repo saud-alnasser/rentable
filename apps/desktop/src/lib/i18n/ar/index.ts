@@ -397,6 +397,8 @@ const ar = {
 
 		signIn: {
 			noOrganizationTitle: 'مرحبًا',
+			noOrganizationDescription:
+				'أنشئ مؤسسة على حساب Turso الخاص بك، أو اربط الجهاز بمؤسسة عبر الرابط الذي استلمته.',
 			organizationDescription:
 				'كلمة مرورك تفتح مكانك في المؤسسة، على هذا الجهاز، مع اتصال أو من دونه.',
 			organization: 'المؤسسة',
@@ -407,8 +409,8 @@ const ar = {
 			roleOwner: 'مالك',
 			roleAdministrator: 'مدير',
 			roleMember: 'عضو',
-			setUp: 'إنشاء',
-			connectByLink: 'ربط',
+			setUp: 'أنشئ مؤسسة',
+			connectByLink: 'اربط عبر الرابط',
 			disconnect: 'افصل هذا الجهاز',
 			disconnectDescription:
 				'ينسى هذا الجهاز المؤسسة: تُحذف كل نسخة منها ومن مساحات عملها محفوظة هنا، ويُنسى حساب Turso معها. لا يتغير شيء على Turso، ورابط المؤسسة يصل هذا الجهاز بها من جديد.',
