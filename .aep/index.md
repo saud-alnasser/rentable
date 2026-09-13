@@ -125,7 +125,7 @@ Start at [[protocol]].
 | 811-the-gates-and-the-contract-follow-the-code-into-the-package | implemented | [[efforts/811-the-gates-and-the-contract-follow-the-code-into-the-package/spec]] | 0 | 0 | 6 |
 | 812-the-desktop-declares-what-it-uses | implemented | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
 | 819-an-organization-hosts-its-own-workspaces | implemented | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 28 |
-| 824-the-way-in-and-the-workspace-control-are-redesigned | accepted | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 8 |
+| 824-the-way-in-and-the-workspace-control-are-redesigned | accepted | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 17 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -210,3 +210,12 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/06-invite-and-new-workspace-are-dialogs]] feat(organization): invite and new workspace are dialogs | 824-the-way-in-and-the-workspace-control-are-redesigned | open | 01, 05 |
 | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/07-the-vocabulary-is-swept]] refactor(organization): the vocabulary is swept | 824-the-way-in-and-the-workspace-control-are-redesigned | resolved | 02, 03, 04, 05, 06 |
 | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/08-the-input-group-matches-the-owned-input]] refactor(design): the input group matches the owned input | 824-the-way-in-and-the-workspace-control-are-redesigned | open | — |
+| [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/09-an-account-is-a-username]] feat(organization): an account is a username | 824-the-way-in-and-the-workspace-control-are-redesigned | open | — |
+| [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/10-a-machine-holds-one-organization]] feat(organization): a machine holds one organization | 824-the-way-in-and-the-workspace-control-are-redesigned | open | 09 |
+| [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/11-signing-in-is-username-and-password]] feat(organization): signing in is username and password | 824-the-way-in-and-the-workspace-control-are-redesigned | open | 09, 10 |
+| [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/12-an-account-can-be-renamed]] feat(organization): an account can be renamed | 824-the-way-in-and-the-workspace-control-are-redesigned | open | 09 |
+| [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/13-the-connect-screen]] feat(organization): the link screen connects | 824-the-way-in-and-the-workspace-control-are-redesigned | open | 10 |
+| [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/14-the-wall-asks-for-a-username]] feat(layout): the wall asks for a username | 824-the-way-in-and-the-workspace-control-are-redesigned | open | 11 |
+| [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/15-accounts-are-made-with-a-username]] feat(organization): accounts are made with a username | 824-the-way-in-and-the-workspace-control-are-redesigned | open | 09, 11 |
+| [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/16-the-avatar-is-two-letters-of-the-username]] feat(layout): the avatar is two letters of the username | 824-the-way-in-and-the-workspace-control-are-redesigned | open | 09 |
+| [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/tickets/17-the-way-in-is-walked-on-a-clean-machine]] refactor(organization): the way in is walked on a clean machine | 824-the-way-in-and-the-workspace-control-are-redesigned | open | 12, 13, 14, 15, 16 |

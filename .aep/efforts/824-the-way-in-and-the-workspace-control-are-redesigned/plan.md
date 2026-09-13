@@ -5,7 +5,10 @@ use-when: "building a ticket in effort 824 and the approach is not obvious from 
 # Architecture
 
 Two decisions were put to the human on 2026-09-12 and both went to the recommendation. Everything
-else follows the seams the code already has.
+else follows the seams the code already has. *Widened 2026-09-13 for spec requirements 17 to 25:
+the sections from "One organization on a machine" down are the way in, and two more decisions
+were put to the human the same day, the record's shape and the invitation's sealed half; both
+went to the recommendation.*
 
 ## A switch runs the sign-in path, under the loading surface
 
@@ -61,15 +64,94 @@ invite; with an instance each, an invitation made from the menu shows its link a
 panel the page's instance has never seen, and a person who navigates to the page to find them
 finds an empty form. One instance is one result panel.
 
-## The wall keeps its select
+## The wall is a login page
 
-Several organizations render in the `Select` the wall has had since 819, one organization keeps
-the text line, and the wall's own change is the glyphs: the key inside `input-group` on the
-password field and the verb on unlock. *This said the picker is a radio group: `RadioGroup` items
-carrying name and role, the password field under the group, selection semantics from the
-primitive, the look settled on screen against the human's two organizations. Built as ticket 04
-and withdrawn by the human on 2026-09-13 with spec requirement 7; the rows are gone from the
-component and its test, and nothing is drawn in their place.*
+The wall names the held organization as a line, and draws two fields, username and password,
+both inside `input-group` with a muted glyph, and the unlock with its verb. `onSignIn(username,
+password)` replaces `onSignIn(organizationId, password)`; `startup.signIn` and the
+`organization.signIn` port change shape with it, and the sign-out row on the wall gains a
+disconnect link (below). *This said the select stays, and before that a radio group; the human
+withdrew the rows on 2026-09-13 and the same day gave the picture under which a machine holds
+one organization, so there is nothing to choose between here.*
+
+## One organization on a machine
+
+`RemoteSyncStore.organizations: Vec<JoinedOrganization>` becomes
+`organization: Option<HeldOrganization>`, where `HeldOrganization` is `JoinedOrganization` with
+`member_id` and `role` made `Option`: a machine that connected by link holds the organization and
+no member yet; the first sign-in fills them; sign-out keeps them. Serde's `default` keeps the
+record readable, and the old `organizations` key surviving in `remote-sync.json` is one of the two
+signs of the old shape (below).
+
+| | Advantages | Disadvantages | Risks | Maintenance |
+| --- | --- | --- | --- | --- |
+| **A, `Option<HeldOrganization>`** (recommended) | the type says what the spec says: one or none; every reader that iterated is one `if let` | every consumer of `organizations` changes, in Rust and in `host.ts` | none beyond the edit | the frontend's `organizations: JoinedOrganization[]` becomes `organization: HeldOrganization \| null`, one field |
+| B, keep the `Vec`, refuse a second | fewer edits | a `Vec` that may hold one is a rule nobody can see from the type, and the wall keeps a list it cannot show | a second push lands somewhere and the wall draws it or hides it | every reader keeps a loop over one element |
+
+**Connecting** is `organization_connect(link)`: decode, `reached` (as inspect does), verify the
+rows against the pinned key by reading `organization` once, write the record with no member, and
+return the state. It refuses while an organization is held. **`organization_link_inspect`** stays
+as the connect screen's `inspecting` step, returning the name; `LinkStanding` loses every
+invitation value and the link loses its `invitation` half (below).
+
+**Forgetting** is one routine, `organization::forget(app_state)`: sign out if signed in, close and
+delete every `org-*.db*` and `ws-*.db*` under the data directory, set `organization: None`,
+`replicas: []`, `workspace` to default, clear the Turso authority from the keyring
+(`consent.disconnect()` in `sync/turso/consent.rs`, which the walk's disconnect already calls), commit. It is called by
+`organization_disconnect` (the command the wall and the page reach, after the frontend's one
+confirm) and by startup when the shape is old: `remote-sync.json` still carrying a non-empty
+`organizations` array, or a held organization whose replica has no `member.username_sealed`
+column (`PRAGMA table_info`). The startup check runs in `organization_state_get`'s first call,
+before anything is read from the replica, and writes a diagnostic saying what it forgot.
+
+## Signing in is username and password
+
+`organization_sign_in(username, password)` is 819's `join::restore` with the link replaced by
+the held organization: open the replica as today, try the password against each non-removed
+member's vault, and check the sealed username on the row that opens against the typed one,
+lower-cased and trimmed. The three refusals are the one sentence (`Forbidden`). On success, if
+the member's `must_change_password` is set and an unconsumed invitation names them, the
+invitation is consumed and pushed, as `join` did; the session carries `must_change_password` and
+the shell's password-change gate does the rest. The record's `member_id` and `role` are filled.
+
+The invitation loses its `sealed_payload`, `kdf_salt` and `kdf_params`: they existed to bind the
+link's half and the password to a member id, and the row is now found by the password alone. What
+stays is `id`, `member_id`, `expires_at`, `consumed_at` and the signature: the pending list, the
+expiry, reissue and revoke read exactly those. `JoinLink.invitation` goes, `invitation_secret()`
+goes, `open_invitation` and `InvitationPayload` go. `join::join` and `join::restore` go;
+`organization_join` and `organization_restore` go with them, and `host.ts` and the frontend's
+`organization/join.ts` lose their callers.
+
+| | Advantages | Disadvantages | Risks | Maintenance |
+| --- | --- | --- | --- | --- |
+| **A, drop the invitation's sealed half** (recommended) | the schema says what an invitation is now: a pending account with an expiry; no dead columns, no dead crypto | a larger diff in `invite.rs` and `link.rs` | an expiry that used to be enforced at `join` is enforced at sign-in instead, and the test has to say so | one less secret to reason about |
+| B, keep the columns, stop reading them | smaller diff | a sealed payload nobody opens, a link field nobody fills, and a reviewer asking why | a later reader reintroduces the link half because the column invites it | dead code kept honest by comments |
+
+**Expiry at sign-in.** A member whose invitation has lapsed is refused with a sentence naming the
+lapse, since that is what reissue is for; a revoked one reads `removed` on the row already.
+
+## An account is a username
+
+`member.username_sealed` replaces `email_sealed` and `display_name_sealed`, sealed under the
+content key with the label `member.username_sealed`. `MemberFacts`, `MemberSession`'s facts,
+`OrganizationSession` and `OrganizationMember` carry `username` and lose `email` and
+`displayName`; `ownerDisplayName` becomes `ownerUsername`. `invite::validate_username` holds
+requirement 21's rules (3 to 32, `[A-Za-z0-9._-]`, compared lower-cased) and the uniqueness check
+decrypts every non-removed member's username under the session's content key. `create_organization`
+takes the owner's username beside the name and the password. `member_rename(member_id, username)`
+re-seals and re-signs the row under the actor's signer, the way `removal` writes a row, with the
+same validation; a session whose `member_id` is the target is refused.
+
+The design package's `avatar` primitive already draws the rail's disc from `accountInitials`;
+it reads `session.username` and the members list draws the same disc per row.
+
+## The connect screen
+
+`join-screen.svelte` keeps `paste`, `inspecting`, `unreadable` and `unreachable`; `inspecting`
+resolves to `organization_connect` directly, so there is no step between reading the link and
+standing at the wall. The route's `onConnect` runs the connect and calls
+`startup.standingChanged()`, which raises the wall on the held organization. The `password`,
+`restore` and `refused` steps, `onJoin`, `onRestore` and their strings go.
 
 ## The workspace form is one definition, drawn on two surfaces
 
@@ -121,7 +203,15 @@ created the organization.*
 | `organization/component/setup-walk.svelte` | three steps with corner back, position line, connect list, third step on the shared fields; `done` and the link go |
 | `routes/organization/new/+page.svelte` | reads `holdsTursoAuthority` to open `connect` as granted; the third step's create calls the workspace mutation then `startup.standingChanged()` and `goto(THE_WAY_IN)` |
 | `organization/component/join-screen.svelte` | corner back on every step, `onBack` replacing `onPasteAnother`; glyphs |
-| `layout/component/startup-sign-in.svelte` | glyphs; the select stays. *This said the radio-group picker; withdrawn 2026-09-13* |
+| `layout/component/startup-sign-in.svelte` | the held organization's name, username and password fields with glyphs, `onSignIn(username, password)`, a disconnect link while signed out. *This said the radio-group picker, then the select; both withdrawn 2026-09-13* |
+| `tauri/src/sync/store.rs` | `organization: Option<HeldOrganization>` replaces `organizations` |
+| `tauri/src/organization/store.rs` | `username_sealed` on `member`; the invitation without its sealed half; `members()` reads the new column |
+| `tauri/src/organization/{join,invite,setup,session,link}.rs` | sign-in by username, connect, forget, validate and rename, the owner's username at creation, the link without an invitation half |
+| `tauri/src/organization/command.rs` | `organization_connect`, `organization_disconnect`, `member_rename`; `organization_sign_in(username, password)`; `organization_join` and `organization_restore` removed; the forget on first `organization_state_get` |
+| `platform/host.ts`, `platform/tauri.ts`, `organization/router.ts`, `api/context.ts` | the new and changed commands and types |
+| `organization/component/join-screen.svelte`, `routes/organization/join/` | the connect screen |
+| `organization/component/{invite-form,members,invitations,identity}.svelte` | username in, email and display name out; the result panel's third copy; a rename dialog on the members row |
+| `layout/component/account-menu.svelte` | initials from the username |
 | `layout/component/startup-no-workspace.svelte` | the shared fields and a verb glyph; owner-only sentence unchanged |
 | `organization/component/change-password-form.svelte` | field glyphs and a verb glyph |
 | `organization/query.ts` | `useCreateWorkspace` keeps its explicit-client parameter; nothing moves |
@@ -171,6 +261,25 @@ The order is by dependency, then by what a person can see soonest.
    tickets above did not already carry. Last, so it sweeps the finished screens rather than
    being redone as each moves.
 
+*Added 2026-09-13, for requirements 17 to 25; Rust first, because every screen reads a fact it
+changes:*
+
+7. **The username in the organization database**: the schema, `MemberFacts`, `create_organization`,
+   `invite_member`, validation and uniqueness, every reader of `email` and `display_name` in Rust,
+   and the session facts the frontend types read. One ticket; a database half-moved opens nothing.
+8. **One organization on the machine**: the record, `organization_connect`, `forget`,
+   `organization_disconnect`, the startup check for the old shape. One ticket.
+9. **Sign-in by username**: `organization_sign_in`, the invitation without its half, the link
+   without its half, `join` and `restore` removed, expiry at sign-in. After 7 and 8.
+10. **Rename**: `member_rename` and its permission. After 7; small, its own ticket so 9 stays
+    readable.
+11. **The connect screen**, after 8. **The wall**, after 9. **The forms and lists reading the
+    username** (the walk's `name` step, invite and its result, members, pending accounts, identity,
+    the page's sentences), after 7 and 9. **The avatar**, after 7. Four tickets, since each is one
+    screen family with its own test file.
+12. **The second sweep**: both locales read for every string added, the first run by hand on the
+    human's wiped machine, `cargo test`. Last.
+
 Prototyping happens inside 2, 3 and 4 wherever a shape is in question, on screen against the
 human's own organization, and the ticket says so as a constraint.
 
@@ -190,8 +299,12 @@ human's own organization, and the ticket says so as a constraint.
 
 # Migration
 
-Nothing on disk changes shape. `remote-sync.json`'s `workspace.remoteId` is already what
-startup reopens; a switch writes it through `workspace_open` as today.
+None, by the human's decision on 2026-09-13 (spec requirement 17): `remote-sync.json` changes
+shape (`organizations` to `organization`) and the organization database changes schema
+(`member.username_sealed`, the invitation without its sealed half), and a machine holding either
+old shape forgets everything at startup and opens on the first screen. The organizations on Turso
+built under the old schema are left where they are and cannot be opened by this build. *This said
+nothing on disk changes shape, which held until requirement 17.*
 
 # Testing Strategy
 
@@ -239,8 +352,42 @@ Each number is the spec's acceptance criterion.
 15. Each screen's component test asserts `[data-slot=input-group-addon] svg` before the named
     input and the addon's class contains `text-muted-foreground`.
 16. The gates, in each ticket.
+17. Rust: a `RemoteSyncStore` deserialised from JSON carrying two `organizations` triggers
+    `forget`; a replica created with the old `member` schema triggers it; after either the data
+    directory holds no `org-*` or `ws-*` file and the record is default. `sync/store.rs` and
+    `organization/mod.rs` tests on a temporary directory.
+18. `join-screen.svelte.test.ts`: `paste` to `inspecting` to `onConnect(link)`; no password
+    field on any step; `grep -c "restore" join-screen.svelte` is zero. Rust: `connect` writes the
+    record with `member_id: None` and opens no vault.
+19. `join.rs` (or `session.rs`) tests over a store with two members: right pair opens; wrong
+    password, unknown username, and the other member's password each refuse with one sentence;
+    a member with an open invitation has it consumed and `must_change_password` set; a lapsed
+    invitation refuses by name.
+20. Rust: `forget` on a temporary data directory holding an organization and two workspace
+    replicas leaves none and clears the authority (the keyring behind a fake). Component tests:
+    the wall's disconnect and the page's each open the confirm and call the port on confirm.
+21. Rust: `validate_username` table test over the limits and the character set; uniqueness
+    against a store with `alice` refuses `Alice`; `create_organization` refuses an invalid owner
+    username. The walk's and the invite dialog's tests read the same message.
+22. `invite-form.svelte.test.ts`: inputs `username`, `role`, the workspace checkboxes, no `email`
+    or `displayName`; the result renders three copy controls.
+23. Rust: rename by the owner re-signs and the members read shows it; rename to a taken name
+    refuses; a member session refuses. `members.svelte.test.ts`: the rename row opens the dialog.
+24. `account-menu` and `members` tests: the avatar fallback text is the first two characters of
+    the username, upper-cased.
+25. The strings, asserted in the organization page's section tests in both locales.
 
 # Technical Risks
+
+- **Deleting a replica the process still holds open.** `forget` runs with the vault closed and
+  the workspace database released; on Windows a file still open cannot be deleted, so `forget`
+  closes through the same path sign-out and `open_database` use and reports a file it could not
+  remove rather than pretending. First sign: `org-*.db` surviving a disconnect.
+- **The startup check reads a schema before the wall.** `PRAGMA table_info(member)` on the held
+  replica is a local read; it runs before any pull, so an unreachable remote does not stop the
+  check. A replica missing entirely counts as the old shape too.
+- **`accountInitials` on a username with one character.** Requirement 21's floor is three, so
+  it cannot happen for a valid row; the helper still pads rather than throwing.
 
 - **A switch while a sync is in flight.** `startWorkspaceSyncManager` may report a result for the
   old workspace after the cache is cleared. `applySyncOutcome` re-reads the remote-sync state,
