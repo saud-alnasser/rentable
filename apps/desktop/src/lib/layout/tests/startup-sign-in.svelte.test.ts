@@ -106,9 +106,13 @@ test('a machine that has joined nothing asks for nothing and offers the first ru
 
 	expect(inputsOnScreen()).toEqual([]);
 	expect(screen.getByText(en.layout.signIn.noOrganizationTitle)).toBeDefined();
-	expect(screen.getByRole('button', { name: en.layout.signIn.setUpOrganization })).toBeDefined();
-	// and the other way in: an invitation somebody was handed, which opens the connect screen.
-	expect(screen.getByRole('button', { name: en.layout.signIn.openInvitation })).toBeDefined();
+	// two ways in, each carrying its verb's glyph, and nothing else to read.
+	const setUp = screen.getByRole('button', { name: en.layout.signIn.setUp });
+	const connect = screen.getByRole('button', { name: en.layout.signIn.connectByLink });
+
+	expect(setUp.querySelector('svg')).not.toBeNull();
+	expect(connect.querySelector('svg')).not.toBeNull();
+	expect(screen.getAllByRole('button')).toHaveLength(2);
 	// nothing to disconnect from.
 	expect(screen.queryByRole('button', { name: en.layout.signIn.disconnect })).toBeNull();
 });

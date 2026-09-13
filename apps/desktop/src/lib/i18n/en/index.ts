@@ -406,9 +406,7 @@ const en = {
 		},
 
 		signIn: {
-			noOrganizationTitle: 'no organization on this machine yet',
-			noOrganizationDescription:
-				'set one up on your own turso account. everything in it stays there.',
+			noOrganizationTitle: 'welcome',
 			organizationDescription:
 				'your password unlocks your place in the organization, on this machine, with or without a connection.',
 			organization: 'organization',
@@ -419,8 +417,8 @@ const en = {
 			roleOwner: 'owner',
 			roleAdministrator: 'administrator',
 			roleMember: 'member',
-			setUpOrganization: 'set up an organization instead',
-			openInvitation: 'open an invitation link',
+			setUp: 'create',
+			connectByLink: 'connect',
 			disconnect: 'disconnect this machine',
 			disconnectDescription:
 				"this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes, and the organization's link connects this machine again.",

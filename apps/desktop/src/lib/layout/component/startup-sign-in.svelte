@@ -7,7 +7,9 @@
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import DisconnectDialog from '$lib/organization/component/disconnect-dialog.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import BuildingIcon from '@lucide/svelte/icons/building';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
+	import LinkIcon from '@lucide/svelte/icons/link';
 	import LockOpenIcon from '@lucide/svelte/icons/lock-open';
 	import UserIcon from '@lucide/svelte/icons/user';
 
@@ -47,13 +49,18 @@
 	 * Each field leads with its subject's glyph inside the input group, muted so it does not
 	 * outweigh the label (requirement 15), and the unlock carries its verb's (requirement 14).
 	 *
-	 * **Three links at the foot while locked.** A person who was invited opens the link they were
-	 * handed, and the operating system brings them to the connect screen; one whose platform did
-	 * not hand it over reaches the same screen from here and pastes it. The first run is offered
-	 * beside it. The third is the way out: disconnect forgets the organization on this machine
+	 * **A machine with nothing is offered two ways in, and nothing to read.** One word of title,
+	 * no line, and two controls carrying their verb's glyph and one word each: create, which is
+	 * the first run on the person's own Turso account, and connect, which is the connect screen.
+	 * *Asked for by the human on 2026-09-13, on seeing the first screen of the build that forgets
+	 * the old shape: simpler, with icons, a single word at most.*
+	 *
+	 * **One link at the foot while locked.** Disconnect forgets the organization on this machine
 	 * (requirement 20), after the one confirm the dialog asks, and the wall comes back as a machine
-	 * that holds nothing. It is offered here while signed out and on the organization page while
-	 * signed in, and nowhere else.
+	 * that holds nothing, offering the two ways in again. Connecting and setting up are offered
+	 * only there, since a machine holds one organization (requirement 17) and reaching another is
+	 * disconnect, then connect. *This said three links: connect by link and set up stood beside
+	 * disconnect until 2026-09-13.*
 	 */
 	let {
 		situation,
@@ -91,10 +98,10 @@
 			: $LL.layout.signIn.title()
 	);
 
+	// a machine with nothing reads one word and two verbs; the line under the title is the
+	// locked wall's alone.
 	const description = $derived(
-		situation === 'noOrganization'
-			? $LL.layout.signIn.noOrganizationDescription()
-			: $LL.layout.signIn.organizationDescription()
+		situation === 'noOrganization' ? undefined : $LL.layout.signIn.organizationDescription()
 	);
 
 	const canUnlock = $derived(
@@ -119,10 +126,12 @@
 
 		{#if situation === 'noOrganization'}
 			<Button class="w-full justify-center" onclick={onSetUpOrganization}>
-				{$LL.layout.signIn.setUpOrganization()}
+				<BuildingIcon class="size-4" />
+				{$LL.layout.signIn.setUp()}
 			</Button>
-			<Button variant="link" class="w-full justify-center" onclick={onJoinByLink}>
-				{$LL.layout.signIn.openInvitation()}
+			<Button variant="outline" class="w-full justify-center" onclick={onJoinByLink}>
+				<LinkIcon class="size-4" />
+				{$LL.layout.signIn.connectByLink()}
 			</Button>
 		{:else}
 			<form
@@ -196,24 +205,6 @@
 				     bar: too short to fill one, too long to show nothing. -->
 				<p class="text-center text-sm text-muted-foreground">{$LL.layout.signIn.unlocking()}</p>
 			{/if}
-
-			<Button
-				variant="link"
-				class="w-full justify-center"
-				onclick={onJoinByLink}
-				disabled={isSigningIn}
-			>
-				{$LL.layout.signIn.openInvitation()}
-			</Button>
-
-			<Button
-				variant="link"
-				class="w-full justify-center"
-				onclick={onSetUpOrganization}
-				disabled={isSigningIn}
-			>
-				{$LL.layout.signIn.setUpOrganization()}
-			</Button>
 
 			<Button
 				variant="link"

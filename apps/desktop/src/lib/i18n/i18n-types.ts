@@ -1334,13 +1334,9 @@ type RootTranslation = {
 		}
 		signIn: {
 			/**
-			 * n​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​y​e​t
+			 * w​e​l​c​o​m​e
 			 */
 			noOrganizationTitle: string
-			/**
-			 * s​e​t​ ​o​n​e​ ​u​p​ ​o​n​ ​y​o​u​r​ ​o​w​n​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​e​v​e​r​y​t​h​i​n​g​ ​i​n​ ​i​t​ ​s​t​a​y​s​ ​t​h​e​r​e​.
-			 */
-			noOrganizationDescription: string
 			/**
 			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​w​i​t​h​ ​o​r​ ​w​i​t​h​o​u​t​ ​a​ ​c​o​n​n​e​c​t​i​o​n​.
 			 */
@@ -1378,13 +1374,13 @@ type RootTranslation = {
 			 */
 			roleMember: string
 			/**
-			 * s​e​t​ ​u​p​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​n​s​t​e​a​d
+			 * c​r​e​a​t​e
 			 */
-			setUpOrganization: string
+			setUp: string
 			/**
-			 * o​p​e​n​ ​a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k
+			 * c​o​n​n​e​c​t
 			 */
-			openInvitation: string
+			connectByLink: string
 			/**
 			 * d​i​s​c​o​n​n​e​c​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e
 			 */
@@ -4056,13 +4052,9 @@ export type TranslationFunctions = {
 		}
 		signIn: {
 			/**
-			 * no organization on this machine yet
+			 * welcome
 			 */
 			noOrganizationTitle: () => LocalizedString
-			/**
-			 * set one up on your own turso account. everything in it stays there.
-			 */
-			noOrganizationDescription: () => LocalizedString
 			/**
 			 * your password unlocks your place in the organization, on this machine, with or without a connection.
 			 */
@@ -4100,13 +4092,13 @@ export type TranslationFunctions = {
 			 */
 			roleMember: () => LocalizedString
 			/**
-			 * set up an organization instead
+			 * create
 			 */
-			setUpOrganization: () => LocalizedString
+			setUp: () => LocalizedString
 			/**
-			 * open an invitation link
+			 * connect
 			 */
-			openInvitation: () => LocalizedString
+			connectByLink: () => LocalizedString
 			/**
 			 * disconnect this machine
 			 */
