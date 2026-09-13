@@ -12,6 +12,7 @@
 	import FolderPlusIcon from '@lucide/svelte/icons/folder-plus';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import PlugIcon from '@lucide/svelte/icons/plug';
+	import UnplugIcon from '@lucide/svelte/icons/unplug';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
@@ -325,7 +326,10 @@
 						<ArrowRightIcon class="size-4 rtl:rotate-180" />
 						{$LL.organization.setup.continue()}
 					</Button>
-					<Button variant="link" class="w-full justify-center" onclick={onDisconnect}>
+					<!-- the way to give the authority back: outline beside the primary, its verb's glyph
+					     before one word, and the callout above already says what is connected. -->
+					<Button variant="outline" class="w-full justify-center" onclick={onDisconnect}>
+						<UnplugIcon class="size-4" />
 						{$LL.organization.disconnectAction()}
 					</Button>
 				{:else}

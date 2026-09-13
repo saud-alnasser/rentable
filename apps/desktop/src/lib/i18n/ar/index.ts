@@ -838,7 +838,7 @@ const ar = {
 			disconnect: 'افصل',
 			disconnected: 'لم يعد هذا الجهاز يحتفظ بالمؤسسة.'
 		},
-		disconnectAction: 'فصل حساب Turso',
+		disconnectAction: 'افصل',
 		disconnectDescription:
 			'يحتفظ هذا الجهاز برمز وصول إلى حساب Turso الذي تقوم عليه مؤسستك. وفصله ينسى الرمز هنا، فلا يبقى على هذا الجهاز ما يصل إلى ذلك الحساب.',
 		disconnectRevokes:

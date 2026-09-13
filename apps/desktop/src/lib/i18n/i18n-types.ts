@@ -2674,7 +2674,7 @@ type RootTranslation = {
 			disconnected: string
 		}
 		/**
-		 * d​i​s​c​o​n​n​e​c​t​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
+		 * d​i​s​c​o​n​n​e​c​t
 		 */
 		disconnectAction: string
 		/**
@@ -5345,7 +5345,7 @@ export type TranslationFunctions = {
 			disconnected: () => LocalizedString
 		}
 		/**
-		 * disconnect turso account
+		 * disconnect
 		 */
 		disconnectAction: () => LocalizedString
 		/**

@@ -863,7 +863,7 @@ const en = {
 			disconnect: 'disconnect',
 			disconnected: 'this machine no longer holds the organization.'
 		},
-		disconnectAction: 'disconnect turso account',
+		disconnectAction: 'disconnect',
 		disconnectDescription:
 			'this machine holds a token for the turso account your organization lives on. disconnecting forgets it here, and nothing on this machine can reach that account afterwards.',
 		disconnectRevokes:

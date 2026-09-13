@@ -185,7 +185,10 @@ test('a granted consent offers the way on and the way to give the authority back
 
 	expect(screen.getByText(en.organization.setup.connected)).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.continue })).toBeDefined();
-	expect(screen.getByRole('button', { name: en.organization.disconnectAction })).toBeDefined();
+	const disconnect = screen.getByRole('button', { name: en.organization.disconnectAction });
+
+	expect(disconnect).toBeDefined();
+	expect(disconnect.querySelector('svg')).not.toBeNull();
 	expect(screen.queryByRole('button', { name: en.organization.setup.connect })).toBeNull();
 });
 
