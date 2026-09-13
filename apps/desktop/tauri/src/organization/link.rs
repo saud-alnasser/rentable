@@ -1,19 +1,26 @@
 //! the join link: what a machine needs to find an organization, and nothing useful alone.
 //!
-//! An owner hands one out; a member opens it, and their machine learns where the organization
+//! An owner hands one out; a person opens it, and their machine learns where the organization
 //! database is, which key judges its rows, and how to read it before any vault is open
 //! (requirement 8). What it deliberately carries is a **read-only** credential over a database
 //! whose every name and address is sealed and whose every authority field is signed, so a person
 //! holding the link and nothing else can pull the directory and read nothing legible out of it
 //! (requirement 15, and `organization/store.rs`'s test over every cell). What it deliberately does
-//! not carry is any invitation, any password, or any key: those are the person's, and a link found
-//! in a chat history is a locator.
+//! not carry is any password or any key: those are the person's, and a link found in a chat
+//! history is a locator.
+//!
+//! **There is one link, the organization's own** (effort 824, requirement 18). It connects a
+//! machine to the organization, and a username and password admit a person at the wall; an
+//! invitation is the username and the generated password, handed over beside this same link.
+//! *Until effort 824 a link made for an invitation carried the invitation's half of a secret,
+//! which with the password opened a sealed payload naming the member's row; the row is found by
+//! the password alone now, and the half is gone with the payload.*
 //!
 //! **A locator does not expire** (requirement 23). The read-only credential is minted with no
 //! expiry, so the same link works on the day it was sent and a year later; what expires is the
-//! invitation row it points a person at, and that is a row the dashboard revokes and reissues.
-//! Rotating the organization database's credentials, which a lock-out does, is the one thing that
-//! retires a link, and the ticket that rotates is the ticket that reissues.
+//! pending account a person was handed with it, and that is a row the dashboard revokes and
+//! reissues. Rotating the organization database's credentials, which a lock-out does, is the one
+//! thing that retires a link, and the ticket that rotates is the ticket that reissues.
 //!
 //! **The verifying key rides in the link and is pinned from it**, never read out of the database it
 //! judges. `organization/authority.rs` says why: a database whose rows were rewritten could rewrite
@@ -45,20 +52,6 @@ pub struct JoinLink {
     pub remote_url: String,
     /// reads the organization database, and nothing in it is legible without a vault.
     pub read_only_credential: String,
-    /// the invitation this link was made for, where it was made for one: an owner's own link,
-    /// produced at the first run, carries none.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub invitation: Option<InvitationHalf>,
-}
-
-/// The half of an invitation a link carries: which one, and the secret that opens its payload
-/// together with the password the person carries. Neither half opens anything alone.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct InvitationHalf {
-    pub id: String,
-    /// base64url of the invitation secret.
-    pub secret: String,
 }
 
 impl JoinLink {
@@ -75,38 +68,7 @@ impl JoinLink {
             verifying_key: BASE64URL.encode(verifying_key),
             remote_url: remote_url.to_string(),
             read_only_credential: read_only_credential.to_string(),
-            invitation: None,
         }
-    }
-
-    /// The same link, made for one invitation.
-    pub fn for_invitation(mut self, id: &str, secret: &[u8]) -> Self {
-        self.invitation = Some(InvitationHalf {
-            id: id.to_string(),
-            secret: BASE64URL.encode(secret),
-        });
-
-        self
-    }
-
-    /// The invitation secret as the vault takes it, where the link carries one.
-    pub fn invitation_secret(
-        &self,
-    ) -> Result<Option<(String, [u8; super::vault::INVITATION_SECRET_BYTES])>, Error> {
-        let Some(half) = &self.invitation else {
-            return Ok(None);
-        };
-        let bytes = BASE64URL
-            .decode(&half.secret)
-            .map_err(|_| Error::InvalidInput {
-                message: "this join link carries an invitation it cannot open".to_string(),
-            })?;
-        let secret = <[u8; super::vault::INVITATION_SECRET_BYTES]>::try_from(bytes.as_slice())
-            .map_err(|_| Error::InvalidInput {
-                message: "this join link carries an invitation it cannot open".to_string(),
-            })?;
-
-        Ok(Some((half.id.clone(), secret)))
     }
 
     /// The link as a person sees it and sends it: one line, one scheme, base64url of the fields.
@@ -184,8 +146,9 @@ mod tests {
         assert_eq!(link().verifying_key_bytes().expect("a key"), [7_u8; 32]);
     }
 
-    /// The five fields and nothing else: an owner's own link carries no password, no invitation
-    /// and no key; one made for an invitation carries its half, and still no password.
+    /// The five fields and nothing else: a link carries no password, no invitation and no key.
+    /// *A link made for an invitation carried its half beside the five until effort 824; there
+    /// is one kind of link now.*
     #[test]
     fn a_link_carries_the_five_fields_and_nothing_else() {
         let encoded = link().encode().expect("failed to encode");
@@ -213,17 +176,8 @@ mod tests {
                 "verifyingKey"
             ]
         );
-
-        let invited = link().for_invitation("inv-1", &[9_u8; 32]);
-        let encoded = invited.encode().expect("failed to encode");
-        let decoded = JoinLink::decode(&encoded).expect("failed to decode");
-
-        assert_eq!(decoded, invited);
-        assert_eq!(
-            decoded.invitation_secret().expect("the half"),
-            Some(("inv-1".to_string(), [9_u8; 32]))
-        );
         assert!(!encoded.contains("password"), "{encoded}");
+        assert!(!encoded.contains("invitation"), "{encoded}");
     }
 
     #[test]

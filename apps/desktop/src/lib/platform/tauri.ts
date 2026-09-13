@@ -215,8 +215,8 @@ export const tauri = {
 		getState: () => invoke<OrganizationState>('organization_state_get'),
 		connect: (link: string) => invoke<OrganizationState>('organization_connect', { link }),
 		disconnect: () => invoke<OrganizationState>('organization_disconnect'),
-		signIn: (organizationId: string, password: string) =>
-			invoke<OrganizationState>('organization_sign_in', { organizationId, password }),
+		signIn: (username: string, password: string) =>
+			invoke<OrganizationState>('organization_sign_in', { username, password }),
 		signOut: () => invoke<OrganizationState>('organization_sign_out'),
 		linkTake: () => invoke<string | null>('organization_link_take'),
 		onLink: (listener: (link: string) => void) =>
@@ -224,10 +224,6 @@ export const tauri = {
 		onMigration: (listener: (notice: MigrationNotice) => void) =>
 			listen<MigrationNotice>(MIGRATION_EVENT, (event) => listener(event.payload)),
 		linkInspect: (link: string) => invoke<LinkFacts>('organization_link_inspect', { link }),
-		join: (link: string, password: string) =>
-			invoke<OrganizationState>('organization_join', { link, password }),
-		restore: (link: string, username: string, password: string) =>
-			invoke<OrganizationState>('organization_restore', { link, username, password }),
 		reconnectAuthority: () => invoke<OrganizationState>('organization_reconnect_authority'),
 		renewDue: () => invoke<boolean>('organization_renew_due'),
 		ownLink: () => invoke<string>('organization_own_link'),

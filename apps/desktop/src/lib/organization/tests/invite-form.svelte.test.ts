@@ -45,6 +45,7 @@ const workspaces = [
 const invited = {
 	memberId: 'member-2',
 	invitationId: 'invitation-1',
+	username: 'sami.staff',
 	joinLink: 'rentable://join/abc',
 	generatedPassword: 'abcde-fghjk-mnpqr-stuvw',
 	expiresAt: 0,

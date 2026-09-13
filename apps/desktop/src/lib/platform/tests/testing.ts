@@ -130,8 +130,6 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			onLink: refuse('organization.onLink'),
 			onMigration: refuse('organization.onMigration'),
 			linkInspect: refuse('organization.linkInspect'),
-			join: refuse('organization.join'),
-			restore: refuse('organization.restore'),
 			reconnectAuthority: refuse('organization.reconnectAuthority'),
 			renewDue: refuse('organization.renewDue'),
 			ownLink: refuse('organization.ownLink'),

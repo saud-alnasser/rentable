@@ -160,8 +160,7 @@ mod tests {
     }
 
     /// An organization with one member, its owner, and the link the first run produced: the
-    /// owner's own, with no invitation in it. The owner's machine record is returned with it,
-    /// holding the organization.
+    /// owner's own. The owner's machine record is returned with it, holding the organization.
     async fn created(
         directory: &std::path::Path,
     ) -> (OrganizationStore, Persisted<RemoteSyncStore>, JoinLink) {
@@ -206,11 +205,6 @@ mod tests {
         .await
         .expect("the first run failed");
         let link = JoinLink::decode(&created.join_link).expect("the link");
-
-        assert!(
-            link.invitation.is_none(),
-            "the owner's link carries an invitation"
-        );
 
         (organization, store, link)
     }

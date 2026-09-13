@@ -111,14 +111,11 @@ export type StartupPorts = {
 	remoteSync: {
 		getState(): Promise<RemoteSyncState>;
 	};
-	/** the organization this machine holds, and the vault a password opens. */
+	/** the organization this machine holds, and the vault a username and password open. */
 	organization: {
 		getState(): Promise<OrganizationState>;
-		signIn(organizationId: string, password: string): Promise<OrganizationState>;
-		/** join the organization a link names with the generated password, and sign in to it. */
-		join(link: string, password: string): Promise<OrganizationState>;
-		/** restore a place in the organization its own link names, by email and password. */
-		restore(link: string, email: string, password: string): Promise<OrganizationState>;
+		/** sign in to the held organization by username and password; one sentence for a refusal. */
+		signIn(username: string, password: string): Promise<OrganizationState>;
 		/** change the signed-in member's own password, and clear the requirement to. */
 		changePassword(current: string, next: string): Promise<OrganizationState>;
 		signOut(): Promise<OrganizationState>;
@@ -478,16 +475,20 @@ export class Startup {
 	}
 
 	/**
-	 * Sign in at the wall, and go straight on into the application on the far side of it.
+	 * Sign in at the wall, by username and password, and go straight on into the application on
+	 * the far side of it.
 	 *
-	 * **One call, and it is a key derivation a person is waiting on.** The password is handed to
-	 * the shell and never held here; what comes back is where the machine stands, and the wall
-	 * reads that. A wrong password is a failure the wall says, with the one sentence the shell
-	 * allows it: the value did not open. The person is still standing at the wall, so an error
+	 * **One call, and it is a key derivation per member a person is waiting on.** The username
+	 * and the password are handed to the shell and never held here; what comes back is where the
+	 * machine stands, and the wall reads that. A refusal is a failure the wall says, with the one
+	 * sentence the shell allows it, the same for a wrong password, an unknown username and a
+	 * username held by somebody else. The person is still standing at the wall, so an error
 	 * screen would take away the control they need. A startup that fails after the sign-in has
-	 * succeeded is the ordinary failure every other path here reports, and reads as one.
+	 * succeeded is the ordinary failure every other path here reports, and reads as one. A first
+	 * sign-in on a handed password lands on the password change, as any sign-in with
+	 * `mustChangePassword` does.
 	 */
-	async signIn(organizationId: string, password: string) {
+	async signIn(username: string, password: string) {
 		if (this.#snapshot.isSigningIn) {
 			return;
 		}
@@ -495,7 +496,7 @@ export class Startup {
 		this.#set({ isSigningIn: true, error: null });
 
 		try {
-			this.#set({ organization: await this.#ports.organization.signIn(organizationId, password) });
+			this.#set({ organization: await this.#ports.organization.signIn(username, password) });
 		} catch (error) {
 			this.#set({ error: this.#ports.describeError(error) });
 
@@ -515,88 +516,6 @@ export class Startup {
 		}
 
 		await this.#enterApplication();
-	}
-
-	/**
-	 * Join at the wall, by a link and the generated password, and go straight on in.
-	 *
-	 * **The same shape as `signIn`, because joining is a sign-in with one step before it and one
-	 * after**: the shell opens the invitation with the link's half and the password, signs the
-	 * person in to the row it names, spends the invitation, and records the organization on this
-	 * machine. What comes back is where the machine stands, and the wall reads that. A refusal
-	 * stays on the join screen with its sentence, for the reason a wrong password stays on the
-	 * sign-in card: the person is still standing at the wall and needs the control.
-	 */
-	async joinByLink(link: string, password: string) {
-		if (this.#snapshot.isSigningIn) {
-			return false;
-		}
-
-		this.#set({ isSigningIn: true, error: null });
-
-		try {
-			this.#set({ organization: await this.#ports.organization.join(link, password) });
-		} catch (error) {
-			this.#set({ error: this.#ports.describeError(error) });
-
-			return false;
-		} finally {
-			this.#set({ isSigningIn: false });
-		}
-
-		this.#rememberSession();
-
-		if (!(await this.#admit())) {
-			return true;
-		}
-
-		if (!(await this.#hasWorkspace())) {
-			return true;
-		}
-
-		await this.#enterApplication();
-
-		return true;
-	}
-
-	/**
-	 * Restore a place in an organization from its own link, at the wall, and go on in.
-	 *
-	 * The shape `joinByLink` has, because it is the same act from the other side of an
-	 * invitation: the link finds the organization, the password opens the person's vault, and
-	 * where the machine stands is what comes back. An owner arrives with no Turso authority and
-	 * repeats the consent from the dashboard; a member is done.
-	 */
-	async restoreByLink(link: string, email: string, password: string) {
-		if (this.#snapshot.isSigningIn) {
-			return false;
-		}
-
-		this.#set({ isSigningIn: true, error: null });
-
-		try {
-			this.#set({ organization: await this.#ports.organization.restore(link, email, password) });
-		} catch (error) {
-			this.#set({ error: this.#ports.describeError(error) });
-
-			return false;
-		} finally {
-			this.#set({ isSigningIn: false });
-		}
-
-		this.#rememberSession();
-
-		if (!(await this.#admit())) {
-			return true;
-		}
-
-		if (!(await this.#hasWorkspace())) {
-			return true;
-		}
-
-		await this.#enterApplication();
-
-		return true;
 	}
 
 	/**

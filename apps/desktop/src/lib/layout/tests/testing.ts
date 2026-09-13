@@ -108,14 +108,10 @@ export function harness(
 		settings?: () => Promise<{ locale?: string | null }>;
 		/** what loading a locale does, for the paths where the dictionary is what fails. */
 		loadLocale?: (locale: string) => Promise<void>;
-		/** what a password does: the state it leaves the machine in, or the refusal it meets. */
-		signInWith?: (organizationId: string, password: string) => Promise<OrganizationState>;
-		/** what a link and a password do: the state joining leaves the machine in, or the refusal. */
-		joinWith?: (link: string, password: string) => Promise<OrganizationState>;
+		/** what a username and password do: the state it leaves the machine in, or the refusal. */
+		signInWith?: (username: string, password: string) => Promise<OrganizationState>;
 		/** what changing the password does: the state it leaves the machine in, or the refusal. */
 		changePasswordWith?: (current: string, next: string) => Promise<OrganizationState>;
-		/** what restoring does: the state it leaves the machine in, or the refusal. */
-		restoreWith?: (link: string, email: string, password: string) => Promise<OrganizationState>;
 		/** what opening a workspace meets, for the path where the shell refuses to. */
 		openWorkspace?: (workspaceId: string) => Promise<void>;
 	} = {}
@@ -183,25 +179,8 @@ export function harness(
 			},
 			// what these two answer with becomes what the world holds, because that is what they
 			// do: Rust updates what it holds, and the next `getState` reads the result.
-			signIn: async (organizationId, password) => {
-				organization = await (overrides.signInWith ?? (async () => unlocked()))(
-					organizationId,
-					password
-				);
-
-				return organization;
-			},
-			join: async (link, password) => {
-				organization = await (overrides.joinWith ?? (async () => unlocked()))(link, password);
-
-				return organization;
-			},
-			restore: async (link, email, password) => {
-				organization = await (overrides.restoreWith ?? (async () => unlocked()))(
-					link,
-					email,
-					password
-				);
+			signIn: async (username, password) => {
+				organization = await (overrides.signInWith ?? (async () => unlocked()))(username, password);
 
 				return organization;
 			},

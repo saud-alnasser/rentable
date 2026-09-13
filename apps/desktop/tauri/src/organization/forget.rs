@@ -43,6 +43,9 @@ pub enum OldShape {
     ReplicaMissing(PathBuf),
     /// the held organization's `member` table carries no `username_sealed` column.
     MemberWithoutUsername,
+    /// the held organization's `invitation` table still carries `sealed_payload`, the half ticket
+    /// 11 dropped; a replica built between tickets 10 and 11 has usernames and this column both.
+    InvitationWithSealedHalf,
 }
 
 impl fmt::Display for OldShape {
@@ -60,6 +63,8 @@ impl fmt::Display for OldShape {
             Self::MemberWithoutUsername => formatter.write_str(
                 "the held organization's member table carries no username_sealed column",
             ),
+            Self::InvitationWithSealedHalf => formatter
+                .write_str("the held organization's invitation table still carries sealed_payload"),
         }
     }
 }
@@ -68,6 +73,10 @@ impl fmt::Display for OldShape {
 /// cannot open.
 const USERNAME_COLUMN: &str = "username_sealed";
 
+/// The column an invitation carried until ticket 11, whose presence marks a replica this build
+/// cannot invite on.
+const SEALED_PAYLOAD_COLUMN: &str = "sealed_payload";
+
 /// Forget the organization this machine holds, whole.
 ///
 /// Signs out where somebody is in, releases the workspace engine, deletes every `org-*.db*` and
@@ -75,10 +84,9 @@ const USERNAME_COLUMN: &str = "username_sealed";
 /// clears the Turso authority from the keyring (`TursoConsent::disconnect`), and commits. A file
 /// that could not be removed is reported after all of that has run, by name.
 pub async fn forget(app_state: &AppState) -> Result<(), Error> {
-    // the sign-out, exactly as `organization_sign_out` performs it: the keys go and the
-    // organization replica is dropped, which is what lets its file be deleted below.
-    *app_state.member.write().await = None;
-    *app_state.organization.write().await = None;
+    // the sign-out, the one `organization_sign_out` performs: the keys go and the organization
+    // replica is dropped, which is what lets its file be deleted below.
+    super::sign_out(app_state).await;
 
     // the workspace engine, released the way `open_database` releases it before opening the next.
     // Nothing reopens it here: a machine holding no organization has nothing to open, which is the
@@ -174,15 +182,26 @@ async fn old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
         Ok::<String, turso::Error>(String::new())
     })
     .await?;
-    let columns = store.columns_of("member").await?;
+    let member_columns = store.columns_of("member").await?;
+    let invitation_columns = store.columns_of("invitation").await?;
 
     drop(store);
 
-    if columns.iter().any(|column| column == USERNAME_COLUMN) {
-        return Ok(None);
+    if !member_columns
+        .iter()
+        .any(|column| column == USERNAME_COLUMN)
+    {
+        return Ok(Some(OldShape::MemberWithoutUsername));
     }
 
-    Ok(Some(OldShape::MemberWithoutUsername))
+    if invitation_columns
+        .iter()
+        .any(|column| column == SEALED_PAYLOAD_COLUMN)
+    {
+        return Ok(Some(OldShape::InvitationWithSealedHalf));
+    }
+
+    Ok(None)
 }
 
 /// What one sweep of the data directory did.
@@ -606,6 +625,39 @@ mod tests {
                 .organization
                 .is_none()
         );
+
+        // the shape between tickets 10 and 11: usernames, and an invitation with its sealed half.
+        let directory = scratch("sealed-half");
+        let replica = OrganizationStore::replica_path(&directory.join(Database::FILENAME), "half");
+        let store = OrganizationStore::open(&replica, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the replica");
+
+        for statement in [
+            "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS \"invitation\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"sealed_payload\" BLOB NOT NULL)",
+        ] {
+            store
+                .connection()
+                .execute(statement, ())
+                .await
+                .expect("the half-old tables");
+        }
+
+        drop(store);
+        std::fs::write(directory.join(RemoteSync::FILENAME), record("half")).expect("the record");
+
+        let app_state = state_over(&directory).await;
+
+        assert_eq!(
+            forget_old_shape(&app_state)
+                .await
+                .expect("the check failed"),
+            Some(OldShape::InvitationWithSealedHalf)
+        );
+        assert_eq!(replica_files(&directory), Vec::<String>::new());
 
         // no replica at all behind the record.
         let directory = scratch("missing");

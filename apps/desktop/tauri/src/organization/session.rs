@@ -15,8 +15,18 @@
 //!
 //! **The rows are verified before they are believed.** Every member, workspace and grant passes
 //! through `organization/authority.rs` against the verifying key this machine pinned when it
-//! joined, and never one read out of the database. What the machine remembers about a member,
-//! their id and their role, locates the row; what the row says, once verified, is the truth.
+//! joined, and never one read out of the database. What the row says, once verified, is the truth.
+//!
+//! **Two ways to the row, one way through it.** A first run signs the owner in to the row it
+//! just wrote, which the machine's record names ([`sign_in`]). At the wall a person types a
+//! username and a password, and neither narrows the rows: usernames are sealed under the content
+//! key, so the password is tried against each member's vault in turn and the username the opened
+//! row carries is compared to the one typed, without case ([`sign_in_by_username`], effort 824,
+//! requirement 19). A wrong password costs one derivation per member, which the spec accepts
+//! rather than index around, because a plaintext or keyed username would tell whoever holds the
+//! link who is in the organization. The three refusals, a wrong password, a username nobody
+//! holds, and a username held by somebody whose password this is not, are one sentence, so
+//! nothing says whether the username exists. Both ways end in the same unsealing.
 //!
 //! **What a session holds stays in this process.** The member's secret key, the organization
 //! content key and the credential that reaches the organization database are in [`MemberSession`]
@@ -37,7 +47,7 @@ use crate::sync::turso::platform::AccessLevel;
 use super::{
     HeldOrganization,
     authority::VERIFYING_KEY_BYTES,
-    store::OrganizationStore,
+    store::{MemberRecord, OrganizationStore},
     vault::{
         CONTENT_KEY_BYTES, ContentKey, MemberSecretKey, open_content, open_vault,
         unseal_with_secret_key,
@@ -145,7 +155,12 @@ pub struct SessionFacts {
     pub owner_username: String,
 }
 
-/// Open `joined`'s member row in `store` with `password`.
+/// Open the member row `joined` names in `store` with `password`.
+///
+/// The sign-in of a machine whose record already names the member: the first run's, which signs
+/// the owner in to the row it just wrote. A record that names no member, which a connect by link
+/// writes, is refused before any row is read; the person signs in at the wall, by username
+/// ([`sign_in_by_username`]).
 ///
 /// The steps, and why in this order: the rows are read and verified first, so a forged row is
 /// refused before any key is derived from the password; the vault is opened, which is the one
@@ -159,8 +174,6 @@ pub async fn sign_in(
     credential: &CredentialSlot,
 ) -> Result<MemberSession, Error> {
     let verifying_key = verifying_key_of(joined)?;
-    // a machine that connected by link holds the organization and no member yet; finding the
-    // member by username is the sign-in effort 824 puts in this function's place.
     let member_id = joined
         .member_id
         .as_deref()
@@ -185,18 +198,102 @@ pub async fn sign_in(
 
     // the one place a password can fail, and it says only that the value did not open.
     let secret = open_vault(password, &member.vault)?;
-    let content_key = {
-        let bytes = unseal_with_secret_key(&secret, &member.sealed_content_key)?;
+    let content_key = content_key_of(member, &secret)?;
 
-        ContentKey::from_bytes(
-            <[u8; CONTENT_KEY_BYTES]>::try_from(bytes.as_slice()).map_err(|_| {
-                Error::Integrity {
-                    message: "the sealed content key is not a content key".to_string(),
-                }
-            })?,
-        )
+    open_session(
+        store,
+        joined,
+        verifying_key,
+        member,
+        secret,
+        content_key,
+        credential,
+    )
+    .await
+}
+
+/// Find the member `username` and `password` name in `held`'s replica, and open their vault:
+/// the sign-in at the wall (effort 824, requirement 19).
+///
+/// The password is tried against each member's vault in turn, a removed member's excepted, and
+/// the sealed username on the row that opens is compared to the one typed, trimmed and without
+/// case. The three refusals are one sentence: a password that opens no vault, a username nobody
+/// holds, and a username held by a member whose password this is not are told apart by nothing,
+/// because a password that opens somebody else's vault is not a fact to hand out, and neither is
+/// whether a username is in the organization. The module comment says why nothing narrows the
+/// rows first.
+/// The one sentence for every pair that does not open a place: a wrong password, an unknown
+/// username, another member's password, and a handed password somebody revoked. It names the
+/// organization and nothing about the account.
+pub fn refused_by_name(organization_name: &str) -> Error {
+    Error::Forbidden {
+        message: format!("the username and password do not open a place in {organization_name}"),
+    }
+}
+
+pub async fn sign_in_by_username(
+    store: &OrganizationStore,
+    held: &HeldOrganization,
+    username: &str,
+    password: &str,
+    credential: &CredentialSlot,
+) -> Result<MemberSession, Error> {
+    let verifying_key = verifying_key_of(held)?;
+    let wanted = username.trim().to_lowercase();
+    let members = store.members(&verifying_key).await?;
+    let refused = || refused_by_name(&held.name);
+
+    let mut found = None;
+
+    for member in members
+        .iter()
+        .filter(|member| member.role != super::permission::REMOVED)
+    {
+        if let Ok(secret) = open_vault(password, &member.vault) {
+            found = Some((member, secret));
+            break;
+        }
+    }
+
+    let Some((member, secret)) = found else {
+        return Err(refused());
     };
 
+    let content_key = content_key_of(member, &secret)?;
+    let carried = opened(
+        &content_key,
+        "member.username_sealed",
+        &member.username_sealed,
+    )?;
+
+    if carried.trim().to_lowercase() != wanted {
+        return Err(refused());
+    }
+
+    open_session(
+        store,
+        held,
+        verifying_key,
+        member,
+        secret,
+        content_key,
+        credential,
+    )
+    .await
+}
+
+/// The rest of a sign-in, once the password has opened `member`'s vault and the content key is
+/// unsealed: every grant the vault holds, the organization's into `credential` and the
+/// workspaces' into the session.
+async fn open_session(
+    store: &OrganizationStore,
+    held: &HeldOrganization,
+    verifying_key: [u8; VERIFYING_KEY_BYTES],
+    member: &MemberRecord,
+    secret: MemberSecretKey,
+    content_key: ContentKey,
+    credential: &CredentialSlot,
+) -> Result<MemberSession, Error> {
     // the grant on the organization database itself, which every member holds: it is what the
     // replica syncs with from now on. Absent, the member reads what the replica already holds and
     // nothing new arrives, which is the offline case rather than a failure of signing in.
@@ -209,7 +306,7 @@ pub async fn sign_in(
             message: "a sealed credential is not text".to_string(),
         })?;
 
-        if grant.workspace_id == joined.id {
+        if grant.workspace_id == held.id {
             *credential.lock().map_err(|_| Error::Internal {
                 message: "the credential slot was poisoned".to_string(),
             })? = Some(token);
@@ -222,7 +319,7 @@ pub async fn sign_in(
     }
 
     Ok(MemberSession {
-        organization_id: joined.id.clone(),
+        organization_id: held.id.clone(),
         member_id: member.id.clone(),
         role: member.role.clone(),
         permissions: member.permissions,
@@ -388,6 +485,18 @@ pub fn verifying_key_of(joined: &HeldOrganization) -> Result<[u8; VERIFYING_KEY_
     <[u8; VERIFYING_KEY_BYTES]>::try_from(bytes.as_slice()).map_err(|_| Error::Integrity {
         message: "this machine's record of the organization carries no key".to_string(),
     })
+}
+
+/// The organization content key, unsealed from `member`'s row with the secret their vault
+/// yielded: what makes any name legible.
+fn content_key_of(member: &MemberRecord, secret: &MemberSecretKey) -> Result<ContentKey, Error> {
+    let bytes = unseal_with_secret_key(secret, &member.sealed_content_key)?;
+
+    Ok(ContentKey::from_bytes(
+        <[u8; CONTENT_KEY_BYTES]>::try_from(bytes.as_slice()).map_err(|_| Error::Integrity {
+            message: "the sealed content key is not a content key".to_string(),
+        })?,
+    ))
 }
 
 /// A sealed column as text, or empty where it was sealed empty.
@@ -643,8 +752,9 @@ mod tests {
     }
 
     /// **A machine that holds the organization and no member yet cannot sign in this way.** A
-    /// connect by link records no member; effort 824's sign-in finds the row by username, and
-    /// until then a record with no member is refused before any row is read.
+    /// connect by link records no member; the wall's sign-in finds the row by username
+    /// (`sign_in_by_username`, tested in `join.rs`), and this one refuses a record with no
+    /// member before any row is read.
     #[tokio::test]
     async fn a_record_with_no_member_is_refused_before_any_row_is_read() {
         let directory = scratch("no-member");

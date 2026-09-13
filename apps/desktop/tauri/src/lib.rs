@@ -257,8 +257,6 @@ pub fn run() {
             organization::organization_invitations,
             organization::organization_link_take,
             organization::organization_link_inspect,
-            organization::organization_join,
-            organization::organization_restore,
             organization::organization_reconnect_authority,
             export::export_write,
             export::export_write_workbook,

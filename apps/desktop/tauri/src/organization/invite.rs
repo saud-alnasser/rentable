@@ -1,19 +1,22 @@
-//! inviting a member: a row they will sign in to, a link that finds it, and a password that opens it.
+//! inviting a member: a row they will sign in to, the link that finds the organization, and the
+//! username and password that open their place in it.
 //!
 //! **The application sends no mail.** We have registered with no mail service and the spec's
-//! constraints forbid registering one on the customer's behalf, so an invitation is two things
-//! the administrator hands over themselves: a link and a generated password. The interface says
-//! so and shows both once.
+//! constraints forbid registering one on the customer's behalf, so an invitation is three things
+//! the administrator hands over themselves: the organization's link, the username and a generated
+//! password (effort 824, requirement 22). The interface says so and shows all three once.
 //!
 //! **What an invitation makes.** A member row with a vault sealed under the generated password
 //! and `must_change_password` set, so the first sign-in is a change; the content key sealed to
 //! the new member's public key; a grant on the organization database, which is the inviter's own
 //! credential re-sealed, so the member can pull the directory once their vault is open; a grant on
 //! each workspace named, the same way, so an administrator invites into what they can reach
-//! themselves; and an invitation row whose payload, the member's own id, opens only with the
-//! link's secret and the person's password together. An administrator who invites an
-//! administrator needs the organization key to certify them, and only the owner's vault yields
-//! it, so that is refused for anybody else and says why.
+//! themselves; and an invitation row naming the member, which is the pending account's expiry and
+//! what the first sign-in spends. An administrator who invites an administrator needs the
+//! organization key to certify them, and only the owner's vault yields it, so that is refused for
+//! anybody else and says why. *The row carried a sealed payload that the link's half of a secret
+//! and the password opened together until effort 824; the member is found by the password alone
+//! at the wall now (`join.rs`), and nothing needs a second secret to find them.*
 //!
 //! **The generated password is drawn, never derived.** Twenty characters from a thirty-two
 //! character alphabet, drawn from the operating system, spelled in groups a person can read out
@@ -31,11 +34,11 @@
 //! it is the owner's or an administrator's, never the member's own, and it moves nothing else on
 //! the row.
 //!
-//! **An invitation expires; the link does not** (requirement 23). The row carries the lifetime.
-//! A link opened after it lapsed still finds the organization, because the link is a locator, and
-//! is told the invitation lapsed. Revoking is deleting the row, and the link then finds nothing to
-//! open; reissuing is a fresh invitation for the same member, which rewrites their vault under a
-//! new password and re-seals what the reissuer can reach, and it is the path a reset takes.
+//! **An invitation expires; the link does not** (requirement 23). The row carries the lifetime,
+//! and a first sign-in after it lapsed is refused naming the lapse, since that is what a reissue
+//! is for. Revoking is deleting the row; reissuing is a fresh invitation for the same member,
+//! which rewrites their vault under a new password and re-seals what the reissuer can reach, and
+//! it is the path a reset takes.
 //!
 //! **A reset says what it could not restore** (requirement 13). The old vault is gone with the
 //! reissue and every grant sealed to it is dead; the reissuer re-seals the ones they hold a full
@@ -54,10 +57,7 @@ use super::{
     session::MemberSession,
     setup::{ADMINISTRATOR_KEY_PURPOSE, ORGANIZATION_KEY_PURPOSE, SHIPPING_KDF, credential_expiry},
     store::{GrantRecord, InvitationRecord, MemberRecord, OrganizationStore, Signer},
-    vault::{
-        INVITATION_SECRET_BYTES, KdfParams, create_vault_with_secret, open_content, seal_content,
-        seal_invitation, seal_to_public_key,
-    },
+    vault::{KdfParams, create_vault_with_secret, open_content, seal_content, seal_to_public_key},
     workspace::signer_of,
 };
 
@@ -71,13 +71,19 @@ const PASSWORD_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";
 const PASSWORD_GROUPS: usize = 4;
 const PASSWORD_GROUP_LENGTH: usize = 5;
 
-/// What an invitation makes, shown to the administrator once. The password is in it because it
-/// has to be shown; it is nowhere else and crosses to the web layer exactly once.
+/// What an invitation makes, shown to the administrator once: the three things they hand over,
+/// the organization's link, the username and the generated password, beside the ids the dashboard
+/// reads. The password is in it because it has to be shown; it is nowhere else and crosses to the
+/// web layer exactly once.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Invited {
     pub member_id: String,
     pub invitation_id: String,
+    /// the username the member signs in with, as the row seals it: what the inviter typed on an
+    /// invitation, trimmed, and the one the row already carried on a reissue.
+    pub username: String,
+    /// the organization's own link, which connects a machine and admits nobody by itself.
     pub join_link: String,
     pub generated_password: String,
     pub expires_at: i64,
@@ -202,8 +208,9 @@ pub struct Invitation<'a> {
 
 /// Invite a member.
 ///
-/// `link` is the organization's own locator, the one the first run produced, which the
-/// invitation's half is added to; `kdf_params` is what the member's vault is sealed at.
+/// `link` is the organization's own locator, the one the first run produced, handed back as it
+/// is for the inviter to send beside the username and the password; `kdf_params` is what the
+/// member's vault is sealed at.
 pub async fn invite_member(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -714,26 +721,9 @@ async fn issue(
             .await?;
     }
 
-    // the invitation: its payload names the member row, and opens only with both halves.
+    // the invitation: the pending account's expiry, naming the member whose first sign-in spends
+    // it.
     let invitation_id = random_id()?;
-    let mut invitation_secret = [0_u8; INVITATION_SECRET_BYTES];
-
-    getrandom::fill(&mut invitation_secret).map_err(|error| Error::Internal {
-        message: format!("failed to draw an invitation secret: {error}"),
-    })?;
-
-    let payload = serde_json::to_vec(&InvitationPayload {
-        member_id: member_id.to_string(),
-    })
-    .map_err(|error| Error::Internal {
-        message: format!("failed to encode an invitation: {error}"),
-    })?;
-    let sealed = seal_invitation(
-        &invitation_secret,
-        &generated_password,
-        kdf_params,
-        &payload,
-    )?;
     let expires_at = now + INVITATION_LIFETIME_MS;
 
     store
@@ -742,7 +732,6 @@ async fn issue(
             &InvitationRecord {
                 id: invitation_id.clone(),
                 member_id: member_id.to_string(),
-                sealed,
                 expires_at,
                 consumed_at: None,
                 created_at: now,
@@ -763,22 +752,13 @@ async fn issue(
 
     Ok(Invited {
         member_id: member_id.to_string(),
-        join_link: link
-            .clone()
-            .for_invitation(&invitation_id, &invitation_secret)
-            .encode()?,
         invitation_id,
+        username: username.to_string(),
+        join_link: link.encode()?,
         generated_password,
         expires_at,
         unreachable_workspaces: Vec::new(),
     })
-}
-
-/// What the sealed payload carries: which member row the invitation is for, and nothing that is
-/// useful without the vault the row holds.
-#[derive(Serialize, Deserialize)]
-pub struct InvitationPayload {
-    pub member_id: String,
 }
 
 fn opened(session: &MemberSession, column: &str, sealed: &[u8]) -> Result<String, Error> {
@@ -885,9 +865,9 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        INVITATION_LIFETIME_MS, Invitation, InvitationPayload, InvitationStanding, USERNAME_RULES,
-        USERNAME_TAKEN, generate_password, invitations, invite_member, organization_link,
-        reissue_invitation, rename_member, revoke_invitation, validate_username,
+        INVITATION_LIFETIME_MS, Invitation, InvitationStanding, USERNAME_RULES, USERNAME_TAKEN,
+        generate_password, invitations, invite_member, organization_link, reissue_invitation,
+        rename_member, revoke_invitation, validate_username,
     };
     use crate::{
         error::Error,
@@ -899,7 +879,7 @@ mod tests {
             session::{CredentialSlot, MemberSession, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::{OrganizationStore, Signer},
-            vault::{KdfParams, open_invitation},
+            vault::KdfParams,
             workspace::create_workspace,
         },
         persisted::Persisted,
@@ -1028,8 +1008,11 @@ mod tests {
         (organization, owner, link, workspace.id)
     }
 
+    /// What an invitation hands the inviter: the organization's own link, unchanged, the username
+    /// as the row seals it, and a password the link does not carry; and what it writes: a member
+    /// row the password opens, and an invitation row naming that member.
     #[tokio::test]
-    async fn an_invitation_makes_a_member_a_link_and_a_password_and_both_halves_open_it() {
+    async fn an_invitation_makes_a_member_the_link_the_username_and_a_password() {
         let directory = scratch("invite");
         let (store, owner, link, workspace_id) = owned(&directory).await;
         let workspaces = vec![workspace_id.clone()];
@@ -1054,43 +1037,29 @@ mod tests {
             1_757_000_000_000 + INVITATION_LIFETIME_MS
         );
 
-        // the link carries the organization, its name, and the invitation's half; no password.
+        // the link is the organization's own, exactly as the inviter holds it: it carries the
+        // organization and its name, and no password, no username and no invitation.
         let decoded = JoinLink::decode(&invited.join_link).expect("the link decodes");
 
-        assert_eq!(decoded.organization_id, owner.organization_id);
+        assert_eq!(decoded, link);
         assert_eq!(decoded.organization_name, "Acme");
         assert!(!invited.join_link.contains(&invited.generated_password));
+        assert!(!invited.join_link.contains("sami"));
+        assert_eq!(invited.username, "sami.staff", "the username, trimmed");
 
-        let (invitation_id, secret) = decoded
-            .invitation_secret()
-            .expect("the half")
-            .expect("an invitation half");
-
-        assert_eq!(invitation_id, invited.invitation_id);
-
-        // both halves open the payload, and it names the member row.
+        // the invitation row names the member, and nothing on it opens with anything.
         let rows = store
             .invitations(&owner.verifying_key)
             .await
             .expect("the rows");
         let row = rows
             .iter()
-            .find(|row| row.id == invitation_id)
+            .find(|row| row.id == invited.invitation_id)
             .expect("the invitation row");
-        let payload: InvitationPayload = serde_json::from_slice(
-            &open_invitation(&secret, &invited.generated_password, &row.sealed).expect("opens"),
-        )
-        .expect("a payload");
 
-        assert_eq!(payload.member_id, invited.member_id);
-        assert!(
-            open_invitation(&[0_u8; 32], &invited.generated_password, &row.sealed).is_err(),
-            "the password alone opened it"
-        );
-        assert!(
-            open_invitation(&secret, "not the password", &row.sealed).is_err(),
-            "the secret alone opened it"
-        );
+        assert_eq!(row.member_id, invited.member_id);
+        assert_eq!(row.expires_at, invited.expires_at);
+        assert_eq!(row.consumed_at, None);
 
         // the member signs in with the generated password, must change it, and holds the
         // directory and the workspace the inviter held.
@@ -1242,7 +1211,7 @@ mod tests {
 
         assert_eq!(decoded.organization_name, "Acme");
 
-        // revoked: the row is gone, and the link's half names nothing.
+        // revoked: the row is gone, and the list no longer names it.
         revoke_invitation(&store, &owner, &invited.invitation_id)
             .await
             .expect("the revocation failed");
@@ -1269,6 +1238,11 @@ mod tests {
         .expect("the reissue failed");
 
         assert_eq!(reissued.member_id, invited.member_id);
+        assert_eq!(reissued.username, "sami", "a reissue keeps the username");
+        assert_eq!(
+            reissued.join_link, invited.join_link,
+            "and hands the same link"
+        );
         assert_ne!(reissued.generated_password, invited.generated_password);
         assert_ne!(reissued.invitation_id, invited.invitation_id);
 
@@ -1599,7 +1573,6 @@ mod tests {
 
         assert_eq!(decoded.organization_id, original.organization_id);
         assert_eq!(decoded.verifying_key, original.verifying_key);
-        assert!(decoded.invitation.is_none());
         assert!(!decoded.read_only_credential.trim().is_empty());
 
         let invited = invite_member(

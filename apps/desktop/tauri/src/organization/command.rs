@@ -202,7 +202,7 @@ pub async fn organization_connect(
     }
 
     let link = JoinLink::decode(&link)?;
-    let (store, _) = reached(&app_state, &link).await?;
+    let store = reached(&app_state, &link).await?;
 
     {
         let mut remote_sync = app_state.remote_sync.write().await;
@@ -230,32 +230,35 @@ pub async fn organization_disconnect(
     state_of(&app_state).await
 }
 
-/// Sign in to one of the organizations this machine has joined, with a password.
+/// Sign in to the organization this machine holds, with a username and a password (effort 824,
+/// requirement 19).
 ///
 /// **Works with the network down.** The replica on this machine is opened, its rows are verified
-/// against the key this machine pinned when it joined, and the password is tried against the
-/// member's vault. A pull is attempted once the vault is open and its failure is not one: the
-/// replica goes on serving what it holds (requirement 18).
+/// against the key this machine pinned when it connected, and the password is tried against each
+/// member's vault until one opens, whose username has to be the one typed. A pull is attempted
+/// once the vault is open and its failure is not one: the replica goes on serving what it holds
+/// (819's requirement 18).
 ///
-/// A wrong password answers that the value did not open, and nothing more
-/// ([[rules/credentials]]): there is no comparison to skip, and the session that results holds
-/// the keys the password unsealed, which a wrong one never produces.
+/// The wrong password, a username nobody holds, and a username held by somebody whose password
+/// this is not are refused with one sentence ([[rules/credentials]]): there is no comparison to
+/// skip, and the session that results holds the keys the password unsealed, which a wrong one
+/// never produces. A first sign-in on a handed password spends the invitation and the record
+/// learns which member this person is; `join.rs` says how.
 #[tauri::command]
 pub async fn organization_sign_in(
     app_state: tauri::State<'_, AppState>,
-    organization_id: String,
+    username: String,
     password: String,
 ) -> Result<OrganizationState, Error> {
-    let joined = {
+    let held = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
         remote_sync
             .store_mut()
             .organization
             .clone()
-            .filter(|held| held.id == organization_id)
-            .ok_or_else(|| Error::NotFound {
-                message: "this machine does not hold that organization".to_string(),
+            .ok_or_else(|| Error::PreconditionFailed {
+                message: "this machine holds no organization to sign in to".to_string(),
             })?
     };
     let database_path = {
@@ -269,8 +272,8 @@ pub async fn organization_sign_in(
     let credential: CredentialSlot = Arc::new(Mutex::new(None));
     let slot = Arc::clone(&credential);
     let store = OrganizationStore::open(
-        &OrganizationStore::replica_path(&database_path, &joined.id),
-        Some(joined.remote_url.clone()),
+        &OrganizationStore::replica_path(&database_path, &held.id),
+        Some(held.remote_url.clone()),
         move || {
             let slot = Arc::clone(&slot);
 
@@ -284,7 +287,20 @@ pub async fn organization_sign_in(
     )
     .await?;
 
-    let member = session::sign_in(&store, &joined, &password, &credential).await?;
+    let member = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        join::admit(
+            &store,
+            remote_sync.store_mut(),
+            &held,
+            &username,
+            &password,
+            &credential,
+            timestamp::now(),
+        )
+        .await?
+    };
 
     // best effort, and after the vault is open, because the pull needs the credential the vault
     // held. What arrives is read on the next question, and what does not arrive is the offline
@@ -297,15 +313,23 @@ pub async fn organization_sign_in(
     state_of(&app_state).await
 }
 
-/// Put the wall back up: drop the keys this process held, and let go of the replica.
+/// Put the wall back up: drop the keys this process held, and let go of the replica. The record
+/// is untouched, so the wall comes back up on the same organization with the same member.
 #[tauri::command]
 pub async fn organization_sign_out(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<OrganizationState, Error> {
-    *app_state.member.write().await = None;
-    *app_state.organization.write().await = None;
+    sign_out(&app_state).await;
 
     state_of(&app_state).await
+}
+
+/// The sign-out itself: the keys go and the organization replica is dropped. What
+/// `organization_sign_out` does, and what `forget` does first, so that letting go of the
+/// replica is one routine and the file it held can be deleted afterwards.
+pub(crate) async fn sign_out(app_state: &AppState) {
+    *app_state.member.write().await = None;
+    *app_state.organization.write().await = None;
 }
 
 /// The signed-in member's facts, re-read from the replica so a row that changed under them since
@@ -924,94 +948,18 @@ pub async fn organization_link_take(
     Ok(arriving.take())
 }
 
-/// Read a link: which organization it names and where its invitation stands, before a password
-/// is asked for. The link is parsed here, the organization is reached with the credential it
-/// carries, and what crosses back is a name and a standing ([[rules/credentials]]).
+/// Read a link: which organization it names, before anything is done with it. The link is parsed
+/// here, the organization is reached with the credential it carries, and what crosses back is a
+/// name and where it is ([[rules/credentials]]).
 #[tauri::command]
 pub async fn organization_link_inspect(
     app_state: tauri::State<'_, AppState>,
     link: String,
 ) -> Result<LinkFacts, Error> {
     let link = JoinLink::decode(&link)?;
-    let (store, _) = reached(&app_state, &link).await?;
+    let store = reached(&app_state, &link).await?;
 
-    join::inspect(&store, &link, timestamp::now()).await
-}
-
-/// Join the organization a link names, with the generated password the person was handed, and
-/// sign them in to it. Refused while somebody is signed in here: joining is a way through the
-/// wall, and the wall is down.
-#[tauri::command]
-pub async fn organization_join(
-    app_state: tauri::State<'_, AppState>,
-    link: String,
-    password: String,
-) -> Result<OrganizationState, Error> {
-    if app_state.member.read().await.is_some() {
-        return Err(Error::PreconditionFailed {
-            message: "sign out before joining another organization on this machine".to_string(),
-        });
-    }
-
-    let link = JoinLink::decode(&link)?;
-    let (store, credential) = reached(&app_state, &link).await?;
-    let member = {
-        let mut remote_sync = app_state.remote_sync.write().await;
-
-        join::join(
-            &store,
-            remote_sync.store_mut(),
-            &link,
-            &password,
-            &credential,
-            timestamp::now(),
-        )
-        .await?
-    };
-
-    *app_state.organization.write().await = Some(store);
-    *app_state.member.write().await = Some(member);
-
-    state_of(&app_state).await
-}
-
-/// Restore a place in the organization its own link names, by the person's username and password,
-/// and sign them in. An owner on a new machine walks this and then repeats the consent; a member
-/// walks it and is done. Refused while somebody is signed in here, as joining is.
-#[tauri::command]
-pub async fn organization_restore(
-    app_state: tauri::State<'_, AppState>,
-    link: String,
-    username: String,
-    password: String,
-) -> Result<OrganizationState, Error> {
-    if app_state.member.read().await.is_some() {
-        return Err(Error::PreconditionFailed {
-            message: "sign out before restoring an organization on this machine".to_string(),
-        });
-    }
-
-    let link = JoinLink::decode(&link)?;
-    let (store, credential) = reached(&app_state, &link).await?;
-    let member = {
-        let mut remote_sync = app_state.remote_sync.write().await;
-
-        join::restore(
-            &store,
-            remote_sync.store_mut(),
-            &link,
-            &username,
-            &password,
-            &credential,
-            timestamp::now(),
-        )
-        .await?
-    };
-
-    *app_state.organization.write().await = Some(store);
-    *app_state.member.write().await = Some(member);
-
-    state_of(&app_state).await
+    join::inspect(&store, &link).await
 }
 
 /// Record which Turso account the consent this machine now holds is over, so the owner's
@@ -1048,11 +996,9 @@ pub async fn organization_reconnect_authority(
 /// The organization a link names, reached: its replica on this machine, opened against the
 /// remote the link spells with the read-only credential it carries, and pulled. A machine that
 /// has never seen the organization and cannot reach it now has nothing to say about the link,
-/// and says so as a network failure rather than as a refusal.
-async fn reached(
-    app_state: &AppState,
-    link: &JoinLink,
-) -> Result<(OrganizationStore, CredentialSlot), Error> {
+/// and says so as a network failure rather than as a refusal. The credential stays in the slot
+/// the replica reads; nobody signs in on this replica, which is let go of once read.
+async fn reached(app_state: &AppState, link: &JoinLink) -> Result<OrganizationStore, Error> {
     let database_path = {
         let settings = app_state.settings.read().await;
 
@@ -1086,5 +1032,5 @@ async fn reached(
         });
     }
 
-    Ok((store, credential))
+    Ok(store)
 }

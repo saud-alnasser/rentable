@@ -128,7 +128,11 @@ goes, `open_invitation` and `InvitationPayload` go. `join::join` and `join::rest
 | B, keep the columns, stop reading them | smaller diff | a sealed payload nobody opens, a link field nobody fills, and a reviewer asking why | a later reader reintroduces the link half because the column invites it | dead code kept honest by comments |
 
 **Expiry at sign-in.** A member whose invitation has lapsed is refused with a sentence naming the
-lapse, since that is what reissue is for; a revoked one reads `removed` on the row already.
+lapse, since that is what reissue is for. A revoked one has no invitation row at all, since
+`revoke_invitation` deletes it and touches the member row only through the pending list, so a
+handed password with no invitation row, spent or open, is refused with the one sentence. *This
+said a revoked one reads `removed` on the row; ticket 11 read `revoke_invitation` and found it
+does not, and the orchestrator closed the gap at integration.*
 
 ## An account is a username
 
@@ -383,9 +387,11 @@ Each number is the spec's acceptance criterion.
   the workspace database released; on Windows a file still open cannot be deleted, so `forget`
   closes through the same path sign-out and `open_database` use and reports a file it could not
   remove rather than pretending. First sign: `org-*.db` surviving a disconnect.
-- **The startup check reads a schema before the wall.** `PRAGMA table_info(member)` on the held
-  replica is a local read; it runs before any pull, so an unreachable remote does not stop the
-  check. A replica missing entirely counts as the old shape too.
+- **The startup check reads a schema before the wall.** `PRAGMA table_info(member)` and
+  `PRAGMA table_info(invitation)` on the held replica are local reads; they run before any
+  pull, so an unreachable remote does not stop the check. A replica missing entirely counts as
+  the old shape too, and so does one with usernames and the invitation's sealed half, the shape
+  between tickets 10 and 11.
 - **`accountInitials` on a username with one character.** Requirement 21's floor is three, so
   it cannot happen for a valid row; the helper still pads rather than throwing.
 

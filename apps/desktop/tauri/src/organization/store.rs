@@ -37,7 +37,7 @@ use super::{
         Authority, Certificate, GrantAuthority, InvitationAuthority, MemberAuthority,
         VERIFYING_KEY_BYTES, WorkspaceAuthority, sign, verify,
     },
-    vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, SealedInvitation, Vault},
+    vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
 };
 
 /// The seven tables, in the order the schema creates them. A test pins this list against what
@@ -113,9 +113,6 @@ const SCHEMA: [&str; 7] = [
     "CREATE TABLE IF NOT EXISTS \"invitation\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"member_id\" TEXT NOT NULL, \
-        \"sealed_payload\" BLOB NOT NULL, \
-        \"kdf_salt\" BLOB NOT NULL, \
-        \"kdf_params\" TEXT NOT NULL, \
         \"expires_at\" INTEGER NOT NULL, \
         \"consumed_at\" INTEGER, \
         \"certificate_id\" TEXT NOT NULL, \
@@ -200,16 +197,15 @@ pub struct GrantRecord {
     pub credential_expires_at: Option<String>,
 }
 
-/// An `invitation` row: what a joining member opens with the link's secret and their generated
-/// password, and how long it stands. The id, the sealed payload and the expiry are under signature;
-/// `member_id` names whose invitation it is for the dashboard, and the derivation fields are the
-/// invitation's own, as a vault's are a member's: rewriting them breaks the invitation and nothing
-/// else.
+/// An `invitation` row: a pending account, whose member it is for and how long it stands. The
+/// id, the member and the expiry are under signature; `consumed_at` is written by the machine
+/// whose first sign-in spends it. *It carried a sealed payload, a salt and a cost until effort 824
+/// dropped the invitation's sealed half: the row was found through the link's secret and the
+/// generated password together, and it is found by the password alone now.*
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InvitationRecord {
     pub id: String,
     pub member_id: String,
-    pub sealed: SealedInvitation,
     pub expires_at: i64,
     pub consumed_at: Option<i64>,
     pub created_at: i64,
@@ -829,7 +825,7 @@ impl OrganizationStore {
             signer.certificate,
             Authority::Invitation(InvitationAuthority {
                 id: &invitation.id,
-                sealed_payload: &invitation.sealed.sealed_payload,
+                member_id: &invitation.member_id,
                 expires_at: invitation.expires_at,
             }),
         )?;
@@ -837,16 +833,12 @@ impl OrganizationStore {
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"invitation\" \
-                 (\"id\", \"member_id\", \"sealed_payload\", \"kdf_salt\", \"kdf_params\", \
-                  \"expires_at\", \"consumed_at\", \"certificate_id\", \"signature\", \
-                  \"created_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 (\"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"certificate_id\", \
+                  \"signature\", \"created_at\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(invitation.id.clone()),
                     turso::Value::Text(invitation.member_id.clone()),
-                    turso::Value::Blob(invitation.sealed.sealed_payload.clone()),
-                    turso::Value::Blob(invitation.sealed.kdf_salt.to_vec()),
-                    turso::Value::Text(invitation.sealed.kdf_params.encode()),
                     turso::Value::Integer(invitation.expires_at),
                     invitation
                         .consumed_at
@@ -883,9 +875,8 @@ impl OrganizationStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT \"id\", \"member_id\", \"sealed_payload\", \"kdf_salt\", \"kdf_params\", \
-                        \"expires_at\", \"consumed_at\", \"certificate_id\", \"signature\", \
-                        \"created_at\" \
+                "SELECT \"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"certificate_id\", \
+                        \"signature\", \"created_at\" \
                  FROM \"invitation\" ORDER BY \"created_at\", \"id\"",
                 (),
             )
@@ -894,10 +885,10 @@ impl OrganizationStore {
 
         while let Some(row) = rows.next().await? {
             let id = text(&row, 0)?;
-            let sealed_payload = blob(&row, 2)?;
-            let expires_at = integer(&row, 5)?;
-            let certificate_id = text(&row, 7)?;
-            let signature = blob(&row, 8)?;
+            let member_id = text(&row, 1)?;
+            let expires_at = integer(&row, 2)?;
+            let certificate_id = text(&row, 4)?;
+            let signature = blob(&row, 5)?;
 
             verified(
                 organization_verifying_key,
@@ -907,7 +898,7 @@ impl OrganizationStore {
                 &certificate_id,
                 Authority::Invitation(InvitationAuthority {
                     id: &id,
-                    sealed_payload: &sealed_payload,
+                    member_id: &member_id,
                     expires_at,
                 }),
                 &signature,
@@ -917,18 +908,13 @@ impl OrganizationStore {
                 certificate_id,
                 InvitationRecord {
                     id,
-                    member_id: text(&row, 1)?,
-                    sealed: SealedInvitation {
-                        sealed_payload,
-                        kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 3, "kdf_salt")?,
-                        kdf_params: KdfParams::parse(&text(&row, 4)?)?,
-                    },
+                    member_id,
                     expires_at,
-                    consumed_at: match row.get_value(6)? {
+                    consumed_at: match row.get_value(3)? {
                         turso::Value::Integer(value) => Some(value),
                         _ => None,
                     },
-                    created_at: integer(&row, 9)?,
+                    created_at: integer(&row, 6)?,
                 },
             ));
         }
@@ -1798,7 +1784,6 @@ mod tests {
     #[tokio::test]
     async fn re_signing_a_certificates_rows_lets_it_be_retired_without_bricking_them() {
         use super::InvitationRecord;
-        use crate::organization::vault::{INVITATION_SECRET_BYTES, seal_invitation};
 
         let directory = scratch("resign");
         let store = open(&directory).await;
@@ -1873,21 +1858,12 @@ mod tests {
             .await
             .expect("the grant");
 
-        let sealed = seal_invitation(
-            &[7_u8; INVITATION_SECRET_BYTES],
-            "a-generated-password",
-            test_cost(),
-            b"a payload",
-        )
-        .expect("a sealed invitation");
-
         store
             .write_invitation(
                 &admin_signer,
                 &InvitationRecord {
                     id: "inv-1".to_string(),
                     member_id: "member-x".to_string(),
-                    sealed,
                     expires_at: 1_757_600_000_000,
                     consumed_at: None,
                     created_at: 1_757_000_000_000,

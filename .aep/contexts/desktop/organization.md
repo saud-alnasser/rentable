@@ -51,8 +51,12 @@ before it revokes. Nothing seals one member's key to another; the actor re-signs
 
 **Link**:
 `rentable://join/...`, the organization's locator: its id, name, remote, verifying key and a
-read-only credential over sealed rows, and for an invitation the invitation's half of the secret.
-It never expires; the invitation it names does.
+read-only credential over sealed rows. It never expires. There is one link, the organization's
+own: it connects a machine, and a username and password admit a person at the wall; an
+invitation is the username and a generated password handed over beside it, and the invitation
+row is what expires. *Until effort 824 a link made for an invitation also carried the
+invitation's half of a secret, which with the password opened a sealed payload naming the
+member's row.*
 
 **Authority**:
 The Platform API token a consent produced, in the keyring on the owner's machine and nowhere else.

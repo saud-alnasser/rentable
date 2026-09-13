@@ -182,7 +182,7 @@ test('a wrong password leaves the wall as it was, and says only that the value d
 	});
 
 	await startup.start();
-	await startup.signIn('acme', 'not the password');
+	await startup.signIn('olivia', 'not the password');
 
 	assert.equal(startup.snapshot.state, 'sign-in', 'the person is still standing at it');
 	assert.equal(startup.snapshot.signInReason, 'locked');
@@ -197,8 +197,8 @@ test('the right password goes straight on into the application, and the password
 	const asked: [string, string][] = [];
 	const { startup, journal } = harness({
 		organization: locked(),
-		signInWith: async (organizationId, password) => {
-			asked.push([organizationId, password]);
+		signInWith: async (username, password) => {
+			asked.push([username, password]);
 
 			return { ...locked(), session: { ...withoutWorkspace().session!, workspaces: [] } };
 		}
@@ -208,12 +208,35 @@ test('the right password goes straight on into the application, and the password
 	assert.equal(startup.snapshot.state, 'sign-in');
 
 	// the shell is handed the password once; the snapshot never carries it.
-	await startup.signIn('acme', 'a long enough password');
+	await startup.signIn('olivia', 'a long enough password');
 
-	assert.deepEqual(asked, [['acme', 'a long enough password']]);
+	assert.deepEqual(asked, [['olivia', 'a long enough password']]);
 	assert.ok(!JSON.stringify(startup.snapshot).includes('a long enough password'));
 	// the context was built while nobody was signed in, so it belongs to nobody.
 	assert.equal(journal.contextsForgotten, 1);
+});
+
+// requirement 19 of effort 824: a first sign-in on the password somebody else drew is the same
+// call, and the shell answers with the change still owed; the person stops at choosing their
+// own, and the workspace they were granted opens after that and not before.
+test('and a first sign-in on a handed password stops at choosing one, and goes on in after', async () => {
+	const { startup, journal } = harness({
+		organization: locked(),
+		signInWith: async () => mustChangePassword(),
+		changePasswordWith: async () => unlocked()
+	});
+
+	await startup.start();
+	await startup.signIn('sami.staff', 'abcde-fghjk-mnpqr-stuvw');
+
+	assert.ok(!JSON.stringify(startup.snapshot).includes('abcde-fghjk'));
+	assert.equal(startup.snapshot.state, 'change-password');
+	assert.deepEqual(journal.workspacesOpened, []);
+
+	await startup.changePassword('abcde-fghjk-mnpqr-stuvw', 'a password of my own');
+
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.deepEqual(journal.workspacesOpened, ['north']);
 });
 
 test('and a member admitted to an organization with no workspace yet is in, with nowhere to go', async () => {
@@ -264,118 +287,12 @@ test('and a member with a workspace reaches it after the sign-in, re-entering at
 	const { startup, journal } = harness({ organization: locked() });
 
 	await startup.start();
-	await startup.signIn('acme', 'a long enough password');
+	await startup.signIn('olivia', 'a long enough password');
 
 	assert.equal(startup.snapshot.state, 'ready');
 	assert.equal(startup.snapshot.isSigningIn, false);
 	// re-entering at `workspace` is honest: those three stages are what this path has done.
 	assert.deepEqual(journal.stages.slice(-3), ['workspace', 'changes', 'records']);
-});
-
-// --- 4b. Joining by a link, which is a sign-in with a step before it and one after ---------
-
-test('a link and the generated password join, on a machine that had joined nothing, and stop at the password', async () => {
-	const asked: [string, string][] = [];
-	const { startup, journal } = harness({
-		organization: nowhereToGo(),
-		joinWith: async (link, password) => {
-			asked.push([link, password]);
-
-			// what joining leaves the machine in: the organization recorded, and the member in,
-			// holding the workspace they were invited into.
-			return {
-				organization: { id: 'acme', name: 'Acme', memberId: 'sami', role: 'member', joinedAt: 1 },
-				session: fakeOrganizationSession({
-					mustChangePassword: true,
-					workspaces: [fakeOrganizationWorkspace({ id: 'north' })]
-				}),
-				holdsTursoAuthority: false
-			};
-		},
-		changePasswordWith: async () => ({
-			organization: { id: 'acme', name: 'Acme', memberId: 'sami', role: 'member', joinedAt: 1 },
-			session: fakeOrganizationSession({
-				mustChangePassword: false,
-				workspaces: [fakeOrganizationWorkspace({ id: 'north' })]
-			}),
-			holdsTursoAuthority: false
-		})
-	});
-
-	await startup.start();
-	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(startup.snapshot.signInReason, 'noOrganization');
-
-	const joined = await startup.joinByLink('rentable://join/abc', 'abcde-fghjk-mnpqr-stuvw');
-
-	assert.equal(joined, true);
-	assert.deepEqual(asked, [['rentable://join/abc', 'abcde-fghjk-mnpqr-stuvw']]);
-	assert.ok(!JSON.stringify(startup.snapshot).includes('abcde-fghjk'));
-	// in, on the password somebody else drew: the next screen is choosing their own, and the
-	// workspace they were granted opens after that and not before.
-	assert.equal(startup.snapshot.state, 'change-password');
-	assert.equal(startup.snapshot.organization?.organization?.name, 'Acme');
-	assert.deepEqual(journal.workspacesOpened, []);
-	assert.equal(journal.contextsForgotten, 1);
-
-	await startup.changePassword('abcde-fghjk-mnpqr-stuvw', 'a password of my own');
-
-	assert.equal(startup.snapshot.state, 'ready');
-	assert.deepEqual(journal.workspacesOpened, ['north']);
-});
-
-test('and a refused invitation leaves the person at the join screen with the sentence', async () => {
-	const { startup, journal } = harness({
-		organization: nowhereToGo(),
-		joinWith: async () => {
-			throw new Error('the invitation to Acme has lapsed; ask whoever invited you for a new one');
-		}
-	});
-
-	await startup.start();
-
-	const joined = await startup.joinByLink('rentable://join/abc', 'abcde-fghjk-mnpqr-stuvw');
-
-	assert.equal(joined, false);
-	assert.equal(startup.snapshot.state, 'sign-in', 'still standing at the wall');
-	assert.equal(
-		startup.snapshot.error,
-		'the invitation to Acme has lapsed; ask whoever invited you for a new one'
-	);
-	assert.equal(startup.snapshot.isSigningIn, false);
-	assert.equal(journal.bootstrapped, 0);
-});
-
-// requirement 6: the organization's own link and the password restore a place on a machine
-// that had joined nothing, and the owner arrives holding no Turso authority.
-test("the organization's own link and the password restore an owner, who then holds no authority", async () => {
-	const asked: [string, string, string][] = [];
-	const { startup, journal } = harness({
-		organization: nowhereToGo(),
-		restoreWith: async (link, email, password) => {
-			asked.push([link, email, password]);
-
-			return {
-				organization: { id: 'acme', name: 'Acme', memberId: 'olivia', role: 'owner', joinedAt: 1 },
-				session: fakeOrganizationSession({
-					role: 'owner',
-					workspaces: [fakeOrganizationWorkspace({ id: 'north' })]
-				}),
-				holdsTursoAuthority: false
-			};
-		}
-	});
-
-	await startup.start();
-
-	const restored = await startup.restoreByLink('rentable://join/abc', '', 'the owners password');
-
-	assert.equal(restored, true);
-	assert.deepEqual(asked, [['rentable://join/abc', '', 'the owners password']]);
-	assert.ok(!JSON.stringify(startup.snapshot).includes('the owners password'));
-	assert.equal(startup.snapshot.state, 'ready');
-	assert.equal(startup.snapshot.organization?.holdsTursoAuthority, false);
-	assert.deepEqual(journal.workspacesOpened, ['north']);
 });
 
 // --- 4c. A password somebody else drew ----------------------------------------------------
@@ -684,7 +601,7 @@ test('and a switch asked for while one is loading, or while a password is being 
 	});
 
 	await signingIn.harness.startup.start();
-	await signingIn.harness.startup.signIn('acme', 'a long enough password');
+	await signingIn.harness.startup.signIn('olivia', 'a long enough password');
 
 	assert.deepEqual(signingIn.harness.journal.workspacesOpened, ['north']);
 	assert.equal(signingIn.harness.startup.snapshot.state, 'ready');

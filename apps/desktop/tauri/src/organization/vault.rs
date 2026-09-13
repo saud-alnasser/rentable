@@ -62,9 +62,6 @@ pub const PUBLIC_KEY_BYTES: usize = 32;
 /// The width of an X25519 secret key.
 pub const SECRET_KEY_BYTES: usize = 32;
 
-/// The width of the secret half an invitation link carries.
-pub const INVITATION_SECRET_BYTES: usize = 32;
-
 /// The width of the organization content key.
 pub const CONTENT_KEY_BYTES: usize = 32;
 
@@ -84,9 +81,6 @@ const SEALED_SECRET_KEY_DOMAIN: &[u8] = b"rentable.organization.vault.sealed-sec
 
 /// Separates the sealed-box key derivation from every other use of HKDF here.
 const SEALED_BOX_DOMAIN: &[u8] = b"rentable.organization.vault.sealed-box.v1";
-
-/// Separates the invitation key derivation from every other use of HKDF here.
-const INVITATION_DOMAIN: &[u8] = b"rentable.organization.vault.invitation.v1";
 
 /// Prefixes the associated data of every column sealed under the content key.
 const CONTENT_DOMAIN: &[u8] = b"rentable.organization.vault.content.v1";
@@ -297,18 +291,6 @@ pub struct Vault {
     pub kdf_params: KdfParams,
 }
 
-/// An invitation payload, which needs both halves to open: the secret the link
-/// carries and the password the person carries.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SealedInvitation {
-    /// The nonce followed by the sealed payload.
-    pub sealed_payload: Vec<u8>,
-    /// The salt the generated password was stretched with.
-    pub kdf_salt: [u8; KDF_SALT_BYTES],
-    /// The cost the generated password was stretched at.
-    pub kdf_params: KdfParams,
-}
-
 /// Stretches a password into a member key.
 ///
 /// **This succeeds for every password.** Nothing here knows or could know whether
@@ -491,58 +473,6 @@ pub fn open_content(key: &ContentKey, column: &str, sealed: &[u8]) -> Result<Vec
     unseal_bytes(&key.0, &nonce, ciphertext, &content_aad(column))
 }
 
-/// Seals an invitation payload under both of its halves: the secret the link
-/// carries, and the generated password the person carries.
-///
-/// Neither half alone opens it, which is what makes a link that also carries a
-/// read-only credential useless on its own.
-pub fn seal_invitation(
-    invitation_secret: &[u8; INVITATION_SECRET_BYTES],
-    generated_password: &str,
-    kdf_params: KdfParams,
-    payload: &[u8],
-) -> Result<SealedInvitation, Error> {
-    let kdf_salt = random_bytes::<KDF_SALT_BYTES>()?;
-    let nonce = random_bytes::<NONCE_BYTES>()?;
-    let key = invitation_key(invitation_secret, generated_password, &kdf_salt, kdf_params)?;
-
-    let mut sealed_payload = nonce.to_vec();
-    sealed_payload.extend_from_slice(&seal_bytes(
-        &key,
-        &nonce,
-        payload,
-        &invitation_aad(&kdf_salt, kdf_params),
-    )?);
-
-    Ok(SealedInvitation {
-        sealed_payload,
-        kdf_salt,
-        kdf_params,
-    })
-}
-
-/// Opens an invitation, given both halves.
-pub fn open_invitation(
-    invitation_secret: &[u8; INVITATION_SECRET_BYTES],
-    generated_password: &str,
-    sealed: &SealedInvitation,
-) -> Result<Vec<u8>, Error> {
-    let key = invitation_key(
-        invitation_secret,
-        generated_password,
-        &sealed.kdf_salt,
-        sealed.kdf_params,
-    )?;
-    let (nonce, ciphertext) = split_nonce(&sealed.sealed_payload)?;
-
-    unseal_bytes(
-        &key,
-        &nonce,
-        ciphertext,
-        &invitation_aad(&sealed.kdf_salt, sealed.kdf_params),
-    )
-}
-
 /// Opens a vault with a member key that is already derived.
 ///
 /// Separate from [`open_vault`] only so a test can offer a key that no password
@@ -680,28 +610,6 @@ fn sealed_box_key(
     Ok((sealing_key, sealing_nonce))
 }
 
-/// The key an invitation is sealed under: the generated password stretched, then
-/// mixed with the secret the link carries. Whoever holds one half holds nothing.
-fn invitation_key(
-    invitation_secret: &[u8; INVITATION_SECRET_BYTES],
-    generated_password: &str,
-    kdf_salt: &[u8; KDF_SALT_BYTES],
-    kdf_params: KdfParams,
-) -> Result<[u8; MEMBER_KEY_BYTES], Error> {
-    let stretched = derive_member_key(generated_password, kdf_salt, kdf_params)?;
-
-    let mut key = [0_u8; MEMBER_KEY_BYTES];
-    expand(
-        Some(invitation_secret),
-        &stretched.0,
-        INVITATION_DOMAIN,
-        &mut key,
-    )?;
-
-    Ok(key)
-}
-
-/// What an invitation is authenticated against.
 /// The associated data one sealed column carries: the domain and the column's
 /// own name.
 fn content_aad(column: &str) -> Vec<u8> {
@@ -712,16 +620,7 @@ fn content_aad(column: &str) -> Vec<u8> {
     aad
 }
 
-fn invitation_aad(kdf_salt: &[u8; KDF_SALT_BYTES], kdf_params: KdfParams) -> Vec<u8> {
-    let mut aad = INVITATION_DOMAIN.to_vec();
-
-    aad.extend_from_slice(kdf_salt);
-    aad.extend_from_slice(kdf_params.encode().as_bytes());
-
-    aad
-}
-
-/// XChaCha20-Poly1305 under one key.
+// XChaCha20-Poly1305 under one key.
 fn cipher(key: &[u8; MEMBER_KEY_BYTES]) -> XChaCha20Poly1305 {
     XChaCha20Poly1305::new(&Key::from(*key))
 }
@@ -907,22 +806,6 @@ mod tests {
 
         assert_ne!(resealed.kdf_salt, vault.kdf_salt);
         assert_ne!(resealed.sealed_secret_key, vault.sealed_secret_key);
-    }
-
-    #[test]
-    fn an_invitation_opens_with_both_halves() {
-        let link_secret = hex_array::<INVITATION_SECRET_BYTES>(
-            "1111111111111111111111111111111111111111111111111111111111111111",
-        );
-        let payload = b"the organization id, its verifying key, and a read-only credential";
-
-        let sealed = seal_invitation(&link_secret, "a generated password", test_cost(), payload)
-            .expect("failed to seal");
-
-        assert_eq!(
-            open_invitation(&link_secret, "a generated password", &sealed).expect("failed to open"),
-            payload
-        );
     }
 
     // seeds derived from a member's secret
@@ -1120,29 +1003,6 @@ mod tests {
             reseal_vault(&secret_key, "the new password", test_cost()).expect("failed to reseal");
 
         assert!(open_vault("the old password", &resealed).is_err());
-    }
-
-    #[test]
-    fn neither_half_of_an_invitation_opens_it_alone() {
-        let link_secret = hex_array::<INVITATION_SECRET_BYTES>(
-            "1111111111111111111111111111111111111111111111111111111111111111",
-        );
-        let other_secret = hex_array::<INVITATION_SECRET_BYTES>(
-            "2222222222222222222222222222222222222222222222222222222222222222",
-        );
-
-        let sealed = seal_invitation(
-            &link_secret,
-            "a generated password",
-            test_cost(),
-            b"payload",
-        )
-        .expect("failed to seal");
-
-        // the link, without the password the person carries
-        assert!(open_invitation(&link_secret, "a guessed password", &sealed).is_err());
-        // the password, without the secret the link carries
-        assert!(open_invitation(&other_secret, "a generated password", &sealed).is_err());
     }
 
     #[test]

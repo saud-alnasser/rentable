@@ -111,7 +111,7 @@ test('and signing back in returns the reader to the address they were on', async
 	await startup.start();
 	assert.equal(shellSurface(startup.snapshot, '/tenants/a-tenant'), 'sign-in');
 
-	await startup.signIn('acme', 'a long enough password');
+	await startup.signIn('olivia', 'a long enough password');
 
 	assert.equal(startup.snapshot.state, 'ready');
 	assert.equal(shellSurface(startup.snapshot, '/tenants/a-tenant'), 'route');

@@ -74,7 +74,7 @@ test('a path that re-enters partway along starts partway along, and still ascend
 	assert.deepEqual(journal.stages, ['settings', 'account'], 'as far as the wall, and no further');
 
 	journal.stages.length = 0;
-	await startup.signIn('acme', 'a long enough password');
+	await startup.signIn('olivia', 'a long enough password');
 
 	assert.deepEqual(journal.stages, ['workspace', 'changes', 'records']);
 });
