@@ -755,11 +755,12 @@ const en = {
 			connectDescription:
 				'your organization will live on your own turso account. one consent in the browser is all it takes.',
 			position: 'step {step|number} of {total|number}',
-			connectGroup:
-				'in the turso dashboard, create an empty group for rentable, then choose it on the consent screen. the consent covers only that group.',
-			connectAccount: 'no turso account yet? you can create one on the consent screen.',
-			connectSuccession:
-				'the organization lives in that group. on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group there. rentable does neither for you.',
+			groupCoverage:
+				'the consent covers every database in the group you choose, and nothing outside it.',
+			accountCreation:
+				'a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.',
+			succession:
+				'on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group. rentable does neither for you.',
 			openDashboard: 'open turso dashboard',
 			connect: 'connect turso account',
 			connecting: 'finish the consent in the browser window that just opened.',

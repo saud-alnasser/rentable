@@ -9,7 +9,7 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import BuildingIcon from '@lucide/svelte/icons/building';
-	import FolderPlusIcon from '@lucide/svelte/icons/folder-plus';
+	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import PlugIcon from '@lucide/svelte/icons/plug';
 	import UnplugIcon from '@lucide/svelte/icons/unplug';
@@ -56,10 +56,10 @@
 	 * which has no back either.
 	 *
 	 * **The connect step is a list, not three paragraphs.** The three facts a person has to know
-	 * before pressing anything are bullets with a glyph each, the way *Supercharge the defaults*
-	 * (Refactoring UI p.220) lifts a plain list: a glyph specific to the fact rather than a generic
-	 * mark, and the action that helps with the first fact sits inside that fact rather than at the
-	 * foot of the screen. The glyphs are muted so they do not outweigh the sentence beside them
+	 * before pressing anything, and none of them asks for a group to be made, are bullets with a
+	 * glyph each, the way *Supercharge the defaults* (Refactoring UI p.220) lifts a plain list: a
+	 * glyph specific to the fact rather than a generic mark, and the action that helps with the
+	 * first fact sits inside that fact rather than at the foot of the screen. The glyphs are muted so they do not outweigh the sentence beside them
 	 * (*Balance weight and contrast*, p.56).
 	 *
 	 * **A machine that already holds Turso authority is not asked again.** The route reads whether
@@ -142,19 +142,20 @@
 	);
 
 	/**
-	 * Each fact with its own glyph, in the order the person needs them: the group they prepare,
-	 * where an account comes from, and where the organization will live. The glyph is specific to
-	 * the fact rather than a checkmark, which is the book's own recommendation on p.220.
+	 * Each fact with its own glyph, in the order the person needs them: how far the consent
+	 * reaches, which account to grant it on, and where the organization will live afterwards. The
+	 * glyph is specific to the fact rather than a checkmark, which is the book's own
+	 * recommendation on p.220.
 	 */
 	const statementText = (statement: SetupStatement) =>
 		({
-			groupPreparation: $LL.organization.setup.connectGroup(),
-			accountCreation: $LL.organization.setup.connectAccount(),
-			succession: $LL.organization.setup.connectSuccession()
+			groupCoverage: $LL.organization.setup.groupCoverage(),
+			accountCreation: $LL.organization.setup.accountCreation(),
+			succession: $LL.organization.setup.succession()
 		})[statement];
 
-	const statementGlyph: Record<SetupStatement, typeof FolderPlusIcon> = {
-		groupPreparation: FolderPlusIcon,
+	const statementGlyph: Record<SetupStatement, typeof BuildingIcon> = {
+		groupCoverage: DatabaseIcon,
 		accountCreation: UserPlusIcon,
 		succession: BuildingIcon
 	};
@@ -305,7 +306,7 @@
 						</span>
 						<span class="min-w-0 flex-1">
 							{statementText(statement)}
-							{#if statement === 'groupPreparation'}
+							{#if statement === 'groupCoverage'}
 								<Button
 									variant="link"
 									class="h-auto p-0 align-baseline text-sm"

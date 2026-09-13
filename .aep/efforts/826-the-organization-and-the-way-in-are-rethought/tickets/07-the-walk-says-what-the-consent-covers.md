@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(organization): the walk says what the consent covers
@@ -16,16 +16,16 @@ paid account should offer an empty one, and what succession costs, shorter than 
 Traces requirement 13 of [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]],
 and its criterion 13.
 
-- [ ] `organization/setup.ts`'s `SetupStatement` is `groupCoverage`, `accountCreation`,
+- [x] `organization/setup.ts`'s `SetupStatement` is `groupCoverage`, `accountCreation`,
       `succession`; `setup.test.ts` pins the three English statements as literals and the
       Arabic three beside them, and its vocabulary guard finds no instruction to create a
       group in either.
-- [ ] The connect step renders the three as the glyphed list 824 built, the dashboard action
+- [x] The connect step renders the three as the glyphed list 824 built, the dashboard action
       still inside the first item, and `setup-walk.svelte.test.ts` asserts it.
-- [ ] Both locales are written, not copied; the two research files under the effort's
+- [x] Both locales are written, not copied; the two research files under the effort's
       `evidence/research/` are cited in the ticket's commit body as where the one-group fact
       comes from.
-- [ ] `pnpm check`, `pnpm lint` and `pnpm test` pass; a changeset rides with the change.
+- [x] `pnpm check`, `pnpm lint` and `pnpm test` pass; a changeset rides with the change.
 
 ## Relevant areas
 

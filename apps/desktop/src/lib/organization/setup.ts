@@ -33,18 +33,24 @@ export type SetupField = 'name' | 'username' | 'password' | 'workspace';
 /**
  * what a step tells the person before it asks anything of them.
  *
- * `groupPreparation` explains the empty group the consent will be granted over, which the
- * customer creates in Turso's own dashboard; explained rather than asked for, because nothing
- * available to this application can create one and a field for its name would be criterion 3
- * failing. `succession` states what it costs that the organization lives in whichever Turso
- * organization holds the group, before anything is created, in every case, because a
- * group-scoped credential cannot tell a personal account from a team one (requirement 22).
+ * `groupCoverage` says how far the consent reaches: every database in the group the person
+ * picks, and nothing outside it. `accountCreation` says why a Turso account kept for rentable
+ * alone is the clean choice, which is the one-group fact rather than a preference: a Free or
+ * Developer account has exactly one group and the consent screen offers no way to make a
+ * second, so on those plans the only group there is to pick is the one already holding
+ * everything else, and only a paid account can offer an empty one. `succession` states what it
+ * costs that the organization lives in whichever Turso organization holds the group, before
+ * anything is created, in every case, because a group-scoped credential cannot tell a personal
+ * account from a team one (requirement 22 of effort 819).
+ *
+ * **Nothing here asks for a group to be made.** The walk used to, and the plan limit is why it
+ * no longer does.
  *
  * The screen draws them as one list, a glyph to each, in this order, with the dashboard action
- * on the first; the sentences themselves are the locale's `connectGroup`, `connectAccount` and
- * `connectSuccession`.
+ * on the first; the sentences themselves are the locale's `groupCoverage`, `accountCreation`
+ * and `succession`.
  */
-export type SetupStatement = 'groupPreparation' | 'accountCreation' | 'succession';
+export type SetupStatement = 'groupCoverage' | 'accountCreation' | 'succession';
 
 export type SetupStepDescription = {
 	step: SetupStep;
@@ -56,7 +62,7 @@ export const SETUP_WALK: readonly SetupStepDescription[] = [
 	{
 		step: 'connect',
 		fields: [],
-		statements: ['groupPreparation', 'accountCreation', 'succession']
+		statements: ['groupCoverage', 'accountCreation', 'succession']
 	},
 	{
 		step: 'name',
@@ -96,5 +102,5 @@ export const PASSWORD_FLOOR = 12;
 /** the same bound the workspace name has, for the same reason: a name has to fit on a row. */
 export const ORGANIZATION_NAME_LIMIT = 120;
 
-/** where the person makes a Turso account and, before consenting, the empty group. */
+/** where the person makes a Turso account and reads what a group of theirs already holds. */
 export const TURSO_DASHBOARD_URL = 'https://app.turso.tech';

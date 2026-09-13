@@ -46,18 +46,16 @@ test('nothing in the walk asks for a slug, a group, a token or a URL', () => {
 	}
 });
 
-// requirement 3: the group is explained, not asked for. requirement 22: succession is stated
-// before anything is created, in every case, because the application cannot tell which case it
-// is in.
-test('the group preparation and what succession costs are said before the organization is created', () => {
+// requirement 13: what the consent covers is explained, and no group is asked for. requirement 22
+// of effort 819: succession is stated before anything is created, in every case, because the
+// application cannot tell which case it is in.
+test('what the consent covers and what succession costs are said before the organization is created', () => {
 	const statements = statementsBeforeCreation();
 
-	assert.ok(statements.includes('groupPreparation'));
-	assert.ok(statements.includes('succession'));
-	assert.ok(statements.includes('accountCreation'));
+	assert.deepEqual(statements, ['groupCoverage', 'accountCreation', 'succession']);
 
 	// and said on a step that asks for nothing, so explaining never becomes asking.
-	const explaining = SETUP_WALK.find((step) => step.statements.includes('groupPreparation'));
+	const explaining = SETUP_WALK.find((step) => step.statements.includes('groupCoverage'));
 
 	assert.deepEqual(explaining?.fields, []);
 });
@@ -97,14 +95,20 @@ const PARAGRAPHS_REPLACED = [
 	'the organization will live in whichever turso organization holds the group you pick. if that is a personal account, only you can grant rentable authority over it again. a second administrator on a turso organization can do the same, and turso can move a group to another organization from its own dashboard. rentable does neither for you.'
 ];
 
+/** the three statements the connect step draws, in the order a person meets them. */
+const STATEMENT_KEYS = ['groupCoverage', 'accountCreation', 'succession'] as const;
+
+/** what the Arabic connect step said while it still asked for a group, kept for the guard. */
+const AR_WAS = 'في لوحة تحكم Turso، أنشئ مجموعة فارغة لـ rentable ثم اخترها في شاشة الموافقة.';
+
 const words = (sentences: readonly string[]) =>
 	sentences.reduce((count, sentence) => count + sentence.trim().split(/\s+/).length, 0);
 
 test('the three connect items together are shorter than the three paragraphs they replaced', () => {
 	const items = [
-		en.organization.setup.connectGroup,
-		en.organization.setup.connectAccount,
-		en.organization.setup.connectSuccession
+		en.organization.setup.groupCoverage,
+		en.organization.setup.accountCreation,
+		en.organization.setup.succession
 	];
 
 	assert.ok(
@@ -112,7 +116,7 @@ test('the three connect items together are shorter than the three paragraphs the
 		`${words(items)} words against ${words(PARAGRAPHS_REPLACED)}`
 	);
 	// and each still says something, in both locales, written rather than copied.
-	for (const key of ['connectGroup', 'connectAccount', 'connectSuccession'] as const) {
+	for (const key of STATEMENT_KEYS) {
 		assert.ok(en.organization.setup[key].length > 0, key);
 		assert.ok(ar.organization.setup[key].length > 0, key);
 		assert.notEqual(ar.organization.setup[key], en.organization.setup[key], key);
@@ -139,13 +143,81 @@ test('the password floor is the same number in Rust, on the form, and in both lo
 });
 
 // requirement 22 of effort 819: the statement names group transfer as the customer's, performed
-// in Turso, and offers it nowhere here. Shorter since effort 824, and it still says so.
+// in Turso, and offers it nowhere here. Shorter again since the redesign, and it still says so.
 test('the succession item names turso as where a group moves, in both locales', () => {
-	assert.match(en.organization.setup.connectSuccession, /turso/i);
-	assert.match(en.organization.setup.connectSuccession, /move a group|transfer/i);
-	assert.match(en.organization.setup.connectSuccession, /rentable does neither/i);
-	assert.match(ar.organization.setup.connectSuccession, /Turso/);
-	assert.match(ar.organization.setup.connectSuccession, /نقل/);
+	assert.match(en.organization.setup.succession, /turso/i);
+	assert.match(en.organization.setup.succession, /move a group|transfer/i);
+	assert.match(en.organization.setup.succession, /rentable does neither/i);
+	assert.match(ar.organization.setup.succession, /Turso/);
+	assert.match(ar.organization.setup.succession, /نقل/);
+});
+
+/**
+ * Requirement 13 of the redesign: the three sentences a person reads before the consent, pinned
+ * as literals in both locales rather than read out of the locale and compared with themselves.
+ * A rewrite of any of the six is then a deliberate edit here as well, which is the point: what
+ * this step says is the requirement, and the locale file is only where it is kept.
+ *
+ * The one-group fact in `accountCreation` is Turso's own plan limit rather than a preference,
+ * and it comes from
+ * [[efforts/826-the-organization-and-the-way-in-are-rethought/evidence/research/what-an-organization-with-members-costs-on-turso]]
+ * and
+ * [[efforts/826-the-organization-and-the-way-in-are-rethought/evidence/research/what-a-turso-member-can-do-through-the-consent]].
+ */
+const STATEMENTS = {
+	en: {
+		groupCoverage:
+			'the consent covers every database in the group you choose, and nothing outside it.',
+		accountCreation:
+			'a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.',
+		succession:
+			'on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group. rentable does neither for you.'
+	},
+	ar: {
+		groupCoverage: 'تشمل الموافقة كل قاعدة بيانات في المجموعة التي تختارها، ولا شيء خارجها.',
+		accountCreation:
+			'لا يحمل حساب Turso المجاني أو حساب Developer سوى مجموعة واحدة، لذا يبقى تخصيص حساب لـ rentable وحده هو الخيار الأنظف، وشاشة الموافقة تفتح لك حساباً إن لم يكن لديك واحد. أما في الحساب المدفوع فاختر مجموعة فارغة.',
+		succession:
+			'في الحساب الشخصي أنت وحدك من يمنح الصلاحية مجدداً؛ وفي منظمة Turso يستطيع أي مدير ذلك، وتستطيع Turso نقل المجموعة. لا يفعل rentable أياً منهما نيابة عنك.'
+	}
+} as const;
+
+test('the connect step says these three things, and says them in both locales', () => {
+	for (const locale of ['en', 'ar'] as const) {
+		const setup = { en, ar }[locale].organization.setup;
+
+		for (const key of STATEMENT_KEYS) {
+			assert.equal(setup[key], STATEMENTS[locale][key], `${locale}: ${key}`);
+		}
+	}
+
+	// the connect step draws these three and no fourth, in this order.
+	assert.deepEqual(SETUP_WALK.find((step) => step.step === 'connect')?.statements, [
+		...STATEMENT_KEYS
+	]);
+});
+
+/**
+ * The vocabulary guard. Nothing available to this application can make a group, and on a Free or
+ * Developer account the person cannot make a second one either, so an instruction to make one is
+ * an instruction that fails for most of the people who would read it. The walk carried one until
+ * this effort; this is what keeps it from coming back.
+ *
+ * A match is kept inside one sentence, which is what stops a statement that names a group in one
+ * sentence and an account in the next from reading as an instruction to make a group.
+ */
+test('neither locale tells the owner to create a group', () => {
+	const english = /\b(create|creating|make|making|add|adding|set up)\b[^.]{0,24}\bgroups?\b/i;
+	const arabic = /(أنشئ|انشئ|إنشاء|انشاء|اصنع|كوّن)[^.]{0,24}مجموعة/;
+
+	for (const key of STATEMENT_KEYS) {
+		assert.doesNotMatch(en.organization.setup[key], english, `en: ${key}`);
+		assert.doesNotMatch(ar.organization.setup[key], arabic, `ar: ${key}`);
+	}
+
+	// and the guard catches what the walk used to say, in both languages.
+	assert.match(PARAGRAPHS_REPLACED[0]!, english);
+	assert.match(AR_WAS, arabic);
 });
 
 /**

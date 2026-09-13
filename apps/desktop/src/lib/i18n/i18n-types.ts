@@ -2333,17 +2333,17 @@ type RootTranslation = {
 			 */
 			position: RequiredParams<'step|number' | 'total|number'>
 			/**
-			 * i​n​ ​t​h​e​ ​t​u​r​s​o​ ​d​a​s​h​b​o​a​r​d​,​ ​c​r​e​a​t​e​ ​a​n​ ​e​m​p​t​y​ ​g​r​o​u​p​ ​f​o​r​ ​r​e​n​t​a​b​l​e​,​ ​t​h​e​n​ ​c​h​o​o​s​e​ ​i​t​ ​o​n​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​c​o​v​e​r​s​ ​o​n​l​y​ ​t​h​a​t​ ​g​r​o​u​p​.
+			 * t​h​e​ ​c​o​n​s​e​n​t​ ​c​o​v​e​r​s​ ​e​v​e​r​y​ ​d​a​t​a​b​a​s​e​ ​i​n​ ​t​h​e​ ​g​r​o​u​p​ ​y​o​u​ ​c​h​o​o​s​e​,​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​o​u​t​s​i​d​e​ ​i​t​.
 			 */
-			connectGroup: string
+			groupCoverage: string
 			/**
-			 * n​o​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​y​e​t​?​ ​y​o​u​ ​c​a​n​ ​c​r​e​a​t​e​ ​o​n​e​ ​o​n​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.
+			 * a​ ​f​r​e​e​ ​o​r​ ​d​e​v​e​l​o​p​e​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​h​a​s​ ​e​x​a​c​t​l​y​ ​o​n​e​ ​g​r​o​u​p​,​ ​s​o​ ​a​n​ ​a​c​c​o​u​n​t​ ​k​e​p​t​ ​f​o​r​ ​r​e​n​t​a​b​l​e​ ​a​l​o​n​e​ ​i​s​ ​t​h​e​ ​c​l​e​a​n​ ​c​h​o​i​c​e​,​ ​a​n​d​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​ ​i​s​ ​w​h​e​r​e​ ​y​o​u​ ​m​a​k​e​ ​o​n​e​.​ ​o​n​ ​a​ ​p​a​i​d​ ​a​c​c​o​u​n​t​,​ ​p​i​c​k​ ​a​n​ ​e​m​p​t​y​ ​g​r​o​u​p​.
 			 */
-			connectAccount: string
+			accountCreation: string
 			/**
-			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​v​e​s​ ​i​n​ ​t​h​a​t​ ​g​r​o​u​p​.​ ​o​n​ ​a​ ​p​e​r​s​o​n​a​l​ ​a​c​c​o​u​n​t​ ​o​n​l​y​ ​y​o​u​ ​c​a​n​ ​g​r​a​n​t​ ​a​c​c​e​s​s​ ​a​g​a​i​n​;​ ​i​n​ ​a​ ​t​u​r​s​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​y​ ​a​d​m​i​n​ ​c​a​n​,​ ​a​n​d​ ​t​u​r​s​o​ ​c​a​n​ ​m​o​v​e​ ​a​ ​g​r​o​u​p​ ​t​h​e​r​e​.​ ​r​e​n​t​a​b​l​e​ ​d​o​e​s​ ​n​e​i​t​h​e​r​ ​f​o​r​ ​y​o​u​.
+			 * o​n​ ​a​ ​p​e​r​s​o​n​a​l​ ​a​c​c​o​u​n​t​ ​o​n​l​y​ ​y​o​u​ ​c​a​n​ ​g​r​a​n​t​ ​a​c​c​e​s​s​ ​a​g​a​i​n​;​ ​i​n​ ​a​ ​t​u​r​s​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​y​ ​a​d​m​i​n​ ​c​a​n​,​ ​a​n​d​ ​t​u​r​s​o​ ​c​a​n​ ​m​o​v​e​ ​a​ ​g​r​o​u​p​.​ ​r​e​n​t​a​b​l​e​ ​d​o​e​s​ ​n​e​i​t​h​e​r​ ​f​o​r​ ​y​o​u​.
 			 */
-			connectSuccession: string
+			succession: string
 			/**
 			 * o​p​e​n​ ​t​u​r​s​o​ ​d​a​s​h​b​o​a​r​d
 			 */
@@ -5008,17 +5008,17 @@ export type TranslationFunctions = {
 			 */
 			position: (arg: { step: unknown, total: unknown }) => LocalizedString
 			/**
-			 * in the turso dashboard, create an empty group for rentable, then choose it on the consent screen. the consent covers only that group.
+			 * the consent covers every database in the group you choose, and nothing outside it.
 			 */
-			connectGroup: () => LocalizedString
+			groupCoverage: () => LocalizedString
 			/**
-			 * no turso account yet? you can create one on the consent screen.
+			 * a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.
 			 */
-			connectAccount: () => LocalizedString
+			accountCreation: () => LocalizedString
 			/**
-			 * the organization lives in that group. on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group there. rentable does neither for you.
+			 * on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group. rentable does neither for you.
 			 */
-			connectSuccession: () => LocalizedString
+			succession: () => LocalizedString
 			/**
 			 * open turso dashboard
 			 */

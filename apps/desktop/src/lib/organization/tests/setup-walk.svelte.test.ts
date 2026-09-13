@@ -135,9 +135,9 @@ test('the connect step asks for nothing and says what has to be known first', ()
 	walk('connect');
 
 	expect(inputsOnScreen()).toEqual([]);
-	expect(screen.getByText(en.organization.setup.connectGroup, { exact: false })).toBeDefined();
-	expect(screen.getByText(en.organization.setup.connectAccount)).toBeDefined();
-	expect(screen.getByText(en.organization.setup.connectSuccession)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.groupCoverage, { exact: false })).toBeDefined();
+	expect(screen.getByText(en.organization.setup.accountCreation)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.succession)).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.connect })).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.openDashboard })).toBeDefined();
 });
@@ -154,7 +154,7 @@ test('the connect step is a list of three glyphed facts with the dashboard actio
 
 	expect(items).toHaveLength(3);
 	expect(items.map((item) => item.getAttribute('data-setup-statement'))).toEqual([
-		'groupPreparation',
+		'groupCoverage',
 		'accountCreation',
 		'succession'
 	]);
