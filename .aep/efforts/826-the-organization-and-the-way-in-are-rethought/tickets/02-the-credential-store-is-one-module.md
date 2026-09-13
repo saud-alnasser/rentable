@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # refactor(sync): the credential store is one module
@@ -16,19 +16,19 @@ to go.
 Traces requirement 12 of [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]],
 and its criterion 12 (the keyring fake the Rust tests run over).
 
-- [ ] `tauri/src/keyring.rs` exports `store(service, account, value)`, `read(service,
+- [x] `tauri/src/keyring.rs` exports `store(service, account, value)`, `read(service,
       account)` answering `Option<String>`, and `forget(service, account)`, over the `keyring`
       crate under `#[cfg(not(test))]`, and over a process-wide static keyed by `(service,
       account)` under `#[cfg(test)]`, with `take_the_credential_store()` and
       `CredentialStoreTurn` moved here.
-- [ ] `sync/turso/consent.rs`'s `store_platform_token`, `platform_token` and
+- [x] `sync/turso/consent.rs`'s `store_platform_token`, `platform_token` and
       `forget_platform_token` call it with the existing service and account names; the
       `keyring` crate is imported in `keyring.rs` and nowhere else (`grep`).
-- [ ] Every test that took the credential store's turn (`forget.rs`, the consent's own) takes
+- [x] Every test that took the credential store's turn (`forget.rs`, the consent's own) takes
       it from the new module and passes.
-- [ ] A missing entry reads as `None`, and a store refusal is an `Error::Credential` that
+- [x] A missing entry reads as `None`, and a store refusal is an `Error::Credential` that
       never quotes the value; asserted over the fake.
-- [ ] `cargo test` passes.
+- [x] `cargo test` passes.
 
 ## Relevant areas
 

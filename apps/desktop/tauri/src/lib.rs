@@ -5,6 +5,9 @@ pub mod error;
 pub mod export;
 pub mod http;
 mod import;
+// private, and it stays that way: what it hands back is a credential, so its callers are in
+// this crate and nowhere else ([[rules/credentials]], *Client boundary*).
+mod keyring;
 pub mod organization;
 pub mod persisted;
 pub mod settings;

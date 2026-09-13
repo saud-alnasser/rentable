@@ -931,10 +931,9 @@ impl TursoPlatform for InMemoryPlatform {
 mod tests {
     use serde_json::json;
 
+    use crate::keyring::{CredentialStoreTurn, take_the_credential_store};
     use crate::sync::test::server::{RecordedRequest, ScriptedResponse, ScriptedServer};
-    use crate::sync::turso::consent::{
-        CredentialStoreTurn, store_platform_token, take_the_credential_store,
-    };
+    use crate::sync::turso::consent::store_platform_token;
     use crate::sync::turso::discovery::TursoOrganization;
 
     use super::{

@@ -439,7 +439,7 @@ mod tests {
     /// or `ws-*` file, an empty record, and no authority in the keyring.
     #[tokio::test]
     async fn forgetting_leaves_no_replica_no_record_and_no_authority() {
-        let _turn = crate::sync::turso::consent::take_the_credential_store().await;
+        let _turn = crate::keyring::take_the_credential_store().await;
         let directory = scratch("whole");
         let (organization, held) = created(&directory).await;
 
@@ -536,7 +536,7 @@ mod tests {
     /// the old shape, and the first state read forgets it, replicas and all, saying why.
     #[tokio::test]
     async fn a_record_listing_organizations_is_forgotten_at_startup() {
-        let _turn = crate::sync::turso::consent::take_the_credential_store().await;
+        let _turn = crate::keyring::take_the_credential_store().await;
         let directory = scratch("listed");
 
         std::fs::write(
@@ -573,7 +573,7 @@ mod tests {
     /// is not on disk at all is forgotten the same way; and one of this build's shape is kept.
     #[tokio::test]
     async fn a_replica_of_the_old_schema_or_none_at_all_is_forgotten_at_startup() {
-        let _turn = crate::sync::turso::consent::take_the_credential_store().await;
+        let _turn = crate::keyring::take_the_credential_store().await;
 
         // the old schema: the member table as 819 wrote it, with an email and a display name.
         let directory = scratch("old-schema");
