@@ -9,7 +9,6 @@
 	import OrganizationJoinScreen from '$lib/organization/component/join-screen.svelte';
 	import {
 		beginWith,
-		inspected,
 		inspectionFailed,
 		takeArrivingLink,
 		type JoinStep
@@ -17,122 +16,87 @@
 	import { onMount } from 'svelte';
 
 	/**
-	 * The join screen's address, and the one that wires it to the shell.
+	 * The connect screen's address, and the one that wires it to the shell.
 	 *
 	 * The screen is `organization/component/join-screen.svelte`, drawn from props, and its steps
-	 * are `organization/join.ts`, driven without a window. What is here is the two calls that reach
-	 * Rust: reading a link, and joining with a password, which is the startup unit's because it is
-	 * a way through the wall and ends where a sign-in ends. It opens with nobody signed in, which
-	 * `layout/shell-surface.ts` decides.
+	 * are `organization/join.ts`, driven without a window. What is here is the one call that
+	 * reaches Rust, connecting by a link, and what follows it: the way in, and the startup unit
+	 * reading where the machine stands again, which raises the wall naming the organization the
+	 * link found. It opens with nobody signed in, which `layout/shell-surface.ts` decides.
+	 *
+	 * **The connect is the host's command and not the router's procedure**, as the inspection it
+	 * replaces was. The screen branches on the Rust code of a refusal, `invalidInput` against
+	 * `network`, and the router's caller wraps a rejection in its own error and keeps the code
+	 * only on the cause; the host hands it over as it crossed.
 	 *
 	 * **The link the operating system handed over is taken here, once.** The shell put it where
 	 * `takeArrivingLink` reads it and navigated here; a mount with nothing waiting is a person who
-	 * came from the sign-in card, and gets the field.
+	 * came from the wall, and gets the field.
 	 */
 	const startup = useStartup();
 
 	let step = $state<JoinStep>({ kind: 'paste' });
-	let shell = $state(startup.snapshot);
-	// what the last join here said, and only here: the unit's error is the wall's and may be a
-	// wrong password typed on the sign-in card before the person came this way.
-	let refusal = $state<string | null>(null);
 
-	// which inspection is the one whose answer counts: the latest begun. A person can paste the
-	// same link again while its first inspection is still out, and the first answer must not land
-	// over the second wait.
-	let inspection = 0;
+	// which connect is the one whose answer counts: the latest begun. A person can paste the same
+	// link again while its first read is still out, and the first answer must not land over the
+	// second wait.
+	let attempt = 0;
 
-	const inspect = async (link: string) => {
-		const mine = ++inspection;
+	const connect = async (link: string) => {
+		const mine = ++attempt;
 
 		step = { kind: 'inspecting', link };
 
-		let next: JoinStep;
-
 		try {
-			next = inspected(link, await tauri.organization.linkInspect(link));
+			await tauri.organization.connect(link);
 		} catch (error) {
-			next = inspectionFailed(link, error, (failure) =>
-				toErrorText(failure, $LL, $LL.common.messages.unexpectedError())
-			);
+			// the connect opens the organization over the network and takes seconds, and the
+			// corner back is live while it does. A person who left for the field in the meantime
+			// is not moved when a refusal lands: it is written only over the wait it was asked
+			// for, and only by the latest attempt begun.
+			if (mine === attempt && step.kind === 'inspecting' && step.link === link) {
+				step = inspectionFailed(link, error, (failure) =>
+					toErrorText(failure, $LL, $LL.common.messages.unexpectedError())
+				);
+			}
+
+			return;
 		}
 
-		// the inspection opens the organization over the network and takes seconds, and the corner
-		// back is live while it does. A person who left for the field in the meantime is not moved
-		// forward again when the answer lands: it is written only over the wait it was asked for,
-		// and only by the latest inspection begun.
-		if (mine === inspection && step.kind === 'inspecting' && step.link === link) {
-			step = next;
-		}
+		// the organization is recorded on this machine whether or not the person waited for it,
+		// so the shell reads where the machine stands whatever step is on screen: the address goes
+		// to the way in first, and the startup unit raises the wall naming the organization.
+		void goto(resolve(THE_WAY_IN));
+		void startup.standingChanged();
 	};
 
 	const open = (link: string) => {
 		const begun = beginWith(link);
 
-		refusal = null;
-
 		if (begun.kind === 'inspecting') {
-			void inspect(begun.link);
+			void connect(begun.link);
 		} else {
 			step = begun;
 		}
 	};
 
-	const join = async (link: string, password: string) => {
-		refusal = null;
-
-		if (await startup.joinByLink(link, password)) {
-			// the person is in; where they land next is the shell's, from the way in.
-			void goto(resolve(THE_WAY_IN));
-
-			return;
-		}
-
-		refusal = startup.snapshot.error;
-	};
-
-	const restoreFrom = async (link: string, email: string, password: string) => {
-		refusal = null;
-
-		if (await startup.restoreByLink(link, email, password)) {
-			void goto(resolve(THE_WAY_IN));
-
-			return;
-		}
-
-		refusal = startup.snapshot.error;
-	};
-
 	onMount(() => {
-		const stopObserving = startup.observe((snapshot) => {
-			shell = snapshot;
-		});
-
 		open(takeArrivingLink() ?? '');
-
-		return stopObserving;
 	});
 </script>
 
 <OrganizationJoinScreen
 	{step}
-	isJoining={shell.isSigningIn}
-	errorMessage={refusal}
-	onOpenLink={open}
-	onJoin={(link, password) => void join(link, password)}
-	onRestore={(link, email, password) => void restoreFrom(link, email, password)}
+	onConnect={open}
 	onBack={() => {
 		// the field is the screen's first step, so from it, or from text that was not a link, back
-		// is the wall the person came from. Every later step came from the field and returns to it,
-		// with nothing the last join said carried along.
+		// is the wall the person came from. Every later step came from the field and returns to it.
 		if (step.kind === 'paste' || step.kind === 'unreadable') {
 			void goto(resolve(THE_WAY_IN));
 
 			return;
 		}
 
-		refusal = null;
 		step = { kind: 'paste' };
 	}}
-	onSignInInstead={() => void goto(resolve(THE_WAY_IN))}
 />

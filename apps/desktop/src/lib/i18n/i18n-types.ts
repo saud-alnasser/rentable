@@ -2423,27 +2423,23 @@ type RootTranslation = {
 		}
 		join: {
 			/**
-			 * j​o​i​n​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 * c​o​n​n​e​c​t​ ​t​o​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n
 			 */
 			title: string
 			/**
-			 * o​p​e​n​ ​t​h​e​ ​i​n​v​i​t​a​t​i​o​n​ ​y​o​u​ ​w​e​r​e​ ​h​a​n​d​e​d​:​ ​a​ ​l​i​n​k​,​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​t​h​a​t​ ​c​a​m​e​ ​w​i​t​h​ ​i​t​.
+			 * p​a​s​t​e​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​l​i​n​k​.​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​r​e​c​o​r​d​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​a​n​d​ ​y​o​u​ ​s​i​g​n​ ​i​n​ ​t​o​ ​i​t​ ​w​i​t​h​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​p​a​s​s​w​o​r​d​.
 			 */
 			description: string
 			/**
-			 * i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k
+			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k
 			 */
 			linkLabel: string
 			/**
-			 * o​p​e​n​ ​l​i​n​k
-			 */
-			open: string
-			/**
-			 * r​e​a​d​i​n​g​ ​t​h​e​ ​i​n​v​i​t​a​t​i​o​n​.​.​.
+			 * c​o​n​n​e​c​t​i​n​g​ ​t​o​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​.​.
 			 */
 			reading: string
 			/**
-			 * t​h​i​s​ ​i​s​ ​n​o​t​ ​a​ ​r​e​n​t​a​b​l​e​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k​.​ ​p​a​s​t​e​ ​t​h​e​ ​w​h​o​l​e​ ​l​i​n​k​,​ ​e​x​a​c​t​l​y​ ​a​s​ ​i​t​ ​w​a​s​ ​h​a​n​d​e​d​ ​t​o​ ​y​o​u​.
+			 * t​h​i​s​ ​i​s​ ​n​o​t​ ​a​ ​r​e​n​t​a​b​l​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k​.​ ​p​a​s​t​e​ ​t​h​e​ ​w​h​o​l​e​ ​l​i​n​k​,​ ​e​x​a​c​t​l​y​ ​a​s​ ​i​t​ ​w​a​s​ ​h​a​n​d​e​d​ ​t​o​ ​y​o​u​.
 			 */
 			unreadable: string
 			/**
@@ -2458,51 +2454,6 @@ type RootTranslation = {
 			 * b​a​c​k
 			 */
 			back: string
-			/**
-			 * t​h​i​s​ ​l​i​n​k​ ​f​i​n​d​s​ ​{​n​a​m​e​}​.
-			 * @param {unknown} name
-			 */
-			found: RequiredParams<'name'>
-			/**
-			 * t​h​e​ ​i​n​v​i​t​a​t​i​o​n​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​;​ ​t​h​e​ ​l​i​n​k​ ​i​t​s​e​l​f​ ​d​o​e​s​ ​n​o​t​ ​e​x​p​i​r​e​.
-			 */
-			refusedLapsed: string
-			/**
-			 * t​h​e​ ​i​n​v​i​t​a​t​i​o​n​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​u​s​e​d​.​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​i​n​s​t​e​a​d​.
-			 */
-			refusedConsumed: string
-			/**
-			 * t​h​e​ ​i​n​v​i​t​a​t​i​o​n​ ​w​a​s​ ​r​e​v​o​k​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
-			 */
-			refusedRevoked: string
-			/**
-			 * t​h​i​s​ ​i​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​o​w​n​ ​l​i​n​k​.​ ​i​f​ ​y​o​u​ ​a​l​r​e​a​d​y​ ​h​a​v​e​ ​a​ ​p​l​a​c​e​ ​i​n​ ​i​t​,​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​o​p​e​n​s​ ​i​t​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​t​o​o​.
-			 */
-			restoreDescription: string
-			/**
-			 * y​o​u​r​ ​e​m​a​i​l
-			 */
-			emailLabel: string
-			/**
-			 * t​h​e​ ​a​d​d​r​e​s​s​ ​y​o​u​ ​w​e​r​e​ ​i​n​v​i​t​e​d​ ​w​i​t​h​.​ ​t​h​e​ ​o​w​n​e​r​ ​w​a​s​ ​i​n​v​i​t​e​d​ ​w​i​t​h​ ​n​o​n​e​ ​a​n​d​ ​l​e​a​v​e​s​ ​t​h​i​s​ ​e​m​p​t​y​.
-			 */
-			emailOptional: string
-			/**
-			 * r​e​s​t​o​r​e​ ​m​y​ ​p​l​a​c​e
-			 */
-			restore: string
-			/**
-			 * t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​w​e​r​e​ ​h​a​n​d​e​d
-			 */
-			passwordLabel: string
-			/**
-			 * j​o​i​n
-			 */
-			join: string
-			/**
-			 * s​i​g​n​ ​i​n​ ​i​n​s​t​e​a​d
-			 */
-			signInInstead: string
 		}
 		dashboard: {
 			/**
@@ -5127,27 +5078,23 @@ export type TranslationFunctions = {
 		}
 		join: {
 			/**
-			 * join an organization
+			 * connect to an organization
 			 */
 			title: () => LocalizedString
 			/**
-			 * open the invitation you were handed: a link, and the password that came with it.
+			 * paste the organization's link. this machine records the organization, and you sign in to it with your username and password.
 			 */
 			description: () => LocalizedString
 			/**
-			 * invitation link
+			 * organization link
 			 */
 			linkLabel: () => LocalizedString
 			/**
-			 * open link
-			 */
-			open: () => LocalizedString
-			/**
-			 * reading the invitation...
+			 * connecting to the organization...
 			 */
 			reading: () => LocalizedString
 			/**
-			 * this is not a rentable invitation link. paste the whole link, exactly as it was handed to you.
+			 * this is not a rentable organization link. paste the whole link, exactly as it was handed to you.
 			 */
 			unreadable: () => LocalizedString
 			/**
@@ -5162,50 +5109,6 @@ export type TranslationFunctions = {
 			 * back
 			 */
 			back: () => LocalizedString
-			/**
-			 * this link finds {name}.
-			 */
-			found: (arg: { name: unknown }) => LocalizedString
-			/**
-			 * the invitation has lapsed. ask whoever invited you for a new one; the link itself does not expire.
-			 */
-			refusedLapsed: () => LocalizedString
-			/**
-			 * the invitation was already used. sign in with your password instead.
-			 */
-			refusedConsumed: () => LocalizedString
-			/**
-			 * the invitation was revoked. ask whoever invited you for a new one.
-			 */
-			refusedRevoked: () => LocalizedString
-			/**
-			 * this is the organization's own link. if you already have a place in it, your password opens it on this machine too.
-			 */
-			restoreDescription: () => LocalizedString
-			/**
-			 * your email
-			 */
-			emailLabel: () => LocalizedString
-			/**
-			 * the address you were invited with. the owner was invited with none and leaves this empty.
-			 */
-			emailOptional: () => LocalizedString
-			/**
-			 * restore my place
-			 */
-			restore: () => LocalizedString
-			/**
-			 * the password you were handed
-			 */
-			passwordLabel: () => LocalizedString
-			/**
-			 * join
-			 */
-			join: () => LocalizedString
-			/**
-			 * sign in instead
-			 */
-			signInInstead: () => LocalizedString
 		}
 		dashboard: {
 			/**

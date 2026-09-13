@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+	fakeHeldOrganization,
 	fakeOrganizationSession,
 	fakeOrganizationState,
 	fakeOrganizationWorkspace,
@@ -84,6 +85,36 @@ test('and the first run, once it has created the organization and a workspace, g
 	assert.equal(journal.bootstrapped, 1);
 	assert.equal(journal.reconciled, 1);
 	assert.equal(startup.snapshot.remoteSync?.workspace.remoteId, 'first');
+});
+
+// effort 824, requirement 18: connecting by the organization's link records it on this machine
+// with no member and opens no vault, and the route then tells the unit where the machine stands
+// changed. What the unit reads is an organization held and nobody in, which is the wall, locked,
+// naming that organization: the one a username and a password now open.
+test('and a machine that connected by a link, holding the organization and no member, meets the wall locked', async () => {
+	const connected = fakeOrganizationState({
+		organization: fakeHeldOrganization({ id: 'acme', name: 'Acme', memberId: null, role: null }),
+		session: null,
+		holdsTursoAuthority: false
+	});
+	const { startup, journal } = harness({
+		organization: nowhereToGo(),
+		afterBootstrap: connected
+	});
+
+	await startup.start();
+	assert.equal(startup.snapshot.signInReason, 'noOrganization');
+
+	await startup.standingChanged();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(startup.snapshot.signInReason, 'locked');
+	assert.equal(startup.snapshot.organization?.organization?.name, 'Acme');
+	assert.equal(startup.snapshot.organization?.organization?.memberId, null);
+	assert.equal(startup.snapshot.error, null);
+	// nothing behind the wall was opened: no vault, so no workspace and no bootstrap.
+	assert.deepEqual(journal.workspacesOpened, []);
+	assert.equal(journal.bootstrapped, 0);
 });
 
 test('and the locale is loaded before the wall, so the wall is readable', async () => {

@@ -3,28 +3,20 @@ import test from 'node:test';
 
 import {
 	beginWith,
-	inspected,
 	inspectionFailed,
 	linkArrived,
 	normalizeLink,
 	takeArrivingLink
 } from '$lib/organization/join.ts';
-import type { LinkFacts } from '$lib/platform/host.ts';
 
 /**
- * THE JOIN SCREEN, DRIVEN
+ * THE CONNECT SCREEN, DRIVEN
  *
  * Every step the screen can be in, reached without a window. What is worth pinning is the two
- * ways a link arrives ending in the same place, the four things a read link can be, and that the
- * screen never holds more than the text and the facts.
+ * ways a link arrives ending in the same place, the two ways a read can fail, and that the
+ * screen never holds more than the text. A link that was read ends at the wall, which is the
+ * startup unit's and is driven in `layout/tests/startup.test.ts`.
  */
-
-const facts = (standing: LinkFacts['standing']): LinkFacts => ({
-	organizationId: 'org-1',
-	organizationName: 'Acme',
-	remoteUrl: 'libsql://org-1.turso.io',
-	standing
-});
 
 test('a link handed over by the operating system and a pasted one start the same way', () => {
 	assert.deepEqual(beginWith('rentable://join/abc'), {
@@ -42,31 +34,6 @@ test('a pasted link loses the wrapping a client put around it, and nothing insid
 	assert.equal(normalizeLink('"rentable://join/abc".'), 'rentable://join/abc');
 	assert.equal(normalizeLink('rentable://join/a-b_c'), 'rentable://join/a-b_c');
 	assert.equal(normalizeLink('not a link'), 'not a link');
-});
-
-test('an open invitation asks for the password, and every other standing is refused by name', () => {
-	assert.deepEqual(inspected('rentable://join/abc', facts('open')), {
-		kind: 'password',
-		link: 'rentable://join/abc',
-		facts: facts('open')
-	});
-
-	for (const standing of ['lapsed', 'consumed', 'revoked'] as const) {
-		const step = inspected('rentable://join/abc', facts(standing));
-
-		assert.equal(step.kind, 'refused', standing);
-		assert.equal(step.kind === 'refused' && step.facts.organizationName, 'Acme', standing);
-	}
-});
-
-// requirement 6: the organization's own link is not a refusal but the way a place already held
-// comes back on a machine, by the email and the password.
-test("the organization's own link restores a place rather than refusing", () => {
-	assert.deepEqual(inspected('rentable://join/abc', facts('none')), {
-		kind: 'restore',
-		link: 'rentable://join/abc',
-		facts: facts('none')
-	});
 });
 
 test('text that is not a link is unreadable, and an organization that cannot be reached says so', () => {

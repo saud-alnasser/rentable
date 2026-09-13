@@ -782,32 +782,17 @@ const en = {
 			back: 'back'
 		},
 		join: {
-			title: 'join an organization',
+			title: 'connect to an organization',
 			description:
-				'open the invitation you were handed: a link, and the password that came with it.',
-			linkLabel: 'invitation link',
-			open: 'open link',
-			reading: 'reading the invitation...',
+				"paste the organization's link. this machine records the organization, and you sign in to it with your username and password.",
+			linkLabel: 'organization link',
+			reading: 'connecting to the organization...',
 			unreadable:
-				'this is not a rentable invitation link. paste the whole link, exactly as it was handed to you.',
+				'this is not a rentable organization link. paste the whole link, exactly as it was handed to you.',
 			unreachable:
 				'the organization could not be reached. the link is right; try again once the connection is back.',
 			tryAgain: 'try again',
-			back: 'back',
-			found: 'this link finds {name}.',
-			refusedLapsed:
-				'the invitation has lapsed. ask whoever invited you for a new one; the link itself does not expire.',
-			refusedConsumed: 'the invitation was already used. sign in with your password instead.',
-			refusedRevoked: 'the invitation was revoked. ask whoever invited you for a new one.',
-			restoreDescription:
-				"this is the organization's own link. if you already have a place in it, your password opens it on this machine too.",
-			emailLabel: 'your email',
-			emailOptional:
-				'the address you were invited with. the owner was invited with none and leaves this empty.',
-			restore: 'restore my place',
-			passwordLabel: 'the password you were handed',
-			join: 'join',
-			signInInstead: 'sign in instead'
+			back: 'back'
 		},
 		dashboard: {
 			members: 'members',
