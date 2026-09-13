@@ -46,3 +46,17 @@ Arabic is written around its own verbs (الربط, افصل, غيّر الاس�
 copy; nothing was corrected. The English `disconnectDescription` says the Turso account is
 forgotten with the copies, which is what clearing the authority from the keyring is.
 
+**Walked so far, 2026-09-13, on the human's machine from the run worktree.** The first launch
+forgot the two organizations and opened on the first screen (criterion 17's by-hand half, seen).
+The first screen was redrawn three times on the human's word (`2d76aca1`); the connect step
+opened as granted and its disconnect became a glyphed control (`c530cc66`); the walk's words were
+made plain (`c87fe7f7`). The name step created the organization; the third step then refused
+with "no account is signed in on this machine", fixed in `4be12eb6` (the router's held context
+was built before the owner existed); the workspace name was written into the dialog's store
+rather than the walk's, and a reload sent the walk back to connect, both fixed in `c7176e9e`
+(named forms, the walk resumes on the third step, create refuses while held). The first
+workspace was then created and the members list reached. The account, disconnect, connect by
+link and handed-password sign-in were not walked: the human closed the effort here on
+2026-09-13 to rethink the whole experience of Turso, organizations, workspaces and members. The
+by-hand criterion stays open.
+
