@@ -244,6 +244,7 @@ pub fn run() {
             organization::organization_own_link,
             organization::member_invite,
             organization::member_reset,
+            organization::member_rename,
             organization::member_remove,
             organization::member_lock_out_cost,
             organization::organization_change_password,

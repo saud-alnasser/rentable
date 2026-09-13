@@ -524,6 +524,13 @@ export type Host = {
 			remove: (memberId: string, lockOut: boolean) => Promise<MemberRemoved>;
 			/** what locking a member out would cost, before it is done. */
 			lockOutCost: (memberId: string) => Promise<LockOutCost>;
+			/**
+			 * rename a member: their row written back with the username re-sealed and signed by
+			 * whoever renamed them. The owner's or an administrator's, on any row but their own;
+			 * the username is held to the rules and the uniqueness an invitation's is. What comes
+			 * back is the member as the list shows them.
+			 */
+			rename: (memberId: string, username: string) => Promise<OrganizationMember>;
 		};
 		invitation: {
 			list: () => Promise<OrganizationInvitation[]>;

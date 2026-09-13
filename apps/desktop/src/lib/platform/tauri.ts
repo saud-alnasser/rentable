@@ -244,7 +244,9 @@ export const tauri = {
 				invoke<Invited>('member_invite', { username, role, workspaceIds }),
 			remove: (memberId: string, lockOut: boolean) =>
 				invoke<MemberRemoved>('member_remove', { memberId, lockOut }),
-			lockOutCost: (memberId: string) => invoke<LockOutCost>('member_lock_out_cost', { memberId })
+			lockOutCost: (memberId: string) => invoke<LockOutCost>('member_lock_out_cost', { memberId }),
+			rename: (memberId: string, username: string) =>
+				invoke<OrganizationMember>('member_rename', { memberId, username })
 		},
 		invitation: {
 			list: () => invoke<OrganizationInvitation[]>('organization_invitations'),

@@ -623,6 +623,23 @@ pub async fn member_reset(
     .await
 }
 
+/// Rename a member: their row written back with the username re-sealed and signed by whoever
+/// renamed them. The owner's or an administrator's, on any row but their own; the username is
+/// held to the same rules and the same uniqueness as an invitation's. What comes back is the
+/// member as the list shows them.
+#[tauri::command]
+pub async fn member_rename(
+    app_state: tauri::State<'_, AppState>,
+    member_id: String,
+    username: String,
+) -> Result<MemberFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    invite::rename_member(store, member, &member_id, &username, timestamp::now()).await
+}
+
 /// What locking a member out would cost, said before it is done: which workspaces rotate and how
 /// many other members stop syncing until their application reconnects.
 #[tauri::command]

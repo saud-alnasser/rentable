@@ -19,6 +19,7 @@
 		useLockOutCost,
 		useReissueInvitation,
 		useRemoveMember,
+		useRenameMember,
 		useRevokeInvitation
 	} from '$lib/organization/query';
 	import { toast } from 'svelte-sonner';
@@ -30,7 +31,8 @@
 	 *
 	 * **What a person may do here is what their verified row carries**, read off the session the
 	 * shell holds, and every control is refused again in Rust on the same row. Inviting is drawn
-	 * for whoever carries `inviteMember`; creating a workspace is drawn for the owner and explained
+	 * for whoever carries `inviteMember`, and so is renaming a member from their row, since a
+	 * rename changes the one thing an invitation named; creating a workspace is drawn for the owner and explained
 	 * to everybody else, because it needs the Turso authority only the owner's machine holds and
 	 * the spec puts no request queue behind it.
 	 *
@@ -50,6 +52,7 @@
 	const reissueInvitation = useReissueInvitation();
 	const revokeInvitation = useRevokeInvitation();
 	const removeMember = useRemoveMember();
+	const renameMember = useRenameMember();
 
 	const session = $derived(stateQuery.data?.session ?? null);
 	const isOwner = $derived(session?.role === 'owner');
@@ -147,11 +150,15 @@
 					{canInvite}
 					{canRemove}
 					canLockOut={isOwner}
+					canRename={canInvite}
 					selfId={session.memberId}
 					{reissuing}
 					onReissue={(memberId) => void reissue(memberId)}
 					onRemove={(memberId) => {
 						removing = { memberId, lockOut: false };
+					}}
+					onRename={async (memberId, username) => {
+						await renameMember.mutateAsync({ memberId, username });
 					}}
 					onLockOut={(memberId) => {
 						removing = { memberId, lockOut: true };

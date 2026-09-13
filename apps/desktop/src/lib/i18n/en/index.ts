@@ -834,6 +834,13 @@ const en = {
 			done: 'done',
 			notYetSignedIn: 'not yet signed in',
 			resetPassword: 'reset password',
+			rename: 'rename',
+			renameDescription:
+				'the username they sign in with, on every machine. nothing tells them it changed; tell them yourself.',
+			username: 'username',
+			usernameRules:
+				'a username is three to thirty-two characters of letters, digits, dots, underscores and hyphens',
+			renamed: 'the member was renamed.',
 			linkTitle: 'organization link',
 			linkDescription:
 				'the link that adds this organization on another machine, and the one you restore it from if this machine is lost. it carries a read-only view of the directory, so share it the way you would a password.',

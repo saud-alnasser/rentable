@@ -26,6 +26,11 @@
 //! one place the rules live and [`refuse_taken_username`] the one place uniqueness is checked;
 //! the first run, an invitation and a rename all refuse through them, with the same sentences.
 //!
+//! **A rename is a row written back** (requirement 23). [`rename_member`] re-seals the username
+//! and writes the member's row again under the actor's own signer, the way a removal writes one;
+//! it is the owner's or an administrator's, never the member's own, and it moves nothing else on
+//! the row.
+//!
 //! **An invitation expires; the link does not** (requirement 23). The row carries the lifetime.
 //! A link opened after it lapsed still finds the organization, because the link is a locator, and
 //! is told the invitation lapsed. Revoking is deleting the row, and the link then finds nothing to
@@ -432,6 +437,96 @@ pub async fn members(
         .collect()
 }
 
+/// Rename a member: their row written back with the username re-sealed under the content key,
+/// signed by whoever renamed them, and pushed like every other write (effort 824, requirement
+/// 23). The act is [`Administration::InviteMember`], because making an account is what invite is
+/// and this changes the one thing invite named. Nothing else on the row moves: the vault, the
+/// role, the grants and the certificate are exactly as they were, so a member renamed while
+/// signed in elsewhere goes on working under their own password.
+///
+/// A session renaming its own row is refused: an account's name is given by an administrator and
+/// changed by one, never by its holder, which is what keeps the rename an act on somebody else's
+/// row and the actor's signature meaningful as such. `except` on the uniqueness check is the
+/// member's own id, so `alice` may become `Alice` without being refused as taken by herself.
+pub async fn rename_member(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    member_id: &str,
+    username: &str,
+    now: i64,
+) -> Result<MemberFacts, Error> {
+    session.settled()?;
+    permission::require(session.permissions, Administration::InviteMember)?;
+
+    if member_id == session.member_id {
+        return Err(Error::Forbidden {
+            message: "you cannot rename yourself. another administrator can".to_string(),
+        });
+    }
+
+    let username = username.trim();
+
+    validate_username(username)?;
+
+    let rows = store.members(&session.verifying_key).await?;
+    let member = rows
+        .iter()
+        .find(|member| member.id == member_id)
+        .ok_or_else(|| Error::NotFound {
+            message: "that member is not in this organization".to_string(),
+        })?;
+
+    if member.role == permission::REMOVED {
+        return Err(Error::PreconditionFailed {
+            message: "that member was removed. invite them again if they are to come back"
+                .to_string(),
+        });
+    }
+
+    refuse_taken_username(store, session, username, Some(member_id)).await?;
+
+    let (key, certificate) = signer_of(store, session).await?;
+    let signer = Signer {
+        key: &key,
+        certificate: &certificate,
+    };
+
+    store
+        .write_member(
+            &signer,
+            &MemberRecord {
+                username_sealed: seal_content(
+                    &session.content_key,
+                    "member.username_sealed",
+                    username.as_bytes(),
+                )?,
+                updated_at: now,
+                ..member.clone()
+            },
+        )
+        .await?;
+
+    if !store.push().await {
+        diagnostics::warn("organization.member.renameNotYetSent")
+            .with("member", member_id)
+            .write();
+    }
+
+    diagnostics::info("organization.member.renamed")
+        .with("member", member_id)
+        .write();
+
+    // read back through the same routine the list draws from, so what the caller is handed is
+    // what the members list will show.
+    members(store, session)
+        .await?
+        .into_iter()
+        .find(|member| member.id == member_id)
+        .ok_or_else(|| Error::Integrity {
+            message: "the renamed member's row did not read back".to_string(),
+        })
+}
+
 /// Every invitation with where it stands now.
 pub async fn invitations(
     store: &OrganizationStore,
@@ -792,7 +887,7 @@ mod tests {
     use super::{
         INVITATION_LIFETIME_MS, Invitation, InvitationPayload, InvitationStanding, USERNAME_RULES,
         USERNAME_TAKEN, generate_password, invitations, invite_member, organization_link,
-        reissue_invitation, revoke_invitation, validate_username,
+        reissue_invitation, rename_member, revoke_invitation, validate_username,
     };
     use crate::{
         error::Error,
@@ -1645,5 +1740,234 @@ mod tests {
         usernames.sort_unstable();
 
         assert_eq!(usernames, vec!["alice", "olivia"]);
+    }
+
+    /// The certificate a member's row names, read off the replica: which signer stands behind it.
+    async fn signed_by(store: &OrganizationStore, member_id: &str) -> String {
+        let mut rows = store
+            .connection()
+            .query(
+                "SELECT \"certificate_id\", \"updated_at\" FROM \"member\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(member_id.to_string())],
+            )
+            .await
+            .expect("the row");
+        let row = rows
+            .next()
+            .await
+            .expect("a row")
+            .expect("the member row exists");
+
+        match row.get_value(0).expect("the certificate id") {
+            turso::Value::Text(id) => id,
+            other => panic!("certificate_id is {other:?}"),
+        }
+    }
+
+    /// Requirement 23: a rename by the owner is what the members list reads back; the row is
+    /// signed by whoever renamed it rather than by whoever wrote it before, and nothing else on
+    /// it moves, so the member still signs in under their own password. A member keeps their
+    /// own username under another case, because their own row is not counted as taking it.
+    #[tokio::test]
+    async fn a_rename_is_read_back_by_the_members_list_and_the_row_is_signed_by_the_renamer() {
+        let directory = scratch("rename");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+
+        // an administrator invites the member, so the member's row is signed under the
+        // administrator's certificate and a rename by the owner has a signer to change.
+        let admin = invite_member(
+            &store,
+            &owner,
+            &link,
+            Invitation {
+                username: "ada.admin",
+                role: permission::ADMINISTRATOR,
+                workspace_ids: std::slice::from_ref(&workspace_id),
+            },
+            test_cost(),
+            1,
+        )
+        .await
+        .expect("the administrator");
+        let mut ada = sign_in(
+            &store,
+            &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
+            &admin.generated_password,
+            &slot(),
+        )
+        .await
+        .expect("the administrator did not sign in");
+        ada.must_change_password = false;
+
+        let sami = invite_member(
+            &store,
+            &ada,
+            &link,
+            Invitation {
+                username: "sami",
+                role: permission::MEMBER,
+                workspace_ids: std::slice::from_ref(&workspace_id),
+            },
+            test_cost(),
+            2,
+        )
+        .await
+        .expect("the member");
+
+        assert_eq!(
+            signed_by(&store, &sami.member_id).await,
+            format!("cert-{}", admin.member_id)
+        );
+
+        let renamed = rename_member(&store, &owner, &sami.member_id, " Sami.Staff ", 3)
+            .await
+            .expect("the rename failed");
+
+        assert_eq!(renamed.id, sami.member_id);
+        assert_eq!(renamed.username, "Sami.Staff");
+        assert_eq!(renamed.role, permission::MEMBER);
+        assert_eq!(renamed.workspace_ids, vec![workspace_id.clone()]);
+
+        let listed = super::members(&store, &owner)
+            .await
+            .expect("the members")
+            .into_iter()
+            .find(|member| member.id == sami.member_id)
+            .expect("the renamed member is listed");
+
+        assert_eq!(listed.username, "Sami.Staff");
+
+        // signed by the owner now, whose certificate is the one `signer_of` finds for them.
+        let (_, owners_certificate) = super::signer_of(&store, &owner)
+            .await
+            .expect("the owner's signer");
+
+        assert_eq!(
+            signed_by(&store, &sami.member_id).await,
+            owners_certificate.id
+        );
+
+        let row = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the rows")
+            .into_iter()
+            .find(|member| member.id == sami.member_id)
+            .expect("the row");
+
+        assert_eq!(row.updated_at, 3);
+        assert_eq!(row.created_at, 2);
+        assert!(row.must_change_password, "the rename settled the member");
+
+        // nothing else moved: the same password opens the same vault and reaches the same
+        // workspace.
+        let member = sign_in(
+            &store,
+            &joined_as(&owner, &sami.member_id, permission::MEMBER),
+            &sami.generated_password,
+            &slot(),
+        )
+        .await
+        .expect("the renamed member did not sign in");
+
+        assert!(member.workspace_credentials.contains_key(&workspace_id));
+
+        // their own username under another case is theirs to keep.
+        let lowered = rename_member(&store, &owner, &sami.member_id, "sami.staff", 4)
+            .await
+            .expect("a member could not keep their username under another case");
+
+        assert_eq!(lowered.username, "sami.staff");
+    }
+
+    /// The three refusals: a username somebody else holds, in any case; a session renaming its
+    /// own row; a session whose row does not carry the act. And the rules sentence comes before
+    /// the uniqueness one, as it does on an invitation.
+    #[tokio::test]
+    async fn a_rename_is_refused_for_a_taken_username_for_ones_own_row_and_without_the_act() {
+        let directory = scratch("rename-refused");
+        let (store, owner, link, _) = owned(&directory).await;
+        let invite = |username: &'static str| {
+            let store = &store;
+            let owner = &owner;
+            let link = &link;
+
+            async move {
+                invite_member(
+                    store,
+                    owner,
+                    link,
+                    Invitation {
+                        username,
+                        role: permission::MEMBER,
+                        workspace_ids: &[],
+                    },
+                    test_cost(),
+                    1,
+                )
+                .await
+                .expect("the invitation failed")
+            }
+        };
+        let sami = invite("sami").await;
+        let bob = invite("bob").await;
+
+        for taken in ["Bob", "BOB", " bob ", "olivia", "OLIVIA"] {
+            let error = rename_member(&store, &owner, &sami.member_id, taken, 2)
+                .await
+                .expect_err(taken);
+
+            assert!(matches!(error, Error::InvalidInput { .. }), "{error:?}");
+            assert_eq!(error.to_string(), USERNAME_TAKEN, "{taken:?}");
+        }
+
+        for outside in ["sa", "sa mi", "sami@acme.example", ""] {
+            let error = rename_member(&store, &owner, &sami.member_id, outside, 2)
+                .await
+                .expect_err(outside);
+
+            assert_eq!(error.to_string(), USERNAME_RULES, "{outside:?}");
+        }
+
+        let error = rename_member(&store, &owner, &owner.member_id, "olivia.owner", 2)
+            .await
+            .expect_err("the owner renamed themselves");
+
+        assert!(matches!(error, Error::Forbidden { .. }), "{error:?}");
+        assert!(error.to_string().contains("yourself"), "{error}");
+
+        let mut member = sign_in(
+            &store,
+            &joined_as(&owner, &sami.member_id, permission::MEMBER),
+            &sami.generated_password,
+            &slot(),
+        )
+        .await
+        .expect("the member did not sign in");
+        member.must_change_password = false;
+
+        let error = rename_member(&store, &member, &bob.member_id, "robert", 2)
+            .await
+            .expect_err("a member renamed somebody");
+
+        assert!(matches!(error, Error::Forbidden { .. }), "{error:?}");
+        assert!(error.to_string().contains("inviteMember"), "{error}");
+
+        let error = rename_member(&store, &owner, "nobody", "robert", 2)
+            .await
+            .expect_err("a member who is not there was renamed");
+
+        assert!(matches!(error, Error::NotFound { .. }), "{error:?}");
+
+        // and nothing was written by any of them.
+        let mut usernames: Vec<String> = super::members(&store, &owner)
+            .await
+            .expect("the members")
+            .into_iter()
+            .map(|member| member.username)
+            .collect();
+        usernames.sort_unstable();
+
+        assert_eq!(usernames, vec!["bob", "olivia", "sami"]);
     }
 }

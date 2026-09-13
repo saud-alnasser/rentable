@@ -2590,6 +2590,26 @@ type RootTranslation = {
 			 */
 			resetPassword: string
 			/**
+			 * r​e​n​a​m​e
+			 */
+			rename: string
+			/**
+			 * t​h​e​ ​u​s​e​r​n​a​m​e​ ​t​h​e​y​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​,​ ​o​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​.​ ​n​o​t​h​i​n​g​ ​t​e​l​l​s​ ​t​h​e​m​ ​i​t​ ​c​h​a​n​g​e​d​;​ ​t​e​l​l​ ​t​h​e​m​ ​y​o​u​r​s​e​l​f​.
+			 */
+			renameDescription: string
+			/**
+			 * u​s​e​r​n​a​m​e
+			 */
+			username: string
+			/**
+			 * a​ ​u​s​e​r​n​a​m​e​ ​i​s​ ​t​h​r​e​e​ ​t​o​ ​t​h​i​r​t​y​-​t​w​o​ ​c​h​a​r​a​c​t​e​r​s​ ​o​f​ ​l​e​t​t​e​r​s​,​ ​d​i​g​i​t​s​,​ ​d​o​t​s​,​ ​u​n​d​e​r​s​c​o​r​e​s​ ​a​n​d​ ​h​y​p​h​e​n​s
+			 */
+			usernameRules: string
+			/**
+			 * t​h​e​ ​m​e​m​b​e​r​ ​w​a​s​ ​r​e​n​a​m​e​d​.
+			 */
+			renamed: string
+			/**
 			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k
 			 */
 			linkTitle: string
@@ -5272,6 +5292,26 @@ export type TranslationFunctions = {
 			 * reset password
 			 */
 			resetPassword: () => LocalizedString
+			/**
+			 * rename
+			 */
+			rename: () => LocalizedString
+			/**
+			 * the username they sign in with, on every machine. nothing tells them it changed; tell them yourself.
+			 */
+			renameDescription: () => LocalizedString
+			/**
+			 * username
+			 */
+			username: () => LocalizedString
+			/**
+			 * a username is three to thirty-two characters of letters, digits, dots, underscores and hyphens
+			 */
+			usernameRules: () => LocalizedString
+			/**
+			 * the member was renamed.
+			 */
+			renamed: () => LocalizedString
 			/**
 			 * organization link
 			 */

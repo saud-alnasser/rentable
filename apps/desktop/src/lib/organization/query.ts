@@ -278,6 +278,33 @@ export function useRemoveMember(
 	}));
 }
 
+/**
+ * rename a member. The refusals a person can act on, a username outside the rules or one already
+ * taken, arrive as `BAD_REQUEST` and are shown verbatim; the list is refreshed so the row reads
+ * the new username.
+ */
+export function useRenameMember(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.renamed(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ memberId, username }: { memberId: string; username: string }) =>
+			api.app.organization.member.rename({ memberId, username }),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
 /** what locking a member out would cost, read for the dialog that asks before it is done. */
 export function useLockOutCost(memberId: () => string | null) {
 	return createQuery(() => ({

@@ -7,6 +7,8 @@ import { organization } from '$lib/organization/router.ts';
 import { PASSWORD_FLOOR } from '$lib/organization/setup.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { fakeHost } from '$lib/platform/tests/testing.ts';
+import { fakeIdentity } from '$lib/api/tests/testing.ts';
+import { maskOf, type Administration } from '@rentable/workspace-permission';
 import type { Host } from '$lib/platform/host.ts';
 
 /**
@@ -132,6 +134,7 @@ test('nothing here asks the host to list organizations', () => {
 		'member.list',
 		'member.lockOutCost',
 		'member.remove',
+		'member.rename',
 		'password.change',
 		'workspace.create',
 		'workspace.grant',
@@ -140,4 +143,70 @@ test('nothing here asks the host to list organizations', () => {
 		'workspace.renewCredentials'
 	]);
 	assert.ok(!procedures.some((name) => /organizations/i.test(name)));
+});
+
+/**
+ * a caller whose row carries the acts named, the way `api/tests/procedure.test.ts` builds one:
+ * the real context with an identity in it, and the host above recording what reached it.
+ */
+async function permittedApi(host: Host, ...acts: Administration[]) {
+	const ctx = await context({
+		db: createMemoryDatabase(),
+		clock: { now: () => 0 },
+		host,
+		identity: fakeIdentity({ permissions: maskOf(...acts) })
+	});
+
+	return caller(appRouter)(ctx);
+}
+
+// requirement 23: a rename is held to requirement 21's rules before the host is reached, and what
+// reaches the host is the trimmed username; a caller without `inviteMember` is refused before
+// either. Whether the username is taken is Rust's alone.
+test('a rename hands the trimmed username on, refuses one outside the rules first, and needs the inviting act', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			member: {
+				...fakeHost().organization.member,
+				rename: async (memberId, username) => {
+					asked.push(`rename:${memberId}:${username}`);
+
+					return {
+						id: memberId,
+						username,
+						role: 'member',
+						permissions: 0,
+						mustChangePassword: false,
+						workspaceIds: [],
+						createdAt: 0
+					};
+				}
+			}
+		}
+	});
+	const api = await permittedApi(host, 'inviteMember');
+
+	const renamed = await api.app.organization.member.rename({
+		memberId: 'member-2',
+		username: ' Sami.Staff '
+	});
+
+	assert.equal(renamed.username, 'Sami.Staff');
+	assert.deepEqual(asked, ['rename:member-2:Sami.Staff']);
+
+	for (const username of ['sa', 's'.repeat(33), 'sami staff', 'sami@acme.example', '']) {
+		await assert.rejects(
+			api.app.organization.member.rename({ memberId: 'member-2', username }),
+			username
+		);
+	}
+
+	const without = await permittedApi(host);
+
+	await assert.rejects(
+		without.app.organization.member.rename({ memberId: 'member-2', username: 'sami' })
+	);
+	assert.deepEqual(asked, ['rename:member-2:Sami.Staff']);
 });

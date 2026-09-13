@@ -163,6 +163,17 @@ export const organization = router({
 			.input(z.object({ memberId: z.string().trim().min(1) }))
 			.query(async ({ input, ctx }): Promise<LockOutCost> => {
 				return ctx.host.organization.member.lockOutCost(input.memberId);
+			}),
+		/**
+		 * A rename, held to the same act and the same username rules as an invitation, because
+		 * it changes the one thing an invitation named. Whether the username is taken, and whether
+		 * the row is the caller's own, are Rust's to refuse.
+		 */
+		rename: procedure
+			.permitted('inviteMember')
+			.input(z.object({ memberId: z.string().trim().min(1), username: USERNAME }))
+			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
+				return ctx.host.organization.member.rename(input.memberId, input.username);
 			})
 	},
 	invitation: {
