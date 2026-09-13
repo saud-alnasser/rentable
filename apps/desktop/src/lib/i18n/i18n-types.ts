@@ -2323,7 +2323,7 @@ type RootTranslation = {
 			 */
 			connectTitle: string
 			/**
-			 * o​n​e​ ​c​o​n​s​e​n​t​ ​i​n​ ​t​h​e​ ​b​r​o​w​s​e​r​,​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​i​s​ ​p​a​s​t​e​d​ ​o​r​ ​t​y​p​e​d​ ​h​e​r​e​.
+			 * y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​i​l​l​ ​l​i​v​e​ ​o​n​ ​y​o​u​r​ ​o​w​n​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​o​n​e​ ​c​o​n​s​e​n​t​ ​i​n​ ​t​h​e​ ​b​r​o​w​s​e​r​ ​i​s​ ​a​l​l​ ​i​t​ ​t​a​k​e​s​.
 			 */
 			connectDescription: string
 			/**
@@ -2333,15 +2333,15 @@ type RootTranslation = {
 			 */
 			position: RequiredParams<'step|number' | 'total|number'>
 			/**
-			 * f​i​r​s​t​,​ ​c​r​e​a​t​e​ ​a​n​ ​e​m​p​t​y​ ​g​r​o​u​p​ ​f​o​r​ ​r​e​n​t​a​b​l​e​ ​i​n​ ​t​u​r​s​o​'​s​ ​d​a​s​h​b​o​a​r​d​ ​a​n​d​ ​p​i​c​k​ ​i​t​ ​o​n​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​c​o​v​e​r​s​ ​t​h​a​t​ ​o​n​e​ ​g​r​o​u​p​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​e​l​s​e​.
+			 * i​n​ ​t​h​e​ ​t​u​r​s​o​ ​d​a​s​h​b​o​a​r​d​,​ ​c​r​e​a​t​e​ ​a​n​ ​e​m​p​t​y​ ​g​r​o​u​p​ ​f​o​r​ ​r​e​n​t​a​b​l​e​,​ ​t​h​e​n​ ​c​h​o​o​s​e​ ​i​t​ ​o​n​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​c​o​v​e​r​s​ ​o​n​l​y​ ​t​h​a​t​ ​g​r​o​u​p​.
 			 */
 			connectGroup: string
 			/**
-			 * n​o​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​y​e​t​?​ ​m​a​k​e​ ​o​n​e​ ​o​n​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.
+			 * n​o​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​y​e​t​?​ ​y​o​u​ ​c​a​n​ ​c​r​e​a​t​e​ ​o​n​e​ ​o​n​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.
 			 */
 			connectAccount: string
 			/**
-			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​v​e​s​ ​w​h​e​r​e​v​e​r​ ​t​h​a​t​ ​g​r​o​u​p​ ​d​o​e​s​.​ ​o​n​ ​a​ ​p​e​r​s​o​n​a​l​ ​a​c​c​o​u​n​t​ ​o​n​l​y​ ​y​o​u​ ​c​a​n​ ​g​r​a​n​t​ ​r​e​n​t​a​b​l​e​ ​a​u​t​h​o​r​i​t​y​ ​a​g​a​i​n​;​ ​o​n​ ​a​ ​t​u​r​s​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​y​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​c​a​n​,​ ​a​n​d​ ​t​u​r​s​o​ ​c​a​n​ ​m​o​v​e​ ​a​ ​g​r​o​u​p​ ​t​h​e​r​e​ ​f​r​o​m​ ​i​t​s​ ​d​a​s​h​b​o​a​r​d​.​ ​r​e​n​t​a​b​l​e​ ​d​o​e​s​ ​n​e​i​t​h​e​r​ ​f​o​r​ ​y​o​u​.
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​v​e​s​ ​i​n​ ​t​h​a​t​ ​g​r​o​u​p​.​ ​o​n​ ​a​ ​p​e​r​s​o​n​a​l​ ​a​c​c​o​u​n​t​ ​o​n​l​y​ ​y​o​u​ ​c​a​n​ ​g​r​a​n​t​ ​a​c​c​e​s​s​ ​a​g​a​i​n​;​ ​i​n​ ​a​ ​t​u​r​s​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​y​ ​a​d​m​i​n​ ​c​a​n​,​ ​a​n​d​ ​t​u​r​s​o​ ​c​a​n​ ​m​o​v​e​ ​a​ ​g​r​o​u​p​ ​t​h​e​r​e​.​ ​r​e​n​t​a​b​l​e​ ​d​o​e​s​ ​n​e​i​t​h​e​r​ ​f​o​r​ ​y​o​u​.
 			 */
 			connectSuccession: string
 			/**
@@ -2369,11 +2369,11 @@ type RootTranslation = {
 			 */
 			consentFailed: string
 			/**
-			 * n​a​m​e​ ​i​t
+			 * n​a​m​e​ ​y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n
 			 */
 			nameTitle: string
 			/**
-			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​n​a​m​e​,​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​,​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​t​h​a​t​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​i​t​.​ ​n​o​t​h​i​n​g​ ​e​l​s​e​ ​i​s​ ​t​y​p​e​d​ ​h​e​r​e​.
+			 * c​h​o​o​s​e​ ​a​ ​n​a​m​e​ ​f​o​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​,​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​.​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​i​t​.
 			 */
 			nameDescription: string
 			/**
@@ -2397,7 +2397,7 @@ type RootTranslation = {
 			 */
 			passwordLabel: string
 			/**
-			 * u​s​e​ ​a​t​ ​l​e​a​s​t​ ​1​2​ ​c​h​a​r​a​c​t​e​r​s​.​ ​t​h​e​r​e​ ​i​s​ ​n​o​ ​s​e​r​v​e​r​ ​t​o​ ​s​l​o​w​ ​a​ ​g​u​e​s​s​ ​d​o​w​n​,​ ​s​o​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​t​h​e​ ​o​n​l​y​ ​t​h​i​n​g​ ​b​e​t​w​e​e​n​ ​a​n​y​b​o​d​y​ ​h​o​l​d​i​n​g​ ​t​h​e​ ​r​e​c​o​r​d​s​ ​a​n​d​ ​r​e​a​d​i​n​g​ ​t​h​e​m​.
+			 * u​s​e​ ​a​t​ ​l​e​a​s​t​ ​1​2​ ​c​h​a​r​a​c​t​e​r​s​.​ ​t​h​i​s​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​a​l​l​ ​t​h​a​t​ ​s​t​a​n​d​s​ ​b​e​t​w​e​e​n​ ​t​h​e​ ​r​e​c​o​r​d​s​ ​a​n​d​ ​a​n​y​o​n​e​ ​w​h​o​ ​h​o​l​d​s​ ​a​ ​c​o​p​y​.
 			 */
 			passwordFloor: string
 			/**
@@ -2417,7 +2417,7 @@ type RootTranslation = {
 			 */
 			workspaceTitle: string
 			/**
-			 * a​ ​w​o​r​k​s​p​a​c​e​ ​h​o​l​d​s​ ​o​n​e​ ​s​e​t​ ​o​f​ ​r​e​c​o​r​d​s​.​ ​m​o​r​e​ ​c​a​n​ ​b​e​ ​a​d​d​e​d​ ​l​a​t​e​r​,​ ​f​r​o​m​ ​i​n​s​i​d​e​ ​t​h​e​ ​a​p​p​l​i​c​a​t​i​o​n​.
+			 * a​ ​w​o​r​k​s​p​a​c​e​ ​h​o​l​d​s​ ​o​n​e​ ​s​e​t​ ​o​f​ ​r​e​c​o​r​d​s​.​ ​y​o​u​ ​c​a​n​ ​a​d​d​ ​m​o​r​e​ ​l​a​t​e​r​,​ ​f​r​o​m​ ​i​n​s​i​d​e​ ​t​h​e​ ​a​p​p​.
 			 */
 			workspaceDescription: string
 			/**
@@ -5000,7 +5000,7 @@ export type TranslationFunctions = {
 			 */
 			connectTitle: () => LocalizedString
 			/**
-			 * one consent in the browser, and nothing is pasted or typed here.
+			 * your organization will live on your own turso account. one consent in the browser is all it takes.
 			 */
 			connectDescription: () => LocalizedString
 			/**
@@ -5008,15 +5008,15 @@ export type TranslationFunctions = {
 			 */
 			position: (arg: { step: unknown, total: unknown }) => LocalizedString
 			/**
-			 * first, create an empty group for rentable in turso's dashboard and pick it on the consent screen. the consent covers that one group and nothing else.
+			 * in the turso dashboard, create an empty group for rentable, then choose it on the consent screen. the consent covers only that group.
 			 */
 			connectGroup: () => LocalizedString
 			/**
-			 * no turso account yet? make one on the consent screen.
+			 * no turso account yet? you can create one on the consent screen.
 			 */
 			connectAccount: () => LocalizedString
 			/**
-			 * the organization lives wherever that group does. on a personal account only you can grant rentable authority again; on a turso organization any administrator can, and turso can move a group there from its dashboard. rentable does neither for you.
+			 * the organization lives in that group. on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group there. rentable does neither for you.
 			 */
 			connectSuccession: () => LocalizedString
 			/**
@@ -5044,11 +5044,11 @@ export type TranslationFunctions = {
 			 */
 			consentFailed: () => LocalizedString
 			/**
-			 * name it
+			 * name your organization
 			 */
 			nameTitle: () => LocalizedString
 			/**
-			 * the organization's name, your username, and the password that unlocks your place in it. nothing else is typed here.
+			 * choose a name for the organization, your username, and a password. the password unlocks your place in it.
 			 */
 			nameDescription: () => LocalizedString
 			/**
@@ -5072,7 +5072,7 @@ export type TranslationFunctions = {
 			 */
 			passwordLabel: () => LocalizedString
 			/**
-			 * use at least 12 characters. there is no server to slow a guess down, so the password is the only thing between anybody holding the records and reading them.
+			 * use at least 12 characters. this password is all that stands between the records and anyone who holds a copy.
 			 */
 			passwordFloor: () => LocalizedString
 			/**
@@ -5092,7 +5092,7 @@ export type TranslationFunctions = {
 			 */
 			workspaceTitle: () => LocalizedString
 			/**
-			 * a workspace holds one set of records. more can be added later, from inside the application.
+			 * a workspace holds one set of records. you can add more later, from inside the app.
 			 */
 			workspaceDescription: () => LocalizedString
 			/**
