@@ -10,25 +10,28 @@ import type { Invited } from '$lib/platform/tauri';
  * request raised here and answered there, the way `sync/sign-out.ts` is.
  *
  * **One host and not one per caller.** With an instance each, an invitation made from the menu
- * would show its link and password in a panel the page's instance has never seen, and a person
- * who went to the page to find them would find an empty form. One instance is one result panel,
- * and `invited` sits here rather than in the host for the same reason: a reset made from the
- * members list on the page is answered with the same link and password, and shown in the same
- * panel.
+ * would show its link in a panel the page's instance has never seen, and a person who went to the
+ * page to find it would find an empty form. One instance is one result panel, and `invited` sits
+ * here rather than in the host for the same reason: a reset made from the members list on the
+ * page is answered with a link the same way, and shown in the same panel.
  */
 
 export type OrganizationDialogKind = 'invite' | 'workspace';
 
-/** the three things an invitation hands over, each with a copy control in the result panel. */
-export type InvitedCopy = 'link' | 'username' | 'password';
+/**
+ * the one thing an invitation hands over, with its copy control in the result panel. *Three,
+ * the link, the username and a generated password, until effort 826 put the secret inside the
+ * link.*
+ */
+export type InvitedCopy = 'link';
 
 export const organizationDialog = $state<{
 	/** which of the two is open, or neither. */
 	open: OrganizationDialogKind | null;
 	/**
 	 * what the last invitation or reset made, shown in the invite dialog until dismissed. Closing
-	 * the dialog keeps it, since the password is shown once and a closed sheet is not a dismissal;
-	 * the panel's own done control is.
+	 * the dialog keeps it, since a closed sheet is not a dismissal; the panel's own done control
+	 * is.
 	 */
 	invited: Invited | null;
 }>({ open: null, invited: null });
@@ -47,7 +50,7 @@ export function showInvited(invited: Invited) {
 	organizationDialog.open = 'invite';
 }
 
-/** the person has taken the link and the password: the panel goes, and the dialog with it. */
+/** the person has taken the link: the panel goes, and the dialog with it. */
 export function dismissInvited() {
 	organizationDialog.invited = null;
 	organizationDialog.open = null;

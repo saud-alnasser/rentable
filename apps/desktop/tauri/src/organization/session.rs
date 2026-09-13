@@ -270,6 +270,14 @@ pub async fn sign_in_by_username(
         return Err(refused());
     }
 
+    // a vault still sealed under the generated secret its invitation link carries is opened by
+    // that link and by nothing typed at the wall (effort 826, ticket 03): the secret was never
+    // shown to anybody, so whoever types it here decoded a link, and a link that was revoked has
+    // to open nothing. The refusal is the one sentence, since it says no more than a wrong password.
+    if member.must_change_password {
+        return Err(refused());
+    }
+
     open_session(
         store,
         held,
@@ -285,7 +293,7 @@ pub async fn sign_in_by_username(
 /// The rest of a sign-in, once the password has opened `member`'s vault and the content key is
 /// unsealed: every grant the vault holds, the organization's into `credential` and the
 /// workspaces' into the session.
-async fn open_session(
+pub(crate) async fn open_session(
     store: &OrganizationStore,
     held: &HeldOrganization,
     verifying_key: [u8; VERIFYING_KEY_BYTES],
@@ -489,7 +497,10 @@ pub fn verifying_key_of(joined: &HeldOrganization) -> Result<[u8; VERIFYING_KEY_
 
 /// The organization content key, unsealed from `member`'s row with the secret their vault
 /// yielded: what makes any name legible.
-fn content_key_of(member: &MemberRecord, secret: &MemberSecretKey) -> Result<ContentKey, Error> {
+pub(crate) fn content_key_of(
+    member: &MemberRecord,
+    secret: &MemberSecretKey,
+) -> Result<ContentKey, Error> {
     let bytes = unseal_with_secret_key(secret, &member.sealed_content_key)?;
 
     Ok(ContentKey::from_bytes(

@@ -2509,33 +2509,13 @@ type RootTranslation = {
 			 */
 			invite: string
 			/**
-			 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​.​ ​c​o​p​y​ ​t​h​e​ ​l​i​n​k​,​ ​t​h​e​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​b​e​l​o​w​ ​a​n​d​ ​h​a​n​d​ ​t​h​e​m​ ​t​o​ ​t​h​e​ ​p​e​r​s​o​n​ ​y​o​u​r​s​e​l​f​;​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​s​h​o​w​n​ ​o​n​c​e​.
+			 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​.​ ​c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​b​e​l​o​w​ ​a​n​d​ ​h​a​n​d​ ​i​t​ ​t​o​ ​t​h​e​ ​p​e​r​s​o​n​ ​y​o​u​r​s​e​l​f​;​ ​o​p​e​n​i​n​g​ ​i​t​ ​i​s​ ​h​o​w​ ​t​h​e​y​ ​c​h​o​o​s​e​ ​t​h​e​i​r​ ​p​a​s​s​w​o​r​d​.
 			 */
 			cannotSend: string
 			/**
-			 * g​e​n​e​r​a​t​e​d​ ​p​a​s​s​w​o​r​d
+			 * i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k
 			 */
-			generatedPassword: string
-			/**
-			 * t​h​i​s​ ​i​s​ ​t​h​e​ ​o​n​l​y​ ​t​i​m​e​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​s​h​o​w​n​.​ ​t​h​e​y​ ​c​h​a​n​g​e​ ​i​t​ ​o​n​ ​t​h​e​i​r​ ​f​i​r​s​t​ ​s​i​g​n​-​i​n​.
-			 */
-			passwordOnce: string
-			/**
-			 * c​o​p​y​ ​p​a​s​s​w​o​r​d
-			 */
-			copyPassword: string
-			/**
-			 * p​a​s​s​w​o​r​d​ ​c​o​p​i​e​d​.
-			 */
-			passwordCopied: string
-			/**
-			 * c​o​p​y​ ​u​s​e​r​n​a​m​e
-			 */
-			copyUsername: string
-			/**
-			 * u​s​e​r​n​a​m​e​ ​c​o​p​i​e​d​.
-			 */
-			usernameCopied: string
+			invitationLinkTitle: string
 			/**
 			 * d​o​n​e
 			 */
@@ -5184,33 +5164,13 @@ export type TranslationFunctions = {
 			 */
 			invite: () => LocalizedString
 			/**
-			 * rentable sends nothing. copy the link, the username and the password below and hand them to the person yourself; the password is shown once.
+			 * rentable sends nothing. copy the link below and hand it to the person yourself; opening it is how they choose their password.
 			 */
 			cannotSend: () => LocalizedString
 			/**
-			 * generated password
+			 * invitation link
 			 */
-			generatedPassword: () => LocalizedString
-			/**
-			 * this is the only time the password is shown. they change it on their first sign-in.
-			 */
-			passwordOnce: () => LocalizedString
-			/**
-			 * copy password
-			 */
-			copyPassword: () => LocalizedString
-			/**
-			 * password copied.
-			 */
-			passwordCopied: () => LocalizedString
-			/**
-			 * copy username
-			 */
-			copyUsername: () => LocalizedString
-			/**
-			 * username copied.
-			 */
-			usernameCopied: () => LocalizedString
+			invitationLinkTitle: () => LocalizedString
 			/**
 			 * done
 			 */

@@ -102,7 +102,11 @@ mod tests {
         error::Error,
         organization::{
             HeldOrganization,
-            invite::{Invitation, invite_member, organization_link, reissue_invitation},
+            invite::{
+                Invitation, Invited, WorkspaceGrant, invite_member, organization_link,
+                reissue_invitation,
+            },
+            link::JoinLink,
             migrate::Pipeline,
             permission,
             session::{CredentialSlot, MemberSession, sign_in},
@@ -149,6 +153,29 @@ mod tests {
 
     fn slot() -> CredentialSlot {
         Arc::new(Mutex::new(None))
+    }
+    /// No platform authority in hand, which is every session here but the owner's with one.
+    fn no_platform() -> Option<&'static InMemoryPlatform> {
+        None
+    }
+
+    /// Full access on each workspace named, which is what every invitation here grants.
+    fn full(ids: &[String]) -> Vec<WorkspaceGrant> {
+        ids.iter()
+            .map(|id| WorkspaceGrant {
+                id: id.clone(),
+                access: AccessLevel::FullAccess,
+            })
+            .collect()
+    }
+
+    /// The secret inside an invitation link: the generated password the vault was sealed under.
+    fn secret_of(invited: &Invited) -> String {
+        JoinLink::decode(&invited.join_link)
+            .expect("the invitation link")
+            .invitation
+            .expect("the invitation half")
+            .secret
     }
 
     fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
@@ -282,11 +309,12 @@ mod tests {
         let administrator = invite_member(
             &store,
             &owner,
+            no_platform(),
             &link,
             Invitation {
                 username: "ada.admin",
                 role: permission::ADMINISTRATOR,
-                workspace_ids: std::slice::from_ref(&north.id),
+                workspaces: &full(std::slice::from_ref(&north.id)),
             },
             test_cost(),
             AT,
@@ -296,11 +324,12 @@ mod tests {
         let member = invite_member(
             &store,
             &owner,
+            no_platform(),
             &link,
             Invitation {
                 username: "sami.staff",
                 role: permission::MEMBER,
-                workspace_ids: &[north.id.clone(), south.id.clone()],
+                workspaces: &full(&[north.id.clone(), south.id.clone()]),
             },
             test_cost(),
             AT,
@@ -312,8 +341,8 @@ mod tests {
             store,
             owner,
             (north.id, south.id),
-            (administrator.member_id, administrator.generated_password),
-            (member.member_id, member.generated_password),
+            (administrator.member_id.clone(), secret_of(&administrator)),
+            (member.member_id.clone(), secret_of(&member)),
         )
     }
 
@@ -568,6 +597,7 @@ mod tests {
         let reset = reissue_invitation(
             &store,
             &administrator,
+            no_platform(),
             &link,
             &member_id,
             test_cost(),
@@ -589,7 +619,7 @@ mod tests {
         let member = sign_in(
             &store,
             &joined_as(&owner, &member_id, permission::MEMBER),
-            &reset.generated_password,
+            &secret_of(&reset),
             &slot(),
         )
         .await
@@ -614,7 +644,7 @@ mod tests {
         let member = sign_in(
             &store,
             &joined_as(&owner, &member_id, permission::MEMBER),
-            &reset.generated_password,
+            &secret_of(&reset),
             &slot(),
         )
         .await

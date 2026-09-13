@@ -86,11 +86,13 @@ test('both locales title the invitations section as pending accounts, written ra
 	assert.match(ar.organization.dashboard.noPendingAccounts, /حسابات معلّقة/);
 });
 
-// requirement 22: what an invitation shows afterwards is three things, and the sentence that
-// nothing was sent names all three, in both locales.
-test('both locales say the link, the username and the password are handed over by hand', () => {
-	assert.match(en.organization.dashboard.cannotSend, /link, the username and the password/);
-	assert.match(ar.organization.dashboard.cannotSend, /الرابط واسم المستخدم وكلمة المرور/);
+// effort 826, requirement 8: what an invitation shows afterwards is one link, and the sentence
+// that nothing was sent names the link and no password, in both locales.
+test('both locales say the link is handed over by hand, and neither mentions a password', () => {
+	assert.match(en.organization.dashboard.cannotSend, /copy the link below/);
+	assert.doesNotMatch(en.organization.dashboard.cannotSend, /the password/);
+	assert.match(ar.organization.dashboard.cannotSend, /انسخ الرابط أدناه/);
+	assert.doesNotMatch(ar.organization.dashboard.cannotSend, /كلمة المرور أدناه/);
 	assert.match(en.organization.dashboard.inviteDescription, /username/);
 	assert.match(ar.organization.dashboard.inviteDescription, /اسم المستخدم/);
 });

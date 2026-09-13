@@ -9,16 +9,19 @@
 //! not carry is any password or any key: those are the person's, and a link found in a chat
 //! history is a locator.
 //!
-//! **There is one link, the organization's own** (effort 824, requirement 18). It connects a
-//! machine to the organization, and a username and password admit a person at the wall; an
-//! invitation is the username and the generated password, handed over beside this same link.
-//! *Until effort 824 a link made for an invitation carried the invitation's half of a secret,
-//! which with the password opened a sealed payload naming the member's row; the row is found by
-//! the password alone now, and the half is gone with the payload.*
+//! **There is one link, and it carries an invitation half or it does not** (effort 826,
+//! requirement 8). The organization's own link connects a machine to the organization, and a
+//! username and password admit a person at the wall. An invitation is that same link with one more
+//! field, the invitation's id and the secret that opens the member's vault the first time: the
+//! secret is the generated password `invite.rs` seals the vault under, so it is never shown and
+//! never handed over on its own, and opening the link is what turns it into a password the person
+//! chose (`join.rs::accept`). A reset is the same link freshly issued. *Effort 824 had one kind of
+//! link and handed the generated password over beside it; 819 carried a half that opened a sealed
+//! payload naming the row. The half is back, and it opens the vault rather than a payload.*
 //!
 //! **A locator does not expire** (requirement 23). The read-only credential is minted with no
 //! expiry, so the same link works on the day it was sent and a year later; what expires is the
-//! pending account a person was handed with it, and that is a row the dashboard revokes and
+//! invitation a person was handed inside it, and that is a row the members list revokes and
 //! reissues. Rotating the organization database's credentials, which a lock-out does, is the one
 //! thing that retires a link, and the ticket that rotates is the ticket that reissues.
 //!
@@ -52,6 +55,21 @@ pub struct JoinLink {
     pub remote_url: String,
     /// reads the organization database, and nothing in it is legible without a vault.
     pub read_only_credential: String,
+    /// the invitation this link was made for, where it was made for one. Absent on the
+    /// organization's own link, and absent from its text rather than written as null, so the
+    /// organization link's five fields are exactly what they were.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invitation: Option<InvitationHalf>,
+}
+
+/// The invitation half of a link: which invitation, and the secret that opens the invited
+/// member's vault once. The secret is the generated password the vault was sealed under, and this
+/// is the one place it is ever spelled out ([[rules/credentials]] sanctions the link crossing).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InvitationHalf {
+    pub id: String,
+    pub secret: String,
 }
 
 impl JoinLink {
@@ -68,7 +86,24 @@ impl JoinLink {
             verifying_key: BASE64URL.encode(verifying_key),
             remote_url: remote_url.to_string(),
             read_only_credential: read_only_credential.to_string(),
+            invitation: None,
         }
+    }
+
+    /// This link, made for an invitation: the same five fields and the invitation's half.
+    pub fn for_invitation(&self, invitation_id: &str, secret: &str) -> Self {
+        Self {
+            invitation: Some(InvitationHalf {
+                id: invitation_id.to_string(),
+                secret: secret.to_string(),
+            }),
+            ..self.clone()
+        }
+    }
+
+    /// The invitation half, where this link carries one.
+    pub fn invitation_half(&self) -> Option<&InvitationHalf> {
+        self.invitation.as_ref()
     }
 
     /// The link as a person sees it and sends it: one line, one scheme, base64url of the fields.
@@ -98,6 +133,15 @@ impl JoinLink {
         if decoded.organization_id.trim().is_empty()
             || decoded.remote_url.trim().is_empty()
             || decoded.read_only_credential.trim().is_empty()
+        {
+            return Err(unreadable());
+        }
+
+        // an invitation half with either field blank is not a half: the link is not one.
+        if decoded
+            .invitation
+            .as_ref()
+            .is_some_and(|half| half.id.trim().is_empty() || half.secret.trim().is_empty())
         {
             return Err(unreadable());
         }
@@ -146,25 +190,34 @@ mod tests {
         assert_eq!(link().verifying_key_bytes().expect("a key"), [7_u8; 32]);
     }
 
-    /// The five fields and nothing else: a link carries no password, no invitation and no key.
-    /// *A link made for an invitation carried its half beside the five until effort 824; there
-    /// is one kind of link now.*
-    #[test]
-    fn a_link_carries_the_five_fields_and_nothing_else() {
-        let encoded = link().encode().expect("failed to encode");
+    /// The text of a link, as JSON: what a person holding it can read out of it.
+    fn fields_of(link: &JoinLink) -> (String, Vec<String>) {
+        let encoded = link.encode().expect("failed to encode");
         let json = base64::Engine::decode(
             &base64::engine::general_purpose::URL_SAFE_NO_PAD,
             encoded.trim_start_matches("rentable://join/"),
         )
         .expect("base64url");
+        let text = String::from_utf8(json.clone()).expect("utf-8");
         let fields: serde_json::Value = serde_json::from_slice(&json).expect("json");
-        let mut names: Vec<&str> = fields
+        let mut names: Vec<String> = fields
             .as_object()
             .expect("an object")
             .keys()
-            .map(String::as_str)
+            .cloned()
             .collect();
         names.sort_unstable();
+
+        (text, names)
+    }
+
+    /// The organization's own link is five fields and nothing else; an invitation link is those
+    /// five and the invitation half, and neither spells the word password: the secret inside the
+    /// half is a field named for what it is, and the organization link carries no secret at all.
+    /// *There was one kind of link from effort 824 to effort 826.*
+    #[test]
+    fn a_link_carries_five_fields_and_an_invitation_link_six() {
+        let (text, names) = fields_of(&link());
 
         assert_eq!(
             names,
@@ -176,8 +229,53 @@ mod tests {
                 "verifyingKey"
             ]
         );
-        assert!(!encoded.contains("password"), "{encoded}");
-        assert!(!encoded.contains("invitation"), "{encoded}");
+        assert!(!text.contains("password"), "{text}");
+        assert!(!text.contains("invitation"), "{text}");
+
+        let (text, names) = fields_of(&link().for_invitation("inv-1", "abcde-fghjk-mnpqr-stuvw"));
+
+        assert_eq!(
+            names,
+            [
+                "invitation",
+                "organizationId",
+                "organizationName",
+                "readOnlyCredential",
+                "remoteUrl",
+                "verifyingKey"
+            ]
+        );
+        assert!(!text.contains("password"), "{text}");
+    }
+
+    /// The half round-trips, and a link made for an invitation still names the organization the
+    /// way the organization's own does.
+    #[test]
+    fn an_invitation_link_round_trips_with_its_half() {
+        let invitation = link().for_invitation("inv-1", "abcde-fghjk-mnpqr-stuvw");
+        let encoded = invitation.encode().expect("failed to encode");
+        let decoded = JoinLink::decode(&encoded).expect("failed to decode");
+
+        assert_eq!(decoded, invitation);
+        assert_eq!(decoded.organization_name, "Acme");
+        assert_eq!(
+            decoded.invitation_half().map(|half| half.id.as_str()),
+            Some("inv-1")
+        );
+        assert_eq!(link().invitation_half(), None);
+
+        // a half with a blank field is not a link.
+        for (id, secret) in [("", "abcde"), ("inv-1", ""), (" ", " ")] {
+            let broken = link().for_invitation(id, secret).encode().expect("encodes");
+
+            assert!(
+                matches!(
+                    JoinLink::decode(&broken),
+                    Err(crate::error::Error::InvalidInput { .. })
+                ),
+                "{id:?} {secret:?} decoded"
+            );
+        }
     }
 
     #[test]

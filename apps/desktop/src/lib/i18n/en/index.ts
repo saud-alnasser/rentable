@@ -813,14 +813,8 @@ const en = {
 			noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
 			invite: 'invite',
 			cannotSend:
-				'rentable sends nothing. copy the link, the username and the password below and hand them to the person yourself; the password is shown once.',
-			generatedPassword: 'generated password',
-			passwordOnce:
-				'this is the only time the password is shown. they change it on their first sign-in.',
-			copyPassword: 'copy password',
-			passwordCopied: 'password copied.',
-			copyUsername: 'copy username',
-			usernameCopied: 'username copied.',
+				'rentable sends nothing. copy the link below and hand it to the person yourself; opening it is how they choose their password.',
+			invitationLinkTitle: 'invitation link',
 			done: 'done',
 			notYetSignedIn: 'not yet signed in',
 			resetPassword: 'reset password',

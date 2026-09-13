@@ -25,7 +25,7 @@
 	 * organization page. So the surfaces are drawn here, beside the frame rather than inside it,
 	 * since the frame owns navigation and not forms, and `organization/dialogs.svelte.ts` is the
 	 * request the openers raise and this answers. One instance is one result panel: an invitation
-	 * made from the menu shows its link and password in the same panel a person finds from the page.
+	 * made from the menu shows its link in the same panel a person finds from the page.
 	 *
 	 * **The mutations are here**, inside the providers, so each reads the query client from context
 	 * the way every other hook does. The organization state query is the same one the rail and the
@@ -45,20 +45,24 @@
 
 	let copied = $state<InvitedCopy | null>(null);
 
-	// a new result is a new three to copy, whether it came from the invite here or from a reset
+	// a new result is a new link to copy, whether it came from the invite here or from a reset
 	// raised on the page, so the mark follows the result rather than the act that made it.
 	$effect(() => {
 		void organizationDialog.invited;
 		copied = null;
 	});
 
+	// every workspace the form names is granted at full access: the access choice per workspace
+	// is the members section's ticket, and full access is what the form has always meant.
 	const invite = async (
 		username: string,
 		role: 'administrator' | 'member',
 		workspaceIds: string[]
 	) => {
+		const workspaces = workspaceIds.map((id) => ({ id, access: 'full-access' as const }));
+
 		try {
-			showInvited(await inviteMember.mutateAsync({ username, role, workspaceIds }));
+			showInvited(await inviteMember.mutateAsync({ username, role, workspaces }));
 		} catch {
 			// said by the shared handler; the form keeps what was typed.
 		}

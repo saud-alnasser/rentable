@@ -36,12 +36,13 @@
 	 * the walk's `name` step and the rename dialog read, so a username refused here is refused
 	 * there with the same sentence.
 	 *
-	 * **What comes back is shown once, and the form says it cannot send it.** The application has
+	 * **What comes back is one link, and the form says it cannot send it.** The application has
 	 * registered with no mail service and the spec forbids registering one on the customer's
-	 * behalf, so the organization's link, the username and the generated password are handed
-	 * over by the person who invited, and the three copy controls are what a person needs to do
-	 * that (requirement 22). The password is on screen for as long as this panel is, and nowhere
-	 * afterwards.
+	 * behalf, so the invitation link is handed over by the person who invited, and one copy
+	 * control is what a person needs to do that (effort 826, requirement 8). The secret that opens
+	 * the member's vault once is inside the link; no password is shown. *Three things with three
+	 * copy controls until effort 826.* Its full redraw, the access choice per workspace with it,
+	 * is the members section's ticket.
 	 *
 	 * **Inviting an administrator is the owner's**, because certifying one needs the organization
 	 * key; the role select offers it only to the owner, and the shell refuses it regardless.
@@ -148,11 +149,11 @@
 	{#if invited}
 		<div class="space-y-4" data-invited>
 			<!-- the one notice this surface carries, because it is the one thing a person has to act
-			     on: nothing was sent, and the three things below are theirs to send. -->
+			     on: nothing was sent, and the link below is theirs to send. -->
 			<Callout tone="warning">{$LL.organization.dashboard.cannotSend()}</Callout>
 
 			<div class="space-y-2">
-				<p class="text-sm font-medium">{$LL.organization.dashboard.linkTitle()}</p>
+				<p class="text-sm font-medium">{$LL.organization.dashboard.invitationLinkTitle()}</p>
 				<!-- machine strings, read left to right in both locales ([[rules/frontend]], *i18n*). -->
 				<code
 					dir="ltr"
@@ -172,26 +173,6 @@
 				</Button>
 			</div>
 
-			<div class="space-y-2">
-				<p class="text-sm font-medium">{$LL.organization.dashboard.username()}</p>
-				<code
-					dir="ltr"
-					class="block rounded-md bg-muted px-3 py-2 font-mono text-sm select-all"
-					data-invited-username>{invited.username}</code
-				>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					onclick={() => invited && onCopy('username', invited.username)}
-				>
-					<CopyIcon class="size-4" />
-					{copied === 'username'
-						? $LL.organization.dashboard.usernameCopied()
-						: $LL.organization.dashboard.copyUsername()}
-				</Button>
-			</div>
-
 			{#if invited.unreachableWorkspaces.length > 0}
 				<!-- requirement 13's limit, said at the moment it bites: what the reset could not
 				     restore, because the resetting administrator does not reach it themselves. -->
@@ -201,29 +182,6 @@
 					})}
 				</Callout>
 			{/if}
-
-			<div class="space-y-2">
-				<p class="text-sm font-medium">{$LL.organization.dashboard.generatedPassword()}</p>
-				<code
-					dir="ltr"
-					class="block rounded-md bg-muted px-3 py-2 font-mono text-sm select-all"
-					data-invited-password>{invited.generatedPassword}</code
-				>
-				<p class="text-sm text-muted-foreground">
-					{$LL.organization.dashboard.passwordOnce()}
-				</p>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					onclick={() => invited && onCopy('password', invited.generatedPassword)}
-				>
-					<CopyIcon class="size-4" />
-					{copied === 'password'
-						? $LL.organization.dashboard.passwordCopied()
-						: $LL.organization.dashboard.copyPassword()}
-				</Button>
-			</div>
 		</div>
 	{:else}
 		<div class="flex flex-col gap-4" data-invite-form>

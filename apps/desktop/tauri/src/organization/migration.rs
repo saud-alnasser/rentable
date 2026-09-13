@@ -514,7 +514,8 @@ mod tests {
         error::Error,
         organization::{
             HeldOrganization,
-            invite::{Invitation, invite_member, organization_link},
+            invite::{Invitation, Invited, WorkspaceGrant, invite_member, organization_link},
+            link::JoinLink,
             migrate::{self, Pipeline},
             permission,
             session::{CredentialSlot, MemberSession, WorkspaceFacts, sign_in},
@@ -527,7 +528,10 @@ mod tests {
         sync::{
             RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{discovery::McpEndpoint, platform::InMemoryPlatform},
+            turso::{
+                discovery::McpEndpoint,
+                platform::{AccessLevel, InMemoryPlatform},
+            },
         },
     };
 
@@ -555,6 +559,29 @@ mod tests {
 
     fn slot() -> CredentialSlot {
         Arc::new(Mutex::new(None))
+    }
+    /// No platform authority in hand, which is every session here but the owner's with one.
+    fn no_platform() -> Option<&'static InMemoryPlatform> {
+        None
+    }
+
+    /// Full access on each workspace named, which is what every invitation here grants.
+    fn full(ids: &[String]) -> Vec<WorkspaceGrant> {
+        ids.iter()
+            .map(|id| WorkspaceGrant {
+                id: id.clone(),
+                access: AccessLevel::FullAccess,
+            })
+            .collect()
+    }
+
+    /// The secret inside an invitation link: the generated password the vault was sealed under.
+    fn secret_of(invited: &Invited) -> String {
+        JoinLink::decode(&invited.join_link)
+            .expect("the invitation link")
+            .invitation
+            .expect("the invitation half")
+            .secret
     }
 
     fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
@@ -639,11 +666,12 @@ mod tests {
         let invited = invite_member(
             &store,
             &owner,
+            no_platform(),
             &link,
             Invitation {
                 username: "sami.staff",
                 role: permission::MEMBER,
-                workspace_ids: std::slice::from_ref(&workspace.id),
+                workspaces: &full(std::slice::from_ref(&workspace.id)),
             },
             test_cost(),
             AT,
@@ -653,7 +681,7 @@ mod tests {
         let mut member = sign_in(
             &store,
             &joined_as(&owner, &invited.member_id, permission::MEMBER),
-            &invited.generated_password,
+            &secret_of(&invited),
             &slot(),
         )
         .await

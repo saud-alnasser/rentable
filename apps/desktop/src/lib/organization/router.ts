@@ -139,12 +139,13 @@ export const organization = router({
 		})
 	},
 	/**
-	 * Members and their invitations, which is the dashboard.
+	 * Members and their invitations, which is the members list.
 	 *
 	 * **Inviting is `permitted('inviteMember')` here and refused again in Rust**, on the member's
 	 * verified row; this is the earlier of the two refusals, made so a caller is turned away before
 	 * a round trip, and never the deciding one. Listing is any signed-in member's: who is in the
-	 * organization is not a secret from the people in it.
+	 * organization is not a secret from the people in it. Whether a read-only grant can be minted
+	 * here is Rust's alone, since it turns on the owner's authority and not on a bit.
 	 */
 	member: {
 		list: procedure.member.query(async ({ ctx }): Promise<OrganizationMember[]> => {
@@ -156,11 +157,28 @@ export const organization = router({
 				z.object({
 					username: USERNAME,
 					role: z.enum(['administrator', 'member']),
-					workspaceIds: z.array(z.string().trim().min(1))
+					workspaces: z.array(
+						z.object({
+							id: z.string().trim().min(1),
+							access: z.enum(['full-access', 'read-only'])
+						})
+					)
 				})
 			)
 			.mutation(async ({ input, ctx }): Promise<Invited> => {
-				return ctx.host.organization.member.invite(input.username, input.role, input.workspaceIds);
+				return ctx.host.organization.member.invite(input.username, input.role, input.workspaces);
+			}),
+		/**
+		 * A reset: a fresh link for a member who already has a row. It is `resetPassword` rather
+		 * than `inviteMember` from effort 826 on, because what it hands somebody is a way back into
+		 * an account that exists rather than a new one, and requirement 4 made those two separate
+		 * things to be trusted with. *`invitation.reissue` until the same effort.*
+		 */
+		reset: procedure
+			.permitted('resetPassword')
+			.input(z.object({ memberId: z.string().trim().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<Invited> => {
+				return ctx.host.organization.member.reset(input.memberId);
 			}),
 		/**
 		 * Removal, at one of two speeds. **`lockOut` defaults to false here as well as in Rust**,
@@ -192,6 +210,16 @@ export const organization = router({
 				return ctx.host.organization.member.rename(input.memberId, input.username);
 			})
 	},
+	/**
+	 * Invitations: listed and revoked by the act that makes them, copied again by their issuer,
+	 * and opened at the wall.
+	 *
+	 * **`accept` is `public` for the same reason `connect` is.** A person opening their link has
+	 * no identity here yet; being admitted is what the call does. It reaches `ctx.host` and never
+	 * `ctx.db`. The password floor is the first run's, refused here before a round trip for a
+	 * caller that is not the screen; whether the invitation stands, and whether the link's secret
+	 * opens anything, are Rust's alone.
+	 */
 	invitation: {
 		list: procedure.member.query(async ({ ctx }): Promise<OrganizationInvitation[]> => {
 			return ctx.host.organization.invitation.list();
@@ -202,17 +230,16 @@ export const organization = router({
 			.mutation(async ({ input, ctx }): Promise<void> => {
 				return ctx.host.organization.invitation.revoke(input.invitationId);
 			}),
-		/**
-		 * A reset: a fresh invitation for a member who already has a row. It is `resetPassword`
-		 * rather than `inviteMember` from effort 826 on, because what it hands somebody is a way
-		 * back into an account that exists rather than a new one, and requirement 4 made those two
-		 * separate things to be trusted with.
-		 */
-		reissue: procedure
-			.permitted('resetPassword')
-			.input(z.object({ memberId: z.string().trim().min(1) }))
-			.mutation(async ({ input, ctx }): Promise<Invited> => {
-				return ctx.host.organization.resetMember(input.memberId);
+		link: procedure
+			.permitted('inviteMember')
+			.input(z.object({ invitationId: z.string().trim().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<string> => {
+				return ctx.host.organization.invitation.link(input.invitationId);
+			}),
+		accept: procedure.public
+			.input(z.object({ link: z.string().trim().min(1), password: z.string().min(PASSWORD_FLOOR) }))
+			.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+				return ctx.host.organization.invitation.accept(input.link, input.password);
 			})
 	},
 	/**

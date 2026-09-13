@@ -7,7 +7,7 @@ use crate::{error::Error, state::AppState, timestamp};
 
 use super::{
     HeldOrganization, connect, forget,
-    invite::{self, Invitation, InvitationFacts, Invited, MemberFacts},
+    invite::{self, Invitation, InvitationFacts, Invited, MemberFacts, WorkspaceGrant},
     join::{self, LinkFacts},
     link::JoinLink,
     migrate::Pipeline,
@@ -191,22 +191,37 @@ pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, 
 
 /// Connect this machine to the organization a link names: reach its replica as
 /// `organization_link_inspect` does, check the rows against the key the link pins, and record
-/// the organization with no member. No vault opens; the person signs in at the wall.
+/// the organization with no member. No vault opens; the person signs in at the wall, or opens
+/// their invitation (`invitation_accept`) where the link carries one.
 ///
-/// Refused while this machine holds an organization, before the link is decoded: a machine holds
-/// one (requirement 17), and the way to another is a disconnect first.
+/// A machine holds one organization (requirement 17). A link naming the one it already holds
+/// changes nothing and answers with the state, so an invitation link to the held organization
+/// goes straight to its password step; a link naming another is refused, and the way to it is a
+/// disconnect first.
 #[tauri::command]
 pub async fn organization_connect(
     app_state: tauri::State<'_, AppState>,
     link: String,
 ) -> Result<OrganizationState, Error> {
+    let link = JoinLink::decode(&link)?;
+
     {
         let mut remote_sync = app_state.remote_sync.write().await;
+        let held = remote_sync.store_mut();
 
-        connect::refuse_while_held(remote_sync.store_mut())?;
+        if held
+            .organization
+            .as_ref()
+            .is_some_and(|held| held.id == link.organization_id)
+        {
+            drop(remote_sync);
+
+            return state_of(&app_state).await;
+        }
+
+        connect::refuse_while_held(held)?;
     }
 
-    let link = JoinLink::decode(&link)?;
     let store = reached(&app_state, &link).await?;
 
     {
@@ -302,7 +317,6 @@ pub async fn organization_sign_in(
             &username,
             &password,
             &credential,
-            timestamp::now(),
         )
         .await?
     };
@@ -658,19 +672,22 @@ pub async fn organization_renew_due(app_state: tauri::State<'_, AppState>) -> Re
     Ok(true)
 }
 
-/// Invite a member: a row, a link and a generated password, shown once. The application sends
-/// nothing; the administrator hands both over themselves.
+/// Invite a member: a row, and one link. The application sends nothing; the administrator hands
+/// the link over themselves.
 ///
-/// **The password crosses exactly once, here, because it has to be shown**, and it is held
-/// nowhere afterwards ([[rules/credentials]], *Client boundary*). Everything else the invitation
-/// makes stays on this side: the member's vault, the content key sealed to them, and the grants.
+/// **No password crosses.** The generated password the vault is sealed under rides inside the
+/// invitation link, which [[rules/credentials]] sanctions crossing, and nowhere else; everything
+/// else the invitation makes stays on this side: the member's vault, the content key sealed to
+/// them, and the grants. A read-only grant is minted with the owner's authority, which is why the
+/// platform is handed in where this machine holds it.
 #[tauri::command]
 pub async fn member_invite(
     app_state: tauri::State<'_, AppState>,
     username: String,
     role: String,
-    workspace_ids: Vec<String>,
+    workspaces: Vec<WorkspaceGrant>,
 ) -> Result<Invited, Error> {
+    let platform = owner_platform(&app_state).await;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
@@ -679,11 +696,12 @@ pub async fn member_invite(
     invite::invite_member(
         store,
         member,
+        platform.as_ref(),
         &link,
         Invitation {
             username: &username,
             role: &role,
-            workspace_ids: &workspace_ids,
+            workspaces: &workspaces,
         },
         invite::INVITED_KDF,
         timestamp::now(),
@@ -691,14 +709,16 @@ pub async fn member_invite(
     .await
 }
 
-/// Reset a member's password: a fresh vault under a fresh password, everything the resetting
-/// administrator reaches re-sealed to it, and a fresh invitation. What a reset is, for a member
-/// whose password nobody knows; the answer names the workspaces it could not restore.
+/// Reset a member's password: a fresh vault under a fresh secret, everything the resetting
+/// administrator reaches re-sealed to it, and a fresh invitation, handed back as a new link. What
+/// a reset is, for a member whose password nobody knows; the answer names the workspaces it could
+/// not restore, and the member's permissions are kept.
 #[tauri::command]
 pub async fn member_reset(
     app_state: tauri::State<'_, AppState>,
     member_id: String,
 ) -> Result<Invited, Error> {
+    let platform = owner_platform(&app_state).await;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
@@ -707,12 +727,118 @@ pub async fn member_reset(
     invite::reissue_invitation(
         store,
         member,
+        platform.as_ref(),
         &link,
         &member_id,
         invite::INVITED_KDF,
         timestamp::now(),
     )
     .await
+}
+
+/// The invitation link again, for the person who issued it: the secret is sealed to their key on
+/// the row, so their open vault is the one thing that rebuilds it. Anybody else with the act is
+/// refused and offered a new link, which is a reset.
+#[tauri::command]
+pub async fn invitation_link(
+    app_state: tauri::State<'_, AppState>,
+    invitation_id: String,
+) -> Result<String, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    invite::invitation_link(store, member, &invitation_id).await
+}
+
+/// Open an invitation link: the way in for a person who was invited or reset (effort 826,
+/// requirements 8 and 9). The organization the link names has to be the one this machine holds,
+/// which `organization_connect` arranges first; the secret inside the link opens the member's
+/// vault, the password they chose reseals it, the invitation is spent, and they are signed in.
+///
+/// **`public`, because it happens at the wall.** Neither the secret nor the password crosses
+/// back; what comes back is where the machine stands, with a session in it.
+#[tauri::command]
+pub async fn invitation_accept(
+    app_state: tauri::State<'_, AppState>,
+    link: String,
+    password: String,
+) -> Result<OrganizationState, Error> {
+    let link = JoinLink::decode(&link)?;
+    let held = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync
+            .store_mut()
+            .organization
+            .clone()
+            .ok_or_else(|| Error::PreconditionFailed {
+                message: "this machine holds no organization yet; connect with the link first"
+                    .to_string(),
+            })?
+    };
+
+    if held.id != link.organization_id {
+        return Err(Error::PreconditionFailed {
+            message: format!(
+                "this link is for {} and this machine holds {}; disconnect it first",
+                link.organization_name, held.name
+            ),
+        });
+    }
+
+    let database_path = {
+        let settings = app_state.settings.read().await;
+
+        settings.database_path.clone()
+    };
+
+    // the replica, under the link's read-only credential until the vault is open: the invitation
+    // row may have been written after this machine connected, and the read-only credential is what
+    // lets the pull collect it. The accept then leaves the member's own credential in the slot.
+    let credential: CredentialSlot = Arc::new(Mutex::new(Some(link.read_only_credential.clone())));
+    let slot = Arc::clone(&credential);
+    let store = OrganizationStore::open(
+        &OrganizationStore::replica_path(&database_path, &held.id),
+        Some(held.remote_url.clone()),
+        move || {
+            let slot = Arc::clone(&slot);
+
+            async move {
+                slot.lock()
+                    .ok()
+                    .and_then(|slot| slot.clone())
+                    .ok_or_else(|| turso::Error::Misuse("no credential is held".into()))
+            }
+        },
+    )
+    .await?;
+
+    store.pull().await;
+
+    let member = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        join::accept(
+            &store,
+            remote_sync.store_mut(),
+            &held,
+            &link,
+            &password,
+            &credential,
+            setup::SHIPPING_KDF,
+            timestamp::now(),
+        )
+        .await?
+    };
+
+    // best effort, under the member's own credential now.
+    store.pull().await;
+
+    *app_state.organization.write().await = Some(store);
+    *app_state.member.write().await = Some(member);
+
+    state_of(&app_state).await
 }
 
 /// Rename a member: their row written back with the username re-sealed and signed by whoever
@@ -898,7 +1024,8 @@ pub async fn organization_change_password(
     state_of(&app_state).await
 }
 
-/// Revoke an unused invitation. The link that named it opens nothing afterwards.
+/// Revoke an invitation. A person who never opened their link is removed with it, so the link
+/// opens nothing afterwards; a reset link on a member who has signed in before is deleted alone.
 #[tauri::command]
 pub async fn invitation_revoke(
     app_state: tauri::State<'_, AppState>,
@@ -908,7 +1035,7 @@ pub async fn invitation_revoke(
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
 
-    invite::revoke_invitation(store, member, &invitation_id).await
+    invite::revoke_invitation(store, member, &invitation_id, timestamp::now()).await
 }
 
 /// Every member, for the dashboard. Names opened with the content key the session holds.
@@ -953,9 +1080,10 @@ pub async fn organization_link_take(
     Ok(arriving.take())
 }
 
-/// Read a link: which organization it names, before anything is done with it. The link is parsed
-/// here, the organization is reached with the credential it carries, and what crosses back is a
-/// name and where it is ([[rules/credentials]]).
+/// Read a link: which organization it names, and where its invitation stands where it carries
+/// one, before anything is done with it. The link is parsed here, the organization is reached with
+/// the credential it carries, and what crosses back is a name, where it is, the standing and the
+/// invited username; the secret stays on this side ([[rules/credentials]]).
 #[tauri::command]
 pub async fn organization_link_inspect(
     app_state: tauri::State<'_, AppState>,
@@ -964,7 +1092,7 @@ pub async fn organization_link_inspect(
     let link = JoinLink::decode(&link)?;
     let store = reached(&app_state, &link).await?;
 
-    join::inspect(&store, &link).await
+    join::inspect(&store, &link, timestamp::now()).await
 }
 
 /// Record which Turso account the consent this machine now holds is over, so the owner's

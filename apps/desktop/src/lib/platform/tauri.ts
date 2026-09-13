@@ -29,7 +29,8 @@ import type {
 	RemoteSyncState,
 	ReplicationRefusal,
 	Settings,
-	SettingsChangeset
+	SettingsChangeset,
+	WorkspaceGrant
 } from '$lib/platform/host';
 import { withExtension } from '$lib/platform/path';
 
@@ -69,7 +70,8 @@ export type {
 	ReplicationRefusal,
 	Settings,
 	SettingsChangeset,
-	UpdaterDownloadEvent
+	UpdaterDownloadEvent,
+	WorkspaceGrant
 } from '$lib/platform/host';
 
 /** the Rust side is `LINK_ARRIVED_EVENT` in `tauri/src/lib.rs`, and the two are one name. */
@@ -238,8 +240,9 @@ export const tauri = {
 		},
 		member: {
 			list: () => invoke<OrganizationMember[]>('organization_members'),
-			invite: (username: string, role: 'administrator' | 'member', workspaceIds: string[]) =>
-				invoke<Invited>('member_invite', { username, role, workspaceIds }),
+			invite: (username: string, role: 'administrator' | 'member', workspaces: WorkspaceGrant[]) =>
+				invoke<Invited>('member_invite', { username, role, workspaces }),
+			reset: (memberId: string) => invoke<Invited>('member_reset', { memberId }),
 			remove: (memberId: string, lockOut: boolean) =>
 				invoke<MemberRemoved>('member_remove', { memberId, lockOut }),
 			lockOutCost: (memberId: string) => invoke<LockOutCost>('member_lock_out_cost', { memberId }),
@@ -248,9 +251,11 @@ export const tauri = {
 		},
 		invitation: {
 			list: () => invoke<OrganizationInvitation[]>('organization_invitations'),
-			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId })
+			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId }),
+			accept: (link: string, password: string) =>
+				invoke<OrganizationState>('invitation_accept', { link, password }),
+			link: (invitationId: string) => invoke<string>('invitation_link', { invitationId })
 		},
-		resetMember: (memberId: string) => invoke<Invited>('member_reset', { memberId }),
 		changePassword: (current: string, next: string) =>
 			invoke<OrganizationState>('organization_change_password', { current, new: next }),
 		accountRefusalDetail: () => invoke<string | null>('organization_account_refusal_detail')

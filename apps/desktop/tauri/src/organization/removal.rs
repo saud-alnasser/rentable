@@ -191,52 +191,8 @@ pub async fn remove_member<P: TursoPlatform>(
     };
 
     let cost = lock_out_cost(store, session, member_id).await?;
-    let (key, certificate) = signer_of(store, session).await?;
-    let signer = Signer {
-        key: &key,
-        certificate: &certificate,
-    };
 
-    // the grants go, and the row is signed as removed by whoever removed them: a machine holding
-    // a stale replica sees a verified removal rather than an unexplained absence.
-    for grant in store
-        .grants(&session.verifying_key)
-        .await?
-        .iter()
-        .filter(|grant| grant.member_id == member_id)
-    {
-        store.delete_grant(member_id, &grant.workspace_id).await?;
-    }
-
-    store
-        .write_member(
-            &signer,
-            &MemberRecord {
-                role: permission::REMOVED.to_string(),
-                permissions: 0,
-                updated_at: now,
-                ..member.clone()
-            },
-        )
-        .await?;
-
-    // end a removed administrator's authority. A member has no certificate and this does nothing;
-    // an administrator's certificate is written back revoked, so a row they newly sign under it is
-    // refused on read (F2, the half this ticket closes). But first the rows it legitimately signed
-    // are re-signed under the remover, who holds authority over them, so revoking it bricks nothing
-    // (`store::re_sign_rows_of_certificate`, the routine reset shares).
-    if let Some(their_certificate) =
-        store.certificates().await?.into_iter().find(|certificate| {
-            certificate.member_id == member_id && certificate.revoked_at.is_none()
-        })
-    {
-        store
-            .re_sign_rows_of_certificate(&session.verifying_key, &their_certificate.id, &signer)
-            .await?;
-        store
-            .write_certificate(&their_certificate.revoked(&now.to_string()))
-            .await?;
-    }
+    retire_member(store, session, member, now).await?;
 
     let mut removed = Removed {
         member_id: member_id.to_string(),
@@ -288,6 +244,69 @@ pub async fn remove_member<P: TursoPlatform>(
     Ok(removed)
 }
 
+/// The ordinary removal's writes, with nothing minted and nothing pushed: `member`'s grants go,
+/// their row is signed as removed by `session`, and a certificate they held is revoked once the
+/// rows it signed are re-signed under the remover. What [`remove_member`] does after its refusals,
+/// and what revoking a never-accepted invitation does through it (`invite::revoke_invitation`,
+/// effort 826 requirement 15): a pending account is taken back under the act that made it, so the
+/// link somebody kept opens a vault that holds nothing.
+pub(crate) async fn retire_member(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    member: &MemberRecord,
+    now: i64,
+) -> Result<(), Error> {
+    let member_id = member.id.as_str();
+    let (key, certificate) = signer_of(store, session).await?;
+    let signer = Signer {
+        key: &key,
+        certificate: &certificate,
+    };
+
+    // the grants go, and the row is signed as removed by whoever removed them: a machine holding
+    // a stale replica sees a verified removal rather than an unexplained absence.
+    for grant in store
+        .grants(&session.verifying_key)
+        .await?
+        .iter()
+        .filter(|grant| grant.member_id == member_id)
+    {
+        store.delete_grant(member_id, &grant.workspace_id).await?;
+    }
+
+    store
+        .write_member(
+            &signer,
+            &MemberRecord {
+                role: permission::REMOVED.to_string(),
+                permissions: 0,
+                updated_at: now,
+                ..member.clone()
+            },
+        )
+        .await?;
+
+    // end a removed administrator's authority. A member has no certificate and this does nothing;
+    // an administrator's certificate is written back revoked, so a row they newly sign under it is
+    // refused on read (F2, the half this ticket closes). But first the rows it legitimately signed
+    // are re-signed under the remover, who holds authority over them, so revoking it bricks nothing
+    // (`store::re_sign_rows_of_certificate`, the routine reset shares).
+    if let Some(their_certificate) =
+        store.certificates().await?.into_iter().find(|certificate| {
+            certificate.member_id == member_id && certificate.revoked_at.is_none()
+        })
+    {
+        store
+            .re_sign_rows_of_certificate(&session.verifying_key, &their_certificate.id, &signer)
+            .await?;
+        store
+            .write_certificate(&their_certificate.revoked(&now.to_string()))
+            .await?;
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
@@ -299,7 +318,10 @@ mod tests {
         error::Error,
         organization::{
             HeldOrganization,
-            invite::{Invitation, invite_member, members, organization_link},
+            invite::{
+                Invitation, Invited, WorkspaceGrant, invite_member, members, organization_link,
+            },
+            link::JoinLink,
             migrate::Pipeline,
             permission,
             session::{CredentialSlot, MemberSession, refresh_credentials, sign_in},
@@ -312,7 +334,10 @@ mod tests {
         sync::{
             RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{discovery::McpEndpoint, platform::InMemoryPlatform},
+            turso::{
+                discovery::McpEndpoint,
+                platform::{AccessLevel, InMemoryPlatform},
+            },
         },
     };
 
@@ -340,6 +365,29 @@ mod tests {
 
     fn slot() -> CredentialSlot {
         Arc::new(Mutex::new(None))
+    }
+    /// No platform authority in hand, which is every session here but the owner's with one.
+    fn no_platform() -> Option<&'static InMemoryPlatform> {
+        None
+    }
+
+    /// Full access on each workspace named, which is what every invitation here grants.
+    fn full(ids: &[String]) -> Vec<WorkspaceGrant> {
+        ids.iter()
+            .map(|id| WorkspaceGrant {
+                id: id.clone(),
+                access: AccessLevel::FullAccess,
+            })
+            .collect()
+    }
+
+    /// The secret inside an invitation link: the generated password the vault was sealed under.
+    fn secret_of(invited: &Invited) -> String {
+        JoinLink::decode(&invited.join_link)
+            .expect("the invitation link")
+            .invitation
+            .expect("the invitation half")
+            .secret
     }
 
     fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
@@ -485,11 +533,12 @@ mod tests {
         let administrator = invite_member(
             &store,
             &owner,
+            no_platform(),
             &link,
             Invitation {
                 username: "ada.admin",
                 role: permission::ADMINISTRATOR,
-                workspace_ids: std::slice::from_ref(&north.id),
+                workspaces: &full(std::slice::from_ref(&north.id)),
             },
             test_cost(),
             AT,
@@ -499,11 +548,12 @@ mod tests {
         let member = invite_member(
             &store,
             &owner,
+            no_platform(),
             &link,
             Invitation {
                 username: "sami.staff",
                 role: permission::MEMBER,
-                workspace_ids: &[north.id.clone(), south.id.clone()],
+                workspaces: &full(&[north.id.clone(), south.id.clone()]),
             },
             test_cost(),
             AT,
@@ -517,8 +567,8 @@ mod tests {
             owner,
             north: north.id,
             south: south.id,
-            administrator: (administrator.member_id, administrator.generated_password),
-            member: (member.member_id, member.generated_password),
+            administrator: (administrator.member_id.clone(), secret_of(&administrator)),
+            member: (member.member_id.clone(), secret_of(&member)),
             database: format!("org-{}", created.organization_id),
         }
     }
@@ -1067,11 +1117,12 @@ mod tests {
         let bob = invite_member(
             &org.store,
             &ada,
+            no_platform(),
             &link,
             Invitation {
                 username: "bob",
                 role: permission::MEMBER,
-                workspace_ids: std::slice::from_ref(&org.north),
+                workspaces: &full(std::slice::from_ref(&org.north)),
             },
             test_cost(),
             AT,
@@ -1133,7 +1184,7 @@ mod tests {
         let bob_session = sign_in(
             &org.store,
             &joined_as(&owner, &bob.member_id, permission::MEMBER),
-            &bob.generated_password,
+            &secret_of(&bob),
             &slot(),
         )
         .await

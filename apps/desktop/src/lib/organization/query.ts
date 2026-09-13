@@ -268,12 +268,12 @@ export function useInviteMember(
 		mutationFn: ({
 			username,
 			role,
-			workspaceIds
+			workspaces
 		}: {
 			username: string;
 			role: 'administrator' | 'member';
-			workspaceIds: string[];
-		}) => api.app.organization.member.invite({ username, role, workspaceIds }),
+			workspaces: { id: string; access: 'full-access' | 'read-only' }[];
+		}) => api.app.organization.member.invite({ username, role, workspaces }),
 		onSuccess: async () => {
 			await Promise.all([
 				client.invalidateQueries({ queryKey: keys.members }),
@@ -401,7 +401,7 @@ export function useAccountRefusalDetail(refused: () => boolean) {
 	}));
 }
 
-/** reset a member's password: a reissue from what the resetting administrator holds. */
+/** reset a member's password: a fresh link, from what the resetting administrator holds. */
 export function useReissueInvitation(
 	opts: MutationOptions = {
 		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
@@ -411,7 +411,7 @@ export function useReissueInvitation(
 
 	return createMutation(() => ({
 		mutationFn: ({ memberId }: { memberId: string }) =>
-			api.app.organization.invitation.reissue({ memberId }),
+			api.app.organization.member.reset({ memberId }),
 		onSuccess: async () => {
 			await client.invalidateQueries({ queryKey: keys.invitations });
 			onMutationSuccess(opts);

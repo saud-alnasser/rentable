@@ -161,14 +161,16 @@ test('nothing here asks the host to list organizations', () => {
 		'consent.result',
 		'create',
 		'disconnect',
+		'invitation.accept',
+		'invitation.link',
 		'invitation.list',
-		'invitation.reissue',
 		'invitation.revoke',
 		'member.invite',
 		'member.list',
 		'member.lockOutCost',
 		'member.remove',
 		'member.rename',
+		'member.reset',
 		'password.change',
 		'workspace.create',
 		'workspace.grant',
@@ -177,6 +179,48 @@ test('nothing here asks the host to list organizations', () => {
 		'workspace.renewCredentials'
 	]);
 	assert.ok(!procedures.some((name) => /organizations/i.test(name)));
+});
+
+// effort 826, requirement 8: opening an invitation link happens at the wall, so it is public, hands
+// the trimmed link and the password on as given, and refuses a password under the floor before the
+// host is reached. Whether the invitation stands is Rust's.
+test('opening an invitation link reaches the host signed out, and a password under the floor is refused first', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			invitation: {
+				...fakeHost().organization.invitation,
+				accept: async (link, password) => {
+					asked.push(`accept:${link}:${password.length}`);
+
+					return fakeOrganizationState({
+						organization: fakeHeldOrganization({ memberId: 'member-2', role: 'member' })
+					});
+				}
+			}
+		}
+	});
+	const api = await signedOutApi(host);
+
+	const admitted = await api.app.organization.invitation.accept({
+		link: ' rentable://join/abc ',
+		password: 'a password sami chose'
+	});
+
+	assert.equal(admitted.organization?.memberId, 'member-2');
+	assert.deepEqual(asked, ['accept:rentable://join/abc:21']);
+
+	await assert.rejects(
+		api.app.organization.invitation.accept({
+			link: 'rentable://join/abc',
+			password: 'x'.repeat(PASSWORD_FLOOR - 1)
+		})
+	);
+	await assert.rejects(
+		api.app.organization.invitation.accept({ link: '  ', password: 'a password sami chose' })
+	);
+	assert.deepEqual(asked, ['accept:rentable://join/abc:21']);
 });
 
 /**

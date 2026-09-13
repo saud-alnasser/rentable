@@ -259,12 +259,15 @@ export type OrganizationSession = {
 };
 
 /**
- * where a link stands, as the connect screen is told before it does anything. `none` is the one
- * value produced since effort 824: a link carries no invitation half any more, so it names the
- * organization and admits nobody. The four invitation values are kept as words the connect
- * screen still reads until ticket 13 redraws it around the one.
+ * where a link stands, as the connect screen is told before it does anything: the four values an
+ * invitation link takes, and `none` for the organization's own link, which names the organization
+ * and admits nobody by itself. *Between effort 824 and effort 826 there was one kind of link and
+ * `none` was the one value produced.*
  */
 export type LinkStanding = 'open' | 'lapsed' | 'consumed' | 'revoked' | 'none';
+
+/** one workspace an invitation grants, and at which access. */
+export type WorkspaceGrant = { id: string; access: 'full-access' | 'read-only' };
 
 /** what a lock-out costs, said before it runs: which workspaces rotate, and how many members stop syncing. */
 export type LockOutCost = {
@@ -282,14 +285,20 @@ export type MemberRemoved = {
 };
 
 /**
- * what a link says once the organization it names has been reached: its name, where it is, and
- * where the link stands. No credential, no key, no secret; the link was parsed in Rust.
+ * what a link says once the organization it names has been reached: its name, where it is,
+ * where the link stands, and whom it invites where it invites anybody. No credential, no key, no
+ * secret; the link was parsed in Rust.
  */
 export type LinkFacts = {
 	organizationId: string;
 	organizationName: string;
 	remoteUrl: string;
 	standing: LinkStanding;
+	/**
+	 * the invited person, where the link carries an invitation whose secret opens their row;
+	 * `null` on the organization's own link, and on an invitation whose secret opens nothing.
+	 */
+	invitation: { username: string } | null;
 };
 
 /**
@@ -330,18 +339,17 @@ export type OrganizationInvitation = {
 };
 
 /**
- * what an invitation makes, shown to the administrator once: the three things they hand over,
- * the organization's link, the username and the generated password. The password is in it
- * because it has to be shown; it crosses exactly once and is held nowhere afterwards.
+ * what an invitation makes, shown to the administrator: the one thing they hand over, the
+ * invitation link, beside the username and the ids the members list reads. The secret that opens
+ * the member's vault once is inside the link and nowhere else; no password crosses on its own.
  */
 export type Invited = {
 	memberId: string;
 	invitationId: string;
 	/** the username the member signs in with, as the row seals it. */
 	username: string;
-	/** the organization's own link, which connects a machine and admits nobody by itself. */
+	/** the invitation link: the organization's own link with this invitation's half in it. */
 	joinLink: string;
-	generatedPassword: string;
 	expiresAt: number;
 	/**
 	 * on a reset, the workspaces the member held that the resetting administrator could not
@@ -478,9 +486,9 @@ export type Host = {
 		/** where a workspace upgrade is, while one runs on open. Resolves to its own removal. */
 		onMigration: (listener: (notice: MigrationNotice) => void) => Promise<Unlisten>;
 		/**
-		 * read a link: which organization it names. Rejects as `invalidInput` where the text is
-		 * not a link, and as `network` where the organization could not be reached from a machine
-		 * that has never seen it.
+		 * read a link: which organization it names, and where its invitation stands where it
+		 * carries one. Rejects as `invalidInput` where the text is not a link, and as `network`
+		 * where the organization could not be reached from a machine that has never seen it.
 		 */
 		linkInspect: (link: string) => Promise<LinkFacts>;
 		/**
@@ -528,14 +536,22 @@ export type Host = {
 			/** every member, with names opened by the vault this process holds. */
 			list: () => Promise<OrganizationMember[]>;
 			/**
-			 * invite a member: a row they will sign in to, a link, and a generated password, shown
-			 * once. The application sends neither; the administrator hands them over.
+			 * invite a member: a row they will open, and one link. The application sends nothing;
+			 * the administrator hands the link over. A read-only grant is minted on the owner's
+			 * machine, and refused by name elsewhere.
 			 */
 			invite: (
 				username: string,
 				role: 'administrator' | 'member',
-				workspaceIds: string[]
+				workspaces: WorkspaceGrant[]
 			) => Promise<Invited>;
+			/**
+			 * reset a member's password: a fresh vault under a fresh secret, everything the
+			 * resetting administrator reaches re-sealed to it, and a fresh link. The answer names
+			 * the workspaces it could not restore, and the member's permissions are kept. The
+			 * member's previous password is not needed and not learned.
+			 */
+			reset: (memberId: string) => Promise<Invited>;
 			/**
 			 * remove a member. `lockOut` false is the ordinary removal: their grants go, their row
 			 * is signed as removed, and nobody else is disturbed; their credential works until it
@@ -556,16 +572,26 @@ export type Host = {
 		};
 		invitation: {
 			list: () => Promise<OrganizationInvitation[]>;
-			/** revoke an unused invitation; the link that named it opens nothing afterwards. */
+			/**
+			 * revoke an invitation. A person who never opened their link is removed with it, so
+			 * the link opens nothing afterwards; a reset link on a member who has signed in before
+			 * is deleted alone.
+			 */
 			revoke: (invitationId: string) => Promise<void>;
+			/**
+			 * open an invitation link on the organization this machine holds, choosing a password:
+			 * the vault the link's secret opens is resealed under it, the invitation is spent, and
+			 * the person is signed in. Rejects a lapsed, consumed or revoked invitation by name, a
+			 * password under the floor as `invalidInput`, and a link for another organization than
+			 * the one held as `preconditionFailed`.
+			 */
+			accept: (link: string, password: string) => Promise<OrganizationState>;
+			/**
+			 * the invitation link again, for the person who issued it; `forbidden` for anybody
+			 * else, who is offered a new link instead.
+			 */
+			link: (invitationId: string) => Promise<string>;
 		};
-		/**
-		 * reset a member's password: a fresh vault under a fresh generated password, everything
-		 * the resetting administrator reaches re-sealed to it, and a fresh invitation. The answer
-		 * names the workspaces it could not restore. The member's previous password is not needed
-		 * and not learned.
-		 */
-		resetMember: (memberId: string) => Promise<Invited>;
 		/**
 		 * change the signed-in member's own password. The current one has to open the vault and
 		 * the new one has to reach the floor; nothing else on the database moves, and what comes
