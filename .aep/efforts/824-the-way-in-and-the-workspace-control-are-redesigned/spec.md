@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: implemented
 ---
 
 # Problem
@@ -501,3 +501,13 @@ below was theirs, made the same day*)
 - **The effort is large for one context.** Sixteen requirements over three areas; the plan
   cuts it into tickets by area (before sign-in, the shell, the dialogs) and each ticket
   lands on its own.
+
+# Closed by the human
+
+On 2026-09-13, after walking the first run as far as the members list, the human closed the
+effort and asked for it to be merged, to rethink the whole experience of Turso, organizations,
+workspaces and members afterwards. Every criterion's test half is verified on the branch; the
+by-hand halves of criteria 2, 3, 9 and 12 (the 700px sheet), and of 18, 19 and 20 (connect by
+link, the handed-password sign-in, disconnect), were not walked and are not claimed. The status
+above is the human's decision, not converge's finding.
+
