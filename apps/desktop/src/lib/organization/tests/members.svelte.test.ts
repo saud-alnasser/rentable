@@ -20,13 +20,16 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
  * drawn for the owner alone; neither is drawn on the owner's row or the reader's own; and the
  * two say what they are in both locales.
  *
- * And requirement 24's avatar: every row draws the first two characters of its username,
- * upper-cased, in the same disc the rail's account control draws.
+ * And requirement 21 of the redesign: a row names its member by the one username and nothing
+ * else, no address and no display name. And requirement 24's avatar: every row draws the first
+ * two characters of its username, upper-cased, in the same disc the rail's account control
+ * draws.
  *
  * And requirement 23 of the redesign: a rename is the row's own control, on every row but the
  * reader's own, and it opens one light form surface with one username field. The refusal it
  * draws is the sentence Rust's `validate_username` carries, read off the source here so the two
- * cannot drift; the invite form reads the same key once ticket 15 moves it onto the shared rule.
+ * cannot drift; the invite form and the walk's name step read the same sentence through the
+ * shared schema in `organization/username-form.ts`.
  *
  * No submit is fired: a superforms SPA submit reaches SvelteKit's `applyAction`, which this
  * runner does not carry. The refusal is reached the way a person first meets it, by leaving the
@@ -135,6 +138,31 @@ test('a member without the act sees no removal at all', () => {
 	expect(removeControls()).toBe(0);
 	expect(lockOutControls()).toBe(0);
 	expect(renameControls()).toBe(0);
+});
+
+// criterion 21: the row names its member by the username, and by nothing else.
+test('each row names its member by the username and carries no address or display name, in both locales', () => {
+	for (const locale of ['en', 'ar'] as const) {
+		loadLocale(locale);
+		setLocale(locale);
+
+		const rendered = list({}, locale === 'ar' ? 'rtl' : 'ltr');
+		const named = Array.from(document.querySelectorAll('[data-member-username]')).map((node) =>
+			node.textContent?.trim()
+		);
+
+		expect(named, locale).toEqual(['olivia', 'ada', 'sami']);
+
+		for (const row of Array.from(document.querySelectorAll('[data-member]'))) {
+			// one name on the row, and no line under it that would hold a second one.
+			expect(row.querySelectorAll('[data-member-username]'), locale).toHaveLength(1);
+			expect(row.textContent, locale).not.toContain('@');
+		}
+
+		rendered.unmount();
+	}
+
+	setLocale('en');
 });
 
 // criterion 24: each row's avatar carries its member's initials, read off the username.

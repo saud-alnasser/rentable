@@ -69,3 +69,28 @@ test('neither locale tells somebody the disconnect revoked anything', () => {
 		);
 	}
 });
+
+// requirement 25 of effort 824: the organization page names what it is for. The invitations
+// section is titled as pending accounts, since an account is made at invite and pending until
+// its first sign-in; the page is a route, which no runner here renders, so the title is read
+// here. The link section's sentence is read on the rendered section in
+// `organization/tests/organization-link.svelte.test.ts`.
+test('both locales title the invitations section as pending accounts, written rather than copied', () => {
+	assert.match(en.organization.dashboard.pendingAccounts, /^pending accounts$/);
+	assert.match(ar.organization.dashboard.pendingAccounts, /الحسابات المعلّقة/);
+	assert.notEqual(
+		ar.organization.dashboard.pendingAccounts,
+		en.organization.dashboard.pendingAccounts
+	);
+	assert.match(en.organization.dashboard.noPendingAccounts, /pending accounts/);
+	assert.match(ar.organization.dashboard.noPendingAccounts, /حسابات معلّقة/);
+});
+
+// requirement 22: what an invitation shows afterwards is three things, and the sentence that
+// nothing was sent names all three, in both locales.
+test('both locales say the link, the username and the password are handed over by hand', () => {
+	assert.match(en.organization.dashboard.cannotSend, /link, the username and the password/);
+	assert.match(ar.organization.dashboard.cannotSend, /الرابط واسم المستخدم وكلمة المرور/);
+	assert.match(en.organization.dashboard.inviteDescription, /username/);
+	assert.match(ar.organization.dashboard.inviteDescription, /اسم المستخدم/);
+});

@@ -6,7 +6,8 @@
 		dismissInvited,
 		organizationDialog,
 		resetOrganizationDialogs,
-		showInvited
+		showInvited,
+		type InvitedCopy
 	} from '$lib/organization/dialogs.svelte';
 	import {
 		useCreateWorkspace,
@@ -42,9 +43,9 @@
 	const session = $derived(stateQuery.data?.session ?? null);
 	const isOwner = $derived(session?.role === 'owner');
 
-	let copied = $state<'link' | 'password' | null>(null);
+	let copied = $state<InvitedCopy | null>(null);
 
-	// a new result is a new pair to copy, whether it came from the invite here or from a reset
+	// a new result is a new three to copy, whether it came from the invite here or from a reset
 	// raised on the page, so the mark follows the result rather than the act that made it.
 	$effect(() => {
 		void organizationDialog.invited;
@@ -63,7 +64,7 @@
 		}
 	};
 
-	const copy = async (what: 'link' | 'password', value: string) => {
+	const copy = async (what: InvitedCopy, value: string) => {
 		try {
 			await navigator.clipboard.writeText(value);
 			copied = what;

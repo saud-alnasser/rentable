@@ -6,6 +6,8 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { useStartup } from '$lib/layout/startup-context';
+	import OrganizationDisconnect from '$lib/organization/component/disconnect.svelte';
 	import OrganizationInvitations from '$lib/organization/component/invitations.svelte';
 	import OrganizationMembers from '$lib/organization/component/members.svelte';
 	import OrganizationLink from '$lib/organization/component/organization-link.svelte';
@@ -13,6 +15,7 @@
 	import OrganizationWorkspaces from '$lib/organization/component/workspaces.svelte';
 	import { openOrganizationDialog, showInvited } from '$lib/organization/dialogs.svelte';
 	import {
+		useDisconnectOrganization,
 		useFetchInvitations,
 		useFetchMembers,
 		useFetchOrganizationState,
@@ -27,7 +30,7 @@
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 
 	/**
-	 * The administration dashboard: who is in, who is invited, and the workspaces.
+	 * The administration dashboard: who is in, the pending accounts, and the workspaces.
 	 *
 	 * **What a person may do here is what their verified row carries**, read off the session the
 	 * shell holds, and every control is refused again in Rust on the same row. Inviting is drawn
@@ -43,9 +46,16 @@
 	 * came to read. A reset made from the members list shows its link and password in the same
 	 * panel an invitation does.
 	 *
+	 * **Disconnect is the last section, and it leaves the page.** It forgets the organization on
+	 * this machine after one confirm (requirement 20): the shell signs the person out and deletes
+	 * every replica, and the startup unit then reads where the machine stands and raises the
+	 * screen a machine with nothing shows, the same path the first run and the no-workspace
+	 * surface take back into the shell. The wall offers the same act while signed out.
+	 *
 	 * **No loading branch and no empty branch, for the reason the workspace page gives**: a page
 	 * inside the shell is drawn past admission, so the session is there before this is.
 	 */
+	const startup = useStartup();
 	const stateQuery = useFetchOrganizationState();
 	const membersQuery = useFetchMembers();
 	const invitationsQuery = useFetchInvitations();
@@ -53,6 +63,7 @@
 	const revokeInvitation = useRevokeInvitation();
 	const removeMember = useRemoveMember();
 	const renameMember = useRenameMember();
+	const disconnectOrganization = useDisconnectOrganization();
 
 	const session = $derived(stateQuery.data?.session ?? null);
 	const isOwner = $derived(session?.role === 'owner');
@@ -133,6 +144,16 @@
 			revoking = null;
 		}
 	};
+
+	/**
+	 * the disconnect, once confirmed: the shell forgets the organization, and the startup unit
+	 * reads where the machine stands and raises the first screen. A refusal is said by the shared
+	 * handler and rethrown so the confirm stays open on it.
+	 */
+	const disconnect = async () => {
+		await disconnectOrganization.mutateAsync();
+		void startup.standingChanged();
+	};
 </script>
 
 {#if session}
@@ -184,7 +205,7 @@
 				<Separator />
 
 				<Field.Set>
-					<Field.Legend>{$LL.organization.dashboard.invitations()}</Field.Legend>
+					<Field.Legend>{$LL.organization.dashboard.pendingAccounts()}</Field.Legend>
 					<OrganizationInvitations
 						invitations={invitationsQuery.data ?? []}
 						members={membersQuery.data ?? []}
@@ -228,6 +249,16 @@
 						: isOwner
 							? $LL.layout.workspaceMenu.workspaceRefusedAuthority()
 							: $LL.layout.workspaceMenu.workspaceRefusedOwner()}
+				/>
+			</Field.Set>
+
+			<Separator />
+
+			<Field.Set>
+				<Field.Legend>{$LL.layout.signIn.disconnect()}</Field.Legend>
+				<OrganizationDisconnect
+					organizationName={session.organizationName}
+					onDisconnect={disconnect}
 				/>
 			</Field.Set>
 		</Field.Group>

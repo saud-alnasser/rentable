@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
@@ -22,16 +22,19 @@ import Providers from './providers.svelte';
  * And since effort 824: every step carries exactly one way back, in the card's corner, whose
  * arrow mirrors for a reader going right to left; every step says where it is; the connect step
  * is a list of three glyphed facts with the dashboard action inside the first; a machine that
- * already holds the authority opens the connect step granted; the third step is the shared
- * workspace field; the primaries carry their verb and the fields their subject.
+ * already holds the authority opens the connect step granted; the name step asks for the
+ * owner's username beside the name and the password, refused under the one rule every username
+ * field reads; the third step is the shared workspace field; the primaries carry their verb and
+ * the fields their subject.
  *
  * **The subject needs two providers above it**, which is why `./providers.svelte` is the wrapper:
  * the corner control draws a tooltip, and the surface's spinner reads the string contract.
  *
  * **No submit is fired here.** A superforms SPA submit under this runner reaches SvelteKit's
  * `applyAction` through `use:enhance`, which the vitest environment does not supply, so the
- * third step is asserted on its fields and on the schema `setup.test.ts` pins, not on a rendered
- * create.
+ * steps are asserted on their fields and on the schemas `setup.test.ts` pins, not on a rendered
+ * create. A refusal is reached the way a person first meets it, by leaving the field, which is
+ * client-side validation and needs no submit.
  */
 
 const noop = () => {};
@@ -77,19 +80,53 @@ const addonBefore = (name: string) => {
 	return addon as HTMLElement;
 };
 
-test('the naming step presents exactly two fields: the name and a password', () => {
+test('the naming step presents exactly three fields: the name, a username and a password', () => {
 	loadLocale('en');
 	setLocale('en');
 	walk('name');
 
 	const inputs = inputsOnScreen();
 
-	expect(inputs.map((input) => input.getAttribute('name')).sort()).toEqual(['name', 'password']);
+	// in the order the description gives them, which is the order a person meets them.
+	expect(inputs.map((input) => input.getAttribute('name'))).toEqual([
+		'name',
+		'username',
+		'password'
+	]);
 	expect(inputs.find((input) => input.name === 'password')?.type).toBe('password');
 	expect(screen.getByText(en.organization.setup.nameLabel)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.usernameLabel)).toBeDefined();
 	expect(screen.getByText(en.organization.setup.passwordLabel)).toBeDefined();
 	expect(screen.getByText(en.organization.setup.passwordFloor)).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.create })).toBeDefined();
+	expect(document.querySelector('[data-setup-fields]')?.getAttribute('data-setup-fields')).toBe(
+		'name,username,password'
+	);
+});
+
+// criterion 21: the owner's username is refused on the field with the one sentence the invite
+// and rename dialogs refuse with, since all three read `organization/username-form.ts`.
+test('a username outside the rules is refused on the name step with the one sentence every form reads', async () => {
+	loadLocale('en');
+	setLocale('en');
+	walk('name');
+
+	const input = document.querySelector<HTMLInputElement>('input[name="username"]')!;
+
+	await fireEvent.input(input, { target: { value: 'sa' } });
+	await fireEvent.focusOut(input);
+
+	await waitFor(() => {
+		expect(screen.getByRole('alert').textContent).toBe(en.organization.dashboard.usernameRules);
+	});
+	expect(input.getAttribute('aria-invalid')).toBe('true');
+
+	await fireEvent.input(input, { target: { value: 'sami staff' } });
+	await fireEvent.focusOut(input);
+
+	await waitFor(() => {
+		expect(screen.getByRole('alert').textContent).toBe(en.organization.dashboard.usernameRules);
+	});
 });
 
 test('the connect step asks for nothing and says what has to be known first', () => {
@@ -288,13 +325,13 @@ test('the connect, continue and create buttons carry a glyph before their label'
 
 // effort 824, requirement 15: each field carries its subject ahead of the input, muted so it does
 // not outweigh the label (*Balance weight and contrast*, Refactoring UI p.56).
-test('the name, password and workspace fields carry a muted leading glyph through the input group', () => {
+test('the name, username, password and workspace fields carry a muted leading glyph through the input group', () => {
 	loadLocale('en');
 	setLocale('en');
 
 	const naming = walk('name');
 
-	for (const name of ['name', 'password']) {
+	for (const name of ['name', 'username', 'password']) {
 		const addon = addonBefore(name);
 
 		expect(addon.querySelector('svg'), name).not.toBeNull();
@@ -335,12 +372,14 @@ test('the walk renders in arabic with the same fields on each step', () => {
 
 	const naming = walk('name', {}, 'rtl');
 
-	expect(
-		inputsOnScreen()
-			.map((input) => input.getAttribute('name'))
-			.sort()
-	).toEqual(['name', 'password']);
+	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
+		'name',
+		'username',
+		'password'
+	]);
 	expect(screen.getByText(ar.organization.setup.nameLabel)).toBeDefined();
+	expect(screen.getByText(ar.organization.setup.usernameLabel)).toBeDefined();
+	expect(ar.organization.setup.usernameLabel).not.toBe(en.organization.setup.usernameLabel);
 	expect(screen.getByRole('button', { name: ar.organization.setup.create })).toBeDefined();
 	expect(screen.getAllByRole('button', { name: ar.organization.setup.back })).toHaveLength(1);
 	naming.unmount();

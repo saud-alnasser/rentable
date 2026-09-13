@@ -18,7 +18,7 @@ and this file is the vocabulary and the boundaries a change has to keep.
 **Organization**:
 One database on the owner's Turso account, `org-<id>`, holding seven tables: the organization,
 its members, its workspaces, the grants, the certificates, the invitations and the migration
-lease. Every name and address in it is sealed under the content key; every authority field is
+lease. Every username in it is sealed under the content key; every authority field is
 signed along a chain rooted at a key the join link pins. Every member's machine keeps a replica.
 _Avoid_: "the control plane" and "the account" for it. There is no service of ours, and the
 account is Turso's.

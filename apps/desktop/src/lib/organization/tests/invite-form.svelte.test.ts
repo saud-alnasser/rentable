@@ -1,5 +1,5 @@
 import { DesignProvider } from '@rentable/design/strings.js';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
@@ -14,15 +14,19 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 /**
  * THE INVITATION, RENDERED
  *
- * What the invite dialog puts in the document once it is open: the fields, each leading with its
- * subject's glyph, and once an invitation is made, the link and the password as machine strings
- * with their copy controls, and the statement that nothing was sent, which is requirement 7's
- * half that a screen can get wrong on its own. And the workspace section's two shapes: the
- * owner's opener, and the sentence everybody else gets instead of it.
+ * What the invite dialog puts in the document once it is open: a username, a role and the
+ * workspaces, and no email or display name, since making an account is what an invitation is
+ * (requirement 22 of effort 824); the username field leading with its subject's glyph and
+ * refused under the one rule every username field reads; and once an invitation is made, the
+ * organization's link, the username and the password as machine strings with a copy control
+ * each, and the statement that nothing was sent, which is the half a screen can get wrong on
+ * its own. And the workspace section's two shapes: the owner's opener, and the sentence
+ * everybody else gets instead of it.
  *
  * The dialog is rendered open with its props, and no submit is fired: a superforms SPA submit
  * reaches SvelteKit's `applyAction`, which this runner does not carry, so what is asserted is what
- * was rendered and what the controls call.
+ * was rendered and what the controls call. A refusal is reached the way a person first meets
+ * it, by leaving the field.
  */
 
 const noop = () => {};
@@ -105,8 +109,40 @@ test('the dialog opens on the shared form surface and asks for a username, a rol
 		.sort();
 
 	expect(names).toEqual(['username', 'workspaceIds']);
+	// requirement 22: the username is the whole of the identity; nothing asks for an address or a
+	// display name, by name or by kind.
+	expect(document.querySelector('[name=email]')).toBeNull();
+	expect(document.querySelector('[name=displayName]')).toBeNull();
+	expect(document.querySelector('input[type=email]')).toBeNull();
+	expect(screen.getByText(en.organization.dashboard.username)).toBeDefined();
+	expect(screen.getByText(en.organization.dashboard.role)).toBeDefined();
 	expect(screen.getByText('Riyadh')).toBeDefined();
 	expect(screen.queryByText(en.organization.dashboard.cannotSend)).toBeNull();
+});
+
+// criterion 21: the username is refused on the field with the sentence the walk's name step and
+// the rename dialog refuse with, since all three read `organization/username-form.ts`.
+test('a username outside the rules is refused with the one sentence every form reads', async () => {
+	loadLocale('en');
+	setLocale('en');
+	form();
+
+	const input = document.querySelector<HTMLInputElement>('input[name=username]')!;
+
+	await fireEvent.input(input, { target: { value: 'sa' } });
+	await fireEvent.focusOut(input);
+
+	await waitFor(() => {
+		expect(screen.getByRole('alert').textContent).toBe(en.organization.dashboard.usernameRules);
+	});
+	expect(input.getAttribute('aria-invalid')).toBe('true');
+
+	await fireEvent.input(input, { target: { value: 'sami@example.com' } });
+	await fireEvent.focusOut(input);
+
+	await waitFor(() => {
+		expect(screen.getByRole('alert').textContent).toBe(en.organization.dashboard.usernameRules);
+	});
 });
 
 // requirement 15 of the redesign: the username field leads with its subject's glyph inside the
@@ -144,7 +180,7 @@ test("an administrator who is not the owner is told administrators are the owner
 	expect(screen.getByText(en.organization.dashboard.administratorsAreTheOwners)).toBeDefined();
 });
 
-test('what an invitation made is shown once, as machine strings, with both copy controls and the statement that nothing was sent, until dismissed', async () => {
+test('what an invitation made is shown once, as machine strings, with a copy control each and the statement that nothing was sent, until dismissed', async () => {
 	loadLocale('en');
 	setLocale('en');
 
@@ -156,16 +192,36 @@ test('what an invitation made is shown once, as machine strings, with both copy 
 	expect(screen.getByText(en.organization.dashboard.cannotSend)).toBeDefined();
 
 	const link = document.querySelector('[data-invited-link]');
+	const username = document.querySelector('[data-invited-username]');
 	const password = document.querySelector('[data-invited-password]');
 
 	expect(link?.textContent).toBe(invited.joinLink);
 	expect(link?.getAttribute('dir')).toBe('ltr');
+	expect(username?.textContent).toBe(invited.username);
+	expect(username?.getAttribute('dir')).toBe('ltr');
 	expect(password?.textContent).toBe(invited.generatedPassword);
 	expect(password?.getAttribute('dir')).toBe('ltr');
+	// the three are named: the organization's link, the username, the generated password.
+	expect(screen.getByText(en.organization.dashboard.linkTitle)).toBeDefined();
+	expect(screen.getByText(en.organization.dashboard.username)).toBeDefined();
+	expect(screen.getByText(en.organization.dashboard.generatedPassword)).toBeDefined();
+	// requirement 22: three copy controls, one for each.
 	expect(screen.getByRole('button', { name: en.organization.setup.copyLink })).toBeDefined();
+	expect(
+		screen.getByRole('button', { name: en.organization.dashboard.copyUsername })
+	).toBeDefined();
 	expect(
 		screen.getByRole('button', { name: en.organization.dashboard.copyPassword })
 	).toBeDefined();
+	expect(
+		Array.from(document.querySelectorAll('[data-invited] button')).filter((button) =>
+			[
+				en.organization.setup.copyLink,
+				en.organization.dashboard.copyUsername,
+				en.organization.dashboard.copyPassword
+			].includes(button.textContent?.trim() ?? '')
+		)
+	).toHaveLength(3);
 	expect(screen.getByText(en.organization.dashboard.passwordOnce)).toBeDefined();
 	// the panel does not carry the form's own description: what is on screen is the result.
 	expect(screen.queryByText(en.organization.dashboard.inviteDescription)).toBeNull();
@@ -176,7 +232,7 @@ test('what an invitation made is shown once, as machine strings, with both copy 
 	expect(dismissed).toBe(1);
 });
 
-test('the copy controls hand back which of the two was copied', async () => {
+test('the copy controls hand back which of the three was copied', async () => {
 	loadLocale('en');
 	setLocale('en');
 
@@ -185,10 +241,31 @@ test('the copy controls hand back which of the two was copied', async () => {
 
 	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.copyLink }));
 	await fireEvent.click(
+		screen.getByRole('button', { name: en.organization.dashboard.copyUsername })
+	);
+	await fireEvent.click(
 		screen.getByRole('button', { name: en.organization.dashboard.copyPassword })
 	);
 
-	expect(copied).toEqual([`link:${invited.joinLink}`, `password:${invited.generatedPassword}`]);
+	expect(copied).toEqual([
+		`link:${invited.joinLink}`,
+		`username:${invited.username}`,
+		`password:${invited.generatedPassword}`
+	]);
+});
+
+test('the control that was pressed says so, and the other two do not', () => {
+	loadLocale('en');
+	setLocale('en');
+	form({ invited, copied: 'username' });
+
+	expect(
+		screen.getByRole('button', { name: en.organization.dashboard.usernameCopied })
+	).toBeDefined();
+	expect(screen.getByRole('button', { name: en.organization.setup.copyLink })).toBeDefined();
+	expect(
+		screen.getByRole('button', { name: en.organization.dashboard.copyPassword })
+	).toBeDefined();
 });
 
 // requirement 13's limit, at the moment it bites: a reset that could not restore a workspace says
@@ -213,18 +290,42 @@ test('a reset that could not restore a workspace names it, and an invitation say
 	expect(document.querySelector('[data-invited-unreachable]')).toBeNull();
 });
 
-test('the same panel in arabic says the same, and the two strings still read left to right', () => {
+test('the same panel in arabic says the same, and the three strings still read left to right', () => {
 	loadLocale('ar');
 	setLocale('ar');
 	form({ invited }, 'rtl');
 
 	expect(screen.getByText(ar.organization.dashboard.cannotSend)).toBeDefined();
+	expect(ar.organization.dashboard.cannotSend).not.toBe(en.organization.dashboard.cannotSend);
 	expect(document.querySelector('[data-slot=form-surface]')?.getAttribute('dir')).toBe('rtl');
 	expect(document.querySelector('[data-invited-link]')?.getAttribute('dir')).toBe('ltr');
+	expect(document.querySelector('[data-invited-username]')?.getAttribute('dir')).toBe('ltr');
 	expect(document.querySelector('[data-invited-password]')?.getAttribute('dir')).toBe('ltr');
+	expect(screen.getByRole('button', { name: ar.organization.setup.copyLink })).toBeDefined();
+	expect(
+		screen.getByRole('button', { name: ar.organization.dashboard.copyUsername })
+	).toBeDefined();
 	expect(
 		screen.getByRole('button', { name: ar.organization.dashboard.copyPassword })
 	).toBeDefined();
+
+	setLocale('en');
+});
+
+test('and the fields in arabic are the same three, named in their own words', () => {
+	loadLocale('ar');
+	setLocale('ar');
+	form({}, 'rtl');
+
+	const names = inputsOnScreen()
+		.map((input) => input.getAttribute('name'))
+		.filter((name) => name !== null)
+		.sort();
+
+	expect(names).toEqual(['username', 'workspaceIds']);
+	expect(screen.getByText(ar.organization.dashboard.username)).toBeDefined();
+	expect(screen.getByText(ar.organization.dashboard.role)).toBeDefined();
+	expect(ar.organization.dashboard.username).not.toBe(en.organization.dashboard.username);
 
 	setLocale('en');
 });

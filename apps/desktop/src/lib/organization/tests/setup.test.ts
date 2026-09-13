@@ -13,6 +13,7 @@ import {
 	fieldsPresented,
 	statementsBeforeCreation
 } from '$lib/organization/setup.ts';
+import { USERNAME_MAX, USERNAME_MIN, usernameSchema } from '$lib/organization/username-form.ts';
 import { workspaceFormSchema } from '$lib/organization/workspace-form.ts';
 import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
 
@@ -21,15 +22,16 @@ import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
  *
  * Criterion 3 of effort 819: **the only text entered into this application is the
  * organization's name and a password**, and since effort 824 the first workspace's name, which
- * is a person's own word for their records exactly as the organization's name is, and not a
- * Turso detail. The screen draws its fields from `SETUP_WALK`, so this is an assertion over
- * what the screen presents and not over a list kept beside it, and a field added later that
- * asks for a slug, a group name, a token or a URL fails here before it reaches review.
+ * is a person's own word for their records exactly as the organization's name is, and the
+ * owner's username, which is their own name for themselves (requirement 21); neither is a Turso
+ * detail. The screen draws its fields from `SETUP_WALK`, so this is an assertion over what the
+ * screen presents and not over a list kept beside it, and a field added later that asks for a
+ * slug, a group name, a token or a URL fails here before it reaches review.
  * `setup-walk.svelte.test.ts` asserts the same thing over the rendered DOM.
  */
 
-test('the only fields the walk presents are the name, a password and the workspace', () => {
-	assert.deepEqual(fieldsPresented(), ['name', 'password', 'workspace']);
+test('the only fields the walk presents are the name, a username, a password and the workspace', () => {
+	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password', 'workspace']);
 });
 
 // a workspace's name is the person's word, like the organization's, so it passes here the way
@@ -69,6 +71,19 @@ test('the walk is three steps, and the workspace is the last', () => {
 	);
 	assert.deepEqual(SETUP_WALK.at(-1)?.fields, ['workspace']);
 	assert.deepEqual(SETUP_WALK.at(-1)?.statements, []);
+});
+
+// effort 824, requirement 21: the owner sets their own username on the step that creates the
+// organization, beside its name and their password, and nowhere else.
+test('the name step asks for the name, the username and the password, in that order', () => {
+	const naming = SETUP_WALK.find((step) => step.step === 'name');
+
+	assert.deepEqual(naming?.fields, ['name', 'username', 'password']);
+	assert.equal(
+		SETUP_WALK.filter((step) => step.fields.includes('username')).length,
+		1,
+		'the username is asked for once'
+	);
 });
 
 /**
@@ -131,6 +146,50 @@ test('the succession item names turso as where a group moves, in both locales', 
 	assert.match(en.organization.setup.connectSuccession, /rentable does neither/i);
 	assert.match(ar.organization.setup.connectSuccession, /Turso/);
 	assert.match(ar.organization.setup.connectSuccession, /نقل/);
+});
+
+/**
+ * Requirement 21 of the redesign: the walk's `name` step, the invite dialog and the rename
+ * dialog each read the one username schema, so a username outside the rules is refused with
+ * the same sentence wherever it was typed. This pins the bounds and that sentence to the schema
+ * they all read; `members.svelte.test.ts` pins the English sentence to Rust's `USERNAME_RULES`,
+ * so the three forms, the router and the command cannot refuse the same name in two voices.
+ */
+test('a username outside the rules is refused with the one sentence every form reads', () => {
+	assert.equal(USERNAME_MIN, 3);
+	assert.equal(USERNAME_MAX, 32);
+
+	for (const locale of ['en', 'ar'] as const) {
+		loadLocale(locale);
+
+		const schema = usernameSchema(i18nObject(locale));
+		const rules = { en, ar }[locale].organization.dashboard.usernameRules;
+
+		for (const refused of [
+			'ab',
+			'a'.repeat(USERNAME_MAX + 1),
+			'sami staff',
+			'sami@example.com',
+			'سامي',
+			'   '
+		]) {
+			const outcome = schema.safeParse(refused);
+
+			assert.equal(outcome.success, false, `${locale}: ${JSON.stringify(refused)} is admitted`);
+			assert.ok(
+				outcome.error?.issues.every((issue) => issue.message === rules),
+				`${locale}: ${JSON.stringify(refused)} is refused in another voice`
+			);
+		}
+
+		// and the bounds themselves are admitted, trimmed, with the whole character set.
+		for (const admitted of ['abc', 'a'.repeat(USERNAME_MAX), ' Sami.Staff_2-b ']) {
+			const outcome = schema.safeParse(admitted);
+
+			assert.equal(outcome.success, true, `${locale}: ${JSON.stringify(admitted)} is refused`);
+			assert.equal(outcome.data, admitted.trim());
+		}
+	}
 });
 
 /**

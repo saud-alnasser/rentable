@@ -19,6 +19,9 @@ import type { Invited } from '$lib/platform/tauri';
 
 export type OrganizationDialogKind = 'invite' | 'workspace';
 
+/** the three things an invitation hands over, each with a copy control in the result panel. */
+export type InvitedCopy = 'link' | 'username' | 'password';
+
 export const organizationDialog = $state<{
 	/** which of the two is open, or neither. */
 	open: OrganizationDialogKind | null;

@@ -10,10 +10,15 @@
 	/**
 	 * The organization's own link, for the owner to share or keep.
 	 *
-	 * **The owner reads it any time, not only at setup.** An owner whose first machine is gone
-	 * restores from this link (requirement 6), so a link shown once and never again is a way to lose
-	 * the organization. It is drawn only where the dashboard already knows the reader is the owner,
-	 * and the command behind it refuses anyone else; the credential it carries is the owner's own.
+	 * **The link is half of the way in.** It connects a machine to the organization and admits
+	 * nobody by itself; a username and a password, made inside the application, are the other
+	 * half (requirements 18 and 25 of effort 824), and the sentence under the section says so.
+	 * The invite dialog hands the same link over beside the username and the generated password.
+	 *
+	 * **The owner reads it any time, not only at setup.** A link shown once and never again is a
+	 * way to lose the organization once the first machine is gone. It is drawn only where the
+	 * dashboard already knows the reader is the owner, and the command behind it refuses anyone
+	 * else; the credential it carries is the owner's own.
 	 */
 	let { isOwner }: { isOwner: boolean } = $props();
 
@@ -39,7 +44,9 @@
 
 <Field.Field orientation="vertical">
 	<Field.Content>
-		<Field.Description>{$LL.organization.dashboard.linkDescription()}</Field.Description>
+		<Field.Description data-link-description
+			>{$LL.organization.dashboard.linkDescription()}</Field.Description
+		>
 	</Field.Content>
 
 	{#if linkQuery.data}

@@ -125,6 +125,32 @@ export function useDisconnect(
 }
 
 /**
+ * forget the organization this machine holds: the shell signs out where somebody is in, deletes
+ * every replica here, empties the record and clears the Turso authority (requirement 20 of
+ * effort 824). Nothing on Turso is touched.
+ *
+ * **No invalidation here**, because what follows is the wall: the caller hands the outcome to
+ * the startup unit, which reads where the machine stands and raises the screen a machine with
+ * nothing shows, clearing the whole cache on the way. The one confirm before it runs is the
+ * screen's.
+ */
+export function useDisconnectOrganization(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.disconnected(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	return createMutation(() => ({
+		mutationFn: () => api.app.organization.disconnect(),
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
  * create the organization. The refusals a person can act on arrive as `BAD_REQUEST` and are
  * shown verbatim; everything else reads as an unexpected failure, which is the shared handler's
  * rule.

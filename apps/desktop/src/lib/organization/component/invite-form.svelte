@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { Invited, OrganizationWorkspace } from '$lib/platform/tauri';
+	import type { InvitedCopy } from '$lib/organization/dialogs.svelte';
+	import { usernameSchema } from '$lib/organization/username-form';
 	import FieldError from '@rentable/design/block/field-error.svelte';
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
@@ -19,20 +21,27 @@
 	import z from 'zod';
 
 	/**
-	 * Inviting a member: an address, a name, a role, the workspaces they belong to.
+	 * Making an account, which is what inviting is: a username, a role, the workspaces they hold.
 	 *
 	 * **On the shared form surface, heavy.** An invitation is a write, and every write here takes
-	 * `FormSurface` ([[rules/interface]], *Form surface*); four fields and a result panel are the
+	 * `FormSurface` ([[rules/interface]], *Form surface*); three fields and a result panel are the
 	 * heavy weight, declared rather than measured, so this is the edge sheet and it fills the
 	 * width below the breakpoint without swapping components under a half-typed form. It is
 	 * mounted once, in the shell, and opened from the rail's menu and from the organization page
 	 * alike; `organization/dialogs.svelte.ts` says why once is the number.
 	 *
+	 * **The username is the whole of the identity, under the one rule.** No address and no display
+	 * name: the member signs in with the username and nothing else names them (requirement 21 of
+	 * effort 824). The rule it is refused by is `organization/username-form.ts`, the same schema
+	 * the walk's `name` step and the rename dialog read, so a username refused here is refused
+	 * there with the same sentence.
+	 *
 	 * **What comes back is shown once, and the form says it cannot send it.** The application has
 	 * registered with no mail service and the spec forbids registering one on the customer's
-	 * behalf, so the link and the generated password are handed over by the person who invited,
-	 * and the two copy controls are what a person needs to do that. The password is on screen for
-	 * as long as this panel is, and nowhere afterwards.
+	 * behalf, so the organization's link, the username and the generated password are handed
+	 * over by the person who invited, and the three copy controls are what a person needs to do
+	 * that (requirement 22). The password is on screen for as long as this panel is, and nowhere
+	 * afterwards.
 	 *
 	 * **Inviting an administrator is the owner's**, because certifying one needs the organization
 	 * key; the role select offers it only to the owner, and the shell refuses it regardless.
@@ -68,17 +77,17 @@
 		isInviting: boolean;
 		/** what the last invitation made, shown until dismissed. */
 		invited: Invited | null;
-		/** which of the two was last copied, for the control to say so. */
-		copied: 'link' | 'password' | null;
+		/** which of the three was last copied, for the control to say so. */
+		copied: InvitedCopy | null;
 		onInvite: (username: string, role: 'administrator' | 'member', workspaceIds: string[]) => void;
-		onCopy: (what: 'link' | 'password', value: string) => void;
+		onCopy: (what: InvitedCopy, value: string) => void;
 		onDismiss: () => void;
 	} = $props();
 
 	// built when this component is, past the locale gate, for the reason
 	// `organization/workspace-form.ts` gives: the messages resolve against a locale.
 	const InviteSchema = z.object({
-		username: z.string().trim().min(1, { message: $LL.organization.dashboard.nameRequired() }),
+		username: usernameSchema($LL),
 		role: z.enum(['administrator', 'member']),
 		workspaceIds: z.array(z.string())
 	});
@@ -139,11 +148,11 @@
 	{#if invited}
 		<div class="space-y-4" data-invited>
 			<!-- the one notice this surface carries, because it is the one thing a person has to act
-			     on: nothing was sent, and the two things below are theirs to send. -->
+			     on: nothing was sent, and the three things below are theirs to send. -->
 			<Callout tone="warning">{$LL.organization.dashboard.cannotSend()}</Callout>
 
 			<div class="space-y-2">
-				<p class="text-sm font-medium">{$LL.organization.dashboard.linkLabel()}</p>
+				<p class="text-sm font-medium">{$LL.organization.dashboard.linkTitle()}</p>
 				<!-- machine strings, read left to right in both locales ([[rules/frontend]], *i18n*). -->
 				<code
 					dir="ltr"
@@ -160,6 +169,26 @@
 					{copied === 'link'
 						? $LL.organization.setup.linkCopied()
 						: $LL.organization.setup.copyLink()}
+				</Button>
+			</div>
+
+			<div class="space-y-2">
+				<p class="text-sm font-medium">{$LL.organization.dashboard.username()}</p>
+				<code
+					dir="ltr"
+					class="block rounded-md bg-muted px-3 py-2 font-mono text-sm select-all"
+					data-invited-username>{invited.username}</code
+				>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onclick={() => invited && onCopy('username', invited.username)}
+				>
+					<CopyIcon class="size-4" />
+					{copied === 'username'
+						? $LL.organization.dashboard.usernameCopied()
+						: $LL.organization.dashboard.copyUsername()}
 				</Button>
 			</div>
 
@@ -200,7 +229,7 @@
 		<div class="flex flex-col gap-4" data-invite-form>
 			<Form.Field form={superform} name="username" class="group relative">
 				<Form.Control>
-					<Form.Label>{$LL.common.labels.name()}</Form.Label>
+					<Form.Label>{$LL.organization.dashboard.username()}</Form.Label>
 					<InputGroup.Root class={insetControl} data-disabled={isInviting || undefined}>
 						<InputGroup.Addon>
 							<UserIcon />
@@ -209,7 +238,7 @@
 							name="username"
 							autocomplete="off"
 							bind:value={$form.username}
-							placeholder={$LL.common.labels.name()}
+							placeholder={$LL.organization.dashboard.username()}
 							disabled={isInviting}
 							aria-invalid={$errors.username ? 'true' : undefined}
 							{...$constraints.username}

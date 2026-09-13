@@ -13,6 +13,7 @@
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import PlugIcon from '@lucide/svelte/icons/plug';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import UserIcon from '@lucide/svelte/icons/user';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
@@ -27,6 +28,7 @@
 		type SetupStatement,
 		type SetupStep
 	} from '../setup';
+	import { usernameSchema } from '../username-form';
 	import { workspaceFormSchema } from '../workspace-form';
 	import BackGlyph from './back-glyph.svelte';
 	import WorkspaceFields from './workspace-fields.svelte';
@@ -34,9 +36,9 @@
 	/**
 	 * The first run, on the shared application surface.
 	 *
-	 * **Three steps and three fields.** Connecting the Turso account, which is a consent in the
-	 * browser and nothing typed here; naming the organization and choosing a password; and naming
-	 * the first workspace, which is where the walk ends: creating it signs the owner in to it and
+	 * **Three steps and four fields.** Connecting the Turso account, which is a consent in the
+	 * browser and nothing typed here; naming the organization, the owner's own username and their
+	 * password; and naming the first workspace, which is where the walk ends: creating it signs the owner in to it and
 	 * the application opens on it. There is no step showing the join link, because the link lives
 	 * on the organization page and a screen asking a person to continue past it was one screen too
 	 * many. `../setup.ts` describes the walk as data and this component draws each step from that
@@ -106,7 +108,7 @@
 		/** the corner control, on the steps before the organization exists; the route decides where
 		 * each goes back to. */
 		onBack: () => void;
-		onCreate: (name: string, password: string) => Promise<void>;
+		onCreate: (name: string, username: string, password: string) => Promise<void>;
 		onCreateWorkspace: (name: string) => Promise<void>;
 	} = $props();
 
@@ -194,27 +196,30 @@
 	);
 
 	// **Built here rather than at module load**, for the reason `workspace/component/rename-form`
-	// gives: the messages resolve against a locale, and at module load there is none.
+	// gives: the messages resolve against a locale, and at module load there is none. The
+	// username's rule is the shared one the invite and rename dialogs read, so the owner's is
+	// refused with the sentence every other username is.
 	const SetupSchema = z.object({
 		name: z
 			.string()
 			.trim()
 			.min(1, { message: $LL.organization.setup.nameRequired() })
 			.max(ORGANIZATION_NAME_LIMIT, { message: $LL.organization.setup.nameTooLong() }),
+		username: usernameSchema($LL),
 		password: z.string().min(PASSWORD_FLOOR, { message: $LL.organization.setup.passwordTooShort() })
 	});
 
 	type SetupForm = z.infer<typeof SetupSchema>;
 
 	let { form, constraints, errors, enhance, ...rest } = superForm<SetupForm>(
-		defaults(zod4(z.object({ name: z.string(), password: z.string() }))),
+		defaults(zod4(z.object({ name: z.string(), username: z.string(), password: z.string() }))),
 		{
 			SPA: true,
 			validators: zod4(SetupSchema),
 			onUpdate: async ({ form }) => {
 				if (!form.valid) return;
 
-				await onCreate(form.data.name.trim(), form.data.password);
+				await onCreate(form.data.name.trim(), form.data.username.trim(), form.data.password);
 			}
 		}
 	);
@@ -331,7 +336,7 @@
 				{/if}
 			</div>
 		{:else if step === 'name'}
-			<!-- the two fields, and they are the two the walk description names. A third would
+			<!-- the three fields, and they are the three the walk description names. A fourth would
 			     render here only if it were added to `SETUP_WALK`, which is what the test reads.
 			     Each carries its subject's glyph ahead of the input, muted so it does not outweigh
 			     the label (*Balance weight and contrast*, p.56); the error still marks the label
@@ -353,6 +358,29 @@
 									disabled={isCreating}
 									aria-invalid={$errors.name ? 'true' : undefined}
 									{...$constraints.name}
+								/>
+							</InputGroup.Root>
+						</Form.Control>
+						<FieldError />
+					</Form.Field>
+				{/if}
+
+				{#if fields.includes('username')}
+					<Form.Field form={superform} name="username" class="group relative">
+						<Form.Control>
+							<Form.Label>{$LL.organization.setup.usernameLabel()}</Form.Label>
+							<InputGroup.Root data-disabled={isCreating || undefined}>
+								<InputGroup.Addon>
+									<UserIcon />
+								</InputGroup.Addon>
+								<InputGroup.Input
+									name="username"
+									bind:value={$form.username}
+									placeholder={$LL.organization.setup.usernameLabel()}
+									autocomplete="username"
+									disabled={isCreating}
+									aria-invalid={$errors.username ? 'true' : undefined}
+									{...$constraints.username}
 								/>
 							</InputGroup.Root>
 						</Form.Control>

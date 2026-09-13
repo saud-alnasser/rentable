@@ -2373,13 +2373,17 @@ type RootTranslation = {
 			 */
 			nameTitle: string
 			/**
-			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​n​a​m​e​,​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​t​h​a​t​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​i​t​.​ ​n​o​t​h​i​n​g​ ​e​l​s​e​ ​i​s​ ​t​y​p​e​d​ ​h​e​r​e​.
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​n​a​m​e​,​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​,​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​t​h​a​t​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​i​t​.​ ​n​o​t​h​i​n​g​ ​e​l​s​e​ ​i​s​ ​t​y​p​e​d​ ​h​e​r​e​.
 			 */
 			nameDescription: string
 			/**
 			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​n​a​m​e
 			 */
 			nameLabel: string
+			/**
+			 * y​o​u​r​ ​u​s​e​r​n​a​m​e
+			 */
+			usernameLabel: string
 			/**
 			 * g​i​v​e​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​ ​n​a​m​e​.
 			 */
@@ -2473,9 +2477,9 @@ type RootTranslation = {
 			 */
 			members: string
 			/**
-			 * i​n​v​i​t​a​t​i​o​n​s
+			 * p​e​n​d​i​n​g​ ​a​c​c​o​u​n​t​s
 			 */
-			invitations: string
+			pendingAccounts: string
 			/**
 			 * w​o​r​k​s​p​a​c​e​s
 			 */
@@ -2485,21 +2489,9 @@ type RootTranslation = {
 			 */
 			inviteTitle: string
 			/**
-			 * a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​m​a​k​e​s​ ​t​h​e​i​r​ ​p​l​a​c​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​y​o​u​ ​h​a​n​d​ ​t​h​e​m​ ​t​h​e​ ​l​i​n​k​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​r​s​e​l​f​.
+			 * a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​m​a​k​e​s​ ​t​h​e​i​r​ ​a​c​c​o​u​n​t​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​:​ ​a​ ​u​s​e​r​n​a​m​e​,​ ​a​ ​r​o​l​e​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​h​o​l​d​.​ ​y​o​u​ ​h​a​n​d​ ​t​h​e​m​ ​t​h​e​ ​l​i​n​k​,​ ​t​h​e​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​r​s​e​l​f​.
 			 */
 			inviteDescription: string
-			/**
-			 * e​m​a​i​l
-			 */
-			email: string
-			/**
-			 * e​n​t​e​r​ ​a​n​ ​e​m​a​i​l​ ​a​d​d​r​e​s​s​.
-			 */
-			emailInvalid: string
-			/**
-			 * g​i​v​e​ ​t​h​e​m​ ​a​ ​n​a​m​e​.
-			 */
-			nameRequired: string
 			/**
 			 * r​o​l​e
 			 */
@@ -2517,13 +2509,9 @@ type RootTranslation = {
 			 */
 			invite: string
 			/**
-			 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​.​ ​c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​b​e​l​o​w​ ​a​n​d​ ​h​a​n​d​ ​t​h​e​m​ ​t​o​ ​t​h​e​ ​p​e​r​s​o​n​ ​y​o​u​r​s​e​l​f​;​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​s​h​o​w​n​ ​o​n​c​e​.
+			 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​.​ ​c​o​p​y​ ​t​h​e​ ​l​i​n​k​,​ ​t​h​e​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​b​e​l​o​w​ ​a​n​d​ ​h​a​n​d​ ​t​h​e​m​ ​t​o​ ​t​h​e​ ​p​e​r​s​o​n​ ​y​o​u​r​s​e​l​f​;​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​s​h​o​w​n​ ​o​n​c​e​.
 			 */
 			cannotSend: string
-			/**
-			 * j​o​i​n​ ​l​i​n​k
-			 */
-			linkLabel: string
 			/**
 			 * g​e​n​e​r​a​t​e​d​ ​p​a​s​s​w​o​r​d
 			 */
@@ -2540,6 +2528,14 @@ type RootTranslation = {
 			 * p​a​s​s​w​o​r​d​ ​c​o​p​i​e​d​.
 			 */
 			passwordCopied: string
+			/**
+			 * c​o​p​y​ ​u​s​e​r​n​a​m​e
+			 */
+			copyUsername: string
+			/**
+			 * u​s​e​r​n​a​m​e​ ​c​o​p​i​e​d​.
+			 */
+			usernameCopied: string
 			/**
 			 * d​o​n​e
 			 */
@@ -2577,7 +2573,7 @@ type RootTranslation = {
 			 */
 			linkTitle: string
 			/**
-			 * t​h​e​ ​l​i​n​k​ ​t​h​a​t​ ​a​d​d​s​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​t​h​e​ ​o​n​e​ ​y​o​u​ ​r​e​s​t​o​r​e​ ​i​t​ ​f​r​o​m​ ​i​f​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​l​o​s​t​.​ ​i​t​ ​c​a​r​r​i​e​s​ ​a​ ​r​e​a​d​-​o​n​l​y​ ​v​i​e​w​ ​o​f​ ​t​h​e​ ​d​i​r​e​c​t​o​r​y​,​ ​s​o​ ​s​h​a​r​e​ ​i​t​ ​t​h​e​ ​w​a​y​ ​y​o​u​ ​w​o​u​l​d​ ​a​ ​p​a​s​s​w​o​r​d​.
+			 * t​h​e​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​t​o​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​;​ ​w​i​t​h​ ​a​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​,​ ​i​t​ ​i​s​ ​t​h​e​ ​w​a​y​ ​i​n​.​ ​i​t​ ​c​a​r​r​i​e​s​ ​a​ ​r​e​a​d​-​o​n​l​y​ ​v​i​e​w​ ​o​f​ ​t​h​e​ ​d​i​r​e​c​t​o​r​y​,​ ​s​o​ ​s​h​a​r​e​ ​i​t​ ​t​h​e​ ​w​a​y​ ​y​o​u​ ​w​o​u​l​d​ ​a​ ​p​a​s​s​w​o​r​d​.
 			 */
 			linkDescription: string
 			/**
@@ -2641,9 +2637,9 @@ type RootTranslation = {
 			 */
 			standingConsumed: string
 			/**
-			 * n​o​ ​i​n​v​i​t​a​t​i​o​n​s​.
+			 * n​o​ ​p​e​n​d​i​n​g​ ​a​c​c​o​u​n​t​s​.
 			 */
-			noInvitations: string
+			noPendingAccounts: string
 			/**
 			 * r​e​v​o​k​e
 			 */
@@ -2664,6 +2660,18 @@ type RootTranslation = {
 			 * r​e​a​d​ ​o​n​l​y
 			 */
 			accessReadOnly: string
+			/**
+			 * d​i​s​c​o​n​n​e​c​t​i​n​g​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​:​ ​y​o​u​ ​a​r​e​ ​s​i​g​n​e​d​ ​o​u​t​,​ ​e​v​e​r​y​ ​c​o​p​y​ ​o​f​ ​i​t​ ​a​n​d​ ​o​f​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​ ​k​e​p​t​ ​h​e​r​e​ ​i​s​ ​d​e​l​e​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​u​t​h​o​r​i​t​y​ ​i​s​ ​c​l​e​a​r​e​d​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​u​r​s​o​ ​i​s​ ​t​o​u​c​h​e​d​,​ ​a​n​d​ ​t​h​e​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​g​a​i​n​.​ ​t​o​ ​r​e​a​c​h​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​d​i​s​c​o​n​n​e​c​t​ ​a​n​d​ ​c​o​n​n​e​c​t​ ​t​o​ ​i​t​.
+			 */
+			disconnectForgets: string
+			/**
+			 * d​i​s​c​o​n​n​e​c​t
+			 */
+			disconnect: string
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​n​o​ ​l​o​n​g​e​r​ ​h​o​l​d​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+			 */
+			disconnected: string
 		}
 		/**
 		 * d​i​s​c​o​n​n​e​c​t​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
@@ -5040,13 +5048,17 @@ export type TranslationFunctions = {
 			 */
 			nameTitle: () => LocalizedString
 			/**
-			 * the organization's name, and the password that unlocks your place in it. nothing else is typed here.
+			 * the organization's name, your username, and the password that unlocks your place in it. nothing else is typed here.
 			 */
 			nameDescription: () => LocalizedString
 			/**
 			 * organization name
 			 */
 			nameLabel: () => LocalizedString
+			/**
+			 * your username
+			 */
+			usernameLabel: () => LocalizedString
 			/**
 			 * give the organization a name.
 			 */
@@ -5140,9 +5152,9 @@ export type TranslationFunctions = {
 			 */
 			members: () => LocalizedString
 			/**
-			 * invitations
+			 * pending accounts
 			 */
-			invitations: () => LocalizedString
+			pendingAccounts: () => LocalizedString
 			/**
 			 * workspaces
 			 */
@@ -5152,21 +5164,9 @@ export type TranslationFunctions = {
 			 */
 			inviteTitle: () => LocalizedString
 			/**
-			 * an invitation makes their place in the organization. you hand them the link and the password yourself.
+			 * an invitation makes their account in the organization: a username, a role and the workspaces they hold. you hand them the link, the username and the password yourself.
 			 */
 			inviteDescription: () => LocalizedString
-			/**
-			 * email
-			 */
-			email: () => LocalizedString
-			/**
-			 * enter an email address.
-			 */
-			emailInvalid: () => LocalizedString
-			/**
-			 * give them a name.
-			 */
-			nameRequired: () => LocalizedString
 			/**
 			 * role
 			 */
@@ -5184,13 +5184,9 @@ export type TranslationFunctions = {
 			 */
 			invite: () => LocalizedString
 			/**
-			 * rentable sends nothing. copy the link and the password below and hand them to the person yourself; the password is shown once.
+			 * rentable sends nothing. copy the link, the username and the password below and hand them to the person yourself; the password is shown once.
 			 */
 			cannotSend: () => LocalizedString
-			/**
-			 * join link
-			 */
-			linkLabel: () => LocalizedString
 			/**
 			 * generated password
 			 */
@@ -5207,6 +5203,14 @@ export type TranslationFunctions = {
 			 * password copied.
 			 */
 			passwordCopied: () => LocalizedString
+			/**
+			 * copy username
+			 */
+			copyUsername: () => LocalizedString
+			/**
+			 * username copied.
+			 */
+			usernameCopied: () => LocalizedString
 			/**
 			 * done
 			 */
@@ -5244,7 +5248,7 @@ export type TranslationFunctions = {
 			 */
 			linkTitle: () => LocalizedString
 			/**
-			 * the link that adds this organization on another machine, and the one you restore it from if this machine is lost. it carries a read-only view of the directory, so share it the way you would a password.
+			 * the link connects another machine to this organization; with a username and a password, it is the way in. it carries a read-only view of the directory, so share it the way you would a password.
 			 */
 			linkDescription: () => LocalizedString
 			/**
@@ -5304,9 +5308,9 @@ export type TranslationFunctions = {
 			 */
 			standingConsumed: () => LocalizedString
 			/**
-			 * no invitations.
+			 * no pending accounts.
 			 */
-			noInvitations: () => LocalizedString
+			noPendingAccounts: () => LocalizedString
 			/**
 			 * revoke
 			 */
@@ -5327,6 +5331,18 @@ export type TranslationFunctions = {
 			 * read only
 			 */
 			accessReadOnly: () => LocalizedString
+			/**
+			 * disconnecting forgets the organization on this machine: you are signed out, every copy of it and of its workspaces kept here is deleted, and the turso authority is cleared. nothing on turso is touched, and the link connects this machine again. to reach another organization, disconnect and connect to it.
+			 */
+			disconnectForgets: () => LocalizedString
+			/**
+			 * disconnect
+			 */
+			disconnect: () => LocalizedString
+			/**
+			 * this machine no longer holds the organization.
+			 */
+			disconnected: () => LocalizedString
 		}
 		/**
 		 * disconnect turso account

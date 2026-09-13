@@ -15,8 +15,9 @@
 	/**
 	 * Who is in the organization, as the replica says once every row has been verified.
 	 *
-	 * Names and addresses arrive opened by the vault this process holds; a role is what the
-	 * member's signed row says, never what this machine remembers. The reissue control is the
+	 * A username is the whole of what names a member, and it arrives opened by the vault this
+	 * process holds; there is no address and no display name beside it (requirement 21 of effort
+	 * 824). A role is what the member's signed row says, never what this machine remembers. The reissue control is the
 	 * reset (requirement 13): a fresh vault under a fresh password, built from what the reissuer
 	 * already holds, offered to whoever carries `inviteMember` and never for the owner.
 	 *
@@ -113,9 +114,7 @@
 					</Avatar.Root>
 					<div class="grid min-w-0 gap-1">
 						<div class="flex min-w-0 flex-wrap items-center gap-2">
-							<p class="truncate text-sm font-medium">
-								{member.username || roleLabel(member.role)}
-							</p>
+							<p class="truncate text-sm font-medium" data-member-username>{member.username}</p>
 							<Badge variant="secondary">{roleLabel(member.role)}</Badge>
 							{#if member.mustChangePassword}
 								<Badge variant="outline">{$LL.organization.dashboard.notYetSignedIn()}</Badge>

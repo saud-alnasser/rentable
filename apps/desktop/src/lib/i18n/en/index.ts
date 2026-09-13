@@ -767,8 +767,9 @@ const en = {
 			consentFailed: 'turso refused the consent.',
 			nameTitle: 'name it',
 			nameDescription:
-				"the organization's name, and the password that unlocks your place in it. nothing else is typed here.",
+				"the organization's name, your username, and the password that unlocks your place in it. nothing else is typed here.",
 			nameLabel: 'organization name',
+			usernameLabel: 'your username',
 			nameRequired: 'give the organization a name.',
 			nameTooLong: 'that name is too long.',
 			passwordLabel: 'your password',
@@ -800,26 +801,24 @@ const en = {
 		},
 		dashboard: {
 			members: 'members',
-			invitations: 'invitations',
+			pendingAccounts: 'pending accounts',
 			workspaces: 'workspaces',
 			inviteTitle: 'invite somebody',
 			inviteDescription:
-				'an invitation makes their place in the organization. you hand them the link and the password yourself.',
-			email: 'email',
-			emailInvalid: 'enter an email address.',
-			nameRequired: 'give them a name.',
+				'an invitation makes their account in the organization: a username, a role and the workspaces they hold. you hand them the link, the username and the password yourself.',
 			role: 'role',
 			administratorsAreTheOwners: 'only the owner can invite an administrator.',
 			noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
 			invite: 'invite',
 			cannotSend:
-				'rentable sends nothing. copy the link and the password below and hand them to the person yourself; the password is shown once.',
-			linkLabel: 'join link',
+				'rentable sends nothing. copy the link, the username and the password below and hand them to the person yourself; the password is shown once.',
 			generatedPassword: 'generated password',
 			passwordOnce:
 				'this is the only time the password is shown. they change it on their first sign-in.',
 			copyPassword: 'copy password',
 			passwordCopied: 'password copied.',
+			copyUsername: 'copy username',
+			usernameCopied: 'username copied.',
 			done: 'done',
 			notYetSignedIn: 'not yet signed in',
 			resetPassword: 'reset password',
@@ -832,7 +831,7 @@ const en = {
 			renamed: 'the member was renamed.',
 			linkTitle: 'organization link',
 			linkDescription:
-				'the link that adds this organization on another machine, and the one you restore it from if this machine is lost. it carries a read-only view of the directory, so share it the way you would a password.',
+				'the link connects another machine to this organization; with a username and a password, it is the way in. it carries a read-only view of the directory, so share it the way you would a password.',
 			authorityTitle: 'turso account',
 			authorityDescription:
 				"this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.",
@@ -852,12 +851,16 @@ const en = {
 			standingOpen: 'open',
 			standingLapsed: 'lapsed',
 			standingConsumed: 'used',
-			noInvitations: 'no invitations.',
+			noPendingAccounts: 'no pending accounts.',
 			revoke: 'revoke',
 			revoked: 'the invitation was revoked.',
 			noWorkspaces: 'no workspace yet.',
 			accessFull: 'full access',
-			accessReadOnly: 'read only'
+			accessReadOnly: 'read only',
+			disconnectForgets:
+				'disconnecting forgets the organization on this machine: you are signed out, every copy of it and of its workspaces kept here is deleted, and the turso authority is cleared. nothing on turso is touched, and the link connects this machine again. to reach another organization, disconnect and connect to it.',
+			disconnect: 'disconnect',
+			disconnected: 'this machine no longer holds the organization.'
 		},
 		disconnectAction: 'disconnect turso account',
 		disconnectDescription:

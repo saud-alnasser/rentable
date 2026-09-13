@@ -14,20 +14,16 @@ import { procedure, router } from '$lib/api/trpc';
 import z from 'zod';
 
 import { ORGANIZATION_NAME_LIMIT, PASSWORD_FLOOR } from './setup';
+import { USERNAME_MAX, USERNAME_MIN, USERNAME_PATTERN } from './username-form';
 
 /**
- * a username as requirement 21 of effort 824 bounds it: three to thirty-two characters of
- * letters, digits, `.`, `_` and `-`. Rust holds the rule and the sentence
+ * a username as requirement 21 of effort 824 bounds it, read off the one definition the forms
+ * share (`./username-form.ts`). Rust holds the rule and the sentence
  * (`invite::validate_username`); this is the earlier refusal, before the round trip, and it says
  * nothing a form would show. Whether a username is taken is Rust's alone, since usernames are
  * sealed and only an open vault can compare them.
  */
-const USERNAME = z
-	.string()
-	.trim()
-	.min(3)
-	.max(32)
-	.regex(/^[A-Za-z0-9._-]+$/);
+const USERNAME = z.string().trim().min(USERNAME_MIN).max(USERNAME_MAX).regex(USERNAME_PATTERN);
 
 /**
  * ORGANIZATION ROUTER
@@ -79,10 +75,9 @@ export const organization = router({
 	 * Create the organization from the three things the setup walk collects.
 	 *
 	 * **The bounds are the walk's own, stated here so a caller is refused before a round trip.**
-	 * The form refuses the same on the field the reader typed in (the username's field is
-	 * ticket 15's), and Rust refuses them again before it asks anything of Turso; this is the
-	 * middle one, and it exists because a caller that is not the form should still be turned away
-	 * before the host is reached.
+	 * The form refuses the same on the field the reader typed in, and Rust refuses them again
+	 * before it asks anything of Turso; this is the middle one, and it exists because a caller
+	 * that is not the form should still be turned away before the host is reached.
 	 */
 	create: procedure.public
 		.input(

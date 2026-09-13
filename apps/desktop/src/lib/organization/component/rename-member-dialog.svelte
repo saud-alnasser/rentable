@@ -5,6 +5,7 @@
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { usernameSchema } from '$lib/organization/username-form';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import UserPenIcon from '@lucide/svelte/icons/user-pen';
 	import { defaults, superForm } from 'sveltekit-superforms';
@@ -19,12 +20,13 @@
 	 * an administrator and never on the reader's own row, since an account's name is given and
 	 * changed by an administrator and not by its holder; Rust refuses the same on the signed row.
 	 *
-	 * **The rule is requirement 21's, refused on the field first.** Three to thirty-two characters
-	 * of letters, digits, `.`, `_` and `-`, with the one sentence Rust's `validate_username`
-	 * carries as `USERNAME_RULES`, so a username refused here is refused by the command with the
-	 * same words. The router's `USERNAME` holds the same rule between the two. Whether a username
-	 * is taken is Rust's alone, because usernames are sealed and only an open vault can compare
-	 * them; that refusal arrives as `BAD_REQUEST` and the shared handler shows it.
+	 * **The rule is requirement 21's, refused on the field first.** It is the one definition in
+	 * `organization/username-form.ts`, the same schema the walk's `name` step and the invite
+	 * dialog read, with the one sentence Rust's `validate_username` carries as `USERNAME_RULES`,
+	 * so a username refused here is refused by the command and by every other field with the
+	 * same words. Whether a username is taken is Rust's alone, because usernames are sealed and
+	 * only an open vault can compare them; that refusal arrives as `BAD_REQUEST` and the shared
+	 * handler shows it.
 	 *
 	 * **The field leads with its subject's glyph, muted**, and the rename carries its verb's, as
 	 * the invite form's do. The mutation is the host's: this component owns the `superForm` and
@@ -48,15 +50,7 @@
 
 	// built when this component is, past the locale gate, for the reason
 	// `organization/workspace-form.ts` gives: the message resolves against a locale.
-	const rules = $LL.organization.dashboard.usernameRules();
-	const RenameSchema = z.object({
-		username: z
-			.string()
-			.trim()
-			.min(3, { message: rules })
-			.max(32, { message: rules })
-			.regex(/^[A-Za-z0-9._-]+$/, { message: rules })
-	});
+	const RenameSchema = z.object({ username: usernameSchema($LL) });
 
 	type RenameForm = z.infer<typeof RenameSchema>;
 
