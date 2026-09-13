@@ -71,8 +71,7 @@ const SCHEMA: [&str; 7] = [
         \"created_at\" INTEGER NOT NULL)",
     "CREATE TABLE IF NOT EXISTS \"member\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
-        \"email_sealed\" BLOB NOT NULL, \
-        \"display_name_sealed\" BLOB NOT NULL, \
+        \"username_sealed\" BLOB NOT NULL, \
         \"public_key\" BLOB NOT NULL, \
         \"sealed_secret_key\" BLOB NOT NULL, \
         \"sealed_content_key\" BLOB NOT NULL, \
@@ -152,8 +151,9 @@ pub struct OrganizationRecord {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MemberRecord {
     pub id: String,
-    pub email_sealed: Vec<u8>,
-    pub display_name_sealed: Vec<u8>,
+    /// the username, sealed under the content key by the caller. The one thing that names a
+    /// member: there is no address and no display name beside it (effort 824, requirement 21).
+    pub username_sealed: Vec<u8>,
     /// the member's keypair as the vault shapes it: the public half, the sealed secret half, and
     /// the derivation that seal used.
     pub vault: Vault,
@@ -449,15 +449,14 @@ impl OrganizationStore {
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"member\" \
-                 (\"id\", \"email_sealed\", \"display_name_sealed\", \"public_key\", \
+                 (\"id\", \"username_sealed\", \"public_key\", \
                   \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
                   \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
                   \"signature\", \"created_at\", \"updated_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(member.id.clone()),
-                    turso::Value::Blob(member.email_sealed.clone()),
-                    turso::Value::Blob(member.display_name_sealed.clone()),
+                    turso::Value::Blob(member.username_sealed.clone()),
                     turso::Value::Blob(member.vault.public_key.to_vec()),
                     turso::Value::Blob(member.vault.sealed_secret_key.clone()),
                     turso::Value::Blob(member.sealed_content_key.clone()),
@@ -555,7 +554,7 @@ impl OrganizationStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT \"id\", \"email_sealed\", \"display_name_sealed\", \"public_key\", \
+                "SELECT \"id\", \"username_sealed\", \"public_key\", \
                         \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
                         \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
                         \"signature\", \"created_at\", \"updated_at\" \
@@ -567,11 +566,11 @@ impl OrganizationStore {
 
         while let Some(row) = rows.next().await? {
             let id = text(&row, 0)?;
-            let public_key = fixed::<PUBLIC_KEY_BYTES>(&row, 3, "public_key")?;
-            let role = text(&row, 8)?;
-            let permissions = integer(&row, 9)?;
-            let certificate_id = text(&row, 11)?;
-            let signature = blob(&row, 12)?;
+            let public_key = fixed::<PUBLIC_KEY_BYTES>(&row, 2, "public_key")?;
+            let role = text(&row, 7)?;
+            let permissions = integer(&row, 8)?;
+            let certificate_id = text(&row, 10)?;
+            let signature = blob(&row, 11)?;
 
             verified(
                 organization_verifying_key,
@@ -591,20 +590,19 @@ impl OrganizationStore {
                 certificate_id,
                 MemberRecord {
                     id,
-                    email_sealed: blob(&row, 1)?,
-                    display_name_sealed: blob(&row, 2)?,
+                    username_sealed: blob(&row, 1)?,
                     vault: Vault {
                         public_key,
-                        sealed_secret_key: blob(&row, 4)?,
-                        kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 6, "kdf_salt")?,
-                        kdf_params: KdfParams::parse(&text(&row, 7)?)?,
+                        sealed_secret_key: blob(&row, 3)?,
+                        kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 5, "kdf_salt")?,
+                        kdf_params: KdfParams::parse(&text(&row, 6)?)?,
                     },
-                    sealed_content_key: blob(&row, 5)?,
+                    sealed_content_key: blob(&row, 4)?,
                     role,
                     permissions,
-                    must_change_password: integer(&row, 10)? != 0,
-                    created_at: integer(&row, 13)?,
-                    updated_at: integer(&row, 14)?,
+                    must_change_password: integer(&row, 9)? != 0,
+                    created_at: integer(&row, 12)?,
+                    updated_at: integer(&row, 13)?,
                 },
             ));
         }
@@ -1332,7 +1330,7 @@ mod tests {
             seal_content(&self.content_key, column, plaintext.as_bytes()).expect("failed to seal")
         }
 
-        fn member(&self, id: &str, email: &str, display_name: &str, role: &str) -> MemberRecord {
+        fn member(&self, id: &str, username: &str, role: &str) -> MemberRecord {
             let vault = create_vault("a password", test_cost()).expect("a vault");
             let sealed_content_key =
                 seal_to_public_key(&vault.public_key, &self.content_key.to_bytes())
@@ -1340,8 +1338,7 @@ mod tests {
 
             MemberRecord {
                 id: id.to_string(),
-                email_sealed: self.sealed("member.email_sealed", email),
-                display_name_sealed: self.sealed("member.display_name_sealed", display_name),
+                username_sealed: self.sealed("member.username_sealed", username),
                 vault,
                 sealed_content_key,
                 role: role.to_string(),
@@ -1403,13 +1400,8 @@ mod tests {
         let signer = chain.signer();
 
         for member in [
-            chain.member(
-                "member-owner",
-                "owner@acme.example",
-                "Olivia Owner",
-                "owner",
-            ),
-            chain.member("member-staff", "staff@acme.example", "Sami Staff", "member"),
+            chain.member("member-owner", "olivia.owner", "owner"),
+            chain.member("member-staff", "sami.staff", "member"),
         ] {
             store
                 .write_member(&signer, &member)
@@ -1553,11 +1545,11 @@ mod tests {
     // criterion 15: what a link and a read-only credential yield
 
     /// Given only what a join link carries, the organization id, its verifying key and the remote,
-    /// and a credential that reads every row, no address, name or workspace name is legible.
-    /// Asserted against populated rows rather than an empty table, over the raw bytes of every
-    /// column of every table.
+    /// and a credential that reads every row, no username, organization name or workspace name is
+    /// legible. Asserted against populated rows rather than an empty table, over the raw bytes of
+    /// every column of every table.
     #[tokio::test]
-    async fn a_link_holder_reads_no_email_no_display_name_and_no_workspace_name() {
+    async fn a_link_holder_reads_no_username_no_organization_name_and_no_workspace_name() {
         let directory = scratch("link");
         let store = open(&directory).await;
         let chain = Chain::new();
@@ -1565,10 +1557,10 @@ mod tests {
         populated(&store, &chain).await;
 
         let secrets = [
-            "owner@acme.example",
-            "staff@acme.example",
-            "Olivia",
-            "Sami",
+            "olivia.owner",
+            "sami.staff",
+            "olivia",
+            "sami",
             "North Properties",
             "South Properties",
             "Acme Rentals",
@@ -1621,17 +1613,22 @@ mod tests {
 
         assert_eq!(members.len(), 2);
         assert!(
-            open_content(&stranger, "member.email_sealed", &members[0].email_sealed).is_err(),
-            "an address opened without the organization's content key"
+            open_content(
+                &stranger,
+                "member.username_sealed",
+                &members[0].username_sealed
+            )
+            .is_err(),
+            "a username opened without the organization's content key"
         );
         assert_eq!(
             open_content(
                 &chain.content_key,
-                "member.email_sealed",
-                &members[0].email_sealed
+                "member.username_sealed",
+                &members[0].username_sealed
             )
-            .expect("the owner's address"),
-            b"owner@acme.example"
+            .expect("the owner's username"),
+            b"olivia.owner"
         );
     }
 
@@ -1808,7 +1805,7 @@ mod tests {
         store
             .write_member(
                 &chain.signer(),
-                &chain.member("member-owner", "o@acme", "O", "owner"),
+                &chain.member("member-owner", "olivia", "owner"),
             )
             .await
             .expect("the owner member");
@@ -1837,7 +1834,7 @@ mod tests {
         store
             .write_member(
                 &admin_signer,
-                &chain.member("member-x", "x@acme", "X", "member"),
+                &chain.member("member-x", "member-x", "member"),
             )
             .await
             .expect("member-x");
@@ -1950,7 +1947,7 @@ mod tests {
                     key: &admin_key,
                     certificate: &admin_certificate.revoked("1757100000000"),
                 },
-                &chain.member("member-y", "y@acme", "Y", "member"),
+                &chain.member("member-y", "member-y", "member"),
             )
             .await
             .expect("the hostile write");
@@ -2159,11 +2156,11 @@ mod tests {
         assert_eq!(
             open_content(
                 &chain.content_key,
-                "member.display_name_sealed",
-                &members[1].display_name_sealed
+                "member.username_sealed",
+                &members[1].username_sealed
             )
-            .expect("the sealed name did not survive the round trip"),
-            b"Sami Staff"
+            .expect("the sealed username did not survive the round trip"),
+            b"sami.staff"
         );
 
         eprintln!(

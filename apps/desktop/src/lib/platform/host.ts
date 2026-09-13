@@ -241,14 +241,14 @@ export type OrganizationSession = {
 	organizationId: string;
 	organizationName: string;
 	memberId: string;
-	email: string;
-	displayName: string;
+	/** the one thing that names this member; there is no address and no display name beside it. */
+	username: string;
 	role: string;
 	permissions: number;
 	mustChangePassword: boolean;
 	workspaces: OrganizationWorkspace[];
-	/** the owner's name: whom a member is told to tell when the account needs attention. */
-	ownerDisplayName: string;
+	/** the owner's username: whom a member is told to tell when the account needs attention. */
+	ownerUsername: string;
 };
 
 /** where a link's invitation stands, as the join screen is told before it asks for anything. */
@@ -295,11 +295,10 @@ export type OrganizationState = {
 	holdsTursoAuthority: boolean;
 };
 
-/** one member as the dashboard lists them. Names opened on the other side; no key, no credential. */
+/** one member as the dashboard lists them. The username opened on the other side; no key, no credential. */
 export type OrganizationMember = {
 	id: string;
-	email: string;
-	displayName: string;
+	username: string;
 	role: string;
 	permissions: number;
 	mustChangePassword: boolean;
@@ -425,7 +424,7 @@ export type Host = {
 		 * collects. Refuses, creating nothing, where no consent has been granted, and signs the
 		 * owner in where it succeeds.
 		 */
-		create: (name: string, password: string) => Promise<OrganizationCreated>;
+		create: (name: string, username: string, password: string) => Promise<OrganizationCreated>;
 		/** which organizations this machine has joined, and who is signed in. */
 		getState: () => Promise<OrganizationState>;
 		/**
@@ -458,11 +457,10 @@ export type Host = {
 		 */
 		join: (link: string, password: string) => Promise<OrganizationState>;
 		/**
-		 * restore a place in the organization its own link names, by email and password, on a
-		 * machine that has joined it before or never. The email is what a person offers where
-		 * they were invited with one; an owner typed none at the first run and offers none.
+		 * restore a place in the organization its own link names, by username and password, on a
+		 * machine that has joined it before or never.
 		 */
-		restore: (link: string, email: string, password: string) => Promise<OrganizationState>;
+		restore: (link: string, username: string, password: string) => Promise<OrganizationState>;
 		/**
 		 * after an owner repeats the consent on a new machine: record which account it is over,
 		 * so the machine can act as the owner's again. Rejects where no consent stands.
@@ -512,8 +510,7 @@ export type Host = {
 			 * once. The application sends neither; the administrator hands them over.
 			 */
 			invite: (
-				email: string,
-				displayName: string,
+				username: string,
 				role: 'administrator' | 'member',
 				workspaceIds: string[]
 			) => Promise<Invited>;

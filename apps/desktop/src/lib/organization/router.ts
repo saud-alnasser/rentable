@@ -15,6 +15,20 @@ import z from 'zod';
 import { ORGANIZATION_NAME_LIMIT, PASSWORD_FLOOR } from './setup';
 
 /**
+ * a username as requirement 21 of effort 824 bounds it: three to thirty-two characters of
+ * letters, digits, `.`, `_` and `-`. Rust holds the rule and the sentence
+ * (`invite::validate_username`); this is the earlier refusal, before the round trip, and it says
+ * nothing a form would show. Whether a username is taken is Rust's alone, since usernames are
+ * sealed and only an open vault can compare them.
+ */
+const USERNAME = z
+	.string()
+	.trim()
+	.min(3)
+	.max(32)
+	.regex(/^[A-Za-z0-9._-]+$/);
+
+/**
  * ORGANIZATION ROUTER
  *
  * an organization on a Turso account the customer owns, mounted by the app router at
@@ -45,22 +59,24 @@ export const organization = router({
 		})
 	},
 	/**
-	 * Create the organization from the two things the setup walk collects.
+	 * Create the organization from the three things the setup walk collects.
 	 *
 	 * **The bounds are the walk's own, stated here so a caller is refused before a round trip.**
-	 * The form refuses the same two on the field the reader typed in, and Rust refuses them again
-	 * before it asks anything of Turso; this is the middle one, and it exists because a caller
-	 * that is not the form should still be turned away before the host is reached.
+	 * The form refuses the same on the field the reader typed in (the username's field is
+	 * ticket 15's), and Rust refuses them again before it asks anything of Turso; this is the
+	 * middle one, and it exists because a caller that is not the form should still be turned away
+	 * before the host is reached.
 	 */
 	create: procedure.public
 		.input(
 			z.object({
 				name: z.string().trim().min(1).max(ORGANIZATION_NAME_LIMIT),
+				username: USERNAME,
 				password: z.string().min(PASSWORD_FLOOR)
 			})
 		)
 		.mutation(async ({ input, ctx }): Promise<OrganizationCreated> => {
-			return ctx.host.organization.create(input.name, input.password);
+			return ctx.host.organization.create(input.name, input.username, input.password);
 		}),
 	/**
 	 * A workspace: created by the owner, opened by whoever holds a grant, granted and removed by
@@ -124,19 +140,13 @@ export const organization = router({
 			.permitted('inviteMember')
 			.input(
 				z.object({
-					email: z.string().trim().min(3).max(254).includes('@'),
-					displayName: z.string().trim().min(1).max(ORGANIZATION_NAME_LIMIT),
+					username: USERNAME,
 					role: z.enum(['administrator', 'member']),
 					workspaceIds: z.array(z.string().trim().min(1))
 				})
 			)
 			.mutation(async ({ input, ctx }): Promise<Invited> => {
-				return ctx.host.organization.member.invite(
-					input.email,
-					input.displayName,
-					input.role,
-					input.workspaceIds
-				);
+				return ctx.host.organization.member.invite(input.username, input.role, input.workspaceIds);
 			}),
 		/**
 		 * Removal, at one of two speeds. **`lockOut` defaults to false here as well as in Rust**,

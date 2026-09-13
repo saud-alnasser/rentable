@@ -74,7 +74,7 @@
 			(candidate) => candidate.id === removing?.memberId
 		);
 
-		return member ? member.displayName || member.email : removing.memberId;
+		return member ? member.username : removing.memberId;
 	});
 
 	const lockOutDescription = $derived.by(() => {

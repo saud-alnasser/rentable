@@ -63,9 +63,9 @@ pub struct OrganizationState {
 }
 
 /// Create an organization on the consented Turso account, with this machine's person as its
-/// owner, from the two things the setup walk collects, and sign them in to it.
+/// owner, from the three things the setup walk collects, and sign them in to it.
 ///
-/// **Neither of the two crosses back, and nothing else crosses at all.** The password is turned
+/// **None of the three crosses back, and nothing else crosses at all.** The password is turned
 /// into a vault here and dropped; the organization key and the owner's signing key are derived
 /// and never stored; the Platform API token is read from the keyring where the consent filed it.
 /// What the web layer is told is the organization's id, the join link, and whether the rows have
@@ -78,6 +78,7 @@ pub struct OrganizationState {
 pub async fn organization_create(
     app_state: tauri::State<'_, AppState>,
     name: String,
+    username: String,
     password: String,
 ) -> Result<OrganizationCreated, Error> {
     let platform_token = setup::authority()?;
@@ -102,6 +103,7 @@ pub async fn organization_create(
         &database_path,
         CreateOrganization {
             name: &name,
+            username: &username,
             password: &password,
         },
         setup::SHIPPING_KDF,
@@ -573,8 +575,7 @@ pub async fn organization_renew_due(app_state: tauri::State<'_, AppState>) -> Re
 #[tauri::command]
 pub async fn member_invite(
     app_state: tauri::State<'_, AppState>,
-    email: String,
-    display_name: String,
+    username: String,
     role: String,
     workspace_ids: Vec<String>,
 ) -> Result<Invited, Error> {
@@ -588,8 +589,7 @@ pub async fn member_invite(
         member,
         &link,
         Invitation {
-            email: &email,
-            display_name: &display_name,
+            username: &username,
             role: &role,
             workspace_ids: &workspace_ids,
         },
@@ -895,14 +895,14 @@ pub async fn organization_join(
     organization_state_get(app_state).await
 }
 
-/// Restore a place in the organization its own link names, by the person's email and password,
+/// Restore a place in the organization its own link names, by the person's username and password,
 /// and sign them in. An owner on a new machine walks this and then repeats the consent; a member
 /// walks it and is done. Refused while somebody is signed in here, as joining is.
 #[tauri::command]
 pub async fn organization_restore(
     app_state: tauri::State<'_, AppState>,
     link: String,
-    email: String,
+    username: String,
     password: String,
 ) -> Result<OrganizationState, Error> {
     if app_state.member.read().await.is_some() {
@@ -920,7 +920,7 @@ pub async fn organization_restore(
             &store,
             remote_sync.store_mut(),
             &link,
-            &email,
+            &username,
             &password,
             &credential,
             timestamp::now(),

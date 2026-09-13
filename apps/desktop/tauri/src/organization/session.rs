@@ -133,16 +133,16 @@ pub struct SessionFacts {
     pub organization_id: String,
     pub organization_name: String,
     pub member_id: String,
-    pub email: String,
-    pub display_name: String,
+    /// the one thing that names this member, opened with the content key.
+    pub username: String,
     pub role: String,
     pub permissions: i64,
     pub must_change_password: bool,
     /// the workspaces this member holds a grant on, and only those.
     pub workspaces: Vec<WorkspaceFacts>,
-    /// the owner's name, opened with the content key: whom a member is told to tell when the
-    /// organization's account needs attention (requirement 25), and nothing else about them.
-    pub owner_display_name: String,
+    /// the owner's username, opened with the content key: whom a member is told to tell when
+    /// the organization's account needs attention (requirement 25), and nothing else about them.
+    pub owner_username: String,
 }
 
 /// Open `joined`'s member row in `store` with `password`.
@@ -338,14 +338,14 @@ pub async fn facts_of(
         None => String::new(),
     };
 
-    let owner_display_name = match members
+    let owner_username = match members
         .iter()
         .find(|candidate| candidate.role == super::permission::OWNER)
     {
         Some(owner) => opened(
             &session.content_key,
-            "member.display_name_sealed",
-            &owner.display_name_sealed,
+            "member.username_sealed",
+            &owner.username_sealed,
         )?,
         None => String::new(),
     };
@@ -353,17 +353,12 @@ pub async fn facts_of(
     Ok(SessionFacts {
         organization_id: session.organization_id.clone(),
         organization_name,
-        owner_display_name,
+        owner_username,
         member_id: member.id.clone(),
-        email: opened(
+        username: opened(
             &session.content_key,
-            "member.email_sealed",
-            &member.email_sealed,
-        )?,
-        display_name: opened(
-            &session.content_key,
-            "member.display_name_sealed",
-            &member.display_name_sealed,
+            "member.username_sealed",
+            &member.username_sealed,
         )?,
         role: member.role.clone(),
         permissions: member.permissions,
@@ -489,6 +484,7 @@ mod tests {
             &directory.join("app.db"),
             CreateOrganization {
                 name: "Acme",
+                username: "olivia",
                 password: PASSWORD,
             },
             test_cost(),
@@ -517,7 +513,8 @@ mod tests {
         assert!(!session.must_change_password);
         assert_eq!(facts.organization_name, "Acme");
         assert_eq!(facts.role, "owner");
-        assert_eq!(facts.email, "");
+        assert_eq!(facts.username, "olivia");
+        assert_eq!(facts.owner_username, "olivia");
         assert!(
             facts.workspaces.is_empty(),
             "a first run has no workspace yet"
@@ -694,16 +691,10 @@ mod tests {
                 &signer,
                 &MemberRecord {
                     id: "me-there".to_string(),
-                    email_sealed: seal_content(
+                    username_sealed: seal_content(
                         &content_key,
-                        "member.email_sealed",
-                        b"me@b.example",
-                    )
-                    .expect("sealed"),
-                    display_name_sealed: seal_content(
-                        &content_key,
-                        "member.display_name_sealed",
-                        b"Me",
+                        "member.username_sealed",
+                        b"me.there",
                     )
                     .expect("sealed"),
                     sealed_content_key: seal_to_public_key(
@@ -774,8 +765,7 @@ mod tests {
         let facts = facts_of(&store_b, &b).await.expect("the facts");
 
         assert_eq!(facts.organization_name, "Beta");
-        assert_eq!(facts.email, "me@b.example");
-        assert_eq!(facts.display_name, "Me");
+        assert_eq!(facts.username, "me.there");
 
         // and one password does not open the other organization.
         assert!(

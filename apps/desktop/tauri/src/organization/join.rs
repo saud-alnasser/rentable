@@ -27,16 +27,16 @@
 //!
 //! **The organization's own link restores a place in it** (requirement 6). A link with no
 //! invitation half is what the first run produced and what an owner keeps; opened on a machine
-//! that has joined nothing, it finds the organization, and the person's email and password open
-//! their place in it, as they would on the machine that made it. Nothing is restored from
+//! that has joined nothing, it finds the organization, and the person's username and password
+//! open their place in it, as they would on the machine that made it. Nothing is restored from
 //! anywhere: the rows are pulled with the link's read-only credential, the vault opens with the
-//! password, and every credential unseals from the grants sealed to that vault. The email is
-//! the row to look for and nothing more: addresses are sealed, so the password is tried against
-//! each member's vault in turn and the address the opened row carries is compared to the one
-//! typed; a mismatch is refused as the value not opening, because a password that opens
-//! somebody else's vault is not a fact to hand out. An owner typed no address at the first run
-//! and has none on their row, so the address is what a person offers where they have one, and
-//! the password alone is the whole of the proof either way. A removed member's row is not tried.
+//! password, and every credential unseals from the grants sealed to that vault. The username is
+//! the row to look for and nothing more: usernames are sealed, so the password is tried against
+//! each member's vault in turn and the username the opened row carries is compared to the one
+//! typed, without case; a mismatch is refused as the value not opening, because a password that
+//! opens somebody else's vault is not a fact to hand out. A removed member's row is not tried.
+//! *The owner's row carried no address before effort 824 gave every member a username, and an
+//! empty identifier used to pass for theirs; every row names its member now, so nothing does.*
 //! The Turso authority an owner held is not in any row and is not restored from anywhere: they
 //! repeat the consent, and `organization_reconnect_authority` records the account again.
 //!
@@ -269,8 +269,8 @@ pub async fn join(
     Ok(session)
 }
 
-/// Restore a place in the organization from its own link: the email names the row to look for,
-/// the password opens it, and the machine records the organization as the link spelled it.
+/// Restore a place in the organization from its own link: the username names the row to look
+/// for, the password opens it, and the machine records the organization as the link spelled it.
 ///
 /// `store` is a replica opened with the link's read-only credential and pulled, and `credential`
 /// its slot, which `sign_in` fills from the member's grant on the organization database. Works
@@ -280,18 +280,18 @@ pub async fn restore(
     store: &OrganizationStore,
     machine: &mut Persisted<RemoteSyncStore>,
     link: &JoinLink,
-    email: &str,
+    username: &str,
     password: &str,
     credential: &CredentialSlot,
     now: i64,
 ) -> Result<MemberSession, Error> {
     let verifying_key = link.verifying_key_bytes()?;
-    let wanted = email.trim().to_lowercase();
+    let wanted = username.trim().to_lowercase();
     let members = store.members(&verifying_key).await?;
 
-    // the password against each vault in turn: addresses are sealed, so nothing narrows the rows
+    // the password against each vault in turn: usernames are sealed, so nothing narrows the rows
     // before one opens, and a wrong password costs one derivation per member. The first row that
-    // opens is the person's, and its address has to be the one typed.
+    // opens is the person's, and its username has to be the one typed.
     let mut opened = None;
 
     for member in members
@@ -309,7 +309,7 @@ pub async fn restore(
         // is theirs to know from whoever removed them, not from a refusal.
         return Err(Error::Forbidden {
             message: format!(
-                "the email and password do not open a place in {}",
+                "the username and password do not open a place in {}",
                 link.organization_name
             ),
         });
@@ -325,21 +325,20 @@ pub async fn restore(
             })?,
         )
     };
-    let address = String::from_utf8(open_content(
+    let held = String::from_utf8(open_content(
         &content_key,
-        "member.email_sealed",
-        &member.email_sealed,
+        "member.username_sealed",
+        &member.username_sealed,
     )?)
     .map_err(|_| Error::Integrity {
-        message: "member.email_sealed did not open as text".to_string(),
+        message: "member.username_sealed did not open as text".to_string(),
     })?;
 
-    // an address offered has to be the row's; none offered is the owner's case, whose row
-    // carries none, and the password is the proof either way.
-    if !wanted.is_empty() && address.trim().to_lowercase() != wanted {
+    // the username offered has to be the row's, whichever case either was typed in.
+    if held.trim().to_lowercase() != wanted {
         return Err(Error::Forbidden {
             message: format!(
-                "the email and password do not open a place in {}",
+                "the username and password do not open a place in {}",
                 link.organization_name
             ),
         });
@@ -477,6 +476,7 @@ mod tests {
             &directory.join("app.db"),
             CreateOrganization {
                 name: "Acme",
+                username: "olivia",
                 password: PASSWORD,
             },
             test_cost(),
@@ -511,8 +511,7 @@ mod tests {
             &owner,
             &link,
             Invitation {
-                email: "sami@acme.example",
-                display_name: "Sami Staff",
+                username: "sami.staff",
                 role: permission::MEMBER,
                 workspace_ids: std::slice::from_ref(&workspace.id),
             },
@@ -749,8 +748,7 @@ mod tests {
                 ..link.clone()
             },
             Invitation {
-                email: "late@acme.example",
-                display_name: "Late Member",
+                username: "late.member",
                 role: permission::MEMBER,
                 workspace_ids: &[],
             },
@@ -793,8 +791,7 @@ mod tests {
                 ..link.clone()
             },
             Invitation {
-                email: "gone@acme.example",
-                display_name: "Gone Member",
+                username: "gone.member",
                 role: permission::MEMBER,
                 workspace_ids: &[],
             },
@@ -833,7 +830,7 @@ mod tests {
         assert_eq!(machine.organizations.len(), 1);
     }
 
-    /// Requirement 6, offline: the organization's own link and the owner's email and password
+    /// Requirement 6, offline: the organization's own link and the owner's username and password
     /// restore their place on a machine that has joined nothing, with the same role, the same
     /// workspaces and the same grants, every row verified against the chain; a member restores
     /// the same way; and the Turso authority is in no row and no file the second machine reads.
@@ -847,13 +844,13 @@ mod tests {
         };
         let mut machine = fresh_machine(&directory);
 
-        // the owner, by their password: the first run typed no address, and their row has none.
+        // the owner, by the username the first run took and their password, in another case.
         let credential = slot();
         let restored = restore(
             &store,
             &mut machine,
             &link,
-            "",
+            "Olivia",
             PASSWORD,
             &credential,
             ISSUED_AT + 1,
@@ -884,14 +881,14 @@ mod tests {
         assert_eq!(machine.organizations[0].role, permission::OWNER);
         assert_eq!(machine.organizations[0].verifying_key, link.verifying_key);
 
-        // the member, by their email and the password they were handed, on another machine.
+        // the member, by their username and the password they were handed, on another machine.
         let theirs = scratch("restore-member");
         let mut their_machine = fresh_machine(&theirs);
         let member = restore(
             &store,
             &mut their_machine,
             &link,
-            " Sami@Acme.example",
+            " Sami.Staff",
             &member_password,
             &slot(),
             ISSUED_AT + 2,
@@ -903,28 +900,30 @@ mod tests {
         assert!(member.must_change_password);
         assert!(member.workspace_credentials.contains_key(&workspace_id));
 
-        // the wrong email with the right password, and the right email with the wrong password,
-        // are refused with one sentence and record nothing.
+        // the wrong username with the right password, the right username with the wrong
+        // password, and no username with the owner's password, are refused with one sentence and
+        // record nothing.
         let mut nobody = fresh_machine(&scratch("restore-nobody"));
 
-        for (email, password) in [
-            ("sami@acme.example", "not the password"),
+        for (username, password) in [
+            ("sami.staff", "not the password"),
             ("", "not the password"),
-            ("sami@acme.example", PASSWORD),
-            ("somebody@else.example", &member_password),
+            ("", PASSWORD),
+            ("sami.staff", PASSWORD),
+            ("somebody.else", &member_password),
         ] {
             let refused = restore(
                 &store,
                 &mut nobody,
                 &link,
-                email,
+                username,
                 password,
                 &slot(),
                 ISSUED_AT + 3,
             )
             .await;
 
-            assert!(refused.is_err(), "{email:?} restored with {password:?}");
+            assert!(refused.is_err(), "{username:?} restored with {password:?}");
             assert!(nobody.organizations.is_empty());
         }
 
@@ -963,11 +962,11 @@ mod tests {
     }
 
     /// Criterion 15 against the rows a real invitation wrote: given the link's contents and a
-    /// credential that reads every row, no email, display name or workspace name is legible.
+    /// credential that reads every row, no username or workspace name is legible.
     /// `store.rs` proves it over hand-written rows; this is the same read over what `invite` and
     /// `create_workspace` actually write.
     #[tokio::test]
-    async fn the_rows_a_link_holder_reads_carry_no_email_no_name_and_no_workspace_name() {
+    async fn the_rows_a_link_holder_reads_carry_no_username_and_no_workspace_name() {
         let directory = scratch("legible");
         let (store, _, link_text, password, _) = invited(&directory).await;
         let link = JoinLink::decode(&link_text).expect("the link");
@@ -1031,7 +1030,7 @@ mod tests {
 
     /// Live, at the human's request, and admitted in [[rules/testing]] under *Tests that reach a
     /// live remote* as criterion 6: **an organization provisioned on machine A is restored on
-    /// machine B from the link, the email, the password and one consent, with A offline.**
+    /// machine B from the link, the username, the password and one consent, with A offline.**
     ///
     /// Two machines are two application data directories in one process, and A is offline in
     /// the sense that matters: its replica is closed and nothing of its directory is read after
@@ -1041,7 +1040,7 @@ mod tests {
     /// keyring holds in common between the two, because this process has one keyring. What the
     /// test cannot cover is two operating-system accounts and two keyrings; what it does cover is
     /// that nothing about the organization is machine-local, which is the property. The member is
-    /// restored on a third directory the same way, by their email and the password they were
+    /// restored on a third directory the same way, by their username and the password they were
     /// handed. Both databases are deleted by the same run.
     ///
     /// ```text
@@ -1110,6 +1109,7 @@ mod tests {
             &machine_a.join("app.db"),
             CreateOrganization {
                 name: "t819-18 restore",
+                username: "olivia",
                 password: PASSWORD,
             },
             test_cost(),
@@ -1150,8 +1150,7 @@ mod tests {
             &owner_a,
             &link_a,
             Invitation {
-                email: "sami@acme.example",
-                display_name: "Sami Staff",
+                username: "sami.staff",
                 role: permission::MEMBER,
                 workspace_ids: std::slice::from_ref(&workspace.id),
             },
@@ -1210,7 +1209,7 @@ mod tests {
             &organization_b,
             &mut store_b,
             &link,
-            "",
+            "olivia",
             PASSWORD,
             &credential_b,
             now(),
@@ -1250,7 +1249,7 @@ mod tests {
 
         assert!(!minted.is_empty());
 
-        // machine C: the member, by their email and the password they were handed.
+        // machine C: the member, by their username and the password they were handed.
         let machine_c = scratch("live-c");
         let mut store_c = fresh_machine(&machine_c);
         let credential_c: CredentialSlot =
@@ -1282,7 +1281,7 @@ mod tests {
             &organization_c,
             &mut store_c,
             &link,
-            "sami@acme.example",
+            "sami.staff",
             &invited.generated_password,
             &credential_c,
             now(),

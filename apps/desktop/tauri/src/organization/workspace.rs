@@ -722,6 +722,7 @@ mod tests {
             &directory.join("app.db"),
             CreateOrganization {
                 name: "Acme",
+                username: "olivia",
                 password: PASSWORD,
             },
             test_cost(),
@@ -751,16 +752,10 @@ mod tests {
                 },
                 &MemberRecord {
                     id: "member-b".to_string(),
-                    email_sealed: seal_content(
+                    username_sealed: seal_content(
                         &owner.content_key,
-                        "member.email_sealed",
-                        b"b@acme",
-                    )
-                    .expect("sealed"),
-                    display_name_sealed: seal_content(
-                        &owner.content_key,
-                        "member.display_name_sealed",
-                        b"B",
+                        "member.username_sealed",
+                        b"member-b",
                     )
                     .expect("sealed"),
                     sealed_content_key: seal_to_public_key(

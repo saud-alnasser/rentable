@@ -52,8 +52,8 @@ function hostRecording(asked: string[]): Host {
 			disconnect: async () => {
 				asked.push('disconnect');
 			},
-			create: async (name, password) => {
-				asked.push(`create:${name}:${password.length}`);
+			create: async (name, username, password) => {
+				asked.push(`create:${name}:${username}:${password.length}`);
 
 				return { organizationId: 'org-1', joinLink: 'rentable://join/abc', synced: true };
 			}
@@ -74,30 +74,42 @@ test('the consent is opened, polled and given up through the host, and nobody ha
 	assert.deepEqual(asked, ['consentBegin', 'consentResult:consent-1', 'disconnect']);
 });
 
-test('creating hands the trimmed name and the password to the host as given', async () => {
+test('creating hands the trimmed name, the trimmed username and the password to the host as given', async () => {
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
 
 	const created = await api.app.organization.create({
 		name: '  Acme Rentals ',
+		username: ' Olivia.Owner ',
 		password: 'a long enough password'
 	});
 
 	assert.equal(created.joinLink, 'rentable://join/abc');
-	assert.deepEqual(asked, ['create:Acme Rentals:22']);
+	assert.deepEqual(asked, ['create:Acme Rentals:Olivia.Owner:22']);
 });
 
-// the two bounds the walk states, refused here before a round trip.
-test('an empty name or a password under the floor is refused before the host is reached', async () => {
+// the three bounds the walk states, refused here before a round trip. The username's are
+// requirement 21's: three to thirty-two characters of letters, digits, `.`, `_` and `-`.
+test('an empty name, a username outside the rules or a password under the floor is refused before the host is reached', async () => {
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
+	const password = 'a long enough password';
 
+	await assert.rejects(api.app.organization.create({ name: '   ', username: 'olivia', password }));
 	await assert.rejects(
-		api.app.organization.create({ name: '   ', password: 'a long enough password' })
+		api.app.organization.create({
+			name: 'Acme',
+			username: 'olivia',
+			password: 'x'.repeat(PASSWORD_FLOOR - 1)
+		})
 	);
-	await assert.rejects(
-		api.app.organization.create({ name: 'Acme', password: 'x'.repeat(PASSWORD_FLOOR - 1) })
-	);
+
+	for (const username of ['ol', 'o'.repeat(33), 'olivia owner', 'olivia@acme.example', '']) {
+		await assert.rejects(
+			api.app.organization.create({ name: 'Acme', username, password }),
+			username
+		);
+	}
 
 	assert.deepEqual(asked, []);
 });

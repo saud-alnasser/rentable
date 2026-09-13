@@ -25,11 +25,11 @@ for (const locale of ['en', 'ar'] as const) {
 
 	test(`a member is told the account needs attention and whom to tell, and no detail (${locale})`, () => {
 		const sentence = accountRefusalSentence(
-			{ isOwner: false, ownerDisplayName: 'Olivia Owner', detail: DETAIL },
+			{ isOwner: false, ownerUsername: 'olivia.owner', detail: DETAIL },
 			LL
 		);
 
-		assert.ok(sentence.includes('Olivia Owner'), sentence);
+		assert.ok(sentence.includes('olivia.owner'), sentence);
 
 		for (const word of ['quota', '5 GB', 'free plan', 'BLOCKED', 'storage']) {
 			assert.ok(!sentence.includes(word), `the member's sentence carries ${word}: ${sentence}`);
@@ -38,7 +38,7 @@ for (const locale of ['en', 'ar'] as const) {
 
 	test(`the owner is told which limit and where on turso to go (${locale})`, () => {
 		const sentence = accountRefusalSentence(
-			{ isOwner: true, ownerDisplayName: 'Olivia Owner', detail: DETAIL },
+			{ isOwner: true, ownerUsername: 'olivia.owner', detail: DETAIL },
 			LL
 		);
 

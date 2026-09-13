@@ -608,6 +608,7 @@ mod tests {
             &directory.join("app.db"),
             CreateOrganization {
                 name: "Acme",
+                username: "olivia",
                 password: OWNER_PASSWORD,
             },
             test_cost(),
@@ -640,8 +641,7 @@ mod tests {
             &owner,
             &link,
             Invitation {
-                email: "sami@acme.example",
-                display_name: "Sami Staff",
+                username: "sami.staff",
                 role: permission::MEMBER,
                 workspace_ids: std::slice::from_ref(&workspace.id),
             },

@@ -69,16 +69,13 @@
 				<div class="grid min-w-0 gap-1">
 					<div class="flex min-w-0 flex-wrap items-center gap-2">
 						<p class="truncate text-sm font-medium">
-							{member.displayName || roleLabel(member.role)}
+							{member.username || roleLabel(member.role)}
 						</p>
 						<Badge variant="secondary">{roleLabel(member.role)}</Badge>
 						{#if member.mustChangePassword}
 							<Badge variant="outline">{$LL.organization.dashboard.notYetSignedIn()}</Badge>
 						{/if}
 					</div>
-					{#if member.email}
-						<p class="truncate text-sm text-muted-foreground" dir="ltr">{member.email}</p>
-					{/if}
 					{#if member.workspaceIds.length > 0}
 						<p class="text-sm text-muted-foreground">{workspaceNames(member.workspaceIds)}</p>
 					{/if}

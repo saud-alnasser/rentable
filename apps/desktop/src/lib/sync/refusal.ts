@@ -14,8 +14,8 @@ import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 export type AccountRefusalReader = {
 	/** whether the reader is the owner, which is who sees the detail. */
 	isOwner: boolean;
-	/** the owner's name, for the member's sentence. */
-	ownerDisplayName: string;
+	/** the owner's username, for the member's sentence. */
+	ownerUsername: string;
 	/** Turso's own sentence, read by the owner's machine alone; `null` for everybody else. */
 	detail: string | null;
 };
@@ -23,7 +23,7 @@ export type AccountRefusalReader = {
 export function accountRefusalSentence(reader: AccountRefusalReader, LL: TranslationFunctions) {
 	if (!reader.isOwner) {
 		return LL.workspace.accountRefusedMember({
-			owner: reader.ownerDisplayName || LL.layout.signIn.roleOwner()
+			owner: reader.ownerUsername || LL.layout.signIn.roleOwner()
 		});
 	}
 

@@ -78,7 +78,9 @@
 
 	const create = async (name: string, password: string) => {
 		try {
-			await createOrganization.mutateAsync({ name, password });
+			// the walk's `name` step does not collect a username yet; the field is ticket 15's, and
+			// until it lands the router refuses the empty one before the host is reached.
+			await createOrganization.mutateAsync({ name, username: '', password });
 			step = 'workspace';
 		} catch {
 			// the refusal a person can act on has been shown verbatim; the form keeps what they

@@ -135,8 +135,15 @@ export function useCreateOrganization(
 	}
 ) {
 	return createMutation(() => ({
-		mutationFn: ({ name, password }: { name: string; password: string }) =>
-			api.app.organization.create({ name, password }),
+		mutationFn: ({
+			name,
+			username,
+			password
+		}: {
+			name: string;
+			username: string;
+			password: string;
+		}) => api.app.organization.create({ name, username, password }),
 		onSuccess: () => onMutationSuccess(opts),
 		onError: (e) => onMutationError(opts, e)
 	}));
@@ -227,16 +234,14 @@ export function useInviteMember(
 
 	return createMutation(() => ({
 		mutationFn: ({
-			email,
-			displayName,
+			username,
 			role,
 			workspaceIds
 		}: {
-			email: string;
-			displayName: string;
+			username: string;
 			role: 'administrator' | 'member';
 			workspaceIds: string[];
-		}) => api.app.organization.member.invite({ email, displayName, role, workspaceIds }),
+		}) => api.app.organization.member.invite({ username, role, workspaceIds }),
 		onSuccess: async () => {
 			await Promise.all([
 				client.invalidateQueries({ queryKey: keys.members }),

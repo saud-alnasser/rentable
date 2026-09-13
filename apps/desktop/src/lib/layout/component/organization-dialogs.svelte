@@ -52,13 +52,12 @@
 	});
 
 	const invite = async (
-		email: string,
-		displayName: string,
+		username: string,
 		role: 'administrator' | 'member',
 		workspaceIds: string[]
 	) => {
 		try {
-			showInvited(await inviteMember.mutateAsync({ email, displayName, role, workspaceIds }));
+			showInvited(await inviteMember.mutateAsync({ username, role, workspaceIds }));
 		} catch {
 			// said by the shared handler; the form keeps what was typed.
 		}
@@ -104,8 +103,7 @@
 			isInviting={inviteMember.isPending}
 			invited={organizationDialog.invited}
 			{copied}
-			onInvite={(email, displayName, role, workspaceIds) =>
-				void invite(email, displayName, role, workspaceIds)}
+			onInvite={(username, role, workspaceIds) => void invite(username, role, workspaceIds)}
 			onCopy={(what, value) => void copy(what, value)}
 			onDismiss={dismissInvited}
 		/>

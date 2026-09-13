@@ -467,7 +467,7 @@ pub fn generate_content_key() -> Result<ContentKey, Error> {
 /// the ciphertext.
 ///
 /// `column` is bound as associated data, so a ciphertext lifted out of
-/// `member.email_sealed` and written into `member.display_name_sealed` does not
+/// `member.username_sealed` and written into `workspace.name_sealed` does not
 /// open there: a value is legible only in the place it was sealed for.
 pub fn seal_content(key: &ContentKey, column: &str, plaintext: &[u8]) -> Result<Vec<u8>, Error> {
     let nonce = random_bytes::<NONCE_BYTES>()?;
@@ -967,12 +967,12 @@ mod tests {
         let key = generate_content_key().expect("failed to draw a content key");
         let other = generate_content_key().expect("failed to draw a second key");
 
-        let sealed = seal_content(&key, "member.email_sealed", b"somebody@example.com")
-            .expect("failed to seal");
+        let sealed =
+            seal_content(&key, "member.username_sealed", b"somebody").expect("failed to seal");
 
         assert_eq!(
-            open_content(&key, "member.email_sealed", &sealed).expect("failed to open"),
-            b"somebody@example.com"
+            open_content(&key, "member.username_sealed", &sealed).expect("failed to open"),
+            b"somebody"
         );
         assert!(
             !sealed
@@ -983,14 +983,14 @@ mod tests {
 
         // lifted into another column, it does not open there
         assert_eq!(
-            open_content(&key, "member.display_name_sealed", &sealed)
+            open_content(&key, "workspace.name_sealed", &sealed)
                 .expect_err("a ciphertext opened in a column it was not sealed for")
                 .to_string(),
             UNOPENABLE
         );
         // and a different organization's key opens nothing
         assert_eq!(
-            open_content(&other, "member.email_sealed", &sealed)
+            open_content(&other, "member.username_sealed", &sealed)
                 .expect_err("another key opened it")
                 .to_string(),
             UNOPENABLE

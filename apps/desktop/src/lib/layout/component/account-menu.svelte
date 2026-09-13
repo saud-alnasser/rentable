@@ -50,9 +50,7 @@
 				: 'right'
 	);
 
-	const initials = $derived(
-		accountInitials(session.displayName || session.email || session.organizationName)
-	);
+	const initials = $derived(accountInitials(session.username || session.organizationName));
 
 	// the shell owns the wall, so the menu asks and the shell signs out; nothing is awaited here.
 	const signOut = () => requestSignOut();
@@ -63,10 +61,7 @@
 		<Avatar.Fallback class="rounded-lg text-xs">{initials}</Avatar.Fallback>
 	</Avatar.Root>
 	<div class="grid flex-1 text-start text-sm leading-tight">
-		<span class="truncate font-medium">{session.displayName || session.organizationName}</span>
-		<!-- the address is the account's, not the reader's language: isolating it keeps an ltr
-		     address from reordering the arabic around it. -->
-		<span class="truncate text-xs text-muted-foreground" dir="ltr">{session.email}</span>
+		<span class="truncate font-medium">{session.username || session.organizationName}</span>
 	</div>
 {/snippet}
 

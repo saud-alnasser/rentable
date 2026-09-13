@@ -201,13 +201,12 @@ export function fakeOrganizationSession(
 		organizationId: 'acme',
 		organizationName: 'Acme Rentals',
 		memberId: 'member-owner',
-		email: 'person@example.com',
-		displayName: 'Person Example',
+		username: 'person.example',
 		role: 'owner',
 		permissions: 0,
 		mustChangePassword: false,
 		workspaces: [fakeOrganizationWorkspace()],
-		ownerDisplayName: 'Olivia Owner',
+		ownerUsername: 'olivia.owner',
 		...overrides
 	};
 }

@@ -17,8 +17,14 @@
 //!
 //! **The generated password is drawn, never derived.** Twenty characters from a thirty-two
 //! character alphabet, drawn from the operating system, spelled in groups a person can read out
-//! or type; nothing about the email or the display name enters it, and a test asserts that rather
-//! than asserting the two merely differ.
+//! or type; nothing about the username enters it, and a test asserts that rather than asserting
+//! the two merely differ.
+//!
+//! **A member is a username** (effort 824, requirement 21). The row carries no address and no
+//! display name: one sealed username, three to thirty-two characters of letters, digits, `.`,
+//! `_` and `-`, unique in the organization without regard to case. [`validate_username`] is the
+//! one place the rules live and [`refuse_taken_username`] the one place uniqueness is checked;
+//! the first run, an invitation and a rename all refuse through them, with the same sentences.
 //!
 //! **An invitation expires; the link does not** (requirement 23). The row carries the lifetime.
 //! A link opened after it lapsed still finds the organization, because the link is a locator, and
@@ -119,11 +125,70 @@ impl InvitationStanding {
     }
 }
 
+/// The bounds a username fits: short enough for a row and a chip, long enough to be somebody.
+pub const USERNAME_MINIMUM_LENGTH: usize = 3;
+pub const USERNAME_MAXIMUM_LENGTH: usize = 32;
+
+/// The one sentence a username outside the rules is refused with, here and by every form.
+pub const USERNAME_RULES: &str = "a username is three to thirty-two characters of letters, digits, dots, underscores and hyphens";
+
+/// The one sentence a username somebody else holds is refused with.
+pub const USERNAME_TAKEN: &str = "that username is already taken in this organization";
+
+/// Check a username against requirement 21's rules: three to thirty-two characters, each an
+/// ASCII letter, a digit, `.`, `_` or `-`. The caller trims first; a space inside is refused
+/// like any other character outside the set.
+pub fn validate_username(username: &str) -> Result<(), Error> {
+    let allowed = username
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+    let fits = (USERNAME_MINIMUM_LENGTH..=USERNAME_MAXIMUM_LENGTH).contains(&username.len());
+
+    if !allowed || !fits {
+        return Err(Error::InvalidInput {
+            message: USERNAME_RULES.to_string(),
+        });
+    }
+
+    Ok(())
+}
+
+/// Refuse a username another member already holds, compared without case: `alice` and `Alice`
+/// are one username. Every member still in is opened under the caller's content key, because
+/// usernames are sealed and nothing else can compare them; a removed member's is free again.
+/// `except` is the member whose own row is not counted, which a rename needs so a member can
+/// keep their username under another case; an invitation passes `None`.
+pub async fn refuse_taken_username(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    username: &str,
+    except: Option<&str>,
+) -> Result<(), Error> {
+    let wanted = username.to_lowercase();
+
+    for member in store
+        .members(&session.verifying_key)
+        .await?
+        .iter()
+        .filter(|member| member.role != permission::REMOVED)
+        .filter(|member| except != Some(member.id.as_str()))
+    {
+        let held = opened(session, "member.username_sealed", &member.username_sealed)?;
+
+        if held.to_lowercase() == wanted {
+            return Err(Error::InvalidInput {
+                message: USERNAME_TAKEN.to_string(),
+            });
+        }
+    }
+
+    Ok(())
+}
+
 /// What the inviter is asked for.
 #[derive(Clone, Debug)]
 pub struct Invitation<'a> {
-    pub email: &'a str,
-    pub display_name: &'a str,
+    pub username: &'a str,
     /// `packages/workspace-permission`'s vocabulary: `administrator` or `member`.
     pub role: &'a str,
     /// the workspaces the member belongs to, granted at full access from the inviter's own.
@@ -145,26 +210,17 @@ pub async fn invite_member(
     session.settled()?;
     permission::require(session.permissions, Administration::InviteMember)?;
 
-    let email = invitation.email.trim();
-    let display_name = invitation.display_name.trim();
+    let username = invitation.username.trim();
 
-    if email.is_empty() || !email.contains('@') {
-        return Err(Error::InvalidInput {
-            message: "the member needs an email address".to_string(),
-        });
-    }
-
-    if display_name.is_empty() {
-        return Err(Error::InvalidInput {
-            message: "the member needs a name".to_string(),
-        });
-    }
+    validate_username(username)?;
 
     if invitation.role != permission::ADMINISTRATOR && invitation.role != permission::MEMBER {
         return Err(Error::InvalidInput {
             message: "a member is invited as an administrator or as a member".to_string(),
         });
     }
+
+    refuse_taken_username(store, session, username, None).await?;
 
     let member_id = random_id()?;
 
@@ -173,8 +229,7 @@ pub async fn invite_member(
         session,
         link,
         &member_id,
-        email,
-        display_name,
+        username,
         invitation.role,
         invitation.workspace_ids,
         kdf_params,
@@ -185,7 +240,7 @@ pub async fn invite_member(
 
 /// Invite a member again: a fresh vault under a fresh password, the content key and every grant
 /// the reissuer can reach re-sealed to it, and a fresh invitation. The member's row keeps its id,
-/// its address, its name and its role.
+/// its username and its role.
 ///
 /// **This is what a reset is** (requirement 13): no escrow copy of the old vault exists, so what
 /// restores a member's access is building them a new one from what the reissuer already holds,
@@ -223,12 +278,7 @@ pub async fn reissue_invitation(
         });
     }
 
-    let email = opened(session, "member.email_sealed", &member.email_sealed)?;
-    let display_name = opened(
-        session,
-        "member.display_name_sealed",
-        &member.display_name_sealed,
-    )?;
+    let username = opened(session, "member.username_sealed", &member.username_sealed)?;
     let role = member.role.clone();
 
     // what the member held, split by what the reissuer can re-seal: a workspace the reissuer
@@ -288,8 +338,7 @@ pub async fn reissue_invitation(
         session,
         link,
         member_id,
-        &email,
-        &display_name,
+        &username,
         &role,
         &workspace_ids,
         kdf_params,
@@ -334,14 +383,13 @@ pub async fn revoke_invitation(
     Ok(())
 }
 
-/// One member as the dashboard lists them: names opened with the content key, and the workspaces
-/// they hold a grant on. No key and no credential.
+/// One member as the dashboard lists them: the username opened with the content key, and the
+/// workspaces they hold a grant on. No key and no credential.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MemberFacts {
     pub id: String,
-    pub email: String,
-    pub display_name: String,
+    pub username: String,
     pub role: String,
     pub permissions: i64,
     pub must_change_password: bool,
@@ -349,7 +397,7 @@ pub struct MemberFacts {
     pub created_at: i64,
 }
 
-/// Every member, verified, with the names opened for the screen.
+/// Every member, verified, with the username opened for the screen.
 pub async fn members(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -365,12 +413,7 @@ pub async fn members(
         .filter(|member| member.role != permission::REMOVED)
         .map(|member| {
             Ok(MemberFacts {
-                email: opened(session, "member.email_sealed", &member.email_sealed)?,
-                display_name: opened(
-                    session,
-                    "member.display_name_sealed",
-                    &member.display_name_sealed,
-                )?,
+                username: opened(session, "member.username_sealed", &member.username_sealed)?,
                 workspace_ids: grants
                     .iter()
                     .filter(|grant| {
@@ -437,8 +480,7 @@ async fn issue(
     session: &MemberSession,
     link: &JoinLink,
     member_id: &str,
-    email: &str,
-    display_name: &str,
+    username: &str,
     role: &str,
     workspace_ids: &[String],
     kdf_params: KdfParams,
@@ -501,15 +543,10 @@ async fn issue(
             &signer,
             &MemberRecord {
                 id: member_id.to_string(),
-                email_sealed: seal_content(
+                username_sealed: seal_content(
                     &session.content_key,
-                    "member.email_sealed",
-                    email.as_bytes(),
-                )?,
-                display_name_sealed: seal_content(
-                    &session.content_key,
-                    "member.display_name_sealed",
-                    display_name.as_bytes(),
+                    "member.username_sealed",
+                    username.as_bytes(),
                 )?,
                 sealed_content_key: seal_to_public_key(
                     &vault.public_key,
@@ -753,11 +790,12 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        INVITATION_LIFETIME_MS, Invitation, InvitationPayload, InvitationStanding,
-        generate_password, invitations, invite_member, organization_link, reissue_invitation,
-        revoke_invitation,
+        INVITATION_LIFETIME_MS, Invitation, InvitationPayload, InvitationStanding, USERNAME_RULES,
+        USERNAME_TAKEN, generate_password, invitations, invite_member, organization_link,
+        reissue_invitation, revoke_invitation, validate_username,
     };
     use crate::{
+        error::Error,
         organization::{
             JoinedOrganization,
             link::JoinLink,
@@ -855,6 +893,7 @@ mod tests {
             &directory.join("app.db"),
             CreateOrganization {
                 name: "Acme",
+                username: "olivia",
                 password: PASSWORD,
             },
             test_cost(),
@@ -905,8 +944,7 @@ mod tests {
             &owner,
             &link,
             Invitation {
-                email: " sami@acme.example ",
-                display_name: "Sami Staff",
+                username: " sami.staff ",
                 role: permission::MEMBER,
                 workspace_ids: &workspaces,
             },
@@ -992,14 +1030,16 @@ mod tests {
         );
     }
 
-    /// **The generated password is not derived from the email or the display name**, asserted
-    /// rather than merely different: two invitations with identical inputs draw different
-    /// passwords, and no part of either input appears in either password.
+    /// **The generated password is not derived from the username**, asserted rather than merely
+    /// different: two invitations whose usernames differ by one character draw passwords that
+    /// share nothing, and no part of either username appears in either password. Two draws with
+    /// identical inputs cannot be made through an invitation any more, because the second username
+    /// would be taken, so the alphabet and the draw are asserted on the generator itself.
     #[tokio::test]
     async fn the_generated_password_is_drawn_and_not_derived() {
         let directory = scratch("password");
         let (store, owner, link, _) = owned(&directory).await;
-        let invite = |email: &'static str, name: &'static str| {
+        let invite = |username: &'static str| {
             let store = &store;
             let owner = &owner;
             let link = &link;
@@ -1010,8 +1050,7 @@ mod tests {
                     owner,
                     link,
                     Invitation {
-                        email,
-                        display_name: name,
+                        username,
                         role: permission::MEMBER,
                         workspace_ids: &[],
                     },
@@ -1024,16 +1063,21 @@ mod tests {
             }
         };
 
-        let first = invite("olivia.owner@acme.example", "Olivia Owner").await;
-        let second = invite("olivia.owner@acme.example", "Olivia Owner").await;
+        let first = invite("olivia.owner").await;
+        let second = invite("olivia.owner2").await;
 
-        assert_ne!(first, second, "the same inputs drew the same password");
+        assert_ne!(first, second, "two invitations drew the same password");
+        assert_ne!(
+            generate_password().expect("a password"),
+            generate_password().expect("a password"),
+            "the generator drew the same password twice"
+        );
 
         for password in [&first, &second] {
             assert_eq!(password.len(), 23, "{password}");
             assert_eq!(password.matches('-').count(), 3, "{password}");
 
-            for fragment in ["olivia", "owner", "acme", "example"] {
+            for fragment in ["olivia", "owner"] {
                 assert!(
                     !password.to_lowercase().contains(fragment),
                     "{password} carries {fragment}"
@@ -1065,8 +1109,7 @@ mod tests {
             &owner,
             &link,
             Invitation {
-                email: "sami@acme.example",
-                display_name: "Sami",
+                username: "sami",
                 role: permission::MEMBER,
                 workspace_ids: &workspaces,
             },
@@ -1171,8 +1214,7 @@ mod tests {
             &owner,
             &link,
             Invitation {
-                email: "ada@acme.example",
-                display_name: "Ada Admin",
+                username: "ada.admin",
                 role: permission::ADMINISTRATOR,
                 workspace_ids: std::slice::from_ref(&workspace_id),
             },
@@ -1199,8 +1241,7 @@ mod tests {
             &ada,
             &link,
             Invitation {
-                email: "bob@acme.example",
-                display_name: "Bob",
+                username: "bob",
                 role: permission::MEMBER,
                 workspace_ids: std::slice::from_ref(&workspace_id),
             },
@@ -1296,8 +1337,7 @@ mod tests {
             &owner,
             &link,
             Invitation {
-                email: "admin@acme.example",
-                display_name: "Ada Admin",
+                username: "ada.admin",
                 role: permission::ADMINISTRATOR,
                 workspace_ids: &[],
             },
@@ -1338,8 +1378,7 @@ mod tests {
             &settled,
             &link,
             Invitation {
-                email: "m@acme.example",
-                display_name: "Mo",
+                username: "mohammed",
                 role: permission::MEMBER,
                 workspace_ids: &[],
             },
@@ -1354,8 +1393,7 @@ mod tests {
             &settled,
             &link,
             Invitation {
-                email: "a2@acme.example",
-                display_name: "Another Admin",
+                username: "another.admin",
                 role: permission::ADMINISTRATOR,
                 workspace_ids: &[],
             },
@@ -1382,8 +1420,7 @@ mod tests {
             &mo,
             &link,
             Invitation {
-                email: "x@acme.example",
-                display_name: "X",
+                username: "xavier",
                 role: permission::MEMBER,
                 workspace_ids: &[],
             },
@@ -1418,8 +1455,7 @@ mod tests {
             &unsettled,
             &link,
             Invitation {
-                email: "x@acme.example",
-                display_name: "X",
+                username: "xavier",
                 role: permission::MEMBER,
                 workspace_ids: &[],
             },
@@ -1440,8 +1476,7 @@ mod tests {
             &owner,
             &link,
             Invitation {
-                email: "x@acme.example",
-                display_name: "X",
+                username: "xavier",
                 role: permission::MEMBER,
                 workspace_ids: &elsewhere,
             },
@@ -1477,8 +1512,7 @@ mod tests {
             &owner,
             &original,
             Invitation {
-                email: "m@acme.example",
-                display_name: "M",
+                username: "member",
                 role: permission::MEMBER,
                 workspace_ids: &[],
             },
@@ -1520,5 +1554,96 @@ mod tests {
             ),
             "a member was handed the organization's own link"
         );
+    }
+
+    /// Requirement 21's rules, at their limits: three and thirty-two characters are accepted,
+    /// two and thirty-three refused, and any character outside letters, digits, `.`, `_` and `-`
+    /// is refused, with the one sentence every form repeats.
+    #[test]
+    fn a_username_is_three_to_thirty_two_of_letters_digits_dot_underscore_and_hyphen() {
+        let longest = "x".repeat(32);
+        let too_long = "x".repeat(33);
+        let accepted = ["abc", "a.b", "a_b", "a-b", "A1.b_C-9", longest.as_str()];
+        let refused = [
+            "",
+            "ab",
+            too_long.as_str(),
+            "a b",
+            " abc",
+            "a@b.c",
+            "ab!",
+            "ali/ce",
+            "élan",
+            "ahmed\u{200b}",
+            "a\tb",
+        ];
+
+        for username in accepted {
+            assert!(
+                validate_username(username).is_ok(),
+                "{username:?} was refused"
+            );
+        }
+
+        for username in refused {
+            let error = validate_username(username).expect_err(username);
+
+            assert!(matches!(error, Error::InvalidInput { .. }), "{error:?}");
+            assert_eq!(error.to_string(), USERNAME_RULES, "{username:?}");
+        }
+    }
+
+    /// A username is unique in the organization without regard to case: once `alice` is in,
+    /// `Alice` is refused with the one sentence, and so is the owner's own under another case.
+    /// The refusal for a username outside the rules is the other sentence, and it comes first.
+    #[tokio::test]
+    async fn a_username_already_held_is_refused_in_any_case() {
+        let directory = scratch("taken");
+        let (store, owner, link, _) = owned(&directory).await;
+        let invite = |username: &'static str| {
+            let store = &store;
+            let owner = &owner;
+            let link = &link;
+
+            async move {
+                invite_member(
+                    store,
+                    owner,
+                    link,
+                    Invitation {
+                        username,
+                        role: permission::MEMBER,
+                        workspace_ids: &[],
+                    },
+                    test_cost(),
+                    1,
+                )
+                .await
+            }
+        };
+
+        invite("alice").await.expect("the first alice was refused");
+
+        for taken in ["Alice", "ALICE", " alice ", "OLIVIA"] {
+            let error = invite(taken).await.expect_err(taken);
+
+            assert!(matches!(error, Error::InvalidInput { .. }), "{error:?}");
+            assert_eq!(error.to_string(), USERNAME_TAKEN, "{taken:?}");
+        }
+
+        for outside in ["al", "al ice", "alice@acme.example"] {
+            let error = invite(outside).await.expect_err(outside);
+
+            assert_eq!(error.to_string(), USERNAME_RULES, "{outside:?}");
+        }
+
+        let members = super::members(&store, &owner).await.expect("the members");
+        let mut usernames: Vec<&str> = members
+            .iter()
+            .map(|member| member.username.as_str())
+            .collect();
+        usernames.sort_unstable();
+
+        assert_eq!(usernames, vec!["alice", "olivia"]);
     }
 }

@@ -12,7 +12,6 @@
 	import { cn } from '@rentable/design/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import CopyIcon from '@lucide/svelte/icons/copy';
-	import MailIcon from '@lucide/svelte/icons/mail';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import { defaults, superForm } from 'sveltekit-superforms';
@@ -71,12 +70,7 @@
 		invited: Invited | null;
 		/** which of the two was last copied, for the control to say so. */
 		copied: 'link' | 'password' | null;
-		onInvite: (
-			email: string,
-			displayName: string,
-			role: 'administrator' | 'member',
-			workspaceIds: string[]
-		) => void;
+		onInvite: (username: string, role: 'administrator' | 'member', workspaceIds: string[]) => void;
 		onCopy: (what: 'link' | 'password', value: string) => void;
 		onDismiss: () => void;
 	} = $props();
@@ -84,15 +78,14 @@
 	// built when this component is, past the locale gate, for the reason
 	// `organization/workspace-form.ts` gives: the messages resolve against a locale.
 	const InviteSchema = z.object({
-		email: z.email({ message: $LL.organization.dashboard.emailInvalid() }),
-		displayName: z.string().trim().min(1, { message: $LL.organization.dashboard.nameRequired() }),
+		username: z.string().trim().min(1, { message: $LL.organization.dashboard.nameRequired() }),
 		role: z.enum(['administrator', 'member']),
 		workspaceIds: z.array(z.string())
 	});
 
 	type InviteForm = z.infer<typeof InviteSchema>;
 
-	const blank: InviteForm = { email: '', displayName: '', role: 'member', workspaceIds: [] };
+	const blank: InviteForm = { username: '', role: 'member', workspaceIds: [] };
 
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<InviteForm>(
 		defaults(blank, zod4(InviteSchema)),
@@ -102,12 +95,7 @@
 			onUpdate: ({ form }) => {
 				if (!form.valid || isInviting) return;
 
-				onInvite(
-					form.data.email.trim(),
-					form.data.displayName.trim(),
-					form.data.role,
-					form.data.workspaceIds
-				);
+				onInvite(form.data.username.trim(), form.data.role, form.data.workspaceIds);
 			}
 		}
 	);
@@ -210,29 +198,7 @@
 		</div>
 	{:else}
 		<div class="flex flex-col gap-4" data-invite-form>
-			<Form.Field form={superform} name="email" class="group relative">
-				<Form.Control>
-					<Form.Label>{$LL.organization.dashboard.email()}</Form.Label>
-					<InputGroup.Root class={insetControl} data-disabled={isInviting || undefined}>
-						<InputGroup.Addon>
-							<MailIcon />
-						</InputGroup.Addon>
-						<InputGroup.Input
-							name="email"
-							type="email"
-							autocomplete="off"
-							bind:value={$form.email}
-							placeholder={$LL.organization.dashboard.email()}
-							disabled={isInviting}
-							aria-invalid={$errors.email ? 'true' : undefined}
-							{...$constraints.email}
-						/>
-					</InputGroup.Root>
-				</Form.Control>
-				<FieldError />
-			</Form.Field>
-
-			<Form.Field form={superform} name="displayName" class="group relative">
+			<Form.Field form={superform} name="username" class="group relative">
 				<Form.Control>
 					<Form.Label>{$LL.common.labels.name()}</Form.Label>
 					<InputGroup.Root class={insetControl} data-disabled={isInviting || undefined}>
@@ -240,13 +206,13 @@
 							<UserIcon />
 						</InputGroup.Addon>
 						<InputGroup.Input
-							name="displayName"
+							name="username"
 							autocomplete="off"
-							bind:value={$form.displayName}
+							bind:value={$form.username}
 							placeholder={$LL.common.labels.name()}
 							disabled={isInviting}
-							aria-invalid={$errors.displayName ? 'true' : undefined}
-							{...$constraints.displayName}
+							aria-invalid={$errors.username ? 'true' : undefined}
+							{...$constraints.username}
 						/>
 					</InputGroup.Root>
 				</Form.Control>

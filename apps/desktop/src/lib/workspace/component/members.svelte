@@ -45,17 +45,14 @@
 				<div class="flex min-w-0 items-center gap-3">
 					<Avatar.Root class="size-10 shrink-0 rounded-full">
 						<Avatar.Fallback class="rounded-full text-xs">
-							{accountInitials(member.displayName || member.email)}
+							{accountInitials(member.username)}
 						</Avatar.Fallback>
 					</Avatar.Root>
 					<div class="grid min-w-0 gap-1">
 						<div class="flex min-w-0 flex-wrap items-center gap-2">
-							<p class="truncate text-sm font-medium">{member.displayName}</p>
+							<p class="truncate text-sm font-medium">{member.username}</p>
 							<Badge variant="secondary">{roleLabel(member.role)}</Badge>
 						</div>
-						{#if member.email}
-							<p class="truncate text-sm text-muted-foreground" dir="ltr">{member.email}</p>
-						{/if}
 					</div>
 				</div>
 			</Field.Content>

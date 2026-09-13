@@ -1,7 +1,9 @@
-//! the first run: an owner names an organization and sets a password, and the organization
-//! exists on their own Turso account with them in it.
+//! the first run: an owner names an organization, chooses a username and sets a password, and
+//! the organization exists on their own Turso account with them in it.
 //!
-//! **Two things are typed and nothing else.** The name and the password. The slug is discovered
+//! **Three things are typed and nothing else.** The name, the username and the password. *Two
+//! until effort 824's requirement 21 made an account a username; the owner's row carried an empty
+//! address and an empty display name before it.* The slug is discovered
 //! (`sync/turso/discovery.rs`), the group is whichever the consent was granted over, the database
 //! is created here, and every key is generated or derived here. The consent itself happened before
 //! this is reached, in a browser, and this module spends what it filed and asks nothing of the
@@ -52,6 +54,7 @@ use crate::{
 use super::{
     JoinedOrganization,
     authority::{AdministratorKey, OrganizationKey, issue_certificate},
+    invite::validate_username,
     link::JoinLink,
     store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
     vault::{
@@ -91,10 +94,12 @@ pub const SHIPPING_KDF: KdfParams = KdfParams {
 pub const ORGANIZATION_KEY_PURPOSE: &str = "organization-key";
 pub const ADMINISTRATOR_KEY_PURPOSE: &str = "administrator-key";
 
-/// The two things a first run is given.
+/// The three things a first run is given.
 #[derive(Clone, Debug)]
 pub struct CreateOrganization<'a> {
     pub name: &'a str,
+    /// the owner's own username, under `invite::validate_username`'s rules like every other.
+    pub username: &'a str,
     pub password: &'a str,
 }
 
@@ -165,12 +170,17 @@ where
     F: Fn(TursoOrganization) -> P,
 {
     let name = request.name.trim();
+    let username = request.username.trim();
 
     if name.is_empty() {
         return Err(Error::InvalidInput {
             message: "the organization needs a name".to_string(),
         });
     }
+
+    // the owner is the first member, so nobody holds the username yet; the shape is the whole
+    // check, and it is the same check an invitation makes.
+    validate_username(username)?;
 
     if request.password.chars().count() < MINIMUM_PASSWORD_LENGTH {
         return Err(Error::InvalidInput {
@@ -216,6 +226,7 @@ where
         &database_name,
         &hostname,
         name,
+        username,
         request.password,
         kdf_params,
         now,
@@ -244,6 +255,7 @@ async fn finish<P: TursoPlatform>(
     database_name: &str,
     hostname: &str,
     name: &str,
+    username: &str,
     password: &str,
     kdf_params: KdfParams,
     now: i64,
@@ -325,16 +337,16 @@ async fn finish<P: TursoPlatform>(
         certificate: &certificate,
     };
 
-    // the owner has no address and no display name: requirement 3's criterion admits the
-    // organization's name and a password and nothing else, so both are sealed empty and the
-    // interface shows the role where a name would go.
     organization_store
         .write_member(
             &signer,
             &MemberRecord {
                 id: member_id.clone(),
-                email_sealed: seal_content(&content_key, "member.email_sealed", b"")?,
-                display_name_sealed: seal_content(&content_key, "member.display_name_sealed", b"")?,
+                username_sealed: seal_content(
+                    &content_key,
+                    "member.username_sealed",
+                    username.as_bytes(),
+                )?,
                 sealed_content_key: seal_to_public_key(&vault.public_key, &content_key.to_bytes())?,
                 vault: vault.clone(),
                 role: OWNER_ROLE.to_string(),
@@ -507,8 +519,12 @@ mod tests {
     use crate::{
         organization::{
             authority::OrganizationKey,
+            invite::USERNAME_RULES,
             link::JoinLink,
-            vault::{KdfParams, open_vault},
+            vault::{
+                CONTENT_KEY_BYTES, ContentKey, KdfParams, open_content, open_vault,
+                unseal_with_secret_key,
+            },
         },
         persisted::Persisted,
         sync::{
@@ -590,7 +606,7 @@ mod tests {
     /// A first run against a group that already holds a database: the common shape of every
     /// unit test here, and the whole of what a first run writes.
     #[tokio::test]
-    async fn a_first_run_creates_the_database_the_keys_the_rows_and_the_link_from_a_name_and_a_password()
+    async fn a_first_run_creates_the_database_the_keys_the_rows_and_the_link_from_a_name_a_username_and_a_password()
      {
         let directory = scratch("first");
         let mut store = store(&directory);
@@ -607,6 +623,7 @@ mod tests {
             &database_path,
             CreateOrganization {
                 name: "  Acme Rentals ",
+                username: " Olivia.Owner ",
                 password: PASSWORD,
             },
             test_cost(),
@@ -690,6 +707,34 @@ mod tests {
         assert_eq!(derived.verifying_key(), key);
         assert!(open_vault("the wrong password", &members[0].vault).is_err());
 
+        // the owner's row carries the username as typed, trimmed, sealed under the content key
+        // the vault unseals, and the raw column carries none of it.
+        let content_key = ContentKey::from_bytes(
+            <[u8; CONTENT_KEY_BYTES]>::try_from(
+                unseal_with_secret_key(&secret, &members[0].sealed_content_key)
+                    .expect("the content key")
+                    .as_slice(),
+            )
+            .expect("a content key"),
+        );
+
+        assert_eq!(
+            open_content(
+                &content_key,
+                "member.username_sealed",
+                &members[0].username_sealed
+            )
+            .expect("the owner's username"),
+            b"Olivia.Owner"
+        );
+        assert!(
+            !members[0]
+                .username_sealed
+                .windows(b"Olivia".len())
+                .any(|window| window == b"Olivia"),
+            "the username is legible in the sealed column"
+        );
+
         // this machine knows it joined, with the name as typed.
         let joined = store.organizations.clone();
 
@@ -748,6 +793,7 @@ mod tests {
             &database_path,
             CreateOrganization {
                 name: "Acme",
+                username: "olivia",
                 password: PASSWORD,
             },
             test_cost(),
@@ -822,6 +868,7 @@ mod tests {
             &database_path,
             CreateOrganization {
                 name: "Acme",
+                username: "olivia",
                 password: PASSWORD,
             },
             test_cost(),
@@ -851,17 +898,26 @@ mod tests {
         );
     }
 
-    /// The two things typed are checked before anything is asked of Turso.
+    /// The three things typed are checked before anything is asked of Turso, and a username
+    /// outside requirement 21's rules is refused with the sentence an invitation refuses with.
     #[tokio::test]
-    async fn an_empty_name_or_a_short_password_is_refused_before_any_request() {
+    async fn an_empty_name_a_bad_username_or_a_short_password_is_refused_before_any_request() {
         let directory = scratch("refused");
         let mut store = store(&directory);
         let mcp = ScriptedServer::start(populated_group()).await;
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
         let database_path = directory.join("app.db");
         let too_short = "a".repeat(MINIMUM_PASSWORD_LENGTH - 1);
+        let too_long = "o".repeat(33);
 
-        for (name, password) in [("   ", PASSWORD), ("Acme", too_short.as_str())] {
+        for (name, username, password) in [
+            ("   ", "olivia", PASSWORD),
+            ("Acme", "olivia", too_short.as_str()),
+            ("Acme", "ol", PASSWORD),
+            ("Acme", too_long.as_str(), PASSWORD),
+            ("Acme", "olivia owner", PASSWORD),
+            ("Acme", "olivia@acme.example", PASSWORD),
+        ] {
             let error = create_organization(
                 &mut store,
                 TOKEN,
@@ -869,7 +925,11 @@ mod tests {
                 |_| Arc::clone(&platform),
                 Remote::none(),
                 &database_path,
-                CreateOrganization { name, password },
+                CreateOrganization {
+                    name,
+                    username,
+                    password,
+                },
                 test_cost(),
                 1_757_000_000_000,
             )
@@ -880,6 +940,10 @@ mod tests {
                 matches!(error, crate::error::Error::InvalidInput { .. }),
                 "{error:?}"
             );
+
+            if username != "olivia" {
+                assert_eq!(error.to_string(), USERNAME_RULES, "{username:?}");
+            }
         }
 
         assert_eq!(mcp.request_count(), 0);

@@ -20,8 +20,7 @@ import ar from '$lib/i18n/ar';
 const noop = () => {};
 const member = (overrides: Partial<OrganizationMember>): OrganizationMember => ({
 	id: 'm',
-	email: 'm@acme.example',
-	displayName: 'Member',
+	username: 'member',
 	role: 'member',
 	permissions: 0,
 	mustChangePassword: false,
@@ -30,9 +29,9 @@ const member = (overrides: Partial<OrganizationMember>): OrganizationMember => (
 	...overrides
 });
 const members = [
-	member({ id: 'owner', displayName: 'Olivia', role: 'owner' }),
-	member({ id: 'ada', displayName: 'Ada', role: 'administrator' }),
-	member({ id: 'sami', displayName: 'Sami' })
+	member({ id: 'owner', username: 'olivia', role: 'owner' }),
+	member({ id: 'ada', username: 'ada', role: 'administrator' }),
+	member({ id: 'sami', username: 'sami' })
 ];
 
 const list = (overrides: Partial<Parameters<typeof render<typeof Members>>[1]> = {}) =>

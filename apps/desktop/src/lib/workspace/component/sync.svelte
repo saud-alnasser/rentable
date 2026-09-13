@@ -65,7 +65,7 @@
 			? accountRefusalSentence(
 					{
 						isOwner,
-						ownerDisplayName: session?.ownerDisplayName ?? '',
+						ownerUsername: session?.ownerUsername ?? '',
 						detail: isOwner ? (refusalDetail.data ?? null) : null
 					},
 					$LL

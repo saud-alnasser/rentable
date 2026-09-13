@@ -88,7 +88,7 @@ beforeEach(() => {
 	resetOrganizationDialogs();
 });
 
-test('the dialog opens on the shared form surface and asks for an address, a name, a role and the workspaces the inviter holds', () => {
+test('the dialog opens on the shared form surface and asks for a username, a role and the workspaces the inviter holds', () => {
 	loadLocale('en');
 	setLocale('en');
 	form();
@@ -103,20 +103,20 @@ test('the dialog opens on the shared form surface and asks for an address, a nam
 		.filter((name) => name !== null)
 		.sort();
 
-	expect(names).toEqual(['displayName', 'email', 'workspaceIds']);
+	expect(names).toEqual(['username', 'workspaceIds']);
 	expect(screen.getByText('Riyadh')).toBeDefined();
 	expect(screen.queryByText(en.organization.dashboard.cannotSend)).toBeNull();
 });
 
-// requirement 15 of the redesign: the email and name fields lead with their subject's glyph
-// inside the input group, muted rather than as dark as the label. requirement 14: the invite
-// carries its verb's glyph.
-test('the email and name fields lead with a muted glyph, and the invite carries its verb', () => {
+// requirement 15 of the redesign: the username field leads with its subject's glyph inside the
+// input group, muted rather than as dark as the label. requirement 14: the invite carries its
+// verb's glyph.
+test('the username field leads with a muted glyph, and the invite carries its verb', () => {
 	loadLocale('en');
 	setLocale('en');
 	form();
 
-	for (const name of ['email', 'displayName']) {
+	for (const name of ['username']) {
 		const addon = addonBefore(name);
 		const input = document.querySelector(`input[name=${name}]`);
 

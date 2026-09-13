@@ -56,16 +56,16 @@ export type { Host };
  * thing between it and a procedure.
  *
  * What a *user record* holds is not settled here: it is the organization's member row, and it
- * arrives with the session that unsealed it. The first three fields are what this application can
- * already say about a person today, and all three survive whatever the row grows. The fourth is
+ * arrives with the session that unsealed it. The first two fields are what this application can
+ * already say about a person today, and both survive whatever the row grows. The third is
  * not about the person at all: it is about this account *in this workspace*, which is why it
  * arrives with the workspace rather than with the account.
  */
 export type Identity = {
 	/** the account row this machine holds, which is not yet the same thing as a user id. */
 	accountId: string;
-	email: string;
-	displayName: string;
+	/** the one thing that names the member; there is no address and no display name beside it. */
+	username: string;
 	/**
 	 * what this account may do in the workspace this machine holds.
 	 *
@@ -134,8 +134,7 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
 	return (
 		session && {
 			accountId: session.memberId,
-			email: session.email,
-			displayName: session.displayName,
+			username: session.username,
 			// **Off the same answer, on the same read.** What this member may administer is on
 			// their verified row, and the session carries it, so what they may do costs nothing
 			// beyond what resolving who they are already cost.

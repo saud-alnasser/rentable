@@ -29,7 +29,7 @@
 	const memberName = (id: string) => {
 		const member = members.find((candidate) => candidate.id === id);
 
-		return member ? member.displayName || member.email : id;
+		return member ? member.username : id;
 	};
 
 	const standingLabel = (standing: OrganizationInvitation['standing']) =>

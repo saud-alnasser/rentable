@@ -36,19 +36,16 @@
 		<div class="flex min-w-0 items-center gap-3">
 			<Avatar.Root class="size-10 shrink-0 rounded-full">
 				<Avatar.Fallback class="rounded-full text-xs">
-					{accountInitials(session.displayName || session.email || session.organizationName)}
+					{accountInitials(session.username || session.organizationName)}
 				</Avatar.Fallback>
 			</Avatar.Root>
 			<div class="grid min-w-0 gap-1">
 				<div class="flex min-w-0 flex-wrap items-center gap-2">
 					<p class="truncate text-sm font-medium">
-						{session.displayName || session.organizationName}
+						{session.username || session.organizationName}
 					</p>
 					<Badge variant="secondary">{roleLabel(session.role)}</Badge>
 				</div>
-				{#if session.email}
-					<p class="truncate text-sm text-muted-foreground" dir="ltr">{session.email}</p>
-				{/if}
 				<p class="truncate text-sm text-muted-foreground">{session.organizationName}</p>
 			</div>
 		</div>
