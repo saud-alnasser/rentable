@@ -49,7 +49,7 @@ export type {
 	ExportSheet,
 	ImportTable,
 	Invited,
-	JoinedOrganization,
+	HeldOrganization,
 	LinkFacts,
 	LinkStanding,
 	LockOutCost,
@@ -209,12 +209,14 @@ export const tauri = {
 		consentBegin: () => invoke<OrganizationConsentStart>('organization_consent_begin'),
 		consentResult: (sessionId: string) =>
 			invoke<OrganizationConsentResult>('organization_consent_result', { sessionId }),
-		disconnect: () => invoke<void>('organization_disconnect'),
-		create: (name: string, password: string) =>
-			invoke<OrganizationCreated>('organization_create', { name, password }),
+		consentDisconnect: () => invoke<void>('organization_consent_disconnect'),
+		create: (name: string, username: string, password: string) =>
+			invoke<OrganizationCreated>('organization_create', { name, username, password }),
 		getState: () => invoke<OrganizationState>('organization_state_get'),
-		signIn: (organizationId: string, password: string) =>
-			invoke<OrganizationState>('organization_sign_in', { organizationId, password }),
+		connect: (link: string) => invoke<OrganizationState>('organization_connect', { link }),
+		disconnect: () => invoke<OrganizationState>('organization_disconnect'),
+		signIn: (username: string, password: string) =>
+			invoke<OrganizationState>('organization_sign_in', { username, password }),
 		signOut: () => invoke<OrganizationState>('organization_sign_out'),
 		linkTake: () => invoke<string | null>('organization_link_take'),
 		onLink: (listener: (link: string) => void) =>
@@ -222,10 +224,6 @@ export const tauri = {
 		onMigration: (listener: (notice: MigrationNotice) => void) =>
 			listen<MigrationNotice>(MIGRATION_EVENT, (event) => listener(event.payload)),
 		linkInspect: (link: string) => invoke<LinkFacts>('organization_link_inspect', { link }),
-		join: (link: string, password: string) =>
-			invoke<OrganizationState>('organization_join', { link, password }),
-		restore: (link: string, email: string, password: string) =>
-			invoke<OrganizationState>('organization_restore', { link, email, password }),
 		reconnectAuthority: () => invoke<OrganizationState>('organization_reconnect_authority'),
 		renewDue: () => invoke<boolean>('organization_renew_due'),
 		ownLink: () => invoke<string>('organization_own_link'),
@@ -240,15 +238,13 @@ export const tauri = {
 		},
 		member: {
 			list: () => invoke<OrganizationMember[]>('organization_members'),
-			invite: (
-				email: string,
-				displayName: string,
-				role: 'administrator' | 'member',
-				workspaceIds: string[]
-			) => invoke<Invited>('member_invite', { email, displayName, role, workspaceIds }),
+			invite: (username: string, role: 'administrator' | 'member', workspaceIds: string[]) =>
+				invoke<Invited>('member_invite', { username, role, workspaceIds }),
 			remove: (memberId: string, lockOut: boolean) =>
 				invoke<MemberRemoved>('member_remove', { memberId, lockOut }),
-			lockOutCost: (memberId: string) => invoke<LockOutCost>('member_lock_out_cost', { memberId })
+			lockOutCost: (memberId: string) => invoke<LockOutCost>('member_lock_out_cost', { memberId }),
+			rename: (memberId: string, username: string) =>
+				invoke<OrganizationMember>('member_rename', { memberId, username })
 		},
 		invitation: {
 			list: () => invoke<OrganizationInvitation[]>('organization_invitations'),

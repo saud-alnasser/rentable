@@ -7,12 +7,23 @@ import type {
 	OrganizationCreated,
 	OrganizationInvitation,
 	OrganizationMember,
+	OrganizationState,
 	OrganizationWorkspace
 } from '$lib/platform/tauri';
 import { procedure, router } from '$lib/api/trpc';
 import z from 'zod';
 
 import { ORGANIZATION_NAME_LIMIT, PASSWORD_FLOOR } from './setup';
+import { USERNAME_MAX, USERNAME_MIN, USERNAME_PATTERN } from './username-form';
+
+/**
+ * a username as requirement 21 of effort 824 bounds it, read off the one definition the forms
+ * share (`./username-form.ts`). Rust holds the rule and the sentence
+ * (`invite::validate_username`); this is the earlier refusal, before the round trip, and it says
+ * nothing a form would show. Whether a username is taken is Rust's alone, since usernames are
+ * sealed and only an open vault can compare them.
+ */
+const USERNAME = z.string().trim().min(USERNAME_MIN).max(USERNAME_MAX).regex(USERNAME_PATTERN);
 
 /**
  * ORGANIZATION ROUTER
@@ -41,14 +52,30 @@ export const organization = router({
 				return ctx.host.organization.consentResult(input.sessionId);
 			}),
 		disconnect: procedure.public.mutation(async ({ ctx }): Promise<void> => {
-			return ctx.host.organization.disconnect();
+			return ctx.host.organization.consentDisconnect();
 		})
 	},
 	/**
-	 * Create the organization from the two things the setup walk collects.
+	 * Connect this machine to the organization a link names, and forget the one it holds.
+	 *
+	 * **`public`, both, because both happen at the wall.** A connect is offered to a machine that
+	 * holds nothing, before there is anybody to act as; a disconnect is offered on the wall while
+	 * signed out as well as on the organization page, and the host signs out first where somebody
+	 * is in. Neither reaches `ctx.db`. The one confirm before a disconnect is the screen's.
+	 */
+	connect: procedure.public
+		.input(z.object({ link: z.string().trim().min(1) }))
+		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+			return ctx.host.organization.connect(input.link);
+		}),
+	disconnect: procedure.public.mutation(async ({ ctx }): Promise<OrganizationState> => {
+		return ctx.host.organization.disconnect();
+	}),
+	/**
+	 * Create the organization from the three things the setup walk collects.
 	 *
 	 * **The bounds are the walk's own, stated here so a caller is refused before a round trip.**
-	 * The form refuses the same two on the field the reader typed in, and Rust refuses them again
+	 * The form refuses the same on the field the reader typed in, and Rust refuses them again
 	 * before it asks anything of Turso; this is the middle one, and it exists because a caller
 	 * that is not the form should still be turned away before the host is reached.
 	 */
@@ -56,11 +83,12 @@ export const organization = router({
 		.input(
 			z.object({
 				name: z.string().trim().min(1).max(ORGANIZATION_NAME_LIMIT),
+				username: USERNAME,
 				password: z.string().min(PASSWORD_FLOOR)
 			})
 		)
 		.mutation(async ({ input, ctx }): Promise<OrganizationCreated> => {
-			return ctx.host.organization.create(input.name, input.password);
+			return ctx.host.organization.create(input.name, input.username, input.password);
 		}),
 	/**
 	 * A workspace: created by the owner, opened by whoever holds a grant, granted and removed by
@@ -124,19 +152,13 @@ export const organization = router({
 			.permitted('inviteMember')
 			.input(
 				z.object({
-					email: z.string().trim().min(3).max(254).includes('@'),
-					displayName: z.string().trim().min(1).max(ORGANIZATION_NAME_LIMIT),
+					username: USERNAME,
 					role: z.enum(['administrator', 'member']),
 					workspaceIds: z.array(z.string().trim().min(1))
 				})
 			)
 			.mutation(async ({ input, ctx }): Promise<Invited> => {
-				return ctx.host.organization.member.invite(
-					input.email,
-					input.displayName,
-					input.role,
-					input.workspaceIds
-				);
+				return ctx.host.organization.member.invite(input.username, input.role, input.workspaceIds);
 			}),
 		/**
 		 * Removal, at one of two speeds. **`lockOut` defaults to false here as well as in Rust**,
@@ -153,6 +175,17 @@ export const organization = router({
 			.input(z.object({ memberId: z.string().trim().min(1) }))
 			.query(async ({ input, ctx }): Promise<LockOutCost> => {
 				return ctx.host.organization.member.lockOutCost(input.memberId);
+			}),
+		/**
+		 * A rename, held to the same act and the same username rules as an invitation, because
+		 * it changes the one thing an invitation named. Whether the username is taken, and whether
+		 * the row is the caller's own, are Rust's to refuse.
+		 */
+		rename: procedure
+			.permitted('inviteMember')
+			.input(z.object({ memberId: z.string().trim().min(1), username: USERNAME }))
+			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
+				return ctx.host.organization.member.rename(input.memberId, input.username);
 			})
 	},
 	invitation: {

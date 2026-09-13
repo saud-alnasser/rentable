@@ -10,8 +10,8 @@
 	/**
 	 * The person, as a page of its own.
 	 *
-	 * **Two groups: who is in, and the password that opens their place.** The name, the address,
-	 * the role and the organization are the member's own row, opened with the content key their
+	 * **Two groups: who is in, and the password that opens their place.** The username, the
+	 * role and the organization are the member's own row, opened with the content key their
 	 * vault holds, and the one thing here to change is the password that seals that vault. It is
 	 * a page rather than a row on the settings page because it answers a different question, and
 	 * because the account control in the sidebar needed somewhere to send a reader that was not

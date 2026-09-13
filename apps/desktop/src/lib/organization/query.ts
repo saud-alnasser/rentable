@@ -1,4 +1,4 @@
-import api from '$lib/api/caller';
+import api, { forgetContext } from '$lib/api/caller';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { tauri, type OrganizationConsentResult } from '$lib/platform/tauri';
@@ -47,9 +47,23 @@ export function useBeginConsent(
  * spent on nothing.
  */
 export function useConsentResult(sessionId: () => string | null) {
+	const client = useQueryClient();
+
 	return createQuery(() => ({
 		queryKey: keys.consent(sessionId() ?? ''),
-		queryFn: () => api.app.organization.consent.result({ sessionId: sessionId() ?? '' }),
+		queryFn: async () => {
+			const result = await api.app.organization.consent.result({ sessionId: sessionId() ?? '' });
+
+			// a consent seen granted changes where the machine stands, and the state key is what the
+			// walk reads for it: refreshed here, a person who connects, returns to the wall and comes
+			// back opens the walk granted at once rather than after that query's own refetch. The
+			// poll stops on the same answer, so this runs once per grant.
+			if (result.status === 'granted') {
+				await client.invalidateQueries({ queryKey: keys.state });
+			}
+
+			return result;
+		},
 		enabled: sessionId() !== null,
 		refetchInterval: (query) => {
 			const result = query.state.data as OrganizationConsentResult | undefined;
@@ -84,7 +98,11 @@ export function useReconnectAuthority(
 	}));
 }
 
-/** forget the Turso authority this machine holds. */
+/**
+ * forget the Turso authority this machine holds, and refresh where the machine stands, which
+ * the first run reads to open its connect step as granted: a walk that read the authority as
+ * held would otherwise go on reading it that way after it was given back.
+ */
 export function useDisconnect(
 	opts: MutationOptions = {
 		toast: {
@@ -94,8 +112,39 @@ export function useDisconnect(
 		}
 	}
 ) {
+	const client = useQueryClient();
+
 	return createMutation(() => ({
 		mutationFn: () => api.app.organization.consent.disconnect(),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.state });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * forget the organization this machine holds: the shell signs out where somebody is in, deletes
+ * every replica here, empties the record and clears the Turso authority (requirement 20 of
+ * effort 824). Nothing on Turso is touched.
+ *
+ * **No invalidation here**, because what follows is the wall: the caller hands the outcome to
+ * the startup unit, which reads where the machine stands and raises the screen a machine with
+ * nothing shows, clearing the whole cache on the way. The one confirm before it runs is the
+ * screen's.
+ */
+export function useDisconnectOrganization(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.disconnected(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	return createMutation(() => ({
+		mutationFn: () => api.app.organization.disconnect(),
 		onSuccess: () => onMutationSuccess(opts),
 		onError: (e) => onMutationError(opts, e)
 	}));
@@ -112,9 +161,22 @@ export function useCreateOrganization(
 	}
 ) {
 	return createMutation(() => ({
-		mutationFn: ({ name, password }: { name: string; password: string }) =>
-			api.app.organization.create({ name, password }),
-		onSuccess: () => onMutationSuccess(opts),
+		mutationFn: ({
+			name,
+			username,
+			password
+		}: {
+			name: string;
+			username: string;
+			password: string;
+		}) => api.app.organization.create({ name, username, password }),
+		// creating the organization signs its owner in, and the held context was built while
+		// nobody was: the walk's next call, the first workspace, needs an actor, so the context
+		// is forgotten here the way the wall and a sign-out forget it (`api/caller`).
+		onSuccess: () => {
+			forgetContext();
+			onMutationSuccess(opts);
+		},
 		onError: (e) => onMutationError(opts, e)
 	}));
 }
@@ -140,13 +202,20 @@ export function useCreateWorkspace(
 		}
 	}
 ) {
+	// the client the caller handed in, or the one in context: either way it is the one whose
+	// state key the rail's switcher, the page's list and the invite's checkboxes read.
+	const client = queryClient ?? useQueryClient();
+
 	return createMutation(
 		() => ({
 			mutationFn: ({ name }: { name: string }) => api.app.organization.workspace.create({ name }),
-			onSuccess: () => onMutationSuccess(opts),
+			onSuccess: async () => {
+				await client.invalidateQueries({ queryKey: keys.state });
+				onMutationSuccess(opts);
+			},
 			onError: (e) => onMutationError(opts, e)
 		}),
-		queryClient ? () => queryClient : undefined
+		() => client
 	);
 }
 
@@ -197,16 +266,14 @@ export function useInviteMember(
 
 	return createMutation(() => ({
 		mutationFn: ({
-			email,
-			displayName,
+			username,
 			role,
 			workspaceIds
 		}: {
-			email: string;
-			displayName: string;
+			username: string;
 			role: 'administrator' | 'member';
 			workspaceIds: string[];
-		}) => api.app.organization.member.invite({ email, displayName, role, workspaceIds }),
+		}) => api.app.organization.member.invite({ username, role, workspaceIds }),
 		onSuccess: async () => {
 			await Promise.all([
 				client.invalidateQueries({ queryKey: keys.members }),
@@ -237,6 +304,33 @@ export function useRemoveMember(
 				client.invalidateQueries({ queryKey: keys.members }),
 				client.invalidateQueries({ queryKey: keys.invitations })
 			]);
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * rename a member. The refusals a person can act on, a username outside the rules or one already
+ * taken, arrive as `BAD_REQUEST` and are shown verbatim; the list is refreshed so the row reads
+ * the new username.
+ */
+export function useRenameMember(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.renamed(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ memberId, username }: { memberId: string; username: string }) =>
+			api.app.organization.member.rename({ memberId, username }),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)

@@ -6,7 +6,13 @@ import { caller, context } from '$lib/api/trpc.ts';
 import { organization } from '$lib/organization/router.ts';
 import { PASSWORD_FLOOR } from '$lib/organization/setup.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
-import { fakeHost } from '$lib/platform/tests/testing.ts';
+import {
+	fakeHeldOrganization,
+	fakeHost,
+	fakeOrganizationState
+} from '$lib/platform/tests/testing.ts';
+import { fakeIdentity } from '$lib/api/tests/testing.ts';
+import { maskOf, type Administration } from '@rentable/workspace-permission';
 import type { Host } from '$lib/platform/host.ts';
 
 /**
@@ -49,11 +55,24 @@ function hostRecording(asked: string[]): Host {
 
 				return { sessionId, status: 'granted', error: null };
 			},
+			consentDisconnect: async () => {
+				asked.push('consentDisconnect');
+			},
+			connect: async (link) => {
+				asked.push(`connect:${link}`);
+
+				return fakeOrganizationState({
+					organization: fakeHeldOrganization({ memberId: null, role: null }),
+					session: null
+				});
+			},
 			disconnect: async () => {
 				asked.push('disconnect');
+
+				return fakeOrganizationState({ organization: null, session: null });
 			},
-			create: async (name, password) => {
-				asked.push(`create:${name}:${password.length}`);
+			create: async (name, username, password) => {
+				asked.push(`create:${name}:${username}:${password.length}`);
 
 				return { organizationId: 'org-1', joinLink: 'rentable://join/abc', synced: true };
 			}
@@ -71,33 +90,60 @@ test('the consent is opened, polled and given up through the host, and nobody ha
 
 	assert.equal(started.authorizationUrl, 'https://app.turso.tech/oauth');
 	assert.equal(result.status, 'granted');
-	assert.deepEqual(asked, ['consentBegin', 'consentResult:consent-1', 'disconnect']);
+	assert.deepEqual(asked, ['consentBegin', 'consentResult:consent-1', 'consentDisconnect']);
 });
 
-test('creating hands the trimmed name and the password to the host as given', async () => {
+// effort 824, requirements 18 and 20: connecting by the link and forgetting the organization both
+// happen at the wall, so both are public, and each hands back the state the machine is left in.
+test('connecting by link and disconnecting reach the host signed out, and answer with the state', async () => {
+	const asked: string[] = [];
+	const api = await signedOutApi(hostRecording(asked));
+
+	const connected = await api.app.organization.connect({ link: ' rentable://join/abc ' });
+	const forgotten = await api.app.organization.disconnect();
+
+	assert.deepEqual(asked, ['connect:rentable://join/abc', 'disconnect']);
+	assert.equal(connected.organization?.memberId, null, 'a connect recorded a member');
+	assert.equal(connected.session, null, 'a connect opened a vault');
+	assert.equal(forgotten.organization, null);
+});
+
+test('creating hands the trimmed name, the trimmed username and the password to the host as given', async () => {
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
 
 	const created = await api.app.organization.create({
 		name: '  Acme Rentals ',
+		username: ' Olivia.Owner ',
 		password: 'a long enough password'
 	});
 
 	assert.equal(created.joinLink, 'rentable://join/abc');
-	assert.deepEqual(asked, ['create:Acme Rentals:22']);
+	assert.deepEqual(asked, ['create:Acme Rentals:Olivia.Owner:22']);
 });
 
-// the two bounds the walk states, refused here before a round trip.
-test('an empty name or a password under the floor is refused before the host is reached', async () => {
+// the three bounds the walk states, refused here before a round trip. The username's are
+// requirement 21's: three to thirty-two characters of letters, digits, `.`, `_` and `-`.
+test('an empty name, a username outside the rules or a password under the floor is refused before the host is reached', async () => {
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
+	const password = 'a long enough password';
 
+	await assert.rejects(api.app.organization.create({ name: '   ', username: 'olivia', password }));
 	await assert.rejects(
-		api.app.organization.create({ name: '   ', password: 'a long enough password' })
+		api.app.organization.create({
+			name: 'Acme',
+			username: 'olivia',
+			password: 'x'.repeat(PASSWORD_FLOOR - 1)
+		})
 	);
-	await assert.rejects(
-		api.app.organization.create({ name: 'Acme', password: 'x'.repeat(PASSWORD_FLOOR - 1) })
-	);
+
+	for (const username of ['ol', 'o'.repeat(33), 'olivia owner', 'olivia@acme.example', '']) {
+		await assert.rejects(
+			api.app.organization.create({ name: 'Acme', username, password }),
+			username
+		);
+	}
 
 	assert.deepEqual(asked, []);
 });
@@ -109,10 +155,12 @@ test('nothing here asks the host to list organizations', () => {
 	const procedures = Object.keys(organization._def.procedures).sort();
 
 	assert.deepEqual(procedures, [
+		'connect',
 		'consent.begin',
 		'consent.disconnect',
 		'consent.result',
 		'create',
+		'disconnect',
 		'invitation.list',
 		'invitation.reissue',
 		'invitation.revoke',
@@ -120,6 +168,7 @@ test('nothing here asks the host to list organizations', () => {
 		'member.list',
 		'member.lockOutCost',
 		'member.remove',
+		'member.rename',
 		'password.change',
 		'workspace.create',
 		'workspace.grant',
@@ -128,4 +177,70 @@ test('nothing here asks the host to list organizations', () => {
 		'workspace.renewCredentials'
 	]);
 	assert.ok(!procedures.some((name) => /organizations/i.test(name)));
+});
+
+/**
+ * a caller whose row carries the acts named, the way `api/tests/procedure.test.ts` builds one:
+ * the real context with an identity in it, and the host above recording what reached it.
+ */
+async function permittedApi(host: Host, ...acts: Administration[]) {
+	const ctx = await context({
+		db: createMemoryDatabase(),
+		clock: { now: () => 0 },
+		host,
+		identity: fakeIdentity({ permissions: maskOf(...acts) })
+	});
+
+	return caller(appRouter)(ctx);
+}
+
+// requirement 23: a rename is held to requirement 21's rules before the host is reached, and what
+// reaches the host is the trimmed username; a caller without `inviteMember` is refused before
+// either. Whether the username is taken is Rust's alone.
+test('a rename hands the trimmed username on, refuses one outside the rules first, and needs the inviting act', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			member: {
+				...fakeHost().organization.member,
+				rename: async (memberId, username) => {
+					asked.push(`rename:${memberId}:${username}`);
+
+					return {
+						id: memberId,
+						username,
+						role: 'member',
+						permissions: 0,
+						mustChangePassword: false,
+						workspaceIds: [],
+						createdAt: 0
+					};
+				}
+			}
+		}
+	});
+	const api = await permittedApi(host, 'inviteMember');
+
+	const renamed = await api.app.organization.member.rename({
+		memberId: 'member-2',
+		username: ' Sami.Staff '
+	});
+
+	assert.equal(renamed.username, 'Sami.Staff');
+	assert.deepEqual(asked, ['rename:member-2:Sami.Staff']);
+
+	for (const username of ['sa', 's'.repeat(33), 'sami staff', 'sami@acme.example', '']) {
+		await assert.rejects(
+			api.app.organization.member.rename({ memberId: 'member-2', username }),
+			username
+		);
+	}
+
+	const without = await permittedApi(host);
+
+	await assert.rejects(
+		without.app.organization.member.rename({ memberId: 'member-2', username: 'sami' })
+	);
+	assert.deepEqual(asked, ['rename:member-2:Sami.Staff']);
 });

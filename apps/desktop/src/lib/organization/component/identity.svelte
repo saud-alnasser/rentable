@@ -12,11 +12,13 @@
 	/**
 	 * Who is in, and the way back out.
 	 *
-	 * The name, the address, the role and the organization are what the member's own row says,
-	 * opened with the content key their vault holds; there is no picture, because nothing here
-	 * ever asked a service for one. Signing out drops the keys this process holds and puts the
-	 * wall back up; the organization stays listed on the sign-in screen, because the machine
-	 * still knows which member it is there.
+	 * The username, the role and the organization are what the member's own row says, opened
+	 * with the content key their vault holds; the username is the whole of what names them, with
+	 * no address and no display name beside it (requirement 21 of effort 824), and there is no
+	 * picture, because nothing here ever asked a service for one. The avatar is the same two
+	 * letters of the username the rail draws. Signing out drops the keys this process holds and
+	 * puts the wall back up; the organization stays held on this machine, and the same username
+	 * and password open it again.
 	 *
 	 * *`sync/component/account.svelte` drew the Google account here until the control plane
 	 * retired.*
@@ -36,19 +38,14 @@
 		<div class="flex min-w-0 items-center gap-3">
 			<Avatar.Root class="size-10 shrink-0 rounded-full">
 				<Avatar.Fallback class="rounded-full text-xs">
-					{accountInitials(session.displayName || session.email || session.organizationName)}
+					{accountInitials(session.username)}
 				</Avatar.Fallback>
 			</Avatar.Root>
 			<div class="grid min-w-0 gap-1">
 				<div class="flex min-w-0 flex-wrap items-center gap-2">
-					<p class="truncate text-sm font-medium">
-						{session.displayName || session.organizationName}
-					</p>
+					<p class="truncate text-sm font-medium" data-identity-username>{session.username}</p>
 					<Badge variant="secondary">{roleLabel(session.role)}</Badge>
 				</div>
-				{#if session.email}
-					<p class="truncate text-sm text-muted-foreground" dir="ltr">{session.email}</p>
-				{/if}
 				<p class="truncate text-sm text-muted-foreground">{session.organizationName}</p>
 			</div>
 		</div>

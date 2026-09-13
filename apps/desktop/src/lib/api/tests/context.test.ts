@@ -60,8 +60,7 @@ test('every request carries an identity, and it is one of the four members', asy
 	assert.deepEqual(Object.keys(ctx).sort(), ['clock', 'db', 'host', 'identity']);
 	assert.deepEqual(ctx.identity, {
 		accountId: 'member-owner',
-		email: 'person@example.com',
-		displayName: 'Person Example',
+		username: 'person.example',
 		permissions: 0
 	});
 });
@@ -89,16 +88,14 @@ test('a signed-in machine names its member, off the organization state', async (
 		host: shellReporting(
 			fakeOrganizationSession({
 				memberId: 'member-9',
-				email: 'her@example.com',
-				displayName: 'Her Name'
+				username: 'her.name'
 			})
 		)
 	});
 
 	assert.deepEqual(ctx.identity, {
 		accountId: 'member-9',
-		email: 'her@example.com',
-		displayName: 'Her Name',
+		username: 'her.name',
 		permissions: 0
 	});
 });
@@ -160,8 +157,7 @@ test('nobody is invented to fill the gap', async () => {
 test('a supplied identity is carried as given, like every other member', async () => {
 	const identity = {
 		accountId: 'account-2',
-		email: 'other@example.com',
-		displayName: 'Other',
+		username: 'other',
 		permissions: 0
 	};
 	const ctx = await context({
@@ -187,8 +183,7 @@ test('an identity supplied as undefined falls back to the host rather than empty
 
 	assert.deepEqual(ctx.identity, {
 		accountId: 'member-owner',
-		email: 'person@example.com',
-		displayName: 'Person Example',
+		username: 'person.example',
 		permissions: 0
 	});
 });

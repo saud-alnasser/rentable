@@ -298,7 +298,7 @@ mod tests {
     use crate::{
         error::Error,
         organization::{
-            JoinedOrganization,
+            HeldOrganization,
             invite::{Invitation, invite_member, members, organization_link},
             migrate::Pipeline,
             permission,
@@ -342,8 +342,8 @@ mod tests {
         Arc::new(Mutex::new(None))
     }
 
-    fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> JoinedOrganization {
-        JoinedOrganization {
+    fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
+        HeldOrganization {
             id: owner.organization_id.clone(),
             name: "Acme".to_string(),
             verifying_key: base64::Engine::encode(
@@ -351,8 +351,8 @@ mod tests {
                 owner.verifying_key,
             ),
             remote_url: String::new(),
-            member_id: member_id.to_string(),
-            role: role.to_string(),
+            member_id: Some(member_id.to_string()),
+            role: Some(role.to_string()),
             joined_at: 0,
         }
     }
@@ -444,6 +444,7 @@ mod tests {
             &directory.join("app.db"),
             CreateOrganization {
                 name: "Acme",
+                username: "olivia",
                 password: OWNER_PASSWORD,
             },
             test_cost(),
@@ -451,7 +452,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = machine.organizations[0].clone();
+        let joined = machine.organization.clone().expect("the record");
         let mut owner = sign_in(&store, &joined, OWNER_PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -486,8 +487,7 @@ mod tests {
             &owner,
             &link,
             Invitation {
-                email: "ada@acme.example",
-                display_name: "Ada Admin",
+                username: "ada.admin",
                 role: permission::ADMINISTRATOR,
                 workspace_ids: std::slice::from_ref(&north.id),
             },
@@ -501,8 +501,7 @@ mod tests {
             &owner,
             &link,
             Invitation {
-                email: "sami@acme.example",
-                display_name: "Sami Staff",
+                username: "sami.staff",
                 role: permission::MEMBER,
                 workspace_ids: &[north.id.clone(), south.id.clone()],
             },
@@ -1001,8 +1000,7 @@ mod tests {
             &ada,
             &link,
             Invitation {
-                email: "bob@acme.example",
-                display_name: "Bob",
+                username: "bob",
                 role: permission::MEMBER,
                 workspace_ids: std::slice::from_ref(&org.north),
             },

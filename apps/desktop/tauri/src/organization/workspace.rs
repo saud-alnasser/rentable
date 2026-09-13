@@ -623,7 +623,7 @@ mod tests {
     };
     use crate::{
         organization::{
-            JoinedOrganization,
+            HeldOrganization,
             migrate::Pipeline,
             permission,
             session::{CredentialSlot, MemberSession, sign_in},
@@ -685,7 +685,7 @@ mod tests {
     ) -> (
         Persisted<RemoteSyncStore>,
         OrganizationStore,
-        JoinedOrganization,
+        HeldOrganization,
         MemberSession,
         Arc<InMemoryPlatform>,
     ) {
@@ -722,6 +722,7 @@ mod tests {
             &directory.join("app.db"),
             CreateOrganization {
                 name: "Acme",
+                username: "olivia",
                 password: PASSWORD,
             },
             test_cost(),
@@ -729,7 +730,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organizations[0].clone();
+        let joined = store.organization.clone().expect("the record");
         let session = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -739,7 +740,7 @@ mod tests {
 
     /// A second member, written by the owner as an invitation will write one: a vault under a
     /// password the owner chose for them, the content key sealed to them, and no grant yet.
-    async fn second_member(store: &OrganizationStore, owner: &MemberSession) -> JoinedOrganization {
+    async fn second_member(store: &OrganizationStore, owner: &MemberSession) -> HeldOrganization {
         let (key, certificate) = super::signer_of(store, owner).await.expect("the signer");
         let vault = create_vault(OTHER_PASSWORD, test_cost()).expect("a vault");
 
@@ -751,16 +752,10 @@ mod tests {
                 },
                 &MemberRecord {
                     id: "member-b".to_string(),
-                    email_sealed: seal_content(
+                    username_sealed: seal_content(
                         &owner.content_key,
-                        "member.email_sealed",
-                        b"b@acme",
-                    )
-                    .expect("sealed"),
-                    display_name_sealed: seal_content(
-                        &owner.content_key,
-                        "member.display_name_sealed",
-                        b"B",
+                        "member.username_sealed",
+                        b"member-b",
                     )
                     .expect("sealed"),
                     sealed_content_key: seal_to_public_key(
@@ -779,7 +774,7 @@ mod tests {
             .await
             .expect("the member");
 
-        JoinedOrganization {
+        HeldOrganization {
             id: owner.organization_id.clone(),
             name: "Acme".to_string(),
             verifying_key: base64::Engine::encode(
@@ -787,8 +782,8 @@ mod tests {
                 owner.verifying_key,
             ),
             remote_url: String::new(),
-            member_id: "member-b".to_string(),
-            role: permission::MEMBER.to_string(),
+            member_id: Some("member-b".to_string()),
+            role: Some(permission::MEMBER.to_string()),
             joined_at: 1_757_000_000_001,
         }
     }
@@ -1161,8 +1156,8 @@ mod tests {
         );
     }
 
-    fn store_joined(owner: &MemberSession) -> JoinedOrganization {
-        JoinedOrganization {
+    fn store_joined(owner: &MemberSession) -> HeldOrganization {
+        HeldOrganization {
             id: owner.organization_id.clone(),
             name: "Acme".to_string(),
             verifying_key: base64::Engine::encode(
@@ -1170,8 +1165,8 @@ mod tests {
                 owner.verifying_key,
             ),
             remote_url: String::new(),
-            member_id: owner.member_id.clone(),
-            role: permission::OWNER.to_string(),
+            member_id: Some(owner.member_id.clone()),
+            role: Some(permission::OWNER.to_string()),
             joined_at: 0,
         }
     }

@@ -85,8 +85,11 @@ const WORKSPACE_DOMAIN: &[u8] = b"rentable.organization.authority.workspace.v1";
 const GRANT_DOMAIN: &[u8] = b"rentable.organization.authority.grant.v1";
 
 /// The fourth row, which the invitation ticket gave a signature: the plan's data model gave the
-/// row the column, and the ticket that writes one is the ticket that signs it.
-const INVITATION_DOMAIN: &[u8] = b"rentable.organization.authority.invitation.v1";
+/// row the column, and the ticket that writes one is the ticket that signs it. `v2` since effort
+/// 824 put the member id under the signature where the sealed payload was; a `v1` signature is
+/// over a preimage no row carries any more, and the label says so rather than letting the two
+/// share a name.
+const INVITATION_DOMAIN: &[u8] = b"rentable.organization.authority.invitation.v2";
 
 /// The first check's refusal: the row does not carry the signature the
 /// certificate it names would have produced.
@@ -151,15 +154,19 @@ pub enum Authority<'a> {
     Invitation(InvitationAuthority<'a>),
 }
 
-/// What an `invitation` row puts under signature: which invitation it is, what
-/// it seals, and how long it stands. `consumed_at` is written by the machine
-/// that consumes it and is not covered, for the reason `revoked_at` is not on a
-/// certificate: it does not exist when the row is signed.
+/// What an `invitation` row puts under signature: which invitation it is, whose
+/// pending account it is, and how long it stands. `consumed_at` is written by the
+/// machine that consumes it and is not covered, for the reason `revoked_at` is
+/// not on a certificate: it does not exist when the row is signed.
+///
+/// *A sealed payload naming the member stood under signature in `member_id`'s
+/// place until effort 824 dropped the invitation's sealed half: the row is found
+/// by the password now, and the member it names is what the signature binds.*
 #[derive(Clone, Copy, Debug)]
 pub struct InvitationAuthority<'a> {
     pub id: &'a str,
-    /// The payload the link's secret and the person's password open together.
-    pub sealed_payload: &'a [u8],
+    /// The member whose first sign-in this invitation is for.
+    pub member_id: &'a str,
     /// When the invitation lapses, in milliseconds.
     pub expires_at: i64,
 }
@@ -458,13 +465,13 @@ fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
         }
         Authority::Invitation(InvitationAuthority {
             id,
-            sealed_payload,
+            member_id,
             expires_at,
         }) => {
             message.extend_from_slice(INVITATION_DOMAIN);
             field(&mut message, certificate_id.as_bytes());
             field(&mut message, id.as_bytes());
-            field(&mut message, sealed_payload);
+            field(&mut message, member_id.as_bytes());
             field(&mut message, &expires_at.to_be_bytes());
         }
     }

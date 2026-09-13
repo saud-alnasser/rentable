@@ -1,13 +1,15 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { tauri, type OrganizationCreated } from '$lib/platform/tauri';
+	import { tauri } from '$lib/platform/tauri';
 	import OrganizationSetupWalk from '$lib/organization/component/setup-walk.svelte';
 	import {
 		useBeginConsent,
 		useConsentResult,
 		useCreateOrganization,
-		useDisconnect
+		useCreateWorkspace,
+		useDisconnect,
+		useFetchOrganizationState
 	} from '$lib/organization/query';
 	import { SETUP_STEPS, TURSO_DASHBOARD_URL, type SetupStep } from '$lib/organization/setup';
 	import { THE_WAY_IN } from '$lib/layout/shell-surface';
@@ -18,20 +20,43 @@
 	 *
 	 * The screen is `organization/component/setup-walk.svelte`, drawn from props; what is here is
 	 * every call that reaches Rust and the state each answers with: opening the consent, polling it,
-	 * creating the organization, and copying the link. It opens with nobody signed in, which
-	 * `layout/shell-surface.ts` decides, because it is how a person comes to be somebody here.
+	 * creating the organization, and creating the first workspace. It opens with nobody signed in,
+	 * which `layout/shell-surface.ts` decides, because it is how a person comes to be somebody here.
+	 *
+	 * **It reads where the machine stands before asking for a consent.** A machine that already
+	 * holds Turso authority, because a person connected, went back to the wall and came here again,
+	 * opens the walk at `connect` already granted rather than asking for a consent it has.
+	 *
+	 * **The walk ends inside the workspace.** Creating it on the third step is the workspace
+	 * mutation, then the way in and the startup unit reading where the machine stands again, in
+	 * that order: the shell signed the owner in as it created the organization, so the startup unit
+	 * admits them, opens the one workspace and goes on in from the way in, the path a sign-in takes
+	 * past the wall. The address changes first so the application draws under the way in rather
+	 * than under this one, which the shell would otherwise keep.
 	 */
 	const startup = useStartup();
 
 	let step = $state<SetupStep>('connect');
 	let sessionId = $state<string | null>(null);
-	let created = $state<OrganizationCreated | null>(null);
-	let linkCopied = $state(false);
 
+	const stateQuery = useFetchOrganizationState();
+
+	// the walk resumes where the machine stands: an owner already signed in whose organization
+	// holds no workspace is on the third step, whatever this route was opened at. The first two
+	// steps would create the organization again, which requirement 1 keeps the back control off
+	// the third step for; a reload or an address typed in reaches this route the same way.
+	$effect(() => {
+		const session = stateQuery.data?.session;
+
+		if (step !== 'workspace' && session && session.workspaces.length === 0) {
+			step = 'workspace';
+		}
+	});
 	const beginConsent = useBeginConsent();
 	const consentResult = useConsentResult(() => sessionId);
 	const disconnect = useDisconnect();
 	const createOrganization = useCreateOrganization();
+	const createWorkspace = useCreateWorkspace();
 
 	const consent = $derived.by(() => {
 		if (!sessionId) return { status: 'idle' as const, error: null };
@@ -44,8 +69,6 @@
 	});
 
 	const connect = async () => {
-		linkCopied = false;
-
 		try {
 			const started = await beginConsent.mutateAsync();
 
@@ -65,62 +88,69 @@
 		}
 	};
 
-	const create = async (name: string, password: string) => {
+	const create = async (name: string, username: string, password: string) => {
 		try {
-			created = await createOrganization.mutateAsync({ name, password });
-			step = 'done';
+			await createOrganization.mutateAsync({ name, username, password });
+			step = 'workspace';
 		} catch {
 			// the refusal a person can act on has been shown verbatim; the form keeps what they
 			// typed, because the failures that reach here are the ones a person retries.
 		}
 	};
 
-	const copyLink = async () => {
-		if (!created) return;
-
+	const createFirstWorkspace = async (name: string) => {
 		try {
-			await navigator.clipboard.writeText(created.joinLink);
-			linkCopied = true;
+			await createWorkspace.mutateAsync({ name });
 		} catch {
-			linkCopied = false;
+			// said by the shared handler; the surface keeps what they typed.
+			return;
 		}
+
+		// the walk is over and the owner is in: the address goes to the way in first, and the
+		// startup unit reads where the machine stands and goes on in from there.
+		void goto(resolve(THE_WAY_IN));
+		void startup.standingChanged();
 	};
 
 	const next = () => {
 		const index = SETUP_STEPS.indexOf(step);
 
-		if (step === 'done') {
-			// the walk is over and the owner is in: the shell signed them in as it created the
-			// organization, and the startup unit reads where the machine stands again and goes on
-			// in from the way in, which is the path a sign-in takes past the wall.
+		step = SETUP_STEPS[Math.min(index + 1, SETUP_STEPS.length - 1)] ?? step;
+	};
+
+	/**
+	 * the corner control: the wall from the first step, the step before from every other. Leaving
+	 * with a consent still open in the browser abandons the poll and nothing else, since a consent
+	 * creates nothing on the account.
+	 */
+	const back = () => {
+		const index = SETUP_STEPS.indexOf(step);
+
+		if (index <= 0) {
 			void goto(resolve(THE_WAY_IN));
-			void startup.standingChanged();
 
 			return;
 		}
 
-		step = SETUP_STEPS[Math.min(index + 1, SETUP_STEPS.length - 1)] ?? step;
-	};
+		// the third step draws no corner, and this holds even if one is pressed: the name step
+		// created the organization and signed the owner in, and nothing behind it can be re-entered.
+		if (step === 'workspace') return;
 
-	const back = () => {
-		const index = SETUP_STEPS.indexOf(step);
-
-		step = SETUP_STEPS[Math.max(index - 1, 0)] ?? step;
+		step = SETUP_STEPS[index - 1] ?? step;
 	};
 </script>
 
 <OrganizationSetupWalk
 	{step}
 	{consent}
+	holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority ?? false}
 	isConnecting={beginConsent.isPending}
-	isCreating={createOrganization.isPending}
-	{created}
-	{linkCopied}
+	isCreating={createOrganization.isPending || createWorkspace.isPending}
 	onOpenDashboard={() => void tauri.opener.openUrl(TURSO_DASHBOARD_URL)}
 	onConnect={() => void connect()}
 	onDisconnect={() => void forget()}
 	onContinue={next}
 	onBack={back}
 	onCreate={create}
-	onCopyLink={() => void copyLink()}
+	onCreateWorkspace={createFirstWorkspace}
 />

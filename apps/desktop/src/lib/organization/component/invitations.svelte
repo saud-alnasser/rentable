@@ -6,11 +6,13 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 
 	/**
-	 * Every invitation and where it stands: open, lapsed, or consumed.
+	 * The pending accounts: every invitation and where it stands, open, lapsed, or used.
 	 *
-	 * An invitation expires and the link does not (requirement 23): a lapsed one is shown as
-	 * lapsed rather than gone, so an administrator sees why a person could not get in and reissues
-	 * from the member's row. Revoking is offered on an unused one only; a consumed one is history.
+	 * An account is made at invite and is pending until its first sign-in (requirement 22 of
+	 * effort 824), so each row names the member by the one username the account was made with.
+	 * An invitation expires and the link does not: a lapsed one is shown as lapsed rather than
+	 * gone, so an administrator sees why a person could not get in and reissues from the member's
+	 * row. Revoking is offered on an unused one only; a used one is history.
 	 */
 	let {
 		invitations,
@@ -26,10 +28,10 @@
 		onRevoke: (invitationId: string) => void;
 	} = $props();
 
-	const memberName = (id: string) => {
+	const usernameOf = (id: string) => {
 		const member = members.find((candidate) => candidate.id === id);
 
-		return member ? member.displayName || member.email : id;
+		return member ? member.username : id;
 	};
 
 	const standingLabel = (standing: OrganizationInvitation['standing']) =>
@@ -40,16 +42,18 @@
 		})[standing];
 </script>
 
-<div class="space-y-4" data-invitations>
+<div class="space-y-4" data-pending-accounts>
 	{#if invitations.length === 0}
-		<p class="text-sm text-muted-foreground">{$LL.organization.dashboard.noInvitations()}</p>
+		<p class="text-sm text-muted-foreground">{$LL.organization.dashboard.noPendingAccounts()}</p>
 	{/if}
 
 	{#each invitations as invitation (invitation.id)}
 		<Field.Field orientation="responsive" data-invitation={invitation.standing}>
 			<Field.Content>
 				<div class="flex min-w-0 flex-wrap items-center gap-2">
-					<p class="truncate text-sm font-medium">{memberName(invitation.memberId)}</p>
+					<p class="truncate text-sm font-medium" data-pending-username>
+						{usernameOf(invitation.memberId)}
+					</p>
 					<Badge variant={invitation.standing === 'open' ? 'secondary' : 'outline'}>
 						{standingLabel(invitation.standing)}
 					</Badge>

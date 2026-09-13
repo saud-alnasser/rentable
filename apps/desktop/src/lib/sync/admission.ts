@@ -14,8 +14,8 @@ import type { OrganizationSession, OrganizationState } from '$lib/platform/host'
  * machine, and nothing about that has a window.
  *
  * **So the question is asked of the organization state, and the two refusals are the
- * organization's own.** A machine that has joined no organization has nothing to sign in to, and
- * the way past that is the first run or a join link. A machine that has joined one and holds no
+ * organization's own.** A machine that holds no organization has nothing to sign in to, and the
+ * way past that is the first run or the organization's link. A machine that holds one and no
  * open vault is locked, and the way past that is a password. Neither is a lock a returning network
  * lifts, because neither was put up by a network going away.
  *
@@ -38,11 +38,11 @@ export type Admission =
 			/**
 			 * why, because the two are not the same thing to the person reading the screen.
 			 *
-			 * `noOrganization` is a machine that has joined nothing: there is no vault to open and
-			 * no password to type, and the screen offers the first run instead. `locked` is a machine
-			 * that has joined at least one organization and holds no open vault, which is every
-			 * launch after the first and every sign-out: the screen lists what it has joined and asks
-			 * for a password.
+			 * `noOrganization` is a machine that holds nothing: there is no vault to open and no
+			 * password to type, and the screen offers the two ways to connect instead. `locked` is a
+			 * machine that holds an organization and no open vault, which is every launch after the
+			 * first and every sign-out: the screen names the organization and asks for a username
+			 * and a password.
 			 */
 			reason: 'noOrganization' | 'locked';
 	  }
@@ -72,6 +72,6 @@ export function organizationAdmission(state: OrganizationState | null | undefine
 
 	return {
 		kind: 'signInRequired',
-		reason: state.organizations.length === 0 ? 'noOrganization' : 'locked'
+		reason: state.organization === null ? 'noOrganization' : 'locked'
 	};
 }

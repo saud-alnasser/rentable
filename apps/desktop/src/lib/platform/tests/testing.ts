@@ -8,7 +8,7 @@
 // different one.
 
 import type {
-	JoinedOrganization,
+	HeldOrganization,
 	OrganizationSession,
 	OrganizationState,
 	OrganizationWorkspace,
@@ -119,17 +119,17 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 		organization: {
 			consentBegin: refuse('organization.consentBegin'),
 			consentResult: refuse('organization.consentResult'),
-			disconnect: refuse('organization.disconnect'),
+			consentDisconnect: refuse('organization.consentDisconnect'),
 			create: refuse('organization.create'),
 			getState: refuse('organization.getState'),
+			connect: refuse('organization.connect'),
+			disconnect: refuse('organization.disconnect'),
 			signIn: refuse('organization.signIn'),
 			signOut: refuse('organization.signOut'),
 			linkTake: refuse('organization.linkTake'),
 			onLink: refuse('organization.onLink'),
 			onMigration: refuse('organization.onMigration'),
 			linkInspect: refuse('organization.linkInspect'),
-			join: refuse('organization.join'),
-			restore: refuse('organization.restore'),
 			reconnectAuthority: refuse('organization.reconnectAuthority'),
 			renewDue: refuse('organization.renewDue'),
 			ownLink: refuse('organization.ownLink'),
@@ -144,7 +144,8 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 				list: refuse('organization.member.list'),
 				invite: refuse('organization.member.invite'),
 				remove: refuse('organization.member.remove'),
-				lockOutCost: refuse('organization.member.lockOutCost')
+				lockOutCost: refuse('organization.member.lockOutCost'),
+				rename: refuse('organization.member.rename')
 			},
 			invitation: {
 				list: refuse('organization.invitation.list'),
@@ -164,10 +165,8 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 	};
 }
 
-/** an organization this machine has joined, as the sign-in screen lists it. */
-export function fakeJoinedOrganization(
-	overrides: Partial<JoinedOrganization> = {}
-): JoinedOrganization {
+/** the organization this machine holds, as the wall names it, with its member found. */
+export function fakeHeldOrganization(overrides: Partial<HeldOrganization> = {}): HeldOrganization {
 	return {
 		id: 'acme',
 		name: 'Acme Rentals',
@@ -201,19 +200,18 @@ export function fakeOrganizationSession(
 		organizationId: 'acme',
 		organizationName: 'Acme Rentals',
 		memberId: 'member-owner',
-		email: 'person@example.com',
-		displayName: 'Person Example',
+		username: 'person.example',
 		role: 'owner',
 		permissions: 0,
 		mustChangePassword: false,
 		workspaces: [fakeOrganizationWorkspace()],
-		ownerDisplayName: 'Olivia Owner',
+		ownerUsername: 'olivia.owner',
 		...overrides
 	};
 }
 
 /**
- * where a machine stands with organizations. The default is a machine that has joined one and
+ * where a machine stands with its organization. The default is a machine that holds one and
  * whose person is signed in to it, because that is what most paths behind the wall want; a test
  * about the wall itself says which side of it the machine is on.
  */
@@ -221,7 +219,7 @@ export function fakeOrganizationState(
 	overrides: Partial<OrganizationState> = {}
 ): OrganizationState {
 	return {
-		organizations: [fakeJoinedOrganization()],
+		organization: fakeHeldOrganization(),
 		session: fakeOrganizationSession(),
 		holdsTursoAuthority: true,
 		...overrides

@@ -31,7 +31,7 @@ export type ShellSurface =
  */
 export const THE_FIRST_RUN = '/organization/new';
 
-/** the join screen: a link, and the generated password that opens the invitation in it. */
+/** the connect screen: the organization's link, read and recorded on this machine. */
 export const THE_JOIN = '/organization/join';
 
 /**

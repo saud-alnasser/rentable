@@ -80,7 +80,19 @@ export type StartupSnapshot = {
 };
 
 /** what a sync manager reported, as this unit needs to read it. */
-export type SyncOutcome = { action: string; received: boolean };
+export type SyncOutcome = {
+	action: string;
+	received: boolean;
+	/**
+	 * the workspace the dispatch ran for, read before it ran; `null` where none was open.
+	 *
+	 * A dispatch in flight while a switch happens reports for the workspace that was open when it
+	 * started, after the cache has been cleared for the one open now. Without this the report
+	 * cannot be told from one about the new workspace, and a `received` outcome would run a
+	 * reconcile the new workspace did not need and say rows arrived that a person never saw.
+	 */
+	workspaceId: string | null;
+};
 
 /**
  * What startup reaches for outside itself.
@@ -99,17 +111,19 @@ export type StartupPorts = {
 	remoteSync: {
 		getState(): Promise<RemoteSyncState>;
 	};
-	/** the organizations this machine has joined, and the vault a password opens. */
+	/** the organization this machine holds, and the vault a username and password open. */
 	organization: {
 		getState(): Promise<OrganizationState>;
-		signIn(organizationId: string, password: string): Promise<OrganizationState>;
-		/** join the organization a link names with the generated password, and sign in to it. */
-		join(link: string, password: string): Promise<OrganizationState>;
-		/** restore a place in the organization its own link names, by email and password. */
-		restore(link: string, email: string, password: string): Promise<OrganizationState>;
+		/** sign in to the held organization by username and password; one sentence for a refusal. */
+		signIn(username: string, password: string): Promise<OrganizationState>;
 		/** change the signed-in member's own password, and clear the requirement to. */
 		changePassword(current: string, next: string): Promise<OrganizationState>;
 		signOut(): Promise<OrganizationState>;
+		/**
+		 * forget the held organization on this machine: every replica, the record, the Turso
+		 * authority. The one confirm before it is the screen's.
+		 */
+		disconnect(): Promise<OrganizationState>;
 		/** open one of the workspaces the session holds a grant on, before the bootstrap. */
 		openWorkspace(workspaceId: string): Promise<unknown>;
 		/** renew credentials close to lapsing, on the owner's machine, best effort. */
@@ -133,6 +147,15 @@ export type StartupPorts = {
 	cache: {
 		/** everything drawn for whoever was here before. */
 		clear(): void;
+		/**
+		 * every query nothing is drawing any more, and none that something is.
+		 *
+		 * What a switch between workspaces asks for, and `clear` is not it: a query removed from
+		 * the cache is never heard from again by whatever was drawing it, and the rail stays on
+		 * screen through a switch. The page's queries have no observer once the loading surface
+		 * replaced it, so they go; the rail's are refetched through `invalidateAll` instead.
+		 */
+		dropUndrawn(): void;
 		rememberRemoteSync(state: RemoteSyncState): void;
 		invalidateRemoteSync(): Promise<unknown>;
 		invalidateAll(): Promise<unknown>;
@@ -457,16 +480,20 @@ export class Startup {
 	}
 
 	/**
-	 * Sign in at the wall, and go straight on into the application on the far side of it.
+	 * Sign in at the wall, by username and password, and go straight on into the application on
+	 * the far side of it.
 	 *
-	 * **One call, and it is a key derivation a person is waiting on.** The password is handed to
-	 * the shell and never held here; what comes back is where the machine stands, and the wall
-	 * reads that. A wrong password is a failure the wall says, with the one sentence the shell
-	 * allows it: the value did not open. The person is still standing at the wall, so an error
+	 * **One call, and it is a key derivation per member a person is waiting on.** The username
+	 * and the password are handed to the shell and never held here; what comes back is where the
+	 * machine stands, and the wall reads that. A refusal is a failure the wall says, with the one
+	 * sentence the shell allows it, the same for a wrong password, an unknown username and a
+	 * username held by somebody else. The person is still standing at the wall, so an error
 	 * screen would take away the control they need. A startup that fails after the sign-in has
-	 * succeeded is the ordinary failure every other path here reports, and reads as one.
+	 * succeeded is the ordinary failure every other path here reports, and reads as one. A first
+	 * sign-in on a handed password lands on the password change, as any sign-in with
+	 * `mustChangePassword` does.
 	 */
-	async signIn(organizationId: string, password: string) {
+	async signIn(username: string, password: string) {
 		if (this.#snapshot.isSigningIn) {
 			return;
 		}
@@ -474,7 +501,7 @@ export class Startup {
 		this.#set({ isSigningIn: true, error: null });
 
 		try {
-			this.#set({ organization: await this.#ports.organization.signIn(organizationId, password) });
+			this.#set({ organization: await this.#ports.organization.signIn(username, password) });
 		} catch (error) {
 			this.#set({ error: this.#ports.describeError(error) });
 
@@ -494,88 +521,6 @@ export class Startup {
 		}
 
 		await this.#enterApplication();
-	}
-
-	/**
-	 * Join at the wall, by a link and the generated password, and go straight on in.
-	 *
-	 * **The same shape as `signIn`, because joining is a sign-in with one step before it and one
-	 * after**: the shell opens the invitation with the link's half and the password, signs the
-	 * person in to the row it names, spends the invitation, and records the organization on this
-	 * machine. What comes back is where the machine stands, and the wall reads that. A refusal
-	 * stays on the join screen with its sentence, for the reason a wrong password stays on the
-	 * sign-in card: the person is still standing at the wall and needs the control.
-	 */
-	async joinByLink(link: string, password: string) {
-		if (this.#snapshot.isSigningIn) {
-			return false;
-		}
-
-		this.#set({ isSigningIn: true, error: null });
-
-		try {
-			this.#set({ organization: await this.#ports.organization.join(link, password) });
-		} catch (error) {
-			this.#set({ error: this.#ports.describeError(error) });
-
-			return false;
-		} finally {
-			this.#set({ isSigningIn: false });
-		}
-
-		this.#rememberSession();
-
-		if (!(await this.#admit())) {
-			return true;
-		}
-
-		if (!(await this.#hasWorkspace())) {
-			return true;
-		}
-
-		await this.#enterApplication();
-
-		return true;
-	}
-
-	/**
-	 * Restore a place in an organization from its own link, at the wall, and go on in.
-	 *
-	 * The shape `joinByLink` has, because it is the same act from the other side of an
-	 * invitation: the link finds the organization, the password opens the person's vault, and
-	 * where the machine stands is what comes back. An owner arrives with no Turso authority and
-	 * repeats the consent from the dashboard; a member is done.
-	 */
-	async restoreByLink(link: string, email: string, password: string) {
-		if (this.#snapshot.isSigningIn) {
-			return false;
-		}
-
-		this.#set({ isSigningIn: true, error: null });
-
-		try {
-			this.#set({ organization: await this.#ports.organization.restore(link, email, password) });
-		} catch (error) {
-			this.#set({ error: this.#ports.describeError(error) });
-
-			return false;
-		} finally {
-			this.#set({ isSigningIn: false });
-		}
-
-		this.#rememberSession();
-
-		if (!(await this.#admit())) {
-			return true;
-		}
-
-		if (!(await this.#hasWorkspace())) {
-			return true;
-		}
-
-		await this.#enterApplication();
-
-		return true;
 	}
 
 	/**
@@ -686,6 +631,54 @@ export class Startup {
 	}
 
 	/**
+	 * Open another of the workspaces the member holds, from inside the application.
+	 *
+	 * **The sign-in path past the wall, under the loading surface, and not a switch in place.**
+	 * The shell records the chosen workspace as current and opens its replica, and then the same
+	 * open, changes and records stages a sign-in runs bring the application up on it. An in-place
+	 * switch would redraw every list under the new name while the old rows were still on screen,
+	 * which is the failure [[rules/data]] on cached queries is written against; the loading
+	 * surface for a second is the cost, and it is the second a sign-in costs.
+	 *
+	 * **What was drawn is dropped after the shell has opened the workspace, not before.** The
+	 * loading surface replaces the page as soon as this sets `loading`, so by the time the open
+	 * has come back nothing is drawing the page's queries and they can go. The rail is still
+	 * drawing its own, and those are refetched rather than removed, since a query removed from
+	 * under a live observer is never heard from again; the remote-sync query is then seeded with
+	 * what the changes stage read, so the rail names the new workspace without waiting on it.
+	 *
+	 * The session is not remembered again: the member and the database proxy are what they were,
+	 * and only the workspace behind the proxy changed. A failure is the ordinary startup failure,
+	 * whose retry reopens whatever the shell recorded as current.
+	 */
+	async switchWorkspace(workspaceId: string) {
+		if (this.#snapshot.isSigningIn || this.#snapshot.state === 'loading') {
+			return;
+		}
+
+		this.#set({ state: 'loading', error: null, recovery: null });
+
+		try {
+			await this.#ports.organization.openWorkspace(workspaceId);
+		} catch (error) {
+			await this.#fail(error);
+
+			return;
+		}
+
+		this.#ports.cache.dropUndrawn();
+		await this.#ports.cache.invalidateAll();
+
+		await this.#enterApplication();
+
+		const { state, remoteSync } = this.#snapshot;
+
+		if (state === 'ready' && remoteSync) {
+			this.#ports.cache.rememberRemoteSync(remoteSync);
+		}
+	}
+
+	/**
 	 * Somebody signed out, here or on another window.
 	 *
 	 * The keys this process held are dropped by the shell, and the held context names a member
@@ -701,7 +694,7 @@ export class Startup {
 		this.#set({
 			remoteSync: await this.#ports.remoteSync.getState().catch(() => null),
 			organization: organization ?? {
-				organizations: [],
+				organization: null,
 				session: null,
 				holdsTursoAuthority: false
 			}
@@ -716,15 +709,59 @@ export class Startup {
 	}
 
 	/**
+	 * Forget the organization this machine holds: the wall's way out while signed out, and the
+	 * organization page's while signed in, where the shell signs out first.
+	 *
+	 * **The confirm is the screen's, and this runs after it.** The shell deletes every replica,
+	 * empties the record and clears the Turso authority in one call, and what follows is the path
+	 * `standingChanged` already takes: read where the machine stands again, which is now nothing,
+	 * and admit on it, which raises the wall as a machine with nothing on it. A refusal is said on
+	 * the wall the person is still standing at, as a wrong password is, rather than as a failure
+	 * screen that would take the wall away with it.
+	 *
+	 * Refused while a password is being tried: the shell is deriving a key against a vault this
+	 * would delete from under it.
+	 */
+	async disconnect() {
+		if (this.#snapshot.isSigningIn) {
+			return;
+		}
+
+		try {
+			await this.#ports.organization.disconnect();
+		} catch (error) {
+			this.#set({ error: this.#ports.describeError(error) });
+
+			return;
+		}
+
+		// the forget emptied the machine's own sync record as well, so the workspace it named is
+		// not one the next sign-in should look for.
+		this.#set({ remoteSync: await this.#ports.remoteSync.getState().catch(() => null) });
+
+		await this.standingChanged();
+	}
+
+	/**
 	 * What a sync manager reported.
 	 *
 	 * Rows arriving from another device can make a status that was right before the pull wrong
 	 * after it, so a pull that landed rows reconciles. The guard is the day-crossing pass's, shared
 	 * rather than duplicated: both run a whole-table reconcile and two at once is one of them
 	 * wasted.
+	 *
+	 * **A report for a workspace other than the one open is dropped whole.** A dispatch in flight
+	 * while `switchWorkspace` ran reports for the workspace it started on, after the cache has
+	 * been cleared for the new one; applied, it would reconcile the new workspace for rows that
+	 * landed in the old one and announce them to a person who never saw them.
 	 */
 	async applySyncOutcome(outcome: SyncOutcome) {
 		const state = await this.#ports.remoteSync.getState().catch(() => null);
+		const open = (state ?? this.#snapshot.remoteSync)?.workspace.remoteId ?? null;
+
+		if (outcome.workspaceId !== open) {
+			return;
+		}
 
 		if (state) {
 			this.#set({ remoteSync: state });

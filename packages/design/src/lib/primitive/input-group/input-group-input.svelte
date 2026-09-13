@@ -15,7 +15,9 @@
 	bind:ref
 	data-slot="input-group-control"
 	class={cn(
-		'flex-1 rounded-none border-0 bg-transparent shadow-none hover:bg-transparent focus-visible:ring-0',
+		// `h-full` rather than the input's own `h-8`: the group is the `h-8` box now and carries
+		// the border, so an input keeping its own height would overflow it by the border's width.
+		'h-full flex-1 rounded-none border-0 bg-transparent shadow-none hover:bg-transparent focus-visible:ring-0',
 		className
 	)}
 	bind:value

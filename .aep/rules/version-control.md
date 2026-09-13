@@ -11,8 +11,10 @@ commits in one step, and `gt modify` is the amend path — it restacks descendan
 `git commit --amend` does not. Read [[references/graphite]] before any of it, and never
 guess a `gt` verb; several read like git's and do something else.
 
-Because the model is stacked, **`blocked-by: 01` on a ticket means _stack on top of 01_**,
-not _wait until 01 is resolved_. Waiting is the thing the tool exists to remove.
+Because the model is stacked, **`blocked-by: 01` on a ticket means _build on top of 01_**,
+not _wait until 01 is resolved_. Waiting is the thing the tool exists to remove. *This said
+stack on top of, when a ticket was a branch of its own; a ticket is a commit on the effort's
+branch now (below), and the edge says which commit comes first.*
 
 **`main` is trunk**, and work never lands as a commit on it directly. What a single branch
 may hold is the next section, and it is the rule most often broken by accident.
@@ -28,24 +30,35 @@ file where you are standing, and carry on with the true answer. Confirm it by re
 filesystem, never by asking `gt`: several of its commands initialise the repository as a
 side effect, so a probe that shells out to one can make its own answer true.
 
-## One ticket, one branch, one commit
+## One effort, one branch; one ticket, one commit
 
-The stacked model collapses three things that are separate on plain git. **One ticket
-becomes one `gt create`, which produces one branch carrying exactly one commit**, which
-becomes one pull request.
+**An effort lands as one branch carrying one commit per ticket, and that branch is its one
+pull request.** The ticket's commit is the reviewable unit inside it, and squash makes the
+effort the unit that reaches `main`. A ticket branch exists only while a run is building the
+ticket, as the claim that keeps two runs off one ticket, and it is folded into the effort's
+branch and deleted when the work is integrated; none reaches GitHub.
 
-*Why: it is what makes the stack reviewable — a branch holding two commits is two changes a
-reviewer cannot take separately, and a ticket spread over two branches cannot be claimed,
-because the claim is the branch.*
+*This said one ticket, one branch, one commit, one pull request, and the section's old title
+was that sentence. Effort 824 was built that way, eight stacked branches over its docs, and on
+2026-09-13 the human asked for the whole effort on a single branch; the eight were folded into
+it, one commit each. That is also what every effort since tickets became files had done (773,
+810, 811, 812, 819), so the sentence below describes what the repository does rather than a
+new rule.*
+
+*Why: it is what makes the branch reviewable — a commit holding two tickets is two changes a
+reviewer cannot take separately, and a ticket spread over two commits cannot be told from the
+next one; and one pull request per effort is what `policies/execution` fixes, two tracker
+objects and no more.*
 
 The practical consequences, in order of how often they catch people:
 
-- **A follow-up change amends; it does not stack a fixup.** `gt modify` is the path, and it
-  restacks every descendant — which `git commit --amend` does not.
-- **Work that turns out to be two tickets becomes two branches**, the second stacked on the
-  first with `gt create --onto`. Do not grow the first branch to cover both.
+- **A follow-up change amends its ticket's commit; it does not add a fixup.** While the ticket
+  is still a branch under a run, `gt modify` is the path, and it restacks every descendant —
+  which `git commit --amend` does not. Once folded, the commit is amended where it sits.
+- **Work that turns out to be two tickets becomes two commits**, each its own ticket. Do not
+  grow the first commit to cover both.
 - **A ticket too large for one commit was scoped too large.** Split the ticket first; the
-  branch follows the ticket, never the other way round.
+  commit follows the ticket, never the other way round.
 
 ## Decision work has no ticket, and lands as a design pull request
 
@@ -98,9 +111,20 @@ landed subject is the **pull request**, appended by GitHub — see **Commit disc
 Never derive one from the other.
 
 `<type>` is the conventional-commit type the branch lands as, from the list under **Commit
-discipline** below. `<ticket-id>` is the bare issue number, no `#`. `<slug>` is the commit
+discipline** below. `<ticket-id>` is the bare issue number, no `#`, and it is the number a
+branch carrying a whole effort takes (`graphite/docs/824-the-way-in-...`). `<slug>` is the commit
 summary in kebab-case, trimmed to the words that identify the change — it is a handle, not
 the subject line, so it does not have to reproduce it exactly.
+
+**A ticket's build claim carries the effort's issue number and its own id**, joined:
+`graphite/<type>/<issue>-<NN>-<slug>`, so `graphite/feat/824-05-the-rail-switches-workspaces`
+was ticket 05 of effort 824 while it was being built. Ticket ids restart per effort, so the id
+alone would name one branch for two claims ([[policies/execution]], *Claiming, before
+dispatching*, leaves how uniqueness is reached to this rule); the issue number is what an
+effort has one of. The claim is local and short-lived: it is folded into the effort's branch
+and deleted on integration, so it never needs a pull request or a remote. *Added 2026-09-13 by
+effort 824; the sentence above it was written when every ticket had an issue number of its
+own.*
 
 **The ticket id is what makes the name reproducible from the ticket alone**, and that is the
 one property the convention has to have: the branch is how a ticket is claimed, so two

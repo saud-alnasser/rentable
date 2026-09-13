@@ -24,9 +24,9 @@ export const syncing = () => fakeSyncState();
 export const unlocked = () => fakeOrganizationState();
 /** a machine that has joined an organization and holds no open vault. */
 export const locked = () => fakeOrganizationState({ session: null });
-/** a machine that has joined nothing. */
+/** a machine that holds nothing. */
 export const nowhereToGo = (): OrganizationState => ({
-	organizations: [],
+	organization: null,
 	session: null,
 	holdsTursoAuthority: false
 });
@@ -68,7 +68,17 @@ export type Journal = {
 	synced: number;
 	syncedBeforeExit: number;
 	cacheCleared: number;
+	/** how many times the queries nothing was drawing were dropped, which a switch does once. */
+	undrawnDropped: number;
+	/** how many times every query was invalidated, which a switch does once. */
+	invalidatedAll: number;
+	/** how many times the rail was told its sync record is stale, which a sync outcome does. */
+	remoteSyncInvalidated: number;
+	/** every state the rail's query was seeded with, in order. */
+	remembered: RemoteSyncState[];
 	contextsForgotten: number;
+	/** how many times the shell was told to forget the organization it holds. */
+	disconnected: number;
 	failures: string[];
 	localesLoaded: string[];
 	localeSet: string | null;
@@ -100,14 +110,14 @@ export function harness(
 		settings?: () => Promise<{ locale?: string | null }>;
 		/** what loading a locale does, for the paths where the dictionary is what fails. */
 		loadLocale?: (locale: string) => Promise<void>;
-		/** what a password does: the state it leaves the machine in, or the refusal it meets. */
-		signInWith?: (organizationId: string, password: string) => Promise<OrganizationState>;
-		/** what a link and a password do: the state joining leaves the machine in, or the refusal. */
-		joinWith?: (link: string, password: string) => Promise<OrganizationState>;
+		/** what a username and password do: the state it leaves the machine in, or the refusal. */
+		signInWith?: (username: string, password: string) => Promise<OrganizationState>;
 		/** what changing the password does: the state it leaves the machine in, or the refusal. */
 		changePasswordWith?: (current: string, next: string) => Promise<OrganizationState>;
-		/** what restoring does: the state it leaves the machine in, or the refusal. */
-		restoreWith?: (link: string, email: string, password: string) => Promise<OrganizationState>;
+		/** what opening a workspace meets, for the path where the shell refuses to. */
+		openWorkspace?: (workspaceId: string) => Promise<void>;
+		/** what forgetting the organization meets, for the path where the shell refuses to. */
+		disconnect?: () => Promise<void>;
 	} = {}
 ): Harness {
 	const journal: Journal = {
@@ -123,7 +133,12 @@ export function harness(
 		synced: 0,
 		syncedBeforeExit: 0,
 		cacheCleared: 0,
+		undrawnDropped: 0,
+		invalidatedAll: 0,
+		remoteSyncInvalidated: 0,
+		remembered: [],
 		contextsForgotten: 0,
+		disconnected: 0,
 		failures: [],
 		localesLoaded: [],
 		localeSet: null,
@@ -133,8 +148,9 @@ export function harness(
 	const now = { value: AT };
 
 	// what `remoteSync.getState` answers with, which the unit reads at the account stage, again
-	// after the bootstrap, and after a sync manager reports.
-	const state = overrides.remoteSync ?? syncing();
+	// after the bootstrap, and after a sync manager reports. Opening a workspace records it as the
+	// current one, because that is what the shell does before it opens the replica.
+	let state = overrides.remoteSync ?? syncing();
 	// what `organization.getState` answers with, which is what the wall admits on. The second read
 	// is the one after the bootstrap, which is allowed to answer differently.
 	let organization = overrides.organization ?? unlocked();
@@ -168,25 +184,8 @@ export function harness(
 			},
 			// what these two answer with becomes what the world holds, because that is what they
 			// do: Rust updates what it holds, and the next `getState` reads the result.
-			signIn: async (organizationId, password) => {
-				organization = await (overrides.signInWith ?? (async () => unlocked()))(
-					organizationId,
-					password
-				);
-
-				return organization;
-			},
-			join: async (link, password) => {
-				organization = await (overrides.joinWith ?? (async () => unlocked()))(link, password);
-
-				return organization;
-			},
-			restore: async (link, email, password) => {
-				organization = await (overrides.restoreWith ?? (async () => unlocked()))(
-					link,
-					email,
-					password
-				);
+			signIn: async (username, password) => {
+				organization = await (overrides.signInWith ?? (async () => unlocked()))(username, password);
 
 				return organization;
 			},
@@ -203,9 +202,20 @@ export function harness(
 
 				return organization;
 			},
+			// the forget leaves the machine holding nothing, and the next `getState` reads that.
+			disconnect: async () => {
+				journal.disconnected += 1;
+				await overrides.disconnect?.();
+				organization = nowhereToGo();
+				state = syncing();
+
+				return organization;
+			},
 			renewDue: async () => false,
 			openWorkspace: async (workspaceId) => {
 				journal.workspacesOpened.push(workspaceId);
+				await overrides.openWorkspace?.(workspaceId);
+				state = { ...state, workspace: { ...state.workspace, remoteId: workspaceId } };
 			}
 		},
 		workspace: {
@@ -250,9 +260,10 @@ export function harness(
 		},
 		cache: {
 			clear: () => void journal.cacheCleared++,
-			rememberRemoteSync: () => {},
-			invalidateRemoteSync: async () => {},
-			invalidateAll: async () => {},
+			dropUndrawn: () => void journal.undrawnDropped++,
+			rememberRemoteSync: (remembered) => void journal.remembered.push(remembered),
+			invalidateRemoteSync: async () => void journal.remoteSyncInvalidated++,
+			invalidateAll: async () => void journal.invalidatedAll++,
 			forgetContext: () => void journal.contextsForgotten++
 		},
 		describeError: (error) => (error instanceof Error ? error.message : String(error)),

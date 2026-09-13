@@ -27,9 +27,9 @@
 	 * the only section here that did not come from here.
 	 *
 	 * **What it stopped doing is restating the page.** It drew an avatar and the workspace's name
-	 * two sections below `identity.svelte`, which draws both, and the signed-in account's email
-	 * one section below `members.svelte`, which draws that account with its picture, its name and
-	 * its role. Its avatar was the account's initials where there was an account and the
+	 * two sections below `identity.svelte`, which draws both, and the signed-in account's name
+	 * one section below `members.svelte`, which draws that account with its avatar, its username
+	 * and its role. *This said the account's email; an account is a username since effort 824.* Its avatar was the account's initials where there was an account and the
 	 * workspace's where there was not, so one circle stood for two different things depending on
 	 * state.
 	 *
@@ -65,7 +65,7 @@
 			? accountRefusalSentence(
 					{
 						isOwner,
-						ownerDisplayName: session?.ownerDisplayName ?? '',
+						ownerUsername: session?.ownerUsername ?? '',
 						detail: isOwner ? (refusalDetail.data ?? null) : null
 					},
 					$LL

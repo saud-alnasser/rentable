@@ -378,7 +378,13 @@ const en = {
 			invite: 'invite',
 			locked: 'not available',
 			settings: 'settings',
-			members: '{count|number} member(s)'
+			members: '{count|number} member(s)',
+			switchTo: 'switch to',
+			open: 'open',
+			inviteRefused: 'the owner or an administrator invites. ask one of them.',
+			workspaceRefusedOwner: 'the owner creates a workspace. ask the owner.',
+			workspaceRefusedAuthority:
+				'creating a workspace needs the turso account, and this machine is not connected to it. reconnect it on the organization page.'
 		},
 
 		changePassword: {
@@ -390,30 +396,34 @@ const en = {
 		noWorkspace: {
 			nameLabel: 'workspace name',
 			create: 'create workspace',
-			creating:
-				'creating the workspace on your turso account, and giving it its shape. this takes a moment.',
+			creating: 'creating the workspace on your turso account. this takes a moment.',
 			created: 'the workspace was created.',
 			ownerOnly:
-				'an owner creates the first workspace, from the machine that connected the turso account. ask the owner.',
+				'only the owner can create the first workspace, from the machine that connected the turso account.',
 			title: 'no workspace yet',
-			description: 'this organization holds no workspace. an owner creates the first one.'
+			description:
+				'your organization has no workspace yet. create the first one to start keeping records.'
 		},
 
 		signIn: {
-			noOrganizationTitle: 'no organization on this machine yet',
+			noOrganizationTitle: 'welcome',
 			noOrganizationDescription:
-				'set one up on your own turso account. everything in it stays there.',
+				'create an organization on your own turso account, or connect to one with the link you were given.',
 			organizationDescription:
 				'your password unlocks your place in the organization, on this machine, with or without a connection.',
 			organization: 'organization',
+			username: 'username',
 			password: 'password',
 			unlock: 'unlock',
 			unlocking: 'unlocking your place in the organization. this takes a moment on purpose.',
 			roleOwner: 'owner',
 			roleAdministrator: 'administrator',
 			roleMember: 'member',
-			setUpOrganization: 'set up an organization instead',
-			openInvitation: 'open an invitation link',
+			setUp: 'create organization',
+			connectByLink: 'connect with link',
+			disconnect: 'disconnect this machine',
+			disconnectDescription:
+				"this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes, and the organization's link connects this machine again.",
 			title: 'Login'
 		},
 
@@ -742,94 +752,87 @@ const en = {
 			setupDescription:
 				'rentable runs on a turso account you own. your records live there, and nowhere of ours.',
 			connectTitle: 'connect your turso account',
-			connectDescription: 'one consent in the browser, and nothing is pasted or typed here.',
-			groupPreparation:
-				"first, in turso's own dashboard, create an empty group for rentable and pick it on the consent screen. the consent grants rentable authority over that one group, so an empty one keeps that authority to the databases rentable creates.",
-			accountCreation: 'no turso account yet? the consent screen is where you make one.',
-			succession:
-				'the organization will live in whichever turso organization holds the group you pick. if that is a personal account, only you can grant rentable authority over it again. a second administrator on a turso organization can do the same, and turso can move a group to another organization from its own dashboard. rentable does neither for you.',
+			connectDescription:
+				'your organization will live on your own turso account. one consent in the browser is all it takes.',
+			position: 'step {step|number} of {total|number}',
+			connectGroup:
+				'in the turso dashboard, create an empty group for rentable, then choose it on the consent screen. the consent covers only that group.',
+			connectAccount: 'no turso account yet? you can create one on the consent screen.',
+			connectSuccession:
+				'the organization lives in that group. on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group there. rentable does neither for you.',
 			openDashboard: 'open turso dashboard',
 			connect: 'connect turso account',
 			connecting: 'finish the consent in the browser window that just opened.',
 			connected: 'turso account connected.',
 			consentAbandoned: 'the consent was not granted. nothing was created.',
 			consentFailed: 'turso refused the consent.',
-			nameTitle: 'name it',
+			nameTitle: 'name your organization',
 			nameDescription:
-				"the organization's name, and the password that unlocks your place in it. nothing else is typed here.",
+				'choose a name for the organization, your username, and a password. the password unlocks your place in it.',
 			nameLabel: 'organization name',
+			usernameLabel: 'your username',
 			nameRequired: 'give the organization a name.',
 			nameTooLong: 'that name is too long.',
 			passwordLabel: 'your password',
 			passwordFloor:
-				'use at least 12 characters. there is no server to slow a guess down, so the password is the only thing between anybody holding the records and reading them.',
+				'use at least 12 characters. this password is all that stands between the records and anyone who holds a copy.',
 			passwordTooShort: 'use at least 12 characters.',
 			create: 'create organization',
 			creating: 'creating the organization on your turso account...',
-			doneTitle: 'your organization is ready',
-			doneDescription:
-				'hand this link to the people you invite. it finds the organization and nothing more; each invitation and password are separate.',
-			linkLabel: 'join link',
+			workspaceTitle: 'create your first workspace',
+			workspaceDescription:
+				'a workspace holds one set of records. you can add more later, from inside the app.',
 			copyLink: 'copy link',
 			linkCopied: 'link copied.',
-			notYetSent:
-				'the organization is on this machine and will reach turso when the connection returns. the link works once it has.',
 			continue: 'continue',
 			back: 'back'
 		},
 		join: {
-			title: 'join an organization',
+			title: 'connect to an organization',
 			description:
-				'open the invitation you were handed: a link, and the password that came with it.',
-			linkLabel: 'invitation link',
-			open: 'open link',
-			reading: 'reading the invitation...',
+				"paste the organization's link. this machine records the organization, and you sign in to it with your username and password.",
+			linkLabel: 'organization link',
+			reading: 'connecting to the organization...',
 			unreadable:
-				'this is not a rentable invitation link. paste the whole link, exactly as it was handed to you.',
+				'this is not a rentable organization link. paste the whole link, exactly as it was handed to you.',
 			unreachable:
 				'the organization could not be reached. the link is right; try again once the connection is back.',
 			tryAgain: 'try again',
-			pasteAnother: 'paste another link',
-			found: 'this link finds {name}.',
-			refusedLapsed:
-				'the invitation has lapsed. ask whoever invited you for a new one; the link itself does not expire.',
-			refusedConsumed: 'the invitation was already used. sign in with your password instead.',
-			refusedRevoked: 'the invitation was revoked. ask whoever invited you for a new one.',
-			restoreDescription:
-				"this is the organization's own link. if you already have a place in it, your password opens it on this machine too.",
-			emailLabel: 'your email',
-			emailOptional:
-				'the address you were invited with. the owner was invited with none and leaves this empty.',
-			restore: 'restore my place',
-			passwordLabel: 'the password you were handed',
-			join: 'join',
-			signInInstead: 'sign in instead'
+			back: 'back'
 		},
 		dashboard: {
 			members: 'members',
-			invitations: 'invitations',
+			pendingAccounts: 'pending accounts',
 			workspaces: 'workspaces',
 			inviteTitle: 'invite somebody',
 			inviteDescription:
-				'an invitation makes their place in the organization. you hand them the link and the password yourself.',
-			email: 'email',
+				'an invitation makes their account in the organization: a username, a role and the workspaces they hold. you hand them the link, the username and the password yourself.',
 			role: 'role',
 			administratorsAreTheOwners: 'only the owner can invite an administrator.',
 			noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
 			invite: 'invite',
 			cannotSend:
-				'rentable sends nothing. copy the link and the password below and hand them to the person yourself; the password is shown once.',
+				'rentable sends nothing. copy the link, the username and the password below and hand them to the person yourself; the password is shown once.',
 			generatedPassword: 'generated password',
 			passwordOnce:
 				'this is the only time the password is shown. they change it on their first sign-in.',
 			copyPassword: 'copy password',
 			passwordCopied: 'password copied.',
+			copyUsername: 'copy username',
+			usernameCopied: 'username copied.',
 			done: 'done',
 			notYetSignedIn: 'not yet signed in',
 			resetPassword: 'reset password',
+			rename: 'rename',
+			renameDescription:
+				'the username they sign in with, on every machine. nothing tells them it changed; tell them yourself.',
+			username: 'username',
+			usernameRules:
+				'a username is three to thirty-two characters of letters, digits, dots, underscores and hyphens',
+			renamed: 'the member was renamed.',
 			linkTitle: 'organization link',
 			linkDescription:
-				'the link that adds this organization on another machine, and the one you restore it from if this machine is lost. it carries a read-only view of the directory, so share it the way you would a password.',
+				'the link connects another machine to this organization; with a username and a password, it is the way in. it carries a read-only view of the directory, so share it the way you would a password.',
 			authorityTitle: 'turso account',
 			authorityDescription:
 				"this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.",
@@ -849,14 +852,18 @@ const en = {
 			standingOpen: 'open',
 			standingLapsed: 'lapsed',
 			standingConsumed: 'used',
-			noInvitations: 'no invitations.',
+			noPendingAccounts: 'no pending accounts.',
 			revoke: 'revoke',
 			revoked: 'the invitation was revoked.',
 			noWorkspaces: 'no workspace yet.',
 			accessFull: 'full access',
-			accessReadOnly: 'read only'
+			accessReadOnly: 'read only',
+			disconnectForgets:
+				'disconnecting forgets the organization on this machine: you are signed out, every copy of it and of its workspaces kept here is deleted, and the turso authority is cleared. nothing on turso is touched, and the link connects this machine again. to reach another organization, disconnect and connect to it.',
+			disconnect: 'disconnect',
+			disconnected: 'this machine no longer holds the organization.'
 		},
-		disconnectAction: 'disconnect turso account',
+		disconnectAction: 'disconnect',
 		disconnectDescription:
 			'this machine holds a token for the turso account your organization lives on. disconnecting forgets it here, and nothing on this machine can reach that account afterwards.',
 		disconnectRevokes:

@@ -1,14 +1,21 @@
 <script lang="ts">
-	import type { OrganizationCreated } from '$lib/platform/tauri';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
+	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
 	import FieldError from '@rentable/design/block/field-error.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Form from '@rentable/design/primitive/form/index.js';
-	import { Input } from '@rentable/design/primitive/input/index.js';
+	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import CopyIcon from '@lucide/svelte/icons/copy';
-	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
+	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
+	import BuildingIcon from '@lucide/svelte/icons/building';
+	import FolderPlusIcon from '@lucide/svelte/icons/folder-plus';
+	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
+	import PlugIcon from '@lucide/svelte/icons/plug';
+	import UnplugIcon from '@lucide/svelte/icons/unplug';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import UserIcon from '@lucide/svelte/icons/user';
+	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
@@ -16,25 +23,53 @@
 	import {
 		ORGANIZATION_NAME_LIMIT,
 		PASSWORD_FLOOR,
+		SETUP_STEPS,
 		SETUP_WALK,
 		type SetupField,
 		type SetupStatement,
 		type SetupStep
 	} from '../setup';
+	import { usernameSchema } from '../username-form';
+	import { workspaceFormSchema } from '../workspace-form';
+	import BackGlyph from './back-glyph.svelte';
+	import WorkspaceFields from './workspace-fields.svelte';
 
 	/**
 	 * The first run, on the shared application surface.
 	 *
-	 * **Three steps and two fields.** Connecting the Turso account, which is a consent in the
-	 * browser and nothing typed here; naming the organization and choosing a password, which is
-	 * the whole of what is typed; and the link to hand out. `../setup.ts` describes the walk as
-	 * data and this component draws each step from that description, which is what lets a
-	 * `node:test` assert over the fields without a window and a component test assert over the
-	 * same fields with one.
+	 * **Three steps and four fields.** Connecting the Turso account, which is a consent in the
+	 * browser and nothing typed here; naming the organization, the owner's own username and their
+	 * password; and naming the first workspace, which is where the walk ends: creating it signs the owner in to it and
+	 * the application opens on it. There is no step showing the join link, because the link lives
+	 * on the organization page and a screen asking a person to continue past it was one screen too
+	 * many. `../setup.ts` describes the walk as data and this component draws each step from that
+	 * description, which is what lets a `node:test` assert over the fields without a window and a
+	 * component test assert over the same fields with one.
 	 *
-	 * **Everything that talks to the shell is a prop.** The route wires the consent, the polling
-	 * and the create; this component draws where they have got to. That is what makes it
-	 * renderable in a test with no Tauri behind it, and it is the same split the sign-in card
+	 * **Every step says where it is, and the two before the organization exists can be left from
+	 * the card's corner.** The position is a quiet line under the title, no bar and no dots; the
+	 * way back is one `SurfaceAction` in the surface's `corner` slot, which is where a reader
+	 * looks for the way past a screen, and where it leads is the route's to decide. The third
+	 * step has none: the name step created the organization on the account and signed the owner
+	 * in, so there is nowhere behind it to go, and a return to a filled name form with a second
+	 * press of create would make a second organization. It is the no-workspace surface's twin,
+	 * which has no back either.
+	 *
+	 * **The connect step is a list, not three paragraphs.** The three facts a person has to know
+	 * before pressing anything are bullets with a glyph each, the way *Supercharge the defaults*
+	 * (Refactoring UI p.220) lifts a plain list: a glyph specific to the fact rather than a generic
+	 * mark, and the action that helps with the first fact sits inside that fact rather than at the
+	 * foot of the screen. The glyphs are muted so they do not outweigh the sentence beside them
+	 * (*Balance weight and contrast*, p.56).
+	 *
+	 * **A machine that already holds Turso authority is not asked again.** The route reads whether
+	 * it does and the connect step opens as granted, with the way on and the way to give the
+	 * authority back, so a person who connected, went back to the wall and came here again is not
+	 * asked for a consent the machine has.
+	 *
+	 * **Everything that talks to the shell is a prop.** The route wires the consent, the polling,
+	 * the create and the workspace; this component draws where they have got to. That is what makes
+	 * it renderable in a test with no Tauri behind it, and it is the same split the sign-in card
 	 * makes.
 	 *
 	 * On the application surface rather than a page of its own, because it presents the
@@ -44,17 +79,16 @@
 	let {
 		step,
 		consent,
+		holdsTursoAuthority,
 		isConnecting,
 		isCreating,
-		created,
-		linkCopied,
 		onOpenDashboard,
 		onConnect,
 		onDisconnect,
 		onContinue,
 		onBack,
 		onCreate,
-		onCopyLink
+		onCreateWorkspace
 	}: {
 		step: SetupStep;
 		/** how far the consent has got, or `idle` where none has been started. */
@@ -62,19 +96,21 @@
 			status: 'idle' | 'pending' | 'granted' | 'failed' | 'abandoned';
 			error: string | null;
 		};
+		/** whether the machine already holds the authority a consent would grant. */
+		holdsTursoAuthority: boolean;
 		/** the consent is being opened. */
 		isConnecting: boolean;
-		/** the organization is being created on the account. */
+		/** the organization, or the workspace, is being created on the account. */
 		isCreating: boolean;
-		created: OrganizationCreated | null;
-		linkCopied: boolean;
 		onOpenDashboard: () => void;
 		onConnect: () => void;
 		onDisconnect: () => void;
 		onContinue: () => void;
+		/** the corner control, on the steps before the organization exists; the route decides where
+		 * each goes back to. */
 		onBack: () => void;
-		onCreate: (name: string, password: string) => Promise<void>;
-		onCopyLink: () => void;
+		onCreate: (name: string, username: string, password: string) => Promise<void>;
+		onCreateWorkspace: (name: string) => Promise<void>;
 	} = $props();
 
 	const description = $derived(SETUP_WALK.find((candidate) => candidate.step === step));
@@ -85,7 +121,7 @@
 		{
 			connect: $LL.organization.setup.connectTitle(),
 			name: $LL.organization.setup.nameTitle(),
-			done: $LL.organization.setup.doneTitle()
+			workspace: $LL.organization.setup.workspaceTitle()
 		}[step]
 	);
 
@@ -93,27 +129,58 @@
 		{
 			connect: $LL.organization.setup.connectDescription(),
 			name: $LL.organization.setup.nameDescription(),
-			done: $LL.organization.setup.doneDescription()
+			workspace: $LL.organization.setup.workspaceDescription()
 		}[step]
 	);
 
-	const statementText = (statement: SetupStatement) =>
-		({
-			groupPreparation: $LL.organization.setup.groupPreparation(),
-			accountCreation: $LL.organization.setup.accountCreation(),
-			succession: $LL.organization.setup.succession()
-		})[statement];
+	/** where the person is, counted from one, over how many steps there are. */
+	const position = $derived(
+		$LL.organization.setup.position({
+			step: SETUP_STEPS.indexOf(step) + 1,
+			total: SETUP_STEPS.length
+		})
+	);
 
 	/**
-	 * What the consent step has to say beyond the statements, and only where something happened:
+	 * Each fact with its own glyph, in the order the person needs them: the group they prepare,
+	 * where an account comes from, and where the organization will live. The glyph is specific to
+	 * the fact rather than a checkmark, which is the book's own recommendation on p.220.
+	 */
+	const statementText = (statement: SetupStatement) =>
+		({
+			groupPreparation: $LL.organization.setup.connectGroup(),
+			accountCreation: $LL.organization.setup.connectAccount(),
+			succession: $LL.organization.setup.connectSuccession()
+		})[statement];
+
+	const statementGlyph: Record<SetupStatement, typeof FolderPlusIcon> = {
+		groupPreparation: FolderPlusIcon,
+		accountCreation: UserPlusIcon,
+		succession: BuildingIcon
+	};
+
+	/**
+	 * whether the consent is granted, either because the poll said so or because the machine
+	 * already held the authority when the walk opened. A consent that was started here says what
+	 * it said; only a walk that has started none reads the machine's standing.
+	 */
+	const granted = $derived(
+		consent.status === 'granted' || (consent.status === 'idle' && holdsTursoAuthority)
+	);
+
+	/**
+	 * What the consent step has to say beyond the facts, and only where something happened:
 	 * a granted consent is confirmed, an abandoned or refused one is said, and a pending one names
-	 * the browser window. Nothing is shown before the person has pressed anything.
+	 * the browser window. Nothing is shown before the person has pressed anything, unless the
+	 * machine already held the authority, in which case the confirmation is what it opens with.
 	 */
 	const consentNotice = $derived.by(
 		(): { tone: 'success' | 'warning' | 'error'; message: string } | null => {
+			if (granted) {
+				return { tone: 'success', message: $LL.organization.setup.connected() };
+			}
+
 			switch (consent.status) {
-				case 'granted':
-					return { tone: 'success', message: $LL.organization.setup.connected() };
 				case 'abandoned':
 					return { tone: 'warning', message: $LL.organization.setup.consentAbandoned() };
 				case 'failed':
@@ -130,39 +197,78 @@
 	);
 
 	// **Built here rather than at module load**, for the reason `workspace/component/rename-form`
-	// gives: the messages resolve against a locale, and at module load there is none.
+	// gives: the messages resolve against a locale, and at module load there is none. The
+	// username's rule is the shared one the invite and rename dialogs read, so the owner's is
+	// refused with the sentence every other username is.
 	const SetupSchema = z.object({
 		name: z
 			.string()
 			.trim()
 			.min(1, { message: $LL.organization.setup.nameRequired() })
 			.max(ORGANIZATION_NAME_LIMIT, { message: $LL.organization.setup.nameTooLong() }),
+		username: usernameSchema($LL),
 		password: z.string().min(PASSWORD_FLOOR, { message: $LL.organization.setup.passwordTooShort() })
 	});
 
 	type SetupForm = z.infer<typeof SetupSchema>;
 
 	let { form, constraints, errors, enhance, ...rest } = superForm<SetupForm>(
-		defaults(zod4(z.object({ name: z.string(), password: z.string() }))),
+		defaults(zod4(z.object({ name: z.string(), username: z.string(), password: z.string() }))),
 		{
+			id: 'setup-organization',
 			SPA: true,
 			validators: zod4(SetupSchema),
 			onUpdate: async ({ form }) => {
 				if (!form.valid) return;
 
-				await onCreate(form.data.name.trim(), form.data.password);
+				await onCreate(form.data.name.trim(), form.data.username.trim(), form.data.password);
 			}
 		}
 	);
 
 	const superform = { form, constraints, errors, enhance, ...rest };
 
+	// the third step's form is the shared workspace definition: the schema every surface that
+	// names a workspace reads, and the fields drawn from it, so a name refused here is refused on
+	// the no-workspace surface and in the new-workspace dialog with the same sentence. This
+	// surface owns the `superForm` over it, since the standalone surface owns no `<form>`.
+	const WorkspaceSchema = workspaceFormSchema($LL);
+
+	let {
+		form: workspaceForm,
+		constraints: workspaceConstraints,
+		errors: workspaceErrors,
+		enhance: workspaceEnhance,
+		...workspaceRest
+	} = superForm(defaults(zod4(WorkspaceSchema)), {
+		// named, because the workspace dialog the shell mounts builds a form off the same schema and
+		// superforms would give both one id, and one store: typing here wrote there.
+		id: 'setup-workspace',
+		SPA: true,
+		validators: zod4(WorkspaceSchema),
+		onUpdate: async ({ form }) => {
+			if (!form.valid) return;
+
+			await onCreateWorkspace(form.data.name.trim());
+		}
+	});
+
+	const workspaceSuperform = {
+		form: workspaceForm,
+		constraints: workspaceConstraints,
+		errors: workspaceErrors,
+		enhance: workspaceEnhance,
+		...workspaceRest
+	};
+
 	const isBusy = $derived(isConnecting || isCreating || consent.status === 'pending');
 
-	/** what the shell is doing, said only while it is doing it. */
+	/** what the shell is doing, said only while it is doing it, and named for the step doing it. */
 	const working = $derived(
 		isCreating
-			? $LL.organization.setup.creating()
+			? step === 'workspace'
+				? $LL.layout.noWorkspace.creating()
+				: $LL.organization.setup.creating()
 			: consent.status === 'pending'
 				? $LL.organization.setup.connecting()
 				: null
@@ -170,60 +276,121 @@
 </script>
 
 <StandaloneSurface tone="neutral" {title} description={subtitle} busy={isBusy}>
-	<div class="space-y-4 pt-2" data-setup-step={step}>
+	{#snippet corner()}
+		{#if step !== 'workspace'}
+			<!-- always available, busy or not: a consent left open in the browser creates nothing
+			     on the account, so walking away from it costs nothing, and the way past a screen
+			     that is disabled is a trap. Not on the third step, where the organization already
+			     exists and the owner is in. -->
+			<SurfaceAction label={$LL.organization.setup.back()} icon={BackGlyph} onclick={onBack} />
+		{/if}
+	{/snippet}
+
+	<div class="space-y-4" data-setup-step={step}>
+		<!-- where the person is, said quietly under the title: no bar and no dots. -->
+		<div class="text-xs text-muted-foreground" data-setup-position>{position}</div>
+
 		{#if step === 'connect'}
-			<!-- what the person has to know before the consent, in the order they need it: the
-			     group they prepare, where an account comes from, and what succession costs. Each is
-			     a sentence rather than a box, because a box on every visit is not a notice. -->
-			<div class="space-y-3 text-sm text-muted-foreground">
+			<!-- what the person has to know before the consent, as a list with a glyph to each fact,
+			     in the order they need them. The dashboard action sits inside the first fact, which
+			     is the one it helps with, rather than in a row of its own at the foot. -->
+			<ul class="space-y-3 text-sm text-muted-foreground">
 				{#each statements as statement (statement)}
-					<p data-setup-statement={statement}>{statementText(statement)}</p>
+					{@const Glyph = statementGlyph[statement]}
+					<li class="flex gap-3" data-setup-statement={statement}>
+						<!-- centred on the sentence's first line, which is `text-sm`'s 20px, rather than
+						     nudged down by a margin off the spacing ladder. -->
+						<span class="flex h-5 shrink-0 items-center">
+							<Glyph class="size-4" />
+						</span>
+						<span class="min-w-0 flex-1">
+							{statementText(statement)}
+							{#if statement === 'groupPreparation'}
+								<Button
+									variant="link"
+									class="h-auto p-0 align-baseline text-sm"
+									onclick={onOpenDashboard}
+									disabled={isBusy}
+								>
+									{$LL.organization.setup.openDashboard()}
+								</Button>
+							{/if}
+						</span>
+					</li>
 				{/each}
-			</div>
+			</ul>
 
 			{#if consentNotice}
 				<Callout tone={consentNotice.tone}>{consentNotice.message}</Callout>
 			{/if}
 
 			<div class="space-y-2">
-				{#if consent.status === 'granted'}
+				{#if granted}
 					<Button class="w-full justify-center" onclick={onContinue}>
+						<ArrowRightIcon class="size-4 rtl:rotate-180" />
 						{$LL.organization.setup.continue()}
 					</Button>
-					<Button variant="link" class="w-full justify-center" onclick={onDisconnect}>
+					<!-- the way to give the authority back: outline beside the primary, its verb's glyph
+					     before one word, and the callout above already says what is connected. -->
+					<Button variant="outline" class="w-full justify-center" onclick={onDisconnect}>
+						<UnplugIcon class="size-4" />
 						{$LL.organization.disconnectAction()}
 					</Button>
 				{:else}
 					<Button class="w-full justify-center" onclick={onConnect} disabled={isBusy}>
+						<PlugIcon class="size-4" />
 						{isConnecting ? $LL.common.actions.working() : $LL.organization.setup.connect()}
-					</Button>
-					<Button
-						variant="outline"
-						class="w-full justify-center"
-						onclick={onOpenDashboard}
-						disabled={isBusy}
-					>
-						<ExternalLinkIcon class="size-4" />
-						{$LL.organization.setup.openDashboard()}
 					</Button>
 				{/if}
 			</div>
 		{:else if step === 'name'}
-			<!-- the two fields, and they are the two the walk description names. A third would
-			     render here only if it were added to `SETUP_WALK`, which is what the test reads. -->
+			<!-- the three fields, and they are the three the walk description names. A fourth would
+			     render here only if it were added to `SETUP_WALK`, which is what the test reads.
+			     Each carries its subject's glyph ahead of the input, muted so it does not outweigh
+			     the label (*Balance weight and contrast*, p.56); the error still marks the label
+			     line, which is the field's own treatment. -->
 			<form method="POST" use:enhance class="space-y-4" data-setup-fields={fields.join(',')}>
 				{#if fields.includes('name')}
 					<Form.Field form={superform} name="name" class="group relative">
 						<Form.Control>
 							<Form.Label>{$LL.organization.setup.nameLabel()}</Form.Label>
-							<Input
-								name="name"
-								bind:value={$form.name}
-								placeholder={$LL.organization.setup.nameLabel()}
-								autocomplete="organization"
-								aria-invalid={$errors.name ? 'true' : undefined}
-								{...$constraints.name}
-							/>
+							<InputGroup.Root data-disabled={isCreating || undefined}>
+								<InputGroup.Addon>
+									<BuildingIcon />
+								</InputGroup.Addon>
+								<InputGroup.Input
+									name="name"
+									bind:value={$form.name}
+									placeholder={$LL.organization.setup.nameLabel()}
+									autocomplete="organization"
+									disabled={isCreating}
+									aria-invalid={$errors.name ? 'true' : undefined}
+									{...$constraints.name}
+								/>
+							</InputGroup.Root>
+						</Form.Control>
+						<FieldError />
+					</Form.Field>
+				{/if}
+
+				{#if fields.includes('username')}
+					<Form.Field form={superform} name="username" class="group relative">
+						<Form.Control>
+							<Form.Label>{$LL.organization.setup.usernameLabel()}</Form.Label>
+							<InputGroup.Root data-disabled={isCreating || undefined}>
+								<InputGroup.Addon>
+									<UserIcon />
+								</InputGroup.Addon>
+								<InputGroup.Input
+									name="username"
+									bind:value={$form.username}
+									placeholder={$LL.organization.setup.usernameLabel()}
+									autocomplete="username"
+									disabled={isCreating}
+									aria-invalid={$errors.username ? 'true' : undefined}
+									{...$constraints.username}
+								/>
+							</InputGroup.Root>
 						</Form.Control>
 						<FieldError />
 					</Form.Field>
@@ -233,58 +400,53 @@
 					<Form.Field form={superform} name="password" class="group relative">
 						<Form.Control>
 							<Form.Label>{$LL.organization.setup.passwordLabel()}</Form.Label>
-							<Input
-								name="password"
-								type="password"
-								bind:value={$form.password}
-								autocomplete="new-password"
-								aria-invalid={$errors.password ? 'true' : undefined}
-								{...$constraints.password}
-							/>
+							<InputGroup.Root data-disabled={isCreating || undefined}>
+								<InputGroup.Addon>
+									<KeyRoundIcon />
+								</InputGroup.Addon>
+								<InputGroup.Input
+									name="password"
+									type="password"
+									bind:value={$form.password}
+									autocomplete="new-password"
+									disabled={isCreating}
+									aria-invalid={$errors.password ? 'true' : undefined}
+									{...$constraints.password}
+								/>
+							</InputGroup.Root>
 						</Form.Control>
 						<Form.Description>{$LL.organization.setup.passwordFloor()}</Form.Description>
 						<FieldError />
 					</Form.Field>
 				{/if}
 
-				<div class="flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3">
-					<Button type="button" variant="outline" onclick={onBack} disabled={isCreating}>
-						{$LL.organization.setup.back()}
-					</Button>
-					<Button type="submit" disabled={isCreating}>
-						{isCreating ? $LL.common.actions.working() : $LL.organization.setup.create()}
-					</Button>
-				</div>
+				<Button type="submit" class="w-full justify-center" disabled={isCreating}>
+					<PlusIcon class="size-4" />
+					{isCreating ? $LL.common.actions.working() : $LL.organization.setup.create()}
+				</Button>
 			</form>
-		{:else if step === 'done' && created}
-			{#if !created.synced}
-				<Callout tone="warning">{$LL.organization.setup.notYetSent()}</Callout>
-			{/if}
+		{:else if step === 'workspace'}
+			<!-- the one field the description names for this step, drawn from the shared workspace
+			     definition, so it is the same field the no-workspace surface and the dialog draw. -->
+			<form
+				method="POST"
+				use:workspaceEnhance
+				class="space-y-4"
+				data-setup-fields={fields.join(',')}
+			>
+				{#if fields.includes('workspace')}
+					<WorkspaceFields superform={workspaceSuperform} disabled={isCreating} />
+				{/if}
 
-			<div class="space-y-2">
-				<p class="text-sm font-medium">{$LL.organization.setup.linkLabel()}</p>
-				<!-- a machine's string, so it reads left to right in both locales
-				     ([[rules/frontend]], *i18n*). -->
-				<code
-					dir="ltr"
-					class="block overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs break-all select-all"
-					data-join-link>{created.joinLink}</code
-				>
-			</div>
-
-			<div class="space-y-2">
-				<Button class="w-full justify-center" onclick={onCopyLink}>
-					<CopyIcon class="size-4" />
-					{linkCopied ? $LL.organization.setup.linkCopied() : $LL.organization.setup.copyLink()}
+				<Button type="submit" class="w-full justify-center" disabled={isCreating}>
+					<PlusIcon class="size-4" />
+					{isCreating ? $LL.common.actions.working() : $LL.layout.noWorkspace.create()}
 				</Button>
-				<Button variant="link" class="w-full justify-center" onclick={onContinue}>
-					{$LL.organization.setup.continue()}
-				</Button>
-			</div>
+			</form>
 		{/if}
 
 		{#if working}
-			<p class="text-center text-sm text-muted-foreground">{working}</p>
+			<div class="text-center text-sm text-muted-foreground">{working}</div>
 		{/if}
 	</div>
 </StandaloneSurface>

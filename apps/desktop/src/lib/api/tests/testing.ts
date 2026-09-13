@@ -24,8 +24,7 @@ import { caller, context } from '../trpc.ts';
 export function fakeIdentity(overrides: Partial<Identity> = {}): Identity {
 	return {
 		accountId: 'account',
-		email: 'person@example.com',
-		displayName: 'Person Example',
+		username: 'person.example',
 		// **Administering nothing by default**, which is what every router test wants: none of them
 		// is about a permission, and a default that carried some would make the one test that is
 		// about one pass for the wrong reason. A test that needs an act says which.

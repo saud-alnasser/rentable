@@ -212,13 +212,20 @@ export type OrganizationCreated = {
 	synced: boolean;
 };
 
-/** one organization this machine has joined, as the sign-in screen lists it. No key. */
-export type JoinedOrganization = {
+/**
+ * the one organization this machine holds, as the wall names it. No key.
+ *
+ * A machine that connected by the organization's link holds it and no member yet; a sign-in
+ * fills `memberId` and `role`, and a sign-out keeps them. *`JoinedOrganization`, one of a list,
+ * until 2026-09-13.*
+ */
+export type HeldOrganization = {
 	id: string;
 	name: string;
-	memberId: string;
+	/** this person's member row, once a sign-in has found it; `null` until then. */
+	memberId: string | null;
 	/** their role there, as last read. A display fact: what a member may do is what their vault holds. */
-	role: string;
+	role: string | null;
 	joinedAt: number;
 };
 
@@ -241,17 +248,22 @@ export type OrganizationSession = {
 	organizationId: string;
 	organizationName: string;
 	memberId: string;
-	email: string;
-	displayName: string;
+	/** the one thing that names this member; there is no address and no display name beside it. */
+	username: string;
 	role: string;
 	permissions: number;
 	mustChangePassword: boolean;
 	workspaces: OrganizationWorkspace[];
-	/** the owner's name: whom a member is told to tell when the account needs attention. */
-	ownerDisplayName: string;
+	/** the owner's username: whom a member is told to tell when the account needs attention. */
+	ownerUsername: string;
 };
 
-/** where a link's invitation stands, as the join screen is told before it asks for anything. */
+/**
+ * where a link stands, as the connect screen is told before it does anything. `none` is the one
+ * value produced since effort 824: a link carries no invitation half any more, so it names the
+ * organization and admits nobody. The four invitation values are kept as words the connect
+ * screen still reads until ticket 13 redraws it around the one.
+ */
 export type LinkStanding = 'open' | 'lapsed' | 'consumed' | 'revoked' | 'none';
 
 /** what a lock-out costs, said before it runs: which workspaces rotate, and how many members stop syncing. */
@@ -270,8 +282,8 @@ export type MemberRemoved = {
 };
 
 /**
- * what a join link says once the organization it names has been reached: its name, where it is,
- * and where the invitation stands. No credential, no key, no secret; the link was parsed in Rust.
+ * what a link says once the organization it names has been reached: its name, where it is, and
+ * where the link stands. No credential, no key, no secret; the link was parsed in Rust.
  */
 export type LinkFacts = {
 	organizationId: string;
@@ -281,11 +293,12 @@ export type LinkFacts = {
 };
 
 /**
- * where this machine stands with organizations: which it has joined, and who is signed in.
+ * where this machine stands: the one organization it holds, or none, and who is signed in.
  * What the sign-in wall admits on.
  */
 export type OrganizationState = {
-	organizations: JoinedOrganization[];
+	/** the organization this machine holds; `null` on a machine that holds nothing. */
+	organization: HeldOrganization | null;
 	session: OrganizationSession | null;
 	/**
 	 * whether this machine holds the Turso authority and knows which account it is over: the
@@ -295,11 +308,10 @@ export type OrganizationState = {
 	holdsTursoAuthority: boolean;
 };
 
-/** one member as the dashboard lists them. Names opened on the other side; no key, no credential. */
+/** one member as the dashboard lists them. The username opened on the other side; no key, no credential. */
 export type OrganizationMember = {
 	id: string;
-	email: string;
-	displayName: string;
+	username: string;
 	role: string;
 	permissions: number;
 	mustChangePassword: boolean;
@@ -318,12 +330,16 @@ export type OrganizationInvitation = {
 };
 
 /**
- * what an invitation makes, shown to the administrator once. The password is in it because it has
- * to be shown; it crosses exactly once and is held nowhere afterwards.
+ * what an invitation makes, shown to the administrator once: the three things they hand over,
+ * the organization's link, the username and the generated password. The password is in it
+ * because it has to be shown; it crosses exactly once and is held nowhere afterwards.
  */
 export type Invited = {
 	memberId: string;
 	invitationId: string;
+	/** the username the member signs in with, as the row seals it. */
+	username: string;
+	/** the organization's own link, which connects a machine and admits nobody by itself. */
 	joinLink: string;
 	generatedPassword: string;
 	expiresAt: number;
@@ -418,21 +434,37 @@ export type Host = {
 		consentBegin: () => Promise<OrganizationConsentStart>;
 		/** how far the consent has got. Polled while `pending`. */
 		consentResult: (sessionId: string) => Promise<OrganizationConsentResult>;
-		/** forget the Turso authority this machine holds. Nothing is revoked at Turso. */
-		disconnect: () => Promise<void>;
+		/** forget the Turso authority this machine holds, and nothing else. Nothing is revoked at Turso. */
+		consentDisconnect: () => Promise<void>;
 		/**
 		 * create an organization on the consented account from the two things a first run
 		 * collects. Refuses, creating nothing, where no consent has been granted, and signs the
 		 * owner in where it succeeds.
 		 */
-		create: (name: string, password: string) => Promise<OrganizationCreated>;
-		/** which organizations this machine has joined, and who is signed in. */
+		create: (name: string, username: string, password: string) => Promise<OrganizationCreated>;
+		/** the organization this machine holds, and who is signed in. */
 		getState: () => Promise<OrganizationState>;
 		/**
-		 * open a vault with a password, with or without a network. A wrong password rejects
-		 * saying only that the value did not open; nothing distinguishes which half was wrong.
+		 * connect this machine to the organization a link names: its id, name, remote and key are
+		 * recorded, no vault opens and no member is recorded; the person signs in at the wall.
+		 * Rejects as `preconditionFailed` while an organization is held, as `invalidInput` where
+		 * the text is not a link, and as `network` where the organization could not be reached.
 		 */
-		signIn: (organizationId: string, password: string) => Promise<OrganizationState>;
+		connect: (link: string) => Promise<OrganizationState>;
+		/**
+		 * forget the organization this machine holds: sign out where somebody is in, delete every
+		 * replica on this machine, empty the record, and clear the Turso authority. The
+		 * organization on Turso is untouched. The one confirm before it is the screen's.
+		 */
+		disconnect: () => Promise<OrganizationState>;
+		/**
+		 * sign in to the organization this machine holds, by username and password, with or
+		 * without a network. The wrong password, a username nobody holds, and a username held by
+		 * somebody whose password this is not each reject with the same one sentence; nothing
+		 * says whether the username exists. A first sign-in on a handed password spends the
+		 * invitation, and the session still says to change the password.
+		 */
+		signIn: (username: string, password: string) => Promise<OrganizationState>;
 		/** drop the keys this process held, and put the wall back up. */
 		signOut: () => Promise<OrganizationState>;
 		/**
@@ -446,23 +478,11 @@ export type Host = {
 		/** where a workspace upgrade is, while one runs on open. Resolves to its own removal. */
 		onMigration: (listener: (notice: MigrationNotice) => void) => Promise<Unlisten>;
 		/**
-		 * read a link: which organization it names and where its invitation stands. Rejects as
-		 * `invalidInput` where the text is not a link, and as `network` where the organization
-		 * could not be reached from a machine that has never seen it.
+		 * read a link: which organization it names. Rejects as `invalidInput` where the text is
+		 * not a link, and as `network` where the organization could not be reached from a machine
+		 * that has never seen it.
 		 */
 		linkInspect: (link: string) => Promise<LinkFacts>;
-		/**
-		 * join the organization a link names with the generated password the person was handed,
-		 * and sign them in. A lapsed, revoked or used invitation rejects naming the organization;
-		 * a wrong password rejects saying only that the value did not open.
-		 */
-		join: (link: string, password: string) => Promise<OrganizationState>;
-		/**
-		 * restore a place in the organization its own link names, by email and password, on a
-		 * machine that has joined it before or never. The email is what a person offers where
-		 * they were invited with one; an owner typed none at the first run and offers none.
-		 */
-		restore: (link: string, email: string, password: string) => Promise<OrganizationState>;
 		/**
 		 * after an owner repeats the consent on a new machine: record which account it is over,
 		 * so the machine can act as the owner's again. Rejects where no consent stands.
@@ -512,8 +532,7 @@ export type Host = {
 			 * once. The application sends neither; the administrator hands them over.
 			 */
 			invite: (
-				email: string,
-				displayName: string,
+				username: string,
 				role: 'administrator' | 'member',
 				workspaceIds: string[]
 			) => Promise<Invited>;
@@ -527,6 +546,13 @@ export type Host = {
 			remove: (memberId: string, lockOut: boolean) => Promise<MemberRemoved>;
 			/** what locking a member out would cost, before it is done. */
 			lockOutCost: (memberId: string) => Promise<LockOutCost>;
+			/**
+			 * rename a member: their row written back with the username re-sealed and signed by
+			 * whoever renamed them. The owner's or an administrator's, on any row but their own;
+			 * the username is held to the rules and the uniqueness an invitation's is. What comes
+			 * back is the member as the list shows them.
+			 */
+			rename: (memberId: string, username: string) => Promise<OrganizationMember>;
 		};
 		invitation: {
 			list: () => Promise<OrganizationInvitation[]>;

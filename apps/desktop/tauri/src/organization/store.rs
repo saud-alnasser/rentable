@@ -37,7 +37,7 @@ use super::{
         Authority, Certificate, GrantAuthority, InvitationAuthority, MemberAuthority,
         VERIFYING_KEY_BYTES, WorkspaceAuthority, sign, verify,
     },
-    vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, SealedInvitation, Vault},
+    vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
 };
 
 /// The seven tables, in the order the schema creates them. A test pins this list against what
@@ -71,8 +71,7 @@ const SCHEMA: [&str; 7] = [
         \"created_at\" INTEGER NOT NULL)",
     "CREATE TABLE IF NOT EXISTS \"member\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
-        \"email_sealed\" BLOB NOT NULL, \
-        \"display_name_sealed\" BLOB NOT NULL, \
+        \"username_sealed\" BLOB NOT NULL, \
         \"public_key\" BLOB NOT NULL, \
         \"sealed_secret_key\" BLOB NOT NULL, \
         \"sealed_content_key\" BLOB NOT NULL, \
@@ -114,9 +113,6 @@ const SCHEMA: [&str; 7] = [
     "CREATE TABLE IF NOT EXISTS \"invitation\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"member_id\" TEXT NOT NULL, \
-        \"sealed_payload\" BLOB NOT NULL, \
-        \"kdf_salt\" BLOB NOT NULL, \
-        \"kdf_params\" TEXT NOT NULL, \
         \"expires_at\" INTEGER NOT NULL, \
         \"consumed_at\" INTEGER, \
         \"certificate_id\" TEXT NOT NULL, \
@@ -152,8 +148,9 @@ pub struct OrganizationRecord {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MemberRecord {
     pub id: String,
-    pub email_sealed: Vec<u8>,
-    pub display_name_sealed: Vec<u8>,
+    /// the username, sealed under the content key by the caller. The one thing that names a
+    /// member: there is no address and no display name beside it (effort 824, requirement 21).
+    pub username_sealed: Vec<u8>,
     /// the member's keypair as the vault shapes it: the public half, the sealed secret half, and
     /// the derivation that seal used.
     pub vault: Vault,
@@ -200,16 +197,15 @@ pub struct GrantRecord {
     pub credential_expires_at: Option<String>,
 }
 
-/// An `invitation` row: what a joining member opens with the link's secret and their generated
-/// password, and how long it stands. The id, the sealed payload and the expiry are under signature;
-/// `member_id` names whose invitation it is for the dashboard, and the derivation fields are the
-/// invitation's own, as a vault's are a member's: rewriting them breaks the invitation and nothing
-/// else.
+/// An `invitation` row: a pending account, whose member it is for and how long it stands. The
+/// id, the member and the expiry are under signature; `consumed_at` is written by the machine
+/// whose first sign-in spends it. *It carried a sealed payload, a salt and a cost until effort 824
+/// dropped the invitation's sealed half: the row was found through the link's secret and the
+/// generated password together, and it is found by the password alone now.*
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InvitationRecord {
     pub id: String,
     pub member_id: String,
-    pub sealed: SealedInvitation,
     pub expires_at: i64,
     pub consumed_at: Option<i64>,
     pub created_at: i64,
@@ -449,15 +445,14 @@ impl OrganizationStore {
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"member\" \
-                 (\"id\", \"email_sealed\", \"display_name_sealed\", \"public_key\", \
+                 (\"id\", \"username_sealed\", \"public_key\", \
                   \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
                   \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
                   \"signature\", \"created_at\", \"updated_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(member.id.clone()),
-                    turso::Value::Blob(member.email_sealed.clone()),
-                    turso::Value::Blob(member.display_name_sealed.clone()),
+                    turso::Value::Blob(member.username_sealed.clone()),
                     turso::Value::Blob(member.vault.public_key.to_vec()),
                     turso::Value::Blob(member.vault.sealed_secret_key.clone()),
                     turso::Value::Blob(member.sealed_content_key.clone()),
@@ -555,7 +550,7 @@ impl OrganizationStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT \"id\", \"email_sealed\", \"display_name_sealed\", \"public_key\", \
+                "SELECT \"id\", \"username_sealed\", \"public_key\", \
                         \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
                         \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
                         \"signature\", \"created_at\", \"updated_at\" \
@@ -567,11 +562,11 @@ impl OrganizationStore {
 
         while let Some(row) = rows.next().await? {
             let id = text(&row, 0)?;
-            let public_key = fixed::<PUBLIC_KEY_BYTES>(&row, 3, "public_key")?;
-            let role = text(&row, 8)?;
-            let permissions = integer(&row, 9)?;
-            let certificate_id = text(&row, 11)?;
-            let signature = blob(&row, 12)?;
+            let public_key = fixed::<PUBLIC_KEY_BYTES>(&row, 2, "public_key")?;
+            let role = text(&row, 7)?;
+            let permissions = integer(&row, 8)?;
+            let certificate_id = text(&row, 10)?;
+            let signature = blob(&row, 11)?;
 
             verified(
                 organization_verifying_key,
@@ -591,20 +586,19 @@ impl OrganizationStore {
                 certificate_id,
                 MemberRecord {
                     id,
-                    email_sealed: blob(&row, 1)?,
-                    display_name_sealed: blob(&row, 2)?,
+                    username_sealed: blob(&row, 1)?,
                     vault: Vault {
                         public_key,
-                        sealed_secret_key: blob(&row, 4)?,
-                        kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 6, "kdf_salt")?,
-                        kdf_params: KdfParams::parse(&text(&row, 7)?)?,
+                        sealed_secret_key: blob(&row, 3)?,
+                        kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 5, "kdf_salt")?,
+                        kdf_params: KdfParams::parse(&text(&row, 6)?)?,
                     },
-                    sealed_content_key: blob(&row, 5)?,
+                    sealed_content_key: blob(&row, 4)?,
                     role,
                     permissions,
-                    must_change_password: integer(&row, 10)? != 0,
-                    created_at: integer(&row, 13)?,
-                    updated_at: integer(&row, 14)?,
+                    must_change_password: integer(&row, 9)? != 0,
+                    created_at: integer(&row, 12)?,
+                    updated_at: integer(&row, 13)?,
                 },
             ));
         }
@@ -831,7 +825,7 @@ impl OrganizationStore {
             signer.certificate,
             Authority::Invitation(InvitationAuthority {
                 id: &invitation.id,
-                sealed_payload: &invitation.sealed.sealed_payload,
+                member_id: &invitation.member_id,
                 expires_at: invitation.expires_at,
             }),
         )?;
@@ -839,16 +833,12 @@ impl OrganizationStore {
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"invitation\" \
-                 (\"id\", \"member_id\", \"sealed_payload\", \"kdf_salt\", \"kdf_params\", \
-                  \"expires_at\", \"consumed_at\", \"certificate_id\", \"signature\", \
-                  \"created_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 (\"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"certificate_id\", \
+                  \"signature\", \"created_at\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(invitation.id.clone()),
                     turso::Value::Text(invitation.member_id.clone()),
-                    turso::Value::Blob(invitation.sealed.sealed_payload.clone()),
-                    turso::Value::Blob(invitation.sealed.kdf_salt.to_vec()),
-                    turso::Value::Text(invitation.sealed.kdf_params.encode()),
                     turso::Value::Integer(invitation.expires_at),
                     invitation
                         .consumed_at
@@ -885,9 +875,8 @@ impl OrganizationStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT \"id\", \"member_id\", \"sealed_payload\", \"kdf_salt\", \"kdf_params\", \
-                        \"expires_at\", \"consumed_at\", \"certificate_id\", \"signature\", \
-                        \"created_at\" \
+                "SELECT \"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"certificate_id\", \
+                        \"signature\", \"created_at\" \
                  FROM \"invitation\" ORDER BY \"created_at\", \"id\"",
                 (),
             )
@@ -896,10 +885,10 @@ impl OrganizationStore {
 
         while let Some(row) = rows.next().await? {
             let id = text(&row, 0)?;
-            let sealed_payload = blob(&row, 2)?;
-            let expires_at = integer(&row, 5)?;
-            let certificate_id = text(&row, 7)?;
-            let signature = blob(&row, 8)?;
+            let member_id = text(&row, 1)?;
+            let expires_at = integer(&row, 2)?;
+            let certificate_id = text(&row, 4)?;
+            let signature = blob(&row, 5)?;
 
             verified(
                 organization_verifying_key,
@@ -909,7 +898,7 @@ impl OrganizationStore {
                 &certificate_id,
                 Authority::Invitation(InvitationAuthority {
                     id: &id,
-                    sealed_payload: &sealed_payload,
+                    member_id: &member_id,
                     expires_at,
                 }),
                 &signature,
@@ -919,18 +908,13 @@ impl OrganizationStore {
                 certificate_id,
                 InvitationRecord {
                     id,
-                    member_id: text(&row, 1)?,
-                    sealed: SealedInvitation {
-                        sealed_payload,
-                        kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 3, "kdf_salt")?,
-                        kdf_params: KdfParams::parse(&text(&row, 4)?)?,
-                    },
+                    member_id,
                     expires_at,
-                    consumed_at: match row.get_value(6)? {
+                    consumed_at: match row.get_value(3)? {
                         turso::Value::Integer(value) => Some(value),
                         _ => None,
                     },
-                    created_at: integer(&row, 9)?,
+                    created_at: integer(&row, 6)?,
                 },
             ));
         }
@@ -1144,6 +1128,23 @@ impl OrganizationStore {
         Ok(re_signed)
     }
 
+    /// The columns one table carries, as the database reports them: what the startup check reads
+    /// to tell a replica built under an earlier schema from one this build wrote
+    /// (`organization/forget.rs`). A table that is not there has no columns.
+    pub async fn columns_of(&self, table: &str) -> Result<Vec<String>, Error> {
+        let mut rows = self
+            .connection
+            .query(&format!("PRAGMA table_info(\"{table}\")"), ())
+            .await?;
+        let mut names = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            names.push(text(&row, 1)?);
+        }
+
+        Ok(names)
+    }
+
     /// The connection, for a test that has to write a row the store would never write.
     #[cfg(test)]
     pub(crate) fn connection(&self) -> &turso::Connection {
@@ -1332,7 +1333,7 @@ mod tests {
             seal_content(&self.content_key, column, plaintext.as_bytes()).expect("failed to seal")
         }
 
-        fn member(&self, id: &str, email: &str, display_name: &str, role: &str) -> MemberRecord {
+        fn member(&self, id: &str, username: &str, role: &str) -> MemberRecord {
             let vault = create_vault("a password", test_cost()).expect("a vault");
             let sealed_content_key =
                 seal_to_public_key(&vault.public_key, &self.content_key.to_bytes())
@@ -1340,8 +1341,7 @@ mod tests {
 
             MemberRecord {
                 id: id.to_string(),
-                email_sealed: self.sealed("member.email_sealed", email),
-                display_name_sealed: self.sealed("member.display_name_sealed", display_name),
+                username_sealed: self.sealed("member.username_sealed", username),
                 vault,
                 sealed_content_key,
                 role: role.to_string(),
@@ -1403,13 +1403,8 @@ mod tests {
         let signer = chain.signer();
 
         for member in [
-            chain.member(
-                "member-owner",
-                "owner@acme.example",
-                "Olivia Owner",
-                "owner",
-            ),
-            chain.member("member-staff", "staff@acme.example", "Sami Staff", "member"),
+            chain.member("member-owner", "olivia.owner", "owner"),
+            chain.member("member-staff", "sami.staff", "member"),
         ] {
             store
                 .write_member(&signer, &member)
@@ -1553,11 +1548,11 @@ mod tests {
     // criterion 15: what a link and a read-only credential yield
 
     /// Given only what a join link carries, the organization id, its verifying key and the remote,
-    /// and a credential that reads every row, no address, name or workspace name is legible.
-    /// Asserted against populated rows rather than an empty table, over the raw bytes of every
-    /// column of every table.
+    /// and a credential that reads every row, no username, organization name or workspace name is
+    /// legible. Asserted against populated rows rather than an empty table, over the raw bytes of
+    /// every column of every table.
     #[tokio::test]
-    async fn a_link_holder_reads_no_email_no_display_name_and_no_workspace_name() {
+    async fn a_link_holder_reads_no_username_no_organization_name_and_no_workspace_name() {
         let directory = scratch("link");
         let store = open(&directory).await;
         let chain = Chain::new();
@@ -1565,10 +1560,10 @@ mod tests {
         populated(&store, &chain).await;
 
         let secrets = [
-            "owner@acme.example",
-            "staff@acme.example",
-            "Olivia",
-            "Sami",
+            "olivia.owner",
+            "sami.staff",
+            "olivia",
+            "sami",
             "North Properties",
             "South Properties",
             "Acme Rentals",
@@ -1621,17 +1616,22 @@ mod tests {
 
         assert_eq!(members.len(), 2);
         assert!(
-            open_content(&stranger, "member.email_sealed", &members[0].email_sealed).is_err(),
-            "an address opened without the organization's content key"
+            open_content(
+                &stranger,
+                "member.username_sealed",
+                &members[0].username_sealed
+            )
+            .is_err(),
+            "a username opened without the organization's content key"
         );
         assert_eq!(
             open_content(
                 &chain.content_key,
-                "member.email_sealed",
-                &members[0].email_sealed
+                "member.username_sealed",
+                &members[0].username_sealed
             )
-            .expect("the owner's address"),
-            b"owner@acme.example"
+            .expect("the owner's username"),
+            b"olivia.owner"
         );
     }
 
@@ -1784,7 +1784,6 @@ mod tests {
     #[tokio::test]
     async fn re_signing_a_certificates_rows_lets_it_be_retired_without_bricking_them() {
         use super::InvitationRecord;
-        use crate::organization::vault::{INVITATION_SECRET_BYTES, seal_invitation};
 
         let directory = scratch("resign");
         let store = open(&directory).await;
@@ -1808,7 +1807,7 @@ mod tests {
         store
             .write_member(
                 &chain.signer(),
-                &chain.member("member-owner", "o@acme", "O", "owner"),
+                &chain.member("member-owner", "olivia", "owner"),
             )
             .await
             .expect("the owner member");
@@ -1837,7 +1836,7 @@ mod tests {
         store
             .write_member(
                 &admin_signer,
-                &chain.member("member-x", "x@acme", "X", "member"),
+                &chain.member("member-x", "member-x", "member"),
             )
             .await
             .expect("member-x");
@@ -1859,21 +1858,12 @@ mod tests {
             .await
             .expect("the grant");
 
-        let sealed = seal_invitation(
-            &[7_u8; INVITATION_SECRET_BYTES],
-            "a-generated-password",
-            test_cost(),
-            b"a payload",
-        )
-        .expect("a sealed invitation");
-
         store
             .write_invitation(
                 &admin_signer,
                 &InvitationRecord {
                     id: "inv-1".to_string(),
                     member_id: "member-x".to_string(),
-                    sealed,
                     expires_at: 1_757_600_000_000,
                     consumed_at: None,
                     created_at: 1_757_000_000_000,
@@ -1950,7 +1940,7 @@ mod tests {
                     key: &admin_key,
                     certificate: &admin_certificate.revoked("1757100000000"),
                 },
-                &chain.member("member-y", "y@acme", "Y", "member"),
+                &chain.member("member-y", "member-y", "member"),
             )
             .await
             .expect("the hostile write");
@@ -2159,11 +2149,11 @@ mod tests {
         assert_eq!(
             open_content(
                 &chain.content_key,
-                "member.display_name_sealed",
-                &members[1].display_name_sealed
+                "member.username_sealed",
+                &members[1].username_sealed
             )
-            .expect("the sealed name did not survive the round trip"),
-            b"Sami Staff"
+            .expect("the sealed username did not survive the round trip"),
+            b"sami.staff"
         );
 
         eprintln!(

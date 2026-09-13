@@ -38,4 +38,9 @@ pub struct AppState {
     /// yet: the one it was launched with, or one opened before the webview was listening. The
     /// shell takes it once at startup; every later arrival reaches it as an event as well.
     pub arriving_link: Arc<Mutex<Option<String>>>,
+    /// whether this launch has checked the shape of what the machine holds, which the first
+    /// `organization_state_get` does before anything opens the replica
+    /// (`organization/forget.rs`). Set once the check has run to completion; a check that
+    /// failed leaves it empty, so the next read tries again rather than reading past it.
+    pub old_shape_check: tokio::sync::OnceCell<()>,
 }

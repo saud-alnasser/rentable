@@ -94,7 +94,10 @@ export function startWorkspaceSyncManager(input: {
 			await handleResult({
 				action: result.action,
 				errorMessage: null,
-				received: result.received
+				received: result.received,
+				// the state the dispatch was read against, before it ran: a switch that happened
+				// while it was out changes what is open, and the report is still about this one.
+				workspaceId: result.state.workspace.remoteId
 			});
 
 			// **A push that did not go arms the ladder**, which nothing else would: a replication
@@ -113,8 +116,13 @@ export function startWorkspaceSyncManager(input: {
 			retryDelayMs = INITIAL_RETRY_MS;
 		} catch (error) {
 			const message = toErrorText(error, get(LL));
-			await tauri.remoteSync.getState().catch(() => null);
-			await handleResult({ action: 'error', errorMessage: message, received: false });
+			const state = await tauri.remoteSync.getState().catch(() => null);
+			await handleResult({
+				action: 'error',
+				errorMessage: message,
+				received: false,
+				workspaceId: state?.workspace.remoteId ?? null
+			});
 
 			if (shouldRetryAfter(error)) {
 				const nextDelay = retryDelayMs;

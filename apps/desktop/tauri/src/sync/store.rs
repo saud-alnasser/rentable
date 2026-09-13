@@ -12,7 +12,7 @@ use crate::{
 
 use super::turso::discovery::TursoOrganization;
 
-use crate::organization::JoinedOrganization;
+use crate::organization::HeldOrganization;
 
 pub struct RemoteSync {
     pub(super) settings: Arc<RwLock<Persisted<Settings>>>,
@@ -169,16 +169,28 @@ pub struct RemoteSyncStore {
     ///
     /// Absent on every machine that has not granted a Turso consent, which today is all of them.
     pub turso_organization: Option<TursoOrganization>,
-    /// the organizations this machine has joined, which is what the sign-in screen lists
-    /// (requirement 17) and what tells sign-in which member row is this person's before a
-    /// password is typed.
+    /// the one organization this machine holds, or none (effort 824, requirement 17). What the
+    /// wall names, and what tells sign-in which replica to open before a password is typed.
     ///
     /// **Facts about this machine, in the clear, and none of them a credential.** The name is
-    /// the one the person typed or was shown; the verifying key is the one their join link pinned,
-    /// held here so that every later verification uses it and never one read out of the database
-    /// it judges; the remote is where the replica syncs. What opens anything is the password, and
-    /// it is nowhere.
-    pub organizations: Vec<JoinedOrganization>,
+    /// the one the person typed or the link carried; the verifying key is the one the link
+    /// pinned, held here so that every later verification uses it and never one read out of the
+    /// database it judges; the remote is where the replica syncs. What opens anything is the
+    /// password, and it is nowhere.
+    ///
+    /// *It was `organizations`, a list, until 2026-09-13.*
+    pub organization: Option<HeldOrganization>,
+    /// what the record carried under `organizations` before a machine held one: the shape effort
+    /// 824 retired, read and never interpreted.
+    ///
+    /// **Kept on the record until the startup check has seen it**, which is why it round-trips
+    /// rather than being dropped on read. The organizations in it were built under the schema
+    /// effort 824 replaced, and requirement 17 has the machine forget all of them at startup
+    /// (`organization/forget.rs`); a commit before that check, which `reconcile` makes on a first
+    /// launch, would otherwise erase the one sign the check reads. Nothing writes it once it is
+    /// empty, so a record of the new shape never carries the key.
+    #[serde(rename = "organizations", skip_serializing_if = "Vec::is_empty")]
+    pub organizations_of_the_old_shape: Vec<serde_json::Value>,
 }
 
 /// one workspace replica on this machine, and the member whose grant keeps it.
@@ -219,7 +231,8 @@ impl Default for RemoteSyncStore {
             device_id: String::new(),
             replicas: Vec::new(),
             turso_organization: None,
-            organizations: Vec::new(),
+            organization: None,
+            organizations_of_the_old_shape: Vec::new(),
         }
     }
 }
@@ -257,14 +270,26 @@ impl Persistable for RemoteSyncStore {
         self.turso_organization
             .take_if(|organization| organization.slug.trim().is_empty());
 
-        // an organization with no id, no key or no remote cannot be signed in to, and a row
-        // saying otherwise would be listed on the sign-in screen as a place nobody can go.
-        self.organizations.retain(|organization| {
-            !organization.id.trim().is_empty()
-                && !organization.verifying_key.trim().is_empty()
-                && !organization.remote_url.trim().is_empty()
-                && !organization.member_id.trim().is_empty()
+        // an organization with no id, no key or no remote cannot be signed in to, and a record
+        // saying otherwise would name a place on the wall that nobody can go.
+        self.organization.take_if(|organization| {
+            organization.id.trim().is_empty()
+                || organization.verifying_key.trim().is_empty()
+                || organization.remote_url.trim().is_empty()
         });
+
+        // a member id of nothing is no member: the same answer as a machine that has connected
+        // and not signed in, and it is spelled that way rather than two ways.
+        if let Some(organization) = self.organization.as_mut() {
+            organization.member_id = organization
+                .member_id
+                .take()
+                .filter(|member_id| !member_id.trim().is_empty());
+            organization.role = organization
+                .role
+                .take()
+                .filter(|role| !role.trim().is_empty());
+        }
     }
 }
 
@@ -339,6 +364,32 @@ impl RemoteSync {
 
         self.store.workspace.name = name.to_string();
         self.store.workspace.updated_at = timestamp::now();
+
+        self.store.commit()
+    }
+
+    /// Forget the organization this machine holds, on the record: the organization itself, every
+    /// replica it tracked, the workspace it had open, the Turso organization its consent was
+    /// over, and the old shape's list where the record still carried one. What is left is the
+    /// record of a machine that has never held an organization, and the workspace is a fresh
+    /// default named for now.
+    ///
+    /// **The files are the caller's** (`organization::forget`), which deletes them before this
+    /// runs; the credential this process held for the workspace goes here, since the workspace
+    /// it was for is gone, and so does whatever Turso last refused, since there is nothing left
+    /// for a refusal to stand against.
+    pub(crate) async fn forget_organization(&mut self) -> Result<(), Error> {
+        let database_path = self.current_database_path().await;
+
+        self.workspace_token = None;
+        self.account_refusal = None;
+        self.credential_refusal = None;
+
+        self.store.organization = None;
+        self.store.organizations_of_the_old_shape.clear();
+        self.store.replicas.clear();
+        self.store.turso_organization = None;
+        self.store.workspace = Self::default_workspace(database_path, timestamp::now());
 
         self.store.commit()
     }
@@ -628,7 +679,10 @@ mod tests {
     use super::{
         DEFAULT_WORKSPACE_NAME, LearnedWorkspace, RemoteSync, RemoteSyncStore, RemoteSyncWorkspace,
     };
-    use crate::{persisted::Persisted, settings::Settings};
+    use crate::{
+        persisted::{Persistable as _, Persisted},
+        settings::Settings,
+    };
 
     fn unique_dir(name: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()
@@ -750,6 +804,58 @@ mod tests {
                 "{written} lost who the replica was held for"
             );
         }
+    }
+
+    /// **A record written when a machine held a list still reads, and the list is kept as the
+    /// sign it is.** `organizations` lands in the field the startup check reads and never in
+    /// `organization`; it is written back as long as it is non-empty, so a commit made before
+    /// the check does not erase the sign; and a record of the new shape never carries the key.
+    #[test]
+    fn a_record_of_the_old_shape_keeps_its_list_as_the_sign_the_startup_check_reads() {
+        let mut store: RemoteSyncStore = serde_json::from_str(
+            r#"{"workspace":{"id":"workspace-1","name":"Riyadh"},"organizations":[{"id":"a","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://a","memberId":"me","role":"owner","joinedAt":1},{"id":"b","name":"Beta","verifyingKey":"k","remoteUrl":"libsql://b","memberId":"me","role":"member","joinedAt":2}]}"#,
+        )
+        .expect("a record of the old shape did not read");
+
+        assert_eq!(
+            store.organization, None,
+            "the list was read as the one held"
+        );
+        assert_eq!(store.organizations_of_the_old_shape.len(), 2);
+
+        let written = serde_json::to_string(&store).expect("serialised");
+
+        assert!(
+            written.contains("\"organizations\":[") && written.contains("Beta"),
+            "the sign was dropped on write: {written}"
+        );
+
+        store.organizations_of_the_old_shape.clear();
+
+        let written = serde_json::to_string(&store).expect("serialised");
+
+        assert!(
+            !written.contains("organizations\""),
+            "a record of the new shape carries the old key: {written}"
+        );
+        assert!(written.contains("\"organization\":null"), "{written}");
+    }
+
+    /// **A held organization with an empty member id holds no member**, which is the one
+    /// spelling of a machine that connected and has not signed in.
+    #[test]
+    fn an_empty_member_id_on_the_held_organization_reads_as_none() {
+        let mut store: RemoteSyncStore = serde_json::from_str(
+            r#"{"organization":{"id":"a","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://a","memberId":"","role":"","joinedAt":1}}"#,
+        )
+        .expect("the record");
+
+        store.sanitize();
+
+        let held = store.organization.expect("the organization was dropped");
+
+        assert_eq!(held.member_id, None);
+        assert_eq!(held.role, None);
     }
 
     #[test]

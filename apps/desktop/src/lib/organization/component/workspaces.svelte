@@ -3,33 +3,35 @@
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { Input } from '@rentable/design/primitive/input/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 
 	/**
 	 * The workspaces the signed-in member holds a grant on, and the way to add one.
 	 *
-	 * **The form is drawn for the owner and a sentence for everybody else**, for the reason the
-	 * no-workspace surface gives: creating a workspace needs the Turso authority only the owner's
-	 * machine holds, and the shell refuses anybody else at the command regardless. An
-	 * administrator sees the same list and the sentence, so they know whom to ask.
+	 * **The list, and an opener.** The form that names a new workspace is the shared form surface,
+	 * mounted once in the shell (`organization/dialogs.svelte.ts` says why once); what this
+	 * section holds is the control that opens it, drawn for whoever may create, and for everybody
+	 * else the sentence the page composes, the same one the rail's row says for the same person:
+	 * creating a workspace needs the Turso authority only the owner's machine holds, and the shell
+	 * refuses anybody else at the command regardless. An administrator reads that the owner
+	 * creates; an owner restored on a machine without the authority reads that the account must be
+	 * reconnected. The list draws and never decides. *The no-workspace surface's sentence stood
+	 * here first; it speaks of the first workspace, and under a list that already holds some it
+	 * read as a contradiction.*
 	 */
 	let {
 		workspaces,
 		canCreate,
-		isCreating,
-		onCreate
+		refusal
 	}: {
 		workspaces: OrganizationWorkspace[];
-		/** whether the person is the owner, which is who a create is for. */
+		/** whether this person, on this machine, may create: the owner holding the authority. */
 		canCreate: boolean;
-		isCreating: boolean;
-		onCreate: (name: string) => void;
+		/** why not, composed by the page from the locale; `null` where `canCreate`. */
+		refusal: string | null;
 	} = $props();
-
-	let name = $state('');
-
-	const canSubmit = $derived(canCreate && name.trim().length > 0 && !isCreating);
 
 	const accessLabel = (level: string) =>
 		({
@@ -59,38 +61,18 @@
 	{/each}
 
 	{#if canCreate}
-		<form
-			class="flex flex-col gap-2 sm:flex-row sm:items-end"
-			data-workspace-form
-			onsubmit={(event) => {
-				event.preventDefault();
-
-				if (!canSubmit) return;
-
-				onCreate(name.trim());
-				name = '';
-			}}
-		>
-			<Field.Field class="min-w-0 flex-1">
-				<Field.Label for="dashboard-workspace-name"
-					>{$LL.layout.noWorkspace.nameLabel()}</Field.Label
-				>
-				<Input
-					id="dashboard-workspace-name"
-					name="name"
-					bind:value={name}
-					placeholder={$LL.layout.noWorkspace.nameLabel()}
-					disabled={isCreating}
-				/>
-			</Field.Field>
-
-			<Button type="submit" class="shrink-0" disabled={!canSubmit}>
-				{isCreating ? $LL.common.actions.working() : $LL.layout.noWorkspace.create()}
+		<div>
+			<!-- the verb's glyph before its label, as every primary here carries one. -->
+			<Button
+				type="button"
+				data-workspace-create
+				onclick={() => openOrganizationDialog('workspace')}
+			>
+				<PlusIcon class="size-4" />
+				{$LL.layout.workspaceMenu.create()}
 			</Button>
-		</form>
+		</div>
 	{:else}
-		<p class="text-sm text-muted-foreground" data-workspace-owner-only>
-			{$LL.layout.noWorkspace.ownerOnly()}
-		</p>
+		<p class="text-sm text-muted-foreground" data-workspace-owner-only>{refusal}</p>
 	{/if}
 </div>

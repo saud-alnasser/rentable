@@ -11,6 +11,7 @@
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
 	import LayoutFrame from '$lib/layout/component/frame.svelte';
+	import LayoutOrganizationDialogs from '$lib/layout/component/organization-dialogs.svelte';
 	import { toScreen } from '@rentable/design/back.js';
 	import { back } from '@rentable/design/back.svelte.js';
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
@@ -356,11 +357,11 @@
 							{:else if surface === 'sign-in'}
 								<LayoutStartupSignIn
 									situation={shellState.signInReason}
-									organizations={shellState.organization?.organizations ?? []}
+									organization={shellState.organization?.organization ?? null}
 									isSigningIn={shellState.isSigningIn}
 									errorMessage={shellState.error}
-									onSignIn={(organizationId, password) =>
-										void startup.signIn(organizationId, password)}
+									onSignIn={(username, password) => void startup.signIn(username, password)}
+									onDisconnect={() => startup.disconnect()}
 									onSetUpOrganization={() => void goto(resolve(THE_FIRST_RUN))}
 									onJoinByLink={() => void goto(resolve(THE_JOIN))}
 								/>
@@ -391,6 +392,15 @@
 								{@render children?.()}
 							{/if}
 						</LayoutFrame>
+
+						<!-- the invite and new-workspace dialogs, mounted once and beside the frame rather
+						     than inside it, since the frame owns navigation and not forms. Inside the
+						     providers, because the host's mutations read the query client from context.
+						     Drawn while the rail is up and a session is held: that is every state in which
+						     one of their openers, the rail's menu or the organization page, can be drawn. -->
+						{#if shellState.railIsUp && shellState.organization?.session}
+							<LayoutOrganizationDialogs />
+						{/if}
 					</TooltipProvider>
 				</SonnerProvider>
 			</QueryClientProvider>

@@ -43,11 +43,10 @@ export function browserStartupPorts(queryClient: QueryClient): StartupPorts {
 		},
 		organization: {
 			getState: () => tauri.organization.getState(),
-			signIn: (organizationId, password) => tauri.organization.signIn(organizationId, password),
-			join: (link, password) => tauri.organization.join(link, password),
-			restore: (link, email, password) => tauri.organization.restore(link, email, password),
+			signIn: (username, password) => tauri.organization.signIn(username, password),
 			changePassword: (current, next) => tauri.organization.changePassword(current, next),
 			signOut: () => tauri.organization.signOut(),
+			disconnect: () => tauri.organization.disconnect(),
 			openWorkspace: (workspaceId) => tauri.organization.workspace.open(workspaceId),
 			renewDue: () => tauri.organization.renewDue()
 		},
@@ -66,6 +65,7 @@ export function browserStartupPorts(queryClient: QueryClient): StartupPorts {
 		},
 		cache: {
 			clear: () => queryClient.clear(),
+			dropUndrawn: () => queryClient.removeQueries({ type: 'inactive' }),
 			rememberRemoteSync: (state) => queryClient.setQueryData(settingsKeys.remoteSync, state),
 			invalidateRemoteSync: () =>
 				queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync }),

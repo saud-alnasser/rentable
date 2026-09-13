@@ -18,7 +18,7 @@ and this file is the vocabulary and the boundaries a change has to keep.
 **Organization**:
 One database on the owner's Turso account, `org-<id>`, holding seven tables: the organization,
 its members, its workspaces, the grants, the certificates, the invitations and the migration
-lease. Every name and address in it is sealed under the content key; every authority field is
+lease. Every username in it is sealed under the content key; every authority field is
 signed along a chain rooted at a key the join link pins. Every member's machine keeps a replica.
 _Avoid_: "the control plane" and "the account" for it. There is no service of ours, and the
 account is Turso's.
@@ -51,8 +51,12 @@ before it revokes. Nothing seals one member's key to another; the actor re-signs
 
 **Link**:
 `rentable://join/...`, the organization's locator: its id, name, remote, verifying key and a
-read-only credential over sealed rows, and for an invitation the invitation's half of the secret.
-It never expires; the invitation it names does.
+read-only credential over sealed rows. It never expires. There is one link, the organization's
+own: it connects a machine, and a username and password admit a person at the wall; an
+invitation is the username and a generated password handed over beside it, and the invitation
+row is what expires. *Until effort 824 a link made for an invitation also carried the
+invitation's half of a secret, which with the password opened a sealed payload naming the
+member's row.*
 
 **Authority**:
 The Platform API token a consent produced, in the keyring on the owner's machine and nowhere else.
