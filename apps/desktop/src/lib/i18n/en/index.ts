@@ -412,6 +412,7 @@ const en = {
 			organizationDescription:
 				'your password unlocks your place in the organization, on this machine, with or without a connection.',
 			organization: 'organization',
+			username: 'username',
 			password: 'password',
 			unlock: 'unlock',
 			unlocking: 'unlocking your place in the organization. this takes a moment on purpose.',
@@ -420,6 +421,9 @@ const en = {
 			roleMember: 'member',
 			setUpOrganization: 'set up an organization instead',
 			openInvitation: 'open an invitation link',
+			disconnect: 'disconnect this machine',
+			disconnectDescription:
+				"this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes, and the organization's link connects this machine again.",
 			title: 'Login'
 		},
 

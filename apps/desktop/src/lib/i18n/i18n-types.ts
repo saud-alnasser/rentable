@@ -1350,6 +1350,10 @@ type RootTranslation = {
 			 */
 			organization: string
 			/**
+			 * u​s​e​r​n​a​m​e
+			 */
+			username: string
+			/**
 			 * p​a​s​s​w​o​r​d
 			 */
 			password: string
@@ -1381,6 +1385,14 @@ type RootTranslation = {
 			 * o​p​e​n​ ​a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k
 			 */
 			openInvitation: string
+			/**
+			 * d​i​s​c​o​n​n​e​c​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e
+			 */
+			disconnect: string
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​:​ ​e​v​e​r​y​ ​c​o​p​y​ ​o​f​ ​i​t​ ​a​n​d​ ​o​f​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​ ​k​e​p​t​ ​h​e​r​e​ ​i​s​ ​d​e​l​e​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​f​o​r​g​o​t​t​e​n​ ​w​i​t​h​ ​t​h​e​m​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​u​r​s​o​ ​c​h​a​n​g​e​s​,​ ​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​g​a​i​n​.
+			 */
+			disconnectDescription: string
 			/**
 			 * L​o​g​i​n
 			 */
@@ -4052,6 +4064,10 @@ export type TranslationFunctions = {
 			 */
 			organization: () => LocalizedString
 			/**
+			 * username
+			 */
+			username: () => LocalizedString
+			/**
 			 * password
 			 */
 			password: () => LocalizedString
@@ -4083,6 +4099,14 @@ export type TranslationFunctions = {
 			 * open an invitation link
 			 */
 			openInvitation: () => LocalizedString
+			/**
+			 * disconnect this machine
+			 */
+			disconnect: () => LocalizedString
+			/**
+			 * this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes, and the organization's link connects this machine again.
+			 */
+			disconnectDescription: () => LocalizedString
 			/**
 			 * Login
 			 */

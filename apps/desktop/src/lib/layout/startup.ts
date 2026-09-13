@@ -119,6 +119,11 @@ export type StartupPorts = {
 		/** change the signed-in member's own password, and clear the requirement to. */
 		changePassword(current: string, next: string): Promise<OrganizationState>;
 		signOut(): Promise<OrganizationState>;
+		/**
+		 * forget the held organization on this machine: every replica, the record, the Turso
+		 * authority. The one confirm before it is the screen's.
+		 */
+		disconnect(): Promise<OrganizationState>;
 		/** open one of the workspaces the session holds a grant on, before the bootstrap. */
 		openWorkspace(workspaceId: string): Promise<unknown>;
 		/** renew credentials close to lapsing, on the owner's machine, best effort. */
@@ -701,6 +706,40 @@ export class Startup {
 
 		// the shell said nobody signed out. The wall goes up regardless: this was asked for.
 		await this.#raiseSignInWall('locked');
+	}
+
+	/**
+	 * Forget the organization this machine holds: the wall's way out while signed out, and the
+	 * organization page's while signed in, where the shell signs out first.
+	 *
+	 * **The confirm is the screen's, and this runs after it.** The shell deletes every replica,
+	 * empties the record and clears the Turso authority in one call, and what follows is the path
+	 * `standingChanged` already takes: read where the machine stands again, which is now nothing,
+	 * and admit on it, which raises the wall as a machine with nothing on it. A refusal is said on
+	 * the wall the person is still standing at, as a wrong password is, rather than as a failure
+	 * screen that would take the wall away with it.
+	 *
+	 * Refused while a password is being tried: the shell is deriving a key against a vault this
+	 * would delete from under it.
+	 */
+	async disconnect() {
+		if (this.#snapshot.isSigningIn) {
+			return;
+		}
+
+		try {
+			await this.#ports.organization.disconnect();
+		} catch (error) {
+			this.#set({ error: this.#ports.describeError(error) });
+
+			return;
+		}
+
+		// the forget emptied the machine's own sync record as well, so the workspace it named is
+		// not one the next sign-in should look for.
+		this.#set({ remoteSync: await this.#ports.remoteSync.getState().catch(() => null) });
+
+		await this.standingChanged();
 	}
 
 	/**

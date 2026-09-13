@@ -355,18 +355,13 @@
 							{#if surface === 'loading'}
 								<LayoutStartupLoading />
 							{:else if surface === 'sign-in'}
-								<!-- signing in is a username and a password (effort 824, requirement 19), and the
-								     wall still offers a password alone until ticket 14 redraws it around the two
-								     fields; the empty username here is refused by the shell with its one sentence,
-								     so the wall admits nobody until then. -->
 								<LayoutStartupSignIn
 									situation={shellState.signInReason}
-									organizations={shellState.organization?.organization
-										? [shellState.organization.organization]
-										: []}
+									organization={shellState.organization?.organization ?? null}
 									isSigningIn={shellState.isSigningIn}
 									errorMessage={shellState.error}
-									onSignIn={(_, password) => void startup.signIn('', password)}
+									onSignIn={(username, password) => void startup.signIn(username, password)}
+									onDisconnect={() => startup.disconnect()}
 									onSetUpOrganization={() => void goto(resolve(THE_FIRST_RUN))}
 									onJoinByLink={() => void goto(resolve(THE_JOIN))}
 								/>

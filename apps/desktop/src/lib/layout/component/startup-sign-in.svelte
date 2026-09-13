@@ -5,10 +5,11 @@
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
-	import * as Select from '@rentable/design/primitive/select/index.js';
+	import DisconnectDialog from '$lib/organization/component/disconnect-dialog.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import LockOpenIcon from '@lucide/svelte/icons/lock-open';
+	import UserIcon from '@lucide/svelte/icons/user';
 
 	/**
 	 * The wall, and the ways through it.
@@ -22,68 +23,67 @@
 	 * on the shared application surface, which [[rules/interface]] under *Application surfaces*
 	 * requires.
 	 *
-	 * **Two situations, and neither is a service's.** A machine that has joined no organization
-	 * has nothing to unlock, and is offered the first run. A machine that has joined one lists what
-	 * it has joined and asks for a password, which opens a vault on this machine with or without a
-	 * network; there is no window to run out and no session to re-establish. *Three situations
-	 * stood here until organizations: no account, a window closed after three days, and an identity
-	 * with no session. Every one was about a control plane, and the control plane is what the
-	 * organization replaces.*
+	 * **Two situations, and neither is a service's.** A machine that holds no organization has
+	 * nothing to unlock, and is offered the first run. A machine that holds one is its login page:
+	 * it names the organization and asks for a username and a password, which open a vault on this
+	 * machine with or without a network; there is no window to run out and no session to
+	 * re-establish. *Three situations stood here until organizations: no account, a window closed
+	 * after three days, and an identity with no session. Every one was about a control plane, and
+	 * the control plane is what the organization replaces.*
 	 *
-	 * **Several organizations sit in a select, and the select is on its way out.** A machine that
-	 * has joined more than one shows them as a dropdown, the first chosen until another is; one
-	 * organization is named, not chosen. *Effort 824 drew them as rows carrying name and role,
-	 * and on screen the rows made the wall a choice between organizations rather than a login
-	 * page. The human withdrew them on 2026-09-13: in their picture of the way in, one organization
-	 * is signed in to at a time and the choice between the ones a machine holds is a page before
-	 * this one, which a later effort draws. Until then the select stays as 819 left it.*
+	 * **The organization is named, never chosen.** A machine holds one organization or none
+	 * (effort 824, requirement 7), so there is nothing here to choose between, and the name is a
+	 * line of text rather than a control. The role is not on it: a role is a fact of the account,
+	 * found by the sign-in, and a machine that connected by link and has not signed in yet holds
+	 * none. *Several organizations were a select, and before that rows carrying name and role; the
+	 * human withdrew the rows on 2026-09-13 because they made the wall a choice between
+	 * organizations rather than a login page, and the same day gave the picture under which a
+	 * machine holds one.*
 	 *
-	 * **The password field is the only field.** This machine already knows which member it is in
-	 * each organization it joined, so an email typed here would be compared against a local string,
-	 * which is exactly the check requirement 9 says a modified client can skip. The organization is
-	 * chosen, the password is typed, and what the password opens is the whole of the sign-in.
+	 * **Two fields, username above password** (requirement 19). The username is which member of
+	 * the organization this is, and the password is what opens their vault; the shell tries the
+	 * password against each vault and checks the username on the row that opens, so a pair that
+	 * opens nothing is refused with one sentence and nothing here says whether the username exists.
+	 * Each field leads with its subject's glyph inside the input group, muted so it does not
+	 * outweigh the label (requirement 15), and the unlock carries its verb's (requirement 14).
 	 *
-	 * **The third way through is a link.** A person who was invited opens the link they were
-	 * handed, and the operating system brings them to the join screen; one whose platform did not
-	 * hand it over reaches the same screen from here and pastes it. Offered in both situations,
-	 * because a machine that has joined one organization can be invited to a second.
+	 * **Three links at the foot while locked.** A person who was invited opens the link they were
+	 * handed, and the operating system brings them to the connect screen; one whose platform did
+	 * not hand it over reaches the same screen from here and pastes it. The first run is offered
+	 * beside it. The third is the way out: disconnect forgets the organization on this machine
+	 * (requirement 20), after the one confirm the dialog asks, and the wall comes back as a machine
+	 * that holds nothing. It is offered here while signed out and on the organization page while
+	 * signed in, and nowhere else.
 	 */
 	let {
 		situation,
-		organizations,
+		organization,
 		isSigningIn,
 		errorMessage,
 		onSignIn,
+		onDisconnect,
 		onSetUpOrganization,
 		onJoinByLink
 	}: {
 		/** which of the two situations this is, from `organizationAdmission`. */
 		situation: 'noOrganization' | 'locked';
-		/**
-		 * what this machine holds, which is what it can unlock. A list of at most one since the
-		 * machine holds one organization; the select below draws several until ticket 14 redraws
-		 * the wall around the one.
-		 */
-		organizations: HeldOrganization[];
+		/** what this machine holds, which is what it can unlock; `null` where it holds nothing. */
+		organization: HeldOrganization | null;
 		/** a password is being tried, which is a key derivation the person is waiting on. */
 		isSigningIn: boolean;
 		errorMessage: string | null;
-		onSignIn: (organizationId: string, password: string) => void;
+		onSignIn: (username: string, password: string) => void;
+		/** forget the held organization on this machine, once the person has confirmed it. */
+		onDisconnect: () => Promise<void> | void;
 		/** the first run: an organization on the person's own Turso account. */
 		onSetUpOrganization: () => void;
-		/** the join screen: an invitation link, pasted or handed over by the operating system. */
+		/** the connect screen: the organization's link, pasted or handed over by the operating system. */
 		onJoinByLink: () => void;
 	} = $props();
 
-	let organizationId = $state<string>('');
+	let username = $state('');
 	let password = $state('');
-
-	// the one joined organization needs no choosing, and the first of several is the default.
-	const chosen = $derived(
-		organizations.find((organization) => organization.id === organizationId) ??
-			organizations[0] ??
-			null
-	);
+	let isDisconnectOpen = $state(false);
 
 	const title = $derived(
 		situation === 'noOrganization'
@@ -97,28 +97,15 @@
 			: $LL.layout.signIn.organizationDescription()
 	);
 
-	const canUnlock = $derived(chosen !== null && password.length > 0 && !isSigningIn);
+	const canUnlock = $derived(
+		organization !== null && username.trim().length > 0 && password.length > 0 && !isSigningIn
+	);
 
 	const unlock = () => {
-		if (!chosen || !canUnlock) return;
+		if (!canUnlock) return;
 
-		onSignIn(chosen.id, password);
+		onSignIn(username, password);
 	};
-
-	/**
-	 * what the role reads as, in the reader's words. The vocabulary is
-	 * `packages/workspace-permission`'s and a role this build has never heard of is shown as it
-	 * is spelled rather than hidden. A machine that connected by link and has not signed in yet
-	 * holds no role to name, and reads as nothing.
-	 */
-	const roleLabel = (role: string | null) =>
-		({
-			owner: $LL.layout.signIn.roleOwner(),
-			administrator: $LL.layout.signIn.roleAdministrator(),
-			member: $LL.layout.signIn.roleMember()
-		})[role ?? ''] ??
-		role ??
-		'';
 </script>
 
 <StandaloneSurface tone="neutral" {title} {description} busy={isSigningIn}>
@@ -145,46 +132,42 @@
 					unlock();
 				}}
 			>
-				<Field.Field>
-					<Field.Label for="sign-in-organization">{$LL.layout.signIn.organization()}</Field.Label>
-					{#if organizations.length > 1}
-						<Select.Root
-							type="single"
-							value={chosen?.id ?? ''}
-							onValueChange={(value) => {
-								if (value) organizationId = value;
-							}}
+				{#if organization}
+					<Field.Field>
+						<Field.Label for="sign-in-organization">{$LL.layout.signIn.organization()}</Field.Label>
+						<!-- named rather than chosen: the one organization this machine holds, as a line. -->
+						<p
+							id="sign-in-organization"
+							class="text-sm font-medium"
+							data-sign-in-organization={organization.id}
 						>
-							<Select.Trigger id="sign-in-organization" class="w-full">
-								{chosen?.name ?? ''}
-							</Select.Trigger>
-							<Select.Content>
-								{#each organizations as organization (organization.id)}
-									<Select.Item value={organization.id} label={organization.name}>
-										{organization.name}
-										<span class="text-muted-foreground">
-											{roleLabel(organization.role)}
-										</span>
-									</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					{:else if chosen}
-						<!-- one organization, named rather than chosen, with the role this machine
-						     last saw for the person: a fact to recognise oneself by, never authority. -->
-						<p id="sign-in-organization" class="text-sm" data-sign-in-organization={chosen.id}>
-							<span class="font-medium">{chosen.name}</span>
-							<span class="text-muted-foreground"> · {roleLabel(chosen.role)}</span>
+							{organization.name}
 						</p>
-					{/if}
+					</Field.Field>
+				{/if}
+
+				<!-- each field's subject, as a leading glyph. The addon draws it in the muted
+				     foreground so it does not outweigh the label beside it (*Balance weight and
+				     contrast*, Refactoring UI p.56). It is the subject and never the error: a
+				     validation error marks the label line, as the interface rule says. -->
+				<Field.Field>
+					<Field.Label for="sign-in-username">{$LL.layout.signIn.username()}</Field.Label>
+					<InputGroup.Root data-disabled={isSigningIn ? 'true' : undefined}>
+						<InputGroup.Addon>
+							<UserIcon />
+						</InputGroup.Addon>
+						<InputGroup.Input
+							id="sign-in-username"
+							name="username"
+							autocomplete="username"
+							bind:value={username}
+							disabled={isSigningIn}
+						/>
+					</InputGroup.Root>
 				</Field.Field>
 
 				<Field.Field>
 					<Field.Label for="sign-in-password">{$LL.layout.signIn.password()}</Field.Label>
-					<!-- the field's subject, as a leading glyph. The addon draws it in the muted
-					     foreground so it does not outweigh the label beside it (*Balance weight and
-					     contrast*, Refactoring UI p.56). It is the subject and never the error: a
-					     validation error marks the label line, as the interface rule says. -->
 					<InputGroup.Root data-disabled={isSigningIn ? 'true' : undefined}>
 						<InputGroup.Addon>
 							<KeyRoundIcon />
@@ -231,6 +214,22 @@
 			>
 				{$LL.layout.signIn.setUpOrganization()}
 			</Button>
+
+			<Button
+				variant="link"
+				class="w-full justify-center"
+				onclick={() => (isDisconnectOpen = true)}
+				disabled={isSigningIn}
+			>
+				{$LL.layout.signIn.disconnect()}
+			</Button>
+
+			<DisconnectDialog
+				open={isDisconnectOpen}
+				onOpenChange={(open) => (isDisconnectOpen = open)}
+				organizationName={organization?.name ?? ''}
+				{onDisconnect}
+			/>
 		{/if}
 	</div>
 </StandaloneSurface>

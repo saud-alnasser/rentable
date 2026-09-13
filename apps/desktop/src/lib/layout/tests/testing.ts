@@ -77,6 +77,8 @@ export type Journal = {
 	/** every state the rail's query was seeded with, in order. */
 	remembered: RemoteSyncState[];
 	contextsForgotten: number;
+	/** how many times the shell was told to forget the organization it holds. */
+	disconnected: number;
 	failures: string[];
 	localesLoaded: string[];
 	localeSet: string | null;
@@ -114,6 +116,8 @@ export function harness(
 		changePasswordWith?: (current: string, next: string) => Promise<OrganizationState>;
 		/** what opening a workspace meets, for the path where the shell refuses to. */
 		openWorkspace?: (workspaceId: string) => Promise<void>;
+		/** what forgetting the organization meets, for the path where the shell refuses to. */
+		disconnect?: () => Promise<void>;
 	} = {}
 ): Harness {
 	const journal: Journal = {
@@ -134,6 +138,7 @@ export function harness(
 		remoteSyncInvalidated: 0,
 		remembered: [],
 		contextsForgotten: 0,
+		disconnected: 0,
 		failures: [],
 		localesLoaded: [],
 		localeSet: null,
@@ -194,6 +199,15 @@ export function harness(
 			},
 			signOut: async () => {
 				organization = { ...organization, session: null };
+
+				return organization;
+			},
+			// the forget leaves the machine holding nothing, and the next `getState` reads that.
+			disconnect: async () => {
+				journal.disconnected += 1;
+				await overrides.disconnect?.();
+				organization = nowhereToGo();
+				state = syncing();
 
 				return organization;
 			},

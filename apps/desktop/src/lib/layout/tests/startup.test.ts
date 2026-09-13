@@ -284,11 +284,21 @@ test('and the workspace opened is the one held last, where the session still hol
 });
 
 test('and a member with a workspace reaches it after the sign-in, re-entering at the workspace stage', async () => {
-	const { startup, journal } = harness({ organization: locked() });
+	const asked: [string, string][] = [];
+	const { startup, journal } = harness({
+		organization: locked(),
+		signInWith: async (username, password) => {
+			asked.push([username, password]);
+
+			return unlocked();
+		}
+	});
 
 	await startup.start();
 	await startup.signIn('olivia', 'a long enough password');
 
+	// the shell is handed both, once (effort 824, requirement 19).
+	assert.deepEqual(asked, [['olivia', 'a long enough password']]);
 	assert.equal(startup.snapshot.state, 'ready');
 	assert.equal(startup.snapshot.isSigningIn, false);
 	// re-entering at `workspace` is honest: those three stages are what this path has done.
@@ -437,6 +447,50 @@ test('signing out puts the wall back up, locked, and clears what was drawn for w
 	assert.equal(journal.cacheCleared, clearedBefore + 1, 'the workspace behind it is not readable');
 	// the held context names an account this machine no longer has credentials for.
 	assert.ok(journal.contextsForgotten > 0);
+});
+
+// requirement 20 of effort 824: the wall's disconnect forgets the organization on this machine,
+// and the wall comes back as a machine that holds nothing. The confirm is the screen's; what the
+// unit does is the call and the path after it.
+test('disconnecting from the wall forgets the organization, and the wall comes back with nothing on it', async () => {
+	const { startup, journal } = harness({ organization: locked() });
+
+	await startup.start();
+	assert.equal(startup.snapshot.signInReason, 'locked');
+
+	const clearedBefore = journal.cacheCleared;
+	await startup.disconnect();
+
+	assert.equal(journal.disconnected, 1);
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(startup.snapshot.signInReason, 'noOrganization');
+	assert.equal(startup.snapshot.organization?.organization, null);
+	assert.equal(startup.snapshot.error, null);
+	assert.equal(
+		journal.cacheCleared,
+		clearedBefore + 1,
+		'nothing drawn for the organization survives'
+	);
+	// nothing behind the wall was opened on the way: no vault, so no workspace and no bootstrap.
+	assert.deepEqual(journal.workspacesOpened, []);
+	assert.equal(journal.bootstrapped, 0);
+});
+
+test('and a forget the shell refused leaves the wall as it was, with the sentence on it', async () => {
+	const { startup, journal } = harness({
+		organization: locked(),
+		disconnect: async () => {
+			throw new Error('a replica would not go');
+		}
+	});
+
+	await startup.start();
+	await startup.disconnect();
+
+	assert.equal(journal.disconnected, 1);
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(startup.snapshot.signInReason, 'locked', 'the organization is still held');
+	assert.equal(startup.snapshot.error, 'a replica would not go');
 });
 
 // --- 8. The window close that syncs before it closes -----------------------------------

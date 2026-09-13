@@ -41,7 +41,8 @@ export type Admission =
 			 * `noOrganization` is a machine that holds nothing: there is no vault to open and no
 			 * password to type, and the screen offers the two ways to connect instead. `locked` is a
 			 * machine that holds an organization and no open vault, which is every launch after the
-			 * first and every sign-out: the screen names the organization and asks for a password.
+			 * first and every sign-out: the screen names the organization and asks for a username
+			 * and a password.
 			 */
 			reason: 'noOrganization' | 'locked';
 	  }
