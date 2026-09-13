@@ -15,6 +15,9 @@ import ar from '$lib/i18n/ar';
  * the screen: the ordinary removal is the control and the lock-out is a lesser, separate one
  * drawn for the owner alone; neither is drawn on the owner's row or the reader's own; and the
  * two say what they are in both locales.
+ *
+ * And requirement 24's avatar: every row draws the first two characters of its username,
+ * upper-cased, in the same disc the rail's account control draws.
  */
 
 const noop = () => {};
@@ -87,6 +90,23 @@ test('a member without the act sees no removal at all', () => {
 
 	expect(removeControls()).toBe(0);
 	expect(lockOutControls()).toBe(0);
+});
+
+// criterion 24: each row's avatar carries its member's initials, read off the username.
+test('each row draws the first two characters of its username, upper-cased, in the avatar', () => {
+	loadLocale('en');
+	setLocale('en');
+	list();
+
+	const avatarOf = (id: string) =>
+		document
+			.querySelector(`[data-member="${id}"] [data-slot="avatar-fallback"]`)
+			?.textContent?.trim();
+
+	expect(avatarOf('owner')).toBe('OL');
+	expect(avatarOf('ada')).toBe('AD');
+	expect(avatarOf('sami')).toBe('SA');
+	expect(document.querySelectorAll('[data-slot="avatar-fallback"]')).toHaveLength(3);
 });
 
 test('and in arabic the two controls are named apart', () => {

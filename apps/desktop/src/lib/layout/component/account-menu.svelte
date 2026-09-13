@@ -50,7 +50,7 @@
 				: 'right'
 	);
 
-	const initials = $derived(accountInitials(session.username || session.organizationName));
+	const initials = $derived(accountInitials(session.username));
 
 	// the shell owns the wall, so the menu asks and the shell signs out; nothing is awaited here.
 	const signOut = () => requestSignOut();
@@ -61,7 +61,7 @@
 		<Avatar.Fallback class="rounded-lg text-xs">{initials}</Avatar.Fallback>
 	</Avatar.Root>
 	<div class="grid flex-1 text-start text-sm leading-tight">
-		<span class="truncate font-medium">{session.username || session.organizationName}</span>
+		<span class="truncate font-medium">{session.username}</span>
 	</div>
 {/snippet}
 

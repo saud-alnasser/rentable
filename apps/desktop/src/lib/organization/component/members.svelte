@@ -1,9 +1,11 @@
 <script lang="ts">
 	import type { OrganizationMember, OrganizationWorkspace } from '$lib/platform/tauri';
+	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { accountInitials } from '$lib/sync/account';
 	import LockIcon from '@lucide/svelte/icons/lock';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import UserMinusIcon from '@lucide/svelte/icons/user-minus';
@@ -66,19 +68,28 @@
 	{#each members as member (member.id)}
 		<Field.Field orientation="responsive" data-member={member.id}>
 			<Field.Content>
-				<div class="grid min-w-0 gap-1">
-					<div class="flex min-w-0 flex-wrap items-center gap-2">
-						<p class="truncate text-sm font-medium">
-							{member.username || roleLabel(member.role)}
-						</p>
-						<Badge variant="secondary">{roleLabel(member.role)}</Badge>
-						{#if member.mustChangePassword}
-							<Badge variant="outline">{$LL.organization.dashboard.notYetSignedIn()}</Badge>
+				<div class="flex min-w-0 items-center gap-3">
+					<!-- the same disc the rail's account control and the workspace's members draw,
+					     with the same two letters (requirement 24). -->
+					<Avatar.Root class="size-10 shrink-0 rounded-full">
+						<Avatar.Fallback class="rounded-full text-xs">
+							{accountInitials(member.username)}
+						</Avatar.Fallback>
+					</Avatar.Root>
+					<div class="grid min-w-0 gap-1">
+						<div class="flex min-w-0 flex-wrap items-center gap-2">
+							<p class="truncate text-sm font-medium">
+								{member.username || roleLabel(member.role)}
+							</p>
+							<Badge variant="secondary">{roleLabel(member.role)}</Badge>
+							{#if member.mustChangePassword}
+								<Badge variant="outline">{$LL.organization.dashboard.notYetSignedIn()}</Badge>
+							{/if}
+						</div>
+						{#if member.workspaceIds.length > 0}
+							<p class="text-sm text-muted-foreground">{workspaceNames(member.workspaceIds)}</p>
 						{/if}
 					</div>
-					{#if member.workspaceIds.length > 0}
-						<p class="text-sm text-muted-foreground">{workspaceNames(member.workspaceIds)}</p>
-					{/if}
 				</div>
 			</Field.Content>
 
