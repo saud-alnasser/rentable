@@ -1,4 +1,4 @@
-import api from '$lib/api/caller';
+import api, { forgetContext } from '$lib/api/caller';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { tauri, type OrganizationConsentResult } from '$lib/platform/tauri';
@@ -170,7 +170,13 @@ export function useCreateOrganization(
 			username: string;
 			password: string;
 		}) => api.app.organization.create({ name, username, password }),
-		onSuccess: () => onMutationSuccess(opts),
+		// creating the organization signs its owner in, and the held context was built while
+		// nobody was: the walk's next call, the first workspace, needs an actor, so the context
+		// is forgotten here the way the wall and a sign-out forget it (`api/caller`).
+		onSuccess: () => {
+			forgetContext();
+			onMutationSuccess(opts);
+		},
 		onError: (e) => onMutationError(opts, e)
 	}));
 }
