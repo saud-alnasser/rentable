@@ -45,6 +45,8 @@
 	const WorkspaceSchema = workspaceFormSchema($LL);
 
 	let { form, constraints, errors, enhance, ...rest } = superForm(defaults(zod4(WorkspaceSchema)), {
+		// named apart from the walk's and the dialog's forms off the same schema (see `setup-walk`).
+		id: 'startup-workspace',
 		SPA: true,
 		validators: zod4(WorkspaceSchema),
 		onUpdate: ({ form }) => {

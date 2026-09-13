@@ -215,6 +215,7 @@
 	let { form, constraints, errors, enhance, ...rest } = superForm<SetupForm>(
 		defaults(zod4(z.object({ name: z.string(), username: z.string(), password: z.string() }))),
 		{
+			id: 'setup-organization',
 			SPA: true,
 			validators: zod4(SetupSchema),
 			onUpdate: async ({ form }) => {
@@ -240,6 +241,9 @@
 		enhance: workspaceEnhance,
 		...workspaceRest
 	} = superForm(defaults(zod4(WorkspaceSchema)), {
+		// named, because the workspace dialog the shell mounts builds a form off the same schema and
+		// superforms would give both one id, and one store: typing here wrote there.
+		id: 'setup-workspace',
 		SPA: true,
 		validators: zod4(WorkspaceSchema),
 		onUpdate: async ({ form }) => {

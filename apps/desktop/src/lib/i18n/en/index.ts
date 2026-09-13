@@ -396,13 +396,13 @@ const en = {
 		noWorkspace: {
 			nameLabel: 'workspace name',
 			create: 'create workspace',
-			creating:
-				'creating the workspace on your turso account, and giving it its shape. this takes a moment.',
+			creating: 'creating the workspace on your turso account. this takes a moment.',
 			created: 'the workspace was created.',
 			ownerOnly:
-				'an owner creates the first workspace, from the machine that connected the turso account. ask the owner.',
+				'only the owner can create the first workspace, from the machine that connected the turso account.',
 			title: 'no workspace yet',
-			description: 'this organization holds no workspace. an owner creates the first one.'
+			description:
+				'your organization has no workspace yet. create the first one to start keeping records.'
 		},
 
 		signIn: {
@@ -779,7 +779,7 @@ const en = {
 			passwordTooShort: 'use at least 12 characters.',
 			create: 'create organization',
 			creating: 'creating the organization on your turso account...',
-			workspaceTitle: 'name your first workspace',
+			workspaceTitle: 'create your first workspace',
 			workspaceDescription:
 				'a workspace holds one set of records. you can add more later, from inside the app.',
 			copyLink: 'copy link',

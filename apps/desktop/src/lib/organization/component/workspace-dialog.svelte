@@ -44,6 +44,8 @@
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm(
 		defaults(zod4(WorkspaceSchema)),
 		{
+			// named apart from the walk's and the no-workspace surface's forms off the same schema.
+			id: 'workspace-dialog',
 			SPA: true,
 			validators: zod4(WorkspaceSchema),
 			onUpdate: ({ form }) => {

@@ -100,6 +100,11 @@ pub async fn organization_create(
     // foreground act with a screen saying so, and the calls that wait are the sync manager's.
     let mut remote_sync = app_state.remote_sync.write().await;
 
+    // a machine holds one organization (requirement 17): the first run is offered only where
+    // none is held, and a route reached some other way is refused here rather than making a
+    // second organization on the account.
+    connect::refuse_while_held(remote_sync.store_mut())?;
+
     let (created, store) = setup::create_organization(
         remote_sync.store_mut(),
         &platform_token,

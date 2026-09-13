@@ -40,6 +40,18 @@
 	let sessionId = $state<string | null>(null);
 
 	const stateQuery = useFetchOrganizationState();
+
+	// the walk resumes where the machine stands: an owner already signed in whose organization
+	// holds no workspace is on the third step, whatever this route was opened at. The first two
+	// steps would create the organization again, which requirement 1 keeps the back control off
+	// the third step for; a reload or an address typed in reaches this route the same way.
+	$effect(() => {
+		const session = stateQuery.data?.session;
+
+		if (step !== 'workspace' && session && session.workspaces.length === 0) {
+			step = 'workspace';
+		}
+	});
 	const beginConsent = useBeginConsent();
 	const consentResult = useConsentResult(() => sessionId);
 	const disconnect = useDisconnect();

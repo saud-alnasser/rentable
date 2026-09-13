@@ -1312,7 +1312,7 @@ type RootTranslation = {
 			 */
 			create: string
 			/**
-			 * c​r​e​a​t​i​n​g​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​o​n​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​g​i​v​i​n​g​ ​i​t​ ​i​t​s​ ​s​h​a​p​e​.​ ​t​h​i​s​ ​t​a​k​e​s​ ​a​ ​m​o​m​e​n​t​.
+			 * c​r​e​a​t​i​n​g​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​o​n​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​t​h​i​s​ ​t​a​k​e​s​ ​a​ ​m​o​m​e​n​t​.
 			 */
 			creating: string
 			/**
@@ -1320,7 +1320,7 @@ type RootTranslation = {
 			 */
 			created: string
 			/**
-			 * a​n​ ​o​w​n​e​r​ ​c​r​e​a​t​e​s​ ​t​h​e​ ​f​i​r​s​t​ ​w​o​r​k​s​p​a​c​e​,​ ​f​r​o​m​ ​t​h​e​ ​m​a​c​h​i​n​e​ ​t​h​a​t​ ​c​o​n​n​e​c​t​e​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​a​s​k​ ​t​h​e​ ​o​w​n​e​r​.
+			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​c​r​e​a​t​e​ ​t​h​e​ ​f​i​r​s​t​ ​w​o​r​k​s​p​a​c​e​,​ ​f​r​o​m​ ​t​h​e​ ​m​a​c​h​i​n​e​ ​t​h​a​t​ ​c​o​n​n​e​c​t​e​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.
 			 */
 			ownerOnly: string
 			/**
@@ -1328,7 +1328,7 @@ type RootTranslation = {
 			 */
 			title: string
 			/**
-			 * t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​h​o​l​d​s​ ​n​o​ ​w​o​r​k​s​p​a​c​e​.​ ​a​n​ ​o​w​n​e​r​ ​c​r​e​a​t​e​s​ ​t​h​e​ ​f​i​r​s​t​ ​o​n​e​.
+			 * y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​h​a​s​ ​n​o​ ​w​o​r​k​s​p​a​c​e​ ​y​e​t​.​ ​c​r​e​a​t​e​ ​t​h​e​ ​f​i​r​s​t​ ​o​n​e​ ​t​o​ ​s​t​a​r​t​ ​k​e​e​p​i​n​g​ ​r​e​c​o​r​d​s​.
 			 */
 			description: string
 		}
@@ -2413,7 +2413,7 @@ type RootTranslation = {
 			 */
 			creating: string
 			/**
-			 * n​a​m​e​ ​y​o​u​r​ ​f​i​r​s​t​ ​w​o​r​k​s​p​a​c​e
+			 * c​r​e​a​t​e​ ​y​o​u​r​ ​f​i​r​s​t​ ​w​o​r​k​s​p​a​c​e
 			 */
 			workspaceTitle: string
 			/**
@@ -4034,7 +4034,7 @@ export type TranslationFunctions = {
 			 */
 			create: () => LocalizedString
 			/**
-			 * creating the workspace on your turso account, and giving it its shape. this takes a moment.
+			 * creating the workspace on your turso account. this takes a moment.
 			 */
 			creating: () => LocalizedString
 			/**
@@ -4042,7 +4042,7 @@ export type TranslationFunctions = {
 			 */
 			created: () => LocalizedString
 			/**
-			 * an owner creates the first workspace, from the machine that connected the turso account. ask the owner.
+			 * only the owner can create the first workspace, from the machine that connected the turso account.
 			 */
 			ownerOnly: () => LocalizedString
 			/**
@@ -4050,7 +4050,7 @@ export type TranslationFunctions = {
 			 */
 			title: () => LocalizedString
 			/**
-			 * this organization holds no workspace. an owner creates the first one.
+			 * your organization has no workspace yet. create the first one to start keeping records.
 			 */
 			description: () => LocalizedString
 		}
@@ -5088,7 +5088,7 @@ export type TranslationFunctions = {
 			 */
 			creating: () => LocalizedString
 			/**
-			 * name your first workspace
+			 * create your first workspace
 			 */
 			workspaceTitle: () => LocalizedString
 			/**
