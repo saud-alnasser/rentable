@@ -105,3 +105,16 @@ repeats the consent for it, because no row holds it.
 - **Live tests reach the human's account only when asked**, each creating and removing its own
   database; [[rules/testing]] under *Tests that reach a live remote* admits them, and
   [[references/turso]] under *Never run* bounds them.
+
+## What this repository does not do
+
+**Every person on their own Turso account.** An organization's members are made inside the
+application and never touch Turso; only the owner holds a Turso account. Turso can hold members
+itself, with roles, but a Turso organization with members needs the Scaler plan, 29 dollars a
+month as of 2026-09-13, and its documentation says only an owner or admin may mint the
+group-scoped token the consent produces, so a plain member may not be able to sign in at all
+([[efforts/826-the-organization-and-the-way-in-are-rethought/evidence/research/what-an-organization-with-members-costs-on-turso]],
+[[efforts/826-the-organization-and-the-way-in-are-rethought/evidence/research/what-a-turso-member-can-do-through-the-consent]]).
+The application ships for people who pay nothing but their own usage, and a design that needs a
+paid seat on the owner's side is the shape it exists to avoid. Declined by the human on
+2026-09-13. Asked once, at the rethink that followed effort 824.
