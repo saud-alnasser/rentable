@@ -307,14 +307,18 @@ already holds a consent is not asked for it again.
   a machine with several shows today stays until the page before the wall exists. *This said
   remembering the last organization, chosen against on 2026-09-12 in favour of the rows; the
   rows went the same way on 2026-09-13, see requirement 7.*
-- **The way in as the human pictures it, given 2026-09-12 and 2026-09-13.** An organization
-  is connected once, by link or by a Turso account that creates it, and only on a machine
-  that holds none; one organization is signed in to at a time; the wall is username and
-  password, against an account the owner or an administrator made on a page in the
-  application; after it, the workspaces of that organization the person holds; an
+- **The way in as the human pictures it, given 2026-09-12 and 2026-09-13.** An application
+  holds one organization at a time: it is connected once, by link or by the owner's Turso
+  account that creates it, and only when none is held; once connected the application goes
+  straight to the login page. The wall is username and password, against an account the
+  owner or an administrator made on a page in the application, and signing in and out is
+  done there without touching the connection. To reach another organization a person
+  disconnects from the account and connects to the other; there is no list of several on a
+  machine. After sign-in, the workspaces of that organization the person holds; an
   administrator role that creates workspaces and nothing more. A `/specify` of its own,
   starting from this paragraph. What this effort keeps of the old model is what 819 built:
-  an invitation link that both adds and admits.
+  an invitation link that both adds and admits, and a machine that has joined several
+  organizations.
 - **Switching organizations from inside the application.** A machine that has joined two
   organizations switches at the wall, as 819 requirement 17 settled; the rail's switcher is
   between workspaces of the one organization the person is in.
