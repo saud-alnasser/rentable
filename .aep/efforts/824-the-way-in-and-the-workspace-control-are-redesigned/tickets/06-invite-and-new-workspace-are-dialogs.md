@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: ['01', '05']
 ---
 
@@ -104,3 +104,5 @@ is gated as the rail's row is, owner and `holdsTursoAuthority`, rather than owne
 restored owner without the authority is not offered a create the shell refuses. And the host keys
 both surfaces on the locale, since each builds its validation messages when it is built and the
 host is built once per session.
+
+**Closed by the human on 2026-09-13** with the by-hand criterion above unwalked, to merge and rethink the whole experience; the box stays open because nobody checked it, and the status says the ticket is no longer being worked.

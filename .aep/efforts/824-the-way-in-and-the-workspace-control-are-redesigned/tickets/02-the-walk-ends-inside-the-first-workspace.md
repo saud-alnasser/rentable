@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: ['01']
 ---
 
@@ -128,3 +128,5 @@ traced one round trip on which the connect button drew first. The second round m
 invalidation from a `$effect` in the route into `useConsentResult`'s own `queryFn`, beside every
 other invalidation of the state key. A consent finished after the person has already left the
 walk reaches no poll, so that sub-case still costs the one round trip; recorded, accepted.
+
+**Closed by the human on 2026-09-13** with the by-hand criterion above unwalked, to merge and rethink the whole experience; the box stays open because nobody checked it, and the status says the ticket is no longer being worked.

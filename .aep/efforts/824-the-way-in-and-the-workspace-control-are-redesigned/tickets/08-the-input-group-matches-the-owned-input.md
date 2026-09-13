@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # refactor(design): the input group matches the owned input
@@ -55,3 +55,5 @@ the spec's *Constraints* records for the design package.
 Raised by the human on 2026-09-12 after the first capture of the wall on the effort's tip, when
 the password field through `input-group` sat beside a pill button and an owned input and matched
 neither. The two consumers already landed (tickets 01 and 04) inherit it without a change.
+
+**Closed by the human on 2026-09-13** with the by-hand criterion above unwalked, to merge and rethink the whole experience; the box stays open because nobody checked it, and the status says the ticket is no longer being worked.

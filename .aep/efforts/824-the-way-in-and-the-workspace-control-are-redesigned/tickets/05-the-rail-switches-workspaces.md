@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(layout): the rail switches workspaces
@@ -61,3 +61,5 @@ Traces requirement 9 and requirement 11 of [[efforts/824-the-way-in-and-the-work
   the app. The menu's ClickUp shape (workspace at the top, actions under it, the way to make
   another at the foot) is the human's from 2026-08-20 and the list goes inside it.
 - **A changeset rides with the change.**
+
+**Closed by the human on 2026-09-13** with the by-hand criterion above unwalked, to merge and rethink the whole experience; the box stays open because nobody checked it, and the status says the ticket is no longer being worked.

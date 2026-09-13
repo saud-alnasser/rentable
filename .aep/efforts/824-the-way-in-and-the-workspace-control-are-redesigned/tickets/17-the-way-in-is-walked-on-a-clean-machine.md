@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [12, 13, 14, 15, 16]
 ---
 
@@ -60,3 +60,4 @@ link and handed-password sign-in were not walked: the human closed the effort he
 2026-09-13 to rethink the whole experience of Turso, organizations, workspaces and members. The
 by-hand criterion stays open.
 
+**Closed by the human on 2026-09-13** with the by-hand criterion above unwalked, to merge and rethink the whole experience; the box stays open because nobody checked it, and the status says the ticket is no longer being worked.
