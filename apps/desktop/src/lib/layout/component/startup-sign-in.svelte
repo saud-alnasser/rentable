@@ -5,7 +5,7 @@
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
-	import * as RadioGroup from '@rentable/design/primitive/radio-group/index.js';
+	import * as Select from '@rentable/design/primitive/select/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import LockOpenIcon from '@lucide/svelte/icons/lock-open';
@@ -30,12 +30,13 @@
 	 * with no session. Every one was about a control plane, and the control plane is what the
 	 * organization replaces.*
 	 *
-	 * **Several organizations are rows a person picks from, drawn inside that shape.** A machine
-	 * that has joined more than one shows each as a row carrying its name and the person's role
-	 * there, one always chosen, the password field under the group. *A select stood here until
-	 * effort 824: the one thing a person was choosing between was hidden behind a control, and the
-	 * name and role of each were read only once the list was open. Chosen 2026-09-12 over the
-	 * select and over remembering the last one.* One organization is named, not chosen.
+	 * **Several organizations sit in a select, and the select is on its way out.** A machine that
+	 * has joined more than one shows them as a dropdown, the first chosen until another is; one
+	 * organization is named, not chosen. *Effort 824 drew them as rows carrying name and role,
+	 * and on screen the rows made the wall a choice between organizations rather than a login
+	 * page. The human withdrew them on 2026-09-13: in their picture of the way in, one organization
+	 * is signed in to at a time and the choice between the ones a machine holds is a page before
+	 * this one, which a later effort draws. Until then the select stays as 819 left it.*
 	 *
 	 * **The password field is the only field.** This machine already knows which member it is in
 	 * each organization it joined, so an email typed here would be compared against a local string,
@@ -138,42 +139,30 @@
 				}}
 			>
 				<Field.Field>
+					<Field.Label for="sign-in-organization">{$LL.layout.signIn.organization()}</Field.Label>
 					{#if organizations.length > 1}
-						<Field.Label id="sign-in-organization-label">
-							{$LL.layout.signIn.organization()}
-						</Field.Label>
-						<!-- one row per organization, and the row is the radio's own label, so pressing
-						     anywhere on it chooses. The group reads `chosen` and writes `organizationId`,
-						     which is what `unlock()` reads through `chosen`, so the row pressed is the
-						     organization unlocked. The composition is the field family's choice card:
-						     a label around a horizontal field, which the label primitive already draws as
-						     a bordered card and marks when the radio inside it is checked. Arrow keys move
-						     the choice and one is always chosen; both come from the primitive. -->
-						<RadioGroup.Root
-							bind:value={() => chosen?.id ?? '', (value) => (organizationId = value)}
-							aria-labelledby="sign-in-organization-label"
-							disabled={isSigningIn}
-							data-sign-in-organizations
+						<Select.Root
+							type="single"
+							value={chosen?.id ?? ''}
+							onValueChange={(value) => {
+								if (value) organizationId = value;
+							}}
 						>
-							{#each organizations as organization (organization.id)}
-								<Field.Label for={`sign-in-organization-${organization.id}`}>
-									<Field.Field orientation="horizontal">
-										<RadioGroup.Item
-											id={`sign-in-organization-${organization.id}`}
-											value={organization.id}
-										/>
-										<Field.Content>
-											<Field.Title>{organization.name}</Field.Title>
-											<!-- the role this machine last saw for the person: a fact to recognise
-											     oneself by, never authority. -->
-											<Field.Description>{roleLabel(organization.role)}</Field.Description>
-										</Field.Content>
-									</Field.Field>
-								</Field.Label>
-							{/each}
-						</RadioGroup.Root>
+							<Select.Trigger id="sign-in-organization" class="w-full">
+								{chosen?.name ?? ''}
+							</Select.Trigger>
+							<Select.Content>
+								{#each organizations as organization (organization.id)}
+									<Select.Item value={organization.id} label={organization.name}>
+										{organization.name}
+										<span class="text-muted-foreground">
+											{roleLabel(organization.role)}
+										</span>
+									</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
 					{:else if chosen}
-						<Field.Label for="sign-in-organization">{$LL.layout.signIn.organization()}</Field.Label>
 						<!-- one organization, named rather than chosen, with the role this machine
 						     last saw for the person: a fact to recognise oneself by, never authority. -->
 						<p id="sign-in-organization" class="text-sm" data-sign-in-organization={chosen.id}>

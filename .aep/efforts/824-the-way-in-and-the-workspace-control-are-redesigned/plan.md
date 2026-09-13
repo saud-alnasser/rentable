@@ -61,13 +61,15 @@ invite; with an instance each, an invitation made from the menu shows its link a
 panel the page's instance has never seen, and a person who navigates to the page to find them
 finds an empty form. One instance is one result panel.
 
-## The wall's picker is a radio group
+## The wall keeps its select
 
-Several organizations render as `RadioGroup` items, one per organization, each carrying the name
-and the role, the password field under the group. Selection semantics come from the primitive
-(arrow keys move the choice, one is always chosen); the row's look is settled on screen against
-the human's own two organizations, which is the constraint the spec sets. One organization keeps
-the current text line. Nothing else on the wall moves.
+Several organizations render in the `Select` the wall has had since 819, one organization keeps
+the text line, and the wall's own change is the glyphs: the key inside `input-group` on the
+password field and the verb on unlock. *This said the picker is a radio group: `RadioGroup` items
+carrying name and role, the password field under the group, selection semantics from the
+primitive, the look settled on screen against the human's two organizations. Built as ticket 04
+and withdrawn by the human on 2026-09-13 with spec requirement 7; the rows are gone from the
+component and its test, and nothing is drawn in their place.*
 
 ## The workspace form is one definition, drawn on two surfaces
 
@@ -119,7 +121,7 @@ created the organization.*
 | `organization/component/setup-walk.svelte` | three steps with corner back, position line, connect list, third step on the shared fields; `done` and the link go |
 | `routes/organization/new/+page.svelte` | reads `holdsTursoAuthority` to open `connect` as granted; the third step's create calls the workspace mutation then `startup.standingChanged()` and `goto(THE_WAY_IN)` |
 | `organization/component/join-screen.svelte` | corner back on every step, `onBack` replacing `onPasteAnother`; glyphs |
-| `layout/component/startup-sign-in.svelte` | the radio-group picker; glyphs |
+| `layout/component/startup-sign-in.svelte` | glyphs; the select stays. *This said the radio-group picker; withdrawn 2026-09-13* |
 | `layout/component/startup-no-workspace.svelte` | the shared fields and a verb glyph; owner-only sentence unchanged |
 | `organization/component/change-password-form.svelte` | field glyphs and a verb glyph |
 | `organization/query.ts` | `useCreateWorkspace` keeps its explicit-client parameter; nothing moves |
@@ -156,8 +158,9 @@ The order is by dependency, then by what a person can see soonest.
 2. **The walk**: steps, position line, connect list, third step, `holdsTursoAuthority`, the
    corner back on both walk steps. One ticket, because `setup.ts`, the component, the route, the
    strings and both tests move together and a walk half-moved is unusable.
-3. **The join screen and the wall**: corner back on every join step; the picker on the wall.
-   Two tickets, since neither depends on the other.
+3. **The join screen and the wall**: corner back on every join step; the wall's glyphs. Two
+   tickets, since neither depends on the other. *The wall's ticket was cut for the picker; it
+   carries the glyphs alone since 2026-09-13.*
 4. **The switcher**: `switchWorkspace` in `startup.ts` with its tests, then the menu and the
    sidebar. One ticket; the method without the menu is unreachable and the menu without the
    method has nothing to call.
@@ -209,8 +212,9 @@ Each number is the spec's acceptance criterion.
    old sentences kept as a literal in the test.
 6. `setup-walk.svelte.test.ts` with `holdsTursoAuthority: true`: the granted callout, continue
    and disconnect present, and `onConnect` never called.
-7. `startup-sign-in.svelte.test.ts` with two organizations: two `[role=radio]` rows, name and
-   role in each, the password field present, no `select`.
+7. `startup-sign-in.svelte.test.ts` with two organizations: the select naming the first, no
+   `[role=radio]`, the password field present; and the unlock's glyph and the password field's
+   muted addon. *This said two `[role=radio]` rows and no `select`; amended 2026-09-13.*
 8. `startup-no-workspace` cases already in `startup-sign-in.svelte.test.ts`: the addon and the
    button glyph.
 9. A new `workspace-menu.svelte.test.ts`: rows equal to `workspaces`, the marker on `openId`,
@@ -247,10 +251,8 @@ Each number is the spec's acceptance criterion.
   covers a late outcome arriving after `ready`. First sign without it: a "received rows" toast
   right after a switch. *This said a flag the handler reads. A flag cannot tell a late report
   from a fresh one once `ready` is set again, so ticket 05 put the workspace on the report.*
-- **The radio group inside the wall's `form`.** The wall's `unlock()` reads `chosen`; the picker
-  must bind to `organizationId` the way the select does, or the password unlocks the first
-  organization regardless of the row. Criterion 7's test presses the second row and asserts
-  `onSignIn` gets its id.
+- **The radio group inside the wall's `form`.** *Withdrawn with the picker on 2026-09-13; the
+  select binds `organizationId` as it did before this effort.*
 - **`FormSurface` under the sidebar's drawer breakpoint.** A heavy form is an edge sheet, and the
   sidebar presents as a drawer below `md`; both are `Dialog`s and stack by z-order. First sign:
   the invite sheet opening under the drawer on a narrow window. Checked by hand at 700px.

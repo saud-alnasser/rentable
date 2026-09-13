@@ -30,7 +30,12 @@ there are.
 
 **The wall lists organizations in a select.** A machine that has joined several shows them as
 a dropdown above the password field; the name and role of each are read only once the list is
-open, and the one thing a person is choosing between is hidden behind a control.
+open, and the one thing a person is choosing between is hidden behind a control. *Withdrawn by
+the human on 2026-09-13, seen on screen as rows: choosing an organization does not belong on
+the wall at all. In their picture of the way in, an organization is connected once, one is
+signed in to at a time, and the wall is a login page, username and password; the choice
+between organizations a machine holds is a page before it. That is a later effort's, and until
+it exists the select stays as it is.*
 
 **The icons do not agree with each other.** "open turso dashboard" carries a glyph and
 "connect turso account", the primary, does not; "unlock" carries one, "create organization"
@@ -68,8 +73,8 @@ conversation and are recorded under Requirements.*
 they hold, and brings others in, and every screen on that path reads as one application.**
 
 Every screen before sign-in can be left the way it was entered. A new owner's walk ends inside
-their first workspace, not on a screen asking them to continue past nothing. The wall shows the
-organizations a machine has joined as what they are, rows a person picks from. The rail's
+their first workspace, not on a screen asking them to continue past nothing. The wall reads as
+a login page, and what it names and asks for does not move. The rail's
 workspace control names the open workspace, lists the others the member holds, switches
 between them, and opens invite and new workspace as the forms they are. Buttons carry their
 verb and fields their subject, in one vocabulary from the wall to the dialogs. A machine that
@@ -126,11 +131,17 @@ already holds a consent is not asked for it again.
 6. **Returning to the walk finds what the machine already holds.** A first run opened on a
    machine that holds Turso authority shows `connect` as granted, with continue and
    disconnect offered, rather than asking again.
-7. **The wall shows several organizations as a picker list.** Where a machine has joined more
-   than one, they read as selectable rows carrying name and role, with the password field
-   under the chosen one; one organization is named, not chosen, as today. The wall's title,
-   description and password sentence are unchanged. *Chosen 2026-09-12 over a select and
-   over remembering the last one.*
+7. **The wall keeps its select, and carries the vocabulary.** Where a machine has joined more
+   than one organization the select stays as it is; one organization is named, not chosen, as
+   today. The wall's title, description and password sentence are unchanged, and its unlock
+   and password field carry the glyphs requirements 14 and 15 give every screen in scope.
+   *This said several organizations read as selectable rows carrying name and role, with the
+   password field under the chosen one, chosen 2026-09-12 over a select. Built as ticket 04
+   and seen on screen, the rows made the wall a choice between organizations rather than a
+   login page, and the human withdrew them on 2026-09-13: in their picture of the way in, one
+   organization is signed in to at a time and the choice between the ones a machine holds is
+   a page before the wall, which a later effort draws. Nothing new is drawn on the wall in
+   its place.*
 8. **The no-workspace surface remains for a member whose organization has no workspace yet**,
    restyled to the vocabulary below. For an owner it still offers the create, because an
    owner restored on a second machine may arrive there too.
@@ -174,9 +185,9 @@ already holds a consent is not asked for it again.
     does not outweigh the text beside it (*Balance weight and contrast*, Refactoring UI p.56).
 16. **Both locales, and the tests that hold the shape.** The component tests that render
     these screens assert the back control's presence and destination per step, the position
-    line, the picker rows, the switcher's rows and marker, the two dialogs opening from both
-    places, and the field glyphs. The walk description in `organization/setup.ts` names the
-    third step and its one field.
+    line, the wall's select and text line, the switcher's rows and marker, the two dialogs
+    opening from both places, and the field glyphs. The walk description in
+    `organization/setup.ts` names the third step and its one field.
 
 # Acceptance Criteria
 
@@ -198,9 +209,11 @@ already holds a consent is not asked for it again.
    than the paragraphs they replace.
 6. With `holdsTursoAuthority` true, the walk's `connect` renders the granted state on first
    render and the consent is not begun. Asserted with the prop set.
-7. With two joined organizations, the wall renders two selectable rows each carrying name and
-   role, the password field under the selected one, and no `select`; with one it renders the
-   name and role as text. Asserted in `startup-sign-in.svelte.test.ts`.
+7. With two joined organizations, the wall renders the select naming the first and no
+   `[role=radio]`; with one it renders the name and role as text; the unlock button carries a
+   glyph and the password field a muted leading one. Asserted in
+   `startup-sign-in.svelte.test.ts`. *This said two selectable rows and no `select`; amended
+   with requirement 7 on 2026-09-13.*
 8. The no-workspace surface renders a leading glyph on its field and a verb glyph on its
    create for the owner, and the owner-only sentence for others, as today.
 9. The workspace menu lists every workspace in `session.workspaces`, marks the one whose id
@@ -262,9 +275,9 @@ already holds a consent is not asked for it again.
 - **The walk's third step and the dialog are one component** (requirement 13). *Why: two
   forms for one act is how the limit changes in one and not the other.*
 - **The wall's shape is the human's, settled on screen on 2026-08-20** (see the comment in
-  `startup-sign-in.svelte`): one word of title, a line, air, the way in. The picker rows are
-  drawn inside that shape and nothing else on the wall moves. *Why: requirement 7 was
-  chosen as a change to the list, not to the wall.*
+  `startup-sign-in.svelte`): one word of title, a line, air, the way in. Nothing on the wall
+  moves but the glyphs. *This said the picker rows are drawn inside that shape; they were,
+  and on screen they were still a second thing on the wall. Withdrawn with requirement 7.*
 - **Every glyph comes from the two libraries already in use**, Lucide for the design
   package and its consumers, Tabler where the shell already uses it. *Why: a third set is a
   third stroke weight.*
@@ -273,9 +286,10 @@ already holds a consent is not asked for it again.
   glyph; *Semantics are secondary* (p.60) where a button's rank is in question. *Why:
   [[rules/interface]], *The visual reference*.*
 - **Looks are settled on screen, on real data.** Where a shape is in question, the switcher's
-  rows, the picker, the connect list, it is prototyped in the running application against
-  the human's own organization and judged there, never on a mock. *Why: the wall's own
-  history is one slot added and removed in a day after being looked at.*
+  rows, the connect list, it is prototyped in the running application against the human's
+  own organization and judged there, never on a mock. *Why: the wall's own history is one
+  slot added and removed in a day after being looked at, and the picker rows went the same
+  way on 2026-09-13.*
 - **A changeset rides with the change.** *Why: every one of these screens is one a person
   sees, and [[rules/version-control]] requires the entry for a user-visible change.*
 
@@ -289,8 +303,18 @@ already holds a consent is not asked for it again.
   page as they are.
 - **A progress bar, dots, or a stepper.** The position is a line of text.
 - **The consent flow itself**: what Turso asks, what the poll does, how a disconnect works.
-- **Remembering the last organization at the wall.** Chosen against on 2026-09-12; a picker
-  with the rows is the whole of requirement 7.
+- **Choosing between organizations at the wall, as rows or in any new shape.** The select
+  a machine with several shows today stays until the page before the wall exists. *This said
+  remembering the last organization, chosen against on 2026-09-12 in favour of the rows; the
+  rows went the same way on 2026-09-13, see requirement 7.*
+- **The way in as the human pictures it, given 2026-09-12 and 2026-09-13.** An organization
+  is connected once, by link or by a Turso account that creates it, and only on a machine
+  that holds none; one organization is signed in to at a time; the wall is username and
+  password, against an account the owner or an administrator made on a page in the
+  application; after it, the workspaces of that organization the person holds; an
+  administrator role that creates workspaces and nothing more. A `/specify` of its own,
+  starting from this paragraph. What this effort keeps of the old model is what 819 built:
+  an invitation link that both adds and admits.
 - **Switching organizations from inside the application.** A machine that has joined two
   organizations switches at the wall, as 819 requirement 17 settled; the rail's switcher is
   between workspaces of the one organization the person is in.

@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/svelte';
-import { expect, test, vi } from 'vitest';
+import { DesignProvider } from '@rentable/design/strings.js';
+import { render, screen } from '@testing-library/svelte';
+import { expect, test } from 'vitest';
 
 import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
@@ -8,6 +9,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import StartupNoWorkspace from '$lib/layout/component/startup-no-workspace.svelte';
 import StartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
 import { fakeJoinedOrganization } from '$lib/platform/tests/testing.ts';
+import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 /**
  * THE WALL, RENDERED
@@ -85,72 +87,43 @@ test('the wall renders in arabic with the same one field', () => {
 	setLocale('en');
 });
 
-// effort 824, requirement 7: several organizations are rows a person picks from, not a select.
-test('a machine that has joined two organizations shows them as rows, the password under them', () => {
+// effort 824, requirement 7 as amended on 2026-09-13: several organizations stay in the select,
+// and nothing is drawn on the wall in place of the rows the human withdrew.
+test('a machine that has joined two organizations shows them in the select, the first chosen', () => {
 	loadLocale('en');
 	setLocale('en');
-	card('locked', {
-		organizations: [
-			fakeJoinedOrganization(),
-			fakeJoinedOrganization({ id: 'beta', name: 'Beta Holdings', role: 'member' })
-		]
-	});
+	// the select's content reads `DesignProvider`, which the wall otherwise never needs.
+	render(
+		StartupSignIn,
+		{
+			situation: 'locked',
+			organizations: [
+				fakeJoinedOrganization(),
+				fakeJoinedOrganization({ id: 'beta', name: 'Beta Holdings', role: 'member' })
+			],
+			isSigningIn: false,
+			errorMessage: null,
+			onSignIn: noop,
+			onSetUpOrganization: noop,
+			onJoinByLink: noop
+		},
+		{ wrapper: DesignProvider, wrapperProps: { strings, direction: 'ltr' } }
+	);
 
-	const rows = screen.getAllByRole('radio');
-	expect(rows).toHaveLength(2);
-	// each row carries the name and the role, and the row is the radio's own label.
-	expect(rows[0]?.closest('label')?.textContent).toContain('Acme Rentals');
-	expect(rows[0]?.closest('label')?.textContent).toContain(en.layout.signIn.roleOwner);
-	expect(rows[1]?.closest('label')?.textContent).toContain('Beta Holdings');
-	expect(rows[1]?.closest('label')?.textContent).toContain(en.layout.signIn.roleMember);
-	// the first is chosen until somebody picks another; one is always chosen.
-	expect(rows[0]?.getAttribute('aria-checked')).toBe('true');
-	expect(rows[1]?.getAttribute('aria-checked')).toBe('false');
-
+	expect(screen.queryAllByRole('radio')).toEqual([]);
+	const trigger = document.querySelector('[data-slot=select-trigger]');
+	expect(trigger?.id).toBe('sign-in-organization');
+	expect(trigger?.textContent).toContain('Acme Rentals');
 	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual(['password']);
-	expect(document.querySelector('select')).toBeNull();
-	// the password field sits under the group, not above it.
-	const group = document.querySelector('[role=radiogroup]');
-	const password = document.querySelector('input[name=password]');
-	expect(group).not.toBeNull();
-	expect(password).not.toBeNull();
-	expect(group!.compareDocumentPosition(password!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
-// the technical risk the plan names: the group must bind to what `unlock()` reads, or the
-// password unlocks the first organization whatever row was pressed.
-test('pressing the second row and unlocking signs in to the second organization', async () => {
-	loadLocale('en');
-	setLocale('en');
-	const onSignIn = vi.fn();
-	card('locked', {
-		organizations: [
-			fakeJoinedOrganization(),
-			fakeJoinedOrganization({ id: 'beta', name: 'Beta Holdings', role: 'member' })
-		],
-		onSignIn
-	});
-
-	const rows = screen.getAllByRole('radio');
-	await fireEvent.click(rows[1]!);
-	expect(rows[1]?.getAttribute('aria-checked')).toBe('true');
-
-	await fireEvent.input(screen.getByLabelText(en.layout.signIn.password), {
-		target: { value: 'correct horse' }
-	});
-	await fireEvent.click(screen.getByRole('button', { name: en.layout.signIn.unlock }));
-
-	expect(onSignIn).toHaveBeenCalledTimes(1);
-	expect(onSignIn).toHaveBeenCalledWith('beta', 'correct horse');
-});
-
-test('one organization is named as a line of text, not offered as a row', () => {
+test('one organization is named as a line of text, not offered as a choice', () => {
 	loadLocale('en');
 	setLocale('en');
 	card('locked');
 
 	expect(screen.queryAllByRole('radio')).toEqual([]);
-	expect(document.querySelector('select')).toBeNull();
+	expect(document.querySelector('[data-slot=select-trigger]')).toBeNull();
 	const line = document.querySelector('[data-sign-in-organization="acme"]');
 	expect(line?.tagName).toBe('P');
 	expect(line?.textContent).toContain('Acme Rentals');
