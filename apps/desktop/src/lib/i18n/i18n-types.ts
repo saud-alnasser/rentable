@@ -1288,20 +1288,6 @@ type RootTranslation = {
 			 */
 			workspaceRefusedAuthority: string
 		}
-		changePassword: {
-			/**
-			 * c​h​o​o​s​e​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d
-			 */
-			title: string
-			/**
-			 * t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​w​e​r​e​ ​h​a​n​d​e​d​ ​w​a​s​ ​d​r​a​w​n​ ​b​y​ ​s​o​m​e​b​o​d​y​ ​e​l​s​e​.​ ​c​h​o​o​s​e​ ​y​o​u​r​ ​o​w​n​ ​b​e​f​o​r​e​ ​g​o​i​n​g​ ​o​n​;​ ​n​o​t​h​i​n​g​ ​e​l​s​e​ ​o​p​e​n​s​ ​u​n​t​i​l​ ​y​o​u​ ​d​o​.
-			 */
-			description: string
-			/**
-			 * t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​w​e​r​e​ ​h​a​n​d​e​d
-			 */
-			handedLabel: string
-		}
 		noWorkspace: {
 			/**
 			 * w​o​r​k​s​p​a​c​e​ ​n​a​m​e
@@ -3989,20 +3975,6 @@ export type TranslationFunctions = {
 			 * creating a workspace needs the turso account, and this machine is not connected to it. reconnect it on the organization page.
 			 */
 			workspaceRefusedAuthority: () => LocalizedString
-		}
-		changePassword: {
-			/**
-			 * choose your password
-			 */
-			title: () => LocalizedString
-			/**
-			 * the password you were handed was drawn by somebody else. choose your own before going on; nothing else opens until you do.
-			 */
-			description: () => LocalizedString
-			/**
-			 * the password you were handed
-			 */
-			handedLabel: () => LocalizedString
 		}
 		noWorkspace: {
 			/**

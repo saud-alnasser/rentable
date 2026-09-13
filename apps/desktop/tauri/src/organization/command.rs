@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
-use crate::{error::Error, state::AppState, timestamp};
+use crate::{diagnostics, error::Error, state::AppState, timestamp};
 
 use super::{
     HeldOrganization, connect, forget,
@@ -152,6 +152,10 @@ pub async fn organization_create(
 /// where it was built before this build (requirement 17, `forget.rs`), before anything opens the
 /// replica. Every later read, and every command that answers with the state, finds the check
 /// already made.
+///
+/// **That same first read signs the machine back in** where it stayed signed in (effort 826,
+/// requirement 12), so the shell's first question is already answered with a session and the
+/// application opens on the workspace the person had last, with no wall in between.
 #[tauri::command]
 pub async fn organization_state_get(
     app_state: tauri::State<'_, AppState>,
@@ -160,11 +164,17 @@ pub async fn organization_state_get(
 }
 
 /// The state, with the once-per-launch check made first.
+///
+/// **The same cell resumes a remembered session** (effort 826, requirement 12). It is one cell
+/// rather than two because both are things that happen once, before anything else opens the
+/// replica, and the order between them matters: a machine holding the old shape has just had its
+/// replica deleted and its record emptied, and there is nothing left for a resume to open.
 pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, Error> {
     app_state
         .old_shape_check
         .get_or_try_init(|| async {
             forget::forget_old_shape(app_state).await?;
+            resume_remembered(app_state).await;
 
             Ok::<(), Error>(())
         })
@@ -281,31 +291,7 @@ pub async fn organization_sign_in(
                 message: "this machine holds no organization to sign in to".to_string(),
             })?
     };
-    let database_path = {
-        let settings = app_state.settings.read().await;
-
-        settings.database_path.clone()
-    };
-
-    // the replica, opened against its remote with a credential slot the sign-in fills. Built
-    // through the same call as every replica, so it opens whether or not the remote is reachable.
-    let credential: CredentialSlot = Arc::new(Mutex::new(None));
-    let slot = Arc::clone(&credential);
-    let store = OrganizationStore::open(
-        &OrganizationStore::replica_path(&database_path, &held.id),
-        Some(held.remote_url.clone()),
-        move || {
-            let slot = Arc::clone(&slot);
-
-            async move {
-                slot.lock()
-                    .ok()
-                    .and_then(|slot| slot.clone())
-                    .ok_or_else(|| turso::Error::Misuse("no credential is unsealed yet".into()))
-            }
-        },
-    )
-    .await?;
+    let (store, credential) = open_replica(app_state.inner(), &held).await?;
 
     let member = {
         let mut remote_sync = app_state.remote_sync.write().await;
@@ -343,12 +329,120 @@ pub async fn organization_sign_out(
     state_of(&app_state).await
 }
 
-/// The sign-out itself: the keys go and the organization replica is dropped. What
-/// `organization_sign_out` does, and what `forget` does first, so that letting go of the
-/// replica is one routine and the file it held can be deleted afterwards.
+/// The sign-out itself: the keys go, the organization replica is dropped, and the key this
+/// machine was staying signed in on is deleted. What `organization_sign_out` does, and what
+/// `forget` does first, so that letting go of the replica is one routine and the file it held can
+/// be deleted afterwards.
+///
+/// **The remembered key goes here rather than in each caller**, which is what makes a disconnect
+/// forget it too: a machine that has let go of its organization must not keep the key that opened
+/// a member's vault in it. The record is read before it is emptied, which is why this runs before
+/// `forget` touches it.
 pub(crate) async fn sign_out(app_state: &AppState) {
+    {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let held = remote_sync.store_mut().organization.as_ref();
+
+        if let Some((organization_id, member_id)) =
+            held.and_then(|held| held.member_id.as_ref().map(|member| (&held.id, member)))
+        {
+            session::forget_remembered(organization_id, member_id);
+        }
+    }
+
     *app_state.member.write().await = None;
     *app_state.organization.write().await = None;
+}
+
+/// Sign in with the key this machine filed at the last sign-in, where it has one and nobody is in
+/// yet: the launch that goes straight past the wall (effort 826, requirement 12).
+///
+/// **Nothing here is a failure.** A record naming no member, an empty keyring, a key that no
+/// longer opens the vault, a replica that will not open: every one of them leaves the `member`
+/// slot empty, which is the wall, and the person signs in as they did before. So this answers
+/// with nothing and writes what happened to the diagnostics log.
+///
+/// The replica is opened the way `organization_sign_in` opens it, through the same call, so a
+/// resumed session reaches its remote on exactly the terms a typed one does.
+async fn resume_remembered(app_state: &AppState) {
+    if app_state.member.read().await.is_some() {
+        return;
+    }
+
+    let held = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync.store_mut().organization.clone()
+    };
+    let Some(held) = held.filter(|held| held.member_id.is_some()) else {
+        return;
+    };
+
+    let resumed = match open_replica(app_state, &held).await {
+        Ok((store, credential)) => session::resume(&store, &held, &credential)
+            .await
+            .map(|member| (store, member)),
+        Err(refusal) => Err(refusal),
+    };
+
+    let (store, member) = match resumed {
+        Ok(resumed) => resumed,
+        Err(refusal) => {
+            diagnostics::info("organization.session.notResumed")
+                .with("organization", held.id.as_str())
+                .with("reason", refusal.to_string())
+                .write();
+
+            return;
+        }
+    };
+
+    // best effort, and after the vault is open, for the reason the sign-in's pull is: the pull
+    // needs the credential the vault held, and what does not arrive is the offline case.
+    store.pull().await;
+
+    *app_state.organization.write().await = Some(store);
+    *app_state.member.write().await = Some(member);
+
+    diagnostics::info("organization.session.resumed")
+        .with("organization", held.id.as_str())
+        .write();
+}
+
+/// The organization replica on this machine, opened against its remote with a credential slot a
+/// sign-in or a resume fills.
+///
+/// Built through the same call as every replica, so it opens whether or not the remote is
+/// reachable; the token function answers from the slot, which is empty until a vault is open and
+/// is what stops an open replica reaching the remote before anybody is in.
+async fn open_replica(
+    app_state: &AppState,
+    held: &HeldOrganization,
+) -> Result<(OrganizationStore, CredentialSlot), Error> {
+    let database_path = {
+        let settings = app_state.settings.read().await;
+
+        settings.database_path.clone()
+    };
+    let credential: CredentialSlot = Arc::new(Mutex::new(None));
+    let slot = Arc::clone(&credential);
+    let store = OrganizationStore::open(
+        &OrganizationStore::replica_path(&database_path, &held.id),
+        Some(held.remote_url.clone()),
+        move || {
+            let slot = Arc::clone(&slot);
+
+            async move {
+                slot.lock()
+                    .ok()
+                    .and_then(|slot| slot.clone())
+                    .ok_or_else(|| turso::Error::Misuse("no credential is unsealed yet".into()))
+            }
+        },
+    )
+    .await?;
+
+    Ok((store, credential))
 }
 
 /// The signed-in member's facts, re-read from the replica so a row that changed under them since
@@ -1166,4 +1260,407 @@ async fn reached(app_state: &AppState, link: &JoinLink) -> Result<OrganizationSt
     }
 
     Ok(store)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use serde_json::json;
+    use tokio::sync::RwLock;
+
+    use super::{open_replica, sign_out, state_of};
+    use crate::{
+        database::Database,
+        keyring::{self, CredentialStoreTurn, refuse_the_next_store, take_the_credential_store},
+        organization::{
+            forget, join,
+            session::{MEMBER_KEY_SERVICE, verifying_key_of},
+            setup::{CreateOrganization, Remote, create_organization},
+            vault::{KdfParams, MemberKey, open_sealed_secret_key},
+        },
+        persisted::Persisted,
+        settings::Settings,
+        state::AppState,
+        sync::{
+            RemoteSync,
+            test::server::{ScriptedResponse, ScriptedServer},
+            turso::{consent::TursoConsent, discovery::McpEndpoint, platform::InMemoryPlatform},
+        },
+        update::Update,
+    };
+
+    const PASSWORD: &str = "the owners password";
+    const USERNAME: &str = "olivia";
+    const CREATED_AT: i64 = 1_757_000_000_000;
+
+    fn test_cost() -> KdfParams {
+        KdfParams {
+            memory_kib: 1024,
+            iterations: 2,
+            lanes: 1,
+        }
+    }
+
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or_default();
+        let directory = std::env::temp_dir().join(format!("rentable-command-{name}-{nanos:x}"));
+        std::fs::create_dir_all(&directory).expect("scratch directory");
+
+        directory
+    }
+
+    /// The whole of the application state over one data directory, as `lib.rs` builds it, with
+    /// nothing open and nobody in. *`forget.rs` and `join.rs` keep the same builder; a fixture is
+    /// written out per module ([[rules/testing]]).*
+    async fn state_over(directory: &std::path::Path) -> AppState {
+        let mut settings =
+            Persisted::<Settings>::load(directory.join(Settings::FILENAME)).expect("the settings");
+        settings.database_path = directory.join(Database::FILENAME);
+        settings.recovery_path = directory.join(Update::FILENAME);
+        settings.commit().expect("the settings");
+
+        let settings = Arc::new(RwLock::new(settings));
+        let remote_sync = RemoteSync::new(settings.clone(), directory.join(RemoteSync::FILENAME))
+            .await
+            .expect("the sync record");
+        let update = Update::new(settings.clone()).await.expect("the update");
+
+        AppState {
+            db: Arc::new(RwLock::new(Database::new(settings.clone()))),
+            settings,
+            remote_sync: Arc::new(RwLock::new(remote_sync)),
+            update: Arc::new(RwLock::new(update)),
+            consent: Arc::new(TursoConsent::new()),
+            organization: Arc::new(RwLock::new(None)),
+            member: Arc::new(RwLock::new(None)),
+            arriving_link: Arc::new(Mutex::new(None)),
+            old_shape_check: tokio::sync::OnceCell::new(),
+        }
+    }
+
+    /// A machine that has run the first run: an organization on it, the owner's row recorded, and
+    /// the owner's member key filed, which is what every launch after it starts from. Nobody is
+    /// signed in here, because a launch is a fresh process.
+    async fn first_run(directory: &std::path::Path) -> AppState {
+        let app_state = state_over(directory).await;
+        let mcp = ScriptedServer::start(vec![
+            ScriptedResponse::new(
+                200,
+                json!({ "jsonrpc": "2.0", "id": 1, "result": {} }).to_string(),
+            ),
+            ScriptedResponse::new(
+                200,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "result": { "content": [{ "type": "text", "text": json!([{
+                        "Name": "ledger",
+                        "hostname": "ledger-an-org.aws-eu-west-1.turso.io",
+                        "group": "rentable"
+                    }]).to_string() }] }
+                })
+                .to_string(),
+            ),
+        ])
+        .await;
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            create_organization(
+                remote_sync.store_mut(),
+                "a-platform-token",
+                &McpEndpoint::at(&mcp.url("")),
+                |_| Arc::clone(&platform),
+                Remote::none(),
+                &directory.join(Database::FILENAME),
+                CreateOrganization {
+                    name: "Acme",
+                    username: USERNAME,
+                    password: PASSWORD,
+                },
+                test_cost(),
+                CREATED_AT,
+            )
+            .await
+            .expect("the first run failed");
+        }
+
+        app_state
+    }
+
+    /// What the record names: the organization and the member, which is what an entry is keyed on.
+    async fn recorded(app_state: &AppState) -> (String, String) {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let held = remote_sync
+            .store_mut()
+            .organization
+            .clone()
+            .expect("the record names no organization");
+
+        (held.id, held.member_id.expect("the record names no member"))
+    }
+
+    /// What is filed under a member's entry, or nothing where nothing is.
+    fn filed(organization_id: &str, member_id: &str) -> Option<String> {
+        keyring::read(
+            MEMBER_KEY_SERVICE,
+            &format!("{organization_id}:{member_id}"),
+        )
+        .expect("the store would not answer")
+    }
+
+    /// A test's turn on the credential store, taken once at the top: the fake is one map for
+    /// every service, and a test that takes the turn twice deadlocks (`keyring.rs`).
+    async fn a_turn() -> CredentialStoreTurn {
+        take_the_credential_store().await
+    }
+
+    /// **Criterion 2.** The record names a member, the `member` slot is empty, and the key that
+    /// opens their vault is filed: the first state read of the launch opens it and answers with a
+    /// session, so nothing ever draws the wall.
+    #[tokio::test]
+    async fn the_first_state_read_of_a_launch_resumes_the_remembered_session() {
+        let _turn = a_turn().await;
+        let directory = scratch("resume");
+        let app_state = first_run(&directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+
+        assert!(
+            filed(&organization_id, &member_id).is_some(),
+            "the first run filed no member key"
+        );
+        assert!(
+            app_state.member.read().await.is_none(),
+            "a launch starts with nobody in"
+        );
+
+        let state = state_of(&app_state).await.expect("the state");
+        let session = state.session.expect("the launch did not resume");
+
+        assert_eq!(session.member_id, member_id);
+        assert_eq!(session.username, USERNAME);
+        assert_eq!(session.role, "owner");
+        assert!(
+            app_state.member.read().await.is_some(),
+            "the session was answered with and not held"
+        );
+        assert!(
+            app_state.organization.read().await.is_some(),
+            "the replica was not held open"
+        );
+    }
+
+    /// The wall, which is what every failure to resume comes to. Nothing filed is the plainest of
+    /// them, and it is the state a machine that has signed out is in.
+    #[tokio::test]
+    async fn a_launch_with_nothing_filed_leaves_the_wall_up() {
+        let _turn = a_turn().await;
+        let directory = scratch("nothing");
+        let app_state = first_run(&directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+
+        keyring::forget(
+            MEMBER_KEY_SERVICE,
+            &format!("{organization_id}:{member_id}"),
+        )
+        .expect("the store would not forget");
+
+        let state = state_of(&app_state).await.expect("the state");
+
+        assert!(state.session.is_none(), "a launch with no key signed in");
+        assert!(
+            state.organization.is_some(),
+            "the machine forgot what it holds"
+        );
+        assert!(app_state.member.read().await.is_none());
+    }
+
+    /// **Criterion 1, the sign-out half.** The keys go and so does the entry, so the next launch
+    /// puts the wall up rather than letting the machine back in behind the person's back.
+    #[tokio::test]
+    async fn a_sign_out_forgets_the_key_and_the_next_launch_shows_the_wall() {
+        let _turn = a_turn().await;
+        let directory = scratch("signout");
+        let app_state = first_run(&directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+
+        state_of(&app_state)
+            .await
+            .expect("the state")
+            .session
+            .expect("the launch did not resume");
+
+        sign_out(&app_state).await;
+
+        assert_eq!(
+            filed(&organization_id, &member_id),
+            None,
+            "the sign-out left the key in the store"
+        );
+
+        // the next launch: a fresh process over the same data directory.
+        let next = state_over(&directory).await;
+        let state = state_of(&next).await.expect("the state");
+
+        assert!(state.session.is_none(), "the wall did not come back up");
+        assert_eq!(
+            state.organization.map(|held| held.member_id),
+            Some(Some(member_id)),
+            "the record forgot the member a sign-out keeps"
+        );
+    }
+
+    /// **Criterion 1, the disconnect half.** A machine that has let go of the organization holds
+    /// no key to a vault in it either. The forget signs out first, which is where the entry goes.
+    #[tokio::test]
+    async fn a_disconnect_forgets_the_key_with_everything_else() {
+        let _turn = a_turn().await;
+        let directory = scratch("disconnect");
+        let app_state = first_run(&directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+
+        state_of(&app_state).await.expect("the state");
+        forget::forget(&app_state).await.expect("the forget failed");
+
+        assert_eq!(
+            filed(&organization_id, &member_id),
+            None,
+            "the disconnect left the key in the store"
+        );
+    }
+
+    /// **Criterion 2, the refusal half.** A locked keychain, or a machine with no secret service:
+    /// the first run succeeds, nothing is filed, and the next launch asks for a password. Never a
+    /// failure surface.
+    #[tokio::test]
+    async fn a_store_that_refuses_the_key_does_not_fail_the_first_run() {
+        let _turn = a_turn().await;
+        let directory = scratch("refused");
+
+        refuse_the_next_store();
+
+        let app_state = first_run(&directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+
+        assert_eq!(
+            filed(&organization_id, &member_id),
+            None,
+            "the store took a value it was told to refuse"
+        );
+
+        let state = state_of(&app_state).await.expect("the state");
+
+        assert!(state.organization.is_some(), "the first run did not finish");
+        assert!(state.session.is_none(), "a launch with no key signed in");
+    }
+
+    /// **Criterion 3.** Neither the password nor the key it derives reaches anything this machine
+    /// wrote: not the record, and not a replica. The key is in the credential store, which is the
+    /// whole reason it is filed there, and the sweep reads every file the data directory holds
+    /// rather than the ones it expects to find.
+    #[tokio::test]
+    async fn neither_the_password_nor_the_member_key_reaches_a_file_this_machine_wrote() {
+        let _turn = a_turn().await;
+        let directory = scratch("secrecy");
+        let app_state = first_run(&directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+
+        // the sign-in at the wall, which is what `organization_sign_in` performs: the replica is
+        // opened, the password is tried, and the record is written back naming the member.
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .organization
+                .clone()
+                .expect("the record")
+        };
+        let (store, credential) = open_replica(&app_state, &held).await.expect("the replica");
+        let session = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            join::admit(
+                &store,
+                remote_sync.store_mut(),
+                &held,
+                USERNAME,
+                PASSWORD,
+                &credential,
+            )
+            .await
+            .expect("the sign-in failed")
+        };
+
+        assert_eq!(session.member_id, member_id);
+
+        let encoded = filed(&organization_id, &member_id).expect("the sign-in filed no key");
+        let key = MemberKey::decode(&encoded).expect("what was filed is not a key");
+        let bytes = {
+            use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
+
+            BASE64URL
+                .decode(&encoded)
+                .expect("what was filed is not base64url")
+        };
+
+        assert_eq!(
+            bytes.len(),
+            32,
+            "what was filed is not a member key's width"
+        );
+
+        // and it is the key that opens this member's vault rather than any other value.
+        let members = store
+            .members(&verifying_key_of(&held).expect("the key"))
+            .await
+            .expect("the members");
+        let member = members
+            .iter()
+            .find(|member| member.id == member_id)
+            .expect("the member row");
+
+        assert_eq!(
+            open_sealed_secret_key(&key, &member.vault)
+                .expect("the filed key did not open the vault")
+                .public_key(),
+            member.vault.public_key
+        );
+
+        // the sweep: every file under the data directory, the record included, read as bytes.
+        let secrets: [&[u8]; 3] = [PASSWORD.as_bytes(), encoded.as_bytes(), &bytes];
+        let mut swept = 0;
+
+        for entry in std::fs::read_dir(&directory).expect("the data directory") {
+            let path = entry.expect("an entry").path();
+
+            if !path.is_file() {
+                continue;
+            }
+
+            let written = std::fs::read(&path).expect("the file");
+
+            swept += 1;
+
+            for secret in secrets {
+                assert!(
+                    !written.windows(secret.len()).any(|window| window == secret),
+                    "a secret is legible in {}",
+                    path.display()
+                );
+            }
+        }
+
+        assert!(swept > 1, "the sweep read almost nothing: {swept} files");
+        assert!(
+            directory.join(RemoteSync::FILENAME).is_file(),
+            "the record was not among the files the sweep read"
+        );
+    }
 }

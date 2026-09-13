@@ -16,7 +16,6 @@ import {
 	fakeRecovery,
 	harness,
 	locked,
-	mustChangePassword,
 	nowhereToGo,
 	unlocked,
 	withoutWorkspace
@@ -147,6 +146,42 @@ test('a launch on a signed-in machine reaches the application', async () => {
 	assert.equal(journal.shown, 1);
 });
 
+// effort 826, requirement 12: the machine stayed signed in, so the first `getState` of the launch
+// already carries a session and the wall is never drawn at all. What the person sees is the
+// loading surface and then the workspace they had open last.
+test('a machine that stayed signed in opens its last workspace and never shows the wall', async () => {
+	const held = fakeOrganizationState({
+		session: fakeOrganizationSession({
+			workspaces: [
+				fakeOrganizationWorkspace({ id: 'north' }),
+				fakeOrganizationWorkspace({ id: 'south', name: 'South' })
+			]
+		})
+	});
+	const { startup, journal, seen } = harness({
+		remoteSync: fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'south' }) }),
+		organization: held
+	});
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.deepEqual(journal.workspacesOpened, ['south']);
+	assert.ok(
+		seen.every((snapshot) => snapshot.state !== 'sign-in'),
+		'the wall was drawn on the way in'
+	);
+
+	// and signing out ends it: the next launch of the same machine stands at the wall, on the
+	// organization it still holds, because the key that opened the vault went with the sign-out.
+	await startup.signOut();
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(startup.snapshot.signInReason, 'locked');
+	assert.deepEqual(journal.workspacesOpened, ['south'], 'a workspace opened after the sign-out');
+});
+
 // requirement 16, from the side the loading screen reads. Every stage is an await this path
 // performs, in the order it performs them, and the last is timed by finishing.
 test('and reports every stage it passes, in order, and says when it is done', async () => {
@@ -216,29 +251,6 @@ test('the right password goes straight on into the application, and the password
 	assert.equal(journal.contextsForgotten, 1);
 });
 
-// requirement 19 of effort 824: a first sign-in on the password somebody else drew is the same
-// call, and the shell answers with the change still owed; the person stops at choosing their
-// own, and the workspace they were granted opens after that and not before.
-test('and a first sign-in on a handed password stops at choosing one, and goes on in after', async () => {
-	const { startup, journal } = harness({
-		organization: locked(),
-		signInWith: async () => mustChangePassword(),
-		changePasswordWith: async () => unlocked()
-	});
-
-	await startup.start();
-	await startup.signIn('sami.staff', 'abcde-fghjk-mnpqr-stuvw');
-
-	assert.ok(!JSON.stringify(startup.snapshot).includes('abcde-fghjk'));
-	assert.equal(startup.snapshot.state, 'change-password');
-	assert.deepEqual(journal.workspacesOpened, []);
-
-	await startup.changePassword('abcde-fghjk-mnpqr-stuvw', 'a password of my own');
-
-	assert.equal(startup.snapshot.state, 'ready');
-	assert.deepEqual(journal.workspacesOpened, ['north']);
-});
-
 test('and a member admitted to an organization with no workspace yet is in, with nowhere to go', async () => {
 	const { startup, journal } = harness({ organization: withoutWorkspace() });
 
@@ -303,63 +315,6 @@ test('and a member with a workspace reaches it after the sign-in, re-entering at
 	assert.equal(startup.snapshot.isSigningIn, false);
 	// re-entering at `workspace` is honest: those three stages are what this path has done.
 	assert.deepEqual(journal.stages.slice(-3), ['workspace', 'changes', 'records']);
-});
-
-// --- 4c. A password somebody else drew ----------------------------------------------------
-
-test('a member on a handed password is asked to choose their own, and reaches nothing else', async () => {
-	const { startup, journal } = harness({ organization: mustChangePassword() });
-
-	await startup.start();
-
-	assert.equal(startup.snapshot.state, 'change-password');
-	assert.equal(startup.snapshot.railIsUp, true, 'a person is in');
-	assert.deepEqual(journal.workspacesOpened, [], 'no workspace was opened for them');
-	assert.equal(journal.bootstrapped, 0);
-	assert.equal(journal.shown, 1);
-});
-
-test('and choosing one goes on into the application, with neither password held', async () => {
-	const asked: [string, string][] = [];
-	const { startup, journal } = harness({
-		organization: mustChangePassword(),
-		changePasswordWith: async (current, next) => {
-			asked.push([current, next]);
-
-			return unlocked();
-		}
-	});
-
-	await startup.start();
-	assert.equal(startup.snapshot.state, 'change-password');
-
-	const changed = await startup.changePassword('abcde-fghjk-mnpqr-stuvw', 'a password of my own');
-
-	assert.equal(changed, true);
-	assert.deepEqual(asked, [['abcde-fghjk-mnpqr-stuvw', 'a password of my own']]);
-	assert.ok(!JSON.stringify(startup.snapshot).includes('abcde-fghjk'));
-	assert.ok(!JSON.stringify(startup.snapshot).includes('a password of my own'));
-	assert.equal(startup.snapshot.state, 'ready');
-	assert.equal(journal.bootstrapped, 1);
-});
-
-test('and a refused change leaves the person at the screen with the sentence', async () => {
-	const { startup, journal } = harness({
-		organization: mustChangePassword(),
-		changePasswordWith: async () => {
-			throw new Error('the sealed value did not open');
-		}
-	});
-
-	await startup.start();
-
-	const changed = await startup.changePassword('not the password', 'a password of my own');
-
-	assert.equal(changed, false);
-	assert.equal(startup.snapshot.state, 'change-password');
-	assert.equal(startup.snapshot.error, 'the sealed value did not open');
-	assert.equal(startup.snapshot.isSigningIn, false);
-	assert.equal(journal.bootstrapped, 0);
 });
 
 // --- 5. A pending recovery -------------------------------------------------------------

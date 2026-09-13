@@ -56,9 +56,11 @@ use super::{
     authority::{AdministratorKey, OrganizationKey, issue_certificate},
     invite::validate_username,
     link::JoinLink,
+    session::remember,
     store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
     vault::{
-        KdfParams, create_vault_with_secret, generate_content_key, seal_content, seal_to_public_key,
+        KdfParams, create_vault_with_secret_and_key, generate_content_key, seal_content,
+        seal_to_public_key,
     },
 };
 
@@ -288,9 +290,9 @@ async fn finish<P: TursoPlatform>(
     let remote_url = format!("libsql://{hostname}");
     let replica_remote = remote.url_for(hostname);
 
-    // the owner's keys: the vault their password opens, and the two signing keys that follow
-    // from its secret.
-    let (vault, secret) = create_vault_with_secret(password, kdf_params)?;
+    // the owner's keys: the vault their password opens, the key that opens it, and the two
+    // signing keys that follow from its secret.
+    let (vault, secret, member_key) = create_vault_with_secret_and_key(password, kdf_params)?;
     let organization_key =
         OrganizationKey::from_bytes(&secret.derive_seed(ORGANIZATION_KEY_PURPOSE)?);
     let administrator_key =
@@ -393,11 +395,15 @@ async fn finish<P: TursoPlatform>(
         name: name.to_string(),
         verifying_key: BASE64URL.encode(verifying_key),
         remote_url: remote_url.clone(),
-        member_id: Some(member_id),
+        member_id: Some(member_id.clone()),
         role: Some(OWNER_ROLE.to_string()),
         joined_at: now,
     });
     store.commit()?;
+
+    // the machine stays signed in as the owner from here (effort 826, requirement 12). After the
+    // record is committed, because the entry is read back against what the record names.
+    remember(organization_id, &member_id, &member_key);
 
     let join_link = JoinLink::new(
         organization_id,

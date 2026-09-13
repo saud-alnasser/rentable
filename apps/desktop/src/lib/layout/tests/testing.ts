@@ -30,11 +30,6 @@ export const nowhereToGo = (): OrganizationState => ({
 	session: null,
 	holdsTursoAuthority: false
 });
-/** a machine whose person is in on a password somebody else drew, and has to choose their own. */
-export const mustChangePassword = () =>
-	fakeOrganizationState({
-		session: { ...fakeOrganizationState().session!, mustChangePassword: true }
-	});
 /** a machine whose person is admitted to an organization with no workspace in it yet. */
 export const withoutWorkspace = () =>
 	fakeOrganizationState({
@@ -112,8 +107,6 @@ export function harness(
 		loadLocale?: (locale: string) => Promise<void>;
 		/** what a username and password do: the state it leaves the machine in, or the refusal. */
 		signInWith?: (username: string, password: string) => Promise<OrganizationState>;
-		/** what changing the password does: the state it leaves the machine in, or the refusal. */
-		changePasswordWith?: (current: string, next: string) => Promise<OrganizationState>;
 		/** what opening a workspace meets, for the path where the shell refuses to. */
 		openWorkspace?: (workspaceId: string) => Promise<void>;
 		/** what forgetting the organization meets, for the path where the shell refuses to. */
@@ -182,18 +175,10 @@ export function harness(
 					? overrides.afterBootstrap
 					: organization;
 			},
-			// what these two answer with becomes what the world holds, because that is what they
-			// do: Rust updates what it holds, and the next `getState` reads the result.
+			// what this answers with becomes what the world holds, because that is what it does:
+			// Rust updates what it holds, and the next `getState` reads the result.
 			signIn: async (username, password) => {
 				organization = await (overrides.signInWith ?? (async () => unlocked()))(username, password);
-
-				return organization;
-			},
-			changePassword: async (current, next) => {
-				organization = await (overrides.changePasswordWith ?? (async () => unlocked()))(
-					current,
-					next
-				);
 
 				return organization;
 			},

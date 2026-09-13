@@ -19,6 +19,11 @@ import type { OrganizationSession, OrganizationState } from '$lib/platform/host'
  * open vault is locked, and the way past that is a password. Neither is a lock a returning network
  * lifts, because neither was put up by a network going away.
  *
+ * **There were three kinds until effort 826, requirement 12.** The third was a member in on a
+ * password somebody else drew, who had to choose their own before reaching anything. No password
+ * is handed over any more: an invitation carries its secret inside the link and the person chooses
+ * a password to open it with, so there is no session that is admitted and held back at once.
+ *
  * **There is nothing to be admitted to without an organization.** Its refusal is the whole window:
  * no surface renders workspace data behind it and no write reaches any database, because the
  * application has not started.
@@ -46,11 +51,6 @@ export type Admission =
 			 */
 			reason: 'noOrganization' | 'locked';
 	  }
-	/**
-	 * a vault is open, and the password that opened it is one somebody else drew: the member has
-	 * to choose their own before they reach anything else, which the shell refuses regardless.
-	 */
-	| { kind: 'passwordChangeRequired'; session: OrganizationSession }
 	| { kind: 'admitted'; session: OrganizationSession };
 
 /**
@@ -65,9 +65,7 @@ export function organizationAdmission(state: OrganizationState | null | undefine
 	}
 
 	if (state.session) {
-		return state.session.mustChangePassword
-			? { kind: 'passwordChangeRequired', session: state.session }
-			: { kind: 'admitted', session: state.session };
+		return { kind: 'admitted', session: state.session };
 	}
 
 	return {

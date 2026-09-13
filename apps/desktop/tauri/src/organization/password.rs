@@ -25,10 +25,10 @@
 use crate::{diagnostics, error::Error};
 
 use super::{
-    session::MemberSession,
+    session::{MemberSession, remember},
     setup::MINIMUM_PASSWORD_LENGTH,
     store::OrganizationStore,
-    vault::{KdfParams, open_vault, reseal_vault},
+    vault::{KdfParams, open_vault, reseal_vault_with_key},
 };
 
 /// Change the signed-in member's password. The current one has to open the vault first, so a
@@ -70,11 +70,15 @@ pub async fn change_password(
         });
     }
 
-    let vault = reseal_vault(&session.secret, new, kdf_params)?;
+    let (vault, member_key) = reseal_vault_with_key(&session.secret, new, kdf_params)?;
 
     store
         .reseal_member(&session.member_id, &vault, false, now)
         .await?;
+
+    // the entry this machine stays signed in on, rewritten in the same call: what was filed
+    // before this opened the old seal and opens nothing now (effort 826, requirement 12).
+    remember(&session.organization_id, &session.member_id, &member_key);
 
     if !store.push().await {
         diagnostics::warn("organization.password.notYetSent")
@@ -100,6 +104,7 @@ mod tests {
     use super::change_password;
     use crate::{
         error::Error,
+        keyring::{self, take_the_credential_store},
         organization::{
             HeldOrganization,
             invite::{
@@ -109,7 +114,7 @@ mod tests {
             link::JoinLink,
             migrate::Pipeline,
             permission,
-            session::{CredentialSlot, MemberSession, sign_in},
+            session::{CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, sign_in},
             setup::{
                 ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, MINIMUM_PASSWORD_LENGTH,
                 ORGANIZATION_KEY_PURPOSE, Remote, create_organization,
@@ -651,5 +656,57 @@ mod tests {
         .expect("the member did not sign in again");
 
         assert!(member.workspace_credentials.contains_key(&south));
+    }
+
+    /// **Effort 826, requirement 12.** A change rewrites the entry this machine stays signed in
+    /// on, in the same call: what was filed before it opened the old seal and opens nothing now,
+    /// so a launch after a change that left the old key behind would meet the wall.
+    #[tokio::test]
+    async fn a_password_change_rewrites_the_key_this_machine_stays_signed_in_on() {
+        let _turn = take_the_credential_store().await;
+        let directory = scratch("change-remembers");
+        let (store, owner, _, _, (member_id, generated)) = organization(&directory).await;
+        let joined = joined_as(&owner, &member_id, permission::MEMBER);
+        let account = format!("{}:{member_id}", owner.organization_id);
+        let mut session = sign_in(&store, &joined, &generated, &slot())
+            .await
+            .expect("the member did not sign in");
+
+        // what the sign-in on the generated password filed, which the change has to replace.
+        keyring::store(MEMBER_KEY_SERVICE, &account, "whatever was filed before")
+            .expect("the store would not take the value");
+
+        let chosen = "a password of their own choosing";
+
+        change_password(
+            &store,
+            &mut session,
+            &generated,
+            chosen,
+            test_cost(),
+            AT + 1,
+        )
+        .await
+        .expect("the change failed");
+
+        let filed = keyring::read(MEMBER_KEY_SERVICE, &account)
+            .expect("the store would not answer")
+            .expect("the change filed no key");
+        let key = MemberKey::decode(&filed).expect("what was filed is not a key");
+        let row = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the members")
+            .into_iter()
+            .find(|row| row.id == member_id)
+            .expect("the member row");
+
+        assert!(!filed.contains(chosen), "the password was filed");
+        assert_eq!(
+            open_sealed_secret_key(&key, &row.vault)
+                .expect("the filed key did not open the resealed vault")
+                .public_key(),
+            session.secret.public_key()
+        );
     }
 }

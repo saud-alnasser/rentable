@@ -205,7 +205,6 @@ export function fakeOrganizationSession(
 		username: 'person.example',
 		role: 'owner',
 		permissions: 0,
-		mustChangePassword: false,
 		workspaces: [fakeOrganizationWorkspace()],
 		ownerUsername: 'olivia.owner',
 		...overrides

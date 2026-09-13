@@ -387,12 +387,6 @@ const en = {
 				'creating a workspace needs the turso account, and this machine is not connected to it. reconnect it on the organization page.'
 		},
 
-		changePassword: {
-			title: 'choose your password',
-			description:
-				'the password you were handed was drawn by somebody else. choose your own before going on; nothing else opens until you do.',
-			handedLabel: 'the password you were handed'
-		},
 		noWorkspace: {
 			nameLabel: 'workspace name',
 			create: 'create workspace',

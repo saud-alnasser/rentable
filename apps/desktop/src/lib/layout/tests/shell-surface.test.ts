@@ -9,14 +9,7 @@ import {
 	THE_WAY_IN,
 	wayInFrom
 } from '$lib/layout/shell-surface.ts';
-import {
-	fakeRecovery,
-	harness,
-	locked,
-	mustChangePassword,
-	nowhereToGo,
-	withoutWorkspace
-} from './testing.ts';
+import { fakeRecovery, harness, locked, nowhereToGo, withoutWorkspace } from './testing.ts';
 
 /**
  * WHICH ADDRESS DRAWS, AND IN WHICH STATE
@@ -194,21 +187,6 @@ test('a member with no workspace sees the no-workspace surface over every addres
 
 	for (const address of [...ADDRESSES, '/settings', THE_FIRST_RUN]) {
 		assert.equal(shellSurface(startup.snapshot, address), 'no-workspace', address);
-	}
-});
-
-// a member on a handed password is in and reaches nothing else: the surface says so over every
-// address, the first run and the settings page included, because the shell refuses every act for
-// them until they have chosen a password of their own.
-test('a member who must change their password sees that screen over every address', async () => {
-	const { startup } = harness({ organization: mustChangePassword() });
-
-	await startup.start();
-
-	assert.equal(startup.snapshot.state, 'change-password');
-
-	for (const address of [...ADDRESSES, '/settings', THE_FIRST_RUN, THE_JOIN]) {
-		assert.equal(shellSurface(startup.snapshot, address), 'change-password', address);
 	}
 });
 

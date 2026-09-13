@@ -36,8 +36,7 @@ import type { StartupStage } from './startup-stage';
  * has not created one yet admits its members to nothing, which is a state of its own rather than a
  * failure to start. Creating one is the workspace ticket's; this state is where that surface goes.
  */
-export type StartupState =
-	'loading' | 'sign-in' | 'change-password' | 'no-workspace' | 'ready' | 'error' | 'recovery';
+export type StartupState = 'loading' | 'sign-in' | 'no-workspace' | 'ready' | 'error' | 'recovery';
 
 /**
  * why the wall is up, which is only read while it is. The organization's two reasons, from
@@ -116,8 +115,6 @@ export type StartupPorts = {
 		getState(): Promise<OrganizationState>;
 		/** sign in to the held organization by username and password; one sentence for a refusal. */
 		signIn(username: string, password: string): Promise<OrganizationState>;
-		/** change the signed-in member's own password, and clear the requirement to. */
-		changePassword(current: string, next: string): Promise<OrganizationState>;
 		signOut(): Promise<OrganizationState>;
 		/**
 		 * forget the held organization on this machine: every replica, the record, the Turso
@@ -291,15 +288,6 @@ export class Startup {
 	 */
 	async #admit() {
 		const admission = organizationAdmission(this.#snapshot.organization);
-
-		// a person is in, on a password somebody else drew: the rail is up and the one thing on
-		// offer is choosing their own. The shell refuses everything else for them regardless.
-		if (admission.kind === 'passwordChangeRequired') {
-			this.#set({ error: null, recovery: null, state: 'change-password', railIsUp: true });
-			await this.#ports.window.show();
-
-			return false;
-		}
 
 		if (admission.kind !== 'signInRequired') {
 			return true;
@@ -489,9 +477,12 @@ export class Startup {
 	 * sentence the shell allows it, the same for a wrong password, an unknown username and a
 	 * username held by somebody else. The person is still standing at the wall, so an error
 	 * screen would take away the control they need. A startup that fails after the sign-in has
-	 * succeeded is the ordinary failure every other path here reports, and reads as one. A first
-	 * sign-in on a handed password lands on the password change, as any sign-in with
-	 * `mustChangePassword` does.
+	 * succeeded is the ordinary failure every other path here reports, and reads as one.
+	 *
+	 * **It is the second way in rather than the usual one** (effort 826, requirement 12). A
+	 * machine that has signed in once is signed in again by the first `getState` of the launch,
+	 * so the wall is what a sign-out, a new machine and a key that no longer opens the vault
+	 * lead to.
 	 */
 	async signIn(username: string, password: string) {
 		if (this.#snapshot.isSigningIn) {
@@ -524,46 +515,7 @@ export class Startup {
 	}
 
 	/**
-	 * Choose a password of one's own, on the screen that requires it, and go on in.
-	 *
-	 * The same shape as `signIn`: two passwords handed to the shell and never held, a refusal
-	 * shown on the screen the person is standing at, and the ordinary path past the wall once the
-	 * requirement is cleared. Two derivations rather than one, which is why it says it is working.
-	 */
-	async changePassword(current: string, next: string) {
-		if (this.#snapshot.isSigningIn) {
-			return false;
-		}
-
-		this.#set({ isSigningIn: true, error: null });
-
-		try {
-			this.#set({ organization: await this.#ports.organization.changePassword(current, next) });
-		} catch (error) {
-			this.#set({ error: this.#ports.describeError(error) });
-
-			return false;
-		} finally {
-			this.#set({ isSigningIn: false });
-		}
-
-		this.#rememberSession();
-
-		if (!(await this.#admit())) {
-			return true;
-		}
-
-		if (!(await this.#hasWorkspace())) {
-			return true;
-		}
-
-		await this.#enterApplication();
-
-		return true;
-	}
-
-	/**
-	 * what both ways through the wall do once they are through it.
+	 * what the way through the wall does once it is through it.
 	 *
 	 * The session is remembered where the settings page reads it, and the held API context is
 	 * dropped: it was built while nobody was signed in, so it belongs to nobody, nothing else

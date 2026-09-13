@@ -52,12 +52,12 @@ use super::{
     link::JoinLink,
     permission,
     session::{
-        CredentialSlot, MemberSession, content_key_of, open_session, refused_by_name,
+        CredentialSlot, MemberSession, content_key_of, open_session, refused_by_name, remember,
         sign_in_by_username,
     },
     setup::MINIMUM_PASSWORD_LENGTH,
     store::{InvitationRecord, MemberRecord, OrganizationStore},
-    vault::{KdfParams, open_content, open_vault, reseal_vault},
+    vault::{KdfParams, open_content, open_vault, reseal_vault_with_key},
 };
 
 /// Where a link stands, as the connect screen is told it before it does anything: the four
@@ -275,9 +275,14 @@ pub async fn accept(
 
     // the password they chose, over the same keypair: nothing sealed to them is touched, and the
     // generated secret opens nothing from now on.
-    let vault = reseal_vault(&session.secret, password, kdf_params)?;
+    let (vault, member_key) = reseal_vault_with_key(&session.secret, password, kdf_params)?;
 
     store.reseal_member(&member.id, &vault, false, now).await?;
+
+    // this machine stays signed in from here, on the key the password they just chose derives
+    // (effort 826, requirement 12). Filed after the row is written, so a re-seal that did not
+    // land leaves no key behind for a vault it does not open.
+    remember(&held.id, &session.member_id, &member_key);
     store.consume_invitation(&invitation.id, now).await?;
 
     if !store.push().await {
@@ -354,6 +359,7 @@ mod tests {
     use crate::{
         database::Database,
         error::Error,
+        keyring::{self, take_the_credential_store},
         organization::{
             HeldOrganization, connect,
             invite::{
@@ -363,10 +369,10 @@ mod tests {
             link::JoinLink,
             migrate::Pipeline,
             permission,
-            session::{CredentialSlot, MemberSession, sign_in},
+            session::{CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::OrganizationStore,
-            vault::KdfParams,
+            vault::{KdfParams, MemberKey, open_sealed_secret_key},
             workspace::create_workspace,
         },
         persisted::Persisted,
@@ -1724,5 +1730,41 @@ mod tests {
 
             eprintln!("removed {name}");
         }
+    }
+
+    /// **Effort 826, requirement 12.** Opening an invitation leaves the machine signed in across a
+    /// relaunch: the key the chosen password derives is filed under the member's entry, and it is
+    /// the key that opens the vault the accept just resealed rather than the one the link carried.
+    #[tokio::test]
+    async fn an_accepted_invitation_files_the_key_the_chosen_password_derives() {
+        let _turn = take_the_credential_store().await;
+        let directory = scratch("accept-remembers");
+        let (store, owner, _, invitation, _) = invited(&directory).await;
+        let theirs = scratch("accept-remembers-member");
+        let (_, _, member) = opened(&theirs, &store, &invitation, CHOSEN, ISSUED_AT + 3).await;
+        let member = member.expect("the member could not open their link");
+        let filed = keyring::read(
+            MEMBER_KEY_SERVICE,
+            &format!("{}:{}", member.organization_id, member.member_id),
+        )
+        .expect("the store would not answer")
+        .expect("the accept filed no key");
+        let key = MemberKey::decode(&filed).expect("what was filed is not a key");
+        let rows = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the members");
+        let row = rows
+            .iter()
+            .find(|row| row.id == member.member_id)
+            .expect("the member row");
+
+        assert_eq!(
+            open_sealed_secret_key(&key, &row.vault)
+                .expect("the filed key did not open the resealed vault")
+                .public_key(),
+            member.secret.public_key()
+        );
+        assert!(!filed.contains(CHOSEN), "the password was filed");
     }
 }

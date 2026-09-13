@@ -252,7 +252,6 @@ export type OrganizationSession = {
 	username: string;
 	role: string;
 	permissions: number;
-	mustChangePassword: boolean;
 	workspaces: OrganizationWorkspace[];
 	/** the owner's username: whom a member is told to tell when the account needs attention. */
 	ownerUsername: string;

@@ -32,6 +32,18 @@
 //! content key and the credential that reaches the organization database are in [`MemberSession`]
 //! and nothing serialises it; what crosses to the web layer is [`SessionFacts`], facts about the
 //! member and their workspaces, and no key ([[rules/credentials]], *Client boundary*).
+//!
+//! **A signed-in machine stays signed in, and what it keeps is the member key** (effort 826,
+//! requirement 12). After a sign-in, an accepted invitation or a password change, the Argon2id
+//! output that opens `sealed_secret_key` is filed in the operating system's credential store
+//! ([`remember`]); the first state read of the next launch reads it back and opens the vault with
+//! it ([`resume`]), and a sign-out or a disconnect deletes it. Nothing about it crosses to the web
+//! layer, and it reaches no file this application writes.
+//!
+//! *Why the member key rather than the secret key it unseals: the seal on a vault is
+//! authenticated over its salt and its cost, so a re-seal by anybody retires every key that ever
+//! opened it. A key that no longer opens the vault is a failed resume, which forgets the entry and
+//! leaves the wall up, and there is no staleness to compare against anything.*
 
 use std::{
     collections::HashMap,
@@ -40,7 +52,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::Error;
+use crate::{diagnostics, error::Error, keyring};
 
 use crate::sync::turso::platform::AccessLevel;
 
@@ -49,10 +61,14 @@ use super::{
     authority::VERIFYING_KEY_BYTES,
     store::{MemberRecord, OrganizationStore},
     vault::{
-        CONTENT_KEY_BYTES, ContentKey, MemberSecretKey, open_content, open_vault,
-        unseal_with_secret_key,
+        CONTENT_KEY_BYTES, ContentKey, MemberKey, MemberSecretKey, open_content,
+        open_sealed_secret_key, open_vault, open_vault_with_key, unseal_with_secret_key,
     },
 };
+
+/// What a remembered member key is filed under. One service for every organization a machine
+/// might hold; the account is what tells two of them apart.
+pub(crate) const MEMBER_KEY_SERVICE: &str = "rentable.member-key";
 
 /// The credential a replica syncs with, shared with the replica's token function.
 ///
@@ -147,7 +163,6 @@ pub struct SessionFacts {
     pub username: String,
     pub role: String,
     pub permissions: i64,
-    pub must_change_password: bool,
     /// the workspaces this member holds a grant on, and only those.
     pub workspaces: Vec<WorkspaceFacts>,
     /// the owner's username, opened with the content key: whom a member is told to tell when
@@ -249,13 +264,13 @@ pub async fn sign_in_by_username(
         .iter()
         .filter(|member| member.role != super::permission::REMOVED)
     {
-        if let Ok(secret) = open_vault(password, &member.vault) {
-            found = Some((member, secret));
+        if let Ok((secret, member_key)) = open_vault_with_key(password, &member.vault) {
+            found = Some((member, secret, member_key));
             break;
         }
     }
 
-    let Some((member, secret)) = found else {
+    let Some((member, secret, member_key)) = found else {
         return Err(refused());
     };
 
@@ -278,6 +293,133 @@ pub async fn sign_in_by_username(
         return Err(refused());
     }
 
+    let session = open_session(
+        store,
+        held,
+        verifying_key,
+        member,
+        secret,
+        content_key,
+        credential,
+    )
+    .await?;
+
+    remember(&held.id, &session.member_id, &member_key);
+
+    Ok(session)
+}
+
+/// File the key that opens this member's vault, so the next launch opens it without asking.
+///
+/// **A store that refuses is a diagnostic and never a failure.** A locked keychain, a Linux
+/// machine with no secret service, a store out of room: the person is signed in either way, and
+/// what they lose is not being asked again next time. Nothing here is on the path of anything the
+/// person asked for, so there is no refusal for them to act on.
+pub(crate) fn remember(organization_id: &str, member_id: &str, member_key: &MemberKey) {
+    let filed = keyring::store(
+        MEMBER_KEY_SERVICE,
+        &account_of(organization_id, member_id),
+        &member_key.encode(),
+    );
+
+    match filed {
+        Ok(()) => diagnostics::info("organization.session.remembered")
+            .with("organization", organization_id)
+            .with("member", member_id)
+            .write(),
+        Err(refusal) => diagnostics::warn("organization.session.notRemembered")
+            .with("organization", organization_id)
+            .with("member", member_id)
+            // the value never reaches a keyring error (`keyring.rs`), so this carries the reason
+            // and no part of the key.
+            .with("reason", refusal.to_string())
+            .write(),
+    }
+}
+
+/// Leave nothing under this member's entry. What a sign-out and a disconnect do, and what a
+/// resume that did not open the vault does to the key it just tried.
+///
+/// A refusal is a diagnostic for the reason [`remember`]'s is: the caller is doing something else
+/// and there is nothing here for the person to act on. An entry that was never filed is already
+/// in the state this asks for.
+pub(crate) fn forget_remembered(organization_id: &str, member_id: &str) {
+    if let Err(refusal) =
+        keyring::forget(MEMBER_KEY_SERVICE, &account_of(organization_id, member_id))
+    {
+        diagnostics::warn("organization.session.notForgotten")
+            .with("organization", organization_id)
+            .with("member", member_id)
+            .with("reason", refusal.to_string())
+            .write();
+    }
+}
+
+/// Open the member the record names with the key this machine filed at their last sign-in: the
+/// launch that goes straight past the wall (effort 826, requirement 12).
+///
+/// The same unsealing every sign-in performs, starting one step further in: there is no password
+/// and no derivation, because the derivation's output is what was filed. The rows are read and
+/// verified first, as [`sign_in`] reads them, so a forged row is refused before the key is spent.
+///
+/// **Any failure forgets the entry and leaves the wall up.** Nothing filed, a value that is not a
+/// key, a member row that is gone or removed, and a vault resealed by anybody since are one
+/// outcome to the person: they sign in. The entry is deleted rather than kept, so the next launch
+/// does not try a key that has already been shown not to open anything.
+pub(crate) async fn resume(
+    store: &OrganizationStore,
+    held: &HeldOrganization,
+    credential: &CredentialSlot,
+) -> Result<MemberSession, Error> {
+    let member_id = held
+        .member_id
+        .clone()
+        .ok_or_else(|| Error::PreconditionFailed {
+            message: format!("this machine holds {} and no member in it yet", held.name),
+        })?;
+    let resumed = resumed(store, held, &member_id, credential).await;
+
+    if resumed.is_err() {
+        forget_remembered(&held.id, &member_id);
+    }
+
+    resumed
+}
+
+/// The resume itself, so that [`resume`] has one place to forget the entry from.
+async fn resumed(
+    store: &OrganizationStore,
+    held: &HeldOrganization,
+    member_id: &str,
+    credential: &CredentialSlot,
+) -> Result<MemberSession, Error> {
+    let filed =
+        keyring::read(MEMBER_KEY_SERVICE, &account_of(&held.id, member_id))?.ok_or_else(|| {
+            Error::NotFound {
+                message: "this machine remembers no key for the member it holds".to_string(),
+            }
+        })?;
+    let member_key = MemberKey::decode(&filed)?;
+    let verifying_key = verifying_key_of(held)?;
+    let members = store.members(&verifying_key).await?;
+    let member = members
+        .iter()
+        .find(|member| member.id == member_id)
+        .ok_or_else(|| Error::NotFound {
+            message: "this machine's member row is not in the organization any more".to_string(),
+        })?;
+
+    // as `sign_in` reads it: a removal is a signed row rather than an absence, and the vault
+    // would still open onto grants that grant nothing.
+    if member.role == super::permission::REMOVED {
+        return Err(Error::Forbidden {
+            message: format!("you were removed from {}", held.name),
+        });
+    }
+
+    let secret = open_sealed_secret_key(&member_key, &member.vault)?;
+    let content_key = content_key_of(member, &secret)?;
+
     open_session(
         store,
         held,
@@ -288,6 +430,14 @@ pub async fn sign_in_by_username(
         credential,
     )
     .await
+}
+
+/// What one member's entry is filed under: the organization, and their row in it.
+///
+/// Both halves, because a machine that forgets one organization and connects to another must not
+/// find the first one's key waiting under the second one's name.
+fn account_of(organization_id: &str, member_id: &str) -> String {
+    format!("{organization_id}:{member_id}")
 }
 
 /// The rest of a sign-in, once the password has opened `member`'s vault and the content key is
@@ -475,7 +625,6 @@ pub async fn facts_of(
         )?,
         role: member.role.clone(),
         permissions: member.permissions,
-        must_change_password: member.must_change_password,
         workspaces: workspace_facts,
     })
 }
@@ -525,16 +674,22 @@ mod tests {
 
     use serde_json::json;
 
-    use super::{CredentialSlot, facts_of, sign_in};
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
+
+    use super::{
+        CredentialSlot, MEMBER_KEY_SERVICE, facts_of, resume, sign_in, sign_in_by_username,
+    };
     use crate::{
+        keyring::{self, refuse_the_next_store, take_the_credential_store},
         organization::{
             HeldOrganization,
             authority::{AdministratorKey, OrganizationKey, issue_certificate},
             setup::{CreateOrganization, Remote, create_organization},
             store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
             vault::{
-                KdfParams, create_vault, create_vault_with_secret, generate_content_key,
-                seal_content, seal_to_public_key, unseal_with_secret_key,
+                KdfParams, MEMBER_KEY_BYTES, MemberKey, create_vault, create_vault_with_secret,
+                generate_content_key, open_sealed_secret_key, reseal_vault, seal_content,
+                seal_to_public_key, unseal_with_secret_key,
             },
         },
         persisted::Persisted,
@@ -930,6 +1085,199 @@ mod tests {
             sign_in(&store_a, &joined_a, "the other password", &slot())
                 .await
                 .is_err()
+        );
+    }
+
+    /// **Criterion 1.** A sign-in at the wall files the key that opened the vault, under the
+    /// service and the account the launch reads it back from, and what is filed is the member key
+    /// rather than anything else: it opens the same vault, and it is thirty-two bytes of base64url
+    /// with no password anywhere in it.
+    #[tokio::test]
+    async fn a_sign_in_files_the_member_key_and_a_resume_opens_the_vault_with_it() {
+        let _turn = take_the_credential_store().await;
+        let directory = scratch("remember");
+        let (_, store, joined) = created(&directory).await;
+        let member_id = joined.member_id.clone().expect("the record names a member");
+        let account = format!("{}:{member_id}", joined.id);
+
+        // the first run filed the owner's key already; emptied, so what is read back below is
+        // what this sign-in filed.
+        keyring::forget(MEMBER_KEY_SERVICE, &account).expect("the store would not forget");
+
+        let session = sign_in_by_username(&store, &joined, "olivia", PASSWORD, &slot())
+            .await
+            .expect("the sign-in failed");
+        let filed = keyring::read(MEMBER_KEY_SERVICE, &account)
+            .expect("the store would not answer")
+            .expect("the sign-in filed nothing");
+        let bytes = BASE64URL
+            .decode(&filed)
+            .expect("what was filed is not base64url");
+
+        assert_eq!(bytes.len(), MEMBER_KEY_BYTES);
+        assert!(!filed.contains(PASSWORD), "the password was filed");
+
+        // it is the key that opens this member's vault, and it opens it.
+        let members = store
+            .members(&super::verifying_key_of(&joined).expect("the key"))
+            .await
+            .expect("the members");
+        let member = members
+            .iter()
+            .find(|member| member.id == member_id)
+            .expect("the member row");
+        let key = MemberKey::decode(&filed).expect("what was filed is not a key");
+
+        assert_eq!(
+            open_sealed_secret_key(&key, &member.vault)
+                .expect("the filed key did not open the vault")
+                .public_key(),
+            session.secret.public_key()
+        );
+
+        // and the resume the next launch performs reaches the same session, with no password.
+        let credential = slot();
+        let resumed = resume(&store, &joined, &credential)
+            .await
+            .expect("the resume failed");
+
+        assert_eq!(resumed.member_id, member_id);
+        assert_eq!(resumed.role, "owner");
+        assert_eq!(resumed.secret.public_key(), session.secret.public_key());
+        assert_eq!(
+            credential.lock().expect("the slot").as_deref(),
+            Some(format!("token-for-org-{}-4w-full-access", joined.id).as_str()),
+            "the resume unsealed no credential for the replica"
+        );
+    }
+
+    /// **Criterion 1, the stale key.** A reset elsewhere reseals the vault, which retires every
+    /// key that ever opened it: the salt and the cost are authenticated into the seal, so there is
+    /// nothing to compare and the failure is the AEAD tag. The entry goes, and the wall is what
+    /// the person meets.
+    #[tokio::test]
+    async fn a_vault_resealed_elsewhere_leaves_the_remembered_key_opening_nothing() {
+        let _turn = take_the_credential_store().await;
+        let directory = scratch("stale");
+        let (_, store, joined) = created(&directory).await;
+        let member_id = joined.member_id.clone().expect("the record names a member");
+        let account = format!("{}:{member_id}", joined.id);
+        let session = sign_in_by_username(&store, &joined, "olivia", PASSWORD, &slot())
+            .await
+            .expect("the sign-in failed");
+
+        assert!(
+            keyring::read(MEMBER_KEY_SERVICE, &account)
+                .expect("the store would not answer")
+                .is_some()
+        );
+
+        // the reset, performed by somebody else and arriving on the replica: the same keypair
+        // under a password this machine has never seen.
+        let resealed = reseal_vault(
+            &session.secret,
+            "a password chosen somewhere else",
+            test_cost(),
+        )
+        .expect("the reseal failed");
+
+        store
+            .reseal_member(&member_id, &resealed, false, 1_757_000_000_001)
+            .await
+            .expect("the row would not be written");
+
+        let refusal = resume(&store, &joined, &slot())
+            .await
+            .expect_err("a key that opens nothing resumed a session");
+
+        assert!(
+            matches!(refusal, crate::error::Error::Integrity { .. }),
+            "{refusal:?}"
+        );
+        assert_eq!(
+            keyring::read(MEMBER_KEY_SERVICE, &account).expect("the store would not answer"),
+            None,
+            "a key that opens nothing was kept"
+        );
+    }
+
+    /// **Criterion 2, the refusal half, at the sign-in.** A store that will not take the key is a
+    /// diagnostic: the person is in, and what they lose is being asked again next launch.
+    #[tokio::test]
+    async fn a_store_that_refuses_the_key_does_not_refuse_the_sign_in() {
+        let _turn = take_the_credential_store().await;
+        let directory = scratch("refused");
+        let (_, store, joined) = created(&directory).await;
+        let member_id = joined.member_id.clone().expect("the record names a member");
+        let account = format!("{}:{member_id}", joined.id);
+
+        keyring::forget(MEMBER_KEY_SERVICE, &account).expect("the store would not forget");
+        refuse_the_next_store();
+
+        let session = sign_in_by_username(&store, &joined, "olivia", PASSWORD, &slot())
+            .await
+            .expect("a refused store failed the sign-in");
+
+        assert_eq!(session.member_id, member_id);
+        assert_eq!(
+            keyring::read(MEMBER_KEY_SERVICE, &account).expect("the store would not answer"),
+            None,
+            "the store took a value it was told to refuse"
+        );
+
+        // and the launch after it meets the wall rather than an error.
+        let refusal = resume(&store, &joined, &slot())
+            .await
+            .expect_err("a launch with nothing filed resumed a session");
+
+        assert!(
+            matches!(refusal, crate::error::Error::NotFound { .. }),
+            "{refusal:?}"
+        );
+    }
+
+    /// A record naming no member has nothing to resume: a machine connected by the organization's
+    /// link is in that state, and the person signs in at the wall.
+    #[tokio::test]
+    async fn a_record_with_no_member_has_nothing_to_resume() {
+        let _turn = take_the_credential_store().await;
+        let directory = scratch("resume-no-member");
+        let (_, store, joined) = created(&directory).await;
+        let connected = HeldOrganization {
+            member_id: None,
+            role: None,
+            ..joined
+        };
+
+        let refusal = resume(&store, &connected, &slot())
+            .await
+            .expect_err("a record naming no member resumed a session");
+
+        assert!(
+            matches!(refusal, crate::error::Error::PreconditionFailed { .. }),
+            "{refusal:?}"
+        );
+        assert!(refusal.to_string().contains("no member"), "{refusal}");
+    }
+
+    /// The key a member key encodes to reads back as the same key, and anything else reads back as
+    /// a value that opens nothing rather than as a panic.
+    #[tokio::test]
+    async fn what_is_filed_reads_back_as_the_same_key_and_nothing_else_reads_back_at_all() {
+        let key = MemberKey::from_bytes([7_u8; MEMBER_KEY_BYTES]);
+        let encoded = key.encode();
+
+        assert_eq!(
+            BASE64URL
+                .decode(&encoded)
+                .expect("not base64url")
+                .as_slice(),
+            [7_u8; MEMBER_KEY_BYTES].as_slice()
+        );
+        assert!(MemberKey::decode("not base64url at all ***").is_err());
+        assert!(
+            MemberKey::decode(&BASE64URL.encode([7_u8; 16])).is_err(),
+            "a value of the wrong width read back as a key"
         );
     }
 }
