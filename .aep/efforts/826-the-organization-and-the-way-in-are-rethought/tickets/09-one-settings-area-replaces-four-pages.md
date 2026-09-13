@@ -26,8 +26,9 @@ criterion 17.
       `withCreateIntent`; tested under `node:test`.
 - [ ] `settings/component/area.svelte` is pure props (settings, session, `holdsTursoAuthority`,
       remote-sync state, members, the chosen section) and renders the title, the rail and the
-      chosen section's blocks; `settings/component/rail.svelte` is a `nav` of anchors in
-      `sidebarMenuButtonVariants`, the current one `aria-current`, read from
+      chosen section's blocks; `settings/component/rail.svelte` is a `nav` of anchors drawn as
+      tabs above the body, as ticket 08's write-up settled it, the current one underlined and
+      `aria-current`, read from
       `page.url.searchParams` and never from `isActiveRoute`.
 - [ ] `area.svelte.test.ts` renders an owner session and finds the seven sections in order,
       and a plain member session and finds `general`, `you`, `workspaces`, `sync`, `updates`,

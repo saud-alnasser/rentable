@@ -132,6 +132,14 @@ wrapper does not type `orientation`, the pill styling is horizontal, and tab sem
 segment per section, which `opensSignedOut` would refuse unless it moved from exact to prefix
 matching, which its own comment argues against.*
 
+*Superseded on 2026-09-13 by the on-screen judgement recorded in
+[[efforts/826-the-organization-and-the-way-in-are-rethought/evidence/prototypes/the-settings-area-on-screen]]:
+beside the real sidebar the column read as a second one, and the owner chose the tabs the
+paragraph above rejects. The rail is drawn as a horizontal nav of anchors above a full-width
+body, the current one underlined. The mechanism is unchanged: a `nav` of anchors carrying
+`?section=`, `aria-current` on the current one, and the `Tabs` primitive still unused, since
+these remain seven addressable pages sharing a frame.*
+
 # Components
 
 **Rust, `tauri/src/`**

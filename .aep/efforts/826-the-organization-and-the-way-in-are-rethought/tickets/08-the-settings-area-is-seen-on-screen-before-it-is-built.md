@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # spike(design): the settings area is seen on screen before it is built
@@ -17,16 +17,16 @@ Traces requirement 14, requirement 15 and requirement 8 (the result panel) of
 [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]], and its constraint *Looks
 are settled on screen, on real data*; it gates criterion 14, criterion 15 and criterion 16.
 
-- [ ] A prototype under `src/lib/prototype/`, driven by `pnpm prototype`, draws the settings
+- [x] A prototype under `src/lib/prototype/`, driven by `pnpm prototype`, draws the settings
       frame with the rail of seven sections in the sidebar menu button style, a members list
       with the fields of requirement 15 including a pending row with its expiry and copy
       control, and the invite result panel with one link and its copy control, on the real
       query data of the human's organization.
-- [ ] The human looks at each of the three on screen and says what stays and what changes; the
+- [x] The human looks at each of the three on screen and says what stays and what changes; the
       write-up `evidence/prototypes/the-settings-area-on-screen.md` follows
       `[[templates/prototype.template]]` and records both, with captures where the judgement
       turned on one.
-- [ ] The prototype code is deleted; `git status` is clean of it.
+- [x] The prototype code is deleted; `git status` is clean of it.
 
 ## Relevant areas
 
