@@ -94,10 +94,13 @@ export const organization = router({
 	 * A workspace: created by the owner, opened by whoever holds a grant, granted and removed by
 	 * whoever's row carries the act.
 	 *
-	 * **`member` for creating, and the owner check is Rust's.** There is no `createWorkspace` act in
-	 * `packages/workspace-permission`, because creating one was never an act a role could be given:
-	 * it needs the platform authority only the owner's machine holds, and the shell refuses anybody
-	 * else before any request. What this side can say is that somebody is signed in.
+	 * **`member` for creating and for removing, and the owner check is Rust's.** There is no
+	 * `createWorkspace` and no `deleteWorkspace` act in `packages/workspace-permission`, because
+	 * neither was ever an act a role could be given: each needs the platform authority only the
+	 * owner's machine holds, and the shell refuses anybody else before any request, with a sentence
+	 * naming the owner. What this side can say is that somebody is signed in. *Removing was
+	 * `permitted('deleteWorkspace')` until effort 826 took the act out of the table, where it had
+	 * been a flag that granting could not deliver.*
 	 */
 	workspace: {
 		create: procedure.member
@@ -111,7 +114,7 @@ export const organization = router({
 				return ctx.host.organization.workspace.open(input.workspaceId);
 			}),
 		grant: procedure
-			.permitted('inviteMember')
+			.permitted('grantWorkspace')
 			.input(
 				z.object({
 					workspaceId: z.string().trim().min(1),
@@ -126,8 +129,7 @@ export const organization = router({
 					input.access
 				);
 			}),
-		remove: procedure
-			.permitted('deleteWorkspace')
+		remove: procedure.member
 			.input(z.object({ workspaceId: z.string().trim().min(1) }))
 			.mutation(async ({ input, ctx }): Promise<void> => {
 				return ctx.host.organization.workspace.remove(input.workspaceId);
@@ -177,12 +179,14 @@ export const organization = router({
 				return ctx.host.organization.member.lockOutCost(input.memberId);
 			}),
 		/**
-		 * A rename, held to the same act and the same username rules as an invitation, because
-		 * it changes the one thing an invitation named. Whether the username is taken, and whether
-		 * the row is the caller's own, are Rust's to refuse.
+		 * A rename, held to its own act and to the same username rules as an invitation. It was
+		 * `inviteMember` until effort 826 gave `renameMember` a bit of its own, on the reading that
+		 * correcting a spelling and making an account are different things to be trusted with.
+		 * Whether the username is taken, and whether the row is the caller's own, are Rust's to
+		 * refuse.
 		 */
 		rename: procedure
-			.permitted('inviteMember')
+			.permitted('renameMember')
 			.input(z.object({ memberId: z.string().trim().min(1), username: USERNAME }))
 			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
 				return ctx.host.organization.member.rename(input.memberId, input.username);
@@ -198,8 +202,14 @@ export const organization = router({
 			.mutation(async ({ input, ctx }): Promise<void> => {
 				return ctx.host.organization.invitation.revoke(input.invitationId);
 			}),
+		/**
+		 * A reset: a fresh invitation for a member who already has a row. It is `resetPassword`
+		 * rather than `inviteMember` from effort 826 on, because what it hands somebody is a way
+		 * back into an account that exists rather than a new one, and requirement 4 made those two
+		 * separate things to be trusted with.
+		 */
 		reissue: procedure
-			.permitted('inviteMember')
+			.permitted('resetPassword')
 			.input(z.object({ memberId: z.string().trim().min(1) }))
 			.mutation(async ({ input, ctx }): Promise<Invited> => {
 				return ctx.host.organization.resetMember(input.memberId);

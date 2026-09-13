@@ -22,8 +22,9 @@ export const ADMINISTRATION = {
 	removeMember: 1,
 	changeRole: 2,
 	renameWorkspace: 3,
-	deleteWorkspace: 4,
-	transferOwnership: 5
+	resetPassword: 4,
+	renameMember: 5,
+	grantWorkspace: 6
 } as const;
 
 export type Administration = keyof typeof ADMINISTRATION;
@@ -90,17 +91,23 @@ export type Role = 'owner' | 'administrator' | 'member';
  * What each role administers by default.
  *
  * The role is what a person is called; the column is what they may do. Both are stored,
- * because a workspace may want an administrator who cannot delete it, and a role that
+ * because an organization may want an administrator who cannot rename a member, and a role that
  * computed its own permissions on read could not express that.
  *
- * **An administrator does not rename, and the column is still the truth.** *Decided by the human
- * on 2026-08-21.* It carried `renameWorkspace` from the beginning, which was harmless only
- * because no workspace has ever had a second member and no route creates one. A workspace that
- * wants an administrator who may rename it grants the flag on the row — which is the distinction
- * this file rests on: the role is what a membership is created with, not what it may do.
+ * **The owner and the administrator carry every act here, and the difference between them is not
+ * in this table.** *Requirement 5 of effort 826.* What separates them is the acts nobody can be
+ * given: creating and deleting a workspace, minting a read-only credential, locking a member out,
+ * renewing credentials, the Turso account and the organization's own link. Those need the Turso
+ * authority, which lives on one machine and in no row, so they are refused in Rust by an owner
+ * check rather than named here. A table that listed them would be offering a flag that granting
+ * cannot deliver.
+ *
+ * **The column is still the truth.** A member's row is widened or narrowed one act at a time by a
+ * holder of `changeRole`, so what this table gives is what a person is created with rather than
+ * what they may do ever after.
  */
 export const ADMINISTRATION_BY_ROLE: Record<Role, number> = {
 	owner: maskOf(...EVERY_ADMINISTRATION),
-	administrator: maskOf('inviteMember', 'removeMember', 'changeRole'),
+	administrator: maskOf(...EVERY_ADMINISTRATION),
 	member: 0
 };

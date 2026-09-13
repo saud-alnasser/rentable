@@ -34,6 +34,13 @@
 //! it is the owner's or an administrator's, never the member's own, and it moves nothing else on
 //! the row.
 //!
+//! **The invitation row carries the secret it was made with, sealed to its issuer.** `issue`
+//! writes the generated password under [`vault::seal_to_public_key`] to the issuing session's own
+//! public key, and the issuer's member id beside it. It is what will let that one person hand the
+//! same link over a second time; for anybody else the row offers a fresh link, which is a reset.
+//! Nothing reads it yet: the link carries no invitation half until the ticket that gives it one.
+//! Neither column is under the invitation signature, whose preimage is unchanged.
+//!
 //! **An invitation expires; the link does not** (requirement 23). The row carries the lifetime,
 //! and a first sign-in after it lapsed is refused naming the lapse, since that is what a reissue
 //! is for. Revoking is deleting the row; reissuing is a fresh invitation for the same member,
@@ -266,7 +273,7 @@ pub async fn reissue_invitation(
     now: i64,
 ) -> Result<Invited, Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::InviteMember)?;
+    permission::require(session.permissions, Administration::ResetPassword)?;
 
     let members = store.members(&session.verifying_key).await?;
     let member = members
@@ -446,10 +453,11 @@ pub async fn members(
 
 /// Rename a member: their row written back with the username re-sealed under the content key,
 /// signed by whoever renamed them, and pushed like every other write (effort 824, requirement
-/// 23). The act is [`Administration::InviteMember`], because making an account is what invite is
-/// and this changes the one thing invite named. Nothing else on the row moves: the vault, the
-/// role, the grants and the certificate are exactly as they were, so a member renamed while
-/// signed in elsewhere goes on working under their own password.
+/// 23). The act is [`Administration::RenameMember`], which requirement 4 of effort 826 gave a bit
+/// of its own: it was held to inviting while the two were one decision, and an organization may
+/// want somebody who corrects a spelling without being able to make an account. Nothing else on
+/// the row moves: the vault, the role, the grants and the certificate are exactly as they were, so
+/// a member renamed while signed in elsewhere goes on working under their own password.
 ///
 /// A session renaming its own row is refused: an account's name is given by an administrator and
 /// changed by one, never by its holder, which is what keeps the rename an act on somebody else's
@@ -463,7 +471,7 @@ pub async fn rename_member(
     now: i64,
 ) -> Result<MemberFacts, Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::InviteMember)?;
+    permission::require(session.permissions, Administration::RenameMember)?;
 
     if member_id == session.member_id {
         return Err(Error::Forbidden {
@@ -722,7 +730,15 @@ async fn issue(
     }
 
     // the invitation: the pending account's expiry, naming the member whose first sign-in spends
-    // it.
+    // it, the generated password sealed to the issuer, and who the issuer was.
+    //
+    // **The secret is sealed to the issuer's own public key and to nobody else's.** It is what
+    // lets them hand the same link over twice; anybody else holding the act is offered a fresh
+    // link, which is a reset. Sealing it under the content key instead would put it within reach
+    // of every member, and a member who opened a pending colleague's vault would hold that
+    // colleague's grants, which may reach workspaces the member does not. Neither column is under
+    // the signature: a tampered seal opens for nobody and a tampered issuer misplaces a copy
+    // control, so neither is worth a preimage.
     let invitation_id = random_id()?;
     let expires_at = now + INVITATION_LIFETIME_MS;
 
@@ -734,6 +750,11 @@ async fn issue(
                 member_id: member_id.to_string(),
                 expires_at,
                 consumed_at: None,
+                sealed_secret: seal_to_public_key(
+                    &session.secret.public_key(),
+                    generated_password.as_bytes(),
+                )?,
+                issued_by: session.member_id.clone(),
                 created_at: now,
             },
         )
@@ -1924,7 +1945,7 @@ mod tests {
             .expect_err("a member renamed somebody");
 
         assert!(matches!(error, Error::Forbidden { .. }), "{error:?}");
-        assert!(error.to_string().contains("inviteMember"), "{error}");
+        assert!(error.to_string().contains("renameMember"), "{error}");
 
         let error = rename_member(&store, &owner, "nobody", "robert", 2)
             .await

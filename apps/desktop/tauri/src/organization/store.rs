@@ -115,6 +115,8 @@ const SCHEMA: [&str; 7] = [
         \"member_id\" TEXT NOT NULL, \
         \"expires_at\" INTEGER NOT NULL, \
         \"consumed_at\" INTEGER, \
+        \"sealed_secret\" BLOB NOT NULL, \
+        \"issued_by\" TEXT NOT NULL, \
         \"certificate_id\" TEXT NOT NULL, \
         \"signature\" BLOB NOT NULL, \
         \"created_at\" INTEGER NOT NULL)",
@@ -202,12 +204,23 @@ pub struct GrantRecord {
 /// whose first sign-in spends it. *It carried a sealed payload, a salt and a cost until effort 824
 /// dropped the invitation's sealed half: the row was found through the link's secret and the
 /// generated password together, and it is found by the password alone now.*
+///
+/// **`sealed_secret` and `issued_by` sit outside the signature**, which the plan settled: a
+/// tampered `sealed_secret` opens for nobody, the issuer included, and a tampered `issued_by` only
+/// misplaces a copy control. Putting either under `InvitationAuthority` would move a preimage
+/// nothing needs moved.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InvitationRecord {
     pub id: String,
     pub member_id: String,
     pub expires_at: i64,
     pub consumed_at: Option<i64>,
+    /// the generated password this invitation was made with, sealed to the issuer's public key.
+    /// It is what lets the issuer, and nobody else, build the link again; anybody else holding the
+    /// act is offered a fresh link instead, which is a reset.
+    pub sealed_secret: Vec<u8>,
+    /// the member id of whoever issued it, which is whose key `sealed_secret` opens for.
+    pub issued_by: String,
     pub created_at: i64,
 }
 
@@ -833,9 +846,9 @@ impl OrganizationStore {
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"invitation\" \
-                 (\"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"certificate_id\", \
-                  \"signature\", \"created_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                 (\"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"sealed_secret\", \
+                  \"issued_by\", \"certificate_id\", \"signature\", \"created_at\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(invitation.id.clone()),
                     turso::Value::Text(invitation.member_id.clone()),
@@ -843,6 +856,8 @@ impl OrganizationStore {
                     invitation
                         .consumed_at
                         .map_or(turso::Value::Null, turso::Value::Integer),
+                    turso::Value::Blob(invitation.sealed_secret.clone()),
+                    turso::Value::Text(invitation.issued_by.clone()),
                     turso::Value::Text(signer.certificate.id.clone()),
                     turso::Value::Blob(signature),
                     turso::Value::Integer(invitation.created_at),
@@ -875,8 +890,8 @@ impl OrganizationStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT \"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"certificate_id\", \
-                        \"signature\", \"created_at\" \
+                "SELECT \"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"sealed_secret\", \
+                        \"issued_by\", \"certificate_id\", \"signature\", \"created_at\" \
                  FROM \"invitation\" ORDER BY \"created_at\", \"id\"",
                 (),
             )
@@ -887,8 +902,8 @@ impl OrganizationStore {
             let id = text(&row, 0)?;
             let member_id = text(&row, 1)?;
             let expires_at = integer(&row, 2)?;
-            let certificate_id = text(&row, 4)?;
-            let signature = blob(&row, 5)?;
+            let certificate_id = text(&row, 6)?;
+            let signature = blob(&row, 7)?;
 
             verified(
                 organization_verifying_key,
@@ -914,7 +929,9 @@ impl OrganizationStore {
                         turso::Value::Integer(value) => Some(value),
                         _ => None,
                     },
-                    created_at: integer(&row, 6)?,
+                    sealed_secret: blob(&row, 4)?,
+                    issued_by: text(&row, 5)?,
+                    created_at: integer(&row, 8)?,
                 },
             ));
         }
@@ -1345,7 +1362,7 @@ mod tests {
                 vault,
                 sealed_content_key,
                 role: role.to_string(),
-                permissions: if role == "owner" { 63 } else { 0 },
+                permissions: if role == "owner" { 127 } else { 0 },
                 must_change_password: role != "owner",
                 created_at: 1_757_000_000_000,
                 updated_at: 1_757_000_000_000,
@@ -1481,6 +1498,36 @@ mod tests {
         );
         assert!(names.contains(&"database_name".to_string()));
         assert!(names.contains(&"schema_version".to_string()));
+
+        // the invitation's own columns, pinned: the two effort 826 added are what a copy control
+        // and the forget signal read, and `forget::old_shape` calls a replica without
+        // `sealed_secret` the old shape, so a schema that stopped declaring it would wipe every
+        // machine at startup rather than fail here.
+        let mut columns = store
+            .connection()
+            .query("PRAGMA table_info(\"invitation\")", ())
+            .await
+            .expect("the invitation columns");
+        let mut names = Vec::new();
+
+        while let Some(row) = columns.next().await.expect("a column row") {
+            names.push(super::text(&row, 1).expect("a column name"));
+        }
+
+        assert_eq!(
+            names,
+            vec![
+                "id",
+                "member_id",
+                "expires_at",
+                "consumed_at",
+                "sealed_secret",
+                "issued_by",
+                "certificate_id",
+                "signature",
+                "created_at"
+            ]
+        );
 
         // and the schema is idempotent, which is what a second machine runs into.
         store.install_schema().await.expect("the schema, again");
@@ -1683,7 +1730,7 @@ mod tests {
         store
             .connection()
             .execute(
-                "UPDATE \"member\" SET \"role\" = 'owner', \"permissions\" = 63 \
+                "UPDATE \"member\" SET \"role\" = 'owner', \"permissions\" = 127 \
                  WHERE \"id\" = 'member-staff'",
                 (),
             )
@@ -1866,6 +1913,8 @@ mod tests {
                     member_id: "member-x".to_string(),
                     expires_at: 1_757_600_000_000,
                     consumed_at: None,
+                    sealed_secret: b"a secret sealed to the issuer".to_vec(),
+                    issued_by: "member-admin".to_string(),
                     created_at: 1_757_000_000_000,
                 },
             )

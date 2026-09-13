@@ -72,9 +72,11 @@ pub const LINK_CREDENTIAL_LIFETIME: &str = "never";
 
 pub const OWNER_ROLE: &str = "owner";
 
-/// Every administration act, as `packages/workspace-permission` masks them: six flags, six bits.
-/// The package is the vocabulary and this is its value for the role that holds all of it.
-pub const OWNER_PERMISSIONS: i64 = 0b11_1111;
+/// Every grantable act, as `packages/workspace-permission` masks them: seven flags, seven bits.
+/// The package is the vocabulary and this is its value for the role that holds all of it. What
+/// else an owner may do is not in this number, because requirement 5 keeps the acts that need the
+/// Turso authority out of the table altogether.
+pub const OWNER_PERMISSIONS: i64 = 0b111_1111;
 
 /// The strength floor, checked on the machine. There is no server to slow a guess down, so the
 /// password is the whole defence, and the floor is length because length is what an attacker

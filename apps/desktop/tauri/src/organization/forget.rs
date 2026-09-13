@@ -17,13 +17,20 @@
 //!
 //! **The old shape, and why it is forgotten rather than migrated.** Nothing was published, so a
 //! machine holding what 819 built holds test data of its own, and the human decided on 2026-09-13
-//! to start over rather than carry it. Three signs, any one of which is the old shape: the record
+//! to start over rather than carry it. Four signs, any one of which is the old shape: the record
 //! still carries a non-empty `organizations` list, which is what a machine that had joined
 //! several kept; the held organization's replica file is missing, which is a record with nothing
-//! behind it; or that replica's `member` table has no `username_sealed` column, which is the
-//! schema before ticket 09. The third is a local `PRAGMA table_info`, read before any pull, so an
+//! behind it; that replica's `member` table has no `username_sealed` column, which is the
+//! schema before ticket 09; or its `invitation` table has no `sealed_secret` column, which is
+//! every replica written before effort 826 changed what bits 4 and 5 of `member.permissions`
+//! mean. The last two are a local `PRAGMA table_info`, read before any pull, so an
 //! unreachable remote does not stop the check. It runs on the first `organization_state_get` of a
 //! launch, before anything else opens the replica.
+//!
+//! **The fourth sign is what makes the permission table safe to renumber.** A row written under
+//! the six-act table stores a number whose bits 4 and 5 now name other acts, and no read can tell
+//! the two apart. Forgetting the replica is what stops one being read as the other, so the sign
+//! and the renumbering land together (requirement 19 of effort 826).
 
 use std::{
     fmt,
@@ -46,6 +53,10 @@ pub enum OldShape {
     /// the held organization's `invitation` table still carries `sealed_payload`, the half ticket
     /// 11 dropped; a replica built between tickets 10 and 11 has usernames and this column both.
     InvitationWithSealedHalf,
+    /// the held organization's `invitation` table carries no `sealed_secret`, the column effort
+    /// 826 added; this is every organization written while `member.permissions` still meant the
+    /// six-act table, whose bits 4 and 5 now name other acts.
+    InvitationWithoutSealedSecret,
 }
 
 impl fmt::Display for OldShape {
@@ -65,6 +76,8 @@ impl fmt::Display for OldShape {
             ),
             Self::InvitationWithSealedHalf => formatter
                 .write_str("the held organization's invitation table still carries sealed_payload"),
+            Self::InvitationWithoutSealedSecret => formatter
+                .write_str("the held organization's invitation table carries no sealed_secret"),
         }
     }
 }
@@ -76,6 +89,10 @@ const USERNAME_COLUMN: &str = "username_sealed";
 /// The column an invitation carried until ticket 11, whose presence marks a replica this build
 /// cannot invite on.
 const SEALED_PAYLOAD_COLUMN: &str = "sealed_payload";
+
+/// The column an invitation has carried since effort 826, whose absence marks a replica whose
+/// stored permissions were written under the six-act table.
+const SEALED_SECRET_COLUMN: &str = "sealed_secret";
 
 /// Forget the organization this machine holds, whole.
 ///
@@ -199,6 +216,13 @@ async fn old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
         .any(|column| column == SEALED_PAYLOAD_COLUMN)
     {
         return Ok(Some(OldShape::InvitationWithSealedHalf));
+    }
+
+    if !invitation_columns
+        .iter()
+        .any(|column| column == SEALED_SECRET_COLUMN)
+    {
+        return Ok(Some(OldShape::InvitationWithoutSealedSecret));
     }
 
     Ok(None)
@@ -568,9 +592,12 @@ mod tests {
         assert_eq!(forget_old_shape(&app_state).await.expect("the check"), None);
     }
 
-    /// Criterion 17, the old schema: a held organization whose replica's `member` table carries
-    /// no `username_sealed` is forgotten at startup, before anything reads it; one whose replica
-    /// is not on disk at all is forgotten the same way; and one of this build's shape is kept.
+    /// Criterion 17, the old schema, and criterion 19 of effort 826: a held organization whose
+    /// replica's `member` table carries no `username_sealed` is forgotten at startup, before
+    /// anything reads it; one whose `invitation` table still carries `sealed_payload` is
+    /// forgotten; one written under the six-act permission table, whose `invitation` table carries
+    /// no `sealed_secret`, is forgotten; one whose replica is not on disk at all is forgotten the
+    /// same way; and one of this build's shape is kept.
     #[tokio::test]
     async fn a_replica_of_the_old_schema_or_none_at_all_is_forgotten_at_startup() {
         let _turn = crate::keyring::take_the_credential_store().await;
@@ -658,6 +685,54 @@ mod tests {
             Some(OldShape::InvitationWithSealedHalf)
         );
         assert_eq!(replica_files(&directory), Vec::<String>::new());
+
+        // requirement 19 of effort 826: the six-act shape. Usernames, no sealed half, and an
+        // invitation table with no `sealed_secret`, which is what every organization written
+        // before the permission table was renumbered looks like. Its `member.permissions` values
+        // were written when bits 4 and 5 meant deleting a workspace and transferring ownership,
+        // and nothing can tell them from the acts those bits name now, so the whole machine is
+        // forgotten rather than read.
+        let directory = scratch("six-acts");
+        let replica = OrganizationStore::replica_path(&directory.join(Database::FILENAME), "six");
+        let store = OrganizationStore::open(&replica, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the replica");
+
+        for statement in [
+            "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS \"invitation\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"member_id\" TEXT NOT NULL, \"expires_at\" INTEGER NOT NULL, \"consumed_at\" INTEGER, \"certificate_id\" TEXT NOT NULL, \"signature\" BLOB NOT NULL, \"created_at\" INTEGER NOT NULL)",
+            "INSERT INTO \"member\" VALUES ('member-owner', X'00', 63)",
+        ] {
+            store
+                .connection()
+                .execute(statement, ())
+                .await
+                .expect("the six-act tables");
+        }
+
+        drop(store);
+        std::fs::write(directory.join(RemoteSync::FILENAME), record("six")).expect("the record");
+
+        let app_state = state_over(&directory).await;
+
+        assert_eq!(
+            forget_old_shape(&app_state)
+                .await
+                .expect("the check failed"),
+            Some(OldShape::InvitationWithoutSealedSecret)
+        );
+        assert_eq!(replica_files(&directory), Vec::<String>::new());
+        assert!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .store_mut()
+                .organization
+                .is_none()
+        );
 
         // no replica at all behind the record.
         let directory = scratch("missing");

@@ -195,9 +195,9 @@ async function permittedApi(host: Host, ...acts: Administration[]) {
 }
 
 // requirement 23: a rename is held to requirement 21's rules before the host is reached, and what
-// reaches the host is the trimmed username; a caller without `inviteMember` is refused before
+// reaches the host is the trimmed username; a caller without `renameMember` is refused before
 // either. Whether the username is taken is Rust's alone.
-test('a rename hands the trimmed username on, refuses one outside the rules first, and needs the inviting act', async () => {
+test('a rename hands the trimmed username on, refuses one outside the rules first, and needs the renaming act', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
 		organization: {
@@ -220,7 +220,7 @@ test('a rename hands the trimmed username on, refuses one outside the rules firs
 			}
 		}
 	});
-	const api = await permittedApi(host, 'inviteMember');
+	const api = await permittedApi(host, 'renameMember');
 
 	const renamed = await api.app.organization.member.rename({
 		memberId: 'member-2',

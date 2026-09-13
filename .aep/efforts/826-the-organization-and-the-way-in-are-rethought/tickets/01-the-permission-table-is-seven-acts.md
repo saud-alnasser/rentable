@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # refactor(organization): the permission table is seven acts
@@ -19,34 +19,34 @@ Traces requirement 4, requirement 5, requirement 6 (the role masks) and requirem
 [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]], and its criterion 4,
 criterion 5 (the Rust half) and criterion 19 (the Rust half).
 
-- [ ] `packages/workspace-permission/index.ts` exports `ADMINISTRATION` as `inviteMember 0`,
+- [x] `packages/workspace-permission/index.ts` exports `ADMINISTRATION` as `inviteMember 0`,
       `removeMember 1`, `changeRole 2`, `renameWorkspace 3`, `resetPassword 4`, `renameMember 5`,
       `grantWorkspace 6` and nothing else; `ADMINISTRATION_BY_ROLE` reads `owner:
       maskOf(...EVERY_ADMINISTRATION)`, `administrator: maskOf(...EVERY_ADMINISTRATION)`,
       `member: 0`; `tests/permission.test.ts` is rewritten for the seven and passes; `grep -r
       transferOwnership` over `packages/` and `apps/desktop/src` finds nothing.
-- [ ] `organization/permission.rs` mirrors it: the enum, `ALL`, `name`, `mask_of_role`, the
+- [x] `organization/permission.rs` mirrors it: the enum, `ALL`, `name`, `mask_of_role`, the
       three literal lines the text-reading test pins, `mask_of_role(OWNER) == 0b111_1111`;
       `setup::OWNER_PERMISSIONS` is `0b111_1111`; the package-reading tests pass.
-- [ ] `workspace::grant_workspace` requires `GrantWorkspace`; `invite::rename_member` requires
+- [x] `workspace::grant_workspace` requires `GrantWorkspace`; `invite::rename_member` requires
       `RenameMember`; `invite::reissue_invitation` requires `ResetPassword`;
       `invite::revoke_invitation` and `invite_member` keep `InviteMember`; `removal` keeps
       `RemoveMember`; `rename_workspace` keeps `RenameWorkspace`. Every `require_owner` call is
       unchanged, and one test each in `workspace.rs` and `removal.rs` calls create, delete,
       renew and lock-out with an administrator holding all seven bits and is refused with the
       sentence naming the owner.
-- [ ] The `invitation` table carries `sealed_secret BLOB NOT NULL` and `issued_by TEXT NOT
+- [x] The `invitation` table carries `sealed_secret BLOB NOT NULL` and `issued_by TEXT NOT
       NULL`, `InvitationRecord` carries both, neither is under the invitation signature, `issue`
       writes the generated password sealed to the issuer's public key and the issuer's id, and
       the seven-tables test in `store.rs` pins the columns.
-- [ ] `forget::OldShape` gains a variant for an `invitation` table without `sealed_secret`;
+- [x] `forget::OldShape` gains a variant for an `invitation` table without `sealed_secret`;
       `old_shape` reads it after the username check; the startup test in `forget.rs` builds a
       replica of the six-act shape and asserts it is forgotten.
-- [ ] `organization/router.ts` gates `workspace.grant` on `grantWorkspace`, `member.rename` on
+- [x] `organization/router.ts` gates `workspace.grant` on `grantWorkspace`, `member.rename` on
       `renameMember`, `invitation.reissue` on `resetPassword`, and `workspace.remove` on
       `procedure.member`; `organization/tests/administration.test.ts` and
       `sync/tests/router.test.ts` name the seven acts.
-- [ ] `pnpm check`, `pnpm lint`, `pnpm test` and `cargo test` pass.
+- [x] `pnpm check`, `pnpm lint`, `pnpm test` and `cargo test` pass.
 
 ## Relevant areas
 

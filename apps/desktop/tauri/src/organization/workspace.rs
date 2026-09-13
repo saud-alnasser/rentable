@@ -247,6 +247,11 @@ async fn finish_workspace<P: TursoPlatform>(
 /// authority, so `platform` is `Some` on the owner's machine and `None` anywhere else, and a
 /// read-only grant from anywhere else is refused for want of authority rather than for want of a
 /// button.
+///
+/// The act is [`Administration::GrantWorkspace`], which requirement 4 of effort 826 separated from
+/// inviting: giving somebody a workspace they can already sign in to is a different thing from
+/// making the account, and an organization may want an administrator who does one and not the
+/// other.
 pub async fn grant_workspace<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -256,7 +261,7 @@ pub async fn grant_workspace<P: TursoPlatform>(
     access: AccessLevel,
 ) -> Result<(), Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::InviteMember)?;
+    permission::require(session.permissions, Administration::GrantWorkspace)?;
 
     let (key, certificate) = signer_of(store, session).await?;
     let members = store.members(&session.verifying_key).await?;
@@ -788,6 +793,60 @@ mod tests {
         }
     }
 
+    /// An administrator of this organization, carrying every one of the seven grantable acts, and
+    /// the record their machine would hold. Written directly rather than invited, because what is
+    /// under test is the owner check and an invitation would only reach it the long way round.
+    async fn an_administrator(
+        store: &OrganizationStore,
+        owner: &MemberSession,
+    ) -> HeldOrganization {
+        let (key, certificate) = super::signer_of(store, owner).await.expect("the signer");
+        let vault = create_vault(OTHER_PASSWORD, test_cost()).expect("a vault");
+
+        store
+            .write_member(
+                &Signer {
+                    key: &key,
+                    certificate: &certificate,
+                },
+                &MemberRecord {
+                    id: "member-admin".to_string(),
+                    username_sealed: seal_content(
+                        &owner.content_key,
+                        "member.username_sealed",
+                        b"ada.admin",
+                    )
+                    .expect("sealed"),
+                    sealed_content_key: seal_to_public_key(
+                        &vault.public_key,
+                        &owner.content_key.to_bytes(),
+                    )
+                    .expect("sealed"),
+                    vault,
+                    role: permission::ADMINISTRATOR.to_string(),
+                    permissions: permission::mask_of_role(permission::ADMINISTRATOR),
+                    must_change_password: false,
+                    created_at: 1_757_000_000_000,
+                    updated_at: 1_757_000_000_000,
+                },
+            )
+            .await
+            .expect("the administrator");
+
+        HeldOrganization {
+            id: owner.organization_id.clone(),
+            name: "Acme".to_string(),
+            verifying_key: base64::Engine::encode(
+                &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+                owner.verifying_key,
+            ),
+            remote_url: String::new(),
+            member_id: Some("member-admin".to_string()),
+            role: Some(permission::ADMINISTRATOR.to_string()),
+            joined_at: 1_757_000_000_002,
+        }
+    }
+
     #[tokio::test]
     async fn an_owner_creates_a_workspace_migrated_recorded_signed_and_granted() {
         let directory = scratch("create");
@@ -973,6 +1032,96 @@ mod tests {
             "{refusal:?}"
         );
         assert!(platform.deleted().is_empty(), "a database was deleted");
+    }
+
+    /// Requirement 5 of effort 826, and criterion 5: the acts that need the Turso authority are
+    /// the owner's and cannot be granted. An administrator carrying **every** one of the seven
+    /// grantable acts is still refused a create, a delete and a renewal, each with the sentence
+    /// naming the owner, and nothing reaches the account.
+    ///
+    /// **The permissions are asserted first**, so that a refusal is read as the owner check
+    /// answering rather than as a bit the administrator happened not to hold.
+    #[tokio::test]
+    async fn an_administrator_holding_all_seven_acts_is_refused_the_acts_that_need_the_authority() {
+        let directory = scratch("authority");
+        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let joined = an_administrator(&store, &owner).await;
+        let mut administrator = sign_in(&store, &joined, OTHER_PASSWORD, &slot())
+            .await
+            .expect("the administrator did not sign in");
+        let pipeline = applying_pipeline().await;
+
+        assert_eq!(
+            administrator.permissions, 0b111_1111,
+            "the administrator does not carry all seven acts"
+        );
+        for act in permission::Administration::ALL {
+            assert!(
+                permission::permits(administrator.permissions, act),
+                "{}",
+                act.name()
+            );
+        }
+
+        let existing = create_workspace(
+            &store,
+            &mut owner,
+            &platform,
+            |_| Pipeline::at(&pipeline.url("")),
+            "Ours",
+            1,
+        )
+        .await
+        .expect("the owner's create failed");
+        let databases = platform.databases().len();
+        let minted = platform.minted().len();
+
+        let refusal = create_workspace(
+            &store,
+            &mut administrator,
+            &platform,
+            |_| Pipeline::at(&pipeline.url("")),
+            "Theirs",
+            2,
+        )
+        .await
+        .expect_err("an administrator created a workspace");
+
+        assert!(
+            matches!(refusal, crate::error::Error::Forbidden { .. }),
+            "{refusal:?}"
+        );
+        assert!(refusal.to_string().contains("ask the owner"), "{refusal}");
+
+        let refusal = delete_workspace(&store, &mut administrator, &platform, &existing.id)
+            .await
+            .expect_err("an administrator deleted a workspace");
+
+        assert!(
+            matches!(refusal, crate::error::Error::Forbidden { .. }),
+            "{refusal:?}"
+        );
+        assert!(refusal.to_string().contains("ask the owner"), "{refusal}");
+
+        let refusal = renew_credentials(
+            &store,
+            &mut administrator,
+            &platform,
+            &format!("org-{}", owner.organization_id),
+        )
+        .await
+        .expect_err("an administrator renewed the credentials");
+
+        assert!(
+            matches!(refusal, crate::error::Error::Forbidden { .. }),
+            "{refusal:?}"
+        );
+        assert!(refusal.to_string().contains("ask the owner"), "{refusal}");
+
+        // and none of the three reached the account.
+        assert_eq!(platform.databases().len(), databases, "a database was made");
+        assert!(platform.deleted().is_empty(), "a database was deleted");
+        assert_eq!(platform.minted().len(), minted, "a credential was minted");
     }
 
     /// **The property the asymmetric design exists for.** A member is added to a second workspace
@@ -1171,7 +1320,7 @@ mod tests {
         }
     }
 
-    /// Requirement 12 at the command: a member whose row does not carry `inviteMember` is refused
+    /// Requirement 12 at the command: a member whose row does not carry `grantWorkspace` is refused
     /// a grant however the interface looks.
     #[tokio::test]
     async fn a_member_without_the_act_is_refused_a_grant_by_the_command() {
@@ -1208,7 +1357,7 @@ mod tests {
             matches!(refusal, crate::error::Error::Forbidden { .. }),
             "{refusal:?}"
         );
-        assert!(refusal.to_string().contains("inviteMember"), "{refusal}");
+        assert!(refusal.to_string().contains("grantWorkspace"), "{refusal}");
     }
 
     /// Deletion goes through the one intent the port takes for it, and the rows go with it.

@@ -20,8 +20,15 @@ import {
  * criterion guards against, because the default for an undecided act is whatever bit arithmetic
  * happens to give, and that is a permission bug that looks exactly like a gate working.
  *
- * The Rust side holds the same six acts on the same bits and reads this package's source to
+ * The Rust side holds the same seven acts on the same bits and reads this package's source to
  * prove it (`organization/permission.rs`); this table is the role half of the same guarantee.
+ *
+ * **The owner and the administrator read alike here, and that is requirement 5 of effort 826
+ * rather than a table nobody finished.** What separates them is the acts the table does not hold:
+ * creating and deleting a workspace, minting a read-only credential, locking a member out,
+ * renewing credentials, the Turso account and the organization's own link. Each needs the Turso
+ * authority, which sits on one machine and in no row, so a flag for one would be a promise
+ * granting cannot keep; Rust refuses them by asking who the session is.
  */
 
 const ROLES: Role[] = ['owner', 'administrator', 'member'];
@@ -31,9 +38,10 @@ const DECIDED: Record<Administration, Record<Role, boolean>> = {
 	inviteMember: { owner: true, administrator: true, member: false },
 	removeMember: { owner: true, administrator: true, member: false },
 	changeRole: { owner: true, administrator: true, member: false },
-	renameWorkspace: { owner: true, administrator: false, member: false },
-	deleteWorkspace: { owner: true, administrator: false, member: false },
-	transferOwnership: { owner: true, administrator: false, member: false }
+	renameWorkspace: { owner: true, administrator: true, member: false },
+	resetPassword: { owner: true, administrator: true, member: false },
+	renameMember: { owner: true, administrator: true, member: false },
+	grantWorkspace: { owner: true, administrator: true, member: false }
 };
 
 test('every act in the package has a decision for every role, and the package agrees with it', () => {
@@ -58,11 +66,36 @@ test('every act in the package has a decision for every role, and the package ag
 	}
 });
 
-// the two acts the dashboard draws on: inviting is the administrator's too, and creating or
-// destroying a workspace is the owner's alone, which is why an administrator is told to ask.
-test('an administrator invites, and only an owner deletes a workspace', () => {
+// the seven are exactly requirement 4's, named here so that adding one to the package without
+// deciding what it is for fails on this list rather than on bit arithmetic nobody reads.
+test('the acts are requirement 4 of effort 826, and no others', () => {
+	assert.deepEqual(
+		[...EVERY_ADMINISTRATION].sort(),
+		[
+			'changeRole',
+			'grantWorkspace',
+			'inviteMember',
+			'removeMember',
+			'renameMember',
+			'renameWorkspace',
+			'resetPassword'
+		],
+		'the grantable acts are not the seven requirement 4 names'
+	);
+});
+
+// what the members section draws on: an administrator is given every grantable act, a plain member
+// none, and the acts that need the Turso authority are in neither because they are in no table.
+test('an administrator administers, a member does not, and neither table names an owner-only act', () => {
 	assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'inviteMember'), true);
-	assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'deleteWorkspace'), false);
+	assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'grantWorkspace'), true);
 	assert.equal(permits(ADMINISTRATION_BY_ROLE.member, 'inviteMember'), false);
-	assert.equal(permits(ADMINISTRATION_BY_ROLE.owner, 'deleteWorkspace'), true);
+	assert.equal(permits(ADMINISTRATION_BY_ROLE.member, 'grantWorkspace'), false);
+
+	for (const absent of ['createWorkspace', 'deleteWorkspace', 'mintReadOnly', 'lockOut']) {
+		assert.ok(
+			!(EVERY_ADMINISTRATION as string[]).includes(absent),
+			`${absent} is a flag granting cannot deliver`
+		);
+	}
 });

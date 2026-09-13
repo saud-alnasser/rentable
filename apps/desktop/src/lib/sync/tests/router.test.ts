@@ -142,8 +142,9 @@ test('and so is a member holding every act except that one', async () => {
 				'inviteMember',
 				'removeMember',
 				'changeRole',
-				'deleteWorkspace',
-				'transferOwnership'
+				'resetPassword',
+				'renameMember',
+				'grantWorkspace'
 			)
 		})
 	});

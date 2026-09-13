@@ -964,6 +964,75 @@ mod tests {
         assert!(org.platform.rotated().is_empty());
     }
 
+    /// Requirement 5 of effort 826, and criterion 5: locking a member out is the owner's, and no
+    /// permission grants it. An administrator carrying **every** one of the seven grantable acts is
+    /// refused with the sentence naming the owner, and nothing is rotated.
+    ///
+    /// **The permissions are asserted first**, so that the refusal is read as the owner check
+    /// answering rather than as a bit the administrator happened not to hold. The refusal itself is
+    /// also reached by `the_refusals_come_before_any_write` above, among everything else a removal
+    /// turns away; this is the one that says what it is about.
+    #[tokio::test]
+    async fn an_administrator_holding_all_seven_acts_is_refused_a_lock_out() {
+        let directory = scratch("lock-out-authority");
+        let org = organization(&directory).await;
+        let (member_id, _) = org.member.clone();
+        let mut administrator = sign_in(
+            &org.store,
+            &joined_as(&org.owner, &org.administrator.0, permission::ADMINISTRATOR),
+            &org.administrator.1,
+            &slot(),
+        )
+        .await
+        .expect("the administrator did not sign in");
+        administrator.must_change_password = false;
+
+        assert_eq!(
+            administrator.permissions, 0b111_1111,
+            "the administrator does not carry all seven acts"
+        );
+        for act in permission::Administration::ALL {
+            assert!(
+                permission::permits(administrator.permissions, act),
+                "{}",
+                act.name()
+            );
+        }
+
+        let refusal = remove_member(
+            &org.store,
+            &mut administrator,
+            Some(&org.platform),
+            &org.database,
+            &member_id,
+            true,
+            AT,
+        )
+        .await
+        .expect_err("an administrator locked a member out");
+
+        assert!(
+            matches!(refusal, Error::Forbidden { ref message } if message.contains("only an owner")
+                && message.contains("ask the owner")),
+            "{refusal:?}"
+        );
+        assert!(org.platform.rotated().is_empty(), "a workspace was rotated");
+
+        // the ordinary removal is theirs, which is what makes the refusal above about the
+        // authority rather than about removal.
+        remove_member::<InMemoryPlatform>(
+            &org.store,
+            &mut administrator,
+            None,
+            &org.database,
+            &member_id,
+            false,
+            AT,
+        )
+        .await
+        .expect("an administrator could not remove a member");
+    }
+
     /// Criterion 2, and the ticket's own: **removing an administrator ends their authority.** The
     /// administrator has signed real rows; after an ordinary removal their certificate is revoked,
     /// the rows it signed are re-signed under the remover so nothing legitimate is bricked, and a
