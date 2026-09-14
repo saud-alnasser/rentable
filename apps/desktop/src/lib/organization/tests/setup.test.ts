@@ -11,6 +11,7 @@ import {
 	PASSWORD_FLOOR,
 	SETUP_WALK,
 	fieldsPresented,
+	refusalAfterFailedCreate,
 	statementsBeforeCreation
 } from '$lib/organization/setup.ts';
 import { USERNAME_MAX, USERNAME_MIN, usernameSchema } from '$lib/organization/username-form.ts';
@@ -52,7 +53,12 @@ test('nothing in the walk asks for a slug, a group, a token or a URL', () => {
 test('what the consent covers and what succession costs are said before the organization is created', () => {
 	const statements = statementsBeforeCreation();
 
-	assert.deepEqual(statements, ['groupCoverage', 'accountCreation', 'succession']);
+	assert.deepEqual(statements, [
+		'groupCoverage',
+		'oneOrganization',
+		'accountCreation',
+		'succession'
+	]);
 
 	// and said on a step that asks for nothing, so explaining never becomes asking.
 	const explaining = SETUP_WALK.find((step) => step.statements.includes('groupCoverage'));
@@ -95,8 +101,13 @@ const PARAGRAPHS_REPLACED = [
 	'the organization will live in whichever turso organization holds the group you pick. if that is a personal account, only you can grant rentable authority over it again. a second administrator on a turso organization can do the same, and turso can move a group to another organization from its own dashboard. rentable does neither for you.'
 ];
 
-/** the three statements the connect step draws, in the order a person meets them. */
-const STATEMENT_KEYS = ['groupCoverage', 'accountCreation', 'succession'] as const;
+/** the statements the connect step draws, in the order a person meets them. */
+const STATEMENT_KEYS = [
+	'groupCoverage',
+	'oneOrganization',
+	'accountCreation',
+	'succession'
+] as const;
 
 /** what the Arabic connect step said while it still asked for a group, kept for the guard. */
 const AR_WAS = 'في لوحة تحكم Turso، أنشئ مجموعة فارغة لـ rentable ثم اخترها في شاشة الموافقة.';
@@ -104,12 +115,8 @@ const AR_WAS = 'في لوحة تحكم Turso، أنشئ مجموعة فارغة 
 const words = (sentences: readonly string[]) =>
 	sentences.reduce((count, sentence) => count + sentence.trim().split(/\s+/).length, 0);
 
-test('the three connect items together are shorter than the three paragraphs they replaced', () => {
-	const items = [
-		en.organization.setup.groupCoverage,
-		en.organization.setup.accountCreation,
-		en.organization.setup.succession
-	];
+test('the connect items together are shorter than the three paragraphs they replaced', () => {
+	const items = STATEMENT_KEYS.map((key) => en.organization.setup[key]);
 
 	assert.ok(
 		words(items) < words(PARAGRAPHS_REPLACED),
@@ -153,10 +160,11 @@ test('the succession item names turso as where a group moves, in both locales', 
 });
 
 /**
- * Requirement 13 of the redesign: the three sentences a person reads before the consent, pinned
- * as literals in both locales rather than read out of the locale and compared with themselves.
- * A rewrite of any of the six is then a deliberate edit here as well, which is the point: what
- * this step says is the requirement, and the locale file is only where it is kept.
+ * Requirement 13 of the redesign, and requirement 21 for the fourth: the sentences a person
+ * reads before the consent, pinned as literals in both locales rather than read out of the
+ * locale and compared with themselves. A rewrite of any of them is then a deliberate edit here
+ * as well, which is the point: what this step says is the requirement, and the locale file is
+ * only where it is kept.
  *
  * The one-group fact in `accountCreation` is Turso's own plan limit rather than a preference,
  * and it comes from
@@ -168,6 +176,8 @@ const STATEMENTS = {
 	en: {
 		groupCoverage:
 			'the consent covers every database in the group you choose, and nothing outside it.',
+		oneOrganization:
+			'a group holds one organization. a group that already holds one is refused here, before anything is created.',
 		accountCreation:
 			'a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.',
 		succession:
@@ -175,6 +185,8 @@ const STATEMENTS = {
 	},
 	ar: {
 		groupCoverage: 'تشمل الموافقة كل قاعدة بيانات في المجموعة التي تختارها، ولا شيء خارجها.',
+		oneOrganization:
+			'تحمل المجموعة الواحدة مؤسسة واحدة، لذا تُرفض المجموعة التي تحمل مؤسسة بالفعل قبل أن يُنشأ أي شيء.',
 		accountCreation:
 			'لا يحمل حساب Turso المجاني أو حساب Developer سوى مجموعة واحدة، لذا يبقى تخصيص حساب لـ rentable وحده هو الخيار الأنظف، وشاشة الموافقة تفتح لك حساباً إن لم يكن لديك واحد. أما في الحساب المدفوع فاختر مجموعة فارغة.',
 		succession:
@@ -182,7 +194,7 @@ const STATEMENTS = {
 	}
 } as const;
 
-test('the connect step says these three things, and says them in both locales', () => {
+test('the connect step says these things, and says them in both locales', () => {
 	for (const locale of ['en', 'ar'] as const) {
 		const setup = { en, ar }[locale].organization.setup;
 
@@ -191,10 +203,67 @@ test('the connect step says these three things, and says them in both locales', 
 		}
 	}
 
-	// the connect step draws these three and no fourth, in this order.
+	// the connect step draws these and no others, in this order.
 	assert.deepEqual(SETUP_WALK.find((step) => step.step === 'connect')?.statements, [
 		...STATEMENT_KEYS
 	]);
+});
+
+/**
+ * Requirement 21 of the redesign: **one Turso group holds one organization**, so a first run
+ * whose consent landed on a group that already holds one is refused before anything is created,
+ * and the refusal gives the consent back. The walk has nowhere to go from the name step after
+ * that, since the machine holds no authority to create with, so it returns to the consent
+ * carrying the refusal's own sentence.
+ *
+ * The sentence itself is Rust's and is shown unchanged; the literal below is read back out of
+ * `setup.rs` so the fixture cannot drift away from what the person is actually shown.
+ */
+const GROUP_ALREADY_HOLDS_ONE =
+	'this group already holds the organization database `org-7f3a`; a group holds one organization, so pick another group or another Turso account';
+
+test('the refusal a group already holding an organization gives is the sentence rust formats', async () => {
+	const rust = await readFile(
+		fileURLToPath(new URL('../../../../tauri/src/organization/setup.rs', import.meta.url)),
+		'utf8'
+	);
+	// rust wraps a long literal with a trailing backslash and indents the next line; unwrapping
+	// it is what lets the sentence be compared as the one string it is at runtime.
+	const unwrapped = rust.replace(/\\\n\s*/g, '');
+
+	assert.ok(
+		unwrapped.includes(
+			'a group holds one organization, so pick another group or another Turso account'
+		),
+		'rust no longer formats the sentence this file pins'
+	);
+	assert.ok(
+		unwrapped.includes('this group already holds the organization database `{held}`'),
+		'rust no longer names the database that is in the way'
+	);
+});
+
+test('a create refused after the consent was given back sends the walk to the connect step', () => {
+	const refused = { code: 'preconditionFailed', message: GROUP_ALREADY_HOLDS_ONE };
+
+	// the authority is gone, because rust gave it back: the walk goes to the consent and says
+	// why it is there.
+	assert.deepEqual(refusalAfterFailedCreate(refused, false), {
+		step: 'connect',
+		message: GROUP_ALREADY_HOLDS_ONE
+	});
+
+	// and the step it lands on is the one that offers the consent, which is where the person
+	// picks another group or another account.
+	assert.deepEqual(SETUP_WALK[0]?.step, 'connect');
+	assert.deepEqual(SETUP_WALK[0]?.fields, []);
+});
+
+test('an ordinary failed create leaves the walk where it is', () => {
+	// the machine still holds the authority, so nothing was given back and the shared handler
+	// has already said what went wrong; the name step keeps what was typed.
+	assert.equal(refusalAfterFailedCreate(new Error('turso could not be reached'), true), null);
+	assert.equal(refusalAfterFailedCreate({ code: 'network', message: 'no route' }, true), null);
 });
 
 /**

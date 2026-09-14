@@ -74,6 +74,12 @@ pub const LINK_CREDENTIAL_LIFETIME: &str = "never";
 
 pub const OWNER_ROLE: &str = "owner";
 
+/// What an organization's own database is called on the Turso account: this, and the
+/// organization's id. It is the whole of what marks a listed database as one of ours, which is
+/// what [`one_organization_to_a_group`] reads, and why it is a constant rather than spelled
+/// into the `format!` below and again into a refusal that has to recognise it.
+pub const ORGANIZATION_DATABASE_PREFIX: &str = "org-";
+
 /// Every grantable act, as `packages/workspace-permission` masks them: seven flags, seven bits.
 /// The package is the vocabulary and this is its value for the role that holds all of it. What
 /// else an owner may do is not in this number, because requirement 5 keeps the acts that need the
@@ -196,12 +202,25 @@ where
     }
 
     let organization_id = random_id()?;
-    let database_name = format!("org-{organization_id}");
+    let database_name = format!("{ORGANIZATION_DATABASE_PREFIX}{organization_id}");
 
     // the database, and the slug it is created under or read from.
     let (organization, hostname) = match discovery::organization(store, platform_token, mcp).await?
     {
-        Some(organization) => {
+        Some(group) => {
+            // **before the create, so a refusal leaves the account exactly as it was.** Where
+            // the group was answered out of this machine's own store there is no listing to
+            // read, and none is needed: the only way a slug got there is a run that reached
+            // this check and passed it.
+            if let Some(databases) = group.databases.as_deref() {
+                if let Err(refusal) = one_organization_to_a_group(databases) {
+                    abandon_the_consent(store);
+
+                    return Err(refusal);
+                }
+            }
+
+            let organization = group.organization;
             let database = platform_for(organization.clone())
                 .create_database(&database_name)
                 .await?;
@@ -432,6 +451,62 @@ async fn finish<P: TursoPlatform>(
     ))
 }
 
+/// Refuse a group that already holds an organization, naming the database that is in the way.
+///
+/// **A group holds one organization** (requirement 21 of effort 826). The consent is granted
+/// over one group and the organization lives in it, so a second organization in the same group
+/// would put two sets of records behind one grant, and the owner ruled that out. The person
+/// picks another group, or another Turso account, and the sentence says so.
+///
+/// **Only a name this application would have written counts.** A Free or Developer account has
+/// exactly one group and it holds whatever else the person keeps on that account, so refusing
+/// on any database at all would refuse the accounts most first runs arrive on. The mark is the
+/// name [`create_organization`] gives an organization's database and nothing else.
+fn one_organization_to_a_group(databases: &[String]) -> Result<(), Error> {
+    let held = databases.iter().find(|name| {
+        name.strip_prefix(ORGANIZATION_DATABASE_PREFIX)
+            .is_some_and(|id| !id.is_empty())
+    });
+
+    match held {
+        // the name is the customer's own and is said back to them, because it is what they look
+        // for in Turso's dashboard to decide whether to delete it or pick elsewhere.
+        Some(held) => Err(Error::PreconditionFailed {
+            message: format!(
+                "this group already holds the organization database `{held}`; a group holds \
+                 one organization, so pick another group or another Turso account"
+            ),
+        }),
+        None => Ok(()),
+    }
+}
+
+/// Give the consent back, so the person can grant another one over another group or account.
+///
+/// **The token and the slug go together.** The slug is a fact about the consent that is being
+/// abandoned, and a machine that kept it would build every Platform API path of the next
+/// consent out of the account this one was over. The next run looks the slug up again, which is
+/// what [`discovery::organization`] does when the store answers nothing.
+///
+/// Best effort in both halves: what the person reads is the refusal that brought them here, and
+/// a credential store that would not empty goes to the diagnostics log rather than taking the
+/// refusal's place on the screen.
+fn abandon_the_consent(store: &mut Persisted<RemoteSyncStore>) {
+    if let Err(error) = crate::sync::turso::consent::forget_platform_token() {
+        diagnostics::error("organization.setup.consentNotForgotten")
+            .with("error", error.to_string())
+            .write();
+    }
+
+    store.turso_organization = None;
+
+    if let Err(error) = store.commit() {
+        diagnostics::error("organization.setup.consentNotForgotten")
+            .with("error", error.to_string())
+            .write();
+    }
+}
+
 /// Undo a first run that did not finish: the database this process created, and the replica
 /// file. Best effort, and what could not be removed is written to the diagnostics log rather than
 /// hidden behind the error the person is about to read.
@@ -531,6 +606,8 @@ mod tests {
         SHIPPING_KDF, create_organization, credential_expiry,
     };
     use crate::{
+        error::Error,
+        keyring::take_the_credential_store,
         organization::{
             authority::{AdministratorKey, OrganizationKey},
             invite::USERNAME_RULES,
@@ -545,6 +622,7 @@ mod tests {
             RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
             turso::{
+                consent::{platform_token, store_platform_token},
                 discovery::McpEndpoint,
                 platform::{AccessLevel, DeletionIntent, InMemoryPlatform, PlatformError},
             },
@@ -615,6 +693,150 @@ mod tests {
 
     fn store(directory: &std::path::Path) -> Persisted<RemoteSyncStore> {
         Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json")).expect("the store")
+    }
+
+    /// **Requirement 21 of effort 826.** The consent landed on a group that already holds an
+    /// organization, so the run is refused before it creates anything, the refusal names the
+    /// database that is in the way, and the consent is given back so the person can grant
+    /// another over another group or another Turso account.
+    #[tokio::test]
+    async fn a_group_already_holding_an_organization_refuses_the_run_and_gives_the_consent_back() {
+        // taken once, at the top: the refusal reads and empties the same credential store the
+        // fake keeps for the whole process.
+        let _turn = take_the_credential_store().await;
+
+        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+
+        let directory = scratch("one-organization");
+        let mut store = store(&directory);
+        let mcp = ScriptedServer::start(vec![
+            handshake(),
+            listing(json!([
+                {
+                    "Name": "ledger",
+                    "hostname": "ledger-an-org.aws-eu-west-1.turso.io",
+                    "group": "rentable"
+                },
+                {
+                    "Name": "org-7f3a",
+                    "hostname": "org-7f3a-an-org.aws-eu-west-1.turso.io",
+                    "group": "rentable"
+                }
+            ])),
+        ])
+        .await;
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+
+        let refusal = create_organization(
+            &mut store,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name: "Acme Rentals",
+                username: "olivia.owner",
+                password: PASSWORD,
+            },
+            test_cost(),
+            1_757_000_000_000,
+        )
+        .await
+        .expect_err("a group already holding an organization was built into again");
+
+        assert!(
+            matches!(refusal, Error::PreconditionFailed { .. }),
+            "{refusal:?}"
+        );
+        assert_eq!(
+            refusal.to_string(),
+            "this group already holds the organization database `org-7f3a`; a group holds \
+             one organization, so pick another group or another Turso account"
+        );
+
+        // nothing was created: no database, no credential, and nothing deleted either, because
+        // there was never anything to undo.
+        assert!(
+            platform.databases().is_empty(),
+            "a database was created on a group that was about to be refused"
+        );
+        assert!(platform.minted().is_empty(), "a credential was minted");
+        assert!(platform.deleted().is_empty(), "something was cleaned up");
+        assert!(store.organization.is_none());
+
+        // and the consent is abandoned: the token is gone from the credential store, and so is
+        // the slug it was read under, so the next consent is looked up rather than assumed.
+        assert!(
+            platform_token().is_err(),
+            "the refused consent left its authority on this machine"
+        );
+        assert_eq!(store.turso_organization, None);
+    }
+
+    /// The other half of the same rule: a group holding databases of the person's own is the
+    /// ordinary Free or Developer account, and it is not a refusal. Only the name this
+    /// application writes counts, so a name that merely carries the word does not.
+    #[tokio::test]
+    async fn a_group_holding_unrelated_databases_is_not_a_refusal() {
+        let _turn = take_the_credential_store().await;
+
+        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+
+        let directory = scratch("unrelated-databases");
+        let mut store = store(&directory);
+        let mcp = ScriptedServer::start(vec![
+            handshake(),
+            listing(json!([
+                {
+                    "Name": "ledger",
+                    "hostname": "ledger-an-org.aws-eu-west-1.turso.io",
+                    "group": "rentable"
+                },
+                {
+                    "Name": "my-org",
+                    "hostname": "my-org-an-org.aws-eu-west-1.turso.io",
+                    "group": "rentable"
+                },
+                {
+                    "Name": "org-7f3a",
+                    "hostname": "org-7f3a-an-org.aws-eu-west-1.turso.io",
+                    "group": "somebody-elses-group"
+                }
+            ])),
+        ])
+        .await;
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+
+        let (created, _organization) = create_organization(
+            &mut store,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name: "Acme Rentals",
+                username: "olivia.owner",
+                password: PASSWORD,
+            },
+            test_cost(),
+            1_757_000_000_000,
+        )
+        .await
+        .expect("a group holding the person's own databases was refused");
+
+        assert_eq!(
+            platform.databases().len(),
+            1,
+            "the organization's database was not created"
+        );
+        assert_eq!(
+            platform.databases()[0].name,
+            format!("org-{}", created.organization_id)
+        );
+        // and the authority the run spent is still this machine's, because nothing was refused.
+        assert!(platform_token().is_ok());
     }
 
     /// A first run against a group that already holds a database: the common shape of every

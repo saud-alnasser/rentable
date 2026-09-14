@@ -11,7 +11,12 @@
 		useDisconnect,
 		useFetchOrganizationState
 	} from '$lib/organization/query';
-	import { SETUP_STEPS, TURSO_DASHBOARD_URL, type SetupStep } from '$lib/organization/setup';
+	import {
+		SETUP_STEPS,
+		TURSO_DASHBOARD_URL,
+		refusalAfterFailedCreate,
+		type SetupStep
+	} from '$lib/organization/setup';
 	import { THE_WAY_IN } from '$lib/layout/shell-surface';
 	import { useStartup } from '$lib/layout/startup-context';
 
@@ -27,6 +32,13 @@
 	 * holds Turso authority, because a person connected, went back to the wall and came here again,
 	 * opens the walk at `connect` already granted rather than asking for a consent it has.
 	 *
+	 * **A create the group refuses sends the walk back to the consent.** One group holds one
+	 * organization, so a group that already holds one is refused before anything is created and
+	 * the authority is given back (requirement 21). This reads where the machine stands again
+	 * after every failed create, and a machine that no longer holds the authority is one whose
+	 * consent was abandoned: the walk returns to the first step carrying the refusal's own
+	 * sentence, and the next consent can be granted over another group or another account.
+	 *
 	 * **The walk ends inside the workspace.** Creating it on the third step is the workspace
 	 * mutation, then the way in and the startup unit reading where the machine stands again, in
 	 * that order: the shell signed the owner in as it created the organization, so the startup unit
@@ -38,6 +50,7 @@
 
 	let step = $state<SetupStep>('connect');
 	let sessionId = $state<string | null>(null);
+	let refusal = $state<string | null>(null);
 
 	const stateQuery = useFetchOrganizationState();
 
@@ -72,6 +85,8 @@
 		try {
 			const started = await beginConsent.mutateAsync();
 
+			// whatever refused the last one is answered by starting another, which is what this is.
+			refusal = null;
 			sessionId = started.sessionId;
 			await tauri.opener.openUrl(started.authorizationUrl);
 		} catch {
@@ -92,9 +107,21 @@
 		try {
 			await createOrganization.mutateAsync({ name, username, password });
 			step = 'workspace';
-		} catch {
+		} catch (error) {
 			// the refusal a person can act on has been shown verbatim; the form keeps what they
-			// typed, because the failures that reach here are the ones a person retries.
+			// typed, because most of the failures that reach here are the ones a person retries.
+			// The one that is not is a group already holding an organization, which gave the
+			// authority back, so where the machine stands is read again and decides.
+			const state = await stateQuery.refetch();
+			const back = refusalAfterFailedCreate(error, state.data?.holdsTursoAuthority ?? false);
+
+			if (!back) return;
+
+			// the consent this walk polled is gone with the authority, so nothing is left to
+			// report its old status from.
+			sessionId = null;
+			refusal = back.message;
+			step = back.step;
 		}
 	};
 
@@ -143,6 +170,7 @@
 <OrganizationSetupWalk
 	{step}
 	{consent}
+	{refusal}
 	holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority ?? false}
 	isConnecting={beginConsent.isPending}
 	isCreating={createOrganization.isPending || createWorkspace.isPending}

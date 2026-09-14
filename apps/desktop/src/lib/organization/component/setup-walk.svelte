@@ -8,6 +8,7 @@
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
+	import BanIcon from '@lucide/svelte/icons/ban';
 	import BuildingIcon from '@lucide/svelte/icons/building';
 	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
@@ -55,8 +56,8 @@
 	 * press of create would make a second organization. It is the no-workspace surface's twin,
 	 * which has no back either.
 	 *
-	 * **The connect step is a list, not three paragraphs.** The three facts a person has to know
-	 * before pressing anything, and none of them asks for a group to be made, are bullets with a
+	 * **The connect step is a list, not paragraphs.** The facts a person has to know before
+	 * pressing anything, and none of them asks for a group to be made, are bullets with a
 	 * glyph each, the way *Supercharge the defaults* (Refactoring UI p.220) lifts a plain list: a
 	 * glyph specific to the fact rather than a generic mark, and the action that helps with the
 	 * first fact sits inside that fact rather than at the foot of the screen. The glyphs are muted so they do not outweigh the sentence beside them
@@ -79,6 +80,7 @@
 	let {
 		step,
 		consent,
+		refusal,
 		holdsTursoAuthority,
 		isConnecting,
 		isCreating,
@@ -96,6 +98,13 @@
 			status: 'idle' | 'pending' | 'granted' | 'failed' | 'abandoned';
 			error: string | null;
 		};
+		/**
+		 * what refused the run, where something did and the way on is another consent: the
+		 * group the last one landed on already holds an organization, so Rust created nothing
+		 * and gave the authority back (requirement 21). Shown on the connect step above the
+		 * button that starts the next consent.
+		 */
+		refusal: string | null;
 		/** whether the machine already holds the authority a consent would grant. */
 		holdsTursoAuthority: boolean;
 		/** the consent is being opened. */
@@ -143,19 +152,24 @@
 
 	/**
 	 * Each fact with its own glyph, in the order the person needs them: how far the consent
-	 * reaches, which account to grant it on, and where the organization will live afterwards. The
+	 * reaches, what one group may hold, which account to grant it on, and where the organization
+	 * will live afterwards. The
 	 * glyph is specific to the fact rather than a checkmark, which is the book's own
 	 * recommendation on p.220.
 	 */
 	const statementText = (statement: SetupStatement) =>
 		({
 			groupCoverage: $LL.organization.setup.groupCoverage(),
+			oneOrganization: $LL.organization.setup.oneOrganization(),
 			accountCreation: $LL.organization.setup.accountCreation(),
 			succession: $LL.organization.setup.succession()
 		})[statement];
 
 	const statementGlyph: Record<SetupStatement, typeof BuildingIcon> = {
 		groupCoverage: DatabaseIcon,
+		// the fact is a refusal, so the glyph is one, rather than a second building beside the
+		// one succession carries.
+		oneOrganization: BanIcon,
 		accountCreation: UserPlusIcon,
 		succession: BuildingIcon
 	};
@@ -171,12 +185,18 @@
 
 	/**
 	 * What the consent step has to say beyond the facts, and only where something happened:
-	 * a granted consent is confirmed, an abandoned or refused one is said, and a pending one names
-	 * the browser window. Nothing is shown before the person has pressed anything, unless the
+	 * a create the group refused is said first, a granted consent is confirmed, an abandoned or
+	 * refused consent is said, and a pending one names the browser window. Nothing is shown before the person has pressed anything, unless the
 	 * machine already held the authority, in which case the confirmation is what it opens with.
 	 */
 	const consentNotice = $derived.by(
 		(): { tone: 'success' | 'warning' | 'error'; message: string } | null => {
+			// a refusal outranks everything else the step could say: it is why the person is
+			// back here, and the consent it speaks of is already gone.
+			if (refusal) {
+				return { tone: 'error', message: refusal };
+			}
+
 			if (granted) {
 				return { tone: 'success', message: $LL.organization.setup.connected() };
 			}

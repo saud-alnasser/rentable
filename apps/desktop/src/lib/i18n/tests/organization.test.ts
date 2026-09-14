@@ -96,3 +96,15 @@ test('both locales say the link is handed over by hand, and neither mentions a p
 	assert.match(en.organization.dashboard.inviteDescription, /username/);
 	assert.match(ar.organization.dashboard.inviteDescription, /اسم المستخدم/);
 });
+
+// effort 826, requirement 21: one Turso group holds one organization, and the connect step says
+// so before the consent rather than leaving it to the refusal. Written in each language rather
+// than translated word for word, and each says the rule and what happens to a group that
+// already holds one.
+test('both locales say a group holds one organization, and what that means for one that does', () => {
+	assert.match(en.organization.setup.oneOrganization, /a group holds one organization/);
+	assert.match(en.organization.setup.oneOrganization, /already holds one is refused/);
+	assert.match(ar.organization.setup.oneOrganization, /مؤسسة واحدة/);
+	assert.match(ar.organization.setup.oneOrganization, /تُرفض/);
+	assert.notEqual(ar.organization.setup.oneOrganization, en.organization.setup.oneOrganization);
+});

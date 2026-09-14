@@ -51,6 +51,7 @@ const walk = (
 		{
 			step,
 			consent: { status: 'idle', error: null },
+			refusal: null,
 			holdsTursoAuthority: false,
 			isConnecting: false,
 			isCreating: false,
@@ -136,15 +137,17 @@ test('the connect step asks for nothing and says what has to be known first', ()
 
 	expect(inputsOnScreen()).toEqual([]);
 	expect(screen.getByText(en.organization.setup.groupCoverage, { exact: false })).toBeDefined();
+	expect(screen.getByText(en.organization.setup.oneOrganization)).toBeDefined();
 	expect(screen.getByText(en.organization.setup.accountCreation)).toBeDefined();
 	expect(screen.getByText(en.organization.setup.succession)).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.connect })).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.openDashboard })).toBeDefined();
 });
 
-// effort 824, requirement 5: three facts as a list, a glyph to each, the dashboard action inside
-// the first, and no paragraph left outside the list (*Supercharge the defaults*, p.220).
-test('the connect step is a list of three glyphed facts with the dashboard action in the first', () => {
+// effort 824, requirement 5: the facts as a list, a glyph to each, the dashboard action inside
+// the first, and no paragraph left outside the list (*Supercharge the defaults*, p.220). The
+// fourth fact is effort 826's requirement 21: one group holds one organization.
+test('the connect step is a list of glyphed facts with the dashboard action in the first', () => {
 	loadLocale('en');
 	setLocale('en');
 
@@ -152,9 +155,10 @@ test('the connect step is a list of three glyphed facts with the dashboard actio
 	const body = document.querySelector('[data-setup-step="connect"]')!;
 	const items = Array.from(body.querySelectorAll('ul > li'));
 
-	expect(items).toHaveLength(3);
+	expect(items).toHaveLength(4);
 	expect(items.map((item) => item.getAttribute('data-setup-statement'))).toEqual([
 		'groupCoverage',
+		'oneOrganization',
 		'accountCreation',
 		'succession'
 	]);
@@ -176,6 +180,25 @@ test('the connect step is a list of three glyphed facts with the dashboard actio
 	expect(document.querySelector('[data-setup-step="connect"]')!.querySelectorAll('p')).toHaveLength(
 		0
 	);
+});
+
+// effort 826, requirement 21: a run refused because the group already holds an organization
+// comes back here saying so, with the consent on offer again rather than the way on: the
+// authority the refusal gave back is gone, so there is nothing to continue with.
+test('a refused run says so on the connect step and offers the consent again', () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const refusal =
+		'this group already holds the organization database `org-7f3a`; a group holds one organization, so pick another group or another Turso account';
+
+	walk('connect', { refusal });
+
+	expect(screen.getByText(refusal)).toBeDefined();
+	expect(screen.getByRole('button', { name: en.organization.setup.connect })).toBeDefined();
+	expect(screen.queryByRole('button', { name: en.organization.setup.continue })).toBeNull();
+	// and it is said instead of the confirmation, never beside it.
+	expect(screen.queryByText(en.organization.setup.connected)).toBeNull();
 });
 
 test('a granted consent offers the way on and the way to give the authority back', () => {

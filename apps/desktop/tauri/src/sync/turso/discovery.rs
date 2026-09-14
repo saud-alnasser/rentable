@@ -113,9 +113,30 @@ pub struct TursoOrganization {
 /// arriving as a fault, and the customer would be told to fix the one thing they did right.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OrganizationLookup {
-    Found(TursoOrganization),
+    Found {
+        organization: TursoOrganization,
+        /// every database the consented group holds, by the name the listing gave it, and
+        /// nothing from any other group. It is what `organization/setup.rs` reads to refuse a
+        /// group that already holds an organization (requirement 21 of effort 826); the
+        /// hostnames behind the names stay here, because a name is what a refusal can say out
+        /// loud and a hostname is a customer's own address.
+        databases: Vec<String>,
+    },
     /// the group the consent was granted over holds no database yet.
     NoDatabaseYet,
+}
+
+/// The consented group, and what it was holding when this machine looked.
+///
+/// **`databases` is `None` where nothing was asked.** The lookup happens once and is remembered
+/// ([`organization`]), so every call after the first answers out of this machine's own store and
+/// has no listing to report. That is not the same answer as a group holding nothing: an empty
+/// group is [`OrganizationLookup::NoDatabaseYet`] and never reaches here, so a `Some` is always
+/// at least one name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConsentedGroup {
+    pub organization: TursoOrganization,
+    pub databases: Option<Vec<String>>,
 }
 
 /// Read the slug out of a hostname, given the name of the database the hostname belongs to.
@@ -167,8 +188,22 @@ pub async fn look_up_organization(
     let Some(record) = databases.first() else {
         return Ok(OrganizationLookup::NoDatabaseYet);
     };
+    let organization = organization_of(record)?;
 
-    Ok(OrganizationLookup::Found(organization_of(record)?))
+    // **the listing is filtered to the group the slug was read out of.** A group-scoped consent
+    // lists one group, and the first record is the only thing here that names which one; a
+    // listing that carried a second group would otherwise put a stranger's database in front of
+    // a refusal that names the group the person picked.
+    let names = databases
+        .iter()
+        .filter(|candidate| candidate.group == record.group)
+        .map(|candidate| candidate.name.clone())
+        .collect();
+
+    Ok(OrganizationLookup::Found {
+        organization,
+        databases: names,
+    })
 }
 
 /// What creating the first database in an empty group yields: the organization and the group the
@@ -313,17 +348,26 @@ pub async fn organization(
     store: &mut Persisted<RemoteSyncStore>,
     platform_token: &str,
     endpoint: &McpEndpoint,
-) -> Result<Option<TursoOrganization>, Error> {
+) -> Result<Option<ConsentedGroup>, Error> {
     if let Some(known) = store.turso_organization.clone() {
-        return Ok(Some(known));
+        return Ok(Some(ConsentedGroup {
+            organization: known,
+            databases: None,
+        }));
     }
 
     match look_up_organization(platform_token, endpoint).await? {
-        OrganizationLookup::Found(organization) => {
+        OrganizationLookup::Found {
+            organization,
+            databases,
+        } => {
             store.turso_organization = Some(organization.clone());
             store.commit()?;
 
-            Ok(Some(organization))
+            Ok(Some(ConsentedGroup {
+                organization,
+                databases: Some(databases),
+            }))
         }
         OrganizationLookup::NoDatabaseYet => Ok(None),
     }
@@ -478,8 +522,8 @@ mod tests {
     use crate::{persisted::Persisted, sync::store::RemoteSyncStore};
 
     use super::{
-        FirstDatabase, McpEndpoint, OrganizationLookup, TursoOrganization, create_first_database,
-        look_up_organization, organization, slug_from_hostname,
+        ConsentedGroup, FirstDatabase, McpEndpoint, OrganizationLookup, TursoOrganization,
+        create_first_database, look_up_organization, organization, slug_from_hostname,
     };
 
     const TOKEN: &str = "the-platform-api-token";
@@ -681,15 +725,71 @@ mod tests {
 
         assert_eq!(
             found,
-            OrganizationLookup::Found(TursoOrganization {
-                slug: "rentable".to_string(),
-                group: "rentable".to_string(),
-            })
+            OrganizationLookup::Found {
+                organization: TursoOrganization {
+                    slug: "rentable".to_string(),
+                    group: "rentable".to_string(),
+                },
+                databases: vec!["control-plane".to_string()],
+            }
         );
         assert_eq!(
             server.request_count(),
             2,
             "the handshake or the call is missing"
+        );
+    }
+
+    /// Requirement 21 of effort 826: a first run has to know what the group it consented over
+    /// already holds, so the lookup reports every name in that group and nothing from any other.
+    /// A listing carrying a second group is what a token wider than one group would answer, and
+    /// a name from it in this list would put a database the person never picked in front of a
+    /// refusal naming the group they did.
+    #[tokio::test]
+    async fn the_lookup_reports_the_names_in_the_consented_group_and_no_others() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            listing(json!([
+                {
+                    "Name": "ledger",
+                    "hostname": "ledger-acme.aws-eu-west-1.turso.io",
+                    "group": "rents"
+                },
+                {
+                    "Name": "org-7f3a",
+                    "hostname": "org-7f3a-acme.aws-eu-west-1.turso.io",
+                    "group": "rents"
+                },
+                {
+                    "Name": "somebody-elses",
+                    "hostname": "somebody-elses-acme.aws-eu-west-1.turso.io",
+                    "group": "another-group"
+                }
+            ])),
+        ])
+        .await;
+
+        let found = look_up_organization(TOKEN, &McpEndpoint::at(&server.url("")))
+            .await
+            .expect("the lookup failed");
+
+        let OrganizationLookup::Found {
+            organization,
+            databases,
+        } = found
+        else {
+            panic!("a populated group was read as empty");
+        };
+
+        assert_eq!(organization.group, "rents");
+        assert_eq!(
+            databases,
+            vec!["ledger".to_string(), "org-7f3a".to_string()],
+            "the names the consented group holds are not what was reported"
+        );
+        assert!(
+            !databases.iter().any(|name| name == "somebody-elses"),
+            "a database of another group was reported as the consented group's: {databases:?}"
         );
     }
 
@@ -728,10 +828,13 @@ mod tests {
 
         assert_eq!(
             found,
-            OrganizationLookup::Found(TursoOrganization {
-                slug: "rentable".to_string(),
-                group: "rentable".to_string(),
-            })
+            OrganizationLookup::Found {
+                organization: TursoOrganization {
+                    slug: "rentable".to_string(),
+                    group: "rentable".to_string(),
+                },
+                databases: vec!["control-plane".to_string()],
+            }
         );
     }
 
@@ -839,10 +942,13 @@ mod tests {
 
         assert_eq!(
             found,
-            OrganizationLookup::Found(TursoOrganization {
-                slug: "acme".to_string(),
-                group: "rents".to_string(),
-            })
+            OrganizationLookup::Found {
+                organization: TursoOrganization {
+                    slug: "acme".to_string(),
+                    group: "rents".to_string(),
+                },
+                databases: vec!["ledger".to_string()],
+            }
         );
     }
 
@@ -907,10 +1013,28 @@ mod tests {
             .await
             .expect("the second lookup failed");
 
-        assert_eq!(first, second);
         assert_eq!(
-            first.map(|organization| organization.slug),
-            Some("acme".to_string())
+            first,
+            Some(ConsentedGroup {
+                organization: TursoOrganization {
+                    slug: "acme".to_string(),
+                    group: "rents".to_string(),
+                },
+                // the listing was read, so what the group holds is reported.
+                databases: Some(vec!["ledger".to_string()]),
+            })
+        );
+        assert_eq!(
+            second,
+            Some(ConsentedGroup {
+                organization: TursoOrganization {
+                    slug: "acme".to_string(),
+                    group: "rents".to_string(),
+                },
+                // and the second call asked nothing, so it has no listing to report rather
+                // than an empty one, which would read as a group holding nothing.
+                databases: None,
+            })
         );
         assert_eq!(
             server.request_count(),
@@ -980,7 +1104,7 @@ mod tests {
             .expect("the live lookup failed");
 
         match found {
-            OrganizationLookup::Found(organization) => {
+            OrganizationLookup::Found { organization, .. } => {
                 assert_eq!(
                     organization.slug, expected,
                     "the slug read out of a real hostname is not the account the \

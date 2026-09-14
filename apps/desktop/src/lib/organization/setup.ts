@@ -11,6 +11,8 @@
  * a group name, a token or a URL fails a test rather than passing review.
  */
 
+import { toErrorDetail } from '$lib/error/message';
+
 /**
  * the three steps, in the order a person meets them: the consent, the organization's name with
  * the owner's username and password, and the first workspace's name. The walk ends inside that
@@ -34,7 +36,10 @@ export type SetupField = 'name' | 'username' | 'password' | 'workspace';
  * what a step tells the person before it asks anything of them.
  *
  * `groupCoverage` says how far the consent reaches: every database in the group the person
- * picks, and nothing outside it. `accountCreation` says why a Turso account kept for rentable
+ * picks, and nothing outside it. `oneOrganization` says what that group may hold: one
+ * organization, so a group already holding one refuses the run before anything is created, and
+ * saying it here is what keeps that refusal from being the first the person hears of the rule
+ * (requirement 21). `accountCreation` says why a Turso account kept for rentable
  * alone is the clean choice, which is the one-group fact rather than a preference: a Free or
  * Developer account has exactly one group and the consent screen offers no way to make a
  * second, so on those plans the only group there is to pick is the one already holding
@@ -47,10 +52,9 @@ export type SetupField = 'name' | 'username' | 'password' | 'workspace';
  * no longer does.
  *
  * The screen draws them as one list, a glyph to each, in this order, with the dashboard action
- * on the first; the sentences themselves are the locale's `groupCoverage`, `accountCreation`
- * and `succession`.
+ * on the first; the sentences themselves are the locale's, under these names.
  */
-export type SetupStatement = 'groupCoverage' | 'accountCreation' | 'succession';
+export type SetupStatement = 'groupCoverage' | 'oneOrganization' | 'accountCreation' | 'succession';
 
 export type SetupStepDescription = {
 	step: SetupStep;
@@ -62,7 +66,7 @@ export const SETUP_WALK: readonly SetupStepDescription[] = [
 	{
 		step: 'connect',
 		fields: [],
-		statements: ['groupCoverage', 'accountCreation', 'succession']
+		statements: ['groupCoverage', 'oneOrganization', 'accountCreation', 'succession']
 	},
 	{
 		step: 'name',
@@ -90,6 +94,37 @@ export function statementsBeforeCreation(
 	return walk
 		.slice(0, creating < 0 ? walk.length : creating + 1)
 		.flatMap((step) => step.statements);
+}
+
+/** where a refused create leaves the walk, and what it has to say when it gets there. */
+export type SetupRefusal = {
+	step: SetupStep;
+	/** the refusal's own sentence, and `null` where what was thrown carried no readable one. */
+	message: string | null;
+};
+
+/**
+ * Where a failed create leaves the walk.
+ *
+ * **The walk asks the machine where it stands rather than reading the refusal for a keyword.**
+ * A create that fails ordinarily leaves the consent alone, and the person tries again on the
+ * step they are on with what they typed still in the fields. The one refusal that does not is
+ * requirement 21's: a group that already holds an organization is no use for this one, so Rust
+ * refuses before creating anything and gives the consent back, and a machine that no longer
+ * holds the authority cannot create an organization from the name step however many times it is
+ * pressed. So the signal is the authority, which is a fact the walk already reads, and the
+ * sentence shown is the refusal's own, unchanged, because it names the database in the way.
+ *
+ * `null` where the machine still holds the authority: the shared handler has already said what
+ * went wrong and the walk stays where it is.
+ */
+export function refusalAfterFailedCreate(
+	error: unknown,
+	holdsTursoAuthority: boolean
+): SetupRefusal | null {
+	if (holdsTursoAuthority) return null;
+
+	return { step: 'connect', message: toErrorDetail(error) };
 }
 
 /**

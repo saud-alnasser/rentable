@@ -2361,6 +2361,10 @@ type RootTranslation = {
 			 */
 			groupCoverage: string
 			/**
+			 * a​ ​g​r​o​u​p​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​a​ ​g​r​o​u​p​ ​t​h​a​t​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​o​n​e​ ​i​s​ ​r​e​f​u​s​e​d​ ​h​e​r​e​,​ ​b​e​f​o​r​e​ ​a​n​y​t​h​i​n​g​ ​i​s​ ​c​r​e​a​t​e​d​.
+			 */
+			oneOrganization: string
+			/**
 			 * a​ ​f​r​e​e​ ​o​r​ ​d​e​v​e​l​o​p​e​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​h​a​s​ ​e​x​a​c​t​l​y​ ​o​n​e​ ​g​r​o​u​p​,​ ​s​o​ ​a​n​ ​a​c​c​o​u​n​t​ ​k​e​p​t​ ​f​o​r​ ​r​e​n​t​a​b​l​e​ ​a​l​o​n​e​ ​i​s​ ​t​h​e​ ​c​l​e​a​n​ ​c​h​o​i​c​e​,​ ​a​n​d​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​ ​i​s​ ​w​h​e​r​e​ ​y​o​u​ ​m​a​k​e​ ​o​n​e​.​ ​o​n​ ​a​ ​p​a​i​d​ ​a​c​c​o​u​n​t​,​ ​p​i​c​k​ ​a​n​ ​e​m​p​t​y​ ​g​r​o​u​p​.
 			 */
 			accountCreation: string
@@ -5083,6 +5087,10 @@ export type TranslationFunctions = {
 			 * the consent covers every database in the group you choose, and nothing outside it.
 			 */
 			groupCoverage: () => LocalizedString
+			/**
+			 * a group holds one organization. a group that already holds one is refused here, before anything is created.
+			 */
+			oneOrganization: () => LocalizedString
 			/**
 			 * a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.
 			 */

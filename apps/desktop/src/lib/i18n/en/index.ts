@@ -765,6 +765,8 @@ const en = {
 			position: 'step {step|number} of {total|number}',
 			groupCoverage:
 				'the consent covers every database in the group you choose, and nothing outside it.',
+			oneOrganization:
+				'a group holds one organization. a group that already holds one is refused here, before anything is created.',
 			accountCreation:
 				'a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.',
 			succession:

@@ -781,7 +781,13 @@ pub(crate) fn platform_token() -> Result<String, Error> {
 }
 
 /// Forget the token, and leave nothing a later run could read as a grant.
-fn forget_platform_token() -> Result<(), Error> {
+///
+/// **The disconnect's path, and the first run's.** Giving the authority back is what a person
+/// asks for on the settings surface, and it is also what a first run does to itself when the
+/// consented group turns out to already hold an organization (requirement 21 of effort 826):
+/// the grant is no use where it landed, and abandoning it is what lets the person consent again
+/// over another group or another Turso account.
+pub(crate) fn forget_platform_token() -> Result<(), Error> {
     keyring::forget(
         TURSO_PLATFORM_KEYRING_SERVICE,
         TURSO_PLATFORM_KEYRING_ACCOUNT,
