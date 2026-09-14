@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { WorkspaceGrant } from '$lib/platform/tauri';
 	import OrganizationInviteForm from '$lib/organization/component/invite-form.svelte';
 	import OrganizationWorkspaceDialog from '$lib/organization/component/workspace-dialog.svelte';
 	import {
@@ -52,17 +53,22 @@
 		copied = null;
 	});
 
-	// every workspace the form names is granted at full access: the access choice per workspace
-	// is the members section's ticket, and full access is what the form has always meant.
+	// the form names each workspace with the access it is granted at, which is what the command
+	// takes. What comes back is narrowed to the link and the person it admits, because the same
+	// panel answers a new link and a copy link, and neither of those produces anything wider.
 	const invite = async (
 		username: string,
 		role: 'administrator' | 'member',
-		workspaceIds: string[]
+		workspaces: WorkspaceGrant[]
 	) => {
-		const workspaces = workspaceIds.map((id) => ({ id, access: 'full-access' as const }));
-
 		try {
-			showInvited(await inviteMember.mutateAsync({ username, role, workspaces }));
+			const invited = await inviteMember.mutateAsync({ username, role, workspaces });
+
+			showInvited({
+				username: invited.username,
+				joinLink: invited.joinLink,
+				unreachableWorkspaces: invited.unreachableWorkspaces
+			});
 		} catch {
 			// said by the shared handler; the form keeps what was typed.
 		}
@@ -103,12 +109,14 @@
 			onOpenChange={(open) => {
 				if (!open) closeOrganizationDialog();
 			}}
+			organizationName={session.organizationName}
 			workspaces={session.workspaces}
 			canInviteAdministrators={isOwner}
+			canGrantReadOnly={isOwner}
 			isInviting={inviteMember.isPending}
 			invited={organizationDialog.invited}
 			{copied}
-			onInvite={(username, role, workspaceIds) => void invite(username, role, workspaceIds)}
+			onInvite={(username, role, workspaces) => void invite(username, role, workspaces)}
 			onCopy={(what, value) => void copy(what, value)}
 			onDismiss={dismissInvited}
 		/>

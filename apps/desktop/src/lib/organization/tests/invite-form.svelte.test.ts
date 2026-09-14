@@ -10,6 +10,7 @@ import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { chooseOption, openSelect } from '$lib/design/tests/select';
 
 /**
  * THE INVITATION, RENDERED
@@ -47,11 +48,8 @@ const workspaces = [
 	}
 ];
 const invited = {
-	memberId: 'member-2',
-	invitationId: 'invitation-1',
 	username: 'sami.staff',
 	joinLink: 'rentable://join/abc',
-	expiresAt: 0,
 	unreachableWorkspaces: []
 };
 
@@ -64,8 +62,10 @@ const form = (
 		{
 			open: true,
 			onOpenChange: noop,
+			organizationName: 'Northwind',
 			workspaces,
 			canInviteAdministrators: true,
+			canGrantReadOnly: true,
 			isInviting: false,
 			invited: null,
 			copied: null,
@@ -117,6 +117,48 @@ test('the dialog opens on the shared form surface and asks for a username, a rol
 	expect(screen.getByText(en.organization.dashboard.role)).toBeDefined();
 	expect(screen.getByText('Riyadh')).toBeDefined();
 	expect(screen.queryByText(en.organization.dashboard.cannotSend)).toBeNull();
+});
+
+// effort 826, requirement 8: a workspace is a checkbox and an access. What the surface hands up
+// is a grant per checked workspace carrying that access; no submit is fired here, for the reason
+// the header gives, so what is asserted is the choice on the screen.
+test('each workspace carries an access, chosen beside the checkbox that grants it', async () => {
+	loadLocale('en');
+	setLocale('en');
+	form();
+
+	const access = document.querySelector<HTMLElement>('[data-invite-access="ws-1"]')!;
+
+	// the access waits for the checkbox: a workspace nobody granted has no access to choose.
+	expect(access.hasAttribute('disabled') || access.getAttribute('data-disabled') !== null).toBe(
+		true
+	);
+
+	await fireEvent.click(document.querySelector('#invite-workspace-ws-1')!);
+	await openSelect(access);
+	await chooseOption(
+		screen.getByRole('option', { name: en.organization.dashboard.accessReadOnly })
+	);
+
+	expect(access.textContent?.trim()).toBe(en.organization.dashboard.accessReadOnly);
+});
+
+// requirement 5: minting a read-only credential is the owner's, so for anybody else the choice is
+// drawn refused and the sentence names the owner.
+test('read only is refused for anybody but the owner, in words rather than by hiding it', async () => {
+	loadLocale('en');
+	setLocale('en');
+	form({ canGrantReadOnly: false });
+
+	await fireEvent.click(document.querySelector('#invite-workspace-ws-1')!);
+	await openSelect(document.querySelector<HTMLElement>('[data-invite-access="ws-1"]')!);
+
+	expect(
+		screen
+			.getByRole('option', { name: en.organization.dashboard.accessReadOnly })
+			.getAttribute('data-disabled')
+	).not.toBeNull();
+	expect(screen.getByText(en.organization.dashboard.readOnlyIsTheOwners)).toBeDefined();
 });
 
 // criterion 21: the username is refused on the field with the sentence the walk's name step and
@@ -189,6 +231,12 @@ test('what an invitation made is one link, as a machine string, with one copy co
 	expect(document.querySelector('[data-invited]')).not.toBeNull();
 	expect(inputsOnScreen()).toEqual([]);
 	expect(screen.getByText(en.organization.dashboard.cannotSend)).toBeDefined();
+	// the organization the link admits into leads the panel, and the person it admits is named
+	// beside the label: the link itself is opaque.
+	expect(document.querySelector('[data-invited-organization]')?.textContent).toBe('Northwind');
+	expect(document.querySelector('[data-invited-username]')?.textContent?.trim()).toBe(
+		invited.username
+	);
 
 	const link = document.querySelector('[data-invited-link]');
 
@@ -199,7 +247,6 @@ test('what an invitation made is one link, as a machine string, with one copy co
 	// panel, by element or by word.
 	expect(screen.getByRole('button', { name: en.organization.setup.copyLink })).toBeDefined();
 	expect(document.querySelector('[data-invited-password]')).toBeNull();
-	expect(document.querySelector('[data-invited-username]')).toBeNull();
 	expect(
 		Array.from(document.querySelectorAll('[data-invited] button')).filter((button) =>
 			button.querySelector('svg')

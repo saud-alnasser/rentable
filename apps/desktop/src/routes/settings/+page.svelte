@@ -15,14 +15,18 @@
 	import { showInvited } from '$lib/organization/dialogs.svelte';
 	import {
 		useChangePassword,
+		useChangeRole,
 		useDisconnectOrganization,
 		useFetchMembers,
 		useFetchOrganizationState,
+		useGrantWorkspace,
+		useInvitationLink,
 		useLockOutCost,
 		useReissueInvitation,
 		useRemoveMember,
 		useRenameMember,
-		useRevokeInvitation
+		useRevokeInvitation,
+		useWithdrawGrant
 	} from '$lib/organization/query';
 	import SettingsArea from '$lib/settings/component/area.svelte';
 	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
@@ -60,8 +64,12 @@
 	const changePassword = useChangePassword();
 	const reissueInvitation = useReissueInvitation();
 	const revokeInvitation = useRevokeInvitation();
+	const invitationLink = useInvitationLink();
 	const removeMember = useRemoveMember();
 	const renameMember = useRenameMember();
+	const changeRole = useChangeRole();
+	const grantWorkspace = useGrantWorkspace();
+	const withdrawGrant = useWithdrawGrant();
 	const disconnectOrganization = useDisconnectOrganization();
 
 	const isLoading = $derived(settingsQuery.isLoading && !settingsQuery.data);
@@ -149,17 +157,70 @@
 
 	let reissuing = $state<string | null>(null);
 	let revoking = $state<string | null>(null);
+	let copying = $state<string | null>(null);
 
 	const reissue = async (memberId: string) => {
 		reissuing = memberId;
 
 		try {
-			showInvited(await reissueInvitation.mutateAsync({ memberId }));
+			const invited = await reissueInvitation.mutateAsync({ memberId });
+
+			showInvited({
+				username: invited.username,
+				joinLink: invited.joinLink,
+				unreachableWorkspaces: invited.unreachableWorkspaces
+			});
 		} catch {
 			// said by the shared handler.
 		} finally {
 			reissuing = null;
 		}
+	};
+
+	/**
+	 * the same link again, for the person who issued it: Rust seals it to their key and refuses
+	 * anybody else, who is offered a new link instead. It opens the panel an invitation and a
+	 * reset open, because all three end with one link in one person's hands.
+	 */
+	const copyLink = async (invitationId: string, username: string) => {
+		copying = invitationId;
+
+		try {
+			showInvited({
+				username,
+				joinLink: await invitationLink.mutateAsync({ invitationId }),
+				unreachableWorkspaces: []
+			});
+		} catch {
+			// said by the shared handler.
+		} finally {
+			copying = null;
+		}
+	};
+
+	/**
+	 * a member's workspaces, written one grant at a time: the dialog hands back the rows that
+	 * changed, and a row that changed to `none` is the grant coming back. In order and not in
+	 * parallel, so a refusal on one is the first one the reader hears about rather than the
+	 * last of several toasts.
+	 */
+	const changeAccess = async (
+		memberId: string,
+		changes: { id: string; access: 'none' | 'full-access' | 'read-only' }[]
+	) => {
+		for (const change of changes) {
+			if (change.access === 'none') {
+				await withdrawGrant.mutateAsync({ workspaceId: change.id, memberId });
+			} else {
+				await grantWorkspace.mutateAsync({
+					workspaceId: change.id,
+					memberId,
+					access: change.access
+				});
+			}
+		}
+
+		toast.success($LL.organization.dashboard.accessSaved());
 	};
 
 	const revoke = async (invitationId: string) => {
@@ -216,7 +277,10 @@
 		members={membersQuery.data ?? []}
 		{reissuing}
 		{revoking}
+		{copying}
 		isChangingPassword={changePassword.isPending}
+		isChangingRole={changeRole.isPending}
+		isChangingAccess={grantWorkspace.isPending || withdrawGrant.isPending}
 		onChangeLocale={(next) => void changeLocale(next)}
 		onRevealDiagnostics={() => void revealDiagnostics()}
 		onChangePassword={async (current, next) => {
@@ -224,6 +288,7 @@
 		}}
 		onReissue={(memberId) => void reissue(memberId)}
 		onRevoke={(invitationId) => void revoke(invitationId)}
+		onCopyLink={(invitationId, username) => void copyLink(invitationId, username)}
 		onRemove={(memberId) => {
 			removing = { memberId, lockOut: false };
 		}}
@@ -233,6 +298,10 @@
 		onRename={async (memberId, username) => {
 			await renameMember.mutateAsync({ memberId, username });
 		}}
+		onChangeRole={async (memberId, role, permissions) => {
+			await changeRole.mutateAsync({ memberId, role, permissions });
+		}}
+		onChangeAccess={changeAccess}
 		onAuthorityReconnected={() => void stateQuery.refetch()}
 		onDisconnect={disconnect}
 	/>

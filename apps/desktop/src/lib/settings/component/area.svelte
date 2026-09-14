@@ -7,19 +7,16 @@
 	} from '$lib/platform/host';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import PageFrame from '@rentable/design/block/page-frame.svelte';
-	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import OrganizationChangePasswordForm from '$lib/organization/component/change-password-form.svelte';
 	import OrganizationDisconnect from '$lib/organization/component/disconnect.svelte';
 	import OrganizationIdentity from '$lib/organization/component/identity.svelte';
-	import OrganizationInvitations from '$lib/organization/component/invitations.svelte';
 	import OrganizationLink from '$lib/organization/component/organization-link.svelte';
 	import OrganizationMembers from '$lib/organization/component/members.svelte';
 	import OrganizationReconnectAuthority from '$lib/organization/component/reconnect-authority.svelte';
 	import OrganizationWorkspaces from '$lib/organization/component/workspaces.svelte';
-	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
 	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
 	import SettingsLocale from '$lib/settings/component/locale.svelte';
@@ -28,7 +25,6 @@
 	import { sectionsFor, shownSection, type SettingsSection } from '$lib/settings/section';
 	import WorkspaceSync from '$lib/workspace/component/sync.svelte';
 	import { permits } from '@rentable/workspace-permission';
-	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 
 	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
 
@@ -50,9 +46,11 @@
 	 * `sectionsFor` decides which tabs exist, and inside a section the same permissions decide
 	 * each block. Rust refuses every one of them again.
 	 *
-	 * *The members, workspaces and sync sections are composed here from the components the four
-	 * pages drew, unchanged, so every section works at this commit; tickets 10 and 11 rebuild the
-	 * first two and finish the third.*
+	 * *The workspaces and sync sections are composed here from the components the four pages
+	 * drew, unchanged, so every section works at this commit; ticket 11 rebuilds the first and
+	 * finishes the second. The members section is its own component and was rebuilt as one list
+	 * at ticket 10, which is why this draws it and nothing else: the invite button, the pending
+	 * rows and the three light dialogs are all the list's.*
 	 */
 	let {
 		section,
@@ -63,15 +61,21 @@
 		members,
 		reissuing,
 		revoking,
+		copying,
 		isChangingPassword,
+		isChangingRole,
+		isChangingAccess,
 		onChangeLocale,
 		onRevealDiagnostics,
 		onChangePassword,
 		onReissue,
 		onRevoke,
+		onCopyLink,
 		onRemove,
 		onLockOut,
 		onRename,
+		onChangeRole,
+		onChangeAccess,
 		onAuthorityReconnected,
 		onDisconnect
 	}: {
@@ -85,21 +89,36 @@
 		/** the machine's sync record; `null` until it has been read, and while signed out. */
 		syncState: RemoteSyncState | null;
 		members: OrganizationMember[];
-		/** the member whose invitation is being reissued, while it is. */
+		/** the member whose link is being reissued, while it is. */
 		reissuing: string | null;
 		/** the invitation being revoked, while it is. */
 		revoking: string | null;
+		/** the invitation whose link is being read again, while it is. */
+		copying: string | null;
 		isChangingPassword: boolean;
+		isChangingRole: boolean;
+		isChangingAccess: boolean;
 		onChangeLocale: (next: Locales) => void;
 		onRevealDiagnostics: () => void;
 		/** change the reader's own password; rejects with what the shared handler has said. */
 		onChangePassword: (current: string, next: string) => Promise<void>;
 		onReissue: (memberId: string) => void;
 		onRevoke: (invitationId: string) => void;
+		/** hand a pending member's link over again, for the person who issued it. */
+		onCopyLink: (invitationId: string, username: string) => void;
 		/** ask to remove a member: the route raises the confirm that names what it costs. */
 		onRemove: (memberId: string) => void;
 		onLockOut: (memberId: string) => void;
 		onRename: (memberId: string, username: string) => Promise<void>;
+		onChangeRole: (
+			memberId: string,
+			role: 'administrator' | 'member',
+			permissions: number
+		) => Promise<void>;
+		onChangeAccess: (
+			memberId: string,
+			changes: { id: string; access: 'none' | 'full-access' | 'read-only' }[]
+		) => Promise<void>;
 		onAuthorityReconnected: () => void;
 		/** forget the organization on this machine; rejects so the confirm stays open. */
 		onDisconnect: () => Promise<void>;
@@ -171,44 +190,34 @@
 	{:else if shown === 'members' && session}
 		<Field.Group>
 			<Field.Set>
+				<Field.Legend>{$LL.organization.dashboard.members()}</Field.Legend>
 				<OrganizationMembers
 					{members}
 					workspaces={session.workspaces}
 					{canInvite}
 					{canRemove}
 					canLockOut={isOwner}
-					canRename={canInvite}
+					canRename={permits(session.permissions, 'renameMember')}
+					canReset={permits(session.permissions, 'resetPassword')}
+					canChangeRole={permits(session.permissions, 'changeRole')}
+					canGrantWorkspace={permits(session.permissions, 'grantWorkspace')}
+					{isOwner}
 					selfId={session.memberId}
 					{reissuing}
+					{revoking}
+					{copying}
+					{isChangingRole}
+					{isChangingAccess}
 					{onReissue}
+					{onRevoke}
+					{onCopyLink}
 					{onRemove}
 					{onLockOut}
 					{onRename}
+					{onChangeRole}
+					{onChangeAccess}
 				/>
 			</Field.Set>
-
-			{#if canInvite}
-				<Separator />
-
-				<Field.Set>
-					<Field.Legend>{$LL.organization.dashboard.inviteTitle()}</Field.Legend>
-					<Field.Description>{$LL.organization.dashboard.inviteDescription()}</Field.Description>
-					<div>
-						<!-- the verb's glyph before its label, as every primary here carries one. -->
-						<Button type="button" data-invite-open onclick={() => openOrganizationDialog('invite')}>
-							<UserPlusIcon class="size-4" />
-							{$LL.organization.dashboard.invite()}
-						</Button>
-					</div>
-				</Field.Set>
-
-				<Separator />
-
-				<Field.Set>
-					<Field.Legend>{$LL.organization.dashboard.pendingAccounts()}</Field.Legend>
-					<OrganizationInvitations {members} {canInvite} {revoking} {onRevoke} />
-				</Field.Set>
-			{/if}
 		</Field.Group>
 	{:else if shown === 'workspaces' && session}
 		<Field.Group>

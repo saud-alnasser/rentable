@@ -2549,10 +2549,6 @@ type RootTranslation = {
 			 */
 			members: string
 			/**
-			 * p​e​n​d​i​n​g​ ​a​c​c​o​u​n​t​s
-			 */
-			pendingAccounts: string
-			/**
 			 * w​o​r​k​s​p​a​c​e​s
 			 */
 			workspaces: string
@@ -2561,7 +2557,7 @@ type RootTranslation = {
 			 */
 			inviteTitle: string
 			/**
-			 * a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​m​a​k​e​s​ ​t​h​e​i​r​ ​a​c​c​o​u​n​t​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​:​ ​a​ ​u​s​e​r​n​a​m​e​,​ ​a​ ​r​o​l​e​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​h​o​l​d​.​ ​y​o​u​ ​h​a​n​d​ ​t​h​e​m​ ​t​h​e​ ​l​i​n​k​,​ ​t​h​e​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​r​s​e​l​f​.
+			 * a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​m​a​k​e​s​ ​t​h​e​i​r​ ​a​c​c​o​u​n​t​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​:​ ​a​ ​u​s​e​r​n​a​m​e​,​ ​a​ ​r​o​l​e​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​h​o​l​d​,​ ​e​a​c​h​ ​a​t​ ​f​u​l​l​ ​a​c​c​e​s​s​ ​o​r​ ​r​e​a​d​ ​o​n​l​y​.​ ​y​o​u​ ​h​a​n​d​ ​t​h​e​m​ ​t​h​e​ ​l​i​n​k​ ​y​o​u​r​s​e​l​f​.
 			 */
 			inviteDescription: string
 			/**
@@ -2597,9 +2593,23 @@ type RootTranslation = {
 			 */
 			notYetSignedIn: string
 			/**
-			 * r​e​s​e​t​ ​p​a​s​s​w​o​r​d
+			 * t​h​e​ ​l​i​n​k​ ​e​x​p​i​r​e​s​ ​{​d​a​t​e​}
+			 * @param {string} date
 			 */
-			resetPassword: string
+			invitationExpires: RequiredParams<'date'>
+			/**
+			 * t​h​e​ ​l​i​n​k​ ​l​a​p​s​e​d​ ​{​d​a​t​e​}
+			 * @param {string} date
+			 */
+			invitationLapsed: RequiredParams<'date'>
+			/**
+			 * n​e​w​ ​l​i​n​k
+			 */
+			newLink: string
+			/**
+			 * c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​a​g​a​i​n
+			 */
+			copyLink: string
 			/**
 			 * r​e​n​a​m​e
 			 */
@@ -2677,21 +2687,9 @@ type RootTranslation = {
 			 */
 			unreachableWorkspaces: RequiredParams<'workspaces'>
 			/**
-			 * o​p​e​n
-			 */
-			standingOpen: string
-			/**
 			 * l​a​p​s​e​d
 			 */
 			standingLapsed: string
-			/**
-			 * u​s​e​d
-			 */
-			standingConsumed: string
-			/**
-			 * n​o​ ​p​e​n​d​i​n​g​ ​a​c​c​o​u​n​t​s​.
-			 */
-			noPendingAccounts: string
 			/**
 			 * r​e​v​o​k​e
 			 */
@@ -2712,6 +2710,76 @@ type RootTranslation = {
 			 * r​e​a​d​ ​o​n​l​y
 			 */
 			accessReadOnly: string
+			/**
+			 * n​o​ ​a​c​c​e​s​s
+			 */
+			accessNone: string
+			/**
+			 * w​o​r​k​s​p​a​c​e​s​ ​a​n​d​ ​a​c​c​e​s​s
+			 */
+			accessTitle: string
+			/**
+			 * w​h​i​c​h​ ​w​o​r​k​s​p​a​c​e​s​ ​{​u​s​e​r​n​a​m​e​}​ ​h​o​l​d​s​,​ ​a​n​d​ ​w​h​a​t​ ​e​a​c​h​ ​o​n​e​ ​i​s​ ​g​o​o​d​ ​f​o​r​.​ ​t​a​k​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​b​a​c​k​ ​m​i​n​t​s​ ​n​o​t​h​i​n​g​,​ ​s​o​ ​w​h​a​t​ ​t​h​e​y​ ​a​l​r​e​a​d​y​ ​h​o​l​d​ ​w​o​r​k​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
+			 * @param {string} username
+			 */
+			accessDescription: RequiredParams<'username'>
+			/**
+			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​w​e​r​e​ ​s​a​v​e​d​.
+			 */
+			accessSaved: string
+			/**
+			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​g​r​a​n​t​ ​r​e​a​d​ ​o​n​l​y​ ​a​c​c​e​s​s​,​ ​o​n​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​o​w​n​ ​m​a​c​h​i​n​e​.
+			 */
+			readOnlyIsTheOwners: string
+			/**
+			 * r​o​l​e​ ​a​n​d​ ​p​e​r​m​i​s​s​i​o​n​s
+			 */
+			changeRoleTitle: string
+			/**
+			 * t​h​e​ ​r​o​l​e​ ​i​s​ ​w​h​a​t​ ​t​h​e​ ​l​i​s​t​ ​c​a​l​l​s​ ​{​u​s​e​r​n​a​m​e​}​;​ ​t​h​e​ ​a​c​t​s​ ​b​e​l​o​w​ ​a​r​e​ ​w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​a​c​t​u​a​l​l​y​ ​d​o​,​ ​a​n​d​ ​p​i​c​k​i​n​g​ ​a​ ​r​o​l​e​ ​s​e​t​s​ ​t​h​e​m​ ​a​l​l​ ​a​t​ ​o​n​c​e​.
+			 * @param {string} username
+			 */
+			changeRoleDescription: RequiredParams<'username'>
+			/**
+			 * w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o
+			 */
+			permissionsLegend: string
+			/**
+			 * i​n​v​i​t​e​ ​m​e​m​b​e​r​s
+			 */
+			actInviteMember: string
+			/**
+			 * r​e​m​o​v​e​ ​m​e​m​b​e​r​s
+			 */
+			actRemoveMember: string
+			/**
+			 * c​h​a​n​g​e​ ​r​o​l​e​s​ ​a​n​d​ ​p​e​r​m​i​s​s​i​o​n​s
+			 */
+			actChangeRole: string
+			/**
+			 * r​e​n​a​m​e​ ​w​o​r​k​s​p​a​c​e​s
+			 */
+			actRenameWorkspace: string
+			/**
+			 * i​s​s​u​e​ ​n​e​w​ ​l​i​n​k​s
+			 */
+			actResetPassword: string
+			/**
+			 * r​e​n​a​m​e​ ​m​e​m​b​e​r​s
+			 */
+			actRenameMember: string
+			/**
+			 * g​r​a​n​t​ ​w​o​r​k​s​p​a​c​e​s
+			 */
+			actGrantWorkspace: string
+			/**
+			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​g​i​v​e​ ​s​o​m​e​b​o​d​y​ ​a​n​ ​a​c​t​ ​t​h​a​t​ ​w​r​i​t​e​s​ ​a​n​o​t​h​e​r​ ​m​e​m​b​e​r​'​s​ ​r​o​w​.​ ​t​a​k​i​n​g​ ​o​n​e​ ​b​a​c​k​ ​i​s​ ​y​o​u​r​s​.
+			 */
+			signingIsTheOwners: string
+			/**
+			 * t​h​e​ ​r​o​l​e​ ​a​n​d​ ​t​h​e​ ​p​e​r​m​i​s​s​i​o​n​s​ ​w​e​r​e​ ​s​a​v​e​d​.
+			 */
+			roleChanged: string
 			/**
 			 * d​i​s​c​o​n​n​e​c​t​i​n​g​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​:​ ​y​o​u​ ​a​r​e​ ​s​i​g​n​e​d​ ​o​u​t​,​ ​e​v​e​r​y​ ​c​o​p​y​ ​o​f​ ​i​t​ ​a​n​d​ ​o​f​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​ ​k​e​p​t​ ​h​e​r​e​ ​i​s​ ​d​e​l​e​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​u​t​h​o​r​i​t​y​ ​i​s​ ​c​l​e​a​r​e​d​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​u​r​s​o​ ​i​s​ ​t​o​u​c​h​e​d​,​ ​a​n​d​ ​t​h​e​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​g​a​i​n​.​ ​t​o​ ​r​e​a​c​h​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​d​i​s​c​o​n​n​e​c​t​ ​a​n​d​ ​c​o​n​n​e​c​t​ ​t​o​ ​i​t​.
 			 */
@@ -5276,10 +5344,6 @@ export type TranslationFunctions = {
 			 */
 			members: () => LocalizedString
 			/**
-			 * pending accounts
-			 */
-			pendingAccounts: () => LocalizedString
-			/**
 			 * workspaces
 			 */
 			workspaces: () => LocalizedString
@@ -5288,7 +5352,7 @@ export type TranslationFunctions = {
 			 */
 			inviteTitle: () => LocalizedString
 			/**
-			 * an invitation makes their account in the organization: a username, a role and the workspaces they hold. you hand them the link, the username and the password yourself.
+			 * an invitation makes their account in the organization: a username, a role and the workspaces they hold, each at full access or read only. you hand them the link yourself.
 			 */
 			inviteDescription: () => LocalizedString
 			/**
@@ -5324,9 +5388,21 @@ export type TranslationFunctions = {
 			 */
 			notYetSignedIn: () => LocalizedString
 			/**
-			 * reset password
+			 * the link expires {date}
 			 */
-			resetPassword: () => LocalizedString
+			invitationExpires: (arg: { date: string }) => LocalizedString
+			/**
+			 * the link lapsed {date}
+			 */
+			invitationLapsed: (arg: { date: string }) => LocalizedString
+			/**
+			 * new link
+			 */
+			newLink: () => LocalizedString
+			/**
+			 * copy the link again
+			 */
+			copyLink: () => LocalizedString
 			/**
 			 * rename
 			 */
@@ -5400,21 +5476,9 @@ export type TranslationFunctions = {
 			 */
 			unreachableWorkspaces: (arg: { workspaces: unknown }) => LocalizedString
 			/**
-			 * open
-			 */
-			standingOpen: () => LocalizedString
-			/**
 			 * lapsed
 			 */
 			standingLapsed: () => LocalizedString
-			/**
-			 * used
-			 */
-			standingConsumed: () => LocalizedString
-			/**
-			 * no pending accounts.
-			 */
-			noPendingAccounts: () => LocalizedString
 			/**
 			 * revoke
 			 */
@@ -5435,6 +5499,74 @@ export type TranslationFunctions = {
 			 * read only
 			 */
 			accessReadOnly: () => LocalizedString
+			/**
+			 * no access
+			 */
+			accessNone: () => LocalizedString
+			/**
+			 * workspaces and access
+			 */
+			accessTitle: () => LocalizedString
+			/**
+			 * which workspaces {username} holds, and what each one is good for. taking a workspace back mints nothing, so what they already hold works until it runs out.
+			 */
+			accessDescription: (arg: { username: string }) => LocalizedString
+			/**
+			 * the workspaces were saved.
+			 */
+			accessSaved: () => LocalizedString
+			/**
+			 * only the owner can grant read only access, on the owner's own machine.
+			 */
+			readOnlyIsTheOwners: () => LocalizedString
+			/**
+			 * role and permissions
+			 */
+			changeRoleTitle: () => LocalizedString
+			/**
+			 * the role is what the list calls {username}; the acts below are what they may actually do, and picking a role sets them all at once.
+			 */
+			changeRoleDescription: (arg: { username: string }) => LocalizedString
+			/**
+			 * what they may do
+			 */
+			permissionsLegend: () => LocalizedString
+			/**
+			 * invite members
+			 */
+			actInviteMember: () => LocalizedString
+			/**
+			 * remove members
+			 */
+			actRemoveMember: () => LocalizedString
+			/**
+			 * change roles and permissions
+			 */
+			actChangeRole: () => LocalizedString
+			/**
+			 * rename workspaces
+			 */
+			actRenameWorkspace: () => LocalizedString
+			/**
+			 * issue new links
+			 */
+			actResetPassword: () => LocalizedString
+			/**
+			 * rename members
+			 */
+			actRenameMember: () => LocalizedString
+			/**
+			 * grant workspaces
+			 */
+			actGrantWorkspace: () => LocalizedString
+			/**
+			 * only the owner can give somebody an act that writes another member's row. taking one back is yours.
+			 */
+			signingIsTheOwners: () => LocalizedString
+			/**
+			 * the role and the permissions were saved.
+			 */
+			roleChanged: () => LocalizedString
 			/**
 			 * disconnecting forgets the organization on this machine: you are signed out, every copy of it and of its workspaces kept here is deleted, and the turso authority is cleared. nothing on turso is touched, and the link connects this machine again. to reach another organization, disconnect and connect to it.
 			 */

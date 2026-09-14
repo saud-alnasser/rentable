@@ -1,4 +1,22 @@
-import type { Invited } from '$lib/platform/tauri';
+/**
+ * what an invitation hands over, whichever act produced it: the link, and whom it is for.
+ *
+ * **Narrower than `Invited` on purpose.** An invite and a reset answer with a whole `Invited`;
+ * copying the link again answers with the link string alone, and the row beside it is where the
+ * username comes from. The panel draws the same three things in all three cases, so what the
+ * panel is handed is those three things rather than the widest of the payloads that can produce
+ * them.
+ */
+export type InvitedLink = {
+	/** the member the link admits, as their row seals it. */
+	username: string;
+	joinLink: string;
+	/**
+	 * on a reset, the workspaces the member held that the resetting administrator could not
+	 * restore. Empty on an invitation and on a link copied again.
+	 */
+	unreachableWorkspaces: { id: string; name: string }[];
+};
 
 /**
  * THE TWO ORGANIZATION DIALOGS, ASKED FOR IN ONE PLACE AND DRAWN IN ANOTHER
@@ -29,11 +47,11 @@ export const organizationDialog = $state<{
 	/** which of the two is open, or neither. */
 	open: OrganizationDialogKind | null;
 	/**
-	 * what the last invitation or reset made, shown in the invite dialog until dismissed. Closing
-	 * the dialog keeps it, since a closed sheet is not a dismissal; the panel's own done control
-	 * is.
+	 * the link the last invitation, reset or copy produced, shown in the invite dialog until
+	 * dismissed. Closing the dialog keeps it, since a closed sheet is not a dismissal; the
+	 * panel's own done control is.
 	 */
-	invited: Invited | null;
+	invited: InvitedLink | null;
 }>({ open: null, invited: null });
 
 export function openOrganizationDialog(kind: OrganizationDialogKind) {
@@ -44,8 +62,14 @@ export function closeOrganizationDialog() {
 	organizationDialog.open = null;
 }
 
-/** an invitation or a reset was made: open the invite dialog on what it made. */
-export function showInvited(invited: Invited) {
+/**
+ * a link was produced: open the invite dialog on it.
+ *
+ * **Three acts reach here and the panel cannot tell them apart.** An invitation, a new link on
+ * somebody's row, and a pending row's copy link each end with one link in one person's hands,
+ * so each ends on the same panel rather than on a surface of its own.
+ */
+export function showInvited(invited: InvitedLink) {
 	organizationDialog.invited = invited;
 	organizationDialog.open = 'invite';
 }

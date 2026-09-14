@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { Invited, OrganizationWorkspace } from '$lib/platform/tauri';
-	import type { InvitedCopy } from '$lib/organization/dialogs.svelte';
+	import type { OrganizationWorkspace, WorkspaceGrant } from '$lib/platform/tauri';
+	import type { InvitedCopy, InvitedLink } from '$lib/organization/dialogs.svelte';
 	import { usernameSchema } from '$lib/organization/username-form';
 	import FieldError from '@rentable/design/block/field-error.svelte';
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
@@ -21,13 +21,14 @@
 	import z from 'zod';
 
 	/**
-	 * Making an account, which is what inviting is: a username, a role, the workspaces they hold.
+	 * Making an account, which is what inviting is: a username, a role, the workspaces they hold
+	 * and what each one is good for.
 	 *
 	 * **On the shared form surface, heavy.** An invitation is a write, and every write here takes
 	 * `FormSurface` ([[rules/interface]], *Form surface*); three fields and a result panel are the
 	 * heavy weight, declared rather than measured, so this is the edge sheet and it fills the
 	 * width below the breakpoint without swapping components under a half-typed form. It is
-	 * mounted once, in the shell, and opened from the rail's menu and from the organization page
+	 * mounted once, in the shell, and opened from the rail's menu and from the members section
 	 * alike; `organization/dialogs.svelte.ts` says why once is the number.
 	 *
 	 * **The username is the whole of the identity, under the one rule.** No address and no display
@@ -36,13 +37,23 @@
 	 * the walk's `name` step and the rename dialog read, so a username refused here is refused
 	 * there with the same sentence.
 	 *
+	 * **A workspace is a checkbox and an access**, which is requirement 8 of effort 826: what the
+	 * invitation grants is what the member's row will carry, and a grant that could only ever be
+	 * full access made the read-only half of the model unreachable from the one surface that
+	 * creates grants. Read only is minted on the owner's machine and refused by name elsewhere,
+	 * so for anybody else the choice is drawn refused rather than hidden: a control that vanishes
+	 * says the access does not exist.
+	 *
 	 * **What comes back is one link, and the form says it cannot send it.** The application has
 	 * registered with no mail service and the spec forbids registering one on the customer's
 	 * behalf, so the invitation link is handed over by the person who invited, and one copy
 	 * control is what a person needs to do that (effort 826, requirement 8). The secret that opens
 	 * the member's vault once is inside the link; no password is shown. *Three things with three
-	 * copy controls until effort 826.* Its full redraw, the access choice per workspace with it,
-	 * is the members section's ticket.
+	 * copy controls until effort 826.*
+	 *
+	 * **The same panel answers three acts**: an invitation, a new link on somebody's row, and a
+	 * pending row's copy link. Each ends with one link in one person's hands, so the panel is
+	 * handed a link and a username rather than the payload of whichever act produced it.
 	 *
 	 * **Inviting an administrator is the owner's**, because certifying one needs the organization
 	 * key; the role select offers it only to the owner, and the shell refuses it regardless.
@@ -61,8 +72,10 @@
 	let {
 		open,
 		onOpenChange,
+		organizationName,
 		workspaces,
 		canInviteAdministrators,
+		canGrantReadOnly,
 		isInviting,
 		invited,
 		copied,
@@ -72,15 +85,23 @@
 	}: {
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
+		/** the organization the link admits into, named on the result panel. */
+		organizationName: string;
 		/** the workspaces the inviter can grant, which is what they hold themselves. */
 		workspaces: OrganizationWorkspace[];
 		canInviteAdministrators: boolean;
+		/** whether this machine holds the Turso authority, which is what mints a read-only credential. */
+		canGrantReadOnly: boolean;
 		isInviting: boolean;
-		/** what the last invitation made, shown until dismissed. */
-		invited: Invited | null;
-		/** which of the three was last copied, for the control to say so. */
+		/** the link the last act produced, shown until dismissed. */
+		invited: InvitedLink | null;
+		/** which of the panel's values was last copied, for the control to say so. */
 		copied: InvitedCopy | null;
-		onInvite: (username: string, role: 'administrator' | 'member', workspaceIds: string[]) => void;
+		onInvite: (
+			username: string,
+			role: 'administrator' | 'member',
+			workspaces: WorkspaceGrant[]
+		) => void;
 		onCopy: (what: InvitedCopy, value: string) => void;
 		onDismiss: () => void;
 	} = $props();
@@ -97,6 +118,16 @@
 
 	const blank: InviteForm = { username: '', role: 'member', workspaceIds: [] };
 
+	/**
+	 * the access chosen per workspace, held beside the form rather than in it.
+	 *
+	 * A superforms field carries what a schema can refuse, and this is a choice with no refusal
+	 * of its own: an unchecked workspace is not granted at all, so its access says nothing, and a
+	 * checked one is always one of two values. The checkbox is the field; this is what it is
+	 * worth.
+	 */
+	let access = $state<Record<string, WorkspaceGrant['access']>>({});
+
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<InviteForm>(
 		defaults(blank, zod4(InviteSchema)),
 		{
@@ -105,7 +136,11 @@
 			onUpdate: ({ form }) => {
 				if (!form.valid || isInviting) return;
 
-				onInvite(form.data.username.trim(), form.data.role, form.data.workspaceIds);
+				onInvite(
+					form.data.username.trim(),
+					form.data.role,
+					form.data.workspaceIds.map((id) => ({ id, access: access[id] ?? 'full-access' }))
+				);
 			}
 		}
 	);
@@ -117,6 +152,7 @@
 	$effect(() => {
 		if (open && !invited) {
 			reset({ data: blank });
+			access = {};
 		}
 	});
 
@@ -126,14 +162,22 @@
 			member: $LL.layout.signIn.roleMember()
 		})[value] ?? value;
 
+	const accessLabel = (value: WorkspaceGrant['access']) =>
+		value === 'read-only'
+			? $LL.organization.dashboard.accessReadOnly()
+			: $LL.organization.dashboard.accessFull();
+
 	const toggle = (id: string, checked: boolean) => {
 		$form.workspaceIds = checked
 			? [...new Set([...$form.workspaceIds, id])]
 			: $form.workspaceIds.filter((held) => held !== id);
+
+		if (checked && !access[id]) access[id] = 'full-access';
 	};
 
 	const done = () => {
 		reset({ data: blank });
+		access = {};
 		onDismiss();
 	};
 </script>
@@ -148,12 +192,21 @@
 >
 	{#if invited}
 		<div class="space-y-4" data-invited>
+			<!-- the organization the link admits into leads the panel: the link is opaque, and the
+			     one fact a person hands over with it is which organization it opens. -->
+			<p class="text-sm font-medium" data-invited-organization>{organizationName}</p>
+
 			<!-- the one notice this surface carries, because it is the one thing a person has to act
 			     on: nothing was sent, and the link below is theirs to send. -->
 			<Callout tone="warning">{$LL.organization.dashboard.cannotSend()}</Callout>
 
 			<div class="space-y-2">
-				<p class="text-sm font-medium">{$LL.organization.dashboard.invitationLinkTitle()}</p>
+				<div class="flex flex-wrap items-baseline gap-2">
+					<p class="text-sm font-medium">{$LL.organization.dashboard.invitationLinkTitle()}</p>
+					<p class="truncate text-sm text-muted-foreground" data-invited-username>
+						{invited.username}
+					</p>
+				</div>
 				<!-- machine strings, read left to right in both locales ([[rules/frontend]], *i18n*). -->
 				<code
 					dir="ltr"
@@ -174,7 +227,7 @@
 			</div>
 
 			{#if invited.unreachableWorkspaces.length > 0}
-				<!-- requirement 13's limit, said at the moment it bites: what the reset could not
+				<!-- requirement 9's limit, said at the moment it bites: what the reset could not
 				     restore, because the resetting administrator does not reach it themselves. -->
 				<Callout tone="warning" data-invited-unreachable>
 					{$LL.organization.dashboard.unreachableWorkspaces({
@@ -247,17 +300,56 @@
 					<Field.Description>{$LL.organization.dashboard.noWorkspaceToGrant()}</Field.Description>
 				{/if}
 				{#each workspaces as workspace (workspace.id)}
-					<Field.Field orientation="horizontal">
+					{@const held = $form.workspaceIds.includes(workspace.id)}
+					<Field.Field orientation="horizontal" data-invite-workspace={workspace.id}>
 						<Checkbox
 							id={`invite-workspace-${workspace.id}`}
 							name="workspaceIds"
-							checked={$form.workspaceIds.includes(workspace.id)}
+							checked={held}
 							onCheckedChange={(checked) => toggle(workspace.id, checked === true)}
 							disabled={isInviting}
 						/>
-						<Field.Label for={`invite-workspace-${workspace.id}`}>{workspace.name}</Field.Label>
+						<Field.Label for={`invite-workspace-${workspace.id}`} class="flex-1">
+							{workspace.name}
+						</Field.Label>
+						<!-- the access is the grant's own value and reads beside it; a workspace nobody
+						     granted has none to choose, so the control waits for the checkbox. -->
+						<Select.Root
+							type="single"
+							value={access[workspace.id] ?? 'full-access'}
+							onValueChange={(value) => {
+								if (value === 'full-access' || value === 'read-only') {
+									access[workspace.id] = value;
+								}
+							}}
+							disabled={isInviting || !held}
+						>
+							<Select.Trigger
+								class={cn('w-40 shrink-0', insetControl)}
+								data-invite-access={workspace.id}
+							>
+								{accessLabel(access[workspace.id] ?? 'full-access')}
+							</Select.Trigger>
+							<Select.Content>
+								<Select.Item value="full-access" label={accessLabel('full-access')}>
+									{accessLabel('full-access')}
+								</Select.Item>
+								<!-- drawn refused rather than absent: the access exists, and who mints it is
+								     the fact worth saying (requirement 5). -->
+								<Select.Item
+									value="read-only"
+									label={accessLabel('read-only')}
+									disabled={!canGrantReadOnly}
+								>
+									{accessLabel('read-only')}
+								</Select.Item>
+							</Select.Content>
+						</Select.Root>
 					</Field.Field>
 				{/each}
+				{#if !canGrantReadOnly && workspaces.length > 0}
+					<Field.Description>{$LL.organization.dashboard.readOnlyIsTheOwners()}</Field.Description>
+				{/if}
 			</Field.Set>
 		</div>
 	{/if}

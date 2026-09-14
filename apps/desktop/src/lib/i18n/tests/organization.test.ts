@@ -70,20 +70,45 @@ test('neither locale tells somebody the disconnect revoked anything', () => {
 	}
 });
 
-// requirement 25 of effort 824: the organization page names what it is for. The invitations
-// section is titled as pending accounts, since an account is made at invite and pending until
-// its first sign-in; the page is a route, which no runner here renders, so the title is read
-// here. The link section's sentence is read on the rendered section in
-// `organization/tests/organization-link.svelte.test.ts`.
-test('both locales title the invitations section as pending accounts, written rather than copied', () => {
-	assert.match(en.organization.dashboard.pendingAccounts, /^pending accounts$/);
-	assert.match(ar.organization.dashboard.pendingAccounts, /الحسابات المعلّقة/);
+// effort 826, requirement 15: a person who was invited and has not signed in yet is a row in the
+// one members list, marked by a badge carrying the expiry. The list of pending accounts, its
+// title and its empty sentence are gone with it; what is read here is that both locales carry
+// the mark and the two expiry sentences in their own words, since the row is rendered in
+// `organization/tests/members.svelte.test.ts` and the words are what a reader meets.
+test('both locales mark a pending member and say when their link runs out', () => {
+	assert.match(en.organization.dashboard.notYetSignedIn, /^not yet signed in$/);
+	assert.match(en.organization.dashboard.invitationExpires, /\{date:string\}/);
+	assert.match(en.organization.dashboard.invitationLapsed, /\{date:string\}/);
+	assert.match(ar.organization.dashboard.invitationExpires, /\{date\}/);
+	assert.match(ar.organization.dashboard.invitationLapsed, /\{date\}/);
 	assert.notEqual(
-		ar.organization.dashboard.pendingAccounts,
-		en.organization.dashboard.pendingAccounts
+		ar.organization.dashboard.notYetSignedIn,
+		en.organization.dashboard.notYetSignedIn
 	);
-	assert.match(en.organization.dashboard.noPendingAccounts, /pending accounts/);
-	assert.match(ar.organization.dashboard.noPendingAccounts, /حسابات معلّقة/);
+	assert.notEqual(
+		ar.organization.dashboard.invitationExpires,
+		ar.organization.dashboard.invitationLapsed
+	);
+});
+
+// effort 826, requirements 5 and 6: the two refusals the spec keeps in words rather than in a
+// hidden control each name the owner, in both languages.
+test('both locales name the owner where an act belongs to nobody else', () => {
+	for (const [name, translation] of locales) {
+		assert.ok(
+			translation.organization.dashboard.signingIsTheOwners.length > 0,
+			`${name} says nothing about who may hand out a signing act`
+		);
+		assert.ok(
+			translation.organization.dashboard.readOnlyIsTheOwners.length > 0,
+			`${name} says nothing about who may grant read only`
+		);
+	}
+
+	assert.match(en.organization.dashboard.signingIsTheOwners, /only the owner/);
+	assert.match(en.organization.dashboard.readOnlyIsTheOwners, /only the owner/);
+	assert.match(ar.organization.dashboard.signingIsTheOwners, /المالك وحده/);
+	assert.match(ar.organization.dashboard.readOnlyIsTheOwners, /المالك وحده/);
 });
 
 // effort 826, requirement 8: what an invitation shows afterwards is one link, and the sentence

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: ['04', '08', '09']
 ---
 
@@ -19,29 +19,29 @@ Traces requirement 15, requirement 8 (the dialog and its result) and requirement
 list shows) of [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]], and its
 criterion 15, criterion 8 (the dialog half) and criterion 6 (the list half).
 
-- [ ] `organization/component/members.svelte` renders one row per member from `MemberFacts`:
+- [x] `organization/component/members.svelte` renders one row per member from `MemberFacts`:
       avatar initials, username, role badge, the workspaces with `full` or `read-only`, and for
       a pending row the mark with its expiry; row actions are change role and permissions
       (`changeRole`, opening `role-dialog.svelte`), workspaces and access (`grantWorkspace`,
       opening `access-dialog.svelte`), rename (`renameMember`), new link (`resetPassword`),
       remove (`removeMember`, the `DeleteDialog` with lock out for the owner and its cost), and
       on a pending row copy link (for its issuer), new link and revoke (`inviteMember`).
-- [ ] `role-dialog.svelte` offers the three roles and a checkbox per grantable act, with the
+- [x] `role-dialog.svelte` offers the three roles and a checkbox per grantable act, with the
       signing acts drawn refused for a caller who is not the owner and the sentence naming the
       owner; `access-dialog.svelte` offers every workspace with none, full or read-only,
       read-only drawn refused for a non-owner; both are light `FormSurface`s.
-- [ ] `invite-form.svelte` asks for a username, a role and per workspace a checkbox with an
+- [x] `invite-form.svelte` asks for a username, a role and per workspace a checkbox with an
       access choice; its result renders the organization's name, one link and one copy control
       and the cannot-send sentence; `invitations.svelte` and its test do not exist.
-- [ ] `dialogs.svelte.ts`'s `invited` carries a link and a username and is shown by invite, new
+- [x] `dialogs.svelte.ts`'s `invited` carries a link and a username and is shown by invite, new
       link and copy link alike.
-- [ ] `members.svelte.test.ts` renders an active row and a pending row with every field, finds
+- [x] `members.svelte.test.ts` renders an active row and a pending row with every field, finds
       each action present only when the session permits its act, finds copy link only for the
       issuer, and finds the invite button opening the dialog; `invite-form.svelte.test.ts` finds
       the access choice and one copy control; the two dialogs have tests of their own.
-- [ ] Every string is written in both locales; `organization.dashboard.pendingAccounts` and the
+- [x] Every string is written in both locales; `organization.dashboard.pendingAccounts` and the
       pending list's strings are gone.
-- [ ] `pnpm check`, `pnpm lint` and `pnpm test` pass; a changeset rides with the change.
+- [x] `pnpm check`, `pnpm lint` and `pnpm test` pass; a changeset rides with the change.
 
 ## Relevant areas
 
@@ -62,4 +62,18 @@ criterion 15, criterion 8 (the dialog half) and criterion 6 (the list half).
 
 ## Notes
 
-Nothing yet.
+Built by an implementer and landed on 2026-09-14. Departures: the role dialog offers two
+roles, since `member.changeRole` admits `administrator` and `member` and ownership does not
+transfer; "new link" on a pending row is gated on `resetPassword`, the act of the one command
+that issues a fresh link, while copy link and revoke stay under `inviteMember`; the invite
+button lives in `members.svelte` so the list's test finds it; `inviteDescription` was rewritten
+in both locales since it still promised three things; `design/form.ts` and
+`design/tests/select.ts` are two helpers outside the relevant areas; read-only is gated on the
+owner as the lock-out already is. `access-dialog.svelte` takes `rows: AccessRow[]`,
+`canGrantReadOnly`, `onSave(changes)` and a title and description, so ticket 11 mounts it with
+one row per member of the open workspace.
+
+Raised, not taken: which acts sign a row is spelled in both `role-dialog.svelte` and
+`permission.rs`; a change of access is several commands in sequence; `PendingInvitation.standing`
+still admits `consumed`; the panel state is still called `invited`; the area's prop list is
+long. Ticket 14 adds "sign out everywhere" to the cluster and ticket 15 the code under the link.

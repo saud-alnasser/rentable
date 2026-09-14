@@ -387,6 +387,118 @@ export function useAccountRefusalDetail(refused: () => boolean) {
 	}));
 }
 
+/**
+ * write a member's role and the acts their row carries, together.
+ *
+ * The refusals a person can act on are the owner's two sentences, their own row and the owner's,
+ * and each arrives as `BAD_REQUEST` or a forbidden and is shown verbatim; the list is refreshed
+ * so the row reads the new role and the chips read the same grants.
+ */
+export function useChangeRole(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.roleChanged(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({
+			memberId,
+			role,
+			permissions
+		}: {
+			memberId: string;
+			role: 'administrator' | 'member';
+			permissions: number;
+		}) => api.app.organization.member.changeRole({ memberId, role, permissions }),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * grant a member a workspace, at full access or read only.
+ *
+ * **No toast of its own**, because a change of access is several of these and a withdrawal
+ * beside them: the caller says once that the workspaces were saved. Minting a read-only
+ * credential is the owner's and is refused by name elsewhere, which the shared handler shows.
+ */
+export function useGrantWorkspace(
+	opts: MutationOptions = {
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({
+			workspaceId,
+			memberId,
+			access
+		}: {
+			workspaceId: string;
+			memberId: string;
+			access: 'full-access' | 'read-only';
+		}) => api.app.organization.workspace.grant({ workspaceId, memberId, access }),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * take a workspace back from a member. Nothing is minted and nothing rotates, so the credential
+ * they already hold works until it expires; cutting somebody off at once is the lock-out on a
+ * removal. Quiet for the same reason the grant is.
+ */
+export function useWithdrawGrant(
+	opts: MutationOptions = {
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ workspaceId, memberId }: { workspaceId: string; memberId: string }) =>
+			api.app.organization.workspace.withdraw({ workspaceId, memberId }),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * the invitation link again, for the person who issued it. Nobody else can read it, and the row
+ * offers them a new link instead; the refusal arrives as a forbidden and is shown.
+ *
+ * **A mutation rather than a query**, because it is asked for at the moment somebody presses a
+ * control and its answer is shown once: cached under a key, it would be a secret kept in memory
+ * for as long as the section is open.
+ */
+export function useInvitationLink(
+	opts: MutationOptions = {
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	return createMutation(() => ({
+		mutationFn: ({ invitationId }: { invitationId: string }) =>
+			api.app.organization.invitation.link({ invitationId }),
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
 /** reset a member's password: a fresh link, from what the resetting administrator holds. */
 export function useReissueInvitation(
 	opts: MutationOptions = {
