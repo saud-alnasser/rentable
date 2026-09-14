@@ -163,6 +163,10 @@ type RootTranslation = {
 			 */
 			installingUpdate: string
 			/**
+			 * j​o​i​n
+			 */
+			join: string
+			/**
 			 * n​e​w​ ​r​e​c​o​r​d
 			 */
 			newRecord: string
@@ -1372,6 +1376,10 @@ type RootTranslation = {
 			 */
 			connectByLink: string
 			/**
+			 * u​s​e​ ​a​ ​l​i​n​k
+			 */
+			useALink: string
+			/**
 			 * d​i​s​c​o​n​n​e​c​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e
 			 */
 			disconnect: string
@@ -2429,11 +2437,11 @@ type RootTranslation = {
 			 */
 			title: string
 			/**
-			 * p​a​s​t​e​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​l​i​n​k​.​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​r​e​c​o​r​d​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​a​n​d​ ​y​o​u​ ​s​i​g​n​ ​i​n​ ​t​o​ ​i​t​ ​w​i​t​h​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​p​a​s​s​w​o​r​d​.
+			 * p​a​s​t​e​ ​t​h​e​ ​l​i​n​k​ ​y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​.​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k​ ​r​e​c​o​r​d​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​t​a​k​e​s​ ​y​o​u​ ​t​o​ ​t​h​e​ ​s​i​g​n​-​i​n​;​ ​a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k​ ​r​e​c​o​r​d​s​ ​i​t​ ​a​n​d​ ​a​s​k​s​ ​y​o​u​ ​t​o​ ​c​h​o​o​s​e​ ​a​ ​p​a​s​s​w​o​r​d​.
 			 */
 			description: string
 			/**
-			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k
+			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k​ ​o​r​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k
 			 */
 			linkLabel: string
 			/**
@@ -2441,13 +2449,57 @@ type RootTranslation = {
 			 */
 			reading: string
 			/**
-			 * t​h​i​s​ ​i​s​ ​n​o​t​ ​a​ ​r​e​n​t​a​b​l​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k​.​ ​p​a​s​t​e​ ​t​h​e​ ​w​h​o​l​e​ ​l​i​n​k​,​ ​e​x​a​c​t​l​y​ ​a​s​ ​i​t​ ​w​a​s​ ​h​a​n​d​e​d​ ​t​o​ ​y​o​u​.
+			 * t​h​i​s​ ​i​s​ ​n​o​t​ ​a​ ​r​e​n​t​a​b​l​e​ ​l​i​n​k​.​ ​p​a​s​t​e​ ​t​h​e​ ​w​h​o​l​e​ ​l​i​n​k​,​ ​e​x​a​c​t​l​y​ ​a​s​ ​i​t​ ​w​a​s​ ​h​a​n​d​e​d​ ​t​o​ ​y​o​u​.
 			 */
 			unreadable: string
 			/**
 			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​r​e​a​c​h​e​d​.​ ​t​h​e​ ​l​i​n​k​ ​i​s​ ​r​i​g​h​t​;​ ​t​r​y​ ​a​g​a​i​n​ ​o​n​c​e​ ​t​h​e​ ​c​o​n​n​e​c​t​i​o​n​ ​i​s​ ​b​a​c​k​.
 			 */
 			unreachable: string
+			/**
+			 * t​h​i​s​ ​i​n​v​i​t​a​t​i​o​n​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​n​e​w​ ​l​i​n​k​.
+			 */
+			lapsed: string
+			/**
+			 * t​h​i​s​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k​ ​h​a​s​ ​a​l​r​e​a​d​y​ ​b​e​e​n​ ​o​p​e​n​e​d​.​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​c​o​n​n​e​c​t​e​d​,​ ​s​o​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​c​h​o​s​e​.
+			 */
+			consumed: string
+			/**
+			 * t​h​i​s​ ​i​n​v​i​t​a​t​i​o​n​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​n​e​w​ ​l​i​n​k​.
+			 */
+			revoked: string
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​ ​i​t​ ​f​i​r​s​t​,​ ​t​h​e​n​ ​o​p​e​n​ ​t​h​i​s​ ​l​i​n​k​.
+			 */
+			anotherOrganization: string
+			/**
+			 * g​o​ ​t​o​ ​t​h​e​ ​s​i​g​n​-​i​n
+			 */
+			toSignIn: string
+			/**
+			 * c​h​o​o​s​e​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d
+			 */
+			passwordTitle: string
+			/**
+			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​o​p​e​n​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​o​n​ ​a​n​y​ ​o​t​h​e​r​ ​y​o​u​ ​s​i​g​n​ ​i​n​ ​f​r​o​m​.​ ​n​o​b​o​d​y​ ​c​a​n​ ​r​e​c​o​v​e​r​ ​i​t​ ​f​o​r​ ​y​o​u​;​ ​a​ ​n​e​w​ ​l​i​n​k​ ​i​s​ ​t​h​e​ ​o​n​l​y​ ​w​a​y​ ​b​a​c​k​.
+			 */
+			passwordDescription: string
+			/**
+			 * o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			organizationLabel: string
+			/**
+			 * u​s​e​r​n​a​m​e
+			 */
+			usernameLabel: string
+			/**
+			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​,​ ​a​g​a​i​n
+			 */
+			confirmLabel: string
+			/**
+			 * t​h​e​ ​t​w​o​ ​d​o​ ​n​o​t​ ​m​a​t​c​h​.
+			 */
+			mismatch: string
 			/**
 			 * t​r​y​ ​a​g​a​i​n
 			 */
@@ -2907,6 +2959,10 @@ export type TranslationFunctions = {
 			 * installing update...
 			 */
 			installingUpdate: () => LocalizedString
+			/**
+			 * join
+			 */
+			join: () => LocalizedString
 			/**
 			 * new record
 			 */
@@ -4060,6 +4116,10 @@ export type TranslationFunctions = {
 			 */
 			connectByLink: () => LocalizedString
 			/**
+			 * use a link
+			 */
+			useALink: () => LocalizedString
+			/**
 			 * disconnect this machine
 			 */
 			disconnect: () => LocalizedString
@@ -5070,11 +5130,11 @@ export type TranslationFunctions = {
 			 */
 			title: () => LocalizedString
 			/**
-			 * paste the organization's link. this machine records the organization, and you sign in to it with your username and password.
+			 * paste the link you were given. an organization link records the organization on this machine and takes you to the sign-in; an invitation link records it and asks you to choose a password.
 			 */
 			description: () => LocalizedString
 			/**
-			 * organization link
+			 * organization link or invitation link
 			 */
 			linkLabel: () => LocalizedString
 			/**
@@ -5082,13 +5142,57 @@ export type TranslationFunctions = {
 			 */
 			reading: () => LocalizedString
 			/**
-			 * this is not a rentable organization link. paste the whole link, exactly as it was handed to you.
+			 * this is not a rentable link. paste the whole link, exactly as it was handed to you.
 			 */
 			unreadable: () => LocalizedString
 			/**
 			 * the organization could not be reached. the link is right; try again once the connection is back.
 			 */
 			unreachable: () => LocalizedString
+			/**
+			 * this invitation has lapsed. ask whoever invited you for a new link.
+			 */
+			lapsed: () => LocalizedString
+			/**
+			 * this invitation link has already been opened. this machine is connected, so sign in with your username and the password you chose.
+			 */
+			consumed: () => LocalizedString
+			/**
+			 * this invitation was withdrawn. ask whoever invited you for a new link.
+			 */
+			revoked: () => LocalizedString
+			/**
+			 * this machine already holds another organization. disconnect it first, then open this link.
+			 */
+			anotherOrganization: () => LocalizedString
+			/**
+			 * go to the sign-in
+			 */
+			toSignIn: () => LocalizedString
+			/**
+			 * choose your password
+			 */
+			passwordTitle: () => LocalizedString
+			/**
+			 * your password opens your place in the organization, on this machine and on any other you sign in from. nobody can recover it for you; a new link is the only way back.
+			 */
+			passwordDescription: () => LocalizedString
+			/**
+			 * organization
+			 */
+			organizationLabel: () => LocalizedString
+			/**
+			 * username
+			 */
+			usernameLabel: () => LocalizedString
+			/**
+			 * your password, again
+			 */
+			confirmLabel: () => LocalizedString
+			/**
+			 * the two do not match.
+			 */
+			mismatch: () => LocalizedString
 			/**
 			 * try again
 			 */

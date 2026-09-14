@@ -118,6 +118,44 @@ test('a machine that has joined nothing asks for nothing and offers the first ru
 	expect(screen.queryByRole('button', { name: en.layout.signIn.disconnect })).toBeNull();
 });
 
+// effort 826, requirement 11: a reset link is opened by somebody whose machine already holds the
+// organization, so the locked wall carries one text control to the connect screen, beside the
+// disconnect. The two fields and the unlock are untouched by it, which the first test reads.
+test('the locked wall offers the connect screen beside the disconnect', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	let asked = 0;
+
+	card('locked', { onJoinByLink: () => void asked++ });
+
+	const useALink = screen.getByRole('button', { name: en.layout.signIn.useALink });
+
+	// a text control rather than a second way in: the fields are the way in, and this is the
+	// exception to them.
+	expect(useALink.getAttribute('data-slot')).toBe('button');
+	expect(useALink.className).toContain('underline-offset-4');
+	expect(
+		useALink.compareDocumentPosition(
+			screen.getByRole('button', { name: en.layout.signIn.disconnect })
+		) & Node.DOCUMENT_POSITION_FOLLOWING
+	).toBeTruthy();
+
+	await fireEvent.click(useALink);
+
+	expect(asked).toBe(1);
+});
+
+// and it is the locked wall's alone: a machine that holds nothing is already offered the connect
+// screen as one of its two ways in, and the count in that test is what keeps a third off it.
+test('a machine that holds nothing does not repeat the link control', () => {
+	loadLocale('en');
+	setLocale('en');
+	card('noOrganization', { organization: null });
+
+	expect(screen.queryByRole('button', { name: en.layout.signIn.useALink })).toBeNull();
+});
+
 test('a pair that did not open is said on the wall, with the one sentence allowed', () => {
 	loadLocale('en');
 	setLocale('en');

@@ -56,12 +56,15 @@
 	 * at the first screen of the build that forgets the old shape: one word in the title, a
 	 * friendly line under it, three words at most on a control.*
 	 *
-	 * **One link at the foot while locked.** Disconnect forgets the organization on this machine
-	 * (requirement 20), after the one confirm the dialog asks, and the wall comes back as a machine
-	 * that holds nothing, offering the two ways in again. Connecting and setting up are offered
-	 * only there, since a machine holds one organization (requirement 17) and reaching another is
-	 * disconnect, then connect. *This said three links: connect by link and set up stood beside
-	 * disconnect until 2026-09-13.*
+	 * **Two links at the foot while locked.** Disconnect forgets the organization on this machine
+	 * (effort 824, requirement 20), after the one confirm the dialog asks, and the wall comes back
+	 * as a machine that holds nothing, offering the two ways in again. Setting up is offered only
+	 * there, since a machine holds one organization (requirement 17) and reaching another is
+	 * disconnect, then connect. Beside it, the way to the connect screen for a person holding a
+	 * link (effort 826, requirement 11): a reset link is opened by somebody whose machine already
+	 * holds the organization, so the screen it is opened on has to be reachable from here.
+	 * *This said three links, then one: connect by link and set up stood beside disconnect until
+	 * 2026-09-13, and the link came back behind the wall with effort 826.*
 	 */
 	let {
 		situation,
@@ -85,7 +88,10 @@
 		onDisconnect: () => Promise<void> | void;
 		/** the first run: an organization on the person's own Turso account. */
 		onSetUpOrganization: () => void;
-		/** the connect screen: the organization's link, pasted or handed over by the operating system. */
+		/**
+		 * the connect screen: an organization link or an invitation link, pasted or handed over by
+		 * the operating system. Offered in both situations, since a reset link is opened from here.
+		 */
 		onJoinByLink: () => void;
 	} = $props();
 
@@ -206,6 +212,21 @@
 				     bar: too short to fill one, too long to show nothing. -->
 				<p class="text-center text-sm text-muted-foreground">{$LL.layout.signIn.unlocking()}</p>
 			{/if}
+
+			<!-- the way in for somebody holding a link on a machine that already holds this
+			     organization: a reset link is opened by a member whose machine is connected, so the
+			     connect screen has to be reachable from behind the wall and not only from a machine
+			     that holds nothing (effort 826, requirement 11). A text control, beside the
+			     disconnect rather than above the fields, because the fields are the way in and this
+			     is the exception to them. -->
+			<Button
+				variant="link"
+				class="w-full justify-center"
+				onclick={onJoinByLink}
+				disabled={isSigningIn}
+			>
+				{$LL.layout.signIn.useALink()}
+			</Button>
 
 			<Button
 				variant="link"

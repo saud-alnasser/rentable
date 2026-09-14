@@ -47,6 +47,7 @@ const en = {
 			exportSelection: 'export selection',
 			import: 'import',
 			installingUpdate: 'installing update...',
+			join: 'join',
 			newRecord: 'new record',
 			openMenu: 'open menu',
 			openPayments: 'open payments',
@@ -415,6 +416,7 @@ const en = {
 			roleMember: 'member',
 			setUp: 'create organization',
 			connectByLink: 'connect with link',
+			useALink: 'use a link',
 			disconnect: 'disconnect this machine',
 			disconnectDescription:
 				"this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes, and the organization's link connects this machine again.",
@@ -785,13 +787,27 @@ const en = {
 		join: {
 			title: 'connect to an organization',
 			description:
-				"paste the organization's link. this machine records the organization, and you sign in to it with your username and password.",
-			linkLabel: 'organization link',
+				'paste the link you were given. an organization link records the organization on this machine and takes you to the sign-in; an invitation link records it and asks you to choose a password.',
+			linkLabel: 'organization link or invitation link',
 			reading: 'connecting to the organization...',
 			unreadable:
-				'this is not a rentable organization link. paste the whole link, exactly as it was handed to you.',
+				'this is not a rentable link. paste the whole link, exactly as it was handed to you.',
 			unreachable:
 				'the organization could not be reached. the link is right; try again once the connection is back.',
+			lapsed: 'this invitation has lapsed. ask whoever invited you for a new link.',
+			consumed:
+				'this invitation link has already been opened. this machine is connected, so sign in with your username and the password you chose.',
+			revoked: 'this invitation was withdrawn. ask whoever invited you for a new link.',
+			anotherOrganization:
+				'this machine already holds another organization. disconnect it first, then open this link.',
+			toSignIn: 'go to the sign-in',
+			passwordTitle: 'choose your password',
+			passwordDescription:
+				'your password opens your place in the organization, on this machine and on any other you sign in from. nobody can recover it for you; a new link is the only way back.',
+			organizationLabel: 'organization',
+			usernameLabel: 'username',
+			confirmLabel: 'your password, again',
+			mismatch: 'the two do not match.',
 			tryAgain: 'try again',
 			back: 'back'
 		},
