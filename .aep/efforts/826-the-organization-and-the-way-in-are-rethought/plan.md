@@ -155,6 +155,107 @@ body, the current one underlined. The mechanism is unchanged: a `nav` of anchors
 `?section=`, `aria-current` on the current one, and the `Tabs` primitive still unused, since
 these remain seven addressable pages sharing a frame.*
 
+## Three additions of 2026-09-14 (requirements 21, 22, 23)
+
+*Three notes the owner gave while wave three was building; each was put to them in one picker
+round and the picks are recorded here. Tickets 13, 14 and 15 carry them, after the tickets
+whose surfaces they extend; ticket 12's sweep waits for all three.*
+
+### One group holds one organization (requirement 21)
+
+`discovery::organization` already reads the whole listing to find the slug and filters it to
+the consented group. It reports, beside the slug, the names of the databases it saw in that
+group, and `setup::create_organization` refuses when any of them is `org-` followed by an id,
+the name `setup.rs:199` gives an organization's own database, before anything is created:
+`Error::PreconditionFailed` with "this group already holds the organization database
+`org-...`; a group holds one organization, so pick another group or another Turso account".
+The refusal reaches the walk's connect step the way a failed create does today, and the consent
+is abandoned (`consent::forget`, the path a declined consent already takes) so the person can
+consent again with another account or group. Databases with any other name do not count. The
+connect step's coverage statement (ticket 07's three literals) gains the one-organization
+sentence in both locales and `setup.test.ts` pins it.
+
+*Rejected: refusing any database at all, which is the empty-group instruction requirement 13
+just removed; and a check at connect time on a second machine, which is the owner reconnecting
+to the organization the group already holds, and must succeed.*
+
+### A member is signed out of every machine (requirement 22)
+
+**The row carries a session epoch, and a session that was opened under an older one ends.**
+`member` gains `session_epoch INTEGER NOT NULL DEFAULT 0`, outside the member signature as
+the vault columns are: it is the member's own to write, and the acts that reseal their vault
+may write it too. `MemberSession` carries the epoch it opened under, and the keyring entry
+files it beside the key (`<epoch>:<base64url key>`), so a resume compares before it opens.
+
+- `session::end_elsewhere(store, session, now)`: bumps the caller's own row, pushes, moves the
+  open session to the new epoch and rewrites the keyring entry, so this machine stays signed
+  in and every other one is behind.
+- `session::end_member_sessions(store, session, member_id, now)`: `require(ResetPassword)`,
+  refuses the owner's row for anybody but the owner (the same sentence `change_role` uses),
+  refuses the caller's own row (that is `end_elsewhere`), bumps the target's epoch, pushes.
+- **A remembered key behind the row opens nothing.** `session::resume` pulls, reads the row,
+  and where the filed epoch is behind the row's it forgets the entry and leaves the wall up,
+  with a standing the state carries, `signedOutElsewhere`, so the wall can say "you were
+  signed out of this machine from another; sign in again", in both locales.
+- **An open session behind the row ends at the next heartbeat.** `autosync.ts` runs its sync
+  every `HEARTBEAT_MS`; the Rust side of that call pulls the organization replica as well and
+  compares the session's epoch with the row's; behind, it empties the `member` slot, forgets
+  the entry and answers with the standing, and `autosync.ts` calls
+  `startup.standingChanged()`, which shows the wall with the sentence. The exact command the
+  heartbeat calls is the ticket's to read; the property is that a machine with the application
+  open is at the wall within one heartbeat of the push reaching it.
+
+Commands `session_end_elsewhere()` (`procedure.member`) and `member_end_sessions(member_id)`
+(`resetPassword`); the you section carries "sign out of other machines" with a confirm dialog;
+the member row's action cluster carries "sign out everywhere" behind `resetPassword`, drawn in
+the row ticket 10 builds. A `member` table without `session_epoch` is one more `OldShape`.
+
+*Rejected: a signed-out-at timestamp, which two machines' clocks would read differently; and
+resealing the vault under the same password with a fresh salt, which signs the member out
+everywhere including here, and gives the owner no way in since only the member's password
+opens their vault. Not a new act: whoever may end a member's password may end their sessions.*
+
+### The invitation link is confirmed by a code that is a key half (requirement 23)
+
+**The vault's password is sealed under the link's secret and the code together, and the link
+carries only its half.** `issue` draws three things: the vault password `P` (the 23-character
+password `generate_password` draws today, which the vault is built under exactly as now), a
+32-byte link secret `L`, and a six-character code `C` from a 32-symbol alphabet (digits and
+upper-case letters without `I`, `L`, `O`, `U`, so it is read out on a call without ambiguity).
+The link's invitation half is `{ id, secret: L }`; the row gains `code_seal BLOB` and
+`code_expires_at INTEGER`, where `code_seal` is `P` sealed under the key
+`derive_member_key(C, salt = the first 16 bytes of L, SHIPPING_KDF)` with the invitation id
+and `code_expires_at` as AAD, through the same AEAD `sealed_secret_key` uses; and
+`sealed_secret`, the issuer's copy, now seals `P` and `L` together so the issuer can make
+another code. Consuming the invitation clears `code_seal`.
+
+- **Accept** takes the link, the code and the chosen password: after the standing check, a
+  row whose `code_expires_at` is behind the person's clock is refused as lapsed; the code key
+  is derived and `code_seal` opened, and a wrong code fails the AEAD and is refused as "the
+  code is wrong or has lapsed; ask whoever invited you for a fresh one"; then `P` opens the
+  vault and everything from there is ticket 03's path.
+- **A fresh code** is `invitation_code(invitation_id)`: the issuer's row, as `invitation_link`
+  is, since only the issuer unseals `sealed_secret`; it draws a new code, rewrites `code_seal`
+  and `code_expires_at = now + 90 s`, pushes, and answers `{ code, expiresAt }`. Anybody else
+  with the act issues a new link, which is a reset, as for the link copy.
+- **What the code protects.** The link alone holds `L` and the read-only credential, so its
+  holder can read the row and the vault; opening either needs `P`, which needs `C`, which is
+  32^6 guesses under Argon2id at the vault's own cost, and the seal's AAD binds the expiry so
+  a rewritten expiry opens nothing. The ninety seconds are read from the row against the
+  person's clock; they hurry the person and lapse a code that was read out and forgotten, and
+  the barrier a leaked link meets is the derivation, not the clock.
+
+`Invited` gains `code` and `codeExpiresAt`; `invitation_accept(link, code, password)`;
+`invitation.code` in the router under `inviteMember`, `invitation.accept` public with a
+six-character `code`. The invite result panel shows the link, then the code large beside the
+seconds it has left and a "fresh code" control; the issuer's pending row offers the same panel;
+the connect screen's password step carries the code field above the password. An `invitation`
+table without `code_seal` is one more `OldShape`.
+
+*Rejected: a code the row holds hashed and the client checks, which the owner declined because
+a modified client holding the link walks past it; a code alone with no link secret, which is
+thirty bits against the vault; and sixty seconds, for the replication the row needs.*
+
 # Components
 
 **Rust, `tauri/src/`**
@@ -168,6 +269,11 @@ these remain seven addressable pages sharing a frame.*
 | `organization/invite.rs` | `invite_member` taking `[(workspace id, access)]`; `issue` taking permissions; `sealed_secret` and `issued_by` written; `invitation_link`; `revoke_invitation` removing a pending member; `rename_member` under `RenameMember`; `reissue_invitation` under `ResetPassword` |
 | `organization/join.rs` | `accept(store, machine, held, link, password, credential, now)`: find the invitation, judge its standing, open the vault with the secret, reseal under the password, consume, record the member, file the key. `inspect` produces the standing again and the invited username. `admit` loses the `must_change_password` branches |
 | `organization/session.rs` | `open_session` reused by resume; `remember(session)` and `resume(store, held)` over `keyring::` |
+| `sync/turso/discovery.rs` | `organization` reports the names listed in the consented group beside the slug |
+| `organization/setup.rs` | refuses a group already holding an `org-` database before creating anything; abandons the consent |
+| `organization/session.rs` | `end_elsewhere`, `end_member_sessions`; `resume` and the heartbeat compare the epoch; a standing for a machine signed out elsewhere |
+| `organization/invite.rs` | `issue` draws the link secret and the code, writes `code_seal`; `invitation_code` |
+| `organization/join.rs` | `accept` takes the code and opens `code_seal` before the vault |
 | `organization/role.rs` (new) | `change_role`: the row rewrite, the certificate issue and revoke, the owner-only refusal for signing acts |
 | `organization/workspace.rs` | `grant_workspace` under `GrantWorkspace`; `withdraw_grant`; `create`, `delete`, `renew` unchanged under `require_owner` |
 | `organization/removal.rs` | unchanged; called by `revoke_invitation` for a pending member |
@@ -236,13 +342,17 @@ Rust enforces; the router's `permitted(...)` names the same act and is the earli
 | `workspace_grant(workspace_id, member_id, access)` | `grantWorkspace`; `read-only` the owner's | as today |
 | `workspace_grant_withdraw(workspace_id, member_id)` | `grantWorkspace`; never the owner's own | deletes the grant; the credential dies at its expiry, as an ordinary removal's does |
 | `workspace_create`, `workspace_delete`, `organization_renew_credentials`, `organization_own_link` | the owner, in Rust; `procedure.member` in the router | as today; `permitted('deleteWorkspace')` goes with the act |
+| `session_end_elsewhere()` | member | bumps the caller's epoch; this machine stays signed in |
+| `member_end_sessions(member_id)` | `resetPassword`; never the owner's row | every machine of the member is behind the row |
+| `invitation_code(invitation_id)` | `inviteMember`, and the issuer's row | `{ code, expiresAt }`; `forbidden` for anybody else |
+| `invitation_accept(link, code, password)` | public | the accept of ticket 03, with the code opening `code_seal` first |
 | `organization_members()` | member | `MemberFacts[]` |
 | `organization_invitations()` | removed | folded into `MemberFacts.pending` |
 
 **Payloads.** `MemberFacts { id, username, role, permissions, workspaces: [{ id, access }],
 pending: { invitationId, expiresAt, standing, canCopy } | null, createdAt }`. `canCopy` is
 whether the caller issued it. `OrganizationSession` loses `mustChangePassword`. `Invited` loses
-`generatedPassword`. `JoinLink`'s JSON gains an optional `invitation: { id, secret }` and the
+`generatedPassword` and gains `code` and `codeExpiresAt` (2026-09-14). `JoinLink`'s JSON gains an optional `invitation: { id, secret }` and the
 test at `link.rs:153` pins five keys on an organization link and six on an invitation link,
 with `"password"` absent from both.
 
@@ -263,7 +373,10 @@ typed as a template literal over the route, as `withCreateIntent` does;
 
 `invitation` gains `sealed_secret BLOB NOT NULL` and `issued_by TEXT NOT NULL`, both outside
 the signature. `member` gains `signing_public_key BLOB NOT NULL` under the member signature
-(corrected 2026-09-13, under *Certification stays the owner's*). No other table changes. `member.permissions` carries the seven-bit table.
+(corrected 2026-09-13, under *Certification stays the owner's*). On 2026-09-14, `member` gains
+`session_epoch INTEGER NOT NULL DEFAULT 0` outside the signature, and `invitation` gains
+`code_seal BLOB` and `code_expires_at INTEGER`, both outside its signature, with `sealed_secret`
+now sealing the vault password and the link secret together. No other table changes. `member.permissions` carries the seven-bit table.
 `remote-sync.json` is unchanged; the member key is in the credential store, never in it.
 
 # Technical Approach
@@ -311,10 +424,23 @@ build on lands first. `blocked-by` on the tickets says which.
     remote-sync: Sign in, the credential boundary; repository: the first-run paragraph), and a
     read of both locales recorded in the run log.
 
+13. **One group holds one organization** (requirement 21; added 2026-09-14). `discovery.rs`
+    reports the names, `setup.rs` refuses, the consent is abandoned, the connect step's
+    fourth sentence in both locales.
+14. **Signed out of every machine** (requirement 22; added 2026-09-14). The epoch column and
+    its `OldShape`, `end_elsewhere`, `end_member_sessions`, the resume and heartbeat checks,
+    the two commands, the you section's control, the row action, the wall's sentence.
+15. **The join code** (requirement 23; added 2026-09-14). The link secret and the code in
+    `issue`, `code_seal` and its `OldShape`, `accept` with the code, `invitation_code`, the
+    commands and the router, the invite result and the pending row's code panel, the connect
+    screen's code field.
+
 Steps 1 and 2 are independent of each other; 3 needs 1; 4 needs 1 and 3; 5 needs 2 and 3; 6
 needs 3 and 5; 7 stands alone; 8 needs nothing built; 9 needs 5 (the area's `you` section
 draws the change-password form without a forced state); 10 needs 4, 8 and 9; 11 needs 4, 8
-and 9; 12 needs everything.
+and 9; 13 needs 7; 14 needs 4, 5, 9 and 10 (the you section and the row it draws into); 15
+needs 3, 6 and 10 (the password step and the pending row it extends); 12 needs everything,
+13 to 15 included.
 
 # Integration
 
@@ -341,7 +467,9 @@ an `invitation` table without `sealed_secret`; `forget::old_shape` reads that as
 and forgets everything at the first `organization_state_get`, as 824 did. The human's own
 machine is wiped again, and the run says so before the first launch of a build past step 1.
 The two organizations left on the human's Turso account from before are untouched and will
-not open under the new build; deleting them is the human's, in Turso's dashboard.
+not open under the new build; deleting them is the human's, in Turso's dashboard. From step
+13 on they also refuse a first run into that group (requirement 21), so the run says, before
+the first launch, that the group has to be cleared of `org-` databases or another one chosen.
 
 # Testing Strategy
 

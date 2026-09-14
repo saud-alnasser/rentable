@@ -221,6 +221,43 @@ rail's two menus open. Every concept has one name.
     invitation link's single use and lapse, the reset link, the remembered session and its
     forgetting on sign-out; the Arabic strings are written, not copied.
 
+*Added on 2026-09-14, mid-implement, at three notes the owner gave while the run was on its
+third wave. Each is a decision, made in one picker round the same day; the plan and tickets
+13 to 15 carry them, and nothing before them is reopened.*
+
+21. **One Turso group holds one organization.** The first run's consent is over one group, and
+    a group that already holds a rentable organization database, one named `org-` and an id,
+    refuses the run on the connect step with a sentence naming the database it found and
+    saying that a group holds one organization, so the person picks another group or another
+    Turso account. Nothing is created and the consent is abandoned. Other databases in the
+    group do not count, so a Free or Developer account's one group with unrelated databases
+    in it still serves. *Chosen over requiring an empty group, which a Free or Developer
+    account cannot make, and over letting two organizations share a group, which the owner
+    ruled out: an organization is one group's.*
+22. **A member can be signed out of every machine.** A member signs themselves out of every
+    other machine from the you section and stays signed in on the one they are at; the owner,
+    and whoever holds `resetPassword`, signs any member out of every machine from the
+    member's row, never the owner. A machine signed out this way forgets what it remembered:
+    the next launch shows the wall, and a session that is open at the time ends at its next
+    sync heartbeat with the wall saying it was signed out from another machine. The
+    member's password is not changed by it. *Chosen over a reset as the only remedy, which
+    ends the password too, and over a session that expires on its own, which stays out of
+    scope; the reading is that a person who loses a laptop, or an owner who doubts one, wants
+    the sessions gone and nothing else.* The act is `resetPassword`'s because whoever may
+    end a member's password may end their sessions, and administrators hold it.
+23. **An invitation link is confirmed by a short code that lapses.** Beside the link, inviting
+    and resetting produce a six-character code of letters and digits, shown to the issuer
+    with the seconds it has left, ninety from when it was made; the issuer makes a fresh one
+    from the pending row as often as they like, and anybody else with the act issues a new
+    link instead. The person opening the link types the code beside the password they choose;
+    a wrong code, a lapsed code or no code opens nothing, by name. **The code is a key half,
+    not a check**: the link's secret and the code together are what opens the invited vault,
+    so a link that leaks, is forwarded on, or is found in a chat weeks later opens nothing
+    without a code that was alive when it was typed. The issuer reads the code out on a call
+    or in person; it is never sent beside the link. *Chosen over a code the row checks and
+    the client refuses, which a modified client holding the link walks past, and over sixty
+    seconds, which leaves no room for the row to replicate to the person's machine.*
+
 # Acceptance Criteria
 
 1. `grep` over `apps/desktop/src` and `apps/desktop/tauri/src` finds no path that asks a
@@ -288,6 +325,25 @@ rail's two menus open. Every concept has one name.
     launch, asserted in Rust with a fixture built by the shape 824 left; verified once on the
     human's machine.
 20. `pnpm check`, `pnpm lint`, `pnpm test` and `cargo test` pass.
+21. A first run whose group listing carries a database named `org-` and an id is refused on
+    the connect step with the sentence naming it; nothing is created and the consent's token
+    is gone from the credential store, asserted in Rust over a scripted listing; a listing
+    with unrelated databases proceeds. The connect step's coverage statement names the
+    one-organization rule, pinned in both locales.
+22. Signing out elsewhere leaves the caller's own session and remembered key working and, on
+    a second store connected to the same organization, makes the remembered key open nothing
+    at the next launch and ends the open session at the next heartbeat, both asserted in Rust
+    over two stores; `member_end_sessions` under `resetPassword` does the same to another
+    member and refuses the owner's row. The you section's control and the member row's
+    action render behind their gates, asserted in their tests, and the wall's sentence for a
+    machine signed out from another is present in both locales.
+23. `member_invite` and `member_reset` answer a link and a six-character code with its expiry
+    ninety seconds out; `invitation_code` answers a fresh one to the issuer and refuses
+    anybody else; accepting with the link and no code, a wrong code, or a lapsed code is
+    refused by name and opens nothing, and a Rust test shows the link's secret alone opens
+    neither the code seal nor the vault. The connect screen's password step has the code
+    field, and the invite result and the issuer's pending row show the code with its seconds
+    left and a control for a fresh one, asserted in their tests.
 
 # Constraints
 
@@ -329,8 +385,8 @@ rail's two menus open. Every concept has one name.
 - **Transfer of ownership.** The owner is whoever holds the Turso authority and the
   organization key; succession is Turso's, as 819's requirement 22 states. The act leaves
   the permission table rather than staying as a promise.
-- **A session that expires on its own.** A remembered session ends at sign-out and nowhere
-  else.
+- **A session that expires on its own.** A remembered session ends at sign-out, at a reset,
+  or when somebody signs the member out of every machine (requirement 22), and nowhere else.
 - **Two-factor authentication, sending mail, a hosted tier, Turso account creation, per-table
   permissions.** 819's boundaries, unchanged.
 - **Creating a Turso group from the application.** A group-scoped token cannot.
@@ -365,16 +421,25 @@ rail's two menus open. Every concept has one name.
 
 - **A remembered session weakens a shared machine.** Anyone at the machine opens the ledger.
   Sign-out is the answer and the you section says so; a session that expires is out of
-  scope by decision and this is the cost.
+  scope by decision and this is the cost. *Since 2026-09-14, requirement 22 gives a person
+  who cannot reach the machine a way to end its session from another.*
 - **An invitation link is a credential for seven days.** Whoever opens it first is the
   member. The invite result says to hand it over the way you would a password; revoke is
-  one press away.
+  one press away. *Narrowed on 2026-09-14 by requirement 23: the link alone opens nothing
+  without a code that was alive when it was typed, so the seven days are the row's, not the
+  secret's.*
+- **The code is a second thing to hand over, and it hurries the person.** Ninety seconds is
+  a call, not a message. The invite result shows the code beside the seconds it has left and
+  a fresh one is one press away, so a lapsed code costs a press and not a reissue; and the
+  issuer's clock and the person's may disagree, so the lapse the person's machine reads is
+  the row's expiry against their own clock, with the cryptographic barrier being the code's
+  entropy under the vault's cost rather than the clock.
 - **The chain's complexity survives, and widening spreads it.** Certificates were the
   owner's and administrators'; a widened member needs one too. The plan owns when it is
   issued and retired, and the existing re-signing routine is what it extends.
 - **Forgetting at startup wipes the human's own machine again.** As 824 did; the run says so
   before the first launch of the build.
-- **The effort is large.** Twenty requirements across Rust, four retired routes, one new
+- **The effort is large.** Twenty-three requirements across Rust, four retired routes, one new
   area, both menus, both locales. The plan cuts it by area and may propose landing the model
   before the screens; the human decides whether it stays one effort.
 - **The workspace page's export and import move.** A person who knew where they were finds

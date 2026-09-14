@@ -126,7 +126,7 @@ Start at [[protocol]].
 | 812-the-desktop-declares-what-it-uses | implemented | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
 | 819-an-organization-hosts-its-own-workspaces | implemented | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 28 |
 | 824-the-way-in-and-the-workspace-control-are-redesigned | implemented | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 17 |
-| 826-the-organization-and-the-way-in-are-rethought | accepted | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 12 |
+| 826-the-organization-and-the-way-in-are-rethought | accepted | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 15 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -231,4 +231,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/09-one-settings-area-replaces-four-pages]] feat(settings): one settings area replaces four pages | 826-the-organization-and-the-way-in-are-rethought | open | 05, 08 |
 | [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/10-the-members-section-is-one-list]] feat(organization): the members section is one list | 826-the-organization-and-the-way-in-are-rethought | open | 04, 08, 09 |
 | [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/11-the-workspaces-and-sync-sections]] feat(organization): the workspaces and sync sections | 826-the-organization-and-the-way-in-are-rethought | open | 04, 08, 09 |
-| [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/12-the-vocabulary-is-swept-and-the-contexts-corrected]] refactor(organization): the vocabulary is swept and the contexts corrected | 826-the-organization-and-the-way-in-are-rethought | open | 06, 07, 10, 11 |
+| [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/12-the-vocabulary-is-swept-and-the-contexts-corrected]] refactor(organization): the vocabulary is swept and the contexts corrected | 826-the-organization-and-the-way-in-are-rethought | open | 06, 07, 10, 11, 13, 14, 15 |
+| [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/13-one-group-holds-one-organization]] feat(organization): one Turso group holds one organization | 826-the-organization-and-the-way-in-are-rethought | open | 07 |
+| [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/14-a-member-is-signed-out-of-every-machine]] feat(organization): a member is signed out of every machine | 826-the-organization-and-the-way-in-are-rethought | open | 04, 05, 09, 10 |
+| [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/15-the-invitation-link-is-confirmed-by-a-code]] feat(organization): the invitation link is confirmed by a code | 826-the-organization-and-the-way-in-are-rethought | open | 03, 06, 10 |
