@@ -24,12 +24,19 @@ criterion 7 and criterion 5 (the Rust half).
       refuses for a caller who is not the owner any role or permission set carrying a signing
       act the target does not already hold, with one sentence naming the owner; writes the row
       re-signed with both fields; and reads it back as `MemberFacts`. Asserted in `role.rs`.
+- [ ] The `member` table carries `signing_public_key BLOB NOT NULL`, the verifying half of the
+      key `derive_seed(ADMINISTRATOR_KEY_PURPOSE)` yields; `MemberRecord` carries it;
+      `setup::create_organization` and `invite::issue` write it from the fresh secret; it is under
+      `MemberAuthority` with the domain `member.v2`, the fixed vectors in `authority.rs` updated
+      and the seven-tables test in `store.rs` pinning the column; `forget::OldShape` gains a
+      variant for a `member` table without it, read after the invitation check, and the startup
+      test in `forget.rs` asserts a replica lacking it is forgotten.
 - [ ] A target gaining its first signing act has `cert-<member id>` issued by the owner's
-      organization key in the same call; a target losing its last has its rows re-signed under
-      the actor and its certificate revoked through `re_sign_rows_of_certificate` and
-      `Certificate::revoked`. A test widens a member with `inviteMember`, has them invite, and
-      verifies the invited row on a second store; narrows them, and asserts a row they newly
-      sign is refused with `revoked`.
+      organization key over the row's `signing_public_key` in the same call; a target losing its
+      last has its rows re-signed under the actor and its certificate revoked through
+      `re_sign_rows_of_certificate` and `Certificate::revoked`. A test widens a member with
+      `inviteMember`, has them invite, and verifies the invited row on a second store; narrows
+      them, and asserts a row they newly sign is refused with `revoked`.
 - [ ] `workspace::withdraw_grant(store, session, workspace_id, member_id)` requires
       `GrantWorkspace`, refuses the owner's own grant, deletes the grant and pushes; the
       member's credential is not rotated, asserted by every other row being byte-identical.
@@ -57,10 +64,15 @@ criterion 7 and criterion 5 (the Rust half).
   stays the owner's*.**
 - **`signer_of` in `workspace.rs` is not changed**; a widened member signs because a certificate
   names them, never because the role is read.
-- **The `MemberAuthority` preimage is unchanged**: role and permissions were already under it.
+- **The `MemberAuthority` domain moves to `member.v2` and nothing else in `authority.rs` moves**:
+  the certificate and invitation preimages are unchanged, and `signer_of` still matches the
+  session's derived key.
 - **[[rules/module-layout]]**: `role.rs` is one word for one concept; the certificate issue and
   revoke it performs call `authority.rs` and `store.rs`, never copy them.
 
 ## Notes
 
-Nothing yet.
+Stopped on 2026-09-13 at the return-to-plan trip-wire before anything was written: the row kept
+no copy of the member's signing key, so the owner had nothing to certify on widening. The plan's
+*Certification stays the owner's* is corrected in place; the row carries the key from here, and
+this ticket writes it.

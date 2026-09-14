@@ -108,6 +108,21 @@ uses. Nobody changes their own row and nobody changes the owner's.
 certify. It is a second master secret, and a removed administrator's copy of it cannot be
 rotated out of the replica on their disk.*
 
+*Corrected on 2026-09-13, on the return-to-plan ticket 04 raised: a certificate names the Ed25519
+key a member derives from their own vault secret (`derive_seed` under `ADMINISTRATOR_KEY_PURPOSE`),
+which only their password unseals, and the member row kept no copy of its public half, so an owner
+widening a member into a signing act held the organization key and nothing to certify. Every
+certificate issued until then was issued at the one moment its issuer held the target's fresh
+secret. **The member row carries `signing_public_key`**, the verifying half of that key, written by
+whoever makes the vault: the first run for the owner, `invite::issue` for an invited or reset
+member; an accept and a password change keep the keypair, so the key stands. It sits under
+`MemberAuthority`, whose domain moves from `member.v1` to `member.v2` with the fixed vectors in
+`authority.rs` updated; `signer_of` is unchanged and still matches the session's derived key to
+the certificate. Nothing is published, so the bump costs nothing, and a replica whose `member`
+table lacks the column is one more shape `forget::old_shape` forgets. Rejected: an owner-drawn
+signing key sealed to the member, which changes `signer_of` and what a sign-in unseals; and
+widening through a reset, which ends the member's password and changes requirement 6.*
+
 ## The settings area is one component, sectioned by `?section=` (requirements 14 to 17)
 
 `routes/settings/+page.svelte` becomes thin: it owns the queries the four pages own today
@@ -247,7 +262,8 @@ typed as a template literal over the route, as `withCreateIntent` does;
 # Data Model
 
 `invitation` gains `sealed_secret BLOB NOT NULL` and `issued_by TEXT NOT NULL`, both outside
-the signature. No other table changes. `member.permissions` carries the seven-bit table.
+the signature. `member` gains `signing_public_key BLOB NOT NULL` under the member signature
+(corrected 2026-09-13, under *Certification stays the owner's*). No other table changes. `member.permissions` carries the seven-bit table.
 `remote-sync.json` is unchanged; the member key is in the credential store, never in it.
 
 # Technical Approach
@@ -372,6 +388,13 @@ and the secrecy sweep in `join.rs:882` are extended rather than replaced.
   out first", said on the screen.
 - **The human's machine** is wiped once by the forget, and the walk is re-run to create a
   fresh organization for the on-screen checks.
+- **One username on many machines** (added 2026-09-14, at the owner's note). A member signs in
+  on as many machines as they like under one username: the invitation is spent once, on the
+  first machine, and every further machine is connected by the organization link and signed in
+  at the wall with the password the person chose (requirement 10). The remembered key is one
+  machine's entry, so machines sign out independently; a reset retires every machine's entry
+  at once, since the vault is resealed. Nothing in the member row, the machine record or the
+  session binds a member to a machine, and nothing here may start to.
 
 # Technical Risks
 
