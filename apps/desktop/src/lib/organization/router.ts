@@ -5,7 +5,6 @@ import type {
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
-	OrganizationInvitation,
 	OrganizationMember,
 	OrganizationState,
 	OrganizationWorkspace
@@ -129,6 +128,22 @@ export const organization = router({
 					input.access
 				);
 			}),
+		/**
+		 * A withdrawal, under the act that gives. It takes one grant back and mints nothing, so
+		 * the credential the member already holds works until it expires; cutting somebody off at
+		 * once is the lock-out on a removal, and that is the owner's.
+		 */
+		withdraw: procedure
+			.permitted('grantWorkspace')
+			.input(
+				z.object({
+					workspaceId: z.string().trim().min(1),
+					memberId: z.string().trim().min(1)
+				})
+			)
+			.mutation(async ({ input, ctx }): Promise<void> => {
+				return ctx.host.organization.workspace.withdraw(input.workspaceId, input.memberId);
+			}),
 		remove: procedure.member
 			.input(z.object({ workspaceId: z.string().trim().min(1) }))
 			.mutation(async ({ input, ctx }): Promise<void> => {
@@ -144,7 +159,8 @@ export const organization = router({
 	 * **Inviting is `permitted('inviteMember')` here and refused again in Rust**, on the member's
 	 * verified row; this is the earlier of the two refusals, made so a caller is turned away before
 	 * a round trip, and never the deciding one. Listing is any signed-in member's: who is in the
-	 * organization is not a secret from the people in it. Whether a read-only grant can be minted
+	 * organization is not a secret from the people in it, and since effort 826 that one list
+	 * carries the pending invitations too. Whether a read-only grant can be minted
 	 * here is Rust's alone, since it turns on the owner's authority and not on a bit.
 	 */
 	member: {
@@ -208,11 +224,34 @@ export const organization = router({
 			.input(z.object({ memberId: z.string().trim().min(1), username: USERNAME }))
 			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
 				return ctx.host.organization.member.rename(input.memberId, input.username);
+			}),
+		/**
+		 * A role and the acts that go with it, written together. This side refuses a caller whose
+		 * row does not carry `changeRole`; whether the row is the caller's own or the owner's, and
+		 * whether the change hands out an act that signs rows, are Rust's, because the second of
+		 * those turns on the organization key rather than on a bit.
+		 */
+		changeRole: procedure
+			.permitted('changeRole')
+			.input(
+				z.object({
+					memberId: z.string().trim().min(1),
+					role: z.enum(['administrator', 'member']),
+					permissions: z.number().int().min(0)
+				})
+			)
+			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
+				return ctx.host.organization.member.changeRole(
+					input.memberId,
+					input.role,
+					input.permissions
+				);
 			})
 	},
 	/**
-	 * Invitations: listed and revoked by the act that makes them, copied again by their issuer,
-	 * and opened at the wall.
+	 * Invitations: revoked by the act that makes them, copied again by their issuer, and opened at
+	 * the wall. *They were listed here too until effort 826 put the pending one on the member's
+	 * own row.*
 	 *
 	 * **`accept` is `public` for the same reason `connect` is.** A person opening their link has
 	 * no identity here yet; being admitted is what the call does. It reaches `ctx.host` and never
@@ -221,9 +260,6 @@ export const organization = router({
 	 * opens anything, are Rust's alone.
 	 */
 	invitation: {
-		list: procedure.member.query(async ({ ctx }): Promise<OrganizationInvitation[]> => {
-			return ctx.host.organization.invitation.list();
-		}),
 		revoke: procedure
 			.permitted('inviteMember')
 			.input(z.object({ invitationId: z.string().trim().min(1) }))

@@ -17,13 +17,15 @@
 //!
 //! **The old shape, and why it is forgotten rather than migrated.** Nothing was published, so a
 //! machine holding what 819 built holds test data of its own, and the human decided on 2026-09-13
-//! to start over rather than carry it. Four signs, any one of which is the old shape: the record
+//! to start over rather than carry it. Five signs, any one of which is the old shape: the record
 //! still carries a non-empty `organizations` list, which is what a machine that had joined
 //! several kept; the held organization's replica file is missing, which is a record with nothing
 //! behind it; that replica's `member` table has no `username_sealed` column, which is the
-//! schema before ticket 09; or its `invitation` table has no `sealed_secret` column, which is
+//! schema before ticket 09; its `invitation` table has no `sealed_secret` column, which is
 //! every replica written before effort 826 changed what bits 4 and 5 of `member.permissions`
-//! mean. The last two are a local `PRAGMA table_info`, read before any pull, so an
+//! mean; or its `member` table has no `signing_public_key` column, which is every replica
+//! written before the same effort gave an owner something to certify a widened member against.
+//! The last three are a local `PRAGMA table_info`, read before any pull, so an
 //! unreachable remote does not stop the check. It runs on the first `organization_state_get` of a
 //! launch, before anything else opens the replica.
 //!
@@ -57,6 +59,10 @@ pub enum OldShape {
     /// 826 added; this is every organization written while `member.permissions` still meant the
     /// six-act table, whose bits 4 and 5 now name other acts.
     InvitationWithoutSealedSecret,
+    /// the held organization's `member` table carries no `signing_public_key`, the column effort
+    /// 826 put under the member signature; a member row written without it carries a `member.v1`
+    /// signature over a preimage no reader here builds, so every row would refuse as forged.
+    MemberWithoutSigningKey,
 }
 
 impl fmt::Display for OldShape {
@@ -78,6 +84,8 @@ impl fmt::Display for OldShape {
                 .write_str("the held organization's invitation table still carries sealed_payload"),
             Self::InvitationWithoutSealedSecret => formatter
                 .write_str("the held organization's invitation table carries no sealed_secret"),
+            Self::MemberWithoutSigningKey => formatter
+                .write_str("the held organization's member table carries no signing_public_key"),
         }
     }
 }
@@ -93,6 +101,10 @@ const SEALED_PAYLOAD_COLUMN: &str = "sealed_payload";
 /// The column an invitation has carried since effort 826, whose absence marks a replica whose
 /// stored permissions were written under the six-act table.
 const SEALED_SECRET_COLUMN: &str = "sealed_secret";
+
+/// The column a member has carried since effort 826 put it under the member signature, whose
+/// absence marks a replica whose rows were signed under the `member.v1` preimage.
+const SIGNING_KEY_COLUMN: &str = "signing_public_key";
 
 /// Forget the organization this machine holds, whole.
 ///
@@ -223,6 +235,15 @@ async fn old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
         .any(|column| column == SEALED_SECRET_COLUMN)
     {
         return Ok(Some(OldShape::InvitationWithoutSealedSecret));
+    }
+
+    // read after the invitation's two, because a replica missing both is the older shape and the
+    // sign a reader is told about should be the one that came first.
+    if !member_columns
+        .iter()
+        .any(|column| column == SIGNING_KEY_COLUMN)
+    {
+        return Ok(Some(OldShape::MemberWithoutSigningKey));
     }
 
     Ok(None)
@@ -596,8 +617,9 @@ mod tests {
     /// replica's `member` table carries no `username_sealed` is forgotten at startup, before
     /// anything reads it; one whose `invitation` table still carries `sealed_payload` is
     /// forgotten; one written under the six-act permission table, whose `invitation` table carries
-    /// no `sealed_secret`, is forgotten; one whose replica is not on disk at all is forgotten the
-    /// same way; and one of this build's shape is kept.
+    /// no `sealed_secret`, is forgotten; one whose `member` table carries no `signing_public_key`
+    /// is forgotten; one whose replica is not on disk at all is forgotten the same way; and one of
+    /// this build's shape is kept.
     #[tokio::test]
     async fn a_replica_of_the_old_schema_or_none_at_all_is_forgotten_at_startup() {
         let _turn = crate::keyring::take_the_credential_store().await;
@@ -722,6 +744,52 @@ mod tests {
                 .await
                 .expect("the check failed"),
             Some(OldShape::InvitationWithoutSealedSecret)
+        );
+        assert_eq!(replica_files(&directory), Vec::<String>::new());
+        assert!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .store_mut()
+                .organization
+                .is_none()
+        );
+
+        // the shape before the member row carried a signing key: usernames and an invitation with
+        // `sealed_secret`, and a `member` table without `signing_public_key`. Every member row
+        // there is signed over the `member.v1` preimage, which no reader here builds, so the whole
+        // replica would refuse on its first read rather than open.
+        let directory = scratch("no-signing-key");
+        let replica = OrganizationStore::replica_path(&directory.join(Database::FILENAME), "nokey");
+        let store = OrganizationStore::open(&replica, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the replica");
+
+        for statement in [
+            "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"public_key\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS \"invitation\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"member_id\" TEXT NOT NULL, \"expires_at\" INTEGER NOT NULL, \"consumed_at\" INTEGER, \"sealed_secret\" BLOB NOT NULL, \"issued_by\" TEXT NOT NULL, \"certificate_id\" TEXT NOT NULL, \"signature\" BLOB NOT NULL, \"created_at\" INTEGER NOT NULL)",
+            "INSERT INTO \"member\" VALUES ('member-owner', X'00', X'00', 127)",
+        ] {
+            store
+                .connection()
+                .execute(statement, ())
+                .await
+                .expect("the tables before the signing key");
+        }
+
+        drop(store);
+        std::fs::write(directory.join(RemoteSync::FILENAME), record("nokey")).expect("the record");
+
+        let app_state = state_over(&directory).await;
+
+        assert_eq!(
+            forget_old_shape(&app_state)
+                .await
+                .expect("the check failed"),
+            Some(OldShape::MemberWithoutSigningKey)
         );
         assert_eq!(replica_files(&directory), Vec::<String>::new());
         assert!(

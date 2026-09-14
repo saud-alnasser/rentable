@@ -21,7 +21,6 @@ import type {
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
-	OrganizationInvitation,
 	OrganizationMember,
 	OrganizationState,
 	OrganizationWorkspace,
@@ -59,11 +58,11 @@ export type {
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
-	OrganizationInvitation,
 	OrganizationMember,
 	OrganizationSession,
 	OrganizationState,
 	OrganizationWorkspace,
+	PendingInvitation,
 	Recovery,
 	RemoteSyncState,
 	RemoteSyncWorkspace,
@@ -235,6 +234,8 @@ export const tauri = {
 				invoke<OrganizationWorkspace>('workspace_open', { workspaceId }),
 			grant: (workspaceId: string, memberId: string, access: 'full-access' | 'read-only') =>
 				invoke<void>('workspace_grant', { workspaceId, memberId, access }),
+			withdraw: (workspaceId: string, memberId: string) =>
+				invoke<void>('workspace_grant_withdraw', { workspaceId, memberId }),
 			remove: (workspaceId: string) => invoke<void>('workspace_delete', { workspaceId }),
 			renewCredentials: () => invoke<number>('organization_renew_credentials')
 		},
@@ -247,10 +248,11 @@ export const tauri = {
 				invoke<MemberRemoved>('member_remove', { memberId, lockOut }),
 			lockOutCost: (memberId: string) => invoke<LockOutCost>('member_lock_out_cost', { memberId }),
 			rename: (memberId: string, username: string) =>
-				invoke<OrganizationMember>('member_rename', { memberId, username })
+				invoke<OrganizationMember>('member_rename', { memberId, username }),
+			changeRole: (memberId: string, role: 'administrator' | 'member', permissions: number) =>
+				invoke<OrganizationMember>('member_change_role', { memberId, role, permissions })
 		},
 		invitation: {
-			list: () => invoke<OrganizationInvitation[]>('organization_invitations'),
 			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId }),
 			accept: (link: string, password: string) =>
 				invoke<OrganizationState>('invitation_accept', { link, password }),

@@ -353,6 +353,10 @@ async fn finish<P: TursoPlatform>(
                 )?,
                 sealed_content_key: seal_to_public_key(&vault.public_key, &content_key.to_bytes())?,
                 vault: vault.clone(),
+                // the owner's row carries the verifying half of the key it signs with, written
+                // here because this is one of the two moments a fresh vault secret is in hand
+                // (`invite::issue` is the other). It is what a widening certifies against.
+                signing_public_key: administrator_key.verifying_key(),
                 role: OWNER_ROLE.to_string(),
                 permissions: OWNER_PERMISSIONS,
                 must_change_password: false,
@@ -528,7 +532,7 @@ mod tests {
     };
     use crate::{
         organization::{
-            authority::OrganizationKey,
+            authority::{AdministratorKey, OrganizationKey},
             invite::USERNAME_RULES,
             link::JoinLink,
             vault::{
@@ -716,6 +720,19 @@ mod tests {
 
         assert_eq!(derived.verifying_key(), key);
         assert!(open_vault("the wrong password", &members[0].vault).is_err());
+
+        // and so does the key they sign rows with, whose verifying half the row carries: it is
+        // what a certificate over them names, and the row is the only copy of it anybody but the
+        // owner will ever hold (effort 826, requirement 6).
+        assert_eq!(
+            members[0].signing_public_key,
+            AdministratorKey::from_bytes(
+                &secret
+                    .derive_seed(super::ADMINISTRATOR_KEY_PURPOSE)
+                    .expect("a seed"),
+            )
+            .verifying_key()
+        );
 
         // the owner's row carries the username as typed, trimmed, sealed under the content key
         // the vault unseals, and the raw column carries none of it.

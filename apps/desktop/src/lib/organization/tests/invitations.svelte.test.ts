@@ -5,7 +5,7 @@ import { expect, test } from 'vitest';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Invitations from '$lib/organization/component/invitations.svelte';
-import type { OrganizationInvitation, OrganizationMember } from '$lib/platform/host';
+import type { OrganizationMember, PendingInvitation } from '$lib/platform/host';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
@@ -18,39 +18,41 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
  * no display name (requirement 21). The standing badge and the revoke are 819's and stay; what
  * is pinned here is the name on the row, the empty sentence, and that both read in both locales.
  * The section's title is the page's, and `i18n/tests/organization.test.ts` reads it there.
+ *
+ * **The rows are members carrying an unspent invitation**, which is where effort 826 put the
+ * pending mark; a member with none is not a row here.
  */
 
 const noop = () => {};
+
+const pending = (overrides: Partial<PendingInvitation>): PendingInvitation => ({
+	invitationId: 'invitation',
+	expiresAt: Date.UTC(2026, 8, 20),
+	standing: 'open',
+	canCopy: true,
+	...overrides
+});
 
 const member = (overrides: Partial<OrganizationMember>): OrganizationMember => ({
 	id: 'm',
 	username: 'member',
 	role: 'member',
 	permissions: 0,
-	mustChangePassword: true,
-	workspaceIds: [],
+	workspaces: [],
+	pending: pending({}),
 	createdAt: 0,
 	...overrides
 });
 
-const invitation = (overrides: Partial<OrganizationInvitation>): OrganizationInvitation => ({
-	id: 'invitation',
-	memberId: 'm',
-	expiresAt: Date.UTC(2026, 8, 20),
-	consumedAt: null,
-	createdAt: Date.UTC(2026, 8, 13),
-	standing: 'open',
-	...overrides
-});
-
 const members = [
-	member({ id: 'sami', username: 'sami.staff' }),
-	member({ id: 'lina', username: 'lina_h' })
-];
-
-const invitations = [
-	invitation({ id: 'i-sami', memberId: 'sami' }),
-	invitation({ id: 'i-lina', memberId: 'lina', standing: 'lapsed' })
+	member({ id: 'sami', username: 'sami.staff', pending: pending({ invitationId: 'i-sami' }) }),
+	member({
+		id: 'lina',
+		username: 'lina_h',
+		pending: pending({ invitationId: 'i-lina', standing: 'lapsed' })
+	}),
+	// somebody who has signed in: no pending mark, and no row here.
+	member({ id: 'olivia', username: 'olivia', pending: null })
 ];
 
 const inProvider = (direction: 'ltr' | 'rtl') => ({
@@ -64,7 +66,7 @@ const list = (
 ) =>
 	render(
 		Invitations,
-		{ invitations, members, canInvite: true, revoking: null, onRevoke: noop, ...overrides },
+		{ members, canInvite: true, revoking: null, onRevoke: noop, ...overrides },
 		inProvider(direction)
 	);
 
@@ -107,7 +109,7 @@ test('the revoke is offered on an unused account and calls back with the invitat
 test('with nothing pending the section says so', () => {
 	loadLocale('en');
 	setLocale('en');
-	list({ invitations: [] });
+	list({ members: [] });
 
 	expect(screen.getByText(en.organization.dashboard.noPendingAccounts)).toBeDefined();
 	expect(usernamesOnScreen()).toEqual([]);
@@ -124,7 +126,7 @@ test('and in arabic the rows read the same usernames under their own words', () 
 	expect(screen.getByText(ar.organization.dashboard.standingLapsed)).toBeDefined();
 	rendered.unmount();
 
-	list({ invitations: [] }, 'rtl');
+	list({ members: [] }, 'rtl');
 
 	expect(screen.getByText(ar.organization.dashboard.noPendingAccounts)).toBeDefined();
 	expect(ar.organization.dashboard.noPendingAccounts).not.toBe(

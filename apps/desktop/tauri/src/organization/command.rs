@@ -7,13 +7,14 @@ use crate::{diagnostics, error::Error, state::AppState, timestamp};
 
 use super::{
     HeldOrganization, connect, forget,
-    invite::{self, Invitation, InvitationFacts, Invited, MemberFacts, WorkspaceGrant},
+    invite::{self, Invitation, Invited, MemberFacts, WorkspaceGrant},
     join::{self, LinkFacts},
     link::JoinLink,
     migrate::Pipeline,
     migration::{self, MigrationPhase, PipelineLease},
     password,
     removal::{self, LockOutCost, Removed},
+    role,
     session::{self, CredentialSlot, SessionFacts, WorkspaceFacts},
     setup::{self, CreateOrganization, OrganizationCreated, Remote},
     store::OrganizationStore,
@@ -541,6 +542,22 @@ pub async fn workspace_grant(
     .await
 }
 
+/// Take a workspace back from a member: the grant row goes, and nothing is minted or rotated, so
+/// the credential they already hold works until it expires as an ordinary removal's does. The act
+/// is the one that gives; the owner's own grant is refused.
+#[tauri::command]
+pub async fn workspace_grant_withdraw(
+    app_state: tauri::State<'_, AppState>,
+    workspace_id: String,
+    member_id: String,
+) -> Result<(), Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    workspace::withdraw_grant(store, member, &workspace_id, &member_id).await
+}
+
 /// Delete a workspace: the one moment requirement 4 permits deleting a database, through the one
 /// intent the port takes for it. Owner only.
 #[tauri::command]
@@ -935,6 +952,32 @@ pub async fn invitation_accept(
     state_of(&app_state).await
 }
 
+/// Change what a member is called and what they may do: both written on their row, re-signed, and
+/// their certificate issued or revoked to match. Nobody changes their own row or the owner's, and
+/// giving somebody an act that signs rows is the owner's, because certifying a signer needs the
+/// organization key only their vault yields. What comes back is the member as the list shows them.
+#[tauri::command]
+pub async fn member_change_role(
+    app_state: tauri::State<'_, AppState>,
+    member_id: String,
+    role: String,
+    permissions: i64,
+) -> Result<MemberFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    role::change_role(
+        store,
+        member,
+        &member_id,
+        &role,
+        permissions,
+        timestamp::now(),
+    )
+    .await
+}
+
 /// Rename a member: their row written back with the username re-sealed and signed by whoever
 /// renamed them. The owner's or an administrator's, on any row but their own; the username is
 /// held to the same rules and the same uniqueness as an invitation's. What comes back is the
@@ -1132,7 +1175,10 @@ pub async fn invitation_revoke(
     invite::revoke_invitation(store, member, &invitation_id, timestamp::now()).await
 }
 
-/// Every member, for the dashboard. Names opened with the content key the session holds.
+/// Every member, for the members list: names opened with the content key the session holds, the
+/// workspaces each holds with their access, and the pending invitation where there is one. *There
+/// was a second command answering the invitations until effort 826; one row of the list needs
+/// both, so the row is answered whole here.*
 #[tauri::command]
 pub async fn organization_members(
     app_state: tauri::State<'_, AppState>,
@@ -1141,19 +1187,7 @@ pub async fn organization_members(
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
 
-    invite::members(store, member).await
-}
-
-/// Every invitation with where it stands, for the dashboard.
-#[tauri::command]
-pub async fn organization_invitations(
-    app_state: tauri::State<'_, AppState>,
-) -> Result<Vec<InvitationFacts>, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    invite::invitations(store, member, timestamp::now()).await
+    invite::members(store, member, timestamp::now()).await
 }
 
 /// The link the operating system handed this process, if one is waiting: a launch with a link

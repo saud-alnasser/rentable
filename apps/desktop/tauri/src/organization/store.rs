@@ -73,6 +73,7 @@ const SCHEMA: [&str; 7] = [
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"username_sealed\" BLOB NOT NULL, \
         \"public_key\" BLOB NOT NULL, \
+        \"signing_public_key\" BLOB NOT NULL, \
         \"sealed_secret_key\" BLOB NOT NULL, \
         \"sealed_content_key\" BLOB NOT NULL, \
         \"kdf_salt\" BLOB NOT NULL, \
@@ -156,6 +157,14 @@ pub struct MemberRecord {
     /// the member's keypair as the vault shapes it: the public half, the sealed secret half, and
     /// the derivation that seal used.
     pub vault: Vault,
+    /// the verifying half of the key this member signs rows with, which is
+    /// `derive_seed(ADMINISTRATOR_KEY_PURPOSE)` over the secret their password unseals. **Written
+    /// by whoever makes the vault**, the first run for the owner and `invite::issue` for everybody
+    /// else, because that is the one moment the fresh secret is in hand; an accept and a password
+    /// change keep the keypair, so the key stands. It is here so an owner widening somebody into
+    /// an act that signs has a key to certify (effort 826, requirement 6), and it is under the
+    /// member signature so that nobody can name a key of their own and wait to be certified.
+    pub signing_public_key: [u8; VERIFYING_KEY_BYTES],
     /// the organization content key, sealed to this member's public key.
     pub sealed_content_key: Vec<u8>,
     /// `packages/workspace-permission`'s vocabulary. Nothing here interprets it.
@@ -450,6 +459,7 @@ impl OrganizationStore {
             signer.certificate,
             Authority::Member(MemberAuthority {
                 public_key: &member.vault.public_key,
+                signing_public_key: &member.signing_public_key,
                 role: &member.role,
                 permissions: member.permissions,
             }),
@@ -458,15 +468,16 @@ impl OrganizationStore {
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"member\" \
-                 (\"id\", \"username_sealed\", \"public_key\", \
+                 (\"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
                   \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
                   \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
                   \"signature\", \"created_at\", \"updated_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(member.id.clone()),
                     turso::Value::Blob(member.username_sealed.clone()),
                     turso::Value::Blob(member.vault.public_key.to_vec()),
+                    turso::Value::Blob(member.signing_public_key.to_vec()),
                     turso::Value::Blob(member.vault.sealed_secret_key.clone()),
                     turso::Value::Blob(member.sealed_content_key.clone()),
                     turso::Value::Blob(member.vault.kdf_salt.to_vec()),
@@ -563,7 +574,7 @@ impl OrganizationStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT \"id\", \"username_sealed\", \"public_key\", \
+                "SELECT \"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
                         \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
                         \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
                         \"signature\", \"created_at\", \"updated_at\" \
@@ -576,10 +587,11 @@ impl OrganizationStore {
         while let Some(row) = rows.next().await? {
             let id = text(&row, 0)?;
             let public_key = fixed::<PUBLIC_KEY_BYTES>(&row, 2, "public_key")?;
-            let role = text(&row, 7)?;
-            let permissions = integer(&row, 8)?;
-            let certificate_id = text(&row, 10)?;
-            let signature = blob(&row, 11)?;
+            let signing_public_key = fixed::<VERIFYING_KEY_BYTES>(&row, 3, "signing_public_key")?;
+            let role = text(&row, 8)?;
+            let permissions = integer(&row, 9)?;
+            let certificate_id = text(&row, 11)?;
+            let signature = blob(&row, 12)?;
 
             verified(
                 organization_verifying_key,
@@ -589,6 +601,7 @@ impl OrganizationStore {
                 &certificate_id,
                 Authority::Member(MemberAuthority {
                     public_key: &public_key,
+                    signing_public_key: &signing_public_key,
                     role: &role,
                     permissions,
                 }),
@@ -602,16 +615,17 @@ impl OrganizationStore {
                     username_sealed: blob(&row, 1)?,
                     vault: Vault {
                         public_key,
-                        sealed_secret_key: blob(&row, 3)?,
-                        kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 5, "kdf_salt")?,
-                        kdf_params: KdfParams::parse(&text(&row, 6)?)?,
+                        sealed_secret_key: blob(&row, 4)?,
+                        kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 6, "kdf_salt")?,
+                        kdf_params: KdfParams::parse(&text(&row, 7)?)?,
                     },
-                    sealed_content_key: blob(&row, 4)?,
+                    signing_public_key,
+                    sealed_content_key: blob(&row, 5)?,
                     role,
                     permissions,
-                    must_change_password: integer(&row, 9)? != 0,
-                    created_at: integer(&row, 12)?,
-                    updated_at: integer(&row, 13)?,
+                    must_change_password: integer(&row, 10)? != 0,
+                    created_at: integer(&row, 13)?,
+                    updated_at: integer(&row, 14)?,
                 },
             ));
         }
@@ -1281,8 +1295,8 @@ mod tests {
     use crate::organization::{
         authority::{AdministratorKey, Certificate, OrganizationKey, issue_certificate},
         vault::{
-            ContentKey, KdfParams, create_vault, generate_content_key, open_content, seal_content,
-            seal_to_public_key,
+            ContentKey, KdfParams, create_vault_with_secret, generate_content_key, open_content,
+            seal_content, seal_to_public_key,
         },
     };
 
@@ -1351,15 +1365,23 @@ mod tests {
         }
 
         fn member(&self, id: &str, username: &str, role: &str) -> MemberRecord {
-            let vault = create_vault("a password", test_cost()).expect("a vault");
+            let (vault, secret) =
+                create_vault_with_secret("a password", test_cost()).expect("a vault");
             let sealed_content_key =
                 seal_to_public_key(&vault.public_key, &self.content_key.to_bytes())
                     .expect("failed to seal the content key");
+            let signing_public_key = AdministratorKey::from_bytes(
+                &secret
+                    .derive_seed(crate::organization::setup::ADMINISTRATOR_KEY_PURPOSE)
+                    .expect("the signing seed"),
+            )
+            .verifying_key();
 
             MemberRecord {
                 id: id.to_string(),
                 username_sealed: self.sealed("member.username_sealed", username),
                 vault,
+                signing_public_key,
                 sealed_content_key,
                 role: role.to_string(),
                 permissions: if role == "owner" { 127 } else { 0 },
@@ -1526,6 +1548,41 @@ mod tests {
                 "certificate_id",
                 "signature",
                 "created_at"
+            ]
+        );
+
+        // the member's own columns, pinned for the same two reasons: `signing_public_key` is what
+        // an owner certifies when they widen somebody into an act that signs (effort 826,
+        // requirement 6), and `forget::old_shape` calls a replica without it the old shape.
+        let mut columns = store
+            .connection()
+            .query("PRAGMA table_info(\"member\")", ())
+            .await
+            .expect("the member columns");
+        let mut names = Vec::new();
+
+        while let Some(row) = columns.next().await.expect("a column row") {
+            names.push(super::text(&row, 1).expect("a column name"));
+        }
+
+        assert_eq!(
+            names,
+            vec![
+                "id",
+                "username_sealed",
+                "public_key",
+                "signing_public_key",
+                "sealed_secret_key",
+                "sealed_content_key",
+                "kdf_salt",
+                "kdf_params",
+                "role",
+                "permissions",
+                "must_change_password",
+                "certificate_id",
+                "signature",
+                "created_at",
+                "updated_at"
             ]
         );
 

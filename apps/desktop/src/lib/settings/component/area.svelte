@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type api from '$lib/api/caller';
 	import type {
-		OrganizationInvitation,
 		OrganizationMember,
 		OrganizationSession,
 		RemoteSyncState
@@ -62,7 +61,6 @@
 		holdsTursoAuthority,
 		syncState,
 		members,
-		invitations,
 		reissuing,
 		revoking,
 		isChangingPassword,
@@ -87,7 +85,6 @@
 		/** the machine's sync record; `null` until it has been read, and while signed out. */
 		syncState: RemoteSyncState | null;
 		members: OrganizationMember[];
-		invitations: OrganizationInvitation[];
 		/** the member whose invitation is being reissued, while it is. */
 		reissuing: string | null;
 		/** the invitation being revoked, while it is. */
@@ -209,7 +206,7 @@
 
 				<Field.Set>
 					<Field.Legend>{$LL.organization.dashboard.pendingAccounts()}</Field.Legend>
-					<OrganizationInvitations {invitations} {members} {canInvite} {revoking} {onRevoke} />
+					<OrganizationInvitations {members} {canInvite} {revoking} {onRevoke} />
 				</Field.Set>
 			{/if}
 		</Field.Group>

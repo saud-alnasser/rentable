@@ -42,8 +42,8 @@ const member = (overrides: Partial<OrganizationMember>): OrganizationMember => (
 	username: 'member',
 	role: 'member',
 	permissions: 0,
-	mustChangePassword: false,
-	workspaceIds: [],
+	workspaces: [],
+	pending: null,
 	createdAt: 0,
 	...overrides
 });

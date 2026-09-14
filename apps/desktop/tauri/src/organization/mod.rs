@@ -30,6 +30,7 @@ pub mod migration;
 pub mod password;
 pub mod permission;
 pub mod removal;
+pub mod role;
 pub mod session;
 pub mod setup;
 pub mod store;

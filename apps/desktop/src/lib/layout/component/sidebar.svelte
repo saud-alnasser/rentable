@@ -99,7 +99,7 @@
 	// how many members hold a grant on the workspace that is open, for the workspace menu.
 	const memberCount = $derived(
 		(membersQuery.data ?? []).filter((member) =>
-			workspace?.remoteId ? member.workspaceIds.includes(workspace.remoteId) : false
+			workspace?.remoteId ? member.workspaces.some((held) => held.id === workspace.remoteId) : false
 		).length
 	);
 

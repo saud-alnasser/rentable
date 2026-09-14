@@ -116,12 +116,14 @@
 						<div class="flex min-w-0 flex-wrap items-center gap-2">
 							<p class="truncate text-sm font-medium" data-member-username>{member.username}</p>
 							<Badge variant="secondary">{roleLabel(member.role)}</Badge>
-							{#if member.mustChangePassword}
+							{#if member.pending}
 								<Badge variant="outline">{$LL.organization.dashboard.notYetSignedIn()}</Badge>
 							{/if}
 						</div>
-						{#if member.workspaceIds.length > 0}
-							<p class="text-sm text-muted-foreground">{workspaceNames(member.workspaceIds)}</p>
+						{#if member.workspaces.length > 0}
+							<p class="text-sm text-muted-foreground">
+								{workspaceNames(member.workspaces.map((workspace) => workspace.id))}
+							</p>
 						{/if}
 					</div>
 				</div>

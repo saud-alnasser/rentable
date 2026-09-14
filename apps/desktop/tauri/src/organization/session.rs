@@ -687,7 +687,7 @@ mod tests {
             setup::{CreateOrganization, Remote, create_organization},
             store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
             vault::{
-                KdfParams, MEMBER_KEY_BYTES, MemberKey, create_vault, create_vault_with_secret,
+                KdfParams, MEMBER_KEY_BYTES, MemberKey, create_vault_with_secret,
                 generate_content_key, open_sealed_secret_key, reseal_vault, seal_content,
                 seal_to_public_key, unseal_with_secret_key,
             },
@@ -963,7 +963,8 @@ mod tests {
             "1757000000000",
         );
         let content_key = generate_content_key().expect("a content key");
-        let vault = create_vault("the other password", test_cost()).expect("a vault");
+        let (vault, their_secret) =
+            create_vault_with_secret("the other password", test_cost()).expect("a vault");
         let credential = "token-for-org-b";
         let store_b = OrganizationStore::open(&directory.join("org-b.db"), None, || async {
             Ok::<String, turso::Error>(String::new())
@@ -1016,6 +1017,12 @@ mod tests {
                     )
                     .expect("sealed"),
                     vault: vault.clone(),
+                    signing_public_key: AdministratorKey::from_bytes(
+                        &their_secret
+                            .derive_seed(crate::organization::setup::ADMINISTRATOR_KEY_PURPOSE)
+                            .expect("the signing seed"),
+                    )
+                    .verifying_key(),
                     role: "member".to_string(),
                     permissions: 0,
                     must_change_password: true,

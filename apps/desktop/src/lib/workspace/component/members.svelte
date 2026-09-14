@@ -28,7 +28,9 @@
 	} = $props();
 
 	const holding = $derived(
-		workspaceId ? members.filter((member) => member.workspaceIds.includes(workspaceId)) : []
+		workspaceId
+			? members.filter((member) => member.workspaces.some((held) => held.id === workspaceId))
+			: []
 	);
 
 	const roleLabel = (role: string) =>

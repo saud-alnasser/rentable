@@ -265,7 +265,10 @@ export type OrganizationSession = {
  */
 export type LinkStanding = 'open' | 'lapsed' | 'consumed' | 'revoked' | 'none';
 
-/** one workspace an invitation grants, and at which access. */
+/**
+ * one workspace and the access held on it: what an invitation asks for, and what the members list
+ * reports a member already holds.
+ */
 export type WorkspaceGrant = { id: string; access: 'full-access' | 'read-only' };
 
 /** what a lock-out costs, said before it runs: which workspaces rotate, and how many members stop syncing. */
@@ -316,25 +319,34 @@ export type OrganizationState = {
 	holdsTursoAuthority: boolean;
 };
 
-/** one member as the dashboard lists them. The username opened on the other side; no key, no credential. */
+/**
+ * the invitation a member is still waiting on: the pending mark on their row, its expiry, and
+ * whether the person reading can hand the same link over again. A member has at most one.
+ */
+export type PendingInvitation = {
+	invitationId: string;
+	expiresAt: number;
+	/** `open` or `lapsed`; a consumed invitation is not pending and is never reported. */
+	standing: 'open' | 'lapsed' | 'consumed';
+	/** whether the caller issued it, which is whether the same link opens for them again. */
+	canCopy: boolean;
+};
+
+/**
+ * one member as the members list draws them. The username opened on the other side; no key, no
+ * credential. *The workspaces were ids, and the invitations were a second list read from a call of
+ * their own, until effort 826: one row needs both, so the row is answered whole.*
+ */
 export type OrganizationMember = {
 	id: string;
 	username: string;
 	role: string;
 	permissions: number;
-	mustChangePassword: boolean;
-	workspaceIds: string[];
+	/** the workspaces this member holds, with the access on each. */
+	workspaces: WorkspaceGrant[];
+	/** their unspent invitation, or `null` for somebody who has signed in. */
+	pending: PendingInvitation | null;
 	createdAt: number;
-};
-
-/** one invitation and where it stands now. */
-export type OrganizationInvitation = {
-	id: string;
-	memberId: string;
-	expiresAt: number;
-	consumedAt: number | null;
-	createdAt: number;
-	standing: 'open' | 'lapsed' | 'consumed';
 };
 
 /**
@@ -526,6 +538,11 @@ export type Host = {
 				memberId: string,
 				access: 'full-access' | 'read-only'
 			) => Promise<void>;
+			/**
+			 * take a workspace back from a member: the grant goes, and nothing is minted or
+			 * rotated, so the credential they already hold works until it expires.
+			 */
+			withdraw: (workspaceId: string, memberId: string) => Promise<void>;
 			/** delete a workspace and its database: the owner's, and the one moment deletion is permitted. */
 			remove: (workspaceId: string) => Promise<void>;
 			/** mint fresh credentials for every grant and re-seal them, on the owner's machine. */
@@ -562,6 +579,16 @@ export type Host = {
 			/** what locking a member out would cost, before it is done. */
 			lockOutCost: (memberId: string) => Promise<LockOutCost>;
 			/**
+			 * change what a member is called and what they may do: both written on their row,
+			 * re-signed, and their certificate issued or revoked to match. Nobody changes their own
+			 * row or the owner's, and giving somebody an act that signs rows is the owner's.
+			 */
+			changeRole: (
+				memberId: string,
+				role: 'administrator' | 'member',
+				permissions: number
+			) => Promise<OrganizationMember>;
+			/**
 			 * rename a member: their row written back with the username re-sealed and signed by
 			 * whoever renamed them. The owner's or an administrator's, on any row but their own;
 			 * the username is held to the rules and the uniqueness an invitation's is. What comes
@@ -570,7 +597,6 @@ export type Host = {
 			rename: (memberId: string, username: string) => Promise<OrganizationMember>;
 		};
 		invitation: {
-			list: () => Promise<OrganizationInvitation[]>;
 			/**
 			 * revoke an invitation. A person who never opened their link is removed with it, so
 			 * the link opens nothing afterwards; a reset link on a member who has signed in before

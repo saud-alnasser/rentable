@@ -61,7 +61,6 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 			holdsTursoAuthority: true,
 			syncState: fakeSyncState(),
 			members: [],
-			invitations: [],
 			reissuing: null,
 			revoking: null,
 			isChangingPassword: false,

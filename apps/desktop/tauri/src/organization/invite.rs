@@ -19,6 +19,12 @@
 //! to certify them, and only the owner's vault yields it, so that is refused for anybody else and
 //! says why.
 //!
+//! **The row carries the verifying half of the key the member will sign with.** It is derived
+//! from the vault secret drawn here, which is the one moment anybody holds that secret, and it is
+//! written whatever the role is: an owner widening the member into an act that signs rows later
+//! has a key to certify and no way to derive one themselves (effort 826, requirement 6,
+//! `role::change_role`).
+//!
 //! **The generated password is drawn, never derived, and never shown.** Twenty characters from a
 //! thirty-two character alphabet, drawn from the operating system; nothing about the username
 //! enters it, and a test asserts that rather than asserting the two merely differ. It rides inside
@@ -115,7 +121,9 @@ pub struct Invited {
     pub unreachable_workspaces: Vec<UnreachableWorkspace>,
 }
 
-/// One workspace an invitation grants, and at which access.
+/// One workspace and the access held on it: what an invitation asks for, and what the members
+/// list reports a member already holds. One pair, one type, because a second spelling of it
+/// would be two places for the vocabulary of access to drift.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceGrant {
@@ -129,18 +137,6 @@ pub struct WorkspaceGrant {
 pub struct UnreachableWorkspace {
     pub id: String,
     pub name: String,
-}
-
-/// What the dashboard lists for one invitation.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct InvitationFacts {
-    pub id: String,
-    pub member_id: String,
-    pub expires_at: i64,
-    pub consumed_at: Option<i64>,
-    pub created_at: i64,
-    pub standing: InvitationStanding,
 }
 
 /// Where an invitation stands, which is what a link opened against it is told.
@@ -506,8 +502,32 @@ pub async fn invitation_link(
         .encode()
 }
 
-/// One member as the dashboard lists them: the username opened with the content key, and the
-/// workspaces they hold a grant on. No key and no credential.
+/// The invitation a member is still waiting on, where they are (effort 826, requirement 15): the
+/// pending mark on their row, its expiry, and whether the person reading can hand the same link
+/// over again.
+///
+/// **A member has at most one of these.** It is the invitation of theirs that nobody has spent:
+/// a reset deletes the open one before it and issues another, and the consumed invitation a
+/// member signed in with is history rather than a pending mark.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingInvitation {
+    pub invitation_id: String,
+    pub expires_at: i64,
+    /// `open` or `lapsed`: a consumed invitation is not pending and is never reported here.
+    pub standing: InvitationStanding,
+    /// whether the caller issued it, which is whether the same link opens for them again
+    /// ([`invitation_link`]). Anybody else holding the act is offered a fresh link instead.
+    pub can_copy: bool,
+}
+
+/// One member as the members list draws them: the username opened with the content key, the
+/// workspaces they hold with the access on each, and their pending invitation where they have
+/// one. No key and no credential.
+///
+/// *`workspace_ids` was a list of ids until effort 826, and the invitations were a second list
+/// read from a command of their own. One row of the list needs both, so the row is answered
+/// whole here and `organization_invitations` is gone.*
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MemberFacts {
@@ -515,8 +535,8 @@ pub struct MemberFacts {
     pub username: String,
     pub role: String,
     pub permissions: i64,
-    pub must_change_password: bool,
-    pub workspace_ids: Vec<String>,
+    pub workspaces: Vec<WorkspaceGrant>,
+    pub pending: Option<PendingInvitation>,
     pub created_at: i64,
 }
 
@@ -524,8 +544,10 @@ pub struct MemberFacts {
 pub async fn members(
     store: &OrganizationStore,
     session: &MemberSession,
+    now: i64,
 ) -> Result<Vec<MemberFacts>, Error> {
     let grants = store.grants(&session.verifying_key).await?;
+    let invitations = store.invitations(&session.verifying_key).await?;
 
     store
         .members(&session.verifying_key)
@@ -537,18 +559,34 @@ pub async fn members(
         .map(|member| {
             Ok(MemberFacts {
                 username: opened(session, "member.username_sealed", &member.username_sealed)?,
-                workspace_ids: grants
+                // the grant on the organization database itself is the directory every member
+                // holds rather than a workspace anybody was given.
+                workspaces: grants
                     .iter()
                     .filter(|grant| {
                         grant.member_id == member.id
                             && grant.workspace_id != session.organization_id
                     })
-                    .map(|grant| grant.workspace_id.clone())
+                    .map(|grant| WorkspaceGrant {
+                        id: grant.workspace_id.clone(),
+                        access: AccessLevel::parse(&grant.access_level)
+                            .unwrap_or(AccessLevel::FullAccess),
+                    })
                     .collect(),
+                pending: invitations
+                    .iter()
+                    .find(|invitation| {
+                        invitation.member_id == member.id && invitation.consumed_at.is_none()
+                    })
+                    .map(|invitation| PendingInvitation {
+                        invitation_id: invitation.id.clone(),
+                        expires_at: invitation.expires_at,
+                        standing: InvitationStanding::of(invitation, now),
+                        can_copy: invitation.issued_by == session.member_id,
+                    }),
                 id: member.id,
                 role: member.role,
                 permissions: member.permissions,
-                must_change_password: member.must_change_password,
                 created_at: member.created_at,
             })
         })
@@ -637,34 +675,13 @@ pub async fn rename_member(
 
     // read back through the same routine the list draws from, so what the caller is handed is
     // what the members list will show.
-    members(store, session)
+    members(store, session, now)
         .await?
         .into_iter()
         .find(|member| member.id == member_id)
         .ok_or_else(|| Error::Integrity {
             message: "the renamed member's row did not read back".to_string(),
         })
-}
-
-/// Every invitation with where it stands now.
-pub async fn invitations(
-    store: &OrganizationStore,
-    session: &MemberSession,
-    now: i64,
-) -> Result<Vec<InvitationFacts>, Error> {
-    Ok(store
-        .invitations(&session.verifying_key)
-        .await?
-        .into_iter()
-        .map(|invitation| InvitationFacts {
-            standing: InvitationStanding::of(&invitation, now),
-            id: invitation.id,
-            member_id: invitation.member_id,
-            expires_at: invitation.expires_at,
-            consumed_at: invitation.consumed_at,
-            created_at: invitation.created_at,
-        })
-        .collect())
 }
 
 /// Draw a generated password. Twenty characters, four groups of five, from bytes the operating
@@ -740,8 +757,15 @@ async fn issue<P: TursoPlatform>(
     let generated_password = generate_password()?;
     let (vault, secret) = create_vault_with_secret(&generated_password, kdf_params)?;
 
-    // an administrator's signing key is derived from their secret as the owner's is, and the
-    // certificate over it needs the organization key, which only the owner's vault yields.
+    // the key this member will sign rows with, derived from the secret just drawn. Its verifying
+    // half goes on the row whatever the role is, because this is the one moment the secret is in
+    // hand: an owner widening them into a signing act later has the key to certify and no way to
+    // derive it themselves (effort 826, requirement 6).
+    let administrator_key =
+        AdministratorKey::from_bytes(&secret.derive_seed(ADMINISTRATOR_KEY_PURPOSE)?);
+
+    // an administrator's certificate needs the organization key, which only the owner's vault
+    // yields.
     if role == permission::ADMINISTRATOR {
         if session.role != permission::OWNER {
             return Err(Error::Forbidden {
@@ -754,8 +778,6 @@ async fn issue<P: TursoPlatform>(
 
         let organization_key =
             OrganizationKey::from_bytes(&session.secret.derive_seed(ORGANIZATION_KEY_PURPOSE)?);
-        let administrator_key =
-            AdministratorKey::from_bytes(&secret.derive_seed(ADMINISTRATOR_KEY_PURPOSE)?);
 
         // a reset draws a fresh vault secret, so `administrator_key` differs from the one this
         // member's old certificate names, and the certificate about to replace it carries the new
@@ -797,6 +819,7 @@ async fn issue<P: TursoPlatform>(
                     &session.content_key.to_bytes(),
                 )?,
                 vault: vault.clone(),
+                signing_public_key: administrator_key.verifying_key(),
                 role: role.to_string(),
                 permissions,
                 must_change_password: true,
@@ -1054,9 +1077,8 @@ mod tests {
 
     use super::{
         INVITATION_LIFETIME_MS, Invitation, InvitationStanding, Invited, USERNAME_RULES,
-        USERNAME_TAKEN, WorkspaceGrant, generate_password, invitation_link, invitations,
-        invite_member, organization_link, reissue_invitation, rename_member, revoke_invitation,
-        validate_username,
+        USERNAME_TAKEN, WorkspaceGrant, generate_password, invitation_link, invite_member,
+        organization_link, reissue_invitation, rename_member, revoke_invitation, validate_username,
     };
     use crate::{
         error::Error,
@@ -1083,6 +1105,10 @@ mod tests {
     };
 
     const PASSWORD: &str = "the owners password";
+
+    /// When the members list is read, where a test reads one. The standing of a pending
+    /// invitation is the one thing on that list that turns on the clock.
+    const NOW: i64 = 1_757_000_000_000;
 
     fn test_cost() -> KdfParams {
         KdfParams {
@@ -1436,16 +1462,19 @@ mod tests {
         };
         let invited = invite("sami", issued_at).await;
 
+        // where the invitation stands is read off the member's row, which is the only place it is
+        // reported from since effort 826 folded the invitation list into the members list.
         let standing = |now: i64| {
             let store = &store;
             let owner = &owner;
 
             async move {
-                invitations(store, owner, now)
+                super::members(store, owner, now)
                     .await
                     .expect("the list")
                     .into_iter()
-                    .map(|invitation| invitation.standing)
+                    .filter_map(|member| member.pending)
+                    .map(|pending| pending.standing)
                     .collect::<Vec<_>>()
             }
         };
@@ -1478,7 +1507,9 @@ mod tests {
             "a revoked invitation was revoked again"
         );
 
-        let listed = super::members(&store, &owner).await.expect("the members");
+        let listed = super::members(&store, &owner, NOW)
+            .await
+            .expect("the members");
 
         assert!(
             !listed.iter().any(|member| member.id == invited.member_id),
@@ -1583,7 +1614,7 @@ mod tests {
         .expect("the invitation failed");
 
         assert_eq!(
-            super::members(&store, &owner)
+            super::members(&store, &owner, NOW)
                 .await
                 .expect("the members")
                 .into_iter()
@@ -1750,7 +1781,7 @@ mod tests {
 
         assert!(refused.to_string().contains("owner"), "{refused}");
 
-        let usernames: Vec<String> = super::members(&store, &owner)
+        let usernames: Vec<String> = super::members(&store, &owner, NOW)
             .await
             .expect("the members")
             .into_iter()
@@ -1892,18 +1923,19 @@ mod tests {
             .await
             .expect("the revoke failed");
 
-        let listed = super::members(&store, &owner).await.expect("the members");
+        let listed = super::members(&store, &owner, NOW)
+            .await
+            .expect("the members");
 
         assert!(
             listed.iter().any(|member| member.id == invited.member_id),
             "revoking a reset link removed the member"
         );
         assert!(
-            invitations(&store, &owner, 5)
-                .await
-                .expect("the list")
-                .iter()
-                .all(|invitation| invitation.id != reset.invitation_id),
+            listed.iter().all(|member| member
+                .pending
+                .as_ref()
+                .is_none_or(|pending| pending.invitation_id != reset.invitation_id)),
             "the reset link's row stayed"
         );
 
@@ -2382,7 +2414,9 @@ mod tests {
             assert_eq!(error.to_string(), USERNAME_RULES, "{outside:?}");
         }
 
-        let members = super::members(&store, &owner).await.expect("the members");
+        let members = super::members(&store, &owner, NOW)
+            .await
+            .expect("the members");
         let mut usernames: Vec<&str> = members
             .iter()
             .map(|member| member.username.as_str())
@@ -2478,9 +2512,16 @@ mod tests {
         assert_eq!(renamed.id, sami.member_id);
         assert_eq!(renamed.username, "Sami.Staff");
         assert_eq!(renamed.role, permission::MEMBER);
-        assert_eq!(renamed.workspace_ids, vec![workspace_id.clone()]);
+        assert_eq!(
+            renamed
+                .workspaces
+                .iter()
+                .map(|workspace| workspace.id.clone())
+                .collect::<Vec<_>>(),
+            vec![workspace_id.clone()]
+        );
 
-        let listed = super::members(&store, &owner)
+        let listed = super::members(&store, &owner, NOW)
             .await
             .expect("the members")
             .into_iter()
@@ -2613,7 +2654,7 @@ mod tests {
         assert!(matches!(error, Error::NotFound { .. }), "{error:?}");
 
         // and nothing was written by any of them.
-        let mut usernames: Vec<String> = super::members(&store, &owner)
+        let mut usernames: Vec<String> = super::members(&store, &owner, NOW)
             .await
             .expect("the members")
             .into_iter()

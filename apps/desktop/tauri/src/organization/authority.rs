@@ -75,8 +75,10 @@ pub const SIGNATURE_BYTES: usize = 64;
 /// Separates a certificate's preimage from every row's.
 const CERTIFICATE_DOMAIN: &[u8] = b"rentable.organization.authority.certificate.v1";
 
-/// Separates a `member` row's preimage from every other row's.
-const MEMBER_DOMAIN: &[u8] = b"rentable.organization.authority.member.v1";
+/// Separates a `member` row's preimage from every other row's. `v2` since effort 826 put the
+/// member's signing public key under the signature: a `v1` signature covers a preimage no row
+/// carries any more, and the label says so rather than letting the two share a name.
+const MEMBER_DOMAIN: &[u8] = b"rentable.organization.authority.member.v2";
 
 /// Separates a `workspace` row's preimage from every other row's.
 const WORKSPACE_DOMAIN: &[u8] = b"rentable.organization.authority.workspace.v1";
@@ -190,6 +192,15 @@ pub struct MemberAuthority<'a> {
     /// module does not know what kind of key it is, only that these are the bytes
     /// under signature.
     pub public_key: &'a [u8],
+    /// The verifying half of the key this member signs rows with, as the column
+    /// holds it. It is here so that an owner widening somebody into an act that
+    /// signs has something to certify: a certificate names a key, the key is
+    /// derived from a secret only the member's password unseals, and before
+    /// effort 826 the row kept no copy of its public half, so the one moment a
+    /// certificate could be issued was the moment its issuer held the fresh
+    /// secret. Under signature because an unsigned copy would let any writer
+    /// name a key of their own and wait to be certified.
+    pub signing_public_key: &'a [u8],
     /// What the member is called. `packages/workspace-permission` owns this
     /// vocabulary; nothing here interprets the value, which is why a role this
     /// build has never heard of is still unforgeable.
@@ -430,12 +441,14 @@ fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
     match authority {
         Authority::Member(MemberAuthority {
             public_key,
+            signing_public_key,
             role,
             permissions,
         }) => {
             message.extend_from_slice(MEMBER_DOMAIN);
             field(&mut message, certificate_id.as_bytes());
             field(&mut message, public_key);
+            field(&mut message, signing_public_key);
             field(&mut message, role.as_bytes());
             field(&mut message, &permissions.to_be_bytes());
         }
@@ -617,9 +630,14 @@ mod tests {
         )
     }
 
+    /// The signing key a member row names. It is the administrator key above, because that is
+    /// what the column holds: a certificate names the key the member derives from their own
+    /// vault secret, and the row carries its verifying half so the owner has something to
+    /// certify (effort 826, requirement 6).
     fn member_authority<'a>(public_key: &'a [u8], role: &'a str) -> Authority<'a> {
         Authority::Member(MemberAuthority {
             public_key,
+            signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
             role,
             permissions: ADMINISTRATOR_PERMISSIONS,
         })
@@ -648,6 +666,14 @@ mod tests {
     fn checked_in_member_public_key() -> Vec<u8> {
         hex(CHECKED_IN_MEMBER_PUBLIC_KEY)
     }
+
+    /// The verifying half of the key the checked-in member signs with, as the row holds it.
+    /// Drawn once here so every vector and every rewrite below names the same bytes.
+    static CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY: &[u8] = &[
+        0x3d, 0x40, 0x17, 0xc3, 0xe8, 0x43, 0x89, 0x5a, 0x92, 0xb7, 0x0a, 0xa7, 0x4d, 0x1b, 0x7e,
+        0xbc, 0x9c, 0x98, 0x2c, 0xcf, 0x2e, 0xc4, 0x96, 0x8c, 0xc0, 0xcd, 0x55, 0xf1, 0x2a, 0xf4,
+        0x66, 0x0c,
+    ];
 
     /// One organization, one certified administrator, and the keys behind both.
     /// Drawn rather than checked in, so a test using it exercises the chain and
@@ -1032,10 +1058,11 @@ mod tests {
             )),
             concat!(
                 "72656e7461626c652e6f7267616e697a6174696f6e2e617574686f726974792e",
-                "6d656d6265722e7631000000000000000d63657274696669636174652d310000",
+                "6d656d6265722e7632000000000000000d63657274696669636174652d310000",
                 "0000000000200102030405060708090a0b0c0d0e0f101112131415161718191a",
-                "1b1c1d1e1f20000000000000000d61646d696e6973747261746f720000000000",
-                "0000080000000000000007",
+                "1b1c1d1e1f2000000000000000203d4017c3e843895a92b70aa74d1b7ebc9c98",
+                "2ccf2ec4968cc0cd55f12af4660c000000000000000d61646d696e6973747261",
+                "746f7200000000000000080000000000000007",
             ),
             "a member row covers a different set of fields"
         );
@@ -1087,13 +1114,23 @@ mod tests {
         let signed_grant = grant_authority(&sealed_credential);
 
         let rewrites: Vec<(Authority<'_>, Authority<'_>)> = vec![
-            // member: public_key, role, permissions
+            // member: public_key, signing_public_key, role, permissions
             (signed_member, member_authority(&other_public_key, "member")),
             (signed_member, member_authority(&public_key, "owner")),
             (
                 signed_member,
                 Authority::Member(MemberAuthority {
                     public_key: &public_key,
+                    signing_public_key: &other_public_key,
+                    role: "member",
+                    permissions: ADMINISTRATOR_PERMISSIONS,
+                }),
+            ),
+            (
+                signed_member,
+                Authority::Member(MemberAuthority {
+                    public_key: &public_key,
+                    signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
                     role: "member",
                     permissions: ADMINISTRATOR_PERMISSIONS + 1,
                 }),
@@ -1572,8 +1609,8 @@ mod tests {
             (
                 member_authority(&public_key, "administrator"),
                 concat!(
-                    "e7ddc09a18d2702fa1d08f806d0f46744d239991e6866c0bafc0595632513061",
-                    "420fdfa1da9a48c51a84210939455417329ad9b7a77d50b1c32847ca7a1b7204",
+                    "845ba711012384871f66bbb040432a46cd2ea24f95626c53eb6eef8c414cace9",
+                    "628260a5e96da6b6af3f7011c63902ad15579a2928bd516bed2ed94fd783500e",
                 ),
             ),
             (

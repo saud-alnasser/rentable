@@ -638,7 +638,7 @@ mod tests {
                 .any(|grant| grant.member_id == member_id)
         );
         assert!(
-            !members(&org.store, &owner)
+            !members(&org.store, &owner, AT)
                 .await
                 .expect("the dashboard's list")
                 .iter()

@@ -148,6 +148,74 @@ test('an empty name, a username outside the rules or a password under the floor 
 	assert.deepEqual(asked, []);
 });
 
+// effort 826, requirements 6 and 7: a change of role and a withdrawal each reach the host behind
+// their own act, and a caller whose row carries neither is refused before the round trip. What is
+// refused on the row itself, the caller's own and the owner's, is Rust's.
+test('changing a role and withdrawing a grant each need their act, and hand their input on', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			member: {
+				...fakeHost().organization.member,
+				changeRole: async (memberId, role, permissions) => {
+					asked.push(`changeRole:${memberId}:${role}:${permissions}`);
+
+					return {
+						id: memberId,
+						username: 'sami.staff',
+						role,
+						permissions,
+						workspaces: [],
+						pending: null,
+						createdAt: 0
+					};
+				}
+			},
+			workspace: {
+				...fakeHost().organization.workspace,
+				withdraw: async (workspaceId, memberId) => {
+					asked.push(`withdraw:${workspaceId}:${memberId}`);
+				}
+			}
+		}
+	});
+
+	const changing = await permittedApi(host, 'changeRole');
+	const changed = await changing.app.organization.member.changeRole({
+		memberId: 'member-2',
+		role: 'member',
+		permissions: 8
+	});
+
+	assert.equal(changed.permissions, 8);
+
+	const granting = await permittedApi(host, 'grantWorkspace');
+
+	await granting.app.organization.workspace.withdraw({
+		workspaceId: 'workspace-1',
+		memberId: 'member-2'
+	});
+
+	assert.deepEqual(asked, ['changeRole:member-2:member:8', 'withdraw:workspace-1:member-2']);
+
+	// and neither act stands in for the other.
+	await assert.rejects(
+		granting.app.organization.member.changeRole({
+			memberId: 'member-2',
+			role: 'member',
+			permissions: 8
+		})
+	);
+	await assert.rejects(
+		changing.app.organization.workspace.withdraw({
+			workspaceId: 'workspace-1',
+			memberId: 'member-2'
+		})
+	);
+	assert.deepEqual(asked, ['changeRole:member-2:member:8', 'withdraw:workspace-1:member-2']);
+});
+
 // requirement 22, from this side: no procedure lists organizations, because a group-scoped token
 // cannot, and the organization is whichever holds the selected group. Members and invitations
 // are listed, from the replica; organizations are not.
@@ -163,8 +231,8 @@ test('nothing here asks the host to list organizations', () => {
 		'disconnect',
 		'invitation.accept',
 		'invitation.link',
-		'invitation.list',
 		'invitation.revoke',
+		'member.changeRole',
 		'member.invite',
 		'member.list',
 		'member.lockOutCost',
@@ -176,7 +244,8 @@ test('nothing here asks the host to list organizations', () => {
 		'workspace.grant',
 		'workspace.open',
 		'workspace.remove',
-		'workspace.renewCredentials'
+		'workspace.renewCredentials',
+		'workspace.withdraw'
 	]);
 	assert.ok(!procedures.some((name) => /organizations/i.test(name)));
 });
@@ -256,8 +325,8 @@ test('a rename hands the trimmed username on, refuses one outside the rules firs
 						username,
 						role: 'member',
 						permissions: 0,
-						mustChangePassword: false,
-						workspaceIds: [],
+						workspaces: [],
+						pending: null,
 						createdAt: 0
 					};
 				}

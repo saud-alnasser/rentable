@@ -395,9 +395,10 @@ mod tests {
 
             changed += 1;
             assert_eq!(table, "member", "a {table} row changed");
-            // id, username, public key are the first three; the sealed secret key, the content
-            // key, the salt and the params follow; role, permissions, the flag, the certificate,
-            // the signature, created_at, updated_at close the row.
+            // id, username, the public key and the signing public key are the first four; the
+            // sealed secret key, the content key, the salt and the params follow; role,
+            // permissions, the flag, the certificate, the signature, created_at, updated_at
+            // close the row.
             assert_eq!(was[0], is[0], "the id changed");
             assert_eq!(
                 was[0].as_deref(),
@@ -406,15 +407,16 @@ mod tests {
             );
             assert_eq!(was[1], is[1], "the username changed");
             assert_eq!(was[2], is[2], "the public key changed");
-            assert_ne!(was[3], is[3], "the sealed secret key did not change");
-            assert_eq!(was[4], is[4], "the sealed content key changed");
-            assert_ne!(was[5], is[5], "the salt did not change");
-            assert_eq!(was[7], is[7], "the role changed");
-            assert_eq!(was[8], is[8], "the permissions changed");
-            assert_ne!(was[9], is[9], "the flag did not clear");
-            assert_eq!(was[10], is[10], "the certificate changed");
-            assert_eq!(was[11], is[11], "the signature changed");
-            assert_eq!(was[12], is[12], "created_at changed");
+            assert_eq!(was[3], is[3], "the signing public key changed");
+            assert_ne!(was[4], is[4], "the sealed secret key did not change");
+            assert_eq!(was[5], is[5], "the sealed content key changed");
+            assert_ne!(was[6], is[6], "the salt did not change");
+            assert_eq!(was[8], is[8], "the role changed");
+            assert_eq!(was[9], is[9], "the permissions changed");
+            assert_ne!(was[10], is[10], "the flag did not clear");
+            assert_eq!(was[11], is[11], "the certificate changed");
+            assert_eq!(was[12], is[12], "the signature changed");
+            assert_eq!(was[13], is[13], "created_at changed");
         }
 
         assert_eq!(changed, 1, "{changed} rows changed");

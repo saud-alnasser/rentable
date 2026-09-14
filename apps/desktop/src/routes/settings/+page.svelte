@@ -16,7 +16,6 @@
 	import {
 		useChangePassword,
 		useDisconnectOrganization,
-		useFetchInvitations,
 		useFetchMembers,
 		useFetchOrganizationState,
 		useLockOutCost,
@@ -28,7 +27,6 @@
 	import SettingsArea from '$lib/settings/component/area.svelte';
 	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
 	import { sectionOf } from '$lib/settings/section';
-	import { permits } from '@rentable/workspace-permission';
 	import { toast } from 'svelte-sonner';
 
 	/**
@@ -47,7 +45,7 @@
 	 *
 	 * **Signed out, three sections are offered and the organization's own reading is off.** The
 	 * settings query is public and reaches no database, which is what qualified this address for
-	 * the wall's list in the first place; the invitation list is a member's procedure and asks
+	 * the wall's list in the first place; the members list is a member's procedure and asks
 	 * nothing until there is a member.
 	 */
 	const startup = useStartup();
@@ -56,9 +54,7 @@
 	const membersQuery = useFetchMembers();
 
 	const session = $derived(stateQuery.data?.session ?? null);
-	const canInvite = $derived(permits(session?.permissions ?? 0, 'inviteMember'));
 
-	const invitationsQuery = useFetchInvitations(() => canInvite);
 	const remoteSyncQuery = useFetchRemoteSyncState(() => session !== null);
 
 	const changePassword = useChangePassword();
@@ -218,7 +214,6 @@
 		holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority === true}
 		syncState={remoteSyncQuery.data ?? null}
 		members={membersQuery.data ?? []}
-		invitations={invitationsQuery.data ?? []}
 		{reissuing}
 		{revoking}
 		isChangingPassword={changePassword.isPending}

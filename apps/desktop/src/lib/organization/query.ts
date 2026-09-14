@@ -14,7 +14,6 @@ export const keys = {
 	all: ['organization'],
 	consent: (sessionId: string) => ['organization', 'consent', sessionId],
 	members: ['organization', 'members'],
-	invitations: ['organization', 'invitations'],
 	state: ['organization', 'state'],
 	ownLink: ['organization', 'own-link']
 } as const;
@@ -227,21 +226,6 @@ export function useFetchMembers() {
 }
 
 /**
- * @param enabled whether to ask at all. It defaults to asking, and the one caller that passes
- * anything is the settings route: `/settings` is the address that draws with nobody signed in
- * (`layout/shell-surface.ts`), the list is a member's procedure, and asking it there would be a
- * refusal by design reported as a failure. `useFetchRemoteSyncState` takes the parameter for the
- * same reason and says so at more length.
- */
-export function useFetchInvitations(enabled: () => boolean = () => true) {
-	return createQuery(() => ({
-		queryKey: keys.invitations,
-		queryFn: () => api.app.organization.invitation.list(),
-		enabled: enabled()
-	}));
-}
-
-/**
  * the organization's own link, for the owner to share or keep. Fetched on demand where the owner's
  * dashboard draws it; the credential it carries is the owner's own and already in their vault.
  */
@@ -283,10 +267,7 @@ export function useInviteMember(
 			workspaces: { id: string; access: 'full-access' | 'read-only' }[];
 		}) => api.app.organization.member.invite({ username, role, workspaces }),
 		onSuccess: async () => {
-			await Promise.all([
-				client.invalidateQueries({ queryKey: keys.members }),
-				client.invalidateQueries({ queryKey: keys.invitations })
-			]);
+			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)
@@ -308,10 +289,7 @@ export function useRemoveMember(
 		mutationFn: ({ memberId, lockOut }: { memberId: string; lockOut: boolean }) =>
 			api.app.organization.member.remove({ memberId, lockOut }),
 		onSuccess: async () => {
-			await Promise.all([
-				client.invalidateQueries({ queryKey: keys.members }),
-				client.invalidateQueries({ queryKey: keys.invitations })
-			]);
+			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)
@@ -369,7 +347,7 @@ export function useRevokeInvitation(
 		mutationFn: ({ invitationId }: { invitationId: string }) =>
 			api.app.organization.invitation.revoke({ invitationId }),
 		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.invitations });
+			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)
@@ -421,7 +399,7 @@ export function useReissueInvitation(
 		mutationFn: ({ memberId }: { memberId: string }) =>
 			api.app.organization.member.reset({ memberId }),
 		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.invitations });
+			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)

@@ -334,6 +334,72 @@ pub async fn grant_workspace<P: TursoPlatform>(
     Ok(())
 }
 
+/// Take a workspace back from a member: the grant row goes, and nothing else moves.
+///
+/// **Nothing is minted and nothing is rotated**, so the credential already in that member's hands
+/// goes on working until it expires, exactly as an ordinary removal's does; renewal is what stops
+/// for them, because renewal re-seals to whoever still holds a grant. Cutting somebody off at
+/// once is the lock-out, it rotates a workspace's credentials and stalls everybody else on that
+/// workspace until their application collects a fresh one, and it is the owner's
+/// (`removal::remove_member`). A withdrawal that quietly rotated would cost every other member of
+/// the workspace a reconnect nobody asked for.
+///
+/// The act is [`Administration::GrantWorkspace`], the same one that gives, and the owner's own
+/// grant is refused: the organization is theirs, and a workspace they cannot reach is one nobody
+/// can create in or renew.
+pub async fn withdraw_grant(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    workspace_id: &str,
+    member_id: &str,
+) -> Result<(), Error> {
+    session.settled()?;
+    permission::require(session.permissions, Administration::GrantWorkspace)?;
+
+    let members = store.members(&session.verifying_key).await?;
+    let member = members
+        .iter()
+        .find(|member| member.id == member_id)
+        .ok_or_else(|| Error::NotFound {
+            message: "that member is not in this organization".to_string(),
+        })?;
+
+    if member.role == permission::OWNER {
+        return Err(Error::Forbidden {
+            message: "an owner's own workspace is not withdrawn. the organization is theirs"
+                .to_string(),
+        });
+    }
+
+    let held = store
+        .grants(&session.verifying_key)
+        .await?
+        .into_iter()
+        .any(|grant| grant.member_id == member_id && grant.workspace_id == workspace_id);
+
+    if !held {
+        return Err(Error::NotFound {
+            message: "that member holds no grant on that workspace".to_string(),
+        });
+    }
+
+    store.delete_grant(member_id, workspace_id).await?;
+
+    if !store.push().await {
+        diagnostics::warn("organization.grant.withdrawalNotYetSent")
+            .with("workspace", workspace_id)
+            .with("member", member_id)
+            .write();
+    }
+
+    diagnostics::info("organization.grant.withdrawn")
+        .with("workspace", workspace_id)
+        .with("member", member_id)
+        .write();
+
+    Ok(())
+}
+
 /// Delete a workspace: its database, through the one intent requirement 4 permits, and its rows.
 pub async fn delete_workspace<P: TursoPlatform>(
     store: &OrganizationStore,
@@ -625,16 +691,22 @@ mod tests {
     use super::{
         MIGRATION_CREDENTIAL_LIFETIME, WORKSPACE_CREDENTIAL_LIFETIME, create_workspace,
         credentials_due, delete_workspace, grant_workspace, openable, renew_credentials,
+        withdraw_grant,
     };
     use crate::{
+        error::Error,
         organization::{
             HeldOrganization,
+            authority::AdministratorKey,
             migrate::Pipeline,
             permission,
             session::{CredentialSlot, MemberSession, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
-            store::{GrantRecord, MemberRecord, OrganizationStore, Signer},
-            vault::{KdfParams, create_vault, seal_content, seal_to_public_key},
+            store::{GrantRecord, MemberRecord, OrganizationStore, Signer, TABLES},
+            vault::{
+                KdfParams, MemberSecretKey, create_vault_with_secret, seal_content,
+                seal_to_public_key,
+            },
         },
         persisted::Persisted,
         sync::{
@@ -671,6 +743,49 @@ mod tests {
 
     fn slot() -> CredentialSlot {
         Arc::new(Mutex::new(None))
+    }
+
+    /// The verifying half of the key a member with this vault secret signs rows with, which is
+    /// what their row carries and what a certificate over them names.
+    fn signing_key_of(secret: &MemberSecretKey) -> [u8; 32] {
+        AdministratorKey::from_bytes(
+            &secret
+                .derive_seed(crate::organization::setup::ADMINISTRATOR_KEY_PURPOSE)
+                .expect("the signing seed"),
+        )
+        .verifying_key()
+    }
+
+    /// Every row of the organization, cell by cell: what a write that should have moved one thing
+    /// is measured against.
+    async fn every_row(store: &OrganizationStore) -> Vec<(String, Vec<Option<Vec<u8>>>)> {
+        let mut rows_out = Vec::new();
+
+        for table in TABLES {
+            let mut rows = store
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\" ORDER BY 1, 2"), ())
+                .await
+                .expect("the rows");
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                let mut cells = Vec::new();
+
+                for index in 0..row.column_count() {
+                    cells.push(match row.get_value(index).expect("a value") {
+                        turso::Value::Text(text) => Some(text.into_bytes()),
+                        turso::Value::Blob(blob) => Some(blob),
+                        turso::Value::Integer(value) => Some(value.to_be_bytes().to_vec()),
+                        turso::Value::Real(value) => Some(value.to_be_bytes().to_vec()),
+                        turso::Value::Null => None,
+                    });
+                }
+
+                rows_out.push((table.to_string(), cells));
+            }
+        }
+
+        rows_out
     }
 
     /// A pipeline that applies every statement it is sent.
@@ -747,7 +862,8 @@ mod tests {
     /// password the owner chose for them, the content key sealed to them, and no grant yet.
     async fn second_member(store: &OrganizationStore, owner: &MemberSession) -> HeldOrganization {
         let (key, certificate) = super::signer_of(store, owner).await.expect("the signer");
-        let vault = create_vault(OTHER_PASSWORD, test_cost()).expect("a vault");
+        let (vault, secret) =
+            create_vault_with_secret(OTHER_PASSWORD, test_cost()).expect("a vault");
 
         store
             .write_member(
@@ -769,6 +885,7 @@ mod tests {
                     )
                     .expect("sealed"),
                     vault,
+                    signing_public_key: signing_key_of(&secret),
                     role: permission::MEMBER.to_string(),
                     permissions: 0,
                     must_change_password: false,
@@ -801,7 +918,8 @@ mod tests {
         owner: &MemberSession,
     ) -> HeldOrganization {
         let (key, certificate) = super::signer_of(store, owner).await.expect("the signer");
-        let vault = create_vault(OTHER_PASSWORD, test_cost()).expect("a vault");
+        let (vault, secret) =
+            create_vault_with_secret(OTHER_PASSWORD, test_cost()).expect("a vault");
 
         store
             .write_member(
@@ -823,6 +941,7 @@ mod tests {
                     )
                     .expect("sealed"),
                     vault,
+                    signing_public_key: signing_key_of(&secret),
                     role: permission::ADMINISTRATOR.to_string(),
                     permissions: permission::mask_of_role(permission::ADMINISTRATOR),
                     must_change_password: false,
@@ -976,6 +1095,112 @@ mod tests {
             replica.connect().await.expect("a connection");
             assert!(["North", "South"].contains(&facts.name.as_str()));
         }
+    }
+
+    /// Effort 826, requirement 7: a holder of `grantWorkspace` takes a workspace back, and that
+    /// is the grant row and nothing else. **Nothing is minted and nothing is rotated**, so every
+    /// other row is byte for byte what it was: the member's own row, their credential on the
+    /// organization database, and every other member's grant on the workspace. Cutting somebody
+    /// off at once is the lock-out, which is the owner's and costs everybody else a reconnect.
+    /// The refusals come first: the act, the owner's own grant, and a grant nobody holds.
+    #[tokio::test]
+    async fn a_withdrawal_removes_one_grant_and_rotates_nothing() {
+        let directory = scratch("withdraw");
+        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let pipeline = applying_pipeline().await;
+        let workspace = create_workspace(
+            &store,
+            &mut owner,
+            &platform,
+            |_| Pipeline::at(&pipeline.url("")),
+            "North",
+            1_757_000_000_000,
+        )
+        .await
+        .expect("the create failed");
+        let joined_b = second_member(&store, &owner).await;
+        let member_id = joined_b.member_id.clone().expect("their id");
+
+        grant_workspace(
+            &store,
+            &owner,
+            Some(platform.as_ref()),
+            &workspace.id,
+            &member_id,
+            AccessLevel::FullAccess,
+        )
+        .await
+        .expect("the grant failed");
+
+        let member = sign_in(&store, &joined_b, OTHER_PASSWORD, &slot())
+            .await
+            .expect("the member did not sign in");
+        let before = every_row(&store).await;
+
+        // a member whose row carries no act is refused, and nothing moves.
+        let without = withdraw_grant(&store, &member, &workspace.id, &owner.member_id)
+            .await
+            .expect_err("a member with no act withdrew a grant");
+
+        assert!(without.to_string().contains("grantWorkspace"), "{without}");
+
+        // the owner's own grant is not withdrawn, whoever asks.
+        let theirs = withdraw_grant(&store, &owner, &workspace.id, &owner.member_id)
+            .await
+            .expect_err("the owner's own grant was withdrawn");
+
+        assert!(matches!(theirs, Error::Forbidden { .. }), "{theirs:?}");
+        assert!(theirs.to_string().contains("owner"), "{theirs}");
+
+        // and a grant nobody holds is not found.
+        let missing = withdraw_grant(&store, &owner, "workspace-elsewhere", &member_id)
+            .await
+            .expect_err("a grant nobody holds was withdrawn");
+
+        assert!(matches!(missing, Error::NotFound { .. }), "{missing:?}");
+        assert_eq!(every_row(&store).await, before, "a refusal wrote something");
+
+        let minted_before = platform.minted().len();
+
+        withdraw_grant(&store, &owner, &workspace.id, &member_id)
+            .await
+            .expect("the withdrawal failed");
+
+        // the one row, gone.
+        let grants = store
+            .grants(&owner.verifying_key)
+            .await
+            .expect("the grants");
+
+        assert!(
+            !grants
+                .iter()
+                .any(|grant| grant.member_id == member_id && grant.workspace_id == workspace.id),
+            "the grant survived the withdrawal"
+        );
+        // and every other row is what it was, which is what says the member's credential was not
+        // rotated and nobody else's was re-sealed.
+        let after = every_row(&store).await;
+        let expected: Vec<_> = before
+            .iter()
+            .filter(|(table, cells)| {
+                !(table == "grant"
+                    && cells
+                        .first()
+                        .is_some_and(|cell| cell.as_deref() == Some(member_id.as_bytes()))
+                    && cells
+                        .get(1)
+                        .is_some_and(|cell| cell.as_deref() == Some(workspace.id.as_bytes())))
+            })
+            .cloned()
+            .collect();
+
+        assert_eq!(after, expected);
+        assert_eq!(
+            platform.minted().len(),
+            minted_before,
+            "a withdrawal minted a credential"
+        );
     }
 
     /// Requirement 11, at the command: creating is the owner's, and anybody else is told to ask.

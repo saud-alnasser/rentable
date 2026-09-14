@@ -137,6 +137,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 				create: refuse('organization.workspace.create'),
 				open: refuse('organization.workspace.open'),
 				grant: refuse('organization.workspace.grant'),
+				withdraw: refuse('organization.workspace.withdraw'),
 				remove: refuse('organization.workspace.remove'),
 				renewCredentials: refuse('organization.workspace.renewCredentials')
 			},
@@ -146,10 +147,10 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 				reset: refuse('organization.member.reset'),
 				remove: refuse('organization.member.remove'),
 				lockOutCost: refuse('organization.member.lockOutCost'),
-				rename: refuse('organization.member.rename')
+				rename: refuse('organization.member.rename'),
+				changeRole: refuse('organization.member.changeRole')
 			},
 			invitation: {
-				list: refuse('organization.invitation.list'),
 				revoke: refuse('organization.invitation.revoke'),
 				accept: refuse('organization.invitation.accept'),
 				link: refuse('organization.invitation.link')
