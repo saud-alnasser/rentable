@@ -19,6 +19,7 @@
 	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 	import BanIcon from '@lucide/svelte/icons/ban';
 	import CopyIcon from '@lucide/svelte/icons/copy';
+	import HashIcon from '@lucide/svelte/icons/hash';
 	import KeyIcon from '@lucide/svelte/icons/key-round';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
 	import LockIcon from '@lucide/svelte/icons/lock';
@@ -82,12 +83,14 @@
 		revoking,
 		copying,
 		endingSessions,
+		codeFor,
 		isChangingRole,
 		isChangingAccess,
 		onEndSessions,
 		onReissue,
 		onRevoke,
 		onCopyLink,
+		onFreshCode,
 		onRemove,
 		onLockOut,
 		onRename,
@@ -123,6 +126,8 @@
 		copying: string | null;
 		/** the member whose sessions are being ended, while they are. */
 		endingSessions: string | null;
+		/** the invitation being given a fresh code, while it is. */
+		codeFor: string | null;
 		isChangingRole: boolean;
 		isChangingAccess: boolean;
 		/**
@@ -135,6 +140,13 @@
 		onRevoke: (invitationId: string) => void;
 		/** hand the same link over again, for the person who issued it. */
 		onCopyLink: (invitationId: string, username: string) => void;
+		/**
+		 * make a fresh confirmation code for a pending invitation, for the person who issued it:
+		 * the link and the code together are what open the invited vault (effort 826, requirement
+		 * 23), and a code lapses ninety seconds after it is made, so the row is where the issuer
+		 * comes back for another.
+		 */
+		onFreshCode: (invitationId: string, username: string) => void;
 		/** ask to remove a member: the route raises the confirm that names what it costs. */
 		onRemove: (memberId: string) => void;
 		onLockOut: (memberId: string) => void;
@@ -375,6 +387,17 @@
 						member.id,
 						() => onCopyLink(pending.invitationId, member.username),
 						copying !== null
+					)}
+					<!-- beside the copy, and gated the same way: only the issuer's own vault holds
+					     what a fresh code is sealed under, so for anybody else the row offers a new
+					     link, which is a reset. -->
+					{@render action(
+						$LL.organization.dashboard.memberCode(),
+						HashIcon,
+						'data-member-code',
+						member.id,
+						() => onFreshCode(pending.invitationId, member.username),
+						codeFor !== null
 					)}
 				{/if}
 

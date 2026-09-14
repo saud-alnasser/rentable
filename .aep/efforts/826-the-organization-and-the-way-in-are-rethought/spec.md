@@ -130,8 +130,11 @@ rail's two menus open. Every concept has one name.
 8. **An invitation is one link.** Inviting asks for a username, a role and the workspaces
    with their access; what it produces is a single `rentable://` link and the sentence that
    rentable cannot send it. Opening the link on a machine that holds no organization
-   connects the machine, names the organization and the username, and asks the person to
-   choose a password; on choosing it they are signed in and inside their first workspace.
+   connects the machine, names the organization, and asks the person to choose a password;
+   on choosing it they are signed in and inside their first workspace. *Corrected
+   2026-09-14: the link named the username too, which meant opening the invited vault with
+   the link's secret alone; requirement 23 makes that secret one half of what opens it, so
+   the username is named only once the person is in.*
    The link admits whoever opens it first, once, and lapses after seven days; the pending row
    offers it to copy again until then, to the person who issued it, and a new link to anybody
    else with the act. No password is handed over or shown: the secret that opens the vault
@@ -283,8 +286,9 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
    other client; narrowed back, a row they newly sign is refused. Asserted in Rust with the
    chain's existing tests extended.
 8. `member_invite(username, role, workspaces)` returns one link and no password; opening it
-   on a store holding no organization records the organization, presents the username and
-   a password field, and on submit opens the vault and signs in with `must_change_password`
+   on a store holding no organization records the organization, presents the organization's
+   name, the code field and a password field (the username is not presented, corrected
+   2026-09-14 with requirement 8), and on submit opens the vault and signs in with `must_change_password`
    false; a second open of the same link is refused, and an open after seven days says the
    invitation lapsed. Asserted in Rust and in the connect screen's test; the invite dialog's
    test finds one copy control.

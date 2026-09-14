@@ -7,7 +7,7 @@ use crate::{diagnostics, error::Error, state::AppState, timestamp};
 
 use super::{
     HeldOrganization, connect, forget,
-    invite::{self, Invitation, Invited, MemberFacts, WorkspaceGrant},
+    invite::{self, FreshCode, Invitation, Invited, MemberFacts, WorkspaceGrant},
     join::{self, LinkFacts},
     link::JoinLink,
     migrate::Pipeline,
@@ -941,6 +941,33 @@ pub async fn invitation_link(
     invite::invitation_link(store, member, &invitation_id).await
 }
 
+/// A fresh confirmation code for an invitation, for the person who issued it (effort 826,
+/// requirement 23). The vault password is sealed under it and the link's secret together, so only
+/// the issuer's open vault can make one; anybody else with the act is refused and offered a new
+/// link, which is a reset.
+///
+/// **The code crosses once, as the generated password used to**: it is read out on a call or in
+/// person and typed into the connect screen, which is the one thing the person on the other side
+/// can do with it, and it is never written under the data directory.
+#[tauri::command]
+pub async fn invitation_code(
+    app_state: tauri::State<'_, AppState>,
+    invitation_id: String,
+) -> Result<FreshCode, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    invite::invitation_code(
+        store,
+        member,
+        &invitation_id,
+        invite::INVITED_KDF,
+        timestamp::now(),
+    )
+    .await
+}
+
 /// Open an invitation link: the way in for a person who was invited or reset (effort 826,
 /// requirements 8 and 9). The organization the link names has to be the one this machine holds,
 /// which `organization_connect` arranges first; the secret inside the link opens the member's
@@ -952,6 +979,7 @@ pub async fn invitation_link(
 pub async fn invitation_accept(
     app_state: tauri::State<'_, AppState>,
     link: String,
+    code: String,
     password: String,
 ) -> Result<OrganizationState, Error> {
     let link = JoinLink::decode(&link)?;
@@ -1014,6 +1042,7 @@ pub async fn invitation_accept(
             remote_sync.store_mut(),
             &held,
             &link,
+            &code,
             &password,
             &credential,
             setup::SHIPPING_KDF,

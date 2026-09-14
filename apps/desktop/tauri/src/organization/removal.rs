@@ -321,7 +321,6 @@ mod tests {
             invite::{
                 Invitation, Invited, WorkspaceGrant, invite_member, members, organization_link,
             },
-            link::JoinLink,
             migrate::Pipeline,
             permission,
             session::{CredentialSlot, MemberSession, refresh_credentials, sign_in},
@@ -381,13 +380,16 @@ mod tests {
             .collect()
     }
 
-    /// The secret inside an invitation link: the generated password the vault was sealed under.
-    fn secret_of(invited: &Invited) -> String {
-        JoinLink::decode(&invited.join_link)
-            .expect("the invitation link")
-            .invitation
-            .expect("the invitation half")
-            .secret
+    /// The password an invitation's vault was sealed under: the link's secret and the code
+    /// together open it, which is what the person opening the link does (effort 826, requirement
+    /// 23). `reader` is any session over this organization. *It was the link's secret alone until
+    /// that requirement made the code the other half.*
+    async fn secret_of(
+        store: &OrganizationStore,
+        reader: &MemberSession,
+        invited: &Invited,
+    ) -> String {
+        crate::organization::invite::vault_password_of(store, reader, invited, test_cost()).await
     }
 
     fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
@@ -561,14 +563,23 @@ mod tests {
         .await
         .expect("the member");
 
+        let administrator = (
+            administrator.member_id.clone(),
+            secret_of(&store, &owner, &administrator).await,
+        );
+        let member = (
+            member.member_id.clone(),
+            secret_of(&store, &owner, &member).await,
+        );
+
         Organization {
             store,
             platform,
             owner,
             north: north.id,
             south: south.id,
-            administrator: (administrator.member_id.clone(), secret_of(&administrator)),
-            member: (member.member_id.clone(), secret_of(&member)),
+            administrator,
+            member,
             database: format!("org-{}", created.organization_id),
         }
     }
@@ -1184,7 +1195,7 @@ mod tests {
         let bob_session = sign_in(
             &org.store,
             &joined_as(&owner, &bob.member_id, permission::MEMBER),
-            &secret_of(&bob),
+            &secret_of(&org.store, &owner, &bob).await,
             &slot(),
         )
         .await

@@ -65,6 +65,7 @@
 		revoking,
 		copying,
 		endingSessions,
+		codeFor,
 		isChangingPassword,
 		isChangingRole,
 		isChangingAccess,
@@ -76,6 +77,7 @@
 		onReissue,
 		onRevoke,
 		onCopyLink,
+		onFreshCode,
 		onRemove,
 		onLockOut,
 		onRename,
@@ -104,6 +106,8 @@
 		copying: string | null;
 		/** the member whose sessions are being ended, while they are. */
 		endingSessions: string | null;
+		/** the invitation being given a fresh code, while it is. */
+		codeFor: string | null;
 		isChangingPassword: boolean;
 		isChangingRole: boolean;
 		isChangingAccess: boolean;
@@ -121,6 +125,8 @@
 		onRevoke: (invitationId: string) => void;
 		/** hand a pending member's link over again, for the person who issued it. */
 		onCopyLink: (invitationId: string, username: string) => void;
+		/** make a pending member a fresh confirmation code, for the person who issued it. */
+		onFreshCode: (invitationId: string, username: string) => void;
 		/** ask to remove a member: the route raises the confirm that names what it costs. */
 		onRemove: (memberId: string) => void;
 		onLockOut: (memberId: string) => void;
@@ -239,12 +245,14 @@
 					{revoking}
 					{copying}
 					{endingSessions}
+					{codeFor}
 					{isChangingRole}
 					{isChangingAccess}
 					{onEndSessions}
 					{onReissue}
 					{onRevoke}
 					{onCopyLink}
+					{onFreshCode}
 					{onRemove}
 					{onLockOut}
 					{onRename}

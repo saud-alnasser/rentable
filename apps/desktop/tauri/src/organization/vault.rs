@@ -85,6 +85,10 @@ const SEALED_BOX_DOMAIN: &[u8] = b"rentable.organization.vault.sealed-box.v1";
 /// Prefixes the associated data of every column sealed under the content key.
 const CONTENT_DOMAIN: &[u8] = b"rentable.organization.vault.content.v1";
 
+/// Prefixes the associated data of every value sealed under a key a caller derived from a
+/// phrase of their own, which is the invitation code's seal and nothing else so far.
+const PHRASE_SEAL_DOMAIN: &[u8] = b"rentable.organization.vault.phrase-seal.v1";
+
 /// Prefixes the info of every seed derived from a member's secret.
 const SEED_DOMAIN: &[u8] = b"rentable.organization.vault.seed.v1";
 
@@ -543,6 +547,46 @@ pub fn open_content(key: &ContentKey, column: &str, sealed: &[u8]) -> Result<Vec
     unseal_bytes(&key.0, &nonce, ciphertext, &content_aad(column))
 }
 
+/// Seals a value under a key the caller already derived from a phrase, binding `context` as
+/// associated data.
+///
+/// **The same AEAD the sealed secret key uses, under a domain of its own.** What differs is
+/// where the key came from and what is bound to it: a caller derives one with
+/// [`derive_member_key`] from a phrase and a salt of their choosing, and names in `context`
+/// whatever the seal must not survive being moved away from. The invitation code's seal is the
+/// one caller (`organization/invite.rs`): the phrase is the code, the salt is drawn from the
+/// link's secret, and the context is the invitation and the moment the code lapses, so a seal
+/// lifted onto another invitation, or a row whose expiry was rewritten, opens for nobody.
+pub fn seal_under_member_key(
+    key: &MemberKey,
+    context: &[u8],
+    plaintext: &[u8],
+) -> Result<Vec<u8>, Error> {
+    let nonce = random_bytes::<NONCE_BYTES>()?;
+
+    let mut sealed = nonce.to_vec();
+    sealed.extend_from_slice(&seal_bytes(
+        &key.0,
+        &nonce,
+        plaintext,
+        &phrase_aad(context),
+    )?);
+
+    Ok(sealed)
+}
+
+/// The other direction. A wrong phrase, a wrong salt, a wrong context and a changed byte all
+/// fail the same way, as [`Error::Integrity`] saying only that the value did not open.
+pub fn open_under_member_key(
+    key: &MemberKey,
+    context: &[u8],
+    sealed: &[u8],
+) -> Result<Vec<u8>, Error> {
+    let (nonce, ciphertext) = split_nonce(sealed)?;
+
+    unseal_bytes(&key.0, &nonce, ciphertext, &phrase_aad(context))
+}
+
 /// Opens a vault with a member key that is already derived.
 ///
 /// Separate from [`open_vault`] only so a test can offer a key that no password
@@ -678,6 +722,15 @@ fn sealed_box_key(
     sealing_nonce.copy_from_slice(nonce);
 
     Ok((sealing_key, sealing_nonce))
+}
+
+/// The associated data one phrase seal carries: the domain and whatever the caller bound.
+fn phrase_aad(context: &[u8]) -> Vec<u8> {
+    let mut aad = PHRASE_SEAL_DOMAIN.to_vec();
+    aad.push(b'.');
+    aad.extend_from_slice(context);
+
+    aad
 }
 
 /// The associated data one sealed column carries: the domain and the column's
@@ -1336,5 +1389,48 @@ mod tests {
             elapsed.as_secs() < 10,
             "deriving at the shipping cost took {elapsed:?}, which is no longer a sign-in"
         );
+    }
+
+    /// Effort 826, requirement 23: a value sealed under a key a phrase derived opens for that
+    /// phrase, that salt and that context, and for no other. This is the invitation code's seal
+    /// read as what it is, one AEAD under a domain of its own, and the three ways of getting it
+    /// wrong all say the same nothing.
+    #[test]
+    fn a_phrase_seal_opens_for_its_phrase_its_salt_and_its_context_and_for_nothing_else() {
+        let salt = hex_array::<KDF_SALT_BYTES>(CHECKED_IN_SALT);
+        let key = derive_member_key("7K4M9Q", &salt, test_cost()).expect("a key");
+        let context = b"inv-1.1757000090000";
+        let sealed = seal_under_member_key(&key, context, b"the vault password").expect("sealed");
+
+        assert_eq!(
+            open_under_member_key(&key, context, &sealed).expect("opened"),
+            b"the vault password"
+        );
+
+        // another phrase, another salt, another context: each fails the tag, and each says only
+        // that the value did not open.
+        let wrong_phrase = derive_member_key("7K4M9R", &salt, test_cost()).expect("a key");
+        let wrong_salt =
+            derive_member_key("7K4M9Q", &[9_u8; KDF_SALT_BYTES], test_cost()).expect("a key");
+
+        for (name, opened) in [
+            (
+                "the phrase",
+                open_under_member_key(&wrong_phrase, context, &sealed),
+            ),
+            (
+                "the salt",
+                open_under_member_key(&wrong_salt, context, &sealed),
+            ),
+            (
+                "the context",
+                open_under_member_key(&key, b"inv-1.1757000099999", &sealed),
+            ),
+        ] {
+            assert!(
+                matches!(opened, Err(Error::Integrity { ref message }) if message == UNOPENABLE),
+                "{name}: {opened:?}"
+            );
+        }
     }
 }

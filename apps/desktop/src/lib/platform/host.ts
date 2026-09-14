@@ -368,10 +368,18 @@ export type OrganizationMember = {
 };
 
 /**
- * what an invitation makes, shown to the administrator: the one thing they hand over, the
- * invitation link, beside the username and the ids the members list reads. The secret that opens
- * the member's vault once is inside the link and nowhere else; no password crosses on its own.
+ * what an invitation makes, shown to the administrator: the two things they hand over, the
+ * invitation link and the code that confirms it, beside the username and the ids the members list
+ * reads. The link carries one half of what opens the member's vault and the code is the other, so
+ * the link is sent and the code is read out; no password crosses on its own.
  */
+export type FreshCode = {
+	/** six characters from the alphabet with the letters that read alike taken out. */
+	code: string;
+	/** the moment it lapses, ninety seconds from when it was drawn. */
+	expiresAt: number;
+};
+
 export type Invited = {
 	memberId: string;
 	invitationId: string;
@@ -380,6 +388,14 @@ export type Invited = {
 	/** the invitation link: the organization's own link with this invitation's half in it. */
 	joinLink: string;
 	expiresAt: number;
+	/**
+	 * the six-character code that confirms the link (effort 826, requirement 23). It is the
+	 * other half of what opens the invited vault, so it is read out on a call or in person and
+	 * never sent beside the link.
+	 */
+	code: string;
+	/** the moment that code lapses, ninety seconds from when it was drawn. */
+	codeExpiresAt: number;
 	/**
 	 * on a reset, the workspaces the member held that the resetting administrator could not
 	 * restore, because they hold no full credential on them themselves. Empty on an invitation.
@@ -635,18 +651,27 @@ export type Host = {
 			 */
 			revoke: (invitationId: string) => Promise<void>;
 			/**
-			 * open an invitation link on the organization this machine holds, choosing a password:
-			 * the vault the link's secret opens is resealed under it, the invitation is spent, and
-			 * the person is signed in. Rejects a lapsed, consumed or revoked invitation by name, a
-			 * password under the floor as `invalidInput`, and a link for another organization than
-			 * the one held as `preconditionFailed`.
+			 * open an invitation link on the organization this machine holds, with the code the
+			 * issuer read out and a password of the person's choosing: the link's secret and the
+			 * code together open the vault, which is resealed under the password, the invitation
+			 * is spent, and the person is signed in. Rejects a lapsed, consumed or revoked
+			 * invitation by name, a wrong code as `forbidden` and a lapsed one as
+			 * `preconditionFailed`, a missing code and a password under the floor as
+			 * `invalidInput`, and a link for another organization than the one held as
+			 * `preconditionFailed`.
 			 */
-			accept: (link: string, password: string) => Promise<OrganizationState>;
+			accept: (link: string, code: string, password: string) => Promise<OrganizationState>;
 			/**
 			 * the invitation link again, for the person who issued it; `forbidden` for anybody
 			 * else, who is offered a new link instead.
 			 */
 			link: (invitationId: string) => Promise<string>;
+			/**
+			 * a fresh confirmation code for an invitation, for the person who issued it; the old
+			 * one opens nothing from then on. `forbidden` for anybody else, who is offered a new
+			 * link instead, which is a reset.
+			 */
+			code: (invitationId: string) => Promise<FreshCode>;
 		};
 		/**
 		 * change the signed-in member's own password. The current one has to open the vault and

@@ -121,12 +121,14 @@ const list = (
 			revoking: null,
 			copying: null,
 			endingSessions: null,
+			codeFor: null,
 			isChangingRole: false,
 			isChangingAccess: false,
 			onEndSessions: noop,
 			onReissue: noop,
 			onRevoke: noop,
 			onCopyLink: noop,
+			onFreshCode: noop,
 			onRemove: noop,
 			onLockOut: noop,
 			onRename: resolved,
@@ -335,6 +337,7 @@ test('each action is drawn by its own act and by no other', () => {
 	only({ canRemove: true }, 'lock-out', 0);
 	only({ canRemove: true, canLockOut: true }, 'lock-out', 2);
 	only({ canInvite: true }, 'copy-link', 1);
+	only({ canInvite: true }, 'code', 1);
 	only({ canInvite: true }, 'revoke', 1);
 });
 
@@ -359,12 +362,14 @@ test('signing a member out of every machine is offered behind reset password, an
 	expect(asked).toEqual(['sami']);
 });
 
-// criterion 15: the link is sealed to whoever issued it, so the row offers a copy to them and a
-// new link to everybody else.
-test('copy link is drawn for the issuer alone, and a new link for anybody with the act', () => {
+// criterion 15, and effort 826's requirement 23 beside it: the link and the code are both sealed
+// to whoever issued the invitation, so the row offers a copy and a fresh code to them, and a new
+// link to everybody else.
+test('copy link and the code are drawn for the issuer alone, and a new link for anybody with the act', () => {
 	const issuer = list();
 
 	expect(on('copy-link', 'sami')).not.toBeNull();
+	expect(on('code', 'sami')).not.toBeNull();
 	expect(on('new-link', 'sami')).not.toBeNull();
 	issuer.unmount();
 
@@ -377,27 +382,32 @@ test('copy link is drawn for the issuer alone, and a new link for anybody with t
 	});
 
 	expect(on('copy-link', 'sami')).toBeNull();
+	expect(on('code', 'sami')).toBeNull();
 	expect(on('new-link', 'sami')).not.toBeNull();
 });
 
-test('the pending row hands its invitation to the two acts that take one', async () => {
+test('the pending row hands its invitation to the acts that take one', async () => {
 	const copied: string[] = [];
 	const revoked: string[] = [];
 	const reissued: string[] = [];
+	const coded: string[] = [];
 
 	list({
 		onCopyLink: (invitationId, username) => copied.push(`${invitationId}:${username}`),
 		onRevoke: (invitationId) => revoked.push(invitationId),
-		onReissue: (memberId) => reissued.push(memberId)
+		onReissue: (memberId) => reissued.push(memberId),
+		onFreshCode: (invitationId, username) => coded.push(`${invitationId}:${username}`)
 	});
 
 	await fireEvent.click(on('copy-link', 'sami')!);
 	await fireEvent.click(on('revoke', 'sami')!);
 	await fireEvent.click(on('new-link', 'sami')!);
+	await fireEvent.click(on('code', 'sami')!);
 
 	expect(copied).toEqual(['invitation-1:sami']);
 	expect(revoked).toEqual(['invitation-1']);
 	expect(reissued).toEqual(['sami']);
+	expect(coded).toEqual(['invitation-1:sami']);
 });
 
 // [[rules/interface]], *Row activation*: an action is a control on the row, never the row.

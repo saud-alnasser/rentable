@@ -9,6 +9,7 @@ import {
 	joinFailed,
 	linkArrived,
 	linkKind,
+	normalizeCode,
 	normalizeLink,
 	takeArrivingLink,
 	THE_WALL
@@ -92,6 +93,7 @@ test('an invitation that stands names the organization and the person, and asks 
 			organizationName: 'Acme Rentals',
 			username: 'olivia',
 			isJoining: false,
+			codeRefusal: null,
 			errorMessage: null
 		}
 	);
@@ -175,6 +177,7 @@ test('the accept holds the fields while it runs, and says what refused it', () =
 		organizationName: 'Acme Rentals',
 		username: 'olivia',
 		isJoining: true,
+		codeRefusal: null,
 		errorMessage: null
 	});
 
@@ -190,9 +193,47 @@ test('the accept holds the fields while it runs, and says what refused it', () =
 			organizationName: 'Acme Rentals',
 			username: 'olivia',
 			isJoining: false,
+			codeRefusal: null,
 			errorMessage: 'the invitation was already opened'
 		}
 	);
+});
+
+// effort 826, requirement 23: the two refusals a code gets are told apart by the code the shell
+// rejected with, so the screen can name each in the reader's own language. A wrong code failed the
+// seal and is `forbidden`; one the row says has lapsed is `preconditionFailed`. Everything else,
+// including anything raised on this side, keeps the shell's own sentence and names nothing.
+test('a wrong code and a lapsed one are told apart, and nothing else is read as either', () => {
+	const joining = joinBegun(stepOf({ standing: 'open', invitation: { username: 'olivia' } }));
+	const refusalOf = (error: unknown) => {
+		const step = joinFailed(joining, error, () => 'said');
+
+		return step.kind === 'password' ? step.codeRefusal : 'not the password step';
+	};
+
+	assert.equal(
+		refusalOf({ code: 'forbidden', message: 'the code is wrong or has lapsed' }),
+		'wrong'
+	);
+	assert.equal(refusalOf({ code: 'preconditionFailed', message: 'the code has lapsed' }), 'lapsed');
+	assert.equal(refusalOf({ code: 'invalidInput', message: 'type the six-character code' }), null);
+	assert.equal(refusalOf(new Error('the connection went')), null);
+
+	// the shell's own sentence is kept whichever it was: the screen shows it under the named
+	// refusal, because a `forbidden` can still be a standing that changed while they typed.
+	const wrong = joinFailed(joining, { code: 'forbidden', message: 'wrong' }, () => 'said');
+
+	assert.equal(wrong.kind === 'password' && wrong.errorMessage, 'said');
+});
+
+// the code as the field holds it: upper-cased, six at most, and the spaces and hyphens somebody
+// reading one out loud puts in taken off. Rust upper-cases and trims again.
+test('a typed code is upper-cased, stripped and held to six', () => {
+	assert.equal(normalizeCode('7k4m9q'), '7K4M9Q');
+	assert.equal(normalizeCode(' 7k4 m9-q '), '7K4M9Q');
+	assert.equal(normalizeCode('7K4M9QQQQ'), '7K4M9Q');
+	assert.equal(normalizeCode(''), '');
+	assert.equal(normalizeCode('!!!'), '');
 });
 
 // neither transition has anything to say about a step that is not the password's: a corner back

@@ -591,6 +591,27 @@ export function useInvitationLink(
 	}));
 }
 
+/**
+ * a fresh confirmation code for an invitation, for the person who issued it. The one before it
+ * opens nothing from then on, and anybody else is refused and offered a new link.
+ *
+ * **A mutation rather than a query**, and quiet, for the reasons `useInvitationLink` gives: it is
+ * asked for at the moment somebody presses a control, its answer is a secret shown once, and the
+ * panel it lands in is where the reader learns it worked.
+ */
+export function useInvitationCode(
+	opts: MutationOptions = {
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	return createMutation(() => ({
+		mutationFn: ({ invitationId }: { invitationId: string }) =>
+			api.app.organization.invitation.code({ invitationId }),
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
 /** reset a member's password: a fresh link, from what the resetting administrator holds. */
 export function useReissueInvitation(
 	opts: MutationOptions = {

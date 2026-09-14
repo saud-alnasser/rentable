@@ -515,7 +515,6 @@ mod tests {
         organization::{
             HeldOrganization,
             invite::{Invitation, Invited, WorkspaceGrant, invite_member, organization_link},
-            link::JoinLink,
             migrate::{self, Pipeline},
             permission,
             session::{CredentialSlot, MemberSession, WorkspaceFacts, sign_in},
@@ -575,13 +574,16 @@ mod tests {
             .collect()
     }
 
-    /// The secret inside an invitation link: the generated password the vault was sealed under.
-    fn secret_of(invited: &Invited) -> String {
-        JoinLink::decode(&invited.join_link)
-            .expect("the invitation link")
-            .invitation
-            .expect("the invitation half")
-            .secret
+    /// The password an invitation's vault was sealed under: the link's secret and the code
+    /// together open it, which is what the person opening the link does (effort 826, requirement
+    /// 23). `reader` is any session over this organization. *It was the link's secret alone until
+    /// that requirement made the code the other half.*
+    async fn secret_of(
+        store: &OrganizationStore,
+        reader: &MemberSession,
+        invited: &Invited,
+    ) -> String {
+        crate::organization::invite::vault_password_of(store, reader, invited, test_cost()).await
     }
 
     fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
@@ -681,7 +683,7 @@ mod tests {
         let mut member = sign_in(
             &store,
             &joined_as(&owner, &invited.member_id, permission::MEMBER),
-            &secret_of(&invited),
+            &secret_of(&store, &owner, &invited).await,
             &slot(),
         )
         .await

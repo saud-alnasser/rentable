@@ -831,6 +831,11 @@ const en = {
 				'your password opens your place in the organization, on this machine and on any other you sign in from. nobody can recover it for you; a new link is the only way back.',
 			organizationLabel: 'organization',
 			usernameLabel: 'username',
+			codeLabel: 'confirmation code',
+			codeDescription:
+				'the six characters whoever invited you read out. it lapses ninety seconds after it was made; ask them for a fresh one if it has.',
+			codeWrong: 'the code is wrong or has lapsed. ask whoever invited you for a fresh one.',
+			codeLapsed: 'that code has lapsed. ask whoever invited you for a fresh one.',
 			confirmLabel: 'your password, again',
 			mismatch: 'the two do not match.',
 			tryAgain: 'try again',
@@ -849,6 +854,13 @@ const en = {
 			cannotSend:
 				'rentable sends nothing. copy the link below and hand it to the person yourself; opening it is how they choose their password.',
 			invitationLinkTitle: 'invitation link',
+			codeTitle: 'confirmation code',
+			codeDescription:
+				'read this out on a call or in person. it is the other half of what opens their place, so it is never sent beside the link.',
+			codeExpires: 'lapses in {seconds} seconds',
+			codeLapsed: 'this code has lapsed.',
+			freshCode: 'fresh code',
+			memberCode: 'make a confirmation code',
 			done: 'done',
 			notYetSignedIn: 'not yet signed in',
 			invitationExpires: 'the link expires {date:string}',

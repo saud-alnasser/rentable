@@ -11,6 +11,7 @@ import type {
 	AvailableUpdate,
 	DiagnosticRecord,
 	ExportSheet,
+	FreshCode,
 	Host,
 	ImportTable,
 	Invited,
@@ -48,6 +49,7 @@ export type {
 	DiagnosticRecord,
 	ExportCell,
 	ExportSheet,
+	FreshCode,
 	ImportTable,
 	Invited,
 	HeldOrganization,
@@ -258,9 +260,10 @@ export const tauri = {
 		},
 		invitation: {
 			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId }),
-			accept: (link: string, password: string) =>
-				invoke<OrganizationState>('invitation_accept', { link, password }),
-			link: (invitationId: string) => invoke<string>('invitation_link', { invitationId })
+			accept: (link: string, code: string, password: string) =>
+				invoke<OrganizationState>('invitation_accept', { link, code, password }),
+			link: (invitationId: string) => invoke<string>('invitation_link', { invitationId }),
+			code: (invitationId: string) => invoke<FreshCode>('invitation_code', { invitationId })
 		},
 		changePassword: (current: string, next: string) =>
 			invoke<OrganizationState>('organization_change_password', { current, new: next }),

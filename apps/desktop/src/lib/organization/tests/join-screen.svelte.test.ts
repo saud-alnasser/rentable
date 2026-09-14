@@ -39,7 +39,7 @@ const joinScreen = (
 	step: JoinStep,
 	overrides: {
 		onConnect?: (link: string) => void;
-		onJoin?: (link: string, password: string) => void;
+		onJoin?: (link: string, code: string, password: string) => void;
 		onSignIn?: () => void;
 		onBack?: () => void;
 		direction?: 'ltr' | 'rtl';
@@ -161,13 +161,96 @@ test('an invitation link pasted into the field lands on the password step, namin
 	);
 	expect(screen.getByText('Acme Rentals')).toBeDefined();
 	expect(screen.getByText('olivia')).toBeDefined();
-	// named and not typed: the two facts the link carried are text, and the fields are the two
-	// the person fills in.
+	// named and not typed: the facts the link carried are text, and the fields are the three the
+	// person fills in, the code first because it is the half they were given.
 	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
+		'code',
 		'password',
 		'confirmation'
 	]);
 	expect(screen.getByText(en.organization.join.passwordTitle)).toBeDefined();
+});
+
+// effort 826, requirement 23: the code field sits above the password, is six characters, and is
+// upper-cased as it is typed, with the spaces and hyphens somebody reading one out puts in taken
+// off. Nothing joins without all six.
+test('the code field is above the password, six characters, upper-cased as typed', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onJoin = vi.fn();
+
+	joinScreen(stepOf({ standing: 'open', invitation: { username: 'olivia' } }), { onJoin });
+
+	const code = document.querySelector<HTMLInputElement>('input[name=code]')!;
+	const password = document.querySelector<HTMLInputElement>('input[name=password]')!;
+	const confirmation = document.querySelector<HTMLInputElement>('input[name=confirmation]')!;
+
+	expect(code.getAttribute('maxlength')).toBe('6');
+	expect(code.getAttribute('dir')).toBe('ltr');
+	expect(screen.getByText(en.organization.join.codeLabel)).toBeDefined();
+	expect(screen.getByText(en.organization.join.codeDescription)).toBeDefined();
+	// above the password, in the document's own order.
+	expect(code.compareDocumentPosition(password) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+	await fireEvent.input(password, { target: { value: A_CHOSEN_PASSWORD } });
+	await fireEvent.input(confirmation, { target: { value: A_CHOSEN_PASSWORD } });
+
+	const join = screen.getByRole('button', { name: en.common.actions.join });
+
+	// five characters is not a code: the primary stays shut.
+	await fireEvent.input(code, { target: { value: '7k4m9' } });
+
+	expect(code.value).toBe('7K4M9');
+	expect(join.hasAttribute('disabled')).toBe(true);
+
+	// upper-cased as typed, and what a person reads out with spaces in is taken as the six.
+	await fireEvent.input(code, { target: { value: '7k4 m9-q' } });
+
+	expect(code.value).toBe('7K4M9Q');
+	expect(join.hasAttribute('disabled')).toBe(false);
+
+	await fireEvent.submit(join.closest('form')!);
+
+	expect(onJoin).toHaveBeenCalledWith(LINK, '7K4M9Q', A_CHOSEN_PASSWORD);
+});
+
+// requirement 23's two refusals, each said by name in the reader's own language, with what the
+// shell said kept under it: a wrong code comes back `forbidden` and a lapsed one
+// `preconditionFailed`, and `join.ts` is what turns each into one of these.
+test('a wrong code and a lapsed one are each refused by name, over the fields', () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const wrong = joinScreen({
+		kind: 'password',
+		link: LINK,
+		organizationName: 'Acme Rentals',
+		username: 'olivia',
+		isJoining: false,
+		codeRefusal: 'wrong',
+		errorMessage: 'the code is wrong or has lapsed; ask whoever invited you for a fresh one'
+	});
+
+	expect(screen.getByText(en.organization.join.codeWrong)).toBeDefined();
+	expect(document.querySelector('[data-join-detail]')?.textContent).toBe(
+		'the code is wrong or has lapsed; ask whoever invited you for a fresh one'
+	);
+	expect(document.querySelector('input[name=code]')?.getAttribute('aria-invalid')).toBe('true');
+	wrong.unmount();
+
+	joinScreen({
+		kind: 'password',
+		link: LINK,
+		organizationName: 'Acme Rentals',
+		username: 'olivia',
+		isJoining: false,
+		codeRefusal: 'lapsed',
+		errorMessage: 'the code has lapsed; ask whoever invited you for a fresh one'
+	});
+
+	expect(screen.getByText(en.organization.join.codeLapsed)).toBeDefined();
+	expect(en.organization.join.codeLapsed).not.toBe(en.organization.join.codeWrong);
 });
 
 test('the password step holds the floor and the confirmation, and only a matching pair joins', async () => {
@@ -179,7 +262,7 @@ test('the password step holds the floor and the confirmation, and only a matchin
 	joinScreen(stepOf({ standing: 'open', invitation: { username: 'olivia' } }), { onJoin });
 
 	const join = screen.getByRole('button', { name: en.common.actions.join });
-	const [password, confirmation] = inputsOnScreen();
+	const [code, password, confirmation] = inputsOnScreen();
 
 	expect(password?.type).toBe('password');
 	expect(confirmation?.type).toBe('password');
@@ -204,10 +287,15 @@ test('the password step holds the floor and the confirmation, and only a matchin
 
 	await fireEvent.input(confirmation!, { target: { value: A_CHOSEN_PASSWORD } });
 
+	// a password with no code joins nothing: all six characters are what opens the primary.
+	expect(join.hasAttribute('disabled')).toBe(true);
+
+	await fireEvent.input(code!, { target: { value: '7K4M9Q' } });
+
 	expect(join.hasAttribute('disabled')).toBe(false);
 	await fireEvent.submit(join.closest('form')!);
 
-	expect(onJoin).toHaveBeenCalledWith(LINK, A_CHOSEN_PASSWORD);
+	expect(onJoin).toHaveBeenCalledWith(LINK, '7K4M9Q', A_CHOSEN_PASSWORD);
 });
 
 // effort 826, requirement 14 of effort 824 still: the primary carries its verb, and the two
@@ -238,6 +326,7 @@ test('while the accept is out the fields are held and the wait is said on the pr
 		organizationName: 'Acme Rentals',
 		username: 'olivia',
 		isJoining: true,
+		codeRefusal: null,
 		errorMessage: null
 	});
 
@@ -257,11 +346,12 @@ test('an accept that was refused says what the shell said, over the fields', () 
 		organizationName: 'Acme Rentals',
 		username: 'olivia',
 		isJoining: false,
+		codeRefusal: null,
 		errorMessage: 'the invitation to Acme Rentals was already opened'
 	});
 
 	expect(screen.getByText('the invitation to Acme Rentals was already opened')).toBeDefined();
-	expect(inputsOnScreen()).toHaveLength(2);
+	expect(inputsOnScreen()).toHaveLength(3);
 });
 
 test('text that was not a link keeps the field and says so', () => {
@@ -428,7 +518,7 @@ test('only the password step takes a password, and only the field step takes a l
 		if (step.kind === 'paste' || step.kind === 'unreadable') {
 			expect(names, step.kind).toEqual(['link']);
 		} else if (step.kind === 'password') {
-			expect(names, step.kind).toEqual(['password', 'confirmation']);
+			expect(names, step.kind).toEqual(['code', 'password', 'confirmation']);
 		} else {
 			expect(names, step.kind).toEqual([]);
 		}
@@ -507,11 +597,16 @@ test('the screen renders in arabic with the same one field, the same refusals an
 
 	expect(screen.getByText(ar.organization.join.passwordTitle)).toBeDefined();
 	expect(screen.getByText(ar.organization.join.confirmLabel)).toBeDefined();
+	expect(screen.getByText(ar.organization.join.codeLabel)).toBeDefined();
+	expect(ar.organization.join.codeLabel).not.toBe(en.organization.join.codeLabel);
 	expect(screen.getByRole('button', { name: ar.common.actions.join })).toBeDefined();
 	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
+		'code',
 		'password',
 		'confirmation'
 	]);
+	// a machine string, read left to right whatever the sentence around it does.
+	expect(document.querySelector('input[name=code]')?.getAttribute('dir')).toBe('ltr');
 	password.unmount();
 
 	setLocale('en');

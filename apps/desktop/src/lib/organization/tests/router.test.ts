@@ -230,6 +230,7 @@ test('nothing here asks the host to list organizations', () => {
 		'create',
 		'disconnect',
 		'invitation.accept',
+		'invitation.code',
 		'invitation.link',
 		'invitation.revoke',
 		'member.changeRole',
@@ -252,18 +253,19 @@ test('nothing here asks the host to list organizations', () => {
 	assert.ok(!procedures.some((name) => /organizations/i.test(name)));
 });
 
-// effort 826, requirement 8: opening an invitation link happens at the wall, so it is public, hands
-// the trimmed link and the password on as given, and refuses a password under the floor before the
-// host is reached. Whether the invitation stands is Rust's.
-test('opening an invitation link reaches the host signed out, and a password under the floor is refused first', async () => {
+// effort 826, requirements 8 and 23: opening an invitation link happens at the wall, so it is
+// public, hands the trimmed link, the code and the password on as given, and refuses a password
+// under the floor and a code that is not six characters before the host is reached. Whether the
+// invitation stands, and whether the link's secret and the code together open anything, are Rust's.
+test('opening an invitation link reaches the host signed out, and a short password or a code that is not six is refused first', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
 		organization: {
 			...fakeHost().organization,
 			invitation: {
 				...fakeHost().organization.invitation,
-				accept: async (link, password) => {
-					asked.push(`accept:${link}:${password.length}`);
+				accept: async (link, code, password) => {
+					asked.push(`accept:${link}:${code}:${password.length}`);
 
 					return fakeOrganizationState({
 						organization: fakeHeldOrganization({ memberId: 'member-2', role: 'member' })
@@ -276,22 +278,69 @@ test('opening an invitation link reaches the host signed out, and a password und
 
 	const admitted = await api.app.organization.invitation.accept({
 		link: ' rentable://join/abc ',
+		code: '7K4M9Q',
 		password: 'a password sami chose'
 	});
 
 	assert.equal(admitted.organization?.memberId, 'member-2');
-	assert.deepEqual(asked, ['accept:rentable://join/abc:21']);
+	assert.deepEqual(asked, ['accept:rentable://join/abc:7K4M9Q:21']);
 
 	await assert.rejects(
 		api.app.organization.invitation.accept({
 			link: 'rentable://join/abc',
+			code: '7K4M9Q',
 			password: 'x'.repeat(PASSWORD_FLOOR - 1)
 		})
 	);
 	await assert.rejects(
-		api.app.organization.invitation.accept({ link: '  ', password: 'a password sami chose' })
+		api.app.organization.invitation.accept({
+			link: '  ',
+			code: '7K4M9Q',
+			password: 'a password sami chose'
+		})
 	);
-	assert.deepEqual(asked, ['accept:rentable://join/abc:21']);
+
+	for (const code of ['', '7K4M9', '7K4M9QQ']) {
+		await assert.rejects(
+			api.app.organization.invitation.accept({
+				link: 'rentable://join/abc',
+				code,
+				password: 'a password sami chose'
+			})
+		);
+	}
+
+	assert.deepEqual(asked, ['accept:rentable://join/abc:7K4M9Q:21']);
+});
+
+// requirement 23 from this side: a fresh code is under the act that makes invitations, and whether
+// the caller is the one who issued this one is Rust's, because it turns on whose key the row's
+// sealed secret opens for.
+test('a fresh code is held to inviteMember and hands the invitation on as given', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			invitation: {
+				...fakeHost().organization.invitation,
+				code: async (invitationId) => {
+					asked.push(`code:${invitationId}`);
+
+					return { code: '7K4M9Q', expiresAt: 1_757_000_090_000 };
+				}
+			}
+		}
+	});
+	const inviting = await permittedApi(host, 'inviteMember');
+	const fresh = await inviting.app.organization.invitation.code({ invitationId: ' inv-1 ' });
+
+	assert.equal(fresh.code, '7K4M9Q');
+	assert.deepEqual(asked, ['code:inv-1']);
+
+	const resetting = await permittedApi(host, 'resetPassword');
+
+	await assert.rejects(resetting.app.organization.invitation.code({ invitationId: 'inv-1' }));
+	assert.deepEqual(asked, ['code:inv-1']);
 });
 
 /**

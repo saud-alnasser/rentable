@@ -121,7 +121,9 @@ const SCHEMA: [&str; 7] = [
         \"issued_by\" TEXT NOT NULL, \
         \"certificate_id\" TEXT NOT NULL, \
         \"signature\" BLOB NOT NULL, \
-        \"created_at\" INTEGER NOT NULL)",
+        \"created_at\" INTEGER NOT NULL, \
+        \"code_seal\" BLOB, \
+        \"code_expires_at\" INTEGER)",
     "CREATE TABLE IF NOT EXISTS \"migration_lease\" (\
         \"workspace_id\" TEXT PRIMARY KEY NOT NULL, \
         \"holder_member_id\" TEXT NOT NULL, \
@@ -222,23 +224,32 @@ pub struct GrantRecord {
 /// dropped the invitation's sealed half: the row was found through the link's secret and the
 /// generated password together, and it is found by the password alone now.*
 ///
-/// **`sealed_secret` and `issued_by` sit outside the signature**, which the plan settled: a
-/// tampered `sealed_secret` opens for nobody, the issuer included, and a tampered `issued_by` only
-/// misplaces a copy control. Putting either under `InvitationAuthority` would move a preimage
-/// nothing needs moved.
+/// **`sealed_secret`, `issued_by`, `code_seal` and `code_expires_at` sit outside the signature**,
+/// which the plan settled: a tampered `sealed_secret` opens for nobody, the issuer included, a
+/// tampered `issued_by` only misplaces a copy control, and the code's two columns are bound to
+/// each other by the seal's own associated data, so a rewritten expiry opens nothing. Putting any
+/// of them under `InvitationAuthority` would move a preimage nothing needs moved.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InvitationRecord {
     pub id: String,
     pub member_id: String,
     pub expires_at: i64,
     pub consumed_at: Option<i64>,
-    /// the generated password this invitation was made with, sealed to the issuer's public key.
-    /// It is what lets the issuer, and nobody else, build the link again; anybody else holding the
-    /// act is offered a fresh link instead, which is a reset.
+    /// the vault password this invitation was made with and the link's own secret, sealed
+    /// together to the issuer's public key. It is what lets the issuer, and nobody else, build
+    /// the link again and make a fresh code; anybody else holding the act is offered a fresh
+    /// link instead, which is a reset.
     pub sealed_secret: Vec<u8>,
     /// the member id of whoever issued it, which is whose key `sealed_secret` opens for.
     pub issued_by: String,
     pub created_at: i64,
+    /// the vault password sealed under the six-character code and the link's secret together
+    /// (effort 826, requirement 23), with this row's id and `code_expires_at` bound as associated
+    /// data. `None` once the invitation is consumed, which is what clears it.
+    pub code_seal: Option<Vec<u8>>,
+    /// the moment the code lapses, ninety seconds from when it was drawn. `None` on a row whose
+    /// code has been cleared.
+    pub code_expires_at: Option<i64>,
 }
 
 /// Who is writing: an administrator's key and the certificate that makes it an authority.
@@ -907,8 +918,9 @@ impl OrganizationStore {
             .execute(
                 "INSERT OR REPLACE INTO \"invitation\" \
                  (\"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"sealed_secret\", \
-                  \"issued_by\", \"certificate_id\", \"signature\", \"created_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                  \"issued_by\", \"certificate_id\", \"signature\", \"created_at\", \
+                  \"code_seal\", \"code_expires_at\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(invitation.id.clone()),
                     turso::Value::Text(invitation.member_id.clone()),
@@ -921,6 +933,13 @@ impl OrganizationStore {
                     turso::Value::Text(signer.certificate.id.clone()),
                     turso::Value::Blob(signature),
                     turso::Value::Integer(invitation.created_at),
+                    invitation
+                        .code_seal
+                        .clone()
+                        .map_or(turso::Value::Null, turso::Value::Blob),
+                    invitation
+                        .code_expires_at
+                        .map_or(turso::Value::Null, turso::Value::Integer),
                 ],
             )
             .await?;
@@ -951,7 +970,8 @@ impl OrganizationStore {
             .connection
             .query(
                 "SELECT \"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"sealed_secret\", \
-                        \"issued_by\", \"certificate_id\", \"signature\", \"created_at\" \
+                        \"issued_by\", \"certificate_id\", \"signature\", \"created_at\", \
+                        \"code_seal\", \"code_expires_at\" \
                  FROM \"invitation\" ORDER BY \"created_at\", \"id\"",
                 (),
             )
@@ -992,6 +1012,14 @@ impl OrganizationStore {
                     sealed_secret: blob(&row, 4)?,
                     issued_by: text(&row, 5)?,
                     created_at: integer(&row, 8)?,
+                    code_seal: match row.get_value(9)? {
+                        turso::Value::Blob(value) => Some(value),
+                        _ => None,
+                    },
+                    code_expires_at: match row.get_value(10)? {
+                        turso::Value::Integer(value) => Some(value),
+                        _ => None,
+                    },
                 },
             ));
         }
@@ -999,15 +1027,48 @@ impl OrganizationStore {
         Ok(invitations)
     }
 
-    /// Mark an invitation consumed. Unsigned on purpose: the machine that consumes it holds no
-    /// administrator key, and a consumed invitation is spent whether or not the mark is trusted,
-    /// because the member row it pointed at now has a password of the member's own.
+    /// Mark an invitation consumed, and clear the code seal with it (effort 826, requirement 23):
+    /// the vault it opened is resealed under a password of the member's own by the time this
+    /// runs, so what the seal holds opens nothing and there is no reason to keep it.
+    ///
+    /// Unsigned on purpose: the machine that consumes it holds no administrator key, and a
+    /// consumed invitation is spent whether or not the mark is trusted, because the member row it
+    /// pointed at now has a password of the member's own.
     pub async fn consume_invitation(&self, id: &str, now: i64) -> Result<(), Error> {
         self.connection
             .execute(
-                "UPDATE \"invitation\" SET \"consumed_at\" = ? WHERE \"id\" = ?",
+                "UPDATE \"invitation\" SET \"consumed_at\" = ?, \"code_seal\" = NULL, \
+                 \"code_expires_at\" = NULL WHERE \"id\" = ?",
                 vec![
                     turso::Value::Integer(now),
+                    turso::Value::Text(id.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Write an invitation a fresh code seal and the moment it lapses.
+    ///
+    /// Unsigned, like the consume above and for the same reason the two columns sit outside the
+    /// signature: what binds them is the seal's own associated data, which names this row and
+    /// this expiry, so a rewritten expiry opens nothing and a seal lifted onto another row opens
+    /// nothing. Nothing under the invitation's preimage moves, so the signature the issuer wrote
+    /// still stands over what it was made for.
+    pub async fn write_invitation_code(
+        &self,
+        id: &str,
+        code_seal: &[u8],
+        code_expires_at: i64,
+    ) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "UPDATE \"invitation\" SET \"code_seal\" = ?, \"code_expires_at\" = ? \
+                 WHERE \"id\" = ?",
+                vec![
+                    turso::Value::Blob(code_seal.to_vec()),
+                    turso::Value::Integer(code_expires_at),
                     turso::Value::Text(id.to_string()),
                 ],
             )
@@ -1568,10 +1629,12 @@ mod tests {
         assert!(names.contains(&"database_name".to_string()));
         assert!(names.contains(&"schema_version".to_string()));
 
-        // the invitation's own columns, pinned: the two effort 826 added are what a copy control
-        // and the forget signal read, and `forget::old_shape` calls a replica without
-        // `sealed_secret` the old shape, so a schema that stopped declaring it would wipe every
-        // machine at startup rather than fail here.
+        // the invitation's own columns, pinned: the four effort 826 added are what a copy
+        // control, a confirmation code and the forget signal read, and `forget::old_shape` calls
+        // a replica without `sealed_secret` or without `code_seal` the old shape, so a schema
+        // that stopped declaring either would wipe every machine at startup rather than fail
+        // here. The code's two sit last because they were added last, and outside the signature,
+        // which `InvitationRecord` says why of.
         let mut columns = store
             .connection()
             .query("PRAGMA table_info(\"invitation\")", ())
@@ -1594,7 +1657,9 @@ mod tests {
                 "issued_by",
                 "certificate_id",
                 "signature",
-                "created_at"
+                "created_at",
+                "code_seal",
+                "code_expires_at"
             ]
         );
 
@@ -2022,6 +2087,8 @@ mod tests {
                     sealed_secret: b"a secret sealed to the issuer".to_vec(),
                     issued_by: "member-admin".to_string(),
                     created_at: 1_757_000_000_000,
+                    code_seal: Some(b"a password sealed under a code".to_vec()),
+                    code_expires_at: Some(1_757_000_090_000),
                 },
             )
             .await

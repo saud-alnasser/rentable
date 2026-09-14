@@ -116,7 +116,6 @@ mod tests {
                 Invitation, Invited, WorkspaceGrant, invite_member, organization_link,
                 reissue_invitation,
             },
-            link::JoinLink,
             migrate::Pipeline,
             permission,
             session::{CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, read_entry, sign_in},
@@ -179,13 +178,16 @@ mod tests {
             .collect()
     }
 
-    /// The secret inside an invitation link: the generated password the vault was sealed under.
-    fn secret_of(invited: &Invited) -> String {
-        JoinLink::decode(&invited.join_link)
-            .expect("the invitation link")
-            .invitation
-            .expect("the invitation half")
-            .secret
+    /// The password an invitation's vault was sealed under: the link's secret and the code
+    /// together open it, which is what the person opening the link does (effort 826, requirement
+    /// 23). `reader` is any session over this organization. *It was the link's secret alone until
+    /// that requirement made the code the other half.*
+    async fn secret_of(
+        store: &OrganizationStore,
+        reader: &MemberSession,
+        invited: &Invited,
+    ) -> String {
+        crate::organization::invite::vault_password_of(store, reader, invited, test_cost()).await
     }
 
     fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
@@ -347,13 +349,16 @@ mod tests {
         .await
         .expect("the member");
 
-        (
-            store,
-            owner,
-            (north.id, south.id),
-            (administrator.member_id.clone(), secret_of(&administrator)),
-            (member.member_id.clone(), secret_of(&member)),
-        )
+        let administrator = (
+            administrator.member_id.clone(),
+            secret_of(&store, &owner, &administrator).await,
+        );
+        let member = (
+            member.member_id.clone(),
+            secret_of(&store, &owner, &member).await,
+        );
+
+        (store, owner, (north.id, south.id), administrator, member)
     }
 
     /// Criterion 13's first half: a change re-seals the member's own vault and leaves every other
@@ -631,7 +636,7 @@ mod tests {
         let member = sign_in(
             &store,
             &joined_as(&owner, &member_id, permission::MEMBER),
-            &secret_of(&reset),
+            &secret_of(&store, &owner, &reset).await,
             &slot(),
         )
         .await
@@ -656,7 +661,7 @@ mod tests {
         let member = sign_in(
             &store,
             &joined_as(&owner, &member_id, permission::MEMBER),
-            &secret_of(&reset),
+            &secret_of(&store, &owner, &reset).await,
             &slot(),
         )
         .await

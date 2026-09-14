@@ -13,6 +13,7 @@
 	import {
 		useCreateWorkspace,
 		useFetchOrganizationState,
+		useInvitationCode,
 		useInviteMember
 	} from '$lib/organization/query';
 	import { onDestroy } from 'svelte';
@@ -40,6 +41,7 @@
 	const stateQuery = useFetchOrganizationState();
 	const inviteMember = useInviteMember();
 	const createWorkspace = useCreateWorkspace();
+	const invitationCode = useInvitationCode();
 
 	const session = $derived(stateQuery.data?.session ?? null);
 	const isOwner = $derived(session?.role === 'owner');
@@ -65,12 +67,34 @@
 			const invited = await inviteMember.mutateAsync({ username, role, workspaces });
 
 			showInvited({
+				invitationId: invited.invitationId,
 				username: invited.username,
 				joinLink: invited.joinLink,
+				code: invited.code,
+				codeExpiresAt: invited.codeExpiresAt,
 				unreachableWorkspaces: invited.unreachableWorkspaces
 			});
 		} catch {
 			// said by the shared handler; the form keeps what was typed.
+		}
+	};
+
+	/**
+	 * a fresh code for the invitation the panel is showing: ninety seconds is short enough that a
+	 * person reading one out down a phone often needs another before they have finished. The old
+	 * one opens nothing from then on, which is what the panel replacing it says.
+	 */
+	const freshCode = async (invitationId: string) => {
+		const shown = organizationDialog.invited;
+
+		if (!shown) return;
+
+		try {
+			const fresh = await invitationCode.mutateAsync({ invitationId });
+
+			showInvited({ ...shown, code: fresh.code, codeExpiresAt: fresh.expiresAt });
+		} catch {
+			// said by the shared handler; the panel keeps the code it was showing.
 		}
 	};
 
@@ -116,8 +140,10 @@
 			isInviting={inviteMember.isPending}
 			invited={organizationDialog.invited}
 			{copied}
+			isFresheningCode={invitationCode.isPending}
 			onInvite={(username, role, workspaces) => void invite(username, role, workspaces)}
 			onCopy={(what, value) => void copy(what, value)}
+			onFreshCode={(invitationId) => void freshCode(invitationId)}
 			onDismiss={dismissInvited}
 		/>
 

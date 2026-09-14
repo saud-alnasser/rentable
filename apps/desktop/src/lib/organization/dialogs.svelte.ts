@@ -1,16 +1,26 @@
 /**
- * what an invitation hands over, whichever act produced it: the link, and whom it is for.
+ * what an invitation hands over, whichever act produced it: the link, whom it is for, and the
+ * code that confirms it where the act made one.
  *
  * **Narrower than `Invited` on purpose.** An invite and a reset answer with a whole `Invited`;
  * copying the link again answers with the link string alone, and the row beside it is where the
- * username comes from. The panel draws the same three things in all three cases, so what the
- * panel is handed is those three things rather than the widest of the payloads that can produce
- * them.
+ * username comes from. The panel draws the same things in all of those cases, so what the panel
+ * is handed is those things rather than the widest of the payloads that can produce them.
  */
 export type InvitedLink = {
+	/** which invitation this is, so the panel's fresh-code control knows what to ask for. */
+	invitationId: string;
 	/** the member the link admits, as their row seals it. */
 	username: string;
 	joinLink: string;
+	/**
+	 * the code that confirms the link, where the act that opened this panel made one (effort 826,
+	 * requirement 23). `null` on a link copied again, which makes no code: the row's own code
+	 * action is what makes one of those.
+	 */
+	code: string | null;
+	/** the moment that code lapses, beside which the panel counts down. `null` with the code. */
+	codeExpiresAt: number | null;
 	/**
 	 * on a reset, the workspaces the member held that the resetting administrator could not
 	 * restore. Empty on an invitation and on a link copied again.

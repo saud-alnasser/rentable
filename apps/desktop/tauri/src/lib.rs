@@ -262,6 +262,7 @@ pub fn run() {
             organization::organization_account_refusal_detail,
             organization::invitation_revoke,
             organization::invitation_link,
+            organization::invitation_code,
             organization::invitation_accept,
             organization::organization_members,
             organization::organization_link_take,

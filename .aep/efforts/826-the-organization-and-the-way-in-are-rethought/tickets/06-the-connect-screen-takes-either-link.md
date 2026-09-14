@@ -72,3 +72,6 @@ Raised, not taken: `linkInspect` then `connect` open the replica twice; the rout
 host command for the accept rather than the router procedure, which stays as the gate for
 other callers; an accept refused after the password is typed stays on the password step with
 the shell's sentence. Ticket 15 adds the code field to the password step.
+
+On 2026-09-14 ticket 15 made the link's secret one half of what opens the invited vault, so the
+password step no longer names the username; requirement 8 was corrected with it.

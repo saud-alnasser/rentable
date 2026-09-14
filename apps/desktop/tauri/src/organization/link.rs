@@ -12,12 +12,16 @@
 //! **There is one link, and it carries an invitation half or it does not** (effort 826,
 //! requirement 8). The organization's own link connects a machine to the organization, and a
 //! username and password admit a person at the wall. An invitation is that same link with one more
-//! field, the invitation's id and the secret that opens the member's vault the first time: the
-//! secret is the generated password `invite.rs` seals the vault under, so it is never shown and
-//! never handed over on its own, and opening the link is what turns it into a password the person
-//! chose (`join.rs::accept`). A reset is the same link freshly issued. *Effort 824 had one kind of
-//! link and handed the generated password over beside it; 819 carried a half that opened a sealed
-//! payload naming the row. The half is back, and it opens the vault rather than a payload.*
+//! field, the invitation's id and one half of what opens the member's vault the first time.
+//!
+//! **That half is not enough on its own** (requirement 23). The secret is thirty-two bytes drawn
+//! for this invitation, and the vault's own password is sealed under that secret and a
+//! six-character code together, which the issuer reads out rather than sends. So a link found in a
+//! chat history is a locator and a head start and nothing else, and opening it means typing the
+//! code beside the password the person is choosing (`join.rs::accept`). A reset is the same link
+//! freshly issued. *Effort 824 had one kind of link and handed the generated password over beside
+//! it; 819 carried a half that opened a sealed payload naming the row; and between ticket 03 and
+//! ticket 15 of this effort the half was the generated password itself.*
 //!
 //! **A locator does not expire** (requirement 23). The read-only credential is minted with no
 //! expiry, so the same link works on the day it was sent and a year later; what expires is the
@@ -62,9 +66,11 @@ pub struct JoinLink {
     pub invitation: Option<InvitationHalf>,
 }
 
-/// The invitation half of a link: which invitation, and the secret that opens the invited
-/// member's vault once. The secret is the generated password the vault was sealed under, and this
-/// is the one place it is ever spelled out ([[rules/credentials]] sanctions the link crossing).
+/// The invitation half of a link: which invitation, and one half of what opens the invited
+/// member's vault once. The secret is thirty-two bytes base64url, drawn for this invitation; the
+/// vault's own password is sealed under it and a six-character code together, so this field is
+/// useless without the code and the code is never sent beside it ([[rules/credentials]] sanctions
+/// the link crossing, and `invite.rs` says what each half is).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InvitationHalf {
@@ -90,7 +96,9 @@ impl JoinLink {
         }
     }
 
-    /// This link, made for an invitation: the same five fields and the invitation's half.
+    /// This link, made for an invitation: the same five fields and the invitation's half. The
+    /// secret is the link's own, never the vault's password, which is sealed under it and the
+    /// code together.
     pub fn for_invitation(&self, invitation_id: &str, secret: &str) -> Self {
         Self {
             invitation: Some(InvitationHalf {
@@ -213,7 +221,8 @@ mod tests {
 
     /// The organization's own link is five fields and nothing else; an invitation link is those
     /// five and the invitation half, and neither spells the word password: the secret inside the
-    /// half is a field named for what it is, and the organization link carries no secret at all.
+    /// half is a field named for what it is, is half of what opens the vault rather than the
+    /// password itself (requirement 23), and the organization link carries no secret at all.
     /// *There was one kind of link from effort 824 to effort 826.*
     #[test]
     fn a_link_carries_five_fields_and_an_invitation_link_six() {

@@ -37,6 +37,33 @@ import type { LinkFacts } from '$lib/platform/host';
 export type LinkKind = 'organization' | 'invitation';
 
 /**
+ * how many characters the confirmation code is (effort 826, requirement 23). Rust draws it from
+ * an alphabet of thirty-two, digits and upper-case letters with `I`, `L`, `O` and `U` taken out,
+ * so it is read out on a call without ambiguity; this side holds the length, because the field
+ * bounds itself by it and the router refuses anything else before a round trip.
+ */
+export const CODE_LENGTH = 6;
+
+/**
+ * the code as the field holds it: upper-cased, with the spaces and hyphens a person reading one
+ * out loud puts in taken off, and no longer than the code is. Rust upper-cases and trims again,
+ * because the barrier is the derivation and not this.
+ */
+export function normalizeCode(typed: string): string {
+	return typed
+		.toUpperCase()
+		.replace(/[^0-9A-Z]/g, '')
+		.slice(0, CODE_LENGTH);
+}
+
+/**
+ * which of the two the code was refused as. A code the row says has lapsed is `preconditionFailed`
+ * and one that failed the seal is `forbidden`; both end with the same instruction, which is to ask
+ * whoever invited for a fresh one, and each is said in the reader's own language here.
+ */
+export type CodeRefusal = 'wrong' | 'lapsed';
+
+/**
  * why a link admits nobody: the three standings an invitation can be in and no longer open on,
  * and a link for an organization other than the one this machine holds.
  */
@@ -65,9 +92,20 @@ export type JoinStep =
 			kind: 'password';
 			link: string;
 			organizationName: string;
+			/**
+			 * whom the link invites, where the read could name them. Empty since effort 826's
+			 * requirement 23: naming them meant opening their vault with the link's secret, and
+			 * the secret is one half of what opens it now, so nobody is named until the code is
+			 * typed and the accept has run. The screen draws the line only where there is one.
+			 */
 			username: string;
-			/** the accept is running, which is two key derivations the person is waiting on. */
+			/** the accept is running, which is three key derivations the person is waiting on. */
 			isJoining: boolean;
+			/**
+			 * the code was refused, and which of the two it was: shown by name over the fields,
+			 * with what the shell said under it.
+			 */
+			codeRefusal: CodeRefusal | null;
 			errorMessage: string | null;
 	  };
 
@@ -124,10 +162,12 @@ export function afterConnect(link: string, facts: LinkFacts): JoinStep | typeof 
 				kind: 'password',
 				link,
 				organizationName: facts.organizationName,
-				// an open invitation whose secret opens nothing names nobody, and the accept is what
-				// refuses it; the step still stands, since the person has nothing else to try.
+				// nobody is named from a link alone any more (requirement 23), and the step stands
+				// without a name: the organization is what the person recognises, and the code and
+				// the password are what they have to give.
 				username: facts.invitation?.username ?? '',
 				isJoining: false,
+				codeRefusal: null,
 				errorMessage: null
 			};
 		case 'lapsed':
@@ -166,22 +206,35 @@ export function inspectionFailed(
 
 /** the accept is out: the fields stay on screen, disabled, and nothing else moves. */
 export function joinBegun(step: JoinStep): JoinStep {
-	return step.kind === 'password' ? { ...step, isJoining: true, errorMessage: null } : step;
+	return step.kind === 'password'
+		? { ...step, isJoining: true, codeRefusal: null, errorMessage: null }
+		: step;
 }
 
 /**
  * the accept was refused. The standings were judged before this step was reached, so what lands
- * here is a link somebody altered, a password the floor refused, or a standing that changed under
- * the person; each is the shell's one sentence, said over the fields they can try again in.
+ * here is a wrong or lapsed code, a link somebody altered, a password the floor refused, or a
+ * standing that changed under the person.
+ *
+ * **The two code refusals are named in the reader's own language, and Rust's sentence is kept
+ * under them.** A code that failed the seal is `forbidden` and one the row says has lapsed is
+ * `preconditionFailed`, which are the two codes an accept reaching this step comes back with;
+ * the rare third thing they can mean, a standing that changed while the person was typing, still
+ * says so in Rust's own words on the line below, the way the refusal step shows a shell sentence
+ * under its own. Everything else is shown as it was said.
  */
 export function joinFailed(
 	step: JoinStep,
 	error: unknown,
 	describe: (error: unknown) => string
 ): JoinStep {
-	return step.kind === 'password'
-		? { ...step, isJoining: false, errorMessage: describe(error) }
-		: step;
+	if (step.kind !== 'password') return step;
+
+	const code = toTauriErrorCode(error);
+	const codeRefusal: CodeRefusal | null =
+		code === 'forbidden' ? 'wrong' : code === 'preconditionFailed' ? 'lapsed' : null;
+
+	return { ...step, isJoining: false, codeRefusal, errorMessage: describe(error) };
 }
 
 /**

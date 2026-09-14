@@ -43,11 +43,23 @@
 //! the row.
 //!
 //! **The invitation row carries the secret it was made with, sealed to its issuer.** `issue`
-//! writes the generated password under [`vault::seal_to_public_key`] to the issuing session's own
-//! public key, and the issuer's member id beside it. It is what lets that one person hand the
-//! same link over a second time ([`invitation_link`]); for anybody else the row offers a fresh
-//! link, which is a reset. Neither column is under the invitation signature, whose preimage is
-//! unchanged: a tampered seal opens for nobody, and a tampered issuer misplaces a copy control.
+//! writes the generated password and the link's own secret under [`vault::seal_to_public_key`] to
+//! the issuing session's own public key, and the issuer's member id beside it. It is what lets
+//! that one person hand the same link over a second time ([`invitation_link`]) and make a fresh
+//! code ([`invitation_code`]); for anybody else the row offers a fresh link, which is a reset.
+//! Neither column is under the invitation signature, whose preimage is unchanged: a tampered seal
+//! opens for nobody, and a tampered issuer misplaces a copy control.
+//!
+//! **The link is confirmed by a code, and the code is a key half** (effort 826, requirement 23).
+//! `issue` draws three things rather than one: the vault password, a thirty-two byte link secret,
+//! and a six-character code from an alphabet with the letters that read alike taken out. The link
+//! carries the secret; the row carries the vault password sealed under the code and that secret
+//! together, in `code_seal`, with the invitation and the moment the code lapses bound as
+//! associated data. So a link that leaks, is forwarded on, or is found in a chat weeks later
+//! opens nothing: what stands between its holder and the vault is thirty-two to the sixth guesses
+//! at Argon2id at the vault's own cost, and a rewritten expiry opens nothing at all. The ninety
+//! seconds hurry the person and lapse a code that was read out and forgotten; the barrier is the
+//! derivation and not the clock. Consuming the invitation clears the seal.
 //!
 //! **An invitation expires; the link does not** (requirement 23). The row carries the lifetime,
 //! and a link opened after it lapsed is refused naming the lapse, since that is what a reissue is
@@ -85,8 +97,8 @@ use super::{
     setup::{ADMINISTRATOR_KEY_PURPOSE, ORGANIZATION_KEY_PURPOSE, SHIPPING_KDF, credential_expiry},
     store::{GrantRecord, InvitationRecord, MemberRecord, OrganizationStore, Signer},
     vault::{
-        KdfParams, create_vault_with_secret, open_content, seal_content, seal_to_public_key,
-        unseal_with_secret_key,
+        KDF_SALT_BYTES, KdfParams, create_vault_with_secret, derive_member_key, open_content,
+        seal_content, seal_to_public_key, seal_under_member_key, unseal_with_secret_key,
     },
     workspace::{WORKSPACE_CREDENTIAL_LIFETIME, signer_of},
 };
@@ -101,10 +113,35 @@ const PASSWORD_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyz23456789";
 const PASSWORD_GROUPS: usize = 4;
 const PASSWORD_GROUP_LENGTH: usize = 5;
 
-/// What an invitation makes, shown to the administrator: the one thing they hand over, the
-/// invitation link, beside the username and the ids the members list reads. The link carries the
-/// secret that opens the vault once, inside it and nowhere else on this answer; no password
-/// crosses on its own ([[rules/credentials]], *Client boundary*).
+/// The alphabet a confirmation code is spelled in: digits and upper-case letters with the four
+/// that read alike removed, `I`, `L`, `O` and `U`, so a code read out on a call is the code
+/// typed. Thirty-two symbols, which is five bits a character and thirty over the six.
+const CODE_ALPHABET: &[u8] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/// How many characters a confirmation code is: six, which is what a person reads out in one
+/// breath and types before it lapses (effort 826, requirement 23).
+pub const CODE_LENGTH: usize = 6;
+
+/// How long a code stands: ninety seconds from when it was drawn. They hurry the person and
+/// lapse a code that was read out and forgotten; the barrier a leaked link meets is the
+/// derivation and not the clock, which is why sixty was refused as leaving the row no room to
+/// replicate to the person's machine.
+pub const CODE_LIFETIME_MS: i64 = 90 * 1000;
+
+/// The width of the secret a link carries: thirty-two bytes drawn from the operating system,
+/// base64url in the link's text. Its first sixteen are the salt the code key is derived with.
+const LINK_SECRET_BYTES: usize = 32;
+
+/// What the issuer's sealed copy holds, between the vault password and the link's secret. Neither
+/// is spelled with it, so one split reads back exactly what was sealed.
+const ISSUER_COPY_SEPARATOR: char = '\n';
+
+/// What an invitation makes, shown to the administrator: the two things they hand over, the
+/// invitation link and the code that confirms it, beside the username and the ids the members
+/// list reads. The link carries one half of what opens the vault and the code is the other, so
+/// the link is sent and the code is read out; no password crosses on its own
+/// ([[rules/credentials]], *Client boundary*), and the code crosses once, the way the generated
+/// password did before effort 826 put it inside the link.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Invited {
@@ -116,6 +153,12 @@ pub struct Invited {
     /// the invitation link: the organization's own link with this invitation's half in it.
     pub join_link: String,
     pub expires_at: i64,
+    /// the six-character code that confirms the link (effort 826, requirement 23). It is the
+    /// other half of what opens the invited vault, so it is read out on a call or in person and
+    /// never sent beside the link.
+    pub code: String,
+    /// the moment that code lapses, ninety seconds from when it was drawn.
+    pub code_expires_at: i64,
     /// on a reissue, the workspaces the member held that the reissuer could not re-seal, because
     /// the reissuer holds no full credential on them. Empty on a fresh invitation.
     pub unreachable_workspaces: Vec<UnreachableWorkspace>,
@@ -469,12 +512,97 @@ pub async fn invitation_link(
     session: &MemberSession,
     invitation_id: &str,
 ) -> Result<String, Error> {
+    let (invitation, _, link_secret) = issuers_copy(
+        store,
+        session,
+        invitation_id,
+        "only the person who issued an invitation can copy its link again. issue a new link \
+         instead",
+    )
+    .await?;
+
+    organization_link(store, session)
+        .await?
+        .for_invitation(&invitation.id, &link_secret)
+        .encode()
+}
+
+/// A fresh code for an invitation, for the person who issued it and nobody else (effort 826,
+/// requirement 23).
+///
+/// **The issuer's, for the reason the link copy is theirs**: making a code means sealing the
+/// vault password under it, and only the issuer's own vault yields that password. Anybody else
+/// holding the act issues a new link instead, which is a reset. The row's old seal is replaced
+/// rather than added to, so one invitation has one code at a time and a code that was read out
+/// and forgotten is gone the moment the next one is drawn.
+///
+/// `kdf_params` is the cost the invited vault was sealed at, which is the cost the code key is
+/// derived at; the accept derives at the same, and the two would meet under no other.
+pub async fn invitation_code(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    invitation_id: &str,
+    kdf_params: KdfParams,
+    now: i64,
+) -> Result<FreshCode, Error> {
+    let (invitation, password, link_secret) = issuers_copy(
+        store,
+        session,
+        invitation_id,
+        "only the person who issued an invitation can make a fresh code for it. issue a new link \
+         instead",
+    )
+    .await?;
+
+    let code = generate_code()?;
+    let expires_at = now + CODE_LIFETIME_MS;
+
+    store
+        .write_invitation_code(
+            &invitation.id,
+            &seal_under_code(
+                &code,
+                &link_secret,
+                &invitation.id,
+                expires_at,
+                &password,
+                kdf_params,
+            )?,
+            expires_at,
+        )
+        .await?;
+
+    if !store.push().await {
+        diagnostics::warn("organization.invitation.codeNotYetSent")
+            .with("invitation", invitation.id.as_str())
+            .write();
+    }
+
+    diagnostics::info("organization.invitation.codeIssued")
+        .with("invitation", invitation.id.as_str())
+        .write();
+
+    Ok(FreshCode { code, expires_at })
+}
+
+/// The invitation, the vault password and the link's secret, for the session that issued it.
+///
+/// The act is `inviteMember`, the row has to be this organization's, and the caller has to be the
+/// issuer, because the seal is to their public key and nobody else's vault opens it. `refusal` is
+/// what anybody else is told, naming the act they were reaching for; both callers offer them a
+/// new link instead, which is a reset.
+async fn issuers_copy(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    invitation_id: &str,
+    refusal: &str,
+) -> Result<(InvitationRecord, String, String), Error> {
     session.settled()?;
     permission::require(session.permissions, Administration::InviteMember)?;
 
     let invitations = store.invitations(&session.verifying_key).await?;
     let invitation = invitations
-        .iter()
+        .into_iter()
         .find(|invitation| invitation.id == invitation_id)
         .ok_or_else(|| Error::NotFound {
             message: "that invitation is not in this organization".to_string(),
@@ -482,24 +610,20 @@ pub async fn invitation_link(
 
     if invitation.issued_by != session.member_id {
         return Err(Error::Forbidden {
-            message: "only the person who issued an invitation can copy its link again. issue a \
-                      new link instead"
-                .to_string(),
+            message: refusal.to_string(),
         });
     }
 
-    let secret = String::from_utf8(unseal_with_secret_key(
+    let opened = String::from_utf8(unseal_with_secret_key(
         &session.secret,
         &invitation.sealed_secret,
     )?)
     .map_err(|_| Error::Integrity {
         message: "the invitation's sealed secret did not open as text".to_string(),
     })?;
+    let (password, link_secret) = split_issuer_copy(&opened)?;
 
-    organization_link(store, session)
-        .await?
-        .for_invitation(&invitation.id, &secret)
-        .encode()
+    Ok((invitation, password, link_secret))
 }
 
 /// The invitation a member is still waiting on, where they are (effort 826, requirement 15): the
@@ -705,6 +829,150 @@ pub fn generate_password() -> Result<String, Error> {
         .join("-"))
 }
 
+/// Draw a confirmation code. Six characters from the thirty-two the operating system's bytes are
+/// folded onto; nothing about the invitation or the person enters it.
+pub fn generate_code() -> Result<String, Error> {
+    let mut bytes = [0_u8; CODE_LENGTH];
+
+    getrandom::fill(&mut bytes).map_err(|error| Error::Internal {
+        message: format!("failed to draw a code: {error}"),
+    })?;
+
+    Ok(bytes
+        .iter()
+        .map(|byte| CODE_ALPHABET[(*byte as usize) % CODE_ALPHABET.len()] as char)
+        .collect())
+}
+
+/// Draw the secret a link carries: thirty-two bytes, base64url, so the link stays one line.
+fn generate_link_secret() -> Result<String, Error> {
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
+
+    let mut bytes = [0_u8; LINK_SECRET_BYTES];
+
+    getrandom::fill(&mut bytes).map_err(|error| Error::Internal {
+        message: format!("failed to draw a link secret: {error}"),
+    })?;
+
+    Ok(BASE64URL.encode(bytes))
+}
+
+/// The salt a code key is derived with: the first sixteen bytes of the link's secret.
+///
+/// **This is what makes the code a key half rather than a check.** The code alone is thirty bits
+/// and the link's secret alone derives nothing, so what opens the seal is the two together, and
+/// each guess at the code costs one Argon2id pass at the vault's own cost. A link whose secret is
+/// not the thirty-two bytes this drew is refused here rather than folded into something shorter.
+pub fn code_salt(link_secret: &str) -> Result<[u8; KDF_SALT_BYTES], Error> {
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
+
+    let bytes = BASE64URL
+        .decode(link_secret)
+        .map_err(|_| Error::InvalidInput {
+            message: "this join link carries no invitation secret".to_string(),
+        })?;
+
+    <[u8; KDF_SALT_BYTES]>::try_from(&bytes[..bytes.len().min(KDF_SALT_BYTES)]).map_err(|_| {
+        Error::InvalidInput {
+            message: "this join link carries no invitation secret".to_string(),
+        }
+    })
+}
+
+/// What a code seal is bound to: the invitation it was made for, and the moment it lapses. A seal
+/// lifted onto another row opens nothing, and a row whose expiry was rewritten opens nothing,
+/// which is what leaves the derivation as the whole of the barrier.
+pub fn code_context(invitation_id: &str, code_expires_at: i64) -> Vec<u8> {
+    format!("{invitation_id}.{code_expires_at}").into_bytes()
+}
+
+/// Seal the vault password under a code and a link secret together, at the cost the vault itself
+/// was sealed at.
+fn seal_under_code(
+    code: &str,
+    link_secret: &str,
+    invitation_id: &str,
+    code_expires_at: i64,
+    password: &str,
+    kdf_params: KdfParams,
+) -> Result<Vec<u8>, Error> {
+    let key = derive_member_key(code, &code_salt(link_secret)?, kdf_params)?;
+
+    seal_under_member_key(
+        &key,
+        &code_context(invitation_id, code_expires_at),
+        password.as_bytes(),
+    )
+}
+
+/// The issuer's copy: the vault password and the link's secret, one line each, sealed to the
+/// issuing session's own public key. Both are needed to make a fresh code, and the password
+/// alone would leave the issuer unable to derive the key the seal takes.
+fn issuer_copy(password: &str, link_secret: &str) -> String {
+    format!("{password}{ISSUER_COPY_SEPARATOR}{link_secret}")
+}
+
+/// Read back what [`issuer_copy`] wrote.
+fn split_issuer_copy(opened: &str) -> Result<(String, String), Error> {
+    opened
+        .split_once(ISSUER_COPY_SEPARATOR)
+        .map(|(password, secret)| (password.to_string(), secret.to_string()))
+        .ok_or_else(|| Error::Integrity {
+            message: "the invitation's sealed secret did not hold a password and a link secret"
+                .to_string(),
+        })
+}
+
+/// The vault password an invitation was made under, opened the way the person holding the link
+/// opens it: the code and the link's secret together.
+///
+/// **For the tests that sign a freshly invited member in.** Every module here has one, because a
+/// test that invites somebody and then signs in as them needs the password the vault was sealed
+/// under, and there is nowhere else to get it: it is never shown, never answered and never
+/// written in the clear. *They read it out of the link until effort 826's requirement 23 made the
+/// link's secret one half of what opens the vault.* `reader` is any session over this
+/// organization, whose verifying key the rows are read against; the issuer's own key is not
+/// needed, because this opens the code's seal rather than the issuer's.
+#[cfg(test)]
+pub(crate) async fn vault_password_of(
+    store: &OrganizationStore,
+    reader: &MemberSession,
+    invited: &Invited,
+    kdf_params: KdfParams,
+) -> String {
+    let link = JoinLink::decode(&invited.join_link).expect("the invitation link");
+    let half = link.invitation_half().expect("the invitation half");
+    let row = store
+        .invitations(&reader.verifying_key)
+        .await
+        .expect("the invitations")
+        .into_iter()
+        .find(|row| row.id == invited.invitation_id)
+        .expect("the invitation row");
+    let key = derive_member_key(
+        &invited.code,
+        &code_salt(&half.secret).expect("the salt"),
+        kdf_params,
+    )
+    .expect("the code key");
+    let opened = super::vault::open_under_member_key(
+        &key,
+        &code_context(&row.id, row.code_expires_at.expect("the code expiry")),
+        &row.code_seal.expect("the code seal"),
+    )
+    .expect("the code did not open the seal");
+
+    String::from_utf8(opened).expect("the vault password is not text")
+}
+
+/// A fresh code for an invitation, as the issuer is handed it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FreshCode {
+    pub code: String,
+    pub expires_at: i64,
+}
+
 /// What every invitation and every reset writes. `permissions` is written as given rather than
 /// derived from the role, so a reset keeps a widened member widened (requirement 6); a fresh
 /// invitation passes the role's own mask.
@@ -752,9 +1020,14 @@ async fn issue<P: TursoPlatform>(
         }
     }
 
-    // the member's vault, under a password only the invitation link will ever carry, and which
-    // opening the link replaces with one the member chose.
+    // the member's vault, under a password nobody is ever shown, and which opening the link
+    // replaces with one the member chose. The link carries a secret of its own and the code
+    // carries the other half of what opens this password (effort 826, requirement 23): the vault
+    // is built exactly as it was, and only what wraps its password changed.
     let generated_password = generate_password()?;
+    let link_secret = generate_link_secret()?;
+    let code = generate_code()?;
+    let invitation_id = random_id()?;
     let (vault, secret) = create_vault_with_secret(&generated_password, kdf_params)?;
 
     // the key this member will sign rows with, derived from the secret just drawn. Its verifying
@@ -920,14 +1193,15 @@ async fn issue<P: TursoPlatform>(
     // it, the generated password sealed to the issuer, and who the issuer was.
     //
     // **The secret is sealed to the issuer's own public key and to nobody else's.** It is what
-    // lets them hand the same link over twice; anybody else holding the act is offered a fresh
-    // link, which is a reset. Sealing it under the content key instead would put it within reach
-    // of every member, and a member who opened a pending colleague's vault would hold that
-    // colleague's grants, which may reach workspaces the member does not. Neither column is under
-    // the signature: a tampered seal opens for nobody and a tampered issuer misplaces a copy
-    // control, so neither is worth a preimage.
-    let invitation_id = random_id()?;
+    // lets them hand the same link over twice and make a fresh code; anybody else holding the act
+    // is offered a fresh link, which is a reset. Sealing it under the content key instead would
+    // put it within reach of every member, and a member who opened a pending colleague's vault
+    // would hold that colleague's grants, which may reach workspaces the member does not. None of
+    // the four columns is under the signature: a tampered seal opens for nobody, a tampered issuer
+    // misplaces a copy control, and the code's two are bound to each other by the seal's own
+    // associated data, so none is worth a preimage.
     let expires_at = now + INVITATION_LIFETIME_MS;
+    let code_expires_at = now + CODE_LIFETIME_MS;
 
     store
         .write_invitation(
@@ -939,10 +1213,19 @@ async fn issue<P: TursoPlatform>(
                 consumed_at: None,
                 sealed_secret: seal_to_public_key(
                     &session.secret.public_key(),
-                    generated_password.as_bytes(),
+                    issuer_copy(&generated_password, &link_secret).as_bytes(),
                 )?,
                 issued_by: session.member_id.clone(),
                 created_at: now,
+                code_seal: Some(seal_under_code(
+                    &code,
+                    &link_secret,
+                    &invitation_id,
+                    code_expires_at,
+                    &generated_password,
+                    kdf_params,
+                )?),
+                code_expires_at: Some(code_expires_at),
             },
         )
         .await?;
@@ -958,11 +1241,11 @@ async fn issue<P: TursoPlatform>(
         .with("role", role)
         .write();
 
-    // the one thing handed over: the organization's link with this invitation's half in it. The
-    // generated password leaves this function inside it and in the sealed column, and nowhere else.
-    let join_link = link
-        .for_invitation(&invitation_id, &generated_password)
-        .encode()?;
+    // the two things handed over: the organization's link with this invitation's half in it, and
+    // the code, which the issuer reads out rather than sending. The generated password leaves this
+    // function in two sealed columns and nowhere else; the link's secret leaves it inside the link
+    // and in the issuer's own seal.
+    let join_link = link.for_invitation(&invitation_id, &link_secret).encode()?;
 
     Ok(Invited {
         member_id: member_id.to_string(),
@@ -970,6 +1253,8 @@ async fn issue<P: TursoPlatform>(
         username: username.to_string(),
         join_link,
         expires_at,
+        code,
+        code_expires_at,
         unreachable_workspaces: Vec::new(),
     })
 }
@@ -1078,9 +1363,10 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        INVITATION_LIFETIME_MS, Invitation, InvitationStanding, Invited, USERNAME_RULES,
-        USERNAME_TAKEN, WorkspaceGrant, generate_password, invitation_link, invite_member,
-        organization_link, reissue_invitation, rename_member, revoke_invitation, validate_username,
+        CODE_LENGTH, CODE_LIFETIME_MS, INVITATION_LIFETIME_MS, Invitation, InvitationStanding,
+        Invited, USERNAME_RULES, USERNAME_TAKEN, WorkspaceGrant, code_context, code_salt,
+        generate_password, invitation_code, invitation_link, invite_member, organization_link,
+        reissue_invitation, rename_member, revoke_invitation, validate_username,
     };
     use crate::{
         error::Error,
@@ -1149,13 +1435,16 @@ mod tests {
             .collect()
     }
 
-    /// The secret inside an invitation link: the generated password the vault was sealed under.
-    fn secret_of(invited: &Invited) -> String {
-        JoinLink::decode(&invited.join_link)
-            .expect("the invitation link")
-            .invitation
-            .expect("the invitation half")
-            .secret
+    /// The password an invitation's vault was sealed under: the link's secret and the code
+    /// together open it, which is what the person opening the link does (effort 826, requirement
+    /// 23). `reader` is any session over this organization. *It was the link's secret alone until
+    /// that requirement made the code the other half.*
+    async fn secret_of(
+        store: &OrganizationStore,
+        reader: &MemberSession,
+        invited: &Invited,
+    ) -> String {
+        crate::organization::invite::vault_password_of(store, reader, invited, test_cost()).await
     }
 
     /// The machine's record of a member who joined, as the join ticket will write one.
@@ -1289,7 +1578,9 @@ mod tests {
         );
 
         // the link is the organization's own with the invitation's half in it: it carries the
-        // organization and its name, the invitation's id and the secret, and no username.
+        // organization and its name, the invitation's id and the link's own secret, and no
+        // username. The secret is thirty-two bytes base64url, which is half of what opens the
+        // vault; the code is the other half and is not in the link (requirement 23).
         let decoded = JoinLink::decode(&invited.join_link).expect("the link decodes");
         let half = decoded.invitation_half().expect("the invitation half");
 
@@ -1302,12 +1593,17 @@ mod tests {
         );
         assert_eq!(decoded.organization_name, "Acme");
         assert_eq!(half.id, invited.invitation_id);
-        assert_eq!(half.secret.len(), 23, "{}", half.secret);
+        assert_eq!(half.secret.len(), 43, "{}", half.secret);
         assert!(!invited.join_link.contains("sami"));
+        assert!(
+            !invited.join_link.contains(&invited.code),
+            "the code is inside the link it confirms"
+        );
         assert_eq!(invited.username, "sami.staff", "the username, trimmed");
 
-        // the invitation row names the member, the issuer, and the secret sealed to the issuer's
-        // key and to nobody else's: the owner opens it, and it is the secret in the link.
+        // the invitation row names the member, the issuer, and the vault password and the link's
+        // secret sealed together to the issuer's key and to nobody else's: the owner opens it,
+        // and the second half of what it holds is the secret in the link.
         let rows = store
             .invitations(&owner.verifying_key)
             .await
@@ -1321,11 +1617,23 @@ mod tests {
         assert_eq!(row.expires_at, invited.expires_at);
         assert_eq!(row.consumed_at, None);
         assert_eq!(row.issued_by, owner.member_id);
-        assert_eq!(
+        let issuers_copy = String::from_utf8(
             crate::organization::vault::unseal_with_secret_key(&owner.secret, &row.sealed_secret)
                 .expect("the owner opens the sealed secret"),
-            half.secret.as_bytes()
+        )
+        .expect("the issuer's copy is text");
+        let (sealed_password, sealed_link_secret) = issuers_copy
+            .split_once('\n')
+            .expect("the issuer's copy holds a password and a link secret");
+
+        assert_eq!(sealed_link_secret, half.secret);
+        assert_eq!(
+            sealed_password,
+            secret_of(&store, &owner, &invited).await,
+            "the code opens a password the issuer's copy does not hold"
         );
+        assert_eq!(row.code_expires_at, Some(invited.code_expires_at));
+        assert!(row.code_seal.is_some(), "the row holds no code seal");
 
         // the member's vault opens with the secret and with nothing else yet, the row says the
         // password is still to be chosen, and the vault holds the directory and the workspace
@@ -1333,7 +1641,7 @@ mod tests {
         let member = sign_in(
             &store,
             &joined_as(&owner, &invited.member_id, permission::MEMBER),
-            &secret_of(&invited),
+            &secret_of(&store, &owner, &invited).await,
             &slot(),
         )
         .await
@@ -1392,7 +1700,7 @@ mod tests {
                 .await
                 .expect("the invitation failed");
 
-                secret_of(&invited)
+                secret_of(&store, &owner, &invited).await
             }
         };
 
@@ -1496,7 +1804,11 @@ mod tests {
         assert_eq!(decoded.organization_name, "Acme");
 
         // revoked: the row is gone, and so is the person who never arrived. Their row is signed
-        // as removed, their grants are gone, and the secret opens a vault that grants nothing.
+        // as removed, their grants are gone, and the vault password opens a vault that grants
+        // nothing. The password is read while the row is still there, because the code's seal
+        // goes with the row and the vault it opened outlives both.
+        let invited_password = secret_of(&store, &owner, &invited).await;
+
         revoke_invitation(&store, &owner, &invited.invitation_id, issued_at + 5)
             .await
             .expect("the revocation failed");
@@ -1521,7 +1833,7 @@ mod tests {
         let refused = sign_in(
             &store,
             &joined_as(&owner, &invited.member_id, permission::MEMBER),
-            &secret_of(&invited),
+            &invited_password,
             &slot(),
         )
         .await
@@ -1542,6 +1854,7 @@ mod tests {
         // the workspace the reissuer holds is re-sealed to the fresh vault, and the link is a
         // fresh one over the same organization.
         let bob = invite("bob", issued_at + 6).await;
+        let bobs_first_password = secret_of(&store, &owner, &bob).await;
         let reissued = reissue_invitation(
             &store,
             &owner,
@@ -1565,7 +1878,10 @@ mod tests {
             link,
             "a reissue hands a link over the same organization"
         );
-        assert_ne!(secret_of(&reissued), secret_of(&bob));
+        assert_ne!(
+            secret_of(&store, &owner, &reissued).await,
+            bobs_first_password
+        );
         assert_ne!(reissued.invitation_id, bob.invitation_id);
         assert_eq!(
             fresh.invitation_half().map(|half| half.id.as_str()),
@@ -1575,15 +1891,20 @@ mod tests {
         let joined = joined_as(&owner, &bob.member_id, permission::MEMBER);
 
         assert!(
-            sign_in(&store, &joined, &secret_of(&bob), &slot())
+            sign_in(&store, &joined, &bobs_first_password, &slot())
                 .await
                 .is_err(),
             "the old secret still opens the vault"
         );
 
-        let member = sign_in(&store, &joined, &secret_of(&reissued), &slot())
-            .await
-            .expect("the fresh secret did not open the vault");
+        let member = sign_in(
+            &store,
+            &joined,
+            &secret_of(&store, &owner, &reissued).await,
+            &slot(),
+        )
+        .await
+        .expect("the fresh secret did not open the vault");
 
         assert!(member.workspace_credentials.contains_key(&workspace_id));
         assert_eq!(
@@ -1665,7 +1986,7 @@ mod tests {
         let after = sign_in(
             &store,
             &joined_as(&owner, &reset.member_id, permission::MEMBER),
-            &secret_of(&reset),
+            &secret_of(&store, &owner, &reset).await,
             &slot(),
         )
         .await
@@ -1706,7 +2027,7 @@ mod tests {
         let reader = sign_in(
             &store,
             &joined_as(&owner, &invited.member_id, permission::MEMBER),
-            &secret_of(&invited),
+            &secret_of(&store, &owner, &invited).await,
             &slot(),
         )
         .await
@@ -1758,7 +2079,7 @@ mod tests {
         let mut ada = sign_in(
             &store,
             &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
-            &secret_of(&admin),
+            &secret_of(&store, &owner, &admin).await,
             &slot(),
         )
         .await
@@ -1792,6 +2113,158 @@ mod tests {
 
         assert!(!usernames.iter().any(|name| name.starts_with("reader2")));
         assert!(!usernames.iter().any(|name| name.starts_with("reader3")));
+    }
+
+    /// Effort 826, requirement 23: **inviting answers a code with its expiry, and the issuer
+    /// makes a fresh one as often as they like.** The invitation's own code lapses ninety seconds
+    /// out; a fresh one is a different code with a later expiry, written over the old seal, so
+    /// the one before it opens nothing; anybody else with the act is refused and offered a new
+    /// link, as they are for the link copy; and a reset answers a code the way an invitation
+    /// does.
+    #[tokio::test]
+    async fn the_issuer_makes_a_fresh_code_and_nobody_else_can() {
+        let directory = scratch("fresh-code");
+        let (store, owner, link, _, _) = owned(&directory).await;
+        let invited = invite_member(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            Invitation {
+                username: "sami",
+                role: permission::MEMBER,
+                workspaces: &[],
+            },
+            test_cost(),
+            1,
+        )
+        .await
+        .expect("the invitation failed");
+
+        assert_eq!(invited.code.chars().count(), CODE_LENGTH);
+        assert_eq!(invited.code_expires_at, 1 + CODE_LIFETIME_MS);
+        assert!(
+            !invited.join_link.contains(&invited.code),
+            "the code is inside the link it confirms"
+        );
+
+        // the code the invitation answered with opens the vault, which is what the accept does
+        // with it; the password it yields is the one the vault was built under.
+        let first = secret_of(&store, &owner, &invited).await;
+
+        assert!(!first.is_empty());
+
+        let fresh = invitation_code(&store, &owner, &invited.invitation_id, test_cost(), 50)
+            .await
+            .expect("the issuer could not make a fresh code");
+
+        assert_eq!(fresh.code.chars().count(), CODE_LENGTH);
+        assert_ne!(fresh.code, invited.code, "the fresh code is the old one");
+        assert_eq!(fresh.expires_at, 50 + CODE_LIFETIME_MS);
+
+        // the row now holds the fresh seal and the fresh expiry, and the old code opens nothing.
+        let row = store
+            .invitations(&owner.verifying_key)
+            .await
+            .expect("the invitations")
+            .into_iter()
+            .find(|row| row.id == invited.invitation_id)
+            .expect("the invitation row");
+
+        assert_eq!(row.code_expires_at, Some(fresh.expires_at));
+        assert_eq!(
+            secret_of(
+                &store,
+                &owner,
+                &Invited {
+                    code: fresh.code.clone(),
+                    code_expires_at: fresh.expires_at,
+                    ..invited.clone()
+                }
+            )
+            .await,
+            first,
+            "the fresh code opens a different password"
+        );
+
+        let salt = code_salt(
+            &JoinLink::decode(&invited.join_link)
+                .expect("the link")
+                .invitation_half()
+                .expect("the half")
+                .secret,
+        )
+        .expect("the salt");
+        let stale =
+            crate::organization::vault::derive_member_key(&invited.code, &salt, test_cost())
+                .expect("the old key");
+
+        assert!(
+            crate::organization::vault::open_under_member_key(
+                &stale,
+                &code_context(&invited.invitation_id, fresh.expires_at),
+                &row.code_seal.clone().expect("the seal"),
+            )
+            .is_err(),
+            "the code before the fresh one still opens the seal"
+        );
+
+        // anybody else with the act is refused and offered a new link, which is a reset.
+        let admin = invite_member(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            Invitation {
+                username: "ada.admin",
+                role: permission::ADMINISTRATOR,
+                workspaces: &[],
+            },
+            test_cost(),
+            2,
+        )
+        .await
+        .expect("the administrator");
+        let mut ada = sign_in(
+            &store,
+            &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
+            &secret_of(&store, &owner, &admin).await,
+            &slot(),
+        )
+        .await
+        .expect("the administrator did not sign in");
+        ada.must_change_password = false;
+
+        let refused = invitation_code(&store, &ada, &invited.invitation_id, test_cost(), 60)
+            .await
+            .expect_err("somebody other than the issuer made a code");
+
+        assert!(matches!(refused, Error::Forbidden { .. }), "{refused:?}");
+        assert!(refused.to_string().contains("new link"), "{refused}");
+        assert!(
+            matches!(
+                invitation_code(&store, &owner, "nobody", test_cost(), 60).await,
+                Err(Error::NotFound { .. })
+            ),
+            "an invitation that is not there was given a code"
+        );
+
+        // and a reset answers a code the way an invitation does: its own, ninety seconds out.
+        let reset = reissue_invitation(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            &invited.member_id,
+            test_cost(),
+            70,
+        )
+        .await
+        .expect("the reset failed");
+
+        assert_eq!(reset.code.chars().count(), CODE_LENGTH);
+        assert_eq!(reset.code_expires_at, 70 + CODE_LIFETIME_MS);
+        assert_ne!(reset.code, fresh.code);
     }
 
     /// Effort 826, requirement 8: the issuer copies the link again, and it is the same link; an
@@ -1840,7 +2313,7 @@ mod tests {
         let mut ada = sign_in(
             &store,
             &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
-            &secret_of(&admin),
+            &secret_of(&store, &owner, &admin).await,
             &slot(),
         )
         .await
@@ -1899,6 +2372,7 @@ mod tests {
             &mut machine,
             &held,
             &JoinLink::decode(&invited.join_link).expect("the link"),
+            &invited.code,
             "a password sami chose",
             &slot(),
             test_cost(),
@@ -1920,6 +2394,10 @@ mod tests {
         )
         .await
         .expect("the reset failed");
+
+        // read while the row is still there: the revoke below takes the row and the code's seal
+        // with it, and the vault the reset built outlives both.
+        let reset_password = secret_of(&store, &owner, &reset).await;
 
         revoke_invitation(&store, &owner, &reset.invitation_id, 4)
             .await
@@ -1946,7 +2424,7 @@ mod tests {
         let joined = joined_as(&owner, &invited.member_id, permission::MEMBER);
 
         assert!(
-            sign_in_by_username(&store, &joined, "sami", &secret_of(&reset), &slot())
+            sign_in_by_username(&store, &joined, "sami", &reset_password, &slot())
                 .await
                 .is_err(),
             "the revoked reset link's secret still opens a place at the wall"
@@ -1988,11 +2466,14 @@ mod tests {
         .expect("the administrator");
 
         // the administrator signs in, settles, and invites a member into the workspace: their
-        // certificate now signs a member row, grants and an invitation.
+        // certificate now signs a member row, grants and an invitation. The administrator's first
+        // password is read while their invitation row is still there, because the reset below
+        // deletes it and the vault it opened is what the reset replaces.
+        let admins_first_password = secret_of(&store, &owner, &admin).await;
         let mut ada = sign_in(
             &store,
             &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
-            &secret_of(&admin),
+            &admins_first_password,
             &slot(),
         )
         .await
@@ -2029,7 +2510,10 @@ mod tests {
         .await
         .expect("the reset failed");
 
-        assert_ne!(secret_of(&reset), secret_of(&admin));
+        assert_ne!(
+            secret_of(&store, &owner, &reset).await,
+            admins_first_password
+        );
 
         // F1: every read stands.
         assert!(
@@ -2060,7 +2544,7 @@ mod tests {
         let ada_again = sign_in(
             &store,
             &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
-            &secret_of(&reset),
+            &secret_of(&store, &owner, &reset).await,
             &slot(),
         )
         .await
@@ -2075,7 +2559,7 @@ mod tests {
         let bob_again = sign_in(
             &store,
             &joined_as(&owner, &bob.member_id, permission::MEMBER),
-            &secret_of(&bob),
+            &secret_of(&store, &owner, &bob).await,
             &slot(),
         )
         .await
@@ -2088,7 +2572,7 @@ mod tests {
             sign_in(
                 &store,
                 &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
-                &secret_of(&admin),
+                &admins_first_password,
                 &slot(),
             )
             .await
@@ -2132,7 +2616,7 @@ mod tests {
         let ada = sign_in(
             &store,
             &joined_as(&owner, &administrator.member_id, permission::ADMINISTRATOR),
-            &secret_of(&administrator),
+            &secret_of(&store, &owner, &administrator).await,
             &slot(),
         )
         .await
@@ -2183,7 +2667,7 @@ mod tests {
         let mut mo = sign_in(
             &store,
             &joined_as(&owner, &member.member_id, permission::MEMBER),
-            &secret_of(&member),
+            &secret_of(&store, &owner, &member).await,
             &slot(),
         )
         .await
@@ -2321,9 +2805,14 @@ mod tests {
             .expect("settled");
 
         let joined = joined_as(&owner, &invited.member_id, permission::MEMBER);
-        let member = sign_in(&store, &joined, &secret_of(&invited), &slot())
-            .await
-            .expect("the member did not sign in");
+        let member = sign_in(
+            &store,
+            &joined,
+            &secret_of(&store, &owner, &invited).await,
+            &slot(),
+        )
+        .await
+        .expect("the member did not sign in");
 
         assert!(
             matches!(
@@ -2479,7 +2968,7 @@ mod tests {
         let mut ada = sign_in(
             &store,
             &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
-            &secret_of(&admin),
+            &secret_of(&store, &owner, &admin).await,
             &slot(),
         )
         .await
@@ -2559,7 +3048,7 @@ mod tests {
         let member = sign_in(
             &store,
             &joined_as(&owner, &sami.member_id, permission::MEMBER),
-            &secret_of(&sami),
+            &secret_of(&store, &owner, &sami).await,
             &slot(),
         )
         .await
@@ -2635,7 +3124,7 @@ mod tests {
         let mut member = sign_in(
             &store,
             &joined_as(&owner, &sami.member_id, permission::MEMBER),
-            &secret_of(&sami),
+            &secret_of(&store, &owner, &sami).await,
             &slot(),
         )
         .await

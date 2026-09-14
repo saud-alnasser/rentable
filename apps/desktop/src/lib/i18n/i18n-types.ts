@@ -2553,6 +2553,22 @@ type RootTranslation = {
 			 */
 			usernameLabel: string
 			/**
+			 * c​o​n​f​i​r​m​a​t​i​o​n​ ​c​o​d​e
+			 */
+			codeLabel: string
+			/**
+			 * t​h​e​ ​s​i​x​ ​c​h​a​r​a​c​t​e​r​s​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​r​e​a​d​ ​o​u​t​.​ ​i​t​ ​l​a​p​s​e​s​ ​n​i​n​e​t​y​ ​s​e​c​o​n​d​s​ ​a​f​t​e​r​ ​i​t​ ​w​a​s​ ​m​a​d​e​;​ ​a​s​k​ ​t​h​e​m​ ​f​o​r​ ​a​ ​f​r​e​s​h​ ​o​n​e​ ​i​f​ ​i​t​ ​h​a​s​.
+			 */
+			codeDescription: string
+			/**
+			 * t​h​e​ ​c​o​d​e​ ​i​s​ ​w​r​o​n​g​ ​o​r​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​f​r​e​s​h​ ​o​n​e​.
+			 */
+			codeWrong: string
+			/**
+			 * t​h​a​t​ ​c​o​d​e​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​f​r​e​s​h​ ​o​n​e​.
+			 */
+			codeLapsed: string
+			/**
 			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​,​ ​a​g​a​i​n
 			 */
 			confirmLabel: string
@@ -2610,6 +2626,31 @@ type RootTranslation = {
 			 * i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k
 			 */
 			invitationLinkTitle: string
+			/**
+			 * c​o​n​f​i​r​m​a​t​i​o​n​ ​c​o​d​e
+			 */
+			codeTitle: string
+			/**
+			 * r​e​a​d​ ​t​h​i​s​ ​o​u​t​ ​o​n​ ​a​ ​c​a​l​l​ ​o​r​ ​i​n​ ​p​e​r​s​o​n​.​ ​i​t​ ​i​s​ ​t​h​e​ ​o​t​h​e​r​ ​h​a​l​f​ ​o​f​ ​w​h​a​t​ ​o​p​e​n​s​ ​t​h​e​i​r​ ​p​l​a​c​e​,​ ​s​o​ ​i​t​ ​i​s​ ​n​e​v​e​r​ ​s​e​n​t​ ​b​e​s​i​d​e​ ​t​h​e​ ​l​i​n​k​.
+			 */
+			codeDescription: string
+			/**
+			 * l​a​p​s​e​s​ ​i​n​ ​{​s​e​c​o​n​d​s​}​ ​s​e​c​o​n​d​s
+			 * @param {unknown} seconds
+			 */
+			codeExpires: RequiredParams<'seconds'>
+			/**
+			 * t​h​i​s​ ​c​o​d​e​ ​h​a​s​ ​l​a​p​s​e​d​.
+			 */
+			codeLapsed: string
+			/**
+			 * f​r​e​s​h​ ​c​o​d​e
+			 */
+			freshCode: string
+			/**
+			 * m​a​k​e​ ​a​ ​c​o​n​f​i​r​m​a​t​i​o​n​ ​c​o​d​e
+			 */
+			memberCode: string
 			/**
 			 * d​o​n​e
 			 */
@@ -5392,6 +5433,22 @@ export type TranslationFunctions = {
 			 */
 			usernameLabel: () => LocalizedString
 			/**
+			 * confirmation code
+			 */
+			codeLabel: () => LocalizedString
+			/**
+			 * the six characters whoever invited you read out. it lapses ninety seconds after it was made; ask them for a fresh one if it has.
+			 */
+			codeDescription: () => LocalizedString
+			/**
+			 * the code is wrong or has lapsed. ask whoever invited you for a fresh one.
+			 */
+			codeWrong: () => LocalizedString
+			/**
+			 * that code has lapsed. ask whoever invited you for a fresh one.
+			 */
+			codeLapsed: () => LocalizedString
+			/**
 			 * your password, again
 			 */
 			confirmLabel: () => LocalizedString
@@ -5449,6 +5506,30 @@ export type TranslationFunctions = {
 			 * invitation link
 			 */
 			invitationLinkTitle: () => LocalizedString
+			/**
+			 * confirmation code
+			 */
+			codeTitle: () => LocalizedString
+			/**
+			 * read this out on a call or in person. it is the other half of what opens their place, so it is never sent beside the link.
+			 */
+			codeDescription: () => LocalizedString
+			/**
+			 * lapses in {seconds} seconds
+			 */
+			codeExpires: (arg: { seconds: unknown }) => LocalizedString
+			/**
+			 * this code has lapsed.
+			 */
+			codeLapsed: () => LocalizedString
+			/**
+			 * fresh code
+			 */
+			freshCode: () => LocalizedString
+			/**
+			 * make a confirmation code
+			 */
+			memberCode: () => LocalizedString
 			/**
 			 * done
 			 */

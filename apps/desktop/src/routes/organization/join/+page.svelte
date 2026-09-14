@@ -101,13 +101,13 @@
 		}
 	};
 
-	const join = async (link: string, password: string) => {
+	const join = async (link: string, code: string, password: string) => {
 		if (step.kind !== 'password') return;
 
 		step = joinBegun(step);
 
 		try {
-			await tauri.organization.invitation.accept(link, password);
+			await tauri.organization.invitation.accept(link, code, password);
 		} catch (error) {
 			step = joinFailed(step, error, (failure) =>
 				toErrorText(failure, $LL, $LL.common.messages.unexpectedError())
@@ -139,7 +139,7 @@
 <OrganizationJoinScreen
 	{step}
 	onConnect={open}
-	onJoin={(link, password) => void join(link, password)}
+	onJoin={(link, code, password) => void join(link, code, password)}
 	onSignIn={standingChanged}
 	onBack={() => {
 		// the field is the screen's first step, so from it, or from text that was not a link, back

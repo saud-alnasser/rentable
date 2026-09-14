@@ -23,6 +23,7 @@
 		useFetchMembers,
 		useFetchOrganizationState,
 		useGrantWorkspace,
+		useInvitationCode,
 		useInvitationLink,
 		useLockOutCost,
 		useReissueInvitation,
@@ -68,6 +69,7 @@
 	const reissueInvitation = useReissueInvitation();
 	const revokeInvitation = useRevokeInvitation();
 	const invitationLink = useInvitationLink();
+	const invitationCode = useInvitationCode();
 	const removeMember = useRemoveMember();
 	const renameMember = useRenameMember();
 	const changeRole = useChangeRole();
@@ -184,6 +186,7 @@
 			endingSessions = null;
 		}
 	};
+	let codeFor = $state<string | null>(null);
 
 	const reissue = async (memberId: string) => {
 		reissuing = memberId;
@@ -192,8 +195,11 @@
 			const invited = await reissueInvitation.mutateAsync({ memberId });
 
 			showInvited({
+				invitationId: invited.invitationId,
 				username: invited.username,
 				joinLink: invited.joinLink,
+				code: invited.code,
+				codeExpiresAt: invited.codeExpiresAt,
 				unreachableWorkspaces: invited.unreachableWorkspaces
 			});
 		} catch {
@@ -213,14 +219,47 @@
 
 		try {
 			showInvited({
+				invitationId,
 				username,
 				joinLink: await invitationLink.mutateAsync({ invitationId }),
+				// a copied link makes no code: the row's own code action is what makes one, and a
+				// code shown beside a link nobody asked for a code for is one more thing to leak.
+				code: null,
+				codeExpiresAt: null,
 				unreachableWorkspaces: []
 			});
 		} catch {
 			// said by the shared handler.
 		} finally {
 			copying = null;
+		}
+	};
+
+	/**
+	 * a fresh code for a pending member, from their row: the same panel an invitation and a reset
+	 * open, showing the link and a code that was made a moment ago. Two calls, because the panel
+	 * draws both halves and the row holds neither: the link is rebuilt from the issuer's sealed
+	 * copy and the code is drawn and written over the old one.
+	 */
+	const freshCode = async (invitationId: string, username: string) => {
+		codeFor = invitationId;
+
+		try {
+			const joinLink = await invitationLink.mutateAsync({ invitationId });
+			const fresh = await invitationCode.mutateAsync({ invitationId });
+
+			showInvited({
+				invitationId,
+				username,
+				joinLink,
+				code: fresh.code,
+				codeExpiresAt: fresh.expiresAt,
+				unreachableWorkspaces: []
+			});
+		} catch {
+			// said by the shared handler.
+		} finally {
+			codeFor = null;
 		}
 	};
 
@@ -338,6 +377,7 @@
 		{revoking}
 		{copying}
 		{endingSessions}
+		{codeFor}
 		isChangingPassword={changePassword.isPending}
 		isChangingRole={changeRole.isPending}
 		isChangingAccess={grantWorkspace.isPending || withdrawGrant.isPending}
@@ -353,6 +393,7 @@
 		onReissue={(memberId) => void reissue(memberId)}
 		onRevoke={(invitationId) => void revoke(invitationId)}
 		onCopyLink={(invitationId, username) => void copyLink(invitationId, username)}
+		onFreshCode={(invitationId, username) => void freshCode(invitationId, username)}
 		onRemove={(memberId) => {
 			removing = { memberId, lockOut: false };
 		}}

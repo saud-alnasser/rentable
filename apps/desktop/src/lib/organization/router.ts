@@ -1,4 +1,5 @@
 import type {
+	FreshCode,
 	Invited,
 	LockOutCost,
 	MemberRemoved,
@@ -12,6 +13,7 @@ import type {
 import { procedure, router } from '$lib/api/trpc';
 import z from 'zod';
 
+import { CODE_LENGTH } from './join';
 import { ORGANIZATION_NAME_LIMIT, PASSWORD_FLOOR } from './setup';
 import { USERNAME_MAX, USERNAME_MIN, USERNAME_PATTERN } from './username-form';
 
@@ -269,9 +271,9 @@ export const organization = router({
 	 *
 	 * **`accept` is `public` for the same reason `connect` is.** A person opening their link has
 	 * no identity here yet; being admitted is what the call does. It reaches `ctx.host` and never
-	 * `ctx.db`. The password floor is the first run's, refused here before a round trip for a
-	 * caller that is not the screen; whether the invitation stands, and whether the link's secret
-	 * opens anything, are Rust's alone.
+	 * `ctx.db`. The password floor is the first run's and the code is six characters, both
+	 * refused here before a round trip for a caller that is not the screen; whether the invitation
+	 * stands, and whether the link's secret and the code together open anything, are Rust's alone.
 	 */
 	invitation: {
 		revoke: procedure
@@ -286,10 +288,27 @@ export const organization = router({
 			.mutation(async ({ input, ctx }): Promise<string> => {
 				return ctx.host.organization.invitation.link(input.invitationId);
 			}),
+		/**
+		 * A fresh confirmation code, under the act that makes invitations. Whether the caller is
+		 * the one who issued this invitation is Rust's, because it turns on whose key the row's
+		 * sealed secret opens for; anybody else is offered a new link instead, which is a reset.
+		 */
+		code: procedure
+			.permitted('inviteMember')
+			.input(z.object({ invitationId: z.string().trim().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<FreshCode> => {
+				return ctx.host.organization.invitation.code(input.invitationId);
+			}),
 		accept: procedure.public
-			.input(z.object({ link: z.string().trim().min(1), password: z.string().min(PASSWORD_FLOOR) }))
+			.input(
+				z.object({
+					link: z.string().trim().min(1),
+					code: z.string().trim().length(CODE_LENGTH),
+					password: z.string().min(PASSWORD_FLOOR)
+				})
+			)
 			.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
-				return ctx.host.organization.invitation.accept(input.link, input.password);
+				return ctx.host.organization.invitation.accept(input.link, input.code, input.password);
 			})
 	},
 	/**

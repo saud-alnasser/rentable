@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { JoinStep } from '$lib/organization/join';
+	import { CODE_LENGTH, normalizeCode, type JoinStep } from '$lib/organization/join';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
@@ -9,6 +9,7 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { PASSWORD_FLOOR } from '$lib/organization/setup';
 	import BackGlyph from './back-glyph.svelte';
+	import HashIcon from '@lucide/svelte/icons/hash';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import LinkIcon from '@lucide/svelte/icons/link';
 	import LogInIcon from '@lucide/svelte/icons/log-in';
@@ -64,8 +65,12 @@
 		step: JoinStep;
 		/** a link to read and record; the route runs the inspect and the connect on it. */
 		onConnect: (link: string) => void;
-		/** the password chosen on an invitation that stands; the route runs the accept. */
-		onJoin: (link: string, password: string) => void;
+		/**
+		 * the code the issuer read out and the password chosen on an invitation that stands; the
+		 * route runs the accept, which opens the vault with the link's secret and the code
+		 * together (effort 826, requirement 23).
+		 */
+		onJoin: (link: string, code: string, password: string) => void;
 		/** the wall, offered on a link that was already opened: the machine is connected. */
 		onSignIn: () => void;
 		/** the corner control, on every step; the route decides where each step goes back to. */
@@ -73,6 +78,7 @@
 	} = $props();
 
 	let pasted = $state('');
+	let code = $state('');
 	let password = $state('');
 	let confirmation = $state('');
 
@@ -82,8 +88,28 @@
 	const tooShort = $derived(password.length > 0 && password.length < PASSWORD_FLOOR);
 	const mismatch = $derived(confirmation.length > 0 && confirmation !== password);
 	const canJoin = $derived(
-		password.length >= PASSWORD_FLOOR && confirmation === password && !isJoining
+		code.length === CODE_LENGTH &&
+			password.length >= PASSWORD_FLOOR &&
+			confirmation === password &&
+			!isJoining
 	);
+
+	// the code as the person types it: upper-cased, and the spaces and hyphens somebody reading
+	// one out puts in taken off, so what was said down a phone is what the field holds.
+	const typeCode = (typed: string) => {
+		code = normalizeCode(typed);
+	};
+
+	// the refusal a code got, in the reader's own language; what the shell said is kept under it,
+	// the way a refused link keeps its detail, because the rare other thing a `forbidden` means
+	// here is a standing that changed while the person was typing.
+	const codeRefusal = $derived.by(() => {
+		if (step.kind !== 'password' || !step.codeRefusal) return null;
+
+		return step.codeRefusal === 'lapsed'
+			? $LL.organization.join.codeLapsed()
+			: $LL.organization.join.codeWrong();
+	});
 
 	// the refusal's own sentence, one per kind, said in the reader's language. Where a refusal came
 	// back from the shell rather than from the standing the read answered with, what it said is
@@ -188,10 +214,15 @@
 				onsubmit={(event) => {
 					event.preventDefault();
 
-					if (canJoin) onJoin(step.link, password);
+					if (canJoin) onJoin(step.link, code, password);
 				}}
 			>
-				{#if step.errorMessage}
+				{#if codeRefusal}
+					<Callout tone="error">{codeRefusal}</Callout>
+					{#if step.errorMessage}
+						<p class="text-sm text-muted-foreground" data-join-detail>{step.errorMessage}</p>
+					{/if}
+				{:else if step.errorMessage}
 					<Callout tone="error">{step.errorMessage}</Callout>
 				{/if}
 
@@ -206,11 +237,44 @@
 					</p>
 				</Field.Field>
 
+				<!-- drawn only where the read could name them. Since requirement 23 the link's secret
+				     opens nothing on its own, so nobody is named before the code is typed, and an
+				     empty line under a label says less than no line at all. -->
+				{#if step.username}
+					<Field.Field>
+						<Field.Label for="join-username">{$LL.organization.join.usernameLabel()}</Field.Label>
+						<p id="join-username" class="text-sm font-medium" data-join-username>
+							{step.username}
+						</p>
+					</Field.Field>
+				{/if}
+
+				<!-- the code before the password, because it is the half the person was given and
+				     the password is the half they are choosing: what they hold comes first. Six
+				     characters, upper-cased as typed, and a machine string in both locales. -->
 				<Field.Field>
-					<Field.Label for="join-username">{$LL.organization.join.usernameLabel()}</Field.Label>
-					<p id="join-username" class="text-sm font-medium" data-join-username>
-						{step.username}
-					</p>
+					<Field.Label for="join-code">{$LL.organization.join.codeLabel()}</Field.Label>
+					<InputGroup.Root data-disabled={isJoining ? 'true' : undefined}>
+						<InputGroup.Addon>
+							<HashIcon />
+						</InputGroup.Addon>
+						<InputGroup.Input
+							id="join-code"
+							name="code"
+							dir="ltr"
+							autocomplete="one-time-code"
+							autocapitalize="characters"
+							spellcheck={false}
+							inputmode="text"
+							maxlength={CODE_LENGTH}
+							class="font-mono tracking-[0.3em] uppercase"
+							value={code}
+							oninput={(event) => typeCode(event.currentTarget.value)}
+							disabled={isJoining}
+							aria-invalid={codeRefusal !== null}
+						/>
+					</InputGroup.Root>
+					<Field.Description>{$LL.organization.join.codeDescription()}</Field.Description>
 				</Field.Field>
 
 				<Field.Field>
