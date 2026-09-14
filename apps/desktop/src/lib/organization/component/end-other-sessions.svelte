@@ -41,7 +41,7 @@
 
 <Field.Field orientation="vertical" data-end-other-sessions>
 	<Field.Content>
-		<Field.Description>{$LL.account.sessions.description()}</Field.Description>
+		<Field.Description>{$LL.settings.you.sessions.description()}</Field.Description>
 	</Field.Content>
 
 	<div>
@@ -56,7 +56,7 @@
 			}}
 		>
 			<LaptopIcon class="size-4" />
-			{$LL.account.sessions.action()}
+			{$LL.settings.you.sessions.action()}
 		</Button>
 	</div>
 </Field.Field>
@@ -68,8 +68,8 @@
 	}}
 	onSubmit={onEndOtherSessions}
 	record={organizationName}
-	title={$LL.account.sessions.action()}
-	description={$LL.account.sessions.confirmDescription()}
-	confirmLabel={$LL.account.sessions.action()}
+	title={$LL.settings.you.sessions.action()}
+	description={$LL.settings.you.sessions.confirmDescription()}
+	confirmLabel={$LL.settings.you.sessions.action()}
 	confirmLoadingLabel={$LL.common.actions.working()}
 />

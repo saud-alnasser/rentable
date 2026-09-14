@@ -3,8 +3,8 @@ import { expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import JoinScreen from '$lib/organization/component/join-screen.svelte';
-import { afterConnect, THE_WALL, type JoinStep } from '$lib/organization/join';
+import ConnectScreen from '$lib/organization/component/connect-screen.svelte';
+import { afterConnect, THE_WALL, type JoinStep } from '$lib/organization/connect';
 import { PASSWORD_FLOOR } from '$lib/organization/setup';
 import type { LinkFacts } from '$lib/platform/host';
 import en from '$lib/i18n/en';
@@ -46,7 +46,7 @@ const joinScreen = (
 	} = {}
 ) =>
 	render(
-		JoinScreen,
+		ConnectScreen,
 		{
 			step,
 			onConnect: overrides.onConnect ?? noop,

@@ -13,8 +13,8 @@ import {
 	normalizeLink,
 	takeArrivingLink,
 	THE_WALL
-} from '$lib/organization/join.ts';
-import type { JoinStep } from '$lib/organization/join.ts';
+} from '$lib/organization/connect.ts';
+import type { JoinStep } from '$lib/organization/connect.ts';
 import type { LinkFacts } from '$lib/platform/host.ts';
 
 /**

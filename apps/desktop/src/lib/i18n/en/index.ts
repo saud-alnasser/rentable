@@ -1,31 +1,6 @@
 import type { BaseTranslation } from '../i18n-types';
 
 const en = {
-	account: {
-		groupIdentity: 'signed in as',
-		password: {
-			title: 'password',
-			description:
-				'the password that unlocks your place in the organization, on every machine you sign in from.',
-			currentLabel: 'current password',
-			nextLabel: 'new password',
-			confirmLabel: 'new password, again',
-			mismatch: 'the two do not match.',
-			change: 'change password',
-			changed: 'your password was changed.'
-		},
-		sessions: {
-			title: 'other machines',
-			description:
-				'sign out everywhere you are still signed in but here. your password does not change, so you can sign in again on any of them.',
-			action: 'sign out of other machines',
-			confirmDescription:
-				'every other machine signed in as you is signed out: one that is running goes back to the sign-in screen within a few minutes, and one that is closed asks for your password next time it opens. this machine stays signed in and your password is unchanged.',
-			ended: 'your other machines were signed out.'
-		},
-		title: 'account'
-	},
-
 	app: {
 		name: 'rentable'
 	},
@@ -40,7 +15,6 @@ const en = {
 			clearFilter: 'clear this filter',
 			clearSelection: 'clear selection',
 			connect: 'connect',
-			connecting: 'connecting...',
 			copyDetails: 'copy details',
 			chooseFile: 'choose a file...',
 			create: 'create',
@@ -48,7 +22,6 @@ const en = {
 			customizeColumns: 'customize columns',
 			delete: 'delete',
 			deleting: 'deleting...',
-			disconnect: 'disconnect',
 			downloadAndInstall: 'download & install',
 			duplicate: 'duplicate',
 			edit: 'edit',
@@ -78,9 +51,9 @@ const en = {
 			saveWindow: 'save window',
 			saving: 'saving...',
 			selectRecords: 'select records',
+			signIn: 'sign in',
 			signOut: 'sign out',
 			sortBy: 'sort by',
-			syncing: 'syncing...',
 			syncNow: 'sync',
 			terminate: 'terminate',
 			transferData: 'import and export',
@@ -234,7 +207,6 @@ const en = {
 			complexes: 'complexes',
 			contracts: 'contracts',
 			dashboard: 'dashboard',
-			organization: 'organization',
 			payments: 'payments',
 			primary: 'primary',
 			settings: 'settings',
@@ -377,9 +349,7 @@ const en = {
 		},
 
 		accountMenu: {
-			label: 'account',
-			signIn: 'sign-in',
-			signedOutHint: 'sign-in',
+			signedOutHint: 'not signed in',
 			signedOutName: 'user'
 		},
 
@@ -387,7 +357,6 @@ const en = {
 			create: 'new workspace',
 			invite: 'invite',
 			locked: 'not available',
-			settings: 'settings',
 			members: '{count|number} member(s)',
 			switchTo: 'switch to',
 			open: 'open',
@@ -414,12 +383,11 @@ const en = {
 			noOrganizationDescription:
 				'create an organization on your own turso account, or connect to one with the link you were given.',
 			organizationDescription:
-				'your password unlocks your place in the organization, on this machine, with or without a connection.',
+				'your password signs you in to the organization, on this machine, with or without a connection.',
 			organization: 'organization',
 			username: 'username',
 			password: 'password',
-			unlock: 'unlock',
-			unlocking: 'unlocking your place in the organization. this takes a moment on purpose.',
+			unlocking: 'signing you in. this takes a moment on purpose.',
 			roleOwner: 'owner',
 			roleAdministrator: 'administrator',
 			roleMember: 'member',
@@ -431,11 +399,10 @@ const en = {
 			disconnect: 'disconnect this machine',
 			disconnectDescription:
 				"this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes, and the organization's link connects this machine again.",
-			title: 'Login'
+			title: 'welcome back'
 		},
 
 		startup: {
-			accountChoiceEmpty: 'no workspace profiles are available yet.',
 			factUpdatingTo: 'upgrading to',
 			failedToStartFallback: 'failed to start the app.',
 			failureDescription:
@@ -481,14 +448,8 @@ const en = {
 	},
 
 	settings: {
-		accountDescription:
-			'this machine is signed in as the account below. signing out closes the workspace on this machine only — it stays where it is, and signing back in opens it again.',
-		aboutTitle: 'about',
-		createdAt: 'created {value}',
-
 		diagnosticsDescription:
 			'rentable keeps a record of what it does on this machine, so a failure can be looked into afterwards. the files never leave this machine, they are limited in size, and passwords and account tokens are removed before anything is written.',
-		diagnosticsLocationLabel: 'log location',
 		diagnosticsReveal: 'open log folder',
 
 		downloadingUpdate: 'downloading update',
@@ -498,13 +459,9 @@ const en = {
 		endingSoonInvalid: 'the number of days must be greater than zero',
 		endingSoonTitle: 'ending soon',
 
-		groupDiagnostics: 'diagnostics',
-		groupGeneral: 'general',
-		groupUpdates: 'updates',
 		latestRelease: "you're already on the latest release.",
 
 		loadErrorTitle: 'settings are unavailable right now',
-		openWorkspaceAction: 'open workspace',
 
 		transferImportTitle: 'import a workspace',
 		transferImportSuccess: 'the file was imported',
@@ -512,11 +469,7 @@ const en = {
 		restartNotice:
 			'the update has been installed. on windows the app may close automatically during installation; otherwise restart rentable to finish switching versions.',
 
-		pathOverrideDescription:
-			'leave this empty to use the default path above. saving reconnects immediately, and startup opens the selected database path.',
-		pathOverridePlaceholder: 'leave empty to use the default database path',
 		localeDescription: 'the interface changes as soon as you pick one.',
-		localeLabel: 'display language',
 		localeTitle: 'language',
 
 		// the seven sections of the settings area, in the order the rail draws them rather than
@@ -537,8 +490,28 @@ const en = {
 		updatesDescription:
 			'check whether a newer version of rentable is available, and install it. if the app will not start afterwards, it offers to put back the version you were on.',
 
-		usingCustomDatabasePath: 'the app is currently using a custom database path override.',
-		usingDefaultDatabasePath: 'the app is currently using the default database path.'
+		you: {
+			signedInAs: 'signed in as',
+			password: {
+				title: 'password',
+				description: 'the password you sign in with, on every machine.',
+				currentLabel: 'current password',
+				nextLabel: 'new password',
+				confirmLabel: 'new password, again',
+				mismatch: 'the two do not match.',
+				change: 'change password',
+				changed: 'your password was changed.'
+			},
+			sessions: {
+				title: 'other machines',
+				description:
+					'sign out everywhere you are still signed in but here. your password does not change, so you can sign in again on any of them.',
+				action: 'sign out of other machines',
+				confirmDescription:
+					'every other machine signed in as you is signed out: one that is running goes back to the sign-in screen within a few minutes, and one that is closed asks for your password next time it opens. this machine stays signed in and your password is unchanged.',
+				ended: 'your other machines were signed out.'
+			}
+		}
 	},
 	complexes: {
 		hooks: {
@@ -757,19 +730,12 @@ const en = {
 	},
 
 	settingsHooks: {
-		databasePathReset: 'database path reset to default successfully!',
-		databasePathUpdated: 'database path updated successfully!',
 		endingSoonUpdated: 'ending soon notice window updated successfully!',
-		profileSwitched: 'workspace switched successfully!',
-		workspaceUpToDate: 'this workspace is up to date!',
-		startupRecoveryCleared: 'startup recovery cleared. retrying the current version is now allowed.'
+		workspaceUpToDate: 'this workspace is up to date!'
 	},
 
 	organization: {
 		setup: {
-			setupTitle: 'set up an organization',
-			setupDescription:
-				'rentable runs on a turso account you own. your records live there, and nowhere of ours.',
 			connectTitle: 'connect your turso account',
 			connectDescription:
 				'your organization will live on your own turso account. one consent in the browser is all it takes.',
@@ -828,7 +794,7 @@ const en = {
 			toSignIn: 'go to the sign-in',
 			passwordTitle: 'choose your password',
 			passwordDescription:
-				'your password opens your place in the organization, on this machine and on any other you sign in from. nobody can recover it for you; a new link is the only way back.',
+				'your password signs you in, on this machine and on any other. nobody can recover it for you; a new link is the only way back.',
 			organizationLabel: 'organization',
 			usernameLabel: 'username',
 			codeLabel: 'confirmation code',
@@ -842,11 +808,9 @@ const en = {
 			back: 'back'
 		},
 		dashboard: {
-			members: 'members',
-			workspaces: 'workspaces',
 			inviteTitle: 'invite somebody',
 			inviteDescription:
-				'an invitation makes their account in the organization: a username, a role and the workspaces they hold, each at full access or read only. you hand them the link yourself.',
+				'an invitation makes somebody a member: a username, a role and the workspaces they hold, each at full access or read only. you hand them the link yourself.',
 			role: 'role',
 			administratorsAreTheOwners: 'only the owner can invite an administrator.',
 			noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
@@ -856,7 +820,7 @@ const en = {
 			invitationLinkTitle: 'invitation link',
 			codeTitle: 'confirmation code',
 			codeDescription:
-				'read this out on a call or in person. it is the other half of what opens their place, so it is never sent beside the link.',
+				'read this out on a call or in person. it is the other half of what the link needs, so it is never sent beside it.',
 			codeExpires: 'lapses in {seconds} seconds',
 			codeLapsed: 'this code has lapsed.',
 			freshCode: 'fresh code',
@@ -878,7 +842,7 @@ const en = {
 			renamed: 'the member was renamed.',
 			linkTitle: 'organization link',
 			linkDescription:
-				'the link connects another machine to this organization; with a username and a password, it is the way in. it carries a read-only view of the directory, so share it the way you would a password.',
+				'the link connects another machine to this organization; with a username and a password, it is the way in. it carries a read only view of the directory, so share it the way you would a password.',
 			authorityTitle: 'turso account',
 			authorityDescription:
 				"this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.",
@@ -933,20 +897,17 @@ const en = {
 			disconnectForgets:
 				'disconnecting forgets the organization on this machine: you are signed out, every copy of it and of its workspaces kept here is deleted, and the turso authority is cleared. nothing on turso is touched, and the link connects this machine again. to reach another organization, disconnect and connect to it.',
 			disconnect: 'disconnect',
-			disconnected: 'this machine no longer holds the organization.'
-		},
-		disconnectAction: 'disconnect',
-		disconnectDescription:
-			'this machine holds a token for the turso account your organization lives on. disconnecting forgets it here, and nothing on this machine can reach that account afterwards.',
-		disconnectRevokes:
-			"forgetting the token does not revoke it. what you granted stays granted until you end it yourself, on turso's own dashboard at app.turso.tech.",
-		disconnectRevokesAt: 'app.turso.tech',
-		disconnected: 'this machine no longer holds a token for your turso account.'
+			disconnected: 'this machine no longer holds the organization.',
+			forgetAccountDescription:
+				'this machine holds a token for the turso account your organization lives on. forgetting it here means nothing on this machine reaches that account afterwards.',
+			forgetAccountRevokes:
+				"forgetting the token does not revoke it. what you granted stays granted until you end it yourself, on turso's own dashboard at app.turso.tech.",
+			forgetAccountRevokesAt: 'app.turso.tech',
+			accountForgotten: 'this machine no longer holds a token for your turso account.'
+		}
 	},
 
 	workspace: {
-		groupSync: 'sync',
-		groupTransfer: 'export / import',
 		nameTooLong: 'that name is too long.',
 		nameRequired: 'give this workspace a name.',
 		rename: 'rename',
@@ -956,7 +917,7 @@ const en = {
 			'this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.',
 		syncStatusNeedsReconnect: 'needs reconnect',
 		syncStatusSynced: 'synced',
-		syncStatusAccountRefused: 'account needs attention',
+		syncStatusAccountRefused: 'turso account needs attention',
 		syncStatusCredentialRefused: 'access needs attention',
 		credentialRefused:
 			"your access to this workspace was refreshed, and this machine is collecting the new credential. if it does not clear on its own, ask the organization's owner. everything here keeps working meanwhile.",
@@ -967,8 +928,7 @@ const en = {
 		accountRefusedOwnerNoDetail:
 			"turso is refusing the organization's account. everything keeps working on this machine, and what is written goes out once the account is seen to. the place to see to it is turso's own dashboard at app.turso.tech, under the organization that holds your group.",
 		transferDescription:
-			'write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.',
-		title: 'workspace'
+			'write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.'
 	}
 } satisfies BaseTranslation;
 

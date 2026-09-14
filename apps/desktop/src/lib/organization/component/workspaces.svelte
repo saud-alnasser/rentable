@@ -180,7 +180,7 @@
 {/snippet}
 
 <Field.Set>
-	<Field.Legend>{$LL.organization.dashboard.workspaces()}</Field.Legend>
+	<Field.Legend>{$LL.settings.section.workspaces()}</Field.Legend>
 
 	<div class="flex flex-col gap-1" data-workspaces>
 		{#if workspaces.length === 0}

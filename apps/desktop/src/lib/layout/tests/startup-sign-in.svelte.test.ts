@@ -74,7 +74,7 @@ test('a machine signed out from another one reads the same card with the reason 
 			inputsOnScreen().map((input) => input.getAttribute('name')),
 			locale
 		).toEqual(['username', 'password']);
-		expect(screen.getByText(strings.layout.signIn.unlock)).toBeDefined();
+		expect(screen.getByText(strings.common.actions.signIn)).toBeDefined();
 
 		rendered.unmount();
 	}
@@ -101,7 +101,7 @@ test('a locked machine names the organization and asks for a username and a pass
 	expect(document.querySelector('[data-slot=select-trigger]')).toBeNull();
 	expect(screen.getByText('Acme Rentals')).toBeDefined();
 	expect(screen.getByText(en.layout.signIn.username)).toBeDefined();
-	expect(screen.getByRole('button', { name: en.layout.signIn.unlock })).toBeDefined();
+	expect(screen.getByRole('button', { name: en.common.actions.signIn })).toBeDefined();
 	expect(screen.getByText(en.layout.signIn.organizationDescription)).toBeDefined();
 });
 
@@ -209,7 +209,7 @@ test('the wall renders in arabic with the same two fields', () => {
 	]);
 	expect(screen.getByText(ar.layout.signIn.username)).toBeDefined();
 	expect(screen.getByText(ar.layout.signIn.organizationDescription)).toBeDefined();
-	expect(screen.getByRole('button', { name: ar.layout.signIn.unlock })).toBeDefined();
+	expect(screen.getByRole('button', { name: ar.common.actions.signIn })).toBeDefined();
 	expect(screen.getByRole('button', { name: ar.layout.signIn.disconnect })).toBeDefined();
 
 	setLocale('en');
@@ -222,7 +222,7 @@ test('the unlock button carries a glyph and both fields a muted leading one', ()
 	card('locked');
 
 	expect(
-		screen.getByRole('button', { name: en.layout.signIn.unlock }).querySelector('svg')
+		screen.getByRole('button', { name: en.common.actions.signIn }).querySelector('svg')
 	).not.toBeNull();
 
 	for (const name of ['username', 'password']) {

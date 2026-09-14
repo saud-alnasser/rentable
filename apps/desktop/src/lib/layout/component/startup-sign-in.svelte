@@ -218,7 +218,7 @@
 
 				<Button type="submit" class="w-full justify-center" disabled={!canUnlock}>
 					<LockOpenIcon class="size-4" />
-					{isSigningIn ? $LL.common.actions.working() : $LL.layout.signIn.unlock()}
+					{isSigningIn ? $LL.common.actions.working() : $LL.common.actions.signIn()}
 				</Button>
 			</form>
 

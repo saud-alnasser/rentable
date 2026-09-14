@@ -175,7 +175,12 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   same account. From then on a password opens the vault on this machine, with or without a
   network, and the wall admits on that. *It read "what is not built is the half that would make
   a first run need a network" while no control plane was deployed; the organization effort built
-  that half on the customer's own account instead (2026-09-12).*
+  that half on the customer's own account instead (2026-09-12).* *Corrected 2026-09-14
+  ([[efforts/826-the-organization-and-the-way-in-are-rethought/spec]]): a member's first launch
+  opens an invitation link and types the code whoever invited them read out, and chooses a
+  password there; from the second launch on the remembered key opens the vault with no password
+  until the member signs out. One Turso group holds one organization, and a first run into a
+  group that already holds one is refused before anything is created.*
 
   What survives either way, and is the part worth holding, is everything after the first run:
   every read and every write is served locally with no network at all, for as long as the

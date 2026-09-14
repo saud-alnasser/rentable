@@ -18,7 +18,7 @@
 	import LayoutStartupUnreadable from '$lib/layout/component/startup-unreadable.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
 	import { THE_FIRST_RUN, THE_JOIN, shellSurface, wayInFrom } from '$lib/layout/shell-surface';
-	import { linkArrived } from '$lib/organization/join';
+	import { linkArrived } from '$lib/organization/connect';
 	import { noteMigration } from '$lib/layout/migration-notice.svelte';
 	import { startupSurfaceBeforeLocale } from '$lib/layout/startup-surface';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
@@ -164,7 +164,7 @@
 		// up, because it arrived before anything was listening; every later one is an event.
 		let unlistenLink: (() => void) | undefined;
 		let unlistenMigration: (() => void) | undefined;
-		const openJoinScreen = (link: string) => {
+		const openConnectScreen = (link: string) => {
 			linkArrived(link);
 			void goto(resolve(THE_JOIN));
 		};
@@ -186,7 +186,7 @@
 				void startup.closeWindow(startup.closesWithoutSyncing);
 			});
 
-			unlistenLink = await tauri.organization.onLink(openJoinScreen);
+			unlistenLink = await tauri.organization.onLink(openConnectScreen);
 			unlistenMigration = await tauri.organization.onMigration(noteMigration);
 
 			await startup.start();
@@ -194,7 +194,7 @@
 			const waiting = await tauri.organization.linkTake();
 
 			if (waiting) {
-				openJoinScreen(waiting);
+				openConnectScreen(waiting);
 			}
 		})();
 

@@ -31,7 +31,7 @@
 
 <Field.Field orientation="vertical" data-forget-account>
 	<Field.Content>
-		<Field.Description>{$LL.organization.disconnectDescription()}</Field.Description>
+		<Field.Description>{$LL.organization.dashboard.forgetAccountDescription()}</Field.Description>
 	</Field.Content>
 
 	<div>
@@ -60,7 +60,7 @@
 	}}
 	record={$LL.organization.dashboard.authorityTitle()}
 	title={$LL.organization.dashboard.forgetAccount()}
-	description={$LL.organization.disconnectRevokes()}
+	description={$LL.organization.dashboard.forgetAccountRevokes()}
 	confirmLabel={$LL.organization.dashboard.forgetAccount()}
 	confirmLoadingLabel={$LL.common.actions.working()}
 />

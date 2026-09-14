@@ -4,62 +4,82 @@ import { test } from 'node:test';
 import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
 
-// the disconnect is the only place this application gives Turso authority back, and the token
-// it forgets has no expiry to wait out. Forgetting it here revokes nothing: Turso's
+// forgetting the turso account is the only place this application gives Turso authority back,
+// and the token it forgets has no expiry to wait out. Forgetting it here revokes nothing: Turso's
 // authorization server metadata advertises no revocation endpoint, so what the owner granted
-// stays granted until the owner ends it on Turso's own dashboard. A screen that says
-// "disconnected" and stops there tells somebody they are safe when they are not, which is why
-// the pointer is pinned by a test rather than left to whoever writes the surface.
+// stays granted until the owner ends it on Turso's own dashboard. A screen that says "forgotten"
+// and stops there tells somebody they are safe when they are not, which is why the pointer is
+// pinned by a test rather than left to whoever writes the surface.
 
 const locales = [
 	['english', en],
 	['arabic', ar]
 ] as const;
 
-test('both locales offer the disconnect and describe what it forgets', () => {
+/** every leaf of a translation tree, keyed by its dotted path. */
+function leaves(tree: object, prefix = ''): Record<string, string> {
+	const out: Record<string, string> = {};
+
+	for (const [key, value] of Object.entries(tree)) {
+		const path = prefix ? `${prefix}.${key}` : key;
+
+		if (value && typeof value === 'object') {
+			Object.assign(out, leaves(value, path));
+		} else {
+			out[path] = String(value);
+		}
+	}
+
+	return out;
+}
+
+/** the value at a dotted path, or `undefined` where no key holds it. */
+function at(tree: object, path: string): unknown {
+	return path
+		.split('.')
+		.reduce<unknown>(
+			(node, key) => (node && typeof node === 'object' ? Reflect.get(node, key) : undefined),
+			tree
+		);
+}
+
+test('both locales offer forgetting the turso account and describe what it forgets', () => {
 	for (const [name, translation] of locales) {
-		assert.equal(
-			typeof translation.organization.disconnectAction,
-			'string',
-			`${name} is missing the action`
-		);
+		const { forgetAccount, forgetAccountDescription, accountForgotten } =
+			translation.organization.dashboard;
+
+		assert.equal(typeof forgetAccount, 'string', `${name} is missing the action`);
+		assert.ok(forgetAccount.length > 0, `${name} offers an empty action`);
 		assert.ok(
-			translation.organization.disconnectAction.length > 0,
-			`${name} offers an empty action`
+			forgetAccountDescription.length > 0,
+			`${name} says nothing about what forgetting does`
 		);
-		assert.ok(
-			translation.organization.disconnectDescription.length > 0,
-			`${name} says nothing about what disconnecting does`
-		);
-		assert.ok(
-			translation.organization.disconnected.length > 0,
-			`${name} says nothing once the token is gone`
-		);
+		assert.ok(accountForgotten.length > 0, `${name} says nothing once the token is gone`);
 	}
 });
 
 test('both locales say the token is not revoked and name where it is', () => {
 	for (const [name, translation] of locales) {
-		const { disconnectRevokes, disconnectRevokesAt } = translation.organization;
+		const { forgetAccountRevokes, forgetAccountRevokesAt } = translation.organization.dashboard;
 
 		assert.ok(
-			disconnectRevokes.includes(disconnectRevokesAt),
-			`${name} does not name where turso revokes the token: ${disconnectRevokes}`
+			forgetAccountRevokes.includes(forgetAccountRevokesAt),
+			`${name} does not name where turso revokes the token: ${forgetAccountRevokes}`
 		);
 		assert.equal(
-			disconnectRevokesAt,
+			forgetAccountRevokesAt,
 			'app.turso.tech',
 			`${name} points somewhere other than turso's own dashboard`
 		);
 	}
 });
 
-test('neither locale tells somebody the disconnect revoked anything', () => {
+test('neither locale tells somebody that forgetting revoked anything', () => {
 	// each locale's own word for revoking, so the claim is checked against a reader of that
 	// language rather than against a reader of english twice.
 	const revoking = [
-		['english', en.organization.disconnected, 'revok'],
-		['arabic', ar.organization.disconnected, 'يلغي']
+		['english', en.organization.dashboard.accountForgotten, 'revok'],
+		['arabic', ar.organization.dashboard.accountForgotten, 'يلغي']
 	] as const;
 
 	for (const [name, confirmation, word] of revoking) {
@@ -132,4 +152,127 @@ test('both locales say a group holds one organization, and what that means for o
 	assert.match(ar.organization.setup.oneOrganization, /مؤسسة واحدة/);
 	assert.match(ar.organization.setup.oneOrganization, /تُرفض/);
 	assert.notEqual(ar.organization.setup.oneOrganization, en.organization.setup.oneOrganization);
+});
+
+// effort 826, requirement 18: the pages this effort retired read strings of their own, and the
+// strings went with the pages. Each is named here so that a key coming back under its old name
+// is caught by the test rather than by a reader meeting a sentence about a screen that is gone.
+const RETIRED = [
+	// the account page and the forced password change
+	'account',
+	'layout.changePassword',
+	'layout.accountMenu.label',
+	'common.nav.organization',
+	// the control plane's leftovers
+	'layout.startup.accountChoiceEmpty',
+	'organization.disconnectAction',
+	'organization.disconnectDescription',
+	'organization.disconnectRevokes',
+	'organization.disconnectRevokesAt',
+	'organization.disconnected',
+	'organization.setup.setupTitle',
+	'organization.setup.setupDescription',
+	// the pending accounts list and the handed password
+	'organization.dashboard.pendingAccounts',
+	'organization.dashboard.noPendingAccounts',
+	'organization.dashboard.generatedPassword',
+	'organization.dashboard.passwordOnce',
+	'organization.dashboard.copyPassword',
+	'organization.dashboard.passwordCopied',
+	'organization.dashboard.copyUsername',
+	'organization.dashboard.usernameCopied',
+	'organization.dashboard.resetPassword',
+	'organization.dashboard.standingOpen',
+	'organization.dashboard.standingConsumed',
+	// the workspace page's identity and members blocks
+	'workspace.groupIdentity',
+	'workspace.groupMembers',
+	'workspace.groupSync',
+	'workspace.groupTransfer',
+	'workspace.identityDescription',
+	'workspace.membersDescription',
+	'workspace.roleOwner',
+	'workspace.title',
+	// the settings page before it was sectioned
+	'settings.accountDescription',
+	'settings.aboutTitle',
+	'settings.createdAt',
+	'settings.groupGeneral',
+	'settings.groupUpdates',
+	'settings.groupDiagnostics',
+	'settings.openWorkspaceAction',
+	'settings.usingCustomDatabasePath',
+	'settings.usingDefaultDatabasePath',
+	'settingsHooks.profileSwitched',
+	'settingsHooks.startupRecoveryCleared'
+] as const;
+
+test('both locales have let go of every string the retired pages read', () => {
+	for (const [name, translation] of locales) {
+		for (const key of RETIRED) {
+			assert.equal(at(translation, key), undefined, `${name} still carries ${key}`);
+		}
+	}
+});
+
+// requirement 18, the other half: one name per thing. Each term the requirement names is one
+// english key, spelled the same wherever a screen draws it, and its arabic is written rather
+// than left in english; and the words the requirement retires are in no english sentence.
+const TERMS = [
+	['sign in', 'common.actions.signIn'],
+	['sign out', 'common.actions.signOut'],
+	['connect turso account', 'organization.setup.connect'],
+	['forget turso account', 'organization.dashboard.forgetAccount'],
+	['organization link', 'organization.dashboard.linkTitle'],
+	['invitation link', 'organization.dashboard.invitationLinkTitle'],
+	['full access', 'organization.dashboard.accessFull'],
+	['read only', 'organization.dashboard.accessReadOnly'],
+	['you', 'settings.section.you'],
+	['members', 'settings.section.members'],
+	['workspaces', 'settings.section.workspaces']
+] as const;
+
+const RETIRED_WORDS = ['pending account', 'unlock your place', 'control plane', 'log in', 'login'];
+
+test('each term of requirement 18 is one english key, and its arabic is written', () => {
+	const english = leaves(en);
+
+	for (const [term, key] of TERMS) {
+		assert.equal(english[key], term, `${key} does not read "${term}"`);
+
+		const holders = Object.entries(english)
+			.filter(([, value]) => value === term)
+			.map(([path]) => path);
+
+		assert.deepEqual(holders, [key], `"${term}" is held by more than one key`);
+		assert.notEqual(at(ar, key), term, `${key} is not written in arabic`);
+	}
+
+	for (const [key, value] of Object.entries(english)) {
+		for (const word of RETIRED_WORDS) {
+			assert.ok(!value.toLowerCase().includes(word), `${key} still says "${word}": ${value}`);
+		}
+	}
+});
+
+test('the turso account is the only thing the organization strings call an account', () => {
+	const english = leaves(en);
+
+	for (const [key, value] of Object.entries(english)) {
+		if (!/^(organization|workspace|layout\.signIn|settings\.you)\./.test(key)) continue;
+		if (!/\baccount\b/.test(value)) continue;
+
+		assert.match(
+			value,
+			/turso/,
+			`${key} calls something other than the turso account an account: ${value}`
+		);
+	}
+
+	// and read only is spelled one way wherever an organization string says it.
+	for (const [key, value] of Object.entries(english)) {
+		if (!key.startsWith('organization.')) continue;
+
+		assert.doesNotMatch(value, /read-only/, `${key} spells read only with a hyphen`);
+	}
 });

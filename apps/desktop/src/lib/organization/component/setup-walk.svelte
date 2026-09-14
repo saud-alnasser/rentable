@@ -355,7 +355,7 @@
 					     before one word, and the callout above already says what is connected. -->
 					<Button variant="outline" class="w-full justify-center" onclick={onDisconnect}>
 						<UnplugIcon class="size-4" />
-						{$LL.organization.disconnectAction()}
+						{$LL.organization.dashboard.forgetAccount()}
 					</Button>
 				{:else}
 					<Button class="w-full justify-center" onclick={onConnect} disabled={isBusy}>

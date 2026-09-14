@@ -173,7 +173,7 @@ test('and the body is that section rather than the first one', () => {
 	area({ section: 'you', session: fakeOrganizationSession({ username: 'ada.lovelace' }) });
 
 	expect(screen.getByText('ada.lovelace')).toBeDefined();
-	expect(screen.getByText(en.account.password.title)).toBeDefined();
+	expect(screen.getByText(en.settings.you.password.title)).toBeDefined();
 	expect(screen.queryByText(en.settings.localeTitle)).toBeNull();
 });
 
@@ -205,14 +205,14 @@ test('the you section offers signing out of other machines, behind one confirm',
 	const control = document.querySelector('[data-end-other-sessions-open]');
 
 	expect(control).not.toBeNull();
-	expect(screen.getByText(en.account.sessions.title)).toBeDefined();
-	expect(screen.getByText(en.account.sessions.description)).toBeDefined();
+	expect(screen.getByText(en.settings.you.sessions.title)).toBeDefined();
+	expect(screen.getByText(en.settings.you.sessions.description)).toBeDefined();
 	// nothing has been asked yet, so nothing has been confirmed.
-	expect(screen.queryByText(en.account.sessions.confirmDescription)).toBeNull();
+	expect(screen.queryByText(en.settings.you.sessions.confirmDescription)).toBeNull();
 
 	await fireEvent.click(control!);
 
-	expect(await screen.findByText(en.account.sessions.confirmDescription)).toBeDefined();
+	expect(await screen.findByText(en.settings.you.sessions.confirmDescription)).toBeDefined();
 });
 
 test('the area carries one title, and it is the area rather than the section', () => {

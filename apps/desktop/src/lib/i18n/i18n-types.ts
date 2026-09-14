@@ -14,72 +14,6 @@ export type Translation = RootTranslation
 export type Translations = RootTranslation
 
 type RootTranslation = {
-	account: {
-		/**
-		 * s​i​g​n​e​d​ ​i​n​ ​a​s
-		 */
-		groupIdentity: string
-		password: {
-			/**
-			 * p​a​s​s​w​o​r​d
-			 */
-			title: string
-			/**
-			 * t​h​e​ ​p​a​s​s​w​o​r​d​ ​t​h​a​t​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​o​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​ ​y​o​u​ ​s​i​g​n​ ​i​n​ ​f​r​o​m​.
-			 */
-			description: string
-			/**
-			 * c​u​r​r​e​n​t​ ​p​a​s​s​w​o​r​d
-			 */
-			currentLabel: string
-			/**
-			 * n​e​w​ ​p​a​s​s​w​o​r​d
-			 */
-			nextLabel: string
-			/**
-			 * n​e​w​ ​p​a​s​s​w​o​r​d​,​ ​a​g​a​i​n
-			 */
-			confirmLabel: string
-			/**
-			 * t​h​e​ ​t​w​o​ ​d​o​ ​n​o​t​ ​m​a​t​c​h​.
-			 */
-			mismatch: string
-			/**
-			 * c​h​a​n​g​e​ ​p​a​s​s​w​o​r​d
-			 */
-			change: string
-			/**
-			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​w​a​s​ ​c​h​a​n​g​e​d​.
-			 */
-			changed: string
-		}
-		sessions: {
-			/**
-			 * o​t​h​e​r​ ​m​a​c​h​i​n​e​s
-			 */
-			title: string
-			/**
-			 * s​i​g​n​ ​o​u​t​ ​e​v​e​r​y​w​h​e​r​e​ ​y​o​u​ ​a​r​e​ ​s​t​i​l​l​ ​s​i​g​n​e​d​ ​i​n​ ​b​u​t​ ​h​e​r​e​.​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​d​o​e​s​ ​n​o​t​ ​c​h​a​n​g​e​,​ ​s​o​ ​y​o​u​ ​c​a​n​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​o​n​ ​a​n​y​ ​o​f​ ​t​h​e​m​.
-			 */
-			description: string
-			/**
-			 * s​i​g​n​ ​o​u​t​ ​o​f​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s
-			 */
-			action: string
-			/**
-			 * e​v​e​r​y​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​s​i​g​n​e​d​ ​i​n​ ​a​s​ ​y​o​u​ ​i​s​ ​s​i​g​n​e​d​ ​o​u​t​:​ ​o​n​e​ ​t​h​a​t​ ​i​s​ ​r​u​n​n​i​n​g​ ​g​o​e​s​ ​b​a​c​k​ ​t​o​ ​t​h​e​ ​s​i​g​n​-​i​n​ ​s​c​r​e​e​n​ ​w​i​t​h​i​n​ ​a​ ​f​e​w​ ​m​i​n​u​t​e​s​,​ ​a​n​d​ ​o​n​e​ ​t​h​a​t​ ​i​s​ ​c​l​o​s​e​d​ ​a​s​k​s​ ​f​o​r​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​n​e​x​t​ ​t​i​m​e​ ​i​t​ ​o​p​e​n​s​.​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​s​t​a​y​s​ ​s​i​g​n​e​d​ ​i​n​ ​a​n​d​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​u​n​c​h​a​n​g​e​d​.
-			 */
-			confirmDescription: string
-			/**
-			 * y​o​u​r​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s​ ​w​e​r​e​ ​s​i​g​n​e​d​ ​o​u​t​.
-			 */
-			ended: string
-		}
-		/**
-		 * a​c​c​o​u​n​t
-		 */
-		title: string
-	}
 	app: {
 		/**
 		 * r​e​n​t​a​b​l​e
@@ -121,10 +55,6 @@ type RootTranslation = {
 			 */
 			connect: string
 			/**
-			 * c​o​n​n​e​c​t​i​n​g​.​.​.
-			 */
-			connecting: string
-			/**
 			 * c​o​p​y​ ​d​e​t​a​i​l​s
 			 */
 			copyDetails: string
@@ -152,10 +82,6 @@ type RootTranslation = {
 			 * d​e​l​e​t​i​n​g​.​.​.
 			 */
 			deleting: string
-			/**
-			 * d​i​s​c​o​n​n​e​c​t
-			 */
-			disconnect: string
 			/**
 			 * d​o​w​n​l​o​a​d​ ​&​ ​i​n​s​t​a​l​l
 			 */
@@ -273,6 +199,10 @@ type RootTranslation = {
 			 */
 			selectRecords: string
 			/**
+			 * s​i​g​n​ ​i​n
+			 */
+			signIn: string
+			/**
 			 * s​i​g​n​ ​o​u​t
 			 */
 			signOut: string
@@ -280,10 +210,6 @@ type RootTranslation = {
 			 * s​o​r​t​ ​b​y
 			 */
 			sortBy: string
-			/**
-			 * s​y​n​c​i​n​g​.​.​.
-			 */
-			syncing: string
 			/**
 			 * s​y​n​c
 			 */
@@ -794,10 +720,6 @@ type RootTranslation = {
 			 */
 			dashboard: string
 			/**
-			 * o​r​g​a​n​i​z​a​t​i​o​n
-			 */
-			organization: string
-			/**
 			 * p​a​y​m​e​n​t​s
 			 */
 			payments: string
@@ -1255,15 +1177,7 @@ type RootTranslation = {
 		}
 		accountMenu: {
 			/**
-			 * a​c​c​o​u​n​t
-			 */
-			label: string
-			/**
-			 * s​i​g​n​-​i​n
-			 */
-			signIn: string
-			/**
-			 * s​i​g​n​-​i​n
+			 * n​o​t​ ​s​i​g​n​e​d​ ​i​n
 			 */
 			signedOutHint: string
 			/**
@@ -1284,10 +1198,6 @@ type RootTranslation = {
 			 * n​o​t​ ​a​v​a​i​l​a​b​l​e
 			 */
 			locked: string
-			/**
-			 * s​e​t​t​i​n​g​s
-			 */
-			settings: string
 			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​m​e​m​b​e​r​(​s​)
 			 * @param {unknown} count
@@ -1310,7 +1220,7 @@ type RootTranslation = {
 			 */
 			workspaceRefusedOwner: string
 			/**
-			 * c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​i​t​.​ ​r​e​c​o​n​n​e​c​t​ ​i​t​ ​o​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​p​a​g​e​.
+			 * c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​i​t​.​ ​r​e​c​o​n​n​e​c​t​ ​i​t​ ​i​n​ ​t​h​e​ ​s​y​n​c​ ​s​e​c​t​i​o​n​ ​o​f​ ​s​e​t​t​i​n​g​s​.
 			 */
 			workspaceRefusedAuthority: string
 		}
@@ -1354,7 +1264,7 @@ type RootTranslation = {
 			 */
 			noOrganizationDescription: string
 			/**
-			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​w​i​t​h​ ​o​r​ ​w​i​t​h​o​u​t​ ​a​ ​c​o​n​n​e​c​t​i​o​n​.
+			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​s​i​g​n​s​ ​y​o​u​ ​i​n​ ​t​o​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​w​i​t​h​ ​o​r​ ​w​i​t​h​o​u​t​ ​a​ ​c​o​n​n​e​c​t​i​o​n​.
 			 */
 			organizationDescription: string
 			/**
@@ -1370,11 +1280,7 @@ type RootTranslation = {
 			 */
 			password: string
 			/**
-			 * u​n​l​o​c​k
-			 */
-			unlock: string
-			/**
-			 * u​n​l​o​c​k​i​n​g​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​t​h​i​s​ ​t​a​k​e​s​ ​a​ ​m​o​m​e​n​t​ ​o​n​ ​p​u​r​p​o​s​e​.
+			 * s​i​g​n​i​n​g​ ​y​o​u​ ​i​n​.​ ​t​h​i​s​ ​t​a​k​e​s​ ​a​ ​m​o​m​e​n​t​ ​o​n​ ​p​u​r​p​o​s​e​.
 			 */
 			unlocking: string
 			/**
@@ -1414,15 +1320,11 @@ type RootTranslation = {
 			 */
 			disconnectDescription: string
 			/**
-			 * L​o​g​i​n
+			 * w​e​l​c​o​m​e​ ​b​a​c​k
 			 */
 			title: string
 		}
 		startup: {
-			/**
-			 * n​o​ ​w​o​r​k​s​p​a​c​e​ ​p​r​o​f​i​l​e​s​ ​a​r​e​ ​a​v​a​i​l​a​b​l​e​ ​y​e​t​.
-			 */
-			accountChoiceEmpty: string
 			/**
 			 * u​p​g​r​a​d​i​n​g​ ​t​o
 			 */
@@ -1540,26 +1442,9 @@ type RootTranslation = {
 	}
 	settings: {
 		/**
-		 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​s​i​g​n​e​d​ ​i​n​ ​a​s​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​b​e​l​o​w​.​ ​s​i​g​n​i​n​g​ ​o​u​t​ ​c​l​o​s​e​s​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​o​n​l​y​ ​—​ ​i​t​ ​s​t​a​y​s​ ​w​h​e​r​e​ ​i​t​ ​i​s​,​ ​a​n​d​ ​s​i​g​n​i​n​g​ ​b​a​c​k​ ​i​n​ ​o​p​e​n​s​ ​i​t​ ​a​g​a​i​n​.
-		 */
-		accountDescription: string
-		/**
-		 * a​b​o​u​t
-		 */
-		aboutTitle: string
-		/**
-		 * c​r​e​a​t​e​d​ ​{​v​a​l​u​e​}
-		 * @param {unknown} value
-		 */
-		createdAt: RequiredParams<'value'>
-		/**
 		 * r​e​n​t​a​b​l​e​ ​k​e​e​p​s​ ​a​ ​r​e​c​o​r​d​ ​o​f​ ​w​h​a​t​ ​i​t​ ​d​o​e​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​s​o​ ​a​ ​f​a​i​l​u​r​e​ ​c​a​n​ ​b​e​ ​l​o​o​k​e​d​ ​i​n​t​o​ ​a​f​t​e​r​w​a​r​d​s​.​ ​t​h​e​ ​f​i​l​e​s​ ​n​e​v​e​r​ ​l​e​a​v​e​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​t​h​e​y​ ​a​r​e​ ​l​i​m​i​t​e​d​ ​i​n​ ​s​i​z​e​,​ ​a​n​d​ ​p​a​s​s​w​o​r​d​s​ ​a​n​d​ ​a​c​c​o​u​n​t​ ​t​o​k​e​n​s​ ​a​r​e​ ​r​e​m​o​v​e​d​ ​b​e​f​o​r​e​ ​a​n​y​t​h​i​n​g​ ​i​s​ ​w​r​i​t​t​e​n​.
 		 */
 		diagnosticsDescription: string
-		/**
-		 * l​o​g​ ​l​o​c​a​t​i​o​n
-		 */
-		diagnosticsLocationLabel: string
 		/**
 		 * o​p​e​n​ ​l​o​g​ ​f​o​l​d​e​r
 		 */
@@ -1581,18 +1466,6 @@ type RootTranslation = {
 		 */
 		endingSoonTitle: string
 		/**
-		 * d​i​a​g​n​o​s​t​i​c​s
-		 */
-		groupDiagnostics: string
-		/**
-		 * g​e​n​e​r​a​l
-		 */
-		groupGeneral: string
-		/**
-		 * u​p​d​a​t​e​s
-		 */
-		groupUpdates: string
-		/**
 		 * y​o​u​'​r​e​ ​a​l​r​e​a​d​y​ ​o​n​ ​t​h​e​ ​l​a​t​e​s​t​ ​r​e​l​e​a​s​e​.
 		 */
 		latestRelease: string
@@ -1600,10 +1473,6 @@ type RootTranslation = {
 		 * s​e​t​t​i​n​g​s​ ​a​r​e​ ​u​n​a​v​a​i​l​a​b​l​e​ ​r​i​g​h​t​ ​n​o​w
 		 */
 		loadErrorTitle: string
-		/**
-		 * o​p​e​n​ ​w​o​r​k​s​p​a​c​e
-		 */
-		openWorkspaceAction: string
 		/**
 		 * i​m​p​o​r​t​ ​a​ ​w​o​r​k​s​p​a​c​e
 		 */
@@ -1617,21 +1486,9 @@ type RootTranslation = {
 		 */
 		restartNotice: string
 		/**
-		 * l​e​a​v​e​ ​t​h​i​s​ ​e​m​p​t​y​ ​t​o​ ​u​s​e​ ​t​h​e​ ​d​e​f​a​u​l​t​ ​p​a​t​h​ ​a​b​o​v​e​.​ ​s​a​v​i​n​g​ ​r​e​c​o​n​n​e​c​t​s​ ​i​m​m​e​d​i​a​t​e​l​y​,​ ​a​n​d​ ​s​t​a​r​t​u​p​ ​o​p​e​n​s​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h​.
-		 */
-		pathOverrideDescription: string
-		/**
-		 * l​e​a​v​e​ ​e​m​p​t​y​ ​t​o​ ​u​s​e​ ​t​h​e​ ​d​e​f​a​u​l​t​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h
-		 */
-		pathOverridePlaceholder: string
-		/**
 		 * t​h​e​ ​i​n​t​e​r​f​a​c​e​ ​c​h​a​n​g​e​s​ ​a​s​ ​s​o​o​n​ ​a​s​ ​y​o​u​ ​p​i​c​k​ ​o​n​e​.
 		 */
 		localeDescription: string
-		/**
-		 * d​i​s​p​l​a​y​ ​l​a​n​g​u​a​g​e
-		 */
-		localeLabel: string
 		/**
 		 * l​a​n​g​u​a​g​e
 		 */
@@ -1678,14 +1535,68 @@ type RootTranslation = {
 		 * c​h​e​c​k​ ​w​h​e​t​h​e​r​ ​a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​i​s​ ​a​v​a​i​l​a​b​l​e​,​ ​a​n​d​ ​i​n​s​t​a​l​l​ ​i​t​.​ ​i​f​ ​t​h​e​ ​a​p​p​ ​w​i​l​l​ ​n​o​t​ ​s​t​a​r​t​ ​a​f​t​e​r​w​a​r​d​s​,​ ​i​t​ ​o​f​f​e​r​s​ ​t​o​ ​p​u​t​ ​b​a​c​k​ ​t​h​e​ ​v​e​r​s​i​o​n​ ​y​o​u​ ​w​e​r​e​ ​o​n​.
 		 */
 		updatesDescription: string
-		/**
-		 * t​h​e​ ​a​p​p​ ​i​s​ ​c​u​r​r​e​n​t​l​y​ ​u​s​i​n​g​ ​a​ ​c​u​s​t​o​m​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h​ ​o​v​e​r​r​i​d​e​.
-		 */
-		usingCustomDatabasePath: string
-		/**
-		 * t​h​e​ ​a​p​p​ ​i​s​ ​c​u​r​r​e​n​t​l​y​ ​u​s​i​n​g​ ​t​h​e​ ​d​e​f​a​u​l​t​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h​.
-		 */
-		usingDefaultDatabasePath: string
+		you: {
+			/**
+			 * s​i​g​n​e​d​ ​i​n​ ​a​s
+			 */
+			signedInAs: string
+			password: {
+				/**
+				 * p​a​s​s​w​o​r​d
+				 */
+				title: string
+				/**
+				 * t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​,​ ​o​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​.
+				 */
+				description: string
+				/**
+				 * c​u​r​r​e​n​t​ ​p​a​s​s​w​o​r​d
+				 */
+				currentLabel: string
+				/**
+				 * n​e​w​ ​p​a​s​s​w​o​r​d
+				 */
+				nextLabel: string
+				/**
+				 * n​e​w​ ​p​a​s​s​w​o​r​d​,​ ​a​g​a​i​n
+				 */
+				confirmLabel: string
+				/**
+				 * t​h​e​ ​t​w​o​ ​d​o​ ​n​o​t​ ​m​a​t​c​h​.
+				 */
+				mismatch: string
+				/**
+				 * c​h​a​n​g​e​ ​p​a​s​s​w​o​r​d
+				 */
+				change: string
+				/**
+				 * y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​w​a​s​ ​c​h​a​n​g​e​d​.
+				 */
+				changed: string
+			}
+			sessions: {
+				/**
+				 * o​t​h​e​r​ ​m​a​c​h​i​n​e​s
+				 */
+				title: string
+				/**
+				 * s​i​g​n​ ​o​u​t​ ​e​v​e​r​y​w​h​e​r​e​ ​y​o​u​ ​a​r​e​ ​s​t​i​l​l​ ​s​i​g​n​e​d​ ​i​n​ ​b​u​t​ ​h​e​r​e​.​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​d​o​e​s​ ​n​o​t​ ​c​h​a​n​g​e​,​ ​s​o​ ​y​o​u​ ​c​a​n​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​o​n​ ​a​n​y​ ​o​f​ ​t​h​e​m​.
+				 */
+				description: string
+				/**
+				 * s​i​g​n​ ​o​u​t​ ​o​f​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s
+				 */
+				action: string
+				/**
+				 * e​v​e​r​y​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​s​i​g​n​e​d​ ​i​n​ ​a​s​ ​y​o​u​ ​i​s​ ​s​i​g​n​e​d​ ​o​u​t​:​ ​o​n​e​ ​t​h​a​t​ ​i​s​ ​r​u​n​n​i​n​g​ ​g​o​e​s​ ​b​a​c​k​ ​t​o​ ​t​h​e​ ​s​i​g​n​-​i​n​ ​s​c​r​e​e​n​ ​w​i​t​h​i​n​ ​a​ ​f​e​w​ ​m​i​n​u​t​e​s​,​ ​a​n​d​ ​o​n​e​ ​t​h​a​t​ ​i​s​ ​c​l​o​s​e​d​ ​a​s​k​s​ ​f​o​r​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​n​e​x​t​ ​t​i​m​e​ ​i​t​ ​o​p​e​n​s​.​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​s​t​a​y​s​ ​s​i​g​n​e​d​ ​i​n​ ​a​n​d​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​u​n​c​h​a​n​g​e​d​.
+				 */
+				confirmDescription: string
+				/**
+				 * y​o​u​r​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s​ ​w​e​r​e​ ​s​i​g​n​e​d​ ​o​u​t​.
+				 */
+				ended: string
+			}
+		}
 	}
 	complexes: {
 		hooks: {
@@ -2334,40 +2245,16 @@ type RootTranslation = {
 	}
 	settingsHooks: {
 		/**
-		 * d​a​t​a​b​a​s​e​ ​p​a​t​h​ ​r​e​s​e​t​ ​t​o​ ​d​e​f​a​u​l​t​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
-		 */
-		databasePathReset: string
-		/**
-		 * d​a​t​a​b​a​s​e​ ​p​a​t​h​ ​u​p​d​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
-		 */
-		databasePathUpdated: string
-		/**
 		 * e​n​d​i​n​g​ ​s​o​o​n​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​ ​u​p​d​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
 		 */
 		endingSoonUpdated: string
 		/**
-		 * w​o​r​k​s​p​a​c​e​ ​s​w​i​t​c​h​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
-		 */
-		profileSwitched: string
-		/**
 		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​u​p​ ​t​o​ ​d​a​t​e​!
 		 */
 		workspaceUpToDate: string
-		/**
-		 * s​t​a​r​t​u​p​ ​r​e​c​o​v​e​r​y​ ​c​l​e​a​r​e​d​.​ ​r​e​t​r​y​i​n​g​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​v​e​r​s​i​o​n​ ​i​s​ ​n​o​w​ ​a​l​l​o​w​e​d​.
-		 */
-		startupRecoveryCleared: string
 	}
 	organization: {
 		setup: {
-			/**
-			 * s​e​t​ ​u​p​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n
-			 */
-			setupTitle: string
-			/**
-			 * r​e​n​t​a​b​l​e​ ​r​u​n​s​ ​o​n​ ​a​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​y​o​u​ ​o​w​n​.​ ​y​o​u​r​ ​r​e​c​o​r​d​s​ ​l​i​v​e​ ​t​h​e​r​e​,​ ​a​n​d​ ​n​o​w​h​e​r​e​ ​o​f​ ​o​u​r​s​.
-			 */
-			setupDescription: string
 			/**
 			 * c​o​n​n​e​c​t​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
@@ -2541,7 +2428,7 @@ type RootTranslation = {
 			 */
 			passwordTitle: string
 			/**
-			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​o​p​e​n​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​o​n​ ​a​n​y​ ​o​t​h​e​r​ ​y​o​u​ ​s​i​g​n​ ​i​n​ ​f​r​o​m​.​ ​n​o​b​o​d​y​ ​c​a​n​ ​r​e​c​o​v​e​r​ ​i​t​ ​f​o​r​ ​y​o​u​;​ ​a​ ​n​e​w​ ​l​i​n​k​ ​i​s​ ​t​h​e​ ​o​n​l​y​ ​w​a​y​ ​b​a​c​k​.
+			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​s​i​g​n​s​ ​y​o​u​ ​i​n​,​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​o​n​ ​a​n​y​ ​o​t​h​e​r​.​ ​n​o​b​o​d​y​ ​c​a​n​ ​r​e​c​o​v​e​r​ ​i​t​ ​f​o​r​ ​y​o​u​;​ ​a​ ​n​e​w​ ​l​i​n​k​ ​i​s​ ​t​h​e​ ​o​n​l​y​ ​w​a​y​ ​b​a​c​k​.
 			 */
 			passwordDescription: string
 			/**
@@ -2587,19 +2474,11 @@ type RootTranslation = {
 		}
 		dashboard: {
 			/**
-			 * m​e​m​b​e​r​s
-			 */
-			members: string
-			/**
-			 * w​o​r​k​s​p​a​c​e​s
-			 */
-			workspaces: string
-			/**
 			 * i​n​v​i​t​e​ ​s​o​m​e​b​o​d​y
 			 */
 			inviteTitle: string
 			/**
-			 * a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​m​a​k​e​s​ ​t​h​e​i​r​ ​a​c​c​o​u​n​t​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​:​ ​a​ ​u​s​e​r​n​a​m​e​,​ ​a​ ​r​o​l​e​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​h​o​l​d​,​ ​e​a​c​h​ ​a​t​ ​f​u​l​l​ ​a​c​c​e​s​s​ ​o​r​ ​r​e​a​d​ ​o​n​l​y​.​ ​y​o​u​ ​h​a​n​d​ ​t​h​e​m​ ​t​h​e​ ​l​i​n​k​ ​y​o​u​r​s​e​l​f​.
+			 * a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​m​a​k​e​s​ ​s​o​m​e​b​o​d​y​ ​a​ ​m​e​m​b​e​r​:​ ​a​ ​u​s​e​r​n​a​m​e​,​ ​a​ ​r​o​l​e​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​h​o​l​d​,​ ​e​a​c​h​ ​a​t​ ​f​u​l​l​ ​a​c​c​e​s​s​ ​o​r​ ​r​e​a​d​ ​o​n​l​y​.​ ​y​o​u​ ​h​a​n​d​ ​t​h​e​m​ ​t​h​e​ ​l​i​n​k​ ​y​o​u​r​s​e​l​f​.
 			 */
 			inviteDescription: string
 			/**
@@ -2631,7 +2510,7 @@ type RootTranslation = {
 			 */
 			codeTitle: string
 			/**
-			 * r​e​a​d​ ​t​h​i​s​ ​o​u​t​ ​o​n​ ​a​ ​c​a​l​l​ ​o​r​ ​i​n​ ​p​e​r​s​o​n​.​ ​i​t​ ​i​s​ ​t​h​e​ ​o​t​h​e​r​ ​h​a​l​f​ ​o​f​ ​w​h​a​t​ ​o​p​e​n​s​ ​t​h​e​i​r​ ​p​l​a​c​e​,​ ​s​o​ ​i​t​ ​i​s​ ​n​e​v​e​r​ ​s​e​n​t​ ​b​e​s​i​d​e​ ​t​h​e​ ​l​i​n​k​.
+			 * r​e​a​d​ ​t​h​i​s​ ​o​u​t​ ​o​n​ ​a​ ​c​a​l​l​ ​o​r​ ​i​n​ ​p​e​r​s​o​n​.​ ​i​t​ ​i​s​ ​t​h​e​ ​o​t​h​e​r​ ​h​a​l​f​ ​o​f​ ​w​h​a​t​ ​t​h​e​ ​l​i​n​k​ ​n​e​e​d​s​,​ ​s​o​ ​i​t​ ​i​s​ ​n​e​v​e​r​ ​s​e​n​t​ ​b​e​s​i​d​e​ ​i​t​.
 			 */
 			codeDescription: string
 			/**
@@ -2710,7 +2589,7 @@ type RootTranslation = {
 			 */
 			linkTitle: string
 			/**
-			 * t​h​e​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​t​o​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​;​ ​w​i​t​h​ ​a​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​,​ ​i​t​ ​i​s​ ​t​h​e​ ​w​a​y​ ​i​n​.​ ​i​t​ ​c​a​r​r​i​e​s​ ​a​ ​r​e​a​d​-​o​n​l​y​ ​v​i​e​w​ ​o​f​ ​t​h​e​ ​d​i​r​e​c​t​o​r​y​,​ ​s​o​ ​s​h​a​r​e​ ​i​t​ ​t​h​e​ ​w​a​y​ ​y​o​u​ ​w​o​u​l​d​ ​a​ ​p​a​s​s​w​o​r​d​.
+			 * t​h​e​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​t​o​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​;​ ​w​i​t​h​ ​a​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​,​ ​i​t​ ​i​s​ ​t​h​e​ ​w​a​y​ ​i​n​.​ ​i​t​ ​c​a​r​r​i​e​s​ ​a​ ​r​e​a​d​ ​o​n​l​y​ ​v​i​e​w​ ​o​f​ ​t​h​e​ ​d​i​r​e​c​t​o​r​y​,​ ​s​o​ ​s​h​a​r​e​ ​i​t​ ​t​h​e​ ​w​a​y​ ​y​o​u​ ​w​o​u​l​d​ ​a​ ​p​a​s​s​w​o​r​d​.
 			 */
 			linkDescription: string
 			/**
@@ -2897,37 +2776,25 @@ type RootTranslation = {
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​n​o​ ​l​o​n​g​e​r​ ​h​o​l​d​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 			 */
 			disconnected: string
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​a​ ​t​o​k​e​n​ ​f​o​r​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​v​e​s​ ​o​n​.​ ​f​o​r​g​e​t​t​i​n​g​ ​i​t​ ​h​e​r​e​ ​m​e​a​n​s​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​r​e​a​c​h​e​s​ ​t​h​a​t​ ​a​c​c​o​u​n​t​ ​a​f​t​e​r​w​a​r​d​s​.
+			 */
+			forgetAccountDescription: string
+			/**
+			 * f​o​r​g​e​t​t​i​n​g​ ​t​h​e​ ​t​o​k​e​n​ ​d​o​e​s​ ​n​o​t​ ​r​e​v​o​k​e​ ​i​t​.​ ​w​h​a​t​ ​y​o​u​ ​g​r​a​n​t​e​d​ ​s​t​a​y​s​ ​g​r​a​n​t​e​d​ ​u​n​t​i​l​ ​y​o​u​ ​e​n​d​ ​i​t​ ​y​o​u​r​s​e​l​f​,​ ​o​n​ ​t​u​r​s​o​'​s​ ​o​w​n​ ​d​a​s​h​b​o​a​r​d​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​.
+			 */
+			forgetAccountRevokes: string
+			/**
+			 * a​p​p​.​t​u​r​s​o​.​t​e​c​h
+			 */
+			forgetAccountRevokesAt: string
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​n​o​ ​l​o​n​g​e​r​ ​h​o​l​d​s​ ​a​ ​t​o​k​e​n​ ​f​o​r​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.
+			 */
+			accountForgotten: string
 		}
-		/**
-		 * d​i​s​c​o​n​n​e​c​t
-		 */
-		disconnectAction: string
-		/**
-		 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​a​ ​t​o​k​e​n​ ​f​o​r​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​v​e​s​ ​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​i​n​g​ ​f​o​r​g​e​t​s​ ​i​t​ ​h​e​r​e​,​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​c​a​n​ ​r​e​a​c​h​ ​t​h​a​t​ ​a​c​c​o​u​n​t​ ​a​f​t​e​r​w​a​r​d​s​.
-		 */
-		disconnectDescription: string
-		/**
-		 * f​o​r​g​e​t​t​i​n​g​ ​t​h​e​ ​t​o​k​e​n​ ​d​o​e​s​ ​n​o​t​ ​r​e​v​o​k​e​ ​i​t​.​ ​w​h​a​t​ ​y​o​u​ ​g​r​a​n​t​e​d​ ​s​t​a​y​s​ ​g​r​a​n​t​e​d​ ​u​n​t​i​l​ ​y​o​u​ ​e​n​d​ ​i​t​ ​y​o​u​r​s​e​l​f​,​ ​o​n​ ​t​u​r​s​o​'​s​ ​o​w​n​ ​d​a​s​h​b​o​a​r​d​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​.
-		 */
-		disconnectRevokes: string
-		/**
-		 * a​p​p​.​t​u​r​s​o​.​t​e​c​h
-		 */
-		disconnectRevokesAt: string
-		/**
-		 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​n​o​ ​l​o​n​g​e​r​ ​h​o​l​d​s​ ​a​ ​t​o​k​e​n​ ​f​o​r​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.
-		 */
-		disconnected: string
 	}
 	workspace: {
-		/**
-		 * s​y​n​c
-		 */
-		groupSync: string
-		/**
-		 * e​x​p​o​r​t​ ​/​ ​i​m​p​o​r​t
-		 */
-		groupTransfer: string
 		/**
 		 * t​h​a​t​ ​n​a​m​e​ ​i​s​ ​t​o​o​ ​l​o​n​g​.
 		 */
@@ -2961,7 +2828,7 @@ type RootTranslation = {
 		 */
 		syncStatusSynced: string
 		/**
-		 * a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
+		 * t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
 		 */
 		syncStatusAccountRefused: string
 		/**
@@ -2990,80 +2857,10 @@ type RootTranslation = {
 		 * w​r​i​t​e​ ​e​v​e​r​y​t​h​i​n​g​ ​—​ ​t​e​n​a​n​t​s​,​ ​c​o​m​p​l​e​x​e​s​,​ ​u​n​i​t​s​,​ ​c​o​n​t​r​a​c​t​s​ ​a​n​d​ ​p​a​y​m​e​n​t​s​ ​—​ ​t​o​ ​o​n​e​ ​w​o​r​k​b​o​o​k​,​ ​o​r​ ​r​e​a​d​ ​o​n​e​ ​b​a​c​k​ ​i​n​.​ ​r​e​c​o​r​d​s​ ​n​a​m​e​ ​e​a​c​h​ ​o​t​h​e​r​ ​b​y​ ​n​a​m​e​ ​r​a​t​h​e​r​ ​t​h​a​n​ ​b​y​ ​n​u​m​b​e​r​,​ ​s​o​ ​a​ ​f​i​l​e​ ​o​p​e​n​s​ ​o​n​ ​a​n​y​ ​m​a​c​h​i​n​e​.
 		 */
 		transferDescription: string
-		/**
-		 * w​o​r​k​s​p​a​c​e
-		 */
-		title: string
 	}
 }
 
 export type TranslationFunctions = {
-	account: {
-		/**
-		 * signed in as
-		 */
-		groupIdentity: () => LocalizedString
-		password: {
-			/**
-			 * password
-			 */
-			title: () => LocalizedString
-			/**
-			 * the password that unlocks your place in the organization, on every machine you sign in from.
-			 */
-			description: () => LocalizedString
-			/**
-			 * current password
-			 */
-			currentLabel: () => LocalizedString
-			/**
-			 * new password
-			 */
-			nextLabel: () => LocalizedString
-			/**
-			 * new password, again
-			 */
-			confirmLabel: () => LocalizedString
-			/**
-			 * the two do not match.
-			 */
-			mismatch: () => LocalizedString
-			/**
-			 * change password
-			 */
-			change: () => LocalizedString
-			/**
-			 * your password was changed.
-			 */
-			changed: () => LocalizedString
-		}
-		sessions: {
-			/**
-			 * other machines
-			 */
-			title: () => LocalizedString
-			/**
-			 * sign out everywhere you are still signed in but here. your password does not change, so you can sign in again on any of them.
-			 */
-			description: () => LocalizedString
-			/**
-			 * sign out of other machines
-			 */
-			action: () => LocalizedString
-			/**
-			 * every other machine signed in as you is signed out: one that is running goes back to the sign-in screen within a few minutes, and one that is closed asks for your password next time it opens. this machine stays signed in and your password is unchanged.
-			 */
-			confirmDescription: () => LocalizedString
-			/**
-			 * your other machines were signed out.
-			 */
-			ended: () => LocalizedString
-		}
-		/**
-		 * account
-		 */
-		title: () => LocalizedString
-	}
 	app: {
 		/**
 		 * rentable
@@ -3105,10 +2902,6 @@ export type TranslationFunctions = {
 			 */
 			connect: () => LocalizedString
 			/**
-			 * connecting...
-			 */
-			connecting: () => LocalizedString
-			/**
 			 * copy details
 			 */
 			copyDetails: () => LocalizedString
@@ -3136,10 +2929,6 @@ export type TranslationFunctions = {
 			 * deleting...
 			 */
 			deleting: () => LocalizedString
-			/**
-			 * disconnect
-			 */
-			disconnect: () => LocalizedString
 			/**
 			 * download & install
 			 */
@@ -3257,6 +3046,10 @@ export type TranslationFunctions = {
 			 */
 			selectRecords: () => LocalizedString
 			/**
+			 * sign in
+			 */
+			signIn: () => LocalizedString
+			/**
 			 * sign out
 			 */
 			signOut: () => LocalizedString
@@ -3264,10 +3057,6 @@ export type TranslationFunctions = {
 			 * sort by
 			 */
 			sortBy: () => LocalizedString
-			/**
-			 * syncing...
-			 */
-			syncing: () => LocalizedString
 			/**
 			 * sync
 			 */
@@ -3749,10 +3538,6 @@ export type TranslationFunctions = {
 			 */
 			dashboard: () => LocalizedString
 			/**
-			 * organization
-			 */
-			organization: () => LocalizedString
-			/**
 			 * payments
 			 */
 			payments: () => LocalizedString
@@ -4183,15 +3968,7 @@ export type TranslationFunctions = {
 		}
 		accountMenu: {
 			/**
-			 * account
-			 */
-			label: () => LocalizedString
-			/**
-			 * sign-in
-			 */
-			signIn: () => LocalizedString
-			/**
-			 * sign-in
+			 * not signed in
 			 */
 			signedOutHint: () => LocalizedString
 			/**
@@ -4213,10 +3990,6 @@ export type TranslationFunctions = {
 			 */
 			locked: () => LocalizedString
 			/**
-			 * settings
-			 */
-			settings: () => LocalizedString
-			/**
 			 * {count|number} member(s)
 			 */
 			members: (arg: { count: unknown }) => LocalizedString
@@ -4237,7 +4010,7 @@ export type TranslationFunctions = {
 			 */
 			workspaceRefusedOwner: () => LocalizedString
 			/**
-			 * creating a workspace needs the turso account, and this machine is not connected to it. reconnect it on the organization page.
+			 * creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the sync section of settings.
 			 */
 			workspaceRefusedAuthority: () => LocalizedString
 		}
@@ -4281,7 +4054,7 @@ export type TranslationFunctions = {
 			 */
 			noOrganizationDescription: () => LocalizedString
 			/**
-			 * your password unlocks your place in the organization, on this machine, with or without a connection.
+			 * your password signs you in to the organization, on this machine, with or without a connection.
 			 */
 			organizationDescription: () => LocalizedString
 			/**
@@ -4297,11 +4070,7 @@ export type TranslationFunctions = {
 			 */
 			password: () => LocalizedString
 			/**
-			 * unlock
-			 */
-			unlock: () => LocalizedString
-			/**
-			 * unlocking your place in the organization. this takes a moment on purpose.
+			 * signing you in. this takes a moment on purpose.
 			 */
 			unlocking: () => LocalizedString
 			/**
@@ -4341,15 +4110,11 @@ export type TranslationFunctions = {
 			 */
 			disconnectDescription: () => LocalizedString
 			/**
-			 * Login
+			 * welcome back
 			 */
 			title: () => LocalizedString
 		}
 		startup: {
-			/**
-			 * no workspace profiles are available yet.
-			 */
-			accountChoiceEmpty: () => LocalizedString
 			/**
 			 * upgrading to
 			 */
@@ -4462,25 +4227,9 @@ export type TranslationFunctions = {
 	}
 	settings: {
 		/**
-		 * this machine is signed in as the account below. signing out closes the workspace on this machine only — it stays where it is, and signing back in opens it again.
-		 */
-		accountDescription: () => LocalizedString
-		/**
-		 * about
-		 */
-		aboutTitle: () => LocalizedString
-		/**
-		 * created {value}
-		 */
-		createdAt: (arg: { value: unknown }) => LocalizedString
-		/**
 		 * rentable keeps a record of what it does on this machine, so a failure can be looked into afterwards. the files never leave this machine, they are limited in size, and passwords and account tokens are removed before anything is written.
 		 */
 		diagnosticsDescription: () => LocalizedString
-		/**
-		 * log location
-		 */
-		diagnosticsLocationLabel: () => LocalizedString
 		/**
 		 * open log folder
 		 */
@@ -4502,18 +4251,6 @@ export type TranslationFunctions = {
 		 */
 		endingSoonTitle: () => LocalizedString
 		/**
-		 * diagnostics
-		 */
-		groupDiagnostics: () => LocalizedString
-		/**
-		 * general
-		 */
-		groupGeneral: () => LocalizedString
-		/**
-		 * updates
-		 */
-		groupUpdates: () => LocalizedString
-		/**
 		 * you're already on the latest release.
 		 */
 		latestRelease: () => LocalizedString
@@ -4521,10 +4258,6 @@ export type TranslationFunctions = {
 		 * settings are unavailable right now
 		 */
 		loadErrorTitle: () => LocalizedString
-		/**
-		 * open workspace
-		 */
-		openWorkspaceAction: () => LocalizedString
 		/**
 		 * import a workspace
 		 */
@@ -4538,21 +4271,9 @@ export type TranslationFunctions = {
 		 */
 		restartNotice: () => LocalizedString
 		/**
-		 * leave this empty to use the default path above. saving reconnects immediately, and startup opens the selected database path.
-		 */
-		pathOverrideDescription: () => LocalizedString
-		/**
-		 * leave empty to use the default database path
-		 */
-		pathOverridePlaceholder: () => LocalizedString
-		/**
 		 * the interface changes as soon as you pick one.
 		 */
 		localeDescription: () => LocalizedString
-		/**
-		 * display language
-		 */
-		localeLabel: () => LocalizedString
 		/**
 		 * language
 		 */
@@ -4599,14 +4320,68 @@ export type TranslationFunctions = {
 		 * check whether a newer version of rentable is available, and install it. if the app will not start afterwards, it offers to put back the version you were on.
 		 */
 		updatesDescription: () => LocalizedString
-		/**
-		 * the app is currently using a custom database path override.
-		 */
-		usingCustomDatabasePath: () => LocalizedString
-		/**
-		 * the app is currently using the default database path.
-		 */
-		usingDefaultDatabasePath: () => LocalizedString
+		you: {
+			/**
+			 * signed in as
+			 */
+			signedInAs: () => LocalizedString
+			password: {
+				/**
+				 * password
+				 */
+				title: () => LocalizedString
+				/**
+				 * the password you sign in with, on every machine.
+				 */
+				description: () => LocalizedString
+				/**
+				 * current password
+				 */
+				currentLabel: () => LocalizedString
+				/**
+				 * new password
+				 */
+				nextLabel: () => LocalizedString
+				/**
+				 * new password, again
+				 */
+				confirmLabel: () => LocalizedString
+				/**
+				 * the two do not match.
+				 */
+				mismatch: () => LocalizedString
+				/**
+				 * change password
+				 */
+				change: () => LocalizedString
+				/**
+				 * your password was changed.
+				 */
+				changed: () => LocalizedString
+			}
+			sessions: {
+				/**
+				 * other machines
+				 */
+				title: () => LocalizedString
+				/**
+				 * sign out everywhere you are still signed in but here. your password does not change, so you can sign in again on any of them.
+				 */
+				description: () => LocalizedString
+				/**
+				 * sign out of other machines
+				 */
+				action: () => LocalizedString
+				/**
+				 * every other machine signed in as you is signed out: one that is running goes back to the sign-in screen within a few minutes, and one that is closed asks for your password next time it opens. this machine stays signed in and your password is unchanged.
+				 */
+				confirmDescription: () => LocalizedString
+				/**
+				 * your other machines were signed out.
+				 */
+				ended: () => LocalizedString
+			}
+		}
 	}
 	complexes: {
 		hooks: {
@@ -5216,40 +4991,16 @@ export type TranslationFunctions = {
 	}
 	settingsHooks: {
 		/**
-		 * database path reset to default successfully!
-		 */
-		databasePathReset: () => LocalizedString
-		/**
-		 * database path updated successfully!
-		 */
-		databasePathUpdated: () => LocalizedString
-		/**
 		 * ending soon notice window updated successfully!
 		 */
 		endingSoonUpdated: () => LocalizedString
 		/**
-		 * workspace switched successfully!
-		 */
-		profileSwitched: () => LocalizedString
-		/**
 		 * this workspace is up to date!
 		 */
 		workspaceUpToDate: () => LocalizedString
-		/**
-		 * startup recovery cleared. retrying the current version is now allowed.
-		 */
-		startupRecoveryCleared: () => LocalizedString
 	}
 	organization: {
 		setup: {
-			/**
-			 * set up an organization
-			 */
-			setupTitle: () => LocalizedString
-			/**
-			 * rentable runs on a turso account you own. your records live there, and nowhere of ours.
-			 */
-			setupDescription: () => LocalizedString
 			/**
 			 * connect your turso account
 			 */
@@ -5421,7 +5172,7 @@ export type TranslationFunctions = {
 			 */
 			passwordTitle: () => LocalizedString
 			/**
-			 * your password opens your place in the organization, on this machine and on any other you sign in from. nobody can recover it for you; a new link is the only way back.
+			 * your password signs you in, on this machine and on any other. nobody can recover it for you; a new link is the only way back.
 			 */
 			passwordDescription: () => LocalizedString
 			/**
@@ -5467,19 +5218,11 @@ export type TranslationFunctions = {
 		}
 		dashboard: {
 			/**
-			 * members
-			 */
-			members: () => LocalizedString
-			/**
-			 * workspaces
-			 */
-			workspaces: () => LocalizedString
-			/**
 			 * invite somebody
 			 */
 			inviteTitle: () => LocalizedString
 			/**
-			 * an invitation makes their account in the organization: a username, a role and the workspaces they hold, each at full access or read only. you hand them the link yourself.
+			 * an invitation makes somebody a member: a username, a role and the workspaces they hold, each at full access or read only. you hand them the link yourself.
 			 */
 			inviteDescription: () => LocalizedString
 			/**
@@ -5511,7 +5254,7 @@ export type TranslationFunctions = {
 			 */
 			codeTitle: () => LocalizedString
 			/**
-			 * read this out on a call or in person. it is the other half of what opens their place, so it is never sent beside the link.
+			 * read this out on a call or in person. it is the other half of what the link needs, so it is never sent beside it.
 			 */
 			codeDescription: () => LocalizedString
 			/**
@@ -5587,7 +5330,7 @@ export type TranslationFunctions = {
 			 */
 			linkTitle: () => LocalizedString
 			/**
-			 * the link connects another machine to this organization; with a username and a password, it is the way in. it carries a read-only view of the directory, so share it the way you would a password.
+			 * the link connects another machine to this organization; with a username and a password, it is the way in. it carries a read only view of the directory, so share it the way you would a password.
 			 */
 			linkDescription: () => LocalizedString
 			/**
@@ -5766,37 +5509,25 @@ export type TranslationFunctions = {
 			 * this machine no longer holds the organization.
 			 */
 			disconnected: () => LocalizedString
+			/**
+			 * this machine holds a token for the turso account your organization lives on. forgetting it here means nothing on this machine reaches that account afterwards.
+			 */
+			forgetAccountDescription: () => LocalizedString
+			/**
+			 * forgetting the token does not revoke it. what you granted stays granted until you end it yourself, on turso's own dashboard at app.turso.tech.
+			 */
+			forgetAccountRevokes: () => LocalizedString
+			/**
+			 * app.turso.tech
+			 */
+			forgetAccountRevokesAt: () => LocalizedString
+			/**
+			 * this machine no longer holds a token for your turso account.
+			 */
+			accountForgotten: () => LocalizedString
 		}
-		/**
-		 * disconnect
-		 */
-		disconnectAction: () => LocalizedString
-		/**
-		 * this machine holds a token for the turso account your organization lives on. disconnecting forgets it here, and nothing on this machine can reach that account afterwards.
-		 */
-		disconnectDescription: () => LocalizedString
-		/**
-		 * forgetting the token does not revoke it. what you granted stays granted until you end it yourself, on turso's own dashboard at app.turso.tech.
-		 */
-		disconnectRevokes: () => LocalizedString
-		/**
-		 * app.turso.tech
-		 */
-		disconnectRevokesAt: () => LocalizedString
-		/**
-		 * this machine no longer holds a token for your turso account.
-		 */
-		disconnected: () => LocalizedString
 	}
 	workspace: {
-		/**
-		 * sync
-		 */
-		groupSync: () => LocalizedString
-		/**
-		 * export / import
-		 */
-		groupTransfer: () => LocalizedString
 		/**
 		 * that name is too long.
 		 */
@@ -5830,7 +5561,7 @@ export type TranslationFunctions = {
 		 */
 		syncStatusSynced: () => LocalizedString
 		/**
-		 * account needs attention
+		 * turso account needs attention
 		 */
 		syncStatusAccountRefused: () => LocalizedString
 		/**
@@ -5857,10 +5588,6 @@ export type TranslationFunctions = {
 		 * write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.
 		 */
 		transferDescription: () => LocalizedString
-		/**
-		 * workspace
-		 */
-		title: () => LocalizedString
 	}
 }
 

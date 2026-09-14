@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CODE_LENGTH, normalizeCode, type JoinStep } from '$lib/organization/join';
+	import { CODE_LENGTH, normalizeCode, type JoinStep } from '$lib/organization/connect';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';

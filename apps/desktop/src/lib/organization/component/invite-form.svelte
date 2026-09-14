@@ -382,7 +382,7 @@
 			</Field.Field>
 
 			<Field.Set>
-				<Field.Legend>{$LL.organization.dashboard.workspaces()}</Field.Legend>
+				<Field.Legend>{$LL.settings.section.workspaces()}</Field.Legend>
 				{#if workspaces.length === 0}
 					<Field.Description>{$LL.organization.dashboard.noWorkspaceToGrant()}</Field.Description>
 				{/if}

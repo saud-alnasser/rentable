@@ -42,6 +42,13 @@ joined one or more organizations; a _member_ is signed in to one of them or nobo
 issued by anybody: what the password opens is what the member holds.
 _Avoid_: "account", which was Google's row until the retirement. The organization and the member
 are the two things a person is signed in as.
+*Corrected 2026-09-14 ([[efforts/826-the-organization-and-the-way-in-are-rethought/spec]],
+requirements 12, 18 and 22): a password signs a member in once per machine; the derived key is
+then remembered in the keyring and every later launch resumes on it, until the member signs out
+here, is signed out from another machine, or the machine is disconnected. `sign in` and `sign
+out` are the member; `connect` and `disconnect` are the machine and the organization; `connect
+Turso account` and `forget Turso account` are the owner's consent, and the Turso account is the
+only thing called an account.*
 
 **Credential**:
 The Turso token a replica syncs with. Sealed to the member's public key on a `grant` row in the
@@ -107,7 +114,10 @@ sentence from both.
 - **Credentials belong in Rust and never cross the IPC boundary.** The consent's OAuth is Rust's,
   the `state`, the PKCE verifier and the code exchange never leave the process, and what a caller
   can ask for is an outcome rather than a step of the protocol. What a vault holds never crosses
-  either; [[rules/credentials]], under *Client boundary*.
+  either; [[rules/credentials]], under *Client boundary*. *2026-09-14: the remembered member key
+  is a keyring entry Rust alone reads and writes, and the replicate the sync heartbeat dispatches
+  pulls the organization replica first and ends a session whose epoch the row has moved past,
+  answering a standing the wall reads.*
 - **A flow is one command, and the interface observes it rather than sequencing it.** The caller
   asks to sign in, join, or restore and gets back the state that resulted; it does not open a
   session, poll it, redeem a code and hold the pieces in between. A flow outstanding for as long

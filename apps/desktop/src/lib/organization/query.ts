@@ -105,7 +105,7 @@ export function useReconnectAuthority(
 export function useDisconnect(
 	opts: MutationOptions = {
 		toast: {
-			success: () => get(LL).organization.disconnected(),
+			success: () => get(LL).organization.dashboard.accountForgotten(),
 			error: true,
 			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
@@ -395,7 +395,7 @@ export function useRevokeInvitation(
 export function useChangePassword(
 	opts: MutationOptions = {
 		toast: {
-			success: () => get(LL).account.password.changed(),
+			success: () => get(LL).settings.you.password.changed(),
 			error: true,
 			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
@@ -420,7 +420,7 @@ export function useChangePassword(
 export function useEndOtherSessions(
 	opts: MutationOptions = {
 		toast: {
-			success: () => get(LL).account.sessions.ended(),
+			success: () => get(LL).settings.you.sessions.ended(),
 			error: true,
 			unexpected: () => get(LL).common.messages.unexpectedError()
 		}

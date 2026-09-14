@@ -6,7 +6,7 @@
 	import { toErrorText } from '$lib/error/message';
 	import { THE_WAY_IN } from '$lib/layout/shell-surface';
 	import { useStartup } from '$lib/layout/startup-context';
-	import OrganizationJoinScreen from '$lib/organization/component/join-screen.svelte';
+	import OrganizationConnectScreen from '$lib/organization/component/connect-screen.svelte';
 	import {
 		afterConnect,
 		beginWith,
@@ -16,14 +16,14 @@
 		takeArrivingLink,
 		THE_WALL,
 		type JoinStep
-	} from '$lib/organization/join';
+	} from '$lib/organization/connect';
 	import { onMount } from 'svelte';
 
 	/**
 	 * The connect screen's address, and the one that wires it to the shell.
 	 *
-	 * The screen is `organization/component/join-screen.svelte`, drawn from props, and its steps
-	 * are `organization/join.ts`, driven without a window. What is here is the three calls that
+	 * The screen is `organization/component/connect-screen.svelte`, drawn from props, and its steps
+	 * are `organization/connect.ts`, driven without a window. What is here is the three calls that
 	 * reach Rust, and what follows each: the way in, and the startup unit reading where the machine
 	 * stands again, which raises the wall for an organization link and enters the application for
 	 * an invitation that was accepted. It opens with nobody signed in, which
@@ -136,7 +136,7 @@
 	});
 </script>
 
-<OrganizationJoinScreen
+<OrganizationConnectScreen
 	{step}
 	onConnect={open}
 	onJoin={(link, code, password) => void join(link, code, password)}

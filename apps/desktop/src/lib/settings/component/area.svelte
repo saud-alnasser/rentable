@@ -197,18 +197,18 @@
 	{:else if shown === 'you' && session}
 		<Field.Group>
 			<Field.Set>
-				<Field.Legend>{$LL.account.groupIdentity()}</Field.Legend>
+				<Field.Legend>{$LL.settings.you.signedInAs()}</Field.Legend>
 				<OrganizationIdentity {session} />
 			</Field.Set>
 
 			<Separator />
 
 			<Field.Set>
-				<Field.Legend>{$LL.account.password.title()}</Field.Legend>
-				<Field.Description>{$LL.account.password.description()}</Field.Description>
+				<Field.Legend>{$LL.settings.you.password.title()}</Field.Legend>
+				<Field.Description>{$LL.settings.you.password.description()}</Field.Description>
 				<OrganizationChangePasswordForm
 					bind:this={changePasswordForm}
-					currentLabel={$LL.account.password.currentLabel()}
+					currentLabel={$LL.settings.you.password.currentLabel()}
 					isChanging={isChangingPassword}
 					errorMessage={null}
 					onChange={(current, next) => void changePassword(current, next)}
@@ -218,7 +218,7 @@
 			<Separator />
 
 			<Field.Set>
-				<Field.Legend>{$LL.account.sessions.title()}</Field.Legend>
+				<Field.Legend>{$LL.settings.you.sessions.title()}</Field.Legend>
 				<OrganizationEndOtherSessions
 					organizationName={session.organizationName}
 					{onEndOtherSessions}
@@ -228,7 +228,7 @@
 	{:else if shown === 'members' && session}
 		<Field.Group>
 			<Field.Set>
-				<Field.Legend>{$LL.organization.dashboard.members()}</Field.Legend>
+				<Field.Legend>{$LL.settings.section.members()}</Field.Legend>
 				<OrganizationMembers
 					{members}
 					workspaces={session.workspaces}

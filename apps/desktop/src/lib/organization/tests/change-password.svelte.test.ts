@@ -40,7 +40,7 @@ test('the form asks for the current password and the new one twice, and nothing 
 		'confirmation'
 	]);
 	expect(inputs.every((input) => input.type === 'password')).toBe(true);
-	expect(screen.getByRole('button', { name: en.account.password.change })).toBeDefined();
+	expect(screen.getByRole('button', { name: en.settings.you.password.change })).toBeDefined();
 });
 
 // criterion: the interface says why the floor exists rather than showing a meter. The sentence is
@@ -78,13 +78,13 @@ test('and in arabic, with the same three fields', () => {
 	loadLocale('ar');
 	setLocale('ar');
 	render(ChangePasswordForm, {
-		currentLabel: ar.account.password.currentLabel,
+		currentLabel: ar.settings.you.password.currentLabel,
 		isChanging: false,
 		errorMessage: null,
 		onChange: noop
 	});
 
-	expect(screen.getByText(ar.account.password.currentLabel)).toBeDefined();
+	expect(screen.getByText(ar.settings.you.password.currentLabel)).toBeDefined();
 	expect(screen.getByText(ar.organization.setup.passwordFloor)).toBeDefined();
 	expect(inputsOnScreen()).toHaveLength(3);
 });
@@ -102,7 +102,7 @@ test('the change button carries its verb, and each password field leads with a m
 		onChange: noop
 	});
 
-	const change = screen.getByRole('button', { name: en.account.password.change });
+	const change = screen.getByRole('button', { name: en.settings.you.password.change });
 
 	expect(change.querySelector('svg')).not.toBeNull();
 

@@ -13,7 +13,7 @@ import type {
 import { procedure, router } from '$lib/api/trpc';
 import z from 'zod';
 
-import { CODE_LENGTH } from './join';
+import { CODE_LENGTH } from './connect';
 import { ORGANIZATION_NAME_LIMIT, PASSWORD_FLOOR } from './setup';
 import { USERNAME_MAX, USERNAME_MIN, USERNAME_PATTERN } from './username-form';
 
