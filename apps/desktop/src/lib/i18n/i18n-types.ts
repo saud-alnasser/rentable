@@ -53,6 +53,28 @@ type RootTranslation = {
 			 */
 			changed: string
 		}
+		sessions: {
+			/**
+			 * o​t​h​e​r​ ​m​a​c​h​i​n​e​s
+			 */
+			title: string
+			/**
+			 * s​i​g​n​ ​o​u​t​ ​e​v​e​r​y​w​h​e​r​e​ ​y​o​u​ ​a​r​e​ ​s​t​i​l​l​ ​s​i​g​n​e​d​ ​i​n​ ​b​u​t​ ​h​e​r​e​.​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​d​o​e​s​ ​n​o​t​ ​c​h​a​n​g​e​,​ ​s​o​ ​y​o​u​ ​c​a​n​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​o​n​ ​a​n​y​ ​o​f​ ​t​h​e​m​.
+			 */
+			description: string
+			/**
+			 * s​i​g​n​ ​o​u​t​ ​o​f​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s
+			 */
+			action: string
+			/**
+			 * e​v​e​r​y​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​s​i​g​n​e​d​ ​i​n​ ​a​s​ ​y​o​u​ ​i​s​ ​s​i​g​n​e​d​ ​o​u​t​:​ ​o​n​e​ ​t​h​a​t​ ​i​s​ ​r​u​n​n​i​n​g​ ​g​o​e​s​ ​b​a​c​k​ ​t​o​ ​t​h​e​ ​s​i​g​n​-​i​n​ ​s​c​r​e​e​n​ ​w​i​t​h​i​n​ ​a​ ​f​e​w​ ​m​i​n​u​t​e​s​,​ ​a​n​d​ ​o​n​e​ ​t​h​a​t​ ​i​s​ ​c​l​o​s​e​d​ ​a​s​k​s​ ​f​o​r​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​n​e​x​t​ ​t​i​m​e​ ​i​t​ ​o​p​e​n​s​.​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​s​t​a​y​s​ ​s​i​g​n​e​d​ ​i​n​ ​a​n​d​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​u​n​c​h​a​n​g​e​d​.
+			 */
+			confirmDescription: string
+			/**
+			 * y​o​u​r​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s​ ​w​e​r​e​ ​s​i​g​n​e​d​ ​o​u​t​.
+			 */
+			ended: string
+		}
 		/**
 		 * a​c​c​o​u​n​t
 		 */
@@ -1376,6 +1398,10 @@ type RootTranslation = {
 			 */
 			connectByLink: string
 			/**
+			 * y​o​u​ ​w​e​r​e​ ​s​i​g​n​e​d​ ​o​u​t​ ​o​f​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​f​r​o​m​ ​a​n​o​t​h​e​r​ ​o​n​e​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​t​o​ ​c​a​r​r​y​ ​o​n​.
+			 */
+			signedOutElsewhere: string
+			/**
 			 * u​s​e​ ​a​ ​l​i​n​k
 			 */
 			useALink: string
@@ -2607,6 +2633,14 @@ type RootTranslation = {
 			 */
 			newLink: string
 			/**
+			 * s​i​g​n​ ​o​u​t​ ​e​v​e​r​y​w​h​e​r​e
+			 */
+			endSessions: string
+			/**
+			 * t​h​e​y​ ​w​e​r​e​ ​s​i​g​n​e​d​ ​o​u​t​ ​o​f​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​.
+			 */
+			sessionsEnded: string
+			/**
 			 * c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​a​g​a​i​n
 			 */
 			copyLink: string
@@ -2961,6 +2995,28 @@ export type TranslationFunctions = {
 			 * your password was changed.
 			 */
 			changed: () => LocalizedString
+		}
+		sessions: {
+			/**
+			 * other machines
+			 */
+			title: () => LocalizedString
+			/**
+			 * sign out everywhere you are still signed in but here. your password does not change, so you can sign in again on any of them.
+			 */
+			description: () => LocalizedString
+			/**
+			 * sign out of other machines
+			 */
+			action: () => LocalizedString
+			/**
+			 * every other machine signed in as you is signed out: one that is running goes back to the sign-in screen within a few minutes, and one that is closed asks for your password next time it opens. this machine stays signed in and your password is unchanged.
+			 */
+			confirmDescription: () => LocalizedString
+			/**
+			 * your other machines were signed out.
+			 */
+			ended: () => LocalizedString
 		}
 		/**
 		 * account
@@ -4228,6 +4284,10 @@ export type TranslationFunctions = {
 			 */
 			connectByLink: () => LocalizedString
 			/**
+			 * you were signed out of this machine from another one. sign in again to carry on.
+			 */
+			signedOutElsewhere: () => LocalizedString
+			/**
 			 * use a link
 			 */
 			useALink: () => LocalizedString
@@ -5409,6 +5469,14 @@ export type TranslationFunctions = {
 			 * new link
 			 */
 			newLink: () => LocalizedString
+			/**
+			 * sign out everywhere
+			 */
+			endSessions: () => LocalizedString
+			/**
+			 * they were signed out of every machine.
+			 */
+			sessionsEnded: () => LocalizedString
 			/**
 			 * copy the link again
 			 */

@@ -126,6 +126,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			disconnect: refuse('organization.disconnect'),
 			signIn: refuse('organization.signIn'),
 			signOut: refuse('organization.signOut'),
+			sessionEndElsewhere: refuse('organization.sessionEndElsewhere'),
 			linkTake: refuse('organization.linkTake'),
 			onLink: refuse('organization.onLink'),
 			onMigration: refuse('organization.onMigration'),
@@ -148,7 +149,8 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 				remove: refuse('organization.member.remove'),
 				lockOutCost: refuse('organization.member.lockOutCost'),
 				rename: refuse('organization.member.rename'),
-				changeRole: refuse('organization.member.changeRole')
+				changeRole: refuse('organization.member.changeRole'),
+				endSessions: refuse('organization.member.endSessions')
 			},
 			invitation: {
 				revoke: refuse('organization.invitation.revoke'),
@@ -224,6 +226,7 @@ export function fakeOrganizationState(
 		organization: fakeHeldOrganization(),
 		session: fakeOrganizationSession(),
 		holdsTursoAuthority: true,
+		signedOutElsewhere: false,
 		...overrides
 	};
 }

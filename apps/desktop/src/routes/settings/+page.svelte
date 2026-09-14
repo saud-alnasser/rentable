@@ -18,6 +18,8 @@
 		useChangeRole,
 		useDeleteWorkspace,
 		useDisconnectOrganization,
+		useEndMemberSessions,
+		useEndOtherSessions,
 		useFetchMembers,
 		useFetchOrganizationState,
 		useGrantWorkspace,
@@ -73,6 +75,8 @@
 	const withdrawGrant = useWithdrawGrant();
 	const deleteWorkspace = useDeleteWorkspace();
 	const disconnectOrganization = useDisconnectOrganization();
+	const endOtherSessions = useEndOtherSessions();
+	const endMemberSessions = useEndMemberSessions();
 
 	const isLoading = $derived(settingsQuery.isLoading && !settingsQuery.data);
 	const loadError = $derived(
@@ -160,6 +164,26 @@
 	let reissuing = $state<string | null>(null);
 	let revoking = $state<string | null>(null);
 	let copying = $state<string | null>(null);
+	let endingSessions = $state<string | null>(null);
+
+	/**
+	 * sign a member out of every machine, from their row.
+	 *
+	 * It runs on the press, as the new link beside it does: the row's actions act, and the one
+	 * question this effort asks before ending sessions is the reader's own, in the you section,
+	 * where what is at stake is the machines they are not standing at.
+	 */
+	const endSessions = async (memberId: string) => {
+		endingSessions = memberId;
+
+		try {
+			await endMemberSessions.mutateAsync({ memberId });
+		} catch {
+			// said by the shared handler.
+		} finally {
+			endingSessions = null;
+		}
+	};
 
 	const reissue = async (memberId: string) => {
 		reissuing = memberId;
@@ -313,6 +337,7 @@
 		{reissuing}
 		{revoking}
 		{copying}
+		{endingSessions}
 		isChangingPassword={changePassword.isPending}
 		isChangingRole={changeRole.isPending}
 		isChangingAccess={grantWorkspace.isPending || withdrawGrant.isPending}
@@ -321,6 +346,10 @@
 		onChangePassword={async (current, next) => {
 			await changePassword.mutateAsync({ current, next });
 		}}
+		onEndOtherSessions={async () => {
+			await endOtherSessions.mutateAsync();
+		}}
+		onEndSessions={(memberId) => void endSessions(memberId)}
 		onReissue={(memberId) => void reissue(memberId)}
 		onRevoke={(invitationId) => void revoke(invitationId)}
 		onCopyLink={(invitationId, username) => void copyLink(invitationId, username)}

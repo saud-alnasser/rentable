@@ -282,7 +282,12 @@ pub async fn accept(
     // this machine stays signed in from here, on the key the password they just chose derives
     // (effort 826, requirement 12). Filed after the row is written, so a re-seal that did not
     // land leaves no key behind for a vault it does not open.
-    remember(&held.id, &session.member_id, &member_key);
+    remember(
+        &held.id,
+        &session.member_id,
+        session.session_epoch,
+        &member_key,
+    );
     store.consume_invitation(&invitation.id, now).await?;
 
     if !store.push().await {
@@ -369,10 +374,10 @@ mod tests {
             link::JoinLink,
             migrate::Pipeline,
             permission,
-            session::{CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, sign_in},
+            session::{CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, read_entry, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::OrganizationStore,
-            vault::{KdfParams, MemberKey, open_sealed_secret_key},
+            vault::{KdfParams, open_sealed_secret_key},
             workspace::create_workspace,
         },
         persisted::Persisted,
@@ -1362,6 +1367,7 @@ mod tests {
             organization: Arc::new(RwLock::new(None)),
             member: Arc::new(RwLock::new(None)),
             arriving_link: Arc::new(Mutex::new(None)),
+            signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             old_shape_check: tokio::sync::OnceCell::new(),
         }
     }
@@ -1749,7 +1755,7 @@ mod tests {
         )
         .expect("the store would not answer")
         .expect("the accept filed no key");
-        let key = MemberKey::decode(&filed).expect("what was filed is not a key");
+        let (_, key) = read_entry(&filed).expect("what was filed is not a remembered session");
         let rows = store
             .members(&owner.verifying_key)
             .await

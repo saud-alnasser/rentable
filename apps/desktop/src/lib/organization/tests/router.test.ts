@@ -233,6 +233,7 @@ test('nothing here asks the host to list organizations', () => {
 		'invitation.link',
 		'invitation.revoke',
 		'member.changeRole',
+		'member.endSessions',
 		'member.invite',
 		'member.list',
 		'member.lockOutCost',
@@ -240,6 +241,7 @@ test('nothing here asks the host to list organizations', () => {
 		'member.rename',
 		'member.reset',
 		'password.change',
+		'session.endElsewhere',
 		'workspace.create',
 		'workspace.grant',
 		'workspace.open',
@@ -306,6 +308,51 @@ async function permittedApi(host: Host, ...acts: Administration[]) {
 
 	return caller(appRouter)(ctx);
 }
+
+// effort 826, requirement 22: ending a member's sessions is `resetPassword`'s, and ending the
+// reader's own on their other machines is any signed-in member's. What each refuses on the row
+// itself, the caller's own and the owner's, is Rust's.
+test('ending sessions reaches the host behind reset password, and ending your own needs only a session', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			sessionEndElsewhere: async () => {
+				asked.push('endElsewhere');
+
+				return fakeOrganizationState();
+			},
+			member: {
+				...fakeHost().organization.member,
+				endSessions: async (memberId) => {
+					asked.push(`endSessions:${memberId}`);
+				}
+			}
+		}
+	});
+
+	const resetting = await permittedApi(host, 'resetPassword');
+
+	await resetting.app.organization.member.endSessions({ memberId: 'member-2' });
+	await resetting.app.organization.session.endElsewhere();
+
+	assert.deepEqual(asked, ['endSessions:member-2', 'endElsewhere']);
+
+	// a member holding no act ends their own sessions and nobody else's.
+	const without = await permittedApi(host);
+
+	await without.app.organization.session.endElsewhere();
+	await assert.rejects(without.app.organization.member.endSessions({ memberId: 'member-2' }));
+
+	assert.deepEqual(asked, ['endSessions:member-2', 'endElsewhere', 'endElsewhere']);
+
+	// and nobody at all ends anything.
+	const signedOut = await signedOutApi(host);
+
+	await assert.rejects(signedOut.app.organization.session.endElsewhere());
+	await assert.rejects(signedOut.app.organization.member.endSessions({ memberId: 'member-2' }));
+	assert.deepEqual(asked, ['endSessions:member-2', 'endElsewhere', 'endElsewhere']);
+});
 
 // requirement 23: a rename is held to requirement 21's rules before the host is reached, and what
 // reaches the host is the trimmed username; a caller without `renameMember` is refused before

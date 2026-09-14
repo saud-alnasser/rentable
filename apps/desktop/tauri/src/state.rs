@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, atomic::AtomicBool};
 use tokio::sync::RwLock;
 
 use crate::{
@@ -38,6 +38,13 @@ pub struct AppState {
     /// yet: the one it was launched with, or one opened before the webview was listening. The
     /// shell takes it once at startup; every later arrival reaches it as an event as well.
     pub arriving_link: Arc<Mutex<Option<String>>>,
+    /// whether the session this machine held was ended from another machine, as the last resume
+    /// or sync heartbeat found it (effort 826, requirement 22).
+    ///
+    /// **A standing rather than an error**: it is what the wall says while it is up, and nothing
+    /// went wrong. Set where the member's row is found to have moved past the session, and
+    /// cleared by the next state read that finds somebody signed in, which is every way back in.
+    pub signed_out_elsewhere: Arc<AtomicBool>,
     /// whether this launch has checked the shape of what the machine holds, which the first
     /// `organization_state_get` does before anything opens the replica
     /// (`organization/forget.rs`). Set once the check has run to completion; a check that

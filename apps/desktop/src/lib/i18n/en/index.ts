@@ -14,6 +14,15 @@ const en = {
 			change: 'change password',
 			changed: 'your password was changed.'
 		},
+		sessions: {
+			title: 'other machines',
+			description:
+				'sign out everywhere you are still signed in but here. your password does not change, so you can sign in again on any of them.',
+			action: 'sign out of other machines',
+			confirmDescription:
+				'every other machine signed in as you is signed out: one that is running goes back to the sign-in screen within a few minutes, and one that is closed asks for your password next time it opens. this machine stays signed in and your password is unchanged.',
+			ended: 'your other machines were signed out.'
+		},
 		title: 'account'
 	},
 
@@ -416,6 +425,8 @@ const en = {
 			roleMember: 'member',
 			setUp: 'create organization',
 			connectByLink: 'connect with link',
+			signedOutElsewhere:
+				'you were signed out of this machine from another one. sign in again to carry on.',
 			useALink: 'use a link',
 			disconnect: 'disconnect this machine',
 			disconnectDescription:
@@ -843,6 +854,8 @@ const en = {
 			invitationExpires: 'the link expires {date:string}',
 			invitationLapsed: 'the link lapsed {date:string}',
 			newLink: 'new link',
+			endSessions: 'sign out everywhere',
+			sessionsEnded: 'they were signed out of every machine.',
 			copyLink: 'copy the link again',
 			rename: 'rename',
 			renameDescription:

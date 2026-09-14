@@ -381,6 +381,7 @@ async fn finish<P: TursoPlatform>(
                 must_change_password: false,
                 created_at: now,
                 updated_at: now,
+                session_epoch: 0,
             },
         )
         .await?;
@@ -426,7 +427,8 @@ async fn finish<P: TursoPlatform>(
 
     // the machine stays signed in as the owner from here (effort 826, requirement 12). After the
     // record is committed, because the entry is read back against what the record names.
-    remember(organization_id, &member_id, &member_key);
+    // the first epoch, the one the owner's row was just written with.
+    remember(organization_id, &member_id, 0, &member_key);
 
     let join_link = JoinLink::new(
         organization_id,

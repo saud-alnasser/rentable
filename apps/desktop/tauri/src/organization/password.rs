@@ -78,7 +78,12 @@ pub async fn change_password(
 
     // the entry this machine stays signed in on, rewritten in the same call: what was filed
     // before this opened the old seal and opens nothing now (effort 826, requirement 12).
-    remember(&session.organization_id, &session.member_id, &member_key);
+    remember(
+        &session.organization_id,
+        &session.member_id,
+        session.session_epoch,
+        &member_key,
+    );
 
     if !store.push().await {
         diagnostics::warn("organization.password.notYetSent")
@@ -114,7 +119,7 @@ mod tests {
             link::JoinLink,
             migrate::Pipeline,
             permission,
-            session::{CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, sign_in},
+            session::{CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, read_entry, sign_in},
             setup::{
                 ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, MINIMUM_PASSWORD_LENGTH,
                 ORGANIZATION_KEY_PURPOSE, Remote, create_organization,
@@ -694,7 +699,7 @@ mod tests {
         let filed = keyring::read(MEMBER_KEY_SERVICE, &account)
             .expect("the store would not answer")
             .expect("the change filed no key");
-        let key = MemberKey::decode(&filed).expect("what was filed is not a key");
+        let (_, key) = read_entry(&filed).expect("what was filed is not a remembered session");
         let row = store
             .members(&owner.verifying_key)
             .await

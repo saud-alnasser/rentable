@@ -25,6 +25,12 @@
 	 * on the shared application surface, which [[rules/interface]] under *Application surfaces*
 	 * requires.
 	 *
+	 * **A machine somebody signed out from another machine reads one line more** (effort 826,
+	 * requirement 22). It is the locked card with a callout above the fields saying what happened,
+	 * because the way back in is the same password and the person is owed the reason: they did not
+	 * sign themselves out, and without the sentence the screen looks like the application losing
+	 * their session. It is drawn as a note rather than as an error, since nothing failed.
+	 *
 	 * **Two situations, and neither is a service's.** A machine that holds no organization has
 	 * nothing to unlock, and is offered the first run. A machine that holds one is its login page:
 	 * it names the organization and asks for a username and a password, which open a vault on this
@@ -76,8 +82,11 @@
 		onSetUpOrganization,
 		onJoinByLink
 	}: {
-		/** which of the two situations this is, from `organizationAdmission`. */
-		situation: 'noOrganization' | 'locked';
+		/**
+		 * which situation this is, from `organizationAdmission`. `signedOutElsewhere` is `locked`
+		 * with the sentence for a session somebody ended from another machine.
+		 */
+		situation: 'noOrganization' | 'locked' | 'signedOutElsewhere';
 		/** what this machine holds, which is what it can unlock; `null` where it holds nothing. */
 		organization: HeldOrganization | null;
 		/** a password is being tried, which is a key derivation the person is waiting on. */
@@ -129,6 +138,14 @@
 	<div class="space-y-4 pt-2" data-sign-in-situation={situation}>
 		{#if errorMessage}
 			<Callout tone="error">{errorMessage}</Callout>
+		{/if}
+
+		{#if situation === 'signedOutElsewhere'}
+			<!-- a note and not an error: nothing failed, and what the person needs is the reason
+			     their session is gone. The way through it is the fields below, unchanged. -->
+			<Callout tone="info" data-sign-in-signed-out-elsewhere>
+				{$LL.layout.signIn.signedOutElsewhere()}
+			</Callout>
 		{/if}
 
 		{#if situation === 'noOrganization'}

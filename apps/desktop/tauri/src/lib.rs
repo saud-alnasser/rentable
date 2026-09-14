@@ -177,6 +177,7 @@ pub fn run() {
                     organization: Arc::new(RwLock::new(None)),
                     member: Arc::new(RwLock::new(None)),
                     arriving_link: Arc::new(Mutex::new(None)),
+                    signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
                     old_shape_check: tokio::sync::OnceCell::new(),
                 });
             });
@@ -255,6 +256,8 @@ pub fn run() {
             organization::member_rename,
             organization::member_remove,
             organization::member_lock_out_cost,
+            organization::member_end_sessions,
+            organization::organization_session_end_elsewhere,
             organization::organization_change_password,
             organization::organization_account_refusal_detail,
             organization::invitation_revoke,

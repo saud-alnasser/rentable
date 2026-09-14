@@ -17,15 +17,17 @@
 //!
 //! **The old shape, and why it is forgotten rather than migrated.** Nothing was published, so a
 //! machine holding what 819 built holds test data of its own, and the human decided on 2026-09-13
-//! to start over rather than carry it. Five signs, any one of which is the old shape: the record
+//! to start over rather than carry it. Six signs, any one of which is the old shape: the record
 //! still carries a non-empty `organizations` list, which is what a machine that had joined
 //! several kept; the held organization's replica file is missing, which is a record with nothing
 //! behind it; that replica's `member` table has no `username_sealed` column, which is the
 //! schema before ticket 09; its `invitation` table has no `sealed_secret` column, which is
 //! every replica written before effort 826 changed what bits 4 and 5 of `member.permissions`
-//! mean; or its `member` table has no `signing_public_key` column, which is every replica
-//! written before the same effort gave an owner something to certify a widened member against.
-//! The last three are a local `PRAGMA table_info`, read before any pull, so an
+//! mean; its `member` table has no `signing_public_key` column, which is every replica
+//! written before the same effort gave an owner something to certify a widened member against;
+//! or its `member` table has no `session_epoch` column, which is every replica written before the
+//! same effort gave a member a run of sessions to be signed out of (requirement 22).
+//! The last four are a local `PRAGMA table_info`, read before any pull, so an
 //! unreachable remote does not stop the check. It runs on the first `organization_state_get` of a
 //! launch, before anything else opens the replica.
 //!
@@ -63,6 +65,10 @@ pub enum OldShape {
     /// 826 put under the member signature; a member row written without it carries a `member.v1`
     /// signature over a preimage no reader here builds, so every row would refuse as forged.
     MemberWithoutSigningKey,
+    /// the held organization's `member` table carries no `session_epoch`, the column effort 826
+    /// added for requirement 22; without it no reader here can say whether a remembered key is
+    /// still this member's run of sessions, and every read of the row would fail on the column.
+    MemberWithoutSessionEpoch,
 }
 
 impl fmt::Display for OldShape {
@@ -86,6 +92,9 @@ impl fmt::Display for OldShape {
                 .write_str("the held organization's invitation table carries no sealed_secret"),
             Self::MemberWithoutSigningKey => formatter
                 .write_str("the held organization's member table carries no signing_public_key"),
+            Self::MemberWithoutSessionEpoch => {
+                formatter.write_str("the held organization's member table carries no session_epoch")
+            }
         }
     }
 }
@@ -105,6 +114,10 @@ const SEALED_SECRET_COLUMN: &str = "sealed_secret";
 /// The column a member has carried since effort 826 put it under the member signature, whose
 /// absence marks a replica whose rows were signed under the `member.v1` preimage.
 const SIGNING_KEY_COLUMN: &str = "signing_public_key";
+
+/// The column a member has carried since effort 826 gave a member a run of sessions to be signed
+/// out of (requirement 22), whose absence marks a replica no read of a member row would survive.
+const SESSION_EPOCH_COLUMN: &str = "session_epoch";
 
 /// Forget the organization this machine holds, whole.
 ///
@@ -244,6 +257,15 @@ async fn old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
         .any(|column| column == SIGNING_KEY_COLUMN)
     {
         return Ok(Some(OldShape::MemberWithoutSigningKey));
+    }
+
+    // the last of them, and the newest column: a replica missing this one alone was written
+    // between the signing key and requirement 22.
+    if !member_columns
+        .iter()
+        .any(|column| column == SESSION_EPOCH_COLUMN)
+    {
+        return Ok(Some(OldShape::MemberWithoutSessionEpoch));
     }
 
     Ok(None)
@@ -403,6 +425,7 @@ mod tests {
             organization: Arc::new(RwLock::new(None)),
             member: Arc::new(RwLock::new(None)),
             arriving_link: Arc::new(Mutex::new(None)),
+            signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             old_shape_check: tokio::sync::OnceCell::new(),
         }
     }
@@ -618,8 +641,9 @@ mod tests {
     /// anything reads it; one whose `invitation` table still carries `sealed_payload` is
     /// forgotten; one written under the six-act permission table, whose `invitation` table carries
     /// no `sealed_secret`, is forgotten; one whose `member` table carries no `signing_public_key`
-    /// is forgotten; one whose replica is not on disk at all is forgotten the same way; and one of
-    /// this build's shape is kept.
+    /// is forgotten; one whose `member` table carries no `session_epoch` is forgotten, which is
+    /// requirement 22's; one whose replica is not on disk at all is forgotten the same way; and
+    /// one of this build's shape is kept.
     #[tokio::test]
     async fn a_replica_of_the_old_schema_or_none_at_all_is_forgotten_at_startup() {
         let _turn = crate::keyring::take_the_credential_store().await;
@@ -790,6 +814,53 @@ mod tests {
                 .await
                 .expect("the check failed"),
             Some(OldShape::MemberWithoutSigningKey)
+        );
+        assert_eq!(replica_files(&directory), Vec::<String>::new());
+        assert!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .store_mut()
+                .organization
+                .is_none()
+        );
+
+        // the shape between the signing key and requirement 22: everything above, and a `member`
+        // table with no `session_epoch`. No read of a member row survives the missing column, so
+        // the machine is forgotten before anything reads one.
+        let directory = scratch("no-session-epoch");
+        let replica =
+            OrganizationStore::replica_path(&directory.join(Database::FILENAME), "noepoch");
+        let store = OrganizationStore::open(&replica, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the replica");
+
+        for statement in [
+            "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"public_key\" BLOB NOT NULL, \"signing_public_key\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS \"invitation\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"member_id\" TEXT NOT NULL, \"expires_at\" INTEGER NOT NULL, \"consumed_at\" INTEGER, \"sealed_secret\" BLOB NOT NULL, \"issued_by\" TEXT NOT NULL, \"certificate_id\" TEXT NOT NULL, \"signature\" BLOB NOT NULL, \"created_at\" INTEGER NOT NULL)",
+            "INSERT INTO \"member\" VALUES ('member-owner', X'00', X'00', X'00', 127)",
+        ] {
+            store
+                .connection()
+                .execute(statement, ())
+                .await
+                .expect("the tables before the session epoch");
+        }
+
+        drop(store);
+        std::fs::write(directory.join(RemoteSync::FILENAME), record("noepoch"))
+            .expect("the record");
+
+        let app_state = state_over(&directory).await;
+
+        assert_eq!(
+            forget_old_shape(&app_state)
+                .await
+                .expect("the check failed"),
+            Some(OldShape::MemberWithoutSessionEpoch)
         );
         assert_eq!(replica_files(&directory), Vec::<String>::new());
         assert!(

@@ -410,6 +410,64 @@ export function useChangePassword(
 }
 
 /**
+ * end the reader's own sessions on every other machine, from the you section (effort 826,
+ * requirement 22).
+ *
+ * **This machine stays signed in**, so there is nothing to invalidate but where the machine
+ * stands: the session the screen is drawn from is the same one, under a number that moved. The
+ * toast is what tells the person it happened, because nothing on screen changes.
+ */
+export function useEndOtherSessions(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).account.sessions.ended(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: () => api.app.organization.session.endElsewhere(),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.state });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * sign a member out of every machine, from their row.
+ *
+ * The refusals a person can act on are the two Rust draws, their own row and the owner's, and
+ * each is shown verbatim. The list is refreshed because the row's `updatedAt` moved, and for the
+ * reason every other act on a row refreshes it: one place reads what a row says.
+ */
+export function useEndMemberSessions(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.sessionsEnded(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ memberId }: { memberId: string }) =>
+			api.app.organization.member.endSessions({ memberId }),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
  * Turso's own sentence about a standing account refusal: the owner's alone, `null` for
  * everybody else, and read only while a refusal stands.
  */

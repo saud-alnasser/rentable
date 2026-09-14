@@ -12,6 +12,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import OrganizationChangePasswordForm from '$lib/organization/component/change-password-form.svelte';
 	import OrganizationDisconnect from '$lib/organization/component/disconnect.svelte';
+	import OrganizationEndOtherSessions from '$lib/organization/component/end-other-sessions.svelte';
 	import OrganizationForgetAccount from '$lib/organization/component/forget-account.svelte';
 	import OrganizationIdentity from '$lib/organization/component/identity.svelte';
 	import OrganizationLink from '$lib/organization/component/organization-link.svelte';
@@ -63,12 +64,15 @@
 		reissuing,
 		revoking,
 		copying,
+		endingSessions,
 		isChangingPassword,
 		isChangingRole,
 		isChangingAccess,
 		onChangeLocale,
 		onRevealDiagnostics,
 		onChangePassword,
+		onEndOtherSessions,
+		onEndSessions,
 		onReissue,
 		onRevoke,
 		onCopyLink,
@@ -98,6 +102,8 @@
 		revoking: string | null;
 		/** the invitation whose link is being read again, while it is. */
 		copying: string | null;
+		/** the member whose sessions are being ended, while they are. */
+		endingSessions: string | null;
 		isChangingPassword: boolean;
 		isChangingRole: boolean;
 		isChangingAccess: boolean;
@@ -105,6 +111,12 @@
 		onRevealDiagnostics: () => void;
 		/** change the reader's own password; rejects with what the shared handler has said. */
 		onChangePassword: (current: string, next: string) => Promise<void>;
+		/**
+		 * sign the reader out of their other machines; rejects so the confirm stays open on it.
+		 */
+		onEndOtherSessions: () => Promise<void>;
+		/** sign a member out of every machine, from their row. */
+		onEndSessions: (memberId: string) => void;
 		onReissue: (memberId: string) => void;
 		onRevoke: (invitationId: string) => void;
 		/** hand a pending member's link over again, for the person who issued it. */
@@ -196,6 +208,16 @@
 					onChange={(current, next) => void changePassword(current, next)}
 				/>
 			</Field.Set>
+
+			<Separator />
+
+			<Field.Set>
+				<Field.Legend>{$LL.account.sessions.title()}</Field.Legend>
+				<OrganizationEndOtherSessions
+					organizationName={session.organizationName}
+					{onEndOtherSessions}
+				/>
+			</Field.Set>
 		</Field.Group>
 	{:else if shown === 'members' && session}
 		<Field.Group>
@@ -216,8 +238,10 @@
 					{reissuing}
 					{revoking}
 					{copying}
+					{endingSessions}
 					{isChangingRole}
 					{isChangingAccess}
+					{onEndSessions}
 					{onReissue}
 					{onRevoke}
 					{onCopyLink}

@@ -28,7 +28,8 @@ export const locked = () => fakeOrganizationState({ session: null });
 export const nowhereToGo = (): OrganizationState => ({
 	organization: null,
 	session: null,
-	holdsTursoAuthority: false
+	holdsTursoAuthority: false,
+	signedOutElsewhere: false
 });
 /** a machine whose person is admitted to an organization with no workspace in it yet. */
 export const withoutWorkspace = () =>

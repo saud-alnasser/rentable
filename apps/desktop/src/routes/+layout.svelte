@@ -150,7 +150,11 @@
 		let unlistenCloseRequested: (() => void) | undefined;
 		let stopListeningForCloseRequests: (() => void) | undefined;
 		const stopWorkspaceSyncManager = startWorkspaceSyncManager({
-			onResult: (detail) => startup.applySyncOutcome(detail)
+			onResult: (detail) => startup.applySyncOutcome(detail),
+			// somebody ended this member's sessions from another machine: the shell has already
+			// dropped the keys, so reading where the machine stands is what raises the wall, the
+			// same path a sign-out takes (effort 826, requirement 22).
+			onSessionEnded: () => startup.standingChanged()
 		});
 		const stopListeningForSignOut = listenForSignOut(() => {
 			void startup.signOut();

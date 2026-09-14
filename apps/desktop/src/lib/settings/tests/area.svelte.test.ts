@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import { expect, test, vi } from 'vitest';
 
 import en from '$lib/i18n/en';
@@ -64,12 +64,15 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 			reissuing: null,
 			revoking: null,
 			copying: null,
+			endingSessions: null,
 			isChangingPassword: false,
 			isChangingRole: false,
 			isChangingAccess: false,
 			onChangeLocale: noop,
 			onRevealDiagnostics: noop,
 			onChangePassword: resolved,
+			onEndOtherSessions: resolved,
+			onEndSessions: noop,
 			onReissue: noop,
 			onRevoke: noop,
 			onCopyLink: noop,
@@ -188,6 +191,26 @@ test('a section this reader is not offered draws the default section, with nothi
 			.find((tab) => tab.getAttribute('aria-current') === 'page')
 			?.textContent?.trim()
 	).toBe(en.settings.section.general);
+});
+
+// criterion 22 of effort 826: the you section offers the reader a way to sign themselves out of
+// every other machine, and asks once before it runs. The act is on the route; what is read here is
+// that the control is there and that the question stands in front of it.
+test('the you section offers signing out of other machines, behind one confirm', async () => {
+	at('?section=you');
+	area({ section: 'you' });
+
+	const control = document.querySelector('[data-end-other-sessions-open]');
+
+	expect(control).not.toBeNull();
+	expect(screen.getByText(en.account.sessions.title)).toBeDefined();
+	expect(screen.getByText(en.account.sessions.description)).toBeDefined();
+	// nothing has been asked yet, so nothing has been confirmed.
+	expect(screen.queryByText(en.account.sessions.confirmDescription)).toBeNull();
+
+	await fireEvent.click(control!);
+
+	expect(await screen.findByText(en.account.sessions.confirmDescription)).toBeDefined();
 });
 
 test('the area carries one title, and it is the area rather than the section', () => {

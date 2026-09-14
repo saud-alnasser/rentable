@@ -246,6 +246,20 @@ export const organization = router({
 					input.role,
 					input.permissions
 				);
+			}),
+		/**
+		 * Sign a member out of every machine (effort 826, requirement 22).
+		 *
+		 * **`resetPassword` and no act of its own**, on the reading requirement 22 states: whoever
+		 * may hand somebody a fresh way into their account may end the ways in that are already
+		 * open. Whether the row is the caller's own, which is `session.endElsewhere`, and whether
+		 * it is the owner's, which is nobody else's, are Rust's to refuse.
+		 */
+		endSessions: procedure
+			.permitted('resetPassword')
+			.input(z.object({ memberId: z.string().trim().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<void> => {
+				return ctx.host.organization.member.endSessions(input.memberId);
 			})
 	},
 	/**
@@ -277,6 +291,19 @@ export const organization = router({
 			.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
 				return ctx.host.organization.invitation.accept(input.link, input.password);
 			})
+	},
+	/**
+	 * The reader's own sessions on their other machines, ended from the you section (effort 826,
+	 * requirement 22).
+	 *
+	 * **`member`, because it is theirs**: it acts on the caller's own row and nobody else's, it
+	 * asks for no password, and there is no act to hold it to. What it needs is somebody to be
+	 * signed in, which is exactly what `member` says.
+	 */
+	session: {
+		endElsewhere: procedure.member.mutation(async ({ ctx }): Promise<void> => {
+			await ctx.host.organization.sessionEndElsewhere();
+		})
 	},
 	/**
 	 * The signed-in member's own password. `member`, because it is theirs: the current password

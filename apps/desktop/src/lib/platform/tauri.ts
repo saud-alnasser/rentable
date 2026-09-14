@@ -27,6 +27,7 @@ import type {
 	Recovery,
 	RemoteSyncState,
 	ReplicationRefusal,
+	SessionStanding,
 	Settings,
 	SettingsChangeset,
 	WorkspaceGrant
@@ -67,6 +68,7 @@ export type {
 	RemoteSyncState,
 	RemoteSyncWorkspace,
 	ReplicationRefusal,
+	SessionStanding,
 	Settings,
 	SettingsChangeset,
 	UpdaterDownloadEvent,
@@ -219,6 +221,7 @@ export const tauri = {
 		signIn: (username: string, password: string) =>
 			invoke<OrganizationState>('organization_sign_in', { username, password }),
 		signOut: () => invoke<OrganizationState>('organization_sign_out'),
+		sessionEndElsewhere: () => invoke<OrganizationState>('organization_session_end_elsewhere'),
 		linkTake: () => invoke<string | null>('organization_link_take'),
 		onLink: (listener: (link: string) => void) =>
 			listen<string>(LINK_ARRIVED_EVENT, (event) => listener(event.payload)),
@@ -250,7 +253,8 @@ export const tauri = {
 			rename: (memberId: string, username: string) =>
 				invoke<OrganizationMember>('member_rename', { memberId, username }),
 			changeRole: (memberId: string, role: 'administrator' | 'member', permissions: number) =>
-				invoke<OrganizationMember>('member_change_role', { memberId, role, permissions })
+				invoke<OrganizationMember>('member_change_role', { memberId, role, permissions }),
+			endSessions: (memberId: string) => invoke<void>('member_end_sessions', { memberId })
 		},
 		invitation: {
 			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId }),
@@ -265,9 +269,12 @@ export const tauri = {
 	remoteSync: {
 		getState: () => invoke<RemoteSyncState>('remote_sync_state_get'),
 		replicate: () =>
-			invoke<{ pushed: boolean; received: boolean; refusal: ReplicationRefusal }>(
-				'remote_sync_replicate'
-			),
+			invoke<{
+				pushed: boolean;
+				received: boolean;
+				refusal: ReplicationRefusal;
+				standing: SessionStanding;
+			}>('remote_sync_replicate'),
 		push: () => invoke<boolean>('remote_sync_push'),
 		renameWorkspace: (name: string) =>
 			invoke<RemoteSyncState>('remote_sync_rename_workspace', { name })

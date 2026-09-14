@@ -27,7 +27,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 const noop = () => {};
 
 const card = (
-	situation: 'noOrganization' | 'locked',
+	situation: 'noOrganization' | 'locked' | 'signedOutElsewhere',
 	overrides: Partial<Parameters<typeof render<typeof StartupSignIn>>[1]> = {}
 ) =>
 	render(
@@ -53,6 +53,39 @@ const dialog = () => document.querySelector('[data-slot="dialog-content"]');
 
 const dialogFooter = () =>
 	Array.from(document.querySelectorAll<HTMLButtonElement>('[data-slot="dialog-footer"] button'));
+
+// criterion 22 of effort 826: a machine somebody signed out from another one is the locked card
+// with the reason on it, in both locales. The way through is still the password, so the fields
+// are the same fields.
+test('a machine signed out from another one reads the same card with the reason on it', () => {
+	for (const [locale, strings] of [
+		['en', en],
+		['ar', ar]
+	] as const) {
+		loadLocale(locale);
+		setLocale(locale);
+
+		const rendered = card('signedOutElsewhere');
+
+		expect(document.querySelector('[data-sign-in-signed-out-elsewhere]')?.textContent?.trim()).toBe(
+			strings.layout.signIn.signedOutElsewhere
+		);
+		expect(
+			inputsOnScreen().map((input) => input.getAttribute('name')),
+			locale
+		).toEqual(['username', 'password']);
+		expect(screen.getByText(strings.layout.signIn.unlock)).toBeDefined();
+
+		rendered.unmount();
+	}
+
+	// and the ordinary locked card says nothing of the sort.
+	loadLocale('en');
+	setLocale('en');
+	card('locked');
+
+	expect(document.querySelector('[data-sign-in-signed-out-elsewhere]')).toBeNull();
+});
 
 test('a locked machine names the organization and asks for a username and a password, and nothing else', () => {
 	loadLocale('en');

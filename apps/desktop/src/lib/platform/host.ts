@@ -133,6 +133,16 @@ export type RemoteSyncState = {
 export type ReplicationRefusal = 'none' | 'account' | 'credential';
 
 /**
+ * where the signed-in member stands after a replication.
+ *
+ * **`signedOutElsewhere` is the one answer a caller has to act on**: somebody ended this member's
+ * sessions from another machine, the shell has already put the wall up on its own side, and what
+ * is left for this side is to read where the machine stands again. It is a standing and not a
+ * refusal, because nothing failed.
+ */
+export type SessionStanding = 'held' | 'signedOutElsewhere';
+
+/**
  * where an upgrade of a workspace's schema is, as the shell tells whoever is watching: this
  * client applying it under the lease, waiting on another member's lease until its deadline, or
  * done. The one moment the local replica is not enough, said rather than left to look like a hang.
@@ -317,6 +327,14 @@ export type OrganizationState = {
 	 * repeat the consent, which is the one thing a restore cannot bring with it.
 	 */
 	holdsTursoAuthority: boolean;
+	/**
+	 * whether the wall is up because this member's sessions were ended from another machine.
+	 *
+	 * Read only while the wall is up, and what it changes is the sentence on it: a person who was
+	 * signed out from somewhere else is told so rather than shown the ordinary locked screen.
+	 * False the moment anybody is signed in again.
+	 */
+	signedOutElsewhere: boolean;
 };
 
 /**
@@ -487,6 +505,13 @@ export type Host = {
 		/** drop the keys this process held, and put the wall back up. */
 		signOut: () => Promise<OrganizationState>;
 		/**
+		 * sign this member out of every machine but this one. Nothing asks for their password and
+		 * nothing about it changes: what ends is the other machines' sessions and the keys they
+		 * were staying signed in with. Each meets the wall at its next heartbeat or its next
+		 * launch.
+		 */
+		sessionEndElsewhere: () => Promise<OrganizationState>;
+		/**
 		 * a `rentable://` link the operating system handed the process before the shell was
 		 * listening: the one it was launched with, or one opened before the webview existed. Taken
 		 * once; `null` where none is waiting.
@@ -589,6 +614,12 @@ export type Host = {
 				permissions: number
 			) => Promise<OrganizationMember>;
 			/**
+			 * sign a member out of every machine. Their password is not changed by it. Rejects the
+			 * caller's own row, which is `sessionEndElsewhere`, and the owner's row, which is
+			 * nobody else's to end.
+			 */
+			endSessions: (memberId: string) => Promise<void>;
+			/**
 			 * rename a member: their row written back with the username re-sealed and signed by
 			 * whoever renamed them. The owner's or an administrator's, on any row but their own;
 			 * the username is held to the rules and the uniqueness an invitation's is. What comes
@@ -642,6 +673,12 @@ export type Host = {
 			pushed: boolean;
 			received: boolean;
 			refusal: ReplicationRefusal;
+			/**
+			 * where the signed-in member stands after it. The same call is what ends a session
+			 * that was ended from another machine, because it is what the heartbeat calls and the
+			 * heartbeat is what runs on a machine nobody is touching.
+			 */
+			standing: SessionStanding;
 		}>;
 		/** send what this machine wrote and nothing else, for the last call of a session. */
 		push: () => Promise<boolean>;

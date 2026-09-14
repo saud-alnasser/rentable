@@ -39,11 +39,12 @@ import type { StartupStage } from './startup-stage';
 export type StartupState = 'loading' | 'sign-in' | 'no-workspace' | 'ready' | 'error' | 'recovery';
 
 /**
- * why the wall is up, which is only read while it is. The organization's two reasons, from
+ * why the wall is up, which is only read while it is. The organization's three reasons, from
  * `sync/admission.ts`; the three that named an account and a session window went with the service
- * that issued them.
+ * that issued them. *The third arrived with effort 826, requirement 22: `locked`, with the
+ * sentence for a machine somebody signed out from another one.*
  */
-export type SignInReason = 'noOrganization' | 'locked';
+export type SignInReason = 'noOrganization' | 'locked' | 'signedOutElsewhere';
 
 /** everything the shell draws itself from. Read-only to it; only this unit writes. */
 export type StartupSnapshot = {
@@ -648,7 +649,8 @@ export class Startup {
 			organization: organization ?? {
 				organization: null,
 				session: null,
-				holdsTursoAuthority: false
+				holdsTursoAuthority: false,
+				signedOutElsewhere: false
 			}
 		});
 

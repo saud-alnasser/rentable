@@ -825,6 +825,8 @@ async fn issue<P: TursoPlatform>(
                 must_change_password: true,
                 created_at: now,
                 updated_at: now,
+                // a fresh row starts at the first epoch; only an end-of-sessions moves it.
+                session_epoch: 0,
             },
         )
         .await?;

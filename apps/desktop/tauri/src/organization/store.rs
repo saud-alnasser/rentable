@@ -84,7 +84,8 @@ const SCHEMA: [&str; 7] = [
         \"certificate_id\" TEXT NOT NULL, \
         \"signature\" BLOB NOT NULL, \
         \"created_at\" INTEGER NOT NULL, \
-        \"updated_at\" INTEGER NOT NULL)",
+        \"updated_at\" INTEGER NOT NULL, \
+        \"session_epoch\" INTEGER NOT NULL DEFAULT 0)",
     "CREATE TABLE IF NOT EXISTS \"administrator_certificate\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"member_id\" TEXT NOT NULL, \
@@ -173,6 +174,13 @@ pub struct MemberRecord {
     pub must_change_password: bool,
     pub created_at: i64,
     pub updated_at: i64,
+    /// which run of this member's sessions is the current one (effort 826, requirement 22).
+    ///
+    /// **Outside the member signature, as the vault columns are**, and for the same reason: it is
+    /// the member's own to write, and so is every act that reseals their vault. A session carries
+    /// the number it opened under and a remembered key files it beside itself, so a session or a
+    /// key from before the last bump is behind the row and opens nothing.
+    pub session_epoch: i64,
 }
 
 /// A `workspace` row. Only the database identity is under signature; the name and the schema
@@ -471,8 +479,8 @@ impl OrganizationStore {
                  (\"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
                   \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
                   \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
-                  \"signature\", \"created_at\", \"updated_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                  \"signature\", \"created_at\", \"updated_at\", \"session_epoch\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(member.id.clone()),
                     turso::Value::Blob(member.username_sealed.clone()),
@@ -489,6 +497,7 @@ impl OrganizationStore {
                     turso::Value::Blob(signature),
                     turso::Value::Integer(member.created_at),
                     turso::Value::Integer(member.updated_at),
+                    turso::Value::Integer(member.session_epoch),
                 ],
             )
             .await?;
@@ -547,6 +556,42 @@ impl OrganizationStore {
         Ok(())
     }
 
+    /// Move a member's session epoch on, which ends every session opened under an earlier one
+    /// (effort 826, requirement 22).
+    ///
+    /// The second write on a member row that carries no signature, and for the reason
+    /// [`OrganizationStore::reseal_member`] gives: the column is outside the member preimage, so
+    /// nothing an authority vouches for moves here. Who may call it is
+    /// `session::end_elsewhere` and `session::end_member_sessions`, which is where the act and
+    /// the owner's row are refused; the store writes what it is told, as it does for a re-seal.
+    pub async fn set_session_epoch(
+        &self,
+        member_id: &str,
+        session_epoch: i64,
+        now: i64,
+    ) -> Result<(), Error> {
+        let changed = self
+            .connection
+            .execute(
+                "UPDATE \"member\" SET \"session_epoch\" = ?, \"updated_at\" = ? \
+                 WHERE \"id\" = ?",
+                vec![
+                    turso::Value::Integer(session_epoch),
+                    turso::Value::Integer(now),
+                    turso::Value::Text(member_id.to_string()),
+                ],
+            )
+            .await?;
+
+        if changed == 0 {
+            return Err(Error::NotFound {
+                message: "that member is not in this organization".to_string(),
+            });
+        }
+
+        Ok(())
+    }
+
     /// Every member, each verified against the chain before it is returned.
     ///
     /// `organization_verifying_key` is the one the caller pinned from its join link, never the
@@ -577,7 +622,7 @@ impl OrganizationStore {
                 "SELECT \"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
                         \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
                         \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
-                        \"signature\", \"created_at\", \"updated_at\" \
+                        \"signature\", \"created_at\", \"updated_at\", \"session_epoch\" \
                  FROM \"member\" ORDER BY \"created_at\", \"id\"",
                 (),
             )
@@ -626,6 +671,7 @@ impl OrganizationStore {
                     must_change_password: integer(&row, 10)? != 0,
                     created_at: integer(&row, 13)?,
                     updated_at: integer(&row, 14)?,
+                    session_epoch: integer(&row, 15)?,
                 },
             ));
         }
@@ -1388,6 +1434,7 @@ mod tests {
                 must_change_password: role != "owner",
                 created_at: 1_757_000_000_000,
                 updated_at: 1_757_000_000_000,
+                session_epoch: 0,
             }
         }
 
@@ -1553,7 +1600,8 @@ mod tests {
 
         // the member's own columns, pinned for the same two reasons: `signing_public_key` is what
         // an owner certifies when they widen somebody into an act that signs (effort 826,
-        // requirement 6), and `forget::old_shape` calls a replica without it the old shape.
+        // requirement 6), `session_epoch` is what ends a session opened on another machine
+        // (requirement 22), and `forget::old_shape` calls a replica without either the old shape.
         let mut columns = store
             .connection()
             .query("PRAGMA table_info(\"member\")", ())
@@ -1582,7 +1630,8 @@ mod tests {
                 "certificate_id",
                 "signature",
                 "created_at",
-                "updated_at"
+                "updated_at",
+                "session_epoch"
             ]
         );
 

@@ -891,6 +891,7 @@ mod tests {
                     must_change_password: false,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
+                    session_epoch: 0,
                 },
             )
             .await
@@ -947,6 +948,7 @@ mod tests {
                     must_change_password: false,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
+                    session_epoch: 0,
                 },
             )
             .await

@@ -27,6 +27,12 @@ import type { OrganizationSession, OrganizationState } from '$lib/platform/host'
  * **There is nothing to be admitted to without an organization.** Its refusal is the whole window:
  * no surface renders workspace data behind it and no write reaches any database, because the
  * application has not started.
+ *
+ * **A third reason arrived with effort 826, requirement 22**, and it is `locked` with something to
+ * say: the machine holds an organization, no vault is open, and the reason none is open is that
+ * somebody ended this member's sessions from another machine. The way past it is the password, as
+ * for `locked`; the difference is the sentence, and a person who was not the one who signed
+ * themselves out is owed it.
  */
 
 /**
@@ -47,9 +53,12 @@ export type Admission =
 			 * password to type, and the screen offers the two ways to connect instead. `locked` is a
 			 * machine that holds an organization and no open vault, which is every launch after the
 			 * first and every sign-out: the screen names the organization and asks for a username
-			 * and a password.
+			 * and a password. `signedOutElsewhere` is that same screen with one sentence more,
+			 * for a machine whose session somebody ended from another one (effort 826,
+			 * requirement 22): the way past it is the same password, and what the sentence saves
+			 * the person is wondering why they were signed out.
 			 */
-			reason: 'noOrganization' | 'locked';
+			reason: 'noOrganization' | 'locked' | 'signedOutElsewhere';
 	  }
 	| { kind: 'admitted'; session: OrganizationSession };
 
@@ -68,8 +77,12 @@ export function organizationAdmission(state: OrganizationState | null | undefine
 		return { kind: 'admitted', session: state.session };
 	}
 
+	if (state.organization === null) {
+		return { kind: 'signInRequired', reason: 'noOrganization' };
+	}
+
 	return {
 		kind: 'signInRequired',
-		reason: state.organization === null ? 'noOrganization' : 'locked'
+		reason: state.signedOutElsewhere ? 'signedOutElsewhere' : 'locked'
 	};
 }

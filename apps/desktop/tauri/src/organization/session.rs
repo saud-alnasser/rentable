@@ -44,6 +44,19 @@
 //! authenticated over its salt and its cost, so a re-seal by anybody retires every key that ever
 //! opened it. A key that no longer opens the vault is a failed resume, which forgets the entry and
 //! leaves the wall up, and there is no staleness to compare against anything.*
+//!
+//! **A member is signed out of every machine by a number on their row** (effort 826, requirement
+//! 22). `member.session_epoch` is which run of that member's sessions is the current one; a
+//! session carries the number it opened under and the credential store's entry files it beside
+//! the key (`<epoch>:<base64url key>`). [`end_elsewhere`] moves the number on and rewrites this
+//! machine's entry, so every other machine's is behind: at its next launch [`resume`] refuses the
+//! entry and forgets it, and a session already open ends at the next sync heartbeat, which asks
+//! [`ended_elsewhere`]. [`end_member_sessions`] does the same to somebody else's row, under
+//! `resetPassword`.
+//!
+//! *Why a number and not a moment: two machines' clocks disagree, and a session opened on a
+//! machine running a minute fast would survive a sign-out meant to end it. A number only ever
+//! moves forward, and the comparison is the same on every machine that reads the row.*
 
 use std::{
     collections::HashMap,
@@ -59,6 +72,7 @@ use crate::sync::turso::platform::AccessLevel;
 use super::{
     HeldOrganization,
     authority::VERIFYING_KEY_BYTES,
+    permission::{self, Administration},
     store::{MemberRecord, OrganizationStore},
     vault::{
         CONTENT_KEY_BYTES, ContentKey, MemberKey, MemberSecretKey, open_content,
@@ -86,6 +100,9 @@ pub struct MemberSession {
     pub role: String,
     pub permissions: i64,
     pub must_change_password: bool,
+    /// the `member.session_epoch` this session opened under. Behind the row's, the session has
+    /// been ended from another machine and the next heartbeat closes it ([`ended_elsewhere`]).
+    pub session_epoch: i64,
     pub verifying_key: [u8; VERIFYING_KEY_BYTES],
     pub secret: MemberSecretKey,
     pub content_key: ContentKey,
@@ -304,22 +321,36 @@ pub async fn sign_in_by_username(
     )
     .await?;
 
-    remember(&held.id, &session.member_id, &member_key);
+    remember(
+        &held.id,
+        &session.member_id,
+        session.session_epoch,
+        &member_key,
+    );
 
     Ok(session)
 }
 
 /// File the key that opens this member's vault, so the next launch opens it without asking.
 ///
+/// **The session epoch is filed in front of it**, `<epoch>:<base64url key>` (effort 826,
+/// requirement 22), so a launch can tell a key that is still this member's run of sessions from
+/// one that a sign-out elsewhere left behind, before it spends the key on anything.
+///
 /// **A store that refuses is a diagnostic and never a failure.** A locked keychain, a Linux
 /// machine with no secret service, a store out of room: the person is signed in either way, and
 /// what they lose is not being asked again next time. Nothing here is on the path of anything the
 /// person asked for, so there is no refusal for them to act on.
-pub(crate) fn remember(organization_id: &str, member_id: &str, member_key: &MemberKey) {
+pub(crate) fn remember(
+    organization_id: &str,
+    member_id: &str,
+    session_epoch: i64,
+    member_key: &MemberKey,
+) {
     let filed = keyring::store(
         MEMBER_KEY_SERVICE,
         &account_of(organization_id, member_id),
-        &member_key.encode(),
+        &filed_entry(session_epoch, member_key),
     );
 
     match filed {
@@ -355,12 +386,33 @@ pub(crate) fn forget_remembered(organization_id: &str, member_id: &str) {
     }
 }
 
+/// What a resume of a remembered session found.
+///
+/// **Being signed out from another machine is an outcome and not a failure**, which is why it is
+/// a variant here rather than an error: nothing went wrong, the person is simply no longer signed
+/// in on this machine, and the wall has a sentence of its own for it. Everything that did go
+/// wrong is still an `Err`.
+#[derive(Debug)]
+pub(crate) enum Resumption {
+    /// the vault opened and this machine is signed in again.
+    Opened(Box<MemberSession>),
+    /// the entry this machine filed is behind the member's row: somebody ended this member's
+    /// sessions from another machine. The entry is forgotten and the wall goes up saying so.
+    SignedOutElsewhere,
+}
+
 /// Open the member the record names with the key this machine filed at their last sign-in: the
 /// launch that goes straight past the wall (effort 826, requirement 12).
 ///
 /// The same unsealing every sign-in performs, starting one step further in: there is no password
 /// and no derivation, because the derivation's output is what was filed. The rows are read and
 /// verified first, as [`sign_in`] reads them, so a forged row is refused before the key is spent.
+///
+/// **The epoch the entry files is compared against the row's, twice** (requirement 22): once on
+/// the rows this machine already holds, before the key is spent, and once after the vault has
+/// opened and the credential it unsealed has paid for a pull, which is the only moment this
+/// machine can learn of a sign-out that happened while it was closed. Either way the entry goes
+/// and the wall carries the sentence.
 ///
 /// **Any failure forgets the entry and leaves the wall up.** Nothing filed, a value that is not a
 /// key, a member row that is gone or removed, and a vault resealed by anybody since are one
@@ -370,7 +422,7 @@ pub(crate) async fn resume(
     store: &OrganizationStore,
     held: &HeldOrganization,
     credential: &CredentialSlot,
-) -> Result<MemberSession, Error> {
+) -> Result<Resumption, Error> {
     let member_id = held
         .member_id
         .clone()
@@ -379,7 +431,7 @@ pub(crate) async fn resume(
         })?;
     let resumed = resumed(store, held, &member_id, credential).await;
 
-    if resumed.is_err() {
+    if !matches!(resumed, Ok(Resumption::Opened(_))) {
         forget_remembered(&held.id, &member_id);
     }
 
@@ -392,14 +444,14 @@ async fn resumed(
     held: &HeldOrganization,
     member_id: &str,
     credential: &CredentialSlot,
-) -> Result<MemberSession, Error> {
+) -> Result<Resumption, Error> {
     let filed =
         keyring::read(MEMBER_KEY_SERVICE, &account_of(&held.id, member_id))?.ok_or_else(|| {
             Error::NotFound {
                 message: "this machine remembers no key for the member it holds".to_string(),
             }
         })?;
-    let member_key = MemberKey::decode(&filed)?;
+    let (filed_epoch, member_key) = read_entry(&filed)?;
     let verifying_key = verifying_key_of(held)?;
     let members = store.members(&verifying_key).await?;
     let member = members
@@ -417,10 +469,15 @@ async fn resumed(
         });
     }
 
+    // before the key is spent: the rows this machine already holds may say the sessions ended,
+    // which is every machine whose heartbeat saw the bump before it was closed.
+    if filed_epoch < member.session_epoch {
+        return Ok(Resumption::SignedOutElsewhere);
+    }
+
     let secret = open_sealed_secret_key(&member_key, &member.vault)?;
     let content_key = content_key_of(member, &secret)?;
-
-    open_session(
+    let session = open_session(
         store,
         held,
         verifying_key,
@@ -429,7 +486,200 @@ async fn resumed(
         content_key,
         credential,
     )
-    .await
+    .await?;
+
+    // and again on what the organization says now. The pull is here rather than before the vault
+    // opened because it spends the credential the vault holds; its failure is the offline case
+    // and leaves this machine signed in on the rows it has, which is requirement 18.
+    store.pull().await;
+
+    if ended_elsewhere(store, &session).await? {
+        return Ok(Resumption::SignedOutElsewhere);
+    }
+
+    Ok(Resumption::Opened(Box::new(session)))
+}
+
+/// Whether the row has moved past the session: somebody ended this member's sessions from another
+/// machine, and this one is behind (effort 826, requirement 22).
+///
+/// Read off the replica as it stands, so the caller decides whether to pull first. The sync
+/// heartbeat does; a resume does it once the vault has paid for the pull.
+pub async fn ended_elsewhere(
+    store: &OrganizationStore,
+    session: &MemberSession,
+) -> Result<bool, Error> {
+    let members = store.members(&session.verifying_key).await?;
+    let member = members
+        .iter()
+        .find(|member| member.id == session.member_id)
+        .ok_or_else(|| Error::NotFound {
+            message: "this member's row is not in the organization any more".to_string(),
+        })?;
+
+    Ok(session.session_epoch < member.session_epoch)
+}
+
+/// End this member's sessions everywhere but here, and stay signed in here (effort 826,
+/// requirement 22).
+///
+/// The row's epoch moves on, this machine's open session moves with it and the entry it stays
+/// signed in on is rewritten under the new number, so every other machine is behind: one still
+/// running ends at its next heartbeat and one that is closed meets the wall at its next launch.
+/// **Nothing about the password moves**, and nobody is asked for one: what this ends is sessions.
+///
+/// An entry the credential store will not give back or never took is a diagnostic rather than a
+/// refusal, as [`remember`]'s is: the act itself went through, and what the person loses is this
+/// machine staying signed in past the next launch.
+pub async fn end_elsewhere(
+    store: &OrganizationStore,
+    session: &mut MemberSession,
+    now: i64,
+) -> Result<(), Error> {
+    session.settled()?;
+
+    let members = store.members(&session.verifying_key).await?;
+    let member = members
+        .iter()
+        .find(|member| member.id == session.member_id)
+        .ok_or_else(|| Error::NotFound {
+            message: "this member's row is not in the organization any more".to_string(),
+        })?;
+    // from the row rather than from the session, so a bump this machine has not seen is not undone
+    // by one it makes.
+    let epoch = member.session_epoch + 1;
+
+    store
+        .set_session_epoch(&session.member_id, epoch, now)
+        .await?;
+
+    if !store.push().await {
+        diagnostics::warn("organization.session.endedNotYetSent")
+            .with("member", session.member_id.as_str())
+            .write();
+    }
+
+    session.session_epoch = epoch;
+    refile(&session.organization_id, &session.member_id, epoch);
+
+    diagnostics::info("organization.session.endedElsewhere")
+        .with("member", session.member_id.as_str())
+        .write();
+
+    Ok(())
+}
+
+/// End another member's sessions, on every machine including whichever they are at: what an owner
+/// or a holder of `resetPassword` does from the member's row (effort 826, requirement 22).
+///
+/// **No new act.** Whoever may hand a member a fresh way into their account may end the ways in
+/// that are already open, which is why this is `resetPassword`'s and not a bit of its own.
+///
+/// Two rows are refused. The caller's own, because ending your own sessions and keeping this one
+/// is [`end_elsewhere`] and does something different; and the owner's, for anybody but the owner,
+/// which is the line `role::change_role` draws in the same words.
+pub async fn end_member_sessions(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    member_id: &str,
+    now: i64,
+) -> Result<(), Error> {
+    session.settled()?;
+    permission::require(session.permissions, Administration::ResetPassword)?;
+
+    if member_id == session.member_id {
+        return Err(Error::Forbidden {
+            message: "you cannot end your own sessions from somebody else's row. sign out of your \
+                      other machines from the you section"
+                .to_string(),
+        });
+    }
+
+    let members = store.members(&session.verifying_key).await?;
+    let member = members
+        .iter()
+        .find(|member| member.id == member_id)
+        .ok_or_else(|| Error::NotFound {
+            message: "that member is not in this organization".to_string(),
+        })?;
+
+    if member.role == permission::OWNER {
+        return Err(Error::Forbidden {
+            message:
+                "an owner's sessions are not ended by anybody else. the organization is theirs"
+                    .to_string(),
+        });
+    }
+
+    store
+        .set_session_epoch(member_id, member.session_epoch + 1, now)
+        .await?;
+
+    if !store.push().await {
+        diagnostics::warn("organization.session.endedNotYetSent")
+            .with("member", member_id)
+            .write();
+    }
+
+    diagnostics::info("organization.session.endedForMember")
+        .with("member", member_id)
+        .write();
+
+    Ok(())
+}
+
+/// Rewrite this machine's entry under a new epoch, keeping the key that is already in it.
+///
+/// The key itself is the Argon2id output and nothing here holds it: a session carries the secret
+/// the key unsealed, not the key. So the entry is read, its key half kept, and the pair written
+/// back. Nothing filed is the case where the credential store refused the sign-in's write, and
+/// there is nothing to rewrite.
+fn refile(organization_id: &str, member_id: &str, session_epoch: i64) {
+    let account = account_of(organization_id, member_id);
+    let filed = match keyring::read(MEMBER_KEY_SERVICE, &account) {
+        Ok(Some(filed)) => filed,
+        Ok(None) => return,
+        Err(refusal) => {
+            diagnostics::warn("organization.session.notRefiled")
+                .with("organization", organization_id)
+                .with("member", member_id)
+                .with("reason", refusal.to_string())
+                .write();
+
+            return;
+        }
+    };
+
+    match read_entry(&filed) {
+        Ok((_, member_key)) => remember(organization_id, member_id, session_epoch, &member_key),
+        // a value this build did not write opens nothing anyway, so it goes rather than being
+        // carried forward under a number that would make it look current.
+        Err(_) => forget_remembered(organization_id, member_id),
+    }
+}
+
+/// What a remembered session is filed as: the epoch it was opened under, then the key, separated
+/// by the one character neither half can contain.
+fn filed_entry(session_epoch: i64, member_key: &MemberKey) -> String {
+    format!("{session_epoch}:{}", member_key.encode())
+}
+
+/// Read back what [`filed_entry`] wrote. Anything else, a value from before requirement 22 or one
+/// somebody put there, is refused as a key that opens nothing, which forgets the entry.
+///
+/// `pub(crate)` because the tests that assert on what a sign-in, an accept and a password change
+/// filed live beside each of those, and a second parser written out there is one that can disagree
+/// with this one about what an entry is.
+pub(crate) fn read_entry(filed: &str) -> Result<(i64, MemberKey), Error> {
+    let unreadable = || Error::Integrity {
+        message: "what this machine remembers is not a session it can open".to_string(),
+    };
+    let (epoch, encoded) = filed.split_once(':').ok_or_else(unreadable)?;
+
+    Ok((
+        epoch.parse::<i64>().map_err(|_| unreadable())?,
+        MemberKey::decode(encoded)?,
+    ))
 }
 
 /// What one member's entry is filed under: the organization, and their row in it.
@@ -482,6 +732,7 @@ pub(crate) async fn open_session(
         role: member.role.clone(),
         permissions: member.permissions,
         must_change_password: member.must_change_password,
+        session_epoch: member.session_epoch,
         verifying_key,
         secret,
         content_key,
@@ -677,20 +928,23 @@ mod tests {
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 
     use super::{
-        CredentialSlot, MEMBER_KEY_SERVICE, facts_of, resume, sign_in, sign_in_by_username,
+        CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, Resumption, end_elsewhere,
+        end_member_sessions, facts_of, resume, sign_in, sign_in_by_username,
     };
     use crate::{
         keyring::{self, refuse_the_next_store, take_the_credential_store},
         organization::{
             HeldOrganization,
             authority::{AdministratorKey, OrganizationKey, issue_certificate},
-            setup::{CreateOrganization, Remote, create_organization},
+            permission,
+            setup::{ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, Remote, create_organization},
             store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
             vault::{
                 KdfParams, MEMBER_KEY_BYTES, MemberKey, create_vault_with_secret,
-                generate_content_key, open_sealed_secret_key, reseal_vault, seal_content,
-                seal_to_public_key, unseal_with_secret_key,
+                generate_content_key, open_sealed_secret_key, open_vault, reseal_vault,
+                seal_content, seal_to_public_key, unseal_with_secret_key,
             },
+            workspace::signer_of,
         },
         persisted::Persisted,
         sync::{
@@ -723,6 +977,16 @@ mod tests {
 
     fn slot() -> CredentialSlot {
         Arc::new(Mutex::new(None))
+    }
+
+    /// the session a resume opened, or a failure naming what it answered instead.
+    fn opened(resumption: Resumption) -> MemberSession {
+        match resumption {
+            Resumption::Opened(session) => *session,
+            Resumption::SignedOutElsewhere => {
+                panic!("the resume answered that the sessions were ended elsewhere")
+            }
+        }
     }
 
     /// An organization a first run made, on this machine, with no remote: the owner's vault,
@@ -1028,6 +1292,7 @@ mod tests {
                     must_change_password: true,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
+                    session_epoch: 0,
                 },
             )
             .await
@@ -1098,7 +1363,8 @@ mod tests {
     /// **Criterion 1.** A sign-in at the wall files the key that opened the vault, under the
     /// service and the account the launch reads it back from, and what is filed is the member key
     /// rather than anything else: it opens the same vault, and it is thirty-two bytes of base64url
-    /// with no password anywhere in it.
+    /// with no password anywhere in it. *Effort 826's requirement 22 put the session epoch in
+    /// front of it, so the entry is read as a pair from here on.*
     #[tokio::test]
     async fn a_sign_in_files_the_member_key_and_a_resume_opens_the_vault_with_it() {
         let _turn = take_the_credential_store().await;
@@ -1117,10 +1383,14 @@ mod tests {
         let filed = keyring::read(MEMBER_KEY_SERVICE, &account)
             .expect("the store would not answer")
             .expect("the sign-in filed nothing");
+        let (epoch, encoded) = filed
+            .split_once(':')
+            .expect("what was filed is not an epoch and a key");
         let bytes = BASE64URL
-            .decode(&filed)
+            .decode(encoded)
             .expect("what was filed is not base64url");
 
+        assert_eq!(epoch, "0");
         assert_eq!(bytes.len(), MEMBER_KEY_BYTES);
         assert!(!filed.contains(PASSWORD), "the password was filed");
 
@@ -1133,7 +1403,7 @@ mod tests {
             .iter()
             .find(|member| member.id == member_id)
             .expect("the member row");
-        let key = MemberKey::decode(&filed).expect("what was filed is not a key");
+        let key = MemberKey::decode(encoded).expect("what was filed is not a key");
 
         assert_eq!(
             open_sealed_secret_key(&key, &member.vault)
@@ -1144,9 +1414,11 @@ mod tests {
 
         // and the resume the next launch performs reaches the same session, with no password.
         let credential = slot();
-        let resumed = resume(&store, &joined, &credential)
-            .await
-            .expect("the resume failed");
+        let resumed = opened(
+            resume(&store, &joined, &credential)
+                .await
+                .expect("the resume failed"),
+        );
 
         assert_eq!(resumed.member_id, member_id);
         assert_eq!(resumed.role, "owner");
@@ -1265,6 +1537,260 @@ mod tests {
             "{refusal:?}"
         );
         assert!(refusal.to_string().contains("no member"), "{refusal}");
+    }
+
+    /// Another member of the organization the owner made, written under the owner's authority and
+    /// signed in: the second and third people a test about somebody else's row needs.
+    async fn a_member(
+        store: &OrganizationStore,
+        owner: &MemberSession,
+        joined: &HeldOrganization,
+        id: &str,
+        username: &str,
+        role: &str,
+        password: &str,
+    ) -> MemberSession {
+        let (key, certificate) = signer_of(store, owner).await.expect("the owner's signer");
+        let signer = Signer {
+            key: &key,
+            certificate: &certificate,
+        };
+        let (vault, secret) = create_vault_with_secret(password, test_cost()).expect("a vault");
+
+        store
+            .write_member(
+                &signer,
+                &MemberRecord {
+                    id: id.to_string(),
+                    username_sealed: seal_content(
+                        &owner.content_key,
+                        "member.username_sealed",
+                        username.as_bytes(),
+                    )
+                    .expect("sealed"),
+                    sealed_content_key: seal_to_public_key(
+                        &vault.public_key,
+                        &owner.content_key.to_bytes(),
+                    )
+                    .expect("sealed"),
+                    vault: vault.clone(),
+                    signing_public_key: AdministratorKey::from_bytes(
+                        &secret
+                            .derive_seed(ADMINISTRATOR_KEY_PURPOSE)
+                            .expect("the signing seed"),
+                    )
+                    .verifying_key(),
+                    role: role.to_string(),
+                    permissions: permission::mask_of_role(role),
+                    must_change_password: false,
+                    created_at: 1_757_000_000_000,
+                    updated_at: 1_757_000_000_000,
+                    session_epoch: 0,
+                },
+            )
+            .await
+            .expect("the member row");
+
+        let verifying_key = super::verifying_key_of(joined).expect("the key");
+        let members = store.members(&verifying_key).await.expect("the members");
+        let member = members
+            .iter()
+            .find(|member| member.id == id)
+            .expect("the row just written");
+        let secret = open_vault(password, &member.vault).expect("their password did not open");
+        let content_key = super::content_key_of(member, &secret).expect("the content key");
+
+        super::open_session(
+            store,
+            joined,
+            verifying_key,
+            member,
+            secret,
+            content_key,
+            &slot(),
+        )
+        .await
+        .expect("their session")
+    }
+
+    /// The row's session epoch, read back verified.
+    async fn epoch_of(store: &OrganizationStore, joined: &HeldOrganization, id: &str) -> i64 {
+        store
+            .members(&super::verifying_key_of(joined).expect("the key"))
+            .await
+            .expect("the members")
+            .iter()
+            .find(|member| member.id == id)
+            .expect("the row")
+            .session_epoch
+    }
+
+    /// **Criterion 22, the member's own half.** Two machines are signed in as one member; the
+    /// first ends every other session. The first still resumes, because its entry was rewritten
+    /// under the new epoch; the second's resume answers that the sessions were ended elsewhere
+    /// and leaves nothing filed.
+    ///
+    /// The second machine is a second store over the same replica, which is what two machines are
+    /// to each other once a push and a pull have run between them; there is no remote here, so
+    /// the file is the thing they share. Its entry is the one that was filed before the bump,
+    /// kept aside and put back, because the credential store a test has is one map and both
+    /// machines file under the same account.
+    #[tokio::test]
+    async fn ending_sessions_elsewhere_keeps_this_machine_in_and_leaves_every_other_behind() {
+        let _turn = take_the_credential_store().await;
+        let directory = scratch("end-elsewhere");
+        let (_, store, joined) = created(&directory).await;
+        let member_id = joined.member_id.clone().expect("the record names a member");
+        let account = format!("{}:{member_id}", joined.id);
+
+        let mut session = sign_in_by_username(&store, &joined, "olivia", PASSWORD, &slot())
+            .await
+            .expect("the sign-in failed");
+        let before = keyring::read(MEMBER_KEY_SERVICE, &account)
+            .expect("the store would not answer")
+            .expect("the sign-in filed nothing");
+
+        assert!(
+            before.starts_with("0:"),
+            "the entry does not file the epoch in front of the key: {before}"
+        );
+        assert_eq!(session.session_epoch, 0);
+
+        // the second machine, over the same replica and holding the entry above.
+        let second = OrganizationStore::open(
+            &OrganizationStore::replica_path(&directory.join("app.db"), &joined.id),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
+        .await
+        .expect("the second machine's replica");
+
+        end_elsewhere(&store, &mut session, 1_757_000_000_100)
+            .await
+            .expect("ending the other sessions failed");
+
+        assert_eq!(session.session_epoch, 1);
+        assert_eq!(epoch_of(&store, &joined, &member_id).await, 1);
+
+        // this machine stays in: the entry moved with the row, so the next launch opens the vault
+        // as it did before.
+        let rewritten = keyring::read(MEMBER_KEY_SERVICE, &account)
+            .expect("the store would not answer")
+            .expect("the entry was not rewritten");
+
+        assert_eq!(
+            rewritten.split_once(':').map(|(epoch, _)| epoch),
+            Some("1"),
+            "the entry was not refiled under the new epoch: {rewritten}"
+        );
+        assert_eq!(
+            rewritten.split_once(':').map(|(_, key)| key),
+            before.split_once(':').map(|(_, key)| key),
+            "the key itself was changed by an act that ends sessions"
+        );
+
+        let resumed = opened(
+            resume(&store, &joined, &slot())
+                .await
+                .expect("this machine's own resume failed"),
+        );
+
+        assert_eq!(resumed.member_id, member_id);
+        assert_eq!(resumed.session_epoch, 1);
+
+        // and the other machine, whose entry is the one filed before the bump.
+        keyring::store(MEMBER_KEY_SERVICE, &account, &before)
+            .expect("the store would not take the value");
+
+        let standing = resume(&second, &joined, &slot())
+            .await
+            .expect("the second machine's resume failed");
+
+        assert!(
+            matches!(standing, Resumption::SignedOutElsewhere),
+            "{standing:?}"
+        );
+        assert_eq!(
+            keyring::read(MEMBER_KEY_SERVICE, &account).expect("the store would not answer"),
+            None,
+            "a key from before the sign-out was kept"
+        );
+    }
+
+    /// **Criterion 22, somebody else's row.** `resetPassword` is the act, the caller's own row is
+    /// refused because that is `end_elsewhere`, and the owner's row is nobody else's to end. A
+    /// plain member holds none of it.
+    #[tokio::test]
+    async fn ending_a_members_sessions_is_reset_passwords_and_never_the_owners_row() {
+        let _turn = take_the_credential_store().await;
+        let directory = scratch("end-member");
+        let (_, store, joined) = created(&directory).await;
+        let owner_id = joined.member_id.clone().expect("the record names a member");
+        let owner = sign_in(&store, &joined, PASSWORD, &slot())
+            .await
+            .expect("the owner did not sign in");
+        let administrator = a_member(
+            &store,
+            &owner,
+            &joined,
+            "member-ada",
+            "ada.admin",
+            permission::ADMINISTRATOR,
+            "a password ada chose",
+        )
+        .await;
+        let member = a_member(
+            &store,
+            &owner,
+            &joined,
+            "member-sami",
+            "sami.staff",
+            permission::MEMBER,
+            "a password sami chose",
+        )
+        .await;
+
+        // the act, on somebody else's row: the epoch moves and nothing else does.
+        end_member_sessions(&store, &administrator, "member-sami", 1_757_000_000_200)
+            .await
+            .expect("an administrator could not end a member's sessions");
+
+        assert_eq!(epoch_of(&store, &joined, "member-sami").await, 1);
+        assert_eq!(epoch_of(&store, &joined, "member-ada").await, 0);
+
+        // their own row is the other act's.
+        let own = end_member_sessions(&store, &administrator, "member-ada", 1_757_000_000_300)
+            .await
+            .expect_err("an administrator ended their own sessions from a row");
+
+        assert!(
+            matches!(own, crate::error::Error::Forbidden { .. }),
+            "{own:?}"
+        );
+        assert!(own.to_string().contains("your own sessions"), "{own}");
+
+        // and the owner's row is nobody else's.
+        let theirs = end_member_sessions(&store, &administrator, &owner_id, 1_757_000_000_400)
+            .await
+            .expect_err("an administrator ended the owner's sessions");
+
+        assert!(
+            matches!(theirs, crate::error::Error::Forbidden { .. }),
+            "{theirs:?}"
+        );
+        assert!(
+            theirs.to_string().contains("the organization is theirs"),
+            "{theirs}"
+        );
+        assert_eq!(epoch_of(&store, &joined, &owner_id).await, 0);
+
+        // a plain member holds the act on nobody.
+        let refusal = end_member_sessions(&store, &member, "member-ada", 1_757_000_000_500)
+            .await
+            .expect_err("a plain member ended somebody's sessions");
+
+        assert!(refusal.to_string().contains("resetPassword"), "{refusal}");
+        assert_eq!(epoch_of(&store, &joined, "member-ada").await, 0);
     }
 
     /// The key a member key encodes to reads back as the same key, and anything else reads back as

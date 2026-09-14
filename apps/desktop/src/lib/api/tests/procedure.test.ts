@@ -42,7 +42,12 @@ async function signedOutApi() {
 			},
 			remoteSync: {
 				getState: async () => fakeSyncState(),
-				replicate: async () => ({ pushed: false, received: false, refusal: 'none' as const }),
+				replicate: async () => ({
+					pushed: false,
+					received: false,
+					refusal: 'none' as const,
+					standing: 'held' as const
+				}),
 				push: async () => false,
 				renameWorkspace: async () => fakeSyncState()
 			}

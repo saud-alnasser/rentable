@@ -20,6 +20,7 @@
 	import BanIcon from '@lucide/svelte/icons/ban';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import KeyIcon from '@lucide/svelte/icons/key-round';
+	import LaptopIcon from '@lucide/svelte/icons/laptop';
 	import LockIcon from '@lucide/svelte/icons/lock';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import ShieldIcon from '@lucide/svelte/icons/shield';
@@ -80,8 +81,10 @@
 		reissuing,
 		revoking,
 		copying,
+		endingSessions,
 		isChangingRole,
 		isChangingAccess,
+		onEndSessions,
 		onReissue,
 		onRevoke,
 		onCopyLink,
@@ -118,8 +121,15 @@
 		revoking: string | null;
 		/** the invitation whose link is being read again, while it is. */
 		copying: string | null;
+		/** the member whose sessions are being ended, while they are. */
+		endingSessions: string | null;
 		isChangingRole: boolean;
 		isChangingAccess: boolean;
+		/**
+		 * sign a member out of every machine. Their password is not changed by it, which is what
+		 * makes it a different act from the new link beside it.
+		 */
+		onEndSessions: (memberId: string) => void;
 		/** issue a member a fresh link, which is what a reset is. */
 		onReissue: (memberId: string) => void;
 		onRevoke: (invitationId: string) => void;
@@ -376,6 +386,21 @@
 						member.id,
 						() => onReissue(member.id),
 						reissuing !== null
+					)}
+				{/if}
+
+				<!-- beside the new link and behind the same act, because the two are the same
+				     trust read twice: whoever may hand somebody a fresh way in may close the ways
+				     in that are already open (effort 826, requirement 22). Never on the owner's
+				     row and never on the reader's own, which `writable` is. -->
+				{#if canReset && writable(member)}
+					{@render action(
+						$LL.organization.dashboard.endSessions(),
+						LaptopIcon,
+						'data-member-end-sessions',
+						member.id,
+						() => onEndSessions(member.id),
+						endingSessions !== null
 					)}
 				{/if}
 

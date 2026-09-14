@@ -120,8 +120,10 @@ const list = (
 			reissuing: null,
 			revoking: null,
 			copying: null,
+			endingSessions: null,
 			isChangingRole: false,
 			isChangingAccess: false,
+			onEndSessions: noop,
 			onReissue: noop,
 			onRevoke: noop,
 			onCopyLink: noop,
@@ -254,6 +256,7 @@ test('the owner sees every row action, on every row but their own', () => {
 	expect(controls('access')).toBe(2);
 	expect(controls('rename')).toBe(2);
 	expect(controls('new-link')).toBe(2);
+	expect(controls('end-sessions')).toBe(2);
 	expect(controls('remove')).toBe(2);
 	expect(controls('lock-out')).toBe(2);
 	// the pending row alone offers the two that act on an invitation.
@@ -267,6 +270,7 @@ test('the owner sees every row action, on every row but their own', () => {
 	expect(on('remove', 'owner')).toBeNull();
 	expect(on('rename', 'owner')).toBeNull();
 	expect(on('rename', 'ada')).not.toBeNull();
+	expect(on('end-sessions', 'owner')).toBeNull();
 });
 
 test('a member holding no act sees no row action at all', () => {
@@ -282,7 +286,16 @@ test('a member holding no act sees no row action at all', () => {
 		selfId: 'sami'
 	});
 
-	for (const kind of ['role', 'access', 'rename', 'new-link', 'copy-link', 'revoke', 'remove']) {
+	for (const kind of [
+		'role',
+		'access',
+		'rename',
+		'new-link',
+		'end-sessions',
+		'copy-link',
+		'revoke',
+		'remove'
+	]) {
 		expect(controls(kind), kind).toBe(0);
 	}
 	expect(document.querySelector('[data-invite-open]')).toBeNull();
@@ -316,12 +329,34 @@ test('each action is drawn by its own act and by no other', () => {
 	only({ canGrantWorkspace: true }, 'access', 2);
 	only({ canRename: true }, 'rename', 2);
 	only({ canReset: true }, 'new-link', 2);
+	only({ canReset: true }, 'end-sessions', 2);
 	only({ canRemove: true }, 'remove', 2);
 	// the lock-out needs the Turso authority as well as the act, so it takes both.
 	only({ canRemove: true }, 'lock-out', 0);
 	only({ canRemove: true, canLockOut: true }, 'lock-out', 2);
 	only({ canInvite: true }, 'copy-link', 1);
 	only({ canInvite: true }, 'revoke', 1);
+});
+
+// criterion 22 of effort 826: ending somebody's sessions is `resetPassword`'s, beside the new
+// link and never on the owner's row or the reader's own. The press reaches the route, which is
+// where the mutation is.
+test('signing a member out of every machine is offered behind reset password, and never on the owner', async () => {
+	const asked: string[] = [];
+
+	list({ selfId: 'ada', isOwner: false, onEndSessions: (memberId) => asked.push(memberId) });
+
+	// the owner's row and the reader's own carry no such control; sami's does.
+	expect(on('end-sessions', 'owner')).toBeNull();
+	expect(on('end-sessions', 'ada')).toBeNull();
+	expect(on('end-sessions', 'sami')).not.toBeNull();
+	expect(on('end-sessions', 'sami')?.getAttribute('aria-label')).toBe(
+		en.organization.dashboard.endSessions
+	);
+
+	await fireEvent.click(on('end-sessions', 'sami')!);
+
+	expect(asked).toEqual(['sami']);
 });
 
 // criterion 15: the link is sealed to whoever issued it, so the row offers a copy to them and a

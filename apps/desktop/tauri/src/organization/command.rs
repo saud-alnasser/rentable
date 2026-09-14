@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, atomic::Ordering};
 
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
@@ -15,7 +15,7 @@ use super::{
     password,
     removal::{self, LockOutCost, Removed},
     role,
-    session::{self, CredentialSlot, SessionFacts, WorkspaceFacts},
+    session::{self, CredentialSlot, Resumption, SessionFacts, WorkspaceFacts},
     setup::{self, CreateOrganization, OrganizationCreated, Remote},
     store::OrganizationStore,
     workspace,
@@ -67,6 +67,10 @@ pub struct OrganizationState {
     /// owner's machine after a consent. An owner restored on a new machine holds none until they
     /// repeat the consent, which is the one thing a restore cannot bring with it (requirement 5).
     pub holds_turso_authority: bool,
+    /// whether the wall is up because this member's sessions were ended from another machine
+    /// (effort 826, requirement 22), which is a sentence the wall carries rather than a refusal
+    /// anybody made here. False the moment somebody is signed in again.
+    pub signed_out_elsewhere: bool,
 }
 
 /// Create an organization on the consented Turso account, with this machine's person as its
@@ -193,10 +197,20 @@ pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, 
     let session = current_facts(app_state).await?;
     let holds_turso_authority = owner_platform(app_state).await.is_some();
 
+    // the standing is only ever about a wall that is up: somebody signed in has answered it,
+    // whichever way they got back in, so this one read clears it rather than five sign-in paths
+    // each remembering to.
+    if session.is_some() {
+        app_state
+            .signed_out_elsewhere
+            .store(false, Ordering::SeqCst);
+    }
+
     Ok(OrganizationState {
         organization,
         session,
         holds_turso_authority,
+        signed_out_elsewhere: app_state.signed_out_elsewhere.load(Ordering::SeqCst),
     })
 }
 
@@ -340,6 +354,13 @@ pub async fn organization_sign_out(
 /// a member's vault in it. The record is read before it is emptied, which is why this runs before
 /// `forget` touches it.
 pub(crate) async fn sign_out(app_state: &AppState) {
+    // a sign-out the person asked for answers the standing: they are at the wall because they
+    // put themselves there. The heartbeat's own sign-out sets it again afterwards, which is the
+    // one case where the wall has something to say.
+    app_state
+        .signed_out_elsewhere
+        .store(false, Ordering::SeqCst);
+
     {
         let mut remote_sync = app_state.remote_sync.write().await;
         let held = remote_sync.store_mut().organization.as_ref();
@@ -382,12 +403,24 @@ async fn resume_remembered(app_state: &AppState) {
     let resumed = match open_replica(app_state, &held).await {
         Ok((store, credential)) => session::resume(&store, &held, &credential)
             .await
-            .map(|member| (store, member)),
+            .map(|resumption| (store, resumption)),
         Err(refusal) => Err(refusal),
     };
 
     let (store, member) = match resumed {
-        Ok(resumed) => resumed,
+        Ok((store, Resumption::Opened(member))) => (store, *member),
+        // the sessions were ended from another machine while this one was closed: the wall goes
+        // up with the sentence for it rather than with the one every other launch shows.
+        Ok((_, Resumption::SignedOutElsewhere)) => {
+            app_state.signed_out_elsewhere.store(true, Ordering::SeqCst);
+
+            diagnostics::info("organization.session.notResumed")
+                .with("organization", held.id.as_str())
+                .with("reason", "the sessions were ended from another machine")
+                .write();
+
+            return;
+        }
         Err(refusal) => {
             diagnostics::info("organization.session.notResumed")
                 .with("organization", held.id.as_str())
@@ -398,16 +431,62 @@ async fn resume_remembered(app_state: &AppState) {
         }
     };
 
-    // best effort, and after the vault is open, for the reason the sign-in's pull is: the pull
-    // needs the credential the vault held, and what does not arrive is the offline case.
-    store.pull().await;
-
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
 
     diagnostics::info("organization.session.resumed")
         .with("organization", held.id.as_str())
         .write();
+}
+
+/// Whether the member signed in on this machine has been signed out from every machine since,
+/// and if so put the wall up: the check the sync heartbeat makes (effort 826, requirement 22).
+///
+/// **The heartbeat rather than a timer of its own**, because the property wanted is that a
+/// machine with the application open is at the wall within one heartbeat of the push reaching it,
+/// and the heartbeat is already the thing that runs when nobody is doing anything. The
+/// organization replica is pulled first, since the row was written on another machine and this
+/// one learns of it no other way; a pull that could not go leaves the check to the next one,
+/// which is the offline case rather than a failure.
+///
+/// What it does when the row has moved on is exactly what a sign-out does, through the same
+/// routine: the keys go, the replica is let go of, the remembered key is deleted. What it adds is
+/// the standing, so the wall says which sign-out this was.
+pub(crate) async fn ended_elsewhere(app_state: &AppState) -> bool {
+    let ended = {
+        let member = app_state.member.read().await;
+        let organization = app_state.organization.read().await;
+
+        let (Some(member), Some(store)) = (member.as_ref(), organization.as_ref()) else {
+            return false;
+        };
+
+        store.pull().await;
+
+        match session::ended_elsewhere(store, member).await {
+            Ok(ended) => ended,
+            // a row that will not read is not a sign-out: the replica is the offline case and
+            // this member goes on working against what it holds (requirement 18).
+            Err(refusal) => {
+                diagnostics::warn("organization.session.standingUnread")
+                    .with("reason", refusal.to_string())
+                    .write();
+
+                false
+            }
+        }
+    };
+
+    if !ended {
+        return false;
+    }
+
+    sign_out(app_state).await;
+    app_state.signed_out_elsewhere.store(true, Ordering::SeqCst);
+
+    diagnostics::info("organization.session.endedFromAnotherMachine").write();
+
+    true
 }
 
 /// The organization replica on this machine, opened against its remote with a credential slot a
@@ -995,6 +1074,46 @@ pub async fn member_rename(
     invite::rename_member(store, member, &member_id, &username, timestamp::now()).await
 }
 
+/// Sign this member out of every machine but the one they are at (effort 826, requirement 22).
+///
+/// **They stay signed in here**, and nothing asks for their password: the row's session epoch
+/// moves on, this machine's session and its remembered key move with it, and every other machine
+/// is behind. One with the application open meets the wall at its next sync heartbeat; one that
+/// is closed meets it at its next launch.
+#[tauri::command]
+pub async fn organization_session_end_elsewhere(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<OrganizationState, Error> {
+    {
+        let mut member = app_state.member.write().await;
+        let store = app_state.organization.read().await;
+        let (member, store) = signed_in(&mut member, &store)?;
+
+        session::end_elsewhere(store, member, timestamp::now()).await?;
+    }
+
+    state_of(&app_state).await
+}
+
+/// Sign a member out of every machine, from their row: the owner's, and any holder of
+/// `resetPassword` (effort 826, requirement 22).
+///
+/// **Their password is not changed by it.** What ends is the sessions and the keys the machines
+/// they signed in on were staying signed in with; the password they know still opens their vault.
+/// The caller's own row is refused, because that is `organization_session_end_elsewhere` and
+/// keeps this machine in, and the owner's is refused to anybody but the owner.
+#[tauri::command]
+pub async fn member_end_sessions(
+    app_state: tauri::State<'_, AppState>,
+    member_id: String,
+) -> Result<(), Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    session::end_member_sessions(store, member, &member_id, timestamp::now()).await
+}
+
 /// What locking a member out would cost, said before it is done: which workspaces rotate and how
 /// many other members stop syncing until their application reconnects.
 #[tauri::command]
@@ -1308,10 +1427,11 @@ mod tests {
         database::Database,
         keyring::{self, CredentialStoreTurn, refuse_the_next_store, take_the_credential_store},
         organization::{
-            forget, join,
-            session::{MEMBER_KEY_SERVICE, verifying_key_of},
+            forget, join, session,
+            session::{CredentialSlot, MEMBER_KEY_SERVICE, read_entry, verifying_key_of},
             setup::{CreateOrganization, Remote, create_organization},
-            vault::{KdfParams, MemberKey, open_sealed_secret_key},
+            store::OrganizationStore,
+            vault::{KdfParams, open_sealed_secret_key},
         },
         persisted::Persisted,
         settings::Settings,
@@ -1372,6 +1492,7 @@ mod tests {
             organization: Arc::new(RwLock::new(None)),
             member: Arc::new(RwLock::new(None)),
             arriving_link: Arc::new(Mutex::new(None)),
+            signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             old_shape_check: tokio::sync::OnceCell::new(),
         }
     }
@@ -1426,6 +1547,11 @@ mod tests {
         }
 
         app_state
+    }
+
+    /// An empty credential slot, for a store opened against no remote.
+    fn slot() -> CredentialSlot {
+        Arc::new(Mutex::new(None))
     }
 
     /// What the record names: the organization and the member, which is what an entry is keyed on.
@@ -1488,6 +1614,87 @@ mod tests {
             app_state.organization.read().await.is_some(),
             "the replica was not held open"
         );
+    }
+
+    /// **Criterion 22, the heartbeat.** A member is signed in on this machine; on another machine
+    /// they end every other session. One call of the check the sync heartbeat makes, and this
+    /// machine holds no session, no replica and no remembered key, and says on the state that it
+    /// was signed out from another machine.
+    ///
+    /// The other machine is a second store over the same replica, which is what two machines are
+    /// to each other once a push and a pull have run between them; there is no remote here, so the
+    /// file is what they share.
+    #[tokio::test]
+    async fn a_session_ended_from_another_machine_is_gone_after_one_heartbeat() {
+        let _turn = a_turn().await;
+        let directory = scratch("heartbeat");
+        let app_state = first_run(&directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+
+        let state = state_of(&app_state).await.expect("the state");
+
+        assert!(state.session.is_some(), "the launch did not resume");
+        assert!(!state.signed_out_elsewhere);
+
+        // the other machine, signed in as the same member, ending every other session.
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .organization
+                .clone()
+                .expect("the record names no organization")
+        };
+        let elsewhere = OrganizationStore::open(
+            &OrganizationStore::replica_path(&directory.join(Database::FILENAME), &organization_id),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
+        .await
+        .expect("the other machine's replica");
+        let mut theirs = session::sign_in(&elsewhere, &held, PASSWORD, &slot())
+            .await
+            .expect("the other machine did not sign in");
+
+        session::end_elsewhere(&elsewhere, &mut theirs, CREATED_AT + 1)
+            .await
+            .expect("ending the other sessions failed");
+
+        // one heartbeat on this machine.
+        assert!(
+            super::ended_elsewhere(&app_state).await,
+            "the heartbeat did not read the row as moved on"
+        );
+        assert!(
+            app_state.member.read().await.is_none(),
+            "the session outlived the sign-out"
+        );
+        assert!(
+            app_state.organization.read().await.is_none(),
+            "the replica was still held open"
+        );
+        assert_eq!(
+            filed(&organization_id, &member_id),
+            None,
+            "the remembered key outlived the sign-out"
+        );
+
+        let state = state_of(&app_state).await.expect("the state");
+
+        assert!(state.session.is_none());
+        assert!(
+            state.signed_out_elsewhere,
+            "the wall was not told which sign-out this was"
+        );
+        assert_eq!(
+            state.organization.map(|held| held.id),
+            Some(organization_id),
+            "the machine forgot the organization as well as the session"
+        );
+
+        // and a heartbeat on a machine with nobody in reads nothing and says nothing.
+        assert!(!super::ended_elsewhere(&app_state).await);
     }
 
     /// The wall, which is what every failure to resume comes to. Nothing filed is the plainest of
@@ -1635,14 +1842,20 @@ mod tests {
         assert_eq!(session.member_id, member_id);
 
         let encoded = filed(&organization_id, &member_id).expect("the sign-in filed no key");
-        let key = MemberKey::decode(&encoded).expect("what was filed is not a key");
+        let (epoch, key) =
+            read_entry(&encoded).expect("what was filed is not a remembered session");
         let bytes = {
             use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 
             BASE64URL
-                .decode(&encoded)
+                .decode(key.encode())
                 .expect("what was filed is not base64url")
         };
+
+        assert_eq!(
+            epoch, 0,
+            "the entry files the session epoch in front of the key"
+        );
 
         assert_eq!(
             bytes.len(),
