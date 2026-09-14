@@ -88,6 +88,7 @@ const open = async () => {
 
 const inviteRow = () => document.querySelector<HTMLElement>('[data-workspace-menu-invite]');
 const createRow = () => document.querySelector<HTMLElement>('[data-workspace-menu-create]');
+const workspacesRow = () => document.querySelector<HTMLElement>('[data-workspace-menu-workspaces]');
 
 beforeEach(() => {
 	resetOrganizationDialogs();
@@ -234,4 +235,19 @@ test('for an owner whose machine holds no authority the new-workspace row says w
 	expect(row?.getAttribute('aria-disabled')).toBe('true');
 	expect(row?.textContent).toContain(en.layout.workspaceMenu.workspaceRefusedAuthority);
 	expect(row?.textContent).not.toContain(en.layout.workspaceMenu.workspaceRefusedOwner);
+});
+
+// requirement 17 of effort 826: the menu keeps the switcher and offers workspaces and invite.
+// The row opened the workspace page, which was one workspace; the section it opens now is the
+// list of the ones this member holds.
+test('the workspaces row opens the settings area at the workspaces section', async () => {
+	menu();
+	await open();
+
+	const row = workspacesRow();
+
+	expect(row?.getAttribute('href')).toBe('/settings?section=workspaces');
+	expect(row?.textContent).toContain(en.settings.section.workspaces);
+	// nothing in the menu reaches the page the row used to open.
+	expect(document.querySelector('a[href="/workspace"]')).toBeNull();
 });

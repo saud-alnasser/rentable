@@ -1610,6 +1610,36 @@ type RootTranslation = {
 		 * l​a​n​g​u​a​g​e
 		 */
 		localeTitle: string
+		section: {
+			/**
+			 * g​e​n​e​r​a​l
+			 */
+			general: string
+			/**
+			 * y​o​u
+			 */
+			you: string
+			/**
+			 * m​e​m​b​e​r​s
+			 */
+			members: string
+			/**
+			 * w​o​r​k​s​p​a​c​e​s
+			 */
+			workspaces: string
+			/**
+			 * s​y​n​c
+			 */
+			sync: string
+			/**
+			 * u​p​d​a​t​e​s
+			 */
+			updates: string
+			/**
+			 * d​i​a​g​n​o​s​t​i​c​s
+			 */
+			diagnostics: string
+		}
 		/**
 		 * s​e​t​t​i​n​g​s
 		 */
@@ -4344,6 +4374,36 @@ export type TranslationFunctions = {
 		 * language
 		 */
 		localeTitle: () => LocalizedString
+		section: {
+			/**
+			 * general
+			 */
+			general: () => LocalizedString
+			/**
+			 * you
+			 */
+			you: () => LocalizedString
+			/**
+			 * members
+			 */
+			members: () => LocalizedString
+			/**
+			 * workspaces
+			 */
+			workspaces: () => LocalizedString
+			/**
+			 * sync
+			 */
+			sync: () => LocalizedString
+			/**
+			 * updates
+			 */
+			updates: () => LocalizedString
+			/**
+			 * diagnostics
+			 */
+			diagnostics: () => LocalizedString
+		}
 		/**
 		 * settings
 		 */

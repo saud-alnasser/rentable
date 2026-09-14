@@ -1,37 +1,79 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import api from '$lib/api/caller';
 	import { tauri } from '$lib/platform/tauri';
-	import PageFrame from '@rentable/design/block/page-frame.svelte';
+	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
+	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { Separator } from '@rentable/design/primitive/separator/index.js';
+	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
 	import { toErrorText } from '$lib/error/message';
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
-	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
-	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
-	import SettingsLocale from '$lib/settings/component/locale.svelte';
-	import SettingsUpdates from '$lib/settings/component/updates.svelte';
-	import { useFetchSettings } from '$lib/settings/query';
-	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
+	import { useStartup } from '$lib/layout/startup-context';
+	import { showInvited } from '$lib/organization/dialogs.svelte';
+	import {
+		useChangePassword,
+		useDisconnectOrganization,
+		useFetchInvitations,
+		useFetchMembers,
+		useFetchOrganizationState,
+		useLockOutCost,
+		useReissueInvitation,
+		useRemoveMember,
+		useRenameMember,
+		useRevokeInvitation
+	} from '$lib/organization/query';
+	import SettingsArea from '$lib/settings/component/area.svelte';
+	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
+	import { sectionOf } from '$lib/settings/section';
+	import { permits } from '@rentable/workspace-permission';
 	import { toast } from 'svelte-sonner';
 
 	/**
-	 * The application's own settings, and nothing else's.
+	 * Everything a person sets, at one address.
 	 *
-	 * **Two of its five groups were never settings**, and both left on 2026-08-20: the account went
-	 * to `/account` and the workspace to `/workspace`, each reached from the sidebar control that
-	 * names it. What is here is what a person changes about this copy of the application, and it
-	 * is the only page of the three that reads its own query rather than the shell's.
+	 * **The route owns the queries and the area owns none** ([[rules/frontend]]). What is here is
+	 * the four pages' worth of reading and writing that `/organization`, `/workspace`, `/account`
+	 * and this page each did for themselves, plus the one confirm that has to read a cost before
+	 * it can ask its question; `settings/component/area.svelte` is handed the answers and draws.
+	 * That split is what lets requirement 14's gating be read with two sessions and no shell.
+	 *
+	 * **The section is `?section=` on this pathname, and the pathname is load-bearing.** This is
+	 * the one address that draws with nobody signed in (`layout/shell-surface.ts`), matched
+	 * exactly, and the back trail is keyed by pathname, so moving between sections is not leaving
+	 * the page. `settings/section.ts` says why that beat a segment per section.
+	 *
+	 * **Signed out, three sections are offered and the organization's own reading is off.** The
+	 * settings query is public and reaches no database, which is what qualified this address for
+	 * the wall's list in the first place; the invitation list is a member's procedure and asks
+	 * nothing until there is a member.
 	 */
+	const startup = useStartup();
 	const settingsQuery = useFetchSettings();
+	const stateQuery = useFetchOrganizationState();
+	const membersQuery = useFetchMembers();
+
+	const session = $derived(stateQuery.data?.session ?? null);
+	const canInvite = $derived(permits(session?.permissions ?? 0, 'inviteMember'));
+
+	const invitationsQuery = useFetchInvitations(() => canInvite);
+	const remoteSyncQuery = useFetchRemoteSyncState(() => session !== null);
+
+	const changePassword = useChangePassword();
+	const reissueInvitation = useReissueInvitation();
+	const revokeInvitation = useRevokeInvitation();
+	const removeMember = useRemoveMember();
+	const renameMember = useRenameMember();
+	const disconnectOrganization = useDisconnectOrganization();
 
 	const isLoading = $derived(settingsQuery.isLoading && !settingsQuery.data);
 	const loadError = $derived(
 		settingsQuery.error && !settingsQuery.data ? settingsQuery.error : undefined
 	);
+
+	const section = $derived(sectionOf(page.url));
 
 	async function revealDiagnostics() {
 		const diagnosticsDir = settingsQuery.data?.diagnosticsDir;
@@ -63,6 +105,88 @@
 			showErrorToast(error, $LL);
 		}
 	}
+
+	/**
+	 * the removal being asked about: which member, and at which speed. The lock-out's dialog
+	 * waits for the cost to be read, because the number it states is the number the act uses.
+	 */
+	let removing = $state<{ memberId: string; lockOut: boolean } | null>(null);
+
+	const lockOutCost = useLockOutCost(() => (removing?.lockOut ? removing.memberId : null));
+
+	const removingName = $derived.by(() => {
+		if (!removing) return '';
+
+		const member = (membersQuery.data ?? []).find(
+			(candidate) => candidate.id === removing?.memberId
+		);
+
+		return member ? member.username : removing.memberId;
+	});
+
+	const lockOutDescription = $derived.by(() => {
+		const cost = lockOutCost.data;
+
+		if (!removing?.lockOut || !cost) return $LL.organization.dashboard.lockOutReading();
+
+		return $LL.organization.dashboard.lockOutDescription({
+			count: cost.membersAffected,
+			workspaces:
+				cost.workspaces.map((workspace) => workspace.name).join(', ') ||
+				$LL.organization.dashboard.noWorkspaces()
+		});
+	});
+
+	const confirmRemoval = async () => {
+		if (!removing) return;
+
+		const { memberId, lockOut } = removing;
+		const removed = await removeMember.mutateAsync({ memberId, lockOut });
+
+		toast.success(
+			removed.lockedOut
+				? $LL.organization.dashboard.lockedOut({ count: removed.othersMustReconnect })
+				: $LL.organization.dashboard.removed()
+		);
+		await stateQuery.refetch();
+	};
+
+	let reissuing = $state<string | null>(null);
+	let revoking = $state<string | null>(null);
+
+	const reissue = async (memberId: string) => {
+		reissuing = memberId;
+
+		try {
+			showInvited(await reissueInvitation.mutateAsync({ memberId }));
+		} catch {
+			// said by the shared handler.
+		} finally {
+			reissuing = null;
+		}
+	};
+
+	const revoke = async (invitationId: string) => {
+		revoking = invitationId;
+
+		try {
+			await revokeInvitation.mutateAsync({ invitationId });
+		} catch {
+			// said by the shared handler.
+		} finally {
+			revoking = null;
+		}
+	};
+
+	/**
+	 * the disconnect, once confirmed: the shell forgets the organization, and the startup unit
+	 * reads where the machine stands and raises the first screen. A refusal is said by the shared
+	 * handler and rethrown so the confirm stays open on it.
+	 */
+	const disconnect = async () => {
+		await disconnectOrganization.mutateAsync();
+		void startup.standingChanged();
+	};
 </script>
 
 {#if isLoading}
@@ -87,37 +211,60 @@
 		{/snippet}
 	</StandaloneSurface>
 {:else if settingsQuery.data}
-	<PageFrame>
-		<!-- the title alone: the sentence under it listed the groups whose own legends are directly
-		     below, so the page opened by naming its contents twice. -->
-		<h1 class="text-3xl font-semibold tracking-tight capitalize">{$LL.settings.title()}</h1>
+	<SettingsArea
+		{section}
+		settings={settingsQuery.data}
+		{session}
+		holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority === true}
+		syncState={remoteSyncQuery.data ?? null}
+		members={membersQuery.data ?? []}
+		invitations={invitationsQuery.data ?? []}
+		{reissuing}
+		{revoking}
+		isChangingPassword={changePassword.isPending}
+		onChangeLocale={(next) => void changeLocale(next)}
+		onRevealDiagnostics={() => void revealDiagnostics()}
+		onChangePassword={async (current, next) => {
+			await changePassword.mutateAsync({ current, next });
+		}}
+		onReissue={(memberId) => void reissue(memberId)}
+		onRevoke={(invitationId) => void revoke(invitationId)}
+		onRemove={(memberId) => {
+			removing = { memberId, lockOut: false };
+		}}
+		onLockOut={(memberId) => {
+			removing = { memberId, lockOut: true };
+		}}
+		onRename={async (memberId, username) => {
+			await renameMember.mutateAsync({ memberId, username });
+		}}
+		onAuthorityReconnected={() => void stateQuery.refetch()}
+		onDisconnect={disconnect}
+	/>
 
-		<Field.Group>
-			<Field.Set>
-				<Field.Legend>{$LL.settings.groupGeneral()}</Field.Legend>
-				<Field.Group>
-					<SettingsLocale currentLocale={$locale} onChange={changeLocale} />
-					<Field.Separator />
-					<SettingsEndingSoon settings={settingsQuery.data} />
-				</Field.Group>
-			</Field.Set>
+	<!-- the ordinary removal asks once and says what it does not do: nothing on the member's
+	     machine is taken back. The lock-out asks with the cost read first, and names how many
+	     others stop syncing, because turso revokes per database and totally.
 
-			<Separator />
-
-			<Field.Set>
-				<Field.Legend>{$LL.settings.groupUpdates()}</Field.Legend>
-				<SettingsUpdates version={settingsQuery.data.version} />
-			</Field.Set>
-
-			<Separator />
-
-			<Field.Set>
-				<Field.Legend>{$LL.settings.groupDiagnostics()}</Field.Legend>
-				<SettingsDiagnostics
-					diagnosticsDir={settingsQuery.data.diagnosticsDir}
-					onRevealDiagnostics={() => void revealDiagnostics()}
-				/>
-			</Field.Set>
-		</Field.Group>
-	</PageFrame>
+	     It sits here rather than in the area because it reads a query of its own, and the area
+	     reads none; the members section raises it through `onRemove` and `onLockOut`. -->
+	<DeleteDialog
+		open={removing !== null}
+		onOpenChange={(open) => {
+			if (!open) removing = null;
+		}}
+		onSubmit={confirmRemoval}
+		record={removingName}
+		title={removing?.lockOut
+			? $LL.organization.dashboard.removeAndLockOut()
+			: $LL.organization.dashboard.remove()}
+		description={removing?.lockOut
+			? lockOutDescription
+			: $LL.organization.dashboard.removeDescription()}
+		confirmLabel={removing?.lockOut
+			? $LL.organization.dashboard.removeAndLockOut()
+			: $LL.organization.dashboard.remove()}
+		confirmLoadingLabel={$LL.common.actions.working()}
+		blockers={removing?.lockOut && !lockOutCost.data ? AWAITING_BLOCKERS : undefined}
+	/>
 {/if}

@@ -7,8 +7,9 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
+	import { withSection } from '$lib/settings/section';
 	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
-	import SettingsIcon from '@tabler/icons-svelte/icons/settings';
+	import BuildingIcon from '@lucide/svelte/icons/building';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
@@ -154,11 +155,18 @@
 				     Items keep the arrow-key order, which does not care that they are drawn in a row. -->
 				<div class="px-1 pt-1 pb-2">
 					<div class="flex gap-1">
+						<!-- the workspaces section of the settings area, since 2026-09-14. It opened the
+						     workspace page, which was one workspace; the section is the list of the ones
+						     this member holds, which is what a menu about workspaces should reach. -->
 						<DropdownMenu.Item class="flex-1 justify-center border">
 							{#snippet child({ props })}
-								<a href={resolve('/workspace')} {...props}>
-									<SettingsIcon class="size-4 shrink-0" />
-									<span class="capitalize">{$LL.layout.workspaceMenu.settings()}</span>
+								<a
+									href={resolve(withSection('workspaces'))}
+									data-workspace-menu-workspaces
+									{...props}
+								>
+									<BuildingIcon class="size-4 shrink-0" />
+									<span class="capitalize">{$LL.settings.section.workspaces()}</span>
 								</a>
 							{/snippet}
 						</DropdownMenu.Item>

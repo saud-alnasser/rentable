@@ -508,6 +508,18 @@ const en = {
 		localeLabel: 'display language',
 		localeTitle: 'language',
 
+		// the seven sections of the settings area, in the order the rail draws them rather than
+		// in alphabetical order: the order is requirement 14's and is read here as a list.
+		section: {
+			general: 'general',
+			you: 'you',
+			members: 'members',
+			workspaces: 'workspaces',
+			sync: 'sync',
+			updates: 'updates',
+			diagnostics: 'diagnostics'
+		},
+
 		title: 'settings',
 
 		updatesChecking: 'checking for updates...',

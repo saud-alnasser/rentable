@@ -226,10 +226,18 @@ export function useFetchMembers() {
 	}));
 }
 
-export function useFetchInvitations() {
+/**
+ * @param enabled whether to ask at all. It defaults to asking, and the one caller that passes
+ * anything is the settings route: `/settings` is the address that draws with nobody signed in
+ * (`layout/shell-surface.ts`), the list is a member's procedure, and asking it there would be a
+ * refusal by design reported as a failure. `useFetchRemoteSyncState` takes the parameter for the
+ * same reason and says so at more length.
+ */
+export function useFetchInvitations(enabled: () => boolean = () => true) {
 	return createQuery(() => ({
 		queryKey: keys.invitations,
-		queryFn: () => api.app.organization.invitation.list()
+		queryFn: () => api.app.organization.invitation.list(),
+		enabled: enabled()
 	}));
 }
 

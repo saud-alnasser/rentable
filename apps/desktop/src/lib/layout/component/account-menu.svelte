@@ -7,12 +7,12 @@
 	import { useSidebar } from '@rentable/design/primitive/sidebar/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
+	import { THE_SETTINGS_AREA, withSection } from '$lib/settings/section';
 	import { accountInitials } from '$lib/sync/account';
 	import { requestSignOut } from '$lib/sync/sign-out';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import SettingsIcon from '@tabler/icons-svelte/icons/settings';
 	import UserCircleIcon from '@tabler/icons-svelte/icons/user-circle';
-	import UsersGroupIcon from '@tabler/icons-svelte/icons/users-group';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 
 	/**
@@ -98,27 +98,22 @@
 
 				<DropdownMenu.Separator />
 
+				<!-- you, then settings, then the way out. The organization row and the account row
+				     went with the pages they opened (requirement 17 of effort 826): the person is the
+				     `you` section now, and everything the organization row reached is a section of the
+				     same area, which the row under it opens at its front. -->
 				<DropdownMenu.Item>
 					{#snippet child({ props })}
-						<a href={resolve('/organization')} {...props}>
-							<UsersGroupIcon class="size-4 shrink-0" />
-							<span class="capitalize">{$LL.common.nav.organization()}</span>
-						</a>
-					{/snippet}
-				</DropdownMenu.Item>
-
-				<DropdownMenu.Item>
-					{#snippet child({ props })}
-						<a href={resolve('/account')} {...props}>
+						<a href={resolve(withSection('you'))} data-account-menu-you {...props}>
 							<UserCircleIcon class="size-4 shrink-0" />
-							<span class="capitalize">{$LL.common.nav.account()}</span>
+							<span class="capitalize">{$LL.settings.section.you()}</span>
 						</a>
 					{/snippet}
 				</DropdownMenu.Item>
 
 				<DropdownMenu.Item>
 					{#snippet child({ props })}
-						<a href={resolve('/settings')} {...props}>
+						<a href={resolve(THE_SETTINGS_AREA)} data-account-menu-settings {...props}>
 							<SettingsIcon class="size-4 shrink-0" />
 							<span class="capitalize">{$LL.common.nav.settings()}</span>
 						</a>

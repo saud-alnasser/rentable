@@ -6,6 +6,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { withSection } from '$lib/settings/section';
 	import { accountInitials } from '$lib/sync/account';
 	import UsersGroupIcon from '@tabler/icons-svelte/icons/users-group';
 
@@ -63,9 +64,11 @@
 		<Field.Content>
 			<Field.Description>{$LL.workspace.membersDescription()}</Field.Description>
 		</Field.Content>
-		<Button variant="outline" size="sm" class="shrink-0" href={resolve('/organization')}>
+		<!-- the members section of the settings area: the organization page it used to open
+		     retired with requirement 14 of effort 826. -->
+		<Button variant="outline" size="sm" class="shrink-0" href={resolve(withSection('members'))}>
 			<UsersGroupIcon class="size-4 shrink-0" />
-			{$LL.common.nav.organization()}
+			{$LL.settings.section.members()}
 		</Button>
 	</Field.Field>
 </div>
