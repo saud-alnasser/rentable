@@ -51,9 +51,13 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   about this should be the safe one, so the safe one is the one you reach for by habit.
 - **Host-only is the test for `public`, not harmless-looking.** A public procedure reaches
   `ctx.host` and never `ctx.db`. A read of the workspace is not public however read-only it
-  looks, because the workspace belongs to somebody. Today there are nine: this machine's
-  settings, its updater, what the shell knows about syncing, and the organization's consent and
-  first run, which happen before there is anybody to act as (`organization/router.ts` argues it).
+  looks, because the workspace belongs to somebody. Today there are twelve: this machine's
+  settings, its updater, what the shell knows about syncing, the organization's consent and
+  first run, which happen before there is anybody to act as (`organization/router.ts` argues it),
+  and accepting an invitation, which is how there comes to be somebody (*twelve since
+  2026-09-15, counted as every `procedure.public` under `src/lib`, the updater's two in
+  `api/app.ts` included; it read nine, which was already short of the eleven the tree then had,
+  until effort 826 added `invitation.accept`*).
 - **`Context.identity` is `Identity | null`, and `null` is never filled in.** An absent actor is
   absent — never an anonymous, guest, or placeholder user. Decision 03 called a placeholder the
   harder of the two failures, and an absence that is expressible again is exactly when one gets

@@ -497,6 +497,9 @@ Where a criterion names a test, this says which file and at what level ([[rules/
 | 18 | `i18n/tests/organization.test.ts` extended with the retired keys and the one-key-per-term list |
 | 19 | `forget.rs` test with a replica whose `invitation` table lacks `sealed_secret`; once by hand |
 | 20 | the four gates |
+| 21 | `discovery.rs` scripted-listing tests name the databases in the consented group; `setup.rs` refuses an `org-` name over the loopback listing with no create and the consent's entry gone; `setup.test.ts` drives the refusal and pins the fourth literal; `i18n/tests/organization.test.ts` reads it in both locales |
+| 22 | `session.rs` two-store tests: `end_elsewhere` keeps the caller in and the other store's resume forgets its entry; `end_member_sessions` under `resetPassword` with the owner's and the caller's rows refused; `command.rs` heartbeat test; `autosync.test.ts`; the you section's and the members section's tests; the wall's sentence in both locales |
+| 23 | `invite.rs`: three things drawn, `code_seal` under the code, a fresh code to the issuer alone; `join.rs`: lapsed, wrong and missing refused by name, the link secret alone opens nothing, the rewritten expiry opens nothing, the secrecy sweep; `router.test.ts` pins `invitation.code` and the six-character `code`; `invite-form.svelte.test.ts`, `members.svelte.test.ts` and `connect-screen.svelte.test.ts` for the code, the countdown and the field |
 
 Every Rust module keeps its own fixture; the builders named in the survey (`invite.rs::owned`,
 `join.rs::invited`, `removal.rs::organization`, `store.rs::populated`) are extended in place.

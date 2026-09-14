@@ -69,6 +69,16 @@ must hand it on is on the other side of the boundary; it is never stored on this
 a key, a token that reaches a ledger, or the Turso authority, and a third thing that looks like
 these two is a finding rather than a third exception.
 
+*Corrected 2026-09-15 ([[efforts/826-the-organization-and-the-way-in-are-rethought/spec]],
+requirements 8 and 23): the generated password no longer crosses at all. It leaves `invite::issue`
+in two sealed columns of the invitation row and nowhere else. What crosses in its place is the
+six-character confirmation code, out of `member_invite`, `member_reset` and `invitation_code`,
+because the person who reads it out on a call is on the other side of the boundary; it lapses
+ninety seconds after it is made, it is one half of what opens the invited vault and the link's
+secret is the other, and it is never stored on this side. The invitation link crosses as before,
+carrying the invitation id and the link secret. Those are still the two, and the sentence above
+about a third holds.*
+
 Recorded originally as ADR 0003, *The Google Drive client relocates wholly to Rust*.
 
 ## Concurrency — **retired 2026-08-19 with the transport it bound (#554)**

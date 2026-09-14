@@ -116,8 +116,9 @@ sentence from both.
   can ask for is an outcome rather than a step of the protocol. What a vault holds never crosses
   either; [[rules/credentials]], under *Client boundary*. *2026-09-14: the remembered member key
   is a keyring entry Rust alone reads and writes, and the replicate the sync heartbeat dispatches
-  pulls the organization replica first and ends a session whose epoch the row has moved past,
-  answering a standing the wall reads.*
+  pulls the organization replica first, pushes what this machine wrote to it (which is what
+  carries out a sign-out made with no connection; 2026-09-15), and ends a session whose epoch the
+  row has moved past, answering a standing the wall reads.*
 - **A flow is one command, and the interface observes it rather than sequencing it.** The caller
   asks to sign in, join, or restore and gets back the state that resulted; it does not open a
   session, poll it, redeem a code and hold the pieces in between. A flow outstanding for as long
