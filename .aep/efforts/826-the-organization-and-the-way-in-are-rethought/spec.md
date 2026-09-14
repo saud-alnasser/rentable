@@ -423,6 +423,16 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
 
 # Risks
 
+- **The session epoch is unsigned, and that is accepted** (*the human's decision, 2026-09-15,
+  on the correctness review's finding 3*). `member.session_epoch` sits outside the row's
+  signature because a member ends their own sessions without holding a signing certificate, so
+  a member who holds the organization credential can write another member's epoch, the
+  owner's included, and force them to the wall. Accepted as inside the class the chain never
+  covered: the chain proves authority, not availability, and a member holding that credential
+  can already delete the owner's row outright. The same acceptance covers the residual review
+  round two recorded, a machine offline when sessions were ended writing a stale epoch back
+  and pushing it later. What would close both is the epoch in a row of its own, signed and
+  merged by maximum, which is a data model change for a later effort if the limit ever bites.
 - **A remembered session weakens a shared machine.** Anyone at the machine opens the ledger.
   Sign-out is the answer and the you section says so; a session that expires is out of
   scope by decision and this is the cost. *Since 2026-09-14, requirement 22 gives a person

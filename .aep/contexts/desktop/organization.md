@@ -119,7 +119,11 @@ repeats the consent for it, because no row holds it.
   a holder of `resetPassword` ending theirs, forgets the entry at the next launch and ends an
   open session at the next sync heartbeat, with the wall saying it was signed out from another
   machine. One username may be signed in on many machines; the epoch is the one thing they
-  share.
+  share. *The epoch is outside the row's signature, and that is an accepted limit (the human,
+  2026-09-15): a member holding the organization credential can write another member's epoch
+  and force them to the wall, which is availability rather than authority, and the same
+  credential already lets them delete the row; the chain was never what stood between a member
+  and that. An epoch of its own, signed and merged by maximum, is the shape that would close it.*
 - **One Turso group holds one organization.** *Added 2026-09-14 (requirement 21).* A first run
   whose consent lands on a group already holding an `org-` database is refused before anything
   is created, the consent abandoned; a second machine reconnecting to the organization that
