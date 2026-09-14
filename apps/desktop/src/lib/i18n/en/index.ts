@@ -385,7 +385,7 @@ const en = {
 			inviteRefused: 'the owner or an administrator invites. ask one of them.',
 			workspaceRefusedOwner: 'the owner creates a workspace. ask the owner.',
 			workspaceRefusedAuthority:
-				'creating a workspace needs the turso account, and this machine is not connected to it. reconnect it on the organization page.'
+				'creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the sync section of settings.'
 		},
 
 		noWorkspace: {
@@ -881,6 +881,15 @@ const en = {
 			accessDescription:
 				'which workspaces {username:string} holds, and what each one is good for. taking a workspace back mints nothing, so what they already hold works until it runs out.',
 			accessSaved: 'the workspaces were saved.',
+			workspaceAccessTitle: 'members and access',
+			workspaceAccessDescription:
+				'who holds {workspace:string}, and what each of them can do in it. taking a workspace back mints nothing, so what somebody already holds works until it runs out.',
+			deleteWorkspace: 'delete workspace',
+			deleteWorkspaceDescription:
+				'the workspace and its database are deleted from the turso account, with every tenant, complex, unit, contract and payment in it, on every machine that syncs it. nothing puts it back.',
+			workspaceDeleted: 'the workspace was deleted.',
+			transferTitle: 'export and import {workspace:string}',
+			forgetAccount: 'forget turso account',
 			readOnlyIsTheOwners: "only the owner can grant read only access, on the owner's own machine.",
 			changeRoleTitle: 'role and permissions',
 			changeRoleDescription:
@@ -911,19 +920,13 @@ const en = {
 	},
 
 	workspace: {
-		groupIdentity: 'this workspace',
-		groupMembers: 'members',
 		groupSync: 'sync',
 		groupTransfer: 'export / import',
-		identityDescription: 'the picture is a placeholder, and not something that can be changed yet.',
-		membersDescription:
-			'one person, and only one is possible today. inviting anybody else arrives with organizations.',
 		nameTooLong: 'that name is too long.',
 		nameRequired: 'give this workspace a name.',
 		rename: 'rename',
 		renameDescription: 'what this workspace is called, on every machine signed in to it.',
 		renamed: 'the workspace was renamed.',
-		roleOwner: 'owner',
 		syncDescription:
 			'this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.',
 		syncStatusNeedsReconnect: 'needs reconnect',

@@ -2728,6 +2728,36 @@ type RootTranslation = {
 			 */
 			accessSaved: string
 			/**
+			 * m​e​m​b​e​r​s​ ​a​n​d​ ​a​c​c​e​s​s
+			 */
+			workspaceAccessTitle: string
+			/**
+			 * w​h​o​ ​h​o​l​d​s​ ​{​w​o​r​k​s​p​a​c​e​}​,​ ​a​n​d​ ​w​h​a​t​ ​e​a​c​h​ ​o​f​ ​t​h​e​m​ ​c​a​n​ ​d​o​ ​i​n​ ​i​t​.​ ​t​a​k​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​b​a​c​k​ ​m​i​n​t​s​ ​n​o​t​h​i​n​g​,​ ​s​o​ ​w​h​a​t​ ​s​o​m​e​b​o​d​y​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​w​o​r​k​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
+			 * @param {string} workspace
+			 */
+			workspaceAccessDescription: RequiredParams<'workspace'>
+			/**
+			 * d​e​l​e​t​e​ ​w​o​r​k​s​p​a​c​e
+			 */
+			deleteWorkspace: string
+			/**
+			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​i​t​s​ ​d​a​t​a​b​a​s​e​ ​a​r​e​ ​d​e​l​e​t​e​d​ ​f​r​o​m​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​w​i​t​h​ ​e​v​e​r​y​ ​t​e​n​a​n​t​,​ ​c​o​m​p​l​e​x​,​ ​u​n​i​t​,​ ​c​o​n​t​r​a​c​t​ ​a​n​d​ ​p​a​y​m​e​n​t​ ​i​n​ ​i​t​,​ ​o​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​ ​t​h​a​t​ ​s​y​n​c​s​ ​i​t​.​ ​n​o​t​h​i​n​g​ ​p​u​t​s​ ​i​t​ ​b​a​c​k​.
+			 */
+			deleteWorkspaceDescription: string
+			/**
+			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​w​a​s​ ​d​e​l​e​t​e​d​.
+			 */
+			workspaceDeleted: string
+			/**
+			 * e​x​p​o​r​t​ ​a​n​d​ ​i​m​p​o​r​t​ ​{​w​o​r​k​s​p​a​c​e​}
+			 * @param {string} workspace
+			 */
+			transferTitle: RequiredParams<'workspace'>
+			/**
+			 * f​o​r​g​e​t​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
+			 */
+			forgetAccount: string
+			/**
 			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​g​r​a​n​t​ ​r​e​a​d​ ​o​n​l​y​ ​a​c​c​e​s​s​,​ ​o​n​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​o​w​n​ ​m​a​c​h​i​n​e​.
 			 */
 			readOnlyIsTheOwners: string
@@ -2816,14 +2846,6 @@ type RootTranslation = {
 	}
 	workspace: {
 		/**
-		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e
-		 */
-		groupIdentity: string
-		/**
-		 * m​e​m​b​e​r​s
-		 */
-		groupMembers: string
-		/**
 		 * s​y​n​c
 		 */
 		groupSync: string
@@ -2831,14 +2853,6 @@ type RootTranslation = {
 		 * e​x​p​o​r​t​ ​/​ ​i​m​p​o​r​t
 		 */
 		groupTransfer: string
-		/**
-		 * t​h​e​ ​p​i​c​t​u​r​e​ ​i​s​ ​a​ ​p​l​a​c​e​h​o​l​d​e​r​,​ ​a​n​d​ ​n​o​t​ ​s​o​m​e​t​h​i​n​g​ ​t​h​a​t​ ​c​a​n​ ​b​e​ ​c​h​a​n​g​e​d​ ​y​e​t​.
-		 */
-		identityDescription: string
-		/**
-		 * o​n​e​ ​p​e​r​s​o​n​,​ ​a​n​d​ ​o​n​l​y​ ​o​n​e​ ​i​s​ ​p​o​s​s​i​b​l​e​ ​t​o​d​a​y​.​ ​i​n​v​i​t​i​n​g​ ​a​n​y​b​o​d​y​ ​e​l​s​e​ ​a​r​r​i​v​e​s​ ​w​i​t​h​ ​o​r​g​a​n​i​z​a​t​i​o​n​s​.
-		 */
-		membersDescription: string
 		/**
 		 * t​h​a​t​ ​n​a​m​e​ ​i​s​ ​t​o​o​ ​l​o​n​g​.
 		 */
@@ -2859,10 +2873,6 @@ type RootTranslation = {
 		 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​w​a​s​ ​r​e​n​a​m​e​d​.
 		 */
 		renamed: string
-		/**
-		 * o​w​n​e​r
-		 */
-		roleOwner: string
 		/**
 		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​k​e​p​t​ ​f​o​r​ ​y​o​u​ ​a​n​d​ ​r​e​a​c​h​e​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​o​n​ ​i​t​s​ ​o​w​n​.​ ​c​h​e​c​k​i​n​g​ ​i​n​ ​n​o​w​ ​k​e​e​p​s​ ​i​t​ ​w​o​r​k​i​n​g​ ​o​f​f​l​i​n​e​ ​f​o​r​ ​t​h​e​ ​n​e​x​t​ ​t​h​r​e​e​ ​d​a​y​s​.
 		 */
@@ -5516,6 +5526,34 @@ export type TranslationFunctions = {
 			 */
 			accessSaved: () => LocalizedString
 			/**
+			 * members and access
+			 */
+			workspaceAccessTitle: () => LocalizedString
+			/**
+			 * who holds {workspace}, and what each of them can do in it. taking a workspace back mints nothing, so what somebody already holds works until it runs out.
+			 */
+			workspaceAccessDescription: (arg: { workspace: string }) => LocalizedString
+			/**
+			 * delete workspace
+			 */
+			deleteWorkspace: () => LocalizedString
+			/**
+			 * the workspace and its database are deleted from the turso account, with every tenant, complex, unit, contract and payment in it, on every machine that syncs it. nothing puts it back.
+			 */
+			deleteWorkspaceDescription: () => LocalizedString
+			/**
+			 * the workspace was deleted.
+			 */
+			workspaceDeleted: () => LocalizedString
+			/**
+			 * export and import {workspace}
+			 */
+			transferTitle: (arg: { workspace: string }) => LocalizedString
+			/**
+			 * forget turso account
+			 */
+			forgetAccount: () => LocalizedString
+			/**
 			 * only the owner can grant read only access, on the owner's own machine.
 			 */
 			readOnlyIsTheOwners: () => LocalizedString
@@ -5603,14 +5641,6 @@ export type TranslationFunctions = {
 	}
 	workspace: {
 		/**
-		 * this workspace
-		 */
-		groupIdentity: () => LocalizedString
-		/**
-		 * members
-		 */
-		groupMembers: () => LocalizedString
-		/**
 		 * sync
 		 */
 		groupSync: () => LocalizedString
@@ -5618,14 +5648,6 @@ export type TranslationFunctions = {
 		 * export / import
 		 */
 		groupTransfer: () => LocalizedString
-		/**
-		 * the picture is a placeholder, and not something that can be changed yet.
-		 */
-		identityDescription: () => LocalizedString
-		/**
-		 * one person, and only one is possible today. inviting anybody else arrives with organizations.
-		 */
-		membersDescription: () => LocalizedString
 		/**
 		 * that name is too long.
 		 */
@@ -5646,10 +5668,6 @@ export type TranslationFunctions = {
 		 * the workspace was renamed.
 		 */
 		renamed: () => LocalizedString
-		/**
-		 * owner
-		 */
-		roleOwner: () => LocalizedString
 		/**
 		 * this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.
 		 */

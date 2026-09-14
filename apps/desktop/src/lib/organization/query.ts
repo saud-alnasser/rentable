@@ -218,6 +218,40 @@ export function useCreateWorkspace(
 	);
 }
 
+/**
+ * delete a workspace and the database it lives on.
+ *
+ * **The owner's, and refused in Rust before anything is deleted**: the delete reaches Turso
+ * through the one intent the credentials rule permits, and the authority for it lives on the
+ * owner's machine. The confirm that asks first is the workspaces section's, and it names what is
+ * lost; the refusal a person can act on arrives as a forbidden and is shown.
+ *
+ * It invalidates where the machine stands rather than a list of workspaces, because there is no
+ * such list: the workspaces a member holds are part of the session the state query answers with,
+ * and the rail's switcher reads the same key.
+ */
+export function useDeleteWorkspace(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.workspaceDeleted(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ workspaceId }: { workspaceId: string }) =>
+			api.app.organization.workspace.remove({ workspaceId }),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.state });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
 export function useFetchMembers() {
 	return createQuery(() => ({
 		queryKey: keys.members,

@@ -16,6 +16,7 @@
 	import {
 		useChangePassword,
 		useChangeRole,
+		useDeleteWorkspace,
 		useDisconnectOrganization,
 		useFetchMembers,
 		useFetchOrganizationState,
@@ -70,6 +71,7 @@
 	const changeRole = useChangeRole();
 	const grantWorkspace = useGrantWorkspace();
 	const withdrawGrant = useWithdrawGrant();
+	const deleteWorkspace = useDeleteWorkspace();
 	const disconnectOrganization = useDisconnectOrganization();
 
 	const isLoading = $derived(settingsQuery.isLoading && !settingsQuery.data);
@@ -223,6 +225,39 @@
 		toast.success($LL.organization.dashboard.accessSaved());
 	};
 
+	/**
+	 * the same writes as `changeAccess`, asked the other way round: one workspace, and the
+	 * members whose access on it changed. The workspaces section asks *who holds this*, the
+	 * members section asks *what does this person hold*, and both end in the same two commands.
+	 */
+	const changeWorkspaceAccess = async (
+		workspaceId: string,
+		changes: { memberId: string; access: 'none' | 'full-access' | 'read-only' }[]
+	) => {
+		for (const change of changes) {
+			if (change.access === 'none') {
+				await withdrawGrant.mutateAsync({ workspaceId, memberId: change.memberId });
+			} else {
+				await grantWorkspace.mutateAsync({
+					workspaceId,
+					memberId: change.memberId,
+					access: change.access
+				});
+			}
+		}
+
+		toast.success($LL.organization.dashboard.accessSaved());
+	};
+
+	/**
+	 * a workspace deleted, once the confirm in the section has asked: the database goes with it,
+	 * so the session is read again to drop the row the rail's switcher is still drawing.
+	 */
+	const removeWorkspace = async (workspaceId: string) => {
+		await deleteWorkspace.mutateAsync({ workspaceId });
+		await stateQuery.refetch();
+	};
+
 	const revoke = async (invitationId: string) => {
 		revoking = invitationId;
 
@@ -302,6 +337,8 @@
 			await changeRole.mutateAsync({ memberId, role, permissions });
 		}}
 		onChangeAccess={changeAccess}
+		onChangeWorkspaceAccess={changeWorkspaceAccess}
+		onDeleteWorkspace={removeWorkspace}
 		onAuthorityReconnected={() => void stateQuery.refetch()}
 		onDisconnect={disconnect}
 	/>

@@ -5,8 +5,7 @@ import { beforeEach, expect, test } from 'vitest';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import InviteForm from '$lib/organization/component/invite-form.svelte';
-import Workspaces from '$lib/organization/component/workspaces.svelte';
-import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
+import { resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
@@ -21,8 +20,8 @@ import { chooseOption, openSelect } from '$lib/design/tests/select';
  * refused under the one rule every username field reads; and once an invitation is made, one
  * link as a machine string with one copy control, no password anywhere, and the statement that
  * nothing was sent, which is the half a screen can get wrong on its own (effort 826, requirement
- * 8). And the workspace section's two shapes: the owner's opener, and the sentence everybody else
- * gets instead of it.
+ * 8). *The workspaces section's own two shapes were read here until effort 826 rebuilt that list;
+ * they are `workspaces.svelte.test.ts`'s, beside the rest of the rows.*
  *
  * The dialog is rendered open with its props, and no submit is fired: a superforms SPA submit
  * reaches SvelteKit's `applyAction`, which this runner does not carry, so what is asserted is what
@@ -347,42 +346,4 @@ test('a closed dialog puts nothing in the document', () => {
 
 	expect(document.querySelector('[data-slot=form-surface]')).toBeNull();
 	expect(inputsOnScreen()).toEqual([]);
-});
-
-// requirement 12 from the page's side: the workspace section is the list and an opener, and the
-// opener asks the shell for the one dialog rather than drawing a form of its own.
-test('the workspace section draws the list and an opener for the owner, and the opener opens the dialog', async () => {
-	loadLocale('en');
-	setLocale('en');
-	render(Workspaces, { workspaces, canCreate: true, refusal: null });
-
-	expect(document.querySelector('form')).toBeNull();
-	expect(inputsOnScreen()).toEqual([]);
-	expect(screen.queryByText(en.layout.workspaceMenu.workspaceRefusedOwner)).toBeNull();
-	expect(screen.getByText('Riyadh')).toBeDefined();
-
-	const opener = screen.getByRole('button', { name: en.layout.workspaceMenu.create });
-
-	// requirement 14: the verb's glyph before its label.
-	expect(opener.querySelector('svg')).not.toBeNull();
-	expect(organizationDialog.open).toBeNull();
-	await fireEvent.click(opener);
-	expect(organizationDialog.open).toBe('workspace');
-});
-
-// requirement 12 of the organization effort from the screen's side: no request queue, a sentence
-// naming whom to ask.
-test('the workspace section tells everybody else to ask the owner, and offers no opener', () => {
-	loadLocale('en');
-	setLocale('en');
-	render(Workspaces, {
-		workspaces,
-		canCreate: false,
-		refusal: en.layout.workspaceMenu.workspaceRefusedOwner
-	});
-
-	expect(document.querySelector('[data-workspace-create]')).toBeNull();
-	expect(inputsOnScreen()).toEqual([]);
-	expect(screen.getByText(en.layout.workspaceMenu.workspaceRefusedOwner)).toBeDefined();
-	expect(screen.getByText('Riyadh')).toBeDefined();
 });

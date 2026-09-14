@@ -78,6 +78,8 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 			onRename: resolved,
 			onChangeRole: resolved,
 			onChangeAccess: resolved,
+			onChangeWorkspaceAccess: resolved,
+			onDeleteWorkspace: resolved,
 			onAuthorityReconnected: noop,
 			onDisconnect: resolved,
 			...overrides
@@ -193,4 +195,59 @@ test('the area carries one title, and it is the area rather than the section', (
 	area({ section: 'diagnostics' });
 
 	expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(en.settings.title);
+});
+
+// criterion 14 and criterion 16, the sync section: the owner's own items are the Turso account
+// and the organization's link, and a plain member meets neither. The status and the disconnect
+// are everybody's, since a member reads whether their machine is reaching the workspace and
+// leaves the organization from the same place the owner does.
+test('the sync section gives the owner the turso account, the link and the disconnect', () => {
+	at('?section=sync');
+	area({ section: 'sync' });
+
+	expect(screen.getByText(en.organization.dashboard.authorityTitle)).toBeDefined();
+	expect(document.querySelector('[data-forget-account]')).not.toBeNull();
+	expect(document.querySelector('[data-reconnect-authority]')).toBeNull();
+	expect(screen.getByText(en.organization.dashboard.linkTitle)).toBeDefined();
+	expect(document.querySelector('[data-disconnect]')).not.toBeNull();
+	expect(screen.getByText(en.workspace.syncDescription)).toBeDefined();
+});
+
+// requirement 5: the authority is restored from nowhere, so an owner on a machine that holds
+// none is offered the consent again rather than the control that gives it back.
+test('an owner whose machine holds no authority is offered the reconnect in its place', () => {
+	at('?section=sync');
+	area({ section: 'sync', holdsTursoAuthority: false });
+
+	expect(document.querySelector('[data-reconnect-authority]')).not.toBeNull();
+	expect(document.querySelector('[data-forget-account]')).toBeNull();
+	expect(screen.getByText(en.organization.dashboard.authorityDescription)).toBeDefined();
+});
+
+test('a plain member reads the sync status and the disconnect, and nothing of the account', () => {
+	at('?section=sync');
+	area({
+		section: 'sync',
+		session: fakeOrganizationSession({ role: 'member', permissions: 0 }),
+		holdsTursoAuthority: false
+	});
+
+	expect(screen.getByText(en.workspace.syncDescription)).toBeDefined();
+	expect(document.querySelector('[data-disconnect]')).not.toBeNull();
+	expect(document.querySelector('[data-forget-account]')).toBeNull();
+	expect(document.querySelector('[data-reconnect-authority]')).toBeNull();
+	expect(screen.queryByText(en.organization.dashboard.authorityTitle)).toBeNull();
+	expect(screen.queryByText(en.organization.dashboard.linkTitle)).toBeNull();
+});
+
+// criterion 16 from the area's side: the section is the list this member holds, with the rows
+// the workspaces section draws. What each row offers is read in `workspaces.svelte.test.ts`.
+test('the workspaces section draws a row per workspace the session holds', () => {
+	at('?section=workspaces');
+	area({ section: 'workspaces' });
+
+	expect(document.querySelectorAll('[data-workspace]')).toHaveLength(1);
+	expect(document.querySelector('[data-workspace-name]')?.textContent?.trim()).toBe(
+		'North Properties'
+	);
 });

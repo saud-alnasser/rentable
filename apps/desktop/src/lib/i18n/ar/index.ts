@@ -376,7 +376,7 @@ const ar = {
 			inviteRefused: 'المالك أو أحد المديرين هو من يدعو. اسأل أحدهم.',
 			workspaceRefusedOwner: 'المالك هو من ينشئ مساحة العمل. اسأل المالك.',
 			workspaceRefusedAuthority:
-				'إنشاء مساحة عمل يحتاج إلى حساب Turso، وهذا الجهاز غير متصل به. أعد ربطه من صفحة المؤسسة.'
+				'إنشاء مساحة عمل يحتاج إلى حساب Turso، وهذا الجهاز غير متصل به. أعد ربطه من قسم المزامنة في الإعدادات.'
 		},
 
 		noWorkspace: {
@@ -854,6 +854,15 @@ const ar = {
 			accessDescription:
 				'مساحات العمل التي يحملها {username}، وما يصلح له كل منها. سحب مساحة عمل لا يصدر شيئًا، فما يحمله الآن يعمل حتى تنتهي صلاحيته.',
 			accessSaved: 'حُفظت مساحات العمل.',
+			workspaceAccessTitle: 'الأعضاء والوصول',
+			workspaceAccessDescription:
+				'من يحمل {workspace}، وما يستطيع كل منهم فعله فيها. سحب مساحة عمل لا يصدر شيئًا، فما يحمله المرء الآن يعمل حتى تنتهي صلاحيته.',
+			deleteWorkspace: 'احذف مساحة العمل',
+			deleteWorkspaceDescription:
+				'تُحذف مساحة العمل وقاعدة بياناتها من حساب Turso، ومعها كل مستأجر ومجمع ووحدة وعقد ودفعة فيها، على كل جهاز يزامنها. لا شيء يعيدها.',
+			workspaceDeleted: 'حُذفت مساحة العمل.',
+			transferTitle: 'تصدير واستيراد {workspace}',
+			forgetAccount: 'انسَ حساب Turso',
 			readOnlyIsTheOwners: 'المالك وحده يمنح وصول القراءة فقط، من جهازه هو.',
 			changeRoleTitle: 'الدور والصلاحيات',
 			changeRoleDescription:
@@ -883,18 +892,13 @@ const ar = {
 	},
 
 	workspace: {
-		groupIdentity: 'مساحة العمل هذه',
-		groupMembers: 'الأعضاء',
 		groupSync: 'المزامنة',
 		groupTransfer: 'تصدير / استيراد',
-		identityDescription: 'الصورة عنصر نائب، ولا يمكن تغييرها بعد.',
-		membersDescription: 'شخص واحد، وهو الوحيد الممكن اليوم. دعوة غيره تأتي مع المؤسسات.',
 		nameTooLong: 'هذا الاسم طويل جداً.',
 		nameRequired: 'أعطِ مساحة العمل اسماً.',
 		rename: 'إعادة تسمية',
 		renameDescription: 'اسم مساحة العمل هذه على كل جهاز مسجل الدخول إليها.',
 		renamed: 'تمت إعادة تسمية مساحة العمل.',
-		roleOwner: 'المالك',
 		syncDescription:
 			'تُحفظ هذه المساحة نيابةً عنك وتصل إلى هذا الجهاز تلقائياً. والتحقق الآن يبقيها تعمل دون اتصال لثلاثة أيام قادمة.',
 		syncStatusNeedsReconnect: 'يحتاج إلى إعادة ربط',

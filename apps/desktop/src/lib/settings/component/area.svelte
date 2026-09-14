@@ -12,6 +12,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import OrganizationChangePasswordForm from '$lib/organization/component/change-password-form.svelte';
 	import OrganizationDisconnect from '$lib/organization/component/disconnect.svelte';
+	import OrganizationForgetAccount from '$lib/organization/component/forget-account.svelte';
 	import OrganizationIdentity from '$lib/organization/component/identity.svelte';
 	import OrganizationLink from '$lib/organization/component/organization-link.svelte';
 	import OrganizationMembers from '$lib/organization/component/members.svelte';
@@ -46,11 +47,11 @@
 	 * `sectionsFor` decides which tabs exist, and inside a section the same permissions decide
 	 * each block. Rust refuses every one of them again.
 	 *
-	 * *The workspaces and sync sections are composed here from the components the four pages
-	 * drew, unchanged, so every section works at this commit; ticket 11 rebuilds the first and
-	 * finishes the second. The members section is its own component and was rebuilt as one list
-	 * at ticket 10, which is why this draws it and nothing else: the invite button, the pending
-	 * rows and the three light dialogs are all the list's.*
+	 * **Each of the four organization sections is one component, and this composes rather than
+	 * draws.** The members list, the workspaces list and the sync blocks each own their rows,
+	 * their dialogs and their gates; what is here is which of them a reader is offered and what
+	 * they are handed. *The workspaces and sync sections were the retired pages' components
+	 * stood side by side until ticket 11 rebuilt them.*
 	 */
 	let {
 		section,
@@ -76,6 +77,8 @@
 		onRename,
 		onChangeRole,
 		onChangeAccess,
+		onChangeWorkspaceAccess,
+		onDeleteWorkspace,
 		onAuthorityReconnected,
 		onDisconnect
 	}: {
@@ -119,6 +122,13 @@
 			memberId: string,
 			changes: { id: string; access: 'none' | 'full-access' | 'read-only' }[]
 		) => Promise<void>;
+		/** the same grants read the other way round: one workspace, and the members that changed. */
+		onChangeWorkspaceAccess: (
+			workspaceId: string,
+			changes: { memberId: string; access: 'none' | 'full-access' | 'read-only' }[]
+		) => Promise<void>;
+		/** delete a workspace and its database; rejects so the confirm stays open on the refusal. */
+		onDeleteWorkspace: (workspaceId: string) => Promise<void>;
 		onAuthorityReconnected: () => void;
 		/** forget the organization on this machine; rejects so the confirm stays open. */
 		onDisconnect: () => Promise<void>;
@@ -221,19 +231,26 @@
 		</Field.Group>
 	{:else if shown === 'workspaces' && session}
 		<Field.Group>
-			<Field.Set>
-				<!-- gated as the rail's row is, with the rail's sentences: an owner whose machine lost
-				     the authority reads why rather than meeting a create the shell refuses. -->
-				<OrganizationWorkspaces
-					workspaces={session.workspaces}
-					canCreate={canCreateWorkspace}
-					refusal={canCreateWorkspace
-						? null
-						: isOwner
-							? $LL.layout.workspaceMenu.workspaceRefusedAuthority()
-							: $LL.layout.workspaceMenu.workspaceRefusedOwner()}
-				/>
-			</Field.Set>
+			<!-- the list owns its own legend, its rows' surfaces and the transfer beneath it; what is
+			     decided here is what this reader may do. The refusal is the rail's own sentence, and
+			     it is drawn for an owner whose machine lost the authority alone: an administrator
+			     never had a create to be refused, so a sentence saying whose it is would be
+			     announcing something missing. -->
+			<OrganizationWorkspaces
+				workspaces={session.workspaces}
+				{members}
+				openWorkspaceId={syncState?.workspace.remoteId ?? null}
+				canCreate={canCreateWorkspace}
+				canDelete={isOwner}
+				canRename={permits(session.permissions, 'renameWorkspace')}
+				canGrantWorkspace={permits(session.permissions, 'grantWorkspace')}
+				{isOwner}
+				selfId={session.memberId}
+				{isChangingAccess}
+				refusal={needsAuthority ? $LL.layout.workspaceMenu.workspaceRefusedAuthority() : null}
+				onChangeAccess={onChangeWorkspaceAccess}
+				onDelete={onDeleteWorkspace}
+			/>
 		</Field.Group>
 	{:else if shown === 'sync' && session}
 		<Field.Group>
@@ -245,16 +262,21 @@
 				<Separator />
 			{/if}
 
-			{#if needsAuthority}
+			<!-- the Turso account, which is the owner's alone: reconnected where this machine holds
+			     no authority, and given back where it does. Both are the same subject, so they share
+			     the legend rather than standing as two sections a reader meets one of. -->
+			{#if isOwner}
 				<Field.Set>
 					<Field.Legend>{$LL.organization.dashboard.authorityTitle()}</Field.Legend>
-					<OrganizationReconnectAuthority onReconnected={onAuthorityReconnected} />
+					{#if needsAuthority}
+						<OrganizationReconnectAuthority onReconnected={onAuthorityReconnected} />
+					{:else}
+						<OrganizationForgetAccount />
+					{/if}
 				</Field.Set>
 
 				<Separator />
-			{/if}
 
-			{#if isOwner}
 				<Field.Set>
 					<Field.Legend>{$LL.organization.dashboard.linkTitle()}</Field.Legend>
 					<OrganizationLink {isOwner} />
