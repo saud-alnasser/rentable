@@ -509,7 +509,9 @@ const en = {
 				action: 'sign out of other machines',
 				confirmDescription:
 					'every other machine signed in as you is signed out: one that is running goes back to the sign-in screen within a few minutes, and one that is closed asks for your password next time it opens. this machine stays signed in and your password is unchanged.',
-				ended: 'your other machines were signed out.'
+				ended: 'your other machines were signed out.',
+				endedPending:
+					'this machine is offline; the sign-out reaches the others once it is back online.'
 			}
 		}
 	},
@@ -832,6 +834,8 @@ const en = {
 			newLink: 'new link',
 			endSessions: 'sign out everywhere',
 			sessionsEnded: 'they were signed out of every machine.',
+			sessionsEndedPending:
+				'this machine is offline; the sign-out reaches their machines once it is back online.',
 			copyLink: 'copy the link again',
 			rename: 'rename',
 			renameDescription:

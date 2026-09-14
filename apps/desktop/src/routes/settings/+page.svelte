@@ -14,6 +14,7 @@
 	import { useStartup } from '$lib/layout/startup-context';
 	import { showInvited } from '$lib/organization/dialogs.svelte';
 	import {
+		useChangeAccess,
 		useChangePassword,
 		useChangeRole,
 		useDeleteWorkspace,
@@ -22,15 +23,13 @@
 		useEndOtherSessions,
 		useFetchMembers,
 		useFetchOrganizationState,
-		useGrantWorkspace,
 		useInvitationCode,
 		useInvitationLink,
 		useLockOutCost,
 		useReissueInvitation,
 		useRemoveMember,
 		useRenameMember,
-		useRevokeInvitation,
-		useWithdrawGrant
+		useRevokeInvitation
 	} from '$lib/organization/query';
 	import SettingsArea from '$lib/settings/component/area.svelte';
 	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
@@ -73,8 +72,7 @@
 	const removeMember = useRemoveMember();
 	const renameMember = useRenameMember();
 	const changeRole = useChangeRole();
-	const grantWorkspace = useGrantWorkspace();
-	const withdrawGrant = useWithdrawGrant();
+	const changeAccess = useChangeAccess();
 	const deleteWorkspace = useDeleteWorkspace();
 	const disconnectOrganization = useDisconnectOrganization();
 	const endOtherSessions = useEndOtherSessions();
@@ -153,13 +151,11 @@
 		if (!removing) return;
 
 		const { memberId, lockOut } = removing;
-		const removed = await removeMember.mutateAsync({ memberId, lockOut });
 
-		toast.success(
-			removed.lockedOut
-				? $LL.organization.dashboard.lockedOut({ count: removed.othersMustReconnect })
-				: $LL.organization.dashboard.removed()
-		);
+		// what the removal did is announced by the hook, which is the only place a toast is
+		// raised ([[rules/frontend]], *Data access*); this reads the session again because a
+		// lock-out rotates workspaces the reader may hold.
+		await removeMember.mutateAsync({ memberId, lockOut });
 		await stateQuery.refetch();
 	};
 
@@ -264,53 +260,38 @@
 	};
 
 	/**
-	 * a member's workspaces, written one grant at a time: the dialog hands back the rows that
-	 * changed, and a row that changed to `none` is the grant coming back. In order and not in
-	 * parallel, so a refusal on one is the first one the reader hears about rather than the
-	 * last of several toasts.
+	 * a member's workspaces: the dialog hands back the rows that changed, and a row that changed
+	 * to `none` is the grant coming back. The writes and the one announcement are the mutation's,
+	 * so this is the shape of the answer turned into the shape the mutation takes.
 	 */
-	const changeAccess = async (
+	const changeMemberAccess = (
 		memberId: string,
 		changes: { id: string; access: 'none' | 'full-access' | 'read-only' }[]
-	) => {
-		for (const change of changes) {
-			if (change.access === 'none') {
-				await withdrawGrant.mutateAsync({ workspaceId: change.id, memberId });
-			} else {
-				await grantWorkspace.mutateAsync({
-					workspaceId: change.id,
-					memberId,
-					access: change.access
-				});
-			}
-		}
-
-		toast.success($LL.organization.dashboard.accessSaved());
-	};
+	) =>
+		changeAccess.mutateAsync({
+			changes: changes.map((change) => ({
+				workspaceId: change.id,
+				memberId,
+				access: change.access
+			}))
+		});
 
 	/**
-	 * the same writes as `changeAccess`, asked the other way round: one workspace, and the
-	 * members whose access on it changed. The workspaces section asks *who holds this*, the
-	 * members section asks *what does this person hold*, and both end in the same two commands.
+	 * the same writes, asked the other way round: one workspace, and the members whose access on
+	 * it changed. The workspaces section asks *who holds this*, the members section asks *what
+	 * does this person hold*, and both end in the same mutation.
 	 */
-	const changeWorkspaceAccess = async (
+	const changeWorkspaceAccess = (
 		workspaceId: string,
 		changes: { memberId: string; access: 'none' | 'full-access' | 'read-only' }[]
-	) => {
-		for (const change of changes) {
-			if (change.access === 'none') {
-				await withdrawGrant.mutateAsync({ workspaceId, memberId: change.memberId });
-			} else {
-				await grantWorkspace.mutateAsync({
-					workspaceId,
-					memberId: change.memberId,
-					access: change.access
-				});
-			}
-		}
-
-		toast.success($LL.organization.dashboard.accessSaved());
-	};
+	) =>
+		changeAccess.mutateAsync({
+			changes: changes.map((change) => ({
+				workspaceId,
+				memberId: change.memberId,
+				access: change.access
+			}))
+		});
 
 	/**
 	 * a workspace deleted, once the confirm in the section has asked: the database goes with it,
@@ -380,7 +361,7 @@
 		{codeFor}
 		isChangingPassword={changePassword.isPending}
 		isChangingRole={changeRole.isPending}
-		isChangingAccess={grantWorkspace.isPending || withdrawGrant.isPending}
+		isChangingAccess={changeAccess.isPending}
 		onChangeLocale={(next) => void changeLocale(next)}
 		onRevealDiagnostics={() => void revealDiagnostics()}
 		onChangePassword={async (current, next) => {
@@ -406,7 +387,7 @@
 		onChangeRole={async (memberId, role, permissions) => {
 			await changeRole.mutateAsync({ memberId, role, permissions });
 		}}
-		onChangeAccess={changeAccess}
+		onChangeAccess={changeMemberAccess}
 		onChangeWorkspaceAccess={changeWorkspaceAccess}
 		onDeleteWorkspace={removeWorkspace}
 		onAuthorityReconnected={() => void stateQuery.refetch()}

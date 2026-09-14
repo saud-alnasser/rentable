@@ -28,6 +28,7 @@ import type {
 	Recovery,
 	RemoteSyncState,
 	ReplicationRefusal,
+	SessionsEnded,
 	SessionStanding,
 	Settings,
 	SettingsChangeset,
@@ -70,6 +71,7 @@ export type {
 	RemoteSyncState,
 	RemoteSyncWorkspace,
 	ReplicationRefusal,
+	SessionsEnded,
 	SessionStanding,
 	Settings,
 	SettingsChangeset,
@@ -223,7 +225,7 @@ export const tauri = {
 		signIn: (username: string, password: string) =>
 			invoke<OrganizationState>('organization_sign_in', { username, password }),
 		signOut: () => invoke<OrganizationState>('organization_sign_out'),
-		sessionEndElsewhere: () => invoke<OrganizationState>('organization_session_end_elsewhere'),
+		sessionEndElsewhere: () => invoke<SessionsEnded>('organization_session_end_elsewhere'),
 		linkTake: () => invoke<string | null>('organization_link_take'),
 		onLink: (listener: (link: string) => void) =>
 			listen<string>(LINK_ARRIVED_EVENT, (event) => listener(event.payload)),
@@ -256,7 +258,7 @@ export const tauri = {
 				invoke<OrganizationMember>('member_rename', { memberId, username }),
 			changeRole: (memberId: string, role: 'administrator' | 'member', permissions: number) =>
 				invoke<OrganizationMember>('member_change_role', { memberId, role, permissions }),
-			endSessions: (memberId: string) => invoke<void>('member_end_sessions', { memberId })
+			endSessions: (memberId: string) => invoke<SessionsEnded>('member_end_sessions', { memberId })
 		},
 		invitation: {
 			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId }),

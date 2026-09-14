@@ -468,11 +468,24 @@ impl OrganizationStore {
     // members
 
     /// Write a member row, signed by `signer` over the fields the plan puts under signature.
+    ///
+    /// **`session_epoch` never comes down here.** It is outside the preimage and inside a
+    /// whole-row replace, and the three callers that rewrite a row from one they read
+    /// (`invite::rename_member`, `role::change_role`, `removal::retire_member`) read it off this
+    /// machine's replica. A replica that has not pulled since somebody else ended a member's
+    /// sessions still carries the number from before, and writing that back would re-admit every
+    /// machine the sign-out locked out. So the row keeps the greater of what it holds and what
+    /// the record carries, which is the invariant `session.rs` rests the comparison on: the
+    /// number only ever moves forward.
     pub async fn write_member(
         &self,
         signer: &Signer<'_>,
         member: &MemberRecord,
     ) -> Result<(), Error> {
+        let session_epoch = self
+            .session_epoch_of(&member.id)
+            .await?
+            .map_or(member.session_epoch, |held| held.max(member.session_epoch));
         let signature = sign(
             signer.key,
             signer.certificate,
@@ -508,12 +521,32 @@ impl OrganizationStore {
                     turso::Value::Blob(signature),
                     turso::Value::Integer(member.created_at),
                     turso::Value::Integer(member.updated_at),
-                    turso::Value::Integer(member.session_epoch),
+                    turso::Value::Integer(session_epoch),
                 ],
             )
             .await?;
 
         Ok(())
+    }
+
+    /// The epoch the member's row carries on this replica, or `None` where there is no row.
+    ///
+    /// Read in Rust and compared there rather than folded into either write's SQL: the column is
+    /// what a revocation turns on, and a scalar subquery or an upsert clause would put that
+    /// comparison in the engine's hands instead of under a test.
+    async fn session_epoch_of(&self, member_id: &str) -> Result<Option<i64>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"session_epoch\" FROM \"member\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(member_id.to_string())],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => Ok(Some(integer(&row, 0)?)),
+            None => Ok(None),
+        }
     }
 
     /// Re-seal a member's vault under a new password, and say whether they still have to change
@@ -574,31 +607,36 @@ impl OrganizationStore {
     /// [`OrganizationStore::reseal_member`] gives: the column is outside the member preimage, so
     /// nothing an authority vouches for moves here. Who may call it is
     /// `session::end_elsewhere` and `session::end_member_sessions`, which is where the act and
-    /// the owner's row are refused; the store writes what it is told, as it does for a re-seal.
+    /// the owner's row are refused.
+    ///
+    /// **It moves the number on and never back**, for the reason
+    /// [`OrganizationStore::write_member`] gives: the row keeps the greater of what it holds and
+    /// what it is told, so a caller computing `+ 1` over a replica that has not pulled writes a
+    /// number already reached rather than undoing the bump it did not see.
     pub async fn set_session_epoch(
         &self,
         member_id: &str,
         session_epoch: i64,
         now: i64,
     ) -> Result<(), Error> {
-        let changed = self
-            .connection
+        let held = self
+            .session_epoch_of(member_id)
+            .await?
+            .ok_or_else(|| Error::NotFound {
+                message: "that member is not in this organization".to_string(),
+            })?;
+
+        self.connection
             .execute(
                 "UPDATE \"member\" SET \"session_epoch\" = ?, \"updated_at\" = ? \
                  WHERE \"id\" = ?",
                 vec![
-                    turso::Value::Integer(session_epoch),
+                    turso::Value::Integer(held.max(session_epoch)),
                     turso::Value::Integer(now),
                     turso::Value::Text(member_id.to_string()),
                 ],
             )
             .await?;
-
-        if changed == 0 {
-            return Err(Error::NotFound {
-                message: "that member is not in this organization".to_string(),
-            });
-        }
 
         Ok(())
     }
@@ -626,16 +664,54 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<(String, MemberRecord)>, Error> {
+        self.signed_members_where(organization_verifying_key, None)
+            .await
+    }
+
+    /// One member's row, verified on its own, or `None` where no row carries that id.
+    ///
+    /// What an act's gate reads (`session::acting_row`): the acting member's own row and no
+    /// other, so a row somebody else tampered with refuses the list and not every other
+    /// member's acts. The list is what refuses it, by name, the next time anybody reads it.
+    pub async fn member(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        member_id: &str,
+    ) -> Result<Option<MemberRecord>, Error> {
+        Ok(self
+            .signed_members_where(organization_verifying_key, Some(member_id))
+            .await?
+            .into_iter()
+            .map(|(_, member)| member)
+            .next())
+    }
+
+    /// The member read behind [`OrganizationStore::signed_members`] and
+    /// [`OrganizationStore::member`]: every row, or the one row named, each verified.
+    async fn signed_members_where(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        member_id: Option<&str>,
+    ) -> Result<Vec<(String, MemberRecord)>, Error> {
         let certificates = self.certificates().await?;
+        let (filter, params) = match member_id {
+            Some(id) => (
+                " WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            ),
+            None => ("", Vec::new()),
+        };
         let mut rows = self
             .connection
             .query(
-                "SELECT \"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
-                        \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
-                        \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
-                        \"signature\", \"created_at\", \"updated_at\", \"session_epoch\" \
-                 FROM \"member\" ORDER BY \"created_at\", \"id\"",
-                (),
+                &format!(
+                    "SELECT \"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
+                            \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
+                            \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
+                            \"signature\", \"created_at\", \"updated_at\", \"session_epoch\" \
+                     FROM \"member\"{filter} ORDER BY \"created_at\", \"id\""
+                ),
+                params,
             )
             .await?;
         let mut members = Vec::new();
@@ -1399,6 +1475,7 @@ mod tests {
         GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer, TABLES,
         WorkspaceRecord,
     };
+    use crate::error::Error;
     use crate::organization::{
         authority::{AdministratorKey, Certificate, OrganizationKey, issue_certificate},
         vault::{
@@ -1887,6 +1964,109 @@ mod tests {
         assert_eq!(organization.verifying_key, key);
     }
 
+    /// **A whole-row write never puts a member's session epoch back**, which is the whole of
+    /// requirement 22 holding against an ordinary rename.
+    ///
+    /// The interleaving this stands for: somebody ends a member's sessions, the row goes to 1
+    /// and is pushed; an administrator whose replica has not pulled since fixes a typo in that
+    /// member's username, and `invite::rename_member` writes the row back whole from the record
+    /// it read, which still carries 0. `role::change_role` and `removal::retire_member` write
+    /// the same shape, `..member.clone()` with two fields moved, so the three are one case.
+    /// Without the guard the row lands back at 0 and every machine the sign-out locked out opens
+    /// again on its remembered key.
+    #[tokio::test]
+    async fn a_whole_row_write_from_a_record_carrying_an_older_epoch_keeps_the_rows_own() {
+        let directory = scratch("epoch-floor");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+
+        populated(&store, &chain).await;
+
+        let key = chain.verifying_key();
+        let stale = store
+            .members(&key)
+            .await
+            .expect("the members")
+            .into_iter()
+            .find(|member| member.id == "member-staff")
+            .expect("the member row");
+
+        assert_eq!(
+            stale.session_epoch, 0,
+            "a fresh row starts at the first epoch"
+        );
+
+        store
+            .set_session_epoch("member-staff", 1, 1_757_000_001_000)
+            .await
+            .expect("the bump");
+
+        // the rename, written from the record read before the bump.
+        store
+            .write_member(
+                &chain.signer(),
+                &MemberRecord {
+                    username_sealed: chain.sealed("member.username_sealed", "sam.staff"),
+                    updated_at: 1_757_000_002_000,
+                    ..stale.clone()
+                },
+            )
+            .await
+            .expect("the rename");
+
+        let renamed = store
+            .members(&key)
+            .await
+            .expect("the members")
+            .into_iter()
+            .find(|member| member.id == "member-staff")
+            .expect("the member row");
+
+        assert_eq!(
+            renamed.session_epoch, 1,
+            "a rename put the session epoch back and re-admitted the machines a sign-out locked out"
+        );
+        assert_eq!(
+            open_content(
+                &chain.content_key,
+                "member.username_sealed",
+                &renamed.username_sealed
+            )
+            .expect("the username"),
+            b"sam.staff",
+            "the rename itself did not go through"
+        );
+
+        // and the bump's own write is held to the same line, which is what stops
+        // `end_member_sessions` computing `+ 1` over a stale read and writing a number the row
+        // has already passed.
+        store
+            .set_session_epoch("member-staff", 1, 1_757_000_003_000)
+            .await
+            .expect("the second bump");
+
+        assert_eq!(
+            store
+                .members(&key)
+                .await
+                .expect("the members")
+                .into_iter()
+                .find(|member| member.id == "member-staff")
+                .expect("the member row")
+                .session_epoch,
+            1,
+            "a lower epoch was written over a higher one"
+        );
+
+        // a row nobody holds is still a refusal rather than a silent write.
+        assert!(matches!(
+            store
+                .set_session_epoch("member-nobody", 4, 1_757_000_004_000)
+                .await,
+            Err(Error::NotFound { .. })
+        ));
+    }
+
     /// **A member who writes another member's row with an altered role is rejected by every
     /// other client on read**, which is criterion 16 performed exactly: the write goes through the
     /// connection, as a full-access member's would, and the store's read refuses it by name.
@@ -1930,6 +2110,30 @@ mod tests {
                 .expect("the workspaces")
                 .len(),
             2
+        );
+
+        // and the owner's own row, read on its own, still answers: one hostile row stops the
+        // list and not every other member's acts, which read their own row and no other.
+        let owner = store
+            .member(&chain.verifying_key(), "member-owner")
+            .await
+            .expect("the owner's row would not read")
+            .expect("the owner is not a member");
+
+        assert_eq!(owner.role, "owner");
+        assert!(
+            store
+                .member(&chain.verifying_key(), "member-staff")
+                .await
+                .is_err(),
+            "the altered row read on its own"
+        );
+        assert!(
+            store
+                .member(&chain.verifying_key(), "member-nobody")
+                .await
+                .expect("an unknown id would not read")
+                .is_none()
         );
     }
 

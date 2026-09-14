@@ -40,8 +40,7 @@
 	 * other. *There was one until this ticket, from a call of its own.*
 	 *
 	 * **The row is two lines and the actions are a cluster**, which is what the human chose on
-	 * screen against the real organization
-	 * ([[efforts/826-the-organization-and-the-way-in-are-rethought/evidence/prototypes/the-settings-area-on-screen]]).
+	 * screen against the real organization when the settings area was prototyped.
 	 * The identity leads: the avatar, the username, the role, and on a pending row the badge with
 	 * the expiry. The workspaces follow as chips carrying their own access, with the label folded
 	 * into the value (*Labels are a last resort*, Refactoring UI p.48). The actions appear on

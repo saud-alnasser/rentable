@@ -288,6 +288,18 @@ export type LockOutCost = {
 	membersAffected: number;
 };
 
+/**
+ * what ending a member's sessions did: whether the bump reached the organization database, or is
+ * still waiting on this machine for a connection.
+ *
+ * The act's whole value is that it takes effect somewhere else, so "they were signed out" is only
+ * true once the number has gone out; until then the other machines are still open and the next
+ * heartbeat with a connection is what carries it.
+ */
+export type SessionsEnded = {
+	sent: boolean;
+};
+
 /** what a removal did. */
 export type MemberRemoved = {
 	memberId: string;
@@ -526,7 +538,7 @@ export type Host = {
 		 * were staying signed in with. Each meets the wall at its next heartbeat or its next
 		 * launch.
 		 */
-		sessionEndElsewhere: () => Promise<OrganizationState>;
+		sessionEndElsewhere: () => Promise<SessionsEnded>;
 		/**
 		 * a `rentable://` link the operating system handed the process before the shell was
 		 * listening: the one it was launched with, or one opened before the webview existed. Taken
@@ -634,7 +646,7 @@ export type Host = {
 			 * caller's own row, which is `sessionEndElsewhere`, and the owner's row, which is
 			 * nobody else's to end.
 			 */
-			endSessions: (memberId: string) => Promise<void>;
+			endSessions: (memberId: string) => Promise<SessionsEnded>;
 			/**
 			 * rename a member: their row written back with the username re-sealed and signed by
 			 * whoever renamed them. The owner's or an administrator's, on any row but their own;

@@ -1595,6 +1595,10 @@ type RootTranslation = {
 				 * y​o​u​r​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s​ ​w​e​r​e​ ​s​i​g​n​e​d​ ​o​u​t​.
 				 */
 				ended: string
+				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​o​f​f​l​i​n​e​;​ ​t​h​e​ ​s​i​g​n​-​o​u​t​ ​r​e​a​c​h​e​s​ ​t​h​e​ ​o​t​h​e​r​s​ ​o​n​c​e​ ​i​t​ ​i​s​ ​b​a​c​k​ ​o​n​l​i​n​e​.
+				 */
+				endedPending: string
 			}
 		}
 	}
@@ -2560,6 +2564,10 @@ type RootTranslation = {
 			 * t​h​e​y​ ​w​e​r​e​ ​s​i​g​n​e​d​ ​o​u​t​ ​o​f​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​.
 			 */
 			sessionsEnded: string
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​o​f​f​l​i​n​e​;​ ​t​h​e​ ​s​i​g​n​-​o​u​t​ ​r​e​a​c​h​e​s​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​s​ ​o​n​c​e​ ​i​t​ ​i​s​ ​b​a​c​k​ ​o​n​l​i​n​e​.
+			 */
+			sessionsEndedPending: string
 			/**
 			 * c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​a​g​a​i​n
 			 */
@@ -4380,6 +4388,10 @@ export type TranslationFunctions = {
 				 * your other machines were signed out.
 				 */
 				ended: () => LocalizedString
+				/**
+				 * this machine is offline; the sign-out reaches the others once it is back online.
+				 */
+				endedPending: () => LocalizedString
 			}
 		}
 	}
@@ -5301,6 +5313,10 @@ export type TranslationFunctions = {
 			 * they were signed out of every machine.
 			 */
 			sessionsEnded: () => LocalizedString
+			/**
+			 * this machine is offline; the sign-out reaches their machines once it is back online.
+			 */
+			sessionsEndedPending: () => LocalizedString
 			/**
 			 * copy the link again
 			 */

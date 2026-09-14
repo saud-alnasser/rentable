@@ -16,9 +16,8 @@
 	 * separately. The mechanism is anchors because every section is addressable: a menu row, the
 	 * command palette and a bookmark all open one by its address, which a tab panel switched in
 	 * place cannot be. The look is tabs because the owner chose it on screen, against the four
-	 * bars of the prototype at
-	 * [[efforts/826-the-organization-and-the-way-in-are-rethought/evidence/prototypes/the-settings-area-on-screen]]:
-	 * the vertical column the plan had argued for read as a second sidebar beside the real one,
+	 * bars the prototype of the settings area offered: the vertical column the plan had argued
+	 * for read as a second sidebar beside the real one,
 	 * and the column with no ground went with it.
 	 *
 	 * **The current section is read from the address, never from `isActiveRoute`.** Every section

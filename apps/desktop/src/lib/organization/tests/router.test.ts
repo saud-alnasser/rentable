@@ -360,7 +360,9 @@ async function permittedApi(host: Host, ...acts: Administration[]) {
 
 // effort 826, requirement 22: ending a member's sessions is `resetPassword`'s, and ending the
 // reader's own on their other machines is any signed-in member's. What each refuses on the row
-// itself, the caller's own and the owner's, is Rust's.
+// itself, the caller's own and the owner's, is Rust's. Both hand back whether the bump reached the
+// organization database, which is what the announcement turns on: a machine with no connection
+// wrote the number on its own replica and the other machines are still open.
 test('ending sessions reaches the host behind reset password, and ending your own needs only a session', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
@@ -369,12 +371,14 @@ test('ending sessions reaches the host behind reset password, and ending your ow
 			sessionEndElsewhere: async () => {
 				asked.push('endElsewhere');
 
-				return fakeOrganizationState();
+				return { sent: false };
 			},
 			member: {
 				...fakeHost().organization.member,
 				endSessions: async (memberId) => {
 					asked.push(`endSessions:${memberId}`);
+
+					return { sent: true };
 				}
 			}
 		}
@@ -382,8 +386,10 @@ test('ending sessions reaches the host behind reset password, and ending your ow
 
 	const resetting = await permittedApi(host, 'resetPassword');
 
-	await resetting.app.organization.member.endSessions({ memberId: 'member-2' });
-	await resetting.app.organization.session.endElsewhere();
+	assert.deepEqual(await resetting.app.organization.member.endSessions({ memberId: 'member-2' }), {
+		sent: true
+	});
+	assert.deepEqual(await resetting.app.organization.session.endElsewhere(), { sent: false });
 
 	assert.deepEqual(asked, ['endSessions:member-2', 'endElsewhere']);
 

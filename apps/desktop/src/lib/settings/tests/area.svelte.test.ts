@@ -20,7 +20,7 @@ import Providers from './providers.svelte';
  *
  * Criterion 14 of [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]], read where
  * it can be read: the area is pure props, so two sessions are two renders, and what each reader
- * is offered is whatever reached the rail. A route could not be asked this — no route renders
+ * is offered is whatever reached the rail. A route could not be asked this, since no route renders
  * under this runner, and the gating would be behind four queries.
  *
  * **The address is the mock**, because that is where a section is named. `$app/state` is

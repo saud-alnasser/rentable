@@ -99,7 +99,10 @@ repeats the consent for it, because no row holds it.
   `MemberSession::settled` and `permission::require`; a member on a handed password reaches
   nothing else until they have chosen their own. *Corrected 2026-09-14: no password is handed
   over any more; the person chooses theirs on opening the invitation link, and the wall no
-  longer knows a forced change.*
+  longer knows a forced change.* *Corrected 2026-09-15: the gate is the row on this machine's
+  replica and not the session opened at sign-in, so a narrowing reaches an open session within
+  one heartbeat, which is how long the row takes to arrive. The session still carries the
+  permissions it opened under, because that is what the interface draws from.*
 - **The owner's machine is the only one with the Turso authority**, and the acts that need it,
   creating and deleting workspaces, minting read-only grants, renewing and rotating credentials,
   locking out, are refused for everybody else at the command with a sentence saying to ask the

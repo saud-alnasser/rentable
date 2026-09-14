@@ -24,8 +24,7 @@
 	 *
 	 * **A row is the name, how many people are in it, and whether it is the one open here**
 	 * (requirement 16 of effort 826). It takes the members row's two-line shape, which is what the
-	 * human chose on screen against the real organization
-	 * ([[efforts/826-the-organization-and-the-way-in-are-rethought/evidence/prototypes/the-settings-area-on-screen]]):
+	 * human chose on screen against the real organization when the settings area was prototyped:
 	 * the name and the open mark lead, the access this reader holds and the member count follow as
 	 * the second line, and the actions are an icon cluster that appears on hover and on focus.
 	 * *The row said the database's hostname until this ticket, which is a fact about Turso rather

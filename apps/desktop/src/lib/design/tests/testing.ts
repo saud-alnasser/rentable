@@ -23,6 +23,8 @@ export type MutationBinding<TVariables, TResult, TCaptured> = {
 		captured: TCaptured | undefined
 	) => Promise<void>;
 	onError: (error: Error) => void;
+	/** what runs after success and refusal alike; only a mutation that declares one has it. */
+	onSettled?: () => Promise<void>;
 };
 
 function isMutationBinding<TVariables, TResult, TCaptured>(

@@ -155,6 +155,80 @@ impl MemberSession {
     }
 }
 
+/// What ending a member's sessions answered with: whether the bump reached the organization
+/// database, or is still waiting on this machine for a connection.
+///
+/// **A fact about a push and not a credential** ([[rules/credentials]], *Client boundary*). It
+/// crosses because the sentence the person reads turns on it: "they were signed out" is false
+/// while the number is only on this replica, and the machines are still open until the next
+/// heartbeat with a connection carries it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsEnded {
+    pub sent: bool,
+}
+
+/// The acting member's own row on this replica, which is what every act reads before it does
+/// anything (effort 826, requirements 6 and 22).
+///
+/// **The row and not the session.** [`MemberSession::permissions`] is the snapshot taken when the
+/// vault opened, and nothing rewrites it for the life of the process: a member narrowed out of an
+/// act would go on performing it until they signed in again, and for the one act that signs
+/// nothing (`workspace::rename_workspace`) there is no second line of defence behind it, because
+/// a retired certificate is what refuses the others and a partial narrowing retires none. Read
+/// here instead, the narrowing reaches an open session as soon as the replica has the row, which
+/// is the next sync heartbeat. The snapshot stays on the session because `SessionFacts` carries
+/// it to the interface, which draws controls from it.
+///
+/// **One row, verified on its own**, through [`OrganizationStore::member`]: a row somebody else
+/// tampered with refuses the members list by name, and must not also refuse every act of every
+/// member who did nothing.
+///
+/// Off the replica as it stands, without a pull of its own: the heartbeat is what pulls, and an
+/// act that paid for a pull of its own would put a network round trip in front of every gate.
+///
+/// Three standings are refused rather than read: a row that is gone, one that came back
+/// `removed`, and one whose `session_epoch` has moved past the session's, which is a member
+/// whose sessions were ended from another machine and whose heartbeat has not yet signed this
+/// one out. The third is what keeps a revoked machine from acting in the window before its
+/// heartbeat, and in particular from ending everybody else's sessions and filing its own key
+/// under a number past the revocation.
+pub async fn acting_row(
+    store: &OrganizationStore,
+    session: &MemberSession,
+) -> Result<MemberRecord, Error> {
+    let member = store
+        .member(&session.verifying_key, &session.member_id)
+        .await?
+        .ok_or_else(|| Error::Forbidden {
+            message: "your member row is not in the organization any more. sign in again"
+                .to_string(),
+        })?;
+
+    if member.role == permission::REMOVED {
+        return Err(Error::Forbidden {
+            message: "you were removed from this organization".to_string(),
+        });
+    }
+
+    if session.session_epoch < member.session_epoch {
+        return Err(Error::Forbidden {
+            message: "your sessions were ended from another machine. sign in again".to_string(),
+        });
+    }
+
+    Ok(member)
+}
+
+/// What the acting member's row says they may do, which is what every act's gate asks: the
+/// permissions of [`acting_row`], with its three refusals in front.
+pub async fn permissions_on_row(
+    store: &OrganizationStore,
+    session: &MemberSession,
+) -> Result<i64, Error> {
+    Ok(acting_row(store, session).await?.permissions)
+}
+
 /// One workspace as the web layer learns of it: its name opened with the content key, and where
 /// its database is. No credential.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -531,29 +605,35 @@ pub async fn ended_elsewhere(
 /// An entry the credential store will not give back or never took is a diagnostic rather than a
 /// refusal, as [`remember`]'s is: the act itself went through, and what the person loses is this
 /// machine staying signed in past the next launch.
+///
+/// **What comes back is whether the bump reached the organization database.** A push that could
+/// not go leaves the number on this machine's replica alone, which means the other machines are
+/// still open: the caller says so rather than reporting the act done, and the heartbeat's own
+/// push is what carries it out when there is a connection again.
 pub async fn end_elsewhere(
     store: &OrganizationStore,
     session: &mut MemberSession,
     now: i64,
-) -> Result<(), Error> {
+) -> Result<bool, Error> {
     session.settled()?;
 
-    let members = store.members(&session.verifying_key).await?;
-    let member = members
-        .iter()
-        .find(|member| member.id == session.member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "this member's row is not in the organization any more".to_string(),
-        })?;
-    // from the row rather than from the session, so a bump this machine has not seen is not undone
-    // by one it makes.
+    // the acting row, with a session behind it refused: a machine whose sessions were already
+    // ended cannot bump past its own revocation and refile its key under the new number, which
+    // is what would have let it stay. From the row rather than from the session, so a bump this
+    // machine has not seen is not undone by one it makes. The command pulls before it calls in,
+    // which is what makes the row the organization's rather than this machine's last sight of
+    // it, and `store::set_session_epoch` refuses to write a number below the row's whatever this
+    // arithmetic produced.
+    let member = acting_row(store, session).await?;
     let epoch = member.session_epoch + 1;
 
     store
         .set_session_epoch(&session.member_id, epoch, now)
         .await?;
 
-    if !store.push().await {
+    let sent = store.push().await;
+
+    if !sent {
         diagnostics::warn("organization.session.endedNotYetSent")
             .with("member", session.member_id.as_str())
             .write();
@@ -566,7 +646,7 @@ pub async fn end_elsewhere(
         .with("member", session.member_id.as_str())
         .write();
 
-    Ok(())
+    Ok(sent)
 }
 
 /// End another member's sessions, on every machine including whichever they are at: what an owner
@@ -578,14 +658,21 @@ pub async fn end_elsewhere(
 /// Two rows are refused. The caller's own, because ending your own sessions and keeping this one
 /// is [`end_elsewhere`] and does something different; and the owner's, for anybody but the owner,
 /// which is the line `role::change_role` draws in the same words.
+///
+/// **What comes back is whether the bump reached the organization database**, for the reason
+/// [`end_elsewhere`] gives: an act whose whole value is that it takes effect on another machine
+/// cannot be reported done while it is still sitting on this one.
 pub async fn end_member_sessions(
     store: &OrganizationStore,
     session: &MemberSession,
     member_id: &str,
     now: i64,
-) -> Result<(), Error> {
+) -> Result<bool, Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::ResetPassword)?;
+    permission::require(
+        permissions_on_row(store, session).await?,
+        Administration::ResetPassword,
+    )?;
 
     if member_id == session.member_id {
         return Err(Error::Forbidden {
@@ -615,7 +702,9 @@ pub async fn end_member_sessions(
         .set_session_epoch(member_id, member.session_epoch + 1, now)
         .await?;
 
-    if !store.push().await {
+    let sent = store.push().await;
+
+    if !sent {
         diagnostics::warn("organization.session.endedNotYetSent")
             .with("member", member_id)
             .write();
@@ -625,7 +714,7 @@ pub async fn end_member_sessions(
         .with("member", member_id)
         .write();
 
-    Ok(())
+    Ok(sent)
 }
 
 /// Rewrite this machine's entry under a new epoch, keeping the key that is already in it.
@@ -929,7 +1018,7 @@ mod tests {
 
     use super::{
         CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, Resumption, end_elsewhere,
-        end_member_sessions, facts_of, resume, sign_in, sign_in_by_username,
+        end_member_sessions, facts_of, permissions_on_row, resume, sign_in, sign_in_by_username,
     };
     use crate::{
         keyring::{self, refuse_the_next_store, take_the_credential_store},
@@ -1625,6 +1714,60 @@ mod tests {
             .session_epoch
     }
 
+    /// **A machine whose sessions were ended cannot end everybody else's and stay.** Ending your
+    /// other sessions bumps from the row, so a machine already behind the row would write a
+    /// number past the revocation and file its own key under it, and nothing would ever ask it
+    /// again. The gate refuses a session behind its row, here and before every other act.
+    #[tokio::test]
+    async fn a_session_behind_its_row_is_refused_the_bump_and_every_act() {
+        let _turn = take_the_credential_store().await;
+        let directory = scratch("behind-the-row");
+        let (_, store, joined) = created(&directory).await;
+        let member_id = joined.member_id.clone().expect("the record names a member");
+        let account = format!("{}:{member_id}", joined.id);
+
+        let mut session = sign_in_by_username(&store, &joined, "olivia", PASSWORD, &slot())
+            .await
+            .expect("the sign-in failed");
+        let before = keyring::read(MEMBER_KEY_SERVICE, &account)
+            .expect("the store would not answer")
+            .expect("the sign-in filed nothing");
+
+        // somebody ended this member's sessions from another machine, and the row arrived.
+        store
+            .set_session_epoch(&member_id, 1, 1_757_000_000_050)
+            .await
+            .expect("the bump failed");
+
+        let refused = end_elsewhere(&store, &mut session, 1_757_000_000_100)
+            .await
+            .expect_err("a session behind its row ended everybody else's");
+
+        assert!(
+            matches!(refused, crate::error::Error::Forbidden { .. }),
+            "{refused:?}"
+        );
+        assert!(
+            refused.to_string().contains("another machine"),
+            "the refusal does not say what happened: {refused}"
+        );
+        assert_eq!(epoch_of(&store, &joined, &member_id).await, 1);
+        assert_eq!(session.session_epoch, 0);
+        assert_eq!(
+            keyring::read(MEMBER_KEY_SERVICE, &account)
+                .expect("the store would not answer")
+                .as_deref(),
+            Some(before.as_str()),
+            "the entry was refiled by a refused bump"
+        );
+
+        // and no act goes through from that session either.
+        let gate = permissions_on_row(&store, &session)
+            .await
+            .expect_err("a session behind its row was let through a gate");
+
+        assert!(gate.to_string().contains("another machine"), "{gate}");
+    }
     /// **Criterion 22, the member's own half.** Two machines are signed in as one member; the
     /// first ends every other session. The first still resumes, because its entry was rewritten
     /// under the new epoch; the second's resume answers that the sessions were ended elsewhere
@@ -1784,8 +1927,26 @@ mod tests {
         );
         assert_eq!(epoch_of(&store, &joined, &owner_id).await, 0);
 
-        // a plain member holds the act on nobody.
-        let refusal = end_member_sessions(&store, &member, "member-ada", 1_757_000_000_500)
+        // the member whose sessions were just ended is refused for that, before any act is read:
+        // their open session is behind their row.
+        let ended = end_member_sessions(&store, &member, "member-ada", 1_757_000_000_500)
+            .await
+            .expect_err("a member whose sessions were ended acted from the old session");
+
+        assert!(ended.to_string().contains("another machine"), "{ended}");
+
+        // and a plain member whose session stands holds the act on nobody.
+        let noor = a_member(
+            &store,
+            &owner,
+            &joined,
+            "member-noor",
+            "noor.staff",
+            permission::MEMBER,
+            "a password noor chose",
+        )
+        .await;
+        let refusal = end_member_sessions(&store, &noor, "member-ada", 1_757_000_000_600)
             .await
             .expect_err("a plain member ended somebody's sessions");
 

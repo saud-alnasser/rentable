@@ -34,7 +34,7 @@ use super::{
     authority::{OrganizationKey, issue_certificate},
     invite::{MemberFacts, members},
     permission::{self, Administration},
-    session::MemberSession,
+    session::{MemberSession, permissions_on_row},
     setup::ORGANIZATION_KEY_PURPOSE,
     store::{MemberRecord, OrganizationStore, Signer},
     workspace::signer_of,
@@ -66,7 +66,10 @@ pub async fn change_role(
     now: i64,
 ) -> Result<MemberFacts, Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::ChangeRole)?;
+    permission::require(
+        permissions_on_row(store, session).await?,
+        Administration::ChangeRole,
+    )?;
 
     if member_id == session.member_id {
         return Err(Error::Forbidden {
@@ -931,5 +934,94 @@ mod tests {
             .expect_err("a row signed under a revoked certificate was accepted");
 
         assert!(refusal.to_string().contains("revoked"), "{refusal}");
+    }
+
+    /// **A narrowing that leaves the certificate standing still reaches the open session.**
+    ///
+    /// The case the test above does not cover, and the one requirement 6 makes the control
+    /// surface: a member loses one act and keeps another that signs. `signed_before &&
+    /// !signs_now` is false, so their certificate is not retired, and until the gates read the
+    /// row their session went on carrying the bit the owner had just taken off. What refuses them
+    /// here is `session::permissions_on_row`, and the refusal names the act they reached for.
+    #[tokio::test]
+    async fn a_member_narrowed_out_of_one_act_is_refused_on_their_open_session_by_name() {
+        let directory = scratch("narrowed");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (sami, theirs) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::ADMINISTRATOR,
+            &workspace_id,
+        )
+        .await;
+
+        // the owner takes inviting off and leaves removing, which is the whole of the case: the
+        // member still signs rows, so the certificate stays live.
+        change_role(
+            &store,
+            &owner,
+            &sami.member_id,
+            permission::ADMINISTRATOR,
+            permission::mask_of(&[Administration::RemoveMember]),
+            NOW + 1,
+        )
+        .await
+        .expect("the narrowing failed");
+
+        assert!(
+            certified(&store, &sami.member_id).await,
+            "the narrowing retired the certificate, so this is the other test's case"
+        );
+        assert!(
+            permission::permits(theirs.permissions, Administration::InviteMember),
+            "the session stopped carrying the act on its own, and there is nothing left to refuse"
+        );
+
+        let workspaces = full(&[workspace_id.clone()]);
+        let refusal = invite_member(
+            &store,
+            &theirs,
+            no_platform(),
+            &link,
+            Invitation {
+                username: "noor.new",
+                role: permission::MEMBER,
+                workspaces: &workspaces,
+            },
+            test_cost(),
+            NOW + 2,
+        )
+        .await
+        .expect_err("a member narrowed out of inviteMember invited somebody");
+
+        assert!(
+            matches!(refusal, Error::Forbidden { .. }),
+            "the refusal is not a forbidden: {refusal}"
+        );
+        assert!(
+            refusal.to_string().contains("inviteMember"),
+            "the refusal does not name the act: {refusal}"
+        );
+
+        // nobody was written: the gate is before the work, as every other refusal here is.
+        assert!(
+            !store
+                .members(&owner.verifying_key)
+                .await
+                .expect("the rows")
+                .iter()
+                .any(|member| member.id != sami.member_id && member.id != owner.member_id),
+            "the refused invitation wrote a member row"
+        );
+
+        // and the act they kept is still theirs, off the same row.
+        assert_eq!(
+            crate::organization::session::permissions_on_row(&store, &theirs)
+                .await
+                .expect("their row"),
+            permission::mask_of(&[Administration::RemoveMember])
+        );
     }
 }

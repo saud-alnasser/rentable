@@ -93,7 +93,7 @@ use super::{
     link::JoinLink,
     permission::{self, Administration},
     removal,
-    session::MemberSession,
+    session::{MemberSession, permissions_on_row},
     setup::{ADMINISTRATOR_KEY_PURPOSE, ORGANIZATION_KEY_PURPOSE, SHIPPING_KDF, credential_expiry},
     store::{GrantRecord, InvitationRecord, MemberRecord, OrganizationStore, Signer},
     vault::{
@@ -139,9 +139,8 @@ const ISSUER_COPY_SEPARATOR: char = '\n';
 /// What an invitation makes, shown to the administrator: the two things they hand over, the
 /// invitation link and the code that confirms it, beside the username and the ids the members
 /// list reads. The link carries one half of what opens the vault and the code is the other, so
-/// the link is sent and the code is read out; no password crosses on its own
-/// ([[rules/credentials]], *Client boundary*), and the code crosses once, the way the generated
-/// password did before effort 826 put it inside the link.
+/// the link is sent and the code is read out. Which of these may cross the boundary at all, and
+/// why, is [[rules/credentials]], *Client boundary*.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Invited {
@@ -293,7 +292,10 @@ pub async fn invite_member<P: TursoPlatform>(
     now: i64,
 ) -> Result<Invited, Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::InviteMember)?;
+    permission::require(
+        permissions_on_row(store, session).await?,
+        Administration::InviteMember,
+    )?;
 
     let username = invitation.username.trim();
 
@@ -342,7 +344,10 @@ pub async fn reissue_invitation<P: TursoPlatform>(
     now: i64,
 ) -> Result<Invited, Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::ResetPassword)?;
+    permission::require(
+        permissions_on_row(store, session).await?,
+        Administration::ResetPassword,
+    )?;
 
     let members = store.members(&session.verifying_key).await?;
     let member = members
@@ -462,7 +467,10 @@ pub async fn revoke_invitation(
     now: i64,
 ) -> Result<(), Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::InviteMember)?;
+    permission::require(
+        permissions_on_row(store, session).await?,
+        Administration::InviteMember,
+    )?;
 
     let invitations = store.invitations(&session.verifying_key).await?;
     let invitation = invitations
@@ -598,7 +606,10 @@ async fn issuers_copy(
     refusal: &str,
 ) -> Result<(InvitationRecord, String, String), Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::InviteMember)?;
+    permission::require(
+        permissions_on_row(store, session).await?,
+        Administration::InviteMember,
+    )?;
 
     let invitations = store.invitations(&session.verifying_key).await?;
     let invitation = invitations
@@ -737,7 +748,10 @@ pub async fn rename_member(
     now: i64,
 ) -> Result<MemberFacts, Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::RenameMember)?;
+    permission::require(
+        permissions_on_row(store, session).await?,
+        Administration::RenameMember,
+    )?;
 
     if member_id == session.member_id {
         return Err(Error::Forbidden {
@@ -1077,6 +1091,15 @@ async fn issue<P: TursoPlatform>(
             .await?;
     }
 
+    // which run of this member's sessions is current, off the row rather than assumed. A fresh
+    // invitation has no row to read and starts at the first.
+    let session_epoch = store
+        .members(&session.verifying_key)
+        .await?
+        .iter()
+        .find(|member| member.id == member_id)
+        .map_or(0, |member| member.session_epoch);
+
     store
         .write_member(
             &signer,
@@ -1098,8 +1121,12 @@ async fn issue<P: TursoPlatform>(
                 must_change_password: true,
                 created_at: now,
                 updated_at: now,
-                // a fresh row starts at the first epoch; only an end-of-sessions moves it.
-                session_epoch: 0,
+                // a fresh invitation has no row and starts at the first epoch. A reset keeps the
+                // member's id and rewrites their row, so what it carries is what the row already
+                // held: the number only ever moves forward (`session.rs`), and a reset that put
+                // it back to zero would hand every keyring entry filed under an earlier one its
+                // first gate again.
+                session_epoch,
             },
         )
         .await?;
@@ -3154,5 +3181,94 @@ mod tests {
         usernames.sort_unstable();
 
         assert_eq!(usernames, vec!["bob", "olivia", "sami"]);
+    }
+
+    /// **A reset carries the member's session epoch through**, rather than writing the literal a
+    /// fresh invitation starts at.
+    ///
+    /// `issue` is reached by both an invitation and a reset, and a reset keeps the member's id
+    /// and rewrites their row. A row put back to zero hands every keyring entry filed under an
+    /// earlier number the gate `session::resumed` was holding it out with; what saves it today is
+    /// the fresh vault behind that gate, and a revocation path with one of its two barriers gone
+    /// is not one to rest on.
+    #[tokio::test]
+    async fn a_reissue_carries_the_rows_session_epoch_through() {
+        let directory = scratch("reissue-epoch");
+        let (store, owner, link, workspace_id, _) = owned(&directory).await;
+        let workspaces = full(&[workspace_id.clone()]);
+        let invited = invite_member(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            Invitation {
+                username: "sami.staff",
+                role: permission::MEMBER,
+                workspaces: &workspaces,
+            },
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the invitation failed");
+
+        // three sign-outs-everywhere behind them, as the row would carry after three.
+        for epoch in 1..=3 {
+            store
+                .set_session_epoch(&invited.member_id, epoch, NOW + epoch)
+                .await
+                .expect("the bump");
+        }
+
+        assert_eq!(epoch_of(&store, &owner, &invited.member_id).await, 3);
+
+        reissue_invitation(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            &invited.member_id,
+            test_cost(),
+            NOW + 10,
+        )
+        .await
+        .expect("the reissue failed");
+
+        assert_eq!(
+            epoch_of(&store, &owner, &invited.member_id).await,
+            3,
+            "a password reset put the member's session epoch back"
+        );
+
+        // and a fresh invitation still starts where a fresh row starts.
+        let fresh = invite_member(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            Invitation {
+                username: "noor.new",
+                role: permission::MEMBER,
+                workspaces: &workspaces,
+            },
+            test_cost(),
+            NOW + 11,
+        )
+        .await
+        .expect("the second invitation failed");
+
+        assert_eq!(epoch_of(&store, &owner, &fresh.member_id).await, 0);
+    }
+
+    /// The session epoch on a member's row, read through the verified reader.
+    async fn epoch_of(store: &OrganizationStore, owner: &MemberSession, member_id: &str) -> i64 {
+        store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the rows")
+            .into_iter()
+            .find(|member| member.id == member_id)
+            .expect("the member row")
+            .session_epoch
     }
 }

@@ -34,7 +34,7 @@ use super::{
     authority::AdministratorKey,
     migrate::{self, Pipeline},
     permission::{self, Administration},
-    session::{MemberSession, WorkspaceCredential, WorkspaceFacts},
+    session::{MemberSession, WorkspaceCredential, WorkspaceFacts, permissions_on_row},
     store::{GrantRecord, OrganizationStore, Signer, WorkspaceRecord},
     vault::{open_content, seal_content, seal_to_public_key},
 };
@@ -261,7 +261,10 @@ pub async fn grant_workspace<P: TursoPlatform>(
     access: AccessLevel,
 ) -> Result<(), Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::GrantWorkspace)?;
+    permission::require(
+        permissions_on_row(store, session).await?,
+        Administration::GrantWorkspace,
+    )?;
 
     let (key, certificate) = signer_of(store, session).await?;
     let members = store.members(&session.verifying_key).await?;
@@ -354,7 +357,10 @@ pub async fn withdraw_grant(
     member_id: &str,
 ) -> Result<(), Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::GrantWorkspace)?;
+    permission::require(
+        permissions_on_row(store, session).await?,
+        Administration::GrantWorkspace,
+    )?;
 
     let members = store.members(&session.verifying_key).await?;
     let member = members
@@ -448,7 +454,10 @@ pub async fn rename_workspace(
     now: i64,
 ) -> Result<(), Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::RenameWorkspace)?;
+    permission::require(
+        permissions_on_row(store, session).await?,
+        Administration::RenameWorkspace,
+    )?;
 
     let name = name.trim();
 
@@ -690,8 +699,8 @@ mod tests {
 
     use super::{
         MIGRATION_CREDENTIAL_LIFETIME, WORKSPACE_CREDENTIAL_LIFETIME, create_workspace,
-        credentials_due, delete_workspace, grant_workspace, openable, renew_credentials,
-        withdraw_grant,
+        credentials_due, delete_workspace, grant_workspace, openable, rename_workspace,
+        renew_credentials, withdraw_grant,
     };
     use crate::{
         error::Error,
@@ -1585,6 +1594,117 @@ mod tests {
             "{refusal:?}"
         );
         assert!(refusal.to_string().contains("grantWorkspace"), "{refusal}");
+    }
+
+    /// **A member narrowed out of `renameWorkspace` stops renaming at once**, rather than at their
+    /// next sign-in.
+    ///
+    /// This is the act with no second line of defence: the name is sealed and written outside the
+    /// signature, so nothing on a reading machine refuses it afterwards, and a certificate is not
+    /// what stands behind it. The gate is the whole of it, and the gate reads the row.
+    #[tokio::test]
+    async fn a_member_narrowed_out_of_renaming_is_refused_on_their_open_session() {
+        let directory = scratch("rename-narrowed");
+        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let joined = an_administrator(&store, &owner).await;
+        let pipeline = applying_pipeline().await;
+        let facts = create_workspace(
+            &store,
+            &mut owner,
+            &platform,
+            |_| Pipeline::at(&pipeline.url("")),
+            "North",
+            1_757_000_000_000,
+        )
+        .await
+        .expect("the create failed");
+        let administrator = sign_in(&store, &joined, OTHER_PASSWORD, &slot())
+            .await
+            .expect("the administrator");
+
+        // their session opened on a row carrying every act, and the act is theirs.
+        rename_workspace(
+            &store,
+            &administrator,
+            &facts.id,
+            "North Properties",
+            1_757_000_000_001,
+        )
+        .await
+        .expect("an administrator carrying the act could not rename");
+
+        // the owner takes renaming off and leaves everything else, so nothing is retired and the
+        // open session goes on holding the bit.
+        let (key, certificate) = super::signer_of(&store, &owner).await.expect("the signer");
+        let narrowed: i64 = permission::mask_of(
+            &permission::Administration::ALL
+                .into_iter()
+                .filter(|act| *act != permission::Administration::RenameWorkspace)
+                .collect::<Vec<_>>(),
+        );
+        let row = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the rows")
+            .into_iter()
+            .find(|member| member.id == "member-admin")
+            .expect("their row");
+
+        store
+            .write_member(
+                &Signer {
+                    key: &key,
+                    certificate: &certificate,
+                },
+                &MemberRecord {
+                    permissions: narrowed,
+                    updated_at: 1_757_000_000_002,
+                    ..row
+                },
+            )
+            .await
+            .expect("the narrowing");
+
+        assert!(
+            permission::permits(
+                administrator.permissions,
+                permission::Administration::RenameWorkspace
+            ),
+            "the session stopped carrying the act on its own, and there is nothing left to refuse"
+        );
+
+        let refusal = rename_workspace(
+            &store,
+            &administrator,
+            &facts.id,
+            "South Properties",
+            1_757_000_000_003,
+        )
+        .await
+        .expect_err("a member narrowed out of renameWorkspace renamed a workspace");
+
+        assert!(matches!(refusal, Error::Forbidden { .. }), "{refusal:?}");
+        assert!(refusal.to_string().contains("renameWorkspace"), "{refusal}");
+
+        // and the name on the row is the one the permitted rename wrote, so the refused one wrote
+        // nothing.
+        let workspace = store
+            .workspaces(&owner.verifying_key)
+            .await
+            .expect("the workspaces")
+            .into_iter()
+            .find(|workspace| workspace.id == facts.id)
+            .expect("the workspace row");
+
+        assert_eq!(
+            crate::organization::vault::open_content(
+                &owner.content_key,
+                "workspace.name_sealed",
+                &workspace.name_sealed
+            )
+            .expect("the name"),
+            b"North Properties"
+        );
     }
 
     /// Deletion goes through the one intent the port takes for it, and the rows go with it.

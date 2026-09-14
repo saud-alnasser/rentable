@@ -28,7 +28,7 @@ use crate::{diagnostics, error::Error, sync::turso::platform::TursoPlatform};
 
 use super::{
     permission::{self, Administration},
-    session::MemberSession,
+    session::{MemberSession, permissions_on_row},
     store::{MemberRecord, OrganizationStore, Signer},
     vault::open_content,
     workspace::{renew_credentials, signer_of},
@@ -138,7 +138,10 @@ pub async fn remove_member<P: TursoPlatform>(
     now: i64,
 ) -> Result<Removed, Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::RemoveMember)?;
+    permission::require(
+        permissions_on_row(store, session).await?,
+        Administration::RemoveMember,
+    )?;
 
     if member_id == session.member_id {
         return Err(Error::Forbidden {

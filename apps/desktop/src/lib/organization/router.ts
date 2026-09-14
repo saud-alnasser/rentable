@@ -8,7 +8,8 @@ import type {
 	OrganizationCreated,
 	OrganizationMember,
 	OrganizationState,
-	OrganizationWorkspace
+	OrganizationWorkspace,
+	SessionsEnded
 } from '$lib/platform/tauri';
 import { procedure, router } from '$lib/api/trpc';
 import z from 'zod';
@@ -256,11 +257,15 @@ export const organization = router({
 		 * may hand somebody a fresh way into their account may end the ways in that are already
 		 * open. Whether the row is the caller's own, which is `session.endElsewhere`, and whether
 		 * it is the owner's, which is nobody else's, are Rust's to refuse.
+		 *
+		 * **What comes back says whether the bump went out**, which is what the announcement
+		 * turns on: a machine with no connection writes the number on its own replica and the
+		 * member's other machines stay open until it reaches the organization database.
 		 */
 		endSessions: procedure
 			.permitted('resetPassword')
 			.input(z.object({ memberId: z.string().trim().min(1) }))
-			.mutation(async ({ input, ctx }): Promise<void> => {
+			.mutation(async ({ input, ctx }): Promise<SessionsEnded> => {
 				return ctx.host.organization.member.endSessions(input.memberId);
 			})
 	},
@@ -320,8 +325,8 @@ export const organization = router({
 	 * signed in, which is exactly what `member` says.
 	 */
 	session: {
-		endElsewhere: procedure.member.mutation(async ({ ctx }): Promise<void> => {
-			await ctx.host.organization.sessionEndElsewhere();
+		endElsewhere: procedure.member.mutation(async ({ ctx }): Promise<SessionsEnded> => {
+			return ctx.host.organization.sessionEndElsewhere();
 		})
 	},
 	/**

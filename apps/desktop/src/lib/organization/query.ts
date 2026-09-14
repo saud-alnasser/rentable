@@ -1,7 +1,12 @@
 import api, { forgetContext } from '$lib/api/caller';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { tauri, type OrganizationConsentResult } from '$lib/platform/tauri';
+import {
+	tauri,
+	type MemberRemoved,
+	type OrganizationConsentResult,
+	type SessionsEnded
+} from '$lib/platform/tauri';
 import {
 	createMutation,
 	createQuery,
@@ -20,6 +25,62 @@ export const keys = {
 
 /** how often a pending consent is asked about, while the browser tab is open somewhere else. */
 const CONSENT_POLL_INTERVAL_MS = 1_500;
+
+/**
+ * The same options with an announcement put in them, for a mutation whose sentence turns on what
+ * came back.
+ *
+ * Those options are built before the call runs, so a sentence chosen from the answer cannot be
+ * declared among them; it is chosen inside `onSuccess` and handed on here. What this keeps is the
+ * thing that matters: one place raises a toast, and it is `onMutationSuccess`, so the refusal path
+ * is the shared one ([[rules/frontend]], *Data access*). A caller that named its own sentence
+ * keeps it.
+ *
+ * The alternative is the one `design/mutation.ts` already took for declared mutations: a success
+ * that is a function of what came back, resolved where the thunk is resolved. That widening of
+ * `MutationOptions` is the right home for this, and this helper goes the day it lands; it was not
+ * taken here because the three hooks that need it are this concept's, and a change to the shared
+ * vocabulary belongs in a change about that vocabulary.
+ */
+function announcing(opts: MutationOptions, success: string): MutationOptions {
+	return { ...opts, toast: { ...opts.toast, success: opts.toast?.success ?? success } };
+}
+
+/**
+ * what a sign-out of the reader's other machines says.
+ *
+ * A bump that has not gone out means those machines are still open, so the sentence says the
+ * sign-out is on its way rather than done (effort 826, requirement 22).
+ */
+function endedSentence({ sent }: SessionsEnded) {
+	const translations = get(LL);
+
+	return sent
+		? translations.settings.you.sessions.ended()
+		: translations.settings.you.sessions.endedPending();
+}
+
+/** the same, from a member's row, about their machines rather than the reader's. */
+function memberSessionsEndedSentence({ sent }: SessionsEnded) {
+	const translations = get(LL);
+
+	return sent
+		? translations.organization.dashboard.sessionsEnded()
+		: translations.organization.dashboard.sessionsEndedPending();
+}
+
+/**
+ * what a removal says, which turns on the speed it was done at: a lock-out names how many other
+ * members have to reconnect, because rotating a workspace's credentials cuts off everybody
+ * holding one.
+ */
+function removedSentence(removed: MemberRemoved) {
+	const translations = get(LL);
+
+	return removed.lockedOut
+		? translations.organization.dashboard.lockedOut({ count: removed.othersMustReconnect })
+		: translations.organization.dashboard.removed();
+}
 
 /**
  * open the Turso consent. What comes back is an address to send the person to and a session to
@@ -311,6 +372,9 @@ export function useInviteMember(
 /**
  * remove a member, at the speed the caller chose. The ordinary removal says so; a lock-out says
  * how many others have to reconnect, which the dialog said before it ran.
+ *
+ * **The sentence is chosen from what came back**, because which of the two it is is a fact about
+ * what the removal did and not about what it was asked for.
  */
 export function useRemoveMember(
 	opts: MutationOptions = {
@@ -322,9 +386,9 @@ export function useRemoveMember(
 	return createMutation(() => ({
 		mutationFn: ({ memberId, lockOut }: { memberId: string; lockOut: boolean }) =>
 			api.app.organization.member.remove({ memberId, lockOut }),
-		onSuccess: async () => {
+		onSuccess: async (result) => {
 			await client.invalidateQueries({ queryKey: keys.members });
-			onMutationSuccess(opts);
+			onMutationSuccess(announcing(opts, removedSentence(result)));
 		},
 		onError: (e) => onMutationError(opts, e)
 	}));
@@ -416,23 +480,24 @@ export function useChangePassword(
  * **This machine stays signed in**, so there is nothing to invalidate but where the machine
  * stands: the session the screen is drawn from is the same one, under a number that moved. The
  * toast is what tells the person it happened, because nothing on screen changes.
+ *
+ * **And it tells them which of two things happened.** The bump is written on this machine's
+ * replica and pushed; a machine with no connection cannot push, and the other machines stay open
+ * until one of its heartbeats can. Saying *they were signed out* then would be false about the
+ * one thing this act is for, so the sentence says the sign-out is pending instead.
  */
 export function useEndOtherSessions(
 	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).settings.you.sessions.ended(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
 	}
 ) {
 	const client = useQueryClient();
 
 	return createMutation(() => ({
 		mutationFn: () => api.app.organization.session.endElsewhere(),
-		onSuccess: async () => {
+		onSuccess: async (result) => {
 			await client.invalidateQueries({ queryKey: keys.state });
-			onMutationSuccess(opts);
+			onMutationSuccess(announcing(opts, endedSentence(result)));
 		},
 		onError: (e) => onMutationError(opts, e)
 	}));
@@ -444,14 +509,13 @@ export function useEndOtherSessions(
  * The refusals a person can act on are the two Rust draws, their own row and the owner's, and
  * each is shown verbatim. The list is refreshed because the row's `updatedAt` moved, and for the
  * reason every other act on a row refreshes it: one place reads what a row says.
+ *
+ * **The sentence turns on whether the bump went out**, for the reason {@link useEndOtherSessions}
+ * gives.
  */
 export function useEndMemberSessions(
 	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.sessionsEnded(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
 	}
 ) {
 	const client = useQueryClient();
@@ -459,9 +523,9 @@ export function useEndMemberSessions(
 	return createMutation(() => ({
 		mutationFn: ({ memberId }: { memberId: string }) =>
 			api.app.organization.member.endSessions({ memberId }),
-		onSuccess: async () => {
+		onSuccess: async (result) => {
 			await client.invalidateQueries({ queryKey: keys.members });
-			onMutationSuccess(opts);
+			onMutationSuccess(announcing(opts, memberSessionsEndedSentence(result)));
 		},
 		onError: (e) => onMutationError(opts, e)
 	}));
@@ -516,57 +580,69 @@ export function useChangeRole(
 }
 
 /**
- * grant a member a workspace, at full access or read only.
- *
- * **No toast of its own**, because a change of access is several of these and a withdrawal
- * beside them: the caller says once that the workspaces were saved. Minting a read-only
- * credential is the owner's and is refused by name elsewhere, which the shared handler shows.
+ * one member's access on one workspace, as a dialog hands the change back. `none` is the grant
+ * coming back.
  */
-export function useGrantWorkspace(
-	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({
-			workspaceId,
-			memberId,
-			access
-		}: {
-			workspaceId: string;
-			memberId: string;
-			access: 'full-access' | 'read-only';
-		}) => api.app.organization.workspace.grant({ workspaceId, memberId, access }),
-		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.members });
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export type AccessChange = {
+	workspaceId: string;
+	memberId: string;
+	access: 'none' | 'full-access' | 'read-only';
+};
 
 /**
- * take a workspace back from a member. Nothing is minted and nothing rotates, so the credential
- * they already hold works until it expires; cutting somebody off at once is the lock-out on a
- * removal. Quiet for the same reason the grant is.
+ * write a set of access changes and say once that they were saved.
+ *
+ * **One mutation over the set rather than one per grant**, and that is what it is for: the two
+ * sections ask the same question from opposite ends, the members section *what does this person
+ * hold* and the workspaces section *who holds this*, and both end in the same two procedures. A
+ * hook per procedure would announce N times or announce nothing and leave the sentence to the
+ * surface, which is the direct `toast` call [[rules/frontend]] forbids under *Data access*.
+ *
+ * **In order and not in parallel**, so a refusal on one is the first thing the reader hears about
+ * rather than the last of several, and the writes that had already gone through stand. Minting a
+ * read-only credential is the owner's and is refused by name, which the shared handler shows.
+ *
+ * The session's own workspaces are read from the state key, so it is refreshed beside the list: a
+ * reader who granted themselves a workspace should find it on the switcher without a relaunch.
+ * Both are refreshed whether the set went through or was refused part way, since what was written
+ * before the refusal stands.
  */
-export function useWithdrawGrant(
+export function useChangeAccess(
 	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+		toast: {
+			success: () => get(LL).organization.dashboard.accessSaved(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
 	}
 ) {
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: ({ workspaceId, memberId }: { workspaceId: string; memberId: string }) =>
-			api.app.organization.workspace.withdraw({ workspaceId, memberId }),
-		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.members });
-			onMutationSuccess(opts);
+		mutationFn: async ({ changes }: { changes: AccessChange[] }) => {
+			for (const change of changes) {
+				if (change.access === 'none') {
+					await api.app.organization.workspace.withdraw({
+						workspaceId: change.workspaceId,
+						memberId: change.memberId
+					});
+				} else {
+					await api.app.organization.workspace.grant({
+						workspaceId: change.workspaceId,
+						memberId: change.memberId,
+						access: change.access
+					});
+				}
+			}
 		},
-		onError: (e) => onMutationError(opts, e)
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e) => onMutationError(opts, e),
+		// on a refusal part way as much as on success: the writes before the refusal stand, and a
+		// list left as it was would show the reader an access the row no longer has.
+		onSettled: async () => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			await client.invalidateQueries({ queryKey: keys.state });
+		}
 	}));
 }
 

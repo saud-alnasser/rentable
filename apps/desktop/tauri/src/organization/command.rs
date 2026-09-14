@@ -15,7 +15,7 @@ use super::{
     password,
     removal::{self, LockOutCost, Removed},
     role,
-    session::{self, CredentialSlot, Resumption, SessionFacts, WorkspaceFacts},
+    session::{self, CredentialSlot, Resumption, SessionFacts, SessionsEnded, WorkspaceFacts},
     setup::{self, CreateOrganization, OrganizationCreated, Remote},
     store::OrganizationStore,
     workspace,
@@ -463,6 +463,14 @@ pub(crate) async fn ended_elsewhere(app_state: &AppState) -> bool {
 
         store.pull().await;
 
+        // and out, which is what carries a bump made offline. `end_elsewhere` writes the number
+        // on this machine's replica and pushes; a push that could not go left it there, and no
+        // other scheduled path pushes the organization replica, so without this the sessions the
+        // person was told would end stay open until they happen to make another organization
+        // write. A push with nothing to send costs a round trip on a heartbeat that already
+        // made one.
+        store.push().await;
+
         match session::ended_elsewhere(store, member).await {
             Ok(ended) => ended,
             // a row that will not read is not a sign-out: the replica is the offline case and
@@ -865,11 +873,14 @@ pub async fn organization_renew_due(app_state: tauri::State<'_, AppState>) -> Re
 /// Invite a member: a row, and one link. The application sends nothing; the administrator hands
 /// the link over themselves.
 ///
-/// **No password crosses.** The generated password the vault is sealed under rides inside the
-/// invitation link, which [[rules/credentials]] sanctions crossing, and nowhere else; everything
-/// else the invitation makes stays on this side: the member's vault, the content key sealed to
-/// them, and the grants. A read-only grant is minted with the owner's authority, which is why the
-/// platform is handed in where this machine holds it.
+/// **No password crosses.** The generated password the vault is sealed under leaves `invite::issue`
+/// in two sealed columns of the invitation row, `sealed_secret` and `code_seal`, and nowhere else.
+/// What crosses is the link, which carries the invitation id and the link secret, and the
+/// six-character code, which is the other half of what opens that seal; [[rules/credentials]],
+/// *Client boundary*, is what sanctions the two. Everything else the invitation makes stays on
+/// this side: the member's vault, the content key sealed to them, and the grants. A read-only
+/// grant is minted with the owner's authority, which is why the platform is handed in where this
+/// machine holds it.
 #[tauri::command]
 pub async fn member_invite(
     app_state: tauri::State<'_, AppState>,
@@ -912,6 +923,9 @@ pub async fn member_reset(
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
+    // the row this act writes back whole carries the session epoch, so it is read after a pull
+    // rather than off this machine's last sight of it (effort 826, requirement 22).
+    store.pull().await;
     let link = invite::organization_link(store, member).await?;
 
     invite::reissue_invitation(
@@ -1074,6 +1088,9 @@ pub async fn member_change_role(
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
+    // the row this act writes back whole carries the session epoch, so it is read after a pull
+    // rather than off this machine's last sight of it (effort 826, requirement 22).
+    store.pull().await;
 
     role::change_role(
         store,
@@ -1099,6 +1116,9 @@ pub async fn member_rename(
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
+    // the row this act writes back whole carries the session epoch, so it is read after a pull
+    // rather than off this machine's last sight of it (effort 826, requirement 22).
+    store.pull().await;
 
     invite::rename_member(store, member, &member_id, &username, timestamp::now()).await
 }
@@ -1109,19 +1129,26 @@ pub async fn member_rename(
 /// moves on, this machine's session and its remembered key move with it, and every other machine
 /// is behind. One with the application open meets the wall at its next sync heartbeat; one that
 /// is closed meets it at its next launch.
+///
+/// **What comes back says whether the bump went out.** A push that could not go leaves the other
+/// machines open until one does, and the you section says so rather than reporting the act done.
 #[tauri::command]
 pub async fn organization_session_end_elsewhere(
     app_state: tauri::State<'_, AppState>,
-) -> Result<OrganizationState, Error> {
-    {
-        let mut member = app_state.member.write().await;
-        let store = app_state.organization.read().await;
-        let (member, store) = signed_in(&mut member, &store)?;
+) -> Result<SessionsEnded, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
 
-        session::end_elsewhere(store, member, timestamp::now()).await?;
-    }
+    // before the bump, as `invitation_accept` pulls before it admits: the new number is one past
+    // the row's, and a row this machine has not refreshed since somebody else's sign-out is a
+    // number already reached, which would write nothing and report the sessions ended. A pull
+    // that could not go is the offline case and leaves the row as it stands.
+    store.pull().await;
 
-    state_of(&app_state).await
+    Ok(SessionsEnded {
+        sent: session::end_elsewhere(store, member, timestamp::now()).await?,
+    })
 }
 
 /// Sign a member out of every machine, from their row: the owner's, and any holder of
@@ -1135,12 +1162,19 @@ pub async fn organization_session_end_elsewhere(
 pub async fn member_end_sessions(
     app_state: tauri::State<'_, AppState>,
     member_id: String,
-) -> Result<(), Error> {
+) -> Result<SessionsEnded, Error> {
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
 
-    session::end_member_sessions(store, member, &member_id, timestamp::now()).await
+    // for the reason `organization_session_end_elsewhere` gives: the number written is one past
+    // the row's, so the row has to be the organization's rather than this machine's last sight
+    // of it.
+    store.pull().await;
+
+    Ok(SessionsEnded {
+        sent: session::end_member_sessions(store, member, &member_id, timestamp::now()).await?,
+    })
 }
 
 /// What locking a member out would cost, said before it is done: which workspaces rotate and how
@@ -1172,6 +1206,9 @@ pub async fn member_remove(
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
+    // the row this act writes back whole carries the session epoch, so it is read after a pull
+    // rather than off this machine's last sight of it (effort 826, requirement 22).
+    store.pull().await;
     let organization_database = format!("org-{}", member.organization_id);
 
     removal::remove_member(
@@ -1319,6 +1356,9 @@ pub async fn invitation_revoke(
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
+    // the row this act writes back whole carries the session epoch, so it is read after a pull
+    // rather than off this machine's last sight of it (effort 826, requirement 22).
+    store.pull().await;
 
     invite::revoke_invitation(store, member, &invitation_id, timestamp::now()).await
 }
@@ -1937,6 +1977,82 @@ mod tests {
         assert!(
             directory.join(RemoteSync::FILENAME).is_file(),
             "the record was not among the files the sweep read"
+        );
+    }
+
+    /// **The heartbeat pushes as well as pulls**, which is what carries out a sign-out made
+    /// offline.
+    ///
+    /// `end_elsewhere` writes the new number on this machine's replica and pushes; a push that
+    /// could not go leaves it there, and no other scheduled path pushes the organization replica.
+    /// So without this the person is told their other machines are signed out and they stay open
+    /// until that member happens to make another organization write, which a plain member almost
+    /// never does.
+    ///
+    /// Read on the wire rather than through a stand-in: the replica is reopened against a server
+    /// that answers nothing, so what the two calls put on it is what this asserts on. The pull is
+    /// `POST /pull-updates` and the push is not, which is the whole of what is being distinguished.
+    #[tokio::test]
+    async fn the_heartbeat_pushes_the_organization_replica_after_its_pull() {
+        let _turn = a_turn().await;
+        let directory = scratch("heartbeat-push");
+        let app_state = first_run(&directory).await;
+        let (organization_id, _) = recorded(&app_state).await;
+
+        assert!(
+            state_of(&app_state)
+                .await
+                .expect("the state")
+                .session
+                .is_some(),
+            "the launch did not resume"
+        );
+
+        // the same replica, reopened against a remote that answers nothing. The engine the resume
+        // opened is let go of first: one file, one engine.
+        let server =
+            ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
+        {
+            let mut organization = app_state.organization.write().await;
+
+            *organization = None;
+            *organization = Some(
+                OrganizationStore::open(
+                    &OrganizationStore::replica_path(
+                        &directory.join(Database::FILENAME),
+                        &organization_id,
+                    ),
+                    Some(server.url("")),
+                    || async { Ok::<String, turso::Error>("a-credential".to_string()) },
+                )
+                .await
+                .expect("the replica did not reopen against the remote"),
+            );
+        }
+
+        assert_eq!(
+            server.request_count(),
+            0,
+            "something reached the remote early"
+        );
+
+        // one heartbeat. Nobody ended anything, so the answer is that the session stands; what is
+        // under test is what it did on the way to that answer.
+        assert!(!super::ended_elsewhere(&app_state).await);
+        assert!(
+            server.request_count() >= 2,
+            "the heartbeat made {} request(s); a pull and a push are two",
+            server.request_count()
+        );
+        assert_eq!(
+            server.request(0).target,
+            "/pull-updates",
+            "the heartbeat's first call to the remote is not the pull"
+        );
+        assert_ne!(
+            server.request(1).target,
+            "/pull-updates",
+            "the heartbeat pulled twice and pushed nothing"
         );
     }
 }
