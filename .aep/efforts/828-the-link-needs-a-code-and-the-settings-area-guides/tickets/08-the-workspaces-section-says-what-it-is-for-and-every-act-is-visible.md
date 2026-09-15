@@ -1,5 +1,5 @@
 ---
-status: open
+status: obsolete
 blocked-by: ['07']
 ---
 
@@ -47,3 +47,5 @@ and 12.
 - **[[rules/interface]], *Row activation***: the row opens nothing.
 
 ## Notes
+
+- *Obsolete 2026-09-16.* Superseded by requirement 21 and ticket 16: the section is a directory of record cards, on the shape ticket 15 builds.

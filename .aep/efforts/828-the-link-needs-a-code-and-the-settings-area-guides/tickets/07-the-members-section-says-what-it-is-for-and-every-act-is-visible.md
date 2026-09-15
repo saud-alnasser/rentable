@@ -1,5 +1,5 @@
 ---
-status: open
+status: obsolete
 blocked-by: ['03']
 ---
 
@@ -93,3 +93,5 @@ and 12.
   row and `Field.Set` carries `aria-labelledby`; the workspaces section meets the same constraint.
 - The changeset conflicted with ticket 04's paragraph at integration; both paragraphs kept, in
   order.
+
+- *Obsolete 2026-09-16.* Superseded by requirement 19 and ticket 15: the human, seeing these rows in the running build, chose a directory of record cards instead; the rows and the row-actions block were built and never looked at.

@@ -69,6 +69,10 @@ and its account menu reads as one.
   connecting to an organization the group already holds; a registry of connected machines in the
   organization database; the organization's own link retired; the connect screen as one form of
   link and code; and the owner deleting the organization from the settings area.
+- **The directories** (*added 2026-09-16 at the human's word, mid-run, on seeing the members
+  section*): the members and workspaces sections as directories of record cards; an account
+  made before any link; one link act that admits a machine to an account; ownership transferred
+  by the owner.
 - The English and Arabic strings all of the above read, the tests that hold the shape, and
   the changeset.
 - [[contexts/desktop/organization]], [[rules/credentials]] and effort 826's spec, corrected
@@ -109,7 +113,10 @@ and its account menu reads as one.
    and a person who lost the pair makes another from the same place. Nobody but the member
    makes one: an administrator who needs to get a member back in issues a reset, which already
    exists. *Chosen over a holder of `resetPassword` making it from the member's row, which
-   makes a person setting up a laptop call somebody, and over both.*
+   makes a person setting up a laptop call somebody, and over both.* *Superseded 2026-09-16 by
+   requirement 20: a link is made by the owner or an administrator from the account's card, for
+   an account with no machine signed in; the member's own act in the you section goes. The
+   second-machine link of ticket 04 is the shape requirement 20 reuses.*
 4. **The organization's own link is handed to nobody.** It stays in the sync section for the
    owner alone, named as the copy that recovers the organization when every machine is gone,
    with a sentence saying so and saying that a member connects another machine from their
@@ -133,14 +140,15 @@ and its account menu reads as one.
    on a pending row copy link, fresh code and revoke); and leaving (remove, and for the owner
    lock out). The acts themselves, and what each is gated on, are unchanged from 826's
    requirement 15. The shape that does this is judged on the real organization, not on mock
-   rows.
+   rows. *Superseded 2026-09-16 by requirement 19: the section is a directory of record cards,
+   not a list of rows; ticket 07's rows were built and never looked at.*
 7. **The workspaces section says what it is for, and every act is visible.** One sentence
    under the legend; new workspace leads the section for the owner holding the authority,
    and the refusal sentence stands in its place for an owner whose machine lost it; a row
    still says the name, whether it is the open one, the access this reader holds and how many
    people hold it; rename, members and delete are reachable without hovering. Export and
    import stay beneath, under the legend naming the open workspace. Otherwise 826's
-   requirement 16 holds.
+   requirement 16 holds. *Superseded 2026-09-16 by requirement 21: a directory of cards.*
 8. **The you section states facts and offers its writes on the form surface.** The identity
    block stays. The password is a row saying what it is, with a change-password control that
    opens the shared form surface carrying the current form's three fields and its floor
@@ -148,7 +156,8 @@ and its account menu reads as one.
    other-machines act stays as it is. The second-machine act of requirement 3 joins them,
    under its own heading, and the link and code it produces are shown the way an invitation's
    are: the link with one copy control, the code large and with none, and the date the pair
-   lapses.
+   lapses. *Corrected 2026-09-16 by requirement 20: the second-machine act leaves the you
+   section; the identity block, the password row and the other-machines act stay.*
 
 *The rail*
 
@@ -225,6 +234,55 @@ organization's own link retires; the owner can delete the organization*)
     organization, and every other machine, finding the organization gone at its next launch,
     forgets it too and lands on the first screen. Nobody but the owner sees the control.
 
+*The directories* (*decided 2026-09-16 with the human, mid-implement, on seeing the members
+section of ticket 07 in the running build; two picker rounds and one elaboration*)
+
+19. **The members section is a directory of accounts.** For the owner and administrators
+    alone, as today; a member meets no members section. Each account is a record card, the
+    way domain records are shown, naming the username, the role, the workspaces held and the
+    account's standing: password not yet set, no machine signed in, or a machine signed in
+    (requirement 15's register). The card's own menu carries the acts: edit (rename, role and
+    permissions, workspaces and access), make a link (requirement 20), reset the password, sign
+    out everywhere, remove; each gated as 826's requirement 15 gates it. **The owner's account
+    is removed by nobody and edited by nobody but the owner**; the owner's card offers the
+    owner their own edits and the transfer (requirement 22) and offers an administrator
+    nothing. **An account is made from the foot of the directory**, by the owner or an
+    administrator holding `inviteMember`: username, role, permissions and workspaces, on the
+    form surface; it holds no password until its first link is opened. *Chosen by the human over
+    the row list with one control per row, which was built as ticket 07 and never looked at.*
+20. **A link is the one way a machine joins an account, and it is what an invitation is.** The
+    owner or an administrator makes it from the account's card: a link and a six-character
+    code, shown the way ticket 06's handover block shows them, offered while the account's
+    password is not yet set or no machine is signed in on the account, and absent otherwise,
+    with the card saying which. Opened with the code on a machine holding nothing: an account
+    whose password is not yet set is asked to choose one and is signed in; an account with a
+    password lands at the wall. A link admits one machine once and lapses after seven days or
+    when the credential inside it does. Resetting the password, an act on the card for a holder
+    of `resetPassword`, unsets it, so the next link asks for a new one; it is what a reset is.
+    A member who wants another machine signs out of the one they have and is given a link. The
+    you section keeps its identity block, its password row and its sign-out-everywhere act and
+    no link act. *In the human's words: create the account, then click invite link if they have
+    zero machines logged in or the account is new, give them the link and the code, and on the
+    onboarding they are presented with the set-password form the first time.*
+21. **The workspaces section is a directory of workspaces.** Record cards the same way: the
+    name, whether it is the open one, the access this reader holds and how many people hold
+    it; the card's menu carries rename, members and delete, gated as 826's requirement 16 gates
+    them; new workspace at the foot for the owner holding the authority, with the authority
+    refusal standing in its place for an owner who lost it; export and import beneath, under the
+    legend naming the open workspace.
+22. **Ownership is transferred by the owner to an account.** From an account's card the owner
+    names it owner, with their own password. The organization's signing key is unchanged, so
+    nothing is re-signed: the key's seed is sealed into the new owner's vault the way the
+    content key is sealed to every member, the new owner's row becomes owner and the old
+    owner's becomes administrator, both signed by the old owner as the last act of that key's
+    holder being the only one. The way back with the account (requirement 14) opens the key
+    from the owner's vault, derived for the founder or sealed for a transferee. **The Turso
+    authority follows the account that consented, not the ownership**: until the new owner
+    reconnects the authority from the sync section, with a Turso account that holds the group,
+    the acts that mint run on the founder's machine or not at all, and the sync section says so.
+    *Chosen by the human over a follow-on effort, told that the transfer re-keys nothing but the
+    vault and that the Turso account does not move.*
+
 # Acceptance Criteria
 
 1. A Rust test decodes each kind of link and finds no field that a Turso client accepts as a
@@ -292,6 +350,28 @@ organization's own link retires; the owner can delete the organization*)
     machine holding the deleted organization forgets it at its next launch. The sync section's
     test finds the delete control for the owner and not for an administrator, and the
     confirmation on the form surface naming what goes.
+19. The members section's test, with an administrator session, finds one record card per
+    account with its standing, the add control at the foot, and every act of 826's
+    requirement 15 present or absent on the card's menu by the same gates; the owner's card
+    offers an administrator nothing; with the owner's session it offers the owner's edits and
+    the transfer; a member session finds no section. A Rust test makes an account with no
+    password and finds it refused at the wall until its first link is opened.
+20. A Rust test makes a link for an account whose password is not yet set, opens it with the
+    code on a second store, chooses a password and lands signed in; makes one for an account
+    with a password and no machine signed in, opens it and lands at the wall where the
+    password admits; is refused making one for an account with a machine signed in; resets a
+    password and finds the next link asking for a new one; and finds a link refused on a second
+    opening and after seven days. The connect screen's test shows the choose-password fields
+    for the first kind and the wall for the second. The you section's test finds no link act.
+21. The workspaces section's test finds one card per workspace with its facts, the create
+    control at the foot for an owner holding the authority and the refusal for one who does
+    not, rename, members and delete on the card's menu by their gates, and the transfer
+    beneath under the open workspace's name.
+22. A Rust test transfers ownership to an administrator with the owner's password and finds the
+    new owner's row owner, the old owner's administrator, every row still verifying against the
+    unchanged key, and the new owner connecting a fresh machine with the account (requirement
+    14) by the sealed seed; the same by an administrator is refused; the sync section's test
+    finds the authority sentence for a new owner holding no authority.
 
 # Constraints
 
@@ -332,6 +412,11 @@ organization's own link retires; the owner can delete the organization*)
   for a member who lost every machine, and a member with a machine makes their own.
 - **Sessions that expire on their own**, as 826 left them.
 - **New acts, new roles or new access levels.** Every act a section offers is one 826 built.
+  *Corrected 2026-09-16: requirement 22 adds one act, the transfer of ownership, and
+  requirement 19 one, making an account before its link; both at the human's word.*
+- **Moving the Turso account.** A transfer of ownership moves the organization's key and not
+  the account the databases live on; who holds the Turso account is settled outside the
+  application.
 - **Casing anywhere but the two rail menus.** Buttons and legends across the application are
   lowercase by convention and are not touched.
 
@@ -357,6 +442,9 @@ organization's own link retires; the owner can delete the organization*)
   way the password and the consent still stand between anybody and the organization, so the
   registry gates convenience and never authority. A machine that died holding the organization
   blocks the owner for a week.
+- **A transferred ownership without the authority.** Until the new owner reconnects the
+  authority, renewal and minting run on the founder's machine or not at all; grants lapse in
+  four weeks. The sync section says so on the new owner's machine.
 - **Deleting the organization is irreversible on the platform.** The confirmation says so and
   takes the password; delete protection is lifted per database as the platform port already
   does for a workspace.

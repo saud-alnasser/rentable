@@ -307,6 +307,65 @@ the confirmation is a `FormSurface` of `heavy` weight naming what goes and takin
 ledgers on the owner's account; and a delete that keeps the consent, which leaves an authority
 with nothing to govern.*
 
+## A link admits a machine to an account (requirements 19, 20)
+
+Today an invitation makes the account and the link in one act (`invite::issue`), a reset makes
+a fresh invitation for an existing account, and a second-machine link is the member's own act
+(`machine::make`). They become one account and one link act. **Making an account**,
+`invite::create_account(session, username, role, permissions, workspaces)`, is `issue` up to
+the row: the generated vault password, `must_change_password` set, the certificate where the
+role needs one, no link and no invitation row. **Making a link**, `link::make_for(session, store,
+member_id, kdf, now) -> MadeLink { link, code, expires_at }`, is offered to a holder of
+`inviteMember` and refuses with `PreconditionFailed` where the register shows a machine signed
+in on the account inside the window; it chooses the kind by the account's standing: an account
+whose password is not yet set gets today's invitation-kind link (the vault password in the
+payload, an `invitation` row behind it, single use, seven days) and an account with a password
+gets today's machine-kind link (no vault password, a `machine_link` row). Nothing on the
+onboarding changes: the connect screen already asks a password for the first kind and lands the
+second at the wall. **Resetting a password**, `invite::unset_password(session, member_id)`, is
+today's reset without the link: a fresh generated vault password sealed and `must_change_password`
+set; the card then offers a link. The self-service act goes: `machine::make`,
+`machine_link_make`, `machine.link`, `useMakeMachineLink` and `another-machine.svelte`, while
+`machine::connect` and the `machine_link` table stay as the second kind's spending. The
+invite form's result panel, the handover block, is what the card's link act shows.
+
+*Rejected: keeping three acts, which is three places to explain one link; and offering a link
+on an account with a machine signed in, which the human ruled out.*
+
+## The directories (requirements 19, 21)
+
+`members.svelte` and `workspaces.svelte` draw the record cards the complex directory draws
+(`complex/component/directory.svelte` over `design/block/record-card.svelte`), one per account
+or workspace, with the card's `actions` carrying the acts and its `href` opening the record's
+edit surface in the section (`?section=members&account=<id>`), so activating a card is opening
+its record ([[rules/interface]], *Row activation*). A card's content: for an account the
+username, the role, the workspaces held and one line of standing (password not yet set, no
+machine signed in, a machine signed in) read from the members query joined to the register; for a
+workspace the name, the open marker, this reader's access and how many hold it. The foot carries
+the section's one primary, add an account or new workspace, on the form surface. The owner's
+card: removed by nobody, edited by nobody but the owner, its menu for an administrator empty and
+so not drawn. `packages/design/src/lib/block/row-actions.svelte`, built for ticket 07's rows,
+loses its only consumer and goes with its test. The strings of 07 that name rows go too.
+
+## Ownership is transferred (requirement 22)
+
+The organization's signing seed is derived from the founder's vault secret and stored nowhere.
+A transfer seals it: `role::transfer_ownership(session, store, member_id, password)` re-opens the
+owner's vault with the password, obtains the seed (derived for the founder, unsealed for a
+transferee), seals it to the new owner's public key into a nullable column of the member row,
+`owner_seed_sealed`, and swaps the roles, the new owner's row `owner` and the old owner's
+`administrator` with a certificate, both signed by the key that has not changed. **The signed
+preimage of a row whose column is null is unchanged**, so every existing row still verifies; a
+row carrying the seal folds it into its preimage. Everything that today derives the owner's key
+from the vault (`sign_in`'s owner path, `connect_existing`) reads the seal first and derives
+only where there is none. The Turso authority stays in the founder's keyring: the sync section's
+authority block on a new owner's machine says the authority follows the account that consented
+and offers the reconnect that exists for an owner restored on a new machine (826).
+
+*Rejected: re-deriving a new key from the new owner's password and re-signing every row, which
+rewrites the whole directory for one act; and moving the Turso account, which the application
+cannot do.*
+
 # Interfaces
 
 Rust commands, in `tauri/src/organization/command.rs`, registered in `lib.rs`:
@@ -326,6 +385,11 @@ Rust commands, in `tauri/src/organization/command.rs`, registered in `lib.rs`:
 | `organization_delete(password)` | new, owner |
 | `organization_connect`, `organization_own_link` | removed with the organization link |
 | `organization_state_get`, `organization_sign_in`, `organization_sign_out`, `organization_disconnect` | write the machine registry |
+| `member_create(username, role, permissions, workspaces) -> Member` | new, `inviteMember`; replaces `member_invite` |
+| `member_link_make(member_id) -> MadeLink` | new, `inviteMember`; the one link act |
+| `member_password_unset(member_id)` | replaces `member_reset`; `resetPassword` |
+| `machine_link_make` | removed |
+| `member_transfer_ownership(member_id, password)` | new, owner |
 
 `platform/host.ts` and `platform/tauri.ts` carry `LinkShape`, `InvitationLink`, `MachineLink`
 and the narrowed `Invited`; `LinkFacts` and `LinkStanding` go. `organization/router.ts` drops
@@ -349,6 +413,8 @@ it. `routes/settings/+page.svelte` loses `codeFor`, `freshCode` and `useInvitati
   the eight-tables test becomes nine. `organization` loses `link_credential_sealed`.
   `HeldOrganization` gains `machine_id`, drawn at connect and at the next launch of a record
   that has none. `DeletionIntent` gains `OrganizationDeletedByHuman`.
+- *Added 2026-09-16.* `member` gains `owner_seed_sealed`, nullable, in the signed preimage only
+  where present; a member's standing is read, never stored.
 
 # Technical Approach
 
@@ -377,6 +443,10 @@ it. `routes/settings/+page.svelte` loses `codeFor`, `freshCode` and `useInvitati
     ticket 05, independent of 8 and 9.
 11. **The organization's own link retires**, on top of 9 and 10, since both stop needing it.
 12. **The owner deletes the organization**, on top of 11, since both edit the sync section.
+13. *Added 2026-09-16.* **A link admits a machine to an account**, in Rust and the boundary, on
+    top of 12, since both touch the commands and the you section.
+14. **The members directory**, on top of 13; then **the workspaces directory** on the same
+    shape; then **the transfer**, on top of the members directory, which is where its act lives.
 
 # Migration
 
@@ -412,6 +482,10 @@ shape.
 | 15 | `store.rs` and `connect.rs`: the row after connect, sign-in, sign-out and disconnect; `connected_machines` at six and eight days; no signer on any of the four writes |
 | 16 | `grep` over the Rust source for `LINK_CREDENTIAL_LIFETIME`, `link_credential_sealed`, `Credential::Clear` and `"never"` finds nothing; `link.rs`: a text with no half is refused; `area.svelte.test.ts`: no link block for the owner; `connect-screen.svelte.test.ts`: no code-free path; read: the two corrections |
 | 17 | `connect-screen.svelte.test.ts`: link and code fields on the first step; an invitation then the two password fields; a machine link connects with no further field; an unreadable link marks the link field and a wrong code the code field |
+| 19 | `members.svelte.test.ts`: one card per account with its standing, the add control at the foot, each act on the menu by its gate, the owner's card empty for an administrator; `invite.rs`: an account made with no password refused at the wall until its link is opened |
+| 20 | `link.rs` or `invite.rs`: the first kind opens with a chosen password and lands signed in, the second lands at the wall, an account with a machine signed in is refused, a reset unsets and the next link asks a password, single use and seven days; `connect-screen.svelte.test.ts`: the choose-password fields for the first kind, the wall for the second; `area.svelte.test.ts`: no link act in the you section |
+| 21 | `workspaces.svelte.test.ts`: one card per workspace with its facts, the create control or the refusal at the foot, the three acts by their gates, the transfer beneath |
+| 22 | `role.rs`: the transfer swaps the roles, every row still verifies against the unchanged key, the new owner connects a fresh machine with the account by the sealed seed, an administrator is refused; `area.svelte.test.ts`: the authority sentence for a new owner holding none |
 | 18 | `removal.rs`: every workspace database and the organization database deleted with `OrganizationDeletedByHuman`, the machine holding nothing after, an administrator refused, a wrong password refused before any delete; `forget.rs`: a machine whose pull says the database is gone forgets at launch; `area.svelte.test.ts`: the control for the owner and not for an administrator, the confirmation on the form surface |
 
 # Operational Considerations
@@ -435,6 +509,9 @@ shape.
   as a refusal the shell can tell from a network fault has not been run here; the delete ticket
   establishes it and keys `forget`'s new sign on it, or records that it cannot and says what a
   machine meets instead.
+- *Added 2026-09-16.* **The signed preimage with an optional column.** A row without the seal
+  must hash exactly as before; the test that verifies every row after a transfer, and one that
+  verifies a row written before the column, are what guard it.
 - **The listing's loose prefix.** `org-chart` in the owner's group reads as an organization
   database today and would be offered for connection; the connect then fails to find the rows
   and refuses, which is the same outcome the create's refusal gives, and no better.
