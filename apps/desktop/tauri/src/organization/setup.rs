@@ -61,7 +61,6 @@ use super::{
     authority::{AdministratorKey, OrganizationKey, VERIFYING_KEY_BYTES, issue_certificate},
     connect::{self, OrganizationFacts},
     invite::validate_username,
-    link::JoinLink,
     permission,
     session::{self, CredentialSlot, MemberSession, content_key_of, remember, sign_in_by_username},
     store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
@@ -75,10 +74,6 @@ use super::{
 /// What a member's grant to the organization database is minted for. Renewal is the grant
 /// ticket's; until it lands, this is how long a first run's owner can sync the directory for.
 pub const ORGANIZATION_CREDENTIAL_LIFETIME: &str = "4w";
-
-/// The read-only credential a join link carries never expires, because a link is a locator and a
-/// locator does not go stale (requirement 23). `never` is Turso's own spelling for it.
-pub const LINK_CREDENTIAL_LIFETIME: &str = "never";
 
 pub const OWNER_ROLE: &str = "owner";
 
@@ -142,16 +137,19 @@ pub struct CreateOrganization<'a> {
     pub group: Option<&'a str>,
 }
 
-/// What the web layer is told: the organization's id and the link the owner can hand out. No key,
+/// What the web layer is told: the organization's id, and whether its rows have arrived. No key,
 /// no token and no password is in it.
+///
+/// *It carried the organization's own join link until effort 828's requirement 16 retired that
+/// link. The first run mints nothing to hand out now: an owner invites a member, and a member
+/// makes their own second-machine link, each sealed under its code.*
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OrganizationCreated {
     pub organization_id: String,
-    pub join_link: String,
     /// whether the rows reached Turso before this answered. The replica keeps them either way and
-    /// sends them with the next push; what a person needs to know is that the link works once
-    /// they have arrived.
+    /// sends them with the next push; what a person needs to know is that an invitation made now
+    /// opens an empty directory until they have.
     pub synced: bool,
 }
 
@@ -524,15 +522,6 @@ async fn finish<P: TursoPlatform>(
             AccessLevel::FullAccess,
         )
         .await?;
-    // read-only: what a join link carries reads the directory and writes nothing to it, which is
-    // what keeps a link found in a chat history a locator.
-    let link_credential = platform
-        .mint_token(
-            database_name,
-            LINK_CREDENTIAL_LIFETIME,
-            AccessLevel::ReadOnly,
-        )
-        .await?;
     // what every other machine reaches the organization at, and what the rows record. The
     // replica on this machine is opened against it where there is one to open against.
     let remote_url = format!("libsql://{hostname}");
@@ -572,13 +561,6 @@ async fn finish<P: TursoPlatform>(
             name_sealed: seal_content(&content_key, "organization.name_sealed", name.as_bytes())?,
             verifying_key,
             remote_url: remote_url.clone(),
-            // sealed rather than in the clear: a member whose vault is open makes a link from it,
-            // and a reader of the database alone gets no credential out of it.
-            link_credential_sealed: seal_content(
-                &content_key,
-                "organization.link_credential_sealed",
-                link_credential.as_bytes(),
-            )?,
             created_at: now,
         })
         .await?;
@@ -664,15 +646,6 @@ async fn finish<P: TursoPlatform>(
     // the first epoch, the one the owner's row was just written with.
     remember(organization_id, &member_id, 0, &member_key);
 
-    let join_link = JoinLink::new(
-        organization_id,
-        name,
-        &verifying_key,
-        &remote_url,
-        &link_credential,
-    )
-    .encode()?;
-
     diagnostics::info("organization.created")
         .with("organization", organization_id)
         .write();
@@ -680,7 +653,6 @@ async fn finish<P: TursoPlatform>(
     Ok((
         OrganizationCreated {
             organization_id: organization_id.to_string(),
-            join_link,
             synced,
         },
         organization_store,
@@ -1231,9 +1203,9 @@ mod tests {
         keyring::take_the_credential_store,
         organization::{
             authority::{AdministratorKey, OrganizationKey},
-            invite::{Invitation, USERNAME_RULES, invite_member, organization_link},
+            invite::{Invitation, USERNAME_RULES, invite_member, locator},
             join,
-            link::JoinLink,
+            link::{JoinLink, Locator},
             permission,
             session::{self, CredentialSlot, sign_in},
             store::OrganizationStore,
@@ -1628,20 +1600,16 @@ mod tests {
         assert_eq!(databases.len(), 1);
         assert_eq!(databases[0].name, database_name);
         assert!(databases[0].delete_protection);
+        // one mint, and it lapses: the owner's own four-week grant. *A second, read-only and
+        // never expiring, was minted for the organization's own link until effort 828's
+        // requirement 16 retired that link.*
         assert_eq!(
             platform.minted(),
-            vec![
-                (
-                    database_name.clone(),
-                    "4w".to_string(),
-                    AccessLevel::FullAccess
-                ),
-                (
-                    database_name.clone(),
-                    "never".to_string(),
-                    AccessLevel::ReadOnly
-                )
-            ]
+            vec![(
+                database_name.clone(),
+                "4w".to_string(),
+                AccessLevel::FullAccess
+            )]
         );
         assert!(platform.deleted().is_empty());
         assert!(
@@ -1649,24 +1617,28 @@ mod tests {
             "nothing was pushed, because there was no remote"
         );
 
-        // the link: the organization, its key, its remote, and the read-only credential.
-        let link = JoinLink::decode(&outcome.join_link).expect("the link decodes");
+        // the organization row, where the machine learns what a link would carry: the id, the
+        // remote and the key. The first run hands out nothing (effort 828, requirement 16).
+        let held = store
+            .organization
+            .clone()
+            .expect("the first run recorded no organization");
 
-        assert_eq!(link.organization_id, outcome.organization_id);
+        assert_eq!(held.id, outcome.organization_id);
         assert_eq!(
-            link.remote_url,
+            held.remote_url,
             format!("libsql://{database_name}-an-org.aws-eu-west-1.turso.io")
         );
-        // the one credential a link carries legibly, and the one that never lapses: the
-        // organization's own (effort 828, requirement 4).
-        assert_eq!(
-            link.clear_credential(),
-            Some(format!("token-for-{database_name}-never-read-only").as_str())
-        );
-        assert_eq!(link.half(), None);
 
-        // the rows, verified against the key the link carries and nothing else.
-        let key = link.verifying_key_bytes().expect("a key");
+        // the rows, verified against the key the record pins and nothing else.
+        let key = Locator {
+            organization_id: held.id.clone(),
+            organization_name: held.name.clone(),
+            verifying_key: held.verifying_key.clone(),
+            remote_url: held.remote_url.clone(),
+        }
+        .verifying_key_bytes()
+        .expect("a key");
         let members = organization.members(&key).await.expect("the members");
         let grants = organization.grants(&key).await.expect("the grants");
         let row = organization
@@ -1685,7 +1657,7 @@ mod tests {
         assert_eq!(grants[0].workspace_id, outcome.organization_id);
         assert_eq!(grants[0].access_level, "full-access");
         assert_eq!(row.verifying_key, key);
-        assert_eq!(row.remote_url, link.remote_url);
+        assert_eq!(row.remote_url, held.remote_url);
 
         // the organization key follows from the owner's password and from nothing stored: the
         // vault opens, the seed is derived, and its verifying key is the one the link pinned.
@@ -1747,7 +1719,7 @@ mod tests {
         assert_eq!(joined.name, "Acme Rentals");
         assert_eq!(joined.member_id.as_deref(), Some(members[0].id.as_str()));
         assert_eq!(joined.role.as_deref(), Some(OWNER_ROLE));
-        assert_eq!(joined.verifying_key, link.verifying_key);
+        assert_eq!(joined.verifying_key, held.verifying_key);
 
         // and the slug was asked for once and remembered.
         assert_eq!(
@@ -1836,18 +1808,25 @@ mod tests {
             Some(("acme-co", "rentable-empty"))
         );
 
-        let link = JoinLink::decode(&outcome.join_link).expect("the link decodes");
+        let held = store
+            .organization
+            .clone()
+            .expect("the first run recorded no organization");
 
         assert_eq!(
-            link.remote_url,
+            held.remote_url,
             format!("libsql://{database_name}-acme-co.aws-eu-west-1.turso.io")
         );
+
+        let key = organization
+            .organization()
+            .await
+            .expect("the organization")
+            .expect("a row")
+            .verifying_key;
+
         assert_eq!(
-            organization
-                .members(&link.verifying_key_bytes().expect("a key"))
-                .await
-                .expect("the members")
-                .len(),
+            organization.members(&key).await.expect("the members").len(),
             1
         );
     }
@@ -2567,7 +2546,7 @@ mod tests {
         )
         .await
         .expect("the owner did not sign in");
-        let locator = organization_link(&replica, &owner)
+        let locator = locator(&replica, &owner)
             .await
             .expect("the organization's link");
         let invited = invite_member(

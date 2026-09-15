@@ -100,6 +100,20 @@ invitation code crossed out of `invitation_code` until 2026-09-15; there is one 
 so it crosses out of `member_invite`, `member_reset` and `invitation_link`, and a fresh code means
 a fresh link.*
 
+*Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
+requirement 16, which supersedes requirement 4): **no link carries a legible credential, and the
+"every other link" paragraph above now describes every link there is.** The organization's own link
+retired, and with it the never-expiring read-only credential it was the only holder of: nothing
+mints one, nothing stores one, nothing shows one and nothing accepts one, the column that held it
+sealed is gone from the organization row, and there is no kind of link left that connects a machine
+without a code. What each link carries is what that paragraph says, on all of them.*
+
+*And **the owner's way back is the account**, which is why the recovery copy could go. An owner
+whose every machine is gone repeats the Turso consent and signs in with their own username and
+password, and that password is what re-derives the organization's key either way (requirement 14).
+Nothing about who can recover an organization changed; what changed is that recovering it no longer
+needs a credential kept somewhere a finder could read.*
+
 Recorded originally as ADR 0003, *The Google Drive client relocates wholly to Rust*.
 
 ## Concurrency — **retired 2026-08-19 with the transport it bound (#554)**

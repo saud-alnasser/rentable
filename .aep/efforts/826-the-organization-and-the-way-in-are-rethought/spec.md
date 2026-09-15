@@ -157,6 +157,14 @@ rail's two menus open. Every concept has one name.
     and a member makes their own second-machine link and code from their you section. The connect
     screen still takes one field and still reads which kind a link is, from the link's own text
     rather than from a row behind it.*
+    *Corrected again 2026-09-16 by the same spec, requirement 16, which supersedes its own
+    requirement 4: **the organization link is gone.** It was the one credential this application
+    held that never lapsed, and nothing here rotated it, so every copy of it read the directory
+    forever. Nothing mints, stores, shows or accepts one now; a member connects their own next
+    machine from their you section, and an owner whose every machine is gone repeats the Turso
+    consent and signs in with their username and password (828, requirement 14). The connect screen
+    still takes one field for the link, and now a second for the code that comes with it, because
+    every link left has one.*
 11. **The wall is the login page of the held organization**: its name, a username, a
     password, unlock, and at the foot disconnect and a way to the connect screen for a
     person holding a link, since a reset link is opened by somebody whose machine already
@@ -344,7 +352,9 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
    password, asserted in its test.
 10. The connect screen accepts an organization link and lands on the wall, and accepts an
     invitation link and lands on the choose-password step, from one field. Asserted in its
-    test with both link kinds.
+    test with both link kinds. *Corrected 2026-09-16 with requirement 10: there is no
+    organization link to accept. The test asserts the two kinds that are left, an invitation and a
+    second machine's link, and that neither is read before its code is given.*
 11. `startup-sign-in.svelte.test.ts` from 824 passes unchanged for the locked wall. *Corrected
     2026-09-15 with requirement 11: the test asserts the redesigned card (the title, the
     subtitle, the disclosure closed by default and its two rows) in both locales, and

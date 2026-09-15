@@ -37,8 +37,8 @@ import type { LinkShape } from '$lib/platform/host.ts';
 const shape = (overrides: Partial<LinkShape> = {}): LinkShape => ({
 	organizationId: 'acme',
 	organizationName: 'Acme Rentals',
-	kind: 'organization',
-	expiresAt: null,
+	kind: 'invitation',
+	expiresAt: 1,
 	...overrides
 });
 
@@ -85,20 +85,18 @@ test('a pasted link loses the wrapping a client put around it, and nothing insid
 	assert.equal(normalizeLink('not a link'), 'not a link');
 });
 
-// effort 826, requirement 10 and effort 828, requirement 1: one field takes them all, and which
-// kind it is, is read off the link's own text rather than off a row behind it.
+// effort 826, requirement 10 and effort 828, requirements 1 and 16: one field takes them both, and
+// which kind it is, is read off the link's own text rather than off a row behind it. There are two,
+// and a third, the organization's own, retired with the credential it carried legibly.
 test('the shape says which kind of link this is', () => {
-	assert.equal(linkKind(shape()), 'organization');
-	assert.equal(linkKind(shape({ kind: 'invitation' })), 'invitation');
+	assert.equal(linkKind(shape()), 'invitation');
 	assert.equal(linkKind(shape({ kind: 'machine' })), 'machine');
 });
 
-// the two kinds whose act ran in the read's own wait: the organization's own link, connected with
-// the credential it carries, and a link a member made for this machine, connected with the code
-// the form already took (effort 828, requirement 17). Neither admits anybody, so both end at the
-// wall, where the password does.
-test('an organization link and a machine link both end this screen at the wall', () => {
-	assert.equal(afterRead(LINK, '', shape()), THE_WALL);
+// the kind whose act ran in the read's own wait: a link a member made for this machine, connected
+// with the code the form already took (effort 828, requirement 17). It admits nobody, so it ends
+// at the wall, where the password does.
+test('a machine link ends this screen at the wall', () => {
 	assert.equal(afterRead(LINK, CODE, shape({ kind: 'machine', expiresAt: 1 })), THE_WALL);
 });
 

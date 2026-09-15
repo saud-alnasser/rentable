@@ -321,9 +321,7 @@ mod tests {
         error::Error,
         organization::{
             HeldOrganization,
-            invite::{
-                Invitation, Invited, WorkspaceGrant, invite_member, members, organization_link,
-            },
+            invite::{Invitation, Invited, WorkspaceGrant, invite_member, locator, members},
             migrate::Pipeline,
             permission,
             session::{CredentialSlot, MemberSession, refresh_credentials, sign_in},
@@ -533,7 +531,7 @@ mod tests {
         )
         .await
         .expect("the second workspace");
-        let link = organization_link(&store, &owner).await.expect("the link");
+        let link = locator(&store, &owner).await.expect("the link");
         let administrator = invite_member(
             &store,
             &owner,
@@ -1126,7 +1124,7 @@ mod tests {
         .expect("the administrator did not sign in");
         ada.must_change_password = false;
 
-        let link = organization_link(&org.store, &ada).await.expect("the link");
+        let link = locator(&org.store, &ada).await.expect("the link");
         let bob = invite_member(
             &org.store,
             &ada,

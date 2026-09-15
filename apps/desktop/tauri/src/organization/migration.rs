@@ -514,7 +514,7 @@ mod tests {
         error::Error,
         organization::{
             HeldOrganization,
-            invite::{Invitation, Invited, WorkspaceGrant, invite_member, organization_link},
+            invite::{Invitation, Invited, WorkspaceGrant, invite_member, locator},
             migrate::{self, Pipeline},
             permission,
             session::{CredentialSlot, MemberSession, WorkspaceFacts, sign_in},
@@ -663,7 +663,7 @@ mod tests {
         )
         .await
         .expect("the workspace");
-        let link = organization_link(&store, &owner).await.expect("the link");
+        let link = locator(&store, &owner).await.expect("the link");
         let invited = invite_member(
             &store,
             &owner,

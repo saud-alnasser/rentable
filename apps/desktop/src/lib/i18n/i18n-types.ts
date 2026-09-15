@@ -2639,14 +2639,6 @@ type RootTranslation = {
 			 */
 			renamed: string
 			/**
-			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k
-			 */
-			linkTitle: string
-			/**
-			 * k​e​e​p​ ​t​h​i​s​ ​s​o​m​e​w​h​e​r​e​ ​p​r​i​v​a​t​e​:​ ​i​t​ ​i​s​ ​t​h​e​ ​c​o​p​y​ ​t​h​a​t​ ​r​e​c​o​v​e​r​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​h​e​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​ ​i​s​ ​g​o​n​e​.​ ​o​p​e​n​i​n​g​ ​i​t​ ​o​n​ ​a​ ​n​e​w​ ​m​a​c​h​i​n​e​ ​c​o​n​n​e​c​t​s​ ​t​h​a​t​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​a​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​ ​s​i​g​n​ ​y​o​u​ ​i​n​.​ ​i​t​ ​n​e​v​e​r​ ​e​x​p​i​r​e​s​ ​a​n​d​ ​i​t​ ​c​a​r​r​i​e​s​ ​a​ ​r​e​a​d​ ​o​n​l​y​ ​v​i​e​w​ ​o​f​ ​t​h​e​ ​d​i​r​e​c​t​o​r​y​,​ ​s​o​ ​i​t​ ​i​s​ ​n​o​t​ ​t​h​e​ ​l​i​n​k​ ​t​o​ ​h​a​n​d​ ​a​r​o​u​n​d​.​ ​t​o​ ​c​o​n​n​e​c​t​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​o​f​ ​y​o​u​r​ ​o​w​n​,​ ​m​a​k​e​ ​a​ ​l​i​n​k​ ​f​o​r​ ​i​t​ ​i​n​ ​t​h​e​ ​y​o​u​ ​s​e​c​t​i​o​n​ ​o​f​ ​y​o​u​r​ ​s​e​t​t​i​n​g​s​.
-			 */
-			linkDescription: string
-			/**
 			 * t​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
 			authorityTitle: string
@@ -5433,14 +5425,6 @@ export type TranslationFunctions = {
 			 * the member was renamed.
 			 */
 			renamed: () => LocalizedString
-			/**
-			 * organization link
-			 */
-			linkTitle: () => LocalizedString
-			/**
-			 * keep this somewhere private: it is the copy that recovers the organization when every machine is gone. opening it on a new machine connects that machine, and a username and a password sign you in. it never expires and it carries a read only view of the directory, so it is not the link to hand around. to connect another machine of your own, make a link for it in the you section of your settings.
-			 */
-			linkDescription: () => LocalizedString
 			/**
 			 * turso account
 			 */

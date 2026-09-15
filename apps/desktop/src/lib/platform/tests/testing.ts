@@ -124,7 +124,6 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			groupInspect: refuse('organization.groupInspect'),
 			connectExisting: refuse('organization.connectExisting'),
 			getState: refuse('organization.getState'),
-			connect: refuse('organization.connect'),
 			disconnect: refuse('organization.disconnect'),
 			signIn: refuse('organization.signIn'),
 			signOut: refuse('organization.signOut'),
@@ -135,7 +134,6 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			linkRead: refuse('organization.linkRead'),
 			reconnectAuthority: refuse('organization.reconnectAuthority'),
 			renewDue: refuse('organization.renewDue'),
-			ownLink: refuse('organization.ownLink'),
 			workspace: {
 				create: refuse('organization.workspace.create'),
 				open: refuse('organization.workspace.open'),

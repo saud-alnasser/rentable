@@ -19,7 +19,6 @@
 	import OrganizationEndOtherSessions from '$lib/organization/component/end-other-sessions.svelte';
 	import OrganizationForgetAccount from '$lib/organization/component/forget-account.svelte';
 	import OrganizationIdentity from '$lib/organization/component/identity.svelte';
-	import OrganizationLink from '$lib/organization/component/organization-link.svelte';
 	import OrganizationMembers from '$lib/organization/component/members.svelte';
 	import OrganizationReconnectAuthority from '$lib/organization/component/reconnect-authority.svelte';
 	import OrganizationWorkspaces from '$lib/organization/component/workspaces.svelte';
@@ -362,13 +361,6 @@
 					{:else}
 						<OrganizationForgetAccount />
 					{/if}
-				</Field.Set>
-
-				<Separator />
-
-				<Field.Set>
-					<Field.Legend>{$LL.organization.dashboard.linkTitle()}</Field.Legend>
-					<OrganizationLink {isOwner} />
 				</Field.Set>
 
 				<Separator />

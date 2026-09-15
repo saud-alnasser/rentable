@@ -80,8 +80,8 @@ const LINK = 'rentable://join/abc';
 const shape = (overrides: Partial<LinkShape> = {}): LinkShape => ({
 	organizationId: 'acme',
 	organizationName: 'Acme Rentals',
-	kind: 'organization',
-	expiresAt: null,
+	kind: 'invitation',
+	expiresAt: 1,
 	...overrides
 });
 
@@ -194,16 +194,22 @@ test('an empty code still continues, and the link alone is what the form needs',
 	expect(onConnect).toHaveBeenCalledWith(LINK, '');
 });
 
-// effort 826, requirement 10; effort 828, requirement 17 and criterion 17: one form, three kinds
-// of link, and each lands in its own place. Two of the three are connected in the read's own wait
-// and their landing is the wall, which this screen does not draw: the organization's own link, and
-// a link a member made for this machine, connected with the code the form already took.
-test('an organization link and a machine link connect with no further field, and land on the wall', () => {
+// effort 826, requirement 10; effort 828, requirements 16 and 17 and criteria 16 and 17: one form,
+// two kinds of link, and each lands in its own place. A link a member made for this machine is
+// connected in the read's own wait, with the code the form already took, and its landing is the
+// wall, which this screen does not draw.
+//
+// **And there is no code-free path** (effort 828, criterion 16). A third kind, the organization's
+// own link, carried a legible credential and connected with no code at all; it retired with
+// requirement 16, so every landing this screen has is on the other side of a code the person typed.
+test('a machine link connects with no further field, and lands on the wall', () => {
 	loadLocale('en');
 	setLocale('en');
 
-	expect(landingOf()).toBe(THE_WALL);
 	expect(landingOf({ kind: 'machine', expiresAt: 1 })).toBe(THE_WALL);
+	// the two kinds are the whole of what a read can answer, and neither is reached without the
+	// code: the form takes both halves before anything is read.
+	expect(landingOf({ kind: 'invitation', expiresAt: 1 })).not.toBe(THE_WALL);
 });
 
 // *Naming the invited person went with the read that reached the organization (effort 828,

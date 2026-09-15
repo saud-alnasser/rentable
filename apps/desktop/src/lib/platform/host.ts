@@ -213,12 +213,15 @@ export type OrganizationConsentResult = {
 };
 
 /**
- * what a first run answers with: the organization's id, the link an owner hands out, and
- * whether the rows have reached Turso yet. No key, no token, no password.
+ * what a first run answers with: the organization's id, and whether the rows have reached Turso
+ * yet. No key, no token, no password.
+ *
+ * *It carried the organization's own link until effort 828's requirement 16 retired it. The first
+ * run hands out nothing now: an owner invites a member, and a member makes their own
+ * second-machine link, each sealed under the code that came with it.*
  */
 export type OrganizationCreated = {
 	organizationId: string;
-	joinLink: string;
 	synced: boolean;
 };
 
@@ -268,14 +271,15 @@ export type OrganizationSession = {
 };
 
 /**
- * which of the three kinds of link a text is, read from the text alone (effort 828, requirement
- * 1). The organization's own carries a legible credential and admits nobody by itself; an
- * invitation and a second machine's link each carry a payload nothing opens without the code that
- * came with it. *It was a standing, `open | lapsed | consumed | revoked | none`, read off the row
- * behind the link; nothing reads a row before the credential is out, so where the row stands is
- * judged by the act that takes the code.*
+ * which of the two kinds of link a text is, read from the text alone (effort 828, requirements 1
+ * and 16). An invitation and a second machine's link each carry a payload nothing opens without
+ * the code that came with it, and there is no third kind: the organization's own link carried a
+ * legible credential and admitted a machine with no code, and it retired with requirement 16.
+ * *It was a standing, `open | lapsed | consumed | revoked | none`, read off the row behind the
+ * link; nothing reads a row before the credential is out, so where the row stands is judged by
+ * the act that takes the code.*
  */
-export type LinkKind = 'organization' | 'invitation' | 'machine';
+export type LinkKind = 'invitation' | 'machine';
 
 /**
  * one workspace and the access held on it: what an invitation asks for, and what the members list
@@ -319,8 +323,8 @@ export type LinkShape = {
 	organizationId: string;
 	organizationName: string;
 	kind: LinkKind;
-	/** when the link lapses; `null` on the organization's own, which does not. */
-	expiresAt: number | null;
+	/** when the link lapses. Every link does. */
+	expiresAt: number;
 };
 
 /**
@@ -568,17 +572,6 @@ export type Host = {
 		/** the organization this machine holds, and who is signed in. */
 		getState: () => Promise<OrganizationState>;
 		/**
-		 * connect this machine to the organization its own link names: its id, name, remote and
-		 * key are recorded, no vault opens and no member is recorded; the person signs in at the
-		 * wall. **The organization's own link and nothing else** (effort 828, requirement 4): it
-		 * is the one link that carries a legible credential, and it connects with no code because
-		 * it is the owner's recovery copy. Rejects a link carrying a sealed credential as
-		 * `preconditionFailed` with a sentence naming the code, and the same code while an
-		 * organization is held; as `invalidInput` where the text is not a link; and as `network`
-		 * where the organization could not be reached.
-		 */
-		connect: (link: string) => Promise<OrganizationState>;
-		/**
 		 * forget the organization this machine holds: sign out where somebody is in, delete every
 		 * replica on this machine, empty the record, and clear the Turso authority. The
 		 * organization on Turso is untouched. The one confirm before it is the screen's.
@@ -630,12 +623,6 @@ export type Host = {
 		 * forgets it; it never blocks sign-in, which works offline.
 		 */
 		renewDue: () => Promise<boolean>;
-		/**
-		 * the organization's own join link, rebuilt for the owner to share or keep. The owner's,
-		 * refused to a member; needs the open vault and not the Turso authority, so a restored owner
-		 * can read it before repeating the consent (requirement 6).
-		 */
-		ownLink: () => Promise<string>;
 		workspace: {
 			/**
 			 * create a workspace on the account: a database, migrated, recorded, and granted to the

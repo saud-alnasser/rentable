@@ -30,17 +30,17 @@
 	 * application for an invitation that was accepted. It opens with nobody signed in, which
 	 * `layout/shell-surface.ts` decides.
 	 *
-	 * **Read, then act on what the read said** (effort 828, requirements 1 and 17). The form hands
-	 * over the link and the code together, and the read is a decode: which organization the link
-	 * names, which kind of link it is, and when it lapses, with no network behind it. What follows
-	 * in the same wait is the act that kind of link names. The organization's own link carries a
-	 * legible credential, so the connect runs on it. A second machine's link is connected with the
-	 * code, which unseals what reaches the organization; both end at the wall, because the password
-	 * the person already has is what admits them. An invitation is the one that asks for more, so
-	 * it leaves the read on the password step and the accept runs when that is answered: it
-	 * unseals, reaches, records the organization where this machine holds none, judges the row and
-	 * opens the vault. A connect whose link names the organization this machine already holds
-	 * answers where the machine stands instead of refusing.
+	 * **Read, then act on what the read said** (effort 828, requirements 1, 16 and 17). The form
+	 * hands over the link and the code together, and the read is a decode: which organization the
+	 * link names, which kind of link it is, and when it lapses, with no network behind it. What
+	 * follows in the same wait is the act that kind of link names. A second machine's link is
+	 * connected with the code, which unseals what reaches the organization, and ends at the wall,
+	 * because the password that member already has is what admits them. An invitation is the one
+	 * that asks for more, so it leaves the read on the password step and the accept runs when that
+	 * is answered: it unseals, reaches, records the organization where this machine holds none,
+	 * judges the row and opens the vault. *A third kind, the organization's own link, carried a
+	 * legible credential and ran a connect of its own with no code; requirement 16 retired it, so
+	 * there is no path through this screen that does not spend a code.*
 	 *
 	 * **The read is refused on the link and the act on the code.** Both can answer `invalidInput`,
 	 * and the two mean different fields: text that is not a link, and a code nobody typed. So the
@@ -105,12 +105,9 @@
 		}
 
 		try {
-			// the two kinds of link that connect the machine themselves. The organization's own link
-			// carries the credential that reaches the organization; a link a member made for this
-			// machine carries it sealed, and the code is the half that opens it.
-			if (shape.kind === 'organization') {
-				await tauri.organization.connect(link);
-			} else if (shape.kind === 'machine') {
+			// the kind of link that connects the machine itself: one a member made for this machine,
+			// which carries the credential sealed and the code is the half that opens it.
+			if (shape.kind === 'machine') {
 				await tauri.organization.machineConnect(link, code);
 			}
 		} catch (error) {

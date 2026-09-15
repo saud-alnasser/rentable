@@ -30,7 +30,7 @@
 //! sign-in path reads it as false, because a person who reached the wall by the generated secret
 //! typed nothing they were shown.
 //!
-//! **Nothing is reached before the code is typed.** `organization_link_inspect` opened the
+//! **Nothing is reached before the code is typed.** `locator_inspect` opened the
 //! replica with the link's clear credential and judged the invitation's standing before the
 //! person had given anything; there is no clear credential to do that with now, so reading a link
 //! is `link::read`, a decode, and the standing is judged here, inside the act that takes the code.
@@ -49,7 +49,7 @@
 //! puts the connect screen on with the link already in it. A person whose platform did not hand
 //! the link over, a chat client that refuses unknown schemes, a link copied as text, pastes it
 //! into the same screen; that is the fallback and not the design. Both are in
-//! `organization/command.rs`'s `organization_link_take` and the shell's listener, and the decision
+//! `organization/command.rs`'s `locator_take` and the shell's listener, and the decision
 //! is recorded here because the join ticket made it.
 
 use std::sync::{Arc, Mutex};
@@ -159,8 +159,7 @@ where
         message: "this link carries no invitation; sign in with your username and password"
             .to_string(),
     };
-    let half = link.half().ok_or_else(no_invitation)?;
-    let sealed = link.sealed_credential().ok_or_else(no_invitation)?;
+    let half = &link.half;
 
     if half.kind != HalfKind::Invitation {
         return Err(no_invitation());
@@ -185,7 +184,7 @@ where
     // the code and the link's secret together: the code keys the seal and the secret salts it, so
     // neither on its own derives anything (effort 828, requirement 1). What comes out is the
     // issuer's own grant on the organization database and the password their vault was made under.
-    let payload = open_payload(code, half, sealed, kdf_params)?;
+    let payload = open_payload(code, half, &link.credential, kdf_params)?;
     let vault_password = payload
         .vault_password
         .ok_or_else(|| invitation_refused(&link.organization_name, Refusal::Revoked))?;
@@ -195,9 +194,6 @@ where
     let credential: CredentialSlot = Arc::new(Mutex::new(Some(payload.credential.clone())));
     let reached = store_for(Arc::clone(&credential)).await?;
     let store = reached.borrow();
-    // the link with its credential in hand: what `connect::connect` records an organization from,
-    // since a sealed one is refused there for want of a code.
-    let opened = link.with_clear_credential(&payload.credential);
 
     let held = match machine.organization.clone() {
         Some(held) if held.id == link.organization_id => held,
@@ -209,7 +205,7 @@ where
                 ),
             });
         }
-        None => connect::connect(store, machine, &opened, now).await?,
+        None => connect::connect(store, machine, &link.locator(), &payload.credential, now).await?,
     };
 
     let verifying_key = super::session::verifying_key_of(&held)?;
@@ -363,9 +359,11 @@ mod tests {
             HeldOrganization, connect,
             invite::{
                 INVITATION_LIFETIME_MS, Invitation, WorkspaceGrant, invite_member,
-                organization_link,
+                locator,
             },
-            link::{CODE_MISSING, CODE_REFUSED, Half, HalfKind, JoinLink, LinkKind, open_payload},
+            link::{
+                CODE_MISSING, CODE_REFUSED, Half, HalfKind, JoinLink, LinkKind, Locator, open_payload,
+            },
             migrate::Pipeline,
             permission,
             session::{CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, read_entry, sign_in},
@@ -434,7 +432,7 @@ mod tests {
     async fn connected_machine(
         directory: &std::path::Path,
         store: &OrganizationStore,
-        link: &JoinLink,
+        link: &Locator,
     ) -> (Persisted<RemoteSyncStore>, HeldOrganization) {
         let mut machine = Persisted::<RemoteSyncStore>::load(directory.join(RemoteSync::FILENAME))
             .expect("the store");
@@ -444,7 +442,7 @@ mod tests {
             "the second machine has prior state"
         );
 
-        let held = connect::connect(store, &mut machine, link, ISSUED_AT + 1)
+        let held = connect::connect(store, &mut machine, link, REACHED_WITH, ISSUED_AT + 1)
             .await
             .expect("the connect failed");
 
@@ -463,7 +461,7 @@ mod tests {
     ) -> (
         OrganizationStore,
         MemberSession,
-        JoinLink,
+        Locator,
         JoinLink,
         String,
         String,
@@ -528,7 +526,7 @@ mod tests {
         )
         .await
         .expect("the workspace");
-        let link = organization_link(&organization, &owner)
+        let link = locator(&organization, &owner)
             .await
             .expect("the organization's link");
         let invited = invite_member(
@@ -554,13 +552,12 @@ mod tests {
         );
         assert_eq!(invitation.verifying_key, link.verifying_key);
         assert_eq!(invitation.remote_url, link.remote_url);
-        assert_eq!(
-            invitation.clear_credential(),
-            None,
-            "an invitation link carries a legible credential"
+        assert!(
+            !invitation.credential.is_empty(),
+            "an invitation link carries no sealed payload"
         );
         assert_eq!(
-            invitation.half().map(|half| half.id.as_str()),
+            Some(invitation.half.id.as_str()),
             Some(invited.invitation_id.as_str())
         );
 
@@ -576,6 +573,10 @@ mod tests {
 
     /// The password the invited member chooses when they open their link.
     const CHOSEN: &str = "a password sami chose";
+
+    /// What a caller holds by the time it reaches `connect::connect`: the credential the link's
+    /// code unsealed, which the replica handed in stands for here.
+    const REACHED_WITH: &str = "the-credential-the-code-opened";
 
     /// `invitation` opened on a machine that holds nothing, choosing `password`: what a person
     /// does with the link they were sent, on the machine they were sent it on. The accept records
@@ -655,44 +656,35 @@ mod tests {
 
     /// Effort 828, requirement 1: **reading a link is a decode, and it reaches nothing.**
     ///
-    /// The organization's own link names the organization, says it is the organization's own and
-    /// lapses at no moment; an invitation link says so and says when it lapses; and neither read
-    /// touches the replica, which is what makes them answerable before anybody has typed a code.
-    /// A link for an invitation nobody issued reads exactly like one for an invitation that
-    /// stands, because a decode has no row to tell them apart; which it is, is what the accept
-    /// answers, and the test below it is where that is pinned.
+    /// An invitation link names the organization, says which kind of link it is and says when it
+    /// lapses, and the read touches no replica, which is what makes it answerable before anybody
+    /// has typed a code. A link for an invitation nobody issued reads exactly like one for an
+    /// invitation that stands, because a decode has no row to tell them apart; which it is, is what
+    /// the accept answers, and the test below it is where that is pinned.
     #[tokio::test]
     async fn reading_a_link_is_a_decode_and_says_nothing_about_the_row() {
         let directory = scratch("read");
         let (_, owner, link, invitation, _, _) = invited(&directory).await;
 
-        let shape = crate::organization::link::read(&link.encode().expect("the link"))
-            .expect("the organization's own link could not be read");
-
-        assert_eq!(shape.organization_name, "Acme");
-        assert_eq!(shape.organization_id, owner.organization_id);
-        assert_eq!(shape.kind, LinkKind::Organization);
-        assert_eq!(shape.expires_at, None, "the organization's own link lapses");
-
         let shape = crate::organization::link::read(&invitation.encode().expect("the link"))
             .expect("the invitation link could not be read");
 
         assert_eq!(shape.organization_name, "Acme");
+        assert_eq!(shape.organization_id, owner.organization_id);
         assert_eq!(shape.kind, LinkKind::Invitation);
         assert_eq!(
             shape.expires_at,
-            Some(ISSUED_AT + INVITATION_LIFETIME_MS),
+            ISSUED_AT + INVITATION_LIFETIME_MS,
             "the invitation link does not lapse with its row"
         );
 
         // the same link with its id pointed at an invitation nobody issued reads the same: a
         // decode has no row in front of it.
-        let half = invitation.half().expect("the half").clone();
         let gone = link.sealed(
-            invitation.sealed_credential().expect("the payload"),
+            &invitation.credential,
             Half {
                 id: "an-invitation-nobody-issued".to_string(),
-                ..half
+                ..invitation.half.clone()
             },
         );
 
@@ -833,7 +825,7 @@ mod tests {
         assert!(!row.must_change_password, "the row still says to change");
 
         let written = std::fs::read_to_string(theirs.join(RemoteSync::FILENAME)).expect("the file");
-        let secret = invitation.half().expect("the half").secret.clone();
+        let secret = invitation.half.secret.clone();
 
         assert!(
             !written.contains(CHOSEN),
@@ -1056,10 +1048,19 @@ mod tests {
             "{refused:?}"
         );
 
+        // a link that is not an invitation's: the same locator and payload under a machine half,
+        // which is what a member makes for their own next machine and is refused here by name.
+        let a_machines = link.sealed(
+            &invitation.credential,
+            Half {
+                kind: HalfKind::Machine,
+                ..invitation.half.clone()
+            },
+        );
         let refused = accept_on(
             &mut machine,
             &store,
-            &link,
+            &a_machines,
             &code,
             CHOSEN,
             ISSUED_AT + 2,
@@ -1447,11 +1448,8 @@ mod tests {
 
         let directory = scratch("code");
         let (store, owner, link, invitation, _, code) = invited(&directory).await;
-        let half = invitation.half().expect("the half").clone();
-        let sealed = invitation
-            .sealed_credential()
-            .expect("the sealed payload")
-            .to_string();
+        let half = invitation.half.clone();
+        let sealed = invitation.credential.clone();
         let theirs = scratch("code-machine");
 
         assert_eq!(half.expires_at, ISSUED_AT + INVITATION_LIFETIME_MS);
@@ -1639,9 +1637,8 @@ mod tests {
     async fn the_rows_a_link_holder_reads_carry_no_username_and_no_workspace_name() {
         let directory = scratch("legible");
         let (store, owner, link, invitation, _, code) = invited(&directory).await;
-        let link_text = link.encode().expect("the link");
         let invitation_text = invitation.encode().expect("the invitation link");
-        let half = invitation.half().expect("the half").clone();
+        let half = invitation.half.clone();
         let link_secret = half.secret.clone();
         let row = store
             .invitations(&owner.verifying_key)
@@ -1720,12 +1717,9 @@ mod tests {
             "the secrecy test read almost nothing: {cells} cells"
         );
 
-        // and the organization's own link carries its name, which is the one name criterion 15
-        // permits, and none of the others; the invitation link carries its own secret, by design,
-        // and still no username, no workspace name, no code, no vault password and no credential.
-        for secret in ["sami.staff", "olivia", "North", link_secret.as_str()] {
-            assert!(!link_text.contains(secret), "{secret:?} is in the link");
-        }
+        // and the link's own text carries the organization's name, which is the one name criterion
+        // 15 permits, and its own secret, by design, and still no username, no workspace name, no
+        // code, no vault password and no credential.
         for secret in [
             "sami.staff",
             "olivia",
@@ -1742,10 +1736,14 @@ mod tests {
         }
         assert_eq!(link.organization_name, "Acme");
 
-        // the organization's own link is the one that still carries a credential legibly, and it
-        // is the never-expiring read-only one rather than the owner's own grant.
-        assert!(link.clear_credential().is_some());
-        assert_ne!(link.clear_credential(), Some(credential.as_str()));
+        // and the locator every link is built from carries no credential at all (effort 828,
+        // requirement 16), so there is nothing legible left for a link holder to read off it.
+        assert!(
+            ![&link.organization_id, &link.verifying_key, &link.remote_url]
+                .iter()
+                .any(|field| field.contains(&credential)),
+            "the locator carries the owner's grant"
+        );
     }
 
     /// Live, at the human's request, and admitted in [[rules/testing]] under *Tests that reach a
@@ -1868,9 +1866,7 @@ mod tests {
 
         eprintln!("created {}", workspace.database_name);
 
-        let link_a = organization_link(&organization_a, &owner_a)
-            .await
-            .expect("the link");
+        let link_a = locator(&organization_a, &owner_a).await.expect("the link");
         let invited = invite_member(
             &organization_a,
             &owner_a,
@@ -1897,20 +1893,30 @@ mod tests {
         drop(organization_a);
         drop(store_a);
 
-        let link = JoinLink::decode(&created.join_link).expect("the organization's own link");
+        let link = link_a;
+        // what a link carries now (effort 828, requirement 16): the issuer's own grant, sealed
+        // under the code they read out. B opens the invitation's payload with the code it was
+        // handed and reaches the organization with what comes out, which is the accept's own path.
+        let invitation = JoinLink::decode(&invited.join_link).expect("the invitation link");
+        let reached_with = open_payload(
+            &invited.code,
+            &invitation.half,
+            &invitation.credential,
+            test_cost(),
+        )
+        .expect("the code did not open the invitation's payload")
+        .credential;
 
         // a machine that has never seen the organization: its replica opened against the remote
-        // with the credential the organization's own link carries legibly, pulled, and the
-        // organization recorded with no member, the way `organization_connect` reaches one.
+        // with that credential, pulled, and the organization recorded with no member.
         let reach = |directory: &std::path::Path| {
             let link = link.clone();
+            let reached_with = reached_with.clone();
             let path =
                 OrganizationStore::replica_path(&directory.join("app.db"), &link.organization_id);
 
             async move {
-                let credential: CredentialSlot = Arc::new(Mutex::new(
-                    link.clear_credential().map(ToString::to_string),
-                ));
+                let credential: CredentialSlot = Arc::new(Mutex::new(Some(reached_with)));
                 let slot = Arc::clone(&credential);
                 let store =
                     OrganizationStore::open(&path, Some(link.remote_url.clone()), move || {

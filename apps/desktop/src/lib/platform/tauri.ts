@@ -230,7 +230,6 @@ export const tauri = {
 		connectExisting: (username: string, password: string) =>
 			invoke<OrganizationState>('organization_connect_existing', { username, password }),
 		getState: () => invoke<OrganizationState>('organization_state_get'),
-		connect: (link: string) => invoke<OrganizationState>('organization_connect', { link }),
 		disconnect: () => invoke<OrganizationState>('organization_disconnect'),
 		signIn: (username: string, password: string) =>
 			invoke<OrganizationState>('organization_sign_in', { username, password }),
@@ -244,7 +243,6 @@ export const tauri = {
 		linkRead: (link: string) => invoke<LinkShape>('organization_link_read', { link }),
 		reconnectAuthority: () => invoke<OrganizationState>('organization_reconnect_authority'),
 		renewDue: () => invoke<boolean>('organization_renew_due'),
-		ownLink: () => invoke<string>('organization_own_link'),
 		workspace: {
 			create: (name: string) => invoke<OrganizationWorkspace>('workspace_create', { name }),
 			open: (workspaceId: string) =>

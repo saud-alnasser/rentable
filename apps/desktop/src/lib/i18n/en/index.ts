@@ -864,9 +864,6 @@ const en = {
 			usernameRules:
 				'a username is three to thirty-two characters of letters, digits, dots, underscores and hyphens',
 			renamed: 'the member was renamed.',
-			linkTitle: 'organization link',
-			linkDescription:
-				'keep this somewhere private: it is the copy that recovers the organization when every machine is gone. opening it on a new machine connects that machine, and a username and a password sign you in. it never expires and it carries a read only view of the directory, so it is not the link to hand around. to connect another machine of your own, make a link for it in the you section of your settings.',
 			authorityTitle: 'turso account',
 			authorityDescription:
 				"this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.",

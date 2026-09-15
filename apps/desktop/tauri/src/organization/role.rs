@@ -212,8 +212,8 @@ mod tests {
         organization::{
             HeldOrganization,
             authority::AdministratorKey,
-            invite::{Invitation, Invited, WorkspaceGrant, invite_member, organization_link},
-            link::JoinLink,
+            invite::{Invitation, Invited, WorkspaceGrant, invite_member, locator},
+            link::Locator,
             migrate::Pipeline,
             permission::{self, Administration},
             session::{CredentialSlot, MemberSession, sign_in},
@@ -304,7 +304,7 @@ mod tests {
     /// An organization with its owner signed in and one workspace, on a fake account.
     async fn owned(
         directory: &std::path::Path,
-    ) -> (OrganizationStore, MemberSession, JoinLink, String) {
+    ) -> (OrganizationStore, MemberSession, Locator, String) {
         let mut store = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
             .expect("the store");
         let mcp = ScriptedServer::start(vec![
@@ -366,7 +366,7 @@ mod tests {
         )
         .await
         .expect("the workspace");
-        let link = organization_link(&organization, &owner)
+        let link = locator(&organization, &owner)
             .await
             .expect("the organization's link");
 
@@ -378,7 +378,7 @@ mod tests {
     async fn a_member(
         store: &OrganizationStore,
         owner: &MemberSession,
-        link: &JoinLink,
+        link: &Locator,
         username: &'static str,
         role: &str,
         workspace_id: &str,

@@ -93,7 +93,7 @@ use crate::{
 
 use super::{
     authority::{AdministratorKey, OrganizationKey, issue_certificate},
-    link::{Half, HalfKind, JoinLink, LinkPayload, seal_payload},
+    link::{Half, HalfKind, LinkPayload, Locator, seal_payload},
     permission::{self, Administration},
     removal,
     session::{MemberSession, permissions_on_row},
@@ -278,15 +278,15 @@ pub struct Invitation<'a> {
 
 /// Invite a member.
 ///
-/// `link` is the organization's own locator, the one the first run produced, which the answer
-/// hands back with the invitation's half in it; `platform` is the owner's machine's authority,
+/// `locator` is the organization's own locator, which the answer hands back with the invitation's
+/// sealed payload and half on it; `platform` is the owner's machine's authority,
 /// which a read-only grant is minted with and nothing else here needs; `kdf_params` is what the
 /// member's vault is sealed at.
 pub async fn invite_member<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
     platform: Option<&P>,
-    link: &JoinLink,
+    locator: &Locator,
     invitation: Invitation<'_>,
     kdf_params: KdfParams,
     now: i64,
@@ -315,7 +315,7 @@ pub async fn invite_member<P: TursoPlatform>(
         store,
         session,
         platform,
-        link,
+        locator,
         &member_id,
         username,
         invitation.role,
@@ -338,7 +338,7 @@ pub async fn reissue_invitation<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
     platform: Option<&P>,
-    link: &JoinLink,
+    locator: &Locator,
     member_id: &str,
     kdf_params: KdfParams,
     now: i64,
@@ -440,7 +440,7 @@ pub async fn reissue_invitation<P: TursoPlatform>(
         store,
         session,
         platform,
-        link,
+        locator,
         member_id,
         &username,
         &role,
@@ -563,7 +563,7 @@ pub async fn invitation_link(
         },
         kdf_params,
     )?;
-    let join_link = organization_link(store, session)
+    let join_link = locator(store, session)
         .await?
         .sealed(&sealed, half)
         .encode()?;
@@ -897,9 +897,10 @@ pub(super) fn held_credential(session: &MemberSession) -> Result<String, Error> 
 /// When a link made now lapses: a week out, or when the credential inside it dies, whichever is
 /// sooner (effort 828, requirement 2).
 ///
-/// A credential carrying no expiry at all is the organization's own never-expiring one, which
-/// nothing here seals into a link; where one arrives anyway the week stands on its own, which is
-/// the shorter of the two either way.
+/// A credential whose text carries no expiry at all leaves the week standing on its own, which is
+/// the shorter of the two either way. Nothing this application holds is minted without one now
+/// (effort 828, requirement 16), so the fallback is for a token shaped in a way this cannot read
+/// rather than for a credential that genuinely never lapses.
 pub(super) fn link_expiry(credential: &str, now: i64) -> i64 {
     let week = now + INVITATION_LIFETIME_MS;
 
@@ -918,11 +919,9 @@ pub(super) fn link_expiry(credential: &str, now: i64) -> i64 {
 /// link's own text.*
 #[cfg(test)]
 pub(crate) fn vault_password_of(invited: &Invited, kdf_params: KdfParams) -> String {
-    let link = JoinLink::decode(&invited.join_link).expect("the invitation link");
-    let half = link.half().expect("the half");
-    let sealed = link.sealed_credential().expect("the sealed payload");
+    let link = super::link::JoinLink::decode(&invited.join_link).expect("the invitation link");
 
-    super::link::open_payload(&invited.code, half, sealed, kdf_params)
+    super::link::open_payload(&invited.code, &link.half, &link.credential, kdf_params)
         .expect("the code did not open the payload")
         .vault_password
         .expect("the payload holds no vault password")
@@ -936,7 +935,7 @@ async fn issue<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
     platform: Option<&P>,
-    link: &JoinLink,
+    locator: &Locator,
     member_id: &str,
     username: &str,
     role: &str,
@@ -1216,7 +1215,7 @@ async fn issue<P: TursoPlatform>(
         },
         kdf_params,
     )?;
-    let join_link = link.sealed(&sealed, half).encode()?;
+    let join_link = locator.sealed(&sealed, half).encode()?;
 
     Ok(Invited {
         member_id: member_id.to_string(),
@@ -1250,14 +1249,17 @@ pub(super) fn random_id() -> Result<String, Error> {
 /// The shipping cost a member's vault is sealed at when they are invited, the same as the owner's.
 pub const INVITED_KDF: KdfParams = SHIPPING_KDF;
 
-/// The organization's own locator, rebuilt from what the replica holds: the link every invitation
-/// is made from. The read-only credential it carries is sealed under the content key on the
-/// organization row, so any member whose vault is open can make a link and nobody holding the
-/// database alone can read it.
-pub async fn organization_link(
-    store: &OrganizationStore,
-    session: &MemberSession,
-) -> Result<JoinLink, Error> {
+/// The organization's own locator, rebuilt from what the replica holds: where the organization is,
+/// what judges its rows, and what it is called. Every link this application makes is this with a
+/// sealed payload and a half on it.
+///
+/// **It carries no credential** (effort 828, requirement 16). The name is sealed under the content
+/// key, so this needs a member whose vault is open and reaches nothing over the network; what
+/// comes back opens nothing and is handed to nobody. *It was the organization's own join link
+/// until requirement 16 retired that, and it answered a legible read-only credential off
+/// `organization.link_credential_sealed` that every caller but the link itself unsealed and threw
+/// away.*
+pub async fn locator(store: &OrganizationStore, session: &MemberSession) -> Result<Locator, Error> {
     let organization = store
         .organization()
         .await?
@@ -1269,61 +1271,13 @@ pub async fn organization_link(
         "organization.name_sealed",
         &organization.name_sealed,
     )?;
-    let credential = opened(
-        session,
-        "organization.link_credential_sealed",
-        &organization.link_credential_sealed,
-    )?;
 
-    Ok(JoinLink::new(
+    Ok(Locator::new(
         &organization.id,
         &name,
         &session.verifying_key,
         &organization.remote_url,
-        &credential,
     ))
-}
-
-/// The organization's own join link, rebuilt from the stored rows for the owner to share or keep.
-///
-/// The read-only credential it carries is stored sealed under the content key at setup, so this
-/// needs the owner's open vault and not the Turso authority, which a restored owner does not hold
-/// (requirement 6). It is the owner's: a member is refused, because the link opens a read-only view
-/// of the directory to whoever holds it and handing that out is the owner's to do.
-pub(crate) async fn own_link(
-    member: &MemberSession,
-    store: &OrganizationStore,
-) -> Result<String, Error> {
-    member.settled()?;
-
-    if member.role != permission::OWNER {
-        return Err(Error::Forbidden {
-            message: "the organization's own link is the owner's to share".to_string(),
-        });
-    }
-
-    let organization = store.organization().await?.ok_or_else(|| Error::NotFound {
-        message: "this machine holds no organization".to_string(),
-    })?;
-    let name = opened(
-        member,
-        "organization.name_sealed",
-        &organization.name_sealed,
-    )?;
-    let credential = opened(
-        member,
-        "organization.link_credential_sealed",
-        &organization.link_credential_sealed,
-    )?;
-
-    JoinLink::new(
-        &member.organization_id,
-        &name,
-        &member.verifying_key,
-        &organization.remote_url,
-        &credential,
-    )
-    .encode()
 }
 
 #[cfg(test)]
@@ -1335,14 +1289,14 @@ mod tests {
     use super::{
         CODE_LENGTH, INVITATION_LIFETIME_MS, Invitation, InvitationStanding, Invited,
         USERNAME_RULES, USERNAME_TAKEN, WorkspaceGrant, generate_password, invitation_link,
-        invite_member, organization_link, reissue_invitation, rename_member, revoke_invitation,
+        invite_member, locator, reissue_invitation, rename_member, revoke_invitation,
         validate_username,
     };
     use crate::{
         error::Error,
         organization::{
             HeldOrganization,
-            link::{HalfKind, JoinLink, LinkPayload, open_payload},
+            link::{HalfKind, JoinLink, LinkPayload, Locator, open_payload},
             migrate::Pipeline,
             permission,
             session::{CredentialSlot, MemberSession, sign_in, sign_in_by_username},
@@ -1421,8 +1375,8 @@ mod tests {
 
         open_payload(
             &invited.code,
-            link.half().expect("the half"),
-            link.sealed_credential().expect("the sealed payload"),
+            &link.half,
+            &link.credential,
             test_cost(),
         )
         .expect("the code did not open the payload")
@@ -1463,7 +1417,7 @@ mod tests {
     ) -> (
         OrganizationStore,
         MemberSession,
-        JoinLink,
+        Locator,
         String,
         Arc<InMemoryPlatform>,
     ) {
@@ -1528,15 +1482,11 @@ mod tests {
         )
         .await
         .expect("the workspace");
-        let link = organization_link(&organization, &owner)
+        let link = locator(&organization, &owner)
             .await
-            .expect("the organization's link");
+            .expect("the organization's locator");
 
-        assert_eq!(
-            JoinLink::decode(&created.join_link).expect("the first run's link"),
-            link,
-            "the link rebuilt from the replica is the one the first run produced"
-        );
+        assert_eq!(link.organization_id, created.organization_id);
 
         (organization, owner, link, workspace.id, platform)
     }
@@ -1578,7 +1528,7 @@ mod tests {
         // salts the code's key; the code is the other half and is not in the link (effort 828,
         // requirement 1).
         let decoded = JoinLink::decode(&invited.join_link).expect("the link decodes");
-        let half = decoded.half().expect("the half");
+        let half = &decoded.half;
 
         assert_eq!(decoded.organization_id, link.organization_id);
         assert_eq!(decoded.verifying_key, link.verifying_key);
@@ -1588,7 +1538,10 @@ mod tests {
         assert_eq!(half.id, invited.invitation_id);
         assert_eq!(half.expires_at, invited.expires_at);
         assert_eq!(half.secret.len(), 43, "{}", half.secret);
-        assert_eq!(decoded.clear_credential(), None, "the credential is legible");
+        assert!(
+            !decoded.credential.is_empty(),
+            "the link carries no sealed payload"
+        );
         assert!(!invited.join_link.contains("sami"));
         assert!(
             !invited.join_link.contains(&invited.code),
@@ -1871,7 +1824,7 @@ mod tests {
         assert_ne!(secret_of(&reissued), bobs_first_password);
         assert_ne!(reissued.invitation_id, bob.invitation_id);
         assert_eq!(
-            fresh.half().map(|half| half.id.as_str()),
+            Some(fresh.half.id.as_str()),
             Some(reissued.invitation_id.as_str())
         );
 
@@ -2177,17 +2130,8 @@ mod tests {
 
             let decoded = JoinLink::decode(&issued.join_link).expect("the link");
 
-            assert_eq!(decoded.clear_credential(), None, "{what} is legible");
-            assert_eq!(
-                decoded.half().map(|half| half.expires_at),
-                Some(dies_at),
-                "{what}"
-            );
-            assert_eq!(
-                decoded.half().map(|half| half.kind),
-                Some(HalfKind::Invitation),
-                "{what}"
-            );
+            assert_eq!(decoded.half.expires_at, dies_at, "{what}");
+            assert_eq!(decoded.half.kind, HalfKind::Invitation, "{what}");
             assert!(
                 !issued.join_link.contains(&grant),
                 "{what} carries the credential in the clear"
@@ -2217,10 +2161,20 @@ mod tests {
 
         assert_eq!(later.expires_at, now + INVITATION_LIFETIME_MS);
 
-        // the organization's own link is the one that carries a legible credential, and it is not
-        // the grant either of these sealed.
-        assert!(link.clear_credential().is_some());
-        assert_ne!(link.clear_credential(), Some(grant.as_str()));
+        // and the locator every one of these was built from carries nothing to read the
+        // organization with (effort 828, requirement 16): a field of it holding the grant would be
+        // the leak the seal above exists to close.
+        assert!(
+            ![
+                &link.organization_id,
+                &link.organization_name,
+                &link.verifying_key,
+                &link.remote_url,
+            ]
+            .iter()
+            .any(|field| field.contains(&grant)),
+            "the locator carries the issuer's grant"
+        );
     }
 
     /// Effort 826, requirement 8 and effort 828, requirement 1: the issuer copies the link again
@@ -2265,7 +2219,7 @@ mod tests {
         let copied = JoinLink::decode(&again.join_link).expect("the copied link");
         let first = JoinLink::decode(&invited.join_link).expect("the link");
 
-        assert_eq!(copied.half(), first.half());
+        assert_eq!(copied.half, first.half);
         assert_eq!(copied.organization_id, first.organization_id);
 
         let admin = invite_member(
@@ -2716,84 +2670,6 @@ mod tests {
         .expect_err("an invitation granted a workspace the inviter does not hold");
 
         assert!(refusal.to_string().contains("full access"), "{refusal}");
-    }
-
-    /// Ticket 27, F7: the organization's own link is the owner's to read again, not only in the
-    /// moment setup shows it, because an owner restores from it (requirement 6). A member is
-    /// refused, because the link opens a read-only view of the directory to whoever holds it.
-    #[tokio::test]
-    async fn the_organizations_own_link_is_the_owners_to_read_again() {
-        let directory = scratch("own-link");
-        let (store, owner, original, _, _) = owned(&directory).await;
-
-        let again = super::own_link(&owner, &store)
-            .await
-            .expect("the owner reads the link");
-        let decoded = JoinLink::decode(&again).expect("the re-read link decodes");
-
-        assert_eq!(decoded.organization_id, original.organization_id);
-        assert_eq!(decoded.verifying_key, original.verifying_key);
-        assert!(
-            decoded
-                .clear_credential()
-                .is_some_and(|credential| !credential.trim().is_empty()),
-            "the organization's own link carries no legible credential"
-        );
-        assert_eq!(decoded.half(), None, "the organization's own link carries a half");
-
-        let invited = invite_member(
-            &store,
-            &owner,
-            no_platform(),
-            &original,
-            Invitation {
-                username: "member",
-                role: permission::MEMBER,
-                workspaces: &[],
-            },
-            test_cost(),
-            1_757_000_000_100,
-        )
-        .await
-        .expect("the invitation failed");
-        // the member, settled so the refusal is by role and not the first-password requirement.
-        let (key, certificate) = super::signer_of(&store, &owner).await.expect("the signer");
-        let mut member_row = store
-            .members(&owner.verifying_key)
-            .await
-            .expect("members")
-            .into_iter()
-            .find(|member| member.id == invited.member_id)
-            .expect("the member row");
-        member_row.must_change_password = false;
-        store
-            .write_member(
-                &Signer {
-                    key: &key,
-                    certificate: &certificate,
-                },
-                &member_row,
-            )
-            .await
-            .expect("settled");
-
-        let joined = joined_as(&owner, &invited.member_id, permission::MEMBER);
-        let member = sign_in(
-            &store,
-            &joined,
-            &secret_of(&invited),
-            &slot(),
-        )
-        .await
-        .expect("the member did not sign in");
-
-        assert!(
-            matches!(
-                super::own_link(&member, &store).await,
-                Err(crate::error::Error::Forbidden { .. })
-            ),
-            "a member was handed the organization's own link"
-        );
     }
 
     /// Requirement 21's rules, at their limits: three and thirty-two characters are accepted,

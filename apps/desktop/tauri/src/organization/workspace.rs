@@ -1445,11 +1445,13 @@ mod tests {
                 .expect("the open")
                 .is_some()
         );
-        // and no credential was minted for the member: the six are the organization's two at
-        // creation and each workspace's two, its migration's and its owner's.
+        // and no credential was minted for the member: the five are the organization's one at
+        // creation and each workspace's two, its migration's and its owner's. *There were six
+        // until effort 828's requirement 16 retired the organization's own link, whose
+        // never-expiring read-only credential was the second the first run minted.*
         assert_eq!(
             platform.minted().len(),
-            6,
+            5,
             "a credential was minted for the member"
         );
     }

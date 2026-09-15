@@ -43,8 +43,7 @@ use crate::{
 use super::{
     HeldOrganization, connect,
     invite::{
-        generate_code, generate_link_secret, held_credential, link_expiry, organization_link,
-        random_id,
+        generate_code, generate_link_secret, held_credential, link_expiry, locator, random_id,
     },
     link::{Half, HalfKind, JoinLink, LinkPayload, open_payload, seal_payload},
     session::{CredentialSlot, MemberSession},
@@ -121,9 +120,9 @@ pub async fn make(
 ) -> Result<MachineLink, Error> {
     session.settled()?;
 
-    // the organization's own locator, which every link is built from. Its clear credential is
-    // replaced by the seal below and never leaves this function.
-    let locator = organization_link(store, session).await?;
+    // where the organization is, which every link is built from. It carries no credential of its
+    // own (effort 828, requirement 16); what this link carries is the seal below.
+    let locator = locator(store, session).await?;
     let credential = held_credential(session)?;
     let expires_at = link_expiry(&credential, now);
     let id = random_id()?;
@@ -210,8 +209,7 @@ where
         message: "this link does not connect another machine; open it at the wall instead"
             .to_string(),
     };
-    let half = link.half().ok_or_else(not_for_a_machine)?;
-    let sealed = link.sealed_credential().ok_or_else(not_for_a_machine)?;
+    let half = &link.half;
 
     if half.kind != HalfKind::Machine {
         return Err(not_for_a_machine());
@@ -226,14 +224,11 @@ where
         ));
     }
 
-    let payload = open_payload(code, half, sealed, kdf_params)?;
+    let payload = open_payload(code, half, &link.credential, kdf_params)?;
     // the one pull this credential is for, in the slot the replica reads from and in nothing else.
     let credential: CredentialSlot = Arc::new(Mutex::new(Some(payload.credential.clone())));
     let reached = store_for(credential).await?;
     let store = reached.borrow();
-    // the link with its credential in hand: what `connect::connect` records an organization from,
-    // since a sealed one is refused there for want of a code.
-    let opened = link.with_clear_credential(&payload.credential);
 
     let row = store
         .machine_link(&half.id)
@@ -254,7 +249,7 @@ where
         ));
     }
 
-    let held = connect::connect(store, machine, &opened, now).await?;
+    let held = connect::connect(store, machine, &link.locator(), &payload.credential, now).await?;
 
     store.consume_machine_link(&half.id, now).await?;
 
@@ -283,7 +278,7 @@ mod tests {
         error::{Error, RefusalReason},
         organization::{
             HeldOrganization,
-            invite::{INVITATION_LIFETIME_MS, Invitation, invite_member, organization_link},
+            invite::{INVITATION_LIFETIME_MS, Invitation, invite_member, locator},
             join,
             link::{CODE_REFUSED, JoinLink, LinkKind, LinkPayload, open_payload},
             permission,
@@ -397,7 +392,7 @@ mod tests {
         let owner = sign_in(&store, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
-        let locator = organization_link(&store, &owner)
+        let locator = locator(&store, &owner)
             .await
             .expect("the organization's link");
         let invited = invite_member(
@@ -610,8 +605,7 @@ mod tests {
                 .machine_link(
                     JoinLink::decode(&made.link)
                         .expect("the link")
-                        .half()
-                        .expect("the half")
+                        .half
                         .id
                         .as_str()
                 )
@@ -657,12 +651,7 @@ mod tests {
         let made = make(&store, &member, test_cost(), ISSUED_AT + 2)
             .await
             .expect("the member could not make a link");
-        let id = JoinLink::decode(&made.link)
-            .expect("the link")
-            .half()
-            .expect("the half")
-            .id
-            .clone();
+        let id = JoinLink::decode(&made.link).expect("the link").half.id;
 
         let first = scratch("rewritten-first");
         let mut first_machine = fresh_machine(&first);
@@ -728,14 +717,9 @@ mod tests {
             .await
             .expect("the member could not make a link");
         let link = JoinLink::decode(&made.link).expect("the link");
-        let half = link.half().expect("the half");
-        let payload: LinkPayload = open_payload(
-            &made.code,
-            half,
-            link.sealed_credential().expect("the sealed payload"),
-            test_cost(),
-        )
-        .expect("the code did not open the payload");
+        let half = &link.half;
+        let payload: LinkPayload = open_payload(&made.code, half, &link.credential, test_cost())
+            .expect("the code did not open the payload");
 
         assert_eq!(
             payload.credential, grant,

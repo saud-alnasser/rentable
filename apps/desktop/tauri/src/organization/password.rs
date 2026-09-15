@@ -113,8 +113,7 @@ mod tests {
         organization::{
             HeldOrganization,
             invite::{
-                Invitation, Invited, WorkspaceGrant, invite_member, organization_link,
-                reissue_invitation,
+                Invitation, Invited, WorkspaceGrant, invite_member, locator, reissue_invitation,
             },
             migrate::Pipeline,
             permission,
@@ -316,7 +315,7 @@ mod tests {
         )
         .await
         .expect("the second workspace");
-        let link = organization_link(&store, &owner).await.expect("the link");
+        let link = locator(&store, &owner).await.expect("the link");
         let administrator = invite_member(
             &store,
             &owner,
@@ -607,9 +606,7 @@ mod tests {
         assert!(administrator.workspace_credentials.contains_key(&north));
         assert!(!administrator.workspace_credentials.contains_key(&south));
 
-        let link = organization_link(&store, &administrator)
-            .await
-            .expect("the link");
+        let link = locator(&store, &administrator).await.expect("the link");
         let reset = reissue_invitation(
             &store,
             &administrator,

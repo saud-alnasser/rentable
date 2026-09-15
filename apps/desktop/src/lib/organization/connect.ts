@@ -15,22 +15,24 @@ import type { LinkShape } from '$lib/platform/host';
  * the scheme reaches the application on each platform.
  *
  * **One form, the link and its code, and the kind is read off the link's own text** (effort 826,
- * requirement 10; effort 828, requirements 1 and 17). Every link now carries a payload nothing
+ * requirement 10; effort 828, requirements 1, 16 and 17). Every link carries a payload nothing
  * opens without the code that came with it, so the two halves are asked for together and nothing
- * is read before both are in hand. There are three kinds and each has its own way on. An
- * organization link carries a legible credential and admits nobody by itself, so a machine that
- * records it stands at the wall. A second machine's link is connected with the code in the same
- * wait, and its member's own password is what the wall then asks for. An invitation link is the
+ * is read before both are in hand. There are two kinds and each has its own way on. A second
+ * machine's link is connected with the code in the same wait, and its member's own password is
+ * what the wall then asks for. An invitation link is the
  * one that asks for anything more: the screen names the organization and takes the password this
  * person is choosing, and the accept unseals, reaches, records and judges. Which kind it is, is
  * `linkKind` below, off the shape Rust decoded. *It was read off a standing Rust answered by
  * reaching the organization with the link's clear credential; there is no clear credential to do
  * that with, so reading a link is a decode.*
  *
- * **The connect runs on the organization's own link alone.** Every other link is recorded by the
- * act that takes the code, because the credential that reaches the organization is inside the
- * payload; a spent link still connects the machine that way, which is how a person setting up a
- * second machine gets to the wall rather than to a dead end.
+ * **There is no way through this screen that does not spend a code.** A third kind, the
+ * organization's own link, carried a legible credential and ran a connect of its own with nothing
+ * asked for; requirement 16 retired it, because the owner's Turso account is what recovers an
+ * organization whose every machine is gone. Every link left is recorded by the act that takes the
+ * code, since the credential that reaches the organization is inside the payload; a spent link
+ * still connects the machine that way, which is how a person setting up a second machine gets to
+ * the wall rather than to a dead end.
  *
  * **Nothing is judged before the code, so every standing arrives as a refusal.** A lapsed,
  * consumed, revoked or replaced link comes back from the accept or the machine connect rather than
@@ -112,9 +114,9 @@ export type JoinStep =
 			errorMessage: string | null;
 	  }
 	/**
-	 * the link's text is being read, and the act the read names runs in the same wait: the connect
-	 * on the organization's own link, and the machine connect on a link a member made for this
-	 * machine. The code is held through it, because the act is what spends it.
+	 * the link's text is being read, and the act the read names runs in the same wait: the machine
+	 * connect, on a link a member made for this machine. The code is held through it, because the
+	 * act is what spends it.
 	 */
 	| { kind: 'reading'; link: string; code: string }
 	/** the organization could not be reached from a machine that has never seen it. */
@@ -201,15 +203,15 @@ export function linkKind(shape: LinkShape): LinkShape['kind'] {
 }
 
 /**
- * where the link leaves the read, which is one of two places: the wall, for the two kinds of link
- * whose act has already run in the same wait, and the password for an invitation, whose accept is
- * what reaches the organization at all.
+ * where the link leaves the read, which is one of two places: the wall, for the link whose act has
+ * already run in the same wait, and the password for an invitation, whose accept is what reaches
+ * the organization at all.
  *
- * **Two kinds end at the wall and neither admits anybody.** The organization's own link carries a
- * legible credential and the connect has recorded the organization; a link a member made for this
- * machine was connected with the code the form already took (effort 828, requirement 17), and the
- * password that member already has is the wall's to ask for. *The machine link asked for its code
- * on a step of its own until the form took both halves at once.*
+ * **A machine link ends at the wall and admits nobody.** It was connected with the code the form
+ * already took (effort 828, requirement 17), and the password that member already has is the
+ * wall's to ask for. *The machine link asked for its code on a step of its own until the form took
+ * both halves at once, and the organization's own link ended here too, with no code asked for at
+ * all, until requirement 16 retired it.*
  *
  * The password step carries the organization's name off the shape, because that is the one thing
  * the person on the new machine can recognise, and nothing else the link said is worth drawing.

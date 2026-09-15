@@ -9,13 +9,14 @@
 //! is what fills the two. *819's join and restore did both in one step, from a link that carried
 //! the invitation's half; requirement 18 retires them as ways through the wall.*
 //!
-//! **A connect takes a link whose credential is in hand, and nothing else** (effort 828,
-//! requirement 4). The organization's own link carries a legible credential and connects a
-//! machine with no code, which is what makes it the owner's recovery copy: when every machine is
-//! gone there is nobody left to read a code out. Every other link carries a sealed payload, and
-//! the act that takes the code is what opens it and hands a link with the credential in it back
-//! here (`link::with_clear_credential`), so a sealed link reaching this function directly is a
-//! person who was never asked for their code and is refused saying so.
+//! **A connect takes a locator and the credential its caller unsealed** (effort 828, requirement
+//! 16). It is handed where the organization is and what judges its rows, with no way to read a
+//! credential out of a link's text, because there is no link left whose credential can be read:
+//! every link seals its payload under the code somebody read out, and the act that takes the code
+//! is what opens it and hands the credential here. *A link carrying a legible credential, the
+//! organization's own, reached this function directly and connected a machine with no code, and a
+//! sealed one arriving here was refused for want of one; requirement 16 retired that link, and the
+//! refusal went with it because the type no longer admits what it guarded against.*
 //!
 //! **What the machine learns from the link is pinned from the link.** The verifying key is
 //! written as the link spelled it and every later verification uses that copy, never one read
@@ -28,24 +29,20 @@
 
 use crate::{diagnostics, error::Error, persisted::Persisted, sync::RemoteSyncStore};
 
-use super::{HeldOrganization, invite::random_id, link::JoinLink, store::OrganizationStore};
+use super::{HeldOrganization, invite::random_id, link::Locator, store::OrganizationStore};
 
-/// The one sentence a link whose credential is still sealed is refused with here (effort 828,
-/// requirement 1): a code is what opens it, and nothing on this path asked for one.
-pub const CODE_NEEDED: &str =
-    "this link needs the six-character code that came with it; open it and type the code";
-
-/// Record the organization `link` names on this machine, having reached its replica.
+/// Record the organization `locator` names on this machine, having reached its replica.
 ///
-/// `store` is a replica of the organization the link names, opened with the credential the link
-/// carried and pulled. The organization row is read once and has to carry the link's id and the
-/// key the link pins; a replica saying otherwise is another organization's, or one whose rows
-/// were rewritten, and is refused before anything is recorded. What is written to `machine` is
-/// what the link carried and no member.
+/// `store` is a replica of the organization the locator names, opened with `credential` and
+/// pulled. The organization row is read once and has to carry the locator's id and the key it
+/// pins; a replica saying otherwise is another organization's, or one whose rows were rewritten,
+/// and is refused before anything is recorded. What is written to `machine` is what the locator
+/// carried and no member.
 ///
-/// **The credential has to be in hand** (effort 828, requirement 4). A link whose credential is
-/// still sealed is refused naming the code, because reaching a replica at all took a credential
-/// and a caller that got one without a code got it from the organization's own link.
+/// **The credential has to be in hand** (effort 828, requirement 16). It is asked for rather than
+/// read off a link, because there is no link left that carries one legibly: the caller opened a
+/// sealed payload with the code to get it, and a blank one means the replica above was reached
+/// with nothing and is refused rather than recorded.
 ///
 /// **What the machine records, and the registry row beside it, are [`record`]'s**, which is the
 /// one writer both ways of starting to hold an organization go through. A link connect records no
@@ -53,28 +50,37 @@ pub const CODE_NEEDED: &str =
 pub async fn connect(
     store: &OrganizationStore,
     machine: &mut Persisted<RemoteSyncStore>,
-    link: &JoinLink,
+    locator: &Locator,
+    credential: &str,
     now: i64,
 ) -> Result<HeldOrganization, Error> {
     refuse_while_held(machine)?;
-    refuse_sealed(link)?;
 
-    let verifying_key = link.verifying_key_bytes()?;
+    if credential.trim().is_empty() {
+        return Err(Error::PreconditionFailed {
+            message: format!(
+                "nothing opened a credential to read {}'s records with",
+                locator.organization_name
+            ),
+        });
+    }
+
+    let verifying_key = locator.verifying_key_bytes()?;
     let organization = store
         .organization()
         .await?
         .ok_or_else(|| Error::Integrity {
             message: format!(
                 "the database this link reaches holds no organization row for {}",
-                link.organization_name
+                locator.organization_name
             ),
         })?;
 
-    if organization.id != link.organization_id {
+    if organization.id != locator.organization_id {
         return Err(Error::Integrity {
             message: format!(
                 "this link names {} and the database it reaches belongs to another organization",
-                link.organization_name
+                locator.organization_name
             ),
         });
     }
@@ -83,7 +89,7 @@ pub async fn connect(
         return Err(Error::Integrity {
             message: format!(
                 "the rows this link reaches for {} are not the ones its key judges",
-                link.organization_name
+                locator.organization_name
             ),
         });
     }
@@ -92,10 +98,10 @@ pub async fn connect(
         store,
         machine,
         OrganizationFacts {
-            id: link.organization_id.clone(),
-            name: link.organization_name.clone(),
-            verifying_key: link.verifying_key.clone(),
-            remote_url: link.remote_url.clone(),
+            id: locator.organization_id.clone(),
+            name: locator.organization_name.clone(),
+            verifying_key: locator.verifying_key.clone(),
+            remote_url: locator.remote_url.clone(),
         },
         None,
         now,
@@ -175,19 +181,6 @@ pub async fn record(
     Ok(held)
 }
 
-/// The refusal a link whose credential is still sealed meets, said before anything is reached.
-///
-/// Said separately from [`connect`] so the command can say it before it spends a network round
-/// trip trying to open a replica with a credential it does not have.
-pub fn refuse_sealed(link: &JoinLink) -> Result<(), Error> {
-    match link.clear_credential() {
-        Some(_) => Ok(()),
-        None => Err(Error::PreconditionFailed {
-            message: CODE_NEEDED.to_string(),
-        }),
-    }
-}
-
 /// The refusal a connect meets on a machine that already holds an organization, said before
 /// the link is decoded or anything is reached: the way to another organization is a disconnect
 /// first.
@@ -209,13 +202,13 @@ mod tests {
 
     use serde_json::json;
 
-    use super::{CODE_NEEDED, connect, refuse_sealed};
+    use super::connect;
     use crate::{
         error::Error,
         organization::{
             HeldOrganization,
             join::admit,
-            link::{Half, HalfKind, JoinLink},
+            link::Locator,
             permission,
             session::{CredentialSlot, machine_seen},
             setup::{CreateOrganization, Remote, create_organization},
@@ -232,6 +225,11 @@ mod tests {
 
     const PASSWORD: &str = "the owners password";
     const ISSUED_AT: i64 = 1_757_000_000_000;
+
+    /// What a caller holds by the time it reaches [`connect`]: the credential the code it was given
+    /// unsealed, which is what the replica handed in was opened with. The connect reads nothing
+    /// with it; it is the fact that one was opened at all (effort 828, requirement 16).
+    const UNSEALED: &str = "the-credential-the-code-opened";
 
     fn test_cost() -> KdfParams {
         KdfParams {
@@ -265,11 +263,12 @@ mod tests {
         machine
     }
 
-    /// An organization with one member, its owner, and the link the first run produced: the
-    /// owner's own. The owner's machine record is returned with it, holding the organization.
+    /// An organization with one member, its owner, and the locator every link to it is built
+    /// from, read off the owner's own machine record. That record is returned with it, holding the
+    /// organization.
     async fn created(
         directory: &std::path::Path,
-    ) -> (OrganizationStore, Persisted<RemoteSyncStore>, JoinLink) {
+    ) -> (OrganizationStore, Persisted<RemoteSyncStore>, Locator) {
         let mut store = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
             .expect("the store");
         let mcp = ScriptedServer::start(vec![
@@ -311,22 +310,34 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let link = JoinLink::decode(&created.join_link).expect("the link");
+        let held = store
+            .organization
+            .clone()
+            .expect("the first run recorded no organization");
 
-        (organization, store, link)
+        assert_eq!(held.id, created.organization_id);
+
+        let locator = Locator {
+            organization_id: held.id,
+            organization_name: held.name,
+            verifying_key: held.verifying_key,
+            remote_url: held.remote_url,
+        };
+
+        (organization, store, locator)
     }
 
-    /// Criterion 18, from this side: a machine that holds nothing connects by the organization's
-    /// own link, and what it records is what the link carried, the key included, with no member
-    /// and no role. Nothing was asked for but the link, so no vault could have opened: `connect`
-    /// takes no password and hands back no session.
+    /// Criterion 18, from this side: a machine that holds nothing connects by a link, and what it
+    /// records is what the locator carried, the key included, with no member and no role. Nothing
+    /// was asked for but the link and its code, so no vault could have opened: `connect` takes no
+    /// password and hands back no session.
     #[tokio::test]
     async fn connecting_by_the_link_records_the_organization_and_no_member() {
         let directory = scratch("fresh");
         let (store, owners_machine, link) = created(&directory).await;
         let mut machine = fresh_machine(&directory);
 
-        let held = connect(&store, &mut machine, &link, ISSUED_AT + 1)
+        let held = connect(&store, &mut machine, &link, UNSEALED, ISSUED_AT + 1)
             .await
             .expect("the connect failed");
 
@@ -364,7 +375,7 @@ mod tests {
 
         assert!(before.member_id.is_some());
 
-        let refused = connect(&store, &mut owners_machine, &link, ISSUED_AT + 2).await;
+        let refused = connect(&store, &mut owners_machine, &link, UNSEALED, ISSUED_AT + 2).await;
 
         assert!(
             matches!(refused, Err(Error::PreconditionFailed { ref message }) if message.contains("Acme")),
@@ -377,61 +388,31 @@ mod tests {
         );
     }
 
-    /// Effort 828, requirement 4: **the organization's own link connects a machine with no code,
-    /// and a sealed link is refused with a sentence naming the one it needs.**
+    /// Effort 828, requirement 16: **a connect records nothing without a credential in hand.**
     ///
-    /// The first half is what makes the owner's recovery copy work at all: when every machine is
-    /// gone there is nobody left to read a code out. The second is the whole of what stops a found
-    /// invitation link reaching the directory, since a connect is the one path that would record an
-    /// organization without ever asking for one.
+    /// There is no link left that carries one legibly, so what reaches here is what an act unsealed
+    /// with the code somebody read out. A caller arriving with nothing reached the replica with
+    /// nothing, and is refused before the organization row is read rather than recorded from a
+    /// database it could not have opened. *`connect::refuse_sealed` refused a sealed link here,
+    /// naming the code, while the organization's own link connected with none.*
     #[tokio::test]
-    async fn the_organizations_own_link_connects_with_no_code_and_a_sealed_one_is_refused() {
-        let directory = scratch("no-code");
+    async fn a_connect_with_no_credential_in_hand_records_nothing() {
+        let directory = scratch("no-credential");
         let (store, _, link) = created(&directory).await;
         let mut machine = fresh_machine(&directory);
 
-        // the organization's own: a legible credential, no half, and nothing asked for.
-        assert!(link.clear_credential().is_some());
-        assert_eq!(link.half(), None);
+        for nothing in ["", "   "] {
+            let refused = connect(&store, &mut machine, &link, nothing, ISSUED_AT + 1).await;
 
-        let held = connect(&store, &mut machine, &link, ISSUED_AT + 1)
-            .await
-            .expect("the organization's own link did not connect");
-
-        assert_eq!(held.id, link.organization_id);
-        assert_eq!(held.member_id, None);
-
-        // a sealed link, on a machine holding nothing: refused before anything is reached, with
-        // the sentence that names the code.
-        let mut second = Persisted::<RemoteSyncStore>::load(directory.join("third-machine.json"))
-            .expect("the store");
-        let sealed = link.sealed(
-            "c2VhbGVk",
-            Half {
-                kind: HalfKind::Invitation,
-                id: "inv-1".to_string(),
-                secret: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8".to_string(),
-                expires_at: ISSUED_AT + 1000,
-            },
-        );
-        let refused = connect(&store, &mut second, &sealed, ISSUED_AT + 2).await;
-
-        assert!(
-            matches!(refused, Err(Error::PreconditionFailed { ref message }) if message == CODE_NEEDED),
-            "{refused:?}"
-        );
-        assert!(
-            second.organization.is_none(),
-            "a sealed link recorded an organization"
-        );
-        assert!(
-            matches!(
-                refuse_sealed(&sealed),
-                Err(Error::PreconditionFailed { .. })
-            ),
-            "a sealed link passed the guard the command reads"
-        );
-        assert!(refuse_sealed(&link).is_ok());
+            assert!(
+                matches!(refused, Err(Error::PreconditionFailed { ref message }) if message.contains("Acme")),
+                "{refused:?}"
+            );
+            assert!(
+                machine.organization.is_none(),
+                "a connect with no credential recorded an organization"
+            );
+        }
     }
 
     /// Effort 828, requirement 15: **a record written before the machine id existed still opens.**
@@ -493,11 +474,14 @@ mod tests {
         );
 
         // the connect: one machine, drawn an id of its own, and no member on it.
-        let held = connect(&store, &mut machine, &link, ISSUED_AT + 1)
+        let held = connect(&store, &mut machine, &link, UNSEALED, ISSUED_AT + 1)
             .await
             .expect("the connect failed");
 
-        assert!(!held.machine_id.is_empty(), "the connect drew no machine id");
+        assert!(
+            !held.machine_id.is_empty(),
+            "the connect drew no machine id"
+        );
 
         let after_connect = connected(ISSUED_AT + 1).await;
 
@@ -572,14 +556,21 @@ mod tests {
         let (store, _, link) = created(&directory).await;
         let mut machine = fresh_machine(&directory);
 
-        let strangers_key = JoinLink {
+        let strangers_key = Locator {
             verifying_key: base64::Engine::encode(
                 &base64::engine::general_purpose::URL_SAFE_NO_PAD,
                 [7_u8; 32],
             ),
             ..link.clone()
         };
-        let refused = connect(&store, &mut machine, &strangers_key, ISSUED_AT + 1).await;
+        let refused = connect(
+            &store,
+            &mut machine,
+            &strangers_key,
+            UNSEALED,
+            ISSUED_AT + 1,
+        )
+        .await;
 
         assert!(
             matches!(refused, Err(Error::Integrity { .. })),
@@ -587,11 +578,11 @@ mod tests {
         );
         assert!(machine.organization.is_none());
 
-        let another_id = JoinLink {
+        let another_id = Locator {
             organization_id: "somebody-elses".to_string(),
             ..link.clone()
         };
-        let refused = connect(&store, &mut machine, &another_id, ISSUED_AT + 1).await;
+        let refused = connect(&store, &mut machine, &another_id, UNSEALED, ISSUED_AT + 1).await;
 
         assert!(
             matches!(refused, Err(Error::Integrity { .. })),

@@ -311,63 +311,6 @@ pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, 
     })
 }
 
-/// Connect this machine to the organization the organization's own link names: reach its replica
-/// with the credential that link carries, check the rows against the key it pins, and record the
-/// organization with no member. No vault opens; the person signs in at the wall.
-///
-/// **The organization's own link and nothing else** (effort 828, requirement 4). It is the one
-/// link that carries a legible credential, and it connects with no code precisely because it is
-/// the owner's recovery copy: when every machine is gone there is nobody to read a code out. Every
-/// other link carries a sealed payload and is opened by the act that takes the code, so one
-/// arriving here is refused with a sentence naming the code.
-///
-/// A machine holds one organization (requirement 17). A link naming the one it already holds
-/// changes nothing and answers with the state; a link naming another is refused, and the way to it
-/// is a disconnect first.
-#[tauri::command]
-pub async fn organization_connect(
-    app_state: tauri::State<'_, AppState>,
-    link: String,
-) -> Result<OrganizationState, Error> {
-    let link = JoinLink::decode(&link)?;
-
-    connect::refuse_sealed(&link)?;
-
-    {
-        let mut remote_sync = app_state.remote_sync.write().await;
-        let held = remote_sync.store_mut();
-
-        if held
-            .organization
-            .as_ref()
-            .is_some_and(|held| held.id == link.organization_id)
-        {
-            drop(remote_sync);
-
-            return state_of(&app_state).await;
-        }
-
-        connect::refuse_while_held(held)?;
-    }
-
-    let credential: CredentialSlot = Arc::new(Mutex::new(
-        link.clear_credential().map(ToString::to_string),
-    ));
-    let store = reached(&app_state, &link, credential).await?;
-
-    {
-        let mut remote_sync = app_state.remote_sync.write().await;
-
-        connect::connect(&store, remote_sync.store_mut(), &link, timestamp::now()).await?;
-    }
-
-    // the replica is let go of rather than held: nobody is signed in, and the sign-in opens it
-    // again with the credential the vault unseals.
-    drop(store);
-
-    state_of(&app_state).await
-}
-
 /// Forget the organization this machine holds (requirement 20): sign out where somebody is in,
 /// delete every replica under the data directory, empty the record, and clear the Turso
 /// authority. The organization on Turso is untouched, and the person can connect again by the
@@ -1031,23 +974,6 @@ pub async fn organization_renew_credentials(
     workspace::renew_credentials(store, member, &platform, &organization_database).await
 }
 
-/// The organization's own join link, rebuilt for the owner to share or to keep.
-///
-/// **The owner's, and readable any time rather than only in the moment setup shows it.** An owner
-/// whose first machine is gone restores from this link (requirement 6), so a link shown once and
-/// never again is a way to lose the organization. It carries a read-only credential over the sealed
-/// rows, the same the setup walk produced; that credential is stored sealed under the content key,
-/// so rebuilding the link needs the owner's open vault and not the Turso authority, which a restored
-/// owner does not yet hold. It is refused to anyone but the owner, whose link it is to share.
-#[tauri::command]
-pub async fn organization_own_link(app_state: tauri::State<'_, AppState>) -> Result<String, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    invite::own_link(member, store).await
-}
-
 /// Renew credentials if any is close to lapsing, on the owner's machine, best effort. Answers
 /// whether it renewed. This is what keeps an organization syncing past the four-week credential
 /// lifetime: the owner's machine, which is the only one holding the platform authority, calls it
@@ -1106,13 +1032,13 @@ pub async fn member_invite(
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
-    let link = invite::organization_link(store, member).await?;
+    let locator = invite::locator(store, member).await?;
 
     invite::invite_member(
         store,
         member,
         platform.as_ref(),
-        &link,
+        &locator,
         Invitation {
             username: &username,
             role: &role,
@@ -1140,13 +1066,13 @@ pub async fn member_reset(
     // the row this act writes back whole carries the session epoch, so it is read after a pull
     // rather than off this machine's last sight of it (effort 826, requirement 22).
     store.pull().await;
-    let link = invite::organization_link(store, member).await?;
+    let locator = invite::locator(store, member).await?;
 
     invite::reissue_invitation(
         store,
         member,
         platform.as_ref(),
-        &link,
+        &locator,
         &member_id,
         invite::INVITED_KDF,
         timestamp::now(),
@@ -1251,7 +1177,7 @@ pub async fn machine_link_make(
 /// another is a disconnect.
 ///
 /// **The credential is let go of with the replica.** Nobody is signed in here, so the store is
-/// dropped the way `organization_connect` drops it, and the sign-in at the wall opens it again
+/// dropped rather than kept, and the sign-in at the wall opens it again
 /// with what the member's vault unseals.
 #[tauri::command]
 pub async fn machine_connect(

@@ -58,14 +58,6 @@ function hostRecording(asked: string[]): Host {
 			consentDisconnect: async () => {
 				asked.push('consentDisconnect');
 			},
-			connect: async (link) => {
-				asked.push(`connect:${link}`);
-
-				return fakeOrganizationState({
-					organization: fakeHeldOrganization({ memberId: null, role: null }),
-					session: null
-				});
-			},
 			disconnect: async () => {
 				asked.push('disconnect');
 
@@ -74,7 +66,7 @@ function hostRecording(asked: string[]): Host {
 			create: async (name, username, password, group) => {
 				asked.push(`create:${name}:${username}:${password.length}:${group}`);
 
-				return { organizationId: 'org-1', joinLink: 'rentable://join/abc', synced: true };
+				return { organizationId: 'org-1', synced: true };
 			},
 			groupInspect: async () => {
 				asked.push('groupInspect');
@@ -105,18 +97,17 @@ test('the consent is opened, polled and given up through the host, and nobody ha
 	assert.deepEqual(asked, ['consentBegin', 'consentResult:consent-1', 'consentDisconnect']);
 });
 
-// effort 824, requirements 18 and 20: connecting by the link and forgetting the organization both
-// happen at the wall, so both are public, and each hands back the state the machine is left in.
-test('connecting by link and disconnecting reach the host signed out, and answer with the state', async () => {
+// effort 824, requirement 20: forgetting the organization happens at the wall, so it is public and
+// hands back the state the machine is left in. *A `connect` stood beside it, taking the
+// organization's own link, until effort 828's requirement 16 retired that link; the two acts that
+// take a link now each take its code with it and are `invitation.accept` and `machine.connect`.*
+test('disconnecting reaches the host signed out, and answers with the state', async () => {
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
 
-	const connected = await api.app.organization.connect({ link: ' rentable://join/abc ' });
 	const forgotten = await api.app.organization.disconnect();
 
-	assert.deepEqual(asked, ['connect:rentable://join/abc', 'disconnect']);
-	assert.equal(connected.organization?.memberId, null, 'a connect recorded a member');
-	assert.equal(connected.session, null, 'a connect opened a vault');
+	assert.deepEqual(asked, ['disconnect']);
 	assert.equal(forgotten.organization, null);
 });
 
@@ -134,7 +125,7 @@ test('creating hands the trimmed name, the trimmed username and the password to 
 		password: 'a long enough password'
 	});
 
-	assert.equal(created.joinLink, 'rentable://join/abc');
+	assert.equal(created.organizationId, 'org-1');
 
 	await api.app.organization.create({
 		name: '  Acme Rentals ',
@@ -255,7 +246,6 @@ test('nothing here asks the host to list organizations', () => {
 	const procedures = Object.keys(organization._def.procedures).sort();
 
 	assert.deepEqual(procedures, [
-		'connect',
 		'connectExisting',
 		'consent.begin',
 		'consent.disconnect',

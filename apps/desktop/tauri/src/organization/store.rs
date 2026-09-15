@@ -78,7 +78,6 @@ const SCHEMA: [&str; 9] = [
         \"name_sealed\" BLOB NOT NULL, \
         \"verifying_key\" BLOB NOT NULL, \
         \"remote_url\" TEXT NOT NULL, \
-        \"link_credential_sealed\" BLOB NOT NULL, \
         \"created_at\" INTEGER NOT NULL)",
     "CREATE TABLE IF NOT EXISTS \"member\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
@@ -161,10 +160,6 @@ pub struct OrganizationRecord {
     /// this column is what lets it notice the two disagree.
     pub verifying_key: [u8; VERIFYING_KEY_BYTES],
     pub remote_url: String,
-    /// the read-only credential every join link carries, sealed under the content key: any
-    /// member whose vault is open can make a link, and nobody holding the database alone can use
-    /// it.
-    pub link_credential_sealed: Vec<u8>,
     pub created_at: i64,
 }
 
@@ -447,15 +442,13 @@ impl OrganizationStore {
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"organization\" \
-                 (\"id\", \"name_sealed\", \"verifying_key\", \"remote_url\", \
-                  \"link_credential_sealed\", \"created_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?)",
+                 (\"id\", \"name_sealed\", \"verifying_key\", \"remote_url\", \"created_at\") \
+                 VALUES (?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(organization.id.clone()),
                     turso::Value::Blob(organization.name_sealed.clone()),
                     turso::Value::Blob(organization.verifying_key.to_vec()),
                     turso::Value::Text(organization.remote_url.clone()),
-                    turso::Value::Blob(organization.link_credential_sealed.clone()),
                     turso::Value::Integer(organization.created_at),
                 ],
             )
@@ -468,8 +461,7 @@ impl OrganizationStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT \"id\", \"name_sealed\", \"verifying_key\", \"remote_url\", \
-                        \"link_credential_sealed\", \"created_at\" \
+                "SELECT \"id\", \"name_sealed\", \"verifying_key\", \"remote_url\", \"created_at\" \
                  FROM \"organization\" LIMIT 1",
                 (),
             )
@@ -484,8 +476,7 @@ impl OrganizationStore {
             name_sealed: blob(&row, 1)?,
             verifying_key: fixed::<VERIFYING_KEY_BYTES>(&row, 2, "verifying_key")?,
             remote_url: text(&row, 3)?,
-            link_credential_sealed: blob(&row, 4)?,
-            created_at: integer(&row, 5)?,
+            created_at: integer(&row, 4)?,
         }))
     }
 
@@ -1921,10 +1912,6 @@ mod tests {
                 name_sealed: chain.sealed("organization.name_sealed", "Acme Rentals"),
                 verifying_key: chain.verifying_key(),
                 remote_url: "libsql://org-acme-acme.aws-eu-west-1.turso.io".to_string(),
-                link_credential_sealed: chain.sealed(
-                    "organization.link_credential_sealed",
-                    "a-read-only-credential",
-                ),
                 created_at: 1_757_000_000_000,
             })
             .await
@@ -2086,6 +2073,87 @@ mod tests {
 
         // and the schema is idempotent, which is what a second machine runs into.
         store.install_schema().await.expect("the schema, again");
+    }
+
+    /// Effort 828, requirement 16: **a replica still carrying `link_credential_sealed` opens, and
+    /// its organization row reads.**
+    ///
+    /// The column left the schema and nothing migrates the databases that have it:
+    /// `CREATE TABLE IF NOT EXISTS` leaves a table that exists alone, and the write and the read
+    /// both name their columns, so the one nobody names any more is simply never touched. This is
+    /// the whole of what retiring the organization's own link does to data at rest.
+    #[tokio::test]
+    async fn a_replica_still_carrying_the_link_credential_column_opens_and_reads() {
+        let directory = scratch("dropped-column");
+        let store = OrganizationStore::open(&directory.join("org-acme.db"), None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the organization replica");
+        let chain = Chain::new();
+
+        // the table as a replica written before this build has it: the dropped column, not null
+        // and filled, exactly where it was.
+        store
+            .connection()
+            .execute(
+                "CREATE TABLE \"organization\" (\
+                 \"id\" TEXT PRIMARY KEY NOT NULL, \
+                 \"name_sealed\" BLOB NOT NULL, \
+                 \"verifying_key\" BLOB NOT NULL, \
+                 \"remote_url\" TEXT NOT NULL, \
+                 \"link_credential_sealed\" BLOB NOT NULL, \
+                 \"created_at\" INTEGER NOT NULL)",
+                (),
+            )
+            .await
+            .expect("the previous shape of the table");
+        store
+            .connection()
+            .execute(
+                "INSERT INTO \"organization\" VALUES (?, ?, ?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text("acme".to_string()),
+                    turso::Value::Blob(chain.sealed("organization.name_sealed", "Acme Rentals")),
+                    turso::Value::Blob(chain.verifying_key().to_vec()),
+                    turso::Value::Text("libsql://org-acme-acme.aws-eu-west-1.turso.io".to_string()),
+                    turso::Value::Blob(chain.sealed(
+                        "organization.link_credential_sealed",
+                        "a-read-only-credential",
+                    )),
+                    turso::Value::Integer(1_757_000_000_000),
+                ],
+            )
+            .await
+            .expect("the row in the previous shape");
+
+        store
+            .install_schema()
+            .await
+            .expect("the schema over a replica that still has the column");
+
+        let row = store
+            .organization()
+            .await
+            .expect("the organization row could not be read")
+            .expect("a row");
+
+        assert_eq!(row.id, "acme");
+        assert_eq!(
+            row.remote_url,
+            "libsql://org-acme-acme.aws-eu-west-1.turso.io"
+        );
+        assert_eq!(row.verifying_key, chain.verifying_key());
+        assert_eq!(row.created_at, 1_757_000_000_000);
+        assert_eq!(
+            open_content(
+                &chain.content_key,
+                "organization.name_sealed",
+                &row.name_sealed
+            )
+            .expect("the name"),
+            b"Acme Rentals"
+        );
     }
 
     // criterion 2: the boundary
@@ -2524,7 +2592,6 @@ mod tests {
                 name_sealed: chain.sealed("organization.name_sealed", "Acme"),
                 verifying_key: chain.verifying_key(),
                 remote_url: "libsql://org-acme.turso.io".to_string(),
-                link_credential_sealed: chain.sealed("organization.link_credential_sealed", "ro"),
                 created_at: 1_757_000_000_000,
             })
             .await

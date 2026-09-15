@@ -60,18 +60,17 @@ export const organization = router({
 		})
 	},
 	/**
-	 * Connect this machine to the organization a link names, and forget the one it holds.
+	 * Forget the organization this machine holds.
 	 *
-	 * **`public`, both, because both happen at the wall.** A connect is offered to a machine that
-	 * holds nothing, before there is anybody to act as; a disconnect is offered on the wall while
+	 * **`public`, because it happens at the wall.** A disconnect is offered on the wall while
 	 * signed out as well as on the organization page, and the host signs out first where somebody
-	 * is in. Neither reaches `ctx.db`. The one confirm before a disconnect is the screen's.
+	 * is in. It does not reach `ctx.db`. The one confirm before it is the screen's.
+	 *
+	 * *A `connect` stood beside it, taking the organization's own link, until effort 828's
+	 * requirement 16 retired that link. Every link needs its code now, and the acts that take one
+	 * are `invitation.accept` and `machine.connect`, which the connect screen calls on the host
+	 * directly for the refusals they name.*
 	 */
-	connect: procedure.public
-		.input(z.object({ link: z.string().trim().min(1) }))
-		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
-			return ctx.host.organization.connect(input.link);
-		}),
 	disconnect: procedure.public.mutation(async ({ ctx }): Promise<OrganizationState> => {
 		return ctx.host.organization.disconnect();
 	}),

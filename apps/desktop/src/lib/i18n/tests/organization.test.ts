@@ -249,7 +249,6 @@ const TERMS = [
 	['sign out', 'common.actions.signOut'],
 	['connect turso account', 'organization.setup.connect'],
 	['forget turso account', 'organization.dashboard.forgetAccount'],
-	['organization link', 'organization.dashboard.linkTitle'],
 	['invitation link', 'organization.dashboard.invitationLinkTitle'],
 	['full access', 'organization.dashboard.accessFull'],
 	['read only', 'organization.dashboard.accessReadOnly'],

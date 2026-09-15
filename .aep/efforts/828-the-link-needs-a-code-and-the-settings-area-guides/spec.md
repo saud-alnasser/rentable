@@ -240,6 +240,9 @@ organization's own link retires; the owner can delete the organization*)
 4. The sync section, for the owner, still shows the organization link under a sentence that
    names it as the recovery copy and points a member to their you section; for anybody else
    the block is absent. A Rust test connects a machine with it and no code.
+   *Superseded 2026-09-16 by criterion 16: the link retires, the sync section shows no link
+   block, and no Rust test connects with one. Ticket 06 met this criterion on 2026-09-15 and
+   ticket 12 removed what it showed.*
 5. [[rules/credentials]] and [[contexts/desktop/organization]] each carry one paragraph on
    what a link carries and what it is worth, and 826's requirement 10 and *Link* entry carry a
    dated correction pointing here.

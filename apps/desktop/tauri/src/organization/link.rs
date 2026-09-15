@@ -1,19 +1,22 @@
 //! the join link: where an organization is, and what it takes to read it.
 //!
 //! A person opens a link and their machine learns which organization it names, which key judges
-//! its rows, and where the rows are. What it takes to *read* those rows is a credential, and
-//! which of two ways the link carries one is the whole of what this file is about (effort 828,
-//! requirement 1).
+//! its rows, and where the rows are. What it takes to *read* those rows is a credential, and how
+//! the link carries one is the whole of what this file is about (effort 828, requirements 1 and
+//! 16).
 //!
-//! **One link but the organization's own carries a legible credential.** The organization's own
-//! link carries [`Credential::Clear`], the read-only grant the first run minted, and no half; it
-//! is the owner's recovery copy, it connects a machine with no code, and it is the one credential
-//! here that never lapses. Every other link carries [`Credential::Sealed`], a payload nothing
-//! opens without the six-character code somebody read out, and a [`Half`] saying which kind of
-//! link it is, which row stands behind it, the secret that salts the code and the moment the link
-//! lapses. *Until effort 828 every link carried the never-expiring read-only credential in the
+//! **No link carries a legible credential.** A link is a [`Locator`], the four clear fields that
+//! say where the organization is and what judges it, with a [`LinkPayload`] sealed onto it and a
+//! [`Half`] saying which kind of link it is, which row stands behind it, the secret that salts the
+//! code and the moment the link lapses. There are two kinds, an invitation and a member's own next
+//! machine, and both are opened the same way: the six-character code somebody read out, and
+//! nothing else. *Until effort 828 every link carried a never-expiring read-only credential in the
 //! clear, whichever kind of link it was, so whoever found one pulled the whole directory
-//! (`.aep/efforts/828-.../evidence/research/what-a-link-exposes-and-what-a-code-can-bound.md`).*
+//! (`.aep/efforts/828-.../evidence/research/what-a-link-exposes-and-what-a-code-can-bound.md`).
+//! That credential survived requirement 1 as the organization's own link, the copy that recovered
+//! an organization whose every machine was gone; requirement 16 retired it, because the owner's
+//! Turso account and password recover the organization now and nothing is left that has to be
+//! legible.*
 //!
 //! **What is sealed, and under what.** The payload is [`LinkPayload`]: the issuer's own grant on
 //! the organization database and, where the link opens a vault, the password that vault was made
@@ -40,6 +43,12 @@
 //! the code is typed there is no credential to read a row with. *`join::inspect` reached the
 //! organization with the link's clear credential and judged the invitation before the person had
 //! typed anything; effort 828 retires it with the clear credential it needed.*
+//!
+//! **A link with no half is not a link.** The half is where the code's salt and the seal's
+//! associated data both come from, so a text without one carries a payload nothing could ever
+//! open, and [`JoinLink::decode`] refuses it with the sentence a pasted sentence gets. That is
+//! also what refuses the organization's own link, which was four clear fields and a legible
+//! credential, on a build that still has a copy of one.
 //!
 //! **A link in the previous shape is refused as a link that is not one.** It names
 //! `readOnlyCredential` and carries no `credential`, [`JoinLink::decode`] refuses it with the
@@ -83,29 +92,6 @@ pub const CODE_MISSING: &str = "type the six-character code whoever sent you thi
 pub const CODE_REFUSED: &str =
     "the code is wrong; ask whoever sent you the link to read it out again";
 
-/// How a link carries the credential that reads the organization database.
-///
-/// **Externally tagged**, which is serde's default for an enum and is what puts the shape in the
-/// link's own text: `{"clear":"..."}` or `{"sealed":"..."}`. The fields test pins both spellings,
-/// so a derive attribute cannot drift them under the boundary type on the other side.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Credential {
-    /// the read-only grant, legible: the organization's own link and nothing else.
-    Clear(String),
-    /// a [`LinkPayload`] sealed under the code and the half's secret together, base64url.
-    Sealed(String),
-}
-
-impl Credential {
-    /// The credential's own text, whichever way it is carried: what `decode` refuses a blank of.
-    fn text(&self) -> &str {
-        match self {
-            Self::Clear(value) | Self::Sealed(value) => value,
-        }
-    }
-}
-
 /// What a link's half stands behind: an invitation row, or a member's own second machine.
 ///
 /// **`Machine` is reachable here and minted nowhere yet.** Effort 828's ticket 04 builds the act
@@ -147,6 +133,58 @@ pub struct Half {
     pub expires_at: i64,
 }
 
+/// Where an organization is and what judges its rows: the four clear fields, and no credential.
+///
+/// **It reads nothing, and that is what it is for** (effort 828, requirement 16). Every link this
+/// application makes is one of these with a payload sealed onto it, so the act that builds a link
+/// never has a legible credential in hand to leave behind, and a locator that escaped would name
+/// an organization and open nothing. `invite::locator` rebuilds it from the replica's own
+/// organization row, which any member whose vault is open can read.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Locator {
+    pub organization_id: String,
+    /// the organization's name, in the clear: what a refusal is said in the name of, and what a
+    /// person recognises before they type anything.
+    pub organization_name: String,
+    /// the Ed25519 verifying key every row is judged against, base64url.
+    pub verifying_key: String,
+    /// where the organization database is, `libsql://...`.
+    pub remote_url: String,
+}
+
+impl Locator {
+    pub fn new(
+        organization_id: &str,
+        organization_name: &str,
+        verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        remote_url: &str,
+    ) -> Self {
+        Self {
+            organization_id: organization_id.to_string(),
+            organization_name: organization_name.to_string(),
+            verifying_key: BASE64URL.encode(verifying_key),
+            remote_url: remote_url.to_string(),
+        }
+    }
+
+    /// This locator as a link: the sealed payload, and the half that opens it.
+    pub fn sealed(&self, sealed: &str, half: Half) -> JoinLink {
+        JoinLink {
+            organization_id: self.organization_id.clone(),
+            organization_name: self.organization_name.clone(),
+            verifying_key: self.verifying_key.clone(),
+            remote_url: self.remote_url.clone(),
+            credential: sealed.to_string(),
+            half,
+        }
+    }
+
+    /// The verifying key as the chain takes it.
+    pub fn verifying_key_bytes(&self) -> Result<[u8; VERIFYING_KEY_BYTES], Error> {
+        verifying_key_bytes(&self.verifying_key)
+    }
+}
+
 /// What a link carries.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -159,20 +197,22 @@ pub struct JoinLink {
     pub verifying_key: String,
     /// where the organization database is, `libsql://...`.
     pub remote_url: String,
-    /// how this link carries the credential that reads that database.
-    pub credential: Credential,
-    /// the row this link was made for, where it was made for one. Absent on the organization's
-    /// own link, and absent from its text rather than written as null.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub half: Option<Half>,
+    /// the [`LinkPayload`] this link carries, sealed under the code and the half's secret
+    /// together, base64url. There is no second way a link carries a credential.
+    pub credential: String,
+    /// the row this link was made for. Every link has one: the half is where the code's salt and
+    /// the seal's associated data come from, so a link without one carries a payload nothing could
+    /// open.
+    pub half: Half,
 }
 
-/// Which of the three kinds of link a text is, as [`read`] answers it.
+/// Which of the two kinds of link a text is, as [`read`] answers it.
+///
+/// *There was a third, the organization's own, until effort 828's requirement 16 retired it; it
+/// was the one kind that carried a legible credential and connected a machine with no code.*
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum LinkKind {
-    /// the organization's own: a clear credential, no half, and no code to open it with.
-    Organization,
     Invitation,
     Machine,
 }
@@ -184,8 +224,8 @@ pub struct LinkShape {
     pub organization_id: String,
     pub organization_name: String,
     pub kind: LinkKind,
-    /// when the link lapses; `None` on the organization's own, which does not.
-    pub expires_at: Option<i64>,
+    /// when the link lapses, off the half. Every link lapses.
+    pub expires_at: i64,
 }
 
 /// What a sealed link holds once the code has opened it.
@@ -202,74 +242,25 @@ pub struct LinkPayload {
 }
 
 impl JoinLink {
-    /// The organization's own link: the clear credential, and no half.
-    pub fn new(
-        organization_id: &str,
-        organization_name: &str,
-        verifying_key: &[u8; VERIFYING_KEY_BYTES],
-        remote_url: &str,
-        credential: &str,
-    ) -> Self {
-        Self {
-            organization_id: organization_id.to_string(),
-            organization_name: organization_name.to_string(),
-            verifying_key: BASE64URL.encode(verifying_key),
-            remote_url: remote_url.to_string(),
-            credential: Credential::Clear(credential.to_string()),
-            half: None,
-        }
-    }
-
-    /// This link with a sealed payload in place of its credential, and the half that opens it.
-    pub fn sealed(&self, sealed: &str, half: Half) -> Self {
-        Self {
-            credential: Credential::Sealed(sealed.to_string()),
-            half: Some(half),
-            ..self.clone()
-        }
-    }
-
-    /// This link with the credential that was inside it in hand.
+    /// Where this link says the organization is, with the credential left behind.
     ///
-    /// **Held in memory and never encoded.** It is what an act hands `connect::connect` once the
-    /// code has opened the payload, so the connect only ever records an organization it holds a
-    /// credential for, and the sealed shape never has to be understood twice.
-    pub fn with_clear_credential(&self, credential: &str) -> Self {
-        Self {
-            credential: Credential::Clear(credential.to_string()),
-            ..self.clone()
+    /// What `connect::connect` records an organization from: the connect writes the four clear
+    /// facts and nothing else, and handing it a locator rather than a link is what makes it
+    /// impossible to record an organization the caller never opened a payload for.
+    pub fn locator(&self) -> Locator {
+        Locator {
+            organization_id: self.organization_id.clone(),
+            organization_name: self.organization_name.clone(),
+            verifying_key: self.verifying_key.clone(),
+            remote_url: self.remote_url.clone(),
         }
     }
 
-    /// The half, where this link carries one.
-    pub fn half(&self) -> Option<&Half> {
-        self.half.as_ref()
-    }
-
-    /// The credential in the clear, where this link carries one that way.
-    pub fn clear_credential(&self) -> Option<&str> {
-        match &self.credential {
-            Credential::Clear(value) => Some(value),
-            Credential::Sealed(_) => None,
-        }
-    }
-
-    /// The sealed payload, where this link carries one.
-    pub fn sealed_credential(&self) -> Option<&str> {
-        match &self.credential {
-            Credential::Sealed(value) => Some(value),
-            Credential::Clear(_) => None,
-        }
-    }
-
-    /// Which of the three kinds of link this is, read off the half.
+    /// Which of the two kinds of link this is, read off the half.
     pub fn kind(&self) -> LinkKind {
-        match self.half.as_ref() {
-            None => LinkKind::Organization,
-            Some(half) => match half.kind {
-                HalfKind::Invitation => LinkKind::Invitation,
-                HalfKind::Machine => LinkKind::Machine,
-            },
+        match self.half.kind {
+            HalfKind::Invitation => LinkKind::Invitation,
+            HalfKind::Machine => LinkKind::Machine,
         }
     }
 
@@ -307,23 +298,15 @@ impl JoinLink {
 
         if decoded.organization_id.trim().is_empty()
             || decoded.remote_url.trim().is_empty()
-            || decoded.credential.text().trim().is_empty()
+            || decoded.credential.trim().is_empty()
         {
             return Err(unreadable());
         }
 
-        // a sealed credential with no half is a link nothing can ever open: the half is where the
-        // code's salt and the seal's associated data both come from.
-        if decoded.sealed_credential().is_some() && decoded.half.is_none() {
-            return Err(unreadable());
-        }
-
-        // a half with either text field blank is not a half: the link is not one.
-        if decoded
-            .half
-            .as_ref()
-            .is_some_and(|half| half.id.trim().is_empty() || half.secret.trim().is_empty())
-        {
+        // a half with either text field blank is not a half: the link is not one. A text with no
+        // half at all never reaches here, since the field is required and serde refuses it above,
+        // which is what refuses a link in the shape the organization's own had.
+        if decoded.half.id.trim().is_empty() || decoded.half.secret.trim().is_empty() {
             return Err(unreadable());
         }
 
@@ -332,16 +315,19 @@ impl JoinLink {
 
     /// The verifying key as the chain takes it.
     pub fn verifying_key_bytes(&self) -> Result<[u8; VERIFYING_KEY_BYTES], Error> {
-        let bytes = BASE64URL
-            .decode(&self.verifying_key)
-            .map_err(|_| Error::InvalidInput {
-                message: "this join link carries no organization key".to_string(),
-            })?;
-
-        <[u8; VERIFYING_KEY_BYTES]>::try_from(bytes.as_slice()).map_err(|_| Error::InvalidInput {
-            message: "this join link carries no organization key".to_string(),
-        })
+        verifying_key_bytes(&self.verifying_key)
     }
+}
+
+/// A base64url verifying key as the chain takes it, for the two types that carry one.
+fn verifying_key_bytes(encoded: &str) -> Result<[u8; VERIFYING_KEY_BYTES], Error> {
+    let bytes = BASE64URL.decode(encoded).map_err(|_| Error::InvalidInput {
+        message: "this join link carries no organization key".to_string(),
+    })?;
+
+    <[u8; VERIFYING_KEY_BYTES]>::try_from(bytes.as_slice()).map_err(|_| Error::InvalidInput {
+        message: "this join link carries no organization key".to_string(),
+    })
 }
 
 /// What a link says about itself, from its text alone: which organization, which kind, and when
@@ -353,7 +339,7 @@ pub fn read(link: &str) -> Result<LinkShape, Error> {
         organization_id: link.organization_id.clone(),
         organization_name: link.organization_name.clone(),
         kind: link.kind(),
-        expires_at: link.half().map(|half| half.expires_at),
+        expires_at: link.half.expires_at,
     })
 }
 
@@ -448,8 +434,7 @@ pub fn open_payload(
 #[cfg(test)]
 mod tests {
     use super::{
-        Credential, Half, HalfKind, JoinLink, LinkKind, LinkPayload, open_payload, read,
-        seal_payload,
+        Half, HalfKind, JoinLink, LinkKind, LinkPayload, Locator, open_payload, read, seal_payload,
     };
     use crate::organization::vault::KdfParams;
 
@@ -461,14 +446,17 @@ mod tests {
         }
     }
 
-    fn link() -> JoinLink {
-        JoinLink::new(
+    fn locator() -> Locator {
+        Locator::new(
             "7f3a",
             "Acme",
             &[7_u8; 32],
             "libsql://org-7f3a-acme.aws-eu-west-1.turso.io",
-            "a-read-only-credential",
         )
+    }
+
+    fn link() -> JoinLink {
+        locator().sealed("c2VhbGVk", half(HalfKind::Invitation))
     }
 
     /// A thirty-two byte secret, base64url, as `invite::generate_link_secret` draws one.
@@ -481,10 +469,6 @@ mod tests {
             secret: SECRET.to_string(),
             expires_at: 1_757_000_000_000,
         }
-    }
-
-    fn invitation_link() -> JoinLink {
-        link().sealed("c2VhbGVk", half(HalfKind::Invitation))
     }
 
     #[test]
@@ -521,104 +505,77 @@ mod tests {
         (text, names)
     }
 
-    /// Effort 828, requirement 1: the organization's own link names `credential.clear` and every
-    /// other link names `credential.sealed`, and neither spells `readOnlyCredential`, which the
-    /// previous shape did and is what a Turso client would take as a token. The two spellings are
-    /// pinned because they are the boundary's own shape: an externally tagged enum is serde's
-    /// default and a derive attribute could quietly move it.
+    /// Effort 828, requirements 1 and 16: **every link names a sealed credential and a half, and
+    /// there is no other shape a link can take.** Nothing spells `readOnlyCredential`, which the
+    /// previous shape did and is what a Turso client would take as a token, and nothing carries a
+    /// credential a reader of the text could use. *The organization's own link named
+    /// `credential.clear` and carried no half until requirement 16 retired it.*
     #[test]
-    fn the_organization_link_names_a_clear_credential_and_every_other_a_sealed_one() {
-        let (text, names) = fields_of(&link());
+    fn every_link_names_a_sealed_credential_and_the_half_that_opens_it() {
+        for kind in [HalfKind::Invitation, HalfKind::Machine] {
+            let (text, names) = fields_of(&locator().sealed("c2VhbGVk", half(kind)));
 
-        assert_eq!(
-            names,
-            [
-                "credential",
-                "organizationId",
-                "organizationName",
-                "remoteUrl",
-                "verifyingKey"
-            ]
-        );
-        assert!(text.contains(r#""credential":{"clear":"#), "{text}");
-        assert!(!text.contains("readOnlyCredential"), "{text}");
-        assert!(!text.contains("password"), "{text}");
-        assert!(!text.contains("half"), "{text}");
+            assert_eq!(
+                names,
+                [
+                    "credential",
+                    "half",
+                    "organizationId",
+                    "organizationName",
+                    "remoteUrl",
+                    "verifyingKey"
+                ]
+            );
+            assert!(text.contains(r#""credential":"c2VhbGVk""#), "{text}");
+            assert!(!text.contains("clear"), "{text}");
+            assert!(!text.contains("readOnlyCredential"), "{text}");
+            assert!(!text.contains("password"), "{text}");
+        }
 
-        let (text, names) = fields_of(&invitation_link());
+        let (text, _) = fields_of(&locator().sealed("c2VhbGVk", half(HalfKind::Invitation)));
 
-        assert_eq!(
-            names,
-            [
-                "credential",
-                "half",
-                "organizationId",
-                "organizationName",
-                "remoteUrl",
-                "verifyingKey"
-            ]
-        );
-        assert!(text.contains(r#""credential":{"sealed":"#), "{text}");
-        assert!(!text.contains("readOnlyCredential"), "{text}");
-        assert!(!text.contains("password"), "{text}");
-        assert!(
-            !text.contains("a-read-only-credential"),
-            "the clear credential survived the seal: {text}"
-        );
         assert!(text.contains(r#""kind":"invitation""#), "{text}");
 
-        // the machine half is spelled in the text too, so ticket 04's link lands on a shape that
-        // is already decoded and read here.
-        let (text, _) = fields_of(&link().sealed("c2VhbGVk", half(HalfKind::Machine)));
+        let (text, _) = fields_of(&locator().sealed("c2VhbGVk", half(HalfKind::Machine)));
 
         assert!(text.contains(r#""kind":"machine""#), "{text}");
     }
 
-    /// The half round-trips on both kinds, and a link made for one still names the organization
-    /// the way the organization's own does.
+    /// The half round-trips on both kinds, and the locator a link came from is read back off it
+    /// with the credential left behind, which is what a connect is handed.
     #[test]
     fn a_sealed_link_round_trips_with_its_half() {
         for kind in [HalfKind::Invitation, HalfKind::Machine] {
-            let sealed = link().sealed("c2VhbGVk", half(kind));
+            let sealed = locator().sealed("c2VhbGVk", half(kind));
             let encoded = sealed.encode().expect("failed to encode");
             let decoded = JoinLink::decode(&encoded).expect("failed to decode");
 
             assert_eq!(decoded, sealed);
             assert_eq!(decoded.organization_name, "Acme");
-            assert_eq!(decoded.half().map(|half| half.id.as_str()), Some("inv-1"));
-            assert_eq!(decoded.sealed_credential(), Some("c2VhbGVk"));
-            assert_eq!(decoded.clear_credential(), None);
+            assert_eq!(decoded.half.id, "inv-1");
+            assert_eq!(decoded.credential, "c2VhbGVk");
+            assert_eq!(decoded.locator(), locator());
         }
-
-        assert_eq!(link().half(), None);
-        assert_eq!(link().clear_credential(), Some("a-read-only-credential"));
-        assert_eq!(link().sealed_credential(), None);
     }
 
-    /// Reading a link is a decode: which organization, which kind, and when it lapses. The
-    /// organization's own lapses at no moment, which is the one credential here that never does.
+    /// Reading a link is a decode: which organization, which kind, and when it lapses. Every link
+    /// lapses, so the moment is a fact rather than an absence.
     #[test]
     fn reading_a_link_answers_its_shape_from_the_text_alone() {
-        let shape = read(&link().encode().expect("encodes")).expect("the organization link");
-
-        assert_eq!(shape.organization_id, "7f3a");
-        assert_eq!(shape.organization_name, "Acme");
-        assert_eq!(shape.kind, LinkKind::Organization);
-        assert_eq!(shape.expires_at, None);
-
         for (kind, expected) in [
             (HalfKind::Invitation, LinkKind::Invitation),
             (HalfKind::Machine, LinkKind::Machine),
         ] {
-            let text = link()
+            let text = locator()
                 .sealed("c2VhbGVk", half(kind))
                 .encode()
                 .expect("encodes");
             let shape = read(&text).expect("the sealed link");
 
-            assert_eq!(shape.kind, expected);
-            assert_eq!(shape.expires_at, Some(1_757_000_000_000));
+            assert_eq!(shape.organization_id, "7f3a");
             assert_eq!(shape.organization_name, "Acme");
+            assert_eq!(shape.kind, expected);
+            assert_eq!(shape.expires_at, 1_757_000_000_000);
         }
 
         assert!(read("not a link").is_err());
@@ -657,26 +614,41 @@ mod tests {
         assert!(read(&text).is_err(), "the previous shape read");
     }
 
-    /// The three shapes a text can take that are not links: a sealed credential with nothing to
-    /// open it, a half with a blank field, and a blank credential.
+    /// Effort 828, requirement 16: **a text with no half is not a link**, which is what refuses
+    /// the organization's own shape wherever a copy of one survives. Beside it, the two other
+    /// shapes that are not links: a half with a blank field, and a blank credential.
     #[test]
-    fn a_sealed_credential_with_no_half_and_a_blank_half_are_not_links() {
-        let orphan = JoinLink {
-            credential: Credential::Sealed("c2VhbGVk".to_string()),
-            half: None,
-            ..link()
-        };
+    fn a_text_with_no_half_and_a_blank_half_are_not_links() {
+        let halfless = serde_json::json!({
+            "organizationId": "7f3a",
+            "organizationName": "Acme",
+            "verifyingKey": base64::Engine::encode(
+                &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+                [7_u8; 32],
+            ),
+            "remoteUrl": "libsql://org-7f3a-acme.aws-eu-west-1.turso.io",
+            "credential": "c2VhbGVk"
+        });
+        let text = format!(
+            "rentable://join/{}",
+            base64::Engine::encode(
+                &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+                serde_json::to_vec(&halfless).expect("json"),
+            )
+        );
 
         assert!(
             matches!(
-                JoinLink::decode(&orphan.encode().expect("encodes")),
-                Err(crate::error::Error::InvalidInput { .. })
+                JoinLink::decode(&text),
+                Err(crate::error::Error::InvalidInput { ref message })
+                    if message == "this is not a rentable join link"
             ),
-            "a sealed credential with no half decoded"
+            "a link with no half decoded"
         );
+        assert!(read(&text).is_err(), "a link with no half read");
 
         for (id, secret) in [("", SECRET), ("inv-1", ""), (" ", " ")] {
-            let broken = link()
+            let broken = locator()
                 .sealed(
                     "c2VhbGVk",
                     Half {
@@ -698,7 +670,7 @@ mod tests {
         }
 
         let blank = JoinLink {
-            credential: Credential::Clear("  ".to_string()),
+            credential: "  ".to_string(),
             ..link()
         };
 

@@ -230,20 +230,26 @@ test('the area carries one title, and it is the area rather than the section', (
 	expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(en.settings.title);
 });
 
-// criterion 14 and criterion 16, the sync section: the owner's own items are the Turso account
-// and the organization's link, and a plain member meets neither. The status and the disconnect
-// are everybody's, since a member reads whether their machine is reaching the workspace and
-// leaves the organization from the same place the owner does.
-test('the sync section gives the owner the turso account, the link and the disconnect', () => {
+// criterion 14 and criterion 16, the sync section: the owner's own item is the Turso account, and
+// a plain member does not meet it. The status and the disconnect are everybody's, since a member
+// reads whether their machine is reaching the workspace and leaves the organization from the same
+// place the owner does.
+//
+// **And there is no link block for anybody** (effort 828, criterion 16). The organization's own
+// link stood here for the owner, named as the copy that recovered the organization when every
+// machine was gone; requirement 16 retired it, because the way back is the owner's Turso account
+// and their password, and nothing is minted that a found copy could read the directory with.
+test('the sync section gives the owner the turso account and the disconnect, and no link', () => {
 	at('?section=sync');
 	area({ section: 'sync' });
 
 	expect(screen.getByText(en.organization.dashboard.authorityTitle)).toBeDefined();
 	expect(document.querySelector('[data-forget-account]')).not.toBeNull();
 	expect(document.querySelector('[data-reconnect-authority]')).toBeNull();
-	expect(screen.getByText(en.organization.dashboard.linkTitle)).toBeDefined();
 	expect(document.querySelector('[data-disconnect]')).not.toBeNull();
 	expect(screen.getByText(en.workspace.syncDescription)).toBeDefined();
+	expect(document.querySelector('[data-organization-link]')).toBeNull();
+	expect(document.querySelector('[data-link-description]')).toBeNull();
 });
 
 // requirement 5: the authority is restored from nowhere, so an owner on a machine that holds
@@ -270,7 +276,7 @@ test('a plain member reads the sync status and the disconnect, and nothing of th
 	expect(document.querySelector('[data-forget-account]')).toBeNull();
 	expect(document.querySelector('[data-reconnect-authority]')).toBeNull();
 	expect(screen.queryByText(en.organization.dashboard.authorityTitle)).toBeNull();
-	expect(screen.queryByText(en.organization.dashboard.linkTitle)).toBeNull();
+	expect(document.querySelector('[data-organization-link]')).toBeNull();
 });
 
 // criterion 16 from the area's side: the section is the list this member holds, with the rows
@@ -345,34 +351,4 @@ test('the you section offers another machine, and shows the pair the way an invi
 			formatRecordDate('en', MACHINE_LINK.expiresAt)
 		)
 	);
-});
-
-// requirement 4: the organization's own link is the owner's recovery copy and is handed to nobody,
-// and the sentence beside it points a member at the section that makes their own.
-test('the sync section names the organization link as the recovery copy and points elsewhere', () => {
-	at('?section=sync');
-	area({ section: 'sync' });
-
-	const sentence = document.querySelector('[data-link-description]')?.textContent?.trim();
-
-	expect(sentence).toBe(en.organization.dashboard.linkDescription);
-	expect(sentence).toMatch(/recovers the organization/);
-	expect(sentence).toMatch(/every machine is gone/);
-	expect(sentence).toMatch(/you section/);
-});
-
-test('and an administrator meets no link block at all', () => {
-	at('?section=sync');
-	area({
-		section: 'sync',
-		session: fakeOrganizationSession({
-			role: 'administrator',
-			permissions: maskOf(...EVERY_ADMINISTRATION)
-		}),
-		holdsTursoAuthority: false
-	});
-
-	expect(screen.queryByText(en.organization.dashboard.linkTitle)).toBeNull();
-	expect(document.querySelector('[data-link-description]')).toBeNull();
-	expect(document.querySelector('[data-organization-link]')).toBeNull();
 });

@@ -98,6 +98,18 @@ long as its link and a fresh code would be a fresh link to re-send. A link lapse
 seven days and its credential's own death. The previous shape is refused as a link that is not
 one.*
 
+*Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
+requirement 16, which supersedes requirement 4): **the organization link is gone, and the entry
+above reads for the two links that are left.** No never-expiring credential is minted, stored,
+shown or accepted; `organization.link_credential_sealed` is not a column, and a replica that still
+carries it opens and is never written to it again. A link is four clear fields, a sealed credential
+and a required `half`, so a text with no half is refused as a text that is not a link, which is
+what the organization's own shape now meets. `invite::organization_link` is `invite::locator`, the
+four clear fields an invitation, a reset and a machine link seal a payload onto, and
+`connect::connect` takes that locator with the credential its caller unsealed rather than reading
+one off a link. What recovers an organization whose every machine is gone is the owner's Turso
+account and their password (requirement 14), so the sync section shows no link at all.*
+
 **Authority**:
 The Platform API token a consent produced, in the keyring on the owner's machine and nowhere else.
 Creating a workspace, minting, rotating and deleting need it; an owner restored on a new machine
@@ -109,8 +121,20 @@ repeats the consent for it, because no row holds it.
   and hands facts back; the vault, the content key, the credentials and the Turso authority stay
   in Rust ([[rules/credentials]], *Client boundary*). What the web layer holds is what a screen
   draws.
-- **What stands between a found link and the directory is a code, and only the organization's own
-  link has nothing there.** *Added 2026-09-15
+- **What stands between a found link and the directory is a code, on every link there is.**
+  *Corrected 2026-09-16 (requirement 16, superseding requirement 4): the exception below retired
+  with the link that was it. No never-expiring credential is minted, stored, shown or accepted, so
+  every sentence here about "every link but one" is now about every link, and a link with no code
+  beside it reaches nothing at all. The owner's way back to an organization whose every machine is
+  gone is the Turso account and their password (requirement 14), which is what the recovery copy
+  stood in for. The claim below that a leak "exposes the directory until a lock-out rotates the
+  database" was wrong when it was written and is corrected here as well:
+  [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/evidence/research/what-a-consent-alone-can-recover]],
+  finding 5, read the repository and found that **nothing rotates the organization database**. A
+  lock-out rotates the workspace databases the removed member held and deliberately not the
+  organization's, because the organization's rows are what a remaining member reads their re-sealed
+  grant from (`organization/removal.rs`). So nothing retired that credential at all, which is the
+  strongest reason the link could not stay.* *Added 2026-09-15
   ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirements 1, 2, 4
   and 5.)* Every link but one carries the credential that reads the organization database sealed
   under a six-character code and the link's own thirty-two byte secret together, so a link found in
