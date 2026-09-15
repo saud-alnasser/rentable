@@ -184,7 +184,11 @@ rail's two menus open. Every concept has one name.
     not a step. The application first tries the create without a group, then with Turso's
     default group, then with the group uuid the consent token carries, and asks for the
     name only where all three are refused over the group; a group that already holds
-    anything never asks, since the listing names it.*
+    anything never asks, since the listing names it. Corrected a third time on the third
+    run, where Turso refused all three: the application first learns the name on its own,
+    from a group-listing tool where the MCP server offers one and otherwise from the
+    Platform API's user endpoint and the groups under the personal organization it names,
+    picking the group by the token's uuid; the field stays the last resort.*
 
 *The settings area* (*round three, 2026-09-13*)
 

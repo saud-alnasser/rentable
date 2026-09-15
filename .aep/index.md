@@ -126,7 +126,7 @@ Start at [[protocol]].
 | 812-the-desktop-declares-what-it-uses | implemented | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
 | 819-an-organization-hosts-its-own-workspaces | implemented | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 28 |
 | 824-the-way-in-and-the-workspace-control-are-redesigned | implemented | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 17 |
-| 826-the-organization-and-the-way-in-are-rethought | accepted | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 20 |
+| 826-the-organization-and-the-way-in-are-rethought | accepted | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 21 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -240,3 +240,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/18-the-walk-asks-for-the-group-only-when-turso-needs-it]] fix(organization): the walk asks for the group only when turso needs it, and hands over at once | 826-the-organization-and-the-way-in-are-rethought | resolved | 17 |
 | [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/19-the-account-menu-holds-settings-and-the-way-out]] fix(layout): the account menu holds settings and sign out | 826-the-organization-and-the-way-in-are-rethought | resolved | 08 |
 | [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/20-the-wall-is-minimal-and-guides]] fix(layout): the sign-in wall is minimal, names the organization, and guides | 826-the-organization-and-the-way-in-are-rethought | resolved | 05, 06 |
+| [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/21-the-first-run-learns-its-group-on-its-own]] fix(organization): the first run learns its group's name on its own | 826-the-organization-and-the-way-in-are-rethought | open | 18 |
