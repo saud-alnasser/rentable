@@ -56,7 +56,8 @@ test('what the consent covers and what succession costs are said before the orga
 		'groupCoverage',
 		'oneOrganization',
 		'accountCreation',
-		'succession'
+		'succession',
+		'groupAskedOnce'
 	]);
 
 	// and said on a step that asks for nothing, so explaining never becomes asking.
@@ -101,13 +102,30 @@ const PARAGRAPHS_REPLACED = [
 	'the organization will live in whichever turso organization holds the group you pick. if that is a personal account, only you can grant rentable authority over it again. a second administrator on a turso organization can do the same, and turso can move a group to another organization from its own dashboard. rentable does neither for you.'
 ];
 
-/** the statements the connect step draws, in the order a person meets them. */
-const STATEMENT_KEYS = [
+/** the four that replaced those paragraphs, and the four the word count above is about. */
+const REPLACING_KEYS = [
 	'groupCoverage',
 	'oneOrganization',
 	'accountCreation',
 	'succession'
 ] as const;
+
+/**
+ * What the fifth statement replaced, which was never a paragraph on this step.
+ *
+ * Requirement 13's fourth correction: the one case the application cannot name the group in is
+ * an empty group not called `default`, and until this ticket the first a person heard of it was
+ * a create that had already failed, whose whole sentence arrived as a toast. The step now says
+ * beforehand that the name will be asked for, so what the sentence has to beat is that refusal
+ * rather than a paragraph. Rust's half of it is what is pinned, without Turso's own reason
+ * after the colon: the reason varies with whatever Turso last said, and a budget that counted
+ * it would grow whenever Turso got wordier.
+ */
+const REFUSAL_REPLACED =
+	"the turso group's name is needed. turso refused every group this application could name on its own, and said:";
+
+/** the statements the connect step draws, in the order a person meets them. */
+const STATEMENT_KEYS = [...REPLACING_KEYS, 'groupAskedOnce'] as const;
 
 /** what the Arabic connect step said while it still asked for a group, kept for the guard. */
 const AR_WAS = 'في لوحة تحكم Turso، أنشئ مجموعة فارغة لـ rentable ثم اخترها في شاشة الموافقة.';
@@ -116,12 +134,23 @@ const words = (sentences: readonly string[]) =>
 	sentences.reduce((count, sentence) => count + sentence.trim().split(/\s+/).length, 0);
 
 test('the connect items together are shorter than the three paragraphs they replaced', () => {
-	const items = STATEMENT_KEYS.map((key) => en.organization.setup[key]);
+	const items = REPLACING_KEYS.map((key) => en.organization.setup[key]);
 
 	assert.ok(
 		words(items) < words(PARAGRAPHS_REPLACED),
 		`${words(items)} words against ${words(PARAGRAPHS_REPLACED)}`
 	);
+
+	// and the fifth, which replaced no paragraph, is shorter than the refusal it replaced. The
+	// property is the same one: every sentence on this step is shorter than what a person read
+	// before it existed.
+	const asked = [en.organization.setup.groupAskedOnce];
+
+	assert.ok(
+		words(asked) < words([REFUSAL_REPLACED]),
+		`${words(asked)} words against ${words([REFUSAL_REPLACED])}`
+	);
+
 	// and each still says something, in both locales, written rather than copied.
 	for (const key of STATEMENT_KEYS) {
 		assert.ok(en.organization.setup[key].length > 0, key);
@@ -160,9 +189,9 @@ test('the succession item names turso as where a group moves, in both locales', 
 });
 
 /**
- * Requirement 13 of the redesign, and requirement 21 for the fourth: the sentences a person
- * reads before the consent, pinned as literals in both locales rather than read out of the
- * locale and compared with themselves. A rewrite of any of them is then a deliberate edit here
+ * Requirement 13 of the redesign, requirement 21 for the fourth, and requirement 13's fourth
+ * correction for the fifth: the sentences a person reads before the consent, pinned as literals
+ * in both locales rather than read out of the locale and compared with themselves. A rewrite of any of them is then a deliberate edit here
  * as well, which is the point: what this step says is the requirement, and the locale file is
  * only where it is kept.
  *
@@ -181,7 +210,9 @@ const STATEMENTS = {
 		accountCreation:
 			'a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.',
 		succession:
-			'on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group. rentable does neither for you.'
+			'on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group. rentable does neither for you.',
+		groupAskedOnce:
+			'a group holding nothing yet is asked its name once, on the next step; turso names it nowhere.'
 	},
 	ar: {
 		groupCoverage: 'تشمل الموافقة كل قاعدة بيانات في المجموعة التي تختارها، ولا شيء خارجها.',
@@ -190,7 +221,9 @@ const STATEMENTS = {
 		accountCreation:
 			'لا يحمل حساب Turso المجاني أو حساب Developer سوى مجموعة واحدة، لذا يبقى تخصيص حساب لـ rentable وحده هو الخيار الأنظف، وشاشة الموافقة تفتح لك حساباً إن لم يكن لديك واحد. أما في الحساب المدفوع فاختر مجموعة فارغة.',
 		succession:
-			'في الحساب الشخصي أنت وحدك من يمنح الصلاحية مجدداً؛ وفي منظمة Turso يستطيع أي مدير ذلك، وتستطيع Turso نقل المجموعة. لا يفعل rentable أياً منهما نيابة عنك.'
+			'في الحساب الشخصي أنت وحدك من يمنح الصلاحية مجدداً؛ وفي منظمة Turso يستطيع أي مدير ذلك، وتستطيع Turso نقل المجموعة. لا يفعل rentable أياً منهما نيابة عنك.',
+		groupAskedOnce:
+			'المجموعة التي لا تحمل شيئاً بعد يطلب rentable اسمها مرة واحدة في الخطوة التالية، فـ Turso لا تذكر هذا الاسم في أي مكان يصل إليه.'
 	}
 } as const;
 
@@ -282,7 +315,8 @@ test('a create refused after the consent was given back sends the walk to the co
 	assert.deepEqual(refusalAfterFailedCreate(refused, false), {
 		step: 'connect',
 		message: GROUP_ALREADY_HOLDS_ONE,
-		askGroup: false
+		askGroup: false,
+		detail: null
 	});
 
 	// and the step it lands on is the one that offers the consent, which is where the person
@@ -317,16 +351,42 @@ test('a create refused because turso will take no group asks for one on the name
 	};
 
 	// the consent is untouched, so the machine still holds the authority and the walk stays
-	// where it is: what changes is that the step now has a field on it.
+	// where it is: what changes is that the step now has a field on it, and Turso's own account
+	// of why comes back beside it as detail rather than as the sentence the field leads with.
 	assert.deepEqual(refusalAfterFailedCreate(refused, true), {
 		step: 'name',
 		message: refused.message,
-		askGroup: true
+		askGroup: true,
+		detail:
+			'turso refused every group this application could name on its own, and said: group `default` does not exist in this organization'
 	});
 
 	// and it is the phrase rather than the authority that decides, so a machine that somehow
 	// lost the authority as well is still asked for the group rather than sent to the consent.
 	assert.equal(refusalAfterFailedCreate(refused, false)?.askGroup, true);
+});
+
+/**
+ * Requirement 13's fourth correction: what the field shows under its sentence is Turso's own
+ * account, and the split that gets it is on the fixed phrase alone. **Everything after the
+ * phrase is free to change**, Rust's framing and Turso's last reason inside it, so a split
+ * that looked for the words around the reason would be reading a sentence nobody promised.
+ */
+test('the detail under the field is everything the refusal says after the fixed phrase', () => {
+	// the punctuation between the two belongs to the phrase, so the detail starts a line.
+	assert.equal(
+		refusalAfterFailedCreate({ message: `${THE_GROUP_IS_NEEDED}. 404 group not found` }, true)
+			?.detail,
+		'404 group not found'
+	);
+
+	// a refusal that is the phrase and nothing else has no detail to show, and the field draws
+	// none rather than an empty line under its sentence.
+	assert.equal(refusalAfterFailedCreate({ message: THE_GROUP_IS_NEEDED }, true)?.detail, null);
+	assert.equal(
+		refusalAfterFailedCreate({ message: `${THE_GROUP_IS_NEEDED}.  ` }, true)?.detail,
+		null
+	);
 });
 
 test('an ordinary failed create leaves the walk where it is', () => {
@@ -392,6 +452,10 @@ test('where the walk goes for a machine that is already somebody', () => {
  *
  * A match is kept inside one sentence, which is what stops a statement that names a group in one
  * sentence and an account in the next from reading as an instruction about a group.
+ *
+ * **`groupAskedOnce` is a statement and is held to the statements' reading**, which is what lets
+ * it say that a group holding nothing yet is asked its name: it describes the field the next
+ * step may draw, and it tells nobody to make a group or to go and find one.
  */
 
 /** every sentence the last-resort field shows, including the one that says why it is there. */

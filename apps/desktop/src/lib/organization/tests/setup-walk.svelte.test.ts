@@ -163,12 +163,19 @@ test('the ordinary create carries no group at all', async () => {
 	});
 });
 
+/** what Rust hands back after the phrase, which is Turso's own account of the refusal. */
+const TURSO_SAID =
+	'turso refused every group this application could name on its own, and said: 404 group `default` not found';
+
 /**
  * Requirement 13's second correction: Turso would take none of the names the application could
  * work out, so the route hands `askGroup` and the step grows the one field left to ask for, with
- * the sentence above it saying why it is suddenly there. The name typed into it is what the next
- * create carries, trimmed, because a name pasted out of Turso's own screen brings whatever came
- * with it.
+ * the sentence above it saying what to type. The name typed into it is what the next create
+ * carries, trimmed, because a name pasted out of Turso's own screen brings whatever came with it.
+ *
+ * And requirement 13's fourth correction: Turso's own account is under that sentence, muted, as
+ * detail. It used to be the whole of what a person was shown, as the headline of a toast, which
+ * made a step the connect screen had already foretold read as a failure.
  */
 test('a walk asked for the group draws the field with the sentence above it, and sends what was typed', async () => {
 	loadLocale('en');
@@ -176,7 +183,7 @@ test('a walk asked for the group draws the field with the sentence above it, and
 
 	const onCreate = vi.fn(async () => {});
 
-	walk('name', { askGroup: true, onCreate });
+	walk('name', { askGroup: true, groupDetail: TURSO_SAID, onCreate });
 
 	expect(screen.getByText(en.organization.setup.groupNeeded)).toBeDefined();
 	expect(screen.getByText(en.organization.setup.groupLabel)).toBeDefined();
@@ -188,14 +195,22 @@ test('a walk asked for the group draws the field with the sentence above it, and
 		'group'
 	]);
 
-	// the sentence is above the field rather than under it: it says why the field appeared, and
-	// a reader meets it before the thing it explains.
+	// the sentence is above the field rather than under it: it says what to type, and a reader
+	// meets it before the thing it is about.
 	const block = document.querySelector('[data-setup-group]')!;
 	const sentence = screen.getByText(en.organization.setup.groupNeeded);
 	const field = document.querySelector('input[name="group"]')!;
 
 	expect(block.contains(field)).toBe(true);
 	expect(sentence.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+	// and Turso's own account sits between the two, quieter than the sentence it explains.
+	const detail = document.querySelector('[data-setup-group-detail]')!;
+
+	expect(detail.textContent?.trim()).toBe(TURSO_SAID);
+	expect(detail.getAttribute('class')).toContain('text-muted-foreground');
+	expect(sentence.compareDocumentPosition(detail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	expect(detail.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
 	await fillAndCreate('  rentable-empty  ');
 
@@ -207,6 +222,56 @@ test('a walk asked for the group draws the field with the sentence above it, and
 			'rentable-empty'
 		);
 	});
+});
+
+// a walk that was asked for the group and given no account of why draws no empty line where the
+// detail would be: the sentence and the field are the whole of the step.
+test('a walk asked for the group with nothing to quote draws no detail line', () => {
+	loadLocale('en');
+	setLocale('en');
+	walk('name', { askGroup: true });
+
+	expect(screen.getByText(en.organization.setup.groupNeeded)).toBeDefined();
+	expect(document.querySelector('[data-setup-group-detail]')).toBeNull();
+});
+
+/**
+ * Criterion 3 of this ticket: **the group is asked for without costing the person anything they
+ * already typed.** The route keeps its own name, username and password state across the refused
+ * create and hands `askGroup` on the props, so what this asserts is the walk under exactly that
+ * hand: the three values are in the fields before, and they are still in them after, with the
+ * fourth field added beside them.
+ */
+test('the fields the person already filled survive the group being asked for', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onCreate = vi.fn(async () => {});
+	const { rerender } = walk('name', { onCreate });
+
+	await fillAndCreate();
+
+	await waitFor(() => {
+		expect(onCreate).toHaveBeenCalledWith(
+			'Acme Rentals',
+			'olivia.owner',
+			'a long enough password',
+			null
+		);
+	});
+
+	// the route caught the refusal and handed the one prop that changed; nothing else about the
+	// step was rebuilt.
+	await rerender({ askGroup: true, groupDetail: TURSO_SAID });
+
+	expect(inputsOnScreen().map((input) => [input.getAttribute('name'), input.value])).toEqual([
+		['name', 'Acme Rentals'],
+		['username', 'olivia.owner'],
+		['password', 'a long enough password'],
+		['group', '']
+	]);
+	expect(screen.getByText(en.organization.setup.groupNeeded)).toBeDefined();
+	expect(document.querySelector('[data-setup-group-detail]')?.textContent?.trim()).toBe(TURSO_SAID);
 });
 
 // the create it was asked for cannot be made without it, so the step refuses on the field before
@@ -306,13 +371,16 @@ test('the connect step asks for nothing and says what has to be known first', ()
 	expect(screen.getByText(en.organization.setup.oneOrganization)).toBeDefined();
 	expect(screen.getByText(en.organization.setup.accountCreation)).toBeDefined();
 	expect(screen.getByText(en.organization.setup.succession)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.groupAskedOnce)).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.connect })).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.openDashboard })).toBeDefined();
 });
 
 // effort 824, requirement 5: the facts as a list, a glyph to each, the dashboard action inside
 // the first, and no paragraph left outside the list (*Supercharge the defaults*, p.220). The
-// fourth fact is effort 826's requirement 21: one group holds one organization.
+// fourth fact is effort 826's requirement 21: one group holds one organization. The fifth is
+// requirement 13's fourth correction: a group holding nothing yet is asked its name once, said
+// here so that the field on the next step is a step rather than the first news of a failure.
 test('the connect step is a list of glyphed facts with the dashboard action in the first', () => {
 	loadLocale('en');
 	setLocale('en');
@@ -321,12 +389,13 @@ test('the connect step is a list of glyphed facts with the dashboard action in t
 	const body = document.querySelector('[data-setup-step="connect"]')!;
 	const items = Array.from(body.querySelectorAll('ul > li'));
 
-	expect(items).toHaveLength(4);
+	expect(items).toHaveLength(5);
 	expect(items.map((item) => item.getAttribute('data-setup-statement'))).toEqual([
 		'groupCoverage',
 		'oneOrganization',
 		'accountCreation',
-		'succession'
+		'succession',
+		'groupAskedOnce'
 	]);
 
 	for (const item of items) {

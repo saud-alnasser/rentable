@@ -1,3 +1,4 @@
+import { isTheGroupNeeded } from './setup';
 import api, { forgetContext } from '$lib/api/caller';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
 import { LL } from '$lib/i18n/i18n-svelte';
@@ -220,7 +221,12 @@ export function useDisconnectOrganization(
  */
 export function useCreateOrganization(
 	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+		toast: {
+			// the one refusal the walk says in place, beside the field it adds, is kept out of
+			// the toast; every other refusal is raised in its own words as before.
+			error: (error) => (isTheGroupNeeded(error) ? null : true),
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
 	}
 ) {
 	return createMutation(() => ({

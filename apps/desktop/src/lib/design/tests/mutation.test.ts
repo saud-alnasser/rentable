@@ -188,6 +188,27 @@ describe('a declared mutation', () => {
 		assert.deepEqual(raised, [{ level: 'error', message: 'something went wrong' }]);
 	});
 
+	// a declaration that says one refusal in place keeps it out of the toast without the surface
+	// raising the rest itself: the decider reads the error and answers null for that one.
+	it('a decider keeps the refusal it names quiet and raises every other one', () => {
+		const { mutation } = bind({
+			mutate: async () => undefined,
+			touches: ['contracts'],
+			toast: {
+				error: (error) => (error.message === 'said in place' ? null : true),
+				unexpected: () => 'something went wrong'
+			}
+		});
+
+		mutation.onError(new Error('said in place'));
+
+		assert.deepEqual(raised, [], 'the refusal said in place was raised as a toast');
+
+		mutation.onError(new Error('another refusal'));
+
+		assert.deepEqual(raised, [{ level: 'error', message: 'another refusal' }]);
+	});
+
 	// an action over a set has nothing worth saying without this: how many of the twelve went
 	// through is the one thing the reader cannot see for themselves, and before this the
 	// declaration could not carry it and the surface that called the mutation toasted it instead.

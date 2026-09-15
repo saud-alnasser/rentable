@@ -42,7 +42,9 @@ export const SETUP_STEPS: readonly SetupStep[] = ['connect', 'name', 'workspace'
  * own default, then with the group uuid the consent token carries, and a group that already
  * holds anything named itself in the listing. The field exists for the one case where all of
  * that was refused, and it is drawn outside this description because it is not a step's field.
- * It is the last resort, and [`refusalAfterFailedCreate`] is what puts it on screen.
+ * It is the last resort, and [`refusalAfterFailedCreate`] is what puts it on screen. The connect
+ * step says beforehand that it is coming, under `groupAskedOnce`, so the person who meets it is
+ * meeting a step they were told about rather than a create that went wrong.
  */
 export type SetupField = 'name' | 'username' | 'password' | 'workspace';
 
@@ -62,13 +64,19 @@ export type SetupField = 'name' | 'username' | 'password' | 'workspace';
  * anything is created, in every case, because a group-scoped credential cannot tell a personal
  * account from a team one (requirement 22 of effort 819).
  *
+ * `groupAskedOnce` is the one this ticket added, and it is here rather than left to the moment
+ * it happens: a group holding nothing yet is the one case the application cannot name on its
+ * own, so the next step asks for the name, once. Said beforehand it is a step; met for the first
+ * time after a create was refused it reads as a failure, and it is neither.
+ *
  * **Nothing here asks for a group to be made.** The walk used to, and the plan limit is why it
  * no longer does.
  *
  * The screen draws them as one list, a glyph to each, in this order, with the dashboard action
  * on the first; the sentences themselves are the locale's, under these names.
  */
-export type SetupStatement = 'groupCoverage' | 'oneOrganization' | 'accountCreation' | 'succession';
+export type SetupStatement =
+	'groupCoverage' | 'oneOrganization' | 'accountCreation' | 'succession' | 'groupAskedOnce';
 
 export type SetupStepDescription = {
 	step: SetupStep;
@@ -80,7 +88,13 @@ export const SETUP_WALK: readonly SetupStepDescription[] = [
 	{
 		step: 'connect',
 		fields: [],
-		statements: ['groupCoverage', 'oneOrganization', 'accountCreation', 'succession']
+		statements: [
+			'groupCoverage',
+			'oneOrganization',
+			'accountCreation',
+			'succession',
+			'groupAskedOnce'
+		]
 	},
 	{
 		step: 'name',
@@ -120,6 +134,16 @@ export type SetupRefusal = {
 	 * the one Turso gives when it will take no group this application can work out.
 	 */
 	askGroup: boolean;
+	/**
+	 * Turso's own account of why, split off the fixed phrase, and `null` on every refusal that
+	 * carries none.
+	 *
+	 * **It is detail, and the walk draws it as detail.** The step the person is on already says
+	 * what is being asked and why, in their language; this is the machine's account behind it,
+	 * in Turso's words and never in theirs, and a screen that leads with it is one that reports
+	 * a failure where there is a step.
+	 */
+	detail: string | null;
 };
 
 /**
@@ -131,6 +155,25 @@ export type SetupRefusal = {
  * `setup.rs`, so the two cannot drift apart without a test saying so.
  */
 export const THE_GROUP_IS_NEEDED = "the turso group's name is needed";
+
+/** whether a create's refusal is the one the walk answers with the group field. */
+export function isTheGroupNeeded(error: unknown): boolean {
+	return toErrorDetail(error)?.startsWith(THE_GROUP_IS_NEEDED) ?? false;
+}
+
+/**
+ * What the refusal says after the phrase, which is everything about it that is not a contract.
+ *
+ * **The split is on the phrase and on nothing else.** What follows it is Rust's framing and
+ * Turso's last reason inside it, and both are free to change; a split that looked for the words
+ * around the reason would be reading a sentence nobody promised. Leading punctuation and space
+ * go with the phrase, so what comes back starts a line of its own.
+ */
+function detailAfterThePhrase(message: string): string | null {
+	const rest = message.slice(THE_GROUP_IS_NEEDED.length).replace(/^[.,;:\s]+/, '');
+
+	return rest.length > 0 ? rest : null;
+}
 
 /**
  * Where a failed create leaves the walk.
@@ -162,12 +205,12 @@ export function refusalAfterFailedCreate(
 	// asking the machine where it stands would answer *nothing happened* and lose the one
 	// refusal that needs a field drawn for it.
 	if (message?.startsWith(THE_GROUP_IS_NEEDED)) {
-		return { step: 'name', message, askGroup: true };
+		return { step: 'name', message, askGroup: true, detail: detailAfterThePhrase(message) };
 	}
 
 	if (holdsTursoAuthority) return null;
 
-	return { step: 'connect', message, askGroup: false };
+	return { step: 'connect', message, askGroup: false, detail: null };
 }
 
 /**

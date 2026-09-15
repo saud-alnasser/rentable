@@ -154,6 +154,30 @@ test('both locales say a group holds one organization, and what that means for o
 	assert.notEqual(ar.organization.setup.oneOrganization, en.organization.setup.oneOrganization);
 });
 
+// effort 826, requirement 13's fourth correction: the one group the application cannot name on
+// its own is one holding nothing yet, and the connect step says so before the consent rather
+// than leaving the field on the next step to be the first news of it. Each locale says that the
+// name is asked once, and where.
+test('both locales say a group holding nothing yet is asked its name once, on the next step', () => {
+	assert.match(en.organization.setup.groupAskedOnce, /holding nothing yet/);
+	assert.match(en.organization.setup.groupAskedOnce, /once/);
+	assert.match(en.organization.setup.groupAskedOnce, /next step/);
+	assert.match(ar.organization.setup.groupAskedOnce, /مرة واحدة/);
+	assert.match(ar.organization.setup.groupAskedOnce, /الخطوة التالية/);
+	assert.notEqual(ar.organization.setup.groupAskedOnce, en.organization.setup.groupAskedOnce);
+});
+
+// the same correction, on the field itself: the sentence over it is what to type rather than
+// what went wrong, and the description under it is where the name reads.
+test('both locales ask for the group as a step, and say where its name is read', () => {
+	assert.match(en.organization.setup.groupNeeded, /type its name here once/);
+	assert.match(en.organization.setup.groupDescription, /consent screen/);
+	assert.match(ar.organization.setup.groupNeeded, /مرة واحدة/);
+	assert.match(ar.organization.setup.groupDescription, /شاشة موافقة Turso/);
+	assert.notEqual(ar.organization.setup.groupNeeded, en.organization.setup.groupNeeded);
+	assert.notEqual(ar.organization.setup.groupDescription, en.organization.setup.groupDescription);
+});
+
 // effort 826, requirement 18: the pages this effort retired read strings of their own, and the
 // strings went with the pages. Each is named here so that a key coming back under its old name
 // is caught by the test rather than by a reader meeting a sentence about a screen that is gone.

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: ['21']
 ---
 
@@ -20,22 +20,22 @@ still passes through with no field.
 Traces requirement 13 of [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] as
 corrected on 2026-09-15 and criterion 13, and the human's fourth run.
 
-- [ ] The connect step's coverage statements gain a fifth literal in both locales, written
+- [x] The connect step's coverage statements gain a fifth literal in both locales, written
       not copied, saying that a group holding no database yet is asked its name once, on the
       next step, because Turso names it nowhere the application may read; `setup.test.ts`'s
       pinned literals and `i18n/tests/organization.test.ts` follow, and the vocabulary guard
       admits it as a statement about the field and not an instruction to make a group.
-- [ ] On the name step, when `askGroup` is on, the sentence above the field
+- [x] On the name step, when `askGroup` is on, the sentence above the field
       (`groupNeeded`) is rewritten in both locales as a one-time step ("turso could not tell
       rentable which group you picked, so type its name once as it reads on the consent
       screen" or better), the field's description says where the name is found, and Turso's
       last reason is shown beneath the sentence as muted detail (`data-setup-group-detail`)
       rather than as the toast's headline; `setup-walk.svelte.test.ts` asserts the sentence,
       the detail and the field.
-- [ ] The route keeps the person's name, username and password when the group is asked
+- [x] The route keeps the person's name, username and password when the group is asked
       for, so nothing is retyped; asserted in `setup-walk.svelte.test.ts` through the props
       the route hands.
-- [ ] `pnpm check`, `pnpm lint` and `pnpm test` pass; a changeset (`@rentable/desktop`,
+- [x] `pnpm check`, `pnpm lint` and `pnpm test` pass; a changeset (`@rentable/desktop`,
       patch) rides with the change.
 
 ## Relevant areas
@@ -55,4 +55,14 @@ corrected on 2026-09-15 and criterion 13, and the human's fourth run.
 
 ## Notes
 
-Nothing yet.
+Built by an implementer and landed on 2026-09-15. Departures: the implementer had the route
+raise the create's error toast itself, since `MutationOptions.toast.error` could not decide
+per error; the orchestrator folded the proper shape in before landing: `toast.error` may be a
+decider over the error answering `true`, a sentence or `null` for a refusal said in place,
+`useCreateOrganization` declares one that keeps the group refusal quiet, and the route raises
+nothing, asserted in `design/tests/mutation.test.ts`; the connect step's word budget was split
+rather than widened, the fifth sentence held against the Rust refusal it replaced;
+`groupDetail` clears when a new consent begins.
+
+Raised, not taken: `askGroup` never resets (harmless, Rust refuses a group that is not the
+consented one); `groupRequired` left alone; the detail line is the tree's first `dir="auto"`.

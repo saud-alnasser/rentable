@@ -748,6 +748,8 @@ const en = {
 				'a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.',
 			succession:
 				'on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group. rentable does neither for you.',
+			groupAskedOnce:
+				'a group holding nothing yet is asked its name once, on the next step; turso names it nowhere.',
 			openDashboard: 'open turso dashboard',
 			connect: 'connect turso account',
 			connecting: 'finish the consent in the browser window that just opened.',
@@ -766,10 +768,10 @@ const en = {
 				'use at least 12 characters. this password is all that stands between the records and anyone who holds a copy.',
 			passwordTooShort: 'use at least 12 characters.',
 			groupNeeded:
-				'turso turned down every group name rentable could work out on its own, so it needs the one you saw on the consent screen.',
+				'turso could not tell rentable which group you picked, so type its name here once.',
 			groupLabel: 'turso group',
 			groupDescription:
-				"the group you chose on turso's consent screen. the organization's database goes in it.",
+				"the name as it reads on turso's consent screen. the organization's database goes in it.",
 			groupRequired: "name the group you chose on turso's consent screen.",
 			create: 'create organization',
 			creating: 'creating the organization on your turso account...',

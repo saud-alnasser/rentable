@@ -41,8 +41,16 @@
 	 * sentence, and the next consent can be granted over another group or another account.
 	 *
 	 * **A create Turso refuses over the group asks for the group.** That one leaves the consent
-	 * where it is, so the walk stays on the name step and draws the field, and the create that
-	 * follows carries what was typed. `organization/setup.ts` tells the two refusals apart.
+	 * where it is, so the walk stays on the name step and draws the field with what was already
+	 * typed still in it, and the create that follows carries all four values.
+	 * `organization/setup.ts` tells the two refusals apart and splits Turso's own account of the
+	 * refusal off the fixed phrase, which the field shows under its sentence as detail.
+	 *
+	 * **That is also why this route says what a failed create failed at, rather than the shared
+	 * handler.** The handler shows a thrown message as a toast, which is the loudest thing on the
+	 * screen, and the group refusal is the one failure the walk answers with a step: the connect
+	 * step foretold it and the field says what to type, so Turso's words belong under that field
+	 * and nowhere else. Every other failure is said here exactly as the handler said it.
 	 *
 	 * **The walk ends inside the workspace.** Creating it on the third step is the workspace
 	 * mutation, then the way in, and then the startup unit reading where the machine stands
@@ -58,6 +66,7 @@
 	let sessionId = $state<string | null>(null);
 	let refusal = $state<string | null>(null);
 	let askGroup = $state(false);
+	let groupDetail = $state<string | null>(null);
 	let isHandingOver = $state(false);
 
 	const stateQuery = useFetchOrganizationState();
@@ -82,6 +91,8 @@
 	const beginConsent = useBeginConsent();
 	const consentResult = useConsentResult(() => sessionId);
 	const disconnect = useDisconnect();
+	// the shared handler says nothing about a failed create, because one of the failures it would
+	// say is the one this walk answers on the surface; `create` below says the rest.
 	const createOrganization = useCreateOrganization();
 	const createWorkspace = useCreateWorkspace();
 
@@ -99,8 +110,10 @@
 		try {
 			const started = await beginConsent.mutateAsync();
 
-			// whatever refused the last one is answered by starting another, which is what this is.
+			// whatever refused the last one is answered by starting another, which is what this is,
+			// and that includes what Turso said about a group this consent may not even be over.
 			refusal = null;
+			groupDetail = null;
 			sessionId = started.sessionId;
 			await tauri.opener.openUrl(started.authorizationUrl);
 		} catch {
@@ -122,23 +135,25 @@
 			await createOrganization.mutateAsync({ name, username, password, group });
 			step = 'workspace';
 		} catch (error) {
-			// the refusal a person can act on has been shown verbatim; the form keeps what they
-			// typed, because most of the failures that reach here are the ones a person retries.
-			// Two are not, and `refusalAfterFailedCreate` tells them apart: a group already
-			// holding an organization gave the authority back, so where the machine stands is
-			// read again and decides, and a Turso that would take no group asks for one here.
+			// the form keeps what they typed, because most of the failures that reach here are
+			// the ones a person retries. Two are not, and `refusalAfterFailedCreate` tells them
+			// apart: a group already holding an organization gave the authority back, so where
+			// the machine stands is read again and decides, and a Turso that would take no group
+			// asks for one here.
 			const state = await stateQuery.refetch();
 			const back = refusalAfterFailedCreate(error, state.data?.holdsTursoAuthority ?? false);
 
-			if (!back) return;
-
-			if (back.askGroup) {
+			if (back?.askGroup) {
 				// the consent is untouched and so is what they typed: one more field appears on
-				// the step they are already on.
+				// the step they are already on, carrying Turso's account of why underneath it.
+				// Said there and not in a toast, which the declaration keeps quiet for it.
 				askGroup = true;
+				groupDetail = back.detail;
 
 				return;
 			}
+
+			if (!back) return;
 
 			// the consent this walk polled is gone with the authority, so nothing is left to
 			// report its old status from.
@@ -203,6 +218,7 @@
 	{consent}
 	{refusal}
 	{askGroup}
+	{groupDetail}
 	holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority ?? false}
 	isConnecting={beginConsent.isPending}
 	isCreating={createOrganization.isPending || createWorkspace.isPending || isHandingOver}

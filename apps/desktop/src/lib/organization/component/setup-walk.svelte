@@ -13,6 +13,7 @@
 	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import LayersIcon from '@lucide/svelte/icons/layers';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import PlugIcon from '@lucide/svelte/icons/plug';
 	import UnplugIcon from '@lucide/svelte/icons/unplug';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -51,9 +52,15 @@
 	 * **A fifth field exists and is drawn almost never.** Turso will sometimes take no group this
 	 * application can work out, and then the only name left is the one the person picked on the
 	 * consent screen. The route reads that refusal and hands `askGroup`, and the name step grows
-	 * a group field with a sentence above it saying why it is suddenly there. It is deliberately
-	 * not in `SETUP_WALK`: a field the walk presents is one everybody types into, and this is one
-	 * almost nobody ever sees.
+	 * a group field with a sentence above it. It is deliberately not in `SETUP_WALK`: a field the
+	 * walk presents is one everybody types into, and this is one almost nobody ever sees.
+	 *
+	 * **The sentence is a step rather than a refusal, and the connect step said so first.** The
+	 * fifth fact there (`groupAskedOnce`) says that a group holding nothing yet is asked its name
+	 * once, so the field is expected by the time it appears; the sentence over it says what to
+	 * type and the field's own description says where the name reads. Turso's account of why sits
+	 * under both, muted, as `groupDetail`: it is the machine's words behind a step rather than
+	 * the headline of a failure, which is the whole of what this ticket moved.
 	 *
 	 * **Every step says where it is, and the two before the organization exists can be left from
 	 * the card's corner.** The position is a quiet line under the title, no bar and no dots; the
@@ -90,6 +97,7 @@
 		consent,
 		refusal,
 		askGroup = false,
+		groupDetail = null,
 		holdsTursoAuthority,
 		isConnecting,
 		isCreating,
@@ -117,9 +125,16 @@
 		/**
 		 * whether the name step has to ask for the Turso group. Turso refused every name this
 		 * application could work out, so the person who picked the group is the last thing left
-		 * to ask; the sentence above the field says so. `false` on every ordinary run.
+		 * to ask; the sentence above the field says what to type. `false` on every ordinary run.
 		 */
 		askGroup?: boolean;
+		/**
+		 * Turso's own account of why the name is being asked for, shown under that sentence and
+		 * muted. It is in Turso's English whatever the locale is, which is why it is detail: a
+		 * person acts on the sentence above it, and this is what they would quote to somebody
+		 * else. `null` on every run nothing was refused on.
+		 */
+		groupDetail?: string | null;
 		/** whether the machine already holds the authority a consent would grant. */
 		holdsTursoAuthority: boolean;
 		/** the consent is being opened. */
@@ -173,8 +188,8 @@
 
 	/**
 	 * Each fact with its own glyph, in the order the person needs them: how far the consent
-	 * reaches, what one group may hold, which account to grant it on, and where the organization
-	 * will live afterwards. The
+	 * reaches, what one group may hold, which account to grant it on, where the organization
+	 * will live afterwards, and the one thing the next step may ask them to type. The
 	 * glyph is specific to the fact rather than a checkmark, which is the book's own
 	 * recommendation on p.220.
 	 */
@@ -183,7 +198,8 @@
 			groupCoverage: $LL.organization.setup.groupCoverage(),
 			oneOrganization: $LL.organization.setup.oneOrganization(),
 			accountCreation: $LL.organization.setup.accountCreation(),
-			succession: $LL.organization.setup.succession()
+			succession: $LL.organization.setup.succession(),
+			groupAskedOnce: $LL.organization.setup.groupAskedOnce()
 		})[statement];
 
 	const statementGlyph: Record<SetupStatement, typeof BuildingIcon> = {
@@ -192,7 +208,10 @@
 		// one succession carries.
 		oneOrganization: BanIcon,
 		accountCreation: UserPlusIcon,
-		succession: BuildingIcon
+		succession: BuildingIcon,
+		// the fact is about typing one word, so the glyph is the one the reader already reads as
+		// writing, rather than the field's own layers repeated up here.
+		groupAskedOnce: PencilIcon
 	};
 
 	/**
@@ -495,10 +514,25 @@
 					<!-- the last resort, and the only Turso word the walk ever asks for. Turso would
 					     take none of the names this application can work out, so the person who
 					     picked the group on Turso's own consent screen is asked which it was. The
-					     sentence above the field is why it appeared; the one under it says where
-					     they saw the name. Neither tells anybody to do anything about a group. -->
+					     connect step said this step was coming, so the sentence above the field
+					     says what to type rather than what went wrong, and its tone is `info`
+					     rather than a warning for the same reason. The one under the field says
+					     where the name reads. Neither tells anybody to do anything about a group. -->
 					<div class="space-y-4" data-setup-group>
-						<Callout tone="warning">{$LL.organization.setup.groupNeeded()}</Callout>
+						<div class="space-y-2">
+							<Callout tone="info">{$LL.organization.setup.groupNeeded()}</Callout>
+
+							{#if groupDetail}
+								<!-- Turso's own words, beneath the sentence and quieter than it
+								     (*Balance weight and contrast*, Refactoring UI p.56): the
+								     sentence is what a person acts on, and this is what they
+								     would quote to somebody else. `dir="auto"` because it is
+								     English prose in whichever locale the rest of the card is. -->
+								<p class="text-xs text-muted-foreground" dir="auto" data-setup-group-detail>
+									{groupDetail}
+								</p>
+							{/if}
+						</div>
 
 						<Form.Field form={superform} name="group" class="group relative">
 							<Form.Control>

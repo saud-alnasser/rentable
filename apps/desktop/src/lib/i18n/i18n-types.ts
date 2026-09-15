@@ -2286,6 +2286,10 @@ type RootTranslation = {
 			 */
 			succession: string
 			/**
+			 * a​ ​g​r​o​u​p​ ​h​o​l​d​i​n​g​ ​n​o​t​h​i​n​g​ ​y​e​t​ ​i​s​ ​a​s​k​e​d​ ​i​t​s​ ​n​a​m​e​ ​o​n​c​e​,​ ​o​n​ ​t​h​e​ ​n​e​x​t​ ​s​t​e​p​;​ ​t​u​r​s​o​ ​n​a​m​e​s​ ​i​t​ ​n​o​w​h​e​r​e​.
+			 */
+			groupAskedOnce: string
+			/**
 			 * o​p​e​n​ ​t​u​r​s​o​ ​d​a​s​h​b​o​a​r​d
 			 */
 			openDashboard: string
@@ -2346,7 +2350,7 @@ type RootTranslation = {
 			 */
 			passwordTooShort: string
 			/**
-			 * t​u​r​s​o​ ​t​u​r​n​e​d​ ​d​o​w​n​ ​e​v​e​r​y​ ​g​r​o​u​p​ ​n​a​m​e​ ​r​e​n​t​a​b​l​e​ ​c​o​u​l​d​ ​w​o​r​k​ ​o​u​t​ ​o​n​ ​i​t​s​ ​o​w​n​,​ ​s​o​ ​i​t​ ​n​e​e​d​s​ ​t​h​e​ ​o​n​e​ ​y​o​u​ ​s​a​w​ ​o​n​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.
+			 * t​u​r​s​o​ ​c​o​u​l​d​ ​n​o​t​ ​t​e​l​l​ ​r​e​n​t​a​b​l​e​ ​w​h​i​c​h​ ​g​r​o​u​p​ ​y​o​u​ ​p​i​c​k​e​d​,​ ​s​o​ ​t​y​p​e​ ​i​t​s​ ​n​a​m​e​ ​h​e​r​e​ ​o​n​c​e​.
 			 */
 			groupNeeded: string
 			/**
@@ -2354,7 +2358,7 @@ type RootTranslation = {
 			 */
 			groupLabel: string
 			/**
-			 * t​h​e​ ​g​r​o​u​p​ ​y​o​u​ ​c​h​o​s​e​ ​o​n​ ​t​u​r​s​o​'​s​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​d​a​t​a​b​a​s​e​ ​g​o​e​s​ ​i​n​ ​i​t​.
+			 * t​h​e​ ​n​a​m​e​ ​a​s​ ​i​t​ ​r​e​a​d​s​ ​o​n​ ​t​u​r​s​o​'​s​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​d​a​t​a​b​a​s​e​ ​g​o​e​s​ ​i​n​ ​i​t​.
 			 */
 			groupDescription: string
 			/**
@@ -5050,6 +5054,10 @@ export type TranslationFunctions = {
 			 */
 			succession: () => LocalizedString
 			/**
+			 * a group holding nothing yet is asked its name once, on the next step; turso names it nowhere.
+			 */
+			groupAskedOnce: () => LocalizedString
+			/**
 			 * open turso dashboard
 			 */
 			openDashboard: () => LocalizedString
@@ -5110,7 +5118,7 @@ export type TranslationFunctions = {
 			 */
 			passwordTooShort: () => LocalizedString
 			/**
-			 * turso turned down every group name rentable could work out on its own, so it needs the one you saw on the consent screen.
+			 * turso could not tell rentable which group you picked, so type its name here once.
 			 */
 			groupNeeded: () => LocalizedString
 			/**
@@ -5118,7 +5126,7 @@ export type TranslationFunctions = {
 			 */
 			groupLabel: () => LocalizedString
 			/**
-			 * the group you chose on turso's consent screen. the organization's database goes in it.
+			 * the name as it reads on turso's consent screen. the organization's database goes in it.
 			 */
 			groupDescription: () => LocalizedString
 			/**
