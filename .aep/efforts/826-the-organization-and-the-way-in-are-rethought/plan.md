@@ -224,7 +224,13 @@ the group's name, so the walk's name step asks for it, beside the organization's
 username and the password: `CreateOrganization.group`, passed to `create_first_database` as
 the tool's `group`, and checked against the listing's group where the listing names one.
 The connect step's four statements do not change. Ticket 17 carries it, after tickets 07 and
-13.
+13. *Corrected the same day, on the human's second run (ticket 18): the field is the last
+resort. `create_organization` on an empty listing tries the create with no group, then with
+`default`, then with the `group_uuid` claim decoded from the token, and asks for the name
+only where all three are refused over the group; `CreateOrganization.group` is optional and
+the walk shows the field on that refusal alone. Ticket 18 also hands the walk over to the
+loading surface the moment the first workspace exists, and sends a machine that already holds
+a workspace home rather than drawing the steps again.*
 
 *Rejected: guessing `default`, which a real account refused the same day; reading the group's
 uuid out of the token, which the tool does not take; and asking the person to seed the group

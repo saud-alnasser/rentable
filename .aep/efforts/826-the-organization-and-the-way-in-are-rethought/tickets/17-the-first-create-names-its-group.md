@@ -84,3 +84,5 @@ Raised, not taken: `join.rs`'s live test now fails at the create rather than lat
 `TURSO_GROUP` is merely plausible; an invalid superforms SPA submit sets no `$errors` under
 vitest, so the empty-group refusal is asserted on blur; `refusalAfterFailedCreate` carries two
 consent-keeping refusals with no way to put the cursor back in the field at fault.
+
+Superseded on the field the same day by ticket 18: the group is asked for only where Turso refuses every way of naming it; the rest of this ticket stands.

@@ -174,7 +174,12 @@ rail's two menus open. Every concept has one name.
     began refusing a request that names no group, and on an empty group the application
     cannot learn the name (the listing is empty, the token carries the group's uuid and not
     its name, and the MCP tool set has no group tool); the person who picked it a moment
-    earlier can say it. The connect step still carries no instruction to create a group.*
+    earlier can say it. The connect step still carries no instruction to create a group.
+    Corrected again the same day, on the human's second run: the field is the last resort,
+    not a step. The application first tries the create without a group, then with Turso's
+    default group, then with the group uuid the consent token carries, and asks for the
+    name only where all three are refused over the group; a group that already holds
+    anything never asks, since the listing names it.*
 
 *The settings area* (*round three, 2026-09-13*)
 
@@ -202,7 +207,9 @@ rail's two menus open. Every concept has one name.
 17. **The rail's two menus open the sections.** The workspace menu keeps the switcher and
     offers workspaces and invite; the account menu offers you, settings and sign out. The
     two dialogs (invite, new workspace) open from the rail and from the settings area alike,
-    as 824's requirement 12 built.
+    as 824's requirement 12 built. *Corrected 2026-09-15, on the human's first run: the
+    account menu offers settings and sign out only (settings and sign in when nobody is
+    signed in); the you section is reached from the rail, the palette and the address.*
 
 *Vocabulary*
 
@@ -310,10 +317,12 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
     `locked`; nothing under the data directory or the machine record holds a password or a
     private key in the clear, asserted by a Rust test that reads what was written. Verified
     once by hand across a relaunch.
-13. `setup.test.ts` holds `fieldsPresented` to name, username, password, group, workspace
-    (group added 2026-09-15 with requirement 13's correction), and the vocabulary guard finds
-    no group instruction while admitting the group field; the connect step's three statements
-    are pinned as literals in both locales and name the one-group fact.
+13. `setup.test.ts` holds `fieldsPresented` to name, username, password, workspace, and the
+    vocabulary guard finds no group instruction; the group field the name step shows only
+    where Turso refused every way of naming the group (2026-09-15, requirement 13's second
+    correction) is asserted in the walk's test as absent by default and present when asked;
+    the connect step's three statements are pinned as literals in both locales and name the
+    one-group fact.
 14. `routes/organization`, `routes/workspace` and `routes/account` do not exist;
     `routes/settings` renders the seven sections in order for the owner, and for a plain
     member renders `general`, `you`, `workspaces` limited to what they hold, `sync` without
@@ -327,7 +336,8 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
     owner holding authority, and finds export and import present.
 17. The workspace menu's test finds the switcher rows, a workspaces row opening
     `/settings` at the workspaces section and an invite row opening the dialog; the account
-    menu's test finds you, settings and sign out.
+    menu's test finds settings and sign out and no row for the you section (corrected
+    2026-09-15).
 18. `src/lib/i18n/tests/organization.test.ts` asserts the retired strings are absent from
     both locales and that each term of requirement 18 has one key; a read of both locales
     for every string the effort added is recorded in the run log.
