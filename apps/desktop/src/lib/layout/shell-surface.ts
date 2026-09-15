@@ -93,6 +93,27 @@ export function wayInFrom(pathname: string): typeof THE_WAY_IN | null {
 }
 
 /**
+ * Where a sign-out has to land, or `null` where the card will draw over the address already.
+ *
+ * **Signing out puts the wall up, and an address that opens signed out never gets one** (effort
+ * 826, requirement 11 as corrected on 2026-09-15). Every other address is covered by the card the
+ * moment the standing changes, so nothing needs to move and the reader keeps their place; the
+ * three addresses `OPENS_SIGNED_OUT` holds go on drawing, and a person who signs out from
+ * `/settings` is left reading the settings of a machine nobody is signed in on. The human met
+ * exactly that on their first run of the build. So the sign-out leaves those three, and the one
+ * place to leave for is the same address the rail's way in uses.
+ *
+ * **Its own function rather than a second caller of `wayInFrom`, and the two bodies agreeing is
+ * not the same as the two questions agreeing.** That one answers *where does the rail's row send
+ * somebody who wants the card*, this one answers *where does a sign-out land*. An address added to
+ * `OPENS_SIGNED_OUT` that should keep a reader in place on the way out would move one and not the
+ * other, and a shared helper would make that a change to both.
+ */
+export function addressAfterSignOut(pathname: string): typeof THE_WAY_IN | null {
+	return opensSignedOut(pathname) ? THE_WAY_IN : null;
+}
+
+/**
  * What the frame has to draw, given where the application has got to and where the reader is.
  *
  * **Only the sign-in card reads the address**, and that is the whole of the change. A route

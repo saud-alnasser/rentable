@@ -1260,17 +1260,17 @@ type RootTranslation = {
 			 */
 			noOrganizationTitle: string
 			/**
-			 * c​r​e​a​t​e​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​y​o​u​r​ ​o​w​n​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​o​r​ ​c​o​n​n​e​c​t​ ​t​o​ ​o​n​e​ ​w​i​t​h​ ​t​h​e​ ​l​i​n​k​ ​y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​.
+			 * a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​c​r​e​a​t​e​d​ ​o​n​ ​y​o​u​r​ ​o​w​n​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​o​r​ ​j​o​i​n​e​d​ ​w​i​t​h​ ​a​ ​l​i​n​k​ ​y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​.
 			 */
-			noOrganizationDescription: string
+			noOrganizationSubtitle: string
 			/**
-			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​s​i​g​n​s​ ​y​o​u​ ​i​n​ ​t​o​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​w​i​t​h​ ​o​r​ ​w​i​t​h​o​u​t​ ​a​ ​c​o​n​n​e​c​t​i​o​n​.
+			 * s​i​g​n​ ​i​n​ ​t​o​ ​c​o​n​t​i​n​u​e
 			 */
-			organizationDescription: string
+			subtitle: string
 			/**
-			 * o​r​g​a​n​i​z​a​t​i​o​n
+			 * t​r​o​u​b​l​e​ ​s​i​g​n​i​n​g​ ​i​n​?
 			 */
-			organization: string
+			help: string
 			/**
 			 * u​s​e​r​n​a​m​e
 			 */
@@ -1319,10 +1319,6 @@ type RootTranslation = {
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​:​ ​e​v​e​r​y​ ​c​o​p​y​ ​o​f​ ​i​t​ ​a​n​d​ ​o​f​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​ ​k​e​p​t​ ​h​e​r​e​ ​i​s​ ​d​e​l​e​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​f​o​r​g​o​t​t​e​n​ ​w​i​t​h​ ​t​h​e​m​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​u​r​s​o​ ​c​h​a​n​g​e​s​,​ ​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​g​a​i​n​.
 			 */
 			disconnectDescription: string
-			/**
-			 * w​e​l​c​o​m​e​ ​b​a​c​k
-			 */
-			title: string
 		}
 		startup: {
 			/**
@@ -4070,17 +4066,17 @@ export type TranslationFunctions = {
 			 */
 			noOrganizationTitle: () => LocalizedString
 			/**
-			 * create an organization on your own turso account, or connect to one with the link you were given.
+			 * an organization is created on your own turso account, or joined with a link you were given.
 			 */
-			noOrganizationDescription: () => LocalizedString
+			noOrganizationSubtitle: () => LocalizedString
 			/**
-			 * your password signs you in to the organization, on this machine, with or without a connection.
+			 * sign in to continue
 			 */
-			organizationDescription: () => LocalizedString
+			subtitle: () => LocalizedString
 			/**
-			 * organization
+			 * trouble signing in?
 			 */
-			organization: () => LocalizedString
+			help: () => LocalizedString
 			/**
 			 * username
 			 */
@@ -4129,10 +4125,6 @@ export type TranslationFunctions = {
 			 * this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes, and the organization's link connects this machine again.
 			 */
 			disconnectDescription: () => LocalizedString
-			/**
-			 * welcome back
-			 */
-			title: () => LocalizedString
 		}
 		startup: {
 			/**

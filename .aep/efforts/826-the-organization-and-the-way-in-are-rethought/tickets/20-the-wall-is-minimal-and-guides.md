@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: ['05', '06']
 ---
 
@@ -20,26 +20,26 @@ Traces requirements 9, 11 and 12 of
 [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] as corrected on 2026-09-15
 and criterion 11, and the human's first run of the build.
 
-- [ ] `layout/component/startup-sign-in.svelte`, locked: the card's heading is the held
+- [x] `layout/component/startup-sign-in.svelte`, locked: the card's heading is the held
       organization's name (`data-sign-in-organization` on it), a muted subtitle beneath it
       says sign in to continue, the labelled organization line is gone, the fields are
       username and password with their glyphs as today, and the primary is "sign in"; the
       signed-out-elsewhere and error callouts keep their place above the fields.
-- [ ] Beneath the form, one muted text control "trouble signing in?" (`data-sign-in-help`)
+- [x] Beneath the form, one muted text control "trouble signing in?" (`data-sign-in-help`)
       discloses two text rows and nothing else: "open a link you were given" (the way to the
       connect screen, for a reset link) and "disconnect this machine" (the confirm dialog as
       today, whose description says what is lost and that the link connects again). Nothing
       of the two is drawn until the disclosure opens; the disclosure is a button with
       `aria-expanded`, keyboard reachable, and the rows are focusable in order.
-- [ ] No organization held: the heading is "welcome", the subtitle says an organization is
+- [x] No organization held: the heading is "welcome", the subtitle says an organization is
       created on your own turso account or joined with a link, and the two primaries stay
       (create organization, connect with link), one primary and one outline as today.
-- [ ] Signing out lands on the wall from any address: `shell-surface.ts` gains
+- [x] Signing out lands on the wall from any address: `shell-surface.ts` gains
       `addressAfterSignOut(pathname)` answering the way in for an address that opens signed
       out and `null` otherwise, with a `node:test`; `routes/+layout.svelte`'s sign-out listener
       navigates there before reading the standing, so `/settings` never keeps drawing over a
       signed-out machine.
-- [ ] `startup-sign-in.svelte.test.ts` asserts the heading, the subtitle, the absence of the
+- [x] `startup-sign-in.svelte.test.ts` asserts the heading, the subtitle, the absence of the
       labelled line, the disclosure closed by default and its two rows once opened, both in
       `en` and `ar`; every new string is written in both locales; `pnpm check`, `pnpm lint`
       and `pnpm test` pass; a changeset (`@rentable/desktop`, patch) rides with the change.
@@ -67,4 +67,14 @@ and criterion 11, and the human's first run of the build.
 
 ## Notes
 
-Nothing yet.
+Built by an implementer and landed on 2026-09-15. Departures: `data-sign-in-organization`
+sits on the card's body wrapper rather than on the heading, since the heading is
+`StandaloneSurface`'s own `h1`, which takes a title string and spreads no rest props, and
+widening the design package's API is not this ticket's; the test asserts the attribute and,
+separately, that the heading reads the organization's name; the disclosed link row reuses
+`useALink`; four locale keys retired rather than one (`organizationDescription`,
+`organization`, `noOrganizationDescription` had no reader left); no chevron on the disclosure.
+
+Raised, not taken: whether the disclosure reads as pressable without a chevron is the human's
+to judge on screen; `StandaloneSurface` taking rest props would let the heading carry the
+attribute.

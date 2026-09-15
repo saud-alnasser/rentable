@@ -380,11 +380,10 @@ const en = {
 
 		signIn: {
 			noOrganizationTitle: 'welcome',
-			noOrganizationDescription:
-				'create an organization on your own turso account, or connect to one with the link you were given.',
-			organizationDescription:
-				'your password signs you in to the organization, on this machine, with or without a connection.',
-			organization: 'organization',
+			noOrganizationSubtitle:
+				'an organization is created on your own turso account, or joined with a link you were given.',
+			subtitle: 'sign in to continue',
+			help: 'trouble signing in?',
 			username: 'username',
 			password: 'password',
 			unlocking: 'signing you in. this takes a moment on purpose.',
@@ -398,8 +397,7 @@ const en = {
 			useALink: 'use a link',
 			disconnect: 'disconnect this machine',
 			disconnectDescription:
-				"this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes, and the organization's link connects this machine again.",
-			title: 'welcome back'
+				"this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes, and the organization's link connects this machine again."
 		},
 
 		startup: {

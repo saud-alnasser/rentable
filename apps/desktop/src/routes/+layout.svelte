@@ -17,7 +17,13 @@
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
 	import LayoutStartupUnreadable from '$lib/layout/component/startup-unreadable.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
-	import { THE_FIRST_RUN, THE_JOIN, shellSurface, wayInFrom } from '$lib/layout/shell-surface';
+	import {
+		THE_FIRST_RUN,
+		THE_JOIN,
+		addressAfterSignOut,
+		shellSurface,
+		wayInFrom
+	} from '$lib/layout/shell-surface';
 	import { linkArrived } from '$lib/organization/connect';
 	import { noteMigration } from '$lib/layout/migration-notice.svelte';
 	import { startupSurfaceBeforeLocale } from '$lib/layout/startup-surface';
@@ -156,8 +162,21 @@
 			// same path a sign-out takes (effort 826, requirement 22).
 			onSessionEnded: () => startup.standingChanged()
 		});
+		// leaving first, and reading where the machine stands afterwards. The wall is drawn in place
+		// of the route, so on the three addresses that open signed out there is no wall to draw and
+		// signing out from `/settings` left the settings of a machine nobody is signed in on still
+		// on screen. `addressAfterSignOut` says where to go, and it says nothing from anywhere else,
+		// which is what keeps the reader's place on every address the card covers by itself.
 		const stopListeningForSignOut = listenForSignOut(() => {
-			void startup.signOut();
+			void (async () => {
+				const destination = addressAfterSignOut(page.url.pathname);
+
+				if (destination) {
+					await goto(resolve(destination));
+				}
+
+				await startup.signOut();
+			})();
 		});
 		// a `rentable://` link the operating system handed the process: held where the join screen
 		// takes it, and the screen put on. The one it was launched with is taken once the shell is
