@@ -7,12 +7,11 @@
 	import { useSidebar } from '@rentable/design/primitive/sidebar/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
-	import { THE_SETTINGS_AREA, withSection } from '$lib/settings/section';
+	import { THE_SETTINGS_AREA } from '$lib/settings/section';
 	import { accountInitials } from '$lib/sync/account';
 	import { requestSignOut } from '$lib/sync/sign-out';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import SettingsIcon from '@tabler/icons-svelte/icons/settings';
-	import UserCircleIcon from '@tabler/icons-svelte/icons/user-circle';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 
 	/**
@@ -98,19 +97,12 @@
 
 				<DropdownMenu.Separator />
 
-				<!-- you, then settings, then the way out. The organization row and the account row
-				     went with the pages they opened (requirement 17 of effort 826): the person is the
-				     `you` section now, and everything the organization row reached is a section of the
-				     same area, which the row under it opens at its front. -->
-				<DropdownMenu.Item>
-					{#snippet child({ props })}
-						<a href={resolve(withSection('you'))} data-account-menu-you {...props}>
-							<UserCircleIcon class="size-4 shrink-0" />
-							<span class="capitalize">{$LL.settings.section.you()}</span>
-						</a>
-					{/snippet}
-				</DropdownMenu.Item>
-
+				<!-- settings, and then the way out. Nothing else: the organization row and the account
+				     row went with the pages they opened, and the row for the person went the same way
+				     on the human's first run of the finished build (requirement 17 of effort 826). The
+				     `you` section stayed where it was and is reached from the settings rail, the
+				     palette and the address, so the row was a fourth route to a section already open
+				     at three, taking a place in a menu whose whole job is settings and the way out. -->
 				<DropdownMenu.Item>
 					{#snippet child({ props })}
 						<a href={resolve(THE_SETTINGS_AREA)} data-account-menu-settings {...props}>

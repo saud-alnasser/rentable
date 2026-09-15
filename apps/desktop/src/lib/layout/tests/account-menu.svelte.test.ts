@@ -19,9 +19,10 @@ import RailProviders from './rail-providers.svelte';
  * the spec's criterion 24 is read for the rail; the members list's rows are read in
  * `organization/tests/members.svelte.test.ts`.
  *
- * And its three rows, once it is open (requirement 17 of effort 826): the person, the settings
- * area, and the way out. The organization row and the account row went with the pages they
- * opened, and the two that remain reach the one area at two of its addresses.
+ * And its two rows, once it is open (requirement 17 of effort 826, as corrected on the human's
+ * first run): the settings area, and the way out. The organization row and the account row went
+ * with the pages they opened, and the row for the person followed them, because the `you` section
+ * is reached from the settings rail, the palette and the address without it.
  *
  * The control is props and a session, no query and no client, so nothing here provides one.
  */
@@ -85,22 +86,31 @@ test('the control names the username beside the avatar', () => {
 	expect(screen.getByRole('button', { expanded: false }).textContent).not.toContain('Acme Rentals');
 });
 
-test('the menu offers you, settings and the way out, in that order', async () => {
+test('the menu offers settings and the way out, in that order, and nothing else', async () => {
 	menu('ada.lovelace');
 	await open();
 
 	expect(screen.getAllByRole('menuitem').map((item) => item.textContent?.trim())).toEqual([
-		en.settings.section.you,
 		en.common.nav.settings,
 		en.common.actions.signOut
 	]);
 });
 
-test('you opens the settings area at the section about the person, and settings opens its front', async () => {
+test('no row names the section about the person', async () => {
 	menu('ada.lovelace');
 	await open();
 
-	expect(row('you')?.getAttribute('href')).toBe('/settings?section=you');
+	expect(row('you')).toBeNull();
+	expect(document.querySelector('a[href="/settings?section=you"]')).toBeNull();
+	expect(screen.getAllByRole('menuitem').map((item) => item.textContent?.trim())).not.toContain(
+		en.settings.section.you
+	);
+});
+
+test('settings opens the settings area at its front', async () => {
+	menu('ada.lovelace');
+	await open();
+
 	expect(row('settings')?.getAttribute('href')).toBe('/settings');
 	// the two pages the menu used to reach are gone with requirement 14's one area.
 	expect(document.querySelector('a[href="/organization"]')).toBeNull();
