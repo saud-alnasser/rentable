@@ -9,7 +9,9 @@ requirements and criteria are referenced by number and never restated here. Ever
 relative to `apps/desktop/` unless written out. The evidence behind the link decisions is
 [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/evidence/research/what-a-link-exposes-and-what-a-code-can-bound]].
 
-**Three seams, and the model's lands first.** What a link's text carries and what unseals it;
+**Three seams, and the model's lands first**, and a fourth added mid-run (*The way in, on a
+machine holding nothing*, below, decided with the human on 2026-09-15 from
+[[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/evidence/research/what-a-consent-alone-can-recover]]). What a link's text carries and what unseals it;
 the second-machine link and the row that spends it; the settings area's rows and the you
 section's writes. The two rail menus are small and independent and land before any of them.
 Three approaches were put to the human on 2026-09-15 and the choices are recorded with what
@@ -195,6 +197,116 @@ stay, since the workspaces section reads them. `account-menu.svelte` and
 `account-signed-out.svelte` put `capitalize` on the sign-out and sign-in spans, the class the
 settings span carries.
 
+## Every connected machine is registered (requirement 15)
+
+`machine` is the organization database's ninth table, unsigned like `machine_link` and for the
+same reason: every machine writes its own row, and a plain member signs nothing.
+
+```
+machine (id TEXT PRIMARY KEY NOT NULL, member_id TEXT, seen_at INTEGER NOT NULL,
+         created_at INTEGER NOT NULL)
+```
+
+A machine's own id is drawn once and kept in the local organization record
+(`HeldOrganization.machine_id`); a record written before this field exists is given one at its
+next launch, which is also when the row is first written. The writers are the acts that already
+exist: `connect::connect` writes the row with no member; the sign-in names the member and the
+sign-out clears it; `organization_state_get`, which every launch runs, refreshes `seen_at` and
+writes the row where it is missing; `disconnect` deletes the row before forgetting locally. Each
+write pushes. `store::connected_machines(now) -> Vec<(MachineRecord, Option<MemberRecord>)>`
+answers the rows seen inside `MACHINE_PRESENCE_WINDOW`, seven days, joined to the member rows so
+the caller can read a role; it is the registry's only reader and requirement 14's gate is its only
+caller. *Rejected: a signed row, which a plain member cannot write; a row per session rather than
+per machine, which the epoch already covers; and a registry the settings area lists, which the
+spec puts out of scope.*
+
+## The account connects to the organization the group holds (requirement 14)
+
+The walk today consents and then creates in one command. It splits at the consent: after the
+consent `organization_group_inspect() -> GroupState { kind: empty | held, organizationId? }` reads
+the listing through `discovery::organization` and recognises `org-<id>` as `setup.rs` already
+does; on `empty` the walk goes to the name step and creates as today; on `held` it goes to a new
+`existing` step, one sentence saying the group already holds an organization and that its owner
+signs in to connect this machine, with the username and the password fields, and runs
+`organization_connect_existing(username, password) -> OrganizationState`.
+
+That command, `setup::connect_existing`, does everything in this order. It mints a full-access
+four-week credential for `org-<id>` on the consent, opens a replica at the listing's hostname with
+it and pulls. It reads the registry (`store::connected_machines`) and, where any row inside the
+window belongs to a member whose row carries the owner's or an administrator's role, refuses with
+`PreconditionFailed` naming that a connected machine can hand out a link, lets the consent go
+through `abandon_the_consent` as requirement 21's refusal does, and drops the replica. Otherwise
+it reads the member rows **unverified**, through a read that exists for this one caller and says
+so, finds the row whose sealed username matches and whose vault the password opens, and derives
+the organization key from that vault's secret (`derive_seed(ORGANIZATION_KEY_PURPOSE)`, the
+derivation `create_organization` runs). **That derived key is the trust anchor**: its public half
+is compared with the organization row's `verifying_key` and every member row is verified against
+it; a mismatch means the password was not the owner's, and the command refuses with `Forbidden`
+naming that only the owner connects this way and leaves the machine holding nothing. Past that it
+opens the organization's name from `name_sealed` through the content key, writes
+`HeldOrganization` with a fresh `machine_id`, registers the machine, opens the session as
+`sign_in_by_username` does (which fills the credential slot from the owner's grant), and runs
+`workspace::renew_credentials` so every grant, the owner's included, is fresh and the slot holds
+a live one; then it pushes. The authority stays in the keyring as after a create.
+
+| | Advantages | Disadvantages | Risks | Maintenance |
+| --- | --- | --- | --- | --- |
+| **A. The password is the anchor; connect and sign in are one act** (chosen) | nothing read out of the database is trusted before the owner's key verifies it; the name is known before the record is written; only the owner can, by construction | the wall's order is inverted for this one path, and a second unverified read exists | an unverified read that leaks into another caller; the docstring and the test that pins its one caller guard it | one command, one step in the walk |
+| B. Trust the row's `verifying_key` | no unverified read | compares the database against itself, which `authority.rs` refuses on purpose; an administrator could connect by the account | the design's one prohibition | none |
+| C. Ask the owner to type the organization's name and pin it | a name before sign-in | the name proves nothing and the owner may not remember it | a mismatch with no way to say why | none |
+
+## The way in is an account or a link and a code (requirements 13, 17)
+
+The first screen's no-organization state (`layout/component/startup-sign-in.svelte`) keeps its two
+controls and gives each a sentence: the account, for whoever owns the organization, new or already
+there; the link and the code, what an administrator or a member handed over. The strings under
+`layout.signIn` change; nothing names a group, a database or a consent. The walk's
+`oneOrganization` statement, which says a held group is refused, says instead that a held group is
+connected to.
+
+The connect screen's `paste` step gains the code field beside the link field, and `reading` takes
+both. `afterRead` runs the machine connect at once for a machine link, with the code it holds, and
+enters the `password` step for an invitation with the code already held, so that step is the two
+password fields alone. The `code` step ticket 05 added goes. A decode refusal marks the link field
+and a wrong code marks the code field, both on the paste step, through the `refused`,
+`forbidden` and `invalidInput` reads `joinFailed` already makes; a lapsed, consumed, revoked or
+replaced link lands on the `refused` step as today.
+
+## The organization's own link retires (requirement 16)
+
+Every reader of the never-expiring credential is one of two functions, and both throw it away
+(the research file, finding 6). So: `LINK_CREDENTIAL_LIFETIME` and the second mint in
+`setup::finish` go; `link_credential_sealed` leaves the schema, the record, the insert and the
+select (a replica still carrying the column opens, since the write names its columns);
+`JoinLink` loses `Credential::Clear`, its `credential` becomes the sealed payload and its `half`
+is required, so `decode` refuses a link with no half as not a link; `invite::organization_link`
+becomes `invite::locator`, four clear fields, which the invitation, the reset and the machine link
+seal a payload onto; `connect::connect` takes the locator and the credential its caller unsealed,
+which the accept and the machine connect already hand it; `connect::refuse_sealed` and
+`CODE_NEEDED`, `organization_connect` and `organization_own_link` with their router procedures
+and `useOrganizationLink`, `LinkKind::Organization`, `organization-link.svelte` and the sync
+section's link block with its strings all go. The credentials rule, the organization context's
+*Link* entry and 826's requirement 10 carry a second dated correction, and ticket 06's changeset
+sentence about the recovery copy is rewritten.
+
+## The owner deletes the organization (requirement 18)
+
+`platform::DeletionIntent` gains `OrganizationDeletedByHuman`, the third reason the Turso
+reference's *Never run* admits, and the reference says so. `removal::delete_organization(store,
+session, platform, password)` is the owner's alone: it re-opens the owner's vault with the
+password (a wrong one refuses before anything is touched), lists the workspaces from the replica,
+deletes each workspace database and then the organization database through `delete_database`
+with the new intent (protection lifted per database as the port already does), then forgets the
+organization on this machine the way `disconnect` does and lets the consent go, since the group
+is empty again. Every other machine holding it meets, at its next launch, a pull refused because
+the database no longer exists; `forget` gains a sign for that answer, `OrganizationDeleted`, and
+forgets the organization the way the old-shape signs do, landing on the first screen. The
+settings area draws the control in the sync section's authority block, for the owner alone, and
+the confirmation is a `FormSurface` of `heavy` weight naming what goes and taking the password.
+*Rejected: deleting only the organization database and leaving the workspaces, which strands
+ledgers on the owner's account; and a delete that keeps the consent, which leaves an authority
+with nothing to govern.*
+
 # Interfaces
 
 Rust commands, in `tauri/src/organization/command.rs`, registered in `lib.rs`:
@@ -209,6 +321,11 @@ Rust commands, in `tauri/src/organization/command.rs`, registered in `lib.rs`:
 | `machine_link_make() -> MachineLink { link, code, expiresAt }` | new, any member |
 | `machine_connect(link, code) -> OrganizationState` | new, public |
 | `member_invite`, `member_reset` | `Invited` loses `codeExpiresAt`; `expiresAt` is the link's |
+| `organization_group_inspect() -> GroupState` | new, public, after the consent |
+| `organization_connect_existing(username, password) -> OrganizationState` | new, public |
+| `organization_delete(password)` | new, owner |
+| `organization_connect`, `organization_own_link` | removed with the organization link |
+| `organization_state_get`, `organization_sign_in`, `organization_sign_out`, `organization_disconnect` | write the machine registry |
 
 `platform/host.ts` and `platform/tauri.ts` carry `LinkShape`, `InvitationLink`, `MachineLink`
 and the narrowed `Invited`; `LinkFacts` and `LinkStanding` go. `organization/router.ts` drops
@@ -228,6 +345,10 @@ it. `routes/settings/+page.svelte` loses `codeFor`, `freshCode` and `useInvitati
 - `machine_link`, the eighth table, in `store::TABLES` and `SCHEMA`; the seven-tables test
   becomes eight.
 - Nothing under a signature changes; `invitation.v2`'s preimage is untouched.
+- *Added 2026-09-15.* `machine`, the ninth table, unsigned, in `store::TABLES` and `SCHEMA`;
+  the eight-tables test becomes nine. `organization` loses `link_credential_sealed`.
+  `HeldOrganization` gains `machine_id`, drawn at connect and at the next launch of a record
+  that has none. `DeletionIntent` gains `OrganizationDeletedByHuman`.
 
 # Technical Approach
 
@@ -248,6 +369,14 @@ it. `routes/settings/+page.svelte` loses `codeFor`, `freshCode` and `useInvitati
 6. **The members section**, on top of 2, since the pending row's acts change: the row-actions
    block lands here, then the section head and rows, judged on the real organization.
 7. **The workspaces section**, on top of 6, on the same block.
+8. *Added 2026-09-15.* **The registry**, in Rust: the table, the local record's id, the writers
+   in the four acts, the reader and the window.
+9. **The account connects to the held organization**, on top of 8: the inspect, the connect,
+   the walk's step.
+10. **The way in**: the first screen's sentences and the connect screen as one form, on top of
+    ticket 05, independent of 8 and 9.
+11. **The organization's own link retires**, on top of 9 and 10, since both stop needing it.
+12. **The owner deletes the organization**, on top of 11, since both edit the sync section.
 
 # Migration
 
@@ -256,6 +385,11 @@ non-link gets; a pending invitation at upgrade holds a `code_seal` no new link o
 reissued from its row. A replica with the two dropped columns still opens: `write_invitation`
 names its columns and both were nullable, and `machine_link` is created on open by
 `CREATE TABLE IF NOT EXISTS` like every other table. `forget::old_shape` gains no variant.
+*Added 2026-09-15:* `machine` is created on open the same way; a local record with no
+`machine_id` is given one at its next launch; a replica still carrying
+`link_credential_sealed` opens, since every write names its columns; `forget` gains one sign,
+the organization database gone on the platform, which is a fact about the remote and not a
+shape.
 
 # Testing Strategy
 
@@ -273,6 +407,12 @@ names its columns and both were nullable, and `machine_link` is created on open 
 | 10 | `account-menu.svelte.test.ts`, signed in and out: the sign-in and sign-out spans carry `capitalize`; `i18n/tests/organization.test.ts`: both strings lowercase in both locales |
 | 11 | `link.rs`: a hand-written previous-shape link is refused with `InvalidInput` and the non-link sentence |
 | 12 | the integration gate; the Arabic locale test; `.changeset/` on the branch |
+| 13 | `startup-sign-in.svelte.test.ts` (or the layout test that renders the no-organization state): two controls, their two sentences, and no group, database or consent named |
+| 14 | `setup.rs`: over the in-memory platform holding a listing with `org-<id>`, `connect_existing` with the owner's password lands the machine holding the organization, signed in, every grant fresh; an administrator's password refused as `Forbidden` with nothing held; a registry row of an owner's machine six days old refused as `PreconditionFailed`; an empty listing still creates. `setup.test.ts` and the walk's test: `held` reaches the `existing` step, `empty` the name step |
+| 15 | `store.rs` and `connect.rs`: the row after connect, sign-in, sign-out and disconnect; `connected_machines` at six and eight days; no signer on any of the four writes |
+| 16 | `grep` over the Rust source for `LINK_CREDENTIAL_LIFETIME`, `link_credential_sealed`, `Credential::Clear` and `"never"` finds nothing; `link.rs`: a text with no half is refused; `area.svelte.test.ts`: no link block for the owner; `connect-screen.svelte.test.ts`: no code-free path; read: the two corrections |
+| 17 | `connect-screen.svelte.test.ts`: link and code fields on the first step; an invitation then the two password fields; a machine link connects with no further field; an unreadable link marks the link field and a wrong code the code field |
+| 18 | `removal.rs`: every workspace database and the organization database deleted with `OrganizationDeletedByHuman`, the machine holding nothing after, an administrator refused, a wrong password refused before any delete; `forget.rs`: a machine whose pull says the database is gone forgets at launch; `area.svelte.test.ts`: the control for the owner and not for an administrator, the confirmation on the form surface |
 
 # Operational Considerations
 
@@ -286,6 +426,18 @@ names its columns and both were nullable, and `machine_link` is created on open 
   member who lost every machine asks for a reset, which is the path that already exists.
 
 # Technical Risks
+
+- *Added 2026-09-15.* **The unverified read.** `connect_existing` reads member rows before any
+  key can verify them; the read is a function with one caller, its docstring says why, and a
+  test pins that nothing else calls it. What it yields is used only to find a vault the
+  password opens, and the key that vault derives is what verifies everything after.
+- **What a deleted database answers.** Whether libsql reports a database deleted on the platform
+  as a refusal the shell can tell from a network fault has not been run here; the delete ticket
+  establishes it and keys `forget`'s new sign on it, or records that it cannot and says what a
+  machine meets instead.
+- **The listing's loose prefix.** `org-chart` in the owner's group reads as an organization
+  database today and would be offered for connection; the connect then fails to find the rows
+  and refuses, which is the same outcome the create's refusal gives, and no better.
 
 - **The serde shape of `credential`.** An externally tagged enum serialises as
   `{"clear": "..."}` or `{"sealed": "..."}`, which is what the plan spells; the fields test

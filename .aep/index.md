@@ -127,7 +127,7 @@ Start at [[protocol]].
 | 819-an-organization-hosts-its-own-workspaces | implemented | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 28 |
 | 824-the-way-in-and-the-workspace-control-are-redesigned | implemented | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 17 |
 | 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
-| 828-the-link-needs-a-code-and-the-settings-area-guides | accepted | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 2 | 0 | 8 |
+| 828-the-link-needs-a-code-and-the-settings-area-guides | accepted | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 2 | 0 | 13 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -251,3 +251,8 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/06-the-you-section-states-facts-and-writes-on-the-form-surface]] feat(settings): the you section states facts and writes on the form surface | 828-the-link-needs-a-code-and-the-settings-area-guides | resolved | 03, 04 |
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/07-the-members-section-says-what-it-is-for-and-every-act-is-visible]] feat(settings): the members section says what it is for and every act is visible | 828-the-link-needs-a-code-and-the-settings-area-guides | open | 03 |
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/08-the-workspaces-section-says-what-it-is-for-and-every-act-is-visible]] feat(settings): the workspaces section says what it is for and every act is visible | 828-the-link-needs-a-code-and-the-settings-area-guides | open | 07 |
+| [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/09-every-connected-machine-is-registered]] feat(organization): every connected machine is registered | 828-the-link-needs-a-code-and-the-settings-area-guides | open | — |
+| [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/10-the-account-connects-to-the-held-organization]] feat(organization): the account connects to the organization the group holds | 828-the-link-needs-a-code-and-the-settings-area-guides | open | 09 |
+| [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/11-the-way-in-is-an-account-or-a-link-and-a-code]] feat(organization): the way in is an account or a link and a code | 828-the-link-needs-a-code-and-the-settings-area-guides | open | — |
+| [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/12-the-organizations-own-link-retires]] feat(organization): the organization's own link retires | 828-the-link-needs-a-code-and-the-settings-area-guides | open | 10, 11 |
+| [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/13-the-owner-deletes-the-organization]] feat(organization): the owner deletes the organization | 828-the-link-needs-a-code-and-the-settings-area-guides | open | 12 |
