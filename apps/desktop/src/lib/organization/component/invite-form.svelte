@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { Invited, OrganizationWorkspace } from '$lib/platform/tauri';
-	import type { InvitedCopy } from '$lib/organization/dialogs.svelte';
+	import type { OrganizationWorkspace, WorkspaceGrant } from '$lib/platform/tauri';
+	import type { InvitedCopy, InvitedLink } from '$lib/organization/dialogs.svelte';
 	import { usernameSchema } from '$lib/organization/username-form';
 	import FieldError from '@rentable/design/block/field-error.svelte';
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
@@ -14,6 +14,7 @@
 	import { cn } from '@rentable/design/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import CopyIcon from '@lucide/svelte/icons/copy';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import { defaults, superForm } from 'sveltekit-superforms';
@@ -21,13 +22,14 @@
 	import z from 'zod';
 
 	/**
-	 * Making an account, which is what inviting is: a username, a role, the workspaces they hold.
+	 * Making an account, which is what inviting is: a username, a role, the workspaces they hold
+	 * and what each one is good for.
 	 *
 	 * **On the shared form surface, heavy.** An invitation is a write, and every write here takes
 	 * `FormSurface` ([[rules/interface]], *Form surface*); three fields and a result panel are the
 	 * heavy weight, declared rather than measured, so this is the edge sheet and it fills the
 	 * width below the breakpoint without swapping components under a half-typed form. It is
-	 * mounted once, in the shell, and opened from the rail's menu and from the organization page
+	 * mounted once, in the shell, and opened from the rail's menu and from the members section
 	 * alike; `organization/dialogs.svelte.ts` says why once is the number.
 	 *
 	 * **The username is the whole of the identity, under the one rule.** No address and no display
@@ -36,12 +38,29 @@
 	 * the walk's `name` step and the rename dialog read, so a username refused here is refused
 	 * there with the same sentence.
 	 *
-	 * **What comes back is shown once, and the form says it cannot send it.** The application has
+	 * **A workspace is a checkbox and an access**, which is requirement 8 of effort 826: what the
+	 * invitation grants is what the member's row will carry, and a grant that could only ever be
+	 * full access made the read-only half of the model unreachable from the one surface that
+	 * creates grants. Read only is minted on the owner's machine and refused by name elsewhere,
+	 * so for anybody else the choice is drawn refused rather than hidden: a control that vanishes
+	 * says the access does not exist.
+	 *
+	 * **What comes back is one link, and the form says it cannot send it.** The application has
 	 * registered with no mail service and the spec forbids registering one on the customer's
-	 * behalf, so the organization's link, the username and the generated password are handed
-	 * over by the person who invited, and the three copy controls are what a person needs to do
-	 * that (requirement 22). The password is on screen for as long as this panel is, and nowhere
-	 * afterwards.
+	 * behalf, so the invitation link is handed over by the person who invited, and one copy
+	 * control is what a person needs to do that (effort 826, requirement 8). No password is shown.
+	 * *Three things with three copy controls until effort 826.*
+	 *
+	 * **The code is shown under the link and has no copy control** (requirement 23). The link
+	 * carries one half of what opens the invited vault and the code is the other, so a code
+	 * pasted beside the link is a link that opens on its own: the one affordance it gets is being
+	 * large enough to read out. Beside it are the seconds it has left, counted down, and a
+	 * control that makes a fresh one, because ninety seconds is short enough that the ordinary
+	 * case is making another.
+	 *
+	 * **The same panel answers three acts**: an invitation, a new link on somebody's row, and a
+	 * pending row's copy link. Each ends with one link in one person's hands, so the panel is
+	 * handed a link and a username rather than the payload of whichever act produced it.
 	 *
 	 * **Inviting an administrator is the owner's**, because certifying one needs the organization
 	 * key; the role select offers it only to the owner, and the shell refuses it regardless.
@@ -60,27 +79,43 @@
 	let {
 		open,
 		onOpenChange,
+		organizationName,
 		workspaces,
 		canInviteAdministrators,
+		canGrantReadOnly,
 		isInviting,
 		invited,
 		copied,
+		isFresheningCode,
 		onInvite,
 		onCopy,
+		onFreshCode,
 		onDismiss
 	}: {
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
+		/** the organization the link admits into, named on the result panel. */
+		organizationName: string;
 		/** the workspaces the inviter can grant, which is what they hold themselves. */
 		workspaces: OrganizationWorkspace[];
 		canInviteAdministrators: boolean;
+		/** whether this machine holds the Turso authority, which is what mints a read-only credential. */
+		canGrantReadOnly: boolean;
 		isInviting: boolean;
-		/** what the last invitation made, shown until dismissed. */
-		invited: Invited | null;
-		/** which of the three was last copied, for the control to say so. */
+		/** the link the last act produced, shown until dismissed. */
+		invited: InvitedLink | null;
+		/** which of the panel's values was last copied, for the control to say so. */
 		copied: InvitedCopy | null;
-		onInvite: (username: string, role: 'administrator' | 'member', workspaceIds: string[]) => void;
+		/** a fresh code is being made, while it is. */
+		isFresheningCode: boolean;
+		onInvite: (
+			username: string,
+			role: 'administrator' | 'member',
+			workspaces: WorkspaceGrant[]
+		) => void;
 		onCopy: (what: InvitedCopy, value: string) => void;
+		/** make a fresh code for the invitation this panel is showing. */
+		onFreshCode: (invitationId: string) => void;
 		onDismiss: () => void;
 	} = $props();
 
@@ -96,6 +131,16 @@
 
 	const blank: InviteForm = { username: '', role: 'member', workspaceIds: [] };
 
+	/**
+	 * the access chosen per workspace, held beside the form rather than in it.
+	 *
+	 * A superforms field carries what a schema can refuse, and this is a choice with no refusal
+	 * of its own: an unchecked workspace is not granted at all, so its access says nothing, and a
+	 * checked one is always one of two values. The checkbox is the field; this is what it is
+	 * worth.
+	 */
+	let access = $state<Record<string, WorkspaceGrant['access']>>({});
+
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<InviteForm>(
 		defaults(blank, zod4(InviteSchema)),
 		{
@@ -104,7 +149,11 @@
 			onUpdate: ({ form }) => {
 				if (!form.valid || isInviting) return;
 
-				onInvite(form.data.username.trim(), form.data.role, form.data.workspaceIds);
+				onInvite(
+					form.data.username.trim(),
+					form.data.role,
+					form.data.workspaceIds.map((id) => ({ id, access: access[id] ?? 'full-access' }))
+				);
 			}
 		}
 	);
@@ -116,6 +165,7 @@
 	$effect(() => {
 		if (open && !invited) {
 			reset({ data: blank });
+			access = {};
 		}
 	});
 
@@ -125,16 +175,51 @@
 			member: $LL.layout.signIn.roleMember()
 		})[value] ?? value;
 
+	const accessLabel = (value: WorkspaceGrant['access']) =>
+		value === 'read-only'
+			? $LL.organization.dashboard.accessReadOnly()
+			: $LL.organization.dashboard.accessFull();
+
 	const toggle = (id: string, checked: boolean) => {
 		$form.workspaceIds = checked
 			? [...new Set([...$form.workspaceIds, id])]
 			: $form.workspaceIds.filter((held) => held !== id);
+
+		if (checked && !access[id]) access[id] = 'full-access';
 	};
 
 	const done = () => {
 		reset({ data: blank });
+		access = {};
 		onDismiss();
 	};
+
+	/**
+	 * the seconds the code has left, counted down on screen.
+	 *
+	 * **A second is the resolution because ninety of them is the whole life of the thing**: a
+	 * person reading a code out needs to know whether to finish or to make another, and a bar or a
+	 * ring would say that less exactly than the number does. The tick is torn down with the panel,
+	 * and it stops at nought rather than running negative; what actually refuses a lapsed code is
+	 * the row against the other machine's clock, so this is an affordance and never the barrier.
+	 */
+	let now = $state(Date.now());
+
+	$effect(() => {
+		if (!invited?.codeExpiresAt) return;
+
+		now = Date.now();
+
+		const tick = setInterval(() => {
+			now = Date.now();
+		}, 1000);
+
+		return () => clearInterval(tick);
+	});
+
+	const secondsLeft = $derived(
+		invited?.codeExpiresAt ? Math.max(0, Math.ceil((invited.codeExpiresAt - now) / 1000)) : 0
+	);
 </script>
 
 <FormSurface
@@ -147,12 +232,21 @@
 >
 	{#if invited}
 		<div class="space-y-4" data-invited>
+			<!-- the organization the link admits into leads the panel: the link is opaque, and the
+			     one fact a person hands over with it is which organization it opens. -->
+			<p class="text-sm font-medium" data-invited-organization>{organizationName}</p>
+
 			<!-- the one notice this surface carries, because it is the one thing a person has to act
-			     on: nothing was sent, and the three things below are theirs to send. -->
+			     on: nothing was sent, and the link below is theirs to send. -->
 			<Callout tone="warning">{$LL.organization.dashboard.cannotSend()}</Callout>
 
 			<div class="space-y-2">
-				<p class="text-sm font-medium">{$LL.organization.dashboard.linkTitle()}</p>
+				<div class="flex flex-wrap items-baseline gap-2">
+					<p class="text-sm font-medium">{$LL.organization.dashboard.invitationLinkTitle()}</p>
+					<p class="truncate text-sm text-muted-foreground" data-invited-username>
+						{invited.username}
+					</p>
+				</div>
 				<!-- machine strings, read left to right in both locales ([[rules/frontend]], *i18n*). -->
 				<code
 					dir="ltr"
@@ -172,28 +266,55 @@
 				</Button>
 			</div>
 
-			<div class="space-y-2">
-				<p class="text-sm font-medium">{$LL.organization.dashboard.username()}</p>
-				<code
-					dir="ltr"
-					class="block rounded-md bg-muted px-3 py-2 font-mono text-sm select-all"
-					data-invited-username>{invited.username}</code
-				>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					onclick={() => invited && onCopy('username', invited.username)}
-				>
-					<CopyIcon class="size-4" />
-					{copied === 'username'
-						? $LL.organization.dashboard.usernameCopied()
-						: $LL.organization.dashboard.copyUsername()}
-				</Button>
-			</div>
+			{#if invited.code}
+				<!-- the code under the link and drawn at the size a person reads out loud from, with
+				     the seconds it has left beside it: the two things they need at once are the
+				     characters and whether there is still time (effort 826, requirement 23). It is
+				     the one value on this panel with no copy control, because copying it is how it
+				     ends up pasted beside the link, which is the one thing it must never be. -->
+				<div class="space-y-2" data-invited-code-block>
+					<div class="flex flex-wrap items-baseline gap-2">
+						<p class="text-sm font-medium">{$LL.organization.dashboard.codeTitle()}</p>
+						<span
+							class="text-xs"
+							class:text-muted-foreground={secondsLeft > 0}
+							class:text-destructive={secondsLeft === 0}
+							data-invited-code-seconds
+						>
+							{secondsLeft > 0
+								? $LL.organization.dashboard.codeExpires({ seconds: String(secondsLeft) })
+								: $LL.organization.dashboard.codeLapsed()}
+						</span>
+					</div>
+					<!-- a machine string, read left to right in both locales ([[rules/frontend]], *i18n*). -->
+					<p
+						dir="ltr"
+						class="font-mono text-3xl font-semibold tracking-[0.3em] select-all"
+						data-invited-code
+					>
+						{invited.code}
+					</p>
+					<p class="text-sm text-muted-foreground">
+						{$LL.organization.dashboard.codeDescription()}
+					</p>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						disabled={isFresheningCode}
+						data-invited-fresh-code
+						onclick={() => invited && onFreshCode(invited.invitationId)}
+					>
+						<RefreshCwIcon class="size-4" />
+						{isFresheningCode
+							? $LL.common.actions.working()
+							: $LL.organization.dashboard.freshCode()}
+					</Button>
+				</div>
+			{/if}
 
 			{#if invited.unreachableWorkspaces.length > 0}
-				<!-- requirement 13's limit, said at the moment it bites: what the reset could not
+				<!-- requirement 9's limit, said at the moment it bites: what the reset could not
 				     restore, because the resetting administrator does not reach it themselves. -->
 				<Callout tone="warning" data-invited-unreachable>
 					{$LL.organization.dashboard.unreachableWorkspaces({
@@ -201,29 +322,6 @@
 					})}
 				</Callout>
 			{/if}
-
-			<div class="space-y-2">
-				<p class="text-sm font-medium">{$LL.organization.dashboard.generatedPassword()}</p>
-				<code
-					dir="ltr"
-					class="block rounded-md bg-muted px-3 py-2 font-mono text-sm select-all"
-					data-invited-password>{invited.generatedPassword}</code
-				>
-				<p class="text-sm text-muted-foreground">
-					{$LL.organization.dashboard.passwordOnce()}
-				</p>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					onclick={() => invited && onCopy('password', invited.generatedPassword)}
-				>
-					<CopyIcon class="size-4" />
-					{copied === 'password'
-						? $LL.organization.dashboard.passwordCopied()
-						: $LL.organization.dashboard.copyPassword()}
-				</Button>
-			</div>
 		</div>
 	{:else}
 		<div class="flex flex-col gap-4" data-invite-form>
@@ -284,22 +382,61 @@
 			</Field.Field>
 
 			<Field.Set>
-				<Field.Legend>{$LL.organization.dashboard.workspaces()}</Field.Legend>
+				<Field.Legend>{$LL.settings.section.workspaces()}</Field.Legend>
 				{#if workspaces.length === 0}
 					<Field.Description>{$LL.organization.dashboard.noWorkspaceToGrant()}</Field.Description>
 				{/if}
 				{#each workspaces as workspace (workspace.id)}
-					<Field.Field orientation="horizontal">
+					{@const held = $form.workspaceIds.includes(workspace.id)}
+					<Field.Field orientation="horizontal" data-invite-workspace={workspace.id}>
 						<Checkbox
 							id={`invite-workspace-${workspace.id}`}
 							name="workspaceIds"
-							checked={$form.workspaceIds.includes(workspace.id)}
+							checked={held}
 							onCheckedChange={(checked) => toggle(workspace.id, checked === true)}
 							disabled={isInviting}
 						/>
-						<Field.Label for={`invite-workspace-${workspace.id}`}>{workspace.name}</Field.Label>
+						<Field.Label for={`invite-workspace-${workspace.id}`} class="flex-1">
+							{workspace.name}
+						</Field.Label>
+						<!-- the access is the grant's own value and reads beside it; a workspace nobody
+						     granted has none to choose, so the control waits for the checkbox. -->
+						<Select.Root
+							type="single"
+							value={access[workspace.id] ?? 'full-access'}
+							onValueChange={(value) => {
+								if (value === 'full-access' || value === 'read-only') {
+									access[workspace.id] = value;
+								}
+							}}
+							disabled={isInviting || !held}
+						>
+							<Select.Trigger
+								class={cn('w-40 shrink-0', insetControl)}
+								data-invite-access={workspace.id}
+							>
+								{accessLabel(access[workspace.id] ?? 'full-access')}
+							</Select.Trigger>
+							<Select.Content>
+								<Select.Item value="full-access" label={accessLabel('full-access')}>
+									{accessLabel('full-access')}
+								</Select.Item>
+								<!-- drawn refused rather than absent: the access exists, and who mints it is
+								     the fact worth saying (requirement 5). -->
+								<Select.Item
+									value="read-only"
+									label={accessLabel('read-only')}
+									disabled={!canGrantReadOnly}
+								>
+									{accessLabel('read-only')}
+								</Select.Item>
+							</Select.Content>
+						</Select.Root>
 					</Field.Field>
 				{/each}
+				{#if !canGrantReadOnly && workspaces.length > 0}
+					<Field.Description>{$LL.organization.dashboard.readOnlyIsTheOwners()}</Field.Description>
+				{/if}
 			</Field.Set>
 		</div>
 	{/if}

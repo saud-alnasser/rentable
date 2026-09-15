@@ -126,6 +126,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			disconnect: refuse('organization.disconnect'),
 			signIn: refuse('organization.signIn'),
 			signOut: refuse('organization.signOut'),
+			sessionEndElsewhere: refuse('organization.sessionEndElsewhere'),
 			linkTake: refuse('organization.linkTake'),
 			onLink: refuse('organization.onLink'),
 			onMigration: refuse('organization.onMigration'),
@@ -137,21 +138,26 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 				create: refuse('organization.workspace.create'),
 				open: refuse('organization.workspace.open'),
 				grant: refuse('organization.workspace.grant'),
+				withdraw: refuse('organization.workspace.withdraw'),
 				remove: refuse('organization.workspace.remove'),
 				renewCredentials: refuse('organization.workspace.renewCredentials')
 			},
 			member: {
 				list: refuse('organization.member.list'),
 				invite: refuse('organization.member.invite'),
+				reset: refuse('organization.member.reset'),
 				remove: refuse('organization.member.remove'),
 				lockOutCost: refuse('organization.member.lockOutCost'),
-				rename: refuse('organization.member.rename')
+				rename: refuse('organization.member.rename'),
+				changeRole: refuse('organization.member.changeRole'),
+				endSessions: refuse('organization.member.endSessions')
 			},
 			invitation: {
-				list: refuse('organization.invitation.list'),
-				revoke: refuse('organization.invitation.revoke')
+				revoke: refuse('organization.invitation.revoke'),
+				accept: refuse('organization.invitation.accept'),
+				link: refuse('organization.invitation.link'),
+				code: refuse('organization.invitation.code')
 			},
-			resetMember: refuse('organization.resetMember'),
 			changePassword: refuse('organization.changePassword'),
 			accountRefusalDetail: refuse('organization.accountRefusalDetail')
 		},
@@ -203,7 +209,6 @@ export function fakeOrganizationSession(
 		username: 'person.example',
 		role: 'owner',
 		permissions: 0,
-		mustChangePassword: false,
 		workspaces: [fakeOrganizationWorkspace()],
 		ownerUsername: 'olivia.owner',
 		...overrides
@@ -222,6 +227,7 @@ export function fakeOrganizationState(
 		organization: fakeHeldOrganization(),
 		session: fakeOrganizationSession(),
 		holdsTursoAuthority: true,
+		signedOutElsewhere: false,
 		...overrides
 	};
 }

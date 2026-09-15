@@ -6,7 +6,8 @@ import {
 	tauri,
 	type RemoteSyncState,
 	type RemoteSyncWorkspace,
-	type ReplicationRefusal
+	type ReplicationRefusal,
+	type SessionStanding
 } from '$lib/platform/tauri';
 
 /**
@@ -45,6 +46,15 @@ export type WorkspaceSyncResult = {
 	pushed: boolean;
 	/** why a half did not go, where Turso said: the account's, the credential's, or neither. */
 	refusal: ReplicationRefusal;
+	/**
+	 * where the signed-in member stands after it.
+	 *
+	 * **`signedOutElsewhere` is not about this workspace at all**, and it rides here because the
+	 * dispatch is what the heartbeat calls: somebody ended this member's sessions from another
+	 * machine, the shell has already put the wall up on its side, and this side has to read where
+	 * the machine stands again rather than go on drawing a workspace nobody is signed in to.
+	 */
+	standing: SessionStanding;
 };
 
 /**
@@ -101,9 +111,14 @@ export async function syncWorkspaceNow(
 	providedState?: RemoteSyncState | null
 ): Promise<WorkspaceSyncResult> {
 	const state = providedState ?? (await tauri.remoteSync.getState());
-	const replication = await tauri.remoteSync
-		.replicate()
-		.catch(() => ({ pushed: false, received: false, refusal: 'none' as const }));
+	const replication = await tauri.remoteSync.replicate().catch(() => ({
+		pushed: false,
+		received: false,
+		refusal: 'none' as const,
+		// a call that did not answer says nothing about the session, and the held answer is the
+		// one that changes nothing: the wall goes up on what Rust read, never on a failed read.
+		standing: 'held' as const
+	}));
 
 	return { state, action: 'none', ...replication };
 }
@@ -123,5 +138,7 @@ export async function syncWorkspaceBeforeExit(
 	const state = providedState ?? (await tauri.remoteSync.getState());
 	const pushed = await tauri.remoteSync.push().catch(() => false);
 
-	return { state, action: 'none', received: false, pushed, refusal: 'none' };
+	// the last call of a session reads no standing: it pushes and does not pull, so there is
+	// nothing newer to read the row against, and the window is closing either way.
+	return { state, action: 'none', received: false, pushed, refusal: 'none', standing: 'held' };
 }

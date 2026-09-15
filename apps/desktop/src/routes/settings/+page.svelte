@@ -1,37 +1,89 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import api from '$lib/api/caller';
 	import { tauri } from '$lib/platform/tauri';
-	import PageFrame from '@rentable/design/block/page-frame.svelte';
+	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
+	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { Separator } from '@rentable/design/primitive/separator/index.js';
+	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
 	import { toErrorText } from '$lib/error/message';
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
-	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
-	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
-	import SettingsLocale from '$lib/settings/component/locale.svelte';
-	import SettingsUpdates from '$lib/settings/component/updates.svelte';
-	import { useFetchSettings } from '$lib/settings/query';
-	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
+	import { useStartup } from '$lib/layout/startup-context';
+	import { showInvited } from '$lib/organization/dialogs.svelte';
+	import {
+		useChangeAccess,
+		useChangePassword,
+		useChangeRole,
+		useDeleteWorkspace,
+		useDisconnectOrganization,
+		useEndMemberSessions,
+		useEndOtherSessions,
+		useFetchMembers,
+		useFetchOrganizationState,
+		useInvitationCode,
+		useInvitationLink,
+		useLockOutCost,
+		useReissueInvitation,
+		useRemoveMember,
+		useRenameMember,
+		useRevokeInvitation
+	} from '$lib/organization/query';
+	import SettingsArea from '$lib/settings/component/area.svelte';
+	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
+	import { sectionOf } from '$lib/settings/section';
 	import { toast } from 'svelte-sonner';
 
 	/**
-	 * The application's own settings, and nothing else's.
+	 * Everything a person sets, at one address.
 	 *
-	 * **Two of its five groups were never settings**, and both left on 2026-08-20: the account went
-	 * to `/account` and the workspace to `/workspace`, each reached from the sidebar control that
-	 * names it. What is here is what a person changes about this copy of the application, and it
-	 * is the only page of the three that reads its own query rather than the shell's.
+	 * **The route owns the queries and the area owns none** ([[rules/frontend]]). What is here is
+	 * the four pages' worth of reading and writing that `/organization`, `/workspace`, `/account`
+	 * and this page each did for themselves, plus the one confirm that has to read a cost before
+	 * it can ask its question; `settings/component/area.svelte` is handed the answers and draws.
+	 * That split is what lets requirement 14's gating be read with two sessions and no shell.
+	 *
+	 * **The section is `?section=` on this pathname, and the pathname is load-bearing.** This is
+	 * the one address that draws with nobody signed in (`layout/shell-surface.ts`), matched
+	 * exactly, and the back trail is keyed by pathname, so moving between sections is not leaving
+	 * the page. `settings/section.ts` says why that beat a segment per section.
+	 *
+	 * **Signed out, three sections are offered and the organization's own reading is off.** The
+	 * settings query is public and reaches no database, which is what qualified this address for
+	 * the wall's list in the first place; the members list is a member's procedure and asks
+	 * nothing until there is a member.
 	 */
+	const startup = useStartup();
 	const settingsQuery = useFetchSettings();
+	const stateQuery = useFetchOrganizationState();
+	const membersQuery = useFetchMembers();
+
+	const session = $derived(stateQuery.data?.session ?? null);
+
+	const remoteSyncQuery = useFetchRemoteSyncState(() => session !== null);
+
+	const changePassword = useChangePassword();
+	const reissueInvitation = useReissueInvitation();
+	const revokeInvitation = useRevokeInvitation();
+	const invitationLink = useInvitationLink();
+	const invitationCode = useInvitationCode();
+	const removeMember = useRemoveMember();
+	const renameMember = useRenameMember();
+	const changeRole = useChangeRole();
+	const changeAccess = useChangeAccess();
+	const deleteWorkspace = useDeleteWorkspace();
+	const disconnectOrganization = useDisconnectOrganization();
+	const endOtherSessions = useEndOtherSessions();
+	const endMemberSessions = useEndMemberSessions();
 
 	const isLoading = $derived(settingsQuery.isLoading && !settingsQuery.data);
 	const loadError = $derived(
 		settingsQuery.error && !settingsQuery.data ? settingsQuery.error : undefined
 	);
+
+	const section = $derived(sectionOf(page.url));
 
 	async function revealDiagnostics() {
 		const diagnosticsDir = settingsQuery.data?.diagnosticsDir;
@@ -63,6 +115,214 @@
 			showErrorToast(error, $LL);
 		}
 	}
+
+	/**
+	 * the removal being asked about: which member, and at which speed. The lock-out's dialog
+	 * waits for the cost to be read, because the number it states is the number the act uses.
+	 */
+	let removing = $state<{ memberId: string; lockOut: boolean } | null>(null);
+
+	const lockOutCost = useLockOutCost(() => (removing?.lockOut ? removing.memberId : null));
+
+	const removingName = $derived.by(() => {
+		if (!removing) return '';
+
+		const member = (membersQuery.data ?? []).find(
+			(candidate) => candidate.id === removing?.memberId
+		);
+
+		return member ? member.username : removing.memberId;
+	});
+
+	const lockOutDescription = $derived.by(() => {
+		const cost = lockOutCost.data;
+
+		if (!removing?.lockOut || !cost) return $LL.organization.dashboard.lockOutReading();
+
+		return $LL.organization.dashboard.lockOutDescription({
+			count: cost.membersAffected,
+			workspaces:
+				cost.workspaces.map((workspace) => workspace.name).join(', ') ||
+				$LL.organization.dashboard.noWorkspaces()
+		});
+	});
+
+	const confirmRemoval = async () => {
+		if (!removing) return;
+
+		const { memberId, lockOut } = removing;
+
+		// what the removal did is announced by the hook, which is the only place a toast is
+		// raised ([[rules/frontend]], *Data access*); this reads the session again because a
+		// lock-out rotates workspaces the reader may hold.
+		await removeMember.mutateAsync({ memberId, lockOut });
+		await stateQuery.refetch();
+	};
+
+	let reissuing = $state<string | null>(null);
+	let revoking = $state<string | null>(null);
+	let copying = $state<string | null>(null);
+	let endingSessions = $state<string | null>(null);
+
+	/**
+	 * sign a member out of every machine, from their row.
+	 *
+	 * It runs on the press, as the new link beside it does: the row's actions act, and the one
+	 * question this effort asks before ending sessions is the reader's own, in the you section,
+	 * where what is at stake is the machines they are not standing at.
+	 */
+	const endSessions = async (memberId: string) => {
+		endingSessions = memberId;
+
+		try {
+			await endMemberSessions.mutateAsync({ memberId });
+		} catch {
+			// said by the shared handler.
+		} finally {
+			endingSessions = null;
+		}
+	};
+	let codeFor = $state<string | null>(null);
+
+	const reissue = async (memberId: string) => {
+		reissuing = memberId;
+
+		try {
+			const invited = await reissueInvitation.mutateAsync({ memberId });
+
+			showInvited({
+				invitationId: invited.invitationId,
+				username: invited.username,
+				joinLink: invited.joinLink,
+				code: invited.code,
+				codeExpiresAt: invited.codeExpiresAt,
+				unreachableWorkspaces: invited.unreachableWorkspaces
+			});
+		} catch {
+			// said by the shared handler.
+		} finally {
+			reissuing = null;
+		}
+	};
+
+	/**
+	 * the same link again, for the person who issued it: Rust seals it to their key and refuses
+	 * anybody else, who is offered a new link instead. It opens the panel an invitation and a
+	 * reset open, because all three end with one link in one person's hands.
+	 */
+	const copyLink = async (invitationId: string, username: string) => {
+		copying = invitationId;
+
+		try {
+			showInvited({
+				invitationId,
+				username,
+				joinLink: await invitationLink.mutateAsync({ invitationId }),
+				// a copied link makes no code: the row's own code action is what makes one, and a
+				// code shown beside a link nobody asked for a code for is one more thing to leak.
+				code: null,
+				codeExpiresAt: null,
+				unreachableWorkspaces: []
+			});
+		} catch {
+			// said by the shared handler.
+		} finally {
+			copying = null;
+		}
+	};
+
+	/**
+	 * a fresh code for a pending member, from their row: the same panel an invitation and a reset
+	 * open, showing the link and a code that was made a moment ago. Two calls, because the panel
+	 * draws both halves and the row holds neither: the link is rebuilt from the issuer's sealed
+	 * copy and the code is drawn and written over the old one.
+	 */
+	const freshCode = async (invitationId: string, username: string) => {
+		codeFor = invitationId;
+
+		try {
+			const joinLink = await invitationLink.mutateAsync({ invitationId });
+			const fresh = await invitationCode.mutateAsync({ invitationId });
+
+			showInvited({
+				invitationId,
+				username,
+				joinLink,
+				code: fresh.code,
+				codeExpiresAt: fresh.expiresAt,
+				unreachableWorkspaces: []
+			});
+		} catch {
+			// said by the shared handler.
+		} finally {
+			codeFor = null;
+		}
+	};
+
+	/**
+	 * a member's workspaces: the dialog hands back the rows that changed, and a row that changed
+	 * to `none` is the grant coming back. The writes and the one announcement are the mutation's,
+	 * so this is the shape of the answer turned into the shape the mutation takes.
+	 */
+	const changeMemberAccess = (
+		memberId: string,
+		changes: { id: string; access: 'none' | 'full-access' | 'read-only' }[]
+	) =>
+		changeAccess.mutateAsync({
+			changes: changes.map((change) => ({
+				workspaceId: change.id,
+				memberId,
+				access: change.access
+			}))
+		});
+
+	/**
+	 * the same writes, asked the other way round: one workspace, and the members whose access on
+	 * it changed. The workspaces section asks *who holds this*, the members section asks *what
+	 * does this person hold*, and both end in the same mutation.
+	 */
+	const changeWorkspaceAccess = (
+		workspaceId: string,
+		changes: { memberId: string; access: 'none' | 'full-access' | 'read-only' }[]
+	) =>
+		changeAccess.mutateAsync({
+			changes: changes.map((change) => ({
+				workspaceId,
+				memberId: change.memberId,
+				access: change.access
+			}))
+		});
+
+	/**
+	 * a workspace deleted, once the confirm in the section has asked: the database goes with it,
+	 * so the session is read again to drop the row the rail's switcher is still drawing.
+	 */
+	const removeWorkspace = async (workspaceId: string) => {
+		await deleteWorkspace.mutateAsync({ workspaceId });
+		await stateQuery.refetch();
+	};
+
+	const revoke = async (invitationId: string) => {
+		revoking = invitationId;
+
+		try {
+			await revokeInvitation.mutateAsync({ invitationId });
+		} catch {
+			// said by the shared handler.
+		} finally {
+			revoking = null;
+		}
+	};
+
+	/**
+	 * the disconnect, once confirmed: the shell forgets the organization, and the startup unit
+	 * reads where the machine stands and raises the first screen. A refusal is said by the shared
+	 * handler and rethrown so the confirm stays open on it.
+	 */
+	const disconnect = async () => {
+		await disconnectOrganization.mutateAsync();
+		void startup.standingChanged();
+	};
 </script>
 
 {#if isLoading}
@@ -87,37 +347,76 @@
 		{/snippet}
 	</StandaloneSurface>
 {:else if settingsQuery.data}
-	<PageFrame>
-		<!-- the title alone: the sentence under it listed the groups whose own legends are directly
-		     below, so the page opened by naming its contents twice. -->
-		<h1 class="text-3xl font-semibold tracking-tight capitalize">{$LL.settings.title()}</h1>
+	<SettingsArea
+		{section}
+		settings={settingsQuery.data}
+		{session}
+		holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority === true}
+		syncState={remoteSyncQuery.data ?? null}
+		members={membersQuery.data ?? []}
+		{reissuing}
+		{revoking}
+		{copying}
+		{endingSessions}
+		{codeFor}
+		isChangingPassword={changePassword.isPending}
+		isChangingRole={changeRole.isPending}
+		isChangingAccess={changeAccess.isPending}
+		onChangeLocale={(next) => void changeLocale(next)}
+		onRevealDiagnostics={() => void revealDiagnostics()}
+		onChangePassword={async (current, next) => {
+			await changePassword.mutateAsync({ current, next });
+		}}
+		onEndOtherSessions={async () => {
+			await endOtherSessions.mutateAsync();
+		}}
+		onEndSessions={(memberId) => void endSessions(memberId)}
+		onReissue={(memberId) => void reissue(memberId)}
+		onRevoke={(invitationId) => void revoke(invitationId)}
+		onCopyLink={(invitationId, username) => void copyLink(invitationId, username)}
+		onFreshCode={(invitationId, username) => void freshCode(invitationId, username)}
+		onRemove={(memberId) => {
+			removing = { memberId, lockOut: false };
+		}}
+		onLockOut={(memberId) => {
+			removing = { memberId, lockOut: true };
+		}}
+		onRename={async (memberId, username) => {
+			await renameMember.mutateAsync({ memberId, username });
+		}}
+		onChangeRole={async (memberId, role, permissions) => {
+			await changeRole.mutateAsync({ memberId, role, permissions });
+		}}
+		onChangeAccess={changeMemberAccess}
+		onChangeWorkspaceAccess={changeWorkspaceAccess}
+		onDeleteWorkspace={removeWorkspace}
+		onAuthorityReconnected={() => void stateQuery.refetch()}
+		onDisconnect={disconnect}
+	/>
 
-		<Field.Group>
-			<Field.Set>
-				<Field.Legend>{$LL.settings.groupGeneral()}</Field.Legend>
-				<Field.Group>
-					<SettingsLocale currentLocale={$locale} onChange={changeLocale} />
-					<Field.Separator />
-					<SettingsEndingSoon settings={settingsQuery.data} />
-				</Field.Group>
-			</Field.Set>
+	<!-- the ordinary removal asks once and says what it does not do: nothing on the member's
+	     machine is taken back. The lock-out asks with the cost read first, and names how many
+	     others stop syncing, because turso revokes per database and totally.
 
-			<Separator />
-
-			<Field.Set>
-				<Field.Legend>{$LL.settings.groupUpdates()}</Field.Legend>
-				<SettingsUpdates version={settingsQuery.data.version} />
-			</Field.Set>
-
-			<Separator />
-
-			<Field.Set>
-				<Field.Legend>{$LL.settings.groupDiagnostics()}</Field.Legend>
-				<SettingsDiagnostics
-					diagnosticsDir={settingsQuery.data.diagnosticsDir}
-					onRevealDiagnostics={() => void revealDiagnostics()}
-				/>
-			</Field.Set>
-		</Field.Group>
-	</PageFrame>
+	     It sits here rather than in the area because it reads a query of its own, and the area
+	     reads none; the members section raises it through `onRemove` and `onLockOut`. -->
+	<DeleteDialog
+		open={removing !== null}
+		onOpenChange={(open) => {
+			if (!open) removing = null;
+		}}
+		onSubmit={confirmRemoval}
+		record={removingName}
+		title={removing?.lockOut
+			? $LL.organization.dashboard.removeAndLockOut()
+			: $LL.organization.dashboard.remove()}
+		description={removing?.lockOut
+			? lockOutDescription
+			: $LL.organization.dashboard.removeDescription()}
+		confirmLabel={removing?.lockOut
+			? $LL.organization.dashboard.removeAndLockOut()
+			: $LL.organization.dashboard.remove()}
+		confirmLoadingLabel={$LL.common.actions.working()}
+		blockers={removing?.lockOut && !lockOutCost.data ? AWAITING_BLOCKERS : undefined}
+	/>
 {/if}

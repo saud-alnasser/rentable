@@ -25,10 +25,10 @@
 use crate::{diagnostics, error::Error};
 
 use super::{
-    session::MemberSession,
+    session::{MemberSession, remember},
     setup::MINIMUM_PASSWORD_LENGTH,
     store::OrganizationStore,
-    vault::{KdfParams, open_vault, reseal_vault},
+    vault::{KdfParams, open_vault, reseal_vault_with_key},
 };
 
 /// Change the signed-in member's password. The current one has to open the vault first, so a
@@ -70,11 +70,20 @@ pub async fn change_password(
         });
     }
 
-    let vault = reseal_vault(&session.secret, new, kdf_params)?;
+    let (vault, member_key) = reseal_vault_with_key(&session.secret, new, kdf_params)?;
 
     store
         .reseal_member(&session.member_id, &vault, false, now)
         .await?;
+
+    // the entry this machine stays signed in on, rewritten in the same call: what was filed
+    // before this opened the old seal and opens nothing now (effort 826, requirement 12).
+    remember(
+        &session.organization_id,
+        &session.member_id,
+        session.session_epoch,
+        &member_key,
+    );
 
     if !store.push().await {
         diagnostics::warn("organization.password.notYetSent")
@@ -100,12 +109,16 @@ mod tests {
     use super::change_password;
     use crate::{
         error::Error,
+        keyring::{self, take_the_credential_store},
         organization::{
             HeldOrganization,
-            invite::{Invitation, invite_member, organization_link, reissue_invitation},
+            invite::{
+                Invitation, Invited, WorkspaceGrant, invite_member, organization_link,
+                reissue_invitation,
+            },
             migrate::Pipeline,
             permission,
-            session::{CredentialSlot, MemberSession, sign_in},
+            session::{CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, read_entry, sign_in},
             setup::{
                 ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, MINIMUM_PASSWORD_LENGTH,
                 ORGANIZATION_KEY_PURPOSE, Remote, create_organization,
@@ -149,6 +162,32 @@ mod tests {
 
     fn slot() -> CredentialSlot {
         Arc::new(Mutex::new(None))
+    }
+    /// No platform authority in hand, which is every session here but the owner's with one.
+    fn no_platform() -> Option<&'static InMemoryPlatform> {
+        None
+    }
+
+    /// Full access on each workspace named, which is what every invitation here grants.
+    fn full(ids: &[String]) -> Vec<WorkspaceGrant> {
+        ids.iter()
+            .map(|id| WorkspaceGrant {
+                id: id.clone(),
+                access: AccessLevel::FullAccess,
+            })
+            .collect()
+    }
+
+    /// The password an invitation's vault was sealed under: the link's secret and the code
+    /// together open it, which is what the person opening the link does (effort 826, requirement
+    /// 23). `reader` is any session over this organization. *It was the link's secret alone until
+    /// that requirement made the code the other half.*
+    async fn secret_of(
+        store: &OrganizationStore,
+        reader: &MemberSession,
+        invited: &Invited,
+    ) -> String {
+        crate::organization::invite::vault_password_of(store, reader, invited, test_cost()).await
     }
 
     fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
@@ -243,6 +282,7 @@ mod tests {
                 name: "Acme",
                 username: "olivia",
                 password: OWNER_PASSWORD,
+                group: None,
             },
             test_cost(),
             AT,
@@ -282,11 +322,12 @@ mod tests {
         let administrator = invite_member(
             &store,
             &owner,
+            no_platform(),
             &link,
             Invitation {
                 username: "ada.admin",
                 role: permission::ADMINISTRATOR,
-                workspace_ids: std::slice::from_ref(&north.id),
+                workspaces: &full(std::slice::from_ref(&north.id)),
             },
             test_cost(),
             AT,
@@ -296,11 +337,12 @@ mod tests {
         let member = invite_member(
             &store,
             &owner,
+            no_platform(),
             &link,
             Invitation {
                 username: "sami.staff",
                 role: permission::MEMBER,
-                workspace_ids: &[north.id.clone(), south.id.clone()],
+                workspaces: &full(&[north.id.clone(), south.id.clone()]),
             },
             test_cost(),
             AT,
@@ -308,13 +350,16 @@ mod tests {
         .await
         .expect("the member");
 
-        (
-            store,
-            owner,
-            (north.id, south.id),
-            (administrator.member_id, administrator.generated_password),
-            (member.member_id, member.generated_password),
-        )
+        let administrator = (
+            administrator.member_id.clone(),
+            secret_of(&store, &owner, &administrator).await,
+        );
+        let member = (
+            member.member_id.clone(),
+            secret_of(&store, &owner, &member).await,
+        );
+
+        (store, owner, (north.id, south.id), administrator, member)
     }
 
     /// Criterion 13's first half: a change re-seals the member's own vault and leaves every other
@@ -361,9 +406,10 @@ mod tests {
 
             changed += 1;
             assert_eq!(table, "member", "a {table} row changed");
-            // id, username, public key are the first three; the sealed secret key, the content
-            // key, the salt and the params follow; role, permissions, the flag, the certificate,
-            // the signature, created_at, updated_at close the row.
+            // id, username, the public key and the signing public key are the first four; the
+            // sealed secret key, the content key, the salt and the params follow; role,
+            // permissions, the flag, the certificate, the signature, created_at, updated_at
+            // close the row.
             assert_eq!(was[0], is[0], "the id changed");
             assert_eq!(
                 was[0].as_deref(),
@@ -372,15 +418,16 @@ mod tests {
             );
             assert_eq!(was[1], is[1], "the username changed");
             assert_eq!(was[2], is[2], "the public key changed");
-            assert_ne!(was[3], is[3], "the sealed secret key did not change");
-            assert_eq!(was[4], is[4], "the sealed content key changed");
-            assert_ne!(was[5], is[5], "the salt did not change");
-            assert_eq!(was[7], is[7], "the role changed");
-            assert_eq!(was[8], is[8], "the permissions changed");
-            assert_ne!(was[9], is[9], "the flag did not clear");
-            assert_eq!(was[10], is[10], "the certificate changed");
-            assert_eq!(was[11], is[11], "the signature changed");
-            assert_eq!(was[12], is[12], "created_at changed");
+            assert_eq!(was[3], is[3], "the signing public key changed");
+            assert_ne!(was[4], is[4], "the sealed secret key did not change");
+            assert_eq!(was[5], is[5], "the sealed content key changed");
+            assert_ne!(was[6], is[6], "the salt did not change");
+            assert_eq!(was[8], is[8], "the role changed");
+            assert_eq!(was[9], is[9], "the permissions changed");
+            assert_ne!(was[10], is[10], "the flag did not clear");
+            assert_eq!(was[11], is[11], "the certificate changed");
+            assert_eq!(was[12], is[12], "the signature changed");
+            assert_eq!(was[13], is[13], "created_at changed");
         }
 
         assert_eq!(changed, 1, "{changed} rows changed");
@@ -568,6 +615,7 @@ mod tests {
         let reset = reissue_invitation(
             &store,
             &administrator,
+            no_platform(),
             &link,
             &member_id,
             test_cost(),
@@ -589,7 +637,7 @@ mod tests {
         let member = sign_in(
             &store,
             &joined_as(&owner, &member_id, permission::MEMBER),
-            &reset.generated_password,
+            &secret_of(&store, &owner, &reset).await,
             &slot(),
         )
         .await
@@ -614,12 +662,64 @@ mod tests {
         let member = sign_in(
             &store,
             &joined_as(&owner, &member_id, permission::MEMBER),
-            &reset.generated_password,
+            &secret_of(&store, &owner, &reset).await,
             &slot(),
         )
         .await
         .expect("the member did not sign in again");
 
         assert!(member.workspace_credentials.contains_key(&south));
+    }
+
+    /// **Effort 826, requirement 12.** A change rewrites the entry this machine stays signed in
+    /// on, in the same call: what was filed before it opened the old seal and opens nothing now,
+    /// so a launch after a change that left the old key behind would meet the wall.
+    #[tokio::test]
+    async fn a_password_change_rewrites_the_key_this_machine_stays_signed_in_on() {
+        let _turn = take_the_credential_store().await;
+        let directory = scratch("change-remembers");
+        let (store, owner, _, _, (member_id, generated)) = organization(&directory).await;
+        let joined = joined_as(&owner, &member_id, permission::MEMBER);
+        let account = format!("{}:{member_id}", owner.organization_id);
+        let mut session = sign_in(&store, &joined, &generated, &slot())
+            .await
+            .expect("the member did not sign in");
+
+        // what the sign-in on the generated password filed, which the change has to replace.
+        keyring::store(MEMBER_KEY_SERVICE, &account, "whatever was filed before")
+            .expect("the store would not take the value");
+
+        let chosen = "a password of their own choosing";
+
+        change_password(
+            &store,
+            &mut session,
+            &generated,
+            chosen,
+            test_cost(),
+            AT + 1,
+        )
+        .await
+        .expect("the change failed");
+
+        let filed = keyring::read(MEMBER_KEY_SERVICE, &account)
+            .expect("the store would not answer")
+            .expect("the change filed no key");
+        let (_, key) = read_entry(&filed).expect("what was filed is not a remembered session");
+        let row = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the members")
+            .into_iter()
+            .find(|row| row.id == member_id)
+            .expect("the member row");
+
+        assert!(!filed.contains(chosen), "the password was filed");
+        assert_eq!(
+            open_sealed_secret_key(&key, &row.vault)
+                .expect("the filed key did not open the resealed vault")
+                .public_key(),
+            session.secret.public_key()
+        );
     }
 }

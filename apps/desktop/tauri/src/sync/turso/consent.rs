@@ -23,12 +23,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(not(test))]
-use keyring::{Entry as KeyringEntry, Error as KeyringError};
-
 use serde::{Deserialize, Serialize};
 
-use crate::{error::Error, http::build_client};
+// `crate::keyring`, this application's own, rather than the `keyring` crate the extern prelude
+// would otherwise answer with: reaching the platform's store is that module's job and nothing
+// here has an entry to open.
+use crate::{error::Error, http::build_client, keyring};
 
 use super::super::oauth::{
     OAuthConfig,
@@ -750,11 +750,18 @@ fn callback_page_message(outcome: &ConsentOutcome) -> String {
     }
 }
 
-#[cfg(not(test))]
-fn store_platform_token(platform_token: &str) -> Result<(), Error> {
-    platform_keyring_entry()?
-        .set_password(platform_token)
-        .map_err(|error| format_keyring_error("store", error))
+/// File the token where the next run will look for it.
+///
+/// **The two names above are the whole of what this module knows about the store**, and
+/// `crate::keyring` is the whole of how it reaches one: the entry, the platform's own store
+/// behind it, and the fake a test runs over all live there. It is `pub(crate)` because a test
+/// of anything that spends the authority has to file one first.
+pub(crate) fn store_platform_token(platform_token: &str) -> Result<(), Error> {
+    keyring::store(
+        TURSO_PLATFORM_KEYRING_SERVICE,
+        TURSO_PLATFORM_KEYRING_ACCOUNT,
+        platform_token,
+    )
 }
 
 /// The authority this machine holds, for whatever is about to spend it.
@@ -763,102 +770,28 @@ fn store_platform_token(platform_token: &str) -> Result<(), Error> {
 /// that is a thing somebody can do something about: grant the consent again. A provisioning
 /// path that read an `Option` here would have to decide what nothing means at every call
 /// site, and the one that forgot would send an empty bearer token to Turso and report
-/// whatever Turso said about it.
-#[cfg(not(test))]
+/// whatever Turso said about it. The store answering nothing and the store not answering stay
+/// apart on the way through: only the first is this refusal.
 pub(crate) fn platform_token() -> Result<String, Error> {
-    match platform_keyring_entry()?.get_password() {
-        Ok(platform_token) => Ok(platform_token),
-        Err(KeyringError::NoEntry) => Err(no_platform_authority()),
-        Err(error) => Err(format_keyring_error("read", error)),
-    }
+    keyring::read(
+        TURSO_PLATFORM_KEYRING_SERVICE,
+        TURSO_PLATFORM_KEYRING_ACCOUNT,
+    )?
+    .ok_or_else(no_platform_authority)
 }
 
 /// Forget the token, and leave nothing a later run could read as a grant.
 ///
-/// A store that holds no entry is already in the state this asks for, so `NoEntry` is the
-/// outcome rather than a failure: the caller asked for the entry to be gone.
-#[cfg(not(test))]
-fn forget_platform_token() -> Result<(), Error> {
-    match platform_keyring_entry()?.delete_credential() {
-        Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
-        Err(error) => Err(format_keyring_error("forget", error)),
-    }
-}
-
-#[cfg(not(test))]
-fn platform_keyring_entry() -> Result<KeyringEntry, Error> {
-    KeyringEntry::new(
+/// **The disconnect's path, and the first run's.** Giving the authority back is what a person
+/// asks for on the settings surface, and it is also what a first run does to itself when the
+/// consented group turns out to already hold an organization (requirement 21 of effort 826):
+/// the grant is no use where it landed, and abandoning it is what lets the person consent again
+/// over another group or another Turso account.
+pub(crate) fn forget_platform_token() -> Result<(), Error> {
+    keyring::forget(
         TURSO_PLATFORM_KEYRING_SERVICE,
         TURSO_PLATFORM_KEYRING_ACCOUNT,
     )
-    .map_err(|error| format_keyring_error("open", error))
-}
-
-/// **The token itself never reaches this message.** A credential in an error string is a
-/// credential in whatever reads that string, and every error here crosses to the web layer.
-#[cfg(not(test))]
-fn format_keyring_error(action: &str, error: KeyringError) -> Error {
-    Error::Credential {
-        message: format!("failed to {action} the turso platform token: {error}"),
-    }
-}
-
-/// the credential store a test has. It stands in for exactly the three calls above, so a test
-/// asserts on where the token went rather than on a mocked keyring's idea of it.
-#[cfg(test)]
-pub(crate) fn store_platform_token(platform_token: &str) -> Result<(), Error> {
-    let mut stored = test_platform_token()
-        .lock()
-        .map_err(|_| consents_poisoned())?;
-
-    *stored = Some(platform_token.to_string());
-
-    Ok(())
-}
-
-#[cfg(test)]
-pub(crate) fn platform_token() -> Result<String, Error> {
-    test_platform_token()
-        .lock()
-        .map_err(|_| consents_poisoned())?
-        .clone()
-        .ok_or_else(no_platform_authority)
-}
-
-#[cfg(test)]
-fn forget_platform_token() -> Result<(), Error> {
-    *test_platform_token()
-        .lock()
-        .map_err(|_| consents_poisoned())? = None;
-
-    Ok(())
-}
-
-#[cfg(test)]
-fn test_platform_token() -> &'static Mutex<Option<String>> {
-    use std::sync::OnceLock;
-
-    static STORE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
-
-    STORE.get_or_init(|| Mutex::new(None))
-}
-
-/// a test's turn on the credential store above, which is one static every test in the
-/// process shares: a token one test filed is what another's assertion reads, and a test
-/// that emptied it leaves a request from a third with nothing to spend, unless they take
-/// turns. Held for the whole test, across its awaits, which is why the lock is tokio's.
-#[cfg(test)]
-pub(crate) type CredentialStoreTurn = tokio::sync::MutexGuard<'static, ()>;
-
-#[cfg(test)]
-pub(crate) async fn take_the_credential_store() -> CredentialStoreTurn {
-    use std::sync::OnceLock;
-
-    static TURN: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
-
-    TURN.get_or_init(|| tokio::sync::Mutex::new(()))
-        .lock()
-        .await
 }
 
 /// the consents map is only ever held for a field read or write, so a poisoned lock means a
@@ -894,13 +827,14 @@ mod tests {
 
     use crate::{
         error::Error,
+        keyring::{self, CredentialStoreTurn, take_the_credential_store},
         sync::test::server::{ScriptedResponse, ScriptedServer},
     };
 
     use super::{
-        CredentialStoreTurn, TURSO_CONSENT_SCOPES, TURSO_PLATFORM_KEYRING_ACCOUNT,
-        TURSO_PLATFORM_KEYRING_SERVICE, TURSO_RESOURCE_INDICATOR, TursoConsent, TursoConsentStatus,
-        TursoEndpoints, platform_token, take_the_credential_store, test_platform_token,
+        TURSO_CONSENT_SCOPES, TURSO_PLATFORM_KEYRING_ACCOUNT, TURSO_PLATFORM_KEYRING_SERVICE,
+        TURSO_RESOURCE_INDICATOR, TursoConsent, TursoConsentStatus, TursoEndpoints,
+        forget_platform_token, platform_token,
     };
 
     const ACCESS_TOKEN: &str = "the-platform-api-token";
@@ -922,20 +856,22 @@ mod tests {
         "read",
     ];
 
-    /// an empty credential store, held for the whole test.
+    /// an empty credential store, held for the whole test. The turn is taken once, here, and
+    /// never again inside the test: one turn covers every entry the fake holds.
     async fn forget_the_stored_token() -> CredentialStoreTurn {
         let turn = take_the_credential_store().await;
-        *test_platform_token()
-            .lock()
-            .expect("the test credential store was poisoned") = None;
+        forget_platform_token().expect("the test credential store would not empty");
         turn
     }
 
+    /// read out of the store this module files into, rather than out of a copy of it, so what
+    /// the assertion sees is what a later run would find.
     fn stored_token() -> Option<String> {
-        test_platform_token()
-            .lock()
-            .expect("the test credential store was poisoned")
-            .clone()
+        keyring::read(
+            TURSO_PLATFORM_KEYRING_SERVICE,
+            TURSO_PLATFORM_KEYRING_ACCOUNT,
+        )
+        .expect("the test credential store would not answer")
     }
 
     fn registration_answer() -> ScriptedResponse {

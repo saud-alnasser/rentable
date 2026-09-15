@@ -17,13 +17,18 @@
 	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
 	import LayoutStartupUnreadable from '$lib/layout/component/startup-unreadable.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
-	import { THE_FIRST_RUN, THE_JOIN, shellSurface, wayInFrom } from '$lib/layout/shell-surface';
-	import { linkArrived } from '$lib/organization/join';
+	import {
+		THE_FIRST_RUN,
+		THE_JOIN,
+		addressAfterSignOut,
+		shellSurface,
+		wayInFrom
+	} from '$lib/layout/shell-surface';
+	import { linkArrived } from '$lib/organization/connect';
 	import { noteMigration } from '$lib/layout/migration-notice.svelte';
 	import { startupSurfaceBeforeLocale } from '$lib/layout/startup-surface';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
-	import LayoutStartupChangePassword from '$lib/layout/component/startup-change-password.svelte';
 	import LayoutStartupNoWorkspace from '$lib/layout/component/startup-no-workspace.svelte';
 	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
 	import LayoutStartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
@@ -151,17 +156,34 @@
 		let unlistenCloseRequested: (() => void) | undefined;
 		let stopListeningForCloseRequests: (() => void) | undefined;
 		const stopWorkspaceSyncManager = startWorkspaceSyncManager({
-			onResult: (detail) => startup.applySyncOutcome(detail)
+			onResult: (detail) => startup.applySyncOutcome(detail),
+			// somebody ended this member's sessions from another machine: the shell has already
+			// dropped the keys, so reading where the machine stands is what raises the wall, the
+			// same path a sign-out takes (effort 826, requirement 22).
+			onSessionEnded: () => startup.standingChanged()
 		});
+		// leaving first, and reading where the machine stands afterwards. The wall is drawn in place
+		// of the route, so on the three addresses that open signed out there is no wall to draw and
+		// signing out from `/settings` left the settings of a machine nobody is signed in on still
+		// on screen. `addressAfterSignOut` says where to go, and it says nothing from anywhere else,
+		// which is what keeps the reader's place on every address the card covers by itself.
 		const stopListeningForSignOut = listenForSignOut(() => {
-			void startup.signOut();
+			void (async () => {
+				const destination = addressAfterSignOut(page.url.pathname);
+
+				if (destination) {
+					await goto(resolve(destination));
+				}
+
+				await startup.signOut();
+			})();
 		});
 		// a `rentable://` link the operating system handed the process: held where the join screen
 		// takes it, and the screen put on. The one it was launched with is taken once the shell is
 		// up, because it arrived before anything was listening; every later one is an event.
 		let unlistenLink: (() => void) | undefined;
 		let unlistenMigration: (() => void) | undefined;
-		const openJoinScreen = (link: string) => {
+		const openConnectScreen = (link: string) => {
 			linkArrived(link);
 			void goto(resolve(THE_JOIN));
 		};
@@ -183,7 +205,7 @@
 				void startup.closeWindow(startup.closesWithoutSyncing);
 			});
 
-			unlistenLink = await tauri.organization.onLink(openJoinScreen);
+			unlistenLink = await tauri.organization.onLink(openConnectScreen);
 			unlistenMigration = await tauri.organization.onMigration(noteMigration);
 
 			await startup.start();
@@ -191,7 +213,7 @@
 			const waiting = await tauri.organization.linkTake();
 
 			if (waiting) {
-				openJoinScreen(waiting);
+				openConnectScreen(waiting);
 			}
 		})();
 
@@ -255,7 +277,7 @@
 		// a person is in and there is no workspace: the rail is up, and it has no workspace to
 		// name, which is the shape the signed-out rail already draws. What the rail says for this
 		// state is the workspace ticket's to decide when there is a workspace to create.
-		if (shellState.state === 'no-workspace' || shellState.state === 'change-password') {
+		if (shellState.state === 'no-workspace') {
 			return 'signed-out';
 		}
 
@@ -364,13 +386,6 @@
 									onDisconnect={() => startup.disconnect()}
 									onSetUpOrganization={() => void goto(resolve(THE_FIRST_RUN))}
 									onJoinByLink={() => void goto(resolve(THE_JOIN))}
-								/>
-							{:else if surface === 'change-password'}
-								<LayoutStartupChangePassword
-									organizationName={shellState.organization?.session?.organizationName ?? ''}
-									isChanging={shellState.isSigningIn}
-									errorMessage={shellState.error}
-									onChange={(current, next) => void startup.changePassword(current, next)}
 								/>
 							{:else if surface === 'no-workspace'}
 								<LayoutStartupNoWorkspace

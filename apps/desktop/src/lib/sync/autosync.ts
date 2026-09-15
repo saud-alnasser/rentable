@@ -57,6 +57,12 @@ function shouldRetryAfter(error: unknown) {
  */
 export function startWorkspaceSyncManager(input: {
 	onResult?: (detail: WorkspaceSyncEventResult) => Promise<void> | void;
+	/**
+	 * the session this machine was holding was ended from another one (effort 826, requirement
+	 * 22). The shell has already put the wall up on its side, so what is owed here is a read of
+	 * where the machine stands; startup does the rest.
+	 */
+	onSessionEnded?: () => Promise<void> | void;
 }) {
 	let timer: number | null = null;
 	let isRunning = false;
@@ -91,6 +97,17 @@ export function startWorkspaceSyncManager(input: {
 
 		try {
 			const result = await syncWorkspaceNow();
+
+			// **Before the report, and instead of it.** The session is gone, so there is no
+			// workspace for a sync outcome to be about; the wall is what this machine draws next,
+			// and a retry ladder armed here would run against a machine nobody is signed in to.
+			if (result.standing === 'signedOutElsewhere') {
+				retryDelayMs = INITIAL_RETRY_MS;
+				await input.onSessionEnded?.();
+
+				return;
+			}
+
 			await handleResult({
 				action: result.action,
 				errorMessage: null,
@@ -147,6 +164,11 @@ export function startWorkspaceSyncManager(input: {
 	// edge somebody on this device produced — a mutation, a reconnection, a launch — and a device
 	// whose user is reading has none of them. `run` coalesces against itself, so a heartbeat landing
 	// on a dispatch already in flight is dropped rather than queued behind it.
+	//
+	// **It is also what ends a session somebody ended from another machine** (effort 826,
+	// requirement 22). The dispatch's own call reads the standing, so the property the requirement
+	// asks for, a machine with the application open being at the wall within one heartbeat of the
+	// push reaching it, falls out of the interval that is already here.
 	const heartbeat = window.setInterval(() => void run(), HEARTBEAT_MS);
 
 	return () => {

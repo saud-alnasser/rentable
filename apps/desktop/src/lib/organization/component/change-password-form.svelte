@@ -89,7 +89,7 @@
 	</Field.Field>
 
 	<Field.Field>
-		<Field.Label for="password-next">{$LL.account.password.nextLabel()}</Field.Label>
+		<Field.Label for="password-next">{$LL.settings.you.password.nextLabel()}</Field.Label>
 		<InputGroup.Root data-disabled={isChanging ? 'true' : undefined}>
 			<InputGroup.Addon>
 				<KeyRoundIcon />
@@ -111,7 +111,8 @@
 	</Field.Field>
 
 	<Field.Field>
-		<Field.Label for="password-confirmation">{$LL.account.password.confirmLabel()}</Field.Label>
+		<Field.Label for="password-confirmation">{$LL.settings.you.password.confirmLabel()}</Field.Label
+		>
 		<InputGroup.Root data-disabled={isChanging ? 'true' : undefined}>
 			<InputGroup.Addon>
 				<KeyRoundIcon />
@@ -127,12 +128,12 @@
 			/>
 		</InputGroup.Root>
 		{#if mismatch}
-			<Field.Error>{$LL.account.password.mismatch()}</Field.Error>
+			<Field.Error>{$LL.settings.you.password.mismatch()}</Field.Error>
 		{/if}
 	</Field.Field>
 
 	<Button type="submit" class="w-full justify-center sm:w-auto" disabled={!canSubmit}>
 		<RefreshCwIcon class="size-4" />
-		{isChanging ? $LL.common.actions.working() : $LL.account.password.change()}
+		{isChanging ? $LL.common.actions.working() : $LL.settings.you.password.change()}
 	</Button>
 </form>

@@ -1,62 +1,103 @@
-import { DesignProvider } from '@rentable/design/strings.js';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { expect, test } from 'vitest';
+import { beforeEach, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { formatRecordDate } from '$lib/design/date';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Members from '$lib/organization/component/members.svelte';
-import type { OrganizationMember } from '$lib/platform/host';
+import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
+import type { OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
+import Providers from './providers.svelte';
+
 /**
  * THE MEMBERS, RENDERED
  *
- * Which controls each row carries, for whom. What is worth pinning is requirement 14's shape on
- * the screen: the ordinary removal is the control and the lock-out is a lesser, separate one
- * drawn for the owner alone; neither is drawn on the owner's row or the reader's own; and the
- * two say what they are in both locales.
+ * Criterion 15 of [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]]: one list,
+ * active and pending alike, with the fields requirement 15 names on each row, every row action
+ * behind its own act, and the invite button opening the shell's dialog.
  *
- * And requirement 21 of the redesign: a row names its member by the one username and nothing
- * else, no address and no display name. And requirement 24's avatar: every row draws the first
- * two characters of its username, upper-cased, in the same disc the rail's account control
- * draws.
+ * **What a row carries** is what the human settled on screen: the identity on the first line
+ * (the avatar's two letters, the username, the role, and on a pending row the badge with its
+ * expiry) and the workspaces as chips carrying their own access on the second.
  *
- * And requirement 23 of the redesign: a rename is the row's own control, on every row but the
- * reader's own, and it opens one light form surface with one username field. The refusal it
- * draws is the sentence Rust's `validate_username` carries, read off the source here so the two
- * cannot drift; the invite form and the walk's name step read the same sentence through the
- * shared schema in `organization/username-form.ts`.
+ * **What a row offers** is drawn from the reader's permissions alone, and a control for an act
+ * the session lacks is absent rather than disabled. Copy link is narrower still: Rust seals the
+ * link to its issuer, so the row offers it only where the payload says the reader issued it.
  *
- * No submit is fired: a superforms SPA submit reaches SvelteKit's `applyAction`, which this
- * runner does not carry. The refusal is reached the way a person first meets it, by leaving the
- * field, which is client-side validation and needs no submit.
+ * Requirement 21 of effort 824 holds throughout: a row names its member by the one username and
+ * carries no address and no display name. Requirement 24's avatar is the same two letters the
+ * rail draws.
+ *
+ * The rename's own refusal is still read here, against the sentence Rust carries, because the
+ * dialog this list owns is where a person meets it. No submit is fired for that one: a
+ * superforms SPA submit reaches SvelteKit's `applyAction`, which this runner does not carry, so
+ * the refusal is reached the way a person first meets it, by leaving the field.
  */
 
 const noop = () => {};
+const resolved = async () => {};
+
+const workspaces: OrganizationWorkspace[] = [
+	{
+		id: 'ws-1',
+		name: 'Riyadh',
+		databaseName: 'ws-1',
+		databaseHostname: 'ws-1.turso.io',
+		schemaVersion: 1,
+		accessLevel: 'full-access'
+	},
+	{
+		id: 'ws-2',
+		name: 'Jeddah',
+		databaseName: 'ws-2',
+		databaseHostname: 'ws-2.turso.io',
+		schemaVersion: 1,
+		accessLevel: 'full-access'
+	}
+];
+
+const EXPIRES_AT = Date.UTC(2026, 8, 20);
+
 const member = (overrides: Partial<OrganizationMember>): OrganizationMember => ({
 	id: 'm',
 	username: 'member',
 	role: 'member',
 	permissions: 0,
-	mustChangePassword: false,
-	workspaceIds: [],
+	workspaces: [],
+	pending: null,
 	createdAt: 0,
 	...overrides
 });
+
 const members = [
 	member({ id: 'owner', username: 'olivia', role: 'owner' }),
-	member({ id: 'ada', username: 'ada', role: 'administrator' }),
-	member({ id: 'sami', username: 'sami' })
+	member({
+		id: 'ada',
+		username: 'ada',
+		role: 'administrator',
+		workspaces: [
+			{ id: 'ws-1', access: 'full-access' },
+			{ id: 'ws-2', access: 'read-only' }
+		]
+	}),
+	member({
+		id: 'sami',
+		username: 'sami',
+		workspaces: [{ id: 'ws-1', access: 'full-access' }],
+		pending: {
+			invitationId: 'invitation-1',
+			expiresAt: EXPIRES_AT,
+			standing: 'open',
+			canCopy: true
+		}
+	})
 ];
-
-const inProvider = (direction: 'ltr' | 'rtl') => ({
-	wrapper: DesignProvider,
-	wrapperProps: { strings, direction }
-});
 
 const list = (
 	overrides: Partial<Parameters<typeof render<typeof Members>>[1]> = {},
@@ -66,25 +107,42 @@ const list = (
 		Members,
 		{
 			members,
-			workspaces: [],
+			workspaces,
 			canInvite: true,
 			canRemove: true,
 			canLockOut: true,
 			canRename: true,
+			canReset: true,
+			canChangeRole: true,
+			canGrantWorkspace: true,
+			isOwner: true,
 			selfId: 'owner',
 			reissuing: null,
+			revoking: null,
+			copying: null,
+			endingSessions: null,
+			codeFor: null,
+			isChangingRole: false,
+			isChangingAccess: false,
+			onEndSessions: noop,
 			onReissue: noop,
+			onRevoke: noop,
+			onCopyLink: noop,
+			onFreshCode: noop,
 			onRemove: noop,
 			onLockOut: noop,
-			onRename: async () => {},
+			onRename: resolved,
+			onChangeRole: resolved,
+			onChangeAccess: resolved,
 			...overrides
 		},
-		inProvider(direction)
+		{ wrapper: Providers, wrapperProps: { strings, direction } }
 	);
 
-const removeControls = () => document.querySelectorAll('[data-member-remove]').length;
-const lockOutControls = () => document.querySelectorAll('[data-member-lock-out]').length;
-const renameControls = () => document.querySelectorAll('[data-member-rename]').length;
+/** every control of one kind on the list, by the attribute the row marks it with. */
+const controls = (kind: string) => document.querySelectorAll(`[data-member-${kind}]`).length;
+const on = (kind: string, id: string) => document.querySelector(`[data-member-${kind}="${id}"]`);
+const row = (id: string) => document.querySelector(`[data-member="${id}"]`);
 const surface = () => document.querySelector('[data-slot=form-surface]');
 const usernameInput = () => document.querySelector<HTMLInputElement>('input[name=username]');
 
@@ -102,130 +160,329 @@ const rustUsernameRules = () => {
 	return declared[1];
 };
 
-test('the owner sees a removal and a lock-out on every row but their own', () => {
+beforeEach(() => {
+	resetOrganizationDialogs();
 	loadLocale('en');
 	setLocale('en');
+});
+
+// criterion 15: one list, and the person who has not signed in yet is a row in it.
+test('one list holds every member, active and pending alike', () => {
 	list();
 
-	expect(removeControls()).toBe(2);
-	expect(lockOutControls()).toBe(2);
-	expect(document.querySelector('[data-member-remove="owner"]')).toBeNull();
-	expect(screen.getAllByRole('button', { name: en.organization.dashboard.remove })).toHaveLength(2);
+	expect(document.querySelectorAll('[data-members]')).toHaveLength(1);
+	expect(document.querySelectorAll('[data-member]')).toHaveLength(3);
 	expect(
-		screen.getAllByRole('button', { name: en.organization.dashboard.removeAndLockOut })
-	).toHaveLength(2);
-});
-
-// the lock-out needs the turso authority, which is the owner's machine's; an administrator gets
-// the ordinary removal and nothing that would be refused.
-test('an administrator sees the ordinary removal and no lock-out, and not on their own row', () => {
-	loadLocale('en');
-	setLocale('en');
-	list({ canLockOut: false, selfId: 'ada' });
-
-	expect(removeControls()).toBe(1);
-	expect(lockOutControls()).toBe(0);
-	expect(document.querySelector('[data-member-remove="sami"]')).not.toBeNull();
-	expect(document.querySelector('[data-member-remove="ada"]')).toBeNull();
-	expect(document.querySelector('[data-member-remove="owner"]')).toBeNull();
-});
-
-test('a member without the act sees no removal at all', () => {
-	loadLocale('en');
-	setLocale('en');
-	list({ canInvite: false, canRemove: false, canLockOut: false, canRename: false, selfId: 'sami' });
-
-	expect(removeControls()).toBe(0);
-	expect(lockOutControls()).toBe(0);
-	expect(renameControls()).toBe(0);
-});
-
-// criterion 21: the row names its member by the username, and by nothing else.
-test('each row names its member by the username and carries no address or display name, in both locales', () => {
-	for (const locale of ['en', 'ar'] as const) {
-		loadLocale(locale);
-		setLocale(locale);
-
-		const rendered = list({}, locale === 'ar' ? 'rtl' : 'ltr');
-		const named = Array.from(document.querySelectorAll('[data-member-username]')).map((node) =>
+		Array.from(document.querySelectorAll('[data-member-username]')).map((node) =>
 			node.textContent?.trim()
-		);
-
-		expect(named, locale).toEqual(['olivia', 'ada', 'sami']);
-
-		for (const row of Array.from(document.querySelectorAll('[data-member]'))) {
-			// one name on the row, and no line under it that would hold a second one.
-			expect(row.querySelectorAll('[data-member-username]'), locale).toHaveLength(1);
-			expect(row.textContent, locale).not.toContain('@');
-		}
-
-		rendered.unmount();
-	}
-
-	setLocale('en');
+		)
+	).toEqual(['olivia', 'ada', 'sami']);
+	// no second list, and no heading for one.
+	expect(document.querySelector('[data-pending-accounts]')).toBeNull();
 });
 
-// criterion 24: each row's avatar carries its member's initials, read off the username.
-test('each row draws the first two characters of its username, upper-cased, in the avatar', () => {
-	loadLocale('en');
-	setLocale('en');
+// criterion 15, an active row: the avatar, the username, the role, and the workspaces as chips
+// carrying their own access.
+test('an active row carries the avatar, the username, the role and its workspaces with their access', () => {
 	list();
 
-	const avatarOf = (id: string) =>
-		document
-			.querySelector(`[data-member="${id}"] [data-slot="avatar-fallback"]`)
-			?.textContent?.trim();
+	const ada = row('ada')!;
 
-	expect(avatarOf('owner')).toBe('OL');
-	expect(avatarOf('ada')).toBe('AD');
-	expect(avatarOf('sami')).toBe('SA');
-	expect(document.querySelectorAll('[data-slot="avatar-fallback"]')).toHaveLength(3);
+	expect(ada.querySelector('[data-slot="avatar-fallback"]')?.textContent?.trim()).toBe('AD');
+	expect(ada.querySelector('[data-member-username]')?.textContent?.trim()).toBe('ada');
+	expect(ada.textContent).toContain(en.layout.signIn.roleAdministrator);
+
+	const chips = Array.from(ada.querySelectorAll('[data-member-workspace]')).map((chip) =>
+		chip.textContent?.replace(/\s+/g, ' ').trim()
+	);
+
+	expect(chips).toEqual([
+		`Riyadh ${en.organization.dashboard.accessFull}`,
+		`Jeddah ${en.organization.dashboard.accessReadOnly}`
+	]);
+	// one name on the row, and nothing that would carry a second one.
+	expect(ada.querySelectorAll('[data-member-username]')).toHaveLength(1);
+	expect(ada.textContent).not.toContain('@');
+	// a member who holds nothing says so rather than showing an empty line.
+	expect(on('no-workspace', 'owner')?.textContent?.trim()).toBe(
+		en.organization.dashboard.noWorkspaces
+	);
 });
 
-test('and in arabic the two controls are named apart', () => {
-	loadLocale('ar');
-	setLocale('ar');
-	list({}, 'rtl');
+// criterion 15, a pending row: the mark is the badge, and it carries the expiry.
+test('a pending row is marked with a badge and its expiry, and a lapsed one says so', () => {
+	const open = list();
 
-	expect(screen.getAllByRole('button', { name: ar.organization.dashboard.remove })).toHaveLength(2);
-	expect(
-		screen.getAllByRole('button', { name: ar.organization.dashboard.removeAndLockOut })
-	).toHaveLength(2);
-	expect(ar.organization.dashboard.remove).not.toBe(ar.organization.dashboard.removeAndLockOut);
+	expect(document.querySelectorAll('[data-member-pending]')).toHaveLength(1);
+	expect(on('pending', 'open')?.textContent?.trim()).toBe(en.organization.dashboard.notYetSignedIn);
+	expect(document.querySelector('[data-member-expiry]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.invitationExpires.replace(
+			'{date:string}',
+			formatRecordDate('en', EXPIRES_AT)
+		)
+	);
+	open.unmount();
 
-	setLocale('en');
+	list({
+		members: [
+			member({
+				id: 'sami',
+				username: 'sami',
+				pending: {
+					invitationId: 'invitation-1',
+					expiresAt: EXPIRES_AT,
+					standing: 'lapsed',
+					canCopy: true
+				}
+			})
+		]
+	});
+
+	expect(on('pending', 'lapsed')?.textContent?.trim()).toBe(
+		en.organization.dashboard.standingLapsed
+	);
+	expect(document.querySelector('[data-member-expiry]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.invitationLapsed.replace(
+			'{date:string}',
+			formatRecordDate('en', EXPIRES_AT)
+		)
+	);
 });
 
-// requirement 23: the rename is on every row but the reader's own, the owner's included when an
-// administrator reads the list, since an account's name is an administrator's to change and
-// never its holder's.
-test("a rename is drawn on every row but the reader's own, for whoever carries the act", () => {
-	loadLocale('en');
-	setLocale('en');
+// criterion 15: each row action sits behind its act. The owner reading holds all seven, so every
+// control is drawn, and never on their own row or on the owner's.
+test('the owner sees every row action, on every row but their own', () => {
+	list();
 
-	const owner = list();
+	expect(controls('role')).toBe(2);
+	expect(controls('access')).toBe(2);
+	expect(controls('rename')).toBe(2);
+	expect(controls('new-link')).toBe(2);
+	expect(controls('end-sessions')).toBe(2);
+	expect(controls('remove')).toBe(2);
+	expect(controls('lock-out')).toBe(2);
+	// the pending row alone offers the two that act on an invitation.
+	expect(controls('copy-link')).toBe(1);
+	expect(controls('revoke')).toBe(1);
+	expect(on('copy-link', 'sami')).not.toBeNull();
+	expect(on('revoke', 'sami')).not.toBeNull();
+	// nothing that writes a row is drawn on the reader's own, and nothing at all on the owner's
+	// but the rename, which is an administrator's to make and never its holder's.
+	expect(on('role', 'owner')).toBeNull();
+	expect(on('remove', 'owner')).toBeNull();
+	expect(on('rename', 'owner')).toBeNull();
+	expect(on('rename', 'ada')).not.toBeNull();
+	expect(on('end-sessions', 'owner')).toBeNull();
+});
 
-	expect(renameControls()).toBe(2);
-	expect(document.querySelector('[data-member-rename="owner"]')).toBeNull();
-	expect(screen.getAllByRole('button', { name: en.organization.dashboard.rename })).toHaveLength(2);
-	// nothing is open until a row asks.
+test('a member holding no act sees no row action at all', () => {
+	list({
+		canInvite: false,
+		canRemove: false,
+		canLockOut: false,
+		canRename: false,
+		canReset: false,
+		canChangeRole: false,
+		canGrantWorkspace: false,
+		isOwner: false,
+		selfId: 'sami'
+	});
+
+	for (const kind of [
+		'role',
+		'access',
+		'rename',
+		'new-link',
+		'end-sessions',
+		'copy-link',
+		'revoke',
+		'remove'
+	]) {
+		expect(controls(kind), kind).toBe(0);
+	}
+	expect(document.querySelector('[data-invite-open]')).toBeNull();
+});
+
+// each act on its own, so no control is being carried by a neighbour's gate.
+test('each action is drawn by its own act and by no other', () => {
+	const only = (
+		overrides: Partial<Parameters<typeof render<typeof Members>>[1]>,
+		kind: string,
+		count: number
+	) => {
+		const rendered = list({
+			canInvite: false,
+			canRemove: false,
+			canLockOut: false,
+			canRename: false,
+			canReset: false,
+			canChangeRole: false,
+			canGrantWorkspace: false,
+			isOwner: false,
+			selfId: 'owner',
+			...overrides
+		});
+
+		expect(controls(kind), kind).toBe(count);
+		rendered.unmount();
+	};
+
+	only({ canChangeRole: true }, 'role', 2);
+	only({ canGrantWorkspace: true }, 'access', 2);
+	only({ canRename: true }, 'rename', 2);
+	only({ canReset: true }, 'new-link', 2);
+	only({ canReset: true }, 'end-sessions', 2);
+	only({ canRemove: true }, 'remove', 2);
+	// the lock-out needs the Turso authority as well as the act, so it takes both.
+	only({ canRemove: true }, 'lock-out', 0);
+	only({ canRemove: true, canLockOut: true }, 'lock-out', 2);
+	only({ canInvite: true }, 'copy-link', 1);
+	only({ canInvite: true }, 'code', 1);
+	only({ canInvite: true }, 'revoke', 1);
+});
+
+// criterion 22 of effort 826: ending somebody's sessions is `resetPassword`'s, beside the new
+// link and never on the owner's row or the reader's own. The press reaches the route, which is
+// where the mutation is.
+test('signing a member out of every machine is offered behind reset password, and never on the owner', async () => {
+	const asked: string[] = [];
+
+	list({ selfId: 'ada', isOwner: false, onEndSessions: (memberId) => asked.push(memberId) });
+
+	// the owner's row and the reader's own carry no such control; sami's does.
+	expect(on('end-sessions', 'owner')).toBeNull();
+	expect(on('end-sessions', 'ada')).toBeNull();
+	expect(on('end-sessions', 'sami')).not.toBeNull();
+	expect(on('end-sessions', 'sami')?.getAttribute('aria-label')).toBe(
+		en.organization.dashboard.endSessions
+	);
+
+	await fireEvent.click(on('end-sessions', 'sami')!);
+
+	expect(asked).toEqual(['sami']);
+});
+
+// criterion 15, and effort 826's requirement 23 beside it: the link and the code are both sealed
+// to whoever issued the invitation, so the row offers a copy and a fresh code to them, and a new
+// link to everybody else.
+test('copy link and the code are drawn for the issuer alone, and a new link for anybody with the act', () => {
+	const issuer = list();
+
+	expect(on('copy-link', 'sami')).not.toBeNull();
+	expect(on('code', 'sami')).not.toBeNull();
+	expect(on('new-link', 'sami')).not.toBeNull();
+	issuer.unmount();
+
+	list({
+		members: members.map((candidate) =>
+			candidate.pending
+				? { ...candidate, pending: { ...candidate.pending, canCopy: false } }
+				: candidate
+		)
+	});
+
+	expect(on('copy-link', 'sami')).toBeNull();
+	expect(on('code', 'sami')).toBeNull();
+	expect(on('new-link', 'sami')).not.toBeNull();
+});
+
+test('the pending row hands its invitation to the acts that take one', async () => {
+	const copied: string[] = [];
+	const revoked: string[] = [];
+	const reissued: string[] = [];
+	const coded: string[] = [];
+
+	list({
+		onCopyLink: (invitationId, username) => copied.push(`${invitationId}:${username}`),
+		onRevoke: (invitationId) => revoked.push(invitationId),
+		onReissue: (memberId) => reissued.push(memberId),
+		onFreshCode: (invitationId, username) => coded.push(`${invitationId}:${username}`)
+	});
+
+	await fireEvent.click(on('copy-link', 'sami')!);
+	await fireEvent.click(on('revoke', 'sami')!);
+	await fireEvent.click(on('new-link', 'sami')!);
+	await fireEvent.click(on('code', 'sami')!);
+
+	expect(copied).toEqual(['invitation-1:sami']);
+	expect(revoked).toEqual(['invitation-1']);
+	expect(reissued).toEqual(['sami']);
+	expect(coded).toEqual(['invitation-1:sami']);
+});
+
+// [[rules/interface]], *Row activation*: an action is a control on the row, never the row.
+test('the actions are controls on the row, and the row itself opens nothing', () => {
+	list();
+
+	const ada = row('ada')!;
+
+	expect(ada.tagName).toBe('DIV');
+	expect(ada.getAttribute('role')).toBeNull();
+	expect(ada.closest('a')).toBeNull();
+	// every action is a button, and it is named for a screen reader as well as for a pointer.
+	const cluster = document.querySelector('[data-member-actions="ada"]')!;
+
+	for (const control of Array.from(cluster.querySelectorAll('button'))) {
+		expect(control.getAttribute('aria-label')?.length).toBeGreaterThan(0);
+	}
+	// on hover and on focus: the cluster is faded rather than removed, so the row does not move
+	// and the keyboard still reaches it.
+	expect(cluster.className).toContain('opacity-0');
+	expect(cluster.className).toContain('group-hover:opacity-100');
+	expect(cluster.className).toContain('focus-within:opacity-100');
+});
+
+// criterion 15: the invite button opens the dialog the shell holds.
+test('the invite button asks the shell for the invite dialog', async () => {
+	list();
+
+	const opener = screen.getByRole('button', { name: en.organization.dashboard.invite });
+
+	// requirement 14 of effort 824: the verb's glyph before its label.
+	expect(opener.querySelector('svg')).not.toBeNull();
+	expect(organizationDialog.open).toBeNull();
+	await fireEvent.click(opener);
+	expect(organizationDialog.open).toBe('invite');
+	// no invite surface of its own: the one instance is mounted in the shell.
 	expect(surface()).toBeNull();
-	owner.unmount();
+});
 
-	list({ canLockOut: false, selfId: 'ada' });
+test('the role control opens the role dialog on the row it named', async () => {
+	list();
 
-	expect(renameControls()).toBe(2);
-	expect(document.querySelector('[data-member-rename="owner"]')).not.toBeNull();
-	expect(document.querySelector('[data-member-rename="sami"]')).not.toBeNull();
-	expect(document.querySelector('[data-member-rename="ada"]')).toBeNull();
+	await fireEvent.click(on('role', 'ada')!);
+
+	expect(surface()).not.toBeNull();
+	expect(
+		screen.getByText(
+			en.organization.dashboard.changeRoleDescription.replace('{username:string}', 'ada')
+		)
+	).toBeDefined();
+	expect(document.querySelector('[data-role-form]')).not.toBeNull();
+});
+
+test('the access control opens the access dialog on the workspaces the member holds', async () => {
+	list();
+
+	await fireEvent.click(on('access', 'ada')!);
+
+	expect(document.querySelector('[data-access-form]')).not.toBeNull();
+	expect(
+		Array.from(document.querySelectorAll('[data-access-row]')).map((row) =>
+			row.getAttribute('data-access-row')
+		)
+	).toEqual(['ws-1', 'ws-2']);
+	expect(
+		screen.getByText(
+			en.organization.dashboard.accessDescription.replace('{username:string}', 'ada')
+		)
+	).toBeDefined();
 });
 
 test('the rename opens a light form surface with one username field, opened on the name the row holds', async () => {
-	loadLocale('en');
-	setLocale('en');
 	list();
 
-	await fireEvent.click(document.querySelector('[data-member-rename="sami"]')!);
+	await fireEvent.click(on('rename', 'ada')!);
 
 	expect(surface()).not.toBeNull();
 	// light: the centred panel, which the surface draws as a translated box rather than an edge
@@ -235,52 +492,19 @@ test('the rename opens a light form surface with one username field, opened on t
 	expect(
 		Array.from(surface()!.querySelectorAll('input')).map((input) => input.getAttribute('name'))
 	).toEqual(['username']);
-	expect(usernameInput()?.value).toBe('sami');
-	expect(screen.getByText(en.organization.dashboard.username)).toBeDefined();
+	expect(usernameInput()?.value).toBe('ada');
 });
 
-// requirement 15 of the redesign: the field leads with its subject's glyph, muted. requirement
-// 14: the rename carries its verb's glyph, on the row and on the surface's own control.
-test('the field leads with a muted glyph, and the rename carries its verb', async () => {
-	loadLocale('en');
-	setLocale('en');
-	list();
-
-	const opener = document.querySelector('[data-member-rename="sami"]')!;
-
-	expect(opener.querySelector('svg')).not.toBeNull();
-	await fireEvent.click(opener);
-
-	const input = usernameInput();
-	const group = input?.closest('[data-slot=input-group]');
-	const addon = group?.querySelector('[data-slot=input-group-addon]');
-
-	expect(addon).not.toBeNull();
-	expect(addon?.querySelector('svg')).not.toBeNull();
-	expect(addon?.className).toContain('text-muted-foreground');
-	expect(addon!.compareDocumentPosition(input!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
-	const rename = Array.from(surface()!.querySelectorAll('button')).find(
-		(button) => button.getAttribute('type') === 'submit'
-	);
-
-	expect(rename?.textContent?.trim()).toBe(en.organization.dashboard.rename);
-	expect(rename?.querySelector('svg')).not.toBeNull();
-});
-
-// criterion 23: a username outside requirement 21's rules is refused on the field with the one
-// sentence, and the sentence is Rust's own, so the dialog, the command and the invite form's
-// shared rule cannot refuse the same name in two voices.
+// criterion 23 of effort 824: a username outside the rules is refused on the field with the one
+// sentence, and the sentence is Rust's own.
 test('a username outside the rules is refused with the sentence rust refuses it with', async () => {
-	loadLocale('en');
-	setLocale('en');
 	list();
 
-	await fireEvent.click(document.querySelector('[data-member-rename="sami"]')!);
+	await fireEvent.click(on('rename', 'ada')!);
 
 	const input = usernameInput()!;
 
-	await fireEvent.input(input, { target: { value: 'sa' } });
+	await fireEvent.input(input, { target: { value: 'ad' } });
 	await fireEvent.focusOut(input);
 
 	await waitFor(() => {
@@ -288,59 +512,33 @@ test('a username outside the rules is refused with the sentence rust refuses it 
 	});
 	expect(input.getAttribute('aria-invalid')).toBe('true');
 	expect(en.organization.dashboard.usernameRules).toBe(rustUsernameRules());
-
-	await fireEvent.input(input, { target: { value: 'sami staff' } });
-	await fireEvent.focusOut(input);
-
-	await waitFor(() => {
-		expect(screen.getByRole('alert').textContent).toBe(en.organization.dashboard.usernameRules);
-	});
 });
 
-test('cancelling closes the surface without a rename', async () => {
-	loadLocale('en');
-	setLocale('en');
-
-	const renamed: string[] = [];
-	list({
-		onRename: async (memberId, username) => {
-			renamed.push(`${memberId}:${username}`);
-		}
-	});
-
-	await fireEvent.click(document.querySelector('[data-member-rename="sami"]')!);
-	expect(surface()).not.toBeNull();
-
-	await fireEvent.click(screen.getByRole('button', { name: en.common.actions.cancel }));
-
-	await waitFor(() => {
-		expect(surface()).toBeNull();
-	});
-	expect(renamed).toEqual([]);
-});
-
-test('and in arabic, the rename is named in its own words on a surface read right to left', async () => {
+test('and in arabic every row reads in its own words, right to left', () => {
 	loadLocale('ar');
 	setLocale('ar');
 	list({}, 'rtl');
 
-	expect(screen.getAllByRole('button', { name: ar.organization.dashboard.rename })).toHaveLength(2);
-	expect(ar.organization.dashboard.rename).not.toBe(en.organization.dashboard.rename);
-	expect(ar.organization.dashboard.usernameRules).not.toBe(en.organization.dashboard.usernameRules);
-
-	await fireEvent.click(document.querySelector('[data-member-rename="sami"]')!);
-
-	expect(surface()?.getAttribute('dir')).toBe('rtl');
-	expect(screen.getByText(ar.organization.dashboard.renameDescription)).toBeDefined();
-
-	const input = usernameInput()!;
-
-	await fireEvent.input(input, { target: { value: 'سامي' } });
-	await fireEvent.focusOut(input);
-
-	await waitFor(() => {
-		expect(screen.getByRole('alert').textContent).toBe(ar.organization.dashboard.usernameRules);
-	});
+	expect(
+		Array.from(document.querySelectorAll('[data-member-username]')).map((node) =>
+			node.textContent?.trim()
+		)
+	).toEqual(['olivia', 'ada', 'sami']);
+	expect(on('pending', 'open')?.textContent?.trim()).toBe(ar.organization.dashboard.notYetSignedIn);
+	expect(ar.organization.dashboard.notYetSignedIn).not.toBe(
+		en.organization.dashboard.notYetSignedIn
+	);
+	expect(document.querySelector('[data-member-expiry]')?.textContent?.trim()).toBe(
+		ar.organization.dashboard.invitationExpires.replace(
+			'{date}',
+			formatRecordDate('ar', EXPIRES_AT)
+		)
+	);
+	expect(screen.getByRole('button', { name: ar.organization.dashboard.invite })).toBeDefined();
+	expect(
+		screen.getAllByRole('button', { name: ar.organization.dashboard.removeAndLockOut })
+	).toHaveLength(2);
+	expect(ar.organization.dashboard.remove).not.toBe(ar.organization.dashboard.removeAndLockOut);
 
 	setLocale('en');
 });

@@ -59,10 +59,24 @@ pub async fn remote_sync_push(app_state: tauri::State<'_, AppState>) -> Result<b
 /// **Neither half failing is an error.** Offline is the ordinary case and requirement 7 is that
 /// the application stays usable through it; what could not be sent stays captured for the next
 /// push, and what could not be fetched is fetched next time.
+///
+/// **It is also where a session ends that was ended from another machine** (effort 826,
+/// requirement 22). This is what the sync heartbeat calls, so it is the call that runs on a
+/// machine nobody is touching; it pulls the organization replica as well and, where the member's
+/// row has moved past the session, empties the member slot, forgets the remembered key and says
+/// so on `standing`. The shell reads that and puts the wall up.
 #[tauri::command]
 pub async fn remote_sync_replicate(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Replication, Error> {
+    // before the workspace's own replication, because a machine whose member is signed out has
+    // no business pushing under a credential the organization has moved past. A machine with
+    // nobody in, or whose row has not moved, pays one pull of the organization replica for it.
+    let standing = if crate::organization::ended_elsewhere(&app_state).await {
+        SessionStanding::SignedOutElsewhere
+    } else {
+        SessionStanding::Held
+    };
     let replicated = {
         let db = app_state.db.read().await;
 
@@ -78,7 +92,7 @@ pub async fn remote_sync_replicate(
                 remote_sync.clear_credential_refusal();
             }
 
-            Ok(Replication::from(replicated))
+            Ok(Replication::of(replicated, standing))
         }
         // requirement 25: the account's, said as the account's. The local replica goes on
         // serving every read and every write; what stops is replication, until the owner has
@@ -90,7 +104,7 @@ pub async fn remote_sync_replicate(
                 .await
                 .note_account_refusal(detail, crate::timestamp::now());
 
-            Ok(Replication::from(replicated))
+            Ok(Replication::of(replicated, standing))
         }
         // a credential that stopped being accepted: a lock-out rotated it and the owner
         // re-sealed a fresh one to this member. The organization database says so, and reading
@@ -103,7 +117,7 @@ pub async fn remote_sync_replicate(
                     .write()
                     .await
                     .note_credential_refusal(crate::timestamp::now());
-                return Ok(Replication::from(replicated));
+                return Ok(Replication::of(replicated, standing));
             }
 
             let db = app_state.db.read().await;
@@ -125,6 +139,7 @@ pub async fn remote_sync_replicate(
                 pushed: replicated.pushed || again.pushed,
                 received: replicated.received || again.received,
                 refusal: again.refusal.into(),
+                standing,
             })
         }
     }
@@ -145,6 +160,23 @@ pub struct Replication {
     /// why a half did not go, where Turso said: the account's, or the credential's. `none` is
     /// offline or nothing to say, and the two halves say which.
     pub refusal: ReplicationRefusal,
+    /// where the signed-in member stands after this replication. `signedOutElsewhere` is the one
+    /// answer the caller has to act on: the wall is already up on this side and the shell reads
+    /// where the machine stands again (effort 826, requirement 22).
+    pub standing: SessionStanding,
+}
+
+/// where the member signed in on this machine stands, as the heartbeat found it.
+///
+/// A standing rather than a refusal: nothing failed, and what the reader is owed is the wall with
+/// the sentence for it rather than an error about a call they did not make.
+#[derive(serde::Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum SessionStanding {
+    /// somebody is signed in and their row has not moved, or nobody is signed in at all.
+    Held,
+    /// their sessions were ended from another machine, and this one has just put the wall up.
+    SignedOutElsewhere,
 }
 
 /// The refusal as the web layer reads it: which kind, and never Turso's sentence, which is the
@@ -167,12 +199,16 @@ impl From<SyncRefusal> for ReplicationRefusal {
     }
 }
 
-impl From<crate::database::Replicated> for Replication {
-    fn from(replicated: crate::database::Replicated) -> Self {
+impl Replication {
+    /// one replication and the standing the same call read, which is the only way one is built:
+    /// a `From` would leave the standing to a default, and a default is how the one answer the
+    /// caller must act on comes to be omitted.
+    fn of(replicated: crate::database::Replicated, standing: SessionStanding) -> Self {
         Self {
             pushed: replicated.pushed,
             received: replicated.received,
             refusal: replicated.refusal.into(),
+            standing,
         }
     }
 }

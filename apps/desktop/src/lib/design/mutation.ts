@@ -11,15 +11,20 @@ import { get } from 'svelte/store';
 import { toast } from 'svelte-sonner';
 
 type ToastMessage = string | (() => string);
-type ToastErrorMessage = Exclude<
-	NonNullable<MutationOptions['toast']>['error'],
-	boolean | undefined
->;
+
+/**
+ * What a declaration says about a refusal once it has seen it: `true` raises the refusal's own
+ * words, a sentence raises that sentence, and `null` raises nothing, for a refusal the surface
+ * says in place (the walk's group field is the one today). A decider is the only way a
+ * declaration can keep one refusal out of the toast without a surface raising the rest itself,
+ * which is the direct `toast` call [[rules/frontend]] forbids under *Data access*.
+ */
+type ToastErrorDecision = boolean | string | null;
 
 export type MutationOptions = {
 	toast?: {
 		success?: ToastMessage;
-		error?: boolean | ToastMessage;
+		error?: boolean | ToastMessage | ((error: Error) => ToastErrorDecision);
 		unexpected?: ToastMessage;
 	};
 };
@@ -163,8 +168,20 @@ function resolveAnnouncement<TVariables, TResult, TCaptured>(
 	return typeof message === 'function' ? message(change) : message;
 }
 
-function isToastMessage(message: boolean | ToastMessage | undefined): message is ToastErrorMessage {
-	return typeof message === 'string' || typeof message === 'function';
+/**
+ * What the declaration decided about this refusal: a decider is asked, a thunk is resolved, and
+ * a boolean or a sentence is itself.
+ */
+function decideErrorToast(
+	option: NonNullable<MutationOptions['toast']>['error'],
+	error: Error
+): ToastErrorDecision | undefined {
+	if (typeof option === 'function') {
+		// a thunk ignores the argument and answers its sentence; a decider reads it.
+		return (option as (error: Error) => ToastErrorDecision)(error);
+	}
+
+	return option;
 }
 
 /**
@@ -316,19 +333,24 @@ export function describeOutcomeChange<TRefusal extends { id: string }>(
 }
 
 export function onMutationError(opts: MutationOptions, e: Error) {
-	const errorToast = opts.toast?.error;
+	const errorToast = decideErrorToast(opts.toast?.error, e);
+
+	// the declaration says this refusal is said elsewhere, and nothing is raised for it.
+	if (errorToast === null) {
+		return;
+	}
 
 	if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 		if (errorToast === true) {
 			toast.error(e.message);
-		} else if (isToastMessage(errorToast)) {
-			toast.error(resolveToastMessage(errorToast));
+		} else if (typeof errorToast === 'string') {
+			toast.error(errorToast);
 		}
 	} else {
 		if (errorToast === true && e.message.trim()) {
 			toast.error(e.message);
-		} else if (isToastMessage(errorToast)) {
-			toast.error(resolveToastMessage(errorToast));
+		} else if (typeof errorToast === 'string') {
+			toast.error(errorToast);
 		} else if (opts.toast?.unexpected) {
 			toast.error(resolveToastMessage(opts.toast.unexpected));
 		}

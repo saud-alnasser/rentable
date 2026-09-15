@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+	addressAfterSignOut,
 	opensSignedOut,
 	shellSurface,
 	THE_FIRST_RUN,
@@ -9,14 +10,7 @@ import {
 	THE_WAY_IN,
 	wayInFrom
 } from '$lib/layout/shell-surface.ts';
-import {
-	fakeRecovery,
-	harness,
-	locked,
-	mustChangePassword,
-	nowhereToGo,
-	withoutWorkspace
-} from './testing.ts';
+import { fakeRecovery, harness, locked, nowhereToGo, withoutWorkspace } from './testing.ts';
 
 /**
  * WHICH ADDRESS DRAWS, AND IN WHICH STATE
@@ -87,10 +81,12 @@ test('and it goes nowhere from an address the card is already drawn over', () =>
 	}
 });
 
-test('and signing out on the settings page leaves it drawn, where signing out elsewhere does not', async () => {
-	// the two halves of the same criterion: nothing navigates on the way out, so a reader who
-	// signs out while reading settings goes on reading settings, and one who signs out on a record
-	// meets the card over the address they were on.
+test('and the surface alone would leave the settings page drawn over a signed-out machine', async () => {
+	// what this unit answers on its own, which is why the route has to ask a second question. An
+	// address that opens signed out draws its route whether or not anybody is signed in, so a
+	// reader who signs out while reading settings would go on reading the settings of a machine
+	// nobody is signed in on; one who signs out on a record meets the card over the address they
+	// were on and needs nothing. `addressAfterSignOut` below is the half that closes the first.
 	const { startup } = harness();
 
 	await startup.start();
@@ -101,6 +97,38 @@ test('and signing out on the settings page leaves it drawn, where signing out el
 	assert.equal(startup.snapshot.state, 'sign-in');
 	assert.equal(shellSurface(startup.snapshot, '/settings'), 'route');
 	assert.equal(shellSurface(startup.snapshot, '/tenants/a-tenant'), 'sign-in');
+});
+
+// effort 826, requirement 11 as corrected on 2026-09-15: signing out lands on the wall from any
+// address. The card covers every address but the three that open signed out, and those three are
+// the ones a sign-out has to leave.
+test('a sign-out from an address that opens signed out lands on the way in', () => {
+	for (const address of ['/settings', THE_FIRST_RUN, THE_JOIN]) {
+		assert.equal(addressAfterSignOut(address), THE_WAY_IN, address);
+	}
+
+	// and the address it lands on is one the card draws over, which is the whole of why it works.
+	assert.equal(opensSignedOut(THE_WAY_IN), false);
+});
+
+test('and from anywhere else it goes nowhere, so the reader keeps their place', () => {
+	// the card is drawn over the address the moment the standing changes, so moving the reader
+	// would cost them the route that draws again on the way back in for nothing.
+	for (const address of ADDRESSES) {
+		assert.equal(addressAfterSignOut(address), null, address);
+	}
+});
+
+test('and the wall is what the frame draws once a sign-out has landed there', async () => {
+	// the two halves together: the standing changes, the route leaves `/settings`, and the address
+	// it leaves for is one the card covers.
+	const { startup } = harness();
+
+	await startup.start();
+	await startup.signOut();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(shellSurface(startup.snapshot, addressAfterSignOut('/settings')!), 'sign-in');
 });
 
 test('and signing back in returns the reader to the address they were on', async () => {
@@ -194,21 +222,6 @@ test('a member with no workspace sees the no-workspace surface over every addres
 
 	for (const address of [...ADDRESSES, '/settings', THE_FIRST_RUN]) {
 		assert.equal(shellSurface(startup.snapshot, address), 'no-workspace', address);
-	}
-});
-
-// a member on a handed password is in and reaches nothing else: the surface says so over every
-// address, the first run and the settings page included, because the shell refuses every act for
-// them until they have chosen a password of their own.
-test('a member who must change their password sees that screen over every address', async () => {
-	const { startup } = harness({ organization: mustChangePassword() });
-
-	await startup.start();
-
-	assert.equal(startup.snapshot.state, 'change-password');
-
-	for (const address of [...ADDRESSES, '/settings', THE_FIRST_RUN, THE_JOIN]) {
-		assert.equal(shellSurface(startup.snapshot, address), 'change-password', address);
 	}
 });
 

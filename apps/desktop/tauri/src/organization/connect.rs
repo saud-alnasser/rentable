@@ -198,6 +198,7 @@ mod tests {
                 name: "Acme",
                 username: "olivia",
                 password: PASSWORD,
+                group: None,
             },
             test_cost(),
             ISSUED_AT,

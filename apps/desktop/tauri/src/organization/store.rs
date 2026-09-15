@@ -73,6 +73,7 @@ const SCHEMA: [&str; 7] = [
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"username_sealed\" BLOB NOT NULL, \
         \"public_key\" BLOB NOT NULL, \
+        \"signing_public_key\" BLOB NOT NULL, \
         \"sealed_secret_key\" BLOB NOT NULL, \
         \"sealed_content_key\" BLOB NOT NULL, \
         \"kdf_salt\" BLOB NOT NULL, \
@@ -83,7 +84,8 @@ const SCHEMA: [&str; 7] = [
         \"certificate_id\" TEXT NOT NULL, \
         \"signature\" BLOB NOT NULL, \
         \"created_at\" INTEGER NOT NULL, \
-        \"updated_at\" INTEGER NOT NULL)",
+        \"updated_at\" INTEGER NOT NULL, \
+        \"session_epoch\" INTEGER NOT NULL DEFAULT 0)",
     "CREATE TABLE IF NOT EXISTS \"administrator_certificate\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"member_id\" TEXT NOT NULL, \
@@ -115,9 +117,13 @@ const SCHEMA: [&str; 7] = [
         \"member_id\" TEXT NOT NULL, \
         \"expires_at\" INTEGER NOT NULL, \
         \"consumed_at\" INTEGER, \
+        \"sealed_secret\" BLOB NOT NULL, \
+        \"issued_by\" TEXT NOT NULL, \
         \"certificate_id\" TEXT NOT NULL, \
         \"signature\" BLOB NOT NULL, \
-        \"created_at\" INTEGER NOT NULL)",
+        \"created_at\" INTEGER NOT NULL, \
+        \"code_seal\" BLOB, \
+        \"code_expires_at\" INTEGER)",
     "CREATE TABLE IF NOT EXISTS \"migration_lease\" (\
         \"workspace_id\" TEXT PRIMARY KEY NOT NULL, \
         \"holder_member_id\" TEXT NOT NULL, \
@@ -154,6 +160,14 @@ pub struct MemberRecord {
     /// the member's keypair as the vault shapes it: the public half, the sealed secret half, and
     /// the derivation that seal used.
     pub vault: Vault,
+    /// the verifying half of the key this member signs rows with, which is
+    /// `derive_seed(ADMINISTRATOR_KEY_PURPOSE)` over the secret their password unseals. **Written
+    /// by whoever makes the vault**, the first run for the owner and `invite::issue` for everybody
+    /// else, because that is the one moment the fresh secret is in hand; an accept and a password
+    /// change keep the keypair, so the key stands. It is here so an owner widening somebody into
+    /// an act that signs has a key to certify (effort 826, requirement 6), and it is under the
+    /// member signature so that nobody can name a key of their own and wait to be certified.
+    pub signing_public_key: [u8; VERIFYING_KEY_BYTES],
     /// the organization content key, sealed to this member's public key.
     pub sealed_content_key: Vec<u8>,
     /// `packages/workspace-permission`'s vocabulary. Nothing here interprets it.
@@ -162,6 +176,13 @@ pub struct MemberRecord {
     pub must_change_password: bool,
     pub created_at: i64,
     pub updated_at: i64,
+    /// which run of this member's sessions is the current one (effort 826, requirement 22).
+    ///
+    /// **Outside the member signature, as the vault columns are**, and for the same reason: it is
+    /// the member's own to write, and so is every act that reseals their vault. A session carries
+    /// the number it opened under and a remembered key files it beside itself, so a session or a
+    /// key from before the last bump is behind the row and opens nothing.
+    pub session_epoch: i64,
 }
 
 /// A `workspace` row. Only the database identity is under signature; the name and the schema
@@ -202,13 +223,33 @@ pub struct GrantRecord {
 /// whose first sign-in spends it. *It carried a sealed payload, a salt and a cost until effort 824
 /// dropped the invitation's sealed half: the row was found through the link's secret and the
 /// generated password together, and it is found by the password alone now.*
+///
+/// **`sealed_secret`, `issued_by`, `code_seal` and `code_expires_at` sit outside the signature**,
+/// which the plan settled: a tampered `sealed_secret` opens for nobody, the issuer included, a
+/// tampered `issued_by` only misplaces a copy control, and the code's two columns are bound to
+/// each other by the seal's own associated data, so a rewritten expiry opens nothing. Putting any
+/// of them under `InvitationAuthority` would move a preimage nothing needs moved.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InvitationRecord {
     pub id: String,
     pub member_id: String,
     pub expires_at: i64,
     pub consumed_at: Option<i64>,
+    /// the vault password this invitation was made with and the link's own secret, sealed
+    /// together to the issuer's public key. It is what lets the issuer, and nobody else, build
+    /// the link again and make a fresh code; anybody else holding the act is offered a fresh
+    /// link instead, which is a reset.
+    pub sealed_secret: Vec<u8>,
+    /// the member id of whoever issued it, which is whose key `sealed_secret` opens for.
+    pub issued_by: String,
     pub created_at: i64,
+    /// the vault password sealed under the six-character code and the link's secret together
+    /// (effort 826, requirement 23), with this row's id and `code_expires_at` bound as associated
+    /// data. `None` once the invitation is consumed, which is what clears it.
+    pub code_seal: Option<Vec<u8>>,
+    /// the moment the code lapses, ninety seconds from when it was drawn. `None` on a row whose
+    /// code has been cleared.
+    pub code_expires_at: Option<i64>,
 }
 
 /// Who is writing: an administrator's key and the certificate that makes it an authority.
@@ -427,16 +468,30 @@ impl OrganizationStore {
     // members
 
     /// Write a member row, signed by `signer` over the fields the plan puts under signature.
+    ///
+    /// **`session_epoch` never comes down here.** It is outside the preimage and inside a
+    /// whole-row replace, and the three callers that rewrite a row from one they read
+    /// (`invite::rename_member`, `role::change_role`, `removal::retire_member`) read it off this
+    /// machine's replica. A replica that has not pulled since somebody else ended a member's
+    /// sessions still carries the number from before, and writing that back would re-admit every
+    /// machine the sign-out locked out. So the row keeps the greater of what it holds and what
+    /// the record carries, which is the invariant `session.rs` rests the comparison on: the
+    /// number only ever moves forward.
     pub async fn write_member(
         &self,
         signer: &Signer<'_>,
         member: &MemberRecord,
     ) -> Result<(), Error> {
+        let session_epoch = self
+            .session_epoch_of(&member.id)
+            .await?
+            .map_or(member.session_epoch, |held| held.max(member.session_epoch));
         let signature = sign(
             signer.key,
             signer.certificate,
             Authority::Member(MemberAuthority {
                 public_key: &member.vault.public_key,
+                signing_public_key: &member.signing_public_key,
                 role: &member.role,
                 permissions: member.permissions,
             }),
@@ -445,15 +500,16 @@ impl OrganizationStore {
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"member\" \
-                 (\"id\", \"username_sealed\", \"public_key\", \
+                 (\"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
                   \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
                   \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
-                  \"signature\", \"created_at\", \"updated_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                  \"signature\", \"created_at\", \"updated_at\", \"session_epoch\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(member.id.clone()),
                     turso::Value::Blob(member.username_sealed.clone()),
                     turso::Value::Blob(member.vault.public_key.to_vec()),
+                    turso::Value::Blob(member.signing_public_key.to_vec()),
                     turso::Value::Blob(member.vault.sealed_secret_key.clone()),
                     turso::Value::Blob(member.sealed_content_key.clone()),
                     turso::Value::Blob(member.vault.kdf_salt.to_vec()),
@@ -465,11 +521,32 @@ impl OrganizationStore {
                     turso::Value::Blob(signature),
                     turso::Value::Integer(member.created_at),
                     turso::Value::Integer(member.updated_at),
+                    turso::Value::Integer(session_epoch),
                 ],
             )
             .await?;
 
         Ok(())
+    }
+
+    /// The epoch the member's row carries on this replica, or `None` where there is no row.
+    ///
+    /// Read in Rust and compared there rather than folded into either write's SQL: the column is
+    /// what a revocation turns on, and a scalar subquery or an upsert clause would put that
+    /// comparison in the engine's hands instead of under a test.
+    async fn session_epoch_of(&self, member_id: &str) -> Result<Option<i64>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"session_epoch\" FROM \"member\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(member_id.to_string())],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => Ok(Some(integer(&row, 0)?)),
+            None => Ok(None),
+        }
     }
 
     /// Re-seal a member's vault under a new password, and say whether they still have to change
@@ -523,6 +600,47 @@ impl OrganizationStore {
         Ok(())
     }
 
+    /// Move a member's session epoch on, which ends every session opened under an earlier one
+    /// (effort 826, requirement 22).
+    ///
+    /// The second write on a member row that carries no signature, and for the reason
+    /// [`OrganizationStore::reseal_member`] gives: the column is outside the member preimage, so
+    /// nothing an authority vouches for moves here. Who may call it is
+    /// `session::end_elsewhere` and `session::end_member_sessions`, which is where the act and
+    /// the owner's row are refused.
+    ///
+    /// **It moves the number on and never back**, for the reason
+    /// [`OrganizationStore::write_member`] gives: the row keeps the greater of what it holds and
+    /// what it is told, so a caller computing `+ 1` over a replica that has not pulled writes a
+    /// number already reached rather than undoing the bump it did not see.
+    pub async fn set_session_epoch(
+        &self,
+        member_id: &str,
+        session_epoch: i64,
+        now: i64,
+    ) -> Result<(), Error> {
+        let held = self
+            .session_epoch_of(member_id)
+            .await?
+            .ok_or_else(|| Error::NotFound {
+                message: "that member is not in this organization".to_string(),
+            })?;
+
+        self.connection
+            .execute(
+                "UPDATE \"member\" SET \"session_epoch\" = ?, \"updated_at\" = ? \
+                 WHERE \"id\" = ?",
+                vec![
+                    turso::Value::Integer(held.max(session_epoch)),
+                    turso::Value::Integer(now),
+                    turso::Value::Text(member_id.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
     /// Every member, each verified against the chain before it is returned.
     ///
     /// `organization_verifying_key` is the one the caller pinned from its join link, never the
@@ -546,16 +664,54 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<(String, MemberRecord)>, Error> {
+        self.signed_members_where(organization_verifying_key, None)
+            .await
+    }
+
+    /// One member's row, verified on its own, or `None` where no row carries that id.
+    ///
+    /// What an act's gate reads (`session::acting_row`): the acting member's own row and no
+    /// other, so a row somebody else tampered with refuses the list and not every other
+    /// member's acts. The list is what refuses it, by name, the next time anybody reads it.
+    pub async fn member(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        member_id: &str,
+    ) -> Result<Option<MemberRecord>, Error> {
+        Ok(self
+            .signed_members_where(organization_verifying_key, Some(member_id))
+            .await?
+            .into_iter()
+            .map(|(_, member)| member)
+            .next())
+    }
+
+    /// The member read behind [`OrganizationStore::signed_members`] and
+    /// [`OrganizationStore::member`]: every row, or the one row named, each verified.
+    async fn signed_members_where(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        member_id: Option<&str>,
+    ) -> Result<Vec<(String, MemberRecord)>, Error> {
         let certificates = self.certificates().await?;
+        let (filter, params) = match member_id {
+            Some(id) => (
+                " WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            ),
+            None => ("", Vec::new()),
+        };
         let mut rows = self
             .connection
             .query(
-                "SELECT \"id\", \"username_sealed\", \"public_key\", \
-                        \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
-                        \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
-                        \"signature\", \"created_at\", \"updated_at\" \
-                 FROM \"member\" ORDER BY \"created_at\", \"id\"",
-                (),
+                &format!(
+                    "SELECT \"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
+                            \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
+                            \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
+                            \"signature\", \"created_at\", \"updated_at\", \"session_epoch\" \
+                     FROM \"member\"{filter} ORDER BY \"created_at\", \"id\""
+                ),
+                params,
             )
             .await?;
         let mut members = Vec::new();
@@ -563,10 +719,11 @@ impl OrganizationStore {
         while let Some(row) = rows.next().await? {
             let id = text(&row, 0)?;
             let public_key = fixed::<PUBLIC_KEY_BYTES>(&row, 2, "public_key")?;
-            let role = text(&row, 7)?;
-            let permissions = integer(&row, 8)?;
-            let certificate_id = text(&row, 10)?;
-            let signature = blob(&row, 11)?;
+            let signing_public_key = fixed::<VERIFYING_KEY_BYTES>(&row, 3, "signing_public_key")?;
+            let role = text(&row, 8)?;
+            let permissions = integer(&row, 9)?;
+            let certificate_id = text(&row, 11)?;
+            let signature = blob(&row, 12)?;
 
             verified(
                 organization_verifying_key,
@@ -576,6 +733,7 @@ impl OrganizationStore {
                 &certificate_id,
                 Authority::Member(MemberAuthority {
                     public_key: &public_key,
+                    signing_public_key: &signing_public_key,
                     role: &role,
                     permissions,
                 }),
@@ -589,16 +747,18 @@ impl OrganizationStore {
                     username_sealed: blob(&row, 1)?,
                     vault: Vault {
                         public_key,
-                        sealed_secret_key: blob(&row, 3)?,
-                        kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 5, "kdf_salt")?,
-                        kdf_params: KdfParams::parse(&text(&row, 6)?)?,
+                        sealed_secret_key: blob(&row, 4)?,
+                        kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 6, "kdf_salt")?,
+                        kdf_params: KdfParams::parse(&text(&row, 7)?)?,
                     },
-                    sealed_content_key: blob(&row, 4)?,
+                    signing_public_key,
+                    sealed_content_key: blob(&row, 5)?,
                     role,
                     permissions,
-                    must_change_password: integer(&row, 9)? != 0,
-                    created_at: integer(&row, 12)?,
-                    updated_at: integer(&row, 13)?,
+                    must_change_password: integer(&row, 10)? != 0,
+                    created_at: integer(&row, 13)?,
+                    updated_at: integer(&row, 14)?,
+                    session_epoch: integer(&row, 15)?,
                 },
             ));
         }
@@ -833,9 +993,10 @@ impl OrganizationStore {
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"invitation\" \
-                 (\"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"certificate_id\", \
-                  \"signature\", \"created_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                 (\"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"sealed_secret\", \
+                  \"issued_by\", \"certificate_id\", \"signature\", \"created_at\", \
+                  \"code_seal\", \"code_expires_at\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(invitation.id.clone()),
                     turso::Value::Text(invitation.member_id.clone()),
@@ -843,9 +1004,18 @@ impl OrganizationStore {
                     invitation
                         .consumed_at
                         .map_or(turso::Value::Null, turso::Value::Integer),
+                    turso::Value::Blob(invitation.sealed_secret.clone()),
+                    turso::Value::Text(invitation.issued_by.clone()),
                     turso::Value::Text(signer.certificate.id.clone()),
                     turso::Value::Blob(signature),
                     turso::Value::Integer(invitation.created_at),
+                    invitation
+                        .code_seal
+                        .clone()
+                        .map_or(turso::Value::Null, turso::Value::Blob),
+                    invitation
+                        .code_expires_at
+                        .map_or(turso::Value::Null, turso::Value::Integer),
                 ],
             )
             .await?;
@@ -875,8 +1045,9 @@ impl OrganizationStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT \"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"certificate_id\", \
-                        \"signature\", \"created_at\" \
+                "SELECT \"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"sealed_secret\", \
+                        \"issued_by\", \"certificate_id\", \"signature\", \"created_at\", \
+                        \"code_seal\", \"code_expires_at\" \
                  FROM \"invitation\" ORDER BY \"created_at\", \"id\"",
                 (),
             )
@@ -887,8 +1058,8 @@ impl OrganizationStore {
             let id = text(&row, 0)?;
             let member_id = text(&row, 1)?;
             let expires_at = integer(&row, 2)?;
-            let certificate_id = text(&row, 4)?;
-            let signature = blob(&row, 5)?;
+            let certificate_id = text(&row, 6)?;
+            let signature = blob(&row, 7)?;
 
             verified(
                 organization_verifying_key,
@@ -914,7 +1085,17 @@ impl OrganizationStore {
                         turso::Value::Integer(value) => Some(value),
                         _ => None,
                     },
-                    created_at: integer(&row, 6)?,
+                    sealed_secret: blob(&row, 4)?,
+                    issued_by: text(&row, 5)?,
+                    created_at: integer(&row, 8)?,
+                    code_seal: match row.get_value(9)? {
+                        turso::Value::Blob(value) => Some(value),
+                        _ => None,
+                    },
+                    code_expires_at: match row.get_value(10)? {
+                        turso::Value::Integer(value) => Some(value),
+                        _ => None,
+                    },
                 },
             ));
         }
@@ -922,15 +1103,48 @@ impl OrganizationStore {
         Ok(invitations)
     }
 
-    /// Mark an invitation consumed. Unsigned on purpose: the machine that consumes it holds no
-    /// administrator key, and a consumed invitation is spent whether or not the mark is trusted,
-    /// because the member row it pointed at now has a password of the member's own.
+    /// Mark an invitation consumed, and clear the code seal with it (effort 826, requirement 23):
+    /// the vault it opened is resealed under a password of the member's own by the time this
+    /// runs, so what the seal holds opens nothing and there is no reason to keep it.
+    ///
+    /// Unsigned on purpose: the machine that consumes it holds no administrator key, and a
+    /// consumed invitation is spent whether or not the mark is trusted, because the member row it
+    /// pointed at now has a password of the member's own.
     pub async fn consume_invitation(&self, id: &str, now: i64) -> Result<(), Error> {
         self.connection
             .execute(
-                "UPDATE \"invitation\" SET \"consumed_at\" = ? WHERE \"id\" = ?",
+                "UPDATE \"invitation\" SET \"consumed_at\" = ?, \"code_seal\" = NULL, \
+                 \"code_expires_at\" = NULL WHERE \"id\" = ?",
                 vec![
                     turso::Value::Integer(now),
+                    turso::Value::Text(id.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Write an invitation a fresh code seal and the moment it lapses.
+    ///
+    /// Unsigned, like the consume above and for the same reason the two columns sit outside the
+    /// signature: what binds them is the seal's own associated data, which names this row and
+    /// this expiry, so a rewritten expiry opens nothing and a seal lifted onto another row opens
+    /// nothing. Nothing under the invitation's preimage moves, so the signature the issuer wrote
+    /// still stands over what it was made for.
+    pub async fn write_invitation_code(
+        &self,
+        id: &str,
+        code_seal: &[u8],
+        code_expires_at: i64,
+    ) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "UPDATE \"invitation\" SET \"code_seal\" = ?, \"code_expires_at\" = ? \
+                 WHERE \"id\" = ?",
+                vec![
+                    turso::Value::Blob(code_seal.to_vec()),
+                    turso::Value::Integer(code_expires_at),
                     turso::Value::Text(id.to_string()),
                 ],
             )
@@ -1261,11 +1475,12 @@ mod tests {
         GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer, TABLES,
         WorkspaceRecord,
     };
+    use crate::error::Error;
     use crate::organization::{
         authority::{AdministratorKey, Certificate, OrganizationKey, issue_certificate},
         vault::{
-            ContentKey, KdfParams, create_vault, generate_content_key, open_content, seal_content,
-            seal_to_public_key,
+            ContentKey, KdfParams, create_vault_with_secret, generate_content_key, open_content,
+            seal_content, seal_to_public_key,
         },
     };
 
@@ -1334,21 +1549,30 @@ mod tests {
         }
 
         fn member(&self, id: &str, username: &str, role: &str) -> MemberRecord {
-            let vault = create_vault("a password", test_cost()).expect("a vault");
+            let (vault, secret) =
+                create_vault_with_secret("a password", test_cost()).expect("a vault");
             let sealed_content_key =
                 seal_to_public_key(&vault.public_key, &self.content_key.to_bytes())
                     .expect("failed to seal the content key");
+            let signing_public_key = AdministratorKey::from_bytes(
+                &secret
+                    .derive_seed(crate::organization::setup::ADMINISTRATOR_KEY_PURPOSE)
+                    .expect("the signing seed"),
+            )
+            .verifying_key();
 
             MemberRecord {
                 id: id.to_string(),
                 username_sealed: self.sealed("member.username_sealed", username),
                 vault,
+                signing_public_key,
                 sealed_content_key,
                 role: role.to_string(),
-                permissions: if role == "owner" { 63 } else { 0 },
+                permissions: if role == "owner" { 127 } else { 0 },
                 must_change_password: role != "owner",
                 created_at: 1_757_000_000_000,
                 updated_at: 1_757_000_000_000,
+                session_epoch: 0,
             }
         }
 
@@ -1481,6 +1705,77 @@ mod tests {
         );
         assert!(names.contains(&"database_name".to_string()));
         assert!(names.contains(&"schema_version".to_string()));
+
+        // the invitation's own columns, pinned: the four effort 826 added are what a copy
+        // control, a confirmation code and the forget signal read, and `forget::old_shape` calls
+        // a replica without `sealed_secret` or without `code_seal` the old shape, so a schema
+        // that stopped declaring either would wipe every machine at startup rather than fail
+        // here. The code's two sit last because they were added last, and outside the signature,
+        // which `InvitationRecord` says why of.
+        let mut columns = store
+            .connection()
+            .query("PRAGMA table_info(\"invitation\")", ())
+            .await
+            .expect("the invitation columns");
+        let mut names = Vec::new();
+
+        while let Some(row) = columns.next().await.expect("a column row") {
+            names.push(super::text(&row, 1).expect("a column name"));
+        }
+
+        assert_eq!(
+            names,
+            vec![
+                "id",
+                "member_id",
+                "expires_at",
+                "consumed_at",
+                "sealed_secret",
+                "issued_by",
+                "certificate_id",
+                "signature",
+                "created_at",
+                "code_seal",
+                "code_expires_at"
+            ]
+        );
+
+        // the member's own columns, pinned for the same two reasons: `signing_public_key` is what
+        // an owner certifies when they widen somebody into an act that signs (effort 826,
+        // requirement 6), `session_epoch` is what ends a session opened on another machine
+        // (requirement 22), and `forget::old_shape` calls a replica without either the old shape.
+        let mut columns = store
+            .connection()
+            .query("PRAGMA table_info(\"member\")", ())
+            .await
+            .expect("the member columns");
+        let mut names = Vec::new();
+
+        while let Some(row) = columns.next().await.expect("a column row") {
+            names.push(super::text(&row, 1).expect("a column name"));
+        }
+
+        assert_eq!(
+            names,
+            vec![
+                "id",
+                "username_sealed",
+                "public_key",
+                "signing_public_key",
+                "sealed_secret_key",
+                "sealed_content_key",
+                "kdf_salt",
+                "kdf_params",
+                "role",
+                "permissions",
+                "must_change_password",
+                "certificate_id",
+                "signature",
+                "created_at",
+                "updated_at",
+                "session_epoch"
+            ]
+        );
 
         // and the schema is idempotent, which is what a second machine runs into.
         store.install_schema().await.expect("the schema, again");
@@ -1669,6 +1964,109 @@ mod tests {
         assert_eq!(organization.verifying_key, key);
     }
 
+    /// **A whole-row write never puts a member's session epoch back**, which is the whole of
+    /// requirement 22 holding against an ordinary rename.
+    ///
+    /// The interleaving this stands for: somebody ends a member's sessions, the row goes to 1
+    /// and is pushed; an administrator whose replica has not pulled since fixes a typo in that
+    /// member's username, and `invite::rename_member` writes the row back whole from the record
+    /// it read, which still carries 0. `role::change_role` and `removal::retire_member` write
+    /// the same shape, `..member.clone()` with two fields moved, so the three are one case.
+    /// Without the guard the row lands back at 0 and every machine the sign-out locked out opens
+    /// again on its remembered key.
+    #[tokio::test]
+    async fn a_whole_row_write_from_a_record_carrying_an_older_epoch_keeps_the_rows_own() {
+        let directory = scratch("epoch-floor");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+
+        populated(&store, &chain).await;
+
+        let key = chain.verifying_key();
+        let stale = store
+            .members(&key)
+            .await
+            .expect("the members")
+            .into_iter()
+            .find(|member| member.id == "member-staff")
+            .expect("the member row");
+
+        assert_eq!(
+            stale.session_epoch, 0,
+            "a fresh row starts at the first epoch"
+        );
+
+        store
+            .set_session_epoch("member-staff", 1, 1_757_000_001_000)
+            .await
+            .expect("the bump");
+
+        // the rename, written from the record read before the bump.
+        store
+            .write_member(
+                &chain.signer(),
+                &MemberRecord {
+                    username_sealed: chain.sealed("member.username_sealed", "sam.staff"),
+                    updated_at: 1_757_000_002_000,
+                    ..stale.clone()
+                },
+            )
+            .await
+            .expect("the rename");
+
+        let renamed = store
+            .members(&key)
+            .await
+            .expect("the members")
+            .into_iter()
+            .find(|member| member.id == "member-staff")
+            .expect("the member row");
+
+        assert_eq!(
+            renamed.session_epoch, 1,
+            "a rename put the session epoch back and re-admitted the machines a sign-out locked out"
+        );
+        assert_eq!(
+            open_content(
+                &chain.content_key,
+                "member.username_sealed",
+                &renamed.username_sealed
+            )
+            .expect("the username"),
+            b"sam.staff",
+            "the rename itself did not go through"
+        );
+
+        // and the bump's own write is held to the same line, which is what stops
+        // `end_member_sessions` computing `+ 1` over a stale read and writing a number the row
+        // has already passed.
+        store
+            .set_session_epoch("member-staff", 1, 1_757_000_003_000)
+            .await
+            .expect("the second bump");
+
+        assert_eq!(
+            store
+                .members(&key)
+                .await
+                .expect("the members")
+                .into_iter()
+                .find(|member| member.id == "member-staff")
+                .expect("the member row")
+                .session_epoch,
+            1,
+            "a lower epoch was written over a higher one"
+        );
+
+        // a row nobody holds is still a refusal rather than a silent write.
+        assert!(matches!(
+            store
+                .set_session_epoch("member-nobody", 4, 1_757_000_004_000)
+                .await,
+            Err(Error::NotFound { .. })
+        ));
+    }
+
     /// **A member who writes another member's row with an altered role is rejected by every
     /// other client on read**, which is criterion 16 performed exactly: the write goes through the
     /// connection, as a full-access member's would, and the store's read refuses it by name.
@@ -1683,7 +2081,7 @@ mod tests {
         store
             .connection()
             .execute(
-                "UPDATE \"member\" SET \"role\" = 'owner', \"permissions\" = 63 \
+                "UPDATE \"member\" SET \"role\" = 'owner', \"permissions\" = 127 \
                  WHERE \"id\" = 'member-staff'",
                 (),
             )
@@ -1712,6 +2110,30 @@ mod tests {
                 .expect("the workspaces")
                 .len(),
             2
+        );
+
+        // and the owner's own row, read on its own, still answers: one hostile row stops the
+        // list and not every other member's acts, which read their own row and no other.
+        let owner = store
+            .member(&chain.verifying_key(), "member-owner")
+            .await
+            .expect("the owner's row would not read")
+            .expect("the owner is not a member");
+
+        assert_eq!(owner.role, "owner");
+        assert!(
+            store
+                .member(&chain.verifying_key(), "member-staff")
+                .await
+                .is_err(),
+            "the altered row read on its own"
+        );
+        assert!(
+            store
+                .member(&chain.verifying_key(), "member-nobody")
+                .await
+                .expect("an unknown id would not read")
+                .is_none()
         );
     }
 
@@ -1866,7 +2288,11 @@ mod tests {
                     member_id: "member-x".to_string(),
                     expires_at: 1_757_600_000_000,
                     consumed_at: None,
+                    sealed_secret: b"a secret sealed to the issuer".to_vec(),
+                    issued_by: "member-admin".to_string(),
                     created_at: 1_757_000_000_000,
+                    code_seal: Some(b"a password sealed under a code".to_vec()),
+                    code_expires_at: Some(1_757_000_090_000),
                 },
             )
             .await

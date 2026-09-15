@@ -1,11 +1,18 @@
 //! what a member may administer, as the bits `packages/workspace-permission` names.
 //!
-//! **The package is the vocabulary and this is its value here.** Six acts, six bits, and the
-//! masks each role is created with; the desktop names the same six because a command has to
+//! **The package is the vocabulary and this is its value here.** Seven acts, seven bits, and the
+//! masks each role is created with; the desktop names the same seven because a command has to
 //! refuse a caller before it acts, and the refusal has to be the same one the interface and the
 //! package would make. A test reads the package's own source and fails if the bit an act sits on
 //! or the acts a role carries drift from what is written there, which is the only thing that
 //! holds two copies of one table together.
+//!
+//! **Six acts are missing from this table on purpose** (requirement 5 of effort 826): creating and
+//! deleting a workspace, minting a read-only credential, locking a member out, renewing
+//! credentials, and the Turso account and the organization's own link. Each needs the Turso
+//! authority, which sits in one machine's keyring and in no row, so no bit here could deliver one.
+//! They are refused by asking whether the session is the owner's, in `workspace::require_owner`
+//! and in `removal::remove_member`, and the refusal names the owner.
 //!
 //! **Enforcement is by what the vault holds, and this is the arithmetic beside it.** A member's
 //! permissions are on their verified row and travel in the session; a command asks
@@ -21,19 +28,21 @@ pub enum Administration {
     RemoveMember = 1,
     ChangeRole = 2,
     RenameWorkspace = 3,
-    DeleteWorkspace = 4,
-    TransferOwnership = 5,
+    ResetPassword = 4,
+    RenameMember = 5,
+    GrantWorkspace = 6,
 }
 
 impl Administration {
     /// Every act, in bit order.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::InviteMember,
         Self::RemoveMember,
         Self::ChangeRole,
         Self::RenameWorkspace,
-        Self::DeleteWorkspace,
-        Self::TransferOwnership,
+        Self::ResetPassword,
+        Self::RenameMember,
+        Self::GrantWorkspace,
     ];
 
     /// The package's own spelling of the act, which is what a refusal names.
@@ -43,8 +52,9 @@ impl Administration {
             Self::RemoveMember => "removeMember",
             Self::ChangeRole => "changeRole",
             Self::RenameWorkspace => "renameWorkspace",
-            Self::DeleteWorkspace => "deleteWorkspace",
-            Self::TransferOwnership => "transferOwnership",
+            Self::ResetPassword => "resetPassword",
+            Self::RenameMember => "renameMember",
+            Self::GrantWorkspace => "grantWorkspace",
         }
     }
 
@@ -63,14 +73,13 @@ pub const REMOVED: &str = "removed";
 
 /// The mask a role is created with, as `ADMINISTRATION_BY_ROLE` gives it. The role is what a
 /// member is called; the column is what they may do, and a row may carry more or less.
+///
+/// **The owner and the administrator read alike**, because every act that separates them is one
+/// the table above does not hold. What refuses an administrator a create, a delete, a mint, a
+/// lock-out or a renewal is the owner check beside the command, never a bit missing here.
 pub fn mask_of_role(role: &str) -> i64 {
     match role {
-        OWNER => mask_of(&Administration::ALL),
-        ADMINISTRATOR => mask_of(&[
-            Administration::InviteMember,
-            Administration::RemoveMember,
-            Administration::ChangeRole,
-        ]),
+        OWNER | ADMINISTRATOR => mask_of(&Administration::ALL),
         _ => 0,
     }
 }
@@ -148,36 +157,30 @@ mod tests {
             "the owner no longer carries every act in the package"
         );
         assert!(
-            source.contains("administrator: maskOf('inviteMember', 'removeMember', 'changeRole')"),
-            "the administrator's acts moved in the package"
+            source.contains("administrator: maskOf(...EVERY_ADMINISTRATION)"),
+            "the administrator no longer carries every grantable act in the package"
         );
         assert!(
             source.contains("member: 0"),
             "a member carries something in the package"
         );
 
-        assert_eq!(mask_of_role(OWNER), 0b11_1111);
-        assert_eq!(mask_of_role(ADMINISTRATOR), 0b00_0111);
+        assert_eq!(mask_of_role(OWNER), 0b111_1111);
+        assert_eq!(mask_of_role(ADMINISTRATOR), 0b111_1111);
         assert_eq!(mask_of_role(MEMBER), 0);
         assert_eq!(mask_of_role("a role this build has never heard of"), 0);
     }
 
     /// Criterion 12: every act against every role, iterating this crate's list of acts, which the
     /// first test holds to the package's.
+    ///
+    /// **A member is the only role this table withholds anything from.** The acts an administrator
+    /// may not perform are the ones requirement 5 keeps out of the table, and they are refused by
+    /// the owner check rather than here, which is what the tests in `workspace.rs` and `removal.rs`
+    /// cover with an administrator holding all seven bits.
     #[test]
     fn every_act_is_granted_or_withheld_by_role() {
-        let expected = |role: &str, act: Administration| {
-            matches!(
-                (role, act),
-                (OWNER, _)
-                    | (
-                        ADMINISTRATOR,
-                        Administration::InviteMember
-                            | Administration::RemoveMember
-                            | Administration::ChangeRole
-                    )
-            )
-        };
+        let expected = |role: &str, _act: Administration| matches!(role, OWNER | ADMINISTRATOR);
 
         for role in [OWNER, ADMINISTRATOR, MEMBER] {
             for act in Administration::ALL {

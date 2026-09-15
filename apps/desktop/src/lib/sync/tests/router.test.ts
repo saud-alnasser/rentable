@@ -33,7 +33,12 @@ function hostRecordingRenames(asked: string[]) {
 	return fakeHost({
 		remoteSync: {
 			getState: async () => state,
-			replicate: async () => ({ pushed: false, received: false, refusal: 'none' as const }),
+			replicate: async () => ({
+				pushed: false,
+				received: false,
+				refusal: 'none' as const,
+				standing: 'held' as const
+			}),
 			push: async () => false,
 			renameWorkspace: async (name: string) => {
 				asked.push(name);
@@ -142,8 +147,9 @@ test('and so is a member holding every act except that one', async () => {
 				'inviteMember',
 				'removeMember',
 				'changeRole',
-				'deleteWorkspace',
-				'transferOwnership'
+				'resetPassword',
+				'renameMember',
+				'grantWorkspace'
 			)
 		})
 	});

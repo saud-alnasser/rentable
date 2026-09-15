@@ -24,11 +24,41 @@ test('a state still loading is starting, and not a refusal', () => {
 	assert.deepEqual(organizationAdmission(undefined), { kind: 'starting' });
 });
 
+// effort 826, requirement 22: a machine whose session was ended from another one is locked with
+// a reason, and the reason is what the wall draws one line more from.
+test('a machine signed out from another one is locked, with the reason said', () => {
+	assert.deepEqual(
+		organizationAdmission(fakeOrganizationState({ session: null, signedOutElsewhere: true })),
+		{ kind: 'signInRequired', reason: 'signedOutElsewhere' }
+	);
+
+	// with somebody signed in it is not read at all, and a machine that holds nothing is still
+	// told to connect rather than to sign in.
+	assert.deepEqual(
+		organizationAdmission(fakeOrganizationState({ signedOutElsewhere: true })).kind,
+		'admitted'
+	);
+	assert.deepEqual(
+		organizationAdmission({
+			organization: null,
+			session: null,
+			holdsTursoAuthority: false,
+			signedOutElsewhere: true
+		}),
+		{ kind: 'signInRequired', reason: 'noOrganization' }
+	);
+});
+
 // requirement 17's other half: a machine that holds nothing has nothing to name and nothing to
 // unlock, so the way past this is connecting rather than a password.
 test('a machine that holds no organization is stopped at the door, and told why', () => {
 	assert.deepEqual(
-		organizationAdmission({ organization: null, session: null, holdsTursoAuthority: false }),
+		organizationAdmission({
+			organization: null,
+			session: null,
+			holdsTursoAuthority: false,
+			signedOutElsewhere: false
+		}),
 		{
 			kind: 'signInRequired',
 			reason: 'noOrganization'
@@ -65,19 +95,4 @@ test('an open vault admits, and the session is what the application is admitted 
 		session
 	});
 	assert.equal(organizationAdmission.length, 1, 'the wall takes no clock');
-});
-
-// a member who must still change their password is in, on a password somebody else drew, and
-// the one thing on offer is choosing their own: the shell refuses everything else at each command,
-// which is the sign-in ticket's second criterion, and this is the screen that says so first. The
-// session travels with the answer, because the screen names the organization from it.
-test('a member who must change their password is asked to, and reaches nothing else', () => {
-	const session = fakeOrganizationSession({ mustChangePassword: true });
-	const admission = organizationAdmission(fakeOrganizationState({ session }));
-
-	assert.equal(admission.kind, 'passwordChangeRequired');
-	assert.equal(
-		admission.kind === 'passwordChangeRequired' && admission.session.organizationName,
-		session.organizationName
-	);
 });

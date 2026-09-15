@@ -5,6 +5,9 @@ pub mod error;
 pub mod export;
 pub mod http;
 mod import;
+// private, and it stays that way: what it hands back is a credential, so its callers are in
+// this crate and nowhere else ([[rules/credentials]], *Client boundary*).
+mod keyring;
 pub mod organization;
 pub mod persisted;
 pub mod settings;
@@ -174,6 +177,7 @@ pub fn run() {
                     organization: Arc::new(RwLock::new(None)),
                     member: Arc::new(RwLock::new(None)),
                     arriving_link: Arc::new(Mutex::new(None)),
+                    signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
                     old_shape_check: tokio::sync::OnceCell::new(),
                 });
             });
@@ -240,6 +244,7 @@ pub fn run() {
             organization::organization_sign_out,
             organization::workspace_create,
             organization::workspace_grant,
+            organization::workspace_grant_withdraw,
             organization::workspace_delete,
             organization::workspace_open,
             organization::organization_renew_credentials,
@@ -247,14 +252,19 @@ pub fn run() {
             organization::organization_own_link,
             organization::member_invite,
             organization::member_reset,
+            organization::member_change_role,
             organization::member_rename,
             organization::member_remove,
             organization::member_lock_out_cost,
+            organization::member_end_sessions,
+            organization::organization_session_end_elsewhere,
             organization::organization_change_password,
             organization::organization_account_refusal_detail,
             organization::invitation_revoke,
+            organization::invitation_link,
+            organization::invitation_code,
+            organization::invitation_accept,
             organization::organization_members,
-            organization::organization_invitations,
             organization::organization_link_take,
             organization::organization_link_inspect,
             organization::organization_reconnect_authority,

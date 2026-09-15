@@ -81,7 +81,7 @@
 			>
 				<DropdownMenu.Item onSelect={onWayIn}>
 					<LogInIcon class="size-4 shrink-0" />
-					<span>{$LL.layout.accountMenu.signIn()}</span>
+					<span>{$LL.common.actions.signIn()}</span>
 				</DropdownMenu.Item>
 
 				<DropdownMenu.Separator />

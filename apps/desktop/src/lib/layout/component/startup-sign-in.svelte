@@ -3,6 +3,7 @@
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
+	import * as Collapsible from '@rentable/design/primitive/collapsible/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import DisconnectDialog from '$lib/organization/component/disconnect-dialog.svelte';
@@ -25,6 +26,31 @@
 	 * on the shared application surface, which [[rules/interface]] under *Application surfaces*
 	 * requires.
 	 *
+	 * **The organization's name is the card's heading** (effort 826, requirement 11 as corrected on
+	 * 2026-09-15). A person standing here already knows they are signing in; what they do not know
+	 * from a title saying *welcome back* is which organization this machine holds, and that is the
+	 * one fact the card has to offer before the fields. So the name is the heading, *sign in to
+	 * continue* is the line under it, and the labelled organization line the form used to carry is
+	 * gone: it said the same thing twice, once behind a label answering a question nobody asked.
+	 * *This was a title string and a labelled field until the human's first run of the build, where
+	 * the card read as four things of equal weight with no one thing to look at first.*
+	 *
+	 * **The two ways out of a jam sit behind one disclosure at the foot** (requirement 11, same
+	 * correction). Opening a link and disconnecting this machine are each the exception to the
+	 * fields rather than an alternative to them, and standing them in the card as two more text
+	 * controls made the foot as busy as the form. One quiet control, *trouble signing in?*, is the
+	 * question a person who cannot get in is already asking, and both answers are behind it. It is
+	 * the packaged collapsible, so the control carries `aria-expanded` and the rows are reached by
+	 * keyboard in the order they are read; neither row is drawn until it opens. *The link showed on
+	 * every locked machine until the human's first run, where a machine already connected was being
+	 * offered the way to connect at the same weight as the way in.*
+	 *
+	 * **A machine somebody signed out from another machine reads one line more** (effort 826,
+	 * requirement 22). It is the locked card with a callout above the fields saying what happened,
+	 * because the way back in is the same password and the person is owed the reason: they did not
+	 * sign themselves out, and without the sentence the screen looks like the application losing
+	 * their session. It is drawn as a note rather than as an error, since nothing failed.
+	 *
 	 * **Two situations, and neither is a service's.** A machine that holds no organization has
 	 * nothing to unlock, and is offered the first run. A machine that holds one is its login page:
 	 * it names the organization and asks for a username and a password, which open a vault on this
@@ -34,13 +60,12 @@
 	 * the control plane is what the organization replaces.*
 	 *
 	 * **The organization is named, never chosen.** A machine holds one organization or none
-	 * (effort 824, requirement 7), so there is nothing here to choose between, and the name is a
-	 * line of text rather than a control. The role is not on it: a role is a fact of the account,
-	 * found by the sign-in, and a machine that connected by link and has not signed in yet holds
-	 * none. *Several organizations were a select, and before that rows carrying name and role; the
-	 * human withdrew the rows on 2026-09-13 because they made the wall a choice between
-	 * organizations rather than a login page, and the same day gave the picture under which a
-	 * machine holds one.*
+	 * (effort 824, requirement 7), so there is nothing here to choose between, and the name is the
+	 * heading rather than a control. The role is not on it: a role is a fact of the account, found
+	 * by the sign-in, and a machine that connected by link and has not signed in yet holds none.
+	 * *Several organizations were a select, and before that rows carrying name and role; the human
+	 * withdrew the rows on 2026-09-13 because they made the wall a choice between organizations
+	 * rather than a login page, and the same day gave the picture under which a machine holds one.*
 	 *
 	 * **Two fields, username above password** (requirement 19). The username is which member of
 	 * the organization this is, and the password is what opens their vault; the shell tries the
@@ -56,12 +81,13 @@
 	 * at the first screen of the build that forgets the old shape: one word in the title, a
 	 * friendly line under it, three words at most on a control.*
 	 *
-	 * **One link at the foot while locked.** Disconnect forgets the organization on this machine
-	 * (requirement 20), after the one confirm the dialog asks, and the wall comes back as a machine
-	 * that holds nothing, offering the two ways in again. Connecting and setting up are offered
-	 * only there, since a machine holds one organization (requirement 17) and reaching another is
-	 * disconnect, then connect. *This said three links: connect by link and set up stood beside
-	 * disconnect until 2026-09-13.*
+	 * **Disconnect forgets the organization on this machine** (effort 824, requirement 20), after
+	 * the one confirm the dialog asks, and the wall comes back as a machine that holds nothing,
+	 * offering the two ways in again. Setting up is offered only there, since a machine holds one
+	 * organization (requirement 17) and reaching another is disconnect, then connect. Beside it,
+	 * the way to the connect screen for a person holding a link (effort 826, requirement 11): a
+	 * reset link is opened by somebody whose machine already holds the organization, so the screen
+	 * it is opened on has to be reachable from here.
 	 */
 	let {
 		situation,
@@ -73,8 +99,11 @@
 		onSetUpOrganization,
 		onJoinByLink
 	}: {
-		/** which of the two situations this is, from `organizationAdmission`. */
-		situation: 'noOrganization' | 'locked';
+		/**
+		 * which situation this is, from `organizationAdmission`. `signedOutElsewhere` is `locked`
+		 * with the sentence for a session somebody ended from another machine.
+		 */
+		situation: 'noOrganization' | 'locked' | 'signedOutElsewhere';
 		/** what this machine holds, which is what it can unlock; `null` where it holds nothing. */
 		organization: HeldOrganization | null;
 		/** a password is being tried, which is a key derivation the person is waiting on. */
@@ -85,28 +114,41 @@
 		onDisconnect: () => Promise<void> | void;
 		/** the first run: an organization on the person's own Turso account. */
 		onSetUpOrganization: () => void;
-		/** the connect screen: the organization's link, pasted or handed over by the operating system. */
+		/**
+		 * the connect screen: an organization link or an invitation link, pasted or handed over by
+		 * the operating system. Offered in both situations, since a reset link is opened from here.
+		 */
 		onJoinByLink: () => void;
 	} = $props();
 
 	let username = $state('');
 	let password = $state('');
 	let isDisconnectOpen = $state(false);
+	/**
+	 * whether the two ways out of a jam are showing.
+	 *
+	 * The only state this card holds that is not something a person typed, and it starts closed on
+	 * every render: the card is drawn afresh each time the wall goes up, so there is no earlier
+	 * visit for it to remember and nothing about a person who could not sign in last time that
+	 * should decide what the card looks like for the next one.
+	 */
+	let isHelpOpen = $state(false);
 
-	const title = $derived(
-		situation === 'noOrganization'
-			? $LL.layout.signIn.noOrganizationTitle()
-			: $LL.layout.signIn.title()
-	);
+	/**
+	 * a machine offered the first run has nothing to name, and one behind the wall names what it
+	 * holds. The fallback is the type's rather than a state: `locked` is only reached with an
+	 * organization recorded on this machine.
+	 */
+	const held = $derived(situation === 'noOrganization' ? null : organization);
 
-	const description = $derived(
-		situation === 'noOrganization'
-			? $LL.layout.signIn.noOrganizationDescription()
-			: $LL.layout.signIn.organizationDescription()
+	const heading = $derived(held ? held.name : $LL.layout.signIn.noOrganizationTitle());
+
+	const subtitle = $derived(
+		held ? $LL.layout.signIn.subtitle() : $LL.layout.signIn.noOrganizationSubtitle()
 	);
 
 	const canUnlock = $derived(
-		organization !== null && username.trim().length > 0 && password.length > 0 && !isSigningIn
+		held !== null && username.trim().length > 0 && password.length > 0 && !isSigningIn
 	);
 
 	const unlock = () => {
@@ -116,16 +158,28 @@
 	};
 </script>
 
-<StandaloneSurface tone="neutral" {title} {description} busy={isSigningIn}>
-	<!-- the extra step above what the surface gives every screen: with the card down to a title,
+<StandaloneSurface tone="neutral" title={heading} description={subtitle} busy={isSigningIn}>
+	<!-- the extra step above what the surface gives every screen: with the card down to a heading,
 	     a line and a way in, the gap between saying what this is and offering the way through it
 	     is the only grouping left to draw. -->
-	<div class="space-y-4 pt-2" data-sign-in-situation={situation}>
+	<div
+		class="space-y-4 pt-2"
+		data-sign-in-situation={situation}
+		data-sign-in-organization={held?.id}
+	>
 		{#if errorMessage}
 			<Callout tone="error">{errorMessage}</Callout>
 		{/if}
 
-		{#if situation === 'noOrganization'}
+		{#if situation === 'signedOutElsewhere'}
+			<!-- a note and not an error: nothing failed, and what the person needs is the reason
+			     their session is gone. The way through it is the fields below, unchanged. -->
+			<Callout tone="info" data-sign-in-signed-out-elsewhere>
+				{$LL.layout.signIn.signedOutElsewhere()}
+			</Callout>
+		{/if}
+
+		{#if !held}
 			<Button class="w-full justify-center" onclick={onSetUpOrganization}>
 				<BuildingIcon class="size-4" />
 				{$LL.layout.signIn.setUp()}
@@ -142,20 +196,6 @@
 					unlock();
 				}}
 			>
-				{#if organization}
-					<Field.Field>
-						<Field.Label for="sign-in-organization">{$LL.layout.signIn.organization()}</Field.Label>
-						<!-- named rather than chosen: the one organization this machine holds, as a line. -->
-						<p
-							id="sign-in-organization"
-							class="text-sm font-medium"
-							data-sign-in-organization={organization.id}
-						>
-							{organization.name}
-						</p>
-					</Field.Field>
-				{/if}
-
 				<!-- each field's subject, as a leading glyph. The addon draws it in the muted
 				     foreground so it does not outweigh the label beside it (*Balance weight and
 				     contrast*, Refactoring UI p.56). It is the subject and never the error: a
@@ -195,7 +235,7 @@
 
 				<Button type="submit" class="w-full justify-center" disabled={!canUnlock}>
 					<LockOpenIcon class="size-4" />
-					{isSigningIn ? $LL.common.actions.working() : $LL.layout.signIn.unlock()}
+					{isSigningIn ? $LL.common.actions.working() : $LL.common.actions.signIn()}
 				</Button>
 			</form>
 
@@ -207,19 +247,66 @@
 				<p class="text-center text-sm text-muted-foreground">{$LL.layout.signIn.unlocking()}</p>
 			{/if}
 
-			<Button
-				variant="link"
-				class="w-full justify-center"
-				onclick={() => (isDisconnectOpen = true)}
-				disabled={isSigningIn}
-			>
-				{$LL.layout.signIn.disconnect()}
-			</Button>
+			<!-- the foot, and the whole of what is not the way in. Muted and a step below the form
+			     in weight, so the reader who can sign in never has to decide whether it concerns
+			     them (*De-emphasize secondary actions*, Refactoring UI); the extra air above it is
+			     what separates the exception from the rule. -->
+			<div class="pt-2">
+				<Collapsible.Root bind:open={isHelpOpen}>
+					<Collapsible.Trigger disabled={isSigningIn}>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="link"
+								size="sm"
+								class="w-full justify-center text-muted-foreground"
+								data-sign-in-help
+							>
+								{$LL.layout.signIn.help()}
+							</Button>
+						{/snippet}
+					</Collapsible.Trigger>
 
+					<Collapsible.Content>
+						{#if isHelpOpen}
+							<!-- drawn only while it is open, so a card nobody asked for help on puts
+							     neither row in front of a reader or a screen reader. Reading order is
+							     the order a person tries them in: open the link somebody sent you
+							     first, and take this machine out of the organization only if that is
+							     not what you were given. -->
+							<div class="flex flex-col gap-1 pt-2">
+								<Button
+									variant="link"
+									size="sm"
+									class="w-full justify-center"
+									onclick={onJoinByLink}
+									disabled={isSigningIn}
+								>
+									{$LL.layout.signIn.useALink()}
+								</Button>
+
+								<Button
+									variant="link"
+									size="sm"
+									class="w-full justify-center"
+									onclick={() => (isDisconnectOpen = true)}
+									disabled={isSigningIn}
+								>
+									{$LL.layout.signIn.disconnect()}
+								</Button>
+							</div>
+						{/if}
+					</Collapsible.Content>
+				</Collapsible.Root>
+			</div>
+
+			<!-- outside the disclosure: the question is asked over the card, and closing the
+			     disclosure behind it would take the dialog down with it. It draws nothing until
+			     somebody opens it. -->
 			<DisconnectDialog
 				open={isDisconnectOpen}
 				onOpenChange={(open) => (isDisconnectOpen = open)}
-				organizationName={organization?.name ?? ''}
+				organizationName={held.name}
 				{onDisconnect}
 			/>
 		{/if}

@@ -28,7 +28,7 @@ use crate::{diagnostics, error::Error, sync::turso::platform::TursoPlatform};
 
 use super::{
     permission::{self, Administration},
-    session::MemberSession,
+    session::{MemberSession, permissions_on_row},
     store::{MemberRecord, OrganizationStore, Signer},
     vault::open_content,
     workspace::{renew_credentials, signer_of},
@@ -138,7 +138,10 @@ pub async fn remove_member<P: TursoPlatform>(
     now: i64,
 ) -> Result<Removed, Error> {
     session.settled()?;
-    permission::require(session.permissions, Administration::RemoveMember)?;
+    permission::require(
+        permissions_on_row(store, session).await?,
+        Administration::RemoveMember,
+    )?;
 
     if member_id == session.member_id {
         return Err(Error::Forbidden {
@@ -191,52 +194,8 @@ pub async fn remove_member<P: TursoPlatform>(
     };
 
     let cost = lock_out_cost(store, session, member_id).await?;
-    let (key, certificate) = signer_of(store, session).await?;
-    let signer = Signer {
-        key: &key,
-        certificate: &certificate,
-    };
 
-    // the grants go, and the row is signed as removed by whoever removed them: a machine holding
-    // a stale replica sees a verified removal rather than an unexplained absence.
-    for grant in store
-        .grants(&session.verifying_key)
-        .await?
-        .iter()
-        .filter(|grant| grant.member_id == member_id)
-    {
-        store.delete_grant(member_id, &grant.workspace_id).await?;
-    }
-
-    store
-        .write_member(
-            &signer,
-            &MemberRecord {
-                role: permission::REMOVED.to_string(),
-                permissions: 0,
-                updated_at: now,
-                ..member.clone()
-            },
-        )
-        .await?;
-
-    // end a removed administrator's authority. A member has no certificate and this does nothing;
-    // an administrator's certificate is written back revoked, so a row they newly sign under it is
-    // refused on read (F2, the half this ticket closes). But first the rows it legitimately signed
-    // are re-signed under the remover, who holds authority over them, so revoking it bricks nothing
-    // (`store::re_sign_rows_of_certificate`, the routine reset shares).
-    if let Some(their_certificate) =
-        store.certificates().await?.into_iter().find(|certificate| {
-            certificate.member_id == member_id && certificate.revoked_at.is_none()
-        })
-    {
-        store
-            .re_sign_rows_of_certificate(&session.verifying_key, &their_certificate.id, &signer)
-            .await?;
-        store
-            .write_certificate(&their_certificate.revoked(&now.to_string()))
-            .await?;
-    }
+    retire_member(store, session, member, now).await?;
 
     let mut removed = Removed {
         member_id: member_id.to_string(),
@@ -288,6 +247,69 @@ pub async fn remove_member<P: TursoPlatform>(
     Ok(removed)
 }
 
+/// The ordinary removal's writes, with nothing minted and nothing pushed: `member`'s grants go,
+/// their row is signed as removed by `session`, and a certificate they held is revoked once the
+/// rows it signed are re-signed under the remover. What [`remove_member`] does after its refusals,
+/// and what revoking a never-accepted invitation does through it (`invite::revoke_invitation`,
+/// effort 826 requirement 15): a pending account is taken back under the act that made it, so the
+/// link somebody kept opens a vault that holds nothing.
+pub(crate) async fn retire_member(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    member: &MemberRecord,
+    now: i64,
+) -> Result<(), Error> {
+    let member_id = member.id.as_str();
+    let (key, certificate) = signer_of(store, session).await?;
+    let signer = Signer {
+        key: &key,
+        certificate: &certificate,
+    };
+
+    // the grants go, and the row is signed as removed by whoever removed them: a machine holding
+    // a stale replica sees a verified removal rather than an unexplained absence.
+    for grant in store
+        .grants(&session.verifying_key)
+        .await?
+        .iter()
+        .filter(|grant| grant.member_id == member_id)
+    {
+        store.delete_grant(member_id, &grant.workspace_id).await?;
+    }
+
+    store
+        .write_member(
+            &signer,
+            &MemberRecord {
+                role: permission::REMOVED.to_string(),
+                permissions: 0,
+                updated_at: now,
+                ..member.clone()
+            },
+        )
+        .await?;
+
+    // end a removed administrator's authority. A member has no certificate and this does nothing;
+    // an administrator's certificate is written back revoked, so a row they newly sign under it is
+    // refused on read (F2, the half this ticket closes). But first the rows it legitimately signed
+    // are re-signed under the remover, who holds authority over them, so revoking it bricks nothing
+    // (`store::re_sign_rows_of_certificate`, the routine reset shares).
+    if let Some(their_certificate) =
+        store.certificates().await?.into_iter().find(|certificate| {
+            certificate.member_id == member_id && certificate.revoked_at.is_none()
+        })
+    {
+        store
+            .re_sign_rows_of_certificate(&session.verifying_key, &their_certificate.id, &signer)
+            .await?;
+        store
+            .write_certificate(&their_certificate.revoked(&now.to_string()))
+            .await?;
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
@@ -299,7 +321,9 @@ mod tests {
         error::Error,
         organization::{
             HeldOrganization,
-            invite::{Invitation, invite_member, members, organization_link},
+            invite::{
+                Invitation, Invited, WorkspaceGrant, invite_member, members, organization_link,
+            },
             migrate::Pipeline,
             permission,
             session::{CredentialSlot, MemberSession, refresh_credentials, sign_in},
@@ -312,7 +336,10 @@ mod tests {
         sync::{
             RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{discovery::McpEndpoint, platform::InMemoryPlatform},
+            turso::{
+                discovery::McpEndpoint,
+                platform::{AccessLevel, InMemoryPlatform},
+            },
         },
     };
 
@@ -340,6 +367,32 @@ mod tests {
 
     fn slot() -> CredentialSlot {
         Arc::new(Mutex::new(None))
+    }
+    /// No platform authority in hand, which is every session here but the owner's with one.
+    fn no_platform() -> Option<&'static InMemoryPlatform> {
+        None
+    }
+
+    /// Full access on each workspace named, which is what every invitation here grants.
+    fn full(ids: &[String]) -> Vec<WorkspaceGrant> {
+        ids.iter()
+            .map(|id| WorkspaceGrant {
+                id: id.clone(),
+                access: AccessLevel::FullAccess,
+            })
+            .collect()
+    }
+
+    /// The password an invitation's vault was sealed under: the link's secret and the code
+    /// together open it, which is what the person opening the link does (effort 826, requirement
+    /// 23). `reader` is any session over this organization. *It was the link's secret alone until
+    /// that requirement made the code the other half.*
+    async fn secret_of(
+        store: &OrganizationStore,
+        reader: &MemberSession,
+        invited: &Invited,
+    ) -> String {
+        crate::organization::invite::vault_password_of(store, reader, invited, test_cost()).await
     }
 
     fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
@@ -446,6 +499,7 @@ mod tests {
                 name: "Acme",
                 username: "olivia",
                 password: OWNER_PASSWORD,
+                group: None,
             },
             test_cost(),
             AT,
@@ -485,11 +539,12 @@ mod tests {
         let administrator = invite_member(
             &store,
             &owner,
+            no_platform(),
             &link,
             Invitation {
                 username: "ada.admin",
                 role: permission::ADMINISTRATOR,
-                workspace_ids: std::slice::from_ref(&north.id),
+                workspaces: &full(std::slice::from_ref(&north.id)),
             },
             test_cost(),
             AT,
@@ -499,11 +554,12 @@ mod tests {
         let member = invite_member(
             &store,
             &owner,
+            no_platform(),
             &link,
             Invitation {
                 username: "sami.staff",
                 role: permission::MEMBER,
-                workspace_ids: &[north.id.clone(), south.id.clone()],
+                workspaces: &full(&[north.id.clone(), south.id.clone()]),
             },
             test_cost(),
             AT,
@@ -511,14 +567,23 @@ mod tests {
         .await
         .expect("the member");
 
+        let administrator = (
+            administrator.member_id.clone(),
+            secret_of(&store, &owner, &administrator).await,
+        );
+        let member = (
+            member.member_id.clone(),
+            secret_of(&store, &owner, &member).await,
+        );
+
         Organization {
             store,
             platform,
             owner,
             north: north.id,
             south: south.id,
-            administrator: (administrator.member_id, administrator.generated_password),
-            member: (member.member_id, member.generated_password),
+            administrator,
+            member,
             database: format!("org-{}", created.organization_id),
         }
     }
@@ -588,7 +653,7 @@ mod tests {
                 .any(|grant| grant.member_id == member_id)
         );
         assert!(
-            !members(&org.store, &owner)
+            !members(&org.store, &owner, AT)
                 .await
                 .expect("the dashboard's list")
                 .iter()
@@ -964,6 +1029,75 @@ mod tests {
         assert!(org.platform.rotated().is_empty());
     }
 
+    /// Requirement 5 of effort 826, and criterion 5: locking a member out is the owner's, and no
+    /// permission grants it. An administrator carrying **every** one of the seven grantable acts is
+    /// refused with the sentence naming the owner, and nothing is rotated.
+    ///
+    /// **The permissions are asserted first**, so that the refusal is read as the owner check
+    /// answering rather than as a bit the administrator happened not to hold. The refusal itself is
+    /// also reached by `the_refusals_come_before_any_write` above, among everything else a removal
+    /// turns away; this is the one that says what it is about.
+    #[tokio::test]
+    async fn an_administrator_holding_all_seven_acts_is_refused_a_lock_out() {
+        let directory = scratch("lock-out-authority");
+        let org = organization(&directory).await;
+        let (member_id, _) = org.member.clone();
+        let mut administrator = sign_in(
+            &org.store,
+            &joined_as(&org.owner, &org.administrator.0, permission::ADMINISTRATOR),
+            &org.administrator.1,
+            &slot(),
+        )
+        .await
+        .expect("the administrator did not sign in");
+        administrator.must_change_password = false;
+
+        assert_eq!(
+            administrator.permissions, 0b111_1111,
+            "the administrator does not carry all seven acts"
+        );
+        for act in permission::Administration::ALL {
+            assert!(
+                permission::permits(administrator.permissions, act),
+                "{}",
+                act.name()
+            );
+        }
+
+        let refusal = remove_member(
+            &org.store,
+            &mut administrator,
+            Some(&org.platform),
+            &org.database,
+            &member_id,
+            true,
+            AT,
+        )
+        .await
+        .expect_err("an administrator locked a member out");
+
+        assert!(
+            matches!(refusal, Error::Forbidden { ref message } if message.contains("only an owner")
+                && message.contains("ask the owner")),
+            "{refusal:?}"
+        );
+        assert!(org.platform.rotated().is_empty(), "a workspace was rotated");
+
+        // the ordinary removal is theirs, which is what makes the refusal above about the
+        // authority rather than about removal.
+        remove_member::<InMemoryPlatform>(
+            &org.store,
+            &mut administrator,
+            None,
+            &org.database,
+            &member_id,
+            false,
+            AT,
+        )
+        .await
+        .expect("an administrator could not remove a member");
+    }
+
     /// Criterion 2, and the ticket's own: **removing an administrator ends their authority.** The
     /// administrator has signed real rows; after an ordinary removal their certificate is revoked,
     /// the rows it signed are re-signed under the remover so nothing legitimate is bricked, and a
@@ -998,11 +1132,12 @@ mod tests {
         let bob = invite_member(
             &org.store,
             &ada,
+            no_platform(),
             &link,
             Invitation {
                 username: "bob",
                 role: permission::MEMBER,
-                workspace_ids: std::slice::from_ref(&org.north),
+                workspaces: &full(std::slice::from_ref(&org.north)),
             },
             test_cost(),
             AT,
@@ -1064,7 +1199,7 @@ mod tests {
         let bob_session = sign_in(
             &org.store,
             &joined_as(&owner, &bob.member_id, permission::MEMBER),
-            &bob.generated_password,
+            &secret_of(&org.store, &owner, &bob).await,
             &slot(),
         )
         .await

@@ -133,6 +133,16 @@ export type RemoteSyncState = {
 export type ReplicationRefusal = 'none' | 'account' | 'credential';
 
 /**
+ * where the signed-in member stands after a replication.
+ *
+ * **`signedOutElsewhere` is the one answer a caller has to act on**: somebody ended this member's
+ * sessions from another machine, the shell has already put the wall up on its own side, and what
+ * is left for this side is to read where the machine stands again. It is a standing and not a
+ * refusal, because nothing failed.
+ */
+export type SessionStanding = 'held' | 'signedOutElsewhere';
+
+/**
  * where an upgrade of a workspace's schema is, as the shell tells whoever is watching: this
  * client applying it under the lease, waiting on another member's lease until its deadline, or
  * done. The one moment the local replica is not enough, said rather than left to look like a hang.
@@ -252,25 +262,42 @@ export type OrganizationSession = {
 	username: string;
 	role: string;
 	permissions: number;
-	mustChangePassword: boolean;
 	workspaces: OrganizationWorkspace[];
 	/** the owner's username: whom a member is told to tell when the account needs attention. */
 	ownerUsername: string;
 };
 
 /**
- * where a link stands, as the connect screen is told before it does anything. `none` is the one
- * value produced since effort 824: a link carries no invitation half any more, so it names the
- * organization and admits nobody. The four invitation values are kept as words the connect
- * screen still reads until ticket 13 redraws it around the one.
+ * where a link stands, as the connect screen is told before it does anything: the four values an
+ * invitation link takes, and `none` for the organization's own link, which names the organization
+ * and admits nobody by itself. *Between effort 824 and effort 826 there was one kind of link and
+ * `none` was the one value produced.*
  */
 export type LinkStanding = 'open' | 'lapsed' | 'consumed' | 'revoked' | 'none';
+
+/**
+ * one workspace and the access held on it: what an invitation asks for, and what the members list
+ * reports a member already holds.
+ */
+export type WorkspaceGrant = { id: string; access: 'full-access' | 'read-only' };
 
 /** what a lock-out costs, said before it runs: which workspaces rotate, and how many members stop syncing. */
 export type LockOutCost = {
 	workspaces: { id: string; name: string; members: number }[];
 	/** distinct members across every workspace above, other than the removed and the remover. */
 	membersAffected: number;
+};
+
+/**
+ * what ending a member's sessions did: whether the bump reached the organization database, or is
+ * still waiting on this machine for a connection.
+ *
+ * The act's whole value is that it takes effect somewhere else, so "they were signed out" is only
+ * true once the number has gone out; until then the other machines are still open and the next
+ * heartbeat with a connection is what carries it.
+ */
+export type SessionsEnded = {
+	sent: boolean;
 };
 
 /** what a removal did. */
@@ -282,14 +309,20 @@ export type MemberRemoved = {
 };
 
 /**
- * what a link says once the organization it names has been reached: its name, where it is, and
- * where the link stands. No credential, no key, no secret; the link was parsed in Rust.
+ * what a link says once the organization it names has been reached: its name, where it is,
+ * where the link stands, and whom it invites where it invites anybody. No credential, no key, no
+ * secret; the link was parsed in Rust.
  */
 export type LinkFacts = {
 	organizationId: string;
 	organizationName: string;
 	remoteUrl: string;
 	standing: LinkStanding;
+	/**
+	 * the invited person, where the link carries an invitation whose secret opens their row;
+	 * `null` on the organization's own link, and on an invitation whose secret opens nothing.
+	 */
+	invitation: { username: string } | null;
 };
 
 /**
@@ -306,43 +339,75 @@ export type OrganizationState = {
 	 * repeat the consent, which is the one thing a restore cannot bring with it.
 	 */
 	holdsTursoAuthority: boolean;
+	/**
+	 * whether the wall is up because this member's sessions were ended from another machine.
+	 *
+	 * Read only while the wall is up, and what it changes is the sentence on it: a person who was
+	 * signed out from somewhere else is told so rather than shown the ordinary locked screen.
+	 * False the moment anybody is signed in again.
+	 */
+	signedOutElsewhere: boolean;
 };
 
-/** one member as the dashboard lists them. The username opened on the other side; no key, no credential. */
+/**
+ * the invitation a member is still waiting on: the pending mark on their row, its expiry, and
+ * whether the person reading can hand the same link over again. A member has at most one.
+ */
+export type PendingInvitation = {
+	invitationId: string;
+	expiresAt: number;
+	/** `open` or `lapsed`; a consumed invitation is not pending and is never reported. */
+	standing: 'open' | 'lapsed' | 'consumed';
+	/** whether the caller issued it, which is whether the same link opens for them again. */
+	canCopy: boolean;
+};
+
+/**
+ * one member as the members list draws them. The username opened on the other side; no key, no
+ * credential. *The workspaces were ids, and the invitations were a second list read from a call of
+ * their own, until effort 826: one row needs both, so the row is answered whole.*
+ */
 export type OrganizationMember = {
 	id: string;
 	username: string;
 	role: string;
 	permissions: number;
-	mustChangePassword: boolean;
-	workspaceIds: string[];
+	/** the workspaces this member holds, with the access on each. */
+	workspaces: WorkspaceGrant[];
+	/** their unspent invitation, or `null` for somebody who has signed in. */
+	pending: PendingInvitation | null;
 	createdAt: number;
-};
-
-/** one invitation and where it stands now. */
-export type OrganizationInvitation = {
-	id: string;
-	memberId: string;
-	expiresAt: number;
-	consumedAt: number | null;
-	createdAt: number;
-	standing: 'open' | 'lapsed' | 'consumed';
 };
 
 /**
- * what an invitation makes, shown to the administrator once: the three things they hand over,
- * the organization's link, the username and the generated password. The password is in it
- * because it has to be shown; it crosses exactly once and is held nowhere afterwards.
+ * what an invitation makes, shown to the administrator: the two things they hand over, the
+ * invitation link and the code that confirms it, beside the username and the ids the members list
+ * reads. The link carries one half of what opens the member's vault and the code is the other, so
+ * the link is sent and the code is read out; no password crosses on its own.
  */
+export type FreshCode = {
+	/** six characters from the alphabet with the letters that read alike taken out. */
+	code: string;
+	/** the moment it lapses, ninety seconds from when it was drawn. */
+	expiresAt: number;
+};
+
 export type Invited = {
 	memberId: string;
 	invitationId: string;
 	/** the username the member signs in with, as the row seals it. */
 	username: string;
-	/** the organization's own link, which connects a machine and admits nobody by itself. */
+	/** the invitation link: the organization's own link with this invitation's half in it. */
 	joinLink: string;
-	generatedPassword: string;
 	expiresAt: number;
+	/**
+	 * the six-character code that confirms the link (effort 826, requirement 23). It is the
+	 * other half of what opens the invited vault, so it is read out on a call or in person and
+	 * never sent beside the link.
+	 */
+	code: string;
+	/** the moment that code lapses, ninety seconds from when it was drawn. */
+	codeExpiresAt: number;
 	/**
 	 * on a reset, the workspaces the member held that the resetting administrator could not
 	 * restore, because they hold no full credential on them themselves. Empty on an invitation.
@@ -437,11 +502,22 @@ export type Host = {
 		/** forget the Turso authority this machine holds, and nothing else. Nothing is revoked at Turso. */
 		consentDisconnect: () => Promise<void>;
 		/**
-		 * create an organization on the consented account from the two things a first run
+		 * create an organization on the consented account from the three things a first run
 		 * collects. Refuses, creating nothing, where no consent has been granted, and signs the
 		 * owner in where it succeeds.
+		 *
+		 * `group` is the Turso group the person picked on the consent screen, and it is `null` on
+		 * every ordinary run: Rust tries the create with no group, then with Turso's own default,
+		 * then with the group uuid the consent token carries, and the walk asks for a name only
+		 * where all of those were refused. It is a name rather than a credential when it does
+		 * arrive; a group that is not the consent's is refused before anything is created.
 		 */
-		create: (name: string, username: string, password: string) => Promise<OrganizationCreated>;
+		create: (
+			name: string,
+			username: string,
+			password: string,
+			group: string | null
+		) => Promise<OrganizationCreated>;
 		/** the organization this machine holds, and who is signed in. */
 		getState: () => Promise<OrganizationState>;
 		/**
@@ -468,6 +544,13 @@ export type Host = {
 		/** drop the keys this process held, and put the wall back up. */
 		signOut: () => Promise<OrganizationState>;
 		/**
+		 * sign this member out of every machine but this one. Nothing asks for their password and
+		 * nothing about it changes: what ends is the other machines' sessions and the keys they
+		 * were staying signed in with. Each meets the wall at its next heartbeat or its next
+		 * launch.
+		 */
+		sessionEndElsewhere: () => Promise<SessionsEnded>;
+		/**
 		 * a `rentable://` link the operating system handed the process before the shell was
 		 * listening: the one it was launched with, or one opened before the webview existed. Taken
 		 * once; `null` where none is waiting.
@@ -478,9 +561,9 @@ export type Host = {
 		/** where a workspace upgrade is, while one runs on open. Resolves to its own removal. */
 		onMigration: (listener: (notice: MigrationNotice) => void) => Promise<Unlisten>;
 		/**
-		 * read a link: which organization it names. Rejects as `invalidInput` where the text is
-		 * not a link, and as `network` where the organization could not be reached from a machine
-		 * that has never seen it.
+		 * read a link: which organization it names, and where its invitation stands where it
+		 * carries one. Rejects as `invalidInput` where the text is not a link, and as `network`
+		 * where the organization could not be reached from a machine that has never seen it.
 		 */
 		linkInspect: (link: string) => Promise<LinkFacts>;
 		/**
@@ -519,6 +602,11 @@ export type Host = {
 				memberId: string,
 				access: 'full-access' | 'read-only'
 			) => Promise<void>;
+			/**
+			 * take a workspace back from a member: the grant goes, and nothing is minted or
+			 * rotated, so the credential they already hold works until it expires.
+			 */
+			withdraw: (workspaceId: string, memberId: string) => Promise<void>;
 			/** delete a workspace and its database: the owner's, and the one moment deletion is permitted. */
 			remove: (workspaceId: string) => Promise<void>;
 			/** mint fresh credentials for every grant and re-seal them, on the owner's machine. */
@@ -528,14 +616,22 @@ export type Host = {
 			/** every member, with names opened by the vault this process holds. */
 			list: () => Promise<OrganizationMember[]>;
 			/**
-			 * invite a member: a row they will sign in to, a link, and a generated password, shown
-			 * once. The application sends neither; the administrator hands them over.
+			 * invite a member: a row they will open, and one link. The application sends nothing;
+			 * the administrator hands the link over. A read-only grant is minted on the owner's
+			 * machine, and refused by name elsewhere.
 			 */
 			invite: (
 				username: string,
 				role: 'administrator' | 'member',
-				workspaceIds: string[]
+				workspaces: WorkspaceGrant[]
 			) => Promise<Invited>;
+			/**
+			 * reset a member's password: a fresh vault under a fresh secret, everything the
+			 * resetting administrator reaches re-sealed to it, and a fresh link. The answer names
+			 * the workspaces it could not restore, and the member's permissions are kept. The
+			 * member's previous password is not needed and not learned.
+			 */
+			reset: (memberId: string) => Promise<Invited>;
 			/**
 			 * remove a member. `lockOut` false is the ordinary removal: their grants go, their row
 			 * is signed as removed, and nobody else is disturbed; their credential works until it
@@ -547,6 +643,22 @@ export type Host = {
 			/** what locking a member out would cost, before it is done. */
 			lockOutCost: (memberId: string) => Promise<LockOutCost>;
 			/**
+			 * change what a member is called and what they may do: both written on their row,
+			 * re-signed, and their certificate issued or revoked to match. Nobody changes their own
+			 * row or the owner's, and giving somebody an act that signs rows is the owner's.
+			 */
+			changeRole: (
+				memberId: string,
+				role: 'administrator' | 'member',
+				permissions: number
+			) => Promise<OrganizationMember>;
+			/**
+			 * sign a member out of every machine. Their password is not changed by it. Rejects the
+			 * caller's own row, which is `sessionEndElsewhere`, and the owner's row, which is
+			 * nobody else's to end.
+			 */
+			endSessions: (memberId: string) => Promise<SessionsEnded>;
+			/**
 			 * rename a member: their row written back with the username re-sealed and signed by
 			 * whoever renamed them. The owner's or an administrator's, on any row but their own;
 			 * the username is held to the rules and the uniqueness an invitation's is. What comes
@@ -555,17 +667,35 @@ export type Host = {
 			rename: (memberId: string, username: string) => Promise<OrganizationMember>;
 		};
 		invitation: {
-			list: () => Promise<OrganizationInvitation[]>;
-			/** revoke an unused invitation; the link that named it opens nothing afterwards. */
+			/**
+			 * revoke an invitation. A person who never opened their link is removed with it, so
+			 * the link opens nothing afterwards; a reset link on a member who has signed in before
+			 * is deleted alone.
+			 */
 			revoke: (invitationId: string) => Promise<void>;
+			/**
+			 * open an invitation link on the organization this machine holds, with the code the
+			 * issuer read out and a password of the person's choosing: the link's secret and the
+			 * code together open the vault, which is resealed under the password, the invitation
+			 * is spent, and the person is signed in. Rejects a lapsed, consumed or revoked
+			 * invitation by name, a wrong code as `forbidden` and a lapsed one as
+			 * `preconditionFailed`, a missing code and a password under the floor as
+			 * `invalidInput`, and a link for another organization than the one held as
+			 * `preconditionFailed`.
+			 */
+			accept: (link: string, code: string, password: string) => Promise<OrganizationState>;
+			/**
+			 * the invitation link again, for the person who issued it; `forbidden` for anybody
+			 * else, who is offered a new link instead.
+			 */
+			link: (invitationId: string) => Promise<string>;
+			/**
+			 * a fresh confirmation code for an invitation, for the person who issued it; the old
+			 * one opens nothing from then on. `forbidden` for anybody else, who is offered a new
+			 * link instead, which is a reset.
+			 */
+			code: (invitationId: string) => Promise<FreshCode>;
 		};
-		/**
-		 * reset a member's password: a fresh vault under a fresh generated password, everything
-		 * the resetting administrator reaches re-sealed to it, and a fresh invitation. The answer
-		 * names the workspaces it could not restore. The member's previous password is not needed
-		 * and not learned.
-		 */
-		resetMember: (memberId: string) => Promise<Invited>;
 		/**
 		 * change the signed-in member's own password. The current one has to open the vault and
 		 * the new one has to reach the floor; nothing else on the database moves, and what comes
@@ -591,6 +721,12 @@ export type Host = {
 			pushed: boolean;
 			received: boolean;
 			refusal: ReplicationRefusal;
+			/**
+			 * where the signed-in member stands after it. The same call is what ends a session
+			 * that was ended from another machine, because it is what the heartbeat calls and the
+			 * heartbeat is what runs on a machine nobody is touching.
+			 */
+			standing: SessionStanding;
 		}>;
 		/** send what this machine wrote and nothing else, for the last call of a session. */
 		push: () => Promise<boolean>;

@@ -1,15 +1,17 @@
 <script lang="ts">
 	/**
-	 * The two providers a section that owns a query needs above it.
+	 * The three providers a section that owns a query needs above it.
 	 *
 	 * Scaffolding rather than a test, and a fixture rather than a `wrapper` for the reason
 	 * `./providers.svelte` gives: `wrapper` puts exactly one component above the subject, and a
 	 * section that calls a hook from `organization/query.ts` reads the query client from context
-	 * as well as the design contract. The client is a fresh one per render, with retries off so a
-	 * query that reaches the shell, which this runner has none of, settles rather than waits; a
-	 * test that wants no call at all renders the section with its query disabled.
-	 * `routes/+layout.svelte` nests the two the same way round.
+	 * as well as the design contract, while a section whose row actions are an icon cluster draws
+	 * a tooltip, whose root reads `TooltipProvider`. The client is a fresh one per render, with
+	 * retries off so a query that reaches the shell, which this runner has none of, settles rather
+	 * than waits; a test that wants no call at all renders the section with its query disabled.
+	 * `routes/+layout.svelte` nests the three the same way round.
 	 */
+	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
 	import {
 		DesignProvider,
 		type DesignDirection,
@@ -29,6 +31,8 @@
 
 <DesignProvider {strings} {direction}>
 	<QueryClientProvider {client}>
-		{@render children()}
+		<TooltipProvider>
+			{@render children()}
+		</TooltipProvider>
 	</QueryClientProvider>
 </DesignProvider>

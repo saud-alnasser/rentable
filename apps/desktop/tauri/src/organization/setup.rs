@@ -3,11 +3,13 @@
 //!
 //! **Three things are typed and nothing else.** The name, the username and the password. *Two
 //! until effort 824's requirement 21 made an account a username; the owner's row carried an empty
-//! address and an empty display name before it.* The slug is discovered
-//! (`sync/turso/discovery.rs`), the group is whichever the consent was granted over, the database
-//! is created here, and every key is generated or derived here. The consent itself happened before
-//! this is reached, in a browser, and this module spends what it filed and asks nothing of the
-//! person.
+//! address and an empty display name before it. Four for a day on 2026-09-15, when Turso began
+//! refusing a create that names no group and the walk asked for the group's name outright; it is
+//! a fourth thing again only where Turso has refused every name this machine can work out on its
+//! own, which [`create_into_an_empty_group`] is.* The slug is discovered
+//! (`sync/turso/discovery.rs`), the database is created here, and every key is generated or
+//! derived here. The consent itself happened before this is reached, in a browser, and this
+//! module spends what it filed and asks almost nothing of the person.
 //!
 //! **Either the run completes or it leaves nothing.** A database is created on the customer's
 //! account early and everything after it can fail, so every failure past that point deletes the
@@ -56,9 +58,11 @@ use super::{
     authority::{AdministratorKey, OrganizationKey, issue_certificate},
     invite::validate_username,
     link::JoinLink,
+    session::remember,
     store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
     vault::{
-        KdfParams, create_vault_with_secret, generate_content_key, seal_content, seal_to_public_key,
+        KdfParams, create_vault_with_secret_and_key, generate_content_key, seal_content,
+        seal_to_public_key,
     },
 };
 
@@ -72,9 +76,30 @@ pub const LINK_CREDENTIAL_LIFETIME: &str = "never";
 
 pub const OWNER_ROLE: &str = "owner";
 
-/// Every administration act, as `packages/workspace-permission` masks them: six flags, six bits.
-/// The package is the vocabulary and this is its value for the role that holds all of it.
-pub const OWNER_PERMISSIONS: i64 = 0b11_1111;
+/// What an organization's own database is called on the Turso account: this, and the
+/// organization's id. It is the whole of what marks a listed database as one of ours, which is
+/// what [`one_organization_to_a_group`] reads, and why it is a constant rather than spelled
+/// into the `format!` below and again into a refusal that has to recognise it.
+pub const ORGANIZATION_DATABASE_PREFIX: &str = "org-";
+
+/// Every grantable act, as `packages/workspace-permission` masks them: seven flags, seven bits.
+/// The package is the vocabulary and this is its value for the role that holds all of it. What
+/// else an owner may do is not in this number, because requirement 5 keeps the acts that need the
+/// Turso authority out of the table altogether.
+pub const OWNER_PERMISSIONS: i64 = 0b111_1111;
+
+/// What Turso calls the group a new organization is made with, and the second name a first
+/// create tries. It is Turso's word rather than this application's, and it is never shown to
+/// anybody: what it buys is one more account that nobody has to be asked anything on.
+const TURSO_DEFAULT_GROUP: &str = "default";
+
+/// What a run refused over the group begins its message with, so the walk can tell that one
+/// refusal from every other and draw the field.
+///
+/// **A fixed phrase rather than a sentence.** `organization/setup.ts` matches on it to decide
+/// whether to ask for the group at all, so it is the one part of this message that is a contract;
+/// what follows it is Turso's own words and is free to change with them.
+pub const THE_GROUP_IS_NEEDED: &str = "the turso group's name is needed";
 
 /// The strength floor, checked on the machine. There is no server to slow a guess down, so the
 /// password is the whole defence, and the floor is length because length is what an attacker
@@ -94,13 +119,21 @@ pub const SHIPPING_KDF: KdfParams = KdfParams {
 pub const ORGANIZATION_KEY_PURPOSE: &str = "organization-key";
 pub const ADMINISTRATOR_KEY_PURPOSE: &str = "administrator-key";
 
-/// The three things a first run is given.
+/// The three things a first run is given, and a fourth where it has already been refused without
+/// one.
 #[derive(Clone, Debug)]
 pub struct CreateOrganization<'a> {
     pub name: &'a str,
     /// the owner's own username, under `invite::validate_username`'s rules like every other.
     pub username: &'a str,
     pub password: &'a str,
+    /// the Turso group the person picked on the consent screen, where they were asked for it.
+    /// It is a name rather than a credential ([[rules/credentials]], *Client boundary*), and it
+    /// is `None` on every run that has not been refused over the group:
+    /// [`create_into_an_empty_group`] asks the account what the group is called and then tries
+    /// three names of its own, and the walk shows no field until all of that has answered
+    /// nothing.
+    pub group: Option<&'a str>,
 }
 
 /// What the web layer is told: the organization's id and the link the owner can hand out. No key,
@@ -153,6 +186,13 @@ impl Remote {
 /// `platform_for` builds the Platform API client once the organization slug is known, which on a
 /// first run into an empty group is only after the MCP server has created the first database;
 /// `discovery.rs` says why that database cannot be created any other way.
+///
+/// **A group is asked for almost never, and checked where one was.** A group that already holds
+/// anything named itself in the listing, so nothing needs to be typed and a name that is not it
+/// is refused here, by both names, before anything is created. An empty group tells this machine
+/// nothing about itself, so there [`create_into_an_empty_group`] learns the name where the
+/// account will say it, and tries the names it can work out after that, before the walk asks for
+/// one at all.
 #[allow(clippy::too_many_arguments)]
 pub async fn create_organization<P, F>(
     store: &mut Persisted<RemoteSyncStore>,
@@ -171,6 +211,13 @@ where
 {
     let name = request.name.trim();
     let username = request.username.trim();
+    // a field that was drawn and left blank is a field that was not answered, and the walk only
+    // draws it after Turso has refused everything else: there is nothing to refuse it with here
+    // that the cascade below does not say better.
+    let typed_group = request
+        .group
+        .map(str::trim)
+        .filter(|group| !group.is_empty());
 
     if name.is_empty() {
         return Err(Error::InvalidInput {
@@ -192,12 +239,42 @@ where
     }
 
     let organization_id = random_id()?;
-    let database_name = format!("org-{organization_id}");
+    let database_name = format!("{ORGANIZATION_DATABASE_PREFIX}{organization_id}");
 
     // the database, and the slug it is created under or read from.
     let (organization, hostname) = match discovery::organization(store, platform_token, mcp).await?
     {
-        Some(organization) => {
+        Some(consented) => {
+            // **a group that was typed is checked first, and the check keeps the consent.** What
+            // the consent is over is already known here, from the listing or from this machine's
+            // own store, so a name that is not it is a typing mistake rather than a wrong
+            // account, and giving the consent back over one would cost the person the browser
+            // round trip. Nothing is typed on this path ordinarily: the listing named the group,
+            // so the walk never asked.
+            if let Some(typed_group) = typed_group
+                && consented.organization.group != typed_group
+            {
+                return Err(Error::PreconditionFailed {
+                    message: format!(
+                        "the group this consent is over is called `{}`, not `{typed_group}`",
+                        consented.organization.group
+                    ),
+                });
+            }
+
+            // **before the create, so a refusal leaves the account exactly as it was.** Where
+            // the group was answered out of this machine's own store there is no listing to
+            // read, and none is needed: the only way a slug got there is a run that reached
+            // this check and passed it.
+            if let Some(databases) = consented.databases.as_deref() {
+                if let Err(refusal) = one_organization_to_a_group(databases) {
+                    abandon_the_consent(store);
+
+                    return Err(refusal);
+                }
+            }
+
+            let organization = consented.organization;
             let database = platform_for(organization.clone())
                 .create_database(&database_name)
                 .await?;
@@ -205,8 +282,22 @@ where
             (organization, database.hostname)
         }
         None => {
-            let first =
-                discovery::create_first_database(platform_token, mcp, &database_name).await?;
+            // **a port built with no organization in it, because the one call made through it
+            // here names none.** `group_named` asks the single Platform API endpoint that takes
+            // no slug, and then the groups under the username it answers; everything that builds
+            // a path out of a slug is on the other side of this branch, where there is one.
+            let probe = platform_for(TursoOrganization {
+                slug: String::new(),
+                group: String::new(),
+            });
+            let first = create_into_an_empty_group(
+                &probe,
+                platform_token,
+                mcp,
+                &database_name,
+                typed_group,
+            )
+            .await?;
 
             store.turso_organization = Some(first.organization.clone());
             store.commit()?;
@@ -241,6 +332,161 @@ where
             Err(error)
         }
     }
+}
+
+/// Create the first database in a group that holds none, learning the group's name where the
+/// account will say it and naming it by guess only where nothing would.
+///
+/// **The name is asked for before it is guessed at** (ticket 21). Two places on the customer's
+/// own account know what the group is called: the MCP server, where its tool set offers a way to
+/// list groups, and the Platform API, whose one slug-free endpoint names the person and whose
+/// groups listing sits under that username. Both are reads, both pick the group by the uuid the
+/// consent's token carries, and either of them answering ends this: the create is made with the
+/// name it gave and nothing else is tried.
+///
+/// **The cascade below is what runs where neither answered, unchanged.** Three names, in the
+/// order that costs a person least: no group at all, which is the tool's own default and what
+/// worked until 2026-09-15; `default`, which is what Turso calls the group a new organization is
+/// made with; and the group uuid the consent's own token carries, which names the consented group
+/// exactly without anybody knowing what it is called. A refusal that speaks of the group moves to
+/// the next name, because that is Turso saying the group is what it could not settle. **Every
+/// other refusal is the answer and is returned as it stands**, whether it is a plan's limit, a
+/// name Turso will not take or an account that needs attention, since two more requests would
+/// only be told the same thing more slowly.
+///
+/// **Where a name was given, it is the only attempt.** The walk shows the field after everything
+/// above was refused, so a name arriving here means it was, and trying any of it again would put
+/// the person back where they started.
+async fn create_into_an_empty_group<P: TursoPlatform>(
+    platform: &P,
+    platform_token: &str,
+    mcp: &McpEndpoint,
+    database_name: &str,
+    typed_group: Option<&str>,
+) -> Result<discovery::FirstDatabase, Error> {
+    if let Some(group) = typed_group {
+        let first =
+            discovery::create_first_database(platform_token, mcp, database_name, Some(group))
+                .await?;
+        named_the_group(TYPED);
+
+        return Ok(first);
+    }
+
+    let group_uuid = discovery::group_uuid_of(platform_token);
+
+    if let Some((named_by, group)) =
+        learn_the_group(platform, platform_token, mcp, group_uuid.as_deref()).await
+    {
+        let first =
+            discovery::create_first_database(platform_token, mcp, database_name, Some(&group))
+                .await?;
+        named_the_group(named_by);
+
+        return Ok(first);
+    }
+
+    let mut attempts = vec![None, Some(TURSO_DEFAULT_GROUP)];
+
+    // a token carrying no such claim has nothing to add: the attempt would be the first one
+    // again, and one request that has already been refused is enough.
+    if let Some(group_uuid) = group_uuid.as_deref() {
+        attempts.push(Some(group_uuid));
+    }
+
+    let mut refusal = String::new();
+
+    for group in attempts {
+        match discovery::create_first_database(platform_token, mcp, database_name, group).await {
+            Ok(first) => {
+                named_the_group(CASCADE);
+
+                return Ok(first);
+            }
+            Err(error) if is_about_the_group(&error) => {
+                refusal = turso_reason(&error).unwrap_or_default().to_string();
+            }
+            Err(error) => return Err(error),
+        }
+    }
+
+    Err(Error::PreconditionFailed {
+        message: format!(
+            "{THE_GROUP_IS_NEEDED}. turso refused every group this application could name on its \
+             own, and said: {refusal}"
+        ),
+    })
+}
+
+/// What the consented group is called, from whichever of the two ways knew, and which one that
+/// was.
+///
+/// **A probe that failed answered nothing.** Both calls exist to save a person a question, and
+/// neither is on the path to anything: a refusal, an unreachable moment or a reply in a shape
+/// this cannot read goes to the diagnostics log and the run carries on to the cascade, exactly as
+/// it did before either probe existed. Turning one of them into the reason a first run stopped
+/// would be a worse first run than the one this ticket set out to fix.
+async fn learn_the_group<P: TursoPlatform>(
+    platform: &P,
+    platform_token: &str,
+    mcp: &McpEndpoint,
+    group_uuid: Option<&str>,
+) -> Option<(&'static str, String)> {
+    match discovery::group_from_mcp(platform_token, mcp, group_uuid).await {
+        Ok(Some(group)) => return Some((MCP, group)),
+        Ok(None) => {}
+        Err(error) => diagnostics::warn("organization.setup.groupNotReadFromMcp")
+            .with("error", error.to_string())
+            .write(),
+    }
+
+    match platform.group_named(platform_token, group_uuid).await {
+        Ok(Some(group)) => Some((PLATFORM, group)),
+        Ok(None) => None,
+        Err(error) => {
+            diagnostics::warn("organization.setup.groupNotReadFromPlatform")
+                .with("error", error.to_string())
+                .write();
+
+            None
+        }
+    }
+}
+
+/// The four ways the group a first database is created in can be named, as the diagnostics line
+/// spells them.
+const MCP: &str = "mcp";
+const PLATFORM: &str = "platform";
+const CASCADE: &str = "cascade";
+const TYPED: &str = "typed";
+
+/// Record which of them it was.
+///
+/// **The name itself is not in the line.** A group's name is the customer's own, and what a
+/// reading of this file needs is which way answered: the two probes are new and the account they
+/// are asked of is not this machine's, so whether either of them works in the field is a thing
+/// nobody can see any other way.
+fn named_the_group(by: &str) {
+    diagnostics::info("organization.setup.groupNamed")
+        .with("by", by)
+        .write();
+}
+
+/// Turso's own reason inside a refused create, where what came back is one.
+fn turso_reason(error: &Error) -> Option<&str> {
+    match error {
+        Error::PreconditionFailed { message } => Some(
+            message
+                .strip_prefix(discovery::CREATE_REFUSED)
+                .unwrap_or(message),
+        ),
+        _ => None,
+    }
+}
+
+/// Whether Turso refused over the group, which is the one refusal another name could answer.
+fn is_about_the_group(error: &Error) -> bool {
+    turso_reason(error).is_some_and(|reason| reason.to_lowercase().contains("group"))
 }
 
 /// Everything after the database exists: the credentials, the keys, the rows, the push, and the
@@ -286,9 +532,9 @@ async fn finish<P: TursoPlatform>(
     let remote_url = format!("libsql://{hostname}");
     let replica_remote = remote.url_for(hostname);
 
-    // the owner's keys: the vault their password opens, and the two signing keys that follow
-    // from its secret.
-    let (vault, secret) = create_vault_with_secret(password, kdf_params)?;
+    // the owner's keys: the vault their password opens, the key that opens it, and the two
+    // signing keys that follow from its secret.
+    let (vault, secret, member_key) = create_vault_with_secret_and_key(password, kdf_params)?;
     let organization_key =
         OrganizationKey::from_bytes(&secret.derive_seed(ORGANIZATION_KEY_PURPOSE)?);
     let administrator_key =
@@ -349,11 +595,16 @@ async fn finish<P: TursoPlatform>(
                 )?,
                 sealed_content_key: seal_to_public_key(&vault.public_key, &content_key.to_bytes())?,
                 vault: vault.clone(),
+                // the owner's row carries the verifying half of the key it signs with, written
+                // here because this is one of the two moments a fresh vault secret is in hand
+                // (`invite::issue` is the other). It is what a widening certifies against.
+                signing_public_key: administrator_key.verifying_key(),
                 role: OWNER_ROLE.to_string(),
                 permissions: OWNER_PERMISSIONS,
                 must_change_password: false,
                 created_at: now,
                 updated_at: now,
+                session_epoch: 0,
             },
         )
         .await?;
@@ -391,11 +642,16 @@ async fn finish<P: TursoPlatform>(
         name: name.to_string(),
         verifying_key: BASE64URL.encode(verifying_key),
         remote_url: remote_url.clone(),
-        member_id: Some(member_id),
+        member_id: Some(member_id.clone()),
         role: Some(OWNER_ROLE.to_string()),
         joined_at: now,
     });
     store.commit()?;
+
+    // the machine stays signed in as the owner from here (effort 826, requirement 12). After the
+    // record is committed, because the entry is read back against what the record names.
+    // the first epoch, the one the owner's row was just written with.
+    remember(organization_id, &member_id, 0, &member_key);
 
     let join_link = JoinLink::new(
         organization_id,
@@ -418,6 +674,62 @@ async fn finish<P: TursoPlatform>(
         },
         organization_store,
     ))
+}
+
+/// Refuse a group that already holds an organization, naming the database that is in the way.
+///
+/// **A group holds one organization** (requirement 21 of effort 826). The consent is granted
+/// over one group and the organization lives in it, so a second organization in the same group
+/// would put two sets of records behind one grant, and the owner ruled that out. The person
+/// picks another group, or another Turso account, and the sentence says so.
+///
+/// **Only a name this application would have written counts.** A Free or Developer account has
+/// exactly one group and it holds whatever else the person keeps on that account, so refusing
+/// on any database at all would refuse the accounts most first runs arrive on. The mark is the
+/// name [`create_organization`] gives an organization's database and nothing else.
+fn one_organization_to_a_group(databases: &[String]) -> Result<(), Error> {
+    let held = databases.iter().find(|name| {
+        name.strip_prefix(ORGANIZATION_DATABASE_PREFIX)
+            .is_some_and(|id| !id.is_empty())
+    });
+
+    match held {
+        // the name is the customer's own and is said back to them, because it is what they look
+        // for in Turso's dashboard to decide whether to delete it or pick elsewhere.
+        Some(held) => Err(Error::PreconditionFailed {
+            message: format!(
+                "this group already holds the organization database `{held}`; a group holds \
+                 one organization, so pick another group or another Turso account"
+            ),
+        }),
+        None => Ok(()),
+    }
+}
+
+/// Give the consent back, so the person can grant another one over another group or account.
+///
+/// **The token and the slug go together.** The slug is a fact about the consent that is being
+/// abandoned, and a machine that kept it would build every Platform API path of the next
+/// consent out of the account this one was over. The next run looks the slug up again, which is
+/// what [`discovery::organization`] does when the store answers nothing.
+///
+/// Best effort in both halves: what the person reads is the refusal that brought them here, and
+/// a credential store that would not empty goes to the diagnostics log rather than taking the
+/// refusal's place on the screen.
+fn abandon_the_consent(store: &mut Persisted<RemoteSyncStore>) {
+    if let Err(error) = crate::sync::turso::consent::forget_platform_token() {
+        diagnostics::error("organization.setup.consentNotForgotten")
+            .with("error", error.to_string())
+            .write();
+    }
+
+    store.turso_organization = None;
+
+    if let Err(error) = store.commit() {
+        diagnostics::error("organization.setup.consentNotForgotten")
+            .with("error", error.to_string())
+            .write();
+    }
 }
 
 /// Undo a first run that did not finish: the database this process created, and the replica
@@ -512,15 +824,19 @@ pub fn authority() -> Result<String, Error> {
 mod tests {
     use std::sync::Arc;
 
+    use base64::Engine as _;
     use serde_json::json;
 
     use super::{
-        CreateOrganization, MINIMUM_PASSWORD_LENGTH, OWNER_PERMISSIONS, OWNER_ROLE, Remote,
-        SHIPPING_KDF, create_organization, credential_expiry,
+        BASE64URL, CreateOrganization, MINIMUM_PASSWORD_LENGTH, ORGANIZATION_DATABASE_PREFIX,
+        OWNER_PERMISSIONS, OWNER_ROLE, Remote, SHIPPING_KDF, THE_GROUP_IS_NEEDED,
+        create_organization, credential_expiry,
     };
     use crate::{
+        error::Error,
+        keyring::take_the_credential_store,
         organization::{
-            authority::OrganizationKey,
+            authority::{AdministratorKey, OrganizationKey},
             invite::USERNAME_RULES,
             link::JoinLink,
             vault::{
@@ -533,6 +849,7 @@ mod tests {
             RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
             turso::{
+                consent::{platform_token, store_platform_token},
                 discovery::McpEndpoint,
                 platform::{AccessLevel, DeletionIntent, InMemoryPlatform, PlatformError},
             },
@@ -588,6 +905,77 @@ mod tests {
         )
     }
 
+    /// What Turso answered a create that named no group on 2026-09-15, in its own words.
+    const NO_GROUP_NAMED: &str =
+        "HTTP 403: group-scoped tokens must specify a group in the request";
+
+    /// And what it answers a create naming a group the consent is not over.
+    const NO_SUCH_GROUP: &str = "group `default` does not exist in this organization";
+
+    /// The group uuid a consent token carries, which is the third name a first create tries.
+    const CONSENTED_GROUP_UUID: &str = "6f5b6f60-1d4a-4b4a-9c2e-0b0a1d2c3e4f";
+
+    /// A create the tool refused: a result flagged `isError` carrying Turso's own reason, which
+    /// is the shape `create_database` answers a refusal in rather than a JSON-RPC error.
+    fn create_refused(reason: &str) -> ScriptedResponse {
+        ScriptedResponse::new(
+            200,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": {
+                    "isError": true,
+                    "content": [{ "type": "text", "text": reason }]
+                }
+            })
+            .to_string(),
+        )
+    }
+
+    /// What `tools/list` answers, carrying whichever tool names the server offers.
+    fn tools(names: &[&str]) -> ScriptedResponse {
+        let offered = names
+            .iter()
+            .map(|name| json!({ "name": name, "inputSchema": { "type": "object" } }))
+            .collect::<Vec<_>>();
+
+        ScriptedResponse::new(
+            200,
+            json!({ "jsonrpc": "2.0", "id": 4, "result": { "tools": offered } }).to_string(),
+        )
+    }
+
+    /// The tool set read on 2026-09-11, which offers no way to name a group. Every test whose
+    /// group is named some other way scripts it, so the first probe answers nothing and the run
+    /// carries on to the second.
+    fn no_group_tool() -> ScriptedResponse {
+        tools(&["list_databases", "create_database"])
+    }
+
+    /// And the groups a server that does offer one lists, in the shape Turso's own API sends.
+    fn groups(records: serde_json::Value) -> ScriptedResponse {
+        ScriptedResponse::new(
+            200,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "result": { "content": [{ "type": "text", "text": records.to_string() }] }
+            })
+            .to_string(),
+        )
+    }
+
+    /// A consent token in the shape Turso issues one: three base64url segments, the middle
+    /// carrying the claims. Only the group uuid is read out of it, and only here in Rust
+    /// ([[rules/credentials]], *Client boundary*).
+    fn token_naming_the_group() -> String {
+        format!(
+            "{}.{}.a-signature",
+            BASE64URL.encode("{}"),
+            BASE64URL.encode(json!({ "group_uuid": CONSENTED_GROUP_UUID }).to_string())
+        )
+    }
+
     /// The listing a group that already holds a database answers, so the slug is read and the
     /// Platform API creates the organization's database.
     fn populated_group() -> Vec<ScriptedResponse> {
@@ -603,6 +991,205 @@ mod tests {
 
     fn store(directory: &std::path::Path) -> Persisted<RemoteSyncStore> {
         Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json")).expect("the store")
+    }
+
+    /// **Requirement 21 of effort 826.** The consent landed on a group that already holds an
+    /// organization, so the run is refused before it creates anything, the refusal names the
+    /// database that is in the way, and the consent is given back so the person can grant
+    /// another over another group or another Turso account.
+    #[tokio::test]
+    async fn a_group_already_holding_an_organization_refuses_the_run_and_gives_the_consent_back() {
+        // taken once, at the top: the refusal reads and empties the same credential store the
+        // fake keeps for the whole process.
+        let _turn = take_the_credential_store().await;
+
+        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+
+        let directory = scratch("one-organization");
+        let mut store = store(&directory);
+        let mcp = ScriptedServer::start(vec![
+            handshake(),
+            listing(json!([
+                {
+                    "Name": "ledger",
+                    "hostname": "ledger-an-org.aws-eu-west-1.turso.io",
+                    "group": "rentable"
+                },
+                {
+                    "Name": "org-7f3a",
+                    "hostname": "org-7f3a-an-org.aws-eu-west-1.turso.io",
+                    "group": "rentable"
+                }
+            ])),
+        ])
+        .await;
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+
+        let refusal = create_organization(
+            &mut store,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name: "Acme Rentals",
+                username: "olivia.owner",
+                password: PASSWORD,
+                group: None,
+            },
+            test_cost(),
+            1_757_000_000_000,
+        )
+        .await
+        .expect_err("a group already holding an organization was built into again");
+
+        assert!(
+            matches!(refusal, Error::PreconditionFailed { .. }),
+            "{refusal:?}"
+        );
+        assert_eq!(
+            refusal.to_string(),
+            "this group already holds the organization database `org-7f3a`; a group holds \
+             one organization, so pick another group or another Turso account"
+        );
+
+        // nothing was created: no database, no credential, and nothing deleted either, because
+        // there was never anything to undo.
+        assert!(
+            platform.databases().is_empty(),
+            "a database was created on a group that was about to be refused"
+        );
+        assert!(platform.minted().is_empty(), "a credential was minted");
+        assert!(platform.deleted().is_empty(), "something was cleaned up");
+        assert!(store.organization.is_none());
+
+        // and the consent is abandoned: the token is gone from the credential store, and so is
+        // the slug it was read under, so the next consent is looked up rather than assumed.
+        assert!(
+            platform_token().is_err(),
+            "the refused consent left its authority on this machine"
+        );
+        assert_eq!(store.turso_organization, None);
+    }
+
+    /// **Ticket 17.** The group the person typed is the one the first create names, so a name
+    /// that is not the consent's group is refused before anything is created, by both names, and
+    /// the consent stays where it is: what went wrong is a word on the form.
+    #[tokio::test]
+    async fn a_typed_group_that_is_not_the_consented_one_is_refused_by_name_and_keeps_the_consent()
+    {
+        let _turn = take_the_credential_store().await;
+
+        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+
+        let directory = scratch("another-group");
+        let mut store = store(&directory);
+        let mcp = ScriptedServer::start(populated_group()).await;
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+
+        let refusal = create_organization(
+            &mut store,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name: "Acme Rentals",
+                username: "olivia.owner",
+                password: PASSWORD,
+                group: Some("rentabel"),
+            },
+            test_cost(),
+            1_757_000_000_000,
+        )
+        .await
+        .expect_err("a group the consent is not over was built into");
+
+        assert!(
+            matches!(refusal, Error::PreconditionFailed { .. }),
+            "{refusal:?}"
+        );
+        assert_eq!(
+            refusal.to_string(),
+            "the group this consent is over is called `rentable`, not `rentabel`"
+        );
+
+        // nothing was created, and the authority is still this machine's: the person retypes the
+        // group on the step they are on rather than granting a second consent.
+        assert!(
+            platform.databases().is_empty(),
+            "a database was created on a refused run"
+        );
+        assert!(store.organization.is_none());
+        assert!(platform_token().is_ok());
+    }
+
+    /// The other half of the same rule: a group holding databases of the person's own is the
+    /// ordinary Free or Developer account, and it is not a refusal. Only the name this
+    /// application writes counts, so a name that merely carries the word does not.
+    #[tokio::test]
+    async fn a_group_holding_unrelated_databases_is_not_a_refusal() {
+        let _turn = take_the_credential_store().await;
+
+        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+
+        let directory = scratch("unrelated-databases");
+        let mut store = store(&directory);
+        let mcp = ScriptedServer::start(vec![
+            handshake(),
+            listing(json!([
+                {
+                    "Name": "ledger",
+                    "hostname": "ledger-an-org.aws-eu-west-1.turso.io",
+                    "group": "rentable"
+                },
+                {
+                    "Name": "my-org",
+                    "hostname": "my-org-an-org.aws-eu-west-1.turso.io",
+                    "group": "rentable"
+                },
+                {
+                    "Name": "org-7f3a",
+                    "hostname": "org-7f3a-an-org.aws-eu-west-1.turso.io",
+                    "group": "somebody-elses-group"
+                }
+            ])),
+        ])
+        .await;
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+
+        let (created, _organization) = create_organization(
+            &mut store,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name: "Acme Rentals",
+                username: "olivia.owner",
+                password: PASSWORD,
+                group: None,
+            },
+            test_cost(),
+            1_757_000_000_000,
+        )
+        .await
+        .expect("a group holding the person's own databases was refused");
+
+        assert_eq!(
+            platform.databases().len(),
+            1,
+            "the organization's database was not created"
+        );
+        assert_eq!(
+            platform.databases()[0].name,
+            format!("org-{}", created.organization_id)
+        );
+        // and the authority the run spent is still this machine's, because nothing was refused.
+        assert!(platform_token().is_ok());
     }
 
     /// A first run against a group that already holds a database: the common shape of every
@@ -627,6 +1214,7 @@ mod tests {
                 name: "  Acme Rentals ",
                 username: " Olivia.Owner ",
                 password: PASSWORD,
+                group: Some(" rentable "),
             },
             test_cost(),
             1_757_000_000_000,
@@ -709,6 +1297,19 @@ mod tests {
         assert_eq!(derived.verifying_key(), key);
         assert!(open_vault("the wrong password", &members[0].vault).is_err());
 
+        // and so does the key they sign rows with, whose verifying half the row carries: it is
+        // what a certificate over them names, and the row is the only copy of it anybody but the
+        // owner will ever hold (effort 826, requirement 6).
+        assert_eq!(
+            members[0].signing_public_key,
+            AdministratorKey::from_bytes(
+                &secret
+                    .derive_seed(super::ADMINISTRATOR_KEY_PURPOSE)
+                    .expect("a seed"),
+            )
+            .verifying_key()
+        );
+
         // the owner's row carries the username as typed, trimmed, sealed under the content key
         // the vault unseals, and the raw column carries none of it.
         let content_key = ContentKey::from_bytes(
@@ -760,7 +1361,8 @@ mod tests {
 
     /// Requirement 3's ordinary first run: an empty group, so the first database is created
     /// through the MCP server, the slug and the group are read off the listing that follows, and
-    /// the Platform API protects what it did not create.
+    /// the Platform API protects what it did not create. **The create names no group and is
+    /// taken**, which is the account nobody is asked anything on.
     #[tokio::test]
     async fn a_first_run_into_an_empty_group_creates_the_first_database_through_mcp() {
         let directory = scratch("empty");
@@ -775,6 +1377,8 @@ mod tests {
         let mcp = ScriptedServer::start(vec![
             handshake(),
             listing(json!([])),
+            handshake(),
+            no_group_tool(),
             handshake(),
             created(),
             listing(json!([{
@@ -796,6 +1400,7 @@ mod tests {
                 name: "Acme",
                 username: "olivia",
                 password: PASSWORD,
+                group: None,
             },
             test_cost(),
             1_757_000_000_000,
@@ -804,12 +1409,16 @@ mod tests {
         .expect("the first run failed");
 
         let database_name = format!("org-{}", outcome.organization_id);
-        let create = mcp.request(3);
+        let create = mcp.request(5);
         let payload: serde_json::Value = serde_json::from_str(&create.body).expect("json");
 
         assert_eq!(payload["params"]["name"], "create_database");
-        assert_eq!(payload["params"]["arguments"]["name"], database_name);
-        assert_eq!(mcp.request_count(), 5);
+        assert_eq!(
+            payload["params"]["arguments"],
+            json!({ "name": database_name }),
+            "the first attempt names no group, since the tool defaults to the token's own"
+        );
+        assert_eq!(mcp.request_count(), 7);
 
         // the platform created nothing and protected the one the MCP server made.
         let databases = platform.databases();
@@ -839,6 +1448,333 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    /// **Ticket 21.** The first run learns what the group is called from the MCP server's own
+    /// group listing, creates with that name, and tries nothing else: the cascade below is what
+    /// runs where nobody could say the name, and this is a run where somebody could.
+    #[tokio::test]
+    async fn a_group_the_mcp_server_listed_is_the_name_the_first_create_uses() {
+        let directory = scratch("learned-from-mcp");
+        let mut store = store(&directory);
+        let platform = Arc::new(InMemoryPlatform::new("acme-co"));
+
+        super::draw_these_ids_next(&["0ffice0ffice0ffice0ffice0ffice00", "0wner"]);
+
+        let mcp = ScriptedServer::start(vec![
+            handshake(),
+            listing(json!([])),
+            handshake(),
+            tools(&["list_databases", "create_database", "list_groups"]),
+            groups(json!({ "groups": [
+                { "name": "rents", "uuid": "11111111-1111-4111-8111-111111111111" },
+                { "name": "rentable-empty", "uuid": CONSENTED_GROUP_UUID }
+            ] })),
+            handshake(),
+            created(),
+            listing(json!([{
+                "Name": "org-0ffice0ffice0ffice0ffice0ffice00",
+                "hostname": "org-0ffice0ffice0ffice0ffice0ffice00-acme-co.aws-eu-west-1.turso.io",
+                "group": "rentable-empty"
+            }])),
+        ])
+        .await;
+
+        let (outcome, _organization) = create_organization(
+            &mut store,
+            &token_naming_the_group(),
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name: "Acme",
+                username: "olivia",
+                password: PASSWORD,
+                group: None,
+            },
+            test_cost(),
+            1_757_000_000_000,
+        )
+        .await
+        .expect("the first run failed");
+
+        let payload: serde_json::Value = serde_json::from_str(&mcp.request(6).body).expect("json");
+
+        assert_eq!(payload["params"]["name"], "create_database");
+        assert_eq!(
+            payload["params"]["arguments"],
+            json!({
+                "name": format!("org-{}", outcome.organization_id),
+                "group": "rentable-empty"
+            }),
+            "the create did not name the group the listing had just given it"
+        );
+        assert_eq!(
+            mcp.request_count(),
+            8,
+            "one create, and no attempt of the cascade"
+        );
+        assert_eq!(platform.databases().len(), 1);
+    }
+
+    /// And where the server offers no group tool, the Platform API is the second way to ask: the
+    /// name it gives is the one the create uses, and the cascade is not reached either.
+    #[tokio::test]
+    async fn a_server_with_no_group_tool_falls_to_the_name_the_platform_gives() {
+        let directory = scratch("learned-from-platform");
+        let mut store = store(&directory);
+        let platform = Arc::new(InMemoryPlatform::new("acme-co"));
+
+        platform.naming_the_group("rentable-empty");
+        super::draw_these_ids_next(&["0ffice0ffice0ffice0ffice0ffice00", "0wner"]);
+
+        let mcp = ScriptedServer::start(vec![
+            handshake(),
+            listing(json!([])),
+            handshake(),
+            no_group_tool(),
+            handshake(),
+            created(),
+            listing(json!([{
+                "Name": "org-0ffice0ffice0ffice0ffice0ffice00",
+                "hostname": "org-0ffice0ffice0ffice0ffice0ffice00-acme-co.aws-eu-west-1.turso.io",
+                "group": "rentable-empty"
+            }])),
+        ])
+        .await;
+
+        let (outcome, _organization) = create_organization(
+            &mut store,
+            &token_naming_the_group(),
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name: "Acme",
+                username: "olivia",
+                password: PASSWORD,
+                group: None,
+            },
+            test_cost(),
+            1_757_000_000_000,
+        )
+        .await
+        .expect("the first run failed");
+
+        let payload: serde_json::Value = serde_json::from_str(&mcp.request(5).body).expect("json");
+
+        assert_eq!(
+            payload["params"]["arguments"],
+            json!({
+                "name": format!("org-{}", outcome.organization_id),
+                "group": "rentable-empty"
+            }),
+            "the create did not name the group the platform gave it"
+        );
+        assert_eq!(
+            mcp.request_count(),
+            7,
+            "one create, and no attempt of the cascade"
+        );
+    }
+
+    /// **Ticket 18, and what ticket 21 left of it.** Where neither way could name the group,
+    /// Turso refusing a create over it is Turso saying the group is what it could not settle, so
+    /// the run tries the next name it has rather than the person: no group, then Turso's own
+    /// `default`, then the group uuid the consent token carries. Only where all three are refused
+    /// is anybody asked anything, and the sentence that asks begins with the fixed phrase the
+    /// walk reads and carries Turso's last reason so the person can see what they are answering.
+    #[tokio::test]
+    async fn the_first_create_tries_three_names_before_the_walk_asks_for_one() {
+        let directory = scratch("cascade");
+        let mut store = store(&directory);
+        let platform = Arc::new(InMemoryPlatform::new("acme-co"));
+        let token = token_naming_the_group();
+
+        let mcp = ScriptedServer::start(vec![
+            handshake(),
+            listing(json!([])),
+            handshake(),
+            no_group_tool(),
+            handshake(),
+            create_refused(NO_GROUP_NAMED),
+            handshake(),
+            create_refused("group `default` not found"),
+            handshake(),
+            create_refused(NO_SUCH_GROUP),
+        ])
+        .await;
+
+        let refusal = create_organization(
+            &mut store,
+            &token,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name: "Acme",
+                username: "olivia",
+                password: PASSWORD,
+                group: None,
+            },
+            test_cost(),
+            1_757_000_000_000,
+        )
+        .await
+        .expect_err("a run refused three times over the group reported an organization");
+
+        // the three attempts, in order, and each naming exactly what it meant to.
+        let arguments = |index: usize| {
+            serde_json::from_str::<serde_json::Value>(&mcp.request(index).body).expect("json")
+                ["params"]["arguments"]
+                .clone()
+        };
+        let database_name = arguments(5)["name"].as_str().expect("a name").to_string();
+
+        assert!(database_name.starts_with(ORGANIZATION_DATABASE_PREFIX));
+        assert_eq!(arguments(5), json!({ "name": database_name }));
+        assert_eq!(
+            arguments(7),
+            json!({ "name": database_name, "group": "default" })
+        );
+        assert_eq!(
+            arguments(9),
+            json!({ "name": database_name, "group": CONSENTED_GROUP_UUID }),
+            "the group uuid the consent token carries is the last name tried"
+        );
+        assert_eq!(
+            mcp.request_count(),
+            10,
+            "the probe that learned nothing, then a handshake and a create per attempt"
+        );
+
+        // and the refusal asks for the one thing left: the fixed phrase first, so the walk can
+        // tell it from every other refusal, and Turso's last words after it.
+        assert!(
+            matches!(refusal, Error::PreconditionFailed { .. }),
+            "{refusal:?}"
+        );
+        assert!(
+            refusal.to_string().starts_with(THE_GROUP_IS_NEEDED),
+            "{refusal}"
+        );
+        assert!(refusal.to_string().ends_with(NO_SUCH_GROUP), "{refusal}");
+
+        // nothing was created, and the slug was not written down: there is no organization to
+        // read one out of yet.
+        assert!(platform.databases().is_empty());
+        assert!(store.organization.is_none());
+        assert_eq!(store.turso_organization, None);
+    }
+
+    /// The other half of the same rule: a refusal that is not about the group is the answer, so
+    /// it comes back as Turso said it and the next two names are never tried. Retrying a plan's
+    /// limit under another group would spend two more requests to be told the same thing.
+    #[tokio::test]
+    async fn a_first_create_refused_for_anything_but_the_group_is_answered_at_once() {
+        let directory = scratch("not-the-group");
+        let mut store = store(&directory);
+        let platform = Arc::new(InMemoryPlatform::new("acme-co"));
+
+        let mcp = ScriptedServer::start(vec![
+            handshake(),
+            listing(json!([])),
+            handshake(),
+            no_group_tool(),
+            handshake(),
+            create_refused("your plan allows 1 database and you have 1"),
+        ])
+        .await;
+
+        let refusal = create_organization(
+            &mut store,
+            &token_naming_the_group(),
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name: "Acme",
+                username: "olivia",
+                password: PASSWORD,
+                group: None,
+            },
+            test_cost(),
+            1_757_000_000_000,
+        )
+        .await
+        .expect_err("a plan limit was read as a group this application could rename around");
+
+        assert_eq!(
+            refusal.to_string(),
+            "turso could not create the organization's database: your plan allows 1 database \
+             and you have 1"
+        );
+        assert_eq!(
+            mcp.request_count(),
+            6,
+            "the handshake, the listing, the probe, and one attempt"
+        );
+        assert!(platform.databases().is_empty());
+    }
+
+    /// And where the walk did ask, the name it was given is the only attempt: the three above
+    /// have already been refused, so trying them again would put the person back where they
+    /// started.
+    #[tokio::test]
+    async fn a_group_the_walk_asked_for_is_the_only_name_the_first_create_tries() {
+        let directory = scratch("asked");
+        let mut store = store(&directory);
+        let platform = Arc::new(InMemoryPlatform::new("acme-co"));
+
+        super::draw_these_ids_next(&["0ffice0ffice0ffice0ffice0ffice00", "0wner"]);
+
+        let mcp = ScriptedServer::start(vec![
+            handshake(),
+            listing(json!([])),
+            handshake(),
+            created(),
+            listing(json!([{
+                "Name": "org-0ffice0ffice0ffice0ffice0ffice00",
+                "hostname": "org-0ffice0ffice0ffice0ffice0ffice00-acme-co.aws-eu-west-1.turso.io",
+                "group": "rentable-empty"
+            }])),
+        ])
+        .await;
+
+        let (outcome, _organization) = create_organization(
+            &mut store,
+            &token_naming_the_group(),
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name: "Acme",
+                username: "olivia",
+                password: PASSWORD,
+                group: Some(" rentable-empty "),
+            },
+            test_cost(),
+            1_757_000_000_000,
+        )
+        .await
+        .expect("the first run failed");
+
+        let payload: serde_json::Value = serde_json::from_str(&mcp.request(3).body).expect("json");
+
+        // trimmed, because a name pasted out of Turso's own screen brings what came with it.
+        assert_eq!(
+            payload["params"]["arguments"],
+            json!({
+                "name": format!("org-{}", outcome.organization_id),
+                "group": "rentable-empty"
+            })
+        );
+        assert_eq!(mcp.request_count(), 5, "one attempt, and no cascade");
     }
 
     /// Either the run completes or it leaves nothing. A failure after the database exists
@@ -871,6 +1807,7 @@ mod tests {
                 name: "Acme",
                 username: "olivia",
                 password: PASSWORD,
+                group: None,
             },
             test_cost(),
             1_757_000_000_000,
@@ -901,6 +1838,8 @@ mod tests {
 
     /// The three things typed are checked before anything is asked of Turso, and a username
     /// outside requirement 21's rules is refused with the sentence an invitation refuses with.
+    /// **The group is not among them**: it is asked for only after Turso has refused every name
+    /// this application can work out, so a run that carries none is the ordinary one.
     #[tokio::test]
     async fn an_empty_name_a_bad_username_or_a_short_password_is_refused_before_any_request() {
         let directory = scratch("refused");
@@ -930,6 +1869,7 @@ mod tests {
                     name,
                     username,
                     password,
+                    group: None,
                 },
                 test_cost(),
                 1_757_000_000_000,

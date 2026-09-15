@@ -31,6 +31,33 @@ test('no flag reaches bit 53, and each has a bit of its own', () => {
 	assert.equal(new Set(bits).size, bits.length, 'two flags share a bit');
 });
 
+/**
+ * The seven grantable acts of requirement 4, each on the bit it was given, and no eighth.
+ *
+ * **The bits are written out rather than derived**, because Rust holds a copy of this table and
+ * reads this file as text to prove the two agree (`organization/permission.rs`). A bit that moved
+ * here and not there is a member whose stored permissions mean something else on the other side of
+ * the boundary, which is the one failure neither language can catch on its own.
+ *
+ * *Bits 4 and 5 carried two acts effort 826 retired: deleting a workspace, which needs the Turso
+ * authority and so was a flag granting could not deliver, and a transfer of ownership, which is
+ * Turso's succession rather than anything this application performs. Nothing had shipped, and
+ * requirement 19 forgets every organization written under the old table, so no stored value
+ * survives to be misread.*
+ */
+test('the seven grantable acts sit on the bits requirement 4 gives them, and nothing else does', () => {
+	assert.deepEqual(ADMINISTRATION, {
+		inviteMember: 0,
+		removeMember: 1,
+		changeRole: 2,
+		renameWorkspace: 3,
+		resetPassword: 4,
+		renameMember: 5,
+		grantWorkspace: 6
+	});
+	assert.equal(EVERY_ADMINISTRATION.length, 7);
+});
+
 test('every flag at once is still an exact value', () => {
 	const everything = maskOf(...EVERY_ADMINISTRATION);
 
@@ -53,7 +80,7 @@ test('a flag high in the range survives the operators this module uses', () => {
 		high | 0,
 		0,
 		"javascript's bitwise operators coerce to a signed 32-bit integer, so bit 52 is lost " +
-			'entirely — which is why maskOf sums powers of two and permits divides'
+			'entirely, which is why maskOf sums powers of two and permits divides'
 	);
 });
 
@@ -65,35 +92,39 @@ test('a plain member administers nothing', () => {
 	}
 });
 
-test('an owner administers everything, and an administrator does not', () => {
+/**
+ * **Both roles carry every act, and what separates them is not in this table.**
+ *
+ * Requirement 5 keeps six acts out of the permission model altogether, because each of them needs
+ * the Turso authority and the authority lives on the owner's machine rather than in a row: a flag
+ * for one would be a promise granting cannot keep. So the owner and the administrator read alike
+ * here, and Rust refuses the owner's acts by asking who the session is.
+ */
+test('an owner and an administrator both administer every grantable act', () => {
 	for (const name of EVERY_ADMINISTRATION) {
 		assert.equal(permits(ADMINISTRATION_BY_ROLE.owner, name), true, `owner may not ${name}`);
+		assert.equal(
+			permits(ADMINISTRATION_BY_ROLE.administrator, name),
+			true,
+			`administrator may not ${name}`
+		);
 	}
 
-	assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'inviteMember'), true);
-	assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'deleteWorkspace'), false);
-	assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'transferOwnership'), false);
+	assert.equal(ADMINISTRATION_BY_ROLE.owner, ADMINISTRATION_BY_ROLE.administrator);
 });
 
-// **Both roles are named rather than a total asserted**, and the difference is what the test
-// catches: `assert.equal(ADMINISTRATION_BY_ROLE.administrator, 7)` would pass just as well if
+// **The acts are named rather than a total asserted**, and the difference is what the test
+// catches: `assert.equal(ADMINISTRATION_BY_ROLE.administrator, 127)` would pass just as well if
 // a flag were renamed underneath it, and would have to be edited by whoever added the next
 // one. Naming the act is the same thing every caller does.
-test('renaming a workspace belongs to the owner, not to an administrator', () => {
-	assert.equal(permits(ADMINISTRATION_BY_ROLE.owner, 'renameWorkspace'), true);
-	assert.equal(
-		permits(ADMINISTRATION_BY_ROLE.administrator, 'renameWorkspace'),
-		false,
-		'an administrator carried this by default until 2026-08-21, which was harmless only ' +
-			'because no workspace has ever had a second member'
-	);
+test('an act is read by name, and a narrowed row carries only what it was given', () => {
+	assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'renameWorkspace'), true);
+	assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'grantWorkspace'), true);
 
-	// the column is still the truth, which is the whole reason the default may change without
-	// a migration: a workspace that wants this administrator to rename grants the flag on the row.
-	assert.equal(
-		permits(ADMINISTRATION_BY_ROLE.administrator + maskOf('renameWorkspace'), 'renameWorkspace'),
-		true
-	);
+	// the column is still the truth, which is the whole reason a default may change without a
+	// migration: a member narrowed to one act carries that one and no other.
+	assert.equal(permits(maskOf('renameWorkspace'), 'renameWorkspace'), true);
+	assert.equal(permits(maskOf('renameWorkspace'), 'grantWorkspace'), false);
 });
 
 test('a name given twice is a name given once', () => {
@@ -107,10 +138,11 @@ test('a name given twice is a name given once', () => {
 });
 
 test('a mask carries exactly the flags it was built from', () => {
-	const mask = maskOf('removeMember', 'renameWorkspace');
+	const mask = maskOf('removeMember', 'grantWorkspace');
 
 	assert.equal(permits(mask, 'removeMember'), true);
-	assert.equal(permits(mask, 'renameWorkspace'), true);
+	assert.equal(permits(mask, 'grantWorkspace'), true);
 	assert.equal(permits(mask, 'inviteMember'), false);
-	assert.equal(mask, 2 ** ADMINISTRATION.removeMember + 2 ** ADMINISTRATION.renameWorkspace);
+	assert.equal(permits(mask, 'renameMember'), false);
+	assert.equal(mask, 2 ** ADMINISTRATION.removeMember + 2 ** ADMINISTRATION.grantWorkspace);
 });

@@ -5,11 +5,11 @@ import { beforeEach, expect, test } from 'vitest';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import InviteForm from '$lib/organization/component/invite-form.svelte';
-import Workspaces from '$lib/organization/component/workspaces.svelte';
-import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
+import { resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { chooseOption, openSelect } from '$lib/design/tests/select';
 
 /**
  * THE INVITATION, RENDERED
@@ -17,11 +17,11 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
  * What the invite dialog puts in the document once it is open: a username, a role and the
  * workspaces, and no email or display name, since making an account is what an invitation is
  * (requirement 22 of effort 824); the username field leading with its subject's glyph and
- * refused under the one rule every username field reads; and once an invitation is made, the
- * organization's link, the username and the password as machine strings with a copy control
- * each, and the statement that nothing was sent, which is the half a screen can get wrong on
- * its own. And the workspace section's two shapes: the owner's opener, and the sentence
- * everybody else gets instead of it.
+ * refused under the one rule every username field reads; and once an invitation is made, one
+ * link as a machine string with one copy control, no password anywhere, and the statement that
+ * nothing was sent, which is the half a screen can get wrong on its own (effort 826, requirement
+ * 8). *The workspaces section's own two shapes were read here until effort 826 rebuilt that list;
+ * they are `workspaces.svelte.test.ts`'s, beside the rest of the rows.*
  *
  * The dialog is rendered open with its props, and no submit is fired: a superforms SPA submit
  * reaches SvelteKit's `applyAction`, which this runner does not carry, so what is asserted is what
@@ -47,14 +47,20 @@ const workspaces = [
 	}
 ];
 const invited = {
-	memberId: 'member-2',
-	invitationId: 'invitation-1',
+	invitationId: 'inv-1',
 	username: 'sami.staff',
 	joinLink: 'rentable://join/abc',
-	generatedPassword: 'abcde-fghjk-mnpqr-stuvw',
-	expiresAt: 0,
+	code: '7K4M9Q',
+	codeExpiresAt: 0,
 	unreachableWorkspaces: []
 };
+
+/** the panel's fixture with its code alive for the ninety seconds it is drawn with. */
+const withLiveCode = (overrides: Partial<typeof invited> = {}) => ({
+	...invited,
+	codeExpiresAt: Date.now() + 90_000,
+	...overrides
+});
 
 const form = (
 	overrides: Partial<Parameters<typeof render<typeof InviteForm>>[1]> = {},
@@ -65,13 +71,17 @@ const form = (
 		{
 			open: true,
 			onOpenChange: noop,
+			organizationName: 'Northwind',
 			workspaces,
 			canInviteAdministrators: true,
+			canGrantReadOnly: true,
 			isInviting: false,
 			invited: null,
 			copied: null,
+			isFresheningCode: false,
 			onInvite: noop,
 			onCopy: noop,
+			onFreshCode: noop,
 			onDismiss: noop,
 			...overrides
 		},
@@ -118,6 +128,48 @@ test('the dialog opens on the shared form surface and asks for a username, a rol
 	expect(screen.getByText(en.organization.dashboard.role)).toBeDefined();
 	expect(screen.getByText('Riyadh')).toBeDefined();
 	expect(screen.queryByText(en.organization.dashboard.cannotSend)).toBeNull();
+});
+
+// effort 826, requirement 8: a workspace is a checkbox and an access. What the surface hands up
+// is a grant per checked workspace carrying that access; no submit is fired here, for the reason
+// the header gives, so what is asserted is the choice on the screen.
+test('each workspace carries an access, chosen beside the checkbox that grants it', async () => {
+	loadLocale('en');
+	setLocale('en');
+	form();
+
+	const access = document.querySelector<HTMLElement>('[data-invite-access="ws-1"]')!;
+
+	// the access waits for the checkbox: a workspace nobody granted has no access to choose.
+	expect(access.hasAttribute('disabled') || access.getAttribute('data-disabled') !== null).toBe(
+		true
+	);
+
+	await fireEvent.click(document.querySelector('#invite-workspace-ws-1')!);
+	await openSelect(access);
+	await chooseOption(
+		screen.getByRole('option', { name: en.organization.dashboard.accessReadOnly })
+	);
+
+	expect(access.textContent?.trim()).toBe(en.organization.dashboard.accessReadOnly);
+});
+
+// requirement 5: minting a read-only credential is the owner's, so for anybody else the choice is
+// drawn refused and the sentence names the owner.
+test('read only is refused for anybody but the owner, in words rather than by hiding it', async () => {
+	loadLocale('en');
+	setLocale('en');
+	form({ canGrantReadOnly: false });
+
+	await fireEvent.click(document.querySelector('#invite-workspace-ws-1')!);
+	await openSelect(document.querySelector<HTMLElement>('[data-invite-access="ws-1"]')!);
+
+	expect(
+		screen
+			.getByRole('option', { name: en.organization.dashboard.accessReadOnly })
+			.getAttribute('data-disabled')
+	).not.toBeNull();
+	expect(screen.getByText(en.organization.dashboard.readOnlyIsTheOwners)).toBeDefined();
 });
 
 // criterion 21: the username is refused on the field with the sentence the walk's name step and
@@ -180,7 +232,7 @@ test("an administrator who is not the owner is told administrators are the owner
 	expect(screen.getByText(en.organization.dashboard.administratorsAreTheOwners)).toBeDefined();
 });
 
-test('what an invitation made is shown once, as machine strings, with a copy control each and the statement that nothing was sent, until dismissed', async () => {
+test('what an invitation made is one link, as a machine string, with one copy control and the statement that nothing was sent, until dismissed', async () => {
 	loadLocale('en');
 	setLocale('en');
 
@@ -190,39 +242,30 @@ test('what an invitation made is shown once, as machine strings, with a copy con
 	expect(document.querySelector('[data-invited]')).not.toBeNull();
 	expect(inputsOnScreen()).toEqual([]);
 	expect(screen.getByText(en.organization.dashboard.cannotSend)).toBeDefined();
+	// the organization the link admits into leads the panel, and the person it admits is named
+	// beside the label: the link itself is opaque.
+	expect(document.querySelector('[data-invited-organization]')?.textContent).toBe('Northwind');
+	expect(document.querySelector('[data-invited-username]')?.textContent?.trim()).toBe(
+		invited.username
+	);
 
 	const link = document.querySelector('[data-invited-link]');
-	const username = document.querySelector('[data-invited-username]');
-	const password = document.querySelector('[data-invited-password]');
 
 	expect(link?.textContent).toBe(invited.joinLink);
 	expect(link?.getAttribute('dir')).toBe('ltr');
-	expect(username?.textContent).toBe(invited.username);
-	expect(username?.getAttribute('dir')).toBe('ltr');
-	expect(password?.textContent).toBe(invited.generatedPassword);
-	expect(password?.getAttribute('dir')).toBe('ltr');
-	// the three are named: the organization's link, the username, the generated password.
-	expect(screen.getByText(en.organization.dashboard.linkTitle)).toBeDefined();
-	expect(screen.getByText(en.organization.dashboard.username)).toBeDefined();
-	expect(screen.getByText(en.organization.dashboard.generatedPassword)).toBeDefined();
-	// requirement 22: three copy controls, one for each.
+	expect(screen.getByText(en.organization.dashboard.invitationLinkTitle)).toBeDefined();
+	// effort 826, requirement 8: one link, one copy control, and no password anywhere on the
+	// panel, by element or by word.
 	expect(screen.getByRole('button', { name: en.organization.setup.copyLink })).toBeDefined();
+	expect(document.querySelector('[data-invited-password]')).toBeNull();
 	expect(
-		screen.getByRole('button', { name: en.organization.dashboard.copyUsername })
-	).toBeDefined();
-	expect(
-		screen.getByRole('button', { name: en.organization.dashboard.copyPassword })
-	).toBeDefined();
-	expect(
-		Array.from(document.querySelectorAll('[data-invited] button')).filter((button) =>
-			[
-				en.organization.setup.copyLink,
-				en.organization.dashboard.copyUsername,
-				en.organization.dashboard.copyPassword
-			].includes(button.textContent?.trim() ?? '')
+		Array.from(document.querySelectorAll('[data-invited] button')).filter(
+			(button) => button.querySelector('svg') && !button.hasAttribute('data-invited-fresh-code')
 		)
-	).toHaveLength(3);
-	expect(screen.getByText(en.organization.dashboard.passwordOnce)).toBeDefined();
+	).toHaveLength(1);
+	expect(document.querySelector('[data-invited]')?.textContent?.toLowerCase()).not.toContain(
+		'generated'
+	);
 	// the panel does not carry the form's own description: what is on screen is the result.
 	expect(screen.queryByText(en.organization.dashboard.inviteDescription)).toBeNull();
 
@@ -232,7 +275,7 @@ test('what an invitation made is shown once, as machine strings, with a copy con
 	expect(dismissed).toBe(1);
 });
 
-test('the copy controls hand back which of the three was copied', async () => {
+test('the copy control hands back the link', async () => {
 	loadLocale('en');
 	setLocale('en');
 
@@ -240,32 +283,82 @@ test('the copy controls hand back which of the three was copied', async () => {
 	form({ invited, onCopy: (what, value) => copied.push(`${what}:${value}`) });
 
 	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.copyLink }));
-	await fireEvent.click(
-		screen.getByRole('button', { name: en.organization.dashboard.copyUsername })
-	);
-	await fireEvent.click(
-		screen.getByRole('button', { name: en.organization.dashboard.copyPassword })
-	);
 
-	expect(copied).toEqual([
-		`link:${invited.joinLink}`,
-		`username:${invited.username}`,
-		`password:${invited.generatedPassword}`
-	]);
+	expect(copied).toEqual([`link:${invited.joinLink}`]);
 });
 
-test('the control that was pressed says so, and the other two do not', () => {
+// effort 826, requirement 23: the code is under the link, large enough to read out, beside the
+// seconds it has left and a control that makes a fresh one. It has no copy control of its own,
+// because a code copied is a code pasted beside the link, which is the one thing it must not be.
+test('the panel shows the code under the link, with the seconds it has left and a fresh-code control', async () => {
 	loadLocale('en');
 	setLocale('en');
-	form({ invited, copied: 'username' });
 
+	const freshened: string[] = [];
+
+	form({
+		invited: withLiveCode(),
+		onFreshCode: (invitationId) => freshened.push(invitationId)
+	});
+
+	const link = document.querySelector('[data-invited-link]')!;
+	const code = document.querySelector('[data-invited-code]')!;
+
+	expect(code.textContent?.trim()).toBe('7K4M9Q');
+	expect(code.getAttribute('dir')).toBe('ltr');
+	// under the link, in the document's own order.
+	expect(link.compareDocumentPosition(code) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	expect(screen.getByText(en.organization.dashboard.codeTitle)).toBeDefined();
+	expect(screen.getByText(en.organization.dashboard.codeDescription)).toBeDefined();
+
+	// the countdown, drawn from the moment the code lapses: ninety of them at the moment it is
+	// made, said as the locale says it.
+	expect(document.querySelector('[data-invited-code-seconds]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.codeExpires.replace('{seconds}', '90')
+	);
+
+	// the fresh-code control asks for another on this invitation.
+	const fresh = screen.getByRole('button', { name: en.organization.dashboard.freshCode });
+
+	await fireEvent.click(fresh);
+	expect(freshened).toEqual(['inv-1']);
+
+	// and no copy control for the code: the link has the only one on the panel.
 	expect(
-		screen.getByRole('button', { name: en.organization.dashboard.usernameCopied })
-	).toBeDefined();
-	expect(screen.getByRole('button', { name: en.organization.setup.copyLink })).toBeDefined();
-	expect(
-		screen.getByRole('button', { name: en.organization.dashboard.copyPassword })
-	).toBeDefined();
+		Array.from(document.querySelectorAll('[data-invited] button')).filter(
+			(button) => button.textContent?.trim() === en.organization.setup.copyLink
+		)
+	).toHaveLength(1);
+});
+
+// a code past its ninety seconds says so rather than counting into the negative, and a panel
+// opened by a copied link shows no code at all: the row's own code action is what makes one.
+test('a lapsed code says so, and a link copied again shows no code', () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const lapsed = form({ invited: withLiveCode({ codeExpiresAt: Date.now() - 1000 }) });
+
+	expect(document.querySelector('[data-invited-code-seconds]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.codeLapsed
+	);
+	expect(document.querySelector('[data-invited-code]')?.textContent?.trim()).toBe('7K4M9Q');
+	lapsed.unmount();
+
+	form({ invited: { ...invited, code: null, codeExpiresAt: null } });
+
+	expect(document.querySelector('[data-invited-code-block]')).toBeNull();
+	expect(document.querySelector('[data-invited-code]')).toBeNull();
+	expect(document.querySelector('[data-invited-link]')).not.toBeNull();
+});
+
+test('the control that was pressed says so', () => {
+	loadLocale('en');
+	setLocale('en');
+	form({ invited, copied: 'link' });
+
+	expect(screen.getByRole('button', { name: en.organization.setup.linkCopied })).toBeDefined();
+	expect(screen.queryByRole('button', { name: en.organization.setup.copyLink })).toBeNull();
 });
 
 // requirement 13's limit, at the moment it bites: a reset that could not restore a workspace says
@@ -290,24 +383,17 @@ test('a reset that could not restore a workspace names it, and an invitation say
 	expect(document.querySelector('[data-invited-unreachable]')).toBeNull();
 });
 
-test('the same panel in arabic says the same, and the three strings still read left to right', () => {
+test('the same panel in arabic says the same, and the link still reads left to right', () => {
 	loadLocale('ar');
 	setLocale('ar');
 	form({ invited }, 'rtl');
 
 	expect(screen.getByText(ar.organization.dashboard.cannotSend)).toBeDefined();
 	expect(ar.organization.dashboard.cannotSend).not.toBe(en.organization.dashboard.cannotSend);
+	expect(screen.getByText(ar.organization.dashboard.invitationLinkTitle)).toBeDefined();
 	expect(document.querySelector('[data-slot=form-surface]')?.getAttribute('dir')).toBe('rtl');
 	expect(document.querySelector('[data-invited-link]')?.getAttribute('dir')).toBe('ltr');
-	expect(document.querySelector('[data-invited-username]')?.getAttribute('dir')).toBe('ltr');
-	expect(document.querySelector('[data-invited-password]')?.getAttribute('dir')).toBe('ltr');
 	expect(screen.getByRole('button', { name: ar.organization.setup.copyLink })).toBeDefined();
-	expect(
-		screen.getByRole('button', { name: ar.organization.dashboard.copyUsername })
-	).toBeDefined();
-	expect(
-		screen.getByRole('button', { name: ar.organization.dashboard.copyPassword })
-	).toBeDefined();
 
 	setLocale('en');
 });
@@ -337,42 +423,4 @@ test('a closed dialog puts nothing in the document', () => {
 
 	expect(document.querySelector('[data-slot=form-surface]')).toBeNull();
 	expect(inputsOnScreen()).toEqual([]);
-});
-
-// requirement 12 from the page's side: the workspace section is the list and an opener, and the
-// opener asks the shell for the one dialog rather than drawing a form of its own.
-test('the workspace section draws the list and an opener for the owner, and the opener opens the dialog', async () => {
-	loadLocale('en');
-	setLocale('en');
-	render(Workspaces, { workspaces, canCreate: true, refusal: null });
-
-	expect(document.querySelector('form')).toBeNull();
-	expect(inputsOnScreen()).toEqual([]);
-	expect(screen.queryByText(en.layout.workspaceMenu.workspaceRefusedOwner)).toBeNull();
-	expect(screen.getByText('Riyadh')).toBeDefined();
-
-	const opener = screen.getByRole('button', { name: en.layout.workspaceMenu.create });
-
-	// requirement 14: the verb's glyph before its label.
-	expect(opener.querySelector('svg')).not.toBeNull();
-	expect(organizationDialog.open).toBeNull();
-	await fireEvent.click(opener);
-	expect(organizationDialog.open).toBe('workspace');
-});
-
-// requirement 12 of the organization effort from the screen's side: no request queue, a sentence
-// naming whom to ask.
-test('the workspace section tells everybody else to ask the owner, and offers no opener', () => {
-	loadLocale('en');
-	setLocale('en');
-	render(Workspaces, {
-		workspaces,
-		canCreate: false,
-		refusal: en.layout.workspaceMenu.workspaceRefusedOwner
-	});
-
-	expect(document.querySelector('[data-workspace-create]')).toBeNull();
-	expect(inputsOnScreen()).toEqual([]);
-	expect(screen.getByText(en.layout.workspaceMenu.workspaceRefusedOwner)).toBeDefined();
-	expect(screen.getByText('Riyadh')).toBeDefined();
 });

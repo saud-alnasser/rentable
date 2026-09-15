@@ -17,8 +17,9 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
  *
  * What the card puts in the document for each of its two situations, in both locales. A locked
  * machine is the login page of the one organization it holds (effort 824, requirement 7): the
- * name as a line, a username and a password and nothing else that takes input, and the way out
- * at the foot, which asks once before it forgets the organization (requirement 20).
+ * name as the heading, a username and a password and nothing else that takes input, and one quiet
+ * control at the foot holding both ways out of a jam (effort 826, requirement 11 as corrected on
+ * 2026-09-15), one of which asks once before it forgets the organization (requirement 20).
  *
  * The wall is rendered under `DesignProvider` because the disconnect's confirm is the design
  * package's delete dialog, and that reads the string contract from context.
@@ -27,7 +28,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 const noop = () => {};
 
 const card = (
-	situation: 'noOrganization' | 'locked',
+	situation: 'noOrganization' | 'locked' | 'signedOutElsewhere',
 	overrides: Partial<Parameters<typeof render<typeof StartupSignIn>>[1]> = {}
 ) =>
 	render(
@@ -51,10 +52,56 @@ const inputsOnScreen = () =>
 
 const dialog = () => document.querySelector('[data-slot="dialog-content"]');
 
+const help = () => document.querySelector<HTMLButtonElement>('[data-sign-in-help]');
+
+const disclosed = () => document.querySelector('[data-slot="collapsible-content"]');
+
+/** open the foot's disclosure, which is where both ways out of a jam are. */
+const openHelp = async () => {
+	await fireEvent.click(help()!);
+	await tick();
+};
+
 const dialogFooter = () =>
 	Array.from(document.querySelectorAll<HTMLButtonElement>('[data-slot="dialog-footer"] button'));
 
-test('a locked machine names the organization and asks for a username and a password, and nothing else', () => {
+// criterion 22 of effort 826: a machine somebody signed out from another one is the locked card
+// with the reason on it, in both locales. The way through is still the password, so the fields
+// are the same fields.
+test('a machine signed out from another one reads the same card with the reason on it', () => {
+	for (const [locale, strings] of [
+		['en', en],
+		['ar', ar]
+	] as const) {
+		loadLocale(locale);
+		setLocale(locale);
+
+		const rendered = card('signedOutElsewhere');
+
+		expect(document.querySelector('[data-sign-in-signed-out-elsewhere]')?.textContent?.trim()).toBe(
+			strings.layout.signIn.signedOutElsewhere
+		);
+		expect(
+			inputsOnScreen().map((input) => input.getAttribute('name')),
+			locale
+		).toEqual(['username', 'password']);
+		expect(screen.getByText(strings.common.actions.signIn)).toBeDefined();
+
+		rendered.unmount();
+	}
+
+	// and the ordinary locked card says nothing of the sort.
+	loadLocale('en');
+	setLocale('en');
+	card('locked');
+
+	expect(document.querySelector('[data-sign-in-signed-out-elsewhere]')).toBeNull();
+});
+
+// effort 826, requirement 11 as corrected on 2026-09-15: the organization this machine holds is
+// the card's heading, with one line under it saying what to do, and the fields are the only thing
+// on the card that takes input.
+test('a locked machine is headed by the organization it holds, and asks for a username and a password', () => {
 	loadLocale('en');
 	setLocale('en');
 	card('locked');
@@ -66,22 +113,41 @@ test('a locked machine names the organization and asks for a username and a pass
 	expect(screen.queryAllByRole('radio')).toEqual([]);
 	expect(document.querySelector('select')).toBeNull();
 	expect(document.querySelector('[data-slot=select-trigger]')).toBeNull();
-	expect(screen.getByText('Acme Rentals')).toBeDefined();
+	expect(screen.getByRole('heading').textContent?.trim()).toBe('Acme Rentals');
+	expect(screen.getByText(en.layout.signIn.subtitle)).toBeDefined();
 	expect(screen.getByText(en.layout.signIn.username)).toBeDefined();
-	expect(screen.getByRole('button', { name: en.layout.signIn.unlock })).toBeDefined();
-	expect(screen.getByText(en.layout.signIn.organizationDescription)).toBeDefined();
+	expect(screen.getByRole('button', { name: en.common.actions.signIn })).toBeDefined();
 });
 
-test('one organization is named as a line of text, with no role on it', () => {
+test('and the labelled organization line is gone, with no role in its place', () => {
 	loadLocale('en');
 	setLocale('en');
 	card('locked');
 
-	const line = document.querySelector('[data-sign-in-organization="acme"]');
-
-	expect(line?.tagName).toBe('P');
-	expect(line?.textContent?.trim()).toBe('Acme Rentals');
+	// the name is the heading and nothing else says it: a field labelled "organization" standing
+	// over the same words was the card saying one thing twice, under a label answering a question
+	// nobody standing here has.
+	expect(screen.getAllByText('Acme Rentals')).toHaveLength(1);
+	expect(document.querySelector('[data-sign-in-organization="acme"]')).not.toBeNull();
 	expect(screen.queryByText(en.layout.signIn.roleOwner)).toBeNull();
+	expect(document.querySelector('#sign-in-organization')).toBeNull();
+	expect(
+		Array.from(document.querySelectorAll('label')).map((label) => label.textContent?.trim())
+	).toEqual([en.layout.signIn.username, en.layout.signIn.password]);
+});
+
+// the same card in arabic: a name is a name in either language, and the line under it and the
+// disclosure at the foot are each written in their own.
+test('and the heading and the line under it read the same way in arabic', () => {
+	loadLocale('ar');
+	setLocale('ar');
+	card('locked');
+
+	expect(screen.getByRole('heading').textContent?.trim()).toBe('Acme Rentals');
+	expect(screen.getByText(ar.layout.signIn.subtitle)).toBeDefined();
+	expect(ar.layout.signIn.subtitle).not.toEqual(en.layout.signIn.subtitle);
+
+	setLocale('en');
 });
 
 test('submitting hands the username and the password to the sign-in', async () => {
@@ -105,8 +171,10 @@ test('a machine that has joined nothing asks for nothing and offers the first ru
 	card('noOrganization', { organization: null });
 
 	expect(inputsOnScreen()).toEqual([]);
-	expect(screen.getByText(en.layout.signIn.noOrganizationTitle)).toBeDefined();
-	expect(screen.getByText(en.layout.signIn.noOrganizationDescription)).toBeDefined();
+	expect(screen.getByRole('heading').textContent?.trim()).toBe(
+		en.layout.signIn.noOrganizationTitle
+	);
+	expect(screen.getByText(en.layout.signIn.noOrganizationSubtitle)).toBeDefined();
 	// two ways in, each carrying its verb's glyph, and nothing else to read.
 	const setUp = screen.getByRole('button', { name: en.layout.signIn.setUp });
 	const connect = screen.getByRole('button', { name: en.layout.signIn.connectByLink });
@@ -114,8 +182,86 @@ test('a machine that has joined nothing asks for nothing and offers the first ru
 	expect(setUp.querySelector('svg')).not.toBeNull();
 	expect(connect.querySelector('svg')).not.toBeNull();
 	expect(screen.getAllByRole('button')).toHaveLength(2);
-	// nothing to disconnect from.
+	// nothing to disconnect from, and so nothing for a disclosure to hold.
+	expect(help()).toBeNull();
 	expect(screen.queryByRole('button', { name: en.layout.signIn.disconnect })).toBeNull();
+});
+
+// effort 826, requirement 11 as corrected on 2026-09-15: the two ways out of a jam sit behind one
+// quiet control at the foot, so neither competes with the form, and a person who cannot sign in
+// still reaches both. Neither is drawn until the control is opened.
+test('the ways out of a jam are behind one disclosure, closed on every render, in both locales', async () => {
+	for (const [locale, strings] of [
+		['en', en],
+		['ar', ar]
+	] as const) {
+		loadLocale(locale);
+		setLocale(locale);
+
+		const rendered = card('locked');
+
+		expect(help()?.tagName, locale).toBe('BUTTON');
+		expect(help()?.textContent?.trim(), locale).toBe(strings.layout.signIn.help);
+		expect(help()?.getAttribute('aria-expanded'), locale).toBe('false');
+		expect(screen.queryByText(strings.layout.signIn.useALink), locale).toBeNull();
+		expect(screen.queryByText(strings.layout.signIn.disconnect), locale).toBeNull();
+
+		await openHelp();
+
+		expect(help()?.getAttribute('aria-expanded'), locale).toBe('true');
+
+		const link = screen.getByRole('button', { name: strings.layout.signIn.useALink });
+		const disconnect = screen.getByRole('button', { name: strings.layout.signIn.disconnect });
+
+		// two rows and nothing else, reached by keyboard in the order they are read: the link
+		// somebody was handed first, and taking this machine out of the organization second.
+		expect(disclosed()?.querySelectorAll('button'), locale).toHaveLength(2);
+		expect(link.tabIndex, locale).toBe(0);
+		expect(disconnect.tabIndex, locale).toBe(0);
+		expect(
+			link.compareDocumentPosition(disconnect) & Node.DOCUMENT_POSITION_FOLLOWING,
+			locale
+		).toBeTruthy();
+
+		rendered.unmount();
+	}
+
+	loadLocale('en');
+	setLocale('en');
+});
+
+// a reset link is opened by somebody whose machine already holds the organization, so the locked
+// wall has to reach the connect screen. The two fields and the unlock are untouched by it, which
+// the first test reads.
+test('the disclosed link row opens the connect screen', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	let asked = 0;
+
+	card('locked', { onJoinByLink: () => void asked++ });
+	await openHelp();
+
+	const useALink = screen.getByRole('button', { name: en.layout.signIn.useALink });
+
+	// a text row rather than a second way in: the fields are the way in, and this is the
+	// exception to them.
+	expect(useALink.getAttribute('data-slot')).toBe('button');
+	expect(useALink.className).toContain('underline-offset-4');
+
+	await fireEvent.click(useALink);
+
+	expect(asked).toBe(1);
+});
+
+// and it is the locked wall's alone: a machine that holds nothing is already offered the connect
+// screen as one of its two ways in, and the count in that test is what keeps a third off it.
+test('a machine that holds nothing does not repeat the link control', () => {
+	loadLocale('en');
+	setLocale('en');
+	card('noOrganization', { organization: null });
+
+	expect(screen.queryByRole('button', { name: en.layout.signIn.useALink })).toBeNull();
 });
 
 test('a pair that did not open is said on the wall, with the one sentence allowed', () => {
@@ -137,9 +283,8 @@ test('the wall renders in arabic with the same two fields', () => {
 		'password'
 	]);
 	expect(screen.getByText(ar.layout.signIn.username)).toBeDefined();
-	expect(screen.getByText(ar.layout.signIn.organizationDescription)).toBeDefined();
-	expect(screen.getByRole('button', { name: ar.layout.signIn.unlock })).toBeDefined();
-	expect(screen.getByRole('button', { name: ar.layout.signIn.disconnect })).toBeDefined();
+	expect(screen.getByText(ar.layout.signIn.subtitle)).toBeDefined();
+	expect(screen.getByRole('button', { name: ar.common.actions.signIn })).toBeDefined();
 
 	setLocale('en');
 });
@@ -151,7 +296,7 @@ test('the unlock button carries a glyph and both fields a muted leading one', ()
 	card('locked');
 
 	expect(
-		screen.getByRole('button', { name: en.layout.signIn.unlock }).querySelector('svg')
+		screen.getByRole('button', { name: en.common.actions.signIn }).querySelector('svg')
 	).not.toBeNull();
 
 	for (const name of ['username', 'password']) {
@@ -165,12 +310,13 @@ test('the unlock button carries a glyph and both fields a muted leading one', ()
 	}
 });
 
-// requirement 20: the way out is a link at the foot, and it asks once before it runs.
+// requirement 20: the way out is a text row at the foot, and it asks once before it runs.
 test('disconnect asks once, naming the organization, and confirming runs it', async () => {
 	loadLocale('en');
 	setLocale('en');
 	let disconnected = 0;
 	card('locked', { onDisconnect: () => void disconnected++ });
+	await openHelp();
 
 	expect(dialog()).toBeNull();
 
@@ -202,6 +348,7 @@ test('and leaving the question runs nothing', async () => {
 	setLocale('en');
 	let disconnected = 0;
 	card('locked', { onDisconnect: () => void disconnected++ });
+	await openHelp();
 
 	await fireEvent.click(screen.getByRole('button', { name: en.layout.signIn.disconnect }));
 	await tick();

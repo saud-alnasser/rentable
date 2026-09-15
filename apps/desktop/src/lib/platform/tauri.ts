@@ -11,6 +11,7 @@ import type {
 	AvailableUpdate,
 	DiagnosticRecord,
 	ExportSheet,
+	FreshCode,
 	Host,
 	ImportTable,
 	Invited,
@@ -21,15 +22,17 @@ import type {
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
-	OrganizationInvitation,
 	OrganizationMember,
 	OrganizationState,
 	OrganizationWorkspace,
 	Recovery,
 	RemoteSyncState,
 	ReplicationRefusal,
+	SessionsEnded,
+	SessionStanding,
 	Settings,
-	SettingsChangeset
+	SettingsChangeset,
+	WorkspaceGrant
 } from '$lib/platform/host';
 import { withExtension } from '$lib/platform/path';
 
@@ -47,6 +50,7 @@ export type {
 	DiagnosticRecord,
 	ExportCell,
 	ExportSheet,
+	FreshCode,
 	ImportTable,
 	Invited,
 	HeldOrganization,
@@ -58,18 +62,21 @@ export type {
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
-	OrganizationInvitation,
 	OrganizationMember,
 	OrganizationSession,
 	OrganizationState,
 	OrganizationWorkspace,
+	PendingInvitation,
 	Recovery,
 	RemoteSyncState,
 	RemoteSyncWorkspace,
 	ReplicationRefusal,
+	SessionsEnded,
+	SessionStanding,
 	Settings,
 	SettingsChangeset,
-	UpdaterDownloadEvent
+	UpdaterDownloadEvent,
+	WorkspaceGrant
 } from '$lib/platform/host';
 
 /** the Rust side is `LINK_ARRIVED_EVENT` in `tauri/src/lib.rs`, and the two are one name. */
@@ -210,14 +217,18 @@ export const tauri = {
 		consentResult: (sessionId: string) =>
 			invoke<OrganizationConsentResult>('organization_consent_result', { sessionId }),
 		consentDisconnect: () => invoke<void>('organization_consent_disconnect'),
-		create: (name: string, username: string, password: string) =>
-			invoke<OrganizationCreated>('organization_create', { name, username, password }),
+		// `group` crosses as an explicit `null` where none was asked for, rather than being left
+		// out: the command's argument is an `Option<String>` and a key that is present and null
+		// is the shape that reaches it as `None` whatever the argument order.
+		create: (name: string, username: string, password: string, group: string | null) =>
+			invoke<OrganizationCreated>('organization_create', { name, username, password, group }),
 		getState: () => invoke<OrganizationState>('organization_state_get'),
 		connect: (link: string) => invoke<OrganizationState>('organization_connect', { link }),
 		disconnect: () => invoke<OrganizationState>('organization_disconnect'),
 		signIn: (username: string, password: string) =>
 			invoke<OrganizationState>('organization_sign_in', { username, password }),
 		signOut: () => invoke<OrganizationState>('organization_sign_out'),
+		sessionEndElsewhere: () => invoke<SessionsEnded>('organization_session_end_elsewhere'),
 		linkTake: () => invoke<string | null>('organization_link_take'),
 		onLink: (listener: (link: string) => void) =>
 			listen<string>(LINK_ARRIVED_EVENT, (event) => listener(event.payload)),
@@ -233,24 +244,32 @@ export const tauri = {
 				invoke<OrganizationWorkspace>('workspace_open', { workspaceId }),
 			grant: (workspaceId: string, memberId: string, access: 'full-access' | 'read-only') =>
 				invoke<void>('workspace_grant', { workspaceId, memberId, access }),
+			withdraw: (workspaceId: string, memberId: string) =>
+				invoke<void>('workspace_grant_withdraw', { workspaceId, memberId }),
 			remove: (workspaceId: string) => invoke<void>('workspace_delete', { workspaceId }),
 			renewCredentials: () => invoke<number>('organization_renew_credentials')
 		},
 		member: {
 			list: () => invoke<OrganizationMember[]>('organization_members'),
-			invite: (username: string, role: 'administrator' | 'member', workspaceIds: string[]) =>
-				invoke<Invited>('member_invite', { username, role, workspaceIds }),
+			invite: (username: string, role: 'administrator' | 'member', workspaces: WorkspaceGrant[]) =>
+				invoke<Invited>('member_invite', { username, role, workspaces }),
+			reset: (memberId: string) => invoke<Invited>('member_reset', { memberId }),
 			remove: (memberId: string, lockOut: boolean) =>
 				invoke<MemberRemoved>('member_remove', { memberId, lockOut }),
 			lockOutCost: (memberId: string) => invoke<LockOutCost>('member_lock_out_cost', { memberId }),
 			rename: (memberId: string, username: string) =>
-				invoke<OrganizationMember>('member_rename', { memberId, username })
+				invoke<OrganizationMember>('member_rename', { memberId, username }),
+			changeRole: (memberId: string, role: 'administrator' | 'member', permissions: number) =>
+				invoke<OrganizationMember>('member_change_role', { memberId, role, permissions }),
+			endSessions: (memberId: string) => invoke<SessionsEnded>('member_end_sessions', { memberId })
 		},
 		invitation: {
-			list: () => invoke<OrganizationInvitation[]>('organization_invitations'),
-			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId })
+			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId }),
+			accept: (link: string, code: string, password: string) =>
+				invoke<OrganizationState>('invitation_accept', { link, code, password }),
+			link: (invitationId: string) => invoke<string>('invitation_link', { invitationId }),
+			code: (invitationId: string) => invoke<FreshCode>('invitation_code', { invitationId })
 		},
-		resetMember: (memberId: string) => invoke<Invited>('member_reset', { memberId }),
 		changePassword: (current: string, next: string) =>
 			invoke<OrganizationState>('organization_change_password', { current, new: next }),
 		accountRefusalDetail: () => invoke<string | null>('organization_account_refusal_detail')
@@ -258,9 +277,12 @@ export const tauri = {
 	remoteSync: {
 		getState: () => invoke<RemoteSyncState>('remote_sync_state_get'),
 		replicate: () =>
-			invoke<{ pushed: boolean; received: boolean; refusal: ReplicationRefusal }>(
-				'remote_sync_replicate'
-			),
+			invoke<{
+				pushed: boolean;
+				received: boolean;
+				refusal: ReplicationRefusal;
+				standing: SessionStanding;
+			}>('remote_sync_replicate'),
 		push: () => invoke<boolean>('remote_sync_push'),
 		renameWorkspace: (name: string) =>
 			invoke<RemoteSyncState>('remote_sync_rename_workspace', { name })

@@ -22,7 +22,9 @@
 //! **MCP cannot replace the Platform API and is not asked to.** Its tool set has no way to mint a
 //! per-database credential, which is what requirement 9's grants are made of. It supplies the slug,
 //! and on a first run into an empty group it creates the one database the slug is then read from,
-//! because the Platform API cannot create anything without a slug already in hand. Nothing else.
+//! because the Platform API cannot create anything without a slug already in hand. Since
+//! 2026-09-15 it is also asked what the consented group is called ([`group_from_mcp`]), where its
+//! tool set offers a way to ask. Nothing else.
 //!
 //! **One test here reaches Turso**, admitted in [[rules/testing]] under *Tests that reach a live
 //! remote* as the seventh property. Nothing local can hold it: a loopback server answers whatever
@@ -43,10 +45,13 @@
 
 use std::time::Duration;
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::{error::Error, http::build_client, persisted::Persisted, sync::RemoteSyncStore};
+use crate::{
+    diagnostics, error::Error, http::build_client, persisted::Persisted, sync::RemoteSyncStore,
+};
 
 /// Where the MCP server lives, and the same value the consent names as its resource indicator.
 /// The authority this spends was issued *for* this resource, which is why one string is both.
@@ -64,9 +69,38 @@ const MCP_LIST_DATABASES: &str = "list_databases";
 /// The one tool here that creates anything, and only on a first run into an empty group, where
 /// nothing else can. Its schema, read off `tools/list` on 2026-09-11: `name` required, `group`
 /// optional and defaulting to the organization's default, `size_limit` and `use_tursodb` optional.
+/// **`group` is optional in the schema and was refused without one on 2026-09-15**, when a
+/// request that named none answered `HTTP 403: group-scoped tokens must specify a group in the
+/// request`. Whether that holds on every account is Turso's to say rather than this module's to
+/// assume, so the caller decides what to name and this sends what it was handed;
+/// `organization/setup.rs` holds the order the names are tried in.
 const MCP_CREATE_DATABASE: &str = "create_database";
 
+/// The tool that names the groups a consent can see, where the server offers one.
+///
+/// **It was not in the tool set read on 2026-09-11**, which is why the first run had nothing to
+/// learn the name from and the walk ended up asking. The set is versioned at `v0.1.0` and Turso
+/// moves it, so the name is asked for rather than assumed: [`group_listing_tool`] reads
+/// `tools/list` and takes this where it is offered, one tool that both names groups and lists
+/// where it is spelled some other way, and nothing at all otherwise.
+const MCP_LIST_GROUPS: &str = "list_groups";
+
+/// What Turso's consent token calls the group it was granted over, in its own payload. The name
+/// is not in there, which is why [`group_uuid_of`] answers an identity rather than a word a
+/// screen could show anybody.
+const GROUP_UUID_CLAIM: &str = "group_uuid";
+
+/// What a refused create says before Turso's own reason. A caller reading that reason back out
+/// takes the prefix from here rather than keeping a second copy of the sentence.
+pub const CREATE_REFUSED: &str = "turso could not create the organization's database: ";
+
 const MCP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How many times the listing is asked for a database just created, and how long between: a
+/// create that answered is a database that exists, and a listing that lags it for a moment is
+/// not a database in the wrong place.
+const CREATED_LISTING_ATTEMPTS: u32 = 3;
+const CREATED_LISTING_RETRY: Duration = Duration::from_secs(1);
 
 /// Every database hostname ends here, and the region sits between the slug and this.
 const TURSO_HOSTNAME_SUFFIX: &str = ".turso.io";
@@ -113,9 +147,30 @@ pub struct TursoOrganization {
 /// arriving as a fault, and the customer would be told to fix the one thing they did right.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OrganizationLookup {
-    Found(TursoOrganization),
+    Found {
+        organization: TursoOrganization,
+        /// every database the consented group holds, by the name the listing gave it, and
+        /// nothing from any other group. It is what `organization/setup.rs` reads to refuse a
+        /// group that already holds an organization (requirement 21 of effort 826); the
+        /// hostnames behind the names stay here, because a name is what a refusal can say out
+        /// loud and a hostname is a customer's own address.
+        databases: Vec<String>,
+    },
     /// the group the consent was granted over holds no database yet.
     NoDatabaseYet,
+}
+
+/// The consented group, and what it was holding when this machine looked.
+///
+/// **`databases` is `None` where nothing was asked.** The lookup happens once and is remembered
+/// ([`organization`]), so every call after the first answers out of this machine's own store and
+/// has no listing to report. That is not the same answer as a group holding nothing: an empty
+/// group is [`OrganizationLookup::NoDatabaseYet`] and never reaches here, so a `Some` is always
+/// at least one name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConsentedGroup {
+    pub organization: TursoOrganization,
+    pub databases: Option<Vec<String>>,
 }
 
 /// Read the slug out of a hostname, given the name of the database the hostname belongs to.
@@ -167,8 +222,22 @@ pub async fn look_up_organization(
     let Some(record) = databases.first() else {
         return Ok(OrganizationLookup::NoDatabaseYet);
     };
+    let organization = organization_of(record)?;
 
-    Ok(OrganizationLookup::Found(organization_of(record)?))
+    // **the listing is filtered to the group the slug was read out of.** A group-scoped consent
+    // lists one group, and the first record is the only thing here that names which one; a
+    // listing that carried a second group would otherwise put a stranger's database in front of
+    // a refusal that names the group the person picked.
+    let names = databases
+        .iter()
+        .filter(|candidate| candidate.group == record.group)
+        .map(|candidate| candidate.name.clone())
+        .collect();
+
+    Ok(OrganizationLookup::Found {
+        organization,
+        databases: names,
+    })
 }
 
 /// What creating the first database in an empty group yields: the organization and the group the
@@ -191,20 +260,32 @@ pub struct FirstDatabase {
 /// 2026-09-11), so nothing is read out of it; the listing is asked again and the record carrying
 /// the name just created is what answers, in the one shape this module already reads.
 ///
-/// **The group is deliberately not passed.** The tool's own description says it defaults to the
-/// organization's default group, and a group-scoped token has one group to default to. Were that
-/// ever not so, the database would land where the listing cannot see it, the record would be
-/// missing, and this fails loudly rather than returning a slug for a database in the wrong place.
-/// Delete protection is the Platform API's to turn on afterwards, once the slug is known.
+/// **The group is sent only where one was given.** Turso refused a create that named none on
+/// 2026-09-15 (`HTTP 403: group-scoped tokens must specify a group in the request`, where until
+/// then the tool defaulted to the token's own group), and an account it does not refuse that way
+/// is one nobody has to be asked anything. So which name to send is the caller's:
+/// `organization/setup.rs` tries no group, then Turso's own default, then [`group_uuid_of`], and
+/// asks the person only where every one of those was refused over the group. A name that is not
+/// the consent's group is refused by Turso, and the refusal is said in Turso's own words. Delete
+/// protection is the Platform API's to turn on afterwards, once the slug is known.
 pub async fn create_first_database(
     platform_token: &str,
     endpoint: &McpEndpoint,
     name: &str,
+    group: Option<&str>,
 ) -> Result<FirstDatabase, Error> {
     let client = build_client(MCP_REQUEST_TIMEOUT)?;
     let session = handshake(&client, endpoint, platform_token).await?;
 
-    call(
+    // the tool's `group` is optional, so an attempt that has no name for one carries the name of
+    // the database and nothing beside it.
+    let mut arguments = json!({ "name": name });
+
+    if let Some(group) = group {
+        arguments["group"] = json!(group);
+    }
+
+    let (created, _) = call(
         &client,
         endpoint,
         platform_token,
@@ -213,25 +294,355 @@ pub async fn create_first_database(
             "jsonrpc": "2.0",
             "id": 2,
             "method": "tools/call",
-            "params": { "name": MCP_CREATE_DATABASE, "arguments": { "name": name } }
+            "params": {
+                "name": MCP_CREATE_DATABASE,
+                "arguments": arguments
+            }
         }),
     )
     .await?;
 
-    let databases = list_databases(&client, endpoint, platform_token, session.as_deref()).await?;
-    let record = databases
-        .iter()
-        .find(|record| record.name == name)
-        .ok_or_else(|| Error::Integrity {
-            message: "turso created the organization's database somewhere this application \
-                      cannot see. Setting up an organization needs the account's support."
-                .to_string(),
-        })?;
+    // a tool that could not do what it was asked answers a result carrying `isError`, not a
+    // json-rpc error, and its text is turso's own reason: a plan's limit, a name it will not
+    // take, a group it could not find. Said as it was said, rather than as a listing that
+    // happens not to carry the name afterwards.
+    if let Some(reason) = tool_refusal(&created) {
+        return Err(Error::PreconditionFailed {
+            message: format!("{CREATE_REFUSED}{reason}"),
+        });
+    }
 
-    Ok(FirstDatabase {
-        organization: organization_of(record)?,
-        hostname: record.hostname.clone(),
+    // the reply's shape is undocumented, so a record read out of it is a convenience and the
+    // listing is what is trusted; where the reply does carry the database just made, under its
+    // own name, that is one round trip and one moment of listing lag fewer.
+    if let Some(record) = record_from(&created, name) {
+        return Ok(FirstDatabase {
+            organization: organization_of(&record)?,
+            hostname: record.hostname,
+        });
+    }
+
+    for attempt in 1..=CREATED_LISTING_ATTEMPTS {
+        if attempt > 1 {
+            tokio::time::sleep(CREATED_LISTING_RETRY).await;
+        }
+
+        let databases =
+            list_databases(&client, endpoint, platform_token, session.as_deref()).await?;
+
+        if let Some(record) = databases.into_iter().find(|record| record.name == name) {
+            return Ok(FirstDatabase {
+                organization: organization_of(&record)?,
+                hostname: record.hostname,
+            });
+        }
+
+        diagnostics::warn("organization.create.databaseUnlisted")
+            .with("attempt", attempt.to_string().as_str())
+            .write();
+    }
+
+    Err(Error::Integrity {
+        message: "turso created the organization's database somewhere this application \
+                  cannot see. Setting up an organization needs the account's support."
+            .to_string(),
     })
+}
+
+/// The group the consent was granted over, by the identity its own token carries.
+///
+/// **The token is read here and no part of it leaves Rust** ([[rules/credentials]], *Client
+/// boundary*). What is read is one claim, and what is done with it is naming a group in a
+/// request to the server that issued the token: it is an identity rather than a name, so there
+/// is nothing here a screen could show anybody and nothing that would help them if it did.
+///
+/// **Nothing is verified, deliberately.** A signature this application checked would be checked
+/// against a key it does not hold, and the claim is not being trusted for anything: Turso
+/// decides whether the group named is one this consent may create in, exactly as it does for a
+/// name a person typed.
+///
+/// A token that is not three dot-separated segments, whose payload is not base64url, whose
+/// payload is not JSON, or which carries no `group_uuid` string answers `None`, and the caller
+/// has one name fewer to try.
+pub fn group_uuid_of(platform_token: &str) -> Option<String> {
+    let mut segments = platform_token.split('.');
+    let (_header, payload) = (segments.next()?, segments.next()?);
+
+    // three and no more: a JWT is header, payload and signature, and anything else is a string
+    // this has no reason to read a claim out of.
+    segments.next()?;
+
+    if segments.next().is_some() {
+        return None;
+    }
+
+    let decoded = BASE64URL.decode(payload).ok()?;
+    let claims = serde_json::from_slice::<Value>(&decoded).ok()?;
+
+    claims
+        .get(GROUP_UUID_CLAIM)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .filter(|uuid| !uuid.is_empty())
+}
+
+/// One group as a listing names it: a word for a person, and an identity for a machine.
+///
+/// **Both halves are needed and neither is enough.** The consent's token carries the uuid and
+/// not the name ([`group_uuid_of`]), and a create takes the name and not the uuid, so a listing
+/// that carries the pair is the only thing that joins them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GroupRecord {
+    pub name: String,
+    pub uuid: String,
+}
+
+/// Read one group out of a listing record.
+///
+/// **Both spellings of the name are read, and by hand rather than by an alias.** The databases
+/// listing capitalises its own `Name` and a live record carried both spellings at once, which
+/// serde reads as a duplicate field and rejects ([`DatabaseRecord`] says so where it declines an
+/// alias). Reading the two keys in order is the same tolerance with none of that risk.
+pub fn group_record_from(value: &Value) -> Option<GroupRecord> {
+    let field = |first: &str, second: &str| {
+        value
+            .get(first)
+            .or_else(|| value.get(second))
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|read| !read.is_empty())
+            .map(str::to_string)
+    };
+
+    Some(GroupRecord {
+        name: field("name", "Name")?,
+        uuid: field("uuid", "Uuid")?,
+    })
+}
+
+/// The group a listing names, given what the consent says it is over.
+///
+/// **The uuid decides wherever both sides carry one**, because it is an identity and matching it
+/// is not a reading of anything. Where it does not, a listing holding one group holds the answer,
+/// and a listing holding several does not: a guess here would make the organization in a group
+/// the owner keeps something else in, which is exactly what requirement 21 refuses.
+pub fn group_named_in(groups: &[GroupRecord], group_uuid: Option<&str>) -> Option<String> {
+    if let Some(uuid) = group_uuid
+        && let Some(found) = groups.iter().find(|group| group.uuid == uuid)
+    {
+        return Some(found.name.clone());
+    }
+
+    match groups {
+        [only] => Some(only.name.clone()),
+        _ => None,
+    }
+}
+
+/// Ask the MCP server what the consented group is called.
+///
+/// **The first of the two ways a first run learns the name without asking anybody.** The token
+/// carries the group's uuid and not its name, an empty group has no database to read one off, and
+/// the person picked the group in a browser a minute earlier. Where the server offers a tool that
+/// lists groups, the pair is right there.
+///
+/// **Nothing here creates anything** ([[references/turso]], *Never run*): `tools/list` and one
+/// listing call, both reads.
+///
+/// **Every way of not knowing is `None` rather than an answer.** A server with no such tool, a
+/// tool that refused, a payload in a shape this cannot read, or a listing whose groups the uuid
+/// does not name and which holds more than one: each of them is this probe having nothing to say,
+/// and the caller has another way to try. What is still an `Err` is the conversation itself
+/// failing, which [`call`] says in the three ways it says everything else.
+pub async fn group_from_mcp(
+    platform_token: &str,
+    endpoint: &McpEndpoint,
+    group_uuid: Option<&str>,
+) -> Result<Option<String>, Error> {
+    let client = build_client(MCP_REQUEST_TIMEOUT)?;
+    let session = handshake(&client, endpoint, platform_token).await?;
+
+    let Some(tool) =
+        group_listing_tool(&client, endpoint, platform_token, session.as_deref()).await?
+    else {
+        return Ok(None);
+    };
+
+    let (listed, _) = call(
+        &client,
+        endpoint,
+        platform_token,
+        session.as_deref(),
+        &json!({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "tools/call",
+            "params": { "name": tool, "arguments": {} }
+        }),
+    )
+    .await?;
+
+    // a tool that refused said why, and nothing here would be helped by knowing: the reason
+    // reaches nobody, because the next way of naming the group is about to be tried.
+    if tool_refusal(&listed).is_some() {
+        return Ok(None);
+    }
+
+    Ok(group_named_in(&groups_from(&listed), group_uuid))
+}
+
+/// Which of the server's tools lists groups, where one of them does.
+///
+/// The documented name is taken as it stands. A server that spells it otherwise is still offering
+/// the one thing being asked for, so a single tool whose name both says groups and says listing
+/// is taken as it; two of them are a choice this has no way to make, and none is a server that
+/// cannot answer the question.
+async fn group_listing_tool(
+    client: &reqwest::Client,
+    endpoint: &McpEndpoint,
+    platform_token: &str,
+    session: Option<&str>,
+) -> Result<Option<String>, Error> {
+    let (offered, _) = call(
+        client,
+        endpoint,
+        platform_token,
+        session,
+        &json!({ "jsonrpc": "2.0", "id": 4, "method": "tools/list", "params": {} }),
+    )
+    .await?;
+
+    let names = offered
+        .pointer("/result/tools")
+        .and_then(Value::as_array)
+        .map(|tools| {
+            tools
+                .iter()
+                .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    if names.iter().any(|name| name == MCP_LIST_GROUPS) {
+        return Ok(Some(MCP_LIST_GROUPS.to_string()));
+    }
+
+    let mut listing = names.into_iter().filter(|name| {
+        let name = name.to_lowercase();
+
+        name.contains("group") && name.contains("list")
+    });
+
+    Ok(match (listing.next(), listing.next()) {
+        (Some(only), None) => Some(only),
+        _ => None,
+    })
+}
+
+/// Pull the group records out of a `tools/call` result, in the shapes [`databases_from`] reads.
+///
+/// **A shape this cannot read is no groups rather than a failure**, which is the one difference
+/// from the databases listing: that one is the slug's only source and a caller that cannot read
+/// it has nowhere to go, where this is a probe with a way of its own to be answered nothing.
+fn groups_from(message: &Value) -> Vec<GroupRecord> {
+    let Some(result) = message.get("result") else {
+        return Vec::new();
+    };
+
+    let payload = if let Some(structured) = result.get("structuredContent") {
+        structured.clone()
+    } else {
+        let text = result
+            .get("content")
+            .and_then(Value::as_array)
+            .and_then(|content| {
+                content
+                    .iter()
+                    .filter_map(|part| part.get("text").and_then(Value::as_str))
+                    .next()
+            });
+
+        match text.and_then(|text| serde_json::from_str::<Value>(text).ok()) {
+            Some(payload) => payload,
+            None => return Vec::new(),
+        }
+    };
+
+    let array = match &payload {
+        Value::Array(records) => records.clone(),
+        Value::Object(fields) => match fields.get("groups").and_then(Value::as_array) {
+            Some(records) => records.clone(),
+            None => return Vec::new(),
+        },
+        _ => return Vec::new(),
+    };
+
+    array.iter().filter_map(group_record_from).collect()
+}
+
+/// The reason a tool gave for refusing, where the reply is a result flagged `isError`.
+fn tool_refusal(message: &Value) -> Option<String> {
+    let result = message.get("result")?;
+
+    if !result
+        .get("isError")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return None;
+    }
+
+    let text = result
+        .get("content")
+        .and_then(Value::as_array)
+        .map(|content| {
+            content
+                .iter()
+                .filter_map(|part| part.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .unwrap_or_default();
+
+    Some(if text.trim().is_empty() {
+        "no reason was given".to_string()
+    } else {
+        text.trim().to_string()
+    })
+}
+
+/// The database record a create reply carries, where it carries one under the name asked for:
+/// as `structuredContent`, as `structuredContent.database`, or as the same two shapes inside
+/// the text content. Anything else is `None`, and the listing decides.
+fn record_from(message: &Value, name: &str) -> Option<DatabaseRecord> {
+    let result = message.get("result")?;
+    let mut candidates = Vec::new();
+
+    if let Some(structured) = result.get("structuredContent") {
+        candidates.push(structured.clone());
+    }
+
+    if let Some(content) = result.get("content").and_then(Value::as_array) {
+        for text in content
+            .iter()
+            .filter_map(|part| part.get("text").and_then(Value::as_str))
+        {
+            if let Ok(value) = serde_json::from_str::<Value>(text) {
+                candidates.push(value);
+            }
+        }
+    }
+
+    candidates
+        .into_iter()
+        .flat_map(|candidate| {
+            let nested = candidate.get("database").cloned();
+            [Some(candidate), nested]
+        })
+        .flatten()
+        .filter_map(|candidate| serde_json::from_value::<DatabaseRecord>(candidate).ok())
+        .find(|record| record.name == name && !record.hostname.is_empty())
 }
 
 /// `initialize`, and the session it opened where the server opened one.
@@ -313,17 +724,26 @@ pub async fn organization(
     store: &mut Persisted<RemoteSyncStore>,
     platform_token: &str,
     endpoint: &McpEndpoint,
-) -> Result<Option<TursoOrganization>, Error> {
+) -> Result<Option<ConsentedGroup>, Error> {
     if let Some(known) = store.turso_organization.clone() {
-        return Ok(Some(known));
+        return Ok(Some(ConsentedGroup {
+            organization: known,
+            databases: None,
+        }));
     }
 
     match look_up_organization(platform_token, endpoint).await? {
-        OrganizationLookup::Found(organization) => {
+        OrganizationLookup::Found {
+            organization,
+            databases,
+        } => {
             store.turso_organization = Some(organization.clone());
             store.commit()?;
 
-            Ok(Some(organization))
+            Ok(Some(ConsentedGroup {
+                organization,
+                databases: Some(databases),
+            }))
         }
         OrganizationLookup::NoDatabaseYet => Ok(None),
     }
@@ -471,6 +891,7 @@ fn unreadable_listing() -> Error {
 
 #[cfg(test)]
 mod tests {
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
     use serde_json::json;
 
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
@@ -478,8 +899,9 @@ mod tests {
     use crate::{persisted::Persisted, sync::store::RemoteSyncStore};
 
     use super::{
-        FirstDatabase, McpEndpoint, OrganizationLookup, TursoOrganization, create_first_database,
-        look_up_organization, organization, slug_from_hostname,
+        ConsentedGroup, FirstDatabase, McpEndpoint, OrganizationLookup, TursoOrganization,
+        create_first_database, group_from_mcp, group_uuid_of, look_up_organization, organization,
+        slug_from_hostname,
     };
 
     const TOKEN: &str = "the-platform-api-token";
@@ -536,8 +958,8 @@ mod tests {
     }
 
     /// The first run into the empty group requirement 3 asks for: `create_database` by name and
-    /// nothing else, then the listing read again, and the slug and the group taken off the
-    /// record that carries the name just created rather than off the create's own reply.
+    /// nothing else, then the listing read again, and the slug and the group taken off the record
+    /// that carries the name just created rather than off the create's own reply.
     #[tokio::test]
     async fn the_first_database_is_created_by_name_and_read_back_out_of_the_listing() {
         let server = ScriptedServer::start(vec![
@@ -555,9 +977,10 @@ mod tests {
         ])
         .await;
 
-        let first = create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a")
-            .await
-            .expect("the first create failed");
+        let first =
+            create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a", None)
+                .await
+                .expect("the first create failed");
 
         assert_eq!(
             first,
@@ -577,11 +1000,8 @@ mod tests {
         assert_eq!(payload["params"]["name"], "create_database");
         assert_eq!(
             payload["params"]["arguments"],
-            json!({ "name": "org-7f3a" })
-        );
-        assert!(
-            payload["params"]["arguments"].get("group").is_none(),
-            "a group was passed, and the consented token is what decides the group"
+            json!({ "name": "org-7f3a" }),
+            "an attempt with no group for it named one anyway"
         );
         assert_eq!(
             server.request_count(),
@@ -590,27 +1010,146 @@ mod tests {
         );
     }
 
+    /// The same create, with a group to name. **The argument appears only here**: an account that
+    /// takes a create naming no group is one nobody has to be asked anything, so the name rides
+    /// along only where the caller had one to send.
+    #[tokio::test]
+    async fn the_create_names_the_group_only_where_one_was_given() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            ScriptedResponse::new(
+                200,
+                json!({ "jsonrpc": "2.0", "id": 2, "result": { "content": [{ "type": "text", "text": "created" }] } })
+                    .to_string(),
+            ),
+            listing(json!([{
+                "Name": "org-7f3a",
+                "hostname": "org-7f3a-acme-co.aws-eu-west-1.turso.io",
+                "group": "rentable-empty"
+            }])),
+        ])
+        .await;
+
+        create_first_database(
+            TOKEN,
+            &McpEndpoint::at(&server.url("")),
+            "org-7f3a",
+            Some("rentable-empty"),
+        )
+        .await
+        .expect("the create failed");
+
+        let payload: serde_json::Value =
+            serde_json::from_str(&server.request(1).body).expect("json");
+
+        assert_eq!(
+            payload["params"]["arguments"],
+            json!({ "name": "org-7f3a", "group": "rentable-empty" }),
+            "the create names the group it was given, and carries nothing else"
+        );
+    }
+
+    /// The third name the first create tries, and the one nobody types: the consent's own token
+    /// carries the group's identity in its payload, so a run that has been refused twice has one
+    /// more thing to try before it asks anybody anything.
+    #[tokio::test]
+    async fn the_group_uuid_is_read_out_of_the_consent_tokens_payload() {
+        let payload = BASE64URL.encode(
+            json!({ "org_id": 26543, "group_uuid": "6f5b6f60-1d4a-4b4a-9c2e-0b0a1d2c3e4f" })
+                .to_string(),
+        );
+        let token = format!("{}.{payload}.{}", BASE64URL.encode("{}"), "a-signature");
+
+        assert_eq!(
+            group_uuid_of(&token).as_deref(),
+            Some("6f5b6f60-1d4a-4b4a-9c2e-0b0a1d2c3e4f")
+        );
+    }
+
+    /// And every shape that is not that answers nothing, because the caller's next step is to ask
+    /// the person rather than to send a name it made up.
+    #[tokio::test]
+    async fn a_token_that_carries_no_group_uuid_answers_nothing() {
+        let with = |claims: serde_json::Value| {
+            format!(
+                "{}.{}.{}",
+                BASE64URL.encode("{}"),
+                BASE64URL.encode(claims.to_string()),
+                "a-signature"
+            )
+        };
+
+        // the plain string the tests here spend, which is what a token looked like before this.
+        assert_eq!(group_uuid_of(TOKEN), None, "a token of one segment");
+        assert_eq!(group_uuid_of("header.payload"), None, "two segments");
+        assert_eq!(
+            group_uuid_of(&format!("{}.x.y", with(json!({})))),
+            None,
+            "five segments"
+        );
+        assert_eq!(
+            group_uuid_of(&format!(
+                "{}.not-base64url!.{}",
+                BASE64URL.encode("{}"),
+                "s"
+            )),
+            None,
+            "a payload that is not base64url"
+        );
+        assert_eq!(
+            group_uuid_of(&format!(
+                "{}.{}.{}",
+                BASE64URL.encode("{}"),
+                BASE64URL.encode("not json"),
+                "s"
+            )),
+            None,
+            "a payload that is not json"
+        );
+        assert_eq!(
+            group_uuid_of(&with(json!({ "org_id": 26543 }))),
+            None,
+            "a payload with no claim"
+        );
+        assert_eq!(
+            group_uuid_of(&with(json!({ "group_uuid": "" }))),
+            None,
+            "a claim with nothing in it"
+        );
+        assert_eq!(
+            group_uuid_of(&with(json!({ "group_uuid": 7 }))),
+            None,
+            "a claim that is not a string"
+        );
+    }
+
     /// A database the listing cannot see is a database in the wrong place, and the create is
     /// reported as a failure rather than as a slug read off some other record.
     #[tokio::test]
     async fn a_created_database_the_listing_does_not_carry_is_a_failure_not_a_guess() {
+        let elsewhere = || {
+            listing(json!([{
+                "Name": "somebody-elses",
+                "hostname": "somebody-elses-acme-co.aws-eu-west-1.turso.io",
+                "group": "other"
+            }]))
+        };
         let server = ScriptedServer::start(vec![
             handshake(),
             ScriptedResponse::new(
                 200,
                 json!({ "jsonrpc": "2.0", "id": 2, "result": { "content": [] } }).to_string(),
             ),
-            listing(json!([{
-                "Name": "somebody-elses",
-                "hostname": "somebody-elses-acme-co.aws-eu-west-1.turso.io",
-                "group": "other"
-            }])),
+            elsewhere(),
+            elsewhere(),
+            elsewhere(),
         ])
         .await;
 
-        let error = create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a")
-            .await
-            .expect_err("a slug was read off a record that is not the created database");
+        let error =
+            create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a", None)
+                .await
+                .expect_err("a slug was read off a record that is not the created database");
 
         assert!(
             matches!(error, crate::error::Error::Integrity { .. }),
@@ -619,6 +1158,306 @@ mod tests {
         assert!(
             error.to_string().contains("Setting up an organization"),
             "{error}"
+        );
+        assert_eq!(
+            server.request_count(),
+            5,
+            "the listing was not asked again before the create was called a failure"
+        );
+    }
+
+    /// A tool that could not create the database says why in a result flagged `isError`, and
+    /// that reason is what the person reads, not a listing that lacks the name afterwards.
+    #[tokio::test]
+    async fn a_create_the_tool_refused_is_said_in_tursos_own_words_and_nothing_is_listed() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            ScriptedResponse::new(
+                200,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "result": {
+                        "isError": true,
+                        "content": [{ "type": "text", "text": "database limit reached for plan" }]
+                    }
+                })
+                .to_string(),
+            ),
+        ])
+        .await;
+
+        let error =
+            create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a", None)
+                .await
+                .expect_err("a refused create was read as a database");
+
+        assert!(
+            matches!(error, crate::error::Error::PreconditionFailed { .. }),
+            "{error:?}"
+        );
+        assert!(
+            error
+                .to_string()
+                .contains("database limit reached for plan"),
+            "turso's reason is not in the sentence: {error}"
+        );
+        assert_eq!(
+            server.request_count(),
+            2,
+            "a refused create was followed by a listing"
+        );
+    }
+
+    /// Where the reply carries the record it made, under the name asked for, that is the
+    /// answer and no listing is asked.
+    #[tokio::test]
+    async fn a_create_reply_that_carries_the_record_is_read_without_a_listing() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            ScriptedResponse::new(
+                200,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "result": {
+                        "content": [{ "type": "text", "text": "created" }],
+                        "structuredContent": {
+                            "database": {
+                                "Name": "org-7f3a",
+                                "hostname": "org-7f3a-acme-co.aws-eu-west-1.turso.io",
+                                "group": "rentable-empty"
+                            }
+                        }
+                    }
+                })
+                .to_string(),
+            ),
+        ])
+        .await;
+
+        let first =
+            create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a", None)
+                .await
+                .expect("the create failed");
+
+        assert_eq!(first.organization.slug, "acme-co");
+        assert_eq!(first.organization.group, "rentable-empty");
+        assert_eq!(
+            server.request_count(),
+            2,
+            "the reply carried the record and a listing was asked anyway"
+        );
+    }
+
+    /// What `tools/list` answers, carrying whichever tool names to offer.
+    fn tools(names: &[&str]) -> ScriptedResponse {
+        let offered = names
+            .iter()
+            .map(|name| {
+                json!({
+                    "name": name,
+                    "description": "what the tool does, which nothing here reads",
+                    "inputSchema": { "type": "object", "properties": {} }
+                })
+            })
+            .collect::<Vec<_>>();
+
+        ScriptedResponse::new(
+            200,
+            json!({ "jsonrpc": "2.0", "id": 4, "result": { "tools": offered } }).to_string(),
+        )
+    }
+
+    /// A groups listing inside a text part, the way `list_databases` answers.
+    fn groups(records: serde_json::Value) -> ScriptedResponse {
+        ScriptedResponse::new(
+            200,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "result": { "content": [{ "type": "text", "text": records.to_string() }] }
+            })
+            .to_string(),
+        )
+    }
+
+    /// The group listing as Turso's own API shapes one, which is what a tool wrapping it sends.
+    fn three_groups() -> serde_json::Value {
+        json!({ "groups": [
+            { "name": "rentable-empty", "uuid": CONSENTED, "locations": ["aws-eu-west-1"], "primary": "aws-eu-west-1" },
+            { "name": "rents", "uuid": "11111111-1111-4111-8111-111111111111", "locations": [], "primary": "aws-eu-west-1" },
+            { "name": "somebody-elses", "uuid": "22222222-2222-4222-8222-222222222222", "locations": [], "primary": "aws-eu-west-1" }
+        ] })
+    }
+
+    /// The uuid the consent token carries in the tests below.
+    const CONSENTED: &str = "6f5b6f60-1d4a-4b4a-9c2e-0b0a1d2c3e4f";
+
+    /// **Ticket 21.** The first of the two ways a first run learns the group's name without
+    /// asking: the consent's own uuid against the pairs a group listing carries.
+    #[tokio::test]
+    async fn the_group_the_consents_uuid_names_is_read_off_the_mcp_servers_listing() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            tools(&["list_databases", "create_database", "list_groups"]),
+            groups(three_groups()),
+        ])
+        .await;
+
+        let named = group_from_mcp(TOKEN, &McpEndpoint::at(&server.url("")), Some(CONSENTED))
+            .await
+            .expect("the group lookup failed");
+
+        assert_eq!(named.as_deref(), Some("rentable-empty"));
+
+        let asked: serde_json::Value = serde_json::from_str(&server.request(1).body).expect("json");
+
+        assert_eq!(asked["method"], "tools/list");
+        assert_eq!(asked["params"], json!({}), "tools/list takes empty params");
+
+        let called: serde_json::Value =
+            serde_json::from_str(&server.request(2).body).expect("json");
+
+        assert_eq!(called["params"]["name"], "list_groups");
+        assert_eq!(called["params"]["arguments"], json!({}));
+        assert_eq!(
+            server.request_count(),
+            3,
+            "the handshake, the tool set, and the listing"
+        );
+    }
+
+    /// Where the uuid names none of them, one group is still an answer and three are not: a
+    /// guess would create the organization in a group the owner keeps something else in.
+    #[tokio::test]
+    async fn one_group_is_the_answer_where_the_uuid_names_none_and_three_are_not() {
+        let only = json!([{ "name": "rentable-empty", "uuid": "a-uuid-nobody-asked-for" }]);
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            tools(&["list_groups"]),
+            // the payload as `structuredContent` and bare rather than under a key, which is the
+            // other shape the same tool may answer in.
+            ScriptedResponse::new(
+                200,
+                json!({ "jsonrpc": "2.0", "id": 5, "result": { "structuredContent": only } })
+                    .to_string(),
+            ),
+        ])
+        .await;
+
+        assert_eq!(
+            group_from_mcp(TOKEN, &McpEndpoint::at(&server.url("")), None)
+                .await
+                .expect("the group lookup failed")
+                .as_deref(),
+            Some("rentable-empty")
+        );
+
+        let several = ScriptedServer::start(vec![
+            handshake(),
+            tools(&["list_groups"]),
+            groups(three_groups()),
+        ])
+        .await;
+
+        assert_eq!(
+            group_from_mcp(
+                TOKEN,
+                &McpEndpoint::at(&several.url("")),
+                Some("a-uuid-none-of-them-carries")
+            )
+            .await
+            .expect("the group lookup failed"),
+            None,
+            "one of three groups was picked for a uuid that names none of them"
+        );
+    }
+
+    /// The tool set read on 2026-09-11, which is what sent this run looking elsewhere: no group
+    /// tool, so the lookup answers nothing and nothing is called.
+    #[tokio::test]
+    async fn a_server_that_offers_no_group_tool_answers_nothing_rather_than_failing() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            tools(&["list_databases", "create_database", "delete_database"]),
+        ])
+        .await;
+
+        assert_eq!(
+            group_from_mcp(TOKEN, &McpEndpoint::at(&server.url("")), Some(CONSENTED))
+                .await
+                .expect("a server with no group tool was reported as a failure"),
+            None
+        );
+        assert_eq!(
+            server.request_count(),
+            2,
+            "a tool the server does not offer was called anyway"
+        );
+    }
+
+    /// The set is Turso's and they move it, so the documented name is taken where it is there
+    /// and a single tool that both names groups and lists is taken where it is not.
+    #[tokio::test]
+    async fn a_group_listing_tool_under_another_name_is_still_the_one_asked() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            tools(&["list_databases", "groups_list"]),
+            groups(three_groups()),
+        ])
+        .await;
+
+        assert_eq!(
+            group_from_mcp(TOKEN, &McpEndpoint::at(&server.url("")), Some(CONSENTED))
+                .await
+                .expect("the group lookup failed")
+                .as_deref(),
+            Some("rentable-empty")
+        );
+
+        let two = ScriptedServer::start(vec![
+            handshake(),
+            tools(&["groups_list", "list_group_members"]),
+        ])
+        .await;
+
+        assert_eq!(
+            group_from_mcp(TOKEN, &McpEndpoint::at(&two.url("")), Some(CONSENTED))
+                .await
+                .expect("the group lookup failed"),
+            None,
+            "one of two tools that could have been the listing was chosen"
+        );
+    }
+
+    /// A tool that refused is this probe having nothing to say, not a first run that stops: the
+    /// caller has the Platform API to ask next and the cascade after that.
+    #[tokio::test]
+    async fn a_group_tool_that_refused_answers_nothing_rather_than_a_refusal() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            tools(&["list_groups"]),
+            ScriptedResponse::new(
+                200,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 5,
+                    "result": {
+                        "isError": true,
+                        "content": [{ "type": "text", "text": "this token may not list groups" }]
+                    }
+                })
+                .to_string(),
+            ),
+        ])
+        .await;
+
+        assert_eq!(
+            group_from_mcp(TOKEN, &McpEndpoint::at(&server.url("")), Some(CONSENTED))
+                .await
+                .expect("a refused tool was reported as a failed lookup"),
+            None
         );
     }
 
@@ -681,15 +1520,71 @@ mod tests {
 
         assert_eq!(
             found,
-            OrganizationLookup::Found(TursoOrganization {
-                slug: "rentable".to_string(),
-                group: "rentable".to_string(),
-            })
+            OrganizationLookup::Found {
+                organization: TursoOrganization {
+                    slug: "rentable".to_string(),
+                    group: "rentable".to_string(),
+                },
+                databases: vec!["control-plane".to_string()],
+            }
         );
         assert_eq!(
             server.request_count(),
             2,
             "the handshake or the call is missing"
+        );
+    }
+
+    /// Requirement 21 of effort 826: a first run has to know what the group it consented over
+    /// already holds, so the lookup reports every name in that group and nothing from any other.
+    /// A listing carrying a second group is what a token wider than one group would answer, and
+    /// a name from it in this list would put a database the person never picked in front of a
+    /// refusal naming the group they did.
+    #[tokio::test]
+    async fn the_lookup_reports_the_names_in_the_consented_group_and_no_others() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            listing(json!([
+                {
+                    "Name": "ledger",
+                    "hostname": "ledger-acme.aws-eu-west-1.turso.io",
+                    "group": "rents"
+                },
+                {
+                    "Name": "org-7f3a",
+                    "hostname": "org-7f3a-acme.aws-eu-west-1.turso.io",
+                    "group": "rents"
+                },
+                {
+                    "Name": "somebody-elses",
+                    "hostname": "somebody-elses-acme.aws-eu-west-1.turso.io",
+                    "group": "another-group"
+                }
+            ])),
+        ])
+        .await;
+
+        let found = look_up_organization(TOKEN, &McpEndpoint::at(&server.url("")))
+            .await
+            .expect("the lookup failed");
+
+        let OrganizationLookup::Found {
+            organization,
+            databases,
+        } = found
+        else {
+            panic!("a populated group was read as empty");
+        };
+
+        assert_eq!(organization.group, "rents");
+        assert_eq!(
+            databases,
+            vec!["ledger".to_string(), "org-7f3a".to_string()],
+            "the names the consented group holds are not what was reported"
+        );
+        assert!(
+            !databases.iter().any(|name| name == "somebody-elses"),
+            "a database of another group was reported as the consented group's: {databases:?}"
         );
     }
 
@@ -728,10 +1623,13 @@ mod tests {
 
         assert_eq!(
             found,
-            OrganizationLookup::Found(TursoOrganization {
-                slug: "rentable".to_string(),
-                group: "rentable".to_string(),
-            })
+            OrganizationLookup::Found {
+                organization: TursoOrganization {
+                    slug: "rentable".to_string(),
+                    group: "rentable".to_string(),
+                },
+                databases: vec!["control-plane".to_string()],
+            }
         );
     }
 
@@ -839,10 +1737,13 @@ mod tests {
 
         assert_eq!(
             found,
-            OrganizationLookup::Found(TursoOrganization {
-                slug: "acme".to_string(),
-                group: "rents".to_string(),
-            })
+            OrganizationLookup::Found {
+                organization: TursoOrganization {
+                    slug: "acme".to_string(),
+                    group: "rents".to_string(),
+                },
+                databases: vec!["ledger".to_string()],
+            }
         );
     }
 
@@ -907,10 +1808,28 @@ mod tests {
             .await
             .expect("the second lookup failed");
 
-        assert_eq!(first, second);
         assert_eq!(
-            first.map(|organization| organization.slug),
-            Some("acme".to_string())
+            first,
+            Some(ConsentedGroup {
+                organization: TursoOrganization {
+                    slug: "acme".to_string(),
+                    group: "rents".to_string(),
+                },
+                // the listing was read, so what the group holds is reported.
+                databases: Some(vec!["ledger".to_string()]),
+            })
+        );
+        assert_eq!(
+            second,
+            Some(ConsentedGroup {
+                organization: TursoOrganization {
+                    slug: "acme".to_string(),
+                    group: "rents".to_string(),
+                },
+                // and the second call asked nothing, so it has no listing to report rather
+                // than an empty one, which would read as a group holding nothing.
+                databases: None,
+            })
         );
         assert_eq!(
             server.request_count(),
@@ -980,7 +1899,7 @@ mod tests {
             .expect("the live lookup failed");
 
         match found {
-            OrganizationLookup::Found(organization) => {
+            OrganizationLookup::Found { organization, .. } => {
                 assert_eq!(
                     organization.slug, expected,
                     "the slug read out of a real hostname is not the account the \

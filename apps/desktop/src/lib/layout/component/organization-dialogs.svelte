@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { WorkspaceGrant } from '$lib/platform/tauri';
 	import OrganizationInviteForm from '$lib/organization/component/invite-form.svelte';
 	import OrganizationWorkspaceDialog from '$lib/organization/component/workspace-dialog.svelte';
 	import {
@@ -12,6 +13,7 @@
 	import {
 		useCreateWorkspace,
 		useFetchOrganizationState,
+		useInvitationCode,
 		useInviteMember
 	} from '$lib/organization/query';
 	import { onDestroy } from 'svelte';
@@ -25,7 +27,7 @@
 	 * organization page. So the surfaces are drawn here, beside the frame rather than inside it,
 	 * since the frame owns navigation and not forms, and `organization/dialogs.svelte.ts` is the
 	 * request the openers raise and this answers. One instance is one result panel: an invitation
-	 * made from the menu shows its link and password in the same panel a person finds from the page.
+	 * made from the menu shows its link in the same panel a person finds from the page.
 	 *
 	 * **The mutations are here**, inside the providers, so each reads the query client from context
 	 * the way every other hook does. The organization state query is the same one the rail and the
@@ -39,28 +41,60 @@
 	const stateQuery = useFetchOrganizationState();
 	const inviteMember = useInviteMember();
 	const createWorkspace = useCreateWorkspace();
+	const invitationCode = useInvitationCode();
 
 	const session = $derived(stateQuery.data?.session ?? null);
 	const isOwner = $derived(session?.role === 'owner');
 
 	let copied = $state<InvitedCopy | null>(null);
 
-	// a new result is a new three to copy, whether it came from the invite here or from a reset
+	// a new result is a new link to copy, whether it came from the invite here or from a reset
 	// raised on the page, so the mark follows the result rather than the act that made it.
 	$effect(() => {
 		void organizationDialog.invited;
 		copied = null;
 	});
 
+	// the form names each workspace with the access it is granted at, which is what the command
+	// takes. What comes back is narrowed to the link and the person it admits, because the same
+	// panel answers a new link and a copy link, and neither of those produces anything wider.
 	const invite = async (
 		username: string,
 		role: 'administrator' | 'member',
-		workspaceIds: string[]
+		workspaces: WorkspaceGrant[]
 	) => {
 		try {
-			showInvited(await inviteMember.mutateAsync({ username, role, workspaceIds }));
+			const invited = await inviteMember.mutateAsync({ username, role, workspaces });
+
+			showInvited({
+				invitationId: invited.invitationId,
+				username: invited.username,
+				joinLink: invited.joinLink,
+				code: invited.code,
+				codeExpiresAt: invited.codeExpiresAt,
+				unreachableWorkspaces: invited.unreachableWorkspaces
+			});
 		} catch {
 			// said by the shared handler; the form keeps what was typed.
+		}
+	};
+
+	/**
+	 * a fresh code for the invitation the panel is showing: ninety seconds is short enough that a
+	 * person reading one out down a phone often needs another before they have finished. The old
+	 * one opens nothing from then on, which is what the panel replacing it says.
+	 */
+	const freshCode = async (invitationId: string) => {
+		const shown = organizationDialog.invited;
+
+		if (!shown) return;
+
+		try {
+			const fresh = await invitationCode.mutateAsync({ invitationId });
+
+			showInvited({ ...shown, code: fresh.code, codeExpiresAt: fresh.expiresAt });
+		} catch {
+			// said by the shared handler; the panel keeps the code it was showing.
 		}
 	};
 
@@ -99,13 +133,17 @@
 			onOpenChange={(open) => {
 				if (!open) closeOrganizationDialog();
 			}}
+			organizationName={session.organizationName}
 			workspaces={session.workspaces}
 			canInviteAdministrators={isOwner}
+			canGrantReadOnly={isOwner}
 			isInviting={inviteMember.isPending}
 			invited={organizationDialog.invited}
 			{copied}
-			onInvite={(username, role, workspaceIds) => void invite(username, role, workspaceIds)}
+			isFresheningCode={invitationCode.isPending}
+			onInvite={(username, role, workspaces) => void invite(username, role, workspaces)}
 			onCopy={(what, value) => void copy(what, value)}
+			onFreshCode={(invitationId) => void freshCode(invitationId)}
 			onDismiss={dismissInvited}
 		/>
 

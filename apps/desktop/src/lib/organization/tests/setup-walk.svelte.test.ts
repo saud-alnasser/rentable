@@ -30,12 +30,24 @@ import Providers from './providers.svelte';
  * **The subject needs two providers above it**, which is why `./providers.svelte` is the wrapper:
  * the corner control draws a tooltip, and the surface's spinner reads the string contract.
  *
- * **No submit is fired here.** A superforms SPA submit under this runner reaches SvelteKit's
- * `applyAction` through `use:enhance`, which the vitest environment does not supply, so the
- * steps are asserted on their fields and on the schemas `setup.test.ts` pins, not on a rendered
- * create. A refusal is reached the way a person first meets it, by leaving the field, which is
- * client-side validation and needs no submit.
+ * **A submit is fired only where what it carries is the point**, which since effort 826's
+ * correction to requirement 13 is the name step: where Turso has left the group to be asked for,
+ * the name the person types is what the next create names, so a screen that collected it and did
+ * not hand it on would pass every other assertion here. A superforms SPA submit reaches
+ * SvelteKit's `applyAction` through
+ * `use:enhance`, and `applyAction` reaches for a router root that a component test has none of,
+ * so it is mocked away below: what it does is bring `$page` in line after a form action, and
+ * there is no page and no action here. Everything else is asserted on its fields and on the
+ * schemas `setup.test.ts` pins. A refusal is reached the way a person first meets it, by leaving
+ * the field, which is client-side validation and needs no submit.
  */
+
+// the one piece of SvelteKit a superforms submit reaches that this runner cannot supply. Mocked
+// rather than avoided, so the submits below run the same code path the application runs.
+vi.mock('$app/forms', async (original) => ({
+	...(await original<Record<string, unknown>>()),
+	applyAction: async () => {}
+}));
 
 const noop = () => {};
 
@@ -51,6 +63,7 @@ const walk = (
 		{
 			step,
 			consent: { status: 'idle', error: null },
+			refusal: null,
 			holdsTursoAuthority: false,
 			isConnecting: false,
 			isCreating: false,
@@ -102,6 +115,225 @@ test('the naming step presents exactly three fields: the name, a username and a 
 	expect(document.querySelector('[data-setup-fields]')?.getAttribute('data-setup-fields')).toBe(
 		'name,username,password'
 	);
+
+	// and nothing on the step says a word about the Turso group, which is the whole of this
+	// ticket: the create is tried three ways before anybody is asked for one.
+	expect(document.querySelector('[data-setup-group]')).toBeNull();
+	expect(screen.queryByText(en.organization.setup.groupLabel)).toBeNull();
+	expect(screen.queryByText(en.organization.setup.groupNeeded)).toBeNull();
+});
+
+/** fill the name step in, as a person does, and press create. */
+const fillAndCreate = async (group?: string) => {
+	const typed: [string, string][] = [
+		['name', 'Acme Rentals'],
+		['username', 'olivia.owner'],
+		['password', 'a long enough password']
+	];
+
+	if (group !== undefined) typed.push(['group', group]);
+
+	for (const [name, value] of typed) {
+		await fireEvent.input(document.querySelector(`input[name="${name}"]`)!, {
+			target: { value }
+		});
+	}
+
+	await fireEvent.submit(document.querySelector('form')!);
+};
+
+// the ordinary run: nothing is collected about the group, so nothing is handed on about it, and
+// Rust is left to try the names it can work out.
+test('the ordinary create carries no group at all', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onCreate = vi.fn(async () => {});
+
+	walk('name', { onCreate });
+	await fillAndCreate();
+
+	await waitFor(() => {
+		expect(onCreate).toHaveBeenCalledWith(
+			'Acme Rentals',
+			'olivia.owner',
+			'a long enough password',
+			null
+		);
+	});
+});
+
+/** what Rust hands back after the phrase, which is Turso's own account of the refusal. */
+const TURSO_SAID =
+	'turso refused every group this application could name on its own, and said: 404 group `default` not found';
+
+/**
+ * Requirement 13's second correction: Turso would take none of the names the application could
+ * work out, so the route hands `askGroup` and the step grows the one field left to ask for, with
+ * the sentence above it saying what to type. The name typed into it is what the next create
+ * carries, trimmed, because a name pasted out of Turso's own screen brings whatever came with it.
+ *
+ * And requirement 13's fourth correction: Turso's own account is under that sentence, muted, as
+ * detail. It used to be the whole of what a person was shown, as the headline of a toast, which
+ * made a step the connect screen had already foretold read as a failure.
+ */
+test('a walk asked for the group draws the field with the sentence above it, and sends what was typed', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onCreate = vi.fn(async () => {});
+
+	walk('name', { askGroup: true, groupDetail: TURSO_SAID, onCreate });
+
+	expect(screen.getByText(en.organization.setup.groupNeeded)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.groupLabel)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.groupDescription)).toBeDefined();
+	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
+		'name',
+		'username',
+		'password',
+		'group'
+	]);
+
+	// the sentence is above the field rather than under it: it says what to type, and a reader
+	// meets it before the thing it is about.
+	const block = document.querySelector('[data-setup-group]')!;
+	const sentence = screen.getByText(en.organization.setup.groupNeeded);
+	const field = document.querySelector('input[name="group"]')!;
+
+	expect(block.contains(field)).toBe(true);
+	expect(sentence.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+	// and Turso's own account sits between the two, quieter than the sentence it explains.
+	const detail = document.querySelector('[data-setup-group-detail]')!;
+
+	expect(detail.textContent?.trim()).toBe(TURSO_SAID);
+	expect(detail.getAttribute('class')).toContain('text-muted-foreground');
+	expect(sentence.compareDocumentPosition(detail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	expect(detail.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+	await fillAndCreate('  rentable-empty  ');
+
+	await waitFor(() => {
+		expect(onCreate).toHaveBeenCalledWith(
+			'Acme Rentals',
+			'olivia.owner',
+			'a long enough password',
+			'rentable-empty'
+		);
+	});
+});
+
+// a walk that was asked for the group and given no account of why draws no empty line where the
+// detail would be: the sentence and the field are the whole of the step.
+test('a walk asked for the group with nothing to quote draws no detail line', () => {
+	loadLocale('en');
+	setLocale('en');
+	walk('name', { askGroup: true });
+
+	expect(screen.getByText(en.organization.setup.groupNeeded)).toBeDefined();
+	expect(document.querySelector('[data-setup-group-detail]')).toBeNull();
+});
+
+/**
+ * Criterion 3 of this ticket: **the group is asked for without costing the person anything they
+ * already typed.** The route keeps its own name, username and password state across the refused
+ * create and hands `askGroup` on the props, so what this asserts is the walk under exactly that
+ * hand: the three values are in the fields before, and they are still in them after, with the
+ * fourth field added beside them.
+ */
+test('the fields the person already filled survive the group being asked for', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onCreate = vi.fn(async () => {});
+	const { rerender } = walk('name', { onCreate });
+
+	await fillAndCreate();
+
+	await waitFor(() => {
+		expect(onCreate).toHaveBeenCalledWith(
+			'Acme Rentals',
+			'olivia.owner',
+			'a long enough password',
+			null
+		);
+	});
+
+	// the route caught the refusal and handed the one prop that changed; nothing else about the
+	// step was rebuilt.
+	await rerender({ askGroup: true, groupDetail: TURSO_SAID });
+
+	expect(inputsOnScreen().map((input) => [input.getAttribute('name'), input.value])).toEqual([
+		['name', 'Acme Rentals'],
+		['username', 'olivia.owner'],
+		['password', 'a long enough password'],
+		['group', '']
+	]);
+	expect(screen.getByText(en.organization.setup.groupNeeded)).toBeDefined();
+	expect(document.querySelector('[data-setup-group-detail]')?.textContent?.trim()).toBe(TURSO_SAID);
+});
+
+// the create it was asked for cannot be made without it, so the step refuses on the field before
+// the round trip, in the person's own language, and nothing is created. Reached by leaving the
+// field, which is how a person first meets it.
+test('an empty group is refused on a step that asked for one, and nothing is created', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onCreate = vi.fn(async () => {});
+
+	walk('name', { askGroup: true, onCreate });
+
+	const input = document.querySelector<HTMLInputElement>('input[name="group"]')!;
+
+	await fireEvent.input(input, { target: { value: '   ' } });
+	await fireEvent.focusOut(input);
+
+	await waitFor(() => {
+		expect(screen.getByRole('alert').textContent).toBe(en.organization.setup.groupRequired);
+	});
+	expect(input.getAttribute('aria-invalid')).toBe('true');
+	expect(onCreate).not.toHaveBeenCalled();
+});
+
+/**
+ * Effort 826's correction to requirement 13: a group that is not the one the consent is over is
+ * refused by Rust before anything is created, by both names, and the consent is untouched. So it
+ * reaches the walk the way every ordinary failed create does: the shared handler shows the
+ * sentence, `refusalAfterFailedCreate` keeps the walk where it is, and what the person typed is
+ * still in the fields for them to correct the one word that was wrong. This is that last half,
+ * which is the only half this component owns; the sentence is Rust's and `setup.test.ts` pins it
+ * to what `setup.rs` formats, both group names included, and pins the walk staying put.
+ */
+test('a create refused over the group leaves the name step filled in, so the group can be corrected', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	// what the route hands in after a refused create: it caught the refusal, the shared handler
+	// said it, and the walk was left on the step it was on with the field still asked for.
+	const onCreate = vi.fn(async () => {});
+
+	walk('name', { askGroup: true, onCreate });
+	await fillAndCreate('rentabel');
+
+	await waitFor(() => {
+		expect(onCreate).toHaveBeenCalledWith(
+			'Acme Rentals',
+			'olivia.owner',
+			'a long enough password',
+			'rentabel'
+		);
+	});
+
+	// the step is still the name step, with all four values where the person left them, so the
+	// one word that was wrong is the only one they retype.
+	expect(inputsOnScreen().map((input) => [input.getAttribute('name'), input.value])).toEqual([
+		['name', 'Acme Rentals'],
+		['username', 'olivia.owner'],
+		['password', 'a long enough password'],
+		['group', 'rentabel']
+	]);
 });
 
 // criterion 21: the owner's username is refused on the field with the one sentence the invite
@@ -135,16 +367,21 @@ test('the connect step asks for nothing and says what has to be known first', ()
 	walk('connect');
 
 	expect(inputsOnScreen()).toEqual([]);
-	expect(screen.getByText(en.organization.setup.connectGroup, { exact: false })).toBeDefined();
-	expect(screen.getByText(en.organization.setup.connectAccount)).toBeDefined();
-	expect(screen.getByText(en.organization.setup.connectSuccession)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.groupCoverage, { exact: false })).toBeDefined();
+	expect(screen.getByText(en.organization.setup.oneOrganization)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.accountCreation)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.succession)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.groupAskedOnce)).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.connect })).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.openDashboard })).toBeDefined();
 });
 
-// effort 824, requirement 5: three facts as a list, a glyph to each, the dashboard action inside
-// the first, and no paragraph left outside the list (*Supercharge the defaults*, p.220).
-test('the connect step is a list of three glyphed facts with the dashboard action in the first', () => {
+// effort 824, requirement 5: the facts as a list, a glyph to each, the dashboard action inside
+// the first, and no paragraph left outside the list (*Supercharge the defaults*, p.220). The
+// fourth fact is effort 826's requirement 21: one group holds one organization. The fifth is
+// requirement 13's fourth correction: a group holding nothing yet is asked its name once, said
+// here so that the field on the next step is a step rather than the first news of a failure.
+test('the connect step is a list of glyphed facts with the dashboard action in the first', () => {
 	loadLocale('en');
 	setLocale('en');
 
@@ -152,11 +389,13 @@ test('the connect step is a list of three glyphed facts with the dashboard actio
 	const body = document.querySelector('[data-setup-step="connect"]')!;
 	const items = Array.from(body.querySelectorAll('ul > li'));
 
-	expect(items).toHaveLength(3);
+	expect(items).toHaveLength(5);
 	expect(items.map((item) => item.getAttribute('data-setup-statement'))).toEqual([
-		'groupPreparation',
+		'groupCoverage',
+		'oneOrganization',
 		'accountCreation',
-		'succession'
+		'succession',
+		'groupAskedOnce'
 	]);
 
 	for (const item of items) {
@@ -178,6 +417,25 @@ test('the connect step is a list of three glyphed facts with the dashboard actio
 	);
 });
 
+// effort 826, requirement 21: a run refused because the group already holds an organization
+// comes back here saying so, with the consent on offer again rather than the way on: the
+// authority the refusal gave back is gone, so there is nothing to continue with.
+test('a refused run says so on the connect step and offers the consent again', () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const refusal =
+		'this group already holds the organization database `org-7f3a`; a group holds one organization, so pick another group or another Turso account';
+
+	walk('connect', { refusal });
+
+	expect(screen.getByText(refusal)).toBeDefined();
+	expect(screen.getByRole('button', { name: en.organization.setup.connect })).toBeDefined();
+	expect(screen.queryByRole('button', { name: en.organization.setup.continue })).toBeNull();
+	// and it is said instead of the confirmation, never beside it.
+	expect(screen.queryByText(en.organization.setup.connected)).toBeNull();
+});
+
 test('a granted consent offers the way on and the way to give the authority back', () => {
 	loadLocale('en');
 	setLocale('en');
@@ -185,7 +443,7 @@ test('a granted consent offers the way on and the way to give the authority back
 
 	expect(screen.getByText(en.organization.setup.connected)).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.continue })).toBeDefined();
-	const disconnect = screen.getByRole('button', { name: en.organization.disconnectAction });
+	const disconnect = screen.getByRole('button', { name: en.organization.dashboard.forgetAccount });
 
 	expect(disconnect).toBeDefined();
 	expect(disconnect.querySelector('svg')).not.toBeNull();
@@ -203,7 +461,9 @@ test('a machine that already holds the authority opens the connect step granted,
 
 	expect(screen.getByText(en.organization.setup.connected)).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.continue })).toBeDefined();
-	expect(screen.getByRole('button', { name: en.organization.disconnectAction })).toBeDefined();
+	expect(
+		screen.getByRole('button', { name: en.organization.dashboard.forgetAccount })
+	).toBeDefined();
 	expect(screen.queryByRole('button', { name: en.organization.setup.connect })).toBeNull();
 	expect(onConnect).not.toHaveBeenCalled();
 });
@@ -328,13 +588,13 @@ test('the connect, continue and create buttons carry a glyph before their label'
 
 // effort 824, requirement 15: each field carries its subject ahead of the input, muted so it does
 // not outweigh the label (*Balance weight and contrast*, Refactoring UI p.56).
-test('the name, username, password and workspace fields carry a muted leading glyph through the input group', () => {
+test('the name, username, password, group and workspace fields carry a muted leading glyph through the input group', () => {
 	loadLocale('en');
 	setLocale('en');
 
-	const naming = walk('name');
+	const naming = walk('name', { askGroup: true });
 
-	for (const name of ['name', 'username', 'password']) {
+	for (const name of ['name', 'username', 'password', 'group']) {
 		const addon = addonBefore(name);
 
 		expect(addon.querySelector('svg'), name).not.toBeNull();
@@ -373,16 +633,22 @@ test('the walk renders in arabic with the same fields on each step', () => {
 	loadLocale('ar');
 	setLocale('ar');
 
-	const naming = walk('name', {}, 'rtl');
+	const naming = walk('name', { askGroup: true }, 'rtl');
 
 	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
 		'name',
 		'username',
-		'password'
+		'password',
+		'group'
 	]);
 	expect(screen.getByText(ar.organization.setup.nameLabel)).toBeDefined();
 	expect(screen.getByText(ar.organization.setup.usernameLabel)).toBeDefined();
 	expect(ar.organization.setup.usernameLabel).not.toBe(en.organization.setup.usernameLabel);
+	expect(screen.getByText(ar.organization.setup.groupNeeded)).toBeDefined();
+	expect(ar.organization.setup.groupNeeded).not.toBe(en.organization.setup.groupNeeded);
+	expect(screen.getByText(ar.organization.setup.groupLabel)).toBeDefined();
+	expect(screen.getByText(ar.organization.setup.groupDescription)).toBeDefined();
+	expect(ar.organization.setup.groupDescription).not.toBe(en.organization.setup.groupDescription);
 	expect(screen.getByRole('button', { name: ar.organization.setup.create })).toBeDefined();
 	expect(screen.getAllByRole('button', { name: ar.organization.setup.back })).toHaveLength(1);
 	naming.unmount();
