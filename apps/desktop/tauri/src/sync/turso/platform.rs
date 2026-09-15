@@ -60,9 +60,20 @@ use serde_json::{Value, json};
 
 use crate::{diagnostics, error::Error, http::build_client};
 
-use super::{consent::platform_token, discovery::TursoOrganization};
+use super::{
+    consent::platform_token,
+    discovery::{TursoOrganization, group_named_in, group_record_from},
+};
 
 const TURSO_PLATFORM_API: &str = "https://api.turso.tech";
+
+/// What a refusal means where the question is whether something is there at all: not there.
+///
+/// Both statuses are answers rather than failures on the two group calls, and for the same
+/// reason. A team organization's slug is not the owner's username, so the path built out of it
+/// names an organization this token is not in, and Turso says so with one of these. The caller
+/// asks somebody instead of stopping.
+const ABSENT: [u16; 2] = [403, 404];
 
 /// Matches the timeout every other credential-path request in this crate sets.
 const PLATFORM_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -233,6 +244,28 @@ pub trait TursoPlatform {
         &self,
         database_name: &str,
     ) -> impl Future<Output = Result<(), PlatformError>> + Send;
+
+    /// What the consented group is called, where the Platform API will say it.
+    ///
+    /// **The one call in this port that builds no path out of the slug**, and it is here because
+    /// of when it is made: a first run into an empty group has no slug yet, and the group's name
+    /// is what the create it is about to make needs. `GET /v1/user` takes none and names the
+    /// person, and a personal account's organization slug is that username, so the groups under
+    /// it can be listed and the one the consent's uuid names read out.
+    ///
+    /// **The token is handed in rather than read.** Every other method here reads the keyring at
+    /// the call, because a consent the owner gave up must stop being spent; this one is made in
+    /// the middle of a first run that is already holding the token it was given, and passing it
+    /// keeps that run reading one authority throughout.
+    ///
+    /// `None` wherever the answer is not there to be had: an account whose slug is not the
+    /// username, which Turso refuses with a 403 or a 404, a uuid naming none of the groups
+    /// listed, or several groups and no uuid to pick between them. The caller has another way.
+    fn group_named(
+        &self,
+        platform_token: &str,
+        group_uuid: Option<&str>,
+    ) -> impl Future<Output = Result<Option<String>, PlatformError>> + Send;
 }
 
 /// A shared port is a port: a caller that is handed the platform by a factory can keep a handle on
@@ -265,6 +298,14 @@ impl<T: TursoPlatform + Sync + Send> TursoPlatform for std::sync::Arc<T> {
 
     async fn rotate_credentials(&self, database_name: &str) -> Result<(), PlatformError> {
         (**self).rotate_credentials(database_name).await
+    }
+
+    async fn group_named(
+        &self,
+        platform_token: &str,
+        group_uuid: Option<&str>,
+    ) -> Result<Option<String>, PlatformError> {
+        (**self).group_named(platform_token, group_uuid).await
     }
 }
 
@@ -461,6 +502,64 @@ impl TursoPlatform for PlatformApi {
             })
     }
 
+    async fn group_named(
+        &self,
+        platform_token: &str,
+        group_uuid: Option<&str>,
+    ) -> Result<Option<String>, PlatformError> {
+        let what = "read the name of the organization's turso group";
+        let client = client()?;
+
+        // the one endpoint here with no organization in its path, which is the whole reason this
+        // is the call a run with no slug can make.
+        let Some(user) = call_unless(
+            what,
+            client
+                .get(format!("{}/v1/user", self.endpoint.base))
+                .bearer_auth(platform_token),
+            &ABSENT,
+        )
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        // a personal account's organization slug is the username, and nothing else this answers
+        // is read. On a team account the slug is the team's and this path is a 404, which is an
+        // answer rather than a failure.
+        let Some(username) = user
+            .pointer("/user/username")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|username| !username.is_empty())
+        else {
+            return Ok(None);
+        };
+
+        let Some(listed) = call_unless(
+            what,
+            client
+                .get(format!(
+                    "{}/v1/organizations/{username}/groups",
+                    self.endpoint.base
+                ))
+                .bearer_auth(platform_token),
+            &ABSENT,
+        )
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        let groups: Vec<_> = listed
+            .get("groups")
+            .and_then(Value::as_array)
+            .map(|groups| groups.iter().filter_map(group_record_from).collect())
+            .unwrap_or_default();
+
+        Ok(group_named_in(&groups, group_uuid))
+    }
+
     async fn protect_database(&self, name: &str) -> Result<(), PlatformError> {
         let client = client()?;
         let platform_token = authority()?;
@@ -545,6 +644,20 @@ async fn call(
     what: &'static str,
     request: reqwest::RequestBuilder,
 ) -> Result<Value, PlatformError> {
+    // no status is an absence here, so the `None` below cannot be reached; the empty object is
+    // what an unreadable body already answers.
+    call_unless(what, request, &[])
+        .await
+        .map(|body| body.unwrap_or_else(|| Value::Object(Default::default())))
+}
+
+/// The same call, answering `None` where Turso refused with one of `absent` rather than treating
+/// that refusal as a failure. Only a caller asking whether something exists passes any.
+async fn call_unless(
+    what: &'static str,
+    request: reqwest::RequestBuilder,
+    absent: &[u16],
+) -> Result<Option<Value>, PlatformError> {
     let response = request.send().await.map_err(|error| {
         diagnostics::warn("turso.platform.unreachable")
             .with("what", what)
@@ -557,6 +670,18 @@ async fn call(
     let status = response.status();
 
     if !status.is_success() {
+        // an answer rather than a failure, so it is not written as one: the caller asked whether
+        // something was there and Turso said it was not. Turso's own words are not read, because
+        // there is nothing here for them to explain.
+        if absent.contains(&status.as_u16()) {
+            diagnostics::info("turso.platform.absent")
+                .with("what", what)
+                .with("status", status.as_u16().to_string())
+                .write();
+
+            return Ok(None);
+        }
+
         let body = response.text().await.unwrap_or_default();
 
         diagnostics::error("turso.platform.refused")
@@ -575,10 +700,12 @@ async fn call(
         });
     }
 
-    Ok(response
-        .json()
-        .await
-        .unwrap_or(Value::Object(Default::default())))
+    Ok(Some(
+        response
+            .json()
+            .await
+            .unwrap_or(Value::Object(Default::default())),
+    ))
 }
 
 /// Whether a refusal is about the customer's account rather than about the request.
@@ -714,6 +841,8 @@ struct InMemoryState {
     /// how many operations have been asked, so a refusal can be placed on the nth.
     asked: usize,
     refuse_at: Option<(usize, PlatformError)>,
+    /// what this account calls the consented group, where the caller said it has one to find.
+    group_name: Option<String>,
 }
 
 #[cfg(test)]
@@ -744,6 +873,12 @@ impl InMemoryPlatform {
             delete_protection: false,
             rotations: 0,
         });
+    }
+
+    /// what `group_named` answers. Nothing by default, which is the account whose slug is not
+    /// the owner's username and the one a first run has to find the group some other way on.
+    pub(crate) fn naming_the_group(&self, name: &str) {
+        self.locked().group_name = Some(name.to_string());
     }
 
     /// the next operation fails with `error`, and the one after it is answered normally.
@@ -882,6 +1017,17 @@ impl TursoPlatform for InMemoryPlatform {
         Ok(())
     }
 
+    /// **A read, and it takes no turn at the refusal hooks.** Those count the operations a
+    /// caller's sequence is asserted on, and this one is asked before a first run has created
+    /// anything, so counting it would move every `refuse_nth` in the crate by one.
+    async fn group_named(
+        &self,
+        _platform_token: &str,
+        _group_uuid: Option<&str>,
+    ) -> Result<Option<String>, PlatformError> {
+        Ok(self.locked().group_name.clone())
+    }
+
     async fn rotate_credentials(&self, database_name: &str) -> Result<(), PlatformError> {
         let mut state = self.locked();
         Self::take_refusal(&mut state)?;
@@ -963,6 +1109,17 @@ mod tests {
         let platform = PlatformApi::new(PlatformEndpoint::at(&server.url("")), organization());
 
         (platform, server, turn)
+    }
+
+    /// A client against a scripted server, with no credential filed and no turn taken on the
+    /// store. `group_named` is handed the token it spends, so the keyring is not in its way, and
+    /// a test that scripts two accounts can stand up two of these; two turns on the store would
+    /// be one test waiting on itself.
+    async fn platform_at(script: Vec<ScriptedResponse>) -> (PlatformApi, ScriptedServer) {
+        let server = ScriptedServer::start(script).await;
+        let platform = PlatformApi::new(PlatformEndpoint::at(&server.url("")), organization());
+
+        (platform, server)
     }
 
     fn created(hostname: &str) -> ScriptedResponse {
@@ -1191,6 +1348,172 @@ mod tests {
             json!({ "delete_protection": true })
         );
         assert_eq!(server.request_count(), 1);
+    }
+
+    /// **Ticket 21.** The second of the two ways a first run learns the group's name: the one
+    /// endpoint that takes no slug names the person, a personal account's organization slug is
+    /// that username, and the groups under it carry the name against the uuid the consent's
+    /// token holds.
+    #[tokio::test]
+    async fn the_group_is_read_from_the_user_and_the_groups_listed_under_their_username() {
+        let (platform, server) = platform_at(vec![
+            ScriptedResponse::new(200, json!({ "user": { "username": "olivia" } }).to_string()),
+            ScriptedResponse::new(
+                200,
+                json!({ "groups": [
+                    { "name": "rents", "uuid": "11111111-1111-4111-8111-111111111111" },
+                    {
+                        "name": "rentable-empty",
+                        "uuid": "6f5b6f60-1d4a-4b4a-9c2e-0b0a1d2c3e4f",
+                        "locations": ["aws-eu-west-1"],
+                        "primary": "aws-eu-west-1"
+                    }
+                ] })
+                .to_string(),
+            ),
+        ])
+        .await;
+
+        let named = platform
+            .group_named(TOKEN, Some("6f5b6f60-1d4a-4b4a-9c2e-0b0a1d2c3e4f"))
+            .await
+            .expect("the group lookup failed");
+
+        assert_eq!(named.as_deref(), Some("rentable-empty"));
+
+        let user = server.request(0);
+
+        assert_eq!(user.method, "GET");
+        assert_eq!(user.target, "/v1/user");
+        assert_eq!(
+            user.header("authorization"),
+            Some("Bearer a-platform-token")
+        );
+
+        let groups = server.request(1);
+
+        assert_eq!(groups.method, "GET");
+        assert_eq!(groups.target, "/v1/organizations/olivia/groups");
+        assert_eq!(
+            groups.header("authorization"),
+            Some("Bearer a-platform-token")
+        );
+        assert_eq!(server.request_count(), 2, "two reads, and nothing else");
+        assert_never_lists_organizations(&server);
+    }
+
+    /// A team organization's slug is not the owner's username, so the path built out of it is
+    /// one this token is not in and Turso refuses it. That is the answer being absent rather
+    /// than a first run that cannot continue, and the same holds on either call.
+    #[tokio::test]
+    async fn a_refusal_on_either_group_call_is_nothing_found_rather_than_a_failure() {
+        let (platform, server) = platform_at(vec![
+            ScriptedResponse::new(200, json!({ "user": { "username": "olivia" } }).to_string()),
+            refusal(403, "you are not a member of organization olivia"),
+        ])
+        .await;
+
+        assert_eq!(
+            platform
+                .group_named(TOKEN, Some("6f5b6f60-1d4a-4b4a-9c2e-0b0a1d2c3e4f"))
+                .await
+                .expect("a 403 on the groups listing was reported as a failure"),
+            None
+        );
+        assert_eq!(server.request_count(), 2);
+
+        let (refused, _server) = platform_at(vec![refusal(404, "not found")]).await;
+
+        assert_eq!(
+            refused
+                .group_named(TOKEN, None)
+                .await
+                .expect("a 404 on the user endpoint was reported as a failure"),
+            None
+        );
+    }
+
+    /// And a refusal that is neither is still a refusal: a token Turso will not take at all is
+    /// not a group this run should go on to ask somebody about.
+    #[tokio::test]
+    async fn a_refusal_that_is_not_an_absence_is_still_a_failure() {
+        let (platform, _server) = platform_at(vec![refusal(401, "unauthorized")]).await;
+
+        assert_eq!(
+            platform.group_named(TOKEN, None).await,
+            Err(PlatformError::Refused {
+                what: "read the name of the organization's turso group"
+            })
+        );
+    }
+
+    /// Where the uuid names none of the groups, one group is the answer and several are not.
+    #[tokio::test]
+    async fn one_group_is_the_answer_and_several_with_no_match_are_not() {
+        let user =
+            || ScriptedResponse::new(200, json!({ "user": { "username": "o" } }).to_string());
+        let (only, _server) = platform_at(vec![
+            user(),
+            ScriptedResponse::new(
+                200,
+                json!({ "groups": [{ "name": "rentable-empty", "uuid": "a-uuid" }] }).to_string(),
+            ),
+        ])
+        .await;
+
+        assert_eq!(
+            only.group_named(TOKEN, None)
+                .await
+                .expect("the group lookup failed")
+                .as_deref(),
+            Some("rentable-empty")
+        );
+
+        let (several, _server) = platform_at(vec![
+            user(),
+            ScriptedResponse::new(
+                200,
+                json!({ "groups": [
+                    { "name": "rents", "uuid": "one" },
+                    { "name": "somebody-elses", "uuid": "another" }
+                ] })
+                .to_string(),
+            ),
+        ])
+        .await;
+
+        assert_eq!(
+            several
+                .group_named(TOKEN, Some("a-uuid-neither-of-them-carries"))
+                .await
+                .expect("the group lookup failed"),
+            None,
+            "one of two groups was picked for a uuid that names neither"
+        );
+    }
+
+    /// The stand-in answers what it was told to, which is how a caller's two ways of learning
+    /// the group are told apart in a test that makes no requests at all.
+    #[tokio::test]
+    async fn the_in_memory_platform_answers_the_group_it_was_given() {
+        let platform = InMemoryPlatform::new("an-org");
+
+        assert_eq!(
+            platform.group_named(TOKEN, None).await,
+            Ok(None),
+            "a platform nobody named a group on answered one"
+        );
+
+        platform.naming_the_group("rentable-empty");
+
+        assert_eq!(
+            platform
+                .group_named(TOKEN, Some("a-uuid"))
+                .await
+                .expect("the group lookup failed")
+                .as_deref(),
+            Some("rentable-empty")
+        );
     }
 
     // Turso's own message names a database and sometimes an organization. The caller is asking
