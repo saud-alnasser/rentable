@@ -73,7 +73,13 @@ and its account menu reads as one.
    a wrong code, a lapsed code or no code reaches nothing, and the refusal names which. The
    code is a key half and never a check: a modified client holding the link is no better off
    than an honest one. *Chosen over a code the client checks, which is a speed bump and not a
-   lock, and over leaving the link as it is with the risk recorded.*
+   lock, and over leaving the link as it is with the risk recorded.* **One code per link,
+   living as long as the link.** *Corrected 2026-09-15 at the plan: the seal has to ride in the
+   link's own text, since nothing reads a row before the credential is out, so a fresh code
+   would be a fresh link text to re-send. The human chose one code for the link's life over
+   ninety seconds with a fresh code being a fresh link. The clock never bounded an attacker; the
+   derivation does, as 826's requirement 23 said. 826's ninety-second code and its fresh-code
+   control are superseded.*
 2. **The credential inside a link lapses on its own.** What a link seals is a credential that
    expires: for an invitation and a reset, the issuer's own grant on the organization
    database, which is minted for four weeks and renewed on the owner's machine; for a
@@ -85,9 +91,10 @@ and its account menu reads as one.
    makes a link and a code for another machine. Opening the link on a machine holding no
    organization, with the code, connects the machine and lands on the wall, where the same
    username and password sign them in; the password does not change. The link admits one
-   machine, once, and lapses after seven days like an invitation; the code lapses after
-   ninety seconds and a fresh one is made from the same place. Nobody but the member makes
-   one: an administrator who needs to get a member back in issues a reset, which already
+   machine, once, and lapses after seven days like an invitation, or sooner where the
+   credential it carries lapses first; the code is the link's own and lives as long as it,
+   and a person who lost the pair makes another from the same place. Nobody but the member
+   makes one: an administrator who needs to get a member back in issues a reset, which already
    exists. *Chosen over a holder of `resetPassword` making it from the member's row, which
    makes a person setting up a laptop call somebody, and over both.*
 4. **The organization's own link is handed to nobody.** It stays in the sync section for the
@@ -99,8 +106,8 @@ and its account menu reads as one.
 5. **What a link is worth is stated once.** [[rules/credentials]] and
    [[contexts/desktop/organization]] say what each kind of link carries, what stands between
    a found link and the directory, and that the organization's own link is the one credential
-   that never lapses. 826's requirement 10 and its *Link* entry are corrected rather than
-   contradicted.
+   that never lapses. 826's requirements 10 and 23 and its *Link* entry are corrected rather
+   than contradicted.
 
 *The settings area*
 
@@ -127,8 +134,8 @@ and its account menu reads as one.
    sentence; nothing about the password is drawn until the person asks to change it. The
    other-machines act stays as it is. The second-machine act of requirement 3 joins them,
    under its own heading, and the link and code it produces are shown the way an invitation's
-   are: the link with one copy control, the code large with its seconds counted down and no
-   copy control.
+   are: the link with one copy control, the code large and with none, and the date the pair
+   lapses.
 
 *The rail*
 
@@ -163,7 +170,7 @@ and its account menu reads as one.
 3. A signed-in member's you section offers a control that produces a link and a code; a Rust
    test opens the link with the code on a second store, lands connected with no member, signs
    in with the unchanged password, and finds the link refused on a second opening and after
-   seven days; the code is refused after ninety seconds and a fresh one is accepted.
+   seven days; a wrong code is refused by name.
 4. The sync section, for the owner, still shows the organization link under a sentence that
    names it as the recovery copy and points a member to their you section; for anybody else
    the block is absent. A Rust test connects a machine with it and no code.
@@ -179,7 +186,7 @@ and its account menu reads as one.
 8. The you section's test finds no password field until the change control is pressed, then
    the shared form surface with the three fields and the floor sentence; and finds the
    second-machine control, which on press shows a link with one copy control and a code with
-   its countdown and none.
+   none.
 9. The workspace menu's test finds the header, the switch rows with the open one marked, and
    one row to the workspaces section, and finds no invite row, no create row and no refusal
    sentence.
@@ -240,5 +247,9 @@ and its account menu reads as one.
   read may lapse before the owner's machine renews; the sign-in that follows opens the vault,
   which holds the renewed one, so the window is the connect itself. The plan says how it is
   handled.
+- **The row that spends a second-machine link is unsigned**, like the session epoch, because
+  a plain member signs nothing. *Added 2026-09-15 at the plan.* A rewritten row reopens a
+  spent link on one more machine, which lands at the wall where the password still admits;
+  it gates availability and never authority.
 - **Reshaping three sections at once** is where a look drifts; judging each on real rows is
   the guard, and a section can land on its own commit.
