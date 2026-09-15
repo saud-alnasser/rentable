@@ -4,10 +4,12 @@
 		OrganizationWorkspace,
 		WorkspaceGrant
 	} from '$lib/platform/tauri';
+	import type { RecordCardAction } from '@rentable/design/block/record-card.svelte';
+	import RowActions from '@rentable/design/block/row-actions.svelte';
 	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
+	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { formatRecordDate } from '$lib/design/date';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { accountInitials } from '$lib/sync/account';
@@ -27,7 +29,6 @@
 	import UserMinusIcon from '@lucide/svelte/icons/user-minus';
 	import UserPenIcon from '@lucide/svelte/icons/user-pen';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
-	import type { Component } from 'svelte';
 
 	/**
 	 * Everybody in the organization, as one list.
@@ -38,17 +39,22 @@
 	 * facts in weaker words and left the reader to match a name in one list against a name in the
 	 * other. *There was one until this ticket, from a call of its own.*
 	 *
-	 * **The row is two lines and the actions are a cluster**, which is what the human chose on
-	 * screen against the real organization when the settings area was prototyped.
-	 * The identity leads: the avatar, the username, the role, and on a pending row the badge with
-	 * the expiry. The workspaces follow as chips carrying their own access, with the label folded
-	 * into the value (*Labels are a last resort*, Refactoring UI p.48). The actions appear on
-	 * hover and on focus, so a list of twenty people is a list of people rather than a wall of
-	 * controls; `focus-within` is what keeps every one of them reachable from the keyboard, and
-	 * they are drawn at full opacity rather than removed, so nothing moves when they arrive. The
-	 * single line with five trailing buttons that this replaced was withdrawn there.
+	 * **The section says what it is for before it lists anybody** (requirement 6 of effort 828).
+	 * The legend and one sentence lead, the invite stands beside them as the section's one primary
+	 * (*Semantics are secondary*, Refactoring UI p.60), and the list follows. The sentence sits
+	 * against the legend and the list sits well clear of both, so the head reads as one thing
+	 * rather than as the first row of another (*Avoid ambiguous spacing*, p.96). The invite used
+	 * to trail the list, where a reader met it after scrolling past everybody already invited.
 	 *
-	 * **A control for an act the session lacks is absent, not disabled.** Each gate is drawn from
+	 * **The row is two lines and every act is behind one visible control.** The identity leads:
+	 * the avatar, the username, the role, and on a pending row the badge with the expiry. The
+	 * workspaces follow as chips carrying their own access, with the label folded into the value
+	 * (*Labels are a last resort*, p.48). The row ends in the shared `row-actions` control, whose
+	 * menu holds the acts in four groups: what the person is called, what they may do, their way
+	 * in, and leaving. *Up to eight glyphs appeared here on hover until this ticket, which
+	 * promised nothing to a reader who never swept the row and made eight decisions out of one.*
+	 *
+	 * **An act the session lacks is absent from the menu, not disabled.** Each gate is drawn from
 	 * the reader's own permissions and refused again in Rust on the signed row; the two
 	 * owner-only sentences the spec names are the exception, and they are in the dialogs that
 	 * carry them rather than here.
@@ -56,9 +62,10 @@
 	 * **Removal has two speeds, and the ordinary one is the control.** Removing stops renewing:
 	 * the member's credential runs out within its lifetime and nobody else notices. Locking out
 	 * rotates every workspace they held and stops everybody else in those workspaces until their
-	 * application reconnects; it is drawn for the owner alone, as a separate, lesser control,
-	 * because it is chosen rather than fallen into, and what it costs is said by the dialog that
-	 * asks before it runs. That dialog reads a query, so it lives on the route and this raises it.
+	 * application reconnects; it is drawn for the owner alone, in the last group and under the
+	 * remove, because it is chosen rather than fallen into, and what it costs is said by the
+	 * dialog that asks before it runs. That dialog reads a query, so it lives on the route and
+	 * this raises it.
 	 *
 	 * **The three light dialogs are mounted here once** and opened on whichever row named them:
 	 * the role and its acts, the workspaces and their access, and the rename. The invite dialog
@@ -231,235 +238,239 @@
 			access: (member.workspaces.find((held) => held.id === workspace.id)?.access ??
 				'none') as AccessChoice
 		}));
+
+	/**
+	 * what this reader may do to one person, in the four groups the menu separates.
+	 *
+	 * The order is requirement 6's and is read here as a list: what they are called, what they may
+	 * do, their way in, and leaving. Every gate is the one the cluster carried before it, and an
+	 * act the reader does not hold leaves no entry, so a group can empty and the block draws
+	 * neither its items nor a separator.
+	 *
+	 * `attributes` is what the section is read by, here and in its test: the act and the row it
+	 * acts on, which is what the cluster's controls carried and what the menu items carry now.
+	 */
+	const actsOn = (member: OrganizationMember): RecordCardAction[][] => {
+		const invitation = member.pending;
+
+		return [
+			// the rename is the one act drawn on the owner's row: an account's name is given and
+			// changed by an administrator and never by its holder, and the spec names the row
+			// rather than the role.
+			canRename && member.id !== selfId
+				? [
+						{
+							label: $LL.organization.dashboard.rename(),
+							icon: UserPenIcon,
+							attributes: { 'data-member-rename': member.id },
+							onSelect: () => {
+								renaming = member;
+							}
+						}
+					]
+				: [],
+
+			[
+				...(canChangeRole && writable(member)
+					? [
+							{
+								label: $LL.organization.dashboard.changeRoleTitle(),
+								icon: ShieldIcon,
+								attributes: { 'data-member-role': member.id },
+								onSelect: () => {
+									changingRole = member;
+								}
+							}
+						]
+					: []),
+				...(canGrantWorkspace && writable(member)
+					? [
+							{
+								label: $LL.organization.dashboard.accessTitle(),
+								icon: KeyIcon,
+								attributes: { 'data-member-access': member.id },
+								onSelect: () => {
+									changingAccess = member;
+								}
+							}
+						]
+					: [])
+			],
+
+			[
+				// the link and its code, shown again: only the issuer's own vault opens what the
+				// row sealed them under, so for anybody else the row offers a new link, which is
+				// a reset.
+				...(invitation && canInvite && invitation.canCopy
+					? [
+							{
+								label: $LL.organization.dashboard.copyLink(),
+								icon: CopyIcon,
+								attributes: { 'data-member-copy-link': member.id },
+								disabled: copying !== null,
+								onSelect: () =>
+									onCopyLink(invitation.invitationId, member.username, invitation.expiresAt)
+							}
+						]
+					: []),
+				...(canReset && writable(member)
+					? [
+							{
+								label: $LL.organization.dashboard.newLink(),
+								icon: RefreshCwIcon,
+								attributes: { 'data-member-new-link': member.id },
+								disabled: reissuing !== null,
+								onSelect: () => onReissue(member.id)
+							},
+							// beside the new link and behind the same act, because the two are the
+							// same trust read twice: whoever may hand somebody a fresh way in may
+							// close the ways in that are already open (effort 826, requirement 22).
+							{
+								label: $LL.organization.dashboard.endSessions(),
+								icon: LaptopIcon,
+								attributes: { 'data-member-end-sessions': member.id },
+								disabled: endingSessions !== null,
+								onSelect: () => onEndSessions(member.id)
+							}
+						]
+					: []),
+				...(invitation && canInvite
+					? [
+							{
+								label: $LL.organization.dashboard.revoke(),
+								icon: BanIcon,
+								attributes: { 'data-member-revoke': member.id },
+								disabled: revoking !== null,
+								onSelect: () => onRevoke(invitation.invitationId)
+							}
+						]
+					: [])
+			],
+
+			[
+				...(canRemove && writable(member)
+					? [
+							{
+								label: $LL.organization.dashboard.remove(),
+								icon: UserMinusIcon,
+								variant: 'destructive' as const,
+								attributes: { 'data-member-remove': member.id },
+								onSelect: () => onRemove(member.id)
+							}
+						]
+					: []),
+				...(canRemove && canLockOut && writable(member)
+					? [
+							{
+								label: $LL.organization.dashboard.removeAndLockOut(),
+								icon: LockIcon,
+								variant: 'destructive' as const,
+								attributes: { 'data-member-lock-out': member.id },
+								onSelect: () => onLockOut(member.id)
+							}
+						]
+					: [])
+			]
+		];
+	};
 </script>
 
-<!--
-	one action on a row, as a glyph that says what it is on hover and to a screen reader.
-
-	`aria-label` rather than a visible word: five to eight of these on a row is a row of labels
-	otherwise, and the cluster is what the prototype settled. The tooltip carries the same words
-	for a pointer.
--->
-{#snippet action(
-	label: string,
-	Icon: Component<{ class?: string }>,
-	attribute: string,
-	id: string,
-	onclick: () => void,
-	busy: boolean = false,
-	tone: 'plain' | 'destructive' = 'plain'
-)}
-	<Tooltip.Root>
-		<Tooltip.Trigger>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					variant="ghost"
-					size="icon-sm"
-					class={tone === 'destructive' ? 'text-destructive hover:text-destructive' : undefined}
-					disabled={busy}
-					aria-label={label}
-					{...{ [attribute]: id }}
-					{onclick}
-				>
-					<Icon class="size-4" />
-					<span class="sr-only">{label}</span>
-				</Button>
-			{/snippet}
-		</Tooltip.Trigger>
-		<Tooltip.Content>{label}</Tooltip.Content>
-	</Tooltip.Root>
-{/snippet}
-
-<div class="flex flex-col gap-1" data-members>
-	{#each members as member (member.id)}
-		<div
-			class="group flex items-start gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/40"
-			data-member={member.id}
-		>
-			<!-- the same disc the rail's account control and the identity block draw, with the same
-			     two letters (requirement 24 of effort 824). -->
-			<Avatar.Root class="size-10 shrink-0 rounded-full">
-				<Avatar.Fallback class="rounded-full text-xs">
-					{accountInitials(member.username)}
-				</Avatar.Fallback>
-			</Avatar.Root>
-
-			<div class="flex min-w-0 flex-1 flex-col gap-1">
-				<div class="flex min-w-0 flex-wrap items-center gap-2">
-					<p class="truncate text-sm font-medium" data-member-username>{member.username}</p>
-					<Badge variant="secondary">{roleLabel(member.role)}</Badge>
-					{#if member.pending}
-						<Badge variant="outline" data-member-pending={member.pending.standing}>
-							{member.pending.standing === 'lapsed'
-								? $LL.organization.dashboard.standingLapsed()
-								: $LL.organization.dashboard.notYetSignedIn()}
-						</Badge>
-						<span class="text-xs text-muted-foreground" data-member-expiry>
-							{member.pending.standing === 'lapsed'
-								? $LL.organization.dashboard.invitationLapsed({
-										date: formatRecordDate($locale, member.pending.expiresAt)
-									})
-								: $LL.organization.dashboard.invitationExpires({
-										date: formatRecordDate($locale, member.pending.expiresAt)
-									})}
-						</span>
-					{/if}
-				</div>
-
-				<!-- the workspaces as chips carrying their own access: the label is folded into the
-				     value, so a row says what somebody holds without a heading saying so. -->
-				<div class="flex min-w-0 flex-wrap items-center gap-1">
-					{#each member.workspaces as workspace (workspace.id)}
-						<Badge variant="outline" class="gap-1 font-normal" data-member-workspace={workspace.id}>
-							<span class="truncate">{workspaceName(workspace.id)}</span>
-							<span class="text-muted-foreground">{accessLabel(workspace.access)}</span>
-						</Badge>
-					{/each}
-					{#if member.workspaces.length === 0}
-						<span class="text-xs text-muted-foreground" data-member-no-workspace={member.id}>
-							{$LL.organization.dashboard.noWorkspaces()}
-						</span>
-					{/if}
-				</div>
-			</div>
-
-			<!-- on hover and on focus, and never gone: opacity keeps the row's geometry still, and
-			     `focus-within` is what puts every control in the keyboard's reach. -->
-			<div
-				class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
-				data-member-actions={member.id}
-			>
-				{#if canChangeRole && writable(member)}
-					{@render action(
-						$LL.organization.dashboard.changeRoleTitle(),
-						ShieldIcon,
-						'data-member-role',
-						member.id,
-						() => {
-							changingRole = member;
-						}
-					)}
-				{/if}
-
-				{#if canGrantWorkspace && writable(member)}
-					{@render action(
-						$LL.organization.dashboard.accessTitle(),
-						KeyIcon,
-						'data-member-access',
-						member.id,
-						() => {
-							changingAccess = member;
-						}
-					)}
-				{/if}
-
-				<!-- the rename is the one act drawn on the owner's row: an account's name is given and
-				     changed by an administrator and never by its holder, and the spec names the row
-				     rather than the role. -->
-				{#if canRename && member.id !== selfId}
-					{@render action(
-						$LL.organization.dashboard.rename(),
-						UserPenIcon,
-						'data-member-rename',
-						member.id,
-						() => {
-							renaming = member;
-						}
-					)}
-				{/if}
-
-				<!-- the link and its code, shown again: only the issuer's own vault opens what the
-				     row sealed them under, so for anybody else the row offers a new link, which is
-				     a reset. -->
-				{#if member.pending && canInvite && member.pending.canCopy}
-					{@const pending = member.pending}
-					{@render action(
-						$LL.organization.dashboard.copyLink(),
-						CopyIcon,
-						'data-member-copy-link',
-						member.id,
-						() => onCopyLink(pending.invitationId, member.username, pending.expiresAt),
-						copying !== null
-					)}
-				{/if}
-
-				{#if canReset && writable(member)}
-					{@render action(
-						$LL.organization.dashboard.newLink(),
-						RefreshCwIcon,
-						'data-member-new-link',
-						member.id,
-						() => onReissue(member.id),
-						reissuing !== null
-					)}
-				{/if}
-
-				<!-- beside the new link and behind the same act, because the two are the same
-				     trust read twice: whoever may hand somebody a fresh way in may close the ways
-				     in that are already open (effort 826, requirement 22). Never on the owner's
-				     row and never on the reader's own, which `writable` is. -->
-				{#if canReset && writable(member)}
-					{@render action(
-						$LL.organization.dashboard.endSessions(),
-						LaptopIcon,
-						'data-member-end-sessions',
-						member.id,
-						() => onEndSessions(member.id),
-						endingSessions !== null
-					)}
-				{/if}
-
-				{#if member.pending && canInvite}
-					{@const pending = member.pending}
-					{@render action(
-						$LL.organization.dashboard.revoke(),
-						BanIcon,
-						'data-member-revoke',
-						member.id,
-						() => onRevoke(pending.invitationId),
-						revoking !== null
-					)}
-				{/if}
-
-				{#if canRemove && writable(member)}
-					{@render action(
-						$LL.organization.dashboard.remove(),
-						UserMinusIcon,
-						'data-member-remove',
-						member.id,
-						() => onRemove(member.id),
-						false,
-						'destructive'
-					)}
-				{/if}
-
-				{#if canRemove && canLockOut && writable(member)}
-					{@render action(
-						$LL.organization.dashboard.removeAndLockOut(),
-						LockIcon,
-						'data-member-lock-out',
-						member.id,
-						() => onLockOut(member.id),
-						false,
-						'destructive'
-					)}
-				{/if}
-			</div>
+<Field.Set aria-labelledby="members-legend">
+	<!--
+		the head: what this section is, and its one primary beside it. The legend names the
+		fieldset from here rather than as its caption, because a rendered legend is taken out of
+		its fieldset's own layout and cannot stand on a line with anything.
+	-->
+	<div class="flex flex-wrap items-start justify-between gap-4">
+		<div class="min-w-0">
+			<Field.Legend id="members-legend">{$LL.settings.section.members()}</Field.Legend>
+			<Field.Description data-members-description>
+				{$LL.organization.dashboard.membersDescription()}
+			</Field.Description>
 		</div>
-	{/each}
-</div>
 
-{#if canInvite}
-	<div>
-		<!-- the verb's glyph before its label, as every primary here carries one. The dialog is the
-		     shell's, opened the same way the rail's invite row opens it. -->
-		<Button type="button" data-invite-open onclick={() => openOrganizationDialog('invite')}>
-			<UserPlusIcon class="size-4" />
-			{$LL.organization.dashboard.invite()}
-		</Button>
+		{#if canInvite}
+			<!-- the verb's glyph before its label, as every primary here carries one. The dialog is
+			     the shell's, opened the same way the rail's invite row opens it. -->
+			<Button type="button" data-invite-open onclick={() => openOrganizationDialog('invite')}>
+				<UserPlusIcon class="size-4" />
+				{$LL.organization.dashboard.invite()}
+			</Button>
+		{/if}
 	</div>
-{/if}
+
+	<div class="flex flex-col gap-1" data-members>
+		{#each members as member (member.id)}
+			<div
+				class="group flex items-start gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/40"
+				data-member={member.id}
+			>
+				<!-- the same disc the rail's account control and the identity block draw, with the same
+				     two letters (requirement 24 of effort 824). -->
+				<Avatar.Root class="size-10 shrink-0 rounded-full">
+					<Avatar.Fallback class="rounded-full text-xs">
+						{accountInitials(member.username)}
+					</Avatar.Fallback>
+				</Avatar.Root>
+
+				<div class="flex min-w-0 flex-1 flex-col gap-1">
+					<div class="flex min-w-0 flex-wrap items-center gap-2">
+						<p class="truncate text-sm font-medium" data-member-username>{member.username}</p>
+						<Badge variant="secondary">{roleLabel(member.role)}</Badge>
+						{#if member.pending}
+							<Badge variant="outline" data-member-pending={member.pending.standing}>
+								{member.pending.standing === 'lapsed'
+									? $LL.organization.dashboard.standingLapsed()
+									: $LL.organization.dashboard.notYetSignedIn()}
+							</Badge>
+							<span class="text-xs text-muted-foreground" data-member-expiry>
+								{member.pending.standing === 'lapsed'
+									? $LL.organization.dashboard.invitationLapsed({
+											date: formatRecordDate($locale, member.pending.expiresAt)
+										})
+									: $LL.organization.dashboard.invitationExpires({
+											date: formatRecordDate($locale, member.pending.expiresAt)
+										})}
+							</span>
+						{/if}
+					</div>
+
+					<!-- the workspaces as chips carrying their own access: the label is folded into the
+					     value, so a row says what somebody holds without a heading saying so. -->
+					<div class="flex min-w-0 flex-wrap items-center gap-1">
+						{#each member.workspaces as workspace (workspace.id)}
+							<Badge
+								variant="outline"
+								class="gap-1 font-normal"
+								data-member-workspace={workspace.id}
+							>
+								<span class="truncate">{workspaceName(workspace.id)}</span>
+								<span class="text-muted-foreground">{accessLabel(workspace.access)}</span>
+							</Badge>
+						{/each}
+						{#if member.workspaces.length === 0}
+							<span class="text-xs text-muted-foreground" data-member-no-workspace={member.id}>
+								{$LL.organization.dashboard.noWorkspaces()}
+							</span>
+						{/if}
+					</div>
+				</div>
+
+				<!--
+					one control, visible without a hover, opening the row's acts in four groups. A row that
+					offers this reader nothing draws none at all, which is what the block does with four
+					empty groups.
+				-->
+				<div class="shrink-0 pt-1">
+					<RowActions
+						label={$LL.organization.dashboard.memberActions({ username: member.username })}
+						groups={actsOn(member)}
+					/>
+				</div>
+			</div>
+		{/each}
+	</div>
+</Field.Set>
 
 <RenameMemberDialog
 	open={renaming !== null}

@@ -813,6 +813,12 @@ const en = {
 			back: 'back'
 		},
 		dashboard: {
+			// the sentence the members section opens with, and the name of the one control each row
+			// carries: who is listed, who keeps the list, and what pressing a row's control opens.
+			membersDescription:
+				'everybody in the organization, including the people invited who have not signed in yet; the owner and administrators make accounts here and change what each one may do.',
+			memberActions: 'what you can do with {username:string}',
+
 			inviteTitle: 'invite somebody',
 			inviteDescription:
 				'an invitation makes somebody a member: a username, a role and the workspaces they hold, each at full access or read only. you hand them the link yourself.',

@@ -26,9 +26,16 @@ import Providers from './providers.svelte';
  * (the avatar's two letters, the username, the role, and on a pending row the badge with its
  * expiry) and the workspaces as chips carrying their own access on the second.
  *
- * **What a row offers** is drawn from the reader's permissions alone, and a control for an act
- * the session lacks is absent rather than disabled. Copy link is narrower still: Rust seals the
- * link to its issuer, so the row offers it only where the payload says the reader issued it.
+ * **What a row offers** is drawn from the reader's permissions alone, and an act the session
+ * lacks is absent from the menu rather than disabled in it. Copy link is narrower still: Rust
+ * seals the link to its issuer, so the row offers it only where the payload says the reader
+ * issued it.
+ *
+ * **Every act is read by opening the row's one control**, which is what requirement 6 of effort
+ * 828 replaced the hover cluster with. A row whose menu is open is the only one in the document,
+ * so the items in it are that row's, in the order the four groups put them; `actsOn` opens a row,
+ * reads them, and closes it again, and a row that offers this reader nothing has no control to
+ * open.
  *
  * Requirement 21 of effort 824 holds throughout: a row names its member by the one username and
  * carries no address and no display name. Requirement 24's avatar is the same two letters the
@@ -137,10 +144,53 @@ const list = (
 		{ wrapper: Providers, wrapperProps: { strings, direction } }
 	);
 
-/** every control of one kind on the list, by the attribute the row marks it with. */
-const controls = (kind: string) => document.querySelectorAll(`[data-member-${kind}]`).length;
+/** the acts a row can offer, in the order the four groups put them in the menu. */
+const KINDS = [
+	'rename',
+	'role',
+	'access',
+	'copy-link',
+	'new-link',
+	'end-sessions',
+	'revoke',
+	'remove',
+	'lock-out'
+] as const;
+
 const on = (kind: string, id: string) => document.querySelector(`[data-member-${kind}="${id}"]`);
 const row = (id: string) => document.querySelector(`[data-member="${id}"]`);
+
+/** the one control a row carries, or nothing where this reader may do nothing to that row. */
+const control = (id: string) => row(id)?.querySelector<HTMLButtonElement>('button') ?? null;
+
+/** open a row's control, read what its menu offers, and close it again. */
+const actsOn = async (id: string) => {
+	const trigger = control(id);
+
+	if (!trigger) return [];
+
+	await fireEvent.click(trigger);
+
+	const offered = Array.from(document.querySelectorAll('[data-slot=dropdown-menu-item]')).map(
+		(item) => KINDS.find((kind) => item.hasAttribute(`data-member-${kind}`)) ?? item.textContent
+	);
+
+	await fireEvent.click(trigger);
+
+	return offered;
+};
+
+/** open a row's control and hand back one act's entry, the way a person reaches it. */
+const openTo = async (id: string, kind: string) => {
+	await fireEvent.click(control(id)!);
+
+	return document.querySelector<HTMLElement>(`[data-member-${kind}="${id}"]`);
+};
+
+/** open a row's control and press one act. */
+const press = async (id: string, kind: string) => {
+	await fireEvent.click((await openTo(id, kind))!);
+};
 const surface = () => document.querySelector('[data-slot=form-surface]');
 const usernameInput = () => document.querySelector<HTMLInputElement>('input[name=username]');
 
@@ -247,30 +297,65 @@ test('a pending row is marked with a badge and its expiry, and a lapsed one says
 	);
 });
 
-// criterion 15: each row action sits behind its act. The owner reading holds all seven, so every
-// control is drawn, and never on their own row or on the owner's.
-test('the owner sees every row action, on every row but their own', () => {
+// requirement 6 of effort 828: one sentence under the legend says who is listed and who keeps
+// the list, and the invite leads the section instead of trailing everybody already in it.
+test('the section says who is listed, and the invite leads it rather than trailing the list', () => {
 	list();
 
-	expect(controls('role')).toBe(2);
-	expect(controls('access')).toBe(2);
-	expect(controls('rename')).toBe(2);
-	expect(controls('new-link')).toBe(2);
-	expect(controls('end-sessions')).toBe(2);
-	expect(controls('remove')).toBe(2);
-	expect(controls('lock-out')).toBe(2);
+	expect(document.querySelector('[data-members-description]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.membersDescription
+	);
+	// the legend is the section's own now, drawn beside the sentence rather than by the area.
+	expect(document.querySelector('legend')?.textContent?.trim()).toBe(en.settings.section.members);
+
+	const opener = document.querySelector('[data-invite-open]')!;
+	const first = document.querySelector('[data-member]')!;
+
+	expect(opener.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+// requirement 6: the acts read in four groups, what somebody is called, what they may do, their
+// way in, and leaving, and the separators between them are the whole of that grouping.
+test('the acts open in four groups, with the two that destroy something marked', async () => {
+	list();
+
+	await fireEvent.click(control('sami')!);
+
+	expect(document.querySelectorAll('[data-slot=dropdown-menu-separator]')).toHaveLength(3);
+	expect(on('remove', 'sami')?.getAttribute('data-variant')).toBe('destructive');
+	expect(on('lock-out', 'sami')?.getAttribute('data-variant')).toBe('destructive');
+	expect(on('rename', 'sami')?.getAttribute('data-variant')).toBe('default');
+});
+
+// criterion 15: each row action sits behind its act. The owner reading holds all seven, so every
+// act is in the menu, and never on their own row or on the owner's.
+test('the owner sees every row action, on every row but their own', async () => {
+	list();
+
+	expect(await actsOn('ada')).toEqual([
+		'rename',
+		'role',
+		'access',
+		'new-link',
+		'end-sessions',
+		'remove',
+		'lock-out'
+	]);
 	// the pending row alone offers the two that act on an invitation.
-	expect(controls('copy-link')).toBe(1);
-	expect(controls('revoke')).toBe(1);
-	expect(on('copy-link', 'sami')).not.toBeNull();
-	expect(on('revoke', 'sami')).not.toBeNull();
-	// nothing that writes a row is drawn on the reader's own, and nothing at all on the owner's
-	// but the rename, which is an administrator's to make and never its holder's.
-	expect(on('role', 'owner')).toBeNull();
-	expect(on('remove', 'owner')).toBeNull();
-	expect(on('rename', 'owner')).toBeNull();
-	expect(on('rename', 'ada')).not.toBeNull();
-	expect(on('end-sessions', 'owner')).toBeNull();
+	expect(await actsOn('sami')).toEqual([
+		'rename',
+		'role',
+		'access',
+		'copy-link',
+		'new-link',
+		'end-sessions',
+		'revoke',
+		'remove',
+		'lock-out'
+	]);
+	// the reader's own row is the owner's here: nothing writes it, and the rename is an
+	// administrator's to make and never its holder's, so there is no control at all.
+	expect(control('owner')).toBeNull();
 });
 
 test('a member holding no act sees no row action at all', () => {
@@ -286,27 +371,18 @@ test('a member holding no act sees no row action at all', () => {
 		selfId: 'sami'
 	});
 
-	for (const kind of [
-		'role',
-		'access',
-		'rename',
-		'new-link',
-		'end-sessions',
-		'copy-link',
-		'revoke',
-		'remove'
-	]) {
-		expect(controls(kind), kind).toBe(0);
+	for (const id of ['owner', 'ada', 'sami']) {
+		expect(control(id), id).toBeNull();
 	}
 	expect(document.querySelector('[data-invite-open]')).toBeNull();
 });
 
-// each act on its own, so no control is being carried by a neighbour's gate.
-test('each action is drawn by its own act and by no other', () => {
-	const only = (
+// each act on its own, so no entry is being carried by a neighbour's gate.
+test('each action is drawn by its own act and by no other', async () => {
+	const only = async (
 		overrides: Partial<Parameters<typeof render<typeof Members>>[1]>,
-		kind: string,
-		count: number
+		id: string,
+		offered: string[]
 	) => {
 		const rendered = list({
 			canInvite: false,
@@ -321,21 +397,21 @@ test('each action is drawn by its own act and by no other', () => {
 			...overrides
 		});
 
-		expect(controls(kind), kind).toBe(count);
+		expect(await actsOn(id), offered.join()).toEqual(offered);
 		rendered.unmount();
 	};
 
-	only({ canChangeRole: true }, 'role', 2);
-	only({ canGrantWorkspace: true }, 'access', 2);
-	only({ canRename: true }, 'rename', 2);
-	only({ canReset: true }, 'new-link', 2);
-	only({ canReset: true }, 'end-sessions', 2);
-	only({ canRemove: true }, 'remove', 2);
+	await only({ canChangeRole: true }, 'ada', ['role']);
+	await only({ canGrantWorkspace: true }, 'ada', ['access']);
+	await only({ canRename: true }, 'ada', ['rename']);
+	// issuing a new link and closing the ways in that are already open are one act read twice.
+	await only({ canReset: true }, 'ada', ['new-link', 'end-sessions']);
+	await only({ canRemove: true }, 'ada', ['remove']);
 	// the lock-out needs the Turso authority as well as the act, so it takes both.
-	only({ canRemove: true }, 'lock-out', 0);
-	only({ canRemove: true, canLockOut: true }, 'lock-out', 2);
-	only({ canInvite: true }, 'copy-link', 1);
-	only({ canInvite: true }, 'revoke', 1);
+	await only({ canRemove: true, canLockOut: true }, 'ada', ['remove', 'lock-out']);
+	// the two that act on an invitation are on the pending row and nowhere else.
+	await only({ canInvite: true }, 'sami', ['copy-link', 'revoke']);
+	await only({ canInvite: true }, 'ada', []);
 });
 
 // criterion 22 of effort 826: ending somebody's sessions is `resetPassword`'s, beside the new
@@ -346,15 +422,16 @@ test('signing a member out of every machine is offered behind reset password, an
 
 	list({ selfId: 'ada', isOwner: false, onEndSessions: (memberId) => asked.push(memberId) });
 
-	// the owner's row and the reader's own carry no such control; sami's does.
-	expect(on('end-sessions', 'owner')).toBeNull();
-	expect(on('end-sessions', 'ada')).toBeNull();
-	expect(on('end-sessions', 'sami')).not.toBeNull();
-	expect(on('end-sessions', 'sami')?.getAttribute('aria-label')).toBe(
-		en.organization.dashboard.endSessions
-	);
+	// the owner's row and the reader's own carry no such act; sami's does.
+	expect(await actsOn('owner')).not.toContain('end-sessions');
+	expect(await actsOn('ada')).not.toContain('end-sessions');
+	expect(await actsOn('sami')).toContain('end-sessions');
 
-	await fireEvent.click(on('end-sessions', 'sami')!);
+	const entry = await openTo('sami', 'end-sessions');
+
+	expect(entry?.textContent?.trim()).toBe(en.organization.dashboard.endSessions);
+
+	await fireEvent.click(entry!);
 
 	expect(asked).toEqual(['sami']);
 });
@@ -363,12 +440,14 @@ test('signing a member out of every machine is offered behind reset password, an
 // sealed to whoever issued the invitation, so the row offers that one pair to them and a new link
 // to everybody else. *There was a fresh-code control beside the copy until a code began living as
 // long as the link it came with.*
-test('copy link is drawn for the issuer alone, and a new link for anybody with the act', () => {
+test('copy link is drawn for the issuer alone, and a new link for anybody with the act', async () => {
 	const issuer = list();
 
+	await fireEvent.click(control('sami')!);
+
 	expect(on('copy-link', 'sami')).not.toBeNull();
-	expect(on('code', 'sami')).toBeNull();
 	expect(on('new-link', 'sami')).not.toBeNull();
+	expect(document.querySelector('[data-member-code]')).toBeNull();
 	issuer.unmount();
 
 	list({
@@ -379,8 +458,10 @@ test('copy link is drawn for the issuer alone, and a new link for anybody with t
 		)
 	});
 
-	expect(on('copy-link', 'sami')).toBeNull();
-	expect(on('new-link', 'sami')).not.toBeNull();
+	const offered = await actsOn('sami');
+
+	expect(offered).not.toContain('copy-link');
+	expect(offered).toContain('new-link');
 });
 
 test('the pending row hands its invitation to the acts that take one', async () => {
@@ -395,9 +476,9 @@ test('the pending row hands its invitation to the acts that take one', async () 
 		onReissue: (memberId) => reissued.push(memberId)
 	});
 
-	await fireEvent.click(on('copy-link', 'sami')!);
-	await fireEvent.click(on('revoke', 'sami')!);
-	await fireEvent.click(on('new-link', 'sami')!);
+	await press('sami', 'copy-link');
+	await press('sami', 'revoke');
+	await press('sami', 'new-link');
 
 	// the copy carries the row's own expiry, because that is what the panel prints beside the pair.
 	expect(copied).toEqual([`invitation-1:sami:${EXPIRES_AT}`]);
@@ -405,8 +486,9 @@ test('the pending row hands its invitation to the acts that take one', async () 
 	expect(reissued).toEqual(['sami']);
 });
 
-// [[rules/interface]], *Row activation*: an action is a control on the row, never the row.
-test('the actions are controls on the row, and the row itself opens nothing', () => {
+// [[rules/interface]], *Row activation* and *Record card actions*: an act is reached from a
+// control the reader can see, and never from the row itself.
+test('the acts are behind one visible control, and the row itself opens nothing', () => {
 	list();
 
 	const ada = row('ada')!;
@@ -414,17 +496,14 @@ test('the actions are controls on the row, and the row itself opens nothing', ()
 	expect(ada.tagName).toBe('DIV');
 	expect(ada.getAttribute('role')).toBeNull();
 	expect(ada.closest('a')).toBeNull();
-	// every action is a button, and it is named for a screen reader as well as for a pointer.
-	const cluster = document.querySelector('[data-member-actions="ada"]')!;
-
-	for (const control of Array.from(cluster.querySelectorAll('button'))) {
-		expect(control.getAttribute('aria-label')?.length).toBeGreaterThan(0);
-	}
-	// on hover and on focus: the cluster is faded rather than removed, so the row does not move
-	// and the keyboard still reaches it.
-	expect(cluster.className).toContain('opacity-0');
-	expect(cluster.className).toContain('group-hover:opacity-100');
-	expect(cluster.className).toContain('focus-within:opacity-100');
+	// one control on the row, named for a screen reader as well as for a pointer.
+	expect(ada.querySelectorAll('button')).toHaveLength(1);
+	expect(control('ada')?.getAttribute('aria-label')).toBe(
+		en.organization.dashboard.memberActions.replace('{username:string}', 'ada')
+	);
+	// and nothing left that a reader has to hover to find.
+	expect(document.querySelector('[data-member-actions]')).toBeNull();
+	expect(ada.innerHTML).not.toContain('opacity-0');
 });
 
 // criterion 15: the invite button opens the dialog the shell holds.
@@ -442,10 +521,10 @@ test('the invite button asks the shell for the invite dialog', async () => {
 	expect(surface()).toBeNull();
 });
 
-test('the role control opens the role dialog on the row it named', async () => {
+test('the role act opens the role dialog on the row it named', async () => {
 	list();
 
-	await fireEvent.click(on('role', 'ada')!);
+	await press('ada', 'role');
 
 	expect(surface()).not.toBeNull();
 	expect(
@@ -456,10 +535,10 @@ test('the role control opens the role dialog on the row it named', async () => {
 	expect(document.querySelector('[data-role-form]')).not.toBeNull();
 });
 
-test('the access control opens the access dialog on the workspaces the member holds', async () => {
+test('the access act opens the access dialog on the workspaces the member holds', async () => {
 	list();
 
-	await fireEvent.click(on('access', 'ada')!);
+	await press('ada', 'access');
 
 	expect(document.querySelector('[data-access-form]')).not.toBeNull();
 	expect(
@@ -477,7 +556,7 @@ test('the access control opens the access dialog on the workspaces the member ho
 test('the rename opens a light form surface with one username field, opened on the name the row holds', async () => {
 	list();
 
-	await fireEvent.click(on('rename', 'ada')!);
+	await press('ada', 'rename');
 
 	expect(surface()).not.toBeNull();
 	// light: the centred panel, which the surface draws as a translated box rather than an edge
@@ -495,7 +574,7 @@ test('the rename opens a light form surface with one username field, opened on t
 test('a username outside the rules is refused with the sentence rust refuses it with', async () => {
 	list();
 
-	await fireEvent.click(on('rename', 'ada')!);
+	await press('ada', 'rename');
 
 	const input = usernameInput()!;
 
@@ -509,7 +588,7 @@ test('a username outside the rules is refused with the sentence rust refuses it 
 	expect(en.organization.dashboard.usernameRules).toBe(rustUsernameRules());
 });
 
-test('and in arabic every row reads in its own words, right to left', () => {
+test('and in arabic every row reads in its own words, right to left', async () => {
 	loadLocale('ar');
 	setLocale('ar');
 	list({}, 'rtl');
@@ -529,10 +608,22 @@ test('and in arabic every row reads in its own words, right to left', () => {
 			formatRecordDate('ar', EXPIRES_AT)
 		)
 	);
+	expect(document.querySelector('[data-members-description]')?.textContent?.trim()).toBe(
+		ar.organization.dashboard.membersDescription
+	);
+	expect(ar.organization.dashboard.membersDescription).not.toBe(
+		en.organization.dashboard.membersDescription
+	);
 	expect(screen.getByRole('button', { name: ar.organization.dashboard.invite })).toBeDefined();
-	expect(
-		screen.getAllByRole('button', { name: ar.organization.dashboard.removeAndLockOut })
-	).toHaveLength(2);
+	// the row's control is named in Arabic too, and so is every act the menu holds.
+	expect(control('ada')?.getAttribute('aria-label')).toBe(
+		ar.organization.dashboard.memberActions.replace('{username}', 'ada')
+	);
+
+	const lockOut = await openTo('ada', 'lock-out');
+
+	expect(lockOut?.textContent?.trim()).toBe(ar.organization.dashboard.removeAndLockOut);
+	expect(on('remove', 'ada')?.textContent?.trim()).toBe(ar.organization.dashboard.remove);
 	expect(ar.organization.dashboard.remove).not.toBe(ar.organization.dashboard.removeAndLockOut);
 
 	setLocale('en');

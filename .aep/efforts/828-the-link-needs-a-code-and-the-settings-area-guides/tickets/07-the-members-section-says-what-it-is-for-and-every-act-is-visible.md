@@ -20,14 +20,19 @@ Traces requirement 6 of
 [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], and its criteria 6
 and 12.
 
-- [ ] `packages/design/src/lib/block/row-actions.svelte` takes `label` and `groups:
+- [x] `packages/design/src/lib/block/row-actions.svelte` takes `label` and `groups:
       RecordCardAction[][]` over the type `record-card.svelte` exports, draws an outline
       `icon-sm` button with the ellipsis glyph, labelled in a tooltip and to a screen reader,
       opening a `DropdownMenu` of the groups separated by `DropdownMenu.Separator`, each item
       the glyph and the label and a `destructive` variant where the action says so; a group
       with no actions draws no separator; a test under `packages/design/src/lib/block/tests`
-      opens it and finds the groups and the separators.
-- [ ] `organization/component/members.svelte` draws above the list one row: the legend and a
+      opens it and finds the groups and the separators. *Verified 2026-09-15 on the effort
+      branch: `row-actions.svelte` takes `label: string` and `groups: RecordCardAction[][]` and
+      draws only the groups with an action in them; `vitest run
+      src/lib/block/tests/row-actions.svelte.test.ts` in `packages/design` printed `Tests 6
+      passed (6)`; the menu opens on a click under jsdom, and the tooltip's content is asserted
+      by the trigger's two names, the limit `back-control`'s test already records.*
+- [x] `organization/component/members.svelte` draws above the list one row: the legend and a
       `Field.Description` sentence on the start side and the invite button on the end side
       for a holder of `inviteMember`; the `action` snippet and the hover cluster go; each row
       ends in one `row-actions` control whose groups are, in order, rename; role and
@@ -35,15 +40,28 @@ and 12.
       link, sign out everywhere, revoke on a pending row; remove, and lock out for the owner;
       an act the session lacks is absent, and the owner's row and the reader's own offer what
       they offer today. The data attributes each act carried move onto the menu items.
-- [ ] `members.svelte.test.ts` finds the sentence, the invite control before the first row,
+      *Verified: `members.svelte` draws `Field.Set aria-labelledby="members-legend"`, the head
+      row with `Field.Description data-members-description` and the invite, and one `RowActions`
+      per row whose `actsOn` builds the four groups with every `data-member-*` attribute on the
+      items; no `group-hover` or `opacity-0` remains in the file.*
+- [x] `members.svelte.test.ts` finds the sentence, the invite control before the first row,
       and for an administrator session opens each row's control and finds every act present
       or absent by the same gates the test asserts today; with a member session the area's
-      test still finds the section absent.
+      test still finds the section absent. *Verified: `vitest run
+      src/lib/organization/tests/members.svelte.test.ts src/lib/settings/tests/area.svelte.test.ts`
+      printed `Test Files 2 passed (2)`, `Tests 31 passed (31)`, including the section sentence,
+      the owner seeing every action on every row but their own, each action drawn by its own act,
+      the acts behind one visible control with the row opening nothing, and the plain member
+      offered every section but members.*
 - [ ] The section was run against the human's organization from this run's worktree and the
       human looked at it before the ticket is resolved; what they said is recorded under
       Notes.
-- [ ] Every new or changed string is written in both locales; `pnpm check`, `pnpm lint` and
-      `pnpm test` pass; the changeset of ticket 03 is extended.
+- [x] Every new or changed string is written in both locales; `pnpm check`, `pnpm lint` and
+      `pnpm test` pass; the changeset of ticket 03 is extended. *Verified in the run's worktree:
+      `organization.dashboard.membersDescription` and `memberActions` in `en` and `ar`, the Arabic
+      written; `typesafe-i18n --no-watch` leaves no drift; `pnpm check` exit 0 (desktop `9303
+      FILES 0 ERRORS 0 WARNINGS`, design `2811 FILES 0 ERRORS`), `pnpm lint` exit 0, `pnpm test`
+      exit 0 (design `64 passed`, desktop `177 passed`); the changeset carries a third paragraph.*
 
 ## Relevant areas
 
@@ -67,3 +85,11 @@ and 12.
   own standards.
 
 ## Notes
+
+- *2026-09-15, at integration.* `RecordCardAction` gained two optional fields, `disabled` and
+  `attributes`, passed on the card's dropdown and context routes; the row needed the first for
+  its busy states and the second for the data attributes the test selects by. No existing caller
+  changed. A rendered `<legend>` leaves its fieldset's layout, so the legend sits inside the head
+  row and `Field.Set` carries `aria-labelledby`; the workspaces section meets the same constraint.
+- The changeset conflicted with ticket 04's paragraph at integration; both paragraphs kept, in
+  order.

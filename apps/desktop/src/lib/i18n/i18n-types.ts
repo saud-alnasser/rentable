@@ -2482,6 +2482,15 @@ type RootTranslation = {
 		}
 		dashboard: {
 			/**
+			 * e​v​e​r​y​b​o​d​y​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​i​n​c​l​u​d​i​n​g​ ​t​h​e​ ​p​e​o​p​l​e​ ​i​n​v​i​t​e​d​ ​w​h​o​ ​h​a​v​e​ ​n​o​t​ ​s​i​g​n​e​d​ ​i​n​ ​y​e​t​;​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​s​ ​m​a​k​e​ ​a​c​c​o​u​n​t​s​ ​h​e​r​e​ ​a​n​d​ ​c​h​a​n​g​e​ ​w​h​a​t​ ​e​a​c​h​ ​o​n​e​ ​m​a​y​ ​d​o​.
+			 */
+			membersDescription: string
+			/**
+			 * w​h​a​t​ ​y​o​u​ ​c​a​n​ ​d​o​ ​w​i​t​h​ ​{​u​s​e​r​n​a​m​e​}
+			 * @param {string} username
+			 */
+			memberActions: RequiredParams<'username'>
+			/**
 			 * i​n​v​i​t​e​ ​s​o​m​e​b​o​d​y
 			 */
 			inviteTitle: string
@@ -5220,6 +5229,14 @@ export type TranslationFunctions = {
 			back: () => LocalizedString
 		}
 		dashboard: {
+			/**
+			 * everybody in the organization, including the people invited who have not signed in yet; the owner and administrators make accounts here and change what each one may do.
+			 */
+			membersDescription: () => LocalizedString
+			/**
+			 * what you can do with {username}
+			 */
+			memberActions: (arg: { username: string }) => LocalizedString
 			/**
 			 * invite somebody
 			 */

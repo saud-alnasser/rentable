@@ -34,11 +34,22 @@
 	 *
 	 * `onSelect` is the menus' own selection event, which is what lets a single list drive both of
 	 * a card's routes without either holding a vocabulary of its own.
+	 *
+	 * The two optional fields are what a row needed and a card never had a reason to ask for, and
+	 * they are on the shared type rather than beside it so that a card and a row offering the same
+	 * act describe it the same way. `disabled` is the act already running, which is the state a
+	 * menu cannot show by hiding the entry: an act that vanishes mid-press reads as an act that
+	 * was never there. `attributes` is what the surface marks the entry with, the `data-*` every
+	 * list here is read by, and it is the caller's because the act it stands for is.
 	 */
 	export type RecordCardAction = {
 		label: string;
 		icon: IconComponent;
 		variant?: 'default' | 'destructive';
+		/** whether the act is already running, and so not pressable again for now. */
+		disabled?: boolean;
+		/** what the surface marks this entry with, on whichever route draws it. */
+		attributes?: Record<string, string>;
 		onSelect: () => void;
 	};
 </script>
@@ -138,8 +149,10 @@
 						{#each actions as action (action.label)}
 							<DropdownMenu.Item
 								variant={action.variant}
+								disabled={action.disabled}
 								onSelect={action.onSelect}
 								class="capitalize"
+								{...action.attributes}
 							>
 								{@render entry(action)}
 							</DropdownMenu.Item>
@@ -161,7 +174,13 @@
 
 		<ContextMenu.Content class="min-w-[12rem]">
 			{#each actions as action (action.label)}
-				<ContextMenu.Item variant={action.variant} onSelect={action.onSelect} class="capitalize">
+				<ContextMenu.Item
+					variant={action.variant}
+					disabled={action.disabled}
+					onSelect={action.onSelect}
+					class="capitalize"
+					{...action.attributes}
+				>
 					{@render entry(action)}
 				</ContextMenu.Item>
 			{/each}

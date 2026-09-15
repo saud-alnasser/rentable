@@ -224,37 +224,37 @@
 		</Field.Group>
 	{:else if shown === 'members' && session}
 		<Field.Group>
-			<Field.Set>
-				<Field.Legend>{$LL.settings.section.members()}</Field.Legend>
-				<OrganizationMembers
-					{members}
-					workspaces={session.workspaces}
-					{canInvite}
-					{canRemove}
-					canLockOut={isOwner}
-					canRename={permits(session.permissions, 'renameMember')}
-					canReset={permits(session.permissions, 'resetPassword')}
-					canChangeRole={permits(session.permissions, 'changeRole')}
-					canGrantWorkspace={permits(session.permissions, 'grantWorkspace')}
-					{isOwner}
-					selfId={session.memberId}
-					{reissuing}
-					{revoking}
-					{copying}
-					{endingSessions}
-					{isChangingRole}
-					{isChangingAccess}
-					{onEndSessions}
-					{onReissue}
-					{onRevoke}
-					{onCopyLink}
-					{onRemove}
-					{onLockOut}
-					{onRename}
-					{onChangeRole}
-					{onChangeAccess}
-				/>
-			</Field.Set>
+			<!-- the list owns its own legend, the sentence beside it and the invite that leads the
+			     section, the way the workspaces list already owns its legend; what is decided here
+			     is what this reader may do. -->
+			<OrganizationMembers
+				{members}
+				workspaces={session.workspaces}
+				{canInvite}
+				{canRemove}
+				canLockOut={isOwner}
+				canRename={permits(session.permissions, 'renameMember')}
+				canReset={permits(session.permissions, 'resetPassword')}
+				canChangeRole={permits(session.permissions, 'changeRole')}
+				canGrantWorkspace={permits(session.permissions, 'grantWorkspace')}
+				{isOwner}
+				selfId={session.memberId}
+				{reissuing}
+				{revoking}
+				{copying}
+				{endingSessions}
+				{isChangingRole}
+				{isChangingAccess}
+				{onEndSessions}
+				{onReissue}
+				{onRevoke}
+				{onCopyLink}
+				{onRemove}
+				{onLockOut}
+				{onRename}
+				{onChangeRole}
+				{onChangeAccess}
+			/>
 		</Field.Group>
 	{:else if shown === 'workspaces' && session}
 		<Field.Group>
