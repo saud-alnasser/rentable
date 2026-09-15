@@ -23,7 +23,6 @@
 		useEndOtherSessions,
 		useFetchMembers,
 		useFetchOrganizationState,
-		useInvitationCode,
 		useInvitationLink,
 		useLockOutCost,
 		useReissueInvitation,
@@ -68,7 +67,6 @@
 	const reissueInvitation = useReissueInvitation();
 	const revokeInvitation = useRevokeInvitation();
 	const invitationLink = useInvitationLink();
-	const invitationCode = useInvitationCode();
 	const removeMember = useRemoveMember();
 	const renameMember = useRenameMember();
 	const changeRole = useChangeRole();
@@ -182,7 +180,6 @@
 			endingSessions = null;
 		}
 	};
-	let codeFor = $state<string | null>(null);
 
 	const reissue = async (memberId: string) => {
 		reissuing = memberId;
@@ -195,7 +192,7 @@
 				username: invited.username,
 				joinLink: invited.joinLink,
 				code: invited.code,
-				codeExpiresAt: invited.codeExpiresAt,
+				expiresAt: invited.expiresAt,
 				unreachableWorkspaces: invited.unreachableWorkspaces
 			});
 		} catch {
@@ -206,56 +203,32 @@
 	};
 
 	/**
-	 * the same link again, for the person who issued it: Rust seals it to their key and refuses
-	 * anybody else, who is offered a new link instead. It opens the panel an invitation and a
-	 * reset open, because all three end with one link in one person's hands.
+	 * the same link and the same code again, for the person who issued it: Rust seals both to
+	 * their key and refuses anybody else, who is offered a new link instead. It opens the panel an
+	 * invitation and a reset open, because all three end with one pair in one person's hands.
+	 *
+	 * **One call, because a code lives as long as its link** (effort 828, requirement 1). The row
+	 * holds the password, the secret and the code sealed together, and the link is rebuilt from
+	 * the three; the expiry the panel prints is the row's own.
 	 */
-	const copyLink = async (invitationId: string, username: string) => {
+	const copyLink = async (invitationId: string, username: string, expiresAt: number) => {
 		copying = invitationId;
 
 		try {
+			const copy = await invitationLink.mutateAsync({ invitationId });
+
 			showInvited({
 				invitationId,
 				username,
-				joinLink: await invitationLink.mutateAsync({ invitationId }),
-				// a copied link makes no code: the row's own code action is what makes one, and a
-				// code shown beside a link nobody asked for a code for is one more thing to leak.
-				code: null,
-				codeExpiresAt: null,
+				joinLink: copy.joinLink,
+				code: copy.code,
+				expiresAt,
 				unreachableWorkspaces: []
 			});
 		} catch {
 			// said by the shared handler.
 		} finally {
 			copying = null;
-		}
-	};
-
-	/**
-	 * a fresh code for a pending member, from their row: the same panel an invitation and a reset
-	 * open, showing the link and a code that was made a moment ago. Two calls, because the panel
-	 * draws both halves and the row holds neither: the link is rebuilt from the issuer's sealed
-	 * copy and the code is drawn and written over the old one.
-	 */
-	const freshCode = async (invitationId: string, username: string) => {
-		codeFor = invitationId;
-
-		try {
-			const joinLink = await invitationLink.mutateAsync({ invitationId });
-			const fresh = await invitationCode.mutateAsync({ invitationId });
-
-			showInvited({
-				invitationId,
-				username,
-				joinLink,
-				code: fresh.code,
-				codeExpiresAt: fresh.expiresAt,
-				unreachableWorkspaces: []
-			});
-		} catch {
-			// said by the shared handler.
-		} finally {
-			codeFor = null;
 		}
 	};
 
@@ -358,7 +331,6 @@
 		{revoking}
 		{copying}
 		{endingSessions}
-		{codeFor}
 		isChangingPassword={changePassword.isPending}
 		isChangingRole={changeRole.isPending}
 		isChangingAccess={changeAccess.isPending}
@@ -373,8 +345,8 @@
 		onEndSessions={(memberId) => void endSessions(memberId)}
 		onReissue={(memberId) => void reissue(memberId)}
 		onRevoke={(invitationId) => void revoke(invitationId)}
-		onCopyLink={(invitationId, username) => void copyLink(invitationId, username)}
-		onFreshCode={(invitationId, username) => void freshCode(invitationId, username)}
+		onCopyLink={(invitationId, username, expiresAt) =>
+			void copyLink(invitationId, username, expiresAt)}
 		onRemove={(memberId) => {
 			removing = { memberId, lockOut: false };
 		}}

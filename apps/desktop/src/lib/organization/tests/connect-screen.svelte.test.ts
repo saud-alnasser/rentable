@@ -6,7 +6,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import ConnectScreen from '$lib/organization/component/connect-screen.svelte';
 import { afterConnect, THE_WALL, type JoinStep } from '$lib/organization/connect';
 import { PASSWORD_FLOOR } from '$lib/organization/setup';
-import type { LinkFacts } from '$lib/platform/host';
+import type { LinkShape } from '$lib/platform/host';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
@@ -76,20 +76,19 @@ const addonBefore = (name: string) => {
 
 const LINK = 'rentable://join/abc';
 
-const facts = (overrides: Partial<LinkFacts> = {}): LinkFacts => ({
+const shape = (overrides: Partial<LinkShape> = {}): LinkShape => ({
 	organizationId: 'acme',
 	organizationName: 'Acme Rentals',
-	remoteUrl: 'libsql://acme.turso.io',
-	standing: 'none',
-	invitation: null,
+	kind: 'organization',
+	expiresAt: null,
 	...overrides
 });
 
-/** where the link the field took lands, once the organization it names has answered. */
-const landingOf = (overrides: Partial<LinkFacts> = {}) => afterConnect(LINK, facts(overrides));
+/** where the link the field took lands, once its text has been decoded. */
+const landingOf = (overrides: Partial<LinkShape> = {}) => afterConnect(LINK, shape(overrides));
 
 /** the landing that stays on this screen, for the tests that render one. */
-const stepOf = (overrides: Partial<LinkFacts>) => landingOf(overrides) as JoinStep;
+const stepOf = (overrides: Partial<LinkShape>) => landingOf(overrides) as JoinStep;
 
 const A_CHOSEN_PASSWORD = 'x'.repeat(PASSWORD_FLOOR);
 
@@ -100,7 +99,7 @@ const everyStep: JoinStep[] = [
 	{ kind: 'inspecting', link: LINK },
 	{ kind: 'unreachable', link: LINK, message: 'offline' },
 	{ kind: 'refused', link: LINK, refusal: 'lapsed', message: null },
-	stepOf({ standing: 'open', invitation: { username: 'olivia' } })
+	stepOf({ kind: 'invitation', expiresAt: 1 })
 ];
 
 test('with no link there is one field, for the link, typed left to right', () => {
@@ -151,16 +150,20 @@ test('an organization link pasted into the field lands on the wall and not on th
 	expect(landingOf()).toBe(THE_WALL);
 });
 
-test('an invitation link pasted into the field lands on the password step, naming both', () => {
+// *Naming the invited person went with the read that reached the organization (effort 828,
+// requirement 1): the username is sealed under the content key, the code is one half of what opens
+// the vault that holds it, and nobody has typed one when a link is read. The organization is what
+// the person recognises.*
+test('an invitation link pasted into the field lands on the password step, naming the organization', () => {
 	loadLocale('en');
 	setLocale('en');
-	joinScreen(stepOf({ standing: 'open', invitation: { username: 'olivia' } }));
+	joinScreen(stepOf({ kind: 'invitation', expiresAt: 1 }));
 
 	expect(document.querySelector('[data-join-step]')?.getAttribute('data-join-step')).toBe(
 		'password'
 	);
 	expect(screen.getByText('Acme Rentals')).toBeDefined();
-	expect(screen.getByText('olivia')).toBeDefined();
+	expect(screen.queryByText('olivia')).toBeNull();
 	// named and not typed: the facts the link carried are text, and the fields are the three the
 	// person fills in, the code first because it is the half they were given.
 	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
@@ -180,7 +183,7 @@ test('the code field is above the password, six characters, upper-cased as typed
 
 	const onJoin = vi.fn();
 
-	joinScreen(stepOf({ standing: 'open', invitation: { username: 'olivia' } }), { onJoin });
+	joinScreen(stepOf({ kind: 'invitation', expiresAt: 1 }), { onJoin });
 
 	const code = document.querySelector<HTMLInputElement>('input[name=code]')!;
 	const password = document.querySelector<HTMLInputElement>('input[name=password]')!;
@@ -259,7 +262,7 @@ test('the password step holds the floor and the confirmation, and only a matchin
 
 	const onJoin = vi.fn();
 
-	joinScreen(stepOf({ standing: 'open', invitation: { username: 'olivia' } }), { onJoin });
+	joinScreen(stepOf({ kind: 'invitation', expiresAt: 1 }), { onJoin });
 
 	const join = screen.getByRole('button', { name: en.common.actions.join });
 	const [code, password, confirmation] = inputsOnScreen();
@@ -303,7 +306,7 @@ test('the password step holds the floor and the confirmation, and only a matchin
 test('the join carries a glyph and both password fields a muted leading one', () => {
 	loadLocale('en');
 	setLocale('en');
-	joinScreen(stepOf({ standing: 'open', invitation: { username: 'olivia' } }));
+	joinScreen(stepOf({ kind: 'invitation', expiresAt: 1 }));
 
 	expect(
 		screen.getByRole('button', { name: en.common.actions.join }).querySelector('svg')
@@ -434,14 +437,16 @@ test('a lapsed and a revoked link say the same thing about a new link, and neith
 
 // a member signs in on as many machines as they like under one username, and the invitation is
 // spent on the first: the second machine is connected by the same link and its way on is the
-// wall, where the password they already chose admits them.
+// wall, where the password they already chose admits them. *Which act answers the consumed
+// standing is ticket 05's; what the step draws is this one's, so the step is written out here
+// rather than taken from a read that no longer judges rows.*
 test('a link already opened offers the wall, and pressing it hands the shell back', async () => {
 	loadLocale('en');
 	setLocale('en');
 
 	const onSignIn = vi.fn();
 
-	joinScreen(stepOf({ standing: 'consumed' }), { onSignIn });
+	joinScreen({ kind: 'refused', link: LINK, refusal: 'consumed', message: null }, { onSignIn });
 
 	expect(screen.getByText(en.organization.join.consumed)).toBeDefined();
 
@@ -591,7 +596,7 @@ test('the screen renders in arabic with the same one field, the same refusals an
 		rendered.unmount();
 	}
 
-	const password = joinScreen(stepOf({ standing: 'open', invitation: { username: 'olivia' } }), {
+	const password = joinScreen(stepOf({ kind: 'invitation', expiresAt: 1 }), {
 		direction: 'rtl'
 	});
 

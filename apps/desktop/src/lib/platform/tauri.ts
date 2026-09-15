@@ -11,11 +11,11 @@ import type {
 	AvailableUpdate,
 	DiagnosticRecord,
 	ExportSheet,
-	FreshCode,
 	Host,
 	ImportTable,
+	InvitationLink,
 	Invited,
-	LinkFacts,
+	LinkShape,
 	LockOutCost,
 	MemberRemoved,
 	MigrationNotice,
@@ -50,12 +50,12 @@ export type {
 	DiagnosticRecord,
 	ExportCell,
 	ExportSheet,
-	FreshCode,
 	ImportTable,
+	InvitationLink,
 	Invited,
 	HeldOrganization,
-	LinkFacts,
-	LinkStanding,
+	LinkKind,
+	LinkShape,
 	LockOutCost,
 	MemberRemoved,
 	MigrationNotice,
@@ -234,7 +234,7 @@ export const tauri = {
 			listen<string>(LINK_ARRIVED_EVENT, (event) => listener(event.payload)),
 		onMigration: (listener: (notice: MigrationNotice) => void) =>
 			listen<MigrationNotice>(MIGRATION_EVENT, (event) => listener(event.payload)),
-		linkInspect: (link: string) => invoke<LinkFacts>('organization_link_inspect', { link }),
+		linkRead: (link: string) => invoke<LinkShape>('organization_link_read', { link }),
 		reconnectAuthority: () => invoke<OrganizationState>('organization_reconnect_authority'),
 		renewDue: () => invoke<boolean>('organization_renew_due'),
 		ownLink: () => invoke<string>('organization_own_link'),
@@ -267,8 +267,7 @@ export const tauri = {
 			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId }),
 			accept: (link: string, code: string, password: string) =>
 				invoke<OrganizationState>('invitation_accept', { link, code, password }),
-			link: (invitationId: string) => invoke<string>('invitation_link', { invitationId }),
-			code: (invitationId: string) => invoke<FreshCode>('invitation_code', { invitationId })
+			link: (invitationId: string) => invoke<InvitationLink>('invitation_link', { invitationId })
 		},
 		changePassword: (current: string, next: string) =>
 			invoke<OrganizationState>('organization_change_password', { current, new: next }),

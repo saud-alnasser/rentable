@@ -1,26 +1,26 @@
 /**
- * what an invitation hands over, whichever act produced it: the link, whom it is for, and the
- * code that confirms it where the act made one.
+ * what an invitation hands over, whichever act produced it: the link, whom it is for, the code
+ * that opens it and the date the pair lapses.
  *
  * **Narrower than `Invited` on purpose.** An invite and a reset answer with a whole `Invited`;
- * copying the link again answers with the link string alone, and the row beside it is where the
- * username comes from. The panel draws the same things in all of those cases, so what the panel
- * is handed is those things rather than the widest of the payloads that can produce them.
+ * copying the link again answers with the link and the code, and the row beside it is where the
+ * username and the expiry come from. The panel draws the same things in all of those cases, so
+ * what the panel is handed is those things rather than the widest of the payloads that can
+ * produce them.
  */
 export type InvitedLink = {
-	/** which invitation this is, so the panel's fresh-code control knows what to ask for. */
+	/** which invitation this is, which is what the row a copy came from names. */
 	invitationId: string;
 	/** the member the link admits, as their row seals it. */
 	username: string;
 	joinLink: string;
 	/**
-	 * the code that confirms the link, where the act that opened this panel made one (effort 826,
-	 * requirement 23). `null` on a link copied again, which makes no code: the row's own code
-	 * action is what makes one of those.
+	 * the code that opens the link (effort 828, requirement 1). Never absent: one code is made
+	 * with the link and lives exactly as long as it, so every act that shows a link shows it.
 	 */
-	code: string | null;
-	/** the moment that code lapses, beside which the panel counts down. `null` with the code. */
-	codeExpiresAt: number | null;
+	code: string;
+	/** the moment the link and its code lapse, printed as a date beside them. */
+	expiresAt: number;
 	/**
 	 * on a reset, the workspaces the member held that the resetting administrator could not
 	 * restore. Empty on an invitation and on a link copied again.
@@ -76,8 +76,8 @@ export function closeOrganizationDialog() {
  * a link was produced: open the invite dialog on it.
  *
  * **Three acts reach here and the panel cannot tell them apart.** An invitation, a new link on
- * somebody's row, and a pending row's copy link each end with one link in one person's hands,
- * so each ends on the same panel rather than on a surface of its own.
+ * somebody's row, and a pending row's copy link each end with one link and one code in one
+ * person's hands, so each ends on the same panel rather than on a surface of its own.
  */
 export function showInvited(invited: InvitedLink) {
 	organizationDialog.invited = invited;

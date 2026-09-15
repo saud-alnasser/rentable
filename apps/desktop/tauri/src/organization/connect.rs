@@ -2,12 +2,20 @@
 //! organization is and records it, and nobody has signed in yet.
 //!
 //! **A connect opens no vault and records no member** (effort 824, requirement 18). The link
-//! carries the organization's id, name, remote and verifying key, and a read-only credential over
-//! sealed rows; what a connect does with it is reach the replica, check that the rows it finds are
+//! carries the organization's id, name, remote and verifying key, and a credential over sealed
+//! rows; what a connect does with it is reach the replica, check that the rows it finds are
 //! the organization's, and write those four facts to this machine's record with `member_id` and
 //! `role` empty. The person is admitted at the wall, by username and password, and that sign-in
 //! is what fills the two. *819's join and restore did both in one step, from a link that carried
 //! the invitation's half; requirement 18 retires them as ways through the wall.*
+//!
+//! **A connect takes a link whose credential is in hand, and nothing else** (effort 828,
+//! requirement 4). The organization's own link carries a legible credential and connects a
+//! machine with no code, which is what makes it the owner's recovery copy: when every machine is
+//! gone there is nobody left to read a code out. Every other link carries a sealed payload, and
+//! the act that takes the code is what opens it and hands a link with the credential in it back
+//! here (`link::with_clear_credential`), so a sealed link reaching this function directly is a
+//! person who was never asked for their code and is refused saying so.
 //!
 //! **What the machine learns from the link is pinned from the link.** The verifying key is
 //! written as the link spelled it and every later verification uses that copy, never one read
@@ -22,13 +30,22 @@ use crate::{diagnostics, error::Error, persisted::Persisted, sync::RemoteSyncSto
 
 use super::{HeldOrganization, link::JoinLink, store::OrganizationStore};
 
+/// The one sentence a link whose credential is still sealed is refused with here (effort 828,
+/// requirement 1): a code is what opens it, and nothing on this path asked for one.
+pub const CODE_NEEDED: &str =
+    "this link needs the six-character code that came with it; open it and type the code";
+
 /// Record the organization `link` names on this machine, having reached its replica.
 ///
-/// `store` is a replica of the organization the link names, opened with the link's read-only
-/// credential and pulled, the way `organization_link_inspect` reaches one. The organization row is
-/// read once and has to carry the link's id and the key the link pins; a replica saying otherwise
-/// is another organization's, or one whose rows were rewritten, and is refused before anything is
-/// recorded. What is written to `machine` is what the link carried and no member.
+/// `store` is a replica of the organization the link names, opened with the credential the link
+/// carried and pulled. The organization row is read once and has to carry the link's id and the
+/// key the link pins; a replica saying otherwise is another organization's, or one whose rows
+/// were rewritten, and is refused before anything is recorded. What is written to `machine` is
+/// what the link carried and no member.
+///
+/// **The credential has to be in hand** (effort 828, requirement 4). A link whose credential is
+/// still sealed is refused naming the code, because reaching a replica at all took a credential
+/// and a caller that got one without a code got it from the organization's own link.
 pub async fn connect(
     store: &OrganizationStore,
     machine: &mut Persisted<RemoteSyncStore>,
@@ -36,6 +53,7 @@ pub async fn connect(
     now: i64,
 ) -> Result<HeldOrganization, Error> {
     refuse_while_held(machine)?;
+    refuse_sealed(link)?;
 
     let verifying_key = link.verifying_key_bytes()?;
     let organization = store
@@ -86,6 +104,19 @@ pub async fn connect(
     Ok(held)
 }
 
+/// The refusal a link whose credential is still sealed meets, said before anything is reached.
+///
+/// Said separately from [`connect`] so the command can say it before it spends a network round
+/// trip trying to open a replica with a credential it does not have.
+pub fn refuse_sealed(link: &JoinLink) -> Result<(), Error> {
+    match link.clear_credential() {
+        Some(_) => Ok(()),
+        None => Err(Error::PreconditionFailed {
+            message: CODE_NEEDED.to_string(),
+        }),
+    }
+}
+
 /// The refusal a connect meets on a machine that already holds an organization, said before
 /// the link is decoded or anything is reached: the way to another organization is a disconnect
 /// first.
@@ -107,11 +138,11 @@ mod tests {
 
     use serde_json::json;
 
-    use super::connect;
+    use super::{CODE_NEEDED, connect, refuse_sealed};
     use crate::{
         error::Error,
         organization::{
-            link::JoinLink,
+            link::{Half, HalfKind, JoinLink},
             setup::{CreateOrganization, Remote, create_organization},
             store::OrganizationStore,
             vault::KdfParams,
@@ -269,6 +300,63 @@ mod tests {
             Some(&before),
             "the refusal touched the owner's record"
         );
+    }
+
+    /// Effort 828, requirement 4: **the organization's own link connects a machine with no code,
+    /// and a sealed link is refused with a sentence naming the one it needs.**
+    ///
+    /// The first half is what makes the owner's recovery copy work at all: when every machine is
+    /// gone there is nobody left to read a code out. The second is the whole of what stops a found
+    /// invitation link reaching the directory, since a connect is the one path that would record an
+    /// organization without ever asking for one.
+    #[tokio::test]
+    async fn the_organizations_own_link_connects_with_no_code_and_a_sealed_one_is_refused() {
+        let directory = scratch("no-code");
+        let (store, _, link) = created(&directory).await;
+        let mut machine = fresh_machine(&directory);
+
+        // the organization's own: a legible credential, no half, and nothing asked for.
+        assert!(link.clear_credential().is_some());
+        assert_eq!(link.half(), None);
+
+        let held = connect(&store, &mut machine, &link, ISSUED_AT + 1)
+            .await
+            .expect("the organization's own link did not connect");
+
+        assert_eq!(held.id, link.organization_id);
+        assert_eq!(held.member_id, None);
+
+        // a sealed link, on a machine holding nothing: refused before anything is reached, with
+        // the sentence that names the code.
+        let mut second = Persisted::<RemoteSyncStore>::load(directory.join("third-machine.json"))
+            .expect("the store");
+        let sealed = link.sealed(
+            "c2VhbGVk",
+            Half {
+                kind: HalfKind::Invitation,
+                id: "inv-1".to_string(),
+                secret: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8".to_string(),
+                expires_at: ISSUED_AT + 1000,
+            },
+        );
+        let refused = connect(&store, &mut second, &sealed, ISSUED_AT + 2).await;
+
+        assert!(
+            matches!(refused, Err(Error::PreconditionFailed { ref message }) if message == CODE_NEEDED),
+            "{refused:?}"
+        );
+        assert!(
+            second.organization.is_none(),
+            "a sealed link recorded an organization"
+        );
+        assert!(
+            matches!(
+                refuse_sealed(&sealed),
+                Err(Error::PreconditionFailed { .. })
+            ),
+            "a sealed link passed the guard the command reads"
+        );
+        assert!(refuse_sealed(&link).is_ok());
     }
 
     /// The verifying key is pinned from the link and checked against the row it finds: a link

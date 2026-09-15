@@ -275,16 +275,13 @@ mod tests {
             .collect()
     }
 
-    /// The password an invitation's vault was sealed under: the link's secret and the code
-    /// together open it, which is what the person opening the link does (effort 826, requirement
-    /// 23). `reader` is any session over this organization. *It was the link's secret alone until
-    /// that requirement made the code the other half.*
-    async fn secret_of(
-        store: &OrganizationStore,
-        reader: &MemberSession,
-        invited: &Invited,
-    ) -> String {
-        crate::organization::invite::vault_password_of(store, reader, invited, test_cost()).await
+    /// The password an invitation's vault was sealed under: the link's own secret and the code
+    /// together open the payload the link carries, which is what the person opening the link does
+    /// (effort 828, requirement 1). *It was the link's secret alone until effort 826 made the code
+    /// the other half, and it read the row's `code_seal` until effort 828 moved the seal into the
+    /// link's text.*
+    fn secret_of(invited: &Invited) -> String {
+        crate::organization::invite::vault_password_of(invited, test_cost())
     }
 
     /// The machine's record of a member who joined.
@@ -404,7 +401,7 @@ mod tests {
         let mut session = sign_in(
             store,
             &joined_as(owner, &invited.member_id, role),
-            &secret_of(&store, &owner, &invited).await,
+            &secret_of(&invited),
             &slot(),
         )
         .await
@@ -835,7 +832,7 @@ mod tests {
         let mut widened = sign_in(
             &store,
             &joined_as(&owner, &sami.member_id, permission::MEMBER),
-            &secret_of(&store, &owner, &sami).await,
+            &secret_of(&sami),
             &slot(),
         )
         .await

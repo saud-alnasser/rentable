@@ -2,6 +2,7 @@ import { DesignProvider } from '@rentable/design/strings.js';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
 
+import { formatRecordDate } from '$lib/design/date';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import InviteForm from '$lib/organization/component/invite-form.svelte';
@@ -46,21 +47,17 @@ const workspaces = [
 		accessLevel: 'full-access'
 	}
 ];
+/** when the link and its code lapse: a week out, which is what an invitation stands for. */
+const LAPSES_AT = Date.UTC(2026, 8, 22);
+
 const invited = {
 	invitationId: 'inv-1',
 	username: 'sami.staff',
 	joinLink: 'rentable://join/abc',
 	code: '7K4M9Q',
-	codeExpiresAt: 0,
+	expiresAt: LAPSES_AT,
 	unreachableWorkspaces: []
 };
-
-/** the panel's fixture with its code alive for the ninety seconds it is drawn with. */
-const withLiveCode = (overrides: Partial<typeof invited> = {}) => ({
-	...invited,
-	codeExpiresAt: Date.now() + 90_000,
-	...overrides
-});
 
 const form = (
 	overrides: Partial<Parameters<typeof render<typeof InviteForm>>[1]> = {},
@@ -78,10 +75,8 @@ const form = (
 			isInviting: false,
 			invited: null,
 			copied: null,
-			isFresheningCode: false,
 			onInvite: noop,
 			onCopy: noop,
-			onFreshCode: noop,
 			onDismiss: noop,
 			...overrides
 		},
@@ -259,8 +254,8 @@ test('what an invitation made is one link, as a machine string, with one copy co
 	expect(screen.getByRole('button', { name: en.organization.setup.copyLink })).toBeDefined();
 	expect(document.querySelector('[data-invited-password]')).toBeNull();
 	expect(
-		Array.from(document.querySelectorAll('[data-invited] button')).filter(
-			(button) => button.querySelector('svg') && !button.hasAttribute('data-invited-fresh-code')
+		Array.from(document.querySelectorAll('[data-invited] button')).filter((button) =>
+			button.querySelector('svg')
 		)
 	).toHaveLength(1);
 	expect(document.querySelector('[data-invited]')?.textContent?.toLowerCase()).not.toContain(
@@ -287,19 +282,14 @@ test('the copy control hands back the link', async () => {
 	expect(copied).toEqual([`link:${invited.joinLink}`]);
 });
 
-// effort 826, requirement 23: the code is under the link, large enough to read out, beside the
-// seconds it has left and a control that makes a fresh one. It has no copy control of its own,
-// because a code copied is a code pasted beside the link, which is the one thing it must not be.
-test('the panel shows the code under the link, with the seconds it has left and a fresh-code control', async () => {
+// effort 828, requirement 1: the code is under the link, large enough to read out, beside the date
+// the pair lapses. It has no copy control of its own, because a code copied is a code pasted beside
+// the link, which is the one thing it must not be, and no control makes a fresh one, because a
+// fresh code would be a fresh link text to re-send.
+test('the panel shows the code under the link, with the date the pair lapses and no control to refresh it', () => {
 	loadLocale('en');
 	setLocale('en');
-
-	const freshened: string[] = [];
-
-	form({
-		invited: withLiveCode(),
-		onFreshCode: (invitationId) => freshened.push(invitationId)
-	});
+	form({ invited });
 
 	const link = document.querySelector('[data-invited-link]')!;
 	const code = document.querySelector('[data-invited-code]')!;
@@ -311,45 +301,23 @@ test('the panel shows the code under the link, with the seconds it has left and 
 	expect(screen.getByText(en.organization.dashboard.codeTitle)).toBeDefined();
 	expect(screen.getByText(en.organization.dashboard.codeDescription)).toBeDefined();
 
-	// the countdown, drawn from the moment the code lapses: ninety of them at the moment it is
-	// made, said as the locale says it.
-	expect(document.querySelector('[data-invited-code-seconds]')?.textContent?.trim()).toBe(
-		en.organization.dashboard.codeExpires.replace('{seconds}', '90')
+	// the date the link and the code lapse, said as the locale says a date.
+	expect(document.querySelector('[data-invited-expiry]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.invitationExpires.replace(
+			'{date:string}',
+			formatRecordDate('en', LAPSES_AT)
+		)
 	);
 
-	// the fresh-code control asks for another on this invitation.
-	const fresh = screen.getByRole('button', { name: en.organization.dashboard.freshCode });
-
-	await fireEvent.click(fresh);
-	expect(freshened).toEqual(['inv-1']);
-
-	// and no copy control for the code: the link has the only one on the panel.
+	// no countdown, no fresh-code control, and no copy control for the code: the link has the only
+	// one on the panel.
+	expect(document.querySelector('[data-invited-code-seconds]')).toBeNull();
+	expect(document.querySelector('[data-invited-fresh-code]')).toBeNull();
 	expect(
 		Array.from(document.querySelectorAll('[data-invited] button')).filter(
 			(button) => button.textContent?.trim() === en.organization.setup.copyLink
 		)
 	).toHaveLength(1);
-});
-
-// a code past its ninety seconds says so rather than counting into the negative, and a panel
-// opened by a copied link shows no code at all: the row's own code action is what makes one.
-test('a lapsed code says so, and a link copied again shows no code', () => {
-	loadLocale('en');
-	setLocale('en');
-
-	const lapsed = form({ invited: withLiveCode({ codeExpiresAt: Date.now() - 1000 }) });
-
-	expect(document.querySelector('[data-invited-code-seconds]')?.textContent?.trim()).toBe(
-		en.organization.dashboard.codeLapsed
-	);
-	expect(document.querySelector('[data-invited-code]')?.textContent?.trim()).toBe('7K4M9Q');
-	lapsed.unmount();
-
-	form({ invited: { ...invited, code: null, codeExpiresAt: null } });
-
-	expect(document.querySelector('[data-invited-code-block]')).toBeNull();
-	expect(document.querySelector('[data-invited-code]')).toBeNull();
-	expect(document.querySelector('[data-invited-link]')).not.toBeNull();
 });
 
 test('the control that was pressed says so', () => {

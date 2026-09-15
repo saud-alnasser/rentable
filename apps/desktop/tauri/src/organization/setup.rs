@@ -1258,10 +1258,13 @@ mod tests {
             link.remote_url,
             format!("libsql://{database_name}-an-org.aws-eu-west-1.turso.io")
         );
+        // the one credential a link carries legibly, and the one that never lapses: the
+        // organization's own (effort 828, requirement 4).
         assert_eq!(
-            link.read_only_credential,
-            format!("token-for-{database_name}-never-read-only")
+            link.clear_credential(),
+            Some(format!("token-for-{database_name}-never-read-only").as_str())
         );
+        assert_eq!(link.half(), None);
 
         // the rows, verified against the key the link carries and nothing else.
         let key = link.verifying_key_bytes().expect("a key");

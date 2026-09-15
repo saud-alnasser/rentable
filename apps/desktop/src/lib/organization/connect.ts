@@ -1,5 +1,5 @@
 import { toTauriErrorCode } from '$lib/error/tauri';
-import type { LinkFacts } from '$lib/platform/host';
+import type { LinkShape } from '$lib/platform/host';
 
 /**
  * CONNECTING BY A LINK
@@ -14,27 +14,28 @@ import type { LinkFacts } from '$lib/platform/host';
  * design: `tauri/src/organization/join.rs` records how the scheme reaches the application on each
  * platform.
  *
- * **One field, two kinds of link** (effort 826, requirement 10). An organization link names an
- * organization and admits nobody by itself, so a machine that records it stands at the wall. An
- * invitation link carries the half that opens one member's vault, so the screen names the
- * organization and the person, asks for the password they are choosing, and the accept signs them
- * in. Which kind it is, is read from the link rather than asked: `linkKind` below reads the
- * standing Rust answered with. *A link carried no invitation half at all between effort 824 and
- * this one, and the screen asked for no password.*
+ * **One field, and the kind is read off the link's own text** (effort 826, requirement 10; effort
+ * 828, requirement 1). An organization link carries a legible credential and admits nobody by
+ * itself, so a machine that records it stands at the wall. Every other link carries a payload
+ * nothing opens without the code that came with it, so the screen names the organization, asks for
+ * the code and the password, and the accept unseals, reaches, records and judges. Which kind it
+ * is, is `linkKind` below, off the shape Rust decoded. *It was read off a standing Rust answered
+ * by reaching the organization with the link's clear credential; there is no clear credential to
+ * do that with, so reading a link is a decode.*
  *
- * **The connect runs on either kind, before the standing is judged.** `invitation_accept` refuses
- * a machine that holds no organization, so recording the organization is what makes an invitation
- * openable at all; and a spent link still names the organization, which is the way a person
- * setting up a second machine gets to the wall rather than to a dead end. So the order is read,
- * record, then judge, and a refusal is met by a machine that is already connected.
+ * **The connect runs on the organization's own link alone.** Every other link is recorded by the
+ * act that takes the code, because the credential that reaches the organization is inside the
+ * payload; a spent link still connects the machine that way, which is how a person setting up a
+ * second machine gets to the wall rather than to a dead end.
+ *
+ * **The steps past the decode are ticket 05's.** This ticket moved the read and left the rest;
+ * where a transition here still describes the standings Rust used to answer, its test is marked
+ * for that ticket.
  *
  * **What the screen holds is the link text.** The credential the link carries is parsed on the
  * other side of the boundary and never read here ([[rules/credentials]], *Client boundary*); the
  * text is held only to try again with, and to hand back to the accept.
  */
-
-/** which of the two kinds of link this is, once the organization it names has answered. */
-export type LinkKind = 'organization' | 'invitation';
 
 /**
  * how many characters the confirmation code is (effort 826, requirement 23). Rust draws it from
@@ -136,47 +137,40 @@ export function beginWith(link: string | null): JoinStep {
 }
 
 /**
- * which kind of link this is, read from what the organization answered rather than from the text.
- * `none` is the standing of the organization's own link, which carries no invitation half; every
- * other value is an invitation's, including the ones it no longer opens on. The invited username
- * is not the test: a consumed link carries a half whose secret opens nothing any more, and it is
- * still an invitation link.
+ * which kind of link this is, read from the link's own text. The decode says so directly now, so
+ * this is a field read rather than a judgement; it is kept as a function because the screen and
+ * the route both ask, and ticket 05 is where the third kind gets a step of its own.
  */
-export function linkKind(facts: LinkFacts): LinkKind {
-	return facts.standing === 'none' ? 'organization' : 'invitation';
+export function linkKind(shape: LinkShape): LinkShape['kind'] {
+	return shape.kind;
 }
 
 /**
- * where the link leaves the screen, once it has been read and this machine connected: the wall for
- * an organization link, the password for an invitation that stands, and the refusal naming which
- * for one that does not.
+ * where the link leaves the screen, once it has been read: the wall for an organization link,
+ * whose connect has already run, and the password for anything else, whose accept is what
+ * reaches the organization at all.
+ *
+ * **Where a lapsed, consumed or revoked invitation lands is ticket 05's.** Nothing reads the row
+ * before the code is typed, so those three arrive as refusals from the accept rather than from
+ * the read, and `joinFailed` is where they will be keyed.
  */
-export function afterConnect(link: string, facts: LinkFacts): JoinStep | typeof THE_WALL {
-	if (linkKind(facts) === 'organization') {
+export function afterConnect(link: string, shape: LinkShape): JoinStep | typeof THE_WALL {
+	if (shape.kind === 'organization') {
 		return THE_WALL;
 	}
 
-	switch (facts.standing) {
-		case 'open':
-			return {
-				kind: 'password',
-				link,
-				organizationName: facts.organizationName,
-				// nobody is named from a link alone any more (requirement 23), and the step stands
-				// without a name: the organization is what the person recognises, and the code and
-				// the password are what they have to give.
-				username: facts.invitation?.username ?? '',
-				isJoining: false,
-				codeRefusal: null,
-				errorMessage: null
-			};
-		case 'lapsed':
-			return { kind: 'refused', link, refusal: 'lapsed', message: null };
-		case 'consumed':
-			return { kind: 'refused', link, refusal: 'consumed', message: null };
-		default:
-			return { kind: 'refused', link, refusal: 'revoked', message: null };
-	}
+	return {
+		kind: 'password',
+		link,
+		organizationName: shape.organizationName,
+		// nobody is named from a link alone (effort 826, requirement 23), and the step stands
+		// without a name: the organization is what the person recognises, and the code and the
+		// password are what they have to give.
+		username: '',
+		isJoining: false,
+		codeRefusal: null,
+		errorMessage: null
+	};
 }
 
 /**

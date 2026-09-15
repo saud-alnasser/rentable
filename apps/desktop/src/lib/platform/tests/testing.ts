@@ -130,7 +130,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			linkTake: refuse('organization.linkTake'),
 			onLink: refuse('organization.onLink'),
 			onMigration: refuse('organization.onMigration'),
-			linkInspect: refuse('organization.linkInspect'),
+			linkRead: refuse('organization.linkRead'),
 			reconnectAuthority: refuse('organization.reconnectAuthority'),
 			renewDue: refuse('organization.renewDue'),
 			ownLink: refuse('organization.ownLink'),
@@ -155,8 +155,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			invitation: {
 				revoke: refuse('organization.invitation.revoke'),
 				accept: refuse('organization.invitation.accept'),
-				link: refuse('organization.invitation.link'),
-				code: refuse('organization.invitation.code')
+				link: refuse('organization.invitation.link')
 			},
 			changePassword: refuse('organization.changePassword'),
 			accountRefusalDetail: refuse('organization.accountRefusalDetail')

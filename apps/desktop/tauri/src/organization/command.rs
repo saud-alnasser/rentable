@@ -7,9 +7,9 @@ use crate::{diagnostics, error::Error, state::AppState, timestamp};
 
 use super::{
     HeldOrganization, connect, forget,
-    invite::{self, FreshCode, Invitation, Invited, MemberFacts, WorkspaceGrant},
-    join::{self, LinkFacts},
-    link::JoinLink,
+    invite::{self, Invitation, InvitationLink, Invited, MemberFacts, WorkspaceGrant},
+    join,
+    link::{self, JoinLink, LinkShape},
     migrate::Pipeline,
     migration::{self, MigrationPhase, PipelineLease},
     password,
@@ -222,21 +222,27 @@ pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, 
     })
 }
 
-/// Connect this machine to the organization a link names: reach its replica as
-/// `organization_link_inspect` does, check the rows against the key the link pins, and record
-/// the organization with no member. No vault opens; the person signs in at the wall, or opens
-/// their invitation (`invitation_accept`) where the link carries one.
+/// Connect this machine to the organization the organization's own link names: reach its replica
+/// with the credential that link carries, check the rows against the key it pins, and record the
+/// organization with no member. No vault opens; the person signs in at the wall.
+///
+/// **The organization's own link and nothing else** (effort 828, requirement 4). It is the one
+/// link that carries a legible credential, and it connects with no code precisely because it is
+/// the owner's recovery copy: when every machine is gone there is nobody to read a code out. Every
+/// other link carries a sealed payload and is opened by the act that takes the code, so one
+/// arriving here is refused with a sentence naming the code.
 ///
 /// A machine holds one organization (requirement 17). A link naming the one it already holds
-/// changes nothing and answers with the state, so an invitation link to the held organization
-/// goes straight to its password step; a link naming another is refused, and the way to it is a
-/// disconnect first.
+/// changes nothing and answers with the state; a link naming another is refused, and the way to it
+/// is a disconnect first.
 #[tauri::command]
 pub async fn organization_connect(
     app_state: tauri::State<'_, AppState>,
     link: String,
 ) -> Result<OrganizationState, Error> {
     let link = JoinLink::decode(&link)?;
+
+    connect::refuse_sealed(&link)?;
 
     {
         let mut remote_sync = app_state.remote_sync.write().await;
@@ -255,7 +261,10 @@ pub async fn organization_connect(
         connect::refuse_while_held(held)?;
     }
 
-    let store = reached(&app_state, &link).await?;
+    let credential: CredentialSlot = Arc::new(Mutex::new(
+        link.clear_credential().map(ToString::to_string),
+    ));
+    let store = reached(&app_state, &link, credential).await?;
 
     {
         let mut remote_sync = app_state.remote_sync.write().await;
@@ -881,11 +890,13 @@ pub async fn organization_renew_due(app_state: tauri::State<'_, AppState>) -> Re
 /// Invite a member: a row, and one link. The application sends nothing; the administrator hands
 /// the link over themselves.
 ///
-/// **No password crosses.** The generated password the vault is sealed under leaves `invite::issue`
-/// in two sealed columns of the invitation row, `sealed_secret` and `code_seal`, and nowhere else.
-/// What crosses is the link, which carries the invitation id and the link secret, and the
-/// six-character code, which is the other half of what opens that seal; [[rules/credentials]],
-/// *Client boundary*, is what sanctions the two. Everything else the invitation makes stays on
+/// **No password crosses, and no credential does either** (effort 828, requirement 1). The
+/// generated password the vault is sealed under leaves `invite::issue` inside the link's own seal
+/// and inside the issuer's sealed copy on the row, and nowhere else; so does the issuer's grant on
+/// the organization database, which is what a machine opening the link reads the rows with. What
+/// crosses is the link, whose credential nothing can read, and the six-character code, which is
+/// the other half of what opens it; [[rules/credentials]], *Client boundary*, is what sanctions
+/// the two. Everything else the invitation makes stays on
 /// this side: the member's vault, the content key sealed to them, and the grants. A read-only
 /// grant is minted with the owner's authority, which is why the platform is handed in where this
 /// machine holds it.
@@ -948,55 +959,40 @@ pub async fn member_reset(
     .await
 }
 
-/// The invitation link again, for the person who issued it: the secret is sealed to their key on
-/// the row, so their open vault is the one thing that rebuilds it. Anybody else with the act is
-/// refused and offered a new link, which is a reset.
+/// The invitation link and its code again, for the person who issued it: the password, the secret
+/// and the code are sealed to their key on the row, so their open vault is the one thing that
+/// rebuilds the pair. Anybody else with the act is refused and offered a new link, which is a
+/// reset.
+///
+/// **Both halves, because a code now lives as long as its link** (effort 828, requirement 1).
+/// There is one pair per invitation and no way to make a second code without making a second
+/// link, so copying is showing the same pair again. The code crosses for the reason it always
+/// did: the person who reads it out on a call is on the other side of the boundary, and it is
+/// never written under the data directory.
 #[tauri::command]
 pub async fn invitation_link(
     app_state: tauri::State<'_, AppState>,
     invitation_id: String,
-) -> Result<String, Error> {
+) -> Result<InvitationLink, Error> {
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
 
-    invite::invitation_link(store, member, &invitation_id).await
-}
-
-/// A fresh confirmation code for an invitation, for the person who issued it (effort 826,
-/// requirement 23). The vault password is sealed under it and the link's secret together, so only
-/// the issuer's open vault can make one; anybody else with the act is refused and offered a new
-/// link, which is a reset.
-///
-/// **The code crosses once, as the generated password used to**: it is read out on a call or in
-/// person and typed into the connect screen, which is the one thing the person on the other side
-/// can do with it, and it is never written under the data directory.
-#[tauri::command]
-pub async fn invitation_code(
-    app_state: tauri::State<'_, AppState>,
-    invitation_id: String,
-) -> Result<FreshCode, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    invite::invitation_code(
-        store,
-        member,
-        &invitation_id,
-        invite::INVITED_KDF,
-        timestamp::now(),
-    )
-    .await
+    invite::invitation_link(store, member, &invitation_id, invite::INVITED_KDF).await
 }
 
 /// Open an invitation link: the way in for a person who was invited or reset (effort 826,
-/// requirements 8 and 9). The organization the link names has to be the one this machine holds,
-/// which `organization_connect` arranges first; the secret inside the link opens the member's
-/// vault, the password they chose reseals it, the invitation is spent, and they are signed in.
+/// requirements 8 and 9; effort 828, requirement 1).
 ///
-/// **`public`, because it happens at the wall.** Neither the secret nor the password crosses
-/// back; what comes back is where the machine stands, with a session in it.
+/// **The code comes first and everything follows it.** The link carries no credential anybody can
+/// read, so the code and the link's secret together unseal the issuer's own grant and the vault
+/// password; the replica is opened under that grant; the organization is recorded on this machine
+/// where it holds none, which is why this works on a machine that never connected; the invitation
+/// is judged; and the password the person chose reseals their vault. A link naming an organization
+/// other than the one this machine holds is refused, and the way to it is a disconnect.
+///
+/// **`public`, because it happens at the wall.** Neither the credential, the secret nor the
+/// password crosses back; what comes back is where the machine stands, with a session in it.
 #[tauri::command]
 pub async fn invitation_accept(
     app_state: tauri::State<'_, AppState>,
@@ -1005,68 +1001,15 @@ pub async fn invitation_accept(
     password: String,
 ) -> Result<OrganizationState, Error> {
     let link = JoinLink::decode(&link)?;
-    let held = {
-        let mut remote_sync = app_state.remote_sync.write().await;
-
-        remote_sync
-            .store_mut()
-            .organization
-            .clone()
-            .ok_or_else(|| Error::PreconditionFailed {
-                message: "this machine holds no organization yet; connect with the link first"
-                    .to_string(),
-            })?
-    };
-
-    if held.id != link.organization_id {
-        return Err(Error::PreconditionFailed {
-            message: format!(
-                "this link is for {} and this machine holds {}; disconnect it first",
-                link.organization_name, held.name
-            ),
-        });
-    }
-
-    let database_path = {
-        let settings = app_state.settings.read().await;
-
-        settings.database_path.clone()
-    };
-
-    // the replica, under the link's read-only credential until the vault is open: the invitation
-    // row may have been written after this machine connected, and the read-only credential is what
-    // lets the pull collect it. The accept then leaves the member's own credential in the slot.
-    let credential: CredentialSlot = Arc::new(Mutex::new(Some(link.read_only_credential.clone())));
-    let slot = Arc::clone(&credential);
-    let store = OrganizationStore::open(
-        &OrganizationStore::replica_path(&database_path, &held.id),
-        Some(held.remote_url.clone()),
-        move || {
-            let slot = Arc::clone(&slot);
-
-            async move {
-                slot.lock()
-                    .ok()
-                    .and_then(|slot| slot.clone())
-                    .ok_or_else(|| turso::Error::Misuse("no credential is held".into()))
-            }
-        },
-    )
-    .await?;
-
-    store.pull().await;
-
-    let member = {
+    let (store, member) = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
         join::accept(
-            &store,
+            |credential| reached(&app_state, &link, credential),
             remote_sync.store_mut(),
-            &held,
             &link,
             &code,
             &password,
-            &credential,
             setup::SHIPPING_KDF,
             timestamp::now(),
         )
@@ -1404,19 +1347,17 @@ pub async fn organization_link_take(
     Ok(arriving.take())
 }
 
-/// Read a link: which organization it names, and where its invitation stands where it carries
-/// one, before anything is done with it. The link is parsed here, the organization is reached with
-/// the credential it carries, and what crosses back is a name, where it is, the standing and the
-/// invited username; the secret stays on this side ([[rules/credentials]]).
+/// Read a link: which organization it names, which kind of link it is, and when it lapses.
+///
+/// **A decode and nothing else** (effort 828, requirement 1). Nothing is reached and no row is
+/// read, because there is no credential to read one with until somebody types the code; where the
+/// invitation behind a link stands is judged inside `invitation_accept`, which has one. What
+/// crosses back is what the text says; the credential and the secret stay on this side
+/// ([[rules/credentials]]). *It was `organization_link_inspect`, which opened the replica with the
+/// link's clear credential before the person had given anything.*
 #[tauri::command]
-pub async fn organization_link_inspect(
-    app_state: tauri::State<'_, AppState>,
-    link: String,
-) -> Result<LinkFacts, Error> {
-    let link = JoinLink::decode(&link)?;
-    let store = reached(&app_state, &link).await?;
-
-    join::inspect(&store, &link, timestamp::now()).await
+pub fn organization_link_read(link: String) -> Result<LinkShape, Error> {
+    link::read(&link)
 }
 
 /// Record which Turso account the consent this machine now holds is over, so the owner's
@@ -1451,17 +1392,24 @@ pub async fn organization_reconnect_authority(
 }
 
 /// The organization a link names, reached: its replica on this machine, opened against the
-/// remote the link spells with the read-only credential it carries, and pulled. A machine that
-/// has never seen the organization and cannot reach it now has nothing to say about the link,
-/// and says so as a network failure rather than as a refusal. The credential stays in the slot
-/// the replica reads; nobody signs in on this replica, which is let go of once read.
-async fn reached(app_state: &AppState, link: &JoinLink) -> Result<OrganizationStore, Error> {
+/// remote the link spells with the credential it was handed, and pulled. A machine that has never
+/// seen the organization and cannot reach it now has nothing to say about the link, and says so
+/// as a network failure rather than as a refusal.
+///
+/// **The credential is handed in rather than read off the link** (effort 828, requirement 1).
+/// Only the organization's own link carries one legibly; every other link carries it sealed, and
+/// what fills this slot there is what the code unsealed. The slot is the caller's, because a
+/// session opened over this replica replaces its contents with the member's own.
+async fn reached(
+    app_state: &AppState,
+    link: &JoinLink,
+    credential: CredentialSlot,
+) -> Result<OrganizationStore, Error> {
     let database_path = {
         let settings = app_state.settings.read().await;
 
         settings.database_path.clone()
     };
-    let credential: CredentialSlot = Arc::new(Mutex::new(Some(link.read_only_credential.clone())));
     let slot = Arc::clone(&credential);
     let store = OrganizationStore::open(
         &OrganizationStore::replica_path(&database_path, &link.organization_id),

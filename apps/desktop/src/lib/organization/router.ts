@@ -1,5 +1,5 @@
 import type {
-	FreshCode,
+	InvitationLink,
 	Invited,
 	LockOutCost,
 	MemberRemoved,
@@ -289,8 +289,9 @@ export const organization = router({
 	 * **`accept` is `public` for the same reason `connect` is.** A person opening their link has
 	 * no identity here yet; being admitted is what the call does. It reaches `ctx.host` and never
 	 * `ctx.db`. The password floor is the first run's and the code is six characters, both
-	 * refused here before a round trip for a caller that is not the screen; whether the invitation
-	 * stands, and whether the link's secret and the code together open anything, are Rust's alone.
+	 * refused here before a round trip for a caller that is not the screen; whether the link has
+	 * lapsed, where the invitation stands, and whether the code and the link's own secret together
+	 * open anything, are Rust's alone.
 	 */
 	invitation: {
 		revoke: procedure
@@ -299,22 +300,18 @@ export const organization = router({
 			.mutation(async ({ input, ctx }): Promise<void> => {
 				return ctx.host.organization.invitation.revoke(input.invitationId);
 			}),
+		/**
+		 * The link and the code again, under the act that makes invitations. Whether the caller is
+		 * the one who issued this invitation is Rust's, because it turns on whose key the row's
+		 * sealed secret opens for; anybody else is offered a new link instead, which is a reset.
+		 * *It answered the link alone, and a second procedure answered a fresh code, until effort
+		 * 828 made a code live as long as the link it came with.*
+		 */
 		link: procedure
 			.permitted('inviteMember')
 			.input(z.object({ invitationId: z.string().trim().min(1) }))
-			.mutation(async ({ input, ctx }): Promise<string> => {
+			.mutation(async ({ input, ctx }): Promise<InvitationLink> => {
 				return ctx.host.organization.invitation.link(input.invitationId);
-			}),
-		/**
-		 * A fresh confirmation code, under the act that makes invitations. Whether the caller is
-		 * the one who issued this invitation is Rust's, because it turns on whose key the row's
-		 * sealed secret opens for; anybody else is offered a new link instead, which is a reset.
-		 */
-		code: procedure
-			.permitted('inviteMember')
-			.input(z.object({ invitationId: z.string().trim().min(1) }))
-			.mutation(async ({ input, ctx }): Promise<FreshCode> => {
-				return ctx.host.organization.invitation.code(input.invitationId);
 			}),
 		accept: procedure.public
 			.input(

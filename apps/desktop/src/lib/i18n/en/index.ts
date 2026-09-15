@@ -804,7 +804,7 @@ const en = {
 			usernameLabel: 'username',
 			codeLabel: 'confirmation code',
 			codeDescription:
-				'the six characters whoever invited you read out. it lapses ninety seconds after it was made; ask them for a fresh one if it has.',
+				'the six characters whoever invited you read out. it is the other half of what the link needs, and it lasts as long as the link does.',
 			codeWrong: 'the code is wrong or has lapsed. ask whoever invited you for a fresh one.',
 			codeLapsed: 'that code has lapsed. ask whoever invited you for a fresh one.',
 			confirmLabel: 'your password, again',
@@ -826,10 +826,6 @@ const en = {
 			codeTitle: 'confirmation code',
 			codeDescription:
 				'read this out on a call or in person. it is the other half of what the link needs, so it is never sent beside it.',
-			codeExpires: 'lapses in {seconds} seconds',
-			codeLapsed: 'this code has lapsed.',
-			freshCode: 'fresh code',
-			memberCode: 'make a confirmation code',
 			done: 'done',
 			notYetSignedIn: 'not yet signed in',
 			invitationExpires: 'the link expires {date:string}',

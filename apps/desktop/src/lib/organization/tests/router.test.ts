@@ -250,7 +250,6 @@ test('nothing here asks the host to list organizations', () => {
 		'create',
 		'disconnect',
 		'invitation.accept',
-		'invitation.code',
 		'invitation.link',
 		'invitation.revoke',
 		'member.changeRole',
@@ -333,34 +332,36 @@ test('opening an invitation link reaches the host signed out, and a short passwo
 	assert.deepEqual(asked, ['accept:rentable://join/abc:7K4M9Q:21']);
 });
 
-// requirement 23 from this side: a fresh code is under the act that makes invitations, and whether
-// the caller is the one who issued this one is Rust's, because it turns on whose key the row's
-// sealed secret opens for.
-test('a fresh code is held to inviteMember and hands the invitation on as given', async () => {
+// effort 828, requirement 1 from this side: copying an invitation hands back the link and the code
+// together, under the act that makes invitations, and whether the caller is the one who issued this
+// one is Rust's, because it turns on whose key the row's sealed secret opens for. *There was a
+// second procedure for a fresh code until a code began living as long as its link.*
+test('copying an invitation answers the link and the code, held to inviteMember', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
 		organization: {
 			...fakeHost().organization,
 			invitation: {
 				...fakeHost().organization.invitation,
-				code: async (invitationId) => {
-					asked.push(`code:${invitationId}`);
+				link: async (invitationId) => {
+					asked.push(`link:${invitationId}`);
 
-					return { code: '7K4M9Q', expiresAt: 1_757_000_090_000 };
+					return { joinLink: 'rentable://join/abc', code: '7K4M9Q' };
 				}
 			}
 		}
 	});
 	const inviting = await permittedApi(host, 'inviteMember');
-	const fresh = await inviting.app.organization.invitation.code({ invitationId: ' inv-1 ' });
+	const copy = await inviting.app.organization.invitation.link({ invitationId: ' inv-1 ' });
 
-	assert.equal(fresh.code, '7K4M9Q');
-	assert.deepEqual(asked, ['code:inv-1']);
+	assert.equal(copy.code, '7K4M9Q');
+	assert.equal(copy.joinLink, 'rentable://join/abc');
+	assert.deepEqual(asked, ['link:inv-1']);
 
 	const resetting = await permittedApi(host, 'resetPassword');
 
-	await assert.rejects(resetting.app.organization.invitation.code({ invitationId: 'inv-1' }));
-	assert.deepEqual(asked, ['code:inv-1']);
+	await assert.rejects(resetting.app.organization.invitation.link({ invitationId: 'inv-1' }));
+	assert.deepEqual(asked, ['link:inv-1']);
 });
 
 /**

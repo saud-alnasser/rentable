@@ -149,6 +149,14 @@ rail's two menus open. Every concept has one name.
     machine with the organization's link and signs in with their username and password, as
     824 built. The connect screen takes either kind of link in one field and reads which it
     is. The owner restored on a second machine repeats the consent from the settings area.
+    *Corrected 2026-09-15 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirements 3 and 4:
+    the organization link is not what a member is handed for a second machine any more. It carries
+    the never-expiring read-only credential in the clear, so every copy of it in every chat reads
+    the directory forever; it stays as the owner's recovery copy, for when every machine is gone,
+    and a member makes their own second-machine link and code from their you section. The connect
+    screen still takes one field and still reads which kind a link is, from the link's own text
+    rather than from a row behind it.*
 11. **The wall is the login page of the held organization**: its name, a username, a
     password, unlock, and at the foot disconnect and a way to the connect screen for a
     person holding a link, since a reset link is opened by somebody whose machine already
@@ -286,6 +294,18 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
     or in person; it is never sent beside the link. *Chosen over a code the row checks and
     the client refuses, which a modified client holding the link walks past, and over sixty
     seconds, which leaves no room for the row to replicate to the person's machine.*
+    *Corrected 2026-09-15 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirements 1 and 2.
+    **The code is a key half, not a check, and that half of this requirement stands.** What it
+    guarded did not: the link beside the code carried the organization database's credential in the
+    clear, so the code bounded the invited vault and left the directory open to whoever found the
+    link. The credential is sealed in the link's own text now, under the same code and the same
+    secret, because nothing reads a row before the credential is out. **The ninety seconds and the
+    fresh-code control are superseded.** A fresh code would be a fresh link text to re-send, so
+    there is one code per link and it lives as long as the link; the clock never bounded an
+    attacker, since a credential once unsealed is held, and what does bound one is the derivation
+    and the four-week life of the grant inside. A wrong code, a lapsed link or no code still opens
+    nothing, by name.*
 
 # Acceptance Criteria
 

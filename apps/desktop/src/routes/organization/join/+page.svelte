@@ -29,15 +29,14 @@
 	 * an invitation that was accepted. It opens with nobody signed in, which
 	 * `layout/shell-surface.ts` decides.
 	 *
-	 * **Read, record, then judge.** The inspect says which organization the link names and where an
-	 * invitation half stands; the connect records the organization; the standing decides what the
-	 * screen shows. The connect runs on either kind of link and before the standing is judged for
-	 * two reasons: `invitation_accept` refuses a machine that holds no organization, so recording
-	 * it is what makes an invitation openable at all, and a link that was already opened still
-	 * names the organization, which is how a person setting up a second machine reaches the wall
-	 * rather than a dead end. A connect whose link names the organization this machine already
-	 * holds answers where the machine stands instead of refusing, so a reset link opened at the
-	 * wall passes straight through it.
+	 * **Read, then act on what the read said** (effort 828, requirement 1). The read is a decode:
+	 * which organization the link names, which kind of link it is, and when it lapses, with no
+	 * network behind it. The organization's own link carries a legible credential, so the connect
+	 * runs on it and the wall follows. Every other link carries a payload nothing opens without
+	 * the code, so nothing is reached here at all: the accept unseals, reaches, records the
+	 * organization where this machine holds none, and judges the row. A connect whose link names
+	 * the organization this machine already holds answers where the machine stands instead of
+	 * refusing.
 	 *
 	 * **These are the host's commands and not the router's procedures**, as the inspection the
 	 * connect replaced was. The screen branches on the Rust code of a refusal, `invalidInput`
@@ -70,14 +69,18 @@
 		step = { kind: 'inspecting', link };
 
 		try {
-			const facts = await tauri.organization.linkInspect(link);
+			const shape = await tauri.organization.linkRead(link);
 
-			await tauri.organization.connect(link);
+			// the organization's own link is the one this connects on: it carries the credential
+			// that reaches the organization, and the shell refuses a sealed one for want of a code.
+			if (shape.kind === 'organization') {
+				await tauri.organization.connect(link);
+			}
 
 			// the organization is recorded on this machine whether or not the person waited for it,
 			// so an organization link moves the shell whatever step is on screen: the address goes
 			// to the way in first, and the startup unit raises the wall naming the organization.
-			const landing = afterConnect(link, facts);
+			const landing = afterConnect(link, shape);
 
 			if (landing === THE_WALL) {
 				standingChanged();
@@ -89,10 +92,10 @@
 				step = landing;
 			}
 		} catch (error) {
-			// the inspect and the connect each open the organization over the network and take
-			// seconds, and the corner back is live while they do. A person who left for the field in
-			// the meantime is not moved when a refusal lands: it is written only over the wait it was
-			// asked for, and only by the latest attempt begun.
+			// the connect opens the organization over the network and takes seconds, and the corner
+			// back is live while it does. A person who left for the field in the meantime is not
+			// moved when a refusal lands: it is written only over the wait it was asked for, and
+			// only by the latest attempt begun.
 			if (mine === attempt && step.kind === 'inspecting' && step.link === link) {
 				step = inspectionFailed(link, error, (failure) =>
 					toErrorText(failure, $LL, $LL.common.messages.unexpectedError())

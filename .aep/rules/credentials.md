@@ -79,6 +79,27 @@ secret is the other, and it is never stored on this side. The invitation link cr
 carrying the invitation id and the link secret. Those are still the two, and the sentence above
 about a third holds.*
 
+**What a link is worth to whoever finds it.** *Added 2026-09-15
+([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirements 1, 2, 4 and
+5).* There are two kinds. **The organization's own link** carries the read-only credential over the
+organization database in the clear, and that credential is minted with no expiry, so it is the one
+credential this application holds that never lapses: whoever finds it pulls a replica of every
+sealed row and guesses passwords offline for as long as they like, and the password floor is the
+only bound. It is the owner's recovery copy and is handed to nobody, and it connects a machine with
+no code precisely because when every machine is gone there is nobody left to read one out.
+**Every other link** — an invitation, a reset, and the second-machine link effort 828 adds —
+carries no legible credential at all: the issuer's own four-week grant on the organization database
+and, where the link opens a vault, the password that vault was made under, sealed together under a
+key Argon2id derives from a six-character code salted with the link's own thirty-two byte secret,
+with the link's kind, its row and the moment it lapses bound as associated data. What stands
+between a found link and the directory is therefore thirty-two to the sixth guesses at Argon2id,
+the bound the invited vault already accepted, and the credential inside is dead within four weeks
+whatever happens to the link. Reading a link is a decode and reaches nothing; the code is checked
+by being used, never compared, and it lives exactly as long as the link it came with. *The
+invitation code crossed out of `invitation_code` until 2026-09-15; there is one code per link now,
+so it crosses out of `member_invite`, `member_reset` and `invitation_link`, and a fresh code means
+a fresh link.*
+
 Recorded originally as ADR 0003, *The Google Drive client relocates wholly to Rust*.
 
 ## Concurrency — **retired 2026-08-19 with the transport it bound (#554)**

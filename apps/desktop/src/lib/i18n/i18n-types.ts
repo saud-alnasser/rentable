@@ -2452,7 +2452,7 @@ type RootTranslation = {
 			 */
 			codeLabel: string
 			/**
-			 * t​h​e​ ​s​i​x​ ​c​h​a​r​a​c​t​e​r​s​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​r​e​a​d​ ​o​u​t​.​ ​i​t​ ​l​a​p​s​e​s​ ​n​i​n​e​t​y​ ​s​e​c​o​n​d​s​ ​a​f​t​e​r​ ​i​t​ ​w​a​s​ ​m​a​d​e​;​ ​a​s​k​ ​t​h​e​m​ ​f​o​r​ ​a​ ​f​r​e​s​h​ ​o​n​e​ ​i​f​ ​i​t​ ​h​a​s​.
+			 * t​h​e​ ​s​i​x​ ​c​h​a​r​a​c​t​e​r​s​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​r​e​a​d​ ​o​u​t​.​ ​i​t​ ​i​s​ ​t​h​e​ ​o​t​h​e​r​ ​h​a​l​f​ ​o​f​ ​w​h​a​t​ ​t​h​e​ ​l​i​n​k​ ​n​e​e​d​s​,​ ​a​n​d​ ​i​t​ ​l​a​s​t​s​ ​a​s​ ​l​o​n​g​ ​a​s​ ​t​h​e​ ​l​i​n​k​ ​d​o​e​s​.
 			 */
 			codeDescription: string
 			/**
@@ -2521,23 +2521,6 @@ type RootTranslation = {
 			 * r​e​a​d​ ​t​h​i​s​ ​o​u​t​ ​o​n​ ​a​ ​c​a​l​l​ ​o​r​ ​i​n​ ​p​e​r​s​o​n​.​ ​i​t​ ​i​s​ ​t​h​e​ ​o​t​h​e​r​ ​h​a​l​f​ ​o​f​ ​w​h​a​t​ ​t​h​e​ ​l​i​n​k​ ​n​e​e​d​s​,​ ​s​o​ ​i​t​ ​i​s​ ​n​e​v​e​r​ ​s​e​n​t​ ​b​e​s​i​d​e​ ​i​t​.
 			 */
 			codeDescription: string
-			/**
-			 * l​a​p​s​e​s​ ​i​n​ ​{​s​e​c​o​n​d​s​}​ ​s​e​c​o​n​d​s
-			 * @param {unknown} seconds
-			 */
-			codeExpires: RequiredParams<'seconds'>
-			/**
-			 * t​h​i​s​ ​c​o​d​e​ ​h​a​s​ ​l​a​p​s​e​d​.
-			 */
-			codeLapsed: string
-			/**
-			 * f​r​e​s​h​ ​c​o​d​e
-			 */
-			freshCode: string
-			/**
-			 * m​a​k​e​ ​a​ ​c​o​n​f​i​r​m​a​t​i​o​n​ ​c​o​d​e
-			 */
-			memberCode: string
 			/**
 			 * d​o​n​e
 			 */
@@ -5208,7 +5191,7 @@ export type TranslationFunctions = {
 			 */
 			codeLabel: () => LocalizedString
 			/**
-			 * the six characters whoever invited you read out. it lapses ninety seconds after it was made; ask them for a fresh one if it has.
+			 * the six characters whoever invited you read out. it is the other half of what the link needs, and it lasts as long as the link does.
 			 */
 			codeDescription: () => LocalizedString
 			/**
@@ -5277,22 +5260,6 @@ export type TranslationFunctions = {
 			 * read this out on a call or in person. it is the other half of what the link needs, so it is never sent beside it.
 			 */
 			codeDescription: () => LocalizedString
-			/**
-			 * lapses in {seconds} seconds
-			 */
-			codeExpires: (arg: { seconds: unknown }) => LocalizedString
-			/**
-			 * this code has lapsed.
-			 */
-			codeLapsed: () => LocalizedString
-			/**
-			 * fresh code
-			 */
-			freshCode: () => LocalizedString
-			/**
-			 * make a confirmation code
-			 */
-			memberCode: () => LocalizedString
 			/**
 			 * done
 			 */

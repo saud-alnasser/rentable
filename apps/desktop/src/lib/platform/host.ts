@@ -268,12 +268,14 @@ export type OrganizationSession = {
 };
 
 /**
- * where a link stands, as the connect screen is told before it does anything: the four values an
- * invitation link takes, and `none` for the organization's own link, which names the organization
- * and admits nobody by itself. *Between effort 824 and effort 826 there was one kind of link and
- * `none` was the one value produced.*
+ * which of the three kinds of link a text is, read from the text alone (effort 828, requirement
+ * 1). The organization's own carries a legible credential and admits nobody by itself; an
+ * invitation and a second machine's link each carry a payload nothing opens without the code that
+ * came with it. *It was a standing, `open | lapsed | consumed | revoked | none`, read off the row
+ * behind the link; nothing reads a row before the credential is out, so where the row stands is
+ * judged by the act that takes the code.*
  */
-export type LinkStanding = 'open' | 'lapsed' | 'consumed' | 'revoked' | 'none';
+export type LinkKind = 'organization' | 'invitation' | 'machine';
 
 /**
  * one workspace and the access held on it: what an invitation asks for, and what the members list
@@ -309,20 +311,16 @@ export type MemberRemoved = {
 };
 
 /**
- * what a link says once the organization it names has been reached: its name, where it is,
- * where the link stands, and whom it invites where it invites anybody. No credential, no key, no
- * secret; the link was parsed in Rust.
+ * what a link says about itself, read from its own text: which organization it names, which kind
+ * of link it is, and when it lapses. No credential, no key, no secret, and no network: the link
+ * was decoded in Rust and nothing behind it was reached.
  */
-export type LinkFacts = {
+export type LinkShape = {
 	organizationId: string;
 	organizationName: string;
-	remoteUrl: string;
-	standing: LinkStanding;
-	/**
-	 * the invited person, where the link carries an invitation whose secret opens their row;
-	 * `null` on the organization's own link, and on an invitation whose secret opens nothing.
-	 */
-	invitation: { username: string } | null;
+	kind: LinkKind;
+	/** when the link lapses; `null` on the organization's own, which does not. */
+	expiresAt: number | null;
 };
 
 /**
@@ -380,34 +378,42 @@ export type OrganizationMember = {
 };
 
 /**
- * what an invitation makes, shown to the administrator: the two things they hand over, the
- * invitation link and the code that confirms it, beside the username and the ids the members list
- * reads. The link carries one half of what opens the member's vault and the code is the other, so
- * the link is sent and the code is read out; no password crosses on its own.
+ * an invitation's link and the code that opens it, handed to the person who issued it again.
+ *
+ * **Both, because a code lives as long as its link** (effort 828, requirement 1). There is one
+ * pair per invitation, and copying it is showing that pair again rather than making a second.
  */
-export type FreshCode = {
+export type InvitationLink = {
+	joinLink: string;
 	/** six characters from the alphabet with the letters that read alike taken out. */
 	code: string;
-	/** the moment it lapses, ninety seconds from when it was drawn. */
-	expiresAt: number;
 };
 
+/**
+ * what an invitation makes, shown to the administrator: the two things they hand over, the
+ * invitation link and the code that opens it, beside the username and the ids the members list
+ * reads. The link carries the credential and the vault password sealed under the code and the
+ * link's own secret together, so the link is sent and the code is read out; no password crosses on
+ * its own.
+ */
 export type Invited = {
 	memberId: string;
 	invitationId: string;
 	/** the username the member signs in with, as the row seals it. */
 	username: string;
-	/** the invitation link: the organization's own link with this invitation's half in it. */
+	/** the invitation link: the organization's locator with this invitation's sealed payload in it. */
 	joinLink: string;
+	/**
+	 * when the link lapses: a week out, or when the issuer's own grant on the organization
+	 * database dies, whichever is sooner (effort 828, requirement 2). The code lapses with it.
+	 */
 	expiresAt: number;
 	/**
-	 * the six-character code that confirms the link (effort 826, requirement 23). It is the
-	 * other half of what opens the invited vault, so it is read out on a call or in person and
-	 * never sent beside the link.
+	 * the six-character code that opens the link (effort 828, requirement 1). It is the other half
+	 * of what unseals the credential and the vault password, so it is read out on a call or in
+	 * person and never sent beside the link.
 	 */
 	code: string;
-	/** the moment that code lapses, ninety seconds from when it was drawn. */
-	codeExpiresAt: number;
 	/**
 	 * on a reset, the workspaces the member held that the resetting administrator could not
 	 * restore, because they hold no full credential on them themselves. Empty on an invitation.
@@ -521,10 +527,14 @@ export type Host = {
 		/** the organization this machine holds, and who is signed in. */
 		getState: () => Promise<OrganizationState>;
 		/**
-		 * connect this machine to the organization a link names: its id, name, remote and key are
-		 * recorded, no vault opens and no member is recorded; the person signs in at the wall.
-		 * Rejects as `preconditionFailed` while an organization is held, as `invalidInput` where
-		 * the text is not a link, and as `network` where the organization could not be reached.
+		 * connect this machine to the organization its own link names: its id, name, remote and
+		 * key are recorded, no vault opens and no member is recorded; the person signs in at the
+		 * wall. **The organization's own link and nothing else** (effort 828, requirement 4): it
+		 * is the one link that carries a legible credential, and it connects with no code because
+		 * it is the owner's recovery copy. Rejects a link carrying a sealed credential as
+		 * `preconditionFailed` with a sentence naming the code, and the same code while an
+		 * organization is held; as `invalidInput` where the text is not a link; and as `network`
+		 * where the organization could not be reached.
 		 */
 		connect: (link: string) => Promise<OrganizationState>;
 		/**
@@ -561,11 +571,12 @@ export type Host = {
 		/** where a workspace upgrade is, while one runs on open. Resolves to its own removal. */
 		onMigration: (listener: (notice: MigrationNotice) => void) => Promise<Unlisten>;
 		/**
-		 * read a link: which organization it names, and where its invitation stands where it
-		 * carries one. Rejects as `invalidInput` where the text is not a link, and as `network`
-		 * where the organization could not be reached from a machine that has never seen it.
+		 * read a link: which organization it names, which kind of link it is, and when it lapses.
+		 * A decode and nothing else, so it reaches no network and reads no row; rejects as
+		 * `invalidInput` where the text is not a link, which a link in the shape before effort 828
+		 * is.
 		 */
-		linkInspect: (link: string) => Promise<LinkFacts>;
+		linkRead: (link: string) => Promise<LinkShape>;
 		/**
 		 * after an owner repeats the consent on a new machine: record which account it is over,
 		 * so the machine can act as the owner's again. Rejects where no consent stands.
@@ -674,27 +685,21 @@ export type Host = {
 			 */
 			revoke: (invitationId: string) => Promise<void>;
 			/**
-			 * open an invitation link on the organization this machine holds, with the code the
-			 * issuer read out and a password of the person's choosing: the link's secret and the
-			 * code together open the vault, which is resealed under the password, the invitation
-			 * is spent, and the person is signed in. Rejects a lapsed, consumed or revoked
-			 * invitation by name, a wrong code as `forbidden` and a lapsed one as
-			 * `preconditionFailed`, a missing code and a password under the floor as
-			 * `invalidInput`, and a link for another organization than the one held as
-			 * `preconditionFailed`.
+			 * open an invitation link, with the code the issuer read out and a password of the
+			 * person's choosing: the code and the link's secret together unseal the credential and
+			 * the vault password, the organization is reached and recorded where this machine
+			 * holds none, the vault is resealed under the password, the invitation is spent, and
+			 * the person is signed in. Rejects a lapsed link, a lapsed, consumed or revoked
+			 * invitation by name as `forbidden`, a wrong code as `forbidden`, a missing code and a
+			 * password under the floor as `invalidInput`, and a link for another organization than
+			 * the one held as `preconditionFailed`.
 			 */
 			accept: (link: string, code: string, password: string) => Promise<OrganizationState>;
 			/**
-			 * the invitation link again, for the person who issued it; `forbidden` for anybody
-			 * else, who is offered a new link instead.
+			 * the invitation link and its code again, for the person who issued it; `forbidden`
+			 * for anybody else, who is offered a new link instead, which is a reset.
 			 */
-			link: (invitationId: string) => Promise<string>;
-			/**
-			 * a fresh confirmation code for an invitation, for the person who issued it; the old
-			 * one opens nothing from then on. `forbidden` for anybody else, who is offered a new
-			 * link instead, which is a reset.
-			 */
-			code: (invitationId: string) => Promise<FreshCode>;
+			link: (invitationId: string) => Promise<InvitationLink>;
 		};
 		/**
 		 * change the signed-in member's own password. The current one has to open the vault and

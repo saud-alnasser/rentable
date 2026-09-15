@@ -26,12 +26,18 @@
 //! mean; its `member` table has no `signing_public_key` column, which is every replica
 //! written before the same effort gave an owner something to certify a widened member against;
 //! its `member` table has no `session_epoch` column, which is every replica written before the
-//! same effort gave a member a run of sessions to be signed out of (requirement 22); or its
-//! `invitation` table has no `code_seal` column, which is every replica written before the same
-//! effort made a link's secret one half of what opens the invited vault (requirement 23).
-//! The last five are a local `PRAGMA table_info`, read before any pull, so an
+//! same effort gave a member a run of sessions to be signed out of (requirement 22).
+//! The last four are a local `PRAGMA table_info`, read before any pull, so an
 //! unreachable remote does not stop the check. It runs on the first `organization_state_get` of a
 //! launch, before anything else opens the replica.
+//!
+//! *There was a seventh sign, and effort 828 retired it with the column it read.* An `invitation`
+//! table with no `code_seal` marked a replica written before effort 826 sealed the invited vault's
+//! password under a code; effort 828 moved that seal into the link's own text and dropped the
+//! column, so the sign would now read every replica this build writes as the old shape and wipe
+//! the machine at launch. What it uniquely caught was a replica written inside effort 826, between
+//! the ticket that added `session_epoch` and the ticket that added `code_seal`; everything older
+//! is still caught by the two member signs above.
 //!
 //! **The fourth sign is what makes the permission table safe to renumber.** A row written under
 //! the six-act table stores a number whose bits 4 and 5 now name other acts, and no read can tell
@@ -71,11 +77,6 @@ pub enum OldShape {
     /// added for requirement 22; without it no reader here can say whether a remembered key is
     /// still this member's run of sessions, and every read of the row would fail on the column.
     MemberWithoutSessionEpoch,
-    /// the held organization's `invitation` table carries no `code_seal`, the column effort 826
-    /// added last; an invitation written without it was made for a link whose secret opened the
-    /// invited vault on its own, and this build opens that vault with the secret and a code
-    /// together (requirement 23).
-    InvitationWithoutCodeSeal,
 }
 
 impl fmt::Display for OldShape {
@@ -102,9 +103,6 @@ impl fmt::Display for OldShape {
             Self::MemberWithoutSessionEpoch => {
                 formatter.write_str("the held organization's member table carries no session_epoch")
             }
-            Self::InvitationWithoutCodeSeal => {
-                formatter.write_str("the held organization's invitation table carries no code_seal")
-            }
         }
     }
 }
@@ -128,9 +126,6 @@ const SIGNING_KEY_COLUMN: &str = "signing_public_key";
 /// The column a member has carried since effort 826 gave a member a run of sessions to be signed
 /// out of (requirement 22), whose absence marks a replica no read of a member row would survive.
 const SESSION_EPOCH_COLUMN: &str = "session_epoch";
-/// The column an invitation has carried since effort 826 made the code a key half, whose absence
-/// marks a replica whose invitations were made for links that opened a vault on their own.
-const CODE_SEAL_COLUMN: &str = "code_seal";
 
 /// Forget the organization this machine holds, whole.
 ///
@@ -278,15 +273,6 @@ async fn old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
         .any(|column| column == SESSION_EPOCH_COLUMN)
     {
         return Ok(Some(OldShape::MemberWithoutSessionEpoch));
-    }
-
-    // read last, because a replica missing this one and any of the four above is the older shape
-    // and the sign a reader is told about should be the one that came first.
-    if !invitation_columns
-        .iter()
-        .any(|column| column == CODE_SEAL_COLUMN)
-    {
-        return Ok(Some(OldShape::InvitationWithoutCodeSeal));
     }
 
     Ok(None)
@@ -664,9 +650,8 @@ mod tests {
     /// forgotten; one written under the six-act permission table, whose `invitation` table carries
     /// no `sealed_secret`, is forgotten; one whose `member` table carries no `signing_public_key`
     /// is forgotten; one whose `member` table carries no `session_epoch` is forgotten, which is
-    /// requirement 22's; one whose `invitation` table carries no `code_seal` is forgotten, which
-    /// is requirement 23's; one whose replica is not on disk at all is forgotten the same way;
-    /// and one of this build's shape is kept.
+    /// requirement 22's; one whose replica is not on disk at all is forgotten the same way; and one
+    /// of this build's shape is kept, `code_seal` gone with effort 828 and all.
     #[tokio::test]
     async fn a_replica_of_the_old_schema_or_none_at_all_is_forgotten_at_startup() {
         let _turn = crate::keyring::take_the_credential_store().await;
@@ -896,10 +881,10 @@ mod tests {
                 .is_none()
         );
 
-        // the shape before a link's secret became one half of what opens a vault: usernames, a
-        // signing key on the member row, and an invitation with `sealed_secret` but no
-        // `code_seal`. A link written there opens the invited vault on its own, which is what
-        // requirement 23 took away.
+        // an invitation table with no `code_seal` is this build's own shape, and is kept. Effort
+        // 826 read that absence as the old shape; effort 828 moved the seal into the link's own
+        // text and dropped the column, so the sign had to go with it or every replica this build
+        // writes would be wiped at launch.
         let directory = scratch("no-code-seal");
         let replica =
             OrganizationStore::replica_path(&directory.join(Database::FILENAME), "nocode");
@@ -918,7 +903,7 @@ mod tests {
                 .connection()
                 .execute(statement, ())
                 .await
-                .expect("the tables before the code seal");
+                .expect("the tables of this build's shape");
         }
 
         drop(store);
@@ -930,17 +915,14 @@ mod tests {
             forget_old_shape(&app_state)
                 .await
                 .expect("the check failed"),
-            Some(OldShape::InvitationWithoutCodeSeal)
+            None,
+            "an invitation table with no code_seal was read as the old shape"
         );
-        assert_eq!(replica_files(&directory), Vec::<String>::new());
         assert!(
-            app_state
-                .remote_sync
-                .write()
-                .await
-                .store_mut()
-                .organization
-                .is_none()
+            replica_files(&directory)
+                .iter()
+                .any(|name| name == "org-nocode.db"),
+            "the replica was swept"
         );
 
         // no replica at all behind the record.

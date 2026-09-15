@@ -83,6 +83,20 @@ it first, once, and lapses after seven days; only the issuer copies it again or 
 code, and a reset is a fresh invitation link. `connect` and `disconnect` are a machine and the
 organization; `sign in` and `sign out` are the member.*
 
+*Corrected 2026-09-15 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
+requirements 1, 2 and 4): **no link but the organization's own carries a legible credential**, and
+that entry's "read-only credential, it never expires" is now true of the organization link alone.
+A link is five clear fields and one of two credentials: `credential: { clear }`, which is the
+organization's own and carries no half, or `credential: { sealed }`, which carries a
+`half: { kind, id, secret, expiresAt }` naming what stands behind it. What a sealed link holds is
+the issuer's own four-week grant on the organization database and, where it opens a vault, that
+vault's generated password, sealed under a key Argon2id derives from the code and the half's
+secret together. The ninety-second code and the fresh-code control are gone: the seal rides in the
+link's own text, because nothing reads a row before the credential is out, so one code lives as
+long as its link and a fresh code would be a fresh link to re-send. A link lapses at the earlier of
+seven days and its credential's own death. The previous shape is refused as a link that is not
+one.*
+
 **Authority**:
 The Platform API token a consent produced, in the keyring on the owner's machine and nowhere else.
 Creating a workspace, minting, rotating and deleting need it; an owner restored on a new machine
@@ -94,6 +108,20 @@ repeats the consent for it, because no row holds it.
   and hands facts back; the vault, the content key, the credentials and the Turso authority stay
   in Rust ([[rules/credentials]], *Client boundary*). What the web layer holds is what a screen
   draws.
+- **What stands between a found link and the directory is a code, and only the organization's own
+  link has nothing there.** *Added 2026-09-15
+  ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirements 1, 2, 4
+  and 5.)* Every link but one carries the credential that reads the organization database sealed
+  under a six-character code and the link's own thirty-two byte secret together, so a link found in
+  a chat weeks later names an organization and reads nothing: what a guesser meets is thirty-two to
+  the sixth Argon2id passes, and the credential inside is a four-week grant that is dead by then
+  regardless. Reading a link is a decode, with no network and no row read, and where the row behind
+  it stands is judged by the act that takes the code. **The organization's own link is the
+  exception and the standing risk**: it carries the never-expiring read-only credential in the
+  clear, because it is what recovers the organization when every machine is gone and there is
+  nobody left to read a code out. It is the owner's alone, it is handed to nobody, and a leak of it
+  exposes the directory until a lock-out rotates the database. [[rules/credentials]] says the same
+  thing where a credential is the subject.
 - **What a member may do is what their signed row carries.** The interface draws controls from
   the session's permissions and every command refuses again on the row, through
   `MemberSession::settled` and `permission::require`; a member on a handed password reaches

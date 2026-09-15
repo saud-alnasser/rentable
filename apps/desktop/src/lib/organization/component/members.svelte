@@ -19,7 +19,6 @@
 	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 	import BanIcon from '@lucide/svelte/icons/ban';
 	import CopyIcon from '@lucide/svelte/icons/copy';
-	import HashIcon from '@lucide/svelte/icons/hash';
 	import KeyIcon from '@lucide/svelte/icons/key-round';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
 	import LockIcon from '@lucide/svelte/icons/lock';
@@ -82,14 +81,12 @@
 		revoking,
 		copying,
 		endingSessions,
-		codeFor,
 		isChangingRole,
 		isChangingAccess,
 		onEndSessions,
 		onReissue,
 		onRevoke,
 		onCopyLink,
-		onFreshCode,
 		onRemove,
 		onLockOut,
 		onRename,
@@ -125,8 +122,6 @@
 		copying: string | null;
 		/** the member whose sessions are being ended, while they are. */
 		endingSessions: string | null;
-		/** the invitation being given a fresh code, while it is. */
-		codeFor: string | null;
 		isChangingRole: boolean;
 		isChangingAccess: boolean;
 		/**
@@ -137,15 +132,12 @@
 		/** issue a member a fresh link, which is what a reset is. */
 		onReissue: (memberId: string) => void;
 		onRevoke: (invitationId: string) => void;
-		/** hand the same link over again, for the person who issued it. */
-		onCopyLink: (invitationId: string, username: string) => void;
 		/**
-		 * make a fresh confirmation code for a pending invitation, for the person who issued it:
-		 * the link and the code together are what open the invited vault (effort 826, requirement
-		 * 23), and a code lapses ninety seconds after it is made, so the row is where the issuer
-		 * comes back for another.
+		 * hand the same link and the same code over again, for the person who issued it. Both,
+		 * because a code lives as long as its link (effort 828, requirement 1), so there is one
+		 * pair per invitation and copying it is showing that pair again.
 		 */
-		onFreshCode: (invitationId: string, username: string) => void;
+		onCopyLink: (invitationId: string, username: string, expiresAt: number) => void;
 		/** ask to remove a member: the route raises the confirm that names what it costs. */
 		onRemove: (memberId: string) => void;
 		onLockOut: (memberId: string) => void;
@@ -377,6 +369,9 @@
 					)}
 				{/if}
 
+				<!-- the link and its code, shown again: only the issuer's own vault opens what the
+				     row sealed them under, so for anybody else the row offers a new link, which is
+				     a reset. -->
 				{#if member.pending && canInvite && member.pending.canCopy}
 					{@const pending = member.pending}
 					{@render action(
@@ -384,19 +379,8 @@
 						CopyIcon,
 						'data-member-copy-link',
 						member.id,
-						() => onCopyLink(pending.invitationId, member.username),
+						() => onCopyLink(pending.invitationId, member.username, pending.expiresAt),
 						copying !== null
-					)}
-					<!-- beside the copy, and gated the same way: only the issuer's own vault holds
-					     what a fresh code is sealed under, so for anybody else the row offers a new
-					     link, which is a reset. -->
-					{@render action(
-						$LL.organization.dashboard.memberCode(),
-						HashIcon,
-						'data-member-code',
-						member.id,
-						() => onFreshCode(pending.invitationId, member.username),
-						codeFor !== null
 					)}
 				{/if}
 

@@ -12,9 +12,9 @@
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import * as Select from '@rentable/design/primitive/select/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { formatRecordDate } from '$lib/design/date';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import CopyIcon from '@lucide/svelte/icons/copy';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import { defaults, superForm } from 'sveltekit-superforms';
@@ -51,12 +51,13 @@
 	 * control is what a person needs to do that (effort 826, requirement 8). No password is shown.
 	 * *Three things with three copy controls until effort 826.*
 	 *
-	 * **The code is shown under the link and has no copy control** (requirement 23). The link
-	 * carries one half of what opens the invited vault and the code is the other, so a code
-	 * pasted beside the link is a link that opens on its own: the one affordance it gets is being
-	 * large enough to read out. Beside it are the seconds it has left, counted down, and a
-	 * control that makes a fresh one, because ninety seconds is short enough that the ordinary
-	 * case is making another.
+	 * **The code is shown under the link and has no copy control** (effort 828, requirement 1). The
+	 * link carries the credential and the vault password sealed under the code and the link's own
+	 * secret together, so a code pasted beside the link is a link that opens on its own: the one
+	 * affordance it gets is being large enough to read out. Under it is the date the pair lapses,
+	 * because the code now lives exactly as long as the link and there is nothing to hurry.
+	 * *Effort 826 drew a ninety-second countdown and a fresh-code control beside it; a fresh code
+	 * would be a fresh link text to re-send, so there is one pair per invitation.*
 	 *
 	 * **The same panel answers three acts**: an invitation, a new link on somebody's row, and a
 	 * pending row's copy link. Each ends with one link in one person's hands, so the panel is
@@ -86,10 +87,8 @@
 		isInviting,
 		invited,
 		copied,
-		isFresheningCode,
 		onInvite,
 		onCopy,
-		onFreshCode,
 		onDismiss
 	}: {
 		open: boolean;
@@ -106,16 +105,12 @@
 		invited: InvitedLink | null;
 		/** which of the panel's values was last copied, for the control to say so. */
 		copied: InvitedCopy | null;
-		/** a fresh code is being made, while it is. */
-		isFresheningCode: boolean;
 		onInvite: (
 			username: string,
 			role: 'administrator' | 'member',
 			workspaces: WorkspaceGrant[]
 		) => void;
 		onCopy: (what: InvitedCopy, value: string) => void;
-		/** make a fresh code for the invitation this panel is showing. */
-		onFreshCode: (invitationId: string) => void;
 		onDismiss: () => void;
 	} = $props();
 
@@ -195,31 +190,15 @@
 	};
 
 	/**
-	 * the seconds the code has left, counted down on screen.
+	 * the date the link and its code lapse, in the reader's own locale.
 	 *
-	 * **A second is the resolution because ninety of them is the whole life of the thing**: a
-	 * person reading a code out needs to know whether to finish or to make another, and a bar or a
-	 * ring would say that less exactly than the number does. The tick is torn down with the panel,
-	 * and it stops at nought rather than running negative; what actually refuses a lapsed code is
-	 * the row against the other machine's clock, so this is an affordance and never the barrier.
+	 * **A date rather than a countdown** (effort 828, requirement 1). A code lives as long as the
+	 * link it came with, which is a week or less, so what the person handing it over needs is the
+	 * day it stops working; the seconds effort 826 counted down were a ninety-second code's, and
+	 * there is no longer one. What actually refuses a lapsed link is the other machine's read of
+	 * the link's own moment, so this is a fact and never the barrier.
 	 */
-	let now = $state(Date.now());
-
-	$effect(() => {
-		if (!invited?.codeExpiresAt) return;
-
-		now = Date.now();
-
-		const tick = setInterval(() => {
-			now = Date.now();
-		}, 1000);
-
-		return () => clearInterval(tick);
-	});
-
-	const secondsLeft = $derived(
-		invited?.codeExpiresAt ? Math.max(0, Math.ceil((invited.codeExpiresAt - now) / 1000)) : 0
-	);
+	const lapsesOn = $derived(invited ? formatRecordDate($locale, invited.expiresAt) : '');
 </script>
 
 <FormSurface
@@ -266,52 +245,29 @@
 				</Button>
 			</div>
 
-			{#if invited.code}
-				<!-- the code under the link and drawn at the size a person reads out loud from, with
-				     the seconds it has left beside it: the two things they need at once are the
-				     characters and whether there is still time (effort 826, requirement 23). It is
-				     the one value on this panel with no copy control, because copying it is how it
-				     ends up pasted beside the link, which is the one thing it must never be. -->
-				<div class="space-y-2" data-invited-code-block>
-					<div class="flex flex-wrap items-baseline gap-2">
-						<p class="text-sm font-medium">{$LL.organization.dashboard.codeTitle()}</p>
-						<span
-							class="text-xs"
-							class:text-muted-foreground={secondsLeft > 0}
-							class:text-destructive={secondsLeft === 0}
-							data-invited-code-seconds
-						>
-							{secondsLeft > 0
-								? $LL.organization.dashboard.codeExpires({ seconds: String(secondsLeft) })
-								: $LL.organization.dashboard.codeLapsed()}
-						</span>
-					</div>
-					<!-- a machine string, read left to right in both locales ([[rules/frontend]], *i18n*). -->
-					<p
-						dir="ltr"
-						class="font-mono text-3xl font-semibold tracking-[0.3em] select-all"
-						data-invited-code
-					>
-						{invited.code}
-					</p>
-					<p class="text-sm text-muted-foreground">
-						{$LL.organization.dashboard.codeDescription()}
-					</p>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						disabled={isFresheningCode}
-						data-invited-fresh-code
-						onclick={() => invited && onFreshCode(invited.invitationId)}
-					>
-						<RefreshCwIcon class="size-4" />
-						{isFresheningCode
-							? $LL.common.actions.working()
-							: $LL.organization.dashboard.freshCode()}
-					</Button>
+			<!-- the code under the link and drawn at the size a person reads out loud from, with the
+			     date the pair lapses beside it (effort 828, requirement 1). It is the one value on
+			     this panel with no copy control, because copying it is how it ends up pasted beside
+			     the link, which is the one thing it must never be. -->
+			<div class="space-y-2" data-invited-code-block>
+				<div class="flex flex-wrap items-baseline gap-2">
+					<p class="text-sm font-medium">{$LL.organization.dashboard.codeTitle()}</p>
+					<span class="text-xs text-muted-foreground" data-invited-expiry>
+						{$LL.organization.dashboard.invitationExpires({ date: lapsesOn })}
+					</span>
 				</div>
-			{/if}
+				<!-- a machine string, read left to right in both locales ([[rules/frontend]], *i18n*). -->
+				<p
+					dir="ltr"
+					class="font-mono text-3xl font-semibold tracking-[0.3em] select-all"
+					data-invited-code
+				>
+					{invited.code}
+				</p>
+				<p class="text-sm text-muted-foreground">
+					{$LL.organization.dashboard.codeDescription()}
+				</p>
+			</div>
 
 			{#if invited.unreachableWorkspaces.length > 0}
 				<!-- requirement 9's limit, said at the moment it bites: what the reset could not

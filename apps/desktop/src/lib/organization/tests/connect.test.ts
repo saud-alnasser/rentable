@@ -15,7 +15,7 @@ import {
 	THE_WALL
 } from '$lib/organization/connect.ts';
 import type { JoinStep } from '$lib/organization/connect.ts';
-import type { LinkFacts } from '$lib/platform/host.ts';
+import type { LinkShape } from '$lib/platform/host.ts';
 
 /**
  * THE CONNECT SCREEN, DRIVEN
@@ -28,20 +28,19 @@ import type { LinkFacts } from '$lib/platform/host.ts';
  * `layout/tests/startup.test.ts`; here it is `THE_WALL`, which is what the route acts on.
  */
 
-const facts = (overrides: Partial<LinkFacts> = {}): LinkFacts => ({
+const shape = (overrides: Partial<LinkShape> = {}): LinkShape => ({
 	organizationId: 'acme',
 	organizationName: 'Acme Rentals',
-	remoteUrl: 'libsql://acme.turso.io',
-	standing: 'none',
-	invitation: null,
+	kind: 'organization',
+	expiresAt: null,
 	...overrides
 });
 
 const LINK = 'rentable://join/abc';
 
 /** the landing of a link that stays on this screen, narrowed for the assertions that read it. */
-const stepOf = (overrides: Partial<LinkFacts>): JoinStep => {
-	const landing = afterConnect(LINK, facts(overrides));
+const stepOf = (overrides: Partial<LinkShape>): JoinStep => {
+	const landing = afterConnect(LINK, shape(overrides));
 
 	assert.notEqual(landing, THE_WALL, 'expected a step rather than the wall');
 
@@ -66,61 +65,38 @@ test('a pasted link loses the wrapping a client put around it, and nothing insid
 	assert.equal(normalizeLink('not a link'), 'not a link');
 });
 
-// effort 826, requirement 10: one field takes both, and which kind it is, is read from the link.
-// The standing is the test and the invited username is not: a link already opened carries a half
-// whose secret opens nothing any more, and it is still an invitation link.
-test('the standing says which kind of link this is', () => {
-	assert.equal(linkKind(facts()), 'organization');
-	assert.equal(
-		linkKind(facts({ standing: 'open', invitation: { username: 'olivia' } })),
-		'invitation'
-	);
-	assert.equal(linkKind(facts({ standing: 'consumed' })), 'invitation');
-	assert.equal(linkKind(facts({ standing: 'lapsed' })), 'invitation');
-	assert.equal(linkKind(facts({ standing: 'revoked' })), 'invitation');
+// effort 826, requirement 10 and effort 828, requirement 1: one field takes them all, and which
+// kind it is, is read off the link's own text rather than off a row behind it.
+test('the shape says which kind of link this is', () => {
+	assert.equal(linkKind(shape()), 'organization');
+	assert.equal(linkKind(shape({ kind: 'invitation' })), 'invitation');
+	assert.equal(linkKind(shape({ kind: 'machine' })), 'machine');
 });
 
 test('an organization link ends this screen at the wall', () => {
-	assert.equal(afterConnect(LINK, facts()), THE_WALL);
+	assert.equal(afterConnect(LINK, shape()), THE_WALL);
 });
 
-test('an invitation that stands names the organization and the person, and asks for a password', () => {
-	assert.deepEqual(
-		afterConnect(LINK, facts({ standing: 'open', invitation: { username: 'olivia' } })),
-		{
-			kind: 'password',
-			link: LINK,
-			organizationName: 'Acme Rentals',
-			username: 'olivia',
-			isJoining: false,
-			codeRefusal: null,
-			errorMessage: null
-		}
-	);
+// nobody is named from a link alone (effort 826, requirement 23): the organization is what the
+// person recognises, and the code and the password are what they have to give.
+test('an invitation link names the organization and asks for a code and a password, naming nobody', () => {
+	assert.deepEqual(afterConnect(LINK, shape({ kind: 'invitation', expiresAt: 1 })), {
+		kind: 'password',
+		link: LINK,
+		organizationName: 'Acme Rentals',
+		username: '',
+		isJoining: false,
+		codeRefusal: null,
+		errorMessage: null
+	});
 });
 
-// the secret in an open invitation's half opens one vault, and one that opens none names nobody.
-// The step still stands: the accept is what refuses it, and the person has nothing else to try.
-test('an open invitation whose secret opens nothing still asks, naming nobody', () => {
-	const step = stepOf({ standing: 'open' });
-
-	assert.equal(step.kind, 'password');
-	assert.equal(step.kind === 'password' && step.username, '');
-});
-
-test('a lapsed, consumed or revoked invitation is refused by name', () => {
-	for (const [standing, refusal] of [
-		['lapsed', 'lapsed'],
-		['consumed', 'consumed'],
-		['revoked', 'revoked']
-	] as const) {
-		assert.deepEqual(afterConnect(LINK, facts({ standing })), {
-			kind: 'refused',
-			link: LINK,
-			refusal,
-			message: null
-		});
-	}
+// TICKET 05 of effort 828 replaces this flow. The three standings were answered by the read, which
+// reached the organization with the link's clear credential; there is no clear credential to do
+// that with, so they arrive as refusals from the accept and `joinFailed` is where ticket 05 keys
+// them onto the refused step. Kept here, skipped, so that ticket has the shape to land on.
+test.skip('a lapsed, consumed or revoked invitation is refused by name (ticket 05)', () => {
+	assert.fail('ticket 05 keys these three off the accept rather than off the read');
 });
 
 test('text that is not a link is unreadable, and an organization that cannot be reached says so', () => {
@@ -169,13 +145,13 @@ test('a link for another organization is the fourth refusal, carrying what the s
 });
 
 test('the accept holds the fields while it runs, and says what refused it', () => {
-	const joining = joinBegun(stepOf({ standing: 'open', invitation: { username: 'olivia' } }));
+	const joining = joinBegun(stepOf({ kind: 'invitation', expiresAt: 1 }));
 
 	assert.deepEqual(joining, {
 		kind: 'password',
 		link: LINK,
 		organizationName: 'Acme Rentals',
-		username: 'olivia',
+		username: '',
 		isJoining: true,
 		codeRefusal: null,
 		errorMessage: null
@@ -191,7 +167,7 @@ test('the accept holds the fields while it runs, and says what refused it', () =
 			kind: 'password',
 			link: LINK,
 			organizationName: 'Acme Rentals',
-			username: 'olivia',
+			username: '',
 			isJoining: false,
 			codeRefusal: null,
 			errorMessage: 'the invitation was already opened'
@@ -204,7 +180,7 @@ test('the accept holds the fields while it runs, and says what refused it', () =
 // seal and is `forbidden`; one the row says has lapsed is `preconditionFailed`. Everything else,
 // including anything raised on this side, keeps the shell's own sentence and names nothing.
 test('a wrong code and a lapsed one are told apart, and nothing else is read as either', () => {
-	const joining = joinBegun(stepOf({ standing: 'open', invitation: { username: 'olivia' } }));
+	const joining = joinBegun(stepOf({ kind: 'invitation', expiresAt: 1 }));
 	const refusalOf = (error: unknown) => {
 		const step = joinFailed(joining, error, () => 'said');
 
